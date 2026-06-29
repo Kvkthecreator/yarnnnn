@@ -176,8 +176,8 @@ def _resolve_ask_gate(auth: Any, input: dict) -> tuple[PermissionDecision, str]:
         mandate change only the operator can authorize). A quiet-world (A)
         condition resolves to ACT, never to a Clarify.
     """
-    if not getattr(auth, "reviewer_caller", False):
-        return PermissionDecision.APPLY, "ask_permitted:non_reviewer_caller"
+    if not getattr(auth, "freddie_caller", False):
+        return PermissionDecision.APPLY, "ask_permitted:non_freddie_caller"
     try:
         from services.review_policy import load_autonomy, autonomy_for_domain
         delegation = (
@@ -242,7 +242,7 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
         logger.info(
             "[ASK-GATE] decision=%s reason=%s reviewer=%s structural_gap=%s",
             decision.value, reason,
-            getattr(auth, "reviewer_caller", False),
+            getattr(auth, "freddie_caller", False),
             input.get("structural_gap"),
         )
         return decision, reason
@@ -277,7 +277,7 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
     # REGARDLESS of caller. The autonomy decision moves out of the platform
     # tools (submit_order's bespoke `mode==autonomous` branch is deleted) into
     # this ONE place. These calls arrive from specialist/headless paths
-    # (reviewer_caller=False), so they must be handled BEFORE the
+    # (freddie_caller=False), so they must be handled BEFORE the
     # non-Reviewer short-circuit below — otherwise they'd inherit the
     # operator/headless free-pass and never gate.
     #
@@ -330,8 +330,8 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
         return PermissionDecision.QUEUE, f"autonomy_requires_approval:{gate_reason}"
 
     # Autonomy gate scoped to Reviewer-runtime calls (ADR-293).
-    if not getattr(auth, "reviewer_caller", False):
-        return PermissionDecision.APPLY, "non_reviewer_caller"
+    if not getattr(auth, "freddie_caller", False):
+        return PermissionDecision.APPLY, "non_freddie_caller"
 
     # Capital actions gate at the proposal-dispatch layer (verdict + cents),
     # not here. They reach execute_primitive only via ExecuteProposal on

@@ -12,7 +12,7 @@
  * Four message shapes, mapping `TPMessage.role` to one of:
  *
  *   user-bubble      — role: 'user'        label: "You"         (operator)
- *   reviewer-bubble  — role: 'reviewer'    label: persona name  (judgment seat)
+ *   reviewer-bubble  — role: 'freddie'    label: persona name  (judgment seat)
  *   agent-bubble     — role: 'agent'       label: agent slug    (user-authored Agent)
  *   system-activity  — role: 'system_agent' | 'assistant' | 'system' | 'external'
  *                      label: "system" — orchestration plumbing narration
@@ -43,11 +43,11 @@
 import { Loader2 } from 'lucide-react';
 import type { TPMessage } from '@/types/desk';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-import { ReviewerCard } from './ReviewerCard';
+import { FreddieCard } from './FreddieCard';
 import { MessageBlocks } from './InlineToolCall';
 import { ToolResultList } from './ToolResultCard';
 import { InlineProposalChipById } from './ProposalCard';
-import { useReviewerPersona } from '@/lib/reviewer-persona';
+import { useFreddiePersona } from '@/lib/freddie-persona';
 
 import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/snapshot';
 
@@ -74,7 +74,7 @@ export type MessageShape =
 export function resolveMessageShape(msg: TPMessage): MessageShape {
   const r = msg.role;
   if (r === 'user') return 'user-bubble';
-  if (r === 'reviewer') return 'reviewer-bubble';
+  if (r === 'freddie') return 'reviewer-bubble';
   if (r === 'agent') return 'agent-bubble';
   // All orchestration-shaped roles collapse to ambient activity post-ADR-272.
   // r ∈ {'system_agent', 'assistant', 'system', 'external'}
@@ -130,13 +130,13 @@ function renderAgentBubble({ msg }: RendererProps): JSX.Element {
 /**
  * Reviewer bubble — full-weight chat-participant shape per ADR-258 /
  * ADR-272. Reviewer is the only systemic judgment entity in the cockpit
- * post-ADR-272. Persona label resolved via useReviewerPersona() from
+ * post-ADR-272. Persona label resolved via useFreddiePersona() from
  * /workspace/persona/IDENTITY.md.
  */
 function ReviewerBubbleRenderer({ msg }: RendererProps): JSX.Element {
-  const personaName = useReviewerPersona();
+  const personaName = useFreddiePersona();
   return (
-    <ReviewerCard
+    <FreddieCard
       data={msg.reviewer ?? {}}
       content={msg.content}
       personaName={personaName}

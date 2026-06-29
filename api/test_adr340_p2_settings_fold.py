@@ -33,10 +33,13 @@ FAILED = 0
 ALL_SETTINGS_PANES = {
     "budget", "autonomy", "expected-output",  # Contract (ADR-347/348)
     "program",                                  # Operation
-    "connectors", "sources",                    # Perception
     "mandate", "identity", "principles",        # Constitution
 }
-EXPECTED_PANES = ALL_SETTINGS_PANES
+# ADR-385: connectors + sources are still pane-grade, but pane_of: channels
+# (Perception left Workspace Settings). They stay in the pane-grade set but
+# NOT in the workspace-settings-parent set.
+CHANNELS_PANES = {"connectors", "sources"}
+EXPECTED_PANES = ALL_SETTINGS_PANES | CHANNELS_PANES
 
 
 def check(label: str, condition: bool, detail: str = "") -> None:
@@ -70,6 +73,10 @@ def test_registry_pane_model() -> None:
     for slug in sorted(ALL_SETTINGS_PANES):
         check(f"{slug}: pane_of == 'workspace-settings'", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
+    # ADR-385: connectors + sources re-home onto the Channels surface.
+    for slug in sorted(CHANNELS_PANES):
+        check(f"{slug}: pane_of == 'channels' (ADR-385)", by_slug[slug].get("pane_of") == "channels")
+        check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
     check(
         "settings is a container window (no pane_of on itself)",
         not by_slug["settings"].get("pane_of"),
@@ -88,8 +95,10 @@ def test_registry_pane_model() -> None:
     # ADR-347 grouping — the Contract group gathers Rhythm/Witness/Expected Output.
     for slug in ("budget", "autonomy", "expected-output"):
         check(f"{slug} grouped Contract", by_slug[slug]["pane_group"] == "Contract")
-    check("connectors grouped Perception", by_slug["connectors"]["pane_group"] == "Perception")
-    check("sources grouped Perception", by_slug["sources"]["pane_group"] == "Perception")
+    # ADR-385 (2026-06-29): Perception left Workspace Settings — connectors +
+    # sources re-home onto the Channels surface (group Channels).
+    check("connectors grouped Channels (ADR-385)", by_slug["connectors"]["pane_group"] == "Channels")
+    check("sources grouped Channels (ADR-385)", by_slug["sources"]["pane_group"] == "Channels")
     check("program grouped Operation", by_slug["program"]["pane_group"] == "Operation")
     for slug in ("mandate", "identity", "principles"):
         check(f"{slug} grouped Constitution", by_slug[slug]["pane_group"] == "Constitution")
@@ -127,8 +136,7 @@ def test_settings_container() -> None:
         ("BudgetCard", "Budget (Rhythm) pane body"),
         ("AutonomyCard", "Autonomy (Witness) pane body"),
         ("ExpectedOutputCard", "Expected Output pane body"),
-        ("ConnectedIntegrationsSection", "Connectors pane body"),
-        ("SourcesCard", "Sources pane body"),
+        # ADR-385: Connectors + Sources pane bodies moved to the Channels surface.
         ("ProgramLifecycleDrawer", "Program pane body"),
     ]:
         check(f"Settings door: {label}", needle in ws_src)
@@ -147,6 +155,14 @@ def test_redirect_stubs() -> None:
         # ADR-358 D6: stubs redirect with the window-NAMESPACED pane param.
         target = f"/workspace-settings?workspace-settings.pane={slug}"
         check(f"/{slug} → {target}", f"redirect('{target}')" in stub)
+        check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
+    # ADR-385: the re-homed Perception routes redirect to the Channels surface.
+    for slug in sorted(CHANNELS_PANES):
+        stub = _read(f"app/(authenticated)/{slug}/page.tsx")
+        if not stub:
+            continue
+        target = f"/channels?channels.pane={slug}"
+        check(f"/{slug} → {target} (ADR-385)", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
 
 

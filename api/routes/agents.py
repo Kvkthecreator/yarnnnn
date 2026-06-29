@@ -561,17 +561,17 @@ async def list_agents(
     # ADR-214: Synthesize Reviewer as a systemic pseudo-agent. No DB row —
     # substrate at /workspace/persona/{IDENTITY,principles,decisions}.md stays
     # authoritative per ADR-194 v2 Axiom 1. Frontend dispatches on
-    # agent_class='reviewer' to render ReviewerDetailView.
+    # agent_class='freddie' to render the Freddie detail view.
     # Status filter: Reviewer is always 'active'; skip synthesis only if
     # caller asked to filter to a different status.
     if not status or status == "active":
         _now_iso = datetime.now(timezone.utc).isoformat()
         responses.insert(0, AgentResponse(
-            id="reviewer",
-            title="Reviewer",
-            slug="reviewer",
+            id="freddie",
+            title="Freddie",
+            slug="freddie",
             scope="workspace",
-            role="reviewer",
+            role="freddie",
             type_config=None,
             status="active",
             created_at=_now_iso,
@@ -581,15 +581,15 @@ async def list_agents(
             agent_instructions=None,
             agent_memory=None,
             avatar_url=None,
-            agent_class="reviewer",
+            agent_class="freddie",
             context_domain=None,
         ))
 
     return responses
 
 
-@router.get("/reviewer/activity")
-async def get_reviewer_activity(auth: UserClient) -> dict:
+@router.get("/freddie/activity")
+async def get_freddie_activity(auth: UserClient) -> dict:
     """Reviewer activity surface — answers the operator's supervision
     questions: is the Reviewer alive, what did it do, when does it next fire?
 
@@ -755,8 +755,8 @@ async def get_reviewer_activity(auth: UserClient) -> dict:
     }
 
 
-@router.get("/reviewer/capabilities")
-async def get_reviewer_capabilities(auth: UserClient) -> dict:
+@router.get("/freddie/capabilities")
+async def get_freddie_capabilities(auth: UserClient) -> dict:
     """Reviewer capability library — operator-facing view of /workspace/operation/specs/.
 
     Surfaces the Reviewer's capability library (analog of Claude Code's

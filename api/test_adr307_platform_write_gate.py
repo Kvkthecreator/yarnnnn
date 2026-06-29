@@ -91,11 +91,11 @@ def test_platform_reads_never_gate():
     branch)."""
     # A non-reviewer specialist calling a platform read: APPLY (non-reviewer
     # short-circuit; the consequential-platform branch does not match a read).
-    auth = SimpleNamespace(reviewer_caller=False, user_id="u", client=None,
+    auth = SimpleNamespace(freddie_caller=False, user_id="u", client=None,
                            caller_identity="specialist:tracker")
     decision, reason = _gate(auth, "platform_trading_get_account", {})
     assert decision == PermissionDecision.APPLY
-    assert reason == "non_reviewer_caller"
+    assert reason == "non_freddie_caller"
 
 
 # ---------------------------------------------------------------------------
@@ -103,10 +103,10 @@ def test_platform_reads_never_gate():
 # ---------------------------------------------------------------------------
 
 def test_external_write_queues_under_bounded():
-    """A specialist (reviewer_caller=False) audience-write under bounded QUEUEs
+    """A specialist (freddie_caller=False) audience-write under bounded QUEUEs
     — the gate engages regardless of caller (the bug was these inheriting the
     non-reviewer free-pass)."""
-    auth = SimpleNamespace(reviewer_caller=False, user_id="u", client=None,
+    auth = SimpleNamespace(freddie_caller=False, user_id="u", client=None,
                            caller_identity="specialist:writer")
     decision, reason = _gate(auth, "platform_slack_send_to_channel",
                              {"channel_id": "C1", "text": "hi"}, delegation="bounded")
@@ -115,7 +115,7 @@ def test_external_write_queues_under_bounded():
 
 
 def test_external_write_applies_under_autonomous():
-    auth = SimpleNamespace(reviewer_caller=False, user_id="u", client=None,
+    auth = SimpleNamespace(freddie_caller=False, user_id="u", client=None,
                            caller_identity="specialist:writer")
     decision, reason = _gate(auth, "platform_notion_create_page",
                              {"title": "x"}, delegation="autonomous")
@@ -124,7 +124,7 @@ def test_external_write_applies_under_autonomous():
 
 
 def test_external_write_queues_under_manual():
-    auth = SimpleNamespace(reviewer_caller=False, user_id="u", client=None,
+    auth = SimpleNamespace(freddie_caller=False, user_id="u", client=None,
                            caller_identity="specialist:writer")
     decision, reason = _gate(auth, "platform_email_send",
                              {"to": "a@b.c"}, delegation="manual")
@@ -140,7 +140,7 @@ def test_capital_direct_call_queues_under_bounded():
     """A direct capital call WITHOUT a proposal under bounded → QUEUE
     (irreversible-always-queue safety net). This is the floor, not the live
     path."""
-    auth = SimpleNamespace(reviewer_caller=False, user_id="u", client=None,
+    auth = SimpleNamespace(freddie_caller=False, user_id="u", client=None,
                            caller_identity="specialist:tracker")
     decision, reason = _gate(auth, "platform_trading_submit_order",
                              {"ticker": "AAPL", "side": "buy", "qty": 1,
@@ -149,7 +149,7 @@ def test_capital_direct_call_queues_under_bounded():
 
 
 def test_capital_direct_call_queues_under_manual():
-    auth = SimpleNamespace(reviewer_caller=False, user_id="u", client=None,
+    auth = SimpleNamespace(freddie_caller=False, user_id="u", client=None,
                            caller_identity="specialist:tracker")
     decision, reason = _gate(auth, "platform_commerce_issue_refund",
                              {"order_id": "o1"}, delegation="manual")
@@ -163,7 +163,7 @@ def test_capital_direct_call_queues_under_manual():
 # ---------------------------------------------------------------------------
 
 def test_approved_proposal_replay_applies_without_regate():
-    auth = SimpleNamespace(reviewer_caller=False, user_id="u", client=None,
+    auth = SimpleNamespace(freddie_caller=False, user_id="u", client=None,
                            caller_identity="operator")
     decision, reason = _gate(
         auth, "platform_trading_submit_order",
@@ -176,7 +176,7 @@ def test_approved_proposal_replay_applies_without_regate():
 
 
 def test_external_write_replay_applies_without_regate():
-    auth = SimpleNamespace(reviewer_caller=False, user_id="u", client=None,
+    auth = SimpleNamespace(freddie_caller=False, user_id="u", client=None,
                            caller_identity="operator")
     decision, reason = _gate(
         auth, "platform_slack_send_to_channel",

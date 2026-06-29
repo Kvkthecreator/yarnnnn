@@ -98,13 +98,13 @@ def _clear_grant_cache():
 
 
 def _auth(caller_identity="operator", user_id="u-owner", workspace_id="ws-1",
-          principal_id=None, reviewer_caller=False):
+          principal_id=None, freddie_caller=False):
     return SimpleNamespace(
         caller_identity=caller_identity,
         user_id=user_id,
         workspace_id=workspace_id,
         principal_id=principal_id,
-        reviewer_caller=reviewer_caller,
+        freddie_caller=freddie_caller,
         client=None,
     )
 
@@ -123,7 +123,7 @@ _SAMPLE_PATHS = [r + "file.md" for r in _ROOTS] + [
     "operation/specs/acme.md",    # nested under operation
     "/workspace/governance/_autonomy.yaml",  # leading-slash + workspace prefix
 ]
-_CLASSES = ["operator", "reviewer", "mcp", "agent", "system"]
+_CLASSES = ["operator", "freddie", "mcp", "agent", "system"]
 
 
 # ===========================================================================
@@ -137,12 +137,12 @@ def test_fallback_identity_no_grant_row_is_byte_identical(monkeypatch):
     for klass in _CLASSES:
         ci = {
             "operator": "operator",
-            "reviewer": "freddie:ai:test",
+            "freddie": "freddie:ai:test",
             "mcp": "yarnnn:mcp:claude.ai",
             "agent": "agent:research",
             "system": "system:reconciler",
         }[klass]
-        auth = _auth(caller_identity=ci, reviewer_caller=(klass == "reviewer"))
+        auth = _auth(caller_identity=ci, freddie_caller=(klass == "freddie"))
         assert _caller_class(auth) == klass, f"class resolve drift for {klass}"
         for path in _SAMPLE_PATHS:
             expected = _is_path_locked(klass, path)

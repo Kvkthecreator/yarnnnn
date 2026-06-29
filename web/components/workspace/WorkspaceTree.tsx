@@ -173,7 +173,7 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu }: TreeIt
               : node.authored_by.startsWith('yarnnn:') ? 'TP'
               : node.authored_by.startsWith('agent:') ? 'Agent'
               : node.authored_by.startsWith('specialist:') ? 'Spec.'
-              : node.authored_by.startsWith('reviewer:') ? 'Rev.'
+              : node.authored_by.startsWith('freddie:') ? 'Rev.'
               : node.authored_by.startsWith('system:') ? 'Sys'
               : null}
           </span>

@@ -26,13 +26,13 @@ type CanonicalAgentRole =
   | 'slack_bot'
   | 'notion_bot'
   | 'github_bot'
-  | 'reviewer';
+  | 'freddie';
 // ADR-272: 'thinking_partner' removed from CanonicalAgentRole — the
 // orchestration LLM identity is filtered out at /api/agents and no longer
 // surfaces in the cockpit. The DB role string persists as substrate but
 // is not a user-facing role.
 
-type AgentClass = 'specialist' | 'synthesizer' | 'platform-bot' | 'reviewer';
+type AgentClass = 'specialist' | 'synthesizer' | 'platform-bot' | 'freddie';
 // ADR-272: 'meta-cognitive' removed — System Agent dissolved as a cockpit
 // entity. The chat-mode LLM identity (DB enum 'meta-cognitive') persists
 // behind /feed but is not rendered as a roster card or detail surface.
@@ -164,11 +164,11 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
   // per ADR-194 v2. Autonomy + Principles + heartbeat cadence housed here (ADR-251 D4).
   // ADR-381 D1: operator-facing label is "Freddie, the system agent" — a relabel
   // that KEEPS the internal `reviewer` slug + `reviewer:` attribution prefix +
-  // `?agent=reviewer` route (ADR-251 relabel-keep-slug precedent). The systemic
+  // `?agent=freddie` route (ADR-251 relabel-keep-slug precedent). The systemic
   // occupant's default name is "Freddie" (the system agent / substrate steward,
   // ADR-383); when the operator authors a persona (IDENTITY.md), that persona
   // name shows instead — the per-call fallbacks resolve `persona ?? 'Freddie'`.
-  reviewer: {
+  freddie: {
     displayName: 'Freddie',
     shortLabel: 'Freddie',
     tagline: 'The system agent — stewards your substrate; judges proposed actions when an operation runs',
@@ -204,7 +204,7 @@ const CLASS_META: Record<AgentClass, { label: string; description: string }> = {
   // with this class post-filter. The DB enum value persists as a data-compat
   // exception (workspace_init seeds the row at signup) but is invisible
   // to the cockpit.
-  reviewer: {
+  freddie: {
     label: 'Freddie',
     description: 'The system agent — it stewards your workspace substrate, and when an operation runs it weighs each proposed action and decides whether to approve it, hold it for you, or turn it down.',
   },

@@ -1,7 +1,7 @@
 """Regression gate for Reviewer Clarify Feed surfacing (2026-05-25).
 
 When the Reviewer calls Clarify(question=..., options=...), the question
-must reach the operator's Feed surface with role='reviewer' attribution
+must reach the operator's Feed surface with role='freddie' attribution
 (persona bubble, not System Agent narration) and structured
 clarify_question + clarify_options metadata for future FE affordances.
 
@@ -15,7 +15,7 @@ Six surfaces verified:
   2. narrate_reviewer_action renders Clarify bare (no prefix)
   3. _summarize_result returns the question (+ options) instead of "ok"
   4. agent_narration event carries role + clarify_question + clarify_options
-  5. surface_freddie_actions writes Clarify with role='reviewer' + metadata
+  5. surface_freddie_actions writes Clarify with role='freddie' + metadata
   6. freddie_audit.py _detect_outcome_kind returns 'clarify' for any
      Clarify call (dead clarify_alert input-flag gate removed)
 
@@ -184,7 +184,7 @@ def test_agent_narration_event_role_propagation() -> None:
     print("\n[4] wake.py::stream_addressed_wake yields role + clarify_question on agent_narration")
     src = (ROOT / "services" / "wake.py").read_text()
     # Both occurrences (drain block + post-drain block) updated
-    role_assignments = src.count('row_role = "reviewer" if tool_name == "Clarify" else "system_agent"')
+    role_assignments = src.count('row_role = "freddie" if tool_name == "Clarify" else "system_agent"')
     if role_assignments >= 1:
         _ok(f"per-tool row_role assignment present ({role_assignments} site(s))")
     else:
@@ -258,11 +258,11 @@ def test_feed_route_honors_event_role() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Gap 6 — surface_freddie_actions writes Clarify as role='reviewer'
+# Gap 6 — surface_freddie_actions writes Clarify as role='freddie'
 # ---------------------------------------------------------------------------
 
 def test_surface_reviewer_actions_clarify_role() -> None:
-    print("\n[6] surface_freddie_actions writes Clarify with role='reviewer' + metadata")
+    print("\n[6] surface_freddie_actions writes Clarify with role='freddie' + metadata")
 
     # Capture write_narrative_entry calls
     captured_calls: list[dict] = []
@@ -312,9 +312,9 @@ def test_surface_reviewer_actions_clarify_role() -> None:
             return
         call = captured_calls[-1]
         if call["role"] == "reviewer":
-            _ok("Clarify row uses role='reviewer' (persona bubble)")
+            _ok("Clarify row uses role='freddie' (persona bubble)")
         else:
-            _bad("Clarify row uses role='reviewer'", f"got role={call['role']!r}")
+            _bad("Clarify row uses role='freddie'", f"got role={call['role']!r}")
         if "Should I retire Signal-1?" in (call["body"] or ""):
             _ok("Clarify row body contains the question")
         else:

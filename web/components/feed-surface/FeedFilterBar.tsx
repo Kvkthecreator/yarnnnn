@@ -38,7 +38,7 @@ const IDENTITIES: Array<{ id: string; label: string }> = [
   { id: 'user', label: 'You' },
   { id: 'assistant', label: 'YARNNN' },
   { id: 'agent', label: 'Agent' },
-  { id: 'reviewer', label: 'Freddie' },
+  { id: 'freddie', label: 'Freddie' },
   { id: 'system', label: 'System' },
   { id: 'external', label: 'External' },
 ];

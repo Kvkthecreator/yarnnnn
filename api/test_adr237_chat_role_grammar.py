@@ -111,7 +111,7 @@ def test_dispatch_handles_all_six_roles_exhaustively():
     fail this assertion."""
     dispatch_src = _read(WEB_DISPATCH)
     # The six values per web/types/desk.ts:117
-    expected_roles = ["user", "assistant", "system", "reviewer", "agent", "external"]
+    expected_roles = ["user", "assistant", "system", "freddie", "agent", "external"]
     for role in expected_roles:
         # Look for a role-string literal in the dispatcher
         needle = f"'{role}'"

@@ -48,7 +48,7 @@ interface DesktopProps {
  * Detect first-time operator vs returning-with-empty-registry.
  * First-time = the operator has never opened a window; their
  * windowStates registry is empty AND their open-surfaces registry is
- * empty AND their kept set is exactly the default `['context']`.
+ * empty AND their kept set is exactly the default `['channels']`.
  * Anything else is treated as "returning operator who closed
  * everything" (more concise empty-state copy).
  */
@@ -56,10 +56,12 @@ function useIsFirstTime(): boolean {
   const { kept, open, windowStates } = useSurfacePreferences();
   if (open.length > 0) return false;
   if (Object.keys(windowStates).length > 0) return false;
-  // Default-kept set is ['context'] (ADR-377 D3). If the operator has
-  // modified it (added or removed surfaces), they've used the workspace
-  // before.
-  if (kept.length !== 1 || kept[0] !== 'context') return false;
+  // Default-kept set is ['channels'] (ADR-385; was ['context'] per ADR-377 D3,
+  // 'feed' before that — accept the legacy aliases so a returning operator
+  // whose persisted set is an old default isn't misclassified). If the
+  // operator modified it (added/removed surfaces), they've used the workspace.
+  if (kept.length !== 1) return false;
+  if (!['channels', 'context', 'feed'].includes(kept[0])) return false;
   return true;
 }
 

@@ -34,7 +34,7 @@ import type { InvocationCardUnit } from '@/lib/feed-grouping';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { InlineProposalChipById } from '@/components/tp/ProposalCard';
 import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/snapshot';
-import { useReviewerPersona } from '@/lib/reviewer-persona';
+import { useFreddiePersona } from '@/lib/freddie-persona';
 import { cn } from '@/lib/utils';
 
 interface InvocationCardProps {
@@ -64,7 +64,7 @@ function narrationForAction(message: { role: string; content: string; narrative?
 }
 
 export function InvocationCard({ unit }: InvocationCardProps) {
-  const personaName = useReviewerPersona();
+  const personaName = useFreddiePersona();
   const [expanded, setExpanded] = useState(false);
 
   const time = unit.timestamp.toLocaleTimeString([], {

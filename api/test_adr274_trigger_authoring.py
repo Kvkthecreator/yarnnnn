@@ -218,7 +218,7 @@ def test_build_user_message_injects_operating_context() -> None:
 # caller_identity at construction time and the Schedule primitive defaults
 # authored_by from auth.caller_identity (ADR-288 D2). One declaration site.
 
-def test_reviewer_auth_carries_reviewer_caller_identity() -> None:
+def test_reviewer_auth_carries_freddie_caller_identity() -> None:
     import agents.freddie_agent as mod
     src = inspect.getsource(mod)
     inj = 'caller_identity=f"freddie:{FREDDIE_MODEL_IDENTITY}"'
@@ -405,7 +405,7 @@ def main() -> int:
     test_reviewer_persona_includes_cadence_authoring()
     test_reviewer_context_has_operating_context_field()
     test_build_user_message_injects_operating_context()
-    test_reviewer_auth_carries_reviewer_caller_identity()
+    test_reviewer_auth_carries_freddie_caller_identity()
     test_authenticated_client_defaults_operator_caller_identity()
     test_execution_router_pause_resume_authored_by()
     test_invocation_dispatcher_wires_operating_context()

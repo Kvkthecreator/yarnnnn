@@ -21,12 +21,11 @@
  * future ADR if pressure surfaces.
  *
  * Defaults:
- *   - keptSurfaces:        ['context'] (ADR-370/377 — Feed dissolved into
- *                          Context as the Flow lens; the dock anchor is the
- *                          Context perception home, not the retired `feed`
- *                          slug. Pinning `feed` made the title bar read
- *                          "Feed" because the foregrounded surface resolved
- *                          to the dissolved slug — ADR-377 D3 fix.)
+ *   - keptSurfaces:        ['channels'] (ADR-370/377 → ADR-385 — Feed dissolved
+ *                          into the perception surface as its Flow pane; that
+ *                          surface was renamed `context` → `channels`. The dock
+ *                          anchor is the Channels perception home, not the
+ *                          retired `feed`/`context` alias slugs.)
  *   - openSurfaces:        [] (first-time operators boot to desktop — D13)
  *   - foregroundedSurface: null (no surface foregrounded on first boot)
  */
@@ -36,7 +35,7 @@ const OPEN_KEY_PREFIX = 'yarnnn:shell:open-surfaces:';
 const FOREGROUND_KEY_PREFIX = 'yarnnn:shell:foregrounded-surface:';
 const WINDOW_STATE_KEY_PREFIX = 'yarnnn:shell:window-state:';
 
-export const DEFAULT_KEPT_SURFACES: string[] = ['context'];
+export const DEFAULT_KEPT_SURFACES: string[] = ['channels'];
 export const DEFAULT_OPEN_SURFACES: string[] = [];
 export const DEFAULT_FOREGROUNDED_SURFACE: string | null = null;
 

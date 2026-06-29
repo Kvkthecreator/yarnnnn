@@ -48,7 +48,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { ConversationPanel } from '@/components/tp/ConversationPanel';
-import { useReviewerPersona } from '@/lib/reviewer-persona';
+import { useFreddiePersona } from '@/lib/freddie-persona';
 import { useViewport } from '@/lib/shell/useViewport';
 import { Z_DRAWER_BACKDROP, Z_DRAWER_BODY } from '@/lib/shell/z-tiers';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -82,7 +82,9 @@ const AUTHOR_SURFACES = new Set([
 // narrower default. Everything not named here falls to DRAWER_DEFAULT.
 const SUPERVISE_SURFACES = new Set([
   'queue',
-  'context', // ADR-370/377 — feed dissolved into Context (Flow lens + perception home); the read-surface workbench, narrow rail default
+  'channels', // ADR-385 (was 'context') — the perception+principal read-surface workbench, narrow rail default
+  'context',  // legacy alias slug (ADR-385 redirect) — keep for already-persisted foreground state
+  'feed',     // legacy alias slug (ADR-370) — same
   'activity',
   'recurrence',
   'files',
@@ -123,7 +125,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   // matching the ADR-316 right-rail geometry.
   const railMode = !isMobile && layoutMode === 'canvas';
   const overlayMode = !railMode; // mobile (any mode) + desktop layout mode
-  const personaName = useReviewerPersona();
+  const personaName = useFreddiePersona();
   // ADR-297 D16 §5 + navigation enactment (2026-05-30): the surface the
   // operator is viewing is the WINDOW MANAGER's foregrounded slug — not
   // the legacy DeskContext surface. One source feeds both the agent's

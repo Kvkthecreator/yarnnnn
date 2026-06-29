@@ -918,7 +918,7 @@ async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
         # ADR-307 D4: enqueue the gated call as a family='substrate' proposal
         # instead of running it. The operator approves later; on approve,
         # ExecuteProposal replays execute_primitive(name, inputs) with
-        # operator/execution auth (not reviewer_caller → no re-gate, no loop).
+        # operator/execution auth (not freddie_caller → no re-gate, no loop).
         return await _enqueue_substrate_proposal(auth, name, input, reason)
 
     try:

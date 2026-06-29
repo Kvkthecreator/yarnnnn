@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * ReviewerCapabilitiesPanel — operator-facing view of /workspace/operation/specs/.
+ * FreddieCapabilitiesPanel — operator-facing view of /workspace/operation/specs/.
  *
  * Authored 2026-05-14. Surfaces the Reviewer's capability library as
  * first-class cockpit content. Each spec is a quality contract: schema,
@@ -63,7 +63,7 @@ function relativeTime(iso: string | null | undefined): string {
   return `${d}d ago`;
 }
 
-export function ReviewerCapabilitiesPanel() {
+export function FreddieCapabilitiesPanel() {
   const { sendMessage } = useNarrative();
   const [data, setData] = useState<CapabilitiesData | null>(null);
 

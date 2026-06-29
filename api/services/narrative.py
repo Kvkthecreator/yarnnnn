@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 NarrativeRole = Literal[
-    "user", "assistant", "system", "reviewer", "agent", "external", "system_agent"
+    "user", "assistant", "system", "freddie", "agent", "external", "system_agent"
 ]
 """The Identity classes that can author a narrative entry. Mirrors the
 session_messages.role CHECK constraint (migration 167). Validation lives
@@ -57,7 +57,7 @@ ADR-252 D4: 'system_agent' added for System Agent execution narration.
 """
 
 VALID_ROLES: frozenset[str] = frozenset(
-    {"user", "assistant", "system", "reviewer", "agent", "external", "system_agent"}
+    {"user", "assistant", "system", "freddie", "agent", "external", "system_agent"}
 )
 
 
@@ -268,7 +268,7 @@ def resolve_default_weight(
     """
     if role == "user":
         return "material"
-    if role == "reviewer":
+    if role == "freddie":
         return "material"
     if role == "external":
         return "routine"

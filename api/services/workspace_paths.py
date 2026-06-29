@@ -253,7 +253,7 @@ SYSTEM_FILES = (
 #                   (Enforced by the named-path discipline at each system writer,
 #                   not by a prefix — system writers target specific paths.)
 CALLER_WRITE_POLICY: dict[str, tuple[str, ...]] = {
-    "reviewer": (GOVERNANCE_ROOT, SYSTEM_ROOT),  # contract/ NOT here → mode-governed
+    "freddie": (GOVERNANCE_ROOT, SYSTEM_ROOT),  # contract/ NOT here → mode-governed
     "mcp": (GOVERNANCE_ROOT, CONTRACT_ROOT, CONSTITUTION_ROOT, PERSONA_ROOT, SYSTEM_ROOT),
     "agent": (GOVERNANCE_ROOT, CONTRACT_ROOT, CONSTITUTION_ROOT, PERSONA_ROOT, SYSTEM_ROOT),
     "operator": (SYSTEM_ROOT,),

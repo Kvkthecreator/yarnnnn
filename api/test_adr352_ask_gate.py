@@ -39,7 +39,7 @@ def _gate(auth, inputs, *, delegation):
 
 
 def _reviewer_auth():
-    return SimpleNamespace(reviewer_caller=True, user_id="u", client=None,
+    return SimpleNamespace(freddie_caller=True, user_id="u", client=None,
                            caller_identity="freddie:ai:freddie-sonnet-v8")
 
 
@@ -116,17 +116,17 @@ def test_manual_applies_witness_wants_choice():
 # D2 — scoping: asking is governed for the Reviewer seat only.
 # ---------------------------------------------------------------------------
 
-def test_non_reviewer_caller_may_ask_freely():
+def test_non_freddie_caller_may_ask_freely():
     """Operator / headless / MCP callers are not the installed judgment;
     the witness dial does not govern their asking. APPLY without touching
     load_autonomy (the branch returns before the policy read)."""
-    auth = SimpleNamespace(reviewer_caller=False, user_id="u", client=None,
+    auth = SimpleNamespace(freddie_caller=False, user_id="u", client=None,
                            caller_identity="operator")
     decision, reason = asyncio.run(
         resolve_permission(auth, "Clarify", {"question": "q"})
     )
     assert decision == PermissionDecision.APPLY
-    assert reason == "ask_permitted:non_reviewer_caller"
+    assert reason == "ask_permitted:non_freddie_caller"
 
 
 # ---------------------------------------------------------------------------

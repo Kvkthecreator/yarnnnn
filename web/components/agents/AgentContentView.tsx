@@ -32,8 +32,8 @@ import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { formatRelativeTime } from '@/lib/formatting';
 import { humanizeSchedule, scheduleDisplay } from '@/lib/schedule';
 import { SubstrateTab } from './SubstrateTab';
-import { ReviewerActivityPanel } from './ReviewerActivityPanel';
-import { ReviewerCapabilitiesPanel } from './ReviewerCapabilitiesPanel';
+import { FreddieActivityPanel } from './FreddieActivityPanel';
+import { FreddieCapabilitiesPanel } from './FreddieCapabilitiesPanel';
 import {
   agentClassDescription,
   agentClassLabel,
@@ -51,9 +51,9 @@ interface AgentContentViewProps {
 
 type AgentClass = NonNullable<Agent['agent_class']>;
 // ADR-241: reviewer redirects to TP's Principles tab; the registry lookup
-// returns Reviewer's data path through `/agents?agent=reviewer` only as a
+// returns Reviewer's data path through `/agents?agent=freddie` only as a
 // legacy URL — handled by the redirect-effect in AgentContentView.
-type RegistryAgentClass = Exclude<AgentClass, 'reviewer'>;
+type RegistryAgentClass = Exclude<AgentClass, 'freddie'>;
 // Phase I (post-merge sweep, 2026-05-10): `RecurrenceOutputKind` removed
 // per ADR-261 D1's "one execution shape" — recurrences are no longer
 // kind-classified. The agent shells highlight active task count instead
@@ -720,7 +720,7 @@ function AgentTabBar({
 // were entirely backend-internal before — Reviewer read them; operator
 // had to manually browse /files to know they existed.
 //
-// Activity tab also added 2026-05-14 after audit found ReviewerActivityPanel
+// Activity tab also added 2026-05-14 after audit found FreddieActivityPanel
 // was rendering significantly stale data inside the Autonomy tab. Splitting
 // supervision (Activity) from delegation config (Autonomy) per the
 // lens-sharpening discipline canonized in WORKSPACE.md.
@@ -788,12 +788,12 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
         )}
         {activeTab === 'capabilities' && (
           <div className="px-6 py-5">
-            <ReviewerCapabilitiesPanel />
+            <FreddieCapabilitiesPanel />
           </div>
         )}
         {activeTab === 'activity' && (
           <div className="px-6 py-5">
-            <ReviewerActivityPanel />
+            <FreddieActivityPanel />
           </div>
         )}
       </div>
@@ -807,7 +807,7 @@ export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, '
   // ADR-272: meta-cognitive branch deleted. The orchestration LLM identity
   // is no longer cockpit-visible; filtered out at /api/agents (routes/agents.py).
   // reviewer = Reviewer first-class surface (ADR-251 D4): Identity · Principles · Autonomy.
-  if (cls === 'reviewer') {
+  if (cls === 'freddie') {
     return <ReviewerDetail agent={agent} />;
   }
 

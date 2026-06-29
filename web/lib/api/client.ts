@@ -390,7 +390,7 @@ export const api = {
               task_title?: string;
               output_path?: string;
               run_at?: string;
-              // ADR-212: Reviewer verdict cards (role === 'reviewer')
+              // ADR-212: Reviewer verdict cards (role === 'freddie')
               proposal_id?: string;
               verdict?: string;
               occupant?: string;
@@ -545,7 +545,7 @@ export const api = {
           next_fires_at: string | null;
         }>;
         window_days: number;
-      }>("/api/agents/reviewer/activity"),
+      }>("/api/agents/freddie/activity"),
 
     // 2026-05-14: Reviewer capability library — operator-facing view of
     // /workspace/operation/specs/. Each spec is a quality contract (schema, sections,
@@ -563,7 +563,7 @@ export const api = {
           updated_at: string | null;
           size_bytes: number;
         }>;
-      }>("/api/agents/reviewer/capabilities"),
+      }>("/api/agents/freddie/capabilities"),
 
     // Create a new agent
     create: (data: AgentCreate) =>

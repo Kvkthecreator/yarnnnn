@@ -92,7 +92,7 @@ class _StubAuth:
     client = None
     user_id = "00000000-0000-0000-0000-000000000000"
     caller_identity = "system:test"
-    reviewer_caller = False
+    freddie_caller = False
     agent = None
 
 
@@ -175,7 +175,7 @@ class _ReviewerAuth:
     client = None
     user_id = "00000000-0000-0000-0000-000000000000"
     caller_identity = "freddie:ai:test"
-    reviewer_caller = True
+    freddie_caller = True
     agent = None
 
 

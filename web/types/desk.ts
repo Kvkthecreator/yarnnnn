@@ -24,8 +24,9 @@
 // spoke "recurrence"; only the surface label lagged). /cadence is a
 // redirect stub.
 export type KernelSurfaceSlug =
-  | 'feed'
-  | 'context'  // ADR-370 — the operation's boundary composition (In · Out · Flow) — Feed folds in as the Flow lens
+  | 'channels'  // ADR-385 — the perception + principal surface (was 'context'). Connections · Sources · External Agents + Flow · In · Out
+  | 'feed'  // ADR-370 — folded into channels (Flow pane); legacy alias slug + /feed redirect stub
+  | 'context'  // ADR-385 — renamed → 'channels'; legacy alias slug + /context redirect stub
   | 'home'
   | 'recurrence'
   | 'budget'
@@ -69,7 +70,7 @@ export type DeskSurface =
   | { type: 'idle' };
 
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
-  'feed', 'context', 'home', 'recurrence', 'budget', 'autonomy', 'expected-output', 'mandate', 'principles',
+  'channels', 'feed', 'context', 'home', 'recurrence', 'budget', 'autonomy', 'expected-output', 'mandate', 'principles',
   'identity', 'files', 'agents', 'setup', 'program', 'queue', 'notifications', 'activity',
   'settings', 'workspace-settings', 'connectors', 'sources',
 ] as const;
@@ -153,9 +154,9 @@ export type MessageBlock =
 
 /**
  * ADR-212 / 2026-04-23: Reviewer verdict metadata surfaced as chat messages.
- * Populated when role === 'reviewer'. Enables ReviewerCard rendering.
+ * Populated when role === 'freddie'. Enables FreddieCard rendering.
  */
-export interface ReviewerCardData {
+export interface FreddieCardData {
   proposalId?: string;
   verdict?: 'approve' | 'reject' | 'defer' | 'observation' | string;
   occupant?: string;
@@ -173,7 +174,7 @@ export interface TPMessage {
    * ADR-252 D4: system_agent added for System Agent execution narration.
    * assistant is preserved for historical rows (pre-ADR-252).
    */
-  role: 'user' | 'assistant' | 'system' | 'reviewer' | 'agent' | 'external' | 'system_agent';
+  role: 'user' | 'assistant' | 'system' | 'freddie' | 'agent' | 'external' | 'system_agent';
   content: string;
   /** Images attached to this message (user messages only) */
   images?: TPImageAttachment[];
@@ -187,8 +188,8 @@ export interface TPMessage {
   authorAgentSlug?: string;
   authorRole?: string;
   authorName?: string;
-  /** ADR-212: reviewer verdict metadata (role === 'reviewer') */
-  reviewer?: ReviewerCardData;
+  /** ADR-212: reviewer verdict metadata (role === 'freddie') */
+  reviewer?: FreddieCardData;
   /** ADR-219 Commit 2: narrative envelope (weight, pulse, summary, …). */
   narrative?: NarrativeEnvelope;
 }

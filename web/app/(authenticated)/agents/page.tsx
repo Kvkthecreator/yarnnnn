@@ -19,7 +19,7 @@
  *
  * Legacy URL handling:
  *   ?agent=yarnnn / ?agent=thinking-partner / ?agent=system → 404-clean
- *   ?agent=reviewer → renders ReviewerDetail (unchanged from ADR-214)
+ *   ?agent=freddie → renders ReviewerDetail (unchanged from ADR-214)
  */
 
 import { useMemo } from 'react';
@@ -42,8 +42,8 @@ export default function AgentsPage() {
   // window-internal deep-link, not cross-surface navigation.
   const selectedAgent = useMemo(() => {
     if (!agentFromUrl) return null;
-    if (agentFromUrl === 'reviewer') {
-      return agents.find(a => a.agent_class === 'reviewer') ?? null;
+    if (agentFromUrl === 'freddie') {
+      return agents.find(a => a.agent_class === 'freddie') ?? null;
     }
     return agents.find(a => a.id === agentFromUrl || getAgentSlug(a) === agentFromUrl) ?? null;
   }, [agentFromUrl, agents]);
@@ -62,7 +62,7 @@ export default function AgentsPage() {
       ? [
           {
             label:
-              selectedAgent.agent_class === 'reviewer'
+              selectedAgent.agent_class === 'freddie'
                 ? 'Reviewer'
                 : agentDisplayName(selectedAgent.title ?? undefined, getAgentSlug(selectedAgent)),
             kind: 'agent',
@@ -93,8 +93,8 @@ export default function AgentsPage() {
   // a card updates intra-surface URL state (?agent=X) via setSurfaceParams —
   // no pathname flip, no cross-window opening; same surface, different
   // deep-link.
-  const reviewer = agents.find(a => a.agent_class === 'reviewer');
-  const domainAgents = agents.filter(a => a.agent_class !== 'reviewer');
+  const reviewer = agents.find(a => a.agent_class === 'freddie');
+  const domainAgents = agents.filter(a => a.agent_class !== 'freddie');
 
   return (
     <div className="h-full overflow-auto p-6">
@@ -103,7 +103,7 @@ export default function AgentsPage() {
           <div>
             <p className="text-sm font-medium text-muted-foreground mb-3">Systemic</p>
             <button
-              onClick={() => p.set({ agent: 'reviewer' })}
+              onClick={() => p.set({ agent: 'freddie' })}
               className="w-full text-left rounded-lg border border-border/60 bg-card px-4 py-3 hover:bg-muted/30 transition-colors"
             >
               <p className="text-sm font-medium">Freddie</p>

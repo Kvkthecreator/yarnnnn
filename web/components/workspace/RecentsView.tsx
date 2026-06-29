@@ -64,7 +64,7 @@ function formatAuthorLabel(authored_by: string | null | undefined): string {
   if (authored_by.startsWith('yarnnn:')) return 'YARNNN';
   if (authored_by.startsWith('agent:')) return `Agent (${authored_by.slice('agent:'.length)})`;
   if (authored_by.startsWith('specialist:')) return 'Specialist';
-  if (authored_by.startsWith('reviewer:')) return 'Reviewer';
+  if (authored_by.startsWith('freddie:')) return 'Reviewer';
   if (authored_by.startsWith('system:')) return 'System';
   return 'System';
 }

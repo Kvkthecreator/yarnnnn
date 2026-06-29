@@ -1359,7 +1359,7 @@ async def invoke_freddie(
     model = _SONNET if use_sonnet else _HAIKU
     caller = _CALLER_SONNET if use_sonnet else _CALLER_HAIKU
 
-    # Build auth namespace with reviewer_caller flag — handlers consult this
+    # Build auth namespace with freddie_caller flag — handlers consult this
     # for ADR-258 D9 lock enforcement on operator-shared substrate.
     # `recurrence_options` carries the recurrence YAML's `options` block
     # (whatever the operator declared) through to downstream primitives.
@@ -1376,14 +1376,14 @@ async def invoke_freddie(
     # every substrate write made during this Reviewer wake. The Schedule
     # primitive's per-call injection at the dispatch loop (pre-ADR-288) is
     # superseded — substrate primitives default authored_by from
-    # auth.caller_identity (ADR-288 D2). reviewer_caller=True is preserved
+    # auth.caller_identity (ADR-288 D2). freddie_caller=True is preserved
     # for ADR-258 D9 lock enforcement (separate concern: locks read paths
     # against the caller-class flag, not the attribution string).
     auth = SimpleNamespace(
         client=client,
         user_id=user_id,
         caller_identity=f"freddie:{FREDDIE_MODEL_IDENTITY}",
-        reviewer_caller=True,
+        freddie_caller=True,
         agent=None,
         agent_slug=None,
         task_slug=None,

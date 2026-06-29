@@ -1761,8 +1761,8 @@ async def handle_read_agent_file(auth: Any, input: dict) -> dict:
 def _caller_class(auth: Any) -> str:
     """Resolve the caller-class key for the permission topology (ADR-320).
 
-    Maps the auth's caller_identity / reviewer_caller flag to one of the
-    CALLER_WRITE_POLICY keys: operator | reviewer | mcp | agent | system.
+    Maps the auth's caller_identity / freddie_caller flag to one of the
+    CALLER_WRITE_POLICY keys: operator | freddie | mcp | agent | system.
     """
     caller_identity = getattr(auth, "caller_identity", "") or ""
     if caller_identity.startswith("yarnnn:mcp"):
@@ -1774,8 +1774,8 @@ def _caller_class(auth: Any) -> str:
         # (ADR-373 grant-consult session) so the MCP class — and its topology
         # lock — actually engages for the live foreign-LLM path.
         return "mcp"
-    if getattr(auth, "reviewer_caller", False) or caller_identity.startswith("freddie:"):
-        return "reviewer"
+    if getattr(auth, "freddie_caller", False) or caller_identity.startswith("freddie:"):
+        return "freddie"
     if caller_identity == "operator" or caller_identity.startswith("operator"):
         return "operator"
     if caller_identity.startswith("agent:") or caller_identity.startswith("specialist:"):

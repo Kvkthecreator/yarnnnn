@@ -15,7 +15,7 @@
 // Current nav: Feed | Work | Agents | Files
 // /schedule was a top-level tab (ADR-243) that has been folded into /work as
 // the "Schedule" inner tab. /schedule now redirects to /work.
-// /review deleted; Reviewer lives at /agents?agent=reviewer.
+// /review deleted; Reviewer lives at /agents?agent=freddie.
 // /chat redirects to /feed (ADR-259 vocabulary migration; preserves bookmarks).
 //
 // =============================================================================
@@ -99,7 +99,7 @@ export const CONNECTORS_ROUTE = "/connectors"; // Platform connections — Slack
 // ADR-272: System Agent dissolved as a cockpit entity (ADR-251 reversed).
 // Only Reviewer remains as a systemic detail surface. Legacy URLs
 // (?agent=system / ?agent=yarnnn / ?agent=thinking-partner) 404-clean.
-export const REVIEWER_ROUTE = "/agents?agent=reviewer";
+export const FREDDIE_ROUTE = "/agents?agent=freddie";
 
 export function isHomeRoute(pathname: string): boolean {
   return pathname === HOME_ROUTE || pathname.startsWith(`${HOME_ROUTE}/`);

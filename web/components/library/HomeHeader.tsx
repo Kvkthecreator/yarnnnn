@@ -32,7 +32,7 @@
  *
  * Autonomy posture links to /autonomy (atomic Autonomy surface;
  * renamed from /delegation 2026-05-24; formerly
- * /agents?agent=reviewer&tab=autonomy per ADR-251).
+ * /agents?agent=freddie&tab=autonomy per ADR-251).
  */
 
 import { useEffect, useState } from 'react';

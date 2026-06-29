@@ -246,12 +246,12 @@ function buildInvocationCard(
 
   // Pulse: prefer the verdict row's pulse, else the first row's pulse,
   // else default to 'reactive' (autonomous cycles always have a pulse).
-  const verdict = rows.find((m) => m.role === 'reviewer');
+  const verdict = rows.find((m) => m.role === 'freddie');
   const pulseFromVerdict = verdict?.narrative?.pulse;
   const pulseFromFirst = rows[0]?.narrative?.pulse;
   const pulse: NarrativePulse = pulseFromVerdict ?? pulseFromFirst ?? 'reactive';
 
-  const actions = rows.filter((m) => m.role !== 'reviewer');
+  const actions = rows.filter((m) => m.role !== 'freddie');
 
   return {
     kind: 'invocation-card',

@@ -69,7 +69,7 @@ import { WINDOW_Z_MAX } from './z-tiers';
 //
 // Each window's intra-surface deep-link params are namespaced by the window's
 // slug: `?{slug}.{key}=value` (e.g. `workspace-settings.pane=autonomy`,
-// `settings.pane=billing`, `recurrence.pane=activity`, `agents.agent=reviewer`).
+// `settings.pane=billing`, `recurrence.pane=activity`, `agents.agent=freddie`).
 //
 // WHY: `?pane=` (+ `?agent=`/`?task=`) were flat global query keys, but each
 // window has its OWN param vocabulary. With multiple windows open on the one

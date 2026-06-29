@@ -329,9 +329,9 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
               messageBlocks.push(...blocks);
             }
 
-            // ADR-212: reviewer verdict metadata (role === 'reviewer')
+            // ADR-212: reviewer verdict metadata (role === 'freddie')
             const reviewerMeta =
-              m.role === 'reviewer' && m.metadata
+              m.role === 'freddie' && m.metadata
                 ? {
                     proposalId: m.metadata.proposal_id,
                     verdict: m.metadata.verdict,
@@ -849,7 +849,7 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                 // mirroring the System Agent content path above. The bubble is
                 // TRANSIENT: when reviewer_response arrives, fetchAndSetHistory()
                 // replaces the whole scoped history with DB truth, dropping this
-                // placeholder and rendering the authoritative ReviewerCard. So
+                // placeholder and rendering the authoritative FreddieCard. So
                 // the operator watches the reasoning build, then it settles into
                 // the persisted card — no duplicate.
                 if (phase === 'text_delta') {
@@ -862,7 +862,7 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                     // real Reviewer history row.
                     const reviewerPlaceholder: TPMessage = {
                       id: streamingMessageId,
-                      role: 'reviewer',
+                      role: 'freddie',
                       content: '',
                       blocks: [],
                       timestamp: new Date(),
@@ -901,7 +901,7 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                   }
                 }
               } else if (event.reviewer_response) {
-                // Reviewer spoke — reload history immediately so ReviewerCard renders.
+                // Reviewer spoke — reload history immediately so FreddieCard renders.
                 // CRITICAL: use fetchAndSetHistory() (unguarded), not loadScopedHistory()
                 // which has a once-per-page-load guard for initial mount. Without this,
                 // every Reviewer turn after the first looked silent until hard refresh.
@@ -981,7 +981,7 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
           }, 3000);
         }
 
-        // After stream ends: if Reviewer fired, reload history to ensure ReviewerCard
+        // After stream ends: if Reviewer fired, reload history to ensure FreddieCard
         // is visible and any stale placeholder is replaced by DB truth.
         const hasProposeAction = toolResults.some(r => r.toolName === 'ProposeAction');
         if (hasProposeAction) {

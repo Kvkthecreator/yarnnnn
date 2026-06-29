@@ -34,7 +34,7 @@ function relativeTime(iso: string): string {
 function authorLabel(authoredBy: string): string {
   if (authoredBy === 'operator') return 'you';
   if (authoredBy.startsWith('yarnnn:')) return 'YARNNN';
-  if (authoredBy.startsWith('reviewer:')) return 'Reviewer';
+  if (authoredBy.startsWith('freddie:')) return 'Reviewer';
   if (authoredBy.startsWith('agent:')) return authoredBy.slice('agent:'.length);
   if (authoredBy.startsWith('system:bundle-fork')) return 'program activation';
   if (authoredBy.startsWith('system:')) return 'system';

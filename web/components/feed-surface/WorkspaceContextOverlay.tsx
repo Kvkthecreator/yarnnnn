@@ -25,13 +25,13 @@
  * Out-of-scope on this surface (lives elsewhere by design):
  *   - Full upcoming-wakes schedule → /work?tab=schedule
  *   - Full execution history → /activity
- *   - Reviewer-loop supervision → /agents?agent=reviewer&tab=activity
+ *   - Reviewer-loop supervision → /agents?agent=freddie&tab=activity
  *   - awareness.md free-form notes (vestigial — never updated past
  *     activation skeleton; substrate continuity is decisions.md +
  *     _performance.md + domain _run_log.md per ADR-261)
  *
  * Previous shape (ADR-215 Phase 6) stacked Mandate + Principles +
- * ReviewerActivityPanel + RecentSection + awareness.md — 8 sub-blocks
+ * FreddieActivityPanel + RecentSection + awareness.md — 8 sub-blocks
  * with significant overlap between "Upcoming wakes" + "Recent runs" +
  * "Recent task runs" (three views of the same activity question).
  * The refactor collapses all activity to one compact Pulse strip
@@ -348,7 +348,7 @@ function PulseSection({ onAskTP }: { onAskTP: (prompt: string) => void }) {
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[11px] text-muted-foreground/60">
         <SurfaceLink
           to="agents"
-          params={{ agent: 'reviewer', tab: 'activity' }}
+          params={{ agent: 'freddie', tab: 'activity' }}
           className="inline-flex items-center gap-0.5 hover:text-foreground hover:underline underline-offset-4"
         >
           Freddie activity <ArrowRight className="h-3 w-3" />

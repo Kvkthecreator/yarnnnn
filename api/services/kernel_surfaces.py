@@ -236,6 +236,23 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "Operator chat surface and multi-actor narrative timeline.",
     },
     {
+        # ADR-385 (2026-06-29) — `context` renamed → `channels`. The slug
+        # survives as a search-only legacy alias (parity with `feed`): the FE
+        # allowlist + SurfaceRegistry keep it for already-persisted deck/dock
+        # state (it maps to ChannelsPage), and `/context` is an ADR-308
+        # redirect stub → /channels. Not operator-reachable at-rest.
+        "slug": "context",
+        "launcher_tier": "search-only",
+        "register": "application",
+        "title": "Channels",  # borrows the live surface's title
+        "archetype": "dashboard",
+        "substrate_paths": [],
+        "icon_key": "arrow-left-right",
+        "default_pinned": False,  # slot inherited by `channels`
+        "route": "/context",
+        "summary": "Legacy alias of the Channels surface (renamed from Context, ADR-385).",
+    },
+    {
         # ADR-370 (2026-06-25) → ADR-377 (2026-06-26) → ADR-385 (2026-06-29):
         # Channels — the operation's perception + principal surface (was
         # `context`; renamed because "context" is ambiguous with the
@@ -653,7 +670,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "folder-kanban",
         "default_pinned": False,
         "route": "/workspace-settings",
-        "summary": "Workspace Settings — what this operation is and how it runs. Constitution (mandate/identity/principles), Contract (budget/autonomy/expected output), Program, Connectors, Sources.",
+        "summary": "Workspace Settings — what this operation is and how it runs. Constitution (mandate/identity/principles), Contract (budget/autonomy/expected output), Program, Access (members). Perception (Connectors/Sources) lives on the Channels surface (ADR-385).",
     },
     {
         "slug": "connectors",
@@ -775,9 +792,10 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
 # AGENT_ENABLED is off (Phase-1 interop-first deploy), these are filtered
 # out of the surface registry. Backend-driven nav → zero FE change. The
 # keepers (ledger + membrane + constitution mirrors + structural chrome)
-# always render: files, context, connectors/sources, settings/
-# workspace-settings, identity/mandate/principles, home (substrate-forward
-# empty state per ADR-374), budget, top-bar/launcher/chat-drawer/setup.
+# always render: files, channels (the perception+principal surface, ADR-385;
+# was context), connectors/sources, settings/workspace-settings,
+# identity/mandate/principles, home (substrate-forward empty state per
+# ADR-374), budget, top-bar/launcher/chat-drawer/setup.
 STEWARD_SURFACE_SLUGS: frozenset[str] = frozenset({
     "agents",
     "queue",

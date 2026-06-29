@@ -1874,10 +1874,10 @@ async def stream_addressed_wake(
                 narration = narrate_reviewer_action(tool_name, summary)
                 # 2026-05-25 clarify-silenced-from-feed: per-tool role.
                 # Clarify is the Reviewer asking the operator — render in
-                # the Reviewer persona bubble (role='reviewer' per
+                # the Reviewer persona bubble (role='freddie' per
                 # ADR-247 + ADR-258 D1), not as System Agent narration.
                 # Caller (routes/feed.py) reads event['role'].
-                row_role = "reviewer" if tool_name == "Clarify" else "system_agent"
+                row_role = "freddie" if tool_name == "Clarify" else "system_agent"
                 event_out: dict = {
                     "type": "agent_narration",
                     "tool": tool_name,
@@ -1920,10 +1920,10 @@ async def stream_addressed_wake(
                 narration = narrate_reviewer_action(tool_name, summary)
                 # 2026-05-25 clarify-silenced-from-feed: per-tool role.
                 # Clarify is the Reviewer asking the operator — render in
-                # the Reviewer persona bubble (role='reviewer' per
+                # the Reviewer persona bubble (role='freddie' per
                 # ADR-247 + ADR-258 D1), not as System Agent narration.
                 # Caller (routes/feed.py) reads event['role'].
-                row_role = "reviewer" if tool_name == "Clarify" else "system_agent"
+                row_role = "freddie" if tool_name == "Clarify" else "system_agent"
                 event_out: dict = {
                     "type": "agent_narration",
                     "tool": tool_name,

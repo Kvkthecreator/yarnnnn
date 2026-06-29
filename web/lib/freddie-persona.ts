@@ -4,7 +4,7 @@
  * ADR-246: Reviewer persona name resolution.
  *
  * Reads /workspace/persona/IDENTITY.md and extracts the operator-authored
- * persona name so ReviewerCard can show "Simons approved" instead of
+ * persona name so FreddieCard can show "Simons approved" instead of
  * "AI Reviewer approved".
  *
  * Resolution rules (in order):
@@ -100,7 +100,7 @@ async function fetchPersonaOnce(): Promise<string | null> {
  * to the same single fetch. Persona name is workspace-stable within a
  * session — there is no need to refetch per component mount.
  */
-export function useReviewerPersona(): string | null {
+export function useFreddiePersona(): string | null {
   const [personaName, setPersonaName] = useState<string | null>(cachedPersonaName);
 
   useEffect(() => {

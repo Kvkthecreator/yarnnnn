@@ -62,7 +62,7 @@ interface RevisionHistoryPanelProps {
   revertDisabled?: boolean;
 }
 
-type AuthorLayer = 'operator' | 'yarnnn' | 'agent' | 'specialist' | 'reviewer' | 'system' | 'unknown';
+type AuthorLayer = 'operator' | 'yarnnn' | 'agent' | 'specialist' | 'freddie' | 'system' | 'unknown';
 
 function authorLayer(authored_by: string): AuthorLayer {
   if (!authored_by) return 'unknown';
@@ -70,17 +70,16 @@ function authorLayer(authored_by: string): AuthorLayer {
   if (authored_by.startsWith('yarnnn:')) return 'yarnnn';
   if (authored_by.startsWith('agent:')) return 'agent';
   if (authored_by.startsWith('specialist:')) return 'specialist';
-  if (authored_by.startsWith('reviewer:')) return 'reviewer';
+  if (authored_by.startsWith('freddie:')) return 'freddie';
   if (authored_by.startsWith('system:')) return 'system';
   return 'unknown';
 }
 
-// ADR-381 D1: the `reviewer` author-layer is displayed as "Freddie" (the system
-// agent). The underlying `reviewer:` attribution prefix in the revision chain is
-// unchanged (data-compat exception) — only the operator-facing chip label maps.
-// The full `authored_by` (incl. the `reviewer:` prefix) stays in the chip tooltip.
+// ADR-381 D1 (full rename): the `freddie` author-layer (from the `freddie:`
+// attribution prefix) is displayed as "Freddie" (the system agent). The full
+// `authored_by` (incl. the `freddie:` prefix) stays in the chip tooltip.
 function layerLabel(layer: AuthorLayer): string {
-  return layer === 'reviewer' ? 'Freddie' : layer;
+  return layer === 'freddie' ? 'Freddie' : layer;
 }
 
 function authorChipColor(layer: AuthorLayer): string {
@@ -93,7 +92,7 @@ function authorChipColor(layer: AuthorLayer): string {
       return 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30';
     case 'specialist':
       return 'bg-cyan-500/10 text-cyan-700 border-cyan-500/30';
-    case 'reviewer':
+    case 'freddie':
       return 'bg-amber-500/10 text-amber-700 border-amber-500/30';
     case 'system':
       return 'bg-zinc-500/10 text-zinc-600 border-zinc-500/30';
@@ -111,7 +110,7 @@ function AuthorIcon({ layer }: { layer: AuthorLayer }) {
       return <Bot className={cls} />;
     case 'agent':
       return <Cpu className={cls} />;
-    case 'reviewer':
+    case 'freddie':
       return <AlertTriangle className={cls} />;
     case 'specialist':
     case 'system':

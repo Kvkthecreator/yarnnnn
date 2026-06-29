@@ -3,7 +3,7 @@
 Under the sharp LAYER-MAPPING, the Reviewer is an Agent. Verdicts are the
 Reviewer Agent's output. To give operators a unified timeline of their
 workspace's activity — rather than forcing them to context-switch to
-/review — every verdict also surfaces as a `role='reviewer'` message in
+/review — every verdict also surfaces as a `role='freddie'` message in
 the operator's active chat session.
 
 Migration 160 widened the session_messages.role CHECK constraint to
@@ -41,7 +41,7 @@ This is acceptable; /review is the authoritative audit trail.
 
 ## Metadata shape
 
-The `role='reviewer'` message carries metadata the frontend uses for
+The `role='freddie'` message carries metadata the frontend uses for
 rendering:
 
     {
@@ -139,7 +139,7 @@ async def write_freddie_message(
         return write_narrative_entry(
             client,
             session_id,
-            role="reviewer",
+            role="freddie",
             summary=summary,
             body=content,
             pulse=resolved_pulse,
@@ -178,7 +178,7 @@ async def write_freddie_message(
 # line 139 classifies it as "Ask operator for input." ADR-289's 3-bucket
 # taxonomy comment never named Clarify; it was misclassified by the
 # original frozenset construction. The fix surfaces Clarify with
-# role='reviewer' (persona attribution, not System Agent narration);
+# role='freddie' (persona attribution, not System Agent narration);
 # see narrate_reviewer_action's Clarify branch + the role-aware emission
 # path in surface_freddie_actions + wake.py::stream_addressed_wake.
 REVIEWER_COGNITION_TOOLS = frozenset({
@@ -344,7 +344,7 @@ def narrate_reviewer_action(tool: str, summary: str = "", *, folded_count: int =
         return f"Saved a working note.{summary_part}{count_part}"
     # 2026-05-25 Clarify branch: the Reviewer IS the asker. Render the
     # question bare (no "Executed Clarify..." prefix). Caller writes the
-    # row with role='reviewer' so the FE renders it in the Reviewer
+    # row with role='freddie' so the FE renders it in the Reviewer
     # persona bubble (ADR-247 three-party model + ADR-258 D1).
     if tool == "Clarify":
         return summary or "Asked you a question."
@@ -563,7 +563,7 @@ async def surface_freddie_actions(
             meta["proposal_id"] = proposal_id
         # 2026-05-25 (clarify-silenced-from-feed): per-tool role +
         # extra_metadata for Clarify. The Reviewer IS the asker — the row
-        # belongs in the Reviewer persona bubble (role='reviewer' per
+        # belongs in the Reviewer persona bubble (role='freddie' per
         # ADR-247 + ADR-258 D1), not System Agent narration. Structured
         # question + options stamped on metadata so a future FE
         # response-affordance can render inline buttons without re-parsing
@@ -575,7 +575,7 @@ async def surface_freddie_actions(
         # blocked above) and the seat acts instead. Without this guard the
         # operator sees an A/B question the gate actually refused.
         if tool == "Clarify" and success:
-            row_role = "reviewer"
+            row_role = "freddie"
             clarify_input = action.get("input") or {}
             if isinstance(clarify_input, dict):
                 cq = clarify_input.get("question")

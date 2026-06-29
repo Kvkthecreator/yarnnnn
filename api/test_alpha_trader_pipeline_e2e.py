@@ -76,7 +76,7 @@ async def run() -> None:
         client=client,
         user_id=TEST_USER_ID,
         caller_identity="agent:test-pipeline-e2e",
-        reviewer_caller=False,
+        freddie_caller=False,
         agent=None, agent_slug=None, task_slug=None,
     )
 

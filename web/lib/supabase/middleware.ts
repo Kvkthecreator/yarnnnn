@@ -21,7 +21,7 @@ import { HOME_ROUTE } from "@/lib/routes";
 // /overview was absorbed into the Home composition; ADR-225 Phase 3 +
 // ADR-312 made the Home's slots compositor-resolved.
 // /team redirects to /agents per ADR-214 (reverses ADR-201). /review is
-// deleted; Reviewer lives at /agents?agent=reviewer.
+// deleted; Reviewer lives at /agents?agent=freddie.
 // /schedule is now a redirect stub → /work (ADR-243 folded into Work tabs).
 // /connectors is a user-menu shortcut (same pattern as /workspace).
 const PROTECTED_PREFIXES = [

@@ -178,7 +178,7 @@ export type Role =
   // ADR-214: the Reviewer is a systemic judgment seat; reviewer rows carry
   // role='reviewer' and MessageDispatch keys the reviewer-bubble on it.
   // (Previously absent here, forcing an `as` cast on history reads — ADR-351.)
-  | "reviewer"
+  | "freddie"
   // Legacy roles kept for backward-compat DB reads (mapped via LEGACY_ROLE_MAP)
   | "competitive_intel"
   | "market_research"
@@ -379,7 +379,7 @@ export interface Agent {
   // ADR-272 (2026-05-14): 'meta-cognitive' removed — the orchestration LLM
   // identity (formerly "System Agent" cockpit entity) is filtered at
   // /api/agents and no longer surfaces to the FE.
-  agent_class?: 'specialist' | 'domain-steward' | 'synthesizer' | 'platform-bot' | 'reviewer';
+  agent_class?: 'specialist' | 'domain-steward' | 'synthesizer' | 'platform-bot' | 'freddie';
   context_domain?: string;  // owned domain key (e.g., "competitors"), null for synthesizers
 }
 

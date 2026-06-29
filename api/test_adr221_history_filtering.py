@@ -44,7 +44,7 @@ def test_filters_non_conversation_roles() -> None:
         {"role": "user", "content": "hello", "metadata": {}},
         {"role": "assistant", "content": "hi back", "metadata": {}},
         {"role": "system", "content": "workspace event", "metadata": {}},
-        {"role": "reviewer", "content": "approved proposal", "metadata": {}},
+        {"role": "freddie", "content": "approved proposal", "metadata": {}},
         {"role": "agent", "content": "task delivered", "metadata": {}},
         {"role": "external", "content": "MCP wrote to memory", "metadata": {}},
     ]
@@ -89,7 +89,7 @@ def test_filtered_history_starts_with_user() -> None:
 
     messages = [
         # Simulated: a reviewer verdict before the operator typed anything.
-        {"role": "reviewer", "content": "approved", "metadata": {}},
+        {"role": "freddie", "content": "approved", "metadata": {}},
         # First operator turn.
         {"role": "user", "content": "go", "metadata": {}},
         {"role": "assistant", "content": "done", "metadata": {}},

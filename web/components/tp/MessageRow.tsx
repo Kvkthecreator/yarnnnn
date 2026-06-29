@@ -41,7 +41,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/snapshot';
 import { MessageRenderer } from './MessageDispatch';
 import { WorkspaceFileView } from '@/components/shared/WorkspaceFileView';
-import { useReviewerPersona } from '@/lib/reviewer-persona';
+import { useFreddiePersona } from '@/lib/freddie-persona';
 import { InteractiveModal } from './InteractiveModal';
 import { useNarrative } from '@/contexts/NarrativeContext';
 
@@ -60,9 +60,9 @@ interface MaterialWrapperProps {
  * shape with the authorship chip (above) and Make Recurring affordance
  * (below) per ADR-237 D2.
  *
- * Reviewer verdicts (role === 'reviewer') skip the chip stack — the
- * ReviewerCard owns its own chrome per ADR-212. The dispatcher emits
- * a ReviewerCard regardless; we suppress the chip stack only for the
+ * Reviewer verdicts (role === 'freddie') skip the chip stack — the
+ * FreddieCard owns its own chrome per ADR-212. The dispatcher emits
+ * a FreddieCard regardless; we suppress the chip stack only for the
  * reviewer shape.
  */
 // ---------------------------------------------------------------------------
@@ -96,7 +96,7 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
   const { sendMessage } = useNarrative();
   // openFilePath: which file path is currently open in the overlay (null = closed)
   const [openFilePath, setOpenFilePath] = useState<string | null>(null);
-  const reviewerPersonaName = useReviewerPersona();
+  const freddiePersonaName = useFreddiePersona();
 
   const recurrenceSlug = msg.narrative?.taskSlug;
   const showRecurrenceChip = !!recurrenceSlug && msg.role !== 'user';
@@ -125,8 +125,8 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
   // Reviewer entries — ADR-258: Reviewer is a chat participant, not a gate announcement.
   // No section dividers for any verdict type. The persona label on the bubble is
   // sufficient identity. Observation entries render through MessageRenderer as
-  // dim collapsed lines (ReviewerCard handles that internally).
-  if (msg.role === 'reviewer') {
+  // dim collapsed lines (FreddieCard handles that internally).
+  if (msg.role === 'freddie') {
     return (
       <div className="max-w-[92%]">
         <MessageRenderer msg={msg} isLoading={isLoading} />
@@ -220,10 +220,10 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
  * (assistant / system_agent / system / external) labeled "system" —
  * ambient activity, not a peer participant.
  */
-function roleDisplayLabel(role: TPMessage['role'], reviewerPersona?: string | null): string {
+function roleDisplayLabel(role: TPMessage['role'], freddiePersona?: string | null): string {
   switch (role) {
     case 'user': return 'You';
-    case 'reviewer': return reviewerPersona ?? 'Freddie';
+    case 'freddie': return freddiePersona ?? 'Freddie';
     case 'agent': return 'agent';
     // ADR-272: all orchestration-plumbing roles render as ambient "system"
     // activity. The "System Agent" entity label is retired at the cockpit
@@ -244,14 +244,14 @@ function roleDisplayLabel(role: TPMessage['role'], reviewerPersona?: string | nu
  * conversation, not as background log. Weight controls density inside the
  * bubble, not whether the bubble exists.
  */
-function RoutineRow({ msg, reviewerPersona }: { msg: TPMessage; reviewerPersona?: string | null }): JSX.Element {
+function RoutineRow({ msg, freddiePersona }: { msg: TPMessage; freddiePersona?: string | null }): JSX.Element {
   const summary =
     msg.narrative?.summary ??
     (msg.content?.split('\n', 1)[0]?.slice(0, 200) ?? '');
   return (
     <div className="text-[12px] rounded-2xl px-3 py-1.5 max-w-[92%] bg-muted/60 rounded-bl-md opacity-80">
       <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-0.5 uppercase">
-        {roleDisplayLabel(msg.role, reviewerPersona)}
+        {roleDisplayLabel(msg.role, freddiePersona)}
       </span>
       <div className="flex items-center gap-2">
         <span className="text-muted-foreground flex-1">{summary}</span>
@@ -294,12 +294,12 @@ export interface MessageRowProps {
  * tolerance for stored historical data.
  */
 export function MessageRow({ msg, isLoading, onMakeRecurring }: MessageRowProps): JSX.Element {
-  const reviewerPersona = useReviewerPersona();
+  const freddiePersona = useFreddiePersona();
   const weight = msg.narrative?.weight ?? 'material';
   if (weight === 'material') {
     return <MaterialRow msg={msg} isLoading={isLoading} onMakeRecurring={onMakeRecurring} />;
   }
   // routine + any legacy weight value (e.g. stored 'housekeeping' rows
   // from before ADR-277) → slim routine row
-  return <RoutineRow msg={msg} reviewerPersona={reviewerPersona} />;
+  return <RoutineRow msg={msg} freddiePersona={freddiePersona} />;
 }

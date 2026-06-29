@@ -109,7 +109,7 @@ export function WorkspaceFileView({
               raw.startsWith('yarnnn:') ? 'YARNNN' :
               raw.startsWith('agent:') ? `Agent (${raw.slice(6)})` :
               raw.startsWith('specialist:') ? 'Specialist' :
-              raw.startsWith('reviewer:') ? 'Reviewer' :
+              raw.startsWith('freddie:') ? 'Reviewer' :
               raw.startsWith('system:') ? 'System' : null;
             if (!cancelled) setAuthoredBy(label);
           }

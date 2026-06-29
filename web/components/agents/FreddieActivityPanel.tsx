@@ -1,12 +1,12 @@
 'use client';
 
 /**
- * ReviewerActivityPanel — Reviewer supervision surface.
+ * FreddieActivityPanel — Reviewer supervision surface.
  *
  * Authored 2026-05-14 as first-principles rewrite (replaces the
  * ADR-251-D5-era panel that read dissolved back-office.yaml substrate
  * and a stale slug filter). Now reads the canonical post-ADR-261
- * GET /api/agents/reviewer/activity which derives from
+ * GET /api/agents/freddie/activity which derives from
  * /workspace/_recurrences.yaml (judgment-mode entries = Reviewer wakes
  * per ADR-263 D1).
  *
@@ -40,7 +40,7 @@
  * (substrate writes via primitives, not bespoke modals).
  *
  * Reused on:
- *   - /agents?agent=reviewer&tab=activity (canonical home)
+ *   - /agents?agent=freddie&tab=activity (canonical home)
  *   - Chat WorkspaceContextOverlay Review section
  */
 
@@ -142,7 +142,7 @@ function badgeClasses(tone: 'green' | 'amber' | 'red' | 'muted'): string {
   }
 }
 
-export function ReviewerActivityPanel() {
+export function FreddieActivityPanel() {
   const { sendMessage } = useNarrative();
   const [data, setData] = useState<ActivityData | null>(null);
 

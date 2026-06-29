@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * ReviewerCard — renders Reviewer narrative entries as chat bubbles.
+ * FreddieCard — renders Reviewer narrative entries as chat bubbles.
  *
  * ADR-258: three participants, one bubble shape. The Reviewer is a
  * conversational participant — differentiated by label (persona name)
@@ -17,11 +17,11 @@
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { CheckCircle2, XCircle, PauseCircle, Eye, Zap } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-import type { ReviewerCardData } from '@/types/desk';
+import type { FreddieCardData } from '@/types/desk';
 import { cn } from '@/lib/utils';
 
-interface ReviewerCardProps {
-  data: ReviewerCardData;
+interface FreddieCardProps {
+  data: FreddieCardData;
   content: string;
   personaName?: string | null;
   /** Confidence from the addressed-mode assessment ('low' | 'medium' | 'high') */
@@ -66,7 +66,7 @@ function VerdictChip({ verdict }: { verdict: string }) {
   return null;
 }
 
-export function ReviewerCard({ data, content, personaName, confidence, directiveDispatched }: ReviewerCardProps) {
+export function FreddieCard({ data, content, personaName, confidence, directiveDispatched }: FreddieCardProps) {
   const { verdict, occupant, actionType, proposalId } = data;
   const persona = occupantLabel(occupant, personaName);
 

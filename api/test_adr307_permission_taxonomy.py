@@ -140,20 +140,20 @@ def test_read_only_resolves_apply():
     from types import SimpleNamespace
     from services.primitives.permission import resolve_permission, PermissionDecision
 
-    auth = SimpleNamespace(reviewer_caller=True, user_id="u", client=None)
+    auth = SimpleNamespace(freddie_caller=True, user_id="u", client=None)
     decision, _ = asyncio.run(resolve_permission(auth, "ReadFile", {}))
     assert decision == PermissionDecision.APPLY
 
 
-def test_non_reviewer_caller_resolves_apply():
+def test_non_freddie_caller_resolves_apply():
     import asyncio
     from types import SimpleNamespace
     from services.primitives.permission import resolve_permission, PermissionDecision
 
-    auth = SimpleNamespace(reviewer_caller=False, user_id="u", client=None)
+    auth = SimpleNamespace(freddie_caller=False, user_id="u", client=None)
     decision, reason = asyncio.run(resolve_permission(auth, "WriteFile", {}))
     assert decision == PermissionDecision.APPLY
-    assert reason == "non_reviewer_caller"
+    assert reason == "non_freddie_caller"
 
 
 # ---------------------------------------------------------------------------
@@ -276,7 +276,7 @@ def test_non_path_primitive_gates_on_delegation_only():
     from unittest.mock import patch
     from services.primitives.permission import resolve_permission, PermissionDecision
 
-    auth = SimpleNamespace(reviewer_caller=True, user_id="u", client=None,
+    auth = SimpleNamespace(freddie_caller=True, user_id="u", client=None,
                            caller_identity="freddie:test")
     # bounded → QUEUE
     with patch("services.review_policy.load_autonomy", return_value={}), \

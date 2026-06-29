@@ -21,7 +21,7 @@ import {
 import api from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { proposalActionLabel } from '@/lib/proposal-labels';
-import { useReviewerPersona } from '@/lib/reviewer-persona';
+import { useFreddiePersona } from '@/lib/freddie-persona';
 import { InteractiveModal } from './InteractiveModal';
 
 // ---------------------------------------------------------------------------
@@ -439,7 +439,7 @@ interface ProposalDetailProps {
 }
 
 function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
-  const personaName = useReviewerPersona();
+  const personaName = useFreddiePersona();
   const [status, setStatus] = useState<LocalStatus>(
     proposal.status === 'executed' ? 'approved' :
     proposal.status === 'rejected' ? 'rejected' :
@@ -613,7 +613,7 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
 
 export function ProposalCard({ result }: ProposalCardProps) {
   const [open, setOpen] = useState(false);
-  const personaName = useReviewerPersona();
+  const personaName = useFreddiePersona();
 
   if (!result.success || !result.proposal) {
     return (

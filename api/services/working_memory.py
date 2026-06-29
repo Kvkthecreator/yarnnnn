@@ -565,7 +565,7 @@ def _get_unacknowledged_loop_events_sync(user_id: str, client: Any) -> list[dict
     most recent role='user' message, then returns all non-user-role entries
     after that timestamp. Caps at 10 entries to stay within token budget.
 
-    Material roles: 'reviewer' (verdicts + reflections), 'agent' (task completions),
+    Material roles: 'freddie' (verdicts + reflections), 'agent' (task completions),
     'system' (material system events — not housekeeping), 'external' (MCP writes).
     Ignores 'assistant' (YARNNN's own prior responses).
 
@@ -604,7 +604,7 @@ def _get_unacknowledged_loop_events_sync(user_id: str, client: Any) -> list[dict
             client.table("session_messages")
             .select("role, content, created_at")
             .eq("session_id", session_id)
-            .in_("role", ["reviewer", "agent", "system", "external"])
+            .in_("role", ["freddie", "agent", "system", "external"])
             .order("created_at", desc=False)
             .limit(10)
         )
@@ -1544,7 +1544,7 @@ def format_compact_index(
     if authorship.get("total", 0) > 0:
         by_layer = authorship.get("by_layer") or {}
         # Render in priority order so the operator's activity leads.
-        priority = ["operator", "yarnnn", "reviewer", "agent", "specialist", "system"]
+        priority = ["operator", "yarnnn", "freddie", "agent", "specialist", "system"]
         parts = []
         for layer in priority:
             n = by_layer.get(layer, 0)
@@ -1561,7 +1561,7 @@ def format_compact_index(
     if loop_events:
         autonomy_level = ws.get("autonomy_level")  # e.g. "autonomous", "bounded · $2K ceiling" (ADR-261 D5)
         role_labels = {
-            "reviewer": "Reviewer",
+            "freddie": "Freddie",
             "agent": "Agent",
             "system": "System",
             "external": "External",
@@ -1575,7 +1575,7 @@ def format_compact_index(
             label = role_labels.get(role, role.title())
             entry = f"{label}: {preview}" if preview else label
             # Reviewer verdict in manual/bounded may need user action
-            if role == "reviewer" and autonomy_level and "manual" in autonomy_level:
+            if role == "freddie" and autonomy_level and "manual" in autonomy_level:
                 needs_action.append(entry)
             else:
                 handled.append(entry)

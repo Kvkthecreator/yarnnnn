@@ -21,19 +21,21 @@
  *     governance-region → inline editors (ADR-347 §3). Moved in from the
  *     dissolved System Settings door.
  *   - Operation: Program — the program lifecycle (ADR-244).
- *   - Perception: Connectors · Sources — the transports the operation
- *     perceives through (ADR-338 D4.1).
+ *   - Access (ADR-373 D2): Workspace Members — who can write the workspace.
+ *
+ * ADR-385 D4 (2026-06-29): the Perception group (Connectors · Sources) is
+ * removed — perception is wholly owned by the Channels surface now; the
+ * connectors/sources slugs are pane_of: channels.
  */
 
 import { useEffect, useState } from "react";
-import { Target, UserCircle, Scale, Package, Link2, Rss, AlertCircle, Rocket, Loader2, Wallet, ShieldCheck, Crosshair, ArrowRight, Users } from "lucide-react";
+import { Target, UserCircle, Scale, Package, AlertCircle, Rocket, Loader2, Wallet, ShieldCheck, Crosshair, Users } from "lucide-react";
 import { api, APIError } from "@/lib/api/client";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { MandateCard } from "@/components/workspace-concepts/MandateCard";
 import { IdentityBrandCard } from "@/components/workspace-concepts/IdentityBrandCard";
 import { PrinciplesCard } from "@/components/workspace-concepts/PrinciplesCard";
-import { SourcesCard } from "@/components/workspace-concepts/SourcesCard";
 import { AutonomyCard } from "@/components/workspace-concepts/AutonomyCard";
 import { BudgetCard } from "@/components/workspace-concepts/BudgetCard";
 import { ExpectedOutputCard } from "@/components/workspace-concepts/ExpectedOutputCard";
@@ -42,8 +44,8 @@ import { ProgramLifecycleDrawer } from "@/components/library/ProgramLifecycleDra
 
 // ADR-341/347: pane keys match the kernel registry slugs for pane-grade
 // surfaces (mandate/identity/principles/budget/autonomy/expected-output/
-// program/connectors/sources), so foregroundSurface(slug) →
-// workspace-settings + ?pane=slug resolves here.
+// program), so foregroundSurface(slug) → workspace-settings + ?pane=slug
+// resolves here. ADR-385: connectors/sources moved to pane_of: channels.
 const PANE_GROUPS: PaneGroup[] = [
   {
     label: "Constitution",
@@ -67,13 +69,10 @@ const PANE_GROUPS: PaneGroup[] = [
     label: "Operation",
     panes: [{ key: "program", label: "Program", icon: Package }],
   },
-  {
-    label: "Perception",
-    panes: [
-      { key: "connectors", label: "Connectors", icon: Link2 },
-      { key: "sources", label: "Sources", icon: Rss },
-    ],
-  },
+  // ADR-385 D4 — the Perception group (Connectors · Sources) is removed from
+  // Workspace Settings; perception is now wholly owned by the Channels surface
+  // (the connectors/sources slugs are pane_of: channels). Settings tightens to
+  // Constitution · Contract · Operation · Access.
   {
     // ADR-373 D2 — the multi-principal access view. Who (humans, agents,
     // external LLMs over MCP, platforms) can write to this workspace, and
@@ -133,43 +132,9 @@ export default function WorkspaceSettingsPage() {
             <ProgramPaneBody onRerunSetup={() => navigateToSurface("setup")} />
           </section>
         );
-      case "connectors":
-        // ADR-377 D2: connections re-homed to Context (the perception home).
-        // Settings keeps a thin pointer, not the full UI — Singular
-        // Implementation (one real home). The rich connect/manage/freshness
-        // UI lives at /context?context.pane=connections.
-        return (
-          <section className="mb-8">
-            <div className="rounded-lg border border-border p-5">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-                  <Link2 className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium">Connections</div>
-                  <p className="mt-0.5 text-sm text-muted-foreground">
-                    Connected platforms now live in Context — manage them and see what each
-                    is feeding the operation, in one place.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => navigateToSurface("context", { pane: "connections" })}
-                    className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                  >
-                    Manage connections in Context
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-        );
-      case "sources":
-        return (
-          <section className="mb-8">
-            <SourcesCard variant="full" />
-          </section>
-        );
+      // ADR-385 D4 — the connectors + sources render cases are deleted here;
+      // those slugs are now pane_of: channels and render on the Channels
+      // surface. /connectors + /sources route stubs redirect there.
       case "members":
         // ADR-373 D2 — read-only Workspace Members legibility.
         return (

@@ -234,7 +234,7 @@ function formatHeadAuthor(authored_by: string | null | undefined): string | null
     const role = authored_by.slice('specialist:'.length);
     return `Specialist (${role})`;
   }
-  if (authored_by.startsWith('reviewer:')) return 'Reviewer';
+  if (authored_by.startsWith('freddie:')) return 'Reviewer';
   if (authored_by.startsWith('system:')) return 'System';
   return authored_by;
 }
