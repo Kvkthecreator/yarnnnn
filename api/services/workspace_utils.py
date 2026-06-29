@@ -55,6 +55,15 @@ def is_skeleton_content(content: Optional[str], bundle_body: Optional[str] = Non
     if bundle_body is not None and stripped == bundle_body.strip():
         return True
 
+    # ADR-383: steward defaults (the kernel-default MANDATE/IDENTITY/principles
+    # for the bare-Freddie workspace) carry a stable marker so a program-fork
+    # REPLACES them with the bundle's content rather than skipping them as
+    # "operator-authored prose". This re-introduces ONE deterministic kernel-
+    # default discriminator (an exact-marker check, not the fuzzy rescue the
+    # ADR-286 simplification removed). A steward default is overwrite-eligible.
+    if "<!-- yarnnn:steward-default -->" in stripped.split("\n", 1)[0]:
+        return True
+
     lower = stripped.lower()
 
     # Bundle template markers — `(template)` in first line + `_<not yet` placeholder.

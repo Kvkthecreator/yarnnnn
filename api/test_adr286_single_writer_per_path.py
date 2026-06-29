@@ -2,11 +2,23 @@
 
 Asserts the structural invariants from ADR-286:
   - D1: Every path that any active bundle ships is NOT in workspace_init's
-    `workspace_files` kernel-scaffold dict
+    `workspace_files` kernel-scaffold dict (with the ADR-383 steward-default
+    carve — see below)
   - D2: Kernel-universal paths (the survivor set) ARE in workspace_files
   - D6: is_skeleton_content has been simplified — kernel-default rescue
     patches deleted, bundle-template-detection patches survive
   - D7: workspace_init no longer has the bundle_owned_paths skip block
+
+ADR-383 amendment (the steward-default carve): the three agent-universal paths
+MANDATE / persona-IDENTITY / persona-principles move from bundle-owned-absent to
+KERNEL-UNIVERSAL-SEEDED — but seeded ONLY in the `if not program_slug:` branch
+(the bare-Freddie workspace gets steward defaults; a program-fork writes its own
+versions, and the steward defaults carry STEWARD_DEFAULT_MARKER so the fork
+overwrites them). Single-writer-per-path is PRESERVED: for a program workspace the
+kernel does NOT write these (the conditional excludes them); for a bare workspace
+no bundle writes them. The dual-write pathology ADR-286 prevents is still
+prevented — this test now enforces the *conditional* discipline instead of a flat
+ban on the three steward paths.
 
 Per discipline: AST + source-string assertions only. No live LLM call.
 """
@@ -69,32 +81,74 @@ def test_workspace_init_does_not_scaffold_bundle_owned_paths() -> None:
 
     # Find the workspace_files dict literal in workspace_init.py — pre-ADR-286
     # it included MANDATE/IDENTITY/BRAND/AUTONOMY etc. as keys. Post-ADR-286
-    # only kernel-universal paths are keys.
-    # Heuristic: each entry uses a constant import like CONSTITUTION_MANDATE_PATH
-    # or a string literal. We check for the bundle-owned constant names
-    # appearing in the workspace_files block.
+    # only kernel-universal paths are keys. ADR-383 carves the three steward
+    # paths back in (conditionally) — they are NOT in this ban list (the
+    # conditional-seeding discipline is asserted separately below).
     bundle_owned_constants = {
-        "CONSTITUTION_MANDATE_PATH",
-        "PERSONA_IDENTITY_PATH",
         "OPERATION_BRAND_PATH",
         "GOVERNANCE_AUTONOMY_PATH",
         "GOVERNANCE_AUTONOMY_YAML_PATH",
         "SYSTEM_AWARENESS_PATH",
-        "PERSONA_IDENTITY_PATH",
-        "PERSONA_PRINCIPLES_PATH",
     }
 
-    # Locate the workspace_files dict.
+    # Locate the workspace_files dict — and include the conditional
+    # `if not program_slug:` block that follows it (the steward seeds + the
+    # workspace-guide default land there). The base dict literal closes at the
+    # first `}\n`; the steward seeds are appended after via
+    # `workspace_files[...] = (...)` assignments inside the conditional.
     dict_start = src.find("workspace_files = {")
     assert dict_start != -1, "workspace_files dict must exist in workspace_init.py"
-    dict_end = src.find("}\n", dict_start)
-    assert dict_end != -1, "workspace_files dict must close"
-    dict_block = src[dict_start:dict_end]
+    # Scan to the end of Phase 2's file-writing loop (`for path, (content`)
+    # so both the dict literal AND the conditional steward-seed assignments
+    # are in scope for the ban check.
+    scan_end = src.find("for path, (content", dict_start)
+    assert scan_end != -1, "Phase-2 file-write loop must follow workspace_files"
+    scaffold_block = src[dict_start:scan_end]
 
-    leaked = [c for c in bundle_owned_constants if c in dict_block]
+    leaked = [c for c in bundle_owned_constants if c in scaffold_block]
     assert not leaked, (
-        f"workspace_files dict leaks bundle-owned paths (ADR-286 D1 violation): "
+        f"workspace_files scaffold leaks bundle-owned paths (ADR-286 D1 violation): "
         f"{leaked}. Move these to bundle-fork ownership."
+    )
+
+
+def test_steward_defaults_seeded_only_when_no_program() -> None:
+    """ADR-383 steward-default carve: the three agent-universal steward paths
+    (MANDATE / persona-IDENTITY / persona-principles) ARE seeded by the kernel,
+    but ONLY inside the `if not program_slug:` conditional — so a program-fork
+    is still the single writer for a program workspace (no dual-write). This is
+    the conditional discipline that REPLACES ADR-286's flat ban on these paths."""
+    src = _read_api("services/workspace_init.py")
+    steward_path_constants = (
+        "CONSTITUTION_MANDATE_PATH",
+        "PERSONA_IDENTITY_PATH",
+        "PERSONA_PRINCIPLES_PATH",
+    )
+    # Each steward path must appear, and must appear AFTER the `if not
+    # program_slug:` guard (i.e. inside the conditional no-program block),
+    # not in the unconditional base dict.
+    guard = src.find("if not program_slug:")
+    assert guard != -1, "ADR-383 steward seeds must live under `if not program_slug:`"
+    base_dict_start = src.find("workspace_files = {")
+    base_dict_end = src.find("}\n", base_dict_start)
+    base_dict = src[base_dict_start:base_dict_end]
+    conditional_block = src[guard:src.find("for path, (content", guard)]
+    for const in steward_path_constants:
+        assert const not in base_dict, (
+            f"{const} must NOT be in the unconditional workspace_files dict "
+            f"(ADR-383: steward seeds are no-program-only — a program workspace's "
+            f"writer is the bundle-fork, single-writer-per-path)"
+        )
+        assert const in conditional_block, (
+            f"{const} must be seeded inside the `if not program_slug:` block "
+            f"(ADR-383 steward-default carve)"
+        )
+    # And the steward marker must exist so the fork overwrites these on a
+    # later program activation.
+    util_src = _read_api("services/workspace_utils.py")
+    assert "yarnnn:steward-default" in util_src, (
+        "is_skeleton_content must recognize STEWARD_DEFAULT_MARKER so a "
+        "program-fork overwrites the steward defaults (ADR-383)"
     )
 
 
@@ -103,6 +157,11 @@ def test_workspace_init_drops_bundle_owned_imports() -> None:
     etc.) must no longer be imported in workspace_init.py — they're dead
     imports if the dict no longer uses them."""
     src = _read_api("services/workspace_init.py")
+    # ADR-383: CONSTITUTION_MANDATE_PATH / PERSONA_IDENTITY_PATH /
+    # PERSONA_PRINCIPLES_PATH + the DEFAULT_STEWARD_* constants are now
+    # legitimately imported (the steward seeds). The bundle-OWNED constants
+    # (the program's own MANDATE/IDENTITY/principles content + BRAND/AUTONOMY/
+    # AWARENESS) stay banned — those are bundle-fork-only.
     banned_imports = {
         "DEFAULT_IDENTITY_MD",
         "DEFAULT_BRAND_MD",
@@ -110,14 +169,10 @@ def test_workspace_init_drops_bundle_owned_imports() -> None:
         "DEFAULT_AWARENESS_MD",
         "DEFAULT_REVIEW_IDENTITY_MD",
         "DEFAULT_REVIEW_PRINCIPLES_MD",
-        "CONSTITUTION_MANDATE_PATH",
-        "PERSONA_IDENTITY_PATH",
         "OPERATION_BRAND_PATH",
         "GOVERNANCE_AUTONOMY_PATH",
         "GOVERNANCE_AUTONOMY_YAML_PATH",
         "SYSTEM_AWARENESS_PATH",
-        "PERSONA_IDENTITY_PATH",
-        "PERSONA_PRINCIPLES_PATH",
     }
     # Find the import block from `from services.orchestration import (`
     # and `from services.workspace_paths import (` — assert none of the

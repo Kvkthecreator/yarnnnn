@@ -175,12 +175,23 @@ async def initialize_workspace(
             DEFAULT_PRECEDENT_MD,
             DEFAULT_REVIEW_REFLECTION_MD,  # ADR-364: supersedes DEFAULT_REVIEW_CALIBRATION_MD
             DEFAULT_WORKSPACE_GUIDE_MD,  # kernel-default for no-program workspaces only (ADR-286 D2)
+            # ADR-383: steward defaults — the agent-universal MANDATE/IDENTITY/
+            # principles for the bare-Freddie workspace. Seeded ONLY when no
+            # program activates at signup (a program-fork writes its own
+            # versions in Phase 5). Amends ADR-286 D2: these three paths move
+            # from bundle-owned-absent to kernel-universal-seeded.
+            DEFAULT_STEWARD_MANDATE_MD,
+            DEFAULT_STEWARD_IDENTITY_MD,
+            DEFAULT_STEWARD_PRINCIPLES_MD,
         )
         from services.workspace_paths import (
             CONSTITUTION_PRECEDENT_PATH,
+            CONSTITUTION_MANDATE_PATH,  # ADR-383: steward-mandate seed (no-program)
             GOVERNANCE_BUDGET_PATH,  # ADR-327 spend-envelope governance file
             SYSTEM_PLAYBOOK_PATH,
             SYSTEM_STYLE_PATH, SYSTEM_NOTES_PATH,
+            PERSONA_IDENTITY_PATH,  # ADR-383: steward-identity seed (no-program)
+            PERSONA_PRINCIPLES_PATH,  # ADR-383: steward-principles seed (no-program)
             PERSONA_PRINCIPLES_YAML_PATH,  # machine-parsed thresholds — kernel default empty; bundle overrides
             PERSONA_OCCUPANT_PATH,
             PERSONA_HANDOFFS_PATH, PERSONA_REFLECTION_PATH,  # ADR-364
@@ -249,6 +260,31 @@ async def initialize_workspace(
             workspace_files["_workspace_guide.md"] = (
                 DEFAULT_WORKSPACE_GUIDE_MD,
                 "Workspace guide — kernel default for no-program workspaces (ADR-286 D2)",
+            )
+            # ADR-383: the steward defaults — the agent-universal MANDATE +
+            # IDENTITY + principles for the bare-Freddie workspace (the system
+            # agent). A bare workspace is a CONSTITUTED steward (ADR-383 D2:
+            # coherent, not empty), not "unconfigured" — so it carries a real
+            # purpose (stewardship), and the activation hard-gate (ADR-320 D4)
+            # passes for it. These are seeded ONLY when no program activates at
+            # signup: a program-fork (Phase 5) writes the bundle's own
+            # MANDATE/IDENTITY/principles, and because each steward default
+            # carries STEWARD_DEFAULT_MARKER, `is_skeleton_content` classifies
+            # it as overwrite-eligible so a LATER program activation correctly
+            # replaces it (write_refresh_skeleton, not skip_operator_authored).
+            # Amends ADR-286 D2: these three paths move bundle-owned-absent →
+            # kernel-universal-seeded.
+            workspace_files[CONSTITUTION_MANDATE_PATH] = (
+                DEFAULT_STEWARD_MANDATE_MD,
+                "Steward mandate — the system agent's purpose (ADR-383, no-program default)",
+            )
+            workspace_files[PERSONA_IDENTITY_PATH] = (
+                DEFAULT_STEWARD_IDENTITY_MD,
+                "Steward identity — the system agent's reasoning character (ADR-383, no-program default)",
+            )
+            workspace_files[PERSONA_PRINCIPLES_PATH] = (
+                DEFAULT_STEWARD_PRINCIPLES_MD,
+                "Steward principles — the system agent's stewardship rules (ADR-383, no-program default)",
             )
 
         # Note: PERSONA_PRINCIPLES_YAML_PATH is in the kernel-universal set

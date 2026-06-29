@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.29.3] - ADR-383 steward defaults: the bare workspace is a constituted Freddie
+
+**The consistent agent framework (ADR-383) lands its first code: a bare (no-program) workspace is now seeded with Freddie's steward defaults — it is a CONSTITUTED system agent, not "unconfigured".** Amends ADR-286 D2/D3 (the steward-default carve): `constitution/MANDATE.md` + `persona/IDENTITY.md` + `persona/principles.md` move from bundle-owned-absent to kernel-universal-seeded. These are LLM-facing content Freddie reads at every wake on a bare workspace.
+
+- `api/services/orchestration.py`: new `DEFAULT_STEWARD_MANDATE_MD` (the steward-mandate — "steward this substrate"; Primary Action = stewardship, names no value-moving write), `DEFAULT_STEWARD_IDENTITY_MD` (the steward reasoning-character), `DEFAULT_STEWARD_PRINCIPLES_MD` (5 stewardship rules of judgment in the four-field shape: intake-placement, attribution-integrity, commons-coherence, connection-hygiene, the stewardship standing-obligation — no consequential-action limb). Each carries `STEWARD_DEFAULT_MARKER` (`<!-- yarnnn:steward-default -->`).
+- `api/services/workspace_init.py`: Phase 2 seeds the three steward defaults — ONLY in the `if not program_slug:` branch (single-writer-per-path preserved: a program workspace's writer stays the bundle-fork; a bare workspace's is the kernel).
+- `api/services/workspace_utils.py`: `is_skeleton_content` recognizes the steward marker (deterministic, not the fuzzy rescue ADR-286 removed) so a LATER program activation overwrites the steward defaults (`write_refresh_skeleton`, not `skip_operator_authored_prose`).
+- **Expected behavior**: a bare workspace's Freddie reads a real steward MANDATE/IDENTITY/principles (it has a purpose: stewardship) instead of empty-state hints. Activating a program overwrites all three with the program's content. The ADR-320 D4 / ADR-207 hard-gate function is unchanged (MANDATE is never empty → gate keeps passing).
+- **Render parity**: `services/` change ships on API + Unified Scheduler (both run workspace_init paths). No env var, no schema, no migration.
+- Gate `test_adr286_single_writer_per_path.py` 9/9 (+`test_steward_defaults_seeded_only_when_no_program` enforces the conditional discipline). `test_adr320_permission_topology.py` 15/15 (hard-gate unaffected). The persona-frame re-carve (ADR-383 §7 item 1) is a separate subsequent commit.
+
 ## [2026.06.29.2] - recall counter fix: total_matches must be >= returned
 
 **Follow-on to [2026.06.29.1], surfaced by a live document-recall test.** `recall` returned `{total_matches: 0, returned: 1}` — an internally inconsistent counter (you can't return more rows than matched). Root cause: `total_matches` was sourced from the fuzzy `QueryKnowledge` `count` alone (`compose_recall`, `mcp_composition.py`), but `chunks` includes the DETERMINISTIC path-resolved hit (`resolve_memory_path`) that the fuzzy ranked path doesn't see. So a freshly-resolved file returned 1 chunk while the fuzzy counter read 0. (NOT an eventual-consistency lag — the two counters were sourced from different retrieval paths and never reconciled.)
