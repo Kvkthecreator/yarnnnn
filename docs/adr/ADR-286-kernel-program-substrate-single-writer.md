@@ -1,6 +1,9 @@
 # ADR-286: Kernel/Program Substrate Boundary — Single-Writer Per Path
 
 **Status**: Fully Implemented (2026-05-17)
+
+> **⚠ Amended by [ADR-384](ADR-384-the-re-founding-meaning-folders-permission-as-metadata.md) (the re-founding, FOUNDATIONS v9.13, 2026-06-29).** Single-writer-**per-path** relaxes to single-**head**, many-**authors** *for the work-commons* (the multi-principal commons many principals co-write): single-head-per-path is preserved (ADR-209 CAS), single-*author*-per-path is released, and a same-path semantic contradiction relocates the merge into the steward seat (a next-head judgment revision). **Conditioned on the single-substrate topology** (ADR-378; federation re-opens it). **Kernel-universal, bundle-owned, and `system/` paths are UNCHANGED — they stay strict single-writer.** The dual-write *elimination* this ADR achieved is preserved; what changes is that the *commons* now tolerates many attributed authors on one head-serialized path.
+
 **Date**: 2026-05-17
 **Companion docs**: `docs/architecture/FOUNDATIONS.md` (Axiom 1 + Derived Principle 16 — kernel-program boundary), `docs/architecture/GLOSSARY.md` (substrate-pedagogy clarification), `api/services/workspace_init.py` (Phase 2 kernel scaffold), `api/services/programs.py` (`fork_reference_workspace`), `api/services/workspace_utils.py` (`is_skeleton_content`)
 **Amends**: ADR-269 iter-4 (`bundle_owned_paths` skip — dissolves into the single-writer rule); ADR-281 §3 substrate-pedagogy (operator-canon role inherits single-writer-per-path constraint); ADR-284 Phase 1 (OCCUPANT helper survives unchanged — already single-writer for its path)
