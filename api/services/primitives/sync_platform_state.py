@@ -28,7 +28,7 @@ Behavior:
   5. Return ``{success, paths_written, paths_skipped, items_processed, error?}``.
 
 Dispatch surfaces:
-  - LLM tool: registered in HEADLESS_PRIMITIVES + REVIEWER_PRIMITIVES (NOT
+  - LLM tool: registered in HEADLESS_PRIMITIVES + FREDDIE_PRIMITIVES (NOT
     in CHAT_PRIMITIVES per ADR-264 D3 — operators don't invoke directly).
   - Mechanical recurrence: dispatched by the invocation_dispatcher when a
     mechanical-mode recurrence's prompt names ``@primitive: SyncPlatformState(...)``

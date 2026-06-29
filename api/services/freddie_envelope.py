@@ -90,7 +90,7 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     # at every wake so its wake-allocation judgment (mid-loop Schedule()
     # cadence authoring) lands within the operator's declared budget. When
     # read returns empty (no _budget.yaml authored yet) the helper still
-    # yields ("budget_yaml", "") so the ReviewerContext key is present.
+    # yields ("budget_yaml", "") so the FreddieContext key is present.
     ("budget_yaml", GOVERNANCE_BUDGET_PATH),
     # ADR-345: the operation's output contract (Expected Output) — what the
     # workspace owes (kind + delivery-cadence + bar). Orthogonal to budget
@@ -98,7 +98,7 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     # standing-obligation check (DP30) reads it declared-then-derive: when
     # present it is the shared referent for "behind on the contract"; when
     # empty the ADR-344 derivation is the fallback. Empty string keeps the
-    # ReviewerContext key present (same shape as budget_yaml).
+    # FreddieContext key present (same shape as budget_yaml).
     ("expected_output_yaml", CONTRACT_EXPECTED_OUTPUT_PATH),
     # — Seat Occupant (ADR-284) — current occupant identity, runtime-truth-aligned
     ("occupant_md", PERSONA_OCCUPANT_PATH),
@@ -142,11 +142,11 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
 # runtime model). The Reviewer perceives `now`, operator timezone, and
 # market state at every wake — load-bearing for Trigger-authoring decisions.
 #
-# Pre-ADR-301 this function lived in `agents/reviewer_agent.py` and was
+# Pre-ADR-301 this function lived in `agents/freddie_agent.py` and was
 # composed by `wake.py` at three call sites. ADR-301 D5 consolidates
 # composition here so the envelope helper is the singular envelope
 # assembly point — one home, one function, one contract. The thin
-# re-export in `agents.reviewer_agent` preserves the ADR-274 import
+# re-export in `agents.freddie_agent` preserves the ADR-274 import
 # contract for `build_operating_context_block` callers.
 # ---------------------------------------------------------------------------
 
@@ -232,14 +232,14 @@ def build_operating_context_block(client: Any, user_id: str) -> str:
     return "\n".join(lines)
 
 
-async def load_reviewer_governance_envelope(
+async def load_freddie_governance_envelope(
     client: Any, user_id: str
 ) -> tuple[dict, int]:
     """Assemble the Reviewer's wake envelope substrate.
 
     Returns `(envelope_dict, elapsed_ms)`:
-      - envelope_dict: keyed by `ReviewerContext` field names — drop
-        directly into the context bag passed to `invoke_reviewer()`. All
+      - envelope_dict: keyed by `FreddieContext` field names — drop
+        directly into the context bag passed to `invoke_freddie()`. All
         reads happen in parallel via `asyncio.gather` to minimize
         wake-envelope latency.
       - elapsed_ms: wall-clock ms spent in this call. Callers route it

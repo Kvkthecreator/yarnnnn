@@ -34,7 +34,7 @@ Returns:
 Dispatch surface:
   Kernel maintenance phase only (ADR-301 D4) — called per scheduler tick
   from `unified_scheduler.py` via `services.kernel_mirrors`. NOT in
-  CHAT/HEADLESS/REVIEWER_PRIMITIVES per ADR-301 D6.
+  CHAT/HEADLESS/FREDDIE_PRIMITIVES per ADR-301 D6.
 """
 
 from __future__ import annotations

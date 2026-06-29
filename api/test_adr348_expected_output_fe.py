@@ -101,8 +101,8 @@ def test_bundle_instances() -> None:
 
 def test_backend_wiring_preserved() -> None:
     print("\n[backend] ADR-345 wake-envelope wiring intact (preserved)")
-    env = _read("services/reviewer_envelope.py", root=_API_ROOT)
-    check("reviewer_envelope loads expected_output_yaml", "expected_output_yaml" in env)
+    env = _read("services/freddie_envelope.py", root=_API_ROOT)
+    check("freddie_envelope loads expected_output_yaml", "expected_output_yaml" in env)
     paths = _read("services/workspace_paths.py", root=_API_ROOT)
     check("CONTRACT_EXPECTED_OUTPUT_PATH defined (ADR-366: moved to contract/)",
           "CONTRACT_EXPECTED_OUTPUT_PATH" in paths)

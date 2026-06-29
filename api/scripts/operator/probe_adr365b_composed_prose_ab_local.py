@@ -110,7 +110,7 @@ ReturnVerdict to close.
 async def _compose(arm: str, system_text: str) -> dict:
     """One model call → the composed standing_intent text."""
     from services.anthropic import chat_completion_with_tools
-    from agents.reviewer_agent import RETURN_VERDICT_TOOL, _HAIKU
+    from agents.freddie_agent import RETURN_VERDICT_TOOL, _HAIKU
 
     write_tool = {
         "name": "WriteFile",
@@ -165,7 +165,7 @@ Document to score:
 
 async def _judge(text: str) -> dict:
     from services.anthropic import chat_completion_with_tools
-    from agents.reviewer_agent import _SONNET  # stronger model judges
+    from agents.freddie_agent import _SONNET  # stronger model judges
 
     resp = await chat_completion_with_tools(
         model=_SONNET,
@@ -185,7 +185,7 @@ async def _judge(text: str) -> dict:
 
 
 async def main() -> int:
-    from agents.reviewer_agent import _compute_minimal_frame
+    from agents.freddie_agent import _compute_minimal_frame
     from agents.cockpit_awareness import build_cockpit_section
 
     base = _compute_minimal_frame() + "\n\n" + build_cockpit_section()

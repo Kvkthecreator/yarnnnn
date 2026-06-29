@@ -13,7 +13,7 @@ The frame must:
 
 import re
 
-from agents.reviewer_agent import _compute_minimal_frame, _build_system_prompt
+from agents.freddie_agent import _compute_minimal_frame, _build_system_prompt
 
 
 def _flat(s: str) -> str:

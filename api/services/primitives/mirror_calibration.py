@@ -44,7 +44,7 @@ Behavior:
 Dispatch surface:
   Kernel maintenance phase only — called per scheduler tick from
   unified_scheduler.py via services.kernel_mirrors. NOT in
-  CHAT/HEADLESS/REVIEWER_PRIMITIVES.
+  CHAT/HEADLESS/FREDDIE_PRIMITIVES.
 """
 
 from __future__ import annotations
@@ -277,7 +277,7 @@ async def handle_mirror_calibration(auth: Any, input: dict) -> dict:
         lines.append("_(no judgment recurrences declared)_")
 
     lines += ["", "## Your cadence-authoring trail", ""]
-    reviewer_edits = [e for e in cadence_edits if str(e.get("authored_by", "")).startswith("reviewer:")]
+    reviewer_edits = [e for e in cadence_edits if str(e.get("authored_by", "")).startswith("freddie:")]
     if reviewer_edits:
         for e in reviewer_edits[:10]:
             lines.append(

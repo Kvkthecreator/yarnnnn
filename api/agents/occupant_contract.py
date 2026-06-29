@@ -7,10 +7,10 @@ that fills the seat). Per ADR-315:
 - The *seat* is substrate (`/workspace/persona/*` + ADR-209 attribution + the
   wake/verdict contract). It stays substrate — ADR-194 v2's "no ABC" retraction
   is preserved.
-- The *occupant* is a module (`agents/reviewer_agent.py`). It consumes a
-  substrate-assembled context bag (`ReviewerContext`), runs a bounded tool-use
-  loop, and returns one shape (`ReviewerOutput`). Today's occupant is
-  `REVIEWER_MODEL_IDENTITY` (`ai:reviewer-sonnet-v8`); the seat is
+- The *occupant* is a module (`agents/freddie_agent.py`). It consumes a
+  substrate-assembled context bag (`FreddieContext`), runs a bounded tool-use
+  loop, and returns one shape (`FreddieOutput`). Today's occupant is
+  `FREDDIE_MODEL_IDENTITY` (`ai:freddie-sonnet-v8`); the seat is
   occupant-class-agnostic (`human` / `ai` / `external:<service>` / `impersonated`,
   per FOUNDATIONS Derived Principle 15 + reviewer-substrate.md).
 
@@ -21,18 +21,18 @@ standing proof that the ABI is decoupled from the LLM runtime. The kernel/harnes
 `services/review_proposal_dispatch.py`) import the contract from here, never from
 the occupant implementation — closing the one reverse leak (ADR-315 D3).
 
-The kernel side of the ABI is `services/reviewer_envelope.py::
-load_reviewer_governance_envelope()`, which reads substrate and returns an
-`envelope_dict` keyed by `ReviewerContext` field names. The occupant side is
-`agents/reviewer_agent.py::invoke_reviewer(trigger, context)`. The full contract:
+The kernel side of the ABI is `services/freddie_envelope.py::
+load_freddie_governance_envelope()`, which reads substrate and returns an
+`envelope_dict` keyed by `FreddieContext` field names. The occupant side is
+`agents/freddie_agent.py::invoke_freddie(trigger, context)`. The full contract:
 
-    load_reviewer_governance_envelope()  →  ReviewerContext
-        →  invoke_reviewer(trigger, context)  →  ReviewerOutput
-            →  reviewer_audit / dispatcher write back to substrate
+    load_freddie_governance_envelope()  →  FreddieContext
+        →  invoke_freddie(trigger, context)  →  FreddieOutput
+            →  freddie_audit / dispatcher write back to substrate
 
-History note: these three symbols were defined inside `reviewer_agent.py` until
+History note: these three symbols were defined inside `freddie_agent.py` until
 ADR-315 (2026-06-04) promoted them here as the canonical definition home.
-`reviewer_agent.py` re-exports them so existing `from agents.reviewer_agent
+`freddie_agent.py` re-exports them so existing `from agents.freddie_agent
 import ...` callers keep resolving (one definition, re-exported — not a dual
 definition).
 """
@@ -43,18 +43,18 @@ from typing import TypedDict
 
 
 #: ADR-256: occupant identity bumped to v8. v1-v7 history in git log.
-#: v8 = unified invoke_reviewer() replacing four separate mode-functions.
-#: ADR-315: canonical home moved here from reviewer_agent.py — the occupant's
+#: v8 = unified invoke_freddie() replacing four separate mode-functions.
+#: ADR-315: canonical home moved here from freddie_agent.py — the occupant's
 #: self-identity belongs with the published contract, not buried in the impl.
-REVIEWER_MODEL_IDENTITY = "ai:reviewer-sonnet-v8"
+FREDDIE_MODEL_IDENTITY = "ai:freddie-sonnet-v8"
 
 
 # ---------------------------------------------------------------------------
 # Output type — single shape for all triggers (ADR-256 D5)
 # ---------------------------------------------------------------------------
 
-class ReviewerOutput(TypedDict, total=False):
-    """Unified output of invoke_reviewer() across both trigger shapes
+class FreddieOutput(TypedDict, total=False):
+    """Unified output of invoke_freddie() across both trigger shapes
     (addressed + reactive). Trigger taxonomy collapsed from four to two
     by ADR-263 D2 — the historical reflection/heartbeat-specific verdicts
     survive as substrate-write directives the Reviewer can emit on any
@@ -97,12 +97,12 @@ class ReviewerOutput(TypedDict, total=False):
 # Trigger context — caller pre-loads relevant substrate (ADR-256 D1)
 # ---------------------------------------------------------------------------
 
-class ReviewerContext(TypedDict, total=False):
+class FreddieContext(TypedDict, total=False):
     """Substrate bag passed by callers. Each trigger pre-loads what it has;
     the Reviewer uses ReadFile tool to fetch anything else it needs.
 
     Three valid context shapes per trigger sub-shape (enforced by
-    ``_validate_context_shape`` at the top of ``invoke_reviewer``):
+    ``_validate_context_shape`` at the top of ``invoke_freddie``):
 
       1. proposal-arrival (trigger="reactive"):
          REQUIRES: proposal_row
@@ -111,7 +111,7 @@ class ReviewerContext(TypedDict, total=False):
       3. addressed (trigger="addressed"):
          REQUIRES: user_message
 
-    A context bag that doesn't satisfy any shape causes ``invoke_reviewer``
+    A context bag that doesn't satisfy any shape causes ``invoke_freddie``
     to fail loudly with a log error + return None — replacing the prior
     silent fallback where mismatched context names caused the Reviewer to
     wake with empty user message and produce inert stand_down. The bug
@@ -130,7 +130,7 @@ class ReviewerContext(TypedDict, total=False):
     precedent_md: str
     # ADR-381 D3 / ADR-380 D3 — the Rung harness split (carried, not exercised).
     #   mandate_md + autonomy_md are CARRIED on every wake (one contract across
-    #   activation rungs — the kernel never forks ReviewerContext by occupant)
+    #   activation rungs — the kernel never forks FreddieContext by occupant)
     #   but EXERCISED only at Rung 2 (a consequential-action persona occupant,
     #   ADR-382). Over a Rung-1 steward (Freddie, reversible substrate) they are
     #   DEGENERATE — there is no consequential external write for the AUTONOMY

@@ -113,7 +113,7 @@ _ROWS = [
         "content_bytes": 0,
         "updated_at": "2026-06-12T00:00:00+00:00",
         "workspace_file_versions": {
-            "authored_by": "reviewer:ai:test",
+            "authored_by": "freddie:ai:test",
             "created_at": "2026-06-12T00:00:00+00:00",
         },
     },

@@ -11,7 +11,7 @@ Asserts the cockpit_awareness collapse:
   (e) the action-grammar invariants survive in the minimal frame (tool-call-IS-
       action, anti-confabulation, close-with-verdict) + the migrated write
       boundary (governance/ + system/ EXCEPT).
-  (f) the tool block is preserved (generated from REVIEWER_PRIMITIVES).
+  (f) the tool block is preserved (generated from FREDDIE_PRIMITIVES).
 
 Run: python -m pytest api/test_adr323_frame_collapse_finished.py -q
 """
@@ -19,7 +19,7 @@ from __future__ import annotations
 
 
 def _system_body() -> str:
-    from agents.reviewer_agent import _compute_minimal_frame
+    from agents.freddie_agent import _compute_minimal_frame
     from agents.cockpit_awareness import build_cockpit_section
     return _compute_minimal_frame() + "\n\n" + build_cockpit_section()
 
@@ -80,7 +80,7 @@ def test_no_substrate_pedagogy_in_system_prompt():
 
 
 def test_action_grammar_survives_in_frame():
-    from agents.reviewer_agent import _compute_minimal_frame
+    from agents.freddie_agent import _compute_minimal_frame
     frame = _compute_minimal_frame()
     # The interface contract the frame MUST carry (DP22).
     assert "A tool call IS your action" in frame

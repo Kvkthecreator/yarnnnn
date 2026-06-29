@@ -4,11 +4,11 @@ The unit gate (test_adr352_ask_gate.py) proves resolve_permission returns DENY.
 But the live 5x batch (2026-06-21) exposed that a DENY was being SWALLOWED
 downstream:
 
-  Bug 1 — invoke_reviewer set `clarify_called_this_round = True` on ANY Clarify
+  Bug 1 — invoke_freddie set `clarify_called_this_round = True` on ANY Clarify
           call, so a gate-DENIED Clarify still fired the "question surfaced →
           ReturnVerdict(stand_down)" nudge and closed the turn. The seat never
           acted.
-  Bug 2 — surface_reviewer_actions stamped clarify_question/options onto the
+  Bug 2 — surface_freddie_actions stamped clarify_question/options onto the
           persisted operator-facing message for ANY Clarify, so a DENIED
           Clarify's enumerated A/B question leaked to the operator as if asked.
 
@@ -38,7 +38,7 @@ def _src(rel: str) -> str:
 # ---------------------------------------------------------------------------
 
 def test_clarify_nudge_gated_on_success():
-    src = _src("agents/reviewer_agent.py")
+    src = _src("agents/freddie_agent.py")
     # The flag that triggers the close-turn nudge must require the Clarify to
     # have succeeded (gate APPLIED), not merely been called.
     assert 'if name == "Clarify" and actions_taken[-1]["success"]:' in src, (
@@ -56,9 +56,9 @@ def test_clarify_nudge_gated_on_success():
 # ---------------------------------------------------------------------------
 
 def test_clarify_surfacing_gated_on_success():
-    src = _src("services/reviewer_chat_surfacing.py")
+    src = _src("services/freddie_chat_surfacing.py")
     assert 'if tool == "Clarify" and success:' in src, (
-        "surface_reviewer_actions must stamp clarify_question/options only when "
+        "surface_freddie_actions must stamp clarify_question/options only when "
         "the Clarify SUCCEEDED (ADR-352 — a denied Clarify must not leak its "
         "enumerated question to the operator)"
     )

@@ -148,7 +148,7 @@ def test_dispatcher_threads_capabilities_into_context():
 
 
 def test_reviewer_reads_capabilities_from_context():
-    reviewer_src = (_REPO_ROOT / "agents" / "reviewer_agent.py").read_text()
+    reviewer_src = (_REPO_ROOT / "agents" / "freddie_agent.py").read_text()
     assert_true(
         "recurrence_required_capabilities" in reviewer_src,
         "reviewer reads recurrence_required_capabilities from context",
@@ -324,7 +324,7 @@ def test_dispatch_specialist_message_append_uses_response_content():
     existed on ChatResponse (anthropic.py:26) — Python raised AttributeError
     before the `or` fallback could evaluate. The fix replaces that access with
     a reconstruction loop over `response.content` (mirrors the canonical
-    pattern in api/agents/reviewer_agent.py).
+    pattern in api/agents/freddie_agent.py).
 
     This test verifies:
       1. The code path no longer references `tool_uses_raw` anywhere.
@@ -388,7 +388,7 @@ def test_dispatch_specialist_tool_execution_uses_attribute_access():
     `response.tool_uses` is `list[ToolUseBlock]` per anthropic.py
     `_parse_response` (lines 110-114) — `ToolUseBlock` is a @dataclass
     with `.id`, `.name`, `.input` attributes, NOT a dict. The fix uses
-    attribute access (matches reviewer_agent.py's pattern).
+    attribute access (matches freddie_agent.py's pattern).
 
     Surfaced AFTER the tool_uses_raw fix shipped — same underlying class
     of bug (code assumed dict shape, runtime delivers dataclass).
@@ -526,7 +526,7 @@ def test_dispatch_specialist_honors_per_recurrence_max_rounds():
 
 
 def test_reviewer_threads_recurrence_options_onto_auth():
-    """Regression: dispatcher → invoke_reviewer → auth.recurrence_options.
+    """Regression: dispatcher → invoke_freddie → auth.recurrence_options.
 
     The Reviewer's tool dispatch builds a SimpleNamespace auth. For
     per-recurrence specialist budgets to take effect, the Reviewer must
@@ -534,16 +534,16 @@ def test_reviewer_threads_recurrence_options_onto_auth():
     invoking tools. Without this hop, max_rounds declared in the bundle
     YAML never reaches handle_dispatch_specialist.
     """
-    from agents import reviewer_agent
+    from agents import freddie_agent
     import inspect
 
-    source = inspect.getsource(reviewer_agent)
+    source = inspect.getsource(freddie_agent)
     # `auth = SimpleNamespace(... recurrence_options=...)` is the
     # threading pattern. We don't pin a specific line shape, just that
     # the name `recurrence_options` appears in the auth construction.
     assert_true(
         "recurrence_options" in source,
-        "reviewer_agent threads recurrence_options onto auth",
+        "freddie_agent threads recurrence_options onto auth",
     )
 
 
@@ -555,7 +555,7 @@ def test_reviewer_system_prompt_has_cache_control():
     cache on rounds 2+. SAME audit found Haiku Reviewer was uncached on
     every call (every [TOKENS] line: cache_create=0 cache_read=0
     cache_hit=0% with 15-23K input tokens). Same root cause:
-    reviewer_agent._build_system_prompt() returned plain str — Anthropic's
+    freddie_agent._build_system_prompt() returned plain str — Anthropic's
     prompt-caching beta header attached but no cache_control markers on
     static content.
 
@@ -564,7 +564,7 @@ def test_reviewer_system_prompt_has_cache_control():
     not a plain str. Same canonical pattern as
     test_dispatch_specialist_system_prompt_has_cache_control above.
     """
-    from agents.reviewer_agent import _build_system_prompt
+    from agents.freddie_agent import _build_system_prompt
 
     result = _build_system_prompt()
     assert_true(isinstance(result, list), "system prompt is a list of content blocks")

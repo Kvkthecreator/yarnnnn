@@ -76,8 +76,8 @@ async def main() -> int:
     print(f"[cron-spine] path = reactive/cron_tick (faithful recurrence-fire), slug={slug}")
 
     from services.supabase import get_service_client
-    from services.reviewer_envelope import load_reviewer_governance_envelope
-    from agents.reviewer_agent import invoke_reviewer
+    from services.freddie_envelope import load_freddie_governance_envelope
+    from agents.freddie_agent import invoke_freddie
     import uuid
 
     nudge_fired = {"value": False}
@@ -98,11 +98,11 @@ async def main() -> int:
     n_before = before.count if before.count is not None else len(before.data or [])
     print(f"[cron-spine] content.md count BEFORE: {n_before}")
 
-    governance_envelope, load_ms = await load_reviewer_governance_envelope(client, USER_ID)
+    governance_envelope, load_ms = await load_freddie_governance_envelope(client, USER_ID)
     print(f"[cron-spine] envelope load_ms={load_ms}")
 
     # EXACT fire_recurrence context shape (wake.py:558-581), trigger=reactive.
-    out = await invoke_reviewer(
+    out = await invoke_freddie(
         client=client,
         user_id=USER_ID,
         trigger="reactive",

@@ -2231,7 +2231,7 @@ async def connect_commerce(
 
     # ADR-261 D6 §4: lazy back-office materialization on platform connect
     # is deleted. Outcome-reconciliation, reviewer-calibration, and
-    # reviewer-reflection are operator-authored (or bundle-seeded) entries
+    # freddie-reflection are operator-authored (or bundle-seeded) entries
     # in /workspace/_recurrences.yaml — the operator opts in by activating
     # a program bundle that ships them, or authors them via Schedule().
 
@@ -2520,7 +2520,7 @@ async def connect_trading(
 
     # ADR-261 D6 §4: lazy back-office materialization on platform connect
     # is deleted. Outcome-reconciliation, reviewer-calibration, and
-    # reviewer-reflection are bundle-seeded entries in
+    # freddie-reflection are bundle-seeded entries in
     # /workspace/_recurrences.yaml when the operator activates a program
     # (e.g. alpha-trader); operators without a bundle author them via
     # Schedule(action='create', ...) on demand.

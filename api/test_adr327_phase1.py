@@ -7,7 +7,7 @@ Phase 2):
   - GOVERNANCE_BUDGET_PATH wired into workspace_init seed + reviewer envelope
   - the budget_yaml envelope key (renamed from pace_yaml) is present
   - the alpha-trader bundle ships _budget.yaml (not _token_budget.yaml)
-  - ReviewerContext carries budget_yaml (not pace_yaml)
+  - FreddieContext carries budget_yaml (not pace_yaml)
 
 Usage:
     cd api
@@ -39,7 +39,7 @@ from services.budget import (  # noqa: E402
     load_budget,
 )
 from services.workspace_paths import GOVERNANCE_BUDGET_PATH  # noqa: E402
-from services.reviewer_envelope import _UNIVERSAL_ENVELOPE_DECLS  # noqa: E402
+from services.freddie_envelope import _UNIVERSAL_ENVELOPE_DECLS  # noqa: E402
 
 PASSED = 0
 FAILED = 0
@@ -179,11 +179,11 @@ def test_envelope_key() -> None:
 
 
 def test_reviewer_context() -> None:
-    print("\n[contract] ReviewerContext.budget_yaml")
-    from agents.occupant_contract import ReviewerContext
-    ann = getattr(ReviewerContext, "__annotations__", {})
-    check("budget_yaml in ReviewerContext", "budget_yaml" in ann)
-    check("pace_yaml NOT in ReviewerContext", "pace_yaml" not in ann)
+    print("\n[contract] FreddieContext.budget_yaml")
+    from agents.occupant_contract import FreddieContext
+    ann = getattr(FreddieContext, "__annotations__", {})
+    check("budget_yaml in FreddieContext", "budget_yaml" in ann)
+    check("pace_yaml NOT in FreddieContext", "pace_yaml" not in ann)
 
 
 def test_bundle_file() -> None:

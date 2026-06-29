@@ -218,7 +218,7 @@ SYSTEM_FILES = (
 # LOCKED from writing `path` iff `path` starts with any prefix in its locked set.
 # No filename appears here — permission derives from (caller_class, root) alone.
 # This is the SINGULAR lock source: it replaces the pre-ADR-320 pair
-# (DEFAULT_REVIEWER_WRITE_LOCKS flat-list + DEFAULT_MCP_WRITE_LOCK_PREFIXES).
+# (DEFAULT_FREDDIE_WRITE_LOCKS flat-list + DEFAULT_MCP_WRITE_LOCK_PREFIXES).
 #
 # Caller classes (matched by authored_by prefix in the gate):
 #   - "reviewer"  — the seat occupant. Amends constitution/ + persona/ +

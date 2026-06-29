@@ -266,7 +266,7 @@ def _seed(client, *, with_outcomes: bool) -> dict[str, str | None]:
     )
     write_revision(
         client, user_id=USER_ID, path=JUDGMENT_LOG_PATH, content=_seeded_judgment_log(),
-        authored_by="reviewer:ai-opus-seed",
+        authored_by="freddie:ai-opus-seed",
         message="probe-tenure: seed 8 approve-under-the-permissive-rule decisions (joinable proposal_ids)",
     )
     write_revision(
@@ -284,7 +284,7 @@ async def _structural_gate(client) -> int:
     pairs; then seed the CONTROL arm + assert the gap-fact renders only the 1
     baseline pair. Restores nothing — leaves the SEEDED arm in place so a --live
     run continues from the proven seed. (Use --restore to roll back.)"""
-    from services.reviewer_envelope import _reflection_gap_fact
+    from services.freddie_envelope import _reflection_gap_fact
 
     print("\n=== PHASE 1 — FREE offline structural gate ===")
 
@@ -359,7 +359,7 @@ def _reviewer_writes_since(client, since_iso: str) -> list[dict]:
     res = client.table("workspace_file_versions").select(
         "path,authored_by,message,created_at").eq("user_id", USER_ID).gte(
         "created_at", since_iso).order("created_at", desc=True).limit(40).execute()
-    return [r for r in (res.data or []) if (r.get("authored_by") or "").startswith("reviewer:")]
+    return [r for r in (res.data or []) if (r.get("authored_by") or "").startswith("freddie:")]
 
 
 async def soak(client, n: int, *, control: bool) -> int:

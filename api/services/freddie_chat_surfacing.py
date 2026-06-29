@@ -12,7 +12,7 @@ would fail the constraint.
 
 ## Single write path
 
-`write_reviewer_message(client, user_id, *, content, metadata)` is the
+`write_freddie_message(client, user_id, *, content, metadata)` is the
 sole entry point. Callers (propose_action.handle_execute_proposal,
 propose_action.handle_reject_proposal, review_proposal_dispatch for
 AI-defer + observe-only paths) call this helper after their primary
@@ -64,7 +64,7 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
-async def write_reviewer_message(
+async def write_freddie_message(
     client: Any,
     user_id: str,
     *,
@@ -159,7 +159,7 @@ async def write_reviewer_message(
 
 # Active-session resolver moved to services.narrative.find_active_workspace_session
 # (ADR-219 Commit 3 — promoted as the canonical helper for autonomous
-# narrative entries; reviewer_chat_surfacing was its only caller).
+# narrative entries; freddie_chat_surfacing was its only caller).
 
 
 # ---------------------------------------------------------------------------
@@ -180,7 +180,7 @@ async def write_reviewer_message(
 # original frozenset construction. The fix surfaces Clarify with
 # role='reviewer' (persona attribution, not System Agent narration);
 # see narrate_reviewer_action's Clarify branch + the role-aware emission
-# path in surface_reviewer_actions + wake.py::stream_addressed_wake.
+# path in surface_freddie_actions + wake.py::stream_addressed_wake.
 REVIEWER_COGNITION_TOOLS = frozenset({
     "ReadFile", "ListFiles", "SearchFiles", "ListRevisions",
     "ReadRevision", "DiffRevisions", "GetSystemState", "SearchEntities",
@@ -202,17 +202,17 @@ REVIEWER_COGNITION_TOOLS = frozenset({
 #
 # The 3-bucket taxonomy:
 #   - REVIEWER_COGNITION_TOOLS    → silent (pure reads, no side-effect)
-#   - REVIEWER_MIRROR_REFRESH_TOOLS → silent (side-effect but mechanical-
+#   - FREDDIE_MIRROR_REFRESH_TOOLS → silent (side-effect but mechanical-
 #                                     mirror substrate canonicalization,
 #                                     not judgment)
 #   - everything else              → emit System Agent narration
 #
 # ADR-296 v2 D3 narrowing: the FireInvocation branch of this classifier
-# dissolved when FireInvocation left REVIEWER_PRIMITIVES. The Reviewer
+# dissolved when FireInvocation left FREDDIE_PRIMITIVES. The Reviewer
 # no longer commissions mechanical-mirror fires by name; mechanical
 # mirrors run on their own cron-tick wake source schedule. Only the
 # SyncPlatformState mid-loop override case remains.
-REVIEWER_MIRROR_REFRESH_TOOLS = frozenset({
+FREDDIE_MIRROR_REFRESH_TOOLS = frozenset({
     "SyncPlatformState",
 })
 
@@ -221,7 +221,7 @@ REVIEWER_MIRROR_REFRESH_TOOLS = frozenset({
 #
 # Pre-this commit, ALL failed Reviewer actions were filtered out of
 # narrative substrate (the unguarded `success=True` gate at
-# surface_reviewer_actions:408 + _fold_key:307). The operator could not
+# surface_freddie_actions:408 + _fold_key:307). The operator could not
 # see the model's failed-WriteFile attempts, failed ProposeAction
 # submissions, failed substrate refreshes — even though those failures
 # carry operator-actionable information (e.g., "model attempted write
@@ -306,7 +306,7 @@ def is_mirror_refresh_action(action: dict, client: Any, user_id: str) -> bool:
     that the operator doesn't need to see? Returns True to SKIP.
 
     Per ADR-296 v2 D3 the single path to True is `tool in
-    REVIEWER_MIRROR_REFRESH_TOOLS` (today: SyncPlatformState). The
+    FREDDIE_MIRROR_REFRESH_TOOLS` (today: SyncPlatformState). The
     pre-ADR-296 FireInvocation-of-mechanical-recurrence branch dissolved
     when FireInvocation left the Reviewer's tool surface.
 
@@ -315,7 +315,7 @@ def is_mirror_refresh_action(action: dict, client: Any, user_id: str) -> bool:
     recurrence-dependent classification logic.
     """
     del client, user_id  # currently unused; reserved
-    return action.get("tool", "") in REVIEWER_MIRROR_REFRESH_TOOLS
+    return action.get("tool", "") in FREDDIE_MIRROR_REFRESH_TOOLS
 
 
 def narrate_reviewer_action(tool: str, summary: str = "", *, folded_count: int = 1) -> str:
@@ -359,7 +359,7 @@ def _fold_same_path_writes(
     """Fold consecutive emit-eligible actions sharing (tool, path) into one.
 
     "Emit-eligible" = the subset that would have produced narration entries
-    (excludes REVIEWER_COGNITION_TOOLS + REVIEWER_MIRROR_REFRESH_TOOLS,
+    (excludes REVIEWER_COGNITION_TOOLS + FREDDIE_MIRROR_REFRESH_TOOLS,
     failed actions). The fold operates on the emit-eligible sequence —
     cognition + mirror-refresh actions are transparently skipped and do
     NOT break adjacency for fold purposes.
@@ -374,7 +374,7 @@ def _fold_same_path_writes(
     `/workspace/_recurrences.yaml` derived from the slug, but Schedule's
     fold scope is governed by slug rather than path — handled in Commit C).
 
-    Used by surface_reviewer_actions to close the iterative-refinement
+    Used by surface_freddie_actions to close the iterative-refinement
     feed-noise pattern surfaced by docs/evaluations/2026-05-21-005856-
     wake-duplication-audit/findings.md.
     """
@@ -427,7 +427,7 @@ def _fold_same_path_writes(
         # We fold strictly when the previous emit-eligible entry shares
         # the same key. Cognition/mirror-refresh actions in actions_taken
         # don't reach `folded` (they're filtered downstream in
-        # surface_reviewer_actions) so adjacency in `folded` matches
+        # surface_freddie_actions) so adjacency in `folded` matches
         # adjacency among emit-eligible actions.
         if (
             key is not None
@@ -454,7 +454,7 @@ def _fold_same_path_writes(
     return folded
 
 
-async def surface_reviewer_actions(
+async def surface_freddie_actions(
     client: Any,
     user_id: str,
     *,
@@ -508,7 +508,7 @@ async def surface_reviewer_actions(
         # override case per ADR-264) carry no operator-relevant judgment —
         # substrate-canonicalization plumbing. Extends ADR-277's emission-
         # at-source policy. The pre-ADR-296 FireInvocation-of-mechanical
-        # branch dissolved when FireInvocation left REVIEWER_PRIMITIVES.
+        # branch dissolved when FireInvocation left FREDDIE_PRIMITIVES.
         if is_mirror_refresh_action(action, client, user_id):
             continue
         # ADR-303 D3 (2026-05-26) visibility-first invert: failed actions

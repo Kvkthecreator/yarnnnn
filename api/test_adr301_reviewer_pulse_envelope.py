@@ -120,7 +120,7 @@ def test_primitives_not_in_llm_surfaces() -> None:
     print("\n[4] Primitives NOT exposed to LLM (kernel maintenance only)")
     try:
         from services.primitives.registry import (
-            CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, REVIEWER_PRIMITIVES,
+            CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, FREDDIE_PRIMITIVES,
         )
     except ImportError as e:
         _bad("primitive surface imports", str(e))
@@ -128,7 +128,7 @@ def test_primitives_not_in_llm_surfaces() -> None:
     surfaces = {
         "CHAT_PRIMITIVES": CHAT_PRIMITIVES,
         "HEADLESS_PRIMITIVES": HEADLESS_PRIMITIVES,
-        "REVIEWER_PRIMITIVES": REVIEWER_PRIMITIVES,
+        "FREDDIE_PRIMITIVES": FREDDIE_PRIMITIVES,
     }
     for surface_name, surface in surfaces.items():
         # Surfaces are lists of tool dicts with a "name" field
@@ -153,7 +153,7 @@ def test_primitives_not_in_llm_surfaces() -> None:
 def test_envelope_includes_new_keys() -> None:
     print("\n[5] Envelope helper declares schedule_index_md + recent_execution_md")
     try:
-        from services.reviewer_envelope import _UNIVERSAL_ENVELOPE_DECLS
+        from services.freddie_envelope import _UNIVERSAL_ENVELOPE_DECLS
     except ImportError as e:
         _bad("envelope helper import", str(e))
         return
@@ -179,50 +179,50 @@ def test_envelope_includes_new_keys() -> None:
 # ---------------------------------------------------------------------------
 
 def test_operating_context_consolidated() -> None:
-    print("\n[6] build_operating_context_block lives in reviewer_envelope (ADR-301 D5)")
+    print("\n[6] build_operating_context_block lives in freddie_envelope (ADR-301 D5)")
     try:
-        from services.reviewer_envelope import build_operating_context_block as src
+        from services.freddie_envelope import build_operating_context_block as src
     except ImportError as e:
         _bad("envelope helper exports build_operating_context_block", str(e))
         return
     if callable(src):
-        _ok("services.reviewer_envelope.build_operating_context_block exists")
+        _ok("services.freddie_envelope.build_operating_context_block exists")
     else:
         _bad("envelope helper symbol callable", "not callable")
 
     # Re-export shim preserved for ADR-274 contract
     try:
-        from agents.reviewer_agent import build_operating_context_block as shim
+        from agents.freddie_agent import build_operating_context_block as shim
     except ImportError as e:
-        _bad("agents.reviewer_agent re-export shim", str(e))
+        _bad("agents.freddie_agent re-export shim", str(e))
         return
     if shim is src:
-        _ok("agents.reviewer_agent.build_operating_context_block is the same function (re-export)")
+        _ok("agents.freddie_agent.build_operating_context_block is the same function (re-export)")
     else:
         _bad(
             "re-export identity",
-            "agents.reviewer_agent.build_operating_context_block is a parallel impl, not re-export",
+            "agents.freddie_agent.build_operating_context_block is a parallel impl, not re-export",
         )
 
 
 # ---------------------------------------------------------------------------
-# 6. ReviewerContext TypedDict declares new fields
+# 6. FreddieContext TypedDict declares new fields
 # ---------------------------------------------------------------------------
 
 def test_reviewer_context_fields() -> None:
-    print("\n[7] ReviewerContext declares schedule_index_md + recent_execution_md")
+    print("\n[7] FreddieContext declares schedule_index_md + recent_execution_md")
     try:
-        from agents.reviewer_agent import ReviewerContext
+        from agents.freddie_agent import FreddieContext
     except ImportError as e:
-        _bad("ReviewerContext import", str(e))
+        _bad("FreddieContext import", str(e))
         return
-    annotations = getattr(ReviewerContext, "__annotations__", {})
+    annotations = getattr(FreddieContext, "__annotations__", {})
     for field in ("schedule_index_md", "recent_execution_md"):
         if field in annotations:
-            _ok(f"ReviewerContext.{field} declared")
+            _ok(f"FreddieContext.{field} declared")
         else:
             _bad(
-                f"ReviewerContext.{field} declared",
+                f"FreddieContext.{field} declared",
                 f"annotations present: {sorted(annotations)}",
             )
 
@@ -234,9 +234,9 @@ def test_reviewer_context_fields() -> None:
 def test_build_user_message_reads_new_keys() -> None:
     print("\n[8] _build_user_message renders schedule_index + recent_execution sections")
     try:
-        import agents.reviewer_agent as ra
+        import agents.freddie_agent as ra
     except ImportError as e:
-        _bad("agents.reviewer_agent import", str(e))
+        _bad("agents.freddie_agent import", str(e))
         return
     src = inspect.getsource(ra._build_user_message)
     if 'ctx.get("schedule_index_md")' in src:

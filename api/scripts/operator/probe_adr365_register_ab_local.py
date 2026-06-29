@@ -150,7 +150,7 @@ Do NOT call ReadFile/ListFiles; act on what is present here. This cycle:
 async def _run_arm(arm: str, system_prompt_blocks: list, user_msg: str) -> dict:
     """One model call. Returns the agent's text + tool calls (the prose to judge)."""
     from services.anthropic import chat_completion_with_tools
-    from agents.reviewer_agent import RETURN_VERDICT_TOOL, _HAIKU
+    from agents.freddie_agent import RETURN_VERDICT_TOOL, _HAIKU
 
     # Minimal tool surface for the probe: just ReturnVerdict + WriteFile, so the
     # agent can close with a verdict and optionally write standing_intent — the
@@ -229,7 +229,7 @@ async def _run_arm(arm: str, system_prompt_blocks: list, user_msg: str) -> dict:
 
 
 async def main() -> int:
-    from agents.reviewer_agent import _compute_minimal_frame
+    from agents.freddie_agent import _compute_minimal_frame
     from agents.cockpit_awareness import build_cockpit_section
 
     live_frame = _compute_minimal_frame()

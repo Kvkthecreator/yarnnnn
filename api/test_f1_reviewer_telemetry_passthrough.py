@@ -7,7 +7,7 @@ Reviewer's loop tracked usage internally and wrote it to token_usage, but
 never returned the accumulators to the dispatcher — so the slug-indexed
 audit table couldn't show per-fire cost without joining token_usage.
 
-Fix: extend ReviewerOutput with token + model + tool_rounds fields; the
+Fix: extend FreddieOutput with token + model + tool_rounds fields; the
 judgment dispatch path reads them off and passes into record_execution_event.
 (That path lived in invocation_dispatcher.py until the ADR-296 v2 → ADR-298
 wake-architecture migration moved it into services/wake.py.)
@@ -28,21 +28,21 @@ def _read(rel: str) -> str:
 
 
 # -----------------------------------------------------------------------------
-# Contract 1: ReviewerOutput TypedDict declares the six telemetry fields.
+# Contract 1: FreddieOutput TypedDict declares the six telemetry fields.
 # -----------------------------------------------------------------------------
 
 def test_reviewer_output_declares_telemetry_fields() -> None:
-    # ADR-315: ReviewerOutput is DEFINED in occupant_contract.py (the published
+    # ADR-315: FreddieOutput is DEFINED in occupant_contract.py (the published
     # substrate<->occupant ABI). The dict-literal construction sites stay in
-    # reviewer_agent.py and are asserted by Contract 2+ below.
+    # freddie_agent.py and are asserted by Contract 2+ below.
     src = _read("agents/occupant_contract.py")
     tree = ast.parse(src)
     found = None
     for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef) and node.name == "ReviewerOutput":
+        if isinstance(node, ast.ClassDef) and node.name == "FreddieOutput":
             found = node
             break
-    assert found is not None, "ReviewerOutput class must be defined"
+    assert found is not None, "FreddieOutput class must be defined"
 
     annotated_names = {
         stmt.target.id
@@ -58,15 +58,15 @@ def test_reviewer_output_declares_telemetry_fields() -> None:
         "tool_rounds",
     }
     missing = required - annotated_names
-    assert not missing, f"ReviewerOutput missing telemetry fields: {missing}"
+    assert not missing, f"FreddieOutput missing telemetry fields: {missing}"
 
 
 # -----------------------------------------------------------------------------
-# Contract 2: invoke_reviewer accumulates cache token counters.
+# Contract 2: invoke_freddie accumulates cache token counters.
 # -----------------------------------------------------------------------------
 
-def test_invoke_reviewer_accumulates_cache_tokens() -> None:
-    src = _read("agents/reviewer_agent.py")
+def test_invoke_freddie_accumulates_cache_tokens() -> None:
+    src = _read("agents/freddie_agent.py")
     # Both counters must be declared and accumulated from the Anthropic
     # native usage keys (cache_read_input_tokens, cache_creation_input_tokens).
     assert "total_cache_read = 0" in src, "total_cache_read accumulator missing"
@@ -80,19 +80,19 @@ def test_invoke_reviewer_accumulates_cache_tokens() -> None:
 
 
 # -----------------------------------------------------------------------------
-# Contract 3: invoke_reviewer's success-path output dict carries telemetry.
+# Contract 3: invoke_freddie's success-path output dict carries telemetry.
 # -----------------------------------------------------------------------------
 
-def test_invoke_reviewer_success_output_carries_telemetry() -> None:
-    src = _read("agents/reviewer_agent.py")
-    # Find the line where `output: ReviewerOutput = {` is opened.
-    idx = src.find("output: ReviewerOutput = {")
-    assert idx != -1, "ReviewerOutput dict literal must exist in invoke_reviewer"
+def test_invoke_freddie_success_output_carries_telemetry() -> None:
+    src = _read("agents/freddie_agent.py")
+    # Find the line where `output: FreddieOutput = {` is opened.
+    idx = src.find("output: FreddieOutput = {")
+    assert idx != -1, "FreddieOutput dict literal must exist in invoke_freddie"
     # Capture the block until the next closing brace at the same indent.
     tail = src[idx:]
     # Scan to first occurrence of "\n        }" or similar end marker.
     end = tail.find("        }")
-    assert end != -1, "ReviewerOutput dict literal must close"
+    assert end != -1, "FreddieOutput dict literal must close"
     block = tail[:end]
     for key in (
         '"input_tokens": total_input',
@@ -102,7 +102,7 @@ def test_invoke_reviewer_success_output_carries_telemetry() -> None:
         '"model": model',
         '"tool_rounds": rounds_used',
     ):
-        assert key in block, f"ReviewerOutput dict literal missing: {key}"
+        assert key in block, f"FreddieOutput dict literal missing: {key}"
 
 
 # -----------------------------------------------------------------------------
@@ -110,11 +110,11 @@ def test_invoke_reviewer_success_output_carries_telemetry() -> None:
 # -----------------------------------------------------------------------------
 
 def test_cancellation_standdown_carries_telemetry() -> None:
-    src = _read("agents/reviewer_agent.py")
-    # Find the early-return ReviewerOutput on operator cancellation.
+    src = _read("agents/freddie_agent.py")
+    # Find the early-return FreddieOutput on operator cancellation.
     marker = 'reasoning="Operator interrupted the in-flight Loop'
     idx = src.find(marker)
-    assert idx != -1, "cancellation stand_down ReviewerOutput must exist"
+    assert idx != -1, "cancellation stand_down FreddieOutput must exist"
     # Look at the surrounding ~600 chars; must include the telemetry kwargs.
     window = src[max(0, idx - 200):idx + 800]
     for kwarg in (
@@ -142,7 +142,7 @@ def test_dispatcher_judgment_success_forwards_telemetry() -> None:
     # verbatim; only the file it lives in changed.
     src = _read("services/wake.py")
     # Find the success-path record_execution_event call right after the
-    # invoke_reviewer await returns successfully.
+    # invoke_freddie await returns successfully.
     marker = 'mode="judgment", trigger_type=trigger,\n        status="success"'
     idx = src.find(marker)
     assert idx != -1, (
@@ -173,7 +173,7 @@ def test_dispatcher_guards_reviewer_output_none() -> None:
     # wake.py (wake-architecture migration; guard shape preserved verbatim).
     src = _read("services/wake.py")
     # _ro must be assigned conditional on reviewer_output being a dict
-    # so the .get() calls don't crash when invoke_reviewer returned None.
+    # so the .get() calls don't crash when invoke_freddie returned None.
     assert "_ro = reviewer_output if isinstance(reviewer_output, dict) else {}" in src, (
         "dispatcher must guard reviewer_output=None before .get() access"
     )
@@ -209,8 +209,8 @@ def test_record_execution_event_accepts_telemetry_kwargs() -> None:
 
 if __name__ == "__main__":
     test_reviewer_output_declares_telemetry_fields()
-    test_invoke_reviewer_accumulates_cache_tokens()
-    test_invoke_reviewer_success_output_carries_telemetry()
+    test_invoke_freddie_accumulates_cache_tokens()
+    test_invoke_freddie_success_output_carries_telemetry()
     test_cancellation_standdown_carries_telemetry()
     test_dispatcher_judgment_success_forwards_telemetry()
     test_dispatcher_guards_reviewer_output_none()

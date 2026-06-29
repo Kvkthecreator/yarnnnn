@@ -66,8 +66,8 @@ PRESENT_TENSE_ASK = (
 
 async def main() -> int:
     from services.supabase import get_service_client
-    from services.reviewer_envelope import load_reviewer_governance_envelope
-    from agents.reviewer_agent import invoke_reviewer
+    from services.freddie_envelope import load_freddie_governance_envelope
+    from agents.freddie_agent import invoke_freddie
 
     # capture the occasion-nudge warning so we can attribute cause (ask vs machinery)
     nudge_fired = {"value": False}
@@ -92,7 +92,7 @@ async def main() -> int:
     n_before = before.count if before.count is not None else len(before.data or [])
     print(f"[spine] content.md count BEFORE: {n_before}")
 
-    envelope, load_ms = await load_reviewer_governance_envelope(client, USER_ID)
+    envelope, load_ms = await load_freddie_governance_envelope(client, USER_ID)
     occ = envelope.get("occasion_fact") or "(empty)"
     print(f"[spine] envelope load_ms={load_ms}")
     print("[spine] ===== occasion_fact (computed, D1 — present in envelope) =====")
@@ -103,8 +103,8 @@ async def main() -> int:
     # An ASK is an ADDRESSED turn — the operator messaged the seat. This is the
     # MOST CC-faithful path: `user_message` IS the live present-tense request,
     # structurally identical to a CC user turn. (addressed mode reads
-    # `user_message`, not `recurrence_prompt` — reviewer_agent.py:1013.)
-    out = await invoke_reviewer(
+    # `user_message`, not `recurrence_prompt` — freddie_agent.py:1013.)
+    out = await invoke_freddie(
         client=client,
         user_id=USER_ID,
         trigger="addressed",

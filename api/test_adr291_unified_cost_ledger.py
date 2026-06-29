@@ -210,36 +210,36 @@ def test_callers_migrated() -> None:
 
 def test_reviewer_single_ledger_write() -> None:
     """Reviewer agent previously wrote BOTH `token_usage` (via record_token_usage)
-    AND emitted cost on ReviewerOutput for the dispatcher to write to
+    AND emitted cost on FreddieOutput for the dispatcher to write to
     `execution_events`. Post-ADR-291, only the second path survives."""
-    path = ROOT / "agents" / "reviewer_agent.py"
+    path = ROOT / "agents" / "freddie_agent.py"
     if not path.exists():
-        _bad("reviewer_agent single ledger write", f"file missing: {path}")
+        _bad("freddie_agent single ledger write", f"file missing: {path}")
         return
 
     text = path.read_text()
     # The import must not pull record_token_usage as a callable
     if re.search(r"^from services\.platform_limits import.*record_token_usage", text, re.MULTILINE):
         _bad(
-            "reviewer_agent single ledger write",
+            "freddie_agent single ledger write",
             "still imports record_token_usage from platform_limits",
         )
         return
     # The function call site should be gone
     if re.search(r"^\s*record_token_usage\(", text, re.MULTILINE):
         _bad(
-            "reviewer_agent single ledger write",
+            "freddie_agent single ledger write",
             "still calls record_token_usage(...) — duplicate write not removed",
         )
         return
-    # And ReviewerOutput should still carry cache breakdown fields
+    # And FreddieOutput should still carry cache breakdown fields
     if "cache_read_tokens" not in text or "cache_create_tokens" not in text:
         _bad(
-            "reviewer_agent single ledger write",
-            "ReviewerOutput is missing cache breakdown fields — dispatcher cost write would be incomplete",
+            "freddie_agent single ledger write",
+            "FreddieOutput is missing cache breakdown fields — dispatcher cost write would be incomplete",
         )
         return
-    _ok("reviewer_agent single ledger write")
+    _ok("freddie_agent single ledger write")
 
 
 # ---------------------------------------------------------------------------

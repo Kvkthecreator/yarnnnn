@@ -102,7 +102,7 @@ def test_schedule_fails_fast_on_missing_authored_by() -> None:
 # ---------------------------------------------------------------------------
 
 def test_operating_context_block_helper() -> None:
-    from agents.reviewer_agent import build_operating_context_block
+    from agents.freddie_agent import build_operating_context_block
 
     sig = inspect.signature(build_operating_context_block)
     if list(sig.parameters.keys()) == ["client", "user_id"]:
@@ -176,18 +176,18 @@ def test_reviewer_persona_includes_cadence_authoring() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 4. ReviewerContext TypedDict carries operating_context_block
+# 4. FreddieContext TypedDict carries operating_context_block
 # ---------------------------------------------------------------------------
 
 def test_reviewer_context_has_operating_context_field() -> None:
-    from agents.reviewer_agent import ReviewerContext
+    from agents.freddie_agent import FreddieContext
 
-    annotations = getattr(ReviewerContext, "__annotations__", {})
+    annotations = getattr(FreddieContext, "__annotations__", {})
     if "operating_context_block" in annotations:
-        _ok("ReviewerContext.operating_context_block field declared")
+        _ok("FreddieContext.operating_context_block field declared")
     else:
         _bad(
-            "ReviewerContext field",
+            "FreddieContext field",
             f"operating_context_block missing from annotations: "
             f"{list(annotations.keys())}",
         )
@@ -198,7 +198,7 @@ def test_reviewer_context_has_operating_context_field() -> None:
 # ---------------------------------------------------------------------------
 
 def test_build_user_message_injects_operating_context() -> None:
-    import agents.reviewer_agent as mod
+    import agents.freddie_agent as mod
     src = inspect.getsource(mod._build_user_message)
     if 'ctx.get("operating_context_block")' in src:
         _ok("_build_user_message reads ctx['operating_context_block']")
@@ -210,7 +210,7 @@ def test_build_user_message_injects_operating_context() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 6. Reviewer wake builds auth with caller_identity="reviewer:..."
+# 6. Reviewer wake builds auth with caller_identity="freddie:..."
 # ---------------------------------------------------------------------------
 # ADR-274 D5 invariant preserved by ADR-288 D1: Schedule writes from the
 # Reviewer wake are attributed to the Reviewer Identity. Pre-ADR-288 the
@@ -219,9 +219,9 @@ def test_build_user_message_injects_operating_context() -> None:
 # authored_by from auth.caller_identity (ADR-288 D2). One declaration site.
 
 def test_reviewer_auth_carries_reviewer_caller_identity() -> None:
-    import agents.reviewer_agent as mod
+    import agents.freddie_agent as mod
     src = inspect.getsource(mod)
-    inj = 'caller_identity=f"reviewer:{REVIEWER_MODEL_IDENTITY}"'
+    inj = 'caller_identity=f"freddie:{FREDDIE_MODEL_IDENTITY}"'
     if inj in src:
         _ok("Reviewer auth carries caller_identity='reviewer:...' (ADR-288 D1)")
     else:
@@ -275,11 +275,11 @@ def test_execution_router_pause_resume_authored_by() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 9. reviewer_envelope composes operating_context_block (ADR-301 D5 update)
+# 9. freddie_envelope composes operating_context_block (ADR-301 D5 update)
 # ---------------------------------------------------------------------------
 # Pre-ADR-301: composition lived at three wake.py call sites + the helper
-# in agents/reviewer_agent.py.  ADR-301 D5 consolidated composition into
-# services/reviewer_envelope.py — Singular Implementation, one envelope
+# in agents/freddie_agent.py.  ADR-301 D5 consolidated composition into
+# services/freddie_envelope.py — Singular Implementation, one envelope
 # assembly point.  The wake-source modules consume it via the
 # **governance_envelope dict-spread; ADR-276 already pre-loads the rest
 # of the envelope through the same helper.  These two tests now assert
@@ -297,28 +297,28 @@ def test_invocation_dispatcher_wires_operating_context() -> None:
     Test target updated from the deleted invocation_dispatcher.py to the
     canonical reactive entry point in services/wake.py::dispatch_recurrence.
     """
-    env_src = (ROOT / "services" / "reviewer_envelope.py").read_text()
+    env_src = (ROOT / "services" / "freddie_envelope.py").read_text()
     if (
         "def build_operating_context_block" in env_src
         and 'envelope["operating_context_block"] = build_operating_context_block' in env_src
     ):
-        _ok("reviewer_envelope.py composes operating_context_block (ADR-301 D5)")
+        _ok("freddie_envelope.py composes operating_context_block (ADR-301 D5)")
     else:
         _bad(
-            "reviewer_envelope.py composes operating_context_block",
+            "freddie_envelope.py composes operating_context_block",
             "Expected build_operating_context_block defined + assigned into envelope dict",
         )
     wake_src = (ROOT / "services" / "wake.py").read_text()
     # Reactive wake site (dispatch_recurrence) must consume the envelope.
     if (
-        "load_reviewer_governance_envelope" in wake_src
+        "load_freddie_governance_envelope" in wake_src
         and "**governance_envelope" in wake_src
     ):
         _ok("services/wake.py reactive path consumes envelope via **governance_envelope spread")
     else:
         _bad(
             "services/wake.py reactive envelope consumption",
-            "Expected load_reviewer_governance_envelope + **governance_envelope spread",
+            "Expected load_freddie_governance_envelope + **governance_envelope spread",
         )
     # Anti-regression: stale call-site composition pattern must be gone.
     if '"operating_context_block": operating_context' in wake_src:
@@ -343,19 +343,19 @@ def test_feed_route_wires_operating_context() -> None:
     """
     src = (ROOT / "services" / "wake.py").read_text()
     # The stream_addressed_wake function must consume the envelope.
-    if "stream_addressed_wake" in src and "load_reviewer_governance_envelope" in src:
-        _ok("wake.py::stream_addressed_wake consumes load_reviewer_governance_envelope")
+    if "stream_addressed_wake" in src and "load_freddie_governance_envelope" in src:
+        _ok("wake.py::stream_addressed_wake consumes load_freddie_governance_envelope")
     else:
         _bad(
             "wake.py addressed envelope consumption",
-            "Expected stream_addressed_wake + load_reviewer_governance_envelope in wake.py",
+            "Expected stream_addressed_wake + load_freddie_governance_envelope in wake.py",
         )
     # Anti-regression: routes/feed.py no longer composes operating_context_block.
     feed_src = (ROOT / "routes" / "feed.py").read_text()
     if "build_operating_context_block" in feed_src:
         _bad(
             "stale build_operating_context_block import in routes/feed.py",
-            "ADR-301 D5 moved composition into reviewer_envelope.py; routes/feed.py should not import it",
+            "ADR-301 D5 moved composition into freddie_envelope.py; routes/feed.py should not import it",
         )
     else:
         _ok("routes/feed.py no longer composes operating_context_block (ADR-301 D5)")
@@ -376,7 +376,7 @@ def test_all_schedule_callers_provide_authored_by() -> None:
         "routes/recurrences.py": True,         # patch routes literal
         "scripts/oneshot/cleanup_orphan_recurrences.py": True,
         "agents/yarnnn.py": True,              # tool_executor injection
-        "agents/reviewer_agent.py": True,      # dispatch injection
+        "agents/freddie_agent.py": True,      # dispatch injection
     }
     fails: list[str] = []
     for rel in callers:

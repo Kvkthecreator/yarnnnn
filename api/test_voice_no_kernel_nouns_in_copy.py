@@ -16,7 +16,7 @@ regresses. Same shape as test_adr209_no_filename_versioning.py.
 SCOPE — only RENDERED operator-facing strings:
   - web/: JSX text + string-literal props (NOT // or /* */ comments, NOT imports).
   - backend narration/email sites: the handful of files that compose operator-
-    facing text (reviewer_chat_surfacing, daily_update_email, notifications,
+    facing text (freddie_chat_surfacing, daily_update_email, notifications,
     narrative) — string literals only.
 Code comments, ADR docs, prompt text, and test files are OUT of scope by design
 (they are not shown to operators).
@@ -155,7 +155,7 @@ WEB_EXCLUDE_DIRS = {"node_modules", ".next", "dist", "build"}
 
 # Backend files that compose operator-facing narration/email text.
 BACKEND_COPY_FILES = [
-    REPO_ROOT / "api" / "services" / "reviewer_chat_surfacing.py",
+    REPO_ROOT / "api" / "services" / "freddie_chat_surfacing.py",
     REPO_ROOT / "api" / "services" / "daily_update_email.py",
     REPO_ROOT / "api" / "services" / "notifications.py",
     REPO_ROOT / "api" / "services" / "narrative.py",

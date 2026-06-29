@@ -4,7 +4,7 @@
 runtime coordination — the plumbing that routes a proposal from
 creation to whichever occupant currently fills the Reviewer seat, then
 to the verdict-consumers. The judgment itself is rendered elsewhere
-(see `reviewer_agent.py` for the AI occupant's judgment logic; human
+(see `freddie_agent.py` for the AI occupant's judgment logic; human
 occupants render judgment through the approval UX). Per
 docs/architecture/reviewer-substrate.md §"Review orchestration vs.
 reviewer entity — the split", the two are architecturally distinct:
@@ -26,7 +26,7 @@ On proposal creation, the dispatcher:
 1. Resolves `context_domain` from `action_type`.
 2. If the domain has reviewable substrate (`_money_truth.md`,
    `_operator_profile.md`, or non-empty `principles.md`) → AI Reviewer
-   invocation (`reviewer_agent.review_proposal`) renders a verdict. If
+   invocation (`freddie_agent.review_proposal`) renders a verdict. If
    the domain has no reviewable substrate → observe-only fallback.
 3. The Reviewer's verdict (`approve` | `reject` | `defer`) routes:
    - `approve` → loads AUTONOMY, calls `should_auto_apply`.
@@ -65,9 +65,9 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from services.reviewer_audit import append_decision
-from services.reviewer_chat_surfacing import write_reviewer_message
-from services.reviewer_envelope import load_reviewer_governance_envelope
+from services.freddie_audit import append_decision
+from services.freddie_chat_surfacing import write_freddie_message
+from services.freddie_envelope import load_freddie_governance_envelope
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +128,7 @@ async def on_proposal_created(
         # proposals (enqueue_gated_action). The AUTONOMY gate still applies
         # downstream (auto-execute or queue for operator click).
         source = proposal_row.get("source") or ""
-        if source.startswith("reviewer:") or source in (
+        if source.startswith("freddie:") or source in (
             "reviewer_periodic", "reviewer_addressed", "reviewer_heartbeat",
         ):
             logger.info(
@@ -295,7 +295,7 @@ async def _write_observation(
     # Unified chat thread — surface observation to operator's active session.
     # Observe-only means "Reviewer layer saw this, seat awaits operator-in-real-time
     # occupant" — per FOUNDATIONS v8.4 Axiom 2 two-embodiments framing.
-    await write_reviewer_message(
+    await write_freddie_message(
         client, user_id,
         content=reasoning_text,
         proposal_id=proposal_id,
@@ -331,18 +331,18 @@ async def _run_ai_reviewer(
 
     ADR-289 D2 + D3: proposal-arrival reactive cycles become first-class
     invocations. We pre-generate the invocation_id, stamp it on the
-    Reviewer call, the action narrations, and every write_reviewer_message
+    Reviewer call, the action narrations, and every write_freddie_message
     write produced during the cycle, then finalize the canonical
     execution_events row at function exit.
     """
-    from agents.reviewer_agent import invoke_reviewer
-    from agents.occupant_contract import REVIEWER_MODEL_IDENTITY  # ADR-315
-    from agents.reviewer_agent_compat import output_to_review_decision
+    from agents.freddie_agent import invoke_freddie
+    from agents.occupant_contract import FREDDIE_MODEL_IDENTITY  # ADR-315
+    from agents.freddie_agent_compat import output_to_freddie_decision
     import uuid as _uuid
 
     # ADR-289 D2 + D3 (partial): canonical invocation atom id for this
-    # proposal-arrival reactive cycle. Threaded through invoke_reviewer +
-    # surface_reviewer_actions + write_reviewer_message so the FE groups
+    # proposal-arrival reactive cycle. Threaded through invoke_freddie +
+    # surface_freddie_actions + write_freddie_message so the FE groups
     # narrative rows from this cycle under one invocation card on the Feed
     # surface. The execution_events row for proposal-arrival cycles is
     # deferred to Phase 1B (this function has 7+ exit branches; finalizing
@@ -357,7 +357,7 @@ async def _run_ai_reviewer(
     reversibility = (proposal_row.get("decision_context") or {}).get("reversibility")
 
     # ADR-276 implementation completion (2026-05-21): use canonical
-    # `load_reviewer_governance_envelope` helper rather than hand-rolling
+    # `load_freddie_governance_envelope` helper rather than hand-rolling
     # 6 envelope reads. The helper assembles the full 8-key universal
     # envelope (identity_md / principles_md / precedent_md / mandate_md /
     # autonomy_md / preferences_yaml / occupant_md / standing_intent_md)
@@ -375,18 +375,18 @@ async def _run_ai_reviewer(
     # declaration) and AUTONOMY (delegation ceiling). The drift was the
     # third instance of the prose-named-but-not-pre-loaded class (first
     # two closed by ADR-275 D5 refinement + ADR-276); this commit closes
-    # the class by routing every invoke_reviewer call site through the
+    # the class by routing every invoke_freddie call site through the
     # same helper.
     #
     # `context_domain` parameter is preserved for backward-compat with
     # logging + downstream branches but no longer drives substrate
     # reads — the bundle's substrate_abi is the source of truth for
     # per-program envelope shape per ADR-281 D2.
-    governance_envelope, _envelope_load_ms = await load_reviewer_governance_envelope(
+    governance_envelope, _envelope_load_ms = await load_freddie_governance_envelope(
         client, user_id
     )
 
-    output = await invoke_reviewer(
+    output = await invoke_freddie(
         client, user_id,
         trigger="reactive",  # ADR-260 D2: proposal arrival is the canonical reactive trigger
         invocation_id=invocation_id,  # ADR-289 D4
@@ -408,9 +408,9 @@ async def _run_ai_reviewer(
     # + heartbeat triggers so operator sees consistent conversational shape
     # regardless of which trigger fired.
     if output and (output.get("actions_taken") or []):
-        from services.reviewer_chat_surfacing import surface_reviewer_actions
+        from services.freddie_chat_surfacing import surface_freddie_actions
         try:
-            await surface_reviewer_actions(
+            await surface_freddie_actions(
                 client, user_id,
                 actions_taken=output.get("actions_taken") or [],
             )
@@ -418,7 +418,7 @@ async def _run_ai_reviewer(
             logger.warning(
                 "[REVIEW_DISPATCH] action narration failed: %s", exc,
             )
-    decision = output_to_review_decision(output)
+    decision = output_to_freddie_decision(output)
 
     if decision is None:
         # AI failed or produced no valid decision — observe-only fallback
@@ -441,7 +441,7 @@ async def _run_ai_reviewer(
     confidence = decision["confidence"]
     full_reasoning = (
         f"{ai_reasoning}\n\n"
-        f"— decided by {REVIEWER_MODEL_IDENTITY} (confidence: {confidence})"
+        f"— decided by {FREDDIE_MODEL_IDENTITY} (confidence: {confidence})"
     )
 
     if decision["decision"] == "approve":
@@ -479,7 +479,7 @@ async def _run_ai_reviewer(
                 auth_for_primitive,
                 {
                     "proposal_id": proposal_id,
-                    "reviewer_identity": REVIEWER_MODEL_IDENTITY,
+                    "reviewer_identity": FREDDIE_MODEL_IDENTITY,
                     "reviewer_reasoning": full_reasoning,
                 },
             )
@@ -507,7 +507,7 @@ async def _run_ai_reviewer(
         # two-embodiments framing — neither embodiment is a separate party.
         advisory_reasoning = (
             f"{ai_reasoning}\n\n"
-            f"— {REVIEWER_MODEL_IDENTITY} (confidence: {confidence})\n\n"
+            f"— {FREDDIE_MODEL_IDENTITY} (confidence: {confidence})\n\n"
             f"**Operator-in-real-time confirmation required** ({gate_reason}). "
             f"Approve to bind this judgment to execution."
         )
@@ -516,17 +516,17 @@ async def _run_ai_reviewer(
             proposal_id=proposal_id,
             action_type=action_type,
             decision="approve",
-            reviewer_identity=REVIEWER_MODEL_IDENTITY,
+            reviewer_identity=FREDDIE_MODEL_IDENTITY,
             reasoning=advisory_reasoning,
             reversibility=reversibility,
             outcome="advisory_pending_operator",
         )
-        await write_reviewer_message(
+        await write_freddie_message(
             client, user_id,
             content=advisory_reasoning,
             proposal_id=proposal_id,
             verdict="approve_advisory",
-            occupant=REVIEWER_MODEL_IDENTITY,
+            occupant=FREDDIE_MODEL_IDENTITY,
             action_type=action_type,
             task_slug=proposal_row.get("task_slug"),
             invocation_id=invocation_id,  # ADR-289 D5
@@ -544,7 +544,7 @@ async def _run_ai_reviewer(
             {
                 "proposal_id": proposal_id,
                 "reason": ai_reasoning[:240],
-                "reviewer_identity": REVIEWER_MODEL_IDENTITY,
+                "reviewer_identity": FREDDIE_MODEL_IDENTITY,
                 "reviewer_reasoning": full_reasoning,
             },
         )
@@ -585,18 +585,18 @@ async def _run_ai_reviewer(
         proposal_id=proposal_id,
         action_type=action_type,
         decision="defer",
-        reviewer_identity=REVIEWER_MODEL_IDENTITY,
+        reviewer_identity=FREDDIE_MODEL_IDENTITY,
         reasoning=full_reasoning_with_directives,
         reversibility=reversibility,
         outcome="pending_operator",
     )
     # Unified chat thread — AI reviewed, chose to defer.
-    await write_reviewer_message(
+    await write_freddie_message(
         client, user_id,
         content=full_reasoning_with_directives,
         proposal_id=proposal_id,
         verdict="defer",
-        occupant=REVIEWER_MODEL_IDENTITY,
+        occupant=FREDDIE_MODEL_IDENTITY,
         action_type=action_type,
         task_slug=proposal_row.get("task_slug"),
         invocation_id=invocation_id,  # ADR-289 D5
@@ -609,7 +609,7 @@ async def _run_ai_reviewer(
 
 # Note: pre-2026-05-21 this module carried a local `_read_workspace_file`
 # helper that the proposal-arrival hand-rolled envelope assembly called.
-# Migration to `services.reviewer_envelope.load_reviewer_governance_envelope`
+# Migration to `services.freddie_envelope.load_freddie_governance_envelope`
 # (ADR-276 implementation completion) dissolved every caller; helper deleted
 # per Singular Implementation. Canonical workspace reads now route through
 # the envelope helper for Reviewer-bound assembly + `UserMemory.read` for
@@ -663,7 +663,7 @@ async def _execute_reviewer_directives(
                     user_id=user_id,
                     path=path,
                     content=content,
-                    authored_by=f"reviewer:{REVIEWER_MODEL_IDENTITY}",
+                    authored_by=f"freddie:{FREDDIE_MODEL_IDENTITY}",
                     message=f"Reviewer directive: {reason[:100]}",
                     summary=f"Reviewer write: {path.split('/')[-1]}",
                 )
@@ -677,13 +677,13 @@ async def _execute_reviewer_directives(
                 message = d.get("message", reason)
                 if not message:
                     continue
-                from services.reviewer_chat_surfacing import write_reviewer_message
-                await write_reviewer_message(
+                from services.freddie_chat_surfacing import write_freddie_message
+                await write_freddie_message(
                     client, user_id,
                     content=f"**Reviewer clarification needed:** {message}",
                     proposal_id=proposal_id,
                     verdict="clarify",
-                    occupant=REVIEWER_MODEL_IDENTITY,
+                    occupant=FREDDIE_MODEL_IDENTITY,
                     invocation_id=invocation_id,  # ADR-289 D5
                 )
                 results.append(f"clarify: surfaced to operator")

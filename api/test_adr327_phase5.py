@@ -6,8 +6,8 @@ Covers:
   - kernel_mirrors exposes mirror_calibration_for_all_users
   - scheduler tick wires the calibration mirror
   - reviewer envelope carries calibration_md slot
-  - ReviewerContext.calibration_md field
-  - reviewer_agent renders _calibration.md + minimal-frame posture cites it
+  - FreddieContext.calibration_md field
+  - freddie_agent renders _calibration.md + minimal-frame posture cites it
   - bundle MANIFEST declares substrate_abi.ground_truth + reader resolves it
   - workspace guide pedagogy updated (calibration + budget reframe)
 
@@ -133,7 +133,7 @@ def test_mirror_composes(monkeypatch_writes=None) -> None:
     try:
         client = _FakeClient({
             "workspace_file_versions": [
-                {"created_at": "2026-06-07T10:00:00Z", "authored_by": "reviewer:ai-v1", "message": "tightened signal-evaluation window"},
+                {"created_at": "2026-06-07T10:00:00Z", "authored_by": "freddie:ai-v1", "message": "tightened signal-evaluation window"},
             ],
             "execution_events": [
                 {"status": "success", "funnel_decision": "escalate", "created_at": "2026-06-08T13:45:00Z"},
@@ -175,21 +175,21 @@ def test_scheduler_wiring() -> None:
 
 def test_envelope_slot() -> None:
     print("\n[envelope] calibration_md slot")
-    from services.reviewer_envelope import _UNIVERSAL_ENVELOPE_DECLS
+    from services.freddie_envelope import _UNIVERSAL_ENVELOPE_DECLS
     decls = dict(_UNIVERSAL_ENVELOPE_DECLS)
     check("calibration_md in envelope", "calibration_md" in decls)
     check("→ system/_calibration.md", decls.get("calibration_md") == "system/_calibration.md")
 
 
 def test_reviewer_context_field() -> None:
-    print("\n[contract] ReviewerContext.calibration_md")
-    from agents.occupant_contract import ReviewerContext
-    check("calibration_md field present", "calibration_md" in ReviewerContext.__annotations__)
+    print("\n[contract] FreddieContext.calibration_md")
+    from agents.occupant_contract import FreddieContext
+    check("calibration_md field present", "calibration_md" in FreddieContext.__annotations__)
 
 
-def test_reviewer_agent_renders_and_posture() -> None:
-    print("\n[reviewer_agent] renders _calibration.md + posture cites it")
-    src = (_API_ROOT / "agents/reviewer_agent.py").read_text()
+def test_freddie_agent_renders_and_posture() -> None:
+    print("\n[freddie_agent] renders _calibration.md + posture cites it")
+    src = (_API_ROOT / "agents/freddie_agent.py").read_text()
     check("renders _calibration.md header", "_calibration.md" in src)
     check("reads ctx calibration_md", 'ctx.get("calibration_md")' in src)
     check("minimal-frame posture cites calibration", "_calibration.md" in src and "falsified" in src)
@@ -224,7 +224,7 @@ def main() -> int:
     test_scheduler_wiring()
     test_envelope_slot()
     test_reviewer_context_field()
-    test_reviewer_agent_renders_and_posture()
+    test_freddie_agent_renders_and_posture()
     test_bundle_ground_truth()
     test_workspace_guide_pedagogy()
     print("\n" + "=" * 64)

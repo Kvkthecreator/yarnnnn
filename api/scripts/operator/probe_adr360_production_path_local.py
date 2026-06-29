@@ -1,7 +1,7 @@
 """ADR-360 Stage-3 validation — the ask-builder through the PRODUCTION path.
 
 The step-3 probe (probe_spine_cron_imperative_local.py) hand-injected an imperative
-prompt into invoke_reviewer. This probe proves the PRODUCTION wiring: a recurrence
+prompt into invoke_freddie. This probe proves the PRODUCTION wiring: a recurrence
 that ships a SITUATION-FRAMING prompt + the `produces_owed_output` flag, fired
 through `services.wake._invoke_recurrence_wake` (the exact path the deployed cron
 drains), where the ADR-360 ask-builder must CONVERT the stored framing into an

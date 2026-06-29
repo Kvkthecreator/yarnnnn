@@ -58,7 +58,7 @@ def _read(rel: str) -> str:
 #   - imports of services.narrative
 #   - calls to a known shim that delegates to the helper:
 #       routes/feed.py::append_message
-#       services/reviewer_chat_surfacing.py::write_reviewer_message
+#       services/freddie_chat_surfacing.py::write_freddie_message
 #       api/mcp_server/server.py::_emit_mcp_narrative
 COVERAGE_SITES: list[tuple[str, list[str], str]] = [
     (
@@ -79,20 +79,20 @@ COVERAGE_SITES: list[tuple[str, list[str], str]] = [
     (
         "api/services/review_proposal_dispatch.py",
         [
-            "from services.reviewer_chat_surfacing import write_reviewer_message",
-            "write_reviewer_message",
+            "from services.freddie_chat_surfacing import write_freddie_message",
+            "write_freddie_message",
         ],
-        "Reviewer dispatch surfaces verdicts via write_reviewer_message "
+        "Reviewer dispatch surfaces verdicts via write_freddie_message "
         "(which routes through write_narrative_entry per Commit 2).",
     ),
     (
         "api/services/primitives/propose_action.py",
         [
-            "from services.reviewer_chat_surfacing import write_reviewer_message",
-            "write_reviewer_message",
+            "from services.freddie_chat_surfacing import write_freddie_message",
+            "write_freddie_message",
         ],
         "Approve/reject proposal handlers route through "
-        "write_reviewer_message → write_narrative_entry.",
+        "write_freddie_message → write_narrative_entry.",
     ),
     (
         "api/services/notifications.py",
@@ -122,7 +122,7 @@ COVERAGE_SITES: list[tuple[str, list[str], str]] = [
         "(routes through write_narrative_entry per Commit 2).",
     ),
     (
-        "api/services/reviewer_chat_surfacing.py",
+        "api/services/freddie_chat_surfacing.py",
         [
             "from services.narrative import",
             "write_narrative_entry",
@@ -171,7 +171,7 @@ def test_invocation_sites_reach_helper() -> None:
             "Each invocation in YARNNN must emit exactly one narrative "
             "entry per FOUNDATIONS Axiom 9. Either call "
             "write_narrative_entry directly, route through one of the "
-            "Commit 2 shims (chat.append_message, reviewer_chat_surfacing.write_reviewer_message), "
+            "Commit 2 shims (chat.append_message, freddie_chat_surfacing.write_freddie_message), "
             "or — for new MCP-shaped sites — go through "
             "mcp_server.server._emit_mcp_narrative."
         )

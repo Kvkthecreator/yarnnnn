@@ -3,7 +3,7 @@ ManageHook Primitive — ADR-296 v2 D2.
 
 The canonical way to author / modify / pause / resume / archive a hook
 in /workspace/_hooks.yaml. Available in both chat and headless modes;
-present in CHAT_PRIMITIVES + REVIEWER_PRIMITIVES.
+present in CHAT_PRIMITIVES + FREDDIE_PRIMITIVES.
 
 Per ADR-296 v2 D2, hooks are the sibling declarative shape to recurrences:
   - Recurrences are the cron-tick wake source's configuration (time-driven)
@@ -25,7 +25,7 @@ Five actions (mirror Schedule):
 
 Authorship per ADR-209:
   - Operator-via-chat:   authored_by="operator"
-  - Reviewer-mid-loop:   authored_by="reviewer:{occupant}"
+  - Reviewer-mid-loop:   authored_by="freddie:{occupant}"
   - System (bundle fork):authored_by="system:bundle-fork"
 All three paths produce the same substrate writes through the same
 primitive. Per Singular Implementation, no separate paths exist.
@@ -134,7 +134,7 @@ Example: pause + resume
                 "type": "string",
                 "description": (
                     "Required attribution per ADR-209 / ADR-296 v2 D3. "
-                    "'operator' for chat, 'reviewer:{occupant}' for the "
+                    "'operator' for chat, 'freddie:{occupant}' for the "
                     "Reviewer's own writes, 'system:bundle-fork' for "
                     "bundle activation. Auth.caller_identity is the default."
                 ),
@@ -173,7 +173,7 @@ async def handle_manage_hook(auth: Any, input: dict) -> dict:
             "error": "missing_authored_by",
             "message": (
                 "ManageHook requires authored_by per ADR-209. Pass "
-                "'operator', 'reviewer:{occupant}', 'agent:{slug}', or "
+                "'operator', 'freddie:{occupant}', 'agent:{slug}', or "
                 "'system:bundle-fork'. Silent attribution would break the "
                 "ADR-209 revision-chain audit trail."
             ),

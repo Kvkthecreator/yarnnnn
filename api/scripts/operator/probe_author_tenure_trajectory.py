@@ -195,7 +195,7 @@ def _seed_action_proposals(client, n_decisions: int = 8) -> None:
             "inputs": {"piece": f"#{i}"}, "decision_context": {},
             "expires_at": (now + timedelta(hours=24)).isoformat(),
             "approved_at": ts, "executed_at": ts, "created_at": ts,
-            "reviewer_identity": "reviewer:ai-opus-seed",
+            "reviewer_identity": "freddie:ai-opus-seed",
             "reviewer_reasoning": (
                 f"Approved piece #{i} with a soft/hedge-stack opener — cleared under "
                 f"the _voice.md 'accepted variants' clause (opener recovers the claim)."
@@ -285,7 +285,7 @@ def _seed_outcomes(client, n_outcomes: int) -> None:
 async def _perceived_negatives(client) -> int:
     """How many negative joined pairs the gap-fact currently presents (the agent's
     perceivable falsification count this wake)."""
-    from services.reviewer_envelope import _reflection_gap_fact
+    from services.freddie_envelope import _reflection_gap_fact
     fact = await _reflection_gap_fact(client, USER_ID)
     lines = [ln for ln in fact.splitlines() if ln.strip().startswith("- ")]
     return len([ln for ln in lines if "outcome -" in ln])
@@ -325,7 +325,7 @@ async def _structural_gate(client) -> int:
     _wr(client, user_id=USER_ID, path=JUDGMENT_LOG_PATH,
         content="---\naudit_type: pre-ship-audit\nverdict: approve\n---\n# Pre-Ship Audit\n"
                 "(agent overwrite — NO --- decision --- blocks survive)\n",
-        authored_by="reviewer:ai:reviewer-sonnet-v8",
+        authored_by="freddie:ai:freddie-sonnet-v8",
         message="probe-trajectory: SIMULATE agent judgment_log clobber (tamper-proof test)")
     n_after_clobber = await _perceived_negatives(client)
     survive_ok = (n_after_clobber == 8)
@@ -383,7 +383,7 @@ def _reviewer_writes_since(client, since_iso: str) -> list[dict]:
     res = client.table("workspace_file_versions").select(
         "path,authored_by,message,created_at").eq("user_id", USER_ID).gte(
         "created_at", since_iso).order("created_at", desc=True).limit(40).execute()
-    return [r for r in (res.data or []) if (r.get("authored_by") or "").startswith("reviewer:")]
+    return [r for r in (res.data or []) if (r.get("authored_by") or "").startswith("freddie:")]
 
 
 async def soak(client, *, control: bool) -> int:

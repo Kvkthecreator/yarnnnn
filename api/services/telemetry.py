@@ -154,7 +154,7 @@ def record_execution_event(
         cache_create_tokens: cache creation tokens
         model:              model name for cost rate lookup
         duration_ms:        wall-clock duration of the invocation
-        envelope_load_ms:   ms spent in load_reviewer_governance_envelope() for
+        envelope_load_ms:   ms spent in load_freddie_governance_envelope() for
                             Reviewer wakes (ADR-276); NULL for mechanical-mode
                             recurrences and non-Reviewer paths (migration 175)
         wake_source:        ADR-296 v2 D1 wake-source taxonomy. One of

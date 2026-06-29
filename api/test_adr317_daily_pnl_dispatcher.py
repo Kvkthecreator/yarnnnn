@@ -4,7 +4,7 @@ Locks the invariants that make this dispatcher canon-coherent:
   1. The opt-in gate is default-off (operator must set active: true).
   2. The dispatcher reads _money_truth.md windows correctly into the email.
   3. The Reviewer never gains the email tool (the architectural commitment
-     this dispatcher exists to honor) — REVIEWER_PRIMITIVES stays clean.
+     this dispatcher exists to honor) — FREDDIE_PRIMITIVES stays clean.
   4. The wake.py post-judgment hook is gated on the outcome-reconciliation
      slug (costs nothing for any other recurrence).
 
@@ -103,18 +103,18 @@ check("empty windows → honest bootstrap copy, no fake numbers", "bootstrap pha
 
 # ── 3. Reviewer never gains the email tool (the commitment this honors) ─────
 try:
-    from services.primitives.registry import REVIEWER_PRIMITIVES
+    from services.primitives.registry import FREDDIE_PRIMITIVES
 
     tool_names = {
         t.get("name") if isinstance(t, dict) else getattr(t, "name", None)
-        for t in REVIEWER_PRIMITIVES
+        for t in FREDDIE_PRIMITIVES
     }
     check(
-        "REVIEWER_PRIMITIVES excludes platform_email_send_to_operator",
+        "FREDDIE_PRIMITIVES excludes platform_email_send_to_operator",
         "platform_email_send_to_operator" not in tool_names,
     )
 except Exception as exc:  # noqa: BLE001
-    check(f"REVIEWER_PRIMITIVES importable ({exc})", False)
+    check(f"FREDDIE_PRIMITIVES importable ({exc})", False)
 
 # ── 4. wake.py hook is slug-gated ──────────────────────────────────────────
 wake_src = (Path(__file__).resolve().parent / "services" / "wake.py").read_text()

@@ -5,7 +5,7 @@ the seat derives understanding into operation/ from a foreign `remember`, but
 nothing embedded those files, so semantic `recall` matched nothing (642/642
 embeddings NULL). Fix: services/wake.py::_embed_derived_files mechanically embeds
 the eligible files the seat just authored, after a substrate-event wake — NOT a
-Reviewer tool call (Embed stays out of REVIEWER_PRIMITIVES; the 2026-05-25 canary
+Reviewer tool call (Embed stays out of FREDDIE_PRIMITIVES; the 2026-05-25 canary
 showed an extra Reviewer tool collapses judgment).
 
 This gate asserts the post-step is correctly TARGETED:
@@ -96,15 +96,15 @@ def main():
         # versions written during the wake (created_at >= WAKE_START) + one before
         "versions": [
             # reviewer-derived, eligible → SHOULD embed
-            {"path": "/workspace/operation/memory/acme.md", "authored_by": "reviewer:ai:reviewer-sonnet-v8", "created_at": "2026-06-29T00:05:00+00:00"},
+            {"path": "/workspace/operation/memory/acme.md", "authored_by": "freddie:ai:freddie-sonnet-v8", "created_at": "2026-06-29T00:05:00+00:00"},
             # reviewer-derived but yaml → INELIGIBLE
-            {"path": "/workspace/operation/competitors/_index.yaml", "authored_by": "reviewer:ai:reviewer-sonnet-v8", "created_at": "2026-06-29T00:06:00+00:00"},
+            {"path": "/workspace/operation/competitors/_index.yaml", "authored_by": "freddie:ai:freddie-sonnet-v8", "created_at": "2026-06-29T00:06:00+00:00"},
             # reviewer-derived but system/ → INELIGIBLE
             {"path": "/workspace/system/_recent_execution.md", "authored_by": "system:mirror-recent-execution", "created_at": "2026-06-29T00:07:00+00:00"},
             # the RAW dump itself (yarnnn:mcp) → NOT reviewer-authored, skip
             {"path": "/workspace/inbound/mcp/claude/inbox.md", "authored_by": "yarnnn:mcp:Claude", "created_at": "2026-06-29T00:01:00+00:00"},
             # reviewer-derived eligible but written BEFORE the wake → excluded by gte
-            {"path": "/workspace/operation/memory/old.md", "authored_by": "reviewer:ai:reviewer-sonnet-v8", "created_at": "2026-06-28T23:00:00+00:00"},
+            {"path": "/workspace/operation/memory/old.md", "authored_by": "freddie:ai:freddie-sonnet-v8", "created_at": "2026-06-28T23:00:00+00:00"},
         ],
         "files": {
             "/workspace/operation/memory/acme.md": "x" * 400,

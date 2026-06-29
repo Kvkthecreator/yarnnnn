@@ -35,7 +35,7 @@ ADR-231 Phase 3.3 changes:
   `next_run_at` / `last_run_at` / CAS coordination only.
 
 Back-office recurrences (outcome-reconciliation, proposal-cleanup,
-reviewer-calibration, reviewer-reflection, narrative-digest) dispatch through
+reviewer-calibration, freddie-reflection, narrative-digest) dispatch through
 the same `dispatch(decl)` path via the MAINTENANCE branch reading `executor:`
 from the YAML. Workspace Cleanup and Agent Hygiene removed — neither had a
 creation trigger and no ephemeral files accumulate in prod (audited 2026-05-02).

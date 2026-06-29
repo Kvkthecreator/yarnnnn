@@ -34,7 +34,7 @@ WEB_REVIEWER_DIR = REPO_ROOT / "web" / "components" / "agents" / "reviewer"
 WEB_AGENT_ROSTER = REPO_ROOT / "web" / "components" / "agents" / "AgentRosterSurface.tsx"
 WEB_AGENTS_PAGE = REPO_ROOT / "web" / "app" / "(authenticated)" / "agents" / "page.tsx"
 WEB_AGENT_CONTENT = REPO_ROOT / "web" / "components" / "agents" / "AgentContentView.tsx"
-API_REVIEWER_AUDIT = REPO_ROOT / "api" / "services" / "reviewer_audit.py"
+API_REVIEWER_AUDIT = REPO_ROOT / "api" / "services" / "freddie_audit.py"
 WEB_LIB_REVIEWER = REPO_ROOT / "web" / "lib" / "content-shapes" / "decisions.ts"
 
 
@@ -107,14 +107,14 @@ def test_agent_content_view_no_reviewer_dispatch():
     )
 
 
-def test_reviewer_audit_substrate_preserved():
-    """Assertion #6: services/reviewer_audit.py exists and continues
+def test_freddie_audit_substrate_preserved():
+    """Assertion #6: services/freddie_audit.py exists and continues
     to write to /workspace/persona/judgment_log.md. Substrate preservation
     regression guard per ADR-241 §"Preserves" (ADR-194 v2 substrate
     paths unchanged)."""
     src = _read(API_REVIEWER_AUDIT)
     assert "persona/judgment_log.md" in src, (
-        "reviewer_audit.py must continue to reference "
+        "freddie_audit.py must continue to reference "
         "/workspace/persona/judgment_log.md per ADR-194 v2 substrate "
         "preservation. ADR-241 changes the surface, not the substrate."
     )
@@ -168,7 +168,7 @@ def _run_all() -> int:
         test_agent_roster_surface_deleted,
         test_agents_page_redirects_to_yarnnn,
         test_agent_content_view_no_reviewer_dispatch,
-        test_reviewer_audit_substrate_preserved,
+        test_freddie_audit_substrate_preserved,
         test_canonical_parser_preserved,
         test_decisions_stream_uses_canonical_parser,
     ]

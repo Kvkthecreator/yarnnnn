@@ -7,7 +7,7 @@ v3's 10 (significantly less context-gathering before deciding).
 
 ADR-299 Discovery 4 was REVERTED Path A in commit cd71930 (deployed
 2026-05-25 05:11:09 UTC). `EMAIL_SEND_TO_OPERATOR_TOOL` removed from
-`REVIEWER_PRIMITIVES`; tool count back to 21. Discovery 3's always-surface
+`FREDDIE_PRIMITIVES`; tool count back to 21. Discovery 3's always-surface
 fix in `get_platform_tools_for_capabilities` REMAINS in place (kernel-
 universal capabilities still flow through the agent path for non-Reviewer
 callers).
@@ -137,7 +137,7 @@ async def main() -> int:
                 "canary phase 4 v5 — seed content.md with IDENTICAL intentional voice "
                 "issues as v4 (list-of-three + 'at the end of the day' + 'absolutely "
                 "pivotal' + intensifier adverbs + 'in conclusion'). Same content; only "
-                "variable that changed is REVIEWER_PRIMITIVES size (22 → 21)."
+                "variable that changed is FREDDIE_PRIMITIVES size (22 → 21)."
             ),
         )
         print(f"[T2] content.md seeded @ {datetime.now(timezone.utc).isoformat()}")

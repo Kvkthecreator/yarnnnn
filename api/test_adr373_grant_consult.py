@@ -137,7 +137,7 @@ def test_fallback_identity_no_grant_row_is_byte_identical(monkeypatch):
     for klass in _CLASSES:
         ci = {
             "operator": "operator",
-            "reviewer": "reviewer:ai:test",
+            "reviewer": "freddie:ai:test",
             "mcp": "yarnnn:mcp:claude.ai",
             "agent": "agent:research",
             "system": "system:reconciler",
@@ -287,7 +287,7 @@ def test_resolve_principal_id_system_is_actor():
 
 def test_resolve_principal_id_reviewer_is_owner():
     # The seat acts for the workspace owner; key on user_id.
-    assert resolve_principal_id(_auth(caller_identity="reviewer:ai:v8", user_id="u-1",
+    assert resolve_principal_id(_auth(caller_identity="freddie:ai:v8", user_id="u-1",
                                       principal_id=None)) == "u-1"
 
 

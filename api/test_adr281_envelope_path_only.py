@@ -2,7 +2,7 @@
 
 Covers the load-bearing acceptance criteria post-dissolution of
 ENVELOPE_SUMMARIZERS:
-- reviewer_envelope.py has NO ENVELOPE_SUMMARIZERS registry, NO
+- freddie_envelope.py has NO ENVELOPE_SUMMARIZERS registry, NO
   _summarize_signal_files function, NO path_glob dispatch — path-only.
 - MirrorSignalState primitive added + registered in HANDLERS (mechanical-only).
 - alpha-trader bundle MANIFEST signal_files entry uses path-only shape.
@@ -41,21 +41,21 @@ BUNDLES_ROOT = REPO_ROOT / "docs" / "programs"
 
 def test_envelope_summarizers_registry_deleted():
     """ADR-281 §D2: ENVELOPE_SUMMARIZERS registry must not exist."""
-    from services import reviewer_envelope
-    assert not hasattr(reviewer_envelope, "ENVELOPE_SUMMARIZERS"), \
+    from services import freddie_envelope
+    assert not hasattr(freddie_envelope, "ENVELOPE_SUMMARIZERS"), \
         "ENVELOPE_SUMMARIZERS registry must be deleted per ADR-281 dissolution"
 
 
 def test_summarize_signal_files_function_deleted():
     """ADR-281 §D2: _summarize_signal_files kernel function must not exist."""
-    from services import reviewer_envelope
-    assert not hasattr(reviewer_envelope, "_summarize_signal_files"), \
+    from services import freddie_envelope
+    assert not hasattr(freddie_envelope, "_summarize_signal_files"), \
         "_summarize_signal_files must be deleted; replaced by MirrorSignalState mechanical primitive"
 
 
 def test_envelope_module_no_summarizer_artifacts():
     """ADR-281 grep-level guard: envelope module source contains no summarizer machinery."""
-    src = (API_ROOT / "services" / "reviewer_envelope.py").read_text()
+    src = (API_ROOT / "services" / "freddie_envelope.py").read_text()
     assert "ENVELOPE_SUMMARIZERS" not in src, \
         "ENVELOPE_SUMMARIZERS string must not appear in envelope module"
     assert "_summarize_signal_files" not in src, \
@@ -72,7 +72,7 @@ def test_envelope_assembly_path_only():
     dispatch branch — any line of executable Python code referencing
     path_glob.
     """
-    src = (API_ROOT / "services" / "reviewer_envelope.py").read_text()
+    src = (API_ROOT / "services" / "freddie_envelope.py").read_text()
     # Walk lines; skip comment + docstring lines; assert no executable code references path_glob.
     in_docstring = False
     for lineno, raw_line in enumerate(src.splitlines(), start=1):
@@ -114,14 +114,14 @@ def test_mirror_signal_state_registered_in_handlers():
 
 
 def test_mirror_signal_state_NOT_in_llm_surfaces():
-    """ADR-281 §D3: mechanical-only primitive; not in CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, or REVIEWER_PRIMITIVES."""
+    """ADR-281 §D3: mechanical-only primitive; not in CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, or FREDDIE_PRIMITIVES."""
     from services.primitives.registry import (
-        CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, REVIEWER_PRIMITIVES,
+        CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, FREDDIE_PRIMITIVES,
     )
     for surface, name in (
         (CHAT_PRIMITIVES, "CHAT_PRIMITIVES"),
         (HEADLESS_PRIMITIVES, "HEADLESS_PRIMITIVES"),
-        (REVIEWER_PRIMITIVES, "REVIEWER_PRIMITIVES"),
+        (FREDDIE_PRIMITIVES, "FREDDIE_PRIMITIVES"),
     ):
         names = [t.get("name") for t in surface if isinstance(t, dict)]
         assert "MirrorSignalState" not in names, \
@@ -224,7 +224,7 @@ def test_alpha_trader_has_mirror_signal_state_recurrence():
 
 def test_envelope_returns_universal_keys_for_no_program_workspace():
     """No-program workspace gets universal envelope inputs only (kernel-shipped)."""
-    from services.reviewer_envelope import load_reviewer_governance_envelope
+    from services.freddie_envelope import load_freddie_governance_envelope
 
     class _MockClient:
         def __init__(self):
@@ -239,7 +239,7 @@ def test_envelope_returns_universal_keys_for_no_program_workspace():
             return SimpleNamespace(data=[])
 
     envelope, elapsed_ms = asyncio.run(
-        load_reviewer_governance_envelope(_MockClient(), "test-no-program-user")
+        load_freddie_governance_envelope(_MockClient(), "test-no-program-user")
     )
     universal_keys = {
         "identity_md", "principles_md", "precedent_md",
@@ -253,7 +253,7 @@ def test_envelope_returns_universal_keys_for_no_program_workspace():
 
 def test_envelope_returns_program_keys_for_alpha_trader_workspace():
     """alpha-trader workspace gets universal + program-shaped envelope keys from bundle MANIFEST."""
-    from services.reviewer_envelope import load_reviewer_governance_envelope
+    from services.freddie_envelope import load_freddie_governance_envelope
 
     class _MockClient:
         def __init__(self):
@@ -274,7 +274,7 @@ def test_envelope_returns_program_keys_for_alpha_trader_workspace():
             return SimpleNamespace(data=[])
 
     envelope, _ = asyncio.run(
-        load_reviewer_governance_envelope(_MockClient(), "test-trading-user")
+        load_freddie_governance_envelope(_MockClient(), "test-trading-user")
     )
     expected_program_keys = {
         "operator_profile_md", "risk_md", "ground_truth_md", "signal_files",
@@ -321,7 +321,7 @@ def test_adr_223_drops_path_glob_summarizer():
 # ---------------------------------------------------------------------------
 
 # test_default_reviewer_write_locks_still_kernel_universal_only DELETED (ADR-320):
-# the flat DEFAULT_REVIEWER_WRITE_LOCKS list dissolved into the five-root
+# the flat DEFAULT_FREDDIE_WRITE_LOCKS list dissolved into the five-root
 # permission topology (CALLER_WRITE_POLICY). The intent — "reviewer locks
 # contain zero literal program-domain paths" — is now structurally guaranteed
 # by the topology (the reviewer's locked set is the root tuple
@@ -341,11 +341,11 @@ def test_review_proposal_dispatch_no_trading_hardcode():
 
 KERNEL_PERCEPTION_FILES = [
     API_ROOT / "services" / "workspace_paths.py",
-    API_ROOT / "services" / "reviewer_envelope.py",
+    API_ROOT / "services" / "freddie_envelope.py",
     API_ROOT / "services" / "primitives" / "workspace.py",
     API_ROOT / "services" / "review_proposal_dispatch.py",
     API_ROOT / "services" / "execution_router.py",
-    API_ROOT / "agents" / "reviewer_agent.py",
+    API_ROOT / "agents" / "freddie_agent.py",
     API_ROOT / "agents" / "cockpit_awareness.py",
 ]
 
@@ -388,31 +388,31 @@ def test_review_judgment_log_path_constant_renamed():
         "REVIEW_DECISIONS_PATH must be deleted per Singular Implementation"
 
 
-def test_judgment_log_path_in_reviewer_audit():
-    """reviewer_audit.JUDGMENT_LOG_PATH is the full /workspace/-prefixed path."""
-    from services.reviewer_audit import JUDGMENT_LOG_PATH
+def test_judgment_log_path_in_freddie_audit():
+    """freddie_audit.JUDGMENT_LOG_PATH is the full /workspace/-prefixed path."""
+    from services.freddie_audit import JUDGMENT_LOG_PATH
     assert JUDGMENT_LOG_PATH == "/workspace/persona/judgment_log.md"
     # And the legacy DECISIONS_PATH is gone
-    from services import reviewer_audit
-    assert not hasattr(reviewer_audit, "DECISIONS_PATH")
+    from services import freddie_audit
+    assert not hasattr(freddie_audit, "DECISIONS_PATH")
 
 
 def test_append_recurrence_fire_deleted():
     """ADR-281 §5.D4 + Singular Implementation: blanket-write function deleted."""
-    from services import reviewer_audit
-    assert not hasattr(reviewer_audit, "append_recurrence_fire"), \
+    from services import freddie_audit
+    assert not hasattr(freddie_audit, "append_recurrence_fire"), \
         "append_recurrence_fire must be deleted; replaced by render_lineage_entry_if_material"
 
 
 def test_render_lineage_entry_if_material_exists():
     """ADR-281 §5.D2 + §5.D3: single-writer contract via material-outcome gate."""
-    from services.reviewer_audit import render_lineage_entry_if_material
+    from services.freddie_audit import render_lineage_entry_if_material
     assert callable(render_lineage_entry_if_material)
 
 
 def test_material_outcome_gate_routine_stand_down_renders_no_entry():
     """§5.D3: a Reviewer wake with no material outcome produces no lineage entry."""
-    from services.reviewer_audit import _detect_outcome_kind
+    from services.freddie_audit import _detect_outcome_kind
     # stand_down with no material actions → None
     assert _detect_outcome_kind({"verdict": "stand_down", "actions_taken": []}) is None
     # only ReadFile calls → None (read-only wake, no outcome)
@@ -427,7 +427,7 @@ def test_material_outcome_gate_routine_stand_down_renders_no_entry():
 
 def test_material_outcome_gate_propose_action_renders_entry():
     """§5.D3 condition 1: ProposeAction call → propose_action outcome."""
-    from services.reviewer_audit import _detect_outcome_kind
+    from services.freddie_audit import _detect_outcome_kind
     assert _detect_outcome_kind({
         "verdict": "approve",
         "actions_taken": [
@@ -438,7 +438,7 @@ def test_material_outcome_gate_propose_action_renders_entry():
 
 def test_material_outcome_gate_schedule_create_renders_entry():
     """§5.D3 condition 2: Schedule with action=create → schedule_create outcome."""
-    from services.reviewer_audit import _detect_outcome_kind
+    from services.freddie_audit import _detect_outcome_kind
     assert _detect_outcome_kind({
         "verdict": "stand_down",
         "actions_taken": [
@@ -449,7 +449,7 @@ def test_material_outcome_gate_schedule_create_renders_entry():
 
 def test_material_outcome_gate_meta_verdict_renders_entry():
     """§5.D3 condition 5: meta-level verdict → meta_verdict:<verdict> outcome."""
-    from services.reviewer_audit import _detect_outcome_kind
+    from services.freddie_audit import _detect_outcome_kind
     for meta in ("pause_autonomy", "narrow", "relax", "character_note"):
         assert _detect_outcome_kind({"verdict": meta, "actions_taken": []}) == f"meta_verdict:{meta}"
 
@@ -521,9 +521,9 @@ def test_no_live_decisions_md_path_in_kernel_perception_files():
     """
     files_to_check = [
         API_ROOT / "services" / "workspace_paths.py",
-        API_ROOT / "services" / "reviewer_envelope.py",
+        API_ROOT / "services" / "freddie_envelope.py",
         API_ROOT / "services" / "review_proposal_dispatch.py",
-        API_ROOT / "agents" / "reviewer_agent.py",
+        API_ROOT / "agents" / "freddie_agent.py",
         API_ROOT / "agents" / "cockpit_awareness.py",
     ]
     for f in files_to_check:

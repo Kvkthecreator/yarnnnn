@@ -9,7 +9,7 @@ Tests three structural invariants:
 3. The three pre-ADR-288 compensating sites are deleted:
    - ``services/primitives/workspace.py`` hardcoded ``"yarnnn:chat"`` default
    - ``agents/yarnnn.py`` per-call Schedule injection block
-   - ``agents/reviewer_agent.py`` per-call Schedule injection block
+   - ``agents/freddie_agent.py`` per-call Schedule injection block
 
 Phase 2 + 3 assertions added in their respective phase commits.
 """
@@ -75,17 +75,17 @@ def test_mcp_auth_sets_caller_identity_yarnnn_mcp():
 def test_reviewer_auth_sets_caller_identity():
     """ADR-288 D1: Reviewer wake builds auth with caller_identity='reviewer:...'.
 
-    Replaces the per-call Schedule injection block at reviewer_agent.py:1180
+    Replaces the per-call Schedule injection block at freddie_agent.py:1180
     (pre-ADR-288).
     """
-    src = _read_text(_file("agents", "reviewer_agent.py"))
+    src = _read_text(_file("agents", "freddie_agent.py"))
     # Auth construction at ~line 1026
     assert re.search(
-        r'caller_identity=f"reviewer:\{REVIEWER_MODEL_IDENTITY\}"',
+        r'caller_identity=f"freddie:\{FREDDIE_MODEL_IDENTITY\}"',
         src,
     ), (
-        "reviewer_agent.py SimpleNamespace must set caller_identity="
-        "f'reviewer:{REVIEWER_MODEL_IDENTITY}' per ADR-288 D1."
+        "freddie_agent.py SimpleNamespace must set caller_identity="
+        "f'freddie:{FREDDIE_MODEL_IDENTITY}' per ADR-288 D1."
     )
 
 
@@ -196,19 +196,19 @@ def test_yarnnn_schedule_injection_deleted():
 
 
 def test_reviewer_schedule_injection_deleted():
-    """ADR-288 D3: reviewer_agent.py dispatch loop no longer injects per-call.
+    """ADR-288 D3: freddie_agent.py dispatch loop no longer injects per-call.
 
     Same shape as the yarnnn.py deletion — the per-tool conditional
     ``if name == "Schedule" and ... not inp.get("authored_by"): inp = {...,
     "authored_by": f"reviewer:..."}`` is deleted.
     """
-    src = _read_text(_file("agents", "reviewer_agent.py"))
+    src = _read_text(_file("agents", "freddie_agent.py"))
     assert not re.search(
         r'if name == "Schedule".*not inp\.get\("authored_by"\)',
         src,
         re.DOTALL,
     ), (
-        "reviewer_agent.py Schedule injection block must be deleted per "
+        "freddie_agent.py Schedule injection block must be deleted per "
         "ADR-288 D3 — auth.caller_identity supersedes per-call compensation."
     )
 
@@ -256,22 +256,22 @@ def test_envelope_key_renamed_to_ground_truth_md():
     what fills it. `performance_md` was ADR-267 residue — pre-rename file path
     `_performance.md` baked into the slot name.
     """
-    # Kernel-side: ReviewerContext field (ADR-315: defined in occupant_contract.py)
+    # Kernel-side: FreddieContext field (ADR-315: defined in occupant_contract.py)
     src = _read_text(_file("agents", "occupant_contract.py"))
     assert "ground_truth_md: str" in src, (
-        "ReviewerContext field must be `ground_truth_md` per ADR-288 D5."
+        "FreddieContext field must be `ground_truth_md` per ADR-288 D5."
     )
     assert "performance_md" not in src, (
         "`performance_md` identifier must not appear in occupant_contract.py."
     )
 
     # Envelope helper docstring
-    src = _read_text(_file("services", "reviewer_envelope.py"))
+    src = _read_text(_file("services", "freddie_envelope.py"))
     assert "ground_truth_md" in src, (
-        "reviewer_envelope.py docstring must reference `ground_truth_md`."
+        "freddie_envelope.py docstring must reference `ground_truth_md`."
     )
     assert "performance_md" not in src, (
-        "`performance_md` identifier must not appear in reviewer_envelope.py."
+        "`performance_md` identifier must not appear in freddie_envelope.py."
     )
 
     # Proposal-arrival reader
@@ -438,26 +438,26 @@ def test_cockpit_awareness_de_instanced():
 #     - test_default_review_identity_md_speaks_in_ground_truth_substrate
 #     - test_default_review_principles_md_speaks_in_ground_truth_substrate
 #       (services/orchestration.py DEFAULT_REVIEW_* constants)
-#     - test_reviewer_agent_docstring_de_instanced (agents/reviewer_agent.py)
+#     - test_freddie_agent_docstring_de_instanced (agents/freddie_agent.py)
 #   Retargeting to a survivor would duplicate that coverage; the gate's subject
 #   file is simply gone. Singular-implementation: delete, don't shim.
 
 
-def test_reviewer_agent_docstring_de_instanced():
-    """Phase 3: reviewer_agent.py module docstring + persona-frame Independence
+def test_freddie_agent_docstring_de_instanced():
+    """Phase 3: freddie_agent.py module docstring + persona-frame Independence
     block must use ADR-282 vocabulary (ground-truth substrate as kernel
     concept; money-truth as alpha-trader instance pointer).
     """
-    src = _read_text(_file("agents", "reviewer_agent.py"))
+    src = _read_text(_file("agents", "freddie_agent.py"))
 
     # Module-level Axiom 8 reference (L33 region) must use kernel concept
     assert "Axiom 8 (Ground-Truth Substrate)" in src, (
-        "reviewer_agent.py Axiom 8 reference must use the kernel concept "
+        "freddie_agent.py Axiom 8 reference must use the kernel concept "
         "name `Ground-Truth Substrate` per ADR-282."
     )
     # Old name should be gone from this site
     assert "Axiom 8 (Money-Truth)" not in src, (
-        "reviewer_agent.py must not refer to Axiom 8 by its retired name "
+        "freddie_agent.py must not refer to Axiom 8 by its retired name "
         "`Money-Truth` (kernel-level)."
     )
 
@@ -522,47 +522,47 @@ def test_stale_performance_md_in_docstrings_updated():
 
 def test_wake_lineage_identity_uses_canonical_constant():
     """ADR-315: the wake lineage writer defaults reviewer_identity to the single
-    canonical REVIEWER_MODEL_IDENTITY constant — NOT a hardcoded literal.
+    canonical FREDDIE_MODEL_IDENTITY constant — NOT a hardcoded literal.
 
     The 2026-06-08 stewardship eval surfaced THREE attribution slugs for one
     occupant (reviewer:ai-sonnet-v8 / reviewer:ai:reviewer /
-    reviewer:ai:reviewer-sonnet-v8), breaking the revision-chain audit. The
+    reviewer:ai:freddie-sonnet-v8), breaking the revision-chain audit. The
     `reviewer:ai:reviewer` leak traced to `services/wake.py` defaulting
     `reviewer_identity = "ai:reviewer"` (a literal that drifted from the
     constant) and a dead `reviewer_output.get("reviewer_identity")` read
-    (ReviewerOutput carries no such field). One occupant, one slug.
+    (FreddieOutput carries no such field). One occupant, one slug.
     """
     src = _read_text(_file("services", "wake.py"))
     # The stale literal default must be gone.
     assert 'reviewer_identity = "ai:reviewer"' not in src, (
         'services/wake.py still defaults reviewer_identity to the literal '
-        '"ai:reviewer" — must be REVIEWER_MODEL_IDENTITY (ADR-315 one-slug).'
+        '"ai:reviewer" — must be FREDDIE_MODEL_IDENTITY (ADR-315 one-slug).'
     )
     # The canonical default must be present.
-    assert "reviewer_identity = REVIEWER_MODEL_IDENTITY" in src, (
+    assert "reviewer_identity = FREDDIE_MODEL_IDENTITY" in src, (
         "services/wake.py must default reviewer_identity to "
-        "REVIEWER_MODEL_IDENTITY (the single occupant-contract constant)."
+        "FREDDIE_MODEL_IDENTITY (the single occupant-contract constant)."
     )
-    # The dead get("reviewer_identity") read must be gone (ReviewerOutput has no
+    # The dead get("reviewer_identity") read must be gone (FreddieOutput has no
     # such field; the read only made the identity look dynamic).
     assert 'reviewer_output.get("reviewer_identity")' not in src, (
         "services/wake.py still reads reviewer_output['reviewer_identity'] — a "
-        "dead key (ReviewerOutput has no such field); delete per Singular Impl."
+        "dead key (FreddieOutput has no such field); delete per Singular Impl."
     )
 
 
 def test_reviewer_output_contract_has_no_identity_field():
-    """ADR-315: ReviewerOutput must NOT carry a per-output reviewer_identity —
+    """ADR-315: FreddieOutput must NOT carry a per-output reviewer_identity —
     the occupant identity is the constant, not an output value. A reviewer_identity
     field would re-open the multi-slug drift the wake.py fix closed.
     """
     src = _read_text(_file("agents", "occupant_contract.py"))
-    # Within the ReviewerOutput TypedDict block, there must be no reviewer_identity key.
-    m = re.search(r"class ReviewerOutput\b.*?(?=\nclass |\Z)", src, re.DOTALL)
-    assert m, "ReviewerOutput class not found in occupant_contract.py"
+    # Within the FreddieOutput TypedDict block, there must be no reviewer_identity key.
+    m = re.search(r"class FreddieOutput\b.*?(?=\nclass |\Z)", src, re.DOTALL)
+    assert m, "FreddieOutput class not found in occupant_contract.py"
     assert "reviewer_identity" not in m.group(0), (
-        "ReviewerOutput declares a reviewer_identity field — the occupant "
-        "identity is REVIEWER_MODEL_IDENTITY (the constant), not a per-output "
+        "FreddieOutput declares a reviewer_identity field — the occupant "
+        "identity is FREDDIE_MODEL_IDENTITY (the constant), not a per-output "
         "value (ADR-315 one-occupant-one-slug)."
     )
 
@@ -577,7 +577,7 @@ def main() -> int:
         ("D2: WriteFile resolver", test_write_file_default_resolves_from_caller_identity),
         ("D2: Schedule resolver", test_schedule_default_resolves_from_caller_identity),
         ("D3: yarnnn.py injection deleted", test_yarnnn_schedule_injection_deleted),
-        ("D3: reviewer_agent.py injection deleted", test_reviewer_schedule_injection_deleted),
+        ("D3: freddie_agent.py injection deleted", test_reviewer_schedule_injection_deleted),
         ("D4: no live yarnnn:chat", test_no_live_yarnnn_chat_string_in_code),
         # Phase 2 assertions
         ("D5: envelope key renamed", test_envelope_key_renamed_to_ground_truth_md),
@@ -590,10 +590,10 @@ def main() -> int:
         ("D8: cockpit_awareness.py de-instanced", test_cockpit_awareness_de_instanced),
         # D8 tools_core gate deleted (ADR-315 carry-over) — file ratify-deleted
         # by 1272c92; coverage retained by the four sibling de-instancing gates.
-        ("D8: reviewer_agent.py docstring de-instanced", test_reviewer_agent_docstring_de_instanced),
+        ("D8: freddie_agent.py docstring de-instanced", test_freddie_agent_docstring_de_instanced),
         # ADR-315 occupant single-slug invariant (2026-06-08 eval finding)
         ("ADR-315: wake lineage uses canonical constant", test_wake_lineage_identity_uses_canonical_constant),
-        ("ADR-315: ReviewerOutput has no identity field", test_reviewer_output_contract_has_no_identity_field),
+        ("ADR-315: FreddieOutput has no identity field", test_reviewer_output_contract_has_no_identity_field),
     ]
 
     passed = 0

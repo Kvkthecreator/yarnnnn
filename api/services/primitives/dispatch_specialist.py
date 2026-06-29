@@ -277,7 +277,7 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
     # Headless tool-use loop, bounded. The round ceiling is per-recurrence
     # tunable: the operator declares `options.max_rounds: N` on the
     # recurrence YAML, the dispatcher copies `options` into the Reviewer's
-    # auth.recurrence_options namespace (reviewer_agent.py), and we read
+    # auth.recurrence_options namespace (freddie_agent.py), and we read
     # it here. Empty / missing → fall back to the global default. This
     # exists because the global default (5) is correctly sized for
     # single-output recurrences (e.g. track-regime) but undersized for
@@ -366,7 +366,7 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
 
         # Append assistant turn — reconstruct dict-shaped content from the
         # SDK content blocks in response.content. Mirrors the canonical
-        # pattern in api/agents/reviewer_agent.py (same problem: round-trip
+        # pattern in api/agents/freddie_agent.py (same problem: round-trip
         # tool_use blocks back to the Anthropic API for the next turn).
         # The earlier shape `response.tool_uses_raw` referenced a field
         # that never existed on ChatResponse — Python raised AttributeError
@@ -402,7 +402,7 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
         # `.input` attributes — NOT a dict. The earlier `.get()` access
         # raised `'ToolUseBlock' has no 'get' attribute` and blocked every
         # specialist's tool-execution turn. Same canonical pattern as
-        # reviewer_agent.py: attribute access against the typed dataclass.
+        # freddie_agent.py: attribute access against the typed dataclass.
         tool_results: list[dict] = []
         for tu in response.tool_uses:
             tool_name = tu.name or ""

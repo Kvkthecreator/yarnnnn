@@ -114,13 +114,13 @@ check("MoveFile: same source and destination rejected", res.get("error") == "no_
 # =============================================================================
 
 from services.primitives.registry import (  # noqa: E402
-    CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, REVIEWER_PRIMITIVES, HANDLERS,
+    CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, FREDDIE_PRIMITIVES, HANDLERS,
 )
 
 for verb in ("EditFile", "DeleteFile", "MoveFile"):
     check(f"{verb} in CHAT_PRIMITIVES", any(t["name"] == verb for t in CHAT_PRIMITIVES))
     check(f"{verb} in HEADLESS_PRIMITIVES", any(t["name"] == verb for t in HEADLESS_PRIMITIVES))
-    check(f"{verb} in REVIEWER_PRIMITIVES (ADR-337 D5)", any(t["name"] == verb for t in REVIEWER_PRIMITIVES))
+    check(f"{verb} in FREDDIE_PRIMITIVES (ADR-337 D5)", any(t["name"] == verb for t in FREDDIE_PRIMITIVES))
     check(f"{verb} in HANDLERS", verb in HANDLERS)
 
 edit_tool = next(t for t in CHAT_PRIMITIVES if t["name"] == "EditFile")
@@ -174,7 +174,7 @@ check(
 class _ReviewerAuth:
     client = None
     user_id = "00000000-0000-0000-0000-000000000000"
-    caller_identity = "reviewer:ai:test"
+    caller_identity = "freddie:ai:test"
     reviewer_caller = True
     agent = None
 

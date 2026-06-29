@@ -152,7 +152,7 @@ async def main() -> int:
     since_iso = "2026-06-25T00:00:00Z"
     r = client.table("workspace_file_versions").select("path, authored_by, message, created_at").eq(
         "user_id", USER_ID).gte("created_at", since_iso).order("created_at", desc=True).limit(15).execute()
-    recent = [x for x in (r.data or []) if (x.get("authored_by") or "").startswith("reviewer:")]
+    recent = [x for x in (r.data or []) if (x.get("authored_by") or "").startswith("freddie:")]
     wrote_paths = [x["path"].replace("/workspace/", "") for x in recent]
 
     # Did it Clarify? (proposal of family clarify or a clarify action — check action_proposals)

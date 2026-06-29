@@ -50,7 +50,7 @@ def test_kernel_persona_frame_no_signal_fired_bullet():
     `_PERSONA_FRAME` was alpha-trader instance vocabulary leaked into the
     kernel. Same anti-pattern as ADR-288 Phase 3.
     """
-    src = _read(_file("agents", "reviewer_agent.py"))
+    src = _read(_file("agents", "freddie_agent.py"))
     # Negative: bullet must be gone
     assert "signal hasn't fired" not in src.lower(), (
         "Kernel persona frame still contains 'signal hasn't fired' bullet — "
@@ -136,7 +136,7 @@ def test_kernel_persona_frame_carries_standing_intent_contract():
             "cycle commitment (relocated from the persona frame per ADR-306)."
         )
     # The frame keeps only the compressed close-cycle action-grammar line.
-    src = _read(_file("agents", "reviewer_agent.py"))
+    src = _read(_file("agents", "freddie_agent.py"))
     assert "Close every cycle with a verdict or a standing_intent write" in src, (
         "Minimal frame must retain the compressed close-cycle action-grammar "
         "line (the runtime-interface residue of the standing-intent contract, "
@@ -255,7 +255,7 @@ def test_principles_md_bootstrap_active_principal_clause():
     (Reviewer interprets "scheduler shows no heartbeat" as a reason to wait) by
     declaring the active-principal posture. ORIGINAL D2-followup phrased the
     mechanism as "Commission substrate via FireInvocation" — but ADR-296 v2 D3
-    (2026-05-20) REMOVED FireInvocation from REVIEWER_PRIMITIVES: the Reviewer's
+    (2026-05-20) REMOVED FireInvocation from FREDDIE_PRIMITIVES: the Reviewer's
     authority is over cadence preference + standing intent, NOT over invoking
     upstream recurrences directly. The original assertion is retired here (it
     would re-introduce the action-grammar overreach that ADR-296 + the 2026-05-29

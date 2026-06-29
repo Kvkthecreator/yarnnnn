@@ -2,8 +2,8 @@
 
 The Reviewer's reactive wakes (recurrence fires + proposal arrivals) must
 receive the same governance + domain substrate pre-load that addressed
-wakes receive. Both trigger paths share `services/reviewer_envelope.py::
-load_reviewer_governance_envelope` per Singular Implementation discipline.
+wakes receive. Both trigger paths share `services/freddie_envelope.py::
+load_freddie_governance_envelope` per Singular Implementation discipline.
 
 Run:
     python -m api.test_adr276_reactive_envelope
@@ -42,26 +42,26 @@ def _bad(name: str, reason: str) -> None:
 
 def test_helper_module_exists() -> None:
     try:
-        from services.reviewer_envelope import load_reviewer_governance_envelope
+        from services.freddie_envelope import load_freddie_governance_envelope
     except ImportError as e:
-        _bad("services.reviewer_envelope importable", str(e))
+        _bad("services.freddie_envelope importable", str(e))
         return
 
-    sig = inspect.signature(load_reviewer_governance_envelope)
+    sig = inspect.signature(load_freddie_governance_envelope)
     params = list(sig.parameters.keys())
     if params == ["client", "user_id"]:
-        _ok("load_reviewer_governance_envelope(client, user_id) signature")
+        _ok("load_freddie_governance_envelope(client, user_id) signature")
     else:
         _bad(
-            "load_reviewer_governance_envelope signature",
+            "load_freddie_governance_envelope signature",
             f"expected (client, user_id), got {params}",
         )
 
-    if asyncio.iscoroutinefunction(load_reviewer_governance_envelope):
-        _ok("load_reviewer_governance_envelope is async")
+    if asyncio.iscoroutinefunction(load_freddie_governance_envelope):
+        _ok("load_freddie_governance_envelope is async")
     else:
         _bad(
-            "load_reviewer_governance_envelope must be async",
+            "load_freddie_governance_envelope must be async",
             "expected coroutine function",
         )
 
@@ -83,7 +83,7 @@ def test_helper_module_exists() -> None:
 # for hard-coded program-specific path strings.
 
 def test_helper_reads_canonical_paths() -> None:
-    import services.reviewer_envelope as mod
+    import services.freddie_envelope as mod
 
     # The helper's _UNIVERSAL_ENVELOPE_DECLS must declare the full
     # kernel-universal envelope (governance + persona + occupant +
@@ -128,14 +128,14 @@ def test_helper_reads_canonical_paths() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 3. ReviewerContext TypedDict declares the full envelope key set
+# 3. FreddieContext TypedDict declares the full envelope key set
 # ---------------------------------------------------------------------------
 
 def test_helper_return_shape() -> None:
-    """ReviewerContext declares every envelope key the helper can populate."""
-    from agents.reviewer_agent import ReviewerContext
+    """FreddieContext declares every envelope key the helper can populate."""
+    from agents.freddie_agent import FreddieContext
 
-    rc_fields = set(getattr(ReviewerContext, "__annotations__", {}).keys())
+    rc_fields = set(getattr(FreddieContext, "__annotations__", {}).keys())
     # Kernel-universal envelope keys (helper populates unconditionally)
     universal_keys = {
         "identity_md", "principles_md", "precedent_md", "mandate_md",
@@ -154,16 +154,16 @@ def test_helper_return_shape() -> None:
 
     missing_on_ctx = expected - rc_fields
     if not missing_on_ctx:
-        _ok(f"ReviewerContext declares all {len(expected)} envelope keys (universal + alpha-trader program-shaped)")
+        _ok(f"FreddieContext declares all {len(expected)} envelope keys (universal + alpha-trader program-shaped)")
     else:
         _bad(
-            "ReviewerContext fields",
+            "FreddieContext fields",
             f"missing on TypedDict: {missing_on_ctx}",
         )
 
 
 # ---------------------------------------------------------------------------
-# 4. All invoke_reviewer call sites route through the shared helper
+# 4. All invoke_freddie call sites route through the shared helper
 # ---------------------------------------------------------------------------
 #
 # Post-ADR-296-v2 wake architecture (commit 37426c5, 2026-05-20): the
@@ -172,13 +172,13 @@ def test_helper_return_shape() -> None:
 # renamed to services/wake.py in the same commit. The proposal-arrival
 # Reviewer invocation lives in services/review_proposal_dispatch.py.
 #
-# Three canonical invoke_reviewer call sites today:
+# Three canonical invoke_freddie call sites today:
 #   - services/wake.py::dispatch_recurrence (cron_tick + manual_fire)
 #   - services/wake.py::stream_addressed_wake (addressed)
 #   - services/review_proposal_dispatch.py::_run_ai_reviewer (proposal_arrival)
 #
 # All three must import + call the helper + dict-spread the result into the
-# invoke_reviewer context bag.
+# invoke_freddie context bag.
 
 def test_all_call_sites_use_shared_helper() -> None:
     sites = [
@@ -192,20 +192,20 @@ def test_all_call_sites_use_shared_helper() -> None:
             missing_import.append(f"{label}: file not found at {path}")
             continue
         src = path.read_text()
-        if "load_reviewer_governance_envelope" not in src:
-            missing_import.append(f"{label}: missing import/use of load_reviewer_governance_envelope")
+        if "load_freddie_governance_envelope" not in src:
+            missing_import.append(f"{label}: missing import/use of load_freddie_governance_envelope")
         if "**governance_envelope" not in src:
             missing_spread.append(f"{label}: missing '**governance_envelope' dict-spread")
 
     if missing_import:
         _bad("envelope helper import at all call sites", "; ".join(missing_import))
     else:
-        _ok("envelope helper imported at all invoke_reviewer call sites (wake.py + review_proposal_dispatch.py)")
+        _ok("envelope helper imported at all invoke_freddie call sites (wake.py + review_proposal_dispatch.py)")
 
     if missing_spread:
         _bad("envelope helper dict-spread at all call sites", "; ".join(missing_spread))
     else:
-        _ok("**governance_envelope dict-spread present at all invoke_reviewer call sites")
+        _ok("**governance_envelope dict-spread present at all invoke_freddie call sites")
 
 
 def test_wake_py_preserves_recurrence_context() -> None:

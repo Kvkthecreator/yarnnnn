@@ -24,7 +24,7 @@ an entry for every recurrence-fire wake whether or not the wake had a
 material outcome — exactly the duplication ADR-277 named at the feed-emission
 layer, applied at the substrate-write layer. Replaced by the
 `render_lineage_entry_if_material` function which evaluates the
-ReviewerOutput against the deterministic 5-condition gate.
+FreddieOutput against the deterministic 5-condition gate.
 
 File convention:
   /workspace/persona/judgment_log.md
@@ -51,7 +51,7 @@ Entry formats:
   timestamp: 2026-05-15T07:00:00+00:00
   slug: morning-reflection
   trigger: reactive
-  reviewer_identity: ai:reviewer-sonnet-v8
+  reviewer_identity: ai:freddie-sonnet-v8
   outcome_kind: propose_action | schedule_create | schedule_update | schedule_archive
               | write_operator_canon | clarify | meta_verdict
   ---
@@ -469,7 +469,7 @@ def _write_decision_sync(
             user_id=user_id,
             path=JUDGMENT_LOG_PATH,
             content=content,
-            authored_by=f"reviewer:{reviewer_identity}",
+            authored_by=f"freddie:{reviewer_identity}",
             message=f"{decision} proposal {proposal_id[:8] if proposal_id else '?'}",
             summary="Reviewer judgment log",
             tags=["_judgment_log", "review", "audit"],
@@ -503,7 +503,7 @@ def _write_material_outcome_sync(
             user_id=user_id,
             path=JUDGMENT_LOG_PATH,
             content=content,
-            authored_by=f"reviewer:{reviewer_identity}",
+            authored_by=f"freddie:{reviewer_identity}",
             message=f"material-outcome {slug} ({outcome_kind})",
             summary="Reviewer judgment log",
             tags=["_judgment_log", "review", "audit", "material-outcome"],

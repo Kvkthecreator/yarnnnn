@@ -1,6 +1,6 @@
 """ADR-302 D5 + D6 — Typed section registry for the Reviewer persona-frame.
 
-The persona-frame at `api/agents/reviewer_agent.py::_PERSONA_FRAME` is the
+The persona-frame at `api/agents/freddie_agent.py::_PERSONA_FRAME` is the
 single most-read LLM-facing artifact in YARNNN canon. Drift in it compounds
 at every Reviewer wake.
 
@@ -37,15 +37,15 @@ Three core elements per ADR-302 D5/D6:
    per-wake content). The DANGEROUS_ prefix is intentional friction.
 
 Plus `resolve_persona_frame_sections(sections)` — assembly helper used by
-`reviewer_agent.py::_build_system_prompt()` to render the registry into
+`freddie_agent.py::_build_system_prompt()` to render the registry into
 the final prompt body.
 
 What this module does NOT do (deliberate scope):
 - Does not export the prompt itself. `_PERSONA_FRAME_SECTIONS` lives in
-  `reviewer_agent.py` where the per-section compute functions are defined.
+  `freddie_agent.py` where the per-section compute functions are defined.
 - Does not implement runtime cache invalidation. Sections are resolved
   once at module load; deploy triggers re-load. Same as the existing
-  `_SYSTEM_PROMPT_CACHE` pattern in `reviewer_agent.py`.
+  `_SYSTEM_PROMPT_CACHE` pattern in `freddie_agent.py`.
 - Does not enforce boundary marker ordering at runtime. The discipline is
   declarative — comments in the registry + reviewer judgment at PR time.
   Same pattern as Claude Code's `=== BOUNDARY MARKER ===` comment in

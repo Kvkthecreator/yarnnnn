@@ -203,7 +203,7 @@ def _seed_action_proposals(client, n: int = 8) -> None:
             "inputs": {"piece": f"#{i}"}, "decision_context": {},
             "expires_at": (now + timedelta(hours=24)).isoformat(),
             "approved_at": ts, "executed_at": ts, "created_at": ts,
-            "reviewer_identity": "reviewer:ai-opus-seed",
+            "reviewer_identity": "freddie:ai-opus-seed",
             "reviewer_reasoning": (
                 f"Approved piece #{i} with a soft/hedge-stack opener — cleared under "
                 f"the _voice.md 'accepted variants' clause (opener recovers the claim)."
@@ -307,7 +307,7 @@ def _ledger_size_now(client) -> float:
 async def _perceived_negatives(client) -> int:
     """How many negative joined pairs the reflection gap-fact presents (the
     agent's perceivable falsification count this wake)."""
-    from services.reviewer_envelope import _reflection_gap_fact
+    from services.freddie_envelope import _reflection_gap_fact
     fact = await _reflection_gap_fact(client, USER_ID)
     lines = [ln for ln in fact.splitlines() if ln.strip().startswith("- ")]
     return len([ln for ln in lines if "outcome -" in ln])
@@ -401,7 +401,7 @@ def _reviewer_writes_since(client, since_iso: str) -> list[dict]:
     res = client.table("workspace_file_versions").select(
         "path,authored_by,message,created_at").eq("user_id", USER_ID).gte(
         "created_at", since_iso).order("created_at", desc=True).limit(60).execute()
-    return [r for r in (res.data or []) if (r.get("authored_by") or "").startswith("reviewer:")]
+    return [r for r in (res.data or []) if (r.get("authored_by") or "").startswith("freddie:")]
 
 
 # The operator-canon paths the self-amendment trail (TENURE-READ Read 2) watches.

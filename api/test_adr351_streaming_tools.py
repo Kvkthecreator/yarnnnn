@@ -11,7 +11,7 @@ backend, with the Anthropic SDK fully mocked (no real API calls):
   3. A flaky on_text_delta NEVER breaks the cycle (best-effort relay).
   4. The streaming call drains correctly with NO subscriber (final message
      still assembles) — the reactive/scheduled paths never pass a callback.
-  5. invoke_reviewer's addressed trigger routes to the STREAMING call and
+  5. invoke_freddie's addressed trigger routes to the STREAMING call and
      reactive/scheduled route to the BLOCKING call — no dual call on the
      addressed path (ADR-351 §4 + §6 Phase 3 deferral).
   6. wake.py relays a text_delta phase as its own SSE event type; feed.py
@@ -227,7 +227,7 @@ def test_addressed_path_uses_streaming_call_source():
     Asserts against the source so a future refactor that drops the trigger
     discrimination (re-introducing a dual blocking call on the addressed
     path, the ADR-351 §4 violation) trips the gate."""
-    src = inspect.getsource(__import__("agents.reviewer_agent", fromlist=["x"]))
+    src = inspect.getsource(__import__("agents.freddie_agent", fromlist=["x"]))
     assert "chat_completion_with_tools_stream(" in src, "addressed path lost the streaming call"
     assert 'if trigger == "addressed":' in src, "trigger discrimination removed"
     # the blocking call survives for the non-addressed branch

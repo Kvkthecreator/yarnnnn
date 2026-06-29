@@ -85,13 +85,13 @@ def test_registered_in_handlers_dispatcher_only():
     dispatcher routes to it) and in NO LLM tool surface — same discipline
     as TrackUniverse/TrackRegime."""
     from services.primitives.registry import (
-        HANDLERS, CHAT_PRIMITIVES, REVIEWER_PRIMITIVES, HEADLESS_PRIMITIVES,
+        HANDLERS, CHAT_PRIMITIVES, FREDDIE_PRIMITIVES, HEADLESS_PRIMITIVES,
     )
 
     assert "TrackWebSources" in HANDLERS
     for surface, name in (
         (CHAT_PRIMITIVES, "chat"),
-        (REVIEWER_PRIMITIVES, "reviewer"),
+        (FREDDIE_PRIMITIVES, "reviewer"),
         (HEADLESS_PRIMITIVES, "headless"),
     ):
         tool_names = {t.get("name") for t in surface if isinstance(t, dict)}

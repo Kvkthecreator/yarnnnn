@@ -2,15 +2,15 @@
 
 Asserts that the FireInvocation primitive is present in CHAT_PRIMITIVES
 (operator-initiated manual fire — operator presence is itself a wake-warrant
-per ADR-296 v2 D1) and ABSENT from REVIEWER_PRIMITIVES (Reviewer does not
+per ADR-296 v2 D1) and ABSENT from FREDDIE_PRIMITIVES (Reviewer does not
 self-invoke — its authority is over cadence preference + standing intent
 per D3).
 
 Companion sanity checks:
-  - Reviewer persona-frame (reviewer_agent.py + cockpit_awareness.py)
+  - Reviewer persona-frame (freddie_agent.py + cockpit_awareness.py)
     contains NO `FireInvocation` teaching that instructs the Reviewer to
     call it.
-  - reviewer_chat_surfacing.py contains NO live `_is_mechanical_fire_invocation`
+  - freddie_chat_surfacing.py contains NO live `_is_mechanical_fire_invocation`
     helper (dissolved per D3 narrowing; SyncPlatformState mirror-refresh
     case survives).
   - review_proposal_dispatch._execute_reviewer_directives contains NO
@@ -44,18 +44,18 @@ def _read(rel: str) -> str:
 
 
 # ----------------------------------------------------------------------------
-# 1. REVIEWER_PRIMITIVES does NOT include FireInvocation; CHAT does.
+# 1. FREDDIE_PRIMITIVES does NOT include FireInvocation; CHAT does.
 # ----------------------------------------------------------------------------
 
 def test_fireinvocation_chat_only() -> None:
     from services.primitives.registry import (
         CHAT_PRIMITIVES,
-        REVIEWER_PRIMITIVES,
+        FREDDIE_PRIMITIVES,
         HEADLESS_PRIMITIVES,
     )
 
     chat_names = {t["name"] for t in CHAT_PRIMITIVES}
-    reviewer_names = {t["name"] for t in REVIEWER_PRIMITIVES}
+    reviewer_names = {t["name"] for t in FREDDIE_PRIMITIVES}
     headless_names = {t["name"] for t in HEADLESS_PRIMITIVES}
 
     if "FireInvocation" not in chat_names:
@@ -67,11 +67,11 @@ def test_fireinvocation_chat_only() -> None:
 
     if "FireInvocation" in reviewer_names:
         _fail(
-            "FireInvocation in REVIEWER_PRIMITIVES",
+            "FireInvocation in FREDDIE_PRIMITIVES",
             "ADR-296 v2 D3: Reviewer does not self-invoke. Remove from "
-            "REVIEWER_PRIMITIVES; cadence is authored via Schedule.",
+            "FREDDIE_PRIMITIVES; cadence is authored via Schedule.",
         )
-    _ok("FireInvocation absent from REVIEWER_PRIMITIVES (ADR-296 v2 D3)")
+    _ok("FireInvocation absent from FREDDIE_PRIMITIVES (ADR-296 v2 D3)")
 
     # Headless surface keeps FireInvocation for now — headless agents acting
     # as operator-proxies during scenario harnesses use it. ADR-296 v2 does
@@ -79,7 +79,7 @@ def test_fireinvocation_chat_only() -> None:
     if "FireInvocation" not in headless_names:
         _fail(
             "HEADLESS_PRIMITIVES unexpectedly missing FireInvocation",
-            "ADR-296 v2 narrows only REVIEWER_PRIMITIVES; headless surface "
+            "ADR-296 v2 narrows only FREDDIE_PRIMITIVES; headless surface "
             "preserved",
         )
     _ok("FireInvocation present in HEADLESS_PRIMITIVES (per scope: only "
@@ -90,23 +90,23 @@ def test_fireinvocation_chat_only() -> None:
 # 2. Reviewer persona-frame teaches cadence + standing intent, NOT FireInvocation
 # ----------------------------------------------------------------------------
 
-def test_reviewer_agent_persona_no_fireinvocation_teaching() -> None:
+def test_freddie_agent_persona_no_fireinvocation_teaching() -> None:
     """Reviewer's _PERSONA_FRAME must not instruct the model to call FireInvocation."""
-    src = _read("agents/reviewer_agent.py")
+    src = _read("agents/freddie_agent.py")
     # The earlier "FireInvocation the relevant recurrence to commission fresh
     # substrate" instruction must be gone.
     if re.search(r"FireInvocation\s+the\s+relevant\s+recurrence", src):
         _fail(
-            "reviewer_agent.py still teaches FireInvocation",
+            "freddie_agent.py still teaches FireInvocation",
             "ADR-296 v2 D3 deleted that guidance; replaced by cadence + "
             "standing intent",
         )
-    _ok("reviewer_agent.py persona-frame does not teach FireInvocation")
+    _ok("freddie_agent.py persona-frame does not teach FireInvocation")
 
     # Remaining FireInvocation mentions must sit inside a multi-line
     # deletion-provenance comment block (`ADR-296 v2 D3` within ±3 lines)
     # or carry the marker inline. Accommodates the multi-line "input:"
-    # comment block at reviewer_agent.py:1417-1422.
+    # comment block at freddie_agent.py:1417-1422.
     lines = src.splitlines()
     for line_no, line in enumerate(lines, start=1):
         if "FireInvocation" in line or "fire_invocation" in line:
@@ -115,11 +115,11 @@ def test_reviewer_agent_persona_no_fireinvocation_teaching() -> None:
             window = "\n".join(lines[window_start:window_end])
             if "ADR-296" not in window:
                 _fail(
-                    f"reviewer_agent.py:{line_no} mentions FireInvocation "
+                    f"freddie_agent.py:{line_no} mentions FireInvocation "
                     "without ADR-296 provenance within ±3 lines",
                     line.strip()[:120],
                 )
-    _ok("All FireInvocation/fire_invocation mentions in reviewer_agent.py "
+    _ok("All FireInvocation/fire_invocation mentions in freddie_agent.py "
         "carry ADR-296 deletion provenance (inline or within ±3 lines)")
 
 
@@ -137,11 +137,11 @@ def test_cockpit_awareness_no_fireinvocation_teaching() -> None:
 
 
 # ----------------------------------------------------------------------------
-# 3. reviewer_chat_surfacing dissolved _is_mechanical_fire_invocation helper
+# 3. freddie_chat_surfacing dissolved _is_mechanical_fire_invocation helper
 # ----------------------------------------------------------------------------
 
 def test_chat_surfacing_dissolved_mechanical_fire_helper() -> None:
-    src = _read("services/reviewer_chat_surfacing.py")
+    src = _read("services/freddie_chat_surfacing.py")
     if "def _is_mechanical_fire_invocation(" in src:
         _fail(
             "_is_mechanical_fire_invocation still defined",
@@ -186,14 +186,14 @@ def test_directives_no_fire_invocation_action() -> None:
 
 
 def test_compat_adapter_no_fireinvocation_extraction() -> None:
-    """reviewer_agent_compat.py must not extract FireInvocation actions as directives."""
-    src = _read("agents/reviewer_agent_compat.py")
+    """freddie_agent_compat.py must not extract FireInvocation actions as directives."""
+    src = _read("agents/freddie_agent_compat.py")
     if re.search(r'tool"\s*\)\s*==\s*"FireInvocation"', src):
         _fail(
-            "reviewer_agent_compat still extracts FireInvocation actions",
+            "freddie_agent_compat still extracts FireInvocation actions",
             "ADR-296 v2 D3 deleted the directives-extraction block",
         )
-    _ok("reviewer_agent_compat.output_to_review_decision has no "
+    _ok("freddie_agent_compat.output_to_freddie_decision has no "
         "FireInvocation-extraction block")
 
 
@@ -223,7 +223,7 @@ def main() -> None:
     print("=" * 72)
 
     test_fireinvocation_chat_only()
-    test_reviewer_agent_persona_no_fireinvocation_teaching()
+    test_freddie_agent_persona_no_fireinvocation_teaching()
     test_cockpit_awareness_no_fireinvocation_teaching()
     test_chat_surfacing_dissolved_mechanical_fire_helper()
     test_directives_no_fire_invocation_action()

@@ -13,7 +13,7 @@ Asserts the recurrence-mode + SyncPlatformState architecture is in place:
   - Schedule primitive's tool definition accepts mode parameter
   - Schedule(action='create') validates mode + sets it on new Recurrence
   - Schedule(action='update') honors mode in changes dict
-  - invoke_reviewer trigger Literal narrowed to ["addressed", "reactive"]
+  - invoke_freddie trigger Literal narrowed to ["addressed", "reactive"]
   - _TRIGGER_FRAMING dict has 'addressed' + 'reactive' keys, no 'scheduled'
   - wake.py (dispatch absorbed from invocation_dispatcher by the ADR-296 v2
     wake migration) exports _dispatch_mechanical helper
@@ -24,7 +24,7 @@ Asserts the recurrence-mode + SyncPlatformState architecture is in place:
   - services.primitives.sync_platform_state importable
   - SYNC_PLATFORM_STATE_TOOL constant defined with proper schema
   - handle_sync_platform_state callable (async)
-  - Tool registered in HEADLESS_PRIMITIVES + REVIEWER_PRIMITIVES
+  - Tool registered in HEADLESS_PRIMITIVES + FREDDIE_PRIMITIVES
   - Tool NOT in CHAT_PRIMITIVES (per ADR-264 D3)
   - HANDLERS dict has 'SyncPlatformState' entry
   - _parse_primitive_directive correctly parses
@@ -224,16 +224,16 @@ def main() -> None:
 
     print()
     print("--- Section 4: ADR-263 Reviewer trigger Literal collapse ---")
-    rev_mod = assert_import_succeeds("agents.reviewer_agent")
+    rev_mod = assert_import_succeeds("agents.freddie_agent")
     if rev_mod is not None:
-        invoke = getattr(rev_mod, "invoke_reviewer", None)
+        invoke = getattr(rev_mod, "invoke_freddie", None)
         if invoke is None:
-            _fail("invoke_reviewer not exported")
+            _fail("invoke_freddie not exported")
         else:
             sig = inspect.signature(invoke)
             trigger_param = sig.parameters.get("trigger")
             if trigger_param is None:
-                _fail("invoke_reviewer signature missing `trigger` parameter")
+                _fail("invoke_freddie signature missing `trigger` parameter")
             else:
                 ann = trigger_param.annotation
                 # Under `from __future__ import annotations`, the annotation is
@@ -246,24 +246,24 @@ def main() -> None:
                 # Branch 1: runtime Literal (no `from __future__ import annotations`)
                 if origin is typing.Literal:
                     if set(args) == {"addressed", "reactive"}:
-                        _ok("invoke_reviewer trigger Literal = ['addressed', 'reactive'] (no 'scheduled')")
+                        _ok("invoke_freddie trigger Literal = ['addressed', 'reactive'] (no 'scheduled')")
                     elif "scheduled" in args:
-                        _fail(f"invoke_reviewer trigger Literal STILL contains 'scheduled': {args!r}")
+                        _fail(f"invoke_freddie trigger Literal STILL contains 'scheduled': {args!r}")
                     else:
-                        _fail(f"invoke_reviewer trigger Literal unexpected: args={args!r}")
+                        _fail(f"invoke_freddie trigger Literal unexpected: args={args!r}")
                 # Branch 2: string-form annotation (future-annotations or partial)
                 elif "Literal" in ann_str:
                     has_addressed = "'addressed'" in ann_str or '"addressed"' in ann_str
                     has_reactive = "'reactive'" in ann_str or '"reactive"' in ann_str
                     has_scheduled = "'scheduled'" in ann_str or '"scheduled"' in ann_str
                     if has_addressed and has_reactive and not has_scheduled:
-                        _ok(f"invoke_reviewer trigger Literal (string form) = {ann_str} — no 'scheduled'")
+                        _ok(f"invoke_freddie trigger Literal (string form) = {ann_str} — no 'scheduled'")
                     elif has_scheduled:
-                        _fail(f"invoke_reviewer trigger Literal STILL contains 'scheduled': {ann_str}")
+                        _fail(f"invoke_freddie trigger Literal STILL contains 'scheduled': {ann_str}")
                     else:
-                        _fail(f"invoke_reviewer trigger Literal missing expected values: {ann_str}")
+                        _fail(f"invoke_freddie trigger Literal missing expected values: {ann_str}")
                 else:
-                    _fail(f"invoke_reviewer trigger annotation unexpected shape: {ann_str!r}")
+                    _fail(f"invoke_freddie trigger annotation unexpected shape: {ann_str!r}")
 
         # _TRIGGER_FRAMING shape
         framing = getattr(rev_mod, "_TRIGGER_FRAMING", None)
@@ -375,7 +375,7 @@ def main() -> None:
     reg_mod = assert_import_succeeds("services.primitives.registry")
     if reg_mod is not None:
         HEADLESS = getattr(reg_mod, "HEADLESS_PRIMITIVES", [])
-        REVIEWER = getattr(reg_mod, "REVIEWER_PRIMITIVES", [])
+        REVIEWER = getattr(reg_mod, "FREDDIE_PRIMITIVES", [])
         CHAT = getattr(reg_mod, "CHAT_PRIMITIVES", [])
         HANDLERS = getattr(reg_mod, "HANDLERS", {})
 
@@ -389,9 +389,9 @@ def main() -> None:
             _fail("SyncPlatformState NOT in HEADLESS_PRIMITIVES")
 
         if "SyncPlatformState" in reviewer_names:
-            _ok("SyncPlatformState in REVIEWER_PRIMITIVES")
+            _ok("SyncPlatformState in FREDDIE_PRIMITIVES")
         else:
-            _fail("SyncPlatformState NOT in REVIEWER_PRIMITIVES")
+            _fail("SyncPlatformState NOT in FREDDIE_PRIMITIVES")
 
         if "SyncPlatformState" not in chat_names:
             _ok("SyncPlatformState NOT in CHAT_PRIMITIVES (per ADR-264 D3)")

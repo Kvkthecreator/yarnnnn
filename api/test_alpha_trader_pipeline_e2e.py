@@ -47,7 +47,7 @@ load_dotenv(_API / ".env.alpha-ops")
 load_dotenv(_API.parent / ".env")
 
 TEST_USER_ID = "2abf3f96-118b-4987-9d95-40f2d9be9a18"  # kvk (same as test_adr209)
-REVIEWER_ID = "ai:reviewer-sonnet-v8"
+REVIEWER_ID = "ai:freddie-sonnet-v8"
 
 PASS = 0
 FAIL = 0

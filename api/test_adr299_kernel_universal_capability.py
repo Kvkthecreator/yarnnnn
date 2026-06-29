@@ -52,7 +52,7 @@ Asserts the load-bearing properties per ADR-299 D1–D8 (rewrite):
      always-surface pass (D3 explicit-merge replaces the previous filter
      mechanism).
 
-  8. The Reviewer surface (`REVIEWER_PRIMITIVES`) does NOT include
+  8. The Reviewer surface (`FREDDIE_PRIMITIVES`) does NOT include
      `platform_email_send_to_operator`. Architectural commitment per
      ADR-299 D8 — evidence-confirmed by the 2026-05-25 v5 canary
      (RESOLUTION.md), NOT a deferred decision.
@@ -420,10 +420,10 @@ def test_reviewer_primitives_excludes_all_system_infrastructure_tools() -> None:
     baseline tool surface via N≥3 canaries; default is "no" until
     verdict-quality evidence supports otherwise.
     """
-    from services.primitives.registry import REVIEWER_PRIMITIVES
+    from services.primitives.registry import FREDDIE_PRIMITIVES
     from services.platform_tools import SYSTEM_INFRASTRUCTURE_TOOLS
 
-    reviewer_tool_names = {t.get("name") for t in REVIEWER_PRIMITIVES}
+    reviewer_tool_names = {t.get("name") for t in FREDDIE_PRIMITIVES}
     system_infra_names = {t.get("name") for t in SYSTEM_INFRASTRUCTURE_TOOLS}
 
     overlap = reviewer_tool_names & system_infra_names
@@ -434,7 +434,7 @@ def test_reviewer_primitives_excludes_all_system_infrastructure_tools() -> None:
         "confirmed that tool-list size at the 21→22 transition collapses "
         "judgment quality by ~74%. The commitment generalizes: ALL system-"
         "infrastructure tools (current + future) are excluded from "
-        "REVIEWER_PRIMITIVES. If you genuinely need to add any tool to the "
+        "FREDDIE_PRIMITIVES. If you genuinely need to add any tool to the "
         "Reviewer surface, run N≥3 canaries measuring verdict-quality "
         "regression first and update this test only with the evidence trail."
     )
@@ -447,10 +447,10 @@ def test_reviewer_primitives_excludes_all_platform_write_tools() -> None:
     write_notion → channel post / page create / block append) nor any capital
     write. Making audience-writes kernel-universal must NOT leak a platform
     write into the Reviewer surface; the seat stays propose-only."""
-    from services.primitives.registry import REVIEWER_PRIMITIVES
+    from services.primitives.registry import FREDDIE_PRIMITIVES
     from services.platform_tools import is_platform_tool
 
-    reviewer_tool_names = {t.get("name") for t in REVIEWER_PRIMITIVES}
+    reviewer_tool_names = {t.get("name") for t in FREDDIE_PRIMITIVES}
     platform_in_reviewer = {n for n in reviewer_tool_names if is_platform_tool(n or "")}
     assert not platform_in_reviewer, (
         f"Reviewer surface includes platform tools: {platform_in_reviewer}. "
@@ -458,7 +458,7 @@ def test_reviewer_primitives_excludes_all_platform_write_tools() -> None:
         "external effect via ProposeAction, never a direct platform write. "
         "Kernel-universal audience-writes (ADR-304 amendment) surface to "
         "task-bearing agent paths via PLATFORM_TOOLS_BY_CAPABILITY, NOT to "
-        "REVIEWER_PRIMITIVES."
+        "FREDDIE_PRIMITIVES."
     )
 
 

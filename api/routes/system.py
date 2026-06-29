@@ -11,7 +11,7 @@ Composer heartbeat, content cleanup, agent hygiene, and workspace cleanup are al
 The scheduler now only does recurrence dispatch and writes hourly heartbeat events.
 
 Back-office tasks (outcome-reconciliation, proposal-cleanup, reviewer-calibration,
-reviewer-reflection, narrative-digest) are recurrences that surface in execution-events.
+freddie-reflection, narrative-digest) are recurrences that surface in execution-events.
 
 Mounted at /api/system
 """

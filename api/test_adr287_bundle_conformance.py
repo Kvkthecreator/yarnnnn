@@ -132,7 +132,7 @@ def test_adr354_judgment_recurrences_do_not_rescript_the_close():
     recurrence prompt must NOT re-script cycle-closing. ADR-284 D6's intent —
     no-fire cycles leave forward-looking evidence — is now owned by the KERNEL
     FRAME ("close every cycle with a verdict or a standing_intent write",
-    reviewer_agent.py::_compute_minimal_frame), not the prompt. A prompt that
+    freddie_agent.py::_compute_minimal_frame), not the prompt. A prompt that
     re-scripts a terminal "else → WriteFile standing_intent THEN
     ReturnVerdict(stand_down)" pre-empts the standing-obligation (DP30)
     reasoning the frame owns: the concrete procedure beats the thin frame

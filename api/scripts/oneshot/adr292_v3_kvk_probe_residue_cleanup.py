@@ -59,7 +59,7 @@ CLEANUP_ACTOR = "system:probe-cleanup"
 STANDING_INTENT_BOOTSTRAP = """---
 as_of: pending-first-wake
 horizon: pending-first-natural-wake
-occupant: "ai:reviewer-sonnet-v8"
+occupant: "ai:freddie-sonnet-v8"
 ---
 
 # Standing Intent — alpha-trader Reviewer (post-cleanup bootstrap)

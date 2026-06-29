@@ -8,11 +8,11 @@ DELETED from this section, because Derived Principle 22 says the system prompt
 carries ONLY the model↔runtime interface contract. Substrate pedagogy lives in
 the bundle's _workspace_guide.md (ADR-281); rules of judgment + posture live in
 principles.md (DP24); the action-grammar lives in the minimal persona frame
-(reviewer_agent.py). What remains here is the TOOL SURFACE only — the one
+(freddie_agent.py). What remains here is the TOOL SURFACE only — the one
 genuine interface fact this section owns (which tools the Reviewer has, which it
 doesn't, that Schedule is its own job).
 
-The tool block is still GENERATED from the REVIEWER_PRIMITIVES registry
+The tool block is still GENERATED from the FREDDIE_PRIMITIVES registry
 (ADR-258 D5 drift-resistance preserved) so it cannot drift from runtime behavior.
 
 Pure function. No I/O. Composed at module-level once per process.
@@ -45,17 +45,17 @@ def _one_line(text: str, limit: int = 90) -> str:
 
 
 def build_tools_block(allowed_tool_names: set[str] | None = None) -> str:
-    """Tool block — composed from REVIEWER_PRIMITIVES registry at call time.
+    """Tool block — composed from FREDDIE_PRIMITIVES registry at call time.
 
     ADR-258 (revised 2026-05-08) + ADR-296 v2 D3: Reviewer uses the curated
-    REVIEWER_PRIMITIVES subset (20 tools after ADR-296 v2 removed
+    FREDDIE_PRIMITIVES subset (20 tools after ADR-296 v2 removed
     FireInvocation per D3 — Reviewer does not self-invoke), not the full
     CHAT_PRIMITIVES set. Imported lazily to avoid circular imports.
     """
-    from services.primitives.registry import REVIEWER_PRIMITIVES
+    from services.primitives.registry import FREDDIE_PRIMITIVES
 
     lines = ["### Your tool surface (Reviewer-curated primitives)", ""]
-    for tool in REVIEWER_PRIMITIVES:
+    for tool in FREDDIE_PRIMITIVES:
         name = tool.get("name", "")
         if not name:
             continue
@@ -64,7 +64,7 @@ def build_tools_block(allowed_tool_names: set[str] | None = None) -> str:
         desc = _one_line(tool.get("description") or "")
         lines.append(f"- `{name}` — {desc}")
 
-    # ReturnVerdict is Reviewer-specific (not in REVIEWER_PRIMITIVES).
+    # ReturnVerdict is Reviewer-specific (not in FREDDIE_PRIMITIVES).
     lines.append(
         "- `ReturnVerdict` — close the turn with verdict + reasoning + confidence. "
         "Always last."
@@ -73,7 +73,7 @@ def build_tools_block(allowed_tool_names: set[str] | None = None) -> str:
     lines.append("")
     lines.append(
         "**Not in your curated tool surface** (per ADR-258 revised — the "
-        "REVIEWER_PRIMITIVES subset of CHAT_PRIMITIVES is curated for the "
+        "FREDDIE_PRIMITIVES subset of CHAT_PRIMITIVES is curated for the "
         "judgment-seat role): ManageDomains, ManageAgent, "
         "RuntimeDispatch, RepurposeOutput, EditEntity, "
         "ExecuteProposal, RejectProposal. These shape orchestration / agent "

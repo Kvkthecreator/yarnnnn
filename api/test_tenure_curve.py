@@ -182,7 +182,7 @@ def test_author_shape_cross_program() -> None:
 
 def _point(content: str, ts: str) -> CurvePoint:
     flat = flatten_numeric(extract_frontmatter(content))
-    return CurvePoint(created_at=ts, authored_by="reviewer:test", message="reconciled", flat=flat)
+    return CurvePoint(created_at=ts, authored_by="freddie:test", message="reconciled", flat=flat)
 
 
 def test_mechanical_verdict() -> None:

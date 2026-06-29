@@ -77,7 +77,7 @@ def _now_iso() -> str:
 
 def _judgment_log_content(*, include_control: bool) -> str:
     """Render a judgment_log.md with one (or two) --- decision --- blocks, matching
-    reviewer_audit._render_decision_entry's exact format (the parser the gap-fact
+    freddie_audit._render_decision_entry's exact format (the parser the gap-fact
     uses: `--- decision ---` delimiter, `proposal_id:` field, terminating `---`)."""
     ts = _now_iso()
     blocks = [
@@ -167,7 +167,7 @@ async def _seed_pair(client, user_id: str, *, gt_path: str, include_control: boo
     rid_log = _w(
         PERSONA_JUDGMENT_LOG_PATH,
         _judgment_log_content(include_control=include_control),
-        "reviewer:ai-opus-seed",
+        "freddie:ai-opus-seed",
         "probe seed: judgment_log verdict carrying proposal_id (ADR-364 reflection loop)",
     )
     rid_gt = _w(
@@ -182,7 +182,7 @@ async def _seed_pair(client, user_id: str, *, gt_path: str, include_control: boo
 async def phase1_offline(client, user_id: str) -> bool:
     """Seed the pair, render the gap-fact, assert it joins + names the outcome.
     Then the negative control: a verdict with no matching outcome → empty for it."""
-    from services.reviewer_envelope import _reflection_gap_fact
+    from services.freddie_envelope import _reflection_gap_fact
     from services.bundle_reader import get_ground_truth_for_workspace
 
     print("\n=== PHASE 1 — offline gap-fact render (FREE) ===")

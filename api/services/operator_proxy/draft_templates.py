@@ -10,7 +10,7 @@ a specific Reviewer reasoning shape:
   "absolutely pivotal", intensifier adverbs, "in conclusion" closer.
   Reviewer should defer with directive citing the voice anti-patterns.
   Extracted from canary_phase4_v3/v4/v5 (same content; the canary arc
-  varied REVIEWER_PRIMITIVES surface size as the test variable, not
+  varied FREDDIE_PRIMITIVES surface size as the test variable, not
   the content).
 
 - `clean-voice` — same length + structure, no anti-patterns. Reviewer

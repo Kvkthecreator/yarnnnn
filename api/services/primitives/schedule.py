@@ -19,7 +19,7 @@ Five actions:
 
 Authorship per ADR-261 §3:
   - Operator-via-chat:   authored_by="operator"
-  - Reviewer-mid-loop:   authored_by="reviewer:{occupant}"
+  - Reviewer-mid-loop:   authored_by="freddie:{occupant}"
   - System (bundle fork):authored_by="system:bundle-fork"
 All three paths produce the same substrate writes through the same
 primitive. Per singular-implementation, no separate paths exist.
@@ -152,7 +152,7 @@ async def handle_schedule(auth: Any, input: dict) -> dict:
     #
     # ADR-288 D2: default authored_by from auth.caller_identity when not
     # explicitly supplied. Every auth-construction site sets caller_identity
-    # per the ADR-209 taxonomy (yarnnn.py operator-chat, reviewer_agent wake,
+    # per the ADR-209 taxonomy (yarnnn.py operator-chat, freddie_agent wake,
     # HeadlessAuth specialist dispatch, _MechanicalAuth recurrence, MCP
     # boundary). Per-dispatch-loop injection at the agent layer (pre-ADR-288)
     # is superseded. Fail-fast on missing remains as the safety net for direct

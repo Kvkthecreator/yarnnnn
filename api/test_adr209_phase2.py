@@ -11,7 +11,7 @@ Tests:
   7. TaskWorkspace.write() routes through write_revision with default "task:{slug}"
   8. TaskWorkspace.save_output() attributes to "agent:{agent_slug}"
   9. TaskWorkspace.append_run_log() attributes to "system:task-pipeline"
- 10. reviewer_audit.append_decision() attributes to "reviewer:<identity>"
+ 10. freddie_audit.append_decision() attributes to "reviewer:<identity>"
  11. Second write to same path chains: new revision's parent = prior revision
  12. workspace_files.content + head_version_id stay in sync across writes
  13. Grep gate — no live-code references to deleted history methods/constants
@@ -234,20 +234,20 @@ def test_user_memory_write(client) -> None:
 # filesystem tree it wrote were deleted by ADR-231 (Task Abstraction Sunset,
 # commit 534bd91). There is no mechanism left to assert attribution on — the
 # write-path-attribution invariant these guarded now lives entirely in the
-# surviving tests (UserMemory, AgentWorkspace, KnowledgeBase, reviewer_audit).
+# surviving tests (UserMemory, AgentWorkspace, KnowledgeBase, freddie_audit).
 # Not re-pointed: the mechanism is gone, not renamed.
 
 
 # ---------------------------------------------------------------------------
-# Test 10 — reviewer_audit.append_decision
+# Test 10 — freddie_audit.append_decision
 # ---------------------------------------------------------------------------
 
-def test_reviewer_audit(client) -> None:
+def test_freddie_audit(client) -> None:
     try:
         # DECISIONS_PATH → renamed JUDGMENT_LOG_PATH (ADR-281 §5.D1 decisions.md →
         # judgment_log.md; moved to persona/ root by ADR-320). The append_decision
         # signature + reviewer:<identity> attribution invariant are unchanged.
-        from services.reviewer_audit import append_decision, JUDGMENT_LOG_PATH
+        from services.freddie_audit import append_decision, JUDGMENT_LOG_PATH
 
         # Clean slate for this path — workspace_files first (FK order)
         client.table("workspace_files").delete().eq("user_id", TEST_USER_ID).eq("path", JUDGMENT_LOG_PATH).execute()
@@ -267,14 +267,14 @@ def test_reviewer_audit(client) -> None:
 
         head = _fetch_head(client, JUDGMENT_LOG_PATH)
         rev = _fetch_revision(client, head["head_version_id"]) if head else None
-        author_ok = rev is not None and rev["authored_by"] == "reviewer:ai-sonnet-v1"
+        author_ok = rev is not None and rev["authored_by"] == "freddie:ai-sonnet-v1"
         record(
-            "reviewer_audit.append_decision attributes reviewer:<identity>",
+            "freddie_audit.append_decision attributes reviewer:<identity>",
             ok and author_ok,
             f"authored_by={rev['authored_by'] if rev else None}, message={rev['message'] if rev else None}",
         )
     except Exception as e:
-        record("reviewer_audit.append_decision", False, f"Error: {e}")
+        record("freddie_audit.append_decision", False, f"Error: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -492,7 +492,7 @@ def main() -> int:
         test_write_revision_syncs_head(client)
         test_agent_workspace_write(client)
         test_user_memory_write(client)
-        test_reviewer_audit(client)
+        test_freddie_audit(client)
         test_parent_chain_on_rewrite(client)
         test_content_head_sync_across_writes(client)
         test_grep_gate_legacy(client)

@@ -32,7 +32,7 @@ No write-ahead-log shape. No buffering.
 
 Failure discipline: when the operator's chat session is the target and
 the session lookup fails, return None (best-effort surfacing, identical
-to reviewer_chat_surfacing's discipline). When session_id is provided
+to freddie_chat_surfacing's discipline). When session_id is provided
 explicitly, raise on failure — the caller asked us to write to a
 specific row and we couldn't.
 """
@@ -100,7 +100,7 @@ def write_narrative_entry(
             session_messages RLS is permissive for the session owner).
         session_id: target chat session row id. Required — if you don't
             have one yet, resolve via routes.feed.get_or_create_session
-            or services.reviewer_chat_surfacing._find_active_workspace_session
+            or services.freddie_chat_surfacing._find_active_workspace_session
             before calling.
         role: Identity class of the invocation per VALID_ROLES.
         summary: one-line headline. Always required. Used for collapsed
@@ -283,7 +283,7 @@ def find_active_workspace_session(client: Any, user_id: str) -> Optional[str]:
     """Return the id of the operator's most-recent active workspace
     session, or None if none exists.
 
-    Promoted from reviewer_chat_surfacing in ADR-219 Commit 3 because
+    Promoted from freddie_chat_surfacing in ADR-219 Commit 3 because
     choosing the target session for an autonomous narrative entry
     (Reviewer verdict, back-office digest, notification, …) is a
     narrative-substrate concern. Per ADR-125 / ADR-159 a workspace has

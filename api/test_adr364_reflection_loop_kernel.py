@@ -218,7 +218,7 @@ _PROPOSAL = {
     "status": "executed",
     "family": "external-write",
     "primitive": "author.ship_piece",
-    "reviewer_identity": "reviewer:ai-opus-seed",
+    "reviewer_identity": "freddie:ai-opus-seed",
     "reviewer_reasoning": "Approved the hedge-stack opener despite the soft anti-slop signal.",
     "approved_at": "2026-06-21T10:00:00+00:00",
     "executed_at": "2026-06-21T10:00:01+00:00",
@@ -247,7 +247,7 @@ def test_gap_fact_joins_from_action_proposals():
     """D2a: the gap-fact joins a DECIDED action_proposals verdict to its ground-truth
     outcome by proposal_id, with the ground-truth read /workspace/-prefixed (FIX 2)."""
     _bust_bundle_caches()
-    from services.reviewer_envelope import _reflection_gap_fact
+    from services.freddie_envelope import _reflection_gap_fact
 
     client = _Client(
         connections=[],
@@ -280,7 +280,7 @@ def test_gap_fact_survives_judgment_log_overwrite():
     This is the exact failure a 2026-06-25 tenure eval hit: under the old
     judgment_log-sourced join, this same overwrite collapsed the gap-fact to 0."""
     _bust_bundle_caches()
-    from services.reviewer_envelope import _reflection_gap_fact
+    from services.freddie_envelope import _reflection_gap_fact
 
     client = _Client(
         connections=[],
@@ -304,7 +304,7 @@ def test_gap_fact_only_joins_decided_proposals():
     matching ground-truth event. Only decided statuses (approved/executed/rejected)
     are the verdict-of-record."""
     _bust_bundle_caches()
-    from services.reviewer_envelope import _reflection_gap_fact
+    from services.freddie_envelope import _reflection_gap_fact
 
     pending = dict(_PROPOSAL, status="pending")
     client = _Client(
@@ -324,7 +324,7 @@ def test_gap_fact_empty_without_joinable_outcome():
     """Negative control: a decided verdict with NO matching outcome event → gap-fact
     silent (the join keys on proposal_id overlap — the continuity-eval control case)."""
     _bust_bundle_caches()
-    from services.reviewer_envelope import _reflection_gap_fact
+    from services.freddie_envelope import _reflection_gap_fact
 
     signal_no_match = (
         '---\n{"domain": "authored", "events": [{"executed_at": "2026-06-22T10:00:00Z", '

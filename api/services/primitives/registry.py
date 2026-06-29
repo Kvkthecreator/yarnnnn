@@ -401,7 +401,7 @@ PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.
 
 
 # =============================================================================
-# ADR-258 (revised 2026-05-08) + ADR-296 v2 D3: REVIEWER_PRIMITIVES — curated subset
+# ADR-258 (revised 2026-05-08) + ADR-296 v2 D3: FREDDIE_PRIMITIVES — curated subset
 # =============================================================================
 # The Reviewer is the operator's installed judgment character — personified
 # to act on the operator's behalf. Like a human supervisor, the Reviewer:
@@ -420,7 +420,7 @@ PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.
 #      Reviewer doesn't call them itself)
 #   - Mutate entity-layer rows: EditEntity (Reviewer reasons against files, not rows)
 #
-# ADR-296 v2 D3 — FireInvocation REMOVED from REVIEWER_PRIMITIVES.
+# ADR-296 v2 D3 — FireInvocation REMOVED from FREDDIE_PRIMITIVES.
 # The Reviewer's authority is over cadence preference + standing intent; not
 # over invoking itself or commissioning unit-of-work fires. When upstream
 # substrate is stale, the Reviewer authors:
@@ -441,7 +441,7 @@ PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.
 # explicit allowlist instead of broad chat-mode access. Operator can extend
 # via _locks.yaml unlocked_paths if they want a more permissive Reviewer.
 
-REVIEWER_PRIMITIVES = [
+FREDDIE_PRIMITIVES = [
     # All read primitives — observation is unmediated (supervisor reads any report)
     READ_FILE_TOOL,
     LIST_FILES_TOOL,
@@ -483,7 +483,7 @@ REVIEWER_PRIMITIVES = [
     # for production work the Reviewer's context shouldn't carry.
     DISPATCH_SPECIALIST_TOOL,
     # ADR-299 D8 (second-pass rewrite 2026-05-27): EMAIL_SEND_TO_OPERATOR_TOOL
-    # is deliberately NOT in REVIEWER_PRIMITIVES and will not be added —
+    # is deliberately NOT in FREDDIE_PRIMITIVES and will not be added —
     # this is the architectural commitment, evidence-confirmed.
     #
     # `platform_email_send_to_operator` is operator-addressing system
@@ -495,7 +495,7 @@ REVIEWER_PRIMITIVES = [
     # corrosive to judgment quality for this surface.
     #
     # Evidence: 2026-05-25 v5 canary RESOLVED hypothesis A. Adding this
-    # tool to REVIEWER_PRIMITIVES (canary v4, 22-tool surface) collapsed
+    # tool to FREDDIE_PRIMITIVES (canary v4, 22-tool surface) collapsed
     # output by ~74% vs the 21-tool baseline (v3) and produced
     # `stand_down` with zero substrate writes. Reverting (v5) restored
     # substantive judgment (14,615 output tokens, reject_publication
@@ -508,7 +508,7 @@ REVIEWER_PRIMITIVES = [
     # _preferences.yaml, dispatches out-of-band) — same shape as
     # services/notifications.py ADR-040 pattern. NOT here.
     #
-    # Future tool additions to REVIEWER_PRIMITIVES: discipline per
+    # Future tool additions to FREDDIE_PRIMITIVES: discipline per
     # RESOLUTION.md §"Discipline lesson" — verdict-quality regression
     # must be measured against the baseline tool surface via N≥3 canaries
     # before any addition. Default is "no" until verdict-quality evidence
@@ -787,7 +787,7 @@ async def _enqueue_substrate_proposal(auth: Any, name: str, input: dict, reason:
         decision_context["message"] = message
 
     caller_identity = getattr(auth, "caller_identity", "") or "reviewer:unknown"
-    source = caller_identity if caller_identity.startswith("reviewer:") else "reviewer:unknown"
+    source = caller_identity if caller_identity.startswith("freddie:") else "reviewer:unknown"
 
     enq = await enqueue_gated_action(
         auth,

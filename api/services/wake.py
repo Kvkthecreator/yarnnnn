@@ -82,7 +82,7 @@ try:
 except ImportError:
     _SENTRY_AVAILABLE = False
 
-from agents.occupant_contract import REVIEWER_MODEL_IDENTITY  # ADR-315: single canonical occupant identity
+from agents.occupant_contract import FREDDIE_MODEL_IDENTITY  # ADR-315: single canonical occupant identity
 from services.recurrence import Recurrence
 from services.telemetry import record_execution_event
 
@@ -329,7 +329,7 @@ async def _invoke_recurrence_wake(
     # user_message). The prior `"addressed" if manual_fire else "reactive"`
     # mapping was WRONG: it tagged a manual_fire recurrence wake as trigger=
     # "addressed", but addressed requires a non-empty user_message — so
-    # invoke_reviewer's _validate_context_shape rejected the contradictory
+    # invoke_freddie's _validate_context_shape rejected the contradictory
     # (trigger=addressed, recurrence-context) pair, returned None, and the wake
     # silently produced nothing. This is why every eval that fired a recurrence
     # via manual_fire (the {fire: <slug>} path) saw the Reviewer "never run".
@@ -442,7 +442,7 @@ async def _invoke_recurrence_wake(
     # Per-workspace `_budget.yaml` declares the spend envelope (dollar budget
     # over a timeframe) + per-slug fire floor. Falls back to kernel defaults
     # ($50/monthly) when absent. Reviewer cannot author this file — it's
-    # governance (DEFAULT_REVIEWER_WRITE_LOCKS). Collapses the retired
+    # governance (DEFAULT_FREDDIE_WRITE_LOCKS). Collapses the retired
     # _pace.yaml + _token_budget.yaml.
     #
     # D4 priority rule: trigger=="reactive" here is the SCHEDULED (cron_tick)
@@ -582,15 +582,15 @@ async def _invoke_recurrence_wake(
     # Per ADR-260 D1: synchronous real-time tool-use loop. The Reviewer's
     # loop blocks until ReturnVerdict (or round bound).
     try:
-        from agents.reviewer_agent import invoke_reviewer
+        from agents.freddie_agent import invoke_freddie
     except ImportError as e:
-        logger.exception("[DISPATCH] reviewer_agent not importable: %s", e)
-        return _result_failed(recurrence, f"reviewer_agent unavailable: {e}", trigger=trigger)
+        logger.exception("[DISPATCH] freddie_agent not importable: %s", e)
+        return _result_failed(recurrence, f"freddie_agent unavailable: {e}", trigger=trigger)
 
     try:
-        # Context keys must match what invoke_reviewer reads at
-        # `reviewer_agent.py::_build_user_message`. The Reviewer's
-        # `is_recurrence_fire` detection (reviewer_agent.py:573) keys
+        # Context keys must match what invoke_freddie reads at
+        # `freddie_agent.py::_build_user_message`. The Reviewer's
+        # `is_recurrence_fire` detection (freddie_agent.py:573) keys
         # on `recurrence_prompt` / `recurrence_slug` — passing bare
         # `prompt` / `slug` here would silently drop the recurrence
         # context, causing every cron-fired Reviewer wake to fall into
@@ -606,8 +606,8 @@ async def _invoke_recurrence_wake(
         # Singular Implementation: one envelope helper, one assembly point.
         # ADR-301 D5 consolidated operating_context_block composition into
         # the helper so the envelope dict carries all assembled content.
-        from services.reviewer_envelope import load_reviewer_governance_envelope
-        governance_envelope, envelope_load_ms = await load_reviewer_governance_envelope(
+        from services.freddie_envelope import load_freddie_governance_envelope
+        governance_envelope, envelope_load_ms = await load_freddie_governance_envelope(
             client, user_id
         )
 
@@ -655,7 +655,7 @@ async def _invoke_recurrence_wake(
                 user_id[:8], recurrence.slug, exc,
             )
 
-        reviewer_output = await invoke_reviewer(
+        reviewer_output = await invoke_freddie(
             client=client,
             user_id=user_id,
             trigger=trigger,
@@ -715,9 +715,9 @@ async def _invoke_recurrence_wake(
     # ADR-291 cost ledger write. reviewer_output carries the loop's token
     # accumulators (incl. cache breakdown) and model.
     #
-    # SILENT-WAKE FIX (2026-06-04): a `None` return from invoke_reviewer means
+    # SILENT-WAKE FIX (2026-06-04): a `None` return from invoke_freddie means
     # the Reviewer did NOT close a cycle — a context-shape violation, a pre-LLM
-    # exit, or a swallowed exception inside the round loop (reviewer_agent.py
+    # exit, or a swallowed exception inside the round loop (freddie_agent.py
     # outer try/except → return None). Previously this was recorded as
     # status="success" with NULL tokens — making a FAILED judgment wake
     # indistinguishable from a successful no-op stand-down. That ambiguity is
@@ -728,7 +728,7 @@ async def _invoke_recurrence_wake(
     _ro = reviewer_output if isinstance(reviewer_output, dict) else None
     if _ro is None:
         logger.error(
-            "[DISPATCH] %s/%s SILENT WAKE — invoke_reviewer returned None "
+            "[DISPATCH] %s/%s SILENT WAKE — invoke_freddie returned None "
             "(escalated, envelope loaded in %sms, but no verdict/output). "
             "Recording as failed.",
             user_id[:8], recurrence.slug, envelope_load_ms,
@@ -738,9 +738,9 @@ async def _invoke_recurrence_wake(
             id=invocation_id,
             mode="judgment", trigger_type=trigger,
             status="failed", error_reason="reviewer_returned_none",
-            error_detail="invoke_reviewer returned None — context-shape violation, "
+            error_detail="invoke_freddie returned None — context-shape violation, "
                          "pre-LLM exit, or swallowed exception in the round loop "
-                         "(see reviewer_agent.py logs for the captured cause)",
+                         "(see freddie_agent.py logs for the captured cause)",
             duration_ms=duration_ms,
             envelope_load_ms=envelope_load_ms,
             wake_source=wake_source,
@@ -776,15 +776,15 @@ async def _invoke_recurrence_wake(
     proposals = []
     verdict_summary = ""
     # ADR-315 occupant contract: the occupant identity is the single canonical
-    # constant REVIEWER_MODEL_IDENTITY — NOT a hardcoded literal. The prior
+    # constant FREDDIE_MODEL_IDENTITY — NOT a hardcoded literal. The prior
     # default "ai:reviewer" drifted from the constant and leaked into
     # judgment_log attribution as `reviewer:ai:reviewer` whenever the
-    # ReviewerOutput dict carried no reviewer_identity field (which is always —
-    # ReviewerOutput has no such field; line below was a dead overwrite). One
-    # occupant, one slug: `reviewer:ai:reviewer-sonnet-v8` (2026-06-08 eval
+    # FreddieOutput dict carried no reviewer_identity field (which is always —
+    # FreddieOutput has no such field; line below was a dead overwrite). One
+    # occupant, one slug: `reviewer:ai:freddie-sonnet-v8` (2026-06-08 eval
     # finding — three attribution strings for one occupant broke the
     # revision-chain audit). Imported at module top per ADR-315 contract.
-    reviewer_identity = REVIEWER_MODEL_IDENTITY
+    reviewer_identity = FREDDIE_MODEL_IDENTITY
     if isinstance(reviewer_output, dict):
         actions_taken = reviewer_output.get("actions_taken", []) or []
         proposals = reviewer_output.get("proposals", []) or []
@@ -814,12 +814,12 @@ async def _invoke_recurrence_wake(
             # Fallback to the verdict enum string only when the Reviewer
             # somehow returned neither prose field (should never happen —
             # reasoning is `required` in the tool schema, and the early-
-            # exit at reviewer_agent.py:864 already rejects empty
+            # exit at freddie_agent.py:864 already rejects empty
             # reasoning before this code runs).
             verdict_summary = reviewer_output.get("verdict") or ""
-        # NOTE: ReviewerOutput (occupant_contract) carries NO per-output occupant
+        # NOTE: FreddieOutput (occupant_contract) carries NO per-output occupant
         # identity field — the occupant identity is the canonical
-        # REVIEWER_MODEL_IDENTITY constant set above, not an output value. A prior
+        # FREDDIE_MODEL_IDENTITY constant set above, not an output value. A prior
         # dead read of a non-existent output key only made the identity look
         # dynamic and leaked the stale "ai:reviewer" default into attribution;
         # deleted per ADR-315 (one occupant, one slug) + Singular Implementation.
@@ -843,7 +843,7 @@ async def _invoke_recurrence_wake(
     # Pass the full reviewer_output dict (carries actions_taken + verdict)
     # so the gate can inspect tool calls. Best-effort; never raises.
     try:
-        from services.reviewer_audit import render_lineage_entry_if_material
+        from services.freddie_audit import render_lineage_entry_if_material
         await render_lineage_entry_if_material(
             client, user_id,
             reviewer_output=reviewer_output if isinstance(reviewer_output, dict) else {},
@@ -863,8 +863,8 @@ async def _invoke_recurrence_wake(
     # proposal-arrival path uses (review_proposal_dispatch.py:373); cron-
     # fired reactive wakes were silent prior to FOUNDATIONS v8.4. Best-effort.
     try:
-        from services.reviewer_chat_surfacing import surface_reviewer_actions
-        await surface_reviewer_actions(
+        from services.freddie_chat_surfacing import surface_freddie_actions
+        await surface_freddie_actions(
             client, user_id,
             actions_taken=actions_taken,
         )
@@ -879,7 +879,7 @@ async def _invoke_recurrence_wake(
     # into _money_truth.md + closed with a verdict), send the daily P&L
     # email IF the operator opted in. The Reviewer cannot send this itself
     # (platform_email_send_to_operator is deliberately excluded from
-    # REVIEWER_PRIMITIVES — verdict-quality regression); the dispatcher is
+    # FREDDIE_PRIMITIVES — verdict-quality regression); the dispatcher is
     # the send half. Same post-judgment best-effort shape as the lineage +
     # narration hooks above. Gated on the trigger slug so it costs nothing
     # for any other recurrence.
@@ -1316,7 +1316,7 @@ async def _emit_system_narrative(
 ) -> None:
     """Emit a system-role narrative entry for dispatcher-level events
     (skip / failure / spend-ceiling / mechanical-fire). Reviewer-bubble
-    narration of judgment-mode work happens inside surface_reviewer_actions,
+    narration of judgment-mode work happens inside surface_freddie_actions,
     not here.
 
     2026-05-11 audit-pass-2 fix: the prior implementation called
@@ -1419,7 +1419,7 @@ async def _embed_derived_files(client, user_id: str, *, since_iso: str) -> int:
 
     Why a mechanical post-step, NOT a Reviewer tool call: embedding is the
     make-AI-ready MECHANICS, not judgment — the seat's judgment is *what* to derive
-    and *where*. Adding `Embed` to REVIEWER_PRIMITIVES is the corrosive move the
+    and *where*. Adding `Embed` to FREDDIE_PRIMITIVES is the corrosive move the
     registry comment (registry.py ~485) warns against (the 2026-05-25 canary: one
     extra tool collapsed Reviewer output ~74%). So `Embed` is NOT in the seat's
     hands; instead, after the wake completes, we deterministically embed the
@@ -1463,7 +1463,7 @@ async def _embed_derived_files(client, user_id: str, *, since_iso: str) -> int:
         authored_by = (r.get("authored_by") or "").lower()
         if not path or path in seen:
             continue
-        if not authored_by.startswith("reviewer:"):
+        if not authored_by.startswith("freddie:"):
             continue
         rel = path[len("/workspace/"):] if path.startswith("/workspace/") else path.lstrip("/")
         eligible, _reason = is_embed_eligible(rel)
@@ -1584,24 +1584,24 @@ async def _invoke_substrate_event_wake(
         }
 
     try:
-        from agents.reviewer_agent import (
-            invoke_reviewer,
+        from agents.freddie_agent import (
+            invoke_freddie,
         )
-        from services.reviewer_envelope import load_reviewer_governance_envelope
+        from services.freddie_envelope import load_freddie_governance_envelope
     except ImportError as e:
-        logger.exception("[WAKE:substrate] reviewer_agent not importable: %s", e)
+        logger.exception("[WAKE:substrate] freddie_agent not importable: %s", e)
         return {
             "success": False, "slug": slug, "source": "substrate_event",
-            "message": f"reviewer_agent unavailable: {e}",
+            "message": f"freddie_agent unavailable: {e}",
         }
 
     try:
         # ADR-301 D5: envelope helper composes operating_context_block + all
         # other envelope content in one place. No separate build call here.
-        governance_envelope, envelope_load_ms = await load_reviewer_governance_envelope(
+        governance_envelope, envelope_load_ms = await load_freddie_governance_envelope(
             client, user_id
         )
-        reviewer_output = await invoke_reviewer(
+        reviewer_output = await invoke_freddie(
             client=client,
             user_id=user_id,
             trigger="reactive",
@@ -1668,7 +1668,7 @@ async def _invoke_substrate_event_wake(
     # ADR-325 follow-on (2026-06-29 finding): mechanically embed any eligible files
     # the seat DERIVED during this wake, so semantic `recall` can rank them. This is
     # make-AI-ready MECHANICS, not judgment — deliberately NOT a Reviewer tool call
-    # (Embed stays out of REVIEWER_PRIMITIVES; see registry.py ~485). Best-effort.
+    # (Embed stays out of FREDDIE_PRIMITIVES; see registry.py ~485). Best-effort.
     try:
         await _embed_derived_files(client, user_id, since_iso=started_at.isoformat())
     except Exception as exc:  # noqa: BLE001 — embed must never fail the wake
@@ -1709,7 +1709,7 @@ async def stream_addressed_wake(
 
     Yields dicts shaped for SSE consumption — caller is responsible for
     formatting + writing to the HTTP response. Each yield is one of:
-      {"type": "progress", "event": <invoke_reviewer event dict>}
+      {"type": "progress", "event": <invoke_freddie event dict>}
       {"type": "agent_narration", "tool": str, "summary": str, "narration": str}
       {"type": "reviewer_response", "text": str, "actions": list}
       {"type": "done", "actions": list}
@@ -1721,9 +1721,9 @@ async def stream_addressed_wake(
     accounting because the SSE response is structured around it).
     """
     import asyncio as _asyncio
-    from agents.reviewer_agent import invoke_reviewer
-    from services.reviewer_envelope import load_reviewer_governance_envelope
-    from services.reviewer_chat_surfacing import (
+    from agents.freddie_agent import invoke_freddie
+    from services.freddie_envelope import load_freddie_governance_envelope
+    from services.freddie_chat_surfacing import (
         REVIEWER_COGNITION_TOOLS as _COGNITION_ONLY,
         is_mirror_refresh_action,
         narrate_reviewer_action,
@@ -1732,7 +1732,7 @@ async def stream_addressed_wake(
     # single-in-flight lock before the Reviewer runs. While waiting for
     # another lane's mid-flight wake to complete, we emit "queued"
     # progress events so the operator sees the wait honestly. Lock
-    # release happens after invoke_reviewer completes (mark_completed
+    # release happens after invoke_freddie completes (mark_completed
     # transitions wake_queue row pending→completed).
     from services.wake_queue import (
         enqueue as _wq_enqueue,
@@ -1819,11 +1819,11 @@ async def stream_addressed_wake(
 
     # ADR-301 D5: envelope helper composes operating_context_block alongside
     # all other envelope content. Singular envelope assembly point.
-    governance_envelope, _envelope_load_ms = await load_reviewer_governance_envelope(
+    governance_envelope, _envelope_load_ms = await load_freddie_governance_envelope(
         client, user_id
     )
 
-    invoke_task = _asyncio.create_task(invoke_reviewer(
+    invoke_task = _asyncio.create_task(invoke_freddie(
         client, user_id,
         trigger="addressed",
         invocation_id=invocation_id,
@@ -1943,7 +1943,7 @@ async def stream_addressed_wake(
                 yield event_out
 
     # ADR-298 Phase 3: queue lifecycle terminates here regardless of
-    # invoke_reviewer outcome — release the single-in-flight lock so
+    # invoke_freddie outcome — release the single-in-flight lock so
     # the next pending wake (or addressed turn) can drain.
     output: Optional[dict] = None
     wake_failed = False
@@ -1959,7 +1959,7 @@ async def stream_addressed_wake(
                 "type": "reviewer_response",
                 "text": response_text,
                 "actions": actions,
-                "output": output,  # full ReviewerOutput for the route's telemetry write
+                "output": output,  # full FreddieOutput for the route's telemetry write
             }
             yield {"type": "done", "actions": actions}
     except Exception as exc:

@@ -15,8 +15,8 @@ Six surfaces verified:
   2. narrate_reviewer_action renders Clarify bare (no prefix)
   3. _summarize_result returns the question (+ options) instead of "ok"
   4. agent_narration event carries role + clarify_question + clarify_options
-  5. surface_reviewer_actions writes Clarify with role='reviewer' + metadata
-  6. reviewer_audit.py _detect_outcome_kind returns 'clarify' for any
+  5. surface_freddie_actions writes Clarify with role='reviewer' + metadata
+  6. freddie_audit.py _detect_outcome_kind returns 'clarify' for any
      Clarify call (dead clarify_alert input-flag gate removed)
 
 Run:
@@ -57,7 +57,7 @@ def _bad(name: str, reason: str) -> None:
 def test_clarify_not_in_cognition() -> None:
     print("\n[1] Clarify NOT in REVIEWER_COGNITION_TOOLS")
     try:
-        from services.reviewer_chat_surfacing import REVIEWER_COGNITION_TOOLS
+        from services.freddie_chat_surfacing import REVIEWER_COGNITION_TOOLS
     except ImportError as e:
         _bad("import REVIEWER_COGNITION_TOOLS", str(e))
         return
@@ -86,7 +86,7 @@ def test_clarify_not_in_cognition() -> None:
 def test_narrate_clarify_branch() -> None:
     print("\n[2] narrate_reviewer_action renders Clarify bare (no prefix)")
     try:
-        from services.reviewer_chat_surfacing import narrate_reviewer_action
+        from services.freddie_chat_surfacing import narrate_reviewer_action
     except ImportError as e:
         _bad("import narrate_reviewer_action", str(e))
         return
@@ -126,7 +126,7 @@ def test_narrate_clarify_branch() -> None:
 def test_summarize_clarify_branch() -> None:
     print("\n[3] _summarize_result extracts question (+ options) from Clarify result")
     try:
-        from agents.reviewer_agent import _summarize_result
+        from agents.freddie_agent import _summarize_result
     except ImportError as e:
         _bad("import _summarize_result", str(e))
         return
@@ -258,11 +258,11 @@ def test_feed_route_honors_event_role() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Gap 6 — surface_reviewer_actions writes Clarify as role='reviewer'
+# Gap 6 — surface_freddie_actions writes Clarify as role='reviewer'
 # ---------------------------------------------------------------------------
 
 def test_surface_reviewer_actions_clarify_role() -> None:
-    print("\n[6] surface_reviewer_actions writes Clarify with role='reviewer' + metadata")
+    print("\n[6] surface_freddie_actions writes Clarify with role='reviewer' + metadata")
 
     # Capture write_narrative_entry calls
     captured_calls: list[dict] = []
@@ -286,7 +286,7 @@ def test_surface_reviewer_actions_clarify_role() -> None:
     nv.find_active_workspace_session = fake_find_session
 
     try:
-        from services.reviewer_chat_surfacing import surface_reviewer_actions
+        from services.freddie_chat_surfacing import surface_freddie_actions
 
         actions = [
             {
@@ -300,7 +300,7 @@ def test_surface_reviewer_actions_clarify_role() -> None:
                 "invocation_id": "inv-1",
             }
         ]
-        written = asyncio.run(surface_reviewer_actions(
+        written = asyncio.run(surface_freddie_actions(
             client=None, user_id="user-1", actions_taken=actions,
         ))
         if written != 1:
@@ -344,7 +344,7 @@ def test_surface_reviewer_actions_clarify_role() -> None:
             "summary": "path=/workspace/persona/notes.md",
             "invocation_id": "inv-2",
         }]
-        asyncio.run(surface_reviewer_actions(
+        asyncio.run(surface_freddie_actions(
             client=None, user_id="user-1", actions_taken=actions_wf,
         ))
         if captured_calls and captured_calls[-1]["role"] == "system_agent":
@@ -360,13 +360,13 @@ def test_surface_reviewer_actions_clarify_role() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Gap 7 — reviewer_audit.py _detect_outcome_kind 'clarify' presence gate
+# Gap 7 — freddie_audit.py _detect_outcome_kind 'clarify' presence gate
 # ---------------------------------------------------------------------------
 
-def test_reviewer_audit_clarify_lineage_gate() -> None:
-    print("\n[7] reviewer_audit.py _detect_outcome_kind returns 'clarify' on any Clarify call")
+def test_freddie_audit_clarify_lineage_gate() -> None:
+    print("\n[7] freddie_audit.py _detect_outcome_kind returns 'clarify' on any Clarify call")
     try:
-        from services.reviewer_audit import _detect_outcome_kind
+        from services.freddie_audit import _detect_outcome_kind
     except ImportError as e:
         _bad("import _detect_outcome_kind", str(e))
         return
@@ -415,7 +415,7 @@ def test_reviewer_audit_clarify_lineage_gate() -> None:
             f"got {kind_priority!r}",
         )
     # Dead clarify_alert input-flag check should be gone from source
-    src = (ROOT / "services" / "reviewer_audit.py").read_text()
+    src = (ROOT / "services" / "freddie_audit.py").read_text()
     if 'tool_input.get("clarify_alert")' in src:
         _bad(
             "dead clarify_alert input-flag check removed",
@@ -440,7 +440,7 @@ def main() -> int:
     test_agent_narration_event_role_propagation()
     test_feed_route_honors_event_role()
     test_surface_reviewer_actions_clarify_role()
-    test_reviewer_audit_clarify_lineage_gate()
+    test_freddie_audit_clarify_lineage_gate()
 
     print("\n" + "=" * 70)
     print(f"PASS: {len(_PASS)}  FAIL: {len(_FAIL)}")

@@ -28,7 +28,7 @@ Behavior:
 
 Dispatch surface:
     - Mechanical recurrence dispatcher only (per ADR-264 D3). Not in
-      CHAT_PRIMITIVES / HEADLESS_PRIMITIVES / REVIEWER_PRIMITIVES.
+      CHAT_PRIMITIVES / HEADLESS_PRIMITIVES / FREDDIE_PRIMITIVES.
       Registered in HANDLERS for _dispatch_mechanical routing.
 
 Attribution:

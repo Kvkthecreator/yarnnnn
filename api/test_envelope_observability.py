@@ -2,9 +2,9 @@
 """Regression gate — envelope load timing observability (post-ADR-276 hardening, 2026-05-15).
 
 Validates:
-- `load_reviewer_governance_envelope` returns a `(dict, int)` tuple.
+- `load_freddie_governance_envelope` returns a `(dict, int)` tuple.
 - The elapsed_ms is a non-negative int.
-- The dict still carries the canonical ReviewerContext fields.
+- The dict still carries the canonical FreddieContext fields.
 - `record_execution_event` accepts the new `envelope_load_ms` kwarg.
 - Both callers (wake.py reactive path, feed.py addressed path)
   unpack the tuple and route envelope_load_ms appropriately.
@@ -67,7 +67,7 @@ def test_envelope_returns_tuple() -> None:
     # read_signal_files is called via dynamic import inside the helper;
     # monkeypatch the import target to a no-op async returning "".
     import importlib
-    mod = importlib.import_module("agents.reviewer_agent")
+    mod = importlib.import_module("agents.freddie_agent")
     original_rsf = getattr(mod, "read_signal_files", None)
 
     async def _stub_rsf(client, user_id):  # noqa: ARG001
@@ -75,12 +75,12 @@ def test_envelope_returns_tuple() -> None:
     mod.read_signal_files = _stub_rsf  # type: ignore[attr-defined]
 
     try:
-        from services.reviewer_envelope import load_reviewer_governance_envelope
+        from services.freddie_envelope import load_freddie_governance_envelope
 
-        result = asyncio.run(load_reviewer_governance_envelope(_StubClient(), "u" * 36))
+        result = asyncio.run(load_freddie_governance_envelope(_StubClient(), "u" * 36))
 
         if isinstance(result, tuple) and len(result) == 2:
-            _ok("load_reviewer_governance_envelope returns a 2-tuple")
+            _ok("load_freddie_governance_envelope returns a 2-tuple")
         else:
             _bad(
                 "return shape",
@@ -103,14 +103,14 @@ def test_envelope_returns_tuple() -> None:
                 f"expected non-negative int, got {elapsed_ms!r}",
             )
 
-        # Sanity: dict carries the canonical ReviewerContext keys.
+        # Sanity: dict carries the canonical FreddieContext keys.
         expected_keys = {
             "identity_md", "principles_md", "precedent_md", "mandate_md",
             "autonomy_md", "preferences_yaml",
             "operator_profile_md", "risk_md", "performance_md", "signal_files",
         }
         if expected_keys.issubset(envelope.keys()):
-            _ok("envelope dict carries all 10 canonical ReviewerContext fields")
+            _ok("envelope dict carries all 10 canonical FreddieContext fields")
         else:
             missing = expected_keys - set(envelope.keys())
             _bad("envelope keys", f"missing: {sorted(missing)}")
@@ -155,12 +155,12 @@ def test_dispatcher_routes_envelope_load_ms() -> None:
     src = (ROOT / "services" / "wake.py").read_text()
 
     # Tuple-unpack at the call site.
-    if "governance_envelope, envelope_load_ms = await load_reviewer_governance_envelope" in src:
+    if "governance_envelope, envelope_load_ms = await load_freddie_governance_envelope" in src:
         _ok("dispatcher unpacks (envelope, elapsed_ms)")
     else:
         _bad(
             "dispatcher unpack pattern",
-            "expected tuple-unpack at load_reviewer_governance_envelope call",
+            "expected tuple-unpack at load_freddie_governance_envelope call",
         )
 
     # The success-path record_execution_event call carries envelope_load_ms.
@@ -194,12 +194,12 @@ def test_dispatcher_routes_envelope_load_ms() -> None:
 def test_feed_addressed_path_logs_envelope_load_ms() -> None:
     src = (ROOT / "routes" / "feed.py").read_text()
 
-    if "governance_envelope, envelope_load_ms = await load_reviewer_governance_envelope" in src:
+    if "governance_envelope, envelope_load_ms = await load_freddie_governance_envelope" in src:
         _ok("feed.py addressed path unpacks (envelope, elapsed_ms)")
     else:
         _bad(
             "feed.py unpack pattern",
-            "expected tuple-unpack at load_reviewer_governance_envelope call in feed.py",
+            "expected tuple-unpack at load_freddie_governance_envelope call in feed.py",
         )
 
     # Addressed turns don't write to execution_events — log to structured

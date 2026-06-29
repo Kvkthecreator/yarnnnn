@@ -46,7 +46,7 @@ Dispatch surfaces:
     `@primitive: MirrorSignalState(source=..., write_to=...)` per ADR-263
     D5 + ADR-281 D3.
   - NOT in CHAT_PRIMITIVES, NOT in HEADLESS_PRIMITIVES, NOT in
-    REVIEWER_PRIMITIVES per ADR-281: operators and LLMs don't invoke
+    FREDDIE_PRIMITIVES per ADR-281: operators and LLMs don't invoke
     directly; the primitive is purely the mechanical mirror.
 
 This primitive does ONE job: project per-signal substrate into a compact

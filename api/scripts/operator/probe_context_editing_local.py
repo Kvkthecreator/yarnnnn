@@ -22,7 +22,7 @@ The reproducer is the REAL corpus-coherence-check prompt (a cross-corpus read-he
 judgment recurrence that hit tool_rounds=20 on this workspace) — so the control arm
 authentically accumulates the loop bloat context-editing is meant to prune.
 
-METRICS (read from the wake's own ReviewerOutput + the execution_events row):
+METRICS (read from the wake's own FreddieOutput + the execution_events row):
   - verdict           : a real model verdict vs None (the ceiling-truncation signal)
   - tool_rounds       : did it hit the ceiling (20)?
   - input_tokens      : uncached billed input (the cost lever)

@@ -10,7 +10,7 @@ Problem B fix (2026-05-13). Two orthogonal regressions guarded:
   (ii) Dispatcher↔Reviewer key alignment: the invocation dispatcher
        writes context bags with the canonical key names
        (`recurrence_prompt`, `recurrence_slug`) that the Reviewer's
-       ReviewerContext TypedDict + _validate_context_shape expect. The
+       FreddieContext TypedDict + _validate_context_shape expect. The
        legacy key names (`prompt`, `slug`, `trigger_slug`) must NOT
        appear in dispatcher call sites — singular implementation per
        CLAUDE.md item 1.
@@ -36,15 +36,15 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "api"))
 
-from agents.reviewer_agent import _validate_context_shape  # noqa: E402
+from agents.freddie_agent import _validate_context_shape  # noqa: E402
 
 # 2026-06-04 (ADR-315 carry-over): the reactive recurrence-fire context-bag
 # construction moved from the deleted services/invocation_dispatcher.py into
 # services/wake.py (ADR-296 v2 → ADR-298 wake-architecture migration). The
 # canonical-key contract is unchanged; only the file that builds the bag moved.
 DISPATCHER_PATH = REPO_ROOT / "api" / "services" / "wake.py"
-REVIEWER_PATH = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
-# ADR-315: ReviewerContext is defined in the published occupant contract module.
+REVIEWER_PATH = REPO_ROOT / "api" / "agents" / "freddie_agent.py"
+# ADR-315: FreddieContext is defined in the published occupant contract module.
 OCCUPANT_CONTRACT_PATH = REPO_ROOT / "api" / "agents" / "occupant_contract.py"
 
 
@@ -186,41 +186,41 @@ def test_dispatcher_does_not_emit_legacy_context_keys():
 
 
 def test_reviewer_context_typeddict_canonical_keys():
-    """ReviewerContext TypedDict must declare the canonical recurrence-fire
+    """FreddieContext TypedDict must declare the canonical recurrence-fire
     field names and must not declare the legacy `trigger_slug` field."""
-    src = _read(OCCUPANT_CONTRACT_PATH)  # ADR-315: ReviewerContext moved here
+    src = _read(OCCUPANT_CONTRACT_PATH)  # ADR-315: FreddieContext moved here
     assert re.search(r"recurrence_prompt:\s*str", src), (
-        "ReviewerContext must declare `recurrence_prompt: str`."
+        "FreddieContext must declare `recurrence_prompt: str`."
     )
     assert re.search(r"recurrence_slug:\s*str", src), (
-        "ReviewerContext must declare `recurrence_slug: str`."
+        "FreddieContext must declare `recurrence_slug: str`."
     )
     assert not re.search(r"^\s*trigger_slug:\s*str", src, re.MULTILINE), (
-        "ReviewerContext must not declare the legacy `trigger_slug` field — "
+        "FreddieContext must not declare the legacy `trigger_slug` field — "
         "removed 2026-05-13 per singular-implementation discipline."
     )
 
 
-def test_invoke_reviewer_calls_validate_context_shape():
-    """The contract validator must be wired INTO invoke_reviewer — not
+def test_invoke_freddie_calls_validate_context_shape():
+    """The contract validator must be wired INTO invoke_freddie — not
     just defined alongside it. The whole point of Problem B is that the
     boundary fails loudly; a validator that nothing calls is dead code."""
     src = _read(REVIEWER_PATH)
-    # Locate the invoke_reviewer body
+    # Locate the invoke_freddie body
     match = re.search(
-        r"async def invoke_reviewer\([^)]*\)[^:]*:\s*\"\"\".*?\"\"\"(?P<body>.*?)(?=\nasync def |\ndef |\Z)",
+        r"async def invoke_freddie\([^)]*\)[^:]*:\s*\"\"\".*?\"\"\"(?P<body>.*?)(?=\nasync def |\ndef |\Z)",
         src,
         re.DOTALL,
     )
-    assert match, "Could not locate invoke_reviewer function body."
+    assert match, "Could not locate invoke_freddie function body."
     body = match.group("body")
     assert "_validate_context_shape(" in body, (
-        "invoke_reviewer must call _validate_context_shape() in its body. "
+        "invoke_freddie must call _validate_context_shape() in its body. "
         "This is the wiring that turns Problem B's silent-stand_down bug "
         "class into a loud log + None return at the boundary."
     )
     assert "shape_error" in body and "return None" in body, (
-        "invoke_reviewer must short-circuit (return None) on shape_error "
+        "invoke_freddie must short-circuit (return None) on shape_error "
         "from _validate_context_shape — not continue into _build_user_message "
         "with a malformed context bag."
     )
@@ -247,7 +247,7 @@ def _run_all() -> int:
         test_dispatcher_uses_canonical_keys,
         test_dispatcher_does_not_emit_legacy_context_keys,
         test_reviewer_context_typeddict_canonical_keys,
-        test_invoke_reviewer_calls_validate_context_shape,
+        test_invoke_freddie_calls_validate_context_shape,
     ]
     failed = 0
     for fn in tests:

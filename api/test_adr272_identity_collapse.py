@@ -184,12 +184,12 @@ def test_dispatch_specialist_primitive_preserved():
     from services.primitives.registry import (
         CHAT_PRIMITIVES,
         HEADLESS_PRIMITIVES,
-        REVIEWER_PRIMITIVES,
+        FREDDIE_PRIMITIVES,
         HANDLERS,
     )
     chat_names = {t["name"] for t in CHAT_PRIMITIVES}
     headless_names = {t["name"] for t in HEADLESS_PRIMITIVES}
-    reviewer_names = {t["name"] for t in REVIEWER_PRIMITIVES}
+    reviewer_names = {t["name"] for t in FREDDIE_PRIMITIVES}
 
     assert_true(
         "DispatchSpecialist" in chat_names,
@@ -201,7 +201,7 @@ def test_dispatch_specialist_primitive_preserved():
     )
     assert_true(
         "DispatchSpecialist" in reviewer_names,
-        "DispatchSpecialist still in REVIEWER_PRIMITIVES",
+        "DispatchSpecialist still in FREDDIE_PRIMITIVES",
     )
     assert_true(
         "DispatchSpecialist" in HANDLERS,
@@ -246,21 +246,21 @@ def test_reviewer_prompt_defaults_to_inline():
     discipline is no longer system prose (ablation §3 row 6: `production_default`
     is DELETE-REDUNDANT / code-enforced — "the model uses the tools it has").
     The discipline is now STRUCTURAL: the Reviewer's curated tool surface
-    (`REVIEWER_PRIMITIVES`) carries the inline production tools directly, and
+    (`FREDDIE_PRIMITIVES`) carries the inline production tools directly, and
     `DispatchSpecialist`'s role enum is narrowed to `designer` (asserted by
     the sibling test_dispatch_specialist_tool_enum_narrowed). The model
     reaches for inline tools because those are the tools it has; designer
     dispatch is the one narrow exception encoded in the enum.
     """
-    from services.primitives.registry import REVIEWER_PRIMITIVES
+    from services.primitives.registry import FREDDIE_PRIMITIVES
 
-    names = {t["name"] for t in REVIEWER_PRIMITIVES}
+    names = {t["name"] for t in FREDDIE_PRIMITIVES}
 
     # Inline production tools present → inline IS the default by tool surface.
     for tool in ("WriteFile", "ReadFile", "SearchFiles", "WebSearch", "QueryKnowledge"):
         assert_true(
             tool in names,
-            f"REVIEWER_PRIMITIVES must carry inline production tool {tool!r} "
+            f"FREDDIE_PRIMITIVES must carry inline production tool {tool!r} "
             "(structural inline-default per ADR-272, replacing the deleted "
             "production_default prose per ADR-306 D3)",
         )
@@ -268,7 +268,7 @@ def test_reviewer_prompt_defaults_to_inline():
     # the enum in test_dispatch_specialist_tool_enum_narrowed).
     assert_true(
         "DispatchSpecialist" in names,
-        "REVIEWER_PRIMITIVES must carry DispatchSpecialist (the narrow "
+        "FREDDIE_PRIMITIVES must carry DispatchSpecialist (the narrow "
         "designer-dispatch exception to inline-default)",
     )
 

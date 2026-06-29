@@ -324,7 +324,7 @@ SYSTEMIC_AGENTS: dict[str, dict[str, Any]] = {
     #      Executor dotted-path declared in /workspace/_shared/back-office.yaml.
     #
     # Back office tasks (outcome-reconciliation, reviewer-calibration,
-    # reviewer-reflection, narrative-digest, proposal-cleanup) are MAINTENANCE
+    # freddie-reflection, narrative-digest, proposal-cleanup) are MAINTENANCE
     # shape recurrences owned by YARNNN (ADR-231 + ADR-164).
     # No separate data model — a task is a task; owner determines class.
     #
@@ -1348,7 +1348,7 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     # platform-grade Slack connection satisfies it. Symmetric with read_slack
     # being kernel-universal: both are capability-bundle-shaped, not program-
     # shaped (ADR-224 §1). The Reviewer is excluded — it has NO platform write
-    # tool in REVIEWER_PRIMITIVES; it reaches external effect only via
+    # tool in FREDDIE_PRIMITIVES; it reaches external effect only via
     # ProposeAction (ADR-299 D8 / ADR-304 D6, preserved).
     "write_slack": {
         "category": "tool", "runtime": "external:slack", "feeds": "action",
@@ -1366,7 +1366,7 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     # the safety floor. Points at the audience-write tools, NOT the operator-
     # designated-page comment (platform_notion_create_comment, which stays
     # system infrastructure per ADR-304 D1). `feeds: action` ⇒ HIGH tier.
-    # Reviewer excluded (no platform write in REVIEWER_PRIMITIVES; ProposeAction
+    # Reviewer excluded (no platform write in FREDDIE_PRIMITIVES; ProposeAction
     # only — ADR-299 D8 / ADR-304 D6).
     "write_notion": {
         "category": "tool", "runtime": "external:notion", "feeds": "action",

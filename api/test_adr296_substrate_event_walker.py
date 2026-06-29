@@ -13,7 +13,7 @@ sync companion at api/services/workspace.py:692). This test guards against
 that whole class of failure by exercising walk_hooks end-to-end against
 live DB substrate.
 
-The test does NOT exercise the downstream invoke_reviewer body — that's
+The test does NOT exercise the downstream invoke_freddie body — that's
 covered by other ADR-296 v2 tests + the canary in observation folders.
 This test exercises the walker contract: substrate present → walker reads
 without raising → matcher returns hook match → submit_wake_proposal called

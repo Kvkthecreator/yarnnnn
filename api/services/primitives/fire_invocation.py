@@ -4,7 +4,7 @@ FireInvocation Primitive — ADR-261 unified shape + ADR-296 v2 D3 chat-only.
 Manual fire of a recurrence — "run this once now." Per ADR-296 v2 D3
 this primitive is CHAT-ONLY: the operator (via chat) calls FireInvocation
 with a slug, routing through the manual-fire wake source. The Reviewer
-does NOT have this primitive in REVIEWER_PRIMITIVES — its authority is
+does NOT have this primitive in FREDDIE_PRIMITIVES — its authority is
 over cadence + standing intent, not over invoking itself.
 
 When the operator calls FireInvocation, the handler routes through

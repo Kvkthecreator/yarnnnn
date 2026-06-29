@@ -170,16 +170,16 @@ def test_manage_hook_registry_registration() -> None:
     _ok("HANDLERS['ManageHook'] = handle_manage_hook")
 
     from services.primitives.registry import (
-        CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, REVIEWER_PRIMITIVES,
+        CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, FREDDIE_PRIMITIVES,
     )
     chat_names = {t["name"] for t in CHAT_PRIMITIVES}
     headless_names = {t["name"] for t in HEADLESS_PRIMITIVES}
-    reviewer_names = {t["name"] for t in REVIEWER_PRIMITIVES}
+    reviewer_names = {t["name"] for t in FREDDIE_PRIMITIVES}
 
     for label, names in (
         ("CHAT_PRIMITIVES", chat_names),
         ("HEADLESS_PRIMITIVES", headless_names),
-        ("REVIEWER_PRIMITIVES", reviewer_names),
+        ("FREDDIE_PRIMITIVES", reviewer_names),
     ):
         if "ManageHook" not in names:
             _fail(f"{label} missing ManageHook", "")

@@ -244,7 +244,7 @@ def main():
 
     async def _diff_embed():
         revisions = [
-            {"id": "r3", "authored_by": "reviewer:ai", "created_at": "t3", "message": "tightened"},
+            {"id": "r3", "authored_by": "freddie:ai", "created_at": "t3", "message": "tightened"},
             {"id": "r2", "authored_by": "operator", "created_at": "t2", "message": "edited"},
             {"id": "r1", "authored_by": "yarnnn:mcp", "created_at": "t1", "message": "created"},
         ]

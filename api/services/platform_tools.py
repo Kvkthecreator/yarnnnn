@@ -1086,7 +1086,7 @@ TRADING_WRITE_TOOLS = [
 # Task-bearing agent surfaces (YARNNN chat, headless specialists,
 # headless task pipeline): always surfaced via SYSTEM_INFRASTRUCTURE_TOOLS
 # merge in get_platform_tools_for_capabilities + _for_user (D3).
-# Judgment-bearing Reviewer surface: NOT included in REVIEWER_PRIMITIVES
+# Judgment-bearing Reviewer surface: NOT included in FREDDIE_PRIMITIVES
 # per ADR-299 D8 architectural commitment (v5 canary 2026-05-25
 # confirmed tool-list size collapses Reviewer judgment quality —
 # 21→22 surface caused 74% output drop). Operator notifications tied
@@ -1241,7 +1241,7 @@ EMAIL_TOOLS = [
 #   - get_platform_tools_for_user (YARNNN chat): merges these tools as
 #     Layer 1 unconditionally, then Layer 2 reads bundle MANIFEST
 #     declarations per ADR-304 D3.
-#   - REVIEWER_PRIMITIVES (Reviewer): does NOT include these per
+#   - FREDDIE_PRIMITIVES (Reviewer): does NOT include these per
 #     ADR-299 D8 — judgment-bearing surface preserved.
 SYSTEM_INFRASTRUCTURE_TOOLS: list[dict] = [
     EMAIL_SEND_TO_OPERATOR_TOOL,
@@ -1473,7 +1473,7 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
          constant). Not workspace-declared, not capability-gated, not
          provider-gated. The Reviewer (judgment-bearing) does NOT receive
          these tools by architectural design (ADR-299 D8) — it consumes
-         REVIEWER_PRIMITIVES directly, not via this function.
+         FREDDIE_PRIMITIVES directly, not via this function.
 
       2. **Workspace capabilities** (kernel CAPABILITIES + bundle MANIFEST
          capabilities routed through CAPABILITY_PROVIDER_MAP) require BOTH

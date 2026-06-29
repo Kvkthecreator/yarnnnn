@@ -6,8 +6,8 @@ local code. This script:
 
   1. writes the netflix-author probe substrate (funded/autonomous/empty corpus/
      declared weekly scene) — identical to the falsified heartbeat scenario,
-  2. assembles the wake envelope via the EDITED reviewer_envelope (occasion_fact),
-  3. calls invoke_reviewer() locally with the NEUTRAL situation-forward heartbeat
+  2. assembles the wake envelope via the EDITED freddie_envelope (occasion_fact),
+  3. calls invoke_freddie() locally with the NEUTRAL situation-forward heartbeat
      prompt (the implementation is the only variable vs the FAIL baseline),
   4. prints the verdict + whether a content.md with prose was produced in-cycle.
 
@@ -50,8 +50,8 @@ NEUTRAL_PROMPT = (
 
 async def main() -> int:
     from services.supabase import get_service_client
-    from services.reviewer_envelope import load_reviewer_governance_envelope
-    from agents.reviewer_agent import invoke_reviewer
+    from services.freddie_envelope import load_freddie_governance_envelope
+    from agents.freddie_agent import invoke_freddie
 
     client = get_service_client()
 
@@ -67,7 +67,7 @@ async def main() -> int:
     print(f"[probe] content.md count BEFORE: {n_before}")
 
     # --- assemble envelope via EDITED code; show the occasion fact ---
-    envelope, load_ms = await load_reviewer_governance_envelope(client, USER_ID)
+    envelope, load_ms = await load_freddie_governance_envelope(client, USER_ID)
     occ = envelope.get("occasion_fact") or "(empty)"
     print(f"[probe] envelope load_ms={load_ms}")
     print("[probe] ===== occasion_fact (computed, D1) =====")
@@ -76,7 +76,7 @@ async def main() -> int:
 
     # --- invoke locally with the neutral prompt (faithful recurrence-fire ctx) ---
     print("[probe] invoking reviewer locally (trigger=reactive, slug=heartbeat)...")
-    out = await invoke_reviewer(
+    out = await invoke_freddie(
         client=client,
         user_id=USER_ID,
         trigger="reactive",

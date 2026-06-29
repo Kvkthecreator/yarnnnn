@@ -25,7 +25,7 @@ Behavior:
 Dispatch surface:
     - Mechanical recurrence dispatcher only (per ADR-264 D3 — operators don't
       directly invoke mechanical primitives from chat). Not in CHAT_PRIMITIVES,
-      not in HEADLESS_PRIMITIVES, not in REVIEWER_PRIMITIVES. Registered in
+      not in HEADLESS_PRIMITIVES, not in FREDDIE_PRIMITIVES. Registered in
       HANDLERS so ``_dispatch_mechanical`` can route to it.
 
 Attribution:

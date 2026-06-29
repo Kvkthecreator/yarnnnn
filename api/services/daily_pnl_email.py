@@ -7,7 +7,7 @@ runs my daily P&L confirmation alone" requirement.
 
 Why a dispatcher and not a Reviewer tool call:
   `platform_email_send_to_operator` is deliberately and permanently EXCLUDED
-  from `REVIEWER_PRIMITIVES` (registry.py ~L431; the 2026-05-25 v4 canary
+  from `FREDDIE_PRIMITIVES` (registry.py ~L431; the 2026-05-25 v4 canary
   proved adding it collapsed verdict quality ~74% — tool-list size is
   corrosive to judgment for the Reviewer surface). The Reviewer therefore
   cannot compose-and-send the email itself. Instead it RUNS the judgment

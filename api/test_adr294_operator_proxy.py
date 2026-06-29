@@ -41,7 +41,7 @@ def test_is_valid_author_accepts_operator_proxy_namespace():
     assert is_valid_author("operator-proxy:external:chatgpt-5:acting-as-yarnnn-author")
     # Existing namespaces still accepted (no regression).
     assert is_valid_author("operator")
-    assert is_valid_author("reviewer:ai:reviewer-sonnet-v8")
+    assert is_valid_author("freddie:ai:freddie-sonnet-v8")
     assert is_valid_author("system:bundle-fork")
     assert is_valid_author("agent:foo")
     assert is_valid_author("specialist:writer")

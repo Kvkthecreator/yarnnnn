@@ -7,7 +7,7 @@ Validates:
 4. useReviewerPersona hook exists and reads IDENTITY.md path
 5. MessageDispatch has ReviewerVerdictRenderer component (hook-capable)
 6. MessageDispatch still has exactly six shapes (no new shapes added)
-7. reviewer_agent.py unchanged (backend judgment layer intact)
+7. freddie_agent.py unchanged (backend judgment layer intact)
 8. review_proposal_dispatch.py unchanged (dispatch logic intact)
 9. ADR-247 file exists and references correct numbering
 10. FOUNDATIONS.md references ADR-247 for three-party model
@@ -32,7 +32,7 @@ LAYER_MAPPING = REPO_ROOT / "docs" / "architecture" / "LAYER-MAPPING.md"
 REVIEWER_CARD = REPO_ROOT / "web" / "components" / "tp" / "ReviewerCard.tsx"
 MESSAGE_DISPATCH = REPO_ROOT / "web" / "components" / "tp" / "MessageDispatch.tsx"
 REVIEWER_PERSONA_HOOK = REPO_ROOT / "web" / "lib" / "reviewer-persona.ts"
-REVIEWER_AGENT = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
+REVIEWER_AGENT = REPO_ROOT / "api" / "agents" / "freddie_agent.py"
 REVIEW_DISPATCH = REPO_ROOT / "api" / "services" / "review_proposal_dispatch.py"
 TP_COMPONENTS = REPO_ROOT / "web" / "components" / "tp"
 AGENTS_COMPONENTS = REPO_ROOT / "web" / "components" / "agents"
@@ -131,14 +131,14 @@ def assertion_6_six_message_shapes_unchanged():
     )
 
 
-def assertion_7_reviewer_agent_unchanged():
-    assert REVIEWER_AGENT.exists(), "reviewer_agent.py must exist (backend judgment layer)"
+def assertion_7_freddie_agent_unchanged():
+    assert REVIEWER_AGENT.exists(), "freddie_agent.py must exist (backend judgment layer)"
     src = REVIEWER_AGENT.read_text()
     assert "review_proposal" in src, (
-        "reviewer_agent.py must still export review_proposal function"
+        "freddie_agent.py must still export review_proposal function"
     )
-    assert "REVIEWER_MODEL_IDENTITY" in src, (
-        "reviewer_agent.py must still define REVIEWER_MODEL_IDENTITY"
+    assert "FREDDIE_MODEL_IDENTITY" in src, (
+        "freddie_agent.py must still define FREDDIE_MODEL_IDENTITY"
     )
 
 
@@ -181,7 +181,7 @@ def run_all():
         assertion_4_reviewer_persona_hook_exists,
         assertion_5_message_dispatch_uses_component_for_reviewer,
         assertion_6_six_message_shapes_unchanged,
-        assertion_7_reviewer_agent_unchanged,
+        assertion_7_freddie_agent_unchanged,
         assertion_8_review_dispatch_unchanged,
         assertion_9_adr_file_correct,
         assertion_10_foundations_references_adr247,

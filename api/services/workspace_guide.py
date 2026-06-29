@@ -142,7 +142,7 @@ async def read_frontmatter_async(client: Any, user_id: str) -> dict[str, Any]:
     """Async wrapper around `read_frontmatter`.
 
     The Supabase client's `execute()` is synchronous (per existing kernel
-    pattern in `services/reviewer_audit.py`, `services/reviewer_envelope.py`),
+    pattern in `services/freddie_audit.py`, `services/freddie_envelope.py`),
     so the async variant just delegates. The async signature exists so
     callers in async contexts (chat.py, invocation_dispatcher.py, the future
     Phase 2 envelope refactor) can await this consistently with their other
@@ -156,7 +156,7 @@ async def read_frontmatter_async(client: Any, user_id: str) -> dict[str, Any]:
 # `path_zones` is preserved as informational metadata (declares author-
 # of-origin for surface labeling + first-fork-write authority) but no
 # longer confers Reviewer write-lock. The lock surface collapses to the
-# governance file set (DEFAULT_REVIEWER_WRITE_LOCKS). Operator per-path
+# governance file set (DEFAULT_FREDDIE_WRITE_LOCKS). Operator per-path
 # overrides moved to `_autonomy.yaml::never_auto` with `path:` prefix.
 
 
@@ -168,7 +168,7 @@ def get_reviewer_wake_envelope_decls(frontmatter: dict[str, Any]) -> list[dict[s
     or
       {key: str, path_glob: str, summarizer: str, optional: bool}  # for collections
 
-    Used by `services/reviewer_envelope.py::load_reviewer_governance_envelope`
+    Used by `services/freddie_envelope.py::load_freddie_governance_envelope`
     in Phase 2 (today the envelope helper hardcodes alpha-trader paths;
     Phase 2 refactor reads this declaration instead).
     """

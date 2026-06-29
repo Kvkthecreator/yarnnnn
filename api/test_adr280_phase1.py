@@ -4,7 +4,7 @@ Covers the load-bearing acceptance criteria for the first atomic commit:
 - alpha-trader + alpha-commerce bundle MANIFESTs declare valid substrate_abi blocks
 - services/workspace_guide.py exposes the canonical reader API
 - services/bundle_reader.py extensions return correct shapes
-- DEFAULT_REVIEWER_WRITE_LOCKS contains zero program-specific paths (kernel-universal only)
+- DEFAULT_FREDDIE_WRITE_LOCKS contains zero program-specific paths (kernel-universal only)
 - _is_path_locked_for_reviewer composes kernel + bundle + guide + operator-overrides correctly
 - Workspace guide soft-cap budget warning fires when content exceeds threshold
 
@@ -92,7 +92,7 @@ def test_alpha_commerce_bundle_declares_substrate_abi():
 # ---------------------------------------------------------------------------
 
 # NOTE (ADR-320): test_default_reviewer_write_locks_{contains_zero_program_paths,
-# preserves_kernel_universals} DELETED. The DEFAULT_REVIEWER_WRITE_LOCKS flat-list
+# preserves_kernel_universals} DELETED. The DEFAULT_FREDDIE_WRITE_LOCKS flat-list
 # collapsed into the five-root CALLER_WRITE_POLICY; per-program path-zone locks
 # dissolved with the workspace_guide 4-layer composition. Governance-locked-from-seat
 # coverage moved to test_adr320_permission_topology.py.

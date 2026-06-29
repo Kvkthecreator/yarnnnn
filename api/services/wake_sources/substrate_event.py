@@ -43,7 +43,7 @@ hooks:
 ```
 
 Per ADR-296 v2 D3 the Reviewer or operator both author hooks via the
-`ManageHook` primitive (CHAT_PRIMITIVES + REVIEWER_PRIMITIVES). Reviewer
+`ManageHook` primitive (CHAT_PRIMITIVES + FREDDIE_PRIMITIVES). Reviewer
 hook authoring is part of its cadence + standing-intent authority.
 """
 

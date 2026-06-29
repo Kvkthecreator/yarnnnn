@@ -1,6 +1,6 @@
 """ADR-302 Phase 1 — Contract test for the typed section registry.
 
-Verifies the structural foundation laid by `api/agents/reviewer_agent_sections.py`:
+Verifies the structural foundation laid by `api/agents/freddie_agent_sections.py`:
 - PersonaFrameSection dataclass is frozen + correctly typed
 - persona_frame_section defaults to cached
 - DANGEROUS_uncached_persona_frame_section produces volatile sections
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from agents.reviewer_agent_sections import (
+from agents.freddie_agent_sections import (
     PersonaFrameSection,
     persona_frame_section,
     DANGEROUS_uncached_persona_frame_section,

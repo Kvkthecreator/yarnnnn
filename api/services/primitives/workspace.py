@@ -784,7 +784,7 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
             new_content = content
 
         # ADR-288 D2: default authored_by from the auth's caller_identity.
-        # Every auth-construction site (yarnnn.py operator-chat, reviewer_agent
+        # Every auth-construction site (yarnnn.py operator-chat, freddie_agent
         # wake, HeadlessAuth specialist dispatch, _MechanicalAuth recurrence,
         # MCP boundary) sets caller_identity per the ADR-209 taxonomy. LLM-
         # supplied authored_by still wins when explicitly passed. The
@@ -1774,7 +1774,7 @@ def _caller_class(auth: Any) -> str:
         # (ADR-373 grant-consult session) so the MCP class — and its topology
         # lock — actually engages for the live foreign-LLM path.
         return "mcp"
-    if getattr(auth, "reviewer_caller", False) or caller_identity.startswith("reviewer:"):
+    if getattr(auth, "reviewer_caller", False) or caller_identity.startswith("freddie:"):
         return "reviewer"
     if caller_identity == "operator" or caller_identity.startswith("operator"):
         return "operator"

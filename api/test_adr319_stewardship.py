@@ -123,7 +123,7 @@ for slug in active:
 # (7) R&R no-duplication — the persona-frame must NOT carry the stewardship
 #     rules (DP22 minimal frame: principal-shift + action-grammar only).
 #     Duplication here is the dual-context trap that produced divergent behavior.
-frame = REPO / "api" / "agents" / "reviewer_agent.py"
+frame = REPO / "api" / "agents" / "freddie_agent.py"
 if frame.exists():
     ftext = frame.read_text().lower()
     check(

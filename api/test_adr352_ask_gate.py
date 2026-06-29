@@ -40,7 +40,7 @@ def _gate(auth, inputs, *, delegation):
 
 def _reviewer_auth():
     return SimpleNamespace(reviewer_caller=True, user_id="u", client=None,
-                           caller_identity="reviewer:ai:reviewer-sonnet-v8")
+                           caller_identity="freddie:ai:freddie-sonnet-v8")
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +164,7 @@ def test_clarify_tool_description_and_schema():
 # ---------------------------------------------------------------------------
 
 def test_frame_points_at_ask_gate_not_just_prose():
-    frame_src = (API_DIR / "agents" / "reviewer_agent.py").read_text()
+    frame_src = (API_DIR / "agents" / "freddie_agent.py").read_text()
     # The frame now references the ADR-352 enforcement rather than relying on
     # imperative prose alone.
     assert "ADR-352" in frame_src

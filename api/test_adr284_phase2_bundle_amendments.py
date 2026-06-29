@@ -162,8 +162,8 @@ def test_deliverable_recurrences_unchanged() -> None:
 def test_phase1_envelope_decls_still_present() -> None:
     """Phase 2 bundle amendments must not touch kernel envelope wiring."""
     api_root = REPO_ROOT / "api"
-    src = (api_root / "services/reviewer_envelope.py").read_text(encoding="utf-8")
-    from services.reviewer_envelope import _UNIVERSAL_ENVELOPE_DECLS
+    src = (api_root / "services/freddie_envelope.py").read_text(encoding="utf-8")
+    from services.freddie_envelope import _UNIVERSAL_ENVELOPE_DECLS
     keys = {entry[0] for entry in _UNIVERSAL_ENVELOPE_DECLS}
     assert "occupant_md" in keys, (
         "Phase 1's occupant_md envelope entry must still be present"

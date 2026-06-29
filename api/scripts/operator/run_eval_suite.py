@@ -745,7 +745,7 @@ async def capture_shape_receipts(user_id: str, eval_result: dict) -> dict:
     # self-wake = a proposal_arrival execution_event on the Reviewer's OWN
     # queued write (source='reviewer:*'). ADR-307 closed this; capturing the
     # count makes the closure checkable per-eval.
-    reviewer_sourced_ids = {p["id"] for p in proposals if str(p.get("source") or "").startswith("reviewer:")}
+    reviewer_sourced_ids = {p["id"] for p in proposals if str(p.get("source") or "").startswith("freddie:")}
     self_wakes = sum(1 for e in events if e.get("wake_source") == "proposal_arrival") if reviewer_sourced_ids else 0
 
     receipts = {"proposals": proposals, "events": events, "self_wakes": self_wakes}

@@ -7,7 +7,7 @@ Guards the three-part fix for the 0-byte-WriteFile class surfaced by the
 operation/authored/_signal.md — 4,908 bytes of ground truth wiped to 0
 bytes on 2026-06-09 by nine consecutive empty writes):
 
-  1. Reviewer dispatch loop (api/agents/reviewer_agent.py)
+  1. Reviewer dispatch loop (api/agents/freddie_agent.py)
      - max_tokens raised 2048 → 8192 (composed deliverables exceed 2048
        output tokens once JSON-escaped into a single WriteFile input)
      - stop_reason == "max_tokens" truncation guard: the FINAL tool_use of
@@ -56,7 +56,7 @@ def check(name: str, condition: bool, detail: str = "") -> None:
 # 1. Reviewer dispatch loop — truncation guard + raised ceiling
 # =============================================================================
 
-reviewer_src = (API_ROOT / "agents" / "reviewer_agent.py").read_text()
+reviewer_src = (API_ROOT / "agents" / "freddie_agent.py").read_text()
 
 check(
     "reviewer loop max_tokens raised to 8192",

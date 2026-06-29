@@ -1,7 +1,7 @@
 """Canary Phase 4 v4 — post-Discovery-3+4 validation.
 
 Canary v3 (2026-05-25 04:13 UTC) produced a textbook REJECT verdict but
-no email — root cause was Discovery 4 (REVIEWER_PRIMITIVES never included
+no email — root cause was Discovery 4 (FREDDIE_PRIMITIVES never included
 platform_email_send_to_operator) + Discovery 3 (resolution path didn't
 always-surface kernel-universal capabilities).
 
@@ -112,7 +112,7 @@ async def main() -> int:
             content=PROFILE_DRAFT,
             message=(
                 "canary phase 4 v4 — seed fresh piece profile.md (draft state). "
-                "Post-Discovery-3+4 validation; tool now in REVIEWER_PRIMITIVES."
+                "Post-Discovery-3+4 validation; tool now in FREDDIE_PRIMITIVES."
             ),
         )
         print(f"[T1] profile.md seeded @ {datetime.now(timezone.utc).isoformat()}")
@@ -144,7 +144,7 @@ async def main() -> int:
             message=(
                 "canary phase 4 v4 — CANARY transition: status draft → "
                 "ready_for_review (POST DISCOVERY 3+4 FIX — tool now in "
-                "REVIEWER_PRIMITIVES; email SHOULD fire this time)"
+                "FREDDIE_PRIMITIVES; email SHOULD fire this time)"
             ),
         )
         now3 = datetime.now(timezone.utc).isoformat()

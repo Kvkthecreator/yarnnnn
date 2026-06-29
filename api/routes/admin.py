@@ -801,7 +801,7 @@ async def list_accounts(admin: AdminAuth):
             reviewer_edits = client.table("workspace_file_versions")\
                 .select("id", count="exact")\
                 .eq("user_id", user_id)\
-                .like("authored_by", "reviewer:%")\
+                .like("authored_by", "freddie:%")\
                 .gte("created_at", cutoff_7d)\
                 .execute()
 
@@ -937,7 +937,7 @@ async def get_account_detail(slug: str, admin: AdminAuth):
         trail_result = client.table("workspace_file_versions")\
             .select("created_at, path, message")\
             .eq("user_id", user_id)\
-            .like("authored_by", "reviewer:%")\
+            .like("authored_by", "freddie:%")\
             .order("created_at", desc=True)\
             .limit(15)\
             .execute()

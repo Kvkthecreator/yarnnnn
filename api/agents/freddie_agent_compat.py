@@ -1,7 +1,7 @@
-"""Compatibility helpers for invoke_reviewer() callers — ADR-256.
+"""Compatibility helpers for invoke_freddie() callers — ADR-256.
 
 Thin adapters so existing callers (review_proposal_dispatch, reviewer_reflection,
-invocation_dispatcher, chat.py) can work with ReviewerOutput without large rewrites.
+invocation_dispatcher, chat.py) can work with FreddieOutput without large rewrites.
 """
 from __future__ import annotations
 from typing import Any
@@ -35,8 +35,8 @@ def _normalize_reflection_proposals(proposals_raw: list) -> list:
     return normalized
 
 
-def output_to_review_decision(output: dict | None) -> dict | None:
-    """Adapt ReviewerOutput to the dict shape review_proposal_dispatch expects.
+def output_to_freddie_decision(output: dict | None) -> dict | None:
+    """Adapt FreddieOutput to the dict shape review_proposal_dispatch expects.
 
     Maps verdict → decision for the approve/reject/defer routing in
     _run_ai_reviewer().

@@ -215,7 +215,7 @@ async def harvest_run(auth: Any, scope: dict) -> dict:
     brief = _compose_harvest_brief(sources, available_domains)
 
     # Bounded tool-use loop. Mirrors the canonical headless pattern in
-    # services/primitives/dispatch_specialist.py + agents/reviewer_agent.py:
+    # services/primitives/dispatch_specialist.py + agents/freddie_agent.py:
     # ChatResponse exposes `.tool_uses` (list[ToolUseBlock] with .id/.name/
     # .input), `.stop_reason`, `.text`; assistant turns are reconstructed as
     # dict-shaped content for the next API call.

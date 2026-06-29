@@ -231,7 +231,7 @@ def test_dispatch_source_skip_catches_reviewer_prefix():
     import inspect
     from services import review_proposal_dispatch as rpd
     src = inspect.getsource(rpd.on_proposal_created)
-    assert 'startswith("reviewer:")' in src, (
+    assert 'startswith("freddie:")' in src, (
         "dispatcher must skip reactive Reviewer for source startswith 'reviewer:'"
     )
 
@@ -277,7 +277,7 @@ def test_non_path_primitive_gates_on_delegation_only():
     from services.primitives.permission import resolve_permission, PermissionDecision
 
     auth = SimpleNamespace(reviewer_caller=True, user_id="u", client=None,
-                           caller_identity="reviewer:test")
+                           caller_identity="freddie:test")
     # bounded → QUEUE
     with patch("services.review_policy.load_autonomy", return_value={}), \
          patch("services.review_policy.autonomy_for_domain", return_value={"delegation": "bounded"}):

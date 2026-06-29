@@ -1,5 +1,5 @@
 """ADR-303 Phase 4 — Contract test for the visibility-first failure-
-surfacing invert at services/reviewer_chat_surfacing.py.
+surfacing invert at services/freddie_chat_surfacing.py.
 
 Verifies:
 - SILENCE_FAILURE_REASONS denylist is narrow (transient noise only).
@@ -19,7 +19,7 @@ docs/evaluations/2026-05-26-163000-posture-criterion-declaration §3.
 
 from __future__ import annotations
 
-from services.reviewer_chat_surfacing import (
+from services.freddie_chat_surfacing import (
     SILENCE_FAILURE_REASONS,
     should_surface_failed_action,
     narrate_reviewer_action_blocked,
@@ -208,7 +208,7 @@ def test_should_surface_only_called_for_failed_actions_in_loop():
     """Sanity: the helper signature accepts the action dict. Successful
     actions still flow through the existing narrate_reviewer_action
     success-path; the visibility-first invert doesn't change success
-    behavior. This is documented at the call site in surface_reviewer_actions."""
+    behavior. This is documented at the call site in surface_freddie_actions."""
     # The helper itself only looks at failure_reason — for a success-action
     # dict the function technically returns based on failure_reason absence
     # (no failure_reason → defaults to surface). But the caller only

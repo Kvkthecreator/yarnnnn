@@ -325,7 +325,7 @@ def test_persona_frame_first_wake_guardrail_updated() -> None:
     from pathlib import Path
 
     src = (
-        Path(__file__).resolve().parent / "agents" / "reviewer_agent.py"
+        Path(__file__).resolve().parent / "agents" / "freddie_agent.py"
     ).read_text(encoding="utf-8")
 
     assert "scaffold cadence is in place" not in src, (
@@ -339,7 +339,7 @@ def test_persona_frame_first_wake_guardrail_updated() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 6b. ReviewerContext + _build_user_message structurally pre-load _preferences.yaml
+# 6b. FreddieContext + _build_user_message structurally pre-load _preferences.yaml
 # ---------------------------------------------------------------------------
 
 def test_preferences_yaml_is_preloaded_in_wake_envelope() -> None:
@@ -347,14 +347,14 @@ def test_preferences_yaml_is_preloaded_in_wake_envelope() -> None:
     input for cadence-authoring. The Reviewer perceives it via the wake
     envelope, not via a tool call. Same structural shape as MANDATE /
     AUTONOMY / IDENTITY / principles."""
-    from agents.reviewer_agent import ReviewerContext
+    from agents.freddie_agent import FreddieContext
 
-    annotations = getattr(ReviewerContext, "__annotations__", {})
+    annotations = getattr(FreddieContext, "__annotations__", {})
     if "preferences_yaml" in annotations:
-        _ok("ReviewerContext.preferences_yaml field declared (parallel to mandate_md, autonomy_md)")
+        _ok("FreddieContext.preferences_yaml field declared (parallel to mandate_md, autonomy_md)")
     else:
         _bad(
-            "ReviewerContext.preferences_yaml field",
+            "FreddieContext.preferences_yaml field",
             f"expected preferences_yaml in annotations, got {list(annotations.keys())}",
         )
 
@@ -365,14 +365,14 @@ def test_preferences_yaml_is_preloaded_in_wake_envelope() -> None:
     # structurally pre-loaded into the wake message somewhere in the render
     # path", and that survives function-boundary refactors.
     import inspect
-    import agents.reviewer_agent as mod
+    import agents.freddie_agent as mod
     src = inspect.getsource(mod)
     if 'ctx.get("preferences_yaml")' in src:
         _ok("render path reads ctx['preferences_yaml'] (structural pre-load)")
     else:
         _bad(
             "render-path preferences injection",
-            "expected ctx.get('preferences_yaml') in the reviewer_agent render path",
+            "expected ctx.get('preferences_yaml') in the freddie_agent render path",
         )
 
     if "_preferences.yaml — Operator" in src and "cadence preferences" in src:
@@ -388,9 +388,9 @@ def test_preferences_yaml_is_preloaded_in_wake_envelope() -> None:
 # 6c. feed.py addressed-trigger site loads GOVERNANCE_PREFERENCES_PATH + AUTONOMY
 # ---------------------------------------------------------------------------
 
-def test_all_invoke_reviewer_call_sites_use_canonical_envelope() -> None:
-    """All three `invoke_reviewer` call sites route through the canonical
-    `load_reviewer_governance_envelope` helper.
+def test_all_invoke_freddie_call_sites_use_canonical_envelope() -> None:
+    """All three `invoke_freddie` call sites route through the canonical
+    `load_freddie_governance_envelope` helper.
 
     Pre-ADR-296-v2 (commit 37426c5, 2026-05-20), feed.py was the addressed-
     trigger Reviewer invocation site. The wake architecture refactor moved
@@ -419,24 +419,24 @@ def test_all_invoke_reviewer_call_sites_use_canonical_envelope() -> None:
             missing_import.append(f"{label}: file not found at {path}")
             continue
         src = path.read_text()
-        if "load_reviewer_governance_envelope" not in src:
-            missing_import.append(f"{label}: missing import of load_reviewer_governance_envelope")
+        if "load_freddie_governance_envelope" not in src:
+            missing_import.append(f"{label}: missing import of load_freddie_governance_envelope")
         if "**governance_envelope" not in src:
-            missing_spread.append(f"{label}: missing '**governance_envelope' spread into invoke_reviewer context")
+            missing_spread.append(f"{label}: missing '**governance_envelope' spread into invoke_freddie context")
 
     if missing_import or missing_spread:
         if missing_import:
             _bad(
-                "envelope helper import at all invoke_reviewer call sites",
+                "envelope helper import at all invoke_freddie call sites",
                 "; ".join(missing_import),
             )
         if missing_spread:
             _bad(
-                "envelope helper spread at all invoke_reviewer call sites",
+                "envelope helper spread at all invoke_freddie call sites",
                 "; ".join(missing_spread),
             )
         return
-    _ok("all invoke_reviewer call sites (wake.py + review_proposal_dispatch.py) route through load_reviewer_governance_envelope (Singular Implementation per ADR-276 + 2026-05-21 completion)")
+    _ok("all invoke_freddie call sites (wake.py + review_proposal_dispatch.py) route through load_freddie_governance_envelope (Singular Implementation per ADR-276 + 2026-05-21 completion)")
 
 
 def test_review_proposal_dispatch_no_hand_rolled_envelope() -> None:
@@ -611,7 +611,7 @@ def test_d9_seed_step_wired_before_materialize() -> None:
 
 
 # test_d10_persona_frame_change_reconciliation — DELETED (ADR-306 persona-frame collapse).
-# This test grepped reviewer_agent.py for verbose persona-frame prose markers
+# This test grepped freddie_agent.py for verbose persona-frame prose markers
 # ("Initial honoring" / "bundle-fork-from-preferences" / "CHANGE RECONCILIATION").
 # The ADR-302/306/323 persona-frame collapse (system prompt ~36K → ~3.5K — rules
 # of judgment moved to principles.md, pedagogy to envelope headers) deliberately
@@ -661,7 +661,7 @@ def main() -> int:
     test_persona_frame_references_preferences()
     test_persona_frame_first_wake_guardrail_updated()
     test_preferences_yaml_is_preloaded_in_wake_envelope()    # run-2 refinement
-    test_all_invoke_reviewer_call_sites_use_canonical_envelope()  # 2026-05-21: post-ADR-296-v2 topology
+    test_all_invoke_freddie_call_sites_use_canonical_envelope()  # 2026-05-21: post-ADR-296-v2 topology
     test_review_proposal_dispatch_no_hand_rolled_envelope()  # 2026-05-21: Singular Implementation negative check
     test_mechanical_mirrors_preserved()
     test_adr275_doc_exists()

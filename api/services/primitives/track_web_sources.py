@@ -39,7 +39,7 @@ Behavior:
 
 Dispatch surface:
     Mechanical recurrence dispatcher only (HANDLERS). Not in
-    CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, or REVIEWER_PRIMITIVES.
+    CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, or FREDDIE_PRIMITIVES.
 
 Attribution:
     write_revision(authored_by="system:track-web-sources") per ADR-209.

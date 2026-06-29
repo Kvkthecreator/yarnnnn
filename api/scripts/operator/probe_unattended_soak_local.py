@@ -104,7 +104,7 @@ def _persona_writes_since(client, user_id: str, since_iso: str) -> list[dict]:
         .order("created_at", desc=True).limit(40).execute()
     )
     # Reviewer-authored writes only (the agent acting), not system mirrors.
-    return [r for r in (res.data or []) if (r.get("authored_by") or "").startswith("reviewer:")]
+    return [r for r in (res.data or []) if (r.get("authored_by") or "").startswith("freddie:")]
 
 
 async def _fire_one(client, user_id: str, idx: int) -> dict:

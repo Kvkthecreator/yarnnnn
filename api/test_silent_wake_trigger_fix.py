@@ -4,7 +4,7 @@ THE BUG (recurring across every alpha-trader autonomy run for weeks):
   A manual_fire of a JUDGMENT recurrence (the eval's `{fire: <slug>}` path, and
   any operator manual-fire) was mapped to trigger="addressed" in
   `_invoke_recurrence_wake`. But the context bag it builds is the recurrence-fire
-  shape (recurrence_prompt + recurrence_slug, NO user_message). invoke_reviewer's
+  shape (recurrence_prompt + recurrence_slug, NO user_message). invoke_freddie's
   `_validate_context_shape` correctly rejected the contradictory
   (trigger=addressed, recurrence-context) pair → returned None → the dispatcher
   recorded status="success" with NULL tokens. The Reviewer NEVER RAN, but
@@ -16,7 +16,7 @@ THE FIX (two layers):
   1. Root cause: a recurrence fire is `reactive` regardless of manual-vs-cron
      (the wake_source field carries the distinction). `_invoke_recurrence_wake`
      now derives trigger="reactive" always.
-  2. Defense-in-depth: the dispatcher records a None return from invoke_reviewer
+  2. Defense-in-depth: the dispatcher records a None return from invoke_freddie
      as status="failed" (reviewer_returned_none), not success — so any future
      silent failure is VISIBLE.
 
@@ -53,7 +53,7 @@ def check(name: str, cond: bool) -> None:
 # user_message) must VALIDATE under trigger=reactive and FAIL under
 # trigger=addressed. The old manual_fire→addressed mapping forced the failing
 # branch on every manual recurrence fire.
-from agents.reviewer_agent import _validate_context_shape  # noqa: E402
+from agents.freddie_agent import _validate_context_shape  # noqa: E402
 
 recurrence_ctx = {
     "recurrence_prompt": "Reconcile yesterday's outcomes.",
@@ -100,12 +100,12 @@ check(
 )
 
 
-# ── 4. invoke_reviewer captures the full traceback on swallow-to-None ────────
-rev_src = (Path(__file__).resolve().parent / "agents" / "reviewer_agent.py").read_text()
+# ── 4. invoke_freddie captures the full traceback on swallow-to-None ────────
+rev_src = (Path(__file__).resolve().parent / "agents" / "freddie_agent.py").read_text()
 check(
-    "invoke_reviewer logs full traceback (logger.exception) on its swallow-to-None path",
+    "invoke_freddie logs full traceback (logger.exception) on its swallow-to-None path",
     "logger.exception(" in rev_src
-    and "invoke_reviewer raised" in rev_src,
+    and "invoke_freddie raised" in rev_src,
 )
 
 print(f"\n{PASS} passed, {FAIL} failed")

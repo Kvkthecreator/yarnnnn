@@ -2,7 +2,7 @@
 
 The SINGULAR home for permission-topology assertions. Supersedes the
 old-mechanism tests in:
-  - test_adr293_governance_taxonomy.py (DEFAULT_REVIEWER_WRITE_LOCKS flat-list,
+  - test_adr293_governance_taxonomy.py (DEFAULT_FREDDIE_WRITE_LOCKS flat-list,
     _is_path_locked_for_reviewer)
   - test_adr310_mcp_write_gate.py (_is_path_locked_for_mcp,
     DEFAULT_MCP_WRITE_LOCK_PREFIXES)
@@ -52,7 +52,7 @@ def test_legacy_constants_deleted():
     for dead in (
         "SHARED_MANDATE_PATH", "SHARED_IDENTITY_PATH", "SHARED_AUTONOMY_PATH",
         "MEMORY_AWARENESS_PATH", "REVIEW_IDENTITY_PATH", "REVIEW_PRINCIPLES_PATH",
-        "DEFAULT_REVIEWER_WRITE_LOCKS", "DEFAULT_MCP_WRITE_LOCK_PREFIXES",
+        "DEFAULT_FREDDIE_WRITE_LOCKS", "DEFAULT_MCP_WRITE_LOCK_PREFIXES",
     ):
         assert not hasattr(wp, dead), f"legacy constant {dead} must be deleted"
 

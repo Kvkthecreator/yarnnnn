@@ -66,13 +66,13 @@ async def _resolve_user(client) -> str:
 
 async def phase1_offline(client, user_id: str) -> None:
     """Render both envelopes for an identical context bag — free, no LLM."""
-    from agents.reviewer_agent import _build_user_message
-    from services.reviewer_envelope import load_reviewer_governance_envelope
+    from agents.freddie_agent import _build_user_message
+    from services.freddie_envelope import load_freddie_governance_envelope
     from services.recurrence import Recurrence
 
     print("\n=== PHASE 1 — offline envelope render (FREE) ===")
 
-    envelope, _ms = await load_reviewer_governance_envelope(client, user_id)
+    envelope, _ms = await load_freddie_governance_envelope(client, user_id)
 
     recurrence = Recurrence(
         slug="probe-piece",

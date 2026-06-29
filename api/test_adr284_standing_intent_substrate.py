@@ -3,7 +3,7 @@
 Asserts the Phase 1 contracts:
   - PERSONA_STANDING_INTENT_PATH constant exists + value
   - PERSONA_STANDING_INTENT_PATH is in PERSONA_FILES tuple
-  - reviewer_envelope `_UNIVERSAL_ENVELOPE_DECLS` includes both OCCUPANT
+  - freddie_envelope `_UNIVERSAL_ENVELOPE_DECLS` includes both OCCUPANT
     and standing_intent at the kernel-universal level
   - `_PERSONA_FRAME` mentions standing_intent.md + the write contract
   - `_build_user_message` renders both new envelope keys with appropriate
@@ -60,11 +60,11 @@ def test_standing_intent_in_review_files_tuple() -> None:
 
 
 # -----------------------------------------------------------------------------
-# 2. reviewer_envelope.py — kernel-universal envelope additions
+# 2. freddie_envelope.py — kernel-universal envelope additions
 # -----------------------------------------------------------------------------
 
 def test_envelope_universal_decls_include_occupant_and_standing_intent() -> None:
-    src = _read_api("services/reviewer_envelope.py")
+    src = _read_api("services/freddie_envelope.py")
     # Confirm imports were added
     assert "PERSONA_OCCUPANT_PATH" in src, (
         "PERSONA_OCCUPANT_PATH must be imported from workspace_paths"
@@ -112,7 +112,7 @@ def test_envelope_universal_decls_count() -> None:
     unchanged — pin the kernel-universal envelope to its declared,
     ADR-attributed entries so a silent add/drop trips the gate.
     """
-    from services.reviewer_envelope import _UNIVERSAL_ENVELOPE_DECLS
+    from services.freddie_envelope import _UNIVERSAL_ENVELOPE_DECLS
 
     assert len(_UNIVERSAL_ENVELOPE_DECLS) == 12, (
         f"Expected 12 kernel-universal envelope entries "
@@ -135,7 +135,7 @@ def test_envelope_universal_decls_count() -> None:
 
 
 def test_envelope_docstring_documents_new_entries() -> None:
-    src = _read_api("services/reviewer_envelope.py")
+    src = _read_api("services/freddie_envelope.py")
     assert "occupant_md" in src and "(ADR-284)" in src, (
         "Envelope load function docstring must document occupant_md + ADR-284 citation"
     )
@@ -145,7 +145,7 @@ def test_envelope_docstring_documents_new_entries() -> None:
 
 
 # -----------------------------------------------------------------------------
-# 3. reviewer_agent.py — persona prompt + envelope rendering
+# 3. freddie_agent.py — persona prompt + envelope rendering
 # -----------------------------------------------------------------------------
 
 def test_persona_frame_includes_standing_intent_section() -> None:
@@ -159,7 +159,7 @@ def test_persona_frame_includes_standing_intent_section() -> None:
     sharpened: the home is the file + the guide teaches its purpose.
     """
     # Frame still names the file (action-grammar close-cycle channel) + cites ADR-284.
-    src = _read_api("agents/reviewer_agent.py")
+    src = _read_api("agents/freddie_agent.py")
     assert "standing_intent.md" in src, (
         "Minimal frame must still name standing_intent.md as the close-cycle "
         "channel (action-grammar residue per ADR-306 D2)"
@@ -188,7 +188,7 @@ def test_persona_frame_enforces_every_cycle_write_contract() -> None:
     compressed action-grammar line. Single-instance preserved.
     """
     # Frame keeps the compressed action-grammar close-cycle line.
-    src = _read_api("agents/reviewer_agent.py")
+    src = _read_api("agents/freddie_agent.py")
     assert "Close every cycle with a verdict or a standing_intent write" in src, (
         "Minimal frame must retain the compressed close-cycle action-grammar "
         "line (ADR-306 D2)"
@@ -206,7 +206,7 @@ def test_persona_frame_enforces_every_cycle_write_contract() -> None:
 
 
 def test_build_user_message_renders_occupant_envelope_key() -> None:
-    src = _read_api("agents/reviewer_agent.py")
+    src = _read_api("agents/freddie_agent.py")
     # OCCUPANT.md envelope rendering
     assert 'ctx.get("occupant_md")' in src, (
         "_build_user_message must read occupant_md from context"
@@ -217,7 +217,7 @@ def test_build_user_message_renders_occupant_envelope_key() -> None:
 
 
 def test_build_user_message_renders_standing_intent_with_empty_hint() -> None:
-    src = _read_api("agents/reviewer_agent.py")
+    src = _read_api("agents/freddie_agent.py")
     assert 'ctx.get("standing_intent_md")' in src, (
         "_build_user_message must read standing_intent_md from context"
     )
@@ -253,9 +253,9 @@ def test_populate_occupant_for_runtime_exists() -> None:
 
 def test_populate_occupant_uses_reviewer_model_identity() -> None:
     src = _read_api("services/programs.py")
-    assert "REVIEWER_MODEL_IDENTITY" in src, (
-        "_populate_occupant_for_runtime must import REVIEWER_MODEL_IDENTITY "
-        "from agents.reviewer_agent to align occupant identity with the "
+    assert "FREDDIE_MODEL_IDENTITY" in src, (
+        "_populate_occupant_for_runtime must import FREDDIE_MODEL_IDENTITY "
+        "from agents.freddie_agent to align occupant identity with the "
         "runtime model the Reviewer's loop self-attributes as"
     )
     assert "occupant_class: ai" in src, (
@@ -356,9 +356,9 @@ def test_judgment_log_single_writer_preserved() -> None:
     contract for judgment_log.md. Standing intent is its own file, its own
     role, its own write path — they compose, they don't compete (ADR-284 D7).
     """
-    src = _read_api("services/reviewer_audit.py")
+    src = _read_api("services/freddie_audit.py")
     assert "render_lineage_entry_if_material" in src, (
-        "reviewer_audit.render_lineage_entry_if_material must still be the "
+        "freddie_audit.render_lineage_entry_if_material must still be the "
         "single canonical writer for judgment_log.md per ADR-281 §3"
     )
 

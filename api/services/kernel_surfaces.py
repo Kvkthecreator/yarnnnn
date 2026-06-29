@@ -213,64 +213,64 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # composition as its Flow lens (FeedSurface re-mounts there, one body
         # / two mounts per ADR-340 D8). The `feed` slug is no longer an
         # operator-reachable surface; `/feed` survives as an ADR-308 redirect
-        # stub → /context?context.lens=flow (bookmark safety). default_pinned
-        # flips False (the launcher slot is inherited by `context`); the
-        # narrative substrate, render grammar, and the route-as-transport all
-        # survive unchanged.
+        # stub (bookmark safety). default_pinned False (the launcher slot is
+        # inherited by the perception surface); the narrative substrate, render
+        # grammar, and the route-as-transport all survive unchanged.
+        #
+        # ADR-385 (2026-06-29) — the perception surface renamed `context` →
+        # `channels`. The `/feed` stub now redirects to
+        # /channels?channels.pane=flow.
         "slug": "feed",
-        "launcher_tier": "search-only",  # ADR-370 — folded into Context (Flow lens); reachable by name + as the Flow body
+        "launcher_tier": "search-only",  # ADR-370 — folded into Channels (Flow pane); reachable by name + as the Flow body
         "register": "application",  # ADR-309 two-register model
         "title": "Feed",
         "archetype": "stream",
         "substrate_paths": [],  # session_messages DB table
-        # ADR-297 D18.2 (2026-05-22): Feed Dock icon swapped from
-        # message-circle → scroll-text. message-circle was visually
-        # identical to the universal ChatDrawer FAB (also a chat
-        # bubble), causing operator confusion. Feed is a narrative
-        # ledger (every invocation, every wake, append-only) — the
-        # scroll glyph reads as "log / timeline / ledger" without
-        # colliding with the conversation summon.
+        # ADR-385 (2026-06-29) — `feed` is a search-only legacy alias; no
+        # at-rest launcher consumes its icon (the scroll-text glyph is
+        # retired). The live perception surface is `channels` with the
+        # arrow-left-right (in↔out boundary) icon.
         "icon_key": "scroll-text",
-        "default_pinned": False,  # ADR-370 — slot inherited by `context`
+        "default_pinned": False,  # ADR-370 — slot inherited by `channels`
         "route": "/feed",
         "summary": "Operator chat surface and multi-actor narrative timeline.",
     },
     {
-        # ADR-370 (2026-06-25) — Context: the operation's boundary
-        # composition. One operator act: understand + manage the edge where
-        # the workspace meets the outside world. Three lenses (a SettingsPane
-        # split-nav, the same shell behind Home/Notifications/Workspace
-        # Settings):
-        #   In   — what context feeds the operation (Perception field, ADR-335:
-        #          Sources + Connectors + MCP transports — second mount of the
-        #          Workspace-Settings → Perception panes).
-        #   Out  — what the operation emits, to whom, when (operator-addressing
-        #          dispatch history via GET /api/emissions, read-only; ADR-299/
-        #          304 — sends stay system infrastructure, this is legibility).
-        #   Flow — the complete narrative (FeedSurface intact, ADR-289 row
-        #          grammar; the operator's "TOTAL").
+        # ADR-370 (2026-06-25) → ADR-377 (2026-06-26) → ADR-385 (2026-06-29):
+        # Channels — the operation's perception + principal surface (was
+        # `context`; renamed because "context" is ambiguous with the
+        # filesystem [Files surface] and the operation/context/ substrate
+        # namespace). A SettingsPane split-nav (the same shell behind
+        # Home/Notifications/Workspace Settings), two groups:
+        #   CHANNELS — what crosses the operation's edge:
+        #     Connections     — platform data-feeds (status·resources·freshness)
+        #     Sources         — standing web/RSS watches (ADR-335/336)
+        #     External Agents — MCP / external-LLM principals (ADR-373
+        #                       foreign-llm/a2a/platform grants; a filtered
+        #                       view of WorkspaceMembersCard, NOT a new source)
+        #   ACTIVITY — the running record of crossings:
+        #     Flow — the complete narrative (FeedSurface, default landing pane)
+        #     In   — inbound crossings (FeedSurface, isInbound filter)
+        #     Out  — the emissions/dispatch ledger (GET /api/emissions, read-only)
         #
         # Intended redundancy with Notifications → Activity (both mount the
         # narrative): the macOS tiered-access principle (ADR-367 D3) — same
-        # substrate, two compositions, distinct primary jobs (operate the work
-        # vs. understand the boundary). It owns no substrate and no state —
-        # a composition over existing mirrors, like Home (ADR-312) and
-        # Notifications (ADR-346).
+        # substrate, two compositions, distinct primary jobs. Connections +
+        # Sources + Flow + In + Out are compositions over existing substrate;
+        # External Agents is a second view of the principal_grants roster
+        # (ADR-385 D3, DP29 "mirror once, compose few").
         #
-        # Reclaims the `context` slug: the prior /context → /files redirect
-        # stub is deleted (the context/ substrate ROOT was retired by ADR-320's
-        # topological cut → operation/, so the word is free at the route layer;
-        # the route slug is unrelated to any filesystem namespace).
-        "slug": "context",
-        "launcher_tier": "primary",  # ADR-370 — the boundary composition, Workspace tier (inherits Feed's slot)
+        # `/context` survives as an ADR-308 redirect stub → /channels.
+        "slug": "channels",
+        "launcher_tier": "primary",  # the perception surface, Workspace tier (inherits Feed's slot)
         "register": "application",  # a windowed composition like home / notifications / workspace-settings
-        "title": "Context",
-        "archetype": "dashboard",  # composition over multiple substrates (perception + emissions + narrative)
-        "substrate_paths": [],  # composes _sources.yaml + platform_connections + destination_delivery_log/notifications + session_messages
-        "icon_key": "arrow-left-right",  # the boundary: context flowing in + out
+        "title": "Channels",
+        "archetype": "dashboard",  # composition over multiple substrates (perception + principals + emissions + narrative)
+        "substrate_paths": [],  # composes _sources.yaml + platform_connections + principal_grants + destination_delivery_log/notifications + session_messages
+        "icon_key": "arrow-left-right",  # the boundary: context flowing in + out (operator-preferred glyph, preserved)
         "default_pinned": True,
-        "route": "/context",
-        "summary": "The operation's boundary — what context feeds it (In), what it emits (Out), and the running record of every crossing (Flow).",
+        "route": "/channels",
+        "summary": "The operation's edge — what feeds it (Connections, Sources), who can write it (External Agents), and the running record of every crossing (Flow, In, Out).",
     },
     {
         # ADR-312 D1 (2026-06-02): the cockpit surface renames to `home`.
@@ -659,8 +659,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "slug": "connectors",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 (was `settings`)
-        "pane_of": "workspace-settings",  # ADR-341 — Perception pane (was settings, ADR-340 P2)
-        "pane_group": "Perception",
+        "pane_of": "channels",  # ADR-385 — Channels pane (was workspace-settings → Perception, ADR-341)
+        "pane_group": "Channels",
         "title": "Connectors",
         "archetype": "dashboard",
         "substrate_paths": [],  # platform_connections DB table
@@ -682,8 +682,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "slug": "sources",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 — a transport/driver binding
-        "pane_of": "workspace-settings",  # ADR-341 — Perception pane (was settings, ADR-340 P2)
-        "pane_group": "Perception",
+        "pane_of": "channels",  # ADR-385 — Channels pane (was workspace-settings → Perception, ADR-341)
+        "pane_group": "Channels",
         "title": "Sources",
         "archetype": "dashboard",
         "substrate_paths": [],  # per-bundle _sources.yaml + _watch_signal.yaml, resolved via GET /api/sources

@@ -89,7 +89,7 @@ class SurfaceContext(BaseModel):
 # The chat-profile concept (workspace/entity) died with the YarnnnAgent chat
 # surface (ADR-257). The live feed routes to the regex execution_router or the
 # Reviewer, neither of which consumes a prompt profile — the Reviewer composes
-# its own system prompt in agents/reviewer_agent.py. The FE may still send
+# its own system prompt in agents/freddie_agent.py. The FE may still send
 # surface_context on the request; it is harmlessly ignored.
 # See docs/architecture/bare-kernel-product-floor-2026-06-01.md.
 # =============================================================================
@@ -1119,8 +1119,8 @@ async def global_chat(
         progress event generation; this route maps the typed event stream
         to SSE frames + finalizes the execution_events row.
         """
-        from agents.occupant_contract import REVIEWER_MODEL_IDENTITY  # ADR-315
-        from services.reviewer_chat_surfacing import write_reviewer_message
+        from agents.occupant_contract import FREDDIE_MODEL_IDENTITY  # ADR-315
+        from services.freddie_chat_surfacing import write_freddie_message
         from services.supabase import get_service_client
         from services.telemetry import record_execution_event
         from services.wake_sources.addressed import stream as wake_addressed_stream
@@ -1221,11 +1221,11 @@ async def global_chat(
                 elif etype == "reviewer_response":
                     response_text = event.get("text", "")
                     captured_output = event.get("output")
-                    await write_reviewer_message(
+                    await write_freddie_message(
                         auth.client, auth.user_id,
                         content=response_text,
                         verdict="addressed",
-                        occupant=REVIEWER_MODEL_IDENTITY,
+                        occupant=FREDDIE_MODEL_IDENTITY,
                         invocation_id=invocation_id,
                         pulse="addressed",
                     )
@@ -1476,7 +1476,7 @@ async def cancel_active_loop(auth: UserClient):
     """Set cancellation_requested=true on the operator's active workspace
     chat session.
 
-    The Reviewer's invoke_reviewer() loop (api/agents/reviewer_agent.py)
+    The Reviewer's invoke_freddie() loop (api/agents/freddie_agent.py)
     polls this flag at the top of every tool round; on true it exits the
     loop with a stand_down verdict and clears the flag. This is the
     server-side cooperative cancellation path used when:

@@ -50,7 +50,7 @@ class AuthenticatedClient:
 
     ADR-288 D1: ``caller_identity`` carries the ADR-209 attribution string
     for substrate writes performed through this auth (e.g., ``"operator"``,
-    ``"reviewer:ai:reviewer-sonnet-v8"``, ``"yarnnn:mcp"``,
+    ``"freddie:ai:freddie-sonnet-v8"``, ``"yarnnn:mcp"``,
     ``"system:<recurrence-slug>"``). Defaults to ``"operator"`` because the
     only path that constructs ``AuthenticatedClient`` is the route-level JWT
     handler ``get_user_client`` — the operator hit the API. Non-operator

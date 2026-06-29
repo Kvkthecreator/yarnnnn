@@ -282,16 +282,16 @@ def main() -> None:
     assert_attr_present("services.primitives.dispatch_specialist", "DISPATCH_SPECIALIST_TOOL")
     assert_attr_present("services.primitives.dispatch_specialist", "VALID_SPECIALIST_ROLES")
 
-    # DispatchSpecialist registered in CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, REVIEWER_PRIMITIVES, HANDLERS
+    # DispatchSpecialist registered in CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, FREDDIE_PRIMITIVES, HANDLERS
     from services.primitives.registry import (
         CHAT_PRIMITIVES,
         HEADLESS_PRIMITIVES,
-        REVIEWER_PRIMITIVES,
+        FREDDIE_PRIMITIVES,
         HANDLERS,
     )
     chat_names = {t["name"] for t in CHAT_PRIMITIVES}
     headless_names = {t["name"] for t in HEADLESS_PRIMITIVES}
-    reviewer_names = {t["name"] for t in REVIEWER_PRIMITIVES}
+    reviewer_names = {t["name"] for t in FREDDIE_PRIMITIVES}
 
     if "DispatchSpecialist" not in chat_names:
         _fail("DispatchSpecialist missing from CHAT_PRIMITIVES")
@@ -300,27 +300,27 @@ def main() -> None:
         _fail("DispatchSpecialist missing from HEADLESS_PRIMITIVES")
     _ok("DispatchSpecialist registered in HEADLESS_PRIMITIVES")
     if "DispatchSpecialist" not in reviewer_names:
-        _fail("DispatchSpecialist missing from REVIEWER_PRIMITIVES (ADR-261 D7)")
-    _ok("DispatchSpecialist registered in REVIEWER_PRIMITIVES")
+        _fail("DispatchSpecialist missing from FREDDIE_PRIMITIVES (ADR-261 D7)")
+    _ok("DispatchSpecialist registered in FREDDIE_PRIMITIVES")
     if "DispatchSpecialist" not in HANDLERS:
         _fail("DispatchSpecialist handler not registered")
     _ok("DispatchSpecialist handler registered in HANDLERS")
 
     # Reviewer roster has Schedule + Compose + DispatchSpecialist + ProposeAction.
-    # ADR-296 v2 D3: FireInvocation REMOVED from REVIEWER_PRIMITIVES — Reviewer
+    # ADR-296 v2 D3: FireInvocation REMOVED from FREDDIE_PRIMITIVES — Reviewer
     # does not self-invoke. Cadence is authored via Schedule; standing intent
     # via WriteFile. FireInvocation remains in CHAT_PRIMITIVES for operator-
     # initiated manual fire (operator presence is itself a wake-warrant).
     expected_reviewer_authority = {"Schedule", "Compose", "DispatchSpecialist", "ProposeAction"}
     missing = expected_reviewer_authority - reviewer_names
     if missing:
-        _fail(f"REVIEWER_PRIMITIVES missing authority tools: {missing}")
-    _ok(f"REVIEWER_PRIMITIVES has full direction authority: {sorted(expected_reviewer_authority)}")
+        _fail(f"FREDDIE_PRIMITIVES missing authority tools: {missing}")
+    _ok(f"FREDDIE_PRIMITIVES has full direction authority: {sorted(expected_reviewer_authority)}")
 
-    # ADR-296 v2 D3: FireInvocation MUST be absent from REVIEWER_PRIMITIVES.
+    # ADR-296 v2 D3: FireInvocation MUST be absent from FREDDIE_PRIMITIVES.
     if "FireInvocation" in reviewer_names:
-        _fail("FireInvocation still in REVIEWER_PRIMITIVES — must be removed per ADR-296 v2 D3")
-    _ok("FireInvocation absent from REVIEWER_PRIMITIVES (ADR-296 v2 D3 — Reviewer does not self-invoke)")
+        _fail("FireInvocation still in FREDDIE_PRIMITIVES — must be removed per ADR-296 v2 D3")
+    _ok("FireInvocation absent from FREDDIE_PRIMITIVES (ADR-296 v2 D3 — Reviewer does not self-invoke)")
 
     # All three primitive handlers conform to the (auth, input) contract
     import inspect

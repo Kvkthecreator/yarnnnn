@@ -251,7 +251,7 @@ async def enqueue_gated_action(
     )
     # Reactive Reviewer wake on proposal arrival (ADR-296 v2 D1). The
     # dispatcher's source-skip (ADR-252 D5) prevents self-judgment when
-    # source startswith "reviewer:".
+    # source startswith "freddie:".
     if proposal_id:
         try:
             from services.wake_sources.proposal_arrival import on_created
@@ -431,8 +431,8 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
     AI Reviewer can override by passing reviewer_identity explicitly.
     """
     from services.primitives.registry import execute_primitive
-    from services.reviewer_audit import append_decision
-    from services.reviewer_chat_surfacing import write_reviewer_message
+    from services.freddie_audit import append_decision
+    from services.freddie_chat_surfacing import write_freddie_message
 
     proposal_id = input.get("proposal_id")
     if not proposal_id:
@@ -595,7 +595,7 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
         )
         # Unified chat thread — surface verdict to operator's active session.
         # Best-effort; decisions.md + action_proposals remain authoritative.
-        await write_reviewer_message(
+        await write_freddie_message(
             auth.client, auth.user_id,
             content=(reviewer_reasoning or f"Approved {action_type}."),
             proposal_id=proposal_id,
@@ -637,7 +637,7 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
             reversibility=reversibility,
             outcome="rejected_at_execution",
         )
-        await write_reviewer_message(
+        await write_freddie_message(
             auth.client, auth.user_id,
             content=downstream_msg,
             proposal_id=proposal_id,
@@ -703,8 +703,8 @@ async def handle_reject_proposal(auth: Any, input: dict) -> dict:
     appends to /workspace/persona/judgment_log.md. Default reviewer_identity
     is "human:<user_id>".
     """
-    from services.reviewer_audit import append_decision
-    from services.reviewer_chat_surfacing import write_reviewer_message
+    from services.freddie_audit import append_decision
+    from services.freddie_chat_surfacing import write_freddie_message
 
     proposal_id = input.get("proposal_id")
     if not proposal_id:
@@ -769,7 +769,7 @@ async def handle_reject_proposal(auth: Any, input: dict) -> dict:
             task_slug = proposal_row.get("task_slug")
         except Exception:
             pass
-        await write_reviewer_message(
+        await write_freddie_message(
             auth.client, auth.user_id,
             content=(reviewer_reasoning or f"Rejected: {reason}"),
             proposal_id=proposal_id,

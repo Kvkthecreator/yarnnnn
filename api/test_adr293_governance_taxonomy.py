@@ -48,7 +48,7 @@ def _bundle(*parts: str) -> Path:
 # -----------------------------------------------------------------------------
 
 # NOTE (ADR-320): test_default_reviewer_write_locks_is_governance_only DELETED.
-# The DEFAULT_REVIEWER_WRITE_LOCKS flat-list collapsed into the five-root
+# The DEFAULT_FREDDIE_WRITE_LOCKS flat-list collapsed into the five-root
 # CALLER_WRITE_POLICY (governance/ locked from the reviewer caller). Coverage moved
 # to test_adr320_permission_topology.py::test_governance_locked_from_all_llm_callers.
 
@@ -65,7 +65,7 @@ def test_shared_token_budget_path_constant_exists():
 
 
 # NOTE (ADR-320): test_operational_paths_not_locked DELETED.
-# The DEFAULT_REVIEWER_WRITE_LOCKS flat-list collapsed into CALLER_WRITE_POLICY.
+# The DEFAULT_FREDDIE_WRITE_LOCKS flat-list collapsed into CALLER_WRITE_POLICY.
 # "Operational paths writable by the reviewer" coverage moved to
 # test_adr320_permission_topology.py (operation/ writable by every caller).
 
@@ -301,7 +301,7 @@ def test_cockpit_awareness_prompt_envelope_aligned_with_adr293():
     are now satisfied by deletion + relocation:
       - stale `_locks.yaml` / operator-authorship references → absent (block gone).
       - the write boundary (governance/ + system/ locked; everything else
-        author-able) → migrated to the MINIMAL PERSONA FRAME (reviewer_agent.py),
+        author-able) → migrated to the MINIMAL PERSONA FRAME (freddie_agent.py),
         in its topological ADR-320 form (which supersedes ADR-293's flat 3-file
         taxonomy).
     """
@@ -323,7 +323,7 @@ def test_cockpit_awareness_prompt_envelope_aligned_with_adr293():
     assert "curated tool surface" in src.lower() or "curated for the" in src.lower()
 
     # The write boundary now lives in the minimal persona frame, topological form.
-    frame_src = _read(_file("agents", "reviewer_agent.py"))
+    frame_src = _read(_file("agents", "freddie_agent.py"))
     assert "EXCEPT two roots" in frame_src and "governance/" in frame_src and "system/" in frame_src, (
         "The write boundary (author everything EXCEPT governance/ + system/) must "
         "live in the minimal persona frame post-ADR-323 (migrated up from the "
@@ -331,23 +331,23 @@ def test_cockpit_awareness_prompt_envelope_aligned_with_adr293():
     )
 
 
-def test_reviewer_agent_invoke_docstring_aligned():
-    """ADR-293 Work 1 follow-up: invoke_reviewer's docstring previously cited
+def test_freddie_agent_invoke_docstring_aligned():
+    """ADR-293 Work 1 follow-up: invoke_freddie's docstring previously cited
     `operator-authored _locks.yaml` as part of the safety story. Post-Work-1
     rewritten to cite 3-file governance lock + uniform AUTONOMY gate."""
-    src = _read(_file("agents", "reviewer_agent.py"))
-    # Find the invoke_reviewer docstring region
-    idx = src.find("async def invoke_reviewer")
+    src = _read(_file("agents", "freddie_agent.py"))
+    # Find the invoke_freddie docstring region
+    idx = src.find("async def invoke_freddie")
     assert idx > -1
     docstring_region = src[idx:idx + 3000]
     assert "operator-authored _locks.yaml" not in docstring_region, (
-        "invoke_reviewer docstring must not cite `_locks.yaml` as a live "
+        "invoke_freddie docstring must not cite `_locks.yaml` as a live "
         "safety-story component (deleted per ADR-293 D6)."
     )
     # ADR-320 made the lock root-based (governance/ root, not a 3-file
     # enumeration); ADR-327 collapsed _token_budget + _pace into _budget.yaml.
     assert "root-based governance lock" in docstring_region, (
-        "invoke_reviewer docstring must reference the root-based governance "
+        "invoke_freddie docstring must reference the root-based governance "
         "lock (ADR-320 + ADR-327) in its safety story."
     )
 
@@ -375,7 +375,7 @@ def test_alpha_trader_bundle_ships_token_budget():
 # -----------------------------------------------------------------------------
 
 def main() -> int:
-    # NOTE (ADR-320): the DEFAULT_REVIEWER_WRITE_LOCKS-based governance-set tests
+    # NOTE (ADR-320): the DEFAULT_FREDDIE_WRITE_LOCKS-based governance-set tests
     # (D2 lock-set, D1/D3 operational-not-locked, D3 collapse, D6 _locks.yaml read,
     # D2 deny-tier) were DELETED — the flat-list lock model collapsed into the
     # five-root CALLER_WRITE_POLICY; coverage moved to
@@ -394,7 +394,7 @@ def main() -> int:
         ("Bundle alpha-trader ships _budget.yaml (ADR-327)", test_alpha_trader_bundle_ships_token_budget),
         # Work 1 follow-up — prompt envelope alignment
         ("Work 1: cockpit_awareness.py aligned with ADR-293", test_cockpit_awareness_prompt_envelope_aligned_with_adr293),
-        ("Work 1: invoke_reviewer docstring aligned", test_reviewer_agent_invoke_docstring_aligned),
+        ("Work 1: invoke_freddie docstring aligned", test_freddie_agent_invoke_docstring_aligned),
     ]
 
     passed = 0

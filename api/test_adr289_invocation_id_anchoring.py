@@ -12,20 +12,20 @@ session_messages and execution_events rows.
 
 Phase 1 scope (BE substrate alignment):
 
-  1. ReviewerOutput TypedDict declares invocation_id.
-  2. invoke_reviewer accepts invocation_id as required keyword param.
+  1. FreddieOutput TypedDict declares invocation_id.
+  2. invoke_freddie accepts invocation_id as required keyword param.
   3. Reviewer's actions_taken records stamp invocation_id.
-  4. surface_reviewer_actions reads action.invocation_id and passes to
+  4. surface_freddie_actions reads action.invocation_id and passes to
      write_narrative_entry.
-  5. write_reviewer_message accepts invocation_id and passes through.
+  5. write_freddie_message accepts invocation_id and passes through.
   6. record_execution_event accepts caller-supplied id and returns it.
   7. invocation_dispatcher (judgment path) pre-generates the id and stamps
-     execution_events + invoke_reviewer call.
+     execution_events + invoke_freddie call.
   8. routes/feed.py addressed path pre-generates the id, stamps on user
      message metadata, threads to _dispatch_reviewer_turn, and writes
      execution_events at cycle close.
   9. review_proposal_dispatch._run_ai_reviewer threads invocation_id to
-     invoke_reviewer + write_reviewer_message sites.
+     invoke_freddie + write_freddie_message sites.
  10. narrative.py docstring documents invocation_id as execution_events.id
      (not agent_runs.id — the dead pre-ADR-289 link).
 """
@@ -46,39 +46,39 @@ def _read(path: str) -> str:
 
 
 # -----------------------------------------------------------------------------
-# D4 — ReviewerOutput + invoke_reviewer signature
+# D4 — FreddieOutput + invoke_freddie signature
 # -----------------------------------------------------------------------------
 
 def test_reviewer_output_typeddict_declares_invocation_id():
-    """ReviewerOutput TypedDict exposes invocation_id field per ADR-289 D4."""
-    # ADR-315: ReviewerOutput defined in occupant_contract.py.
+    """FreddieOutput TypedDict exposes invocation_id field per ADR-289 D4."""
+    # ADR-315: FreddieOutput defined in occupant_contract.py.
     src = _read("agents/occupant_contract.py")
-    # Look for invocation_id field in ReviewerOutput class body
+    # Look for invocation_id field in FreddieOutput class body
     m = re.search(
-        r"class ReviewerOutput\(TypedDict.*?\n.*?invocation_id\s*:\s*str",
+        r"class FreddieOutput\(TypedDict.*?\n.*?invocation_id\s*:\s*str",
         src, re.DOTALL,
     )
     assert m, (
-        "ReviewerOutput must declare `invocation_id: str` per ADR-289 D4."
+        "FreddieOutput must declare `invocation_id: str` per ADR-289 D4."
     )
 
 
-def test_invoke_reviewer_accepts_invocation_id_kwarg():
-    """invoke_reviewer signature includes invocation_id as required kwarg."""
-    src = _read("agents/reviewer_agent.py")
+def test_invoke_freddie_accepts_invocation_id_kwarg():
+    """invoke_freddie signature includes invocation_id as required kwarg."""
+    src = _read("agents/freddie_agent.py")
     # The signature spans several lines; allow any whitespace.
     m = re.search(
-        r"async def invoke_reviewer\([^)]*?invocation_id\s*:\s*str[^)]*?\)",
+        r"async def invoke_freddie\([^)]*?invocation_id\s*:\s*str[^)]*?\)",
         src, re.DOTALL,
     )
     assert m, (
-        "invoke_reviewer must accept `invocation_id: str` per ADR-289 D4."
+        "invoke_freddie must accept `invocation_id: str` per ADR-289 D4."
     )
 
 
 def test_reviewer_action_records_stamp_invocation_id():
     """Reviewer's actions_taken append site stamps invocation_id per ADR-289 D4."""
-    src = _read("agents/reviewer_agent.py")
+    src = _read("agents/freddie_agent.py")
     # Look for the action_record literal containing invocation_id near the
     # actions_taken.append site.
     m = re.search(
@@ -91,28 +91,28 @@ def test_reviewer_action_records_stamp_invocation_id():
 
 
 def test_reviewer_output_dict_stamps_invocation_id():
-    """The verdict ReviewerOutput build stamps invocation_id per ADR-289 D4."""
-    src = _read("agents/reviewer_agent.py")
+    """The verdict FreddieOutput build stamps invocation_id per ADR-289 D4."""
+    src = _read("agents/freddie_agent.py")
     # Final output dict literal contains "invocation_id": invocation_id
     m = re.search(
-        r'output\s*:\s*ReviewerOutput\s*=\s*\{[^}]*?"invocation_id"\s*:\s*invocation_id',
+        r'output\s*:\s*FreddieOutput\s*=\s*\{[^}]*?"invocation_id"\s*:\s*invocation_id',
         src, re.DOTALL,
     )
     assert m, (
-        "Final ReviewerOutput dict must include invocation_id per ADR-289 D4."
+        "Final FreddieOutput dict must include invocation_id per ADR-289 D4."
     )
 
 
 # -----------------------------------------------------------------------------
-# D5 — surface_reviewer_actions + write_reviewer_message
+# D5 — surface_freddie_actions + write_freddie_message
 # -----------------------------------------------------------------------------
 
 def test_surface_reviewer_actions_reads_invocation_id_from_action():
-    """surface_reviewer_actions reads invocation_id off each action record."""
-    src = _read("services/reviewer_chat_surfacing.py")
+    """surface_freddie_actions reads invocation_id off each action record."""
+    src = _read("services/freddie_chat_surfacing.py")
     # Must read action.get("invocation_id") AND pass to write_narrative_entry.
     assert 'action.get("invocation_id")' in src, (
-        "surface_reviewer_actions must read invocation_id from action record."
+        "surface_freddie_actions must read invocation_id from action record."
     )
     # Find the write_narrative_entry call body and verify invocation_id is passed.
     m = re.search(
@@ -120,31 +120,31 @@ def test_surface_reviewer_actions_reads_invocation_id_from_action():
         src, re.DOTALL,
     )
     assert m, (
-        "surface_reviewer_actions must pass invocation_id to write_narrative_entry."
+        "surface_freddie_actions must pass invocation_id to write_narrative_entry."
     )
 
 
 def test_write_reviewer_message_accepts_invocation_id():
-    """write_reviewer_message accepts invocation_id kwarg."""
-    src = _read("services/reviewer_chat_surfacing.py")
+    """write_freddie_message accepts invocation_id kwarg."""
+    src = _read("services/freddie_chat_surfacing.py")
     m = re.search(
-        r"async def write_reviewer_message\([^)]*?invocation_id\s*:\s*Optional\[str\]",
+        r"async def write_freddie_message\([^)]*?invocation_id\s*:\s*Optional\[str\]",
         src, re.DOTALL,
     )
     assert m, (
-        "write_reviewer_message must accept invocation_id per ADR-289 D5."
+        "write_freddie_message must accept invocation_id per ADR-289 D5."
     )
 
 
 def test_write_reviewer_message_passes_invocation_id_to_narrative():
-    """write_reviewer_message passes invocation_id to write_narrative_entry."""
-    src = _read("services/reviewer_chat_surfacing.py")
+    """write_freddie_message passes invocation_id to write_narrative_entry."""
+    src = _read("services/freddie_chat_surfacing.py")
     m = re.search(
         r"write_narrative_entry\([^)]*?invocation_id\s*=\s*invocation_id",
         src, re.DOTALL,
     )
     assert m, (
-        "write_reviewer_message must pass invocation_id to write_narrative_entry."
+        "write_freddie_message must pass invocation_id to write_narrative_entry."
     )
 
 
@@ -189,15 +189,15 @@ def test_dispatcher_pregenerates_invocation_id():
     )
 
 
-def test_dispatcher_passes_invocation_id_to_invoke_reviewer():
-    """Judgment dispatcher passes invocation_id to invoke_reviewer call."""
+def test_dispatcher_passes_invocation_id_to_invoke_freddie():
+    """Judgment dispatcher passes invocation_id to invoke_freddie call."""
     src = _read("services/wake.py")
     m = re.search(
-        r"invoke_reviewer\([^)]*?invocation_id\s*=\s*invocation_id",
+        r"invoke_freddie\([^)]*?invocation_id\s*=\s*invocation_id",
         src, re.DOTALL,
     )
     assert m, (
-        "Judgment dispatcher must pass invocation_id to invoke_reviewer."
+        "Judgment dispatcher must pass invocation_id to invoke_freddie."
     )
 
 
@@ -342,29 +342,29 @@ def test_proposal_dispatch_pregenerates_invocation_id():
     )
 
 
-def test_proposal_dispatch_passes_invocation_id_to_invoke_reviewer():
-    """_run_ai_reviewer passes invocation_id to invoke_reviewer."""
+def test_proposal_dispatch_passes_invocation_id_to_invoke_freddie():
+    """_run_ai_reviewer passes invocation_id to invoke_freddie."""
     src = _read("services/review_proposal_dispatch.py")
     m = re.search(
-        r"invoke_reviewer\([^)]*?invocation_id\s*=\s*invocation_id",
+        r"invoke_freddie\([^)]*?invocation_id\s*=\s*invocation_id",
         src, re.DOTALL,
     )
     assert m, (
-        "_run_ai_reviewer must pass invocation_id to invoke_reviewer."
+        "_run_ai_reviewer must pass invocation_id to invoke_freddie."
     )
 
 
 def test_proposal_dispatch_write_reviewer_message_sites_stamp_invocation_id():
-    """All write_reviewer_message calls in _run_ai_reviewer stamp invocation_id."""
+    """All write_freddie_message calls in _run_ai_reviewer stamp invocation_id."""
     src = _read("services/review_proposal_dispatch.py")
-    # Count write_reviewer_message calls that pass invocation_id=invocation_id.
+    # Count write_freddie_message calls that pass invocation_id=invocation_id.
     matches = re.findall(
         r"invocation_id\s*=\s*invocation_id",
         src,
     )
-    # Should be present at: invoke_reviewer call + advisory write + defer write +
+    # Should be present at: invoke_freddie call + advisory write + defer write +
     # _write_observation fallback call + _execute_reviewer_directives call.
-    # Plus the `clarify` defer-path write_reviewer_message inside
+    # Plus the `clarify` defer-path write_freddie_message inside
     # _execute_reviewer_directives. Expect >= 5 stamps.
     assert len(matches) >= 5, (
         "_run_ai_reviewer-area must stamp invocation_id at >=5 write sites "
@@ -432,15 +432,15 @@ def test_narrative_docstring_does_not_promise_agent_runs_link():
 # -----------------------------------------------------------------------------
 
 def test_phase2a_mirror_refresh_frozenset_exists():
-    """surface_reviewer_actions exports REVIEWER_MIRROR_REFRESH_TOOLS."""
-    src = _read("services/reviewer_chat_surfacing.py")
-    assert "REVIEWER_MIRROR_REFRESH_TOOLS = frozenset({" in src, (
-        "reviewer_chat_surfacing must define REVIEWER_MIRROR_REFRESH_TOOLS "
+    """surface_freddie_actions exports FREDDIE_MIRROR_REFRESH_TOOLS."""
+    src = _read("services/freddie_chat_surfacing.py")
+    assert "FREDDIE_MIRROR_REFRESH_TOOLS = frozenset({" in src, (
+        "freddie_chat_surfacing must define FREDDIE_MIRROR_REFRESH_TOOLS "
         "per ADR-289 Phase 2a (3-bucket taxonomy)."
     )
     # SyncPlatformState is the canonical mirror-refresh tool per ADR-264.
     assert "\"SyncPlatformState\"" in src, (
-        "REVIEWER_MIRROR_REFRESH_TOOLS must include SyncPlatformState."
+        "FREDDIE_MIRROR_REFRESH_TOOLS must include SyncPlatformState."
     )
 
 
@@ -448,25 +448,25 @@ def test_phase2a_is_mirror_refresh_classifier_exists():
     """is_mirror_refresh_action classifier is defined + exported.
 
     ADR-296 v2 D3 narrowing: the `_is_mechanical_fire_invocation` helper
-    DISSOLVED when FireInvocation left REVIEWER_PRIMITIVES — the Reviewer
+    DISSOLVED when FireInvocation left FREDDIE_PRIMITIVES — the Reviewer
     no longer calls FireInvocation, so the mechanical-mode branch of the
     classifier is unreachable. The classifier itself survives (single
-    path: tool in REVIEWER_MIRROR_REFRESH_TOOLS, today: SyncPlatformState).
+    path: tool in FREDDIE_MIRROR_REFRESH_TOOLS, today: SyncPlatformState).
     """
-    src = _read("services/reviewer_chat_surfacing.py")
+    src = _read("services/freddie_chat_surfacing.py")
     assert "def is_mirror_refresh_action(" in src, (
         "is_mirror_refresh_action classifier must be defined per ADR-289 Phase 2a."
     )
     assert "def _is_mechanical_fire_invocation(" not in src, (
         "_is_mechanical_fire_invocation helper must NOT be defined per "
-        "ADR-296 v2 D3 — FireInvocation left REVIEWER_PRIMITIVES so the "
+        "ADR-296 v2 D3 — FireInvocation left FREDDIE_PRIMITIVES so the "
         "FireInvocation branch of the mirror-refresh classifier is dead."
     )
 
 
 def test_phase2a_surface_reviewer_actions_calls_classifier():
-    """surface_reviewer_actions skips mirror-refresh actions."""
-    src = _read("services/reviewer_chat_surfacing.py")
+    """surface_freddie_actions skips mirror-refresh actions."""
+    src = _read("services/freddie_chat_surfacing.py")
     # The filter call appears in the for-loop body after the cognition skip.
     m = re.search(
         r"if tool in REVIEWER_COGNITION_TOOLS:\s*\n\s*continue\s*\n"
@@ -474,7 +474,7 @@ def test_phase2a_surface_reviewer_actions_calls_classifier():
         src, re.DOTALL,
     )
     assert m, (
-        "surface_reviewer_actions must skip mirror-refresh actions after the "
+        "surface_freddie_actions must skip mirror-refresh actions after the "
         "cognition skip per ADR-289 Phase 2a."
     )
 
@@ -490,14 +490,14 @@ def test_phase2a_wake_imports_canonical_filter():
     """
     src = _read("services/wake.py")
     m = re.search(
-        r"from services\.reviewer_chat_surfacing import \(\s*\n"
+        r"from services\.freddie_chat_surfacing import \(\s*\n"
         r"\s*REVIEWER_COGNITION_TOOLS as _COGNITION_ONLY,\s*\n"
         r"\s*is_mirror_refresh_action,",
         src, re.DOTALL,
     )
     assert m, (
         "services/wake.py must import the canonical filter sets from "
-        "reviewer_chat_surfacing inside stream_addressed_wake (Singular "
+        "freddie_chat_surfacing inside stream_addressed_wake (Singular "
         "Implementation per ADR-296 v2 + ADR-289 Phase 2a). The "
         "addressed-stream body moved here from routes/feed.py."
     )
@@ -519,9 +519,9 @@ def test_phase2a_wake_calls_mirror_refresh_classifier():
     )
 
 
-def test_phase2a_reviewer_agent_emits_input_on_tool_end():
-    """reviewer_agent.invoke_reviewer emits 'input' in the tool_end event."""
-    src = _read("agents/reviewer_agent.py")
+def test_phase2a_freddie_agent_emits_input_on_tool_end():
+    """freddie_agent.invoke_freddie emits 'input' in the tool_end event."""
+    src = _read("agents/freddie_agent.py")
     # The _emit({...}) block for tool_end must include 'input': inp so the
     # live narration site in routes/feed.py can classify mirror-refresh fires.
     m = re.search(
@@ -529,34 +529,34 @@ def test_phase2a_reviewer_agent_emits_input_on_tool_end():
         src, re.DOTALL,
     )
     assert m, (
-        "reviewer_agent.invoke_reviewer tool_end emit must include 'input': inp "
+        "freddie_agent.invoke_freddie tool_end emit must include 'input': inp "
         "per ADR-289 Phase 2a (live narration mirror-refresh classifier needs it)."
     )
 
 
 def test_phase2a_write_reviewer_message_accepts_pulse():
-    """write_reviewer_message accepts optional pulse kwarg."""
-    src = _read("services/reviewer_chat_surfacing.py")
+    """write_freddie_message accepts optional pulse kwarg."""
+    src = _read("services/freddie_chat_surfacing.py")
     m = re.search(
-        r"async def write_reviewer_message\([^)]*?pulse\s*:\s*Optional\[str\]",
+        r"async def write_freddie_message\([^)]*?pulse\s*:\s*Optional\[str\]",
         src, re.DOTALL,
     )
     assert m, (
-        "write_reviewer_message must accept optional pulse kwarg per ADR-289 "
+        "write_freddie_message must accept optional pulse kwarg per ADR-289 "
         "Phase 2a (addressed cycles need pulse='addressed', proposal-arrival "
         "defaults to 'reactive')."
     )
 
 
 def test_phase2a_addressed_cycle_passes_pulse_addressed():
-    """routes/feed.py addressed cycle passes pulse='addressed' to write_reviewer_message."""
+    """routes/feed.py addressed cycle passes pulse='addressed' to write_freddie_message."""
     src = _read("routes/feed.py")
     m = re.search(
-        r"write_reviewer_message\([^)]*?pulse\s*=\s*\"addressed\"",
+        r"write_freddie_message\([^)]*?pulse\s*=\s*\"addressed\"",
         src, re.DOTALL,
     )
     assert m, (
-        "Addressed-cycle write_reviewer_message must pass pulse='addressed' "
+        "Addressed-cycle write_freddie_message must pass pulse='addressed' "
         "per ADR-289 Phase 2a — fixes the blank-after-send filter bug."
     )
 

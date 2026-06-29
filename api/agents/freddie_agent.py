@@ -1,11 +1,11 @@
 """AI occupant of the Reviewer seat — ADR-256 unified invocation
 (amended by ADR-260 D2 + ADR-263 D2 trigger collapse to two values).
 
-One function: `invoke_reviewer()`. Two trigger shapes: `addressed`
+One function: `invoke_freddie()`. Two trigger shapes: `addressed`
 (operator messaged the feed) and `reactive` (substrate event requires
 judgment — proposal arrival OR judgment-mode recurrence fire). One
 bounded tool-use loop (12 rounds for addressed, 3 for proposal-arrival
-reactive — see ADR-260 D8). One output type: ReviewerOutput.
+reactive — see ADR-260 D8). One output type: FreddieOutput.
 
 ADR-256 superseded the four-function design (review_proposal,
 run_reflection, address_turn, heartbeat_turn) that accumulated
@@ -18,8 +18,8 @@ Reviewer at all. Reflection and heartbeat dissolved into `reactive`.
 Per FOUNDATIONS v8.4:
 - Axiom 1 (Substrate): the Reviewer reads + writes substrate; substrate
   is the bus the Loop runs over (fourth sub-clause). Cross-Reviewer
-  reasoning persists via reviewer_audit.render_lineage_entry_if_material().
-- Axiom 2 (Identity): occupant tagged `ai:reviewer-sonnet-v8`. The
+  reasoning persists via freddie_audit.render_lineage_entry_if_material().
+- Axiom 2 (Identity): occupant tagged `ai:freddie-sonnet-v8`. The
   Reviewer is the operator's judgment function rendered as an
   autonomous agent — operator in judging posture, not a separate
   principal (Axiom 2 two-embodiments sub-section).
@@ -28,7 +28,7 @@ Per FOUNDATIONS v8.4:
   act is the same regardless of which woke the Loop.
 - Axiom 5 (Mechanism): bounded tool-use loop. Reviewer reads what it
   needs, acts on what it decides, returns verdict.
-- Axiom 6 (Channel): judgment_log.md + reviewer_chat_surfacing narration.
+- Axiom 6 (Channel): judgment_log.md + freddie_chat_surfacing narration.
   Per-action narration is legibility, not control-flow.
 - Axiom 8 (Ground-Truth Substrate): reasons against the program's
   ground-truth substrate per the bundle's `_workspace_guide.md`
@@ -51,24 +51,24 @@ from typing import Any, Literal, Optional, TypedDict
 
 from services.anthropic import chat_completion_with_tools, chat_completion_with_tools_stream
 # ADR-291: token_usage substrate sunset — cost ledger writes flow through
-# `record_execution_event()` in the dispatcher, fed by ReviewerOutput fields.
+# `record_execution_event()` in the dispatcher, fed by FreddieOutput fields.
 
 # ADR-315: the substrate<->occupant ABI lives in the published contract
 # module. These three symbols are DEFINED in agents/occupant_contract.py
 # (pure data, zero heavy imports) and re-exported here so existing
-# `from agents.reviewer_agent import ReviewerContext/ReviewerOutput/
-# REVIEWER_MODEL_IDENTITY` callers keep resolving (one definition,
+# `from agents.freddie_agent import FreddieContext/FreddieOutput/
+# FREDDIE_MODEL_IDENTITY` callers keep resolving (one definition,
 # re-exported -- not a dual definition, per ADR-315 D2).
 from agents.occupant_contract import (  # noqa: F401  (re-exported)
-    REVIEWER_MODEL_IDENTITY,
-    ReviewerContext,
-    ReviewerOutput,
+    FREDDIE_MODEL_IDENTITY,
+    FreddieContext,
+    FreddieOutput,
 )
 
 logger = logging.getLogger(__name__)
 
 
-#: ADR-315: REVIEWER_MODEL_IDENTITY is defined in agents/occupant_contract.py
+#: ADR-315: FREDDIE_MODEL_IDENTITY is defined in agents/occupant_contract.py
 #: and imported + re-exported above. The occupant self-identity belongs with
 #: the published contract, not buried in the impl.
 
@@ -78,13 +78,13 @@ _SONNET = "claude-sonnet-4-6"
 _HAIKU = "claude-haiku-4-5-20251001"
 
 #: Token caller for Sonnet invocations
-_CALLER_SONNET = "reviewer"
+_CALLER_SONNET = "freddie"
 #: Token caller for Haiku invocations
-_CALLER_HAIKU = "reviewer-reflection"
+_CALLER_HAIKU = "freddie-reflection"
 
 
 # ---------------------------------------------------------------------------
-# ReviewerOutput + ReviewerContext (the substrate<->occupant ABI) are defined
+# FreddieOutput + FreddieContext (the substrate<->occupant ABI) are defined
 # in agents/occupant_contract.py and imported + re-exported at the top of this
 # module (ADR-315 D2). Intentionally NOT defined here -- the published
 # contract is the single definition home; the occupant impl consumes it.
@@ -174,16 +174,16 @@ RETURN_VERDICT_TOOL = {
 # Operating Context block (ADR-274 / FOUNDATIONS v8.5 Axiom 4 amendment)
 #
 # ADR-301 D5 consolidation: the function now lives in
-# `services/reviewer_envelope.py` so the envelope helper is the singular
+# `services/freddie_envelope.py` so the envelope helper is the singular
 # envelope assembly point (one home, one function, one contract). This
 # import-shim preserves the ADR-274 contract that test gates + any other
-# importer of `agents.reviewer_agent.build_operating_context_block`
+# importer of `agents.freddie_agent.build_operating_context_block`
 # continue to work without change. Singular implementation rule honored:
 # the function body lives in one file; this is a re-export, not a parallel
 # implementation.
 # ---------------------------------------------------------------------------
 
-from services.reviewer_envelope import build_operating_context_block  # noqa: E402,F401
+from services.freddie_envelope import build_operating_context_block  # noqa: E402,F401
 
 
 # ---------------------------------------------------------------------------
@@ -204,7 +204,7 @@ from services.reviewer_envelope import build_operating_context_block  # noqa: E4
 # declarative order with the static/dynamic boundary marker (ADR-302 D6).
 #
 # Each compute function is a small closure or a literal return — sections
-# that need to template from code constants (e.g., DEFAULT_REVIEWER_WRITE_LOCKS
+# that need to template from code constants (e.g., DEFAULT_FREDDIE_WRITE_LOCKS
 # per ADR-302 D2) do so inside their compute body so the prompt text and
 # the code constant cannot drift.
 #
@@ -212,11 +212,11 @@ from services.reviewer_envelope import build_operating_context_block  # noqa: E4
 # - Gen 1 paragraph (pre-ADR-293 "cannot write directly to operator-
 #   authored substrate") DELETED. ADR-293 inverted that policy.
 # - Gen 3 misstatement (claim that IDENTITY.md + principles.md are in
-#   DEFAULT_REVIEWER_WRITE_LOCKS) FIXED. Post-ADR-320 the lock is
+#   DEFAULT_FREDDIE_WRITE_LOCKS) FIXED. Post-ADR-320 the lock is
 #   root-based (CALLER_WRITE_POLICY locks the governance/ root): AUTONOMY.md
 #   + _autonomy.yaml + _budget.yaml (ADR-327, collapsed _token_budget +
 #   _pace) + _preferences.yaml. IDENTITY.md and principles.md are NOT locked.
-# - Write-authority enumeration TEMPLATED from DEFAULT_REVIEWER_WRITE_LOCKS
+# - Write-authority enumeration TEMPLATED from DEFAULT_FREDDIE_WRITE_LOCKS
 #   per ADR-302 D2 — single source of truth.
 # - Anti-pattern (5) updated from "three governance files" (which was
 #   stale even before the rename) to "files listed in your write-authority
@@ -237,7 +237,7 @@ from services.reviewer_envelope import build_operating_context_block  # noqa: E4
 #                      envelope by _build_user_message)
 #   - identity       → IDENTITY.md + _autonomy.yaml + _pace.yaml (envelope)
 #   - self-governance→ substrate-location + write-locks (review_policy +
-#                      DEFAULT_REVIEWER_WRITE_LOCKS, code) + ADR-209 attribution
+#                      DEFAULT_FREDDIE_WRITE_LOCKS, code) + ADR-209 attribution
 #
 # RULES OF JUDGMENT (when to Clarify, independence, self-amendment evidence
 # patterns, the six anti-patterns, autonomy-safety discipline) live in the
@@ -427,7 +427,7 @@ URL, channel), not the workspace file holding the distilled copy and not
 # Future per-wake content (e.g., operating-context block currently injected
 # via _build_user_message) would land below the boundary marker using
 # DANGEROUS_uncached_persona_frame_section.
-from agents.reviewer_agent_sections import (  # noqa: E402
+from agents.freddie_agent_sections import (  # noqa: E402
     PersonaFrameSection,
     persona_frame_section,
     resolve_persona_frame_sections,
@@ -624,7 +624,7 @@ def _system_prompt() -> list[dict]:
 # User message builder — trigger-specific pre-loaded substrate
 # ---------------------------------------------------------------------------
 
-def _ask_for_trigger(trigger: str, ctx: ReviewerContext) -> str:
+def _ask_for_trigger(trigger: str, ctx: FreddieContext) -> str:
     """Extract THE ASK (the user-message-analogue) for a given trigger shape.
 
     ENVELOPE COLLAPSE (the-envelope-collapse-2026-06-24.md): the ask is the
@@ -674,7 +674,7 @@ def _ask_for_trigger(trigger: str, ctx: ReviewerContext) -> str:
     return "\n".join(parts)
 
 
-def _build_user_message_stripped(trigger: str, ctx: ReviewerContext) -> str:
+def _build_user_message_stripped(trigger: str, ctx: FreddieContext) -> str:
     """Arm B — the full CC-shape envelope (the-envelope-collapse-2026-06-24.md).
 
     governance-block (CLAUDE.md-analogue) + substrate-snapshot (gitStatus-
@@ -758,7 +758,7 @@ def _build_user_message_stripped(trigger: str, ctx: ReviewerContext) -> str:
     return "\n".join(parts)
 
 
-def _build_user_message_content(trigger: str, ctx: ReviewerContext) -> list[dict]:
+def _build_user_message_content(trigger: str, ctx: FreddieContext) -> list[dict]:
     """Compose the user message as cache-marked content blocks (governance-caching,
     the-envelope-collapse-2026-06-24.md / probe FINDING 2026-06-24).
 
@@ -801,7 +801,7 @@ def _build_user_message_content(trigger: str, ctx: ReviewerContext) -> list[dict
     return blocks
 
 
-def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
+def _build_user_message(trigger: str, ctx: FreddieContext) -> str:
     """Compose the user message envelope for an invocation.
     Pre-loads governance + persona + framework + domain substrate based on
     what the caller provided. Trigger-specific framing is appended last."""
@@ -819,7 +819,7 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
     return volatile
 
 
-def _partition_envelope(trigger: str, ctx: ReviewerContext) -> tuple[str, str]:
+def _partition_envelope(trigger: str, ctx: FreddieContext) -> tuple[str, str]:
     """Build the envelope partitioned into (governance_prefix, volatile_suffix).
 
     governance_prefix = stable authored governing files (the cacheable bulk).
@@ -1132,7 +1132,7 @@ def _partition_envelope(trigger: str, ctx: ReviewerContext) -> tuple[str, str]:
             # intent, then act.
             # Canonical shape: recurrence_prompt + recurrence_slug. The legacy
             # `trigger_slug`/`user_message` fallbacks were removed 2026-05-13
-            # — the contract validator at the top of invoke_reviewer rejects
+            # — the contract validator at the top of invoke_freddie rejects
             # any recurrence-fire context bag without both canonical fields.
             prompt_text = ctx.get("recurrence_prompt") or ""
             slug = ctx.get("recurrence_slug")
@@ -1204,7 +1204,7 @@ def _validate_context_shape(
     """Validate that the context bag matches one of three valid shapes.
 
     Returns None when valid; returns a short reason string when invalid.
-    Callers (i.e., invoke_reviewer) log the reason and return None instead
+    Callers (i.e., invoke_freddie) log the reason and return None instead
     of waking the Reviewer with an empty user message.
 
     Why this exists. Python dicts are stringly-typed; the dispatcher and
@@ -1272,22 +1272,22 @@ def _validate_context_shape(
 
 
 # ---------------------------------------------------------------------------
-# Public entry point — invoke_reviewer (ADR-258)
+# Public entry point — invoke_freddie (ADR-258)
 # ---------------------------------------------------------------------------
 
-async def invoke_reviewer(
+async def invoke_freddie(
     client: Any,
     user_id: str,
     *,
     trigger: Literal["addressed", "reactive"],
-    context: ReviewerContext,
+    context: FreddieContext,
     invocation_id: str,
     event_callback: Any = None,
-) -> ReviewerOutput | None:
+) -> FreddieOutput | None:
     """Unified Reviewer invocation — ADR-258 (revised) + ADR-260 D2 + ADR-263.
 
     Reviewer is a chat-mode caller of the canonical primitive registry.
-    Tool surface = curated REVIEWER_PRIMITIVES + ReturnVerdict. Tool-use loop
+    Tool surface = curated FREDDIE_PRIMITIVES + ReturnVerdict. Tool-use loop
     bounded at 12 rounds for addressed, 3 for reactive (ADR-260 D8).
 
     Safety story (ADR-293): attribution (ADR-209 authored substrate) +
@@ -1338,7 +1338,7 @@ async def invoke_reviewer(
         )
         return None
 
-    from services.primitives.registry import REVIEWER_PRIMITIVES, execute_primitive
+    from services.primitives.registry import FREDDIE_PRIMITIVES, execute_primitive
     from types import SimpleNamespace
 
     # ADR-260 D2 + D8 + ADR-263 D2: model + round-bound selection.
@@ -1382,7 +1382,7 @@ async def invoke_reviewer(
     auth = SimpleNamespace(
         client=client,
         user_id=user_id,
-        caller_identity=f"reviewer:{REVIEWER_MODEL_IDENTITY}",
+        caller_identity=f"freddie:{FREDDIE_MODEL_IDENTITY}",
         reviewer_caller=True,
         agent=None,
         agent_slug=None,
@@ -1391,7 +1391,7 @@ async def invoke_reviewer(
     )
 
     # Tool list = curated reviewer primitives + ReturnVerdict (ADR-258 revised)
-    tools = list(REVIEWER_PRIMITIVES) + [RETURN_VERDICT_TOOL]
+    tools = list(FREDDIE_PRIMITIVES) + [RETURN_VERDICT_TOOL]
 
     async def _emit(event: dict) -> None:
         """Best-effort progress emit — never raises, never blocks the loop.
@@ -1410,7 +1410,7 @@ async def invoke_reviewer(
         # _build_user_message_stripped can build the gitStatus-analogue. Gated
         # by env so Arm A is byte-identical (zero production impact). Removed
         # when the collapse lands (the snapshot becomes a first-class envelope
-        # input in reviewer_envelope.py).
+        # input in freddie_envelope.py).
         import os as _os_probe
         _arm_b = (
             _os_probe.environ.get("YARNNN_ENVELOPE_ARM", "").strip().upper() == "B"
@@ -1518,7 +1518,7 @@ async def invoke_reviewer(
                     rounds_used, max_rounds, trigger, user_id[:8],
                 )
                 _clear_session_cancellation(client, user_id)
-                return ReviewerOutput(
+                return FreddieOutput(
                     verdict="stand_down",
                     reasoning="Operator interrupted the in-flight Loop via the Stop affordance. No further actions taken in this session.",
                     confidence="high",
@@ -1585,7 +1585,7 @@ async def invoke_reviewer(
             total_output += int(usage.get("output_tokens", 0) or 0)
             # Anthropic native names — same shape as services/anthropic.py
             # surfaces. F1 (2026-05-17): denormalize into execution_events
-            # via ReviewerOutput so slug-indexed reads see cache discount.
+            # via FreddieOutput so slug-indexed reads see cache discount.
             total_cache_read += int(usage.get("cache_read_input_tokens", 0) or 0)
             total_cache_create += int(usage.get("cache_creation_input_tokens", 0) or 0)
 
@@ -1626,7 +1626,7 @@ async def invoke_reviewer(
                 # dispatcher-attributed standing_intent to launder that into a
                 # clean `stand_down`. `verdict_raw` stays as-is (None unless an
                 # earlier ReturnVerdict set it), so the loop falls through to the
-                # honest terminal: invoke_reviewer returns None, which the caller
+                # honest terminal: invoke_freddie returns None, which the caller
                 # (wake.py SILENT-WAKE path) records as a visible `failed`
                 # execution_event + a material "produced no judgment" narrative.
                 # An unanswered ask is visible AS unanswered (ADR-360 DP32) — not
@@ -1704,14 +1704,14 @@ async def invoke_reviewer(
                     result = {"success": False, "error": "execution_error", "message": str(exc)}
 
                 # Capture proposal_id from ProposeAction results so the
-                # downstream narration emit (surface_reviewer_actions) can
+                # downstream narration emit (surface_freddie_actions) can
                 # render an inline ProposalCard chip per Audit-pass-2 DD-4.
                 # Pre-2026-05-11, narration was plain-text and operators had
                 # to mentally stitch from the feed entry to the cockpit Queue
                 # to find the proposal — mental-thread broken.
                 # ADR-303 D3 (2026-05-26): capture failure_reason on the
                 # action record so the visibility-first surfacing layer
-                # (services/reviewer_chat_surfacing.py::surface_reviewer_actions)
+                # (services/freddie_chat_surfacing.py::surface_freddie_actions)
                 # can apply its denylist (SILENCE_FAILURE_REASONS) without
                 # re-parsing the result dict. Primitives uniformly carry
                 # `error` keys on failure (see grep across api/services/
@@ -1732,7 +1732,7 @@ async def invoke_reviewer(
                     "failure_reason": _failure_reason,
                     "summary": _summarize_result(result),
                     # ADR-289 D4: stamp the invocation atom id on every
-                    # action record. Downstream surfacing (surface_reviewer_actions)
+                    # action record. Downstream surfacing (surface_freddie_actions)
                     # reads this to propagate metadata.invocation_id onto every
                     # narrative entry produced during this cycle. One invocation,
                     # one shared id, N grouped narrative rows on the Feed surface.
@@ -1756,7 +1756,7 @@ async def invoke_reviewer(
                                    # calls via is_mirror_refresh_action.
                                    # ADR-296 v2 D3: the FireInvocation branch
                                    # of that classifier dissolved when
-                                   # FireInvocation left REVIEWER_PRIMITIVES.
+                                   # FireInvocation left FREDDIE_PRIMITIVES.
                     "success": actions_taken[-1]["success"],
                     "summary": actions_taken[-1]["summary"],
                 })
@@ -1826,7 +1826,7 @@ async def invoke_reviewer(
 
         # ADR-291: cost ledger write happens downstream in the dispatcher via
         # `record_execution_event()`, fed by the cost/token fields on
-        # `ReviewerOutput` (below). Removing the duplicate `token_usage` write
+        # `FreddieOutput` (below). Removing the duplicate `token_usage` write
         # collapses the dual-ledger architecture; the dispatcher's slug-indexed
         # `execution_events` row is now the sole authoritative record.
 
@@ -1876,14 +1876,14 @@ async def invoke_reviewer(
             )
             return None
 
-        output: ReviewerOutput = {
+        output: FreddieOutput = {
             "verdict": verdict,
             "reasoning": reasoning,
             "confidence": confidence,
             "actions_taken": actions_taken,
             # ADR-289 D4: invocation atom id, propagated from caller, surfaced
             # so the dispatcher can stamp the same id on the verdict-row write
-            # (write_reviewer_message) and the FE can group every row produced
+            # (write_freddie_message) and the FE can group every row produced
             # by this cycle under one invocation card.
             "invocation_id": invocation_id,
             # ADR-291: telemetry pass-through (single-ledger). The dispatcher
@@ -1906,7 +1906,7 @@ async def invoke_reviewer(
         # post-collapse). Older callers relying on field-presence to detect
         # reflection-shaped output continue to work.
         if verdict_raw.get("proposals") or verdict_raw.get("evidence_summary"):
-            from agents.reviewer_agent_compat import _normalize_reflection_proposals
+            from agents.freddie_agent_compat import _normalize_reflection_proposals
             if verdict_raw.get("proposals"):
                 output["proposals"] = _normalize_reflection_proposals(verdict_raw.get("proposals") or [])
             if verdict_raw.get("evidence_summary"):
@@ -1922,10 +1922,10 @@ async def invoke_reviewer(
         # and the dispatcher (wake.py) now records that as status="failed"
         # rather than the prior status="success". Capture the FULL traceback at
         # error level so the cause is diagnosable from logs — "[REVIEWER]
-        # invoke_reviewer failed: <one-line>" with no stack was what made every
+        # invoke_freddie failed: <one-line>" with no stack was what made every
         # prior silent-wake investigation hit a dead end.
         logger.exception(
-            "[REVIEWER] invoke_reviewer raised (→ None → dispatcher records "
+            "[REVIEWER] invoke_freddie raised (→ None → dispatcher records "
             "failed) trigger=%s user=%s: %s",
             trigger, user_id[:8] if user_id else "?", exc,
         )
@@ -1946,7 +1946,7 @@ def _summarize_result(result: Any) -> str:
                             decision; prefer the proposal identity)
       3. slug              (any slug-bearing result without an action
                             verb — e.g. FireInvocation in CHAT_PRIMITIVES
-                            per ADR-296 v2 D3, no longer in REVIEWER_PRIMITIVES)
+                            per ADR-296 v2 D3, no longer in FREDDIE_PRIMITIVES)
       4. path              (WriteFile etc. — terminal fallback)
 
     Closes Pattern 3 of docs/evaluations/2026-05-21-005856-wake-duplication-
@@ -2007,13 +2007,13 @@ def _compact_result_for_model(result: Any) -> str:
 # Cooperative cancellation (Commit H.1, 2026-05-11)
 # ---------------------------------------------------------------------------
 #
-# Two helpers used by invoke_reviewer's per-round cancellation check (Mode 1
+# Two helpers used by invoke_freddie's per-round cancellation check (Mode 1
 # of the interruption surface). The flag lives on chat_sessions
 # (migration 173); operator's POST /api/feed/cancel sets it; the Reviewer
 # checks + clears it.
 #
 # Design choice: we look up the operator's *active workspace session* (same
-# function reviewer_chat_surfacing uses) rather than threading a session_id
+# function freddie_chat_surfacing uses) rather than threading a session_id
 # parameter through every Reviewer call site. The Reviewer doesn't know
 # which session it's running on behalf of — that's the orchestration
 # context. Looking up the active session at check time matches how
@@ -2064,11 +2064,11 @@ def _clear_session_cancellation(client: Any, user_id: str) -> None:
         logger.warning("[REVIEWER] cancellation clear failed: %s", exc)
 
 
-# read_signal_files() relocated to services/reviewer_envelope.py per ADR-280
+# read_signal_files() relocated to services/freddie_envelope.py per ADR-280
 # Stream A. The function is kernel-internal envelope-summarizer infrastructure
 # — bundles reference it by name in their MANIFEST `substrate_abi.reviewer_wake_envelope`
 # declarations; the kernel hosts the implementation. New name + module:
-# `services.reviewer_envelope.ENVELOPE_SUMMARIZERS["signal_files"]` (a.k.a.
+# `services.freddie_envelope.ENVELOPE_SUMMARIZERS["signal_files"]` (a.k.a.
 # `_summarize_signal_files`). The relocation makes path_glob parametric so
 # the summarizer is no longer alpha-trader-hardcoded; bundles declare their
 # own glob (e.g., `operation/trading/signals/*.yaml`).

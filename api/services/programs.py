@@ -423,7 +423,7 @@ async def _populate_occupant_for_runtime(um: Any, program_slug: str) -> None:
     Pre-ADR-284 the bundle template shipped `occupant_class: human` as a
     hardcoded default. This produced substrate-runtime drift in alpha
     workspaces where AI ran the seat — OCCUPANT.md said "human" but every
-    judgment-mode fire was attributed `reviewer:ai:reviewer-sonnet-v8`.
+    judgment-mode fire was attributed `reviewer:ai:freddie-sonnet-v8`.
 
     Current alpha state: AI is the runtime occupant on every workspace. The
     fork populates OCCUPANT.md with the AI occupant identity, including a
@@ -442,14 +442,14 @@ async def _populate_occupant_for_runtime(um: Any, program_slug: str) -> None:
 
     # ADR-315: import the occupant identity from the published contract
     # (pure data, no circular risk) rather than the occupant implementation.
-    from agents.occupant_contract import REVIEWER_MODEL_IDENTITY
+    from agents.occupant_contract import FREDDIE_MODEL_IDENTITY
 
     activated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    # REVIEWER_MODEL_IDENTITY is "ai:reviewer-sonnet-v8" (prefix included);
+    # FREDDIE_MODEL_IDENTITY is "ai:freddie-sonnet-v8" (prefix included);
     # the occupant field uses the same string for symmetry with the
     # authored_by attribution surfaced in workspace_file_versions.
     occupant_body = f"""---
-occupant: {REVIEWER_MODEL_IDENTITY}
+occupant: {FREDDIE_MODEL_IDENTITY}
 occupant_class: ai
 activated_at: {activated_at}
 activated_by: system:bundle-fork
@@ -466,7 +466,7 @@ architectural role (see `IDENTITY.md`); the **occupant** is who fills it
 right now. Per FOUNDATIONS Derived Principle 14, the seat persists and the
 occupant rotates.
 
-The current occupant is **AI** (`{REVIEWER_MODEL_IDENTITY}`), populated by
+The current occupant is **AI** (`{FREDDIE_MODEL_IDENTITY}`), populated by
 `services.programs.fork_reference_workspace` at bundle-activation time per
 ADR-284 D3. This was the structural default for every alpha-{program_slug}
 workspace at activation — the operator delegated the seat to the AI to run
@@ -494,7 +494,7 @@ Occupant-class taxonomy:
         authored_by="system:occupant-fork",
         message=(
             f"populated OCCUPANT.md with runtime occupant identity "
-            f"({REVIEWER_MODEL_IDENTITY}) per ADR-284 D3"
+            f"({FREDDIE_MODEL_IDENTITY}) per ADR-284 D3"
         ),
     )
 

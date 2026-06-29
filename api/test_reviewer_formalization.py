@@ -16,11 +16,11 @@ seven structural claims by:
       "self-pacing process")
   (b) removing the canonical formalization anchor from the persona frame,
       FOUNDATIONS, or GLOSSARY
-  (c) adding FireInvocation back into REVIEWER_PRIMITIVES (violates
+  (c) adding FireInvocation back into FREDDIE_PRIMITIVES (violates
       ADR-296 v2 D3 — Reviewer does not self-invoke)
-  (d) removing ManageHook or Schedule from REVIEWER_PRIMITIVES (violates
+  (d) removing ManageHook or Schedule from FREDDIE_PRIMITIVES (violates
       Trigger-authoring authority per Derived Principle 18)
-  (e) shrinking or expanding DEFAULT_REVIEWER_WRITE_LOCKS beyond the
+  (e) shrinking or expanding DEFAULT_FREDDIE_WRITE_LOCKS beyond the
       operator-control trifecta (Pace + Autonomy + token budget +
       preferences)
   (f) shipping a judgment-mode hook or recurrence prompt in
@@ -145,7 +145,7 @@ def test_glossary_reviewer_entry_quotes_variant_f() -> None:
 
 def test_persona_frame_header_quotes_variant_f() -> None:
     """The Reviewer persona frame opens with the Variant F formalization."""
-    path = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
+    path = REPO_ROOT / "api" / "agents" / "freddie_agent.py"
     content = path.read_text()
     assert "What you are (FOUNDATIONS Derived Principle 21)" in content, (
         "_PERSONA_FRAME missing the 'What you are' formalization "
@@ -176,7 +176,7 @@ def test_persona_frame_no_banned_phrases() -> None:
     constant. Scan the live composed body (the same text that reaches the
     LLM) rather than a dead regex against a constant that no longer exists.
     """
-    from agents.reviewer_agent import (
+    from agents.freddie_agent import (
         _PERSONA_FRAME_SECTIONS,
         resolve_persona_frame_sections,
     )
@@ -218,7 +218,7 @@ def test_persona_frame_action_grammar_coherence() -> None:
     discipline); FOUNDATIONS Axiom 1 §4 + Axiom 2; finding at
     docs/evaluations/2026-05-29-reviewer-action-grammar-framing-gap.md.
     """
-    from agents.reviewer_agent import (
+    from agents.freddie_agent import (
         _PERSONA_FRAME_SECTIONS,
         resolve_persona_frame_sections,
     )
@@ -262,7 +262,7 @@ def test_persona_frame_instructs_mandate_citation() -> None:
     MANDATE content is load-bearing in standing_intent.md reasoning. Closes
     the clause-6 strict-reading gap surfaced by the 2026-05-22 L6 Variant-F
     clause validation (FOUNDATIONS DP21)."""
-    path = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
+    path = REPO_ROOT / "api" / "agents" / "freddie_agent.py"
     content = path.read_text()
     # Source-level guard: the instruction must be present in the persona
     # frame body. Doesn't enforce runtime citation (that's observational and
@@ -294,7 +294,7 @@ def test_persona_frame_names_what_it_is() -> None:
     their own headers). The frame keeps only the Variant-F identity line, which
     names the dials at the vocabulary level (paced, single-lane, wake-fired).
     """
-    from agents.reviewer_agent import (
+    from agents.freddie_agent import (
         _PERSONA_FRAME_SECTIONS,
         resolve_persona_frame_sections,
     )
@@ -315,7 +315,7 @@ def test_persona_frame_names_what_it_is() -> None:
 
 def test_reviewer_email_tool_excluded_by_code_not_prose() -> None:
     """ADR-299 D8 Reviewer-side exclusion of platform_email_send_to_operator
-    is enforced by CODE (absence from REVIEWER_PRIMITIVES), not by persona-
+    is enforced by CODE (absence from FREDDIE_PRIMITIVES), not by persona-
     frame prose.
 
     REWRITTEN by ADR-306 (2026-05-29 persona-frame collapse). The prior
@@ -328,14 +328,14 @@ def test_reviewer_email_tool_excluded_by_code_not_prose() -> None:
     narration of it. This is a STRONGER test: it verifies the gate, not the
     description of the gate.
     """
-    from services.primitives.registry import REVIEWER_PRIMITIVES
+    from services.primitives.registry import FREDDIE_PRIMITIVES
 
     names = {
         (t["name"] if isinstance(t, dict) else getattr(t, "name", str(t)))
-        for t in REVIEWER_PRIMITIVES
+        for t in FREDDIE_PRIMITIVES
     }
     assert "platform_email_send_to_operator" not in names, (
-        "platform_email_send_to_operator must NOT be in REVIEWER_PRIMITIVES "
+        "platform_email_send_to_operator must NOT be in FREDDIE_PRIMITIVES "
         "(ADR-299 D8 — operator-addressing system infrastructure is excluded "
         "from the judgment-bearing Reviewer surface by design; v5 canary "
         "2026-05-25 evidence-confirmed). Post-ADR-306 this exclusion is "
@@ -344,21 +344,21 @@ def test_reviewer_email_tool_excluded_by_code_not_prose() -> None:
     )
     # No email-send tool of any shape leaks into the Reviewer surface.
     assert not any("email_send" in str(n).lower() for n in names), (
-        "An email-send tool leaked into REVIEWER_PRIMITIVES. Operator-"
+        "An email-send tool leaked into FREDDIE_PRIMITIVES. Operator-"
         "addressing email is system infrastructure (SYSTEM_INFRASTRUCTURE_TOOLS, "
         "task-bearing agents only), never the Reviewer's."
     )
 
 
 # ---------------------------------------------------------------------------
-# Test 6 — REVIEWER_PRIMITIVES contract holds
+# Test 6 — FREDDIE_PRIMITIVES contract holds
 # ---------------------------------------------------------------------------
 
 def test_reviewer_primitives_contract() -> None:
-    """REVIEWER_PRIMITIVES matches ADR-296 v2 + ADR-258 revised commitments."""
-    from services.primitives.registry import REVIEWER_PRIMITIVES
+    """FREDDIE_PRIMITIVES matches ADR-296 v2 + ADR-258 revised commitments."""
+    from services.primitives.registry import FREDDIE_PRIMITIVES
 
-    names = {tool["name"] for tool in REVIEWER_PRIMITIVES}
+    names = {tool["name"] for tool in FREDDIE_PRIMITIVES}
 
     # MUST be present (Variant F claim #5 + ADR-296 v2 D2/D3)
     required = {
@@ -371,14 +371,14 @@ def test_reviewer_primitives_contract() -> None:
     }
     missing = required - names
     assert not missing, (
-        f"REVIEWER_PRIMITIVES missing required tools: {missing}. "
+        f"FREDDIE_PRIMITIVES missing required tools: {missing}. "
         f"These are load-bearing for Variant F structural claims #1 "
         f"and #5."
     )
 
     # MUST NOT be present (ADR-296 v2 D3 — Reviewer does not self-invoke)
     assert "FireInvocation" not in names, (
-        "FireInvocation is back in REVIEWER_PRIMITIVES — this violates "
+        "FireInvocation is back in FREDDIE_PRIMITIVES — this violates "
         "ADR-296 v2 D3 (Reviewer does not self-invoke). Cadence + "
         "standing-intent + hook-authoring are the Reviewer's trigger-"
         "authoring authority, not unit-of-work fires. FireInvocation "
@@ -388,11 +388,11 @@ def test_reviewer_primitives_contract() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 7 — DEFAULT_REVIEWER_WRITE_LOCKS matches operator-control trifecta
+# Test 7 — DEFAULT_FREDDIE_WRITE_LOCKS matches operator-control trifecta
 # ---------------------------------------------------------------------------
 
 # NOTE (ADR-320): test_default_reviewer_write_locks_contract DELETED.
-# DEFAULT_REVIEWER_WRITE_LOCKS collapsed into the five-root CALLER_WRITE_POLICY
+# DEFAULT_FREDDIE_WRITE_LOCKS collapsed into the five-root CALLER_WRITE_POLICY
 # (governance/ locked from the reviewer caller). The operator-control-paths-locked
 # contract is now covered by test_adr320_permission_topology.py.
 
@@ -454,7 +454,7 @@ def test_judgment_prompts_bind_return_verdict() -> None:
         f"{failures}. Drift recommendation: every prompt that asks the "
         f"Reviewer to decide must name ReturnVerdict(...) explicitly. "
         f"Prose-only verdict requests fall through to the text-only "
-        f"fallback at reviewer_agent.py:1409-1422, producing inert "
+        f"fallback at freddie_agent.py:1409-1422, producing inert "
         f"stand_down with no substrate write — the canary v3 root cause. "
         f"See docs/evaluations/2026-05-22-043009-reviewer-formalization-audit/findings.md §L5."
     )

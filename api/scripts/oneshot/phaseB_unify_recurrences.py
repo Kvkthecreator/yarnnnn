@@ -134,7 +134,7 @@ def _maintenance_prompt_for(slug: str, executor: str) -> str:
             "declared edge. If realized P&L diverges materially, append "
             "a calibration concern to /workspace/persona/judgment_log.md."
         ),
-        "back-office-reviewer-reflection": (
+        "back-office-freddie-reflection": (
             "Reflect on yesterday's decisions against your principles. "
             "Read /workspace/persona/judgment_log.md (last 7d) and "
             "/workspace/persona/principles.md. If a pattern warrants a "
