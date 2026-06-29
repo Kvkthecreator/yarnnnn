@@ -93,6 +93,13 @@ The Reviewer dispatcher reads AUTONOMY.md at the start of every verdict renderin
 
 AUTONOMY.md sits outside the six seat files because seat rotation must not touch it; delegation is operator-to-role, not operator-to-occupant.
 
+### Read alongside the seat: `/workspace/constitution/MANDATE.md` (the agent's purpose — ADR-383)
+
+The seat's six files express *how the agent reasons + its trail*; `MANDATE.md` (read alongside, in `constitution/`) expresses *why the agent exists* — its purpose. Per [ADR-383](../adr/ADR-383-the-consistent-agent-framework-and-mandate-as-purpose.md), **the seat's file-structure is the agent-universal shape**: every agent over this substrate is constituted by these files + MANDATE + governance, differing only in *content*. Two consequences for the seat:
+
+- **MANDATE is every agent's purpose, populated for every agent.** ADR-383 reframes ADR-207's "MANDATE declares the Primary Action" → "MANDATE declares the agent's *purpose*; the Primary Action is the operation-instance of purpose." The **system agent (Freddie)** that fills the seat in a bare workspace carries the kernel-default **steward-mandate** ("steward this substrate" — names no value-moving Primary Action); a program activation overwrites it with the operation's mandate (bundle-fork, ADR-226). So MANDATE is never empty, and a bare workspace is a *constituted steward*, not "unconfigured" (ADR-383 §3 D3).
+- **The systemic occupant's self-model is steward-first.** The persona-frame (`_compute_minimal_frame`) leads with the steward self-model (the system agent), routing to judgment when the MANDATE/principles.md declare an operation — FOUNDATIONS DP21's two-order amendment. The seat's *structure* (the Variant-F seven claims) is occupant-agnostic and describes both the steward and the judgment occupant; the *self-model* the frame carries is steward-first (ADR-381/383). The judgment posture (standing-obligation, aperture/floor) lives in each agent's `principles.md`, not the frame (`agent-composition.md` §3.2.1 + §4.4 ADR-383 amendment).
+
 ### `standing_intent.md` — forward-looking working state (ADR-284, 2026-05-17)
 
 The Reviewer's forward-looking judgment substrate. *What is the Reviewer watching for?* *What would change its next move?* *What open questions would it surface to the operator?* Read at every wake (kernel-universal envelope addition per ADR-284 + ADR-285). Updated at every judgment-mode cycle — including no-fire cycles, because the substrate counterpart to a no-fire judgment is an updated standing_intent.md.
