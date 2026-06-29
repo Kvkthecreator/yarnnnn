@@ -125,13 +125,15 @@ def test_redirect_stubs_point_to_one_door() -> None:
     print("\n[stubs] re-homed routes redirect to the one door")
     for slug in ("budget", "autonomy", "expected-output"):
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
-        target = f"/workspace-settings?pane={slug}"
+        # ADR-358 D6: stubs redirect with the window-NAMESPACED pane param.
+        target = f"/workspace-settings?workspace-settings.pane={slug}"
         check(f"/{slug} → {target}", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (ADR-308)", "'use client'" not in stub)
-    # The Home autonomy badge deep-links into the one door.
+    # The Home autonomy badge deep-links into the one door via the
+    # navigation-enactment verb (ADR-297 D19.5), not a <Link> route.
     home = _read("components/library/HomeHeader.tsx")
-    check("Home autonomy badge → the one door's Contract pane",
-          "/workspace-settings?pane=autonomy" in home)
+    check("Home autonomy badge → foregroundSurface('autonomy')",
+          "foregroundSurface('autonomy')" in home)
 
 
 def test_expected_output_registered() -> None:

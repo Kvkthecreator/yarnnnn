@@ -174,10 +174,16 @@ def test_window_manager_resolution() -> None:
     # NAMESPACED pane key (`{parent}.pane`) on the CURRENT pathname via
     # history.replaceState (preserving the /desktop baseline), not by
     # router.push-ing the parent's page route. Assert the durable behavior —
-    # the namespaced pane key reaches the URL via searchParams.set.
+    # the pane is delivered to the PARENT window via reconcileUrl, which
+    # namespaces it under {parent}.pane (scopeParamKey + searchParams.set
+    # internally) and persists, without a pathname flip.
     check(
-        "pane delivered via namespaced {parent}.pane without a pathname flip",
-        "searchParams.set(scopeParamKey(parentSlug, 'pane'), slug)" in src,
+        "pane delivered via reconcileUrl(parentSlug, { pane: slug }) — namespaced, no pathname flip",
+        "reconcileUrl(parentSlug, { pane: slug" in src,
+    )
+    check(
+        "reconcileUrl namespaces params via scopeParamKey + searchParams.set",
+        "url.searchParams.set(scopeParamKey(" in src,
     )
     viewport = _read("components/shell/SurfaceViewport.tsx")
     check("viewport filters pane-grade slugs from window mounting", "paneSlugs" in viewport)

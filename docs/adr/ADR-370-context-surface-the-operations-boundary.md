@@ -1,5 +1,7 @@
 # ADR-370 — Context: the operation's boundary surface (In · Out · Flow)
 
+> **⚠️ AMENDED by [ADR-385](ADR-385-channels-the-perception-and-principal-surface.md) (2026-06-29):** the `context` surface is renamed → **`channels`** (the word "context" collided with the Files surface + the `operation/context/` substrate namespace). The In/Out/Flow lens model this ADR minted is **preserved** as distinct nav items (Out is a different data source — the emissions ledger). Groups renamed: Perception → **CHANNELS** (+ a new **External Agents** pane), Feed/Boundary → **ACTIVITY** (default landing → Flow). `/context` + `/feed` are now ADR-308 redirect stubs → `/channels`. Read ADR-385 for the live shape.
+>
 > **Status:** **Accepted (2026-06-25).** Implementation in progress. FE + one backend file: a new kernel surface declared in `api/services/kernel_surfaces.py::KERNEL_SURFACES` (the surface registry that flows to the compositor via `GET /api/programs/surfaces`) → the API Render service is touched; no schema, no primitive, no scheduler/MCP/render-gateway change. The narrative lens re-mounts the existing `FeedSurface` (one body, two mounts — ADR-340 D8); the perception lenses re-mount the existing `SourcesCard` + `ConnectedIntegrationsSection`. No new substrate, no new data path.
 > **Date:** 2026-06-25
 > **Authors:** KVK (operator) + Claude (collaborator)

@@ -125,7 +125,9 @@ def test_shared_shell_singular_impl() -> None:
     print("\n[impl] one shared SettingsPaneShell, two mounts (D5)")
     shell = _read("components/settings/SettingsPaneShell.tsx")
     check("SettingsPaneShell exists", "export function SettingsPaneShell" in shell)
-    check("shell owns ?pane= sync", "setSurfaceParams({ pane" in shell)
+    # ADR-358 D6: the pane is window-NAMESPACED (`{windowSlug}.pane`), synced
+    # via useSurfaceParam(windowSlug).set({ pane }) — not the flat ?pane=.
+    check("shell owns window-namespaced pane sync", "surfaceParam.set({ pane })" in shell)
     sys_src = _read("app/(authenticated)/settings/page.tsx")
     ws_src = _read("app/(authenticated)/workspace-settings/page.tsx")
     check("System Settings mounts the shell", "SettingsPaneShell" in sys_src)
@@ -145,7 +147,9 @@ def test_constitution_band_preserved() -> None:
     # the band consumes the cards directly, independent of these routes.
     for slug in ("mandate", "identity", "principles"):
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
-        check(f"/{slug} is a server redirect stub", f"redirect('/workspace-settings?pane={slug}')" in stub)
+        # ADR-358 D6: window-NAMESPACED pane param.
+        check(f"/{slug} is a server redirect stub",
+              f"redirect('/workspace-settings?workspace-settings.pane={slug}')" in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
 
 
