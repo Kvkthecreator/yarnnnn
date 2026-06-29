@@ -127,29 +127,33 @@ export default function LandingPage() {
               {/* Card 1 — Traceable: the live demonstration (the moat's uncopyable property) */}
               <TraceCard />
 
-              {/* Card 2 — Cross-LLM (SpotlightCard applied in Phase 4) */}
-              <div className="p-8 rounded-2xl border border-[#1a1a1a]/[0.06] bg-[#1a1a1a]/[0.02]">
-                <div className="text-xs font-mono text-[#1a1a1a]/30 uppercase tracking-wider mb-4">
-                  Works everywhere
+              {/* Card 2 — Cross-LLM */}
+              <SpotlightCard spotlightColor="rgba(99,102,241,0.06)">
+                <div className="p-8 h-full">
+                  <div className="text-xs font-mono text-[#1a1a1a]/30 uppercase tracking-wider mb-4">
+                    Works everywhere
+                  </div>
+                  <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Same memory, every AI.</h3>
+                  <p className="text-sm text-[#1a1a1a]/50 leading-relaxed">
+                    Write it in one app, use it in the next. ChatGPT, Claude, your tools — all
+                    working from the same memory, no copy-paste.
+                  </p>
                 </div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Same memory, every AI.</h3>
-                <p className="text-sm text-[#1a1a1a]/50 leading-relaxed">
-                  Write it in one app, use it in the next. ChatGPT, Claude, your tools — all
-                  working from the same memory, no copy-paste.
-                </p>
-              </div>
+              </SpotlightCard>
 
-              {/* Card 3 — Compounds (SpotlightCard applied in Phase 4) */}
-              <div className="p-8 rounded-2xl border border-[#1a1a1a]/[0.06] bg-[#1a1a1a]/[0.02]">
-                <div className="text-xs font-mono text-[#1a1a1a]/30 uppercase tracking-wider mb-4">
-                  Gets better
+              {/* Card 3 — Compounds */}
+              <SpotlightCard spotlightColor="rgba(16,185,129,0.06)">
+                <div className="p-8 h-full">
+                  <div className="text-xs font-mono text-[#1a1a1a]/30 uppercase tracking-wider mb-4">
+                    Gets better
+                  </div>
+                  <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Fix it once, it stays fixed.</h3>
+                  <p className="text-sm text-[#1a1a1a]/50 leading-relaxed">
+                    Correct something once and it&apos;s corrected for good. Every time you use it,
+                    it&apos;s a little sharper. It never resets.
+                  </p>
                 </div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Fix it once, it stays fixed.</h3>
-                <p className="text-sm text-[#1a1a1a]/50 leading-relaxed">
-                  Correct something once and it&apos;s corrected for good. Every time you use it,
-                  it&apos;s a little sharper. It never resets.
-                </p>
-              </div>
+              </SpotlightCard>
             </div>
 
             <p className="text-center text-sm text-[#1a1a1a]/30 mt-10 font-mono">

@@ -38,8 +38,13 @@ export function SpotlightCard({
       ? "relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm transition-all duration-300 hover:border-white/[0.15] hover:bg-white/[0.05]"
       : "relative overflow-hidden rounded-2xl border border-[#1a1a1a]/[0.06] bg-white/60 backdrop-blur-sm transition-all duration-300 hover:border-[#1a1a1a]/[0.12] hover:shadow-lg";
 
-  // Disable spotlight on touch devices — no hover, wastes cycles
-  const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  // Disable the spotlight on touch devices (no hover, wastes cycles) and under
+  // prefers-reduced-motion (the card then renders as a calm static surface — per the
+  // interaction design spec §2, motion degrades to its final state).
+  const isTouchDevice =
+    typeof window !== "undefined" &&
+    (window.matchMedia("(pointer: coarse)").matches ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
