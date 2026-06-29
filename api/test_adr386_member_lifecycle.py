@@ -171,7 +171,7 @@ def test_narrow_then_gate_denies_outside(fake, monkeypatch):
 
     auth = SimpleNamespace(
         caller_identity="yarnnn:mcp:claude.ai", user_id="u-1", workspace_id="ws-1",
-        principal_id="client-abc", reviewer_caller=False, client=None,
+        principal_id="client-abc", freddie_caller=False, client=None,
     )
     assert _is_path_locked_for_principal(auth, "operation/memory/n.md") is False  # in scope
     assert _is_path_locked_for_principal(auth, "governance/x.md") is True          # out of scope
