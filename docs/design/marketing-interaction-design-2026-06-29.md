@@ -85,7 +85,7 @@ connective layer (§2).
 
 | Section | Design intent | Interaction | Component | State today |
 |---|---|---|---|---|
-| Hero | "every AI, one memory" grasped in 3s | **Membrane demo** (centerpiece): a memory card center; rooms (Claude/ChatGPT/Slack/Notion/your agents) beam to it; auto-cycles, interactive on hover; reflects "available here." | `MembraneDemo` (new — harvests the `IntegrationHub` beam engine; retires its agent-flow framing) | static chip row + decorative `IntegrationHub` ("Context→yarnnn→Agents", pre-pivot) |
+| Hero | "every AI, one memory" grasped in 3s | **The membrane beam-hub**: the AI rooms you work in (Claude/ChatGPT/Slack/Notion) beam through the yarnnn center to the one memory you own (Notes/Decisions/History/Context). Animated SVG beams, ambient. | `IntegrationHub` (kept + re-labeled to the interop framing — see note below) | static chip row + the pre-pivot `IntegrationHub` ("Context→yarnnn→Agents") |
 | Problem | the trapped-context ache; calm | scroll-reveal only | — | static (keep) |
 | Product trio | the three moat mechanisms, *shown* | Card 1 **Traceable** → live `trace` mini-widget (expands to author·date·diff). Cards 2 **Cross-LLM** + 3 **Compounds** → `SpotlightCard` for consistency. | `TraceCard` (new, mock data) + `SpotlightCard` (existing, applied) | three flat `border bg-[0.02]` boxes |
 | Steward beta | forward-looking, quieter | scroll-reveal only; beta tag, no fake motion | — | static (keep) |
@@ -120,7 +120,7 @@ too much distracts from the number. Restraint is correct here.
 
 **New:**
 - `ScrollReveal` — wrapper; `IntersectionObserver` → fade+rise once on enter; reduced-motion → no-op (renders final state). Used on every non-hero section, all four pages.
-- `MembraneDemo` — hero island; memory card + room beams; auto-cycle + hover. Built on the `IntegrationHub` canvas/beam logic. Landing hero only.
+- (`MembraneDemo` — built in Phase 2 as the hero membrane demo, then **retired 2026-06-29**: KVK preferred the prior beam-hub design. Replaced by the kept-and-re-labeled `IntegrationHub`.)
 - `TraceCard` — small island; a 2–3 entry revision stack that expands to author·date·diff on hover/tap. **Mock data** (tasteful, hand-crafted — decided 2026-06-29). Landing product trio, card 1. (Reused on About if the optional moment lands.)
 - `CompoundsStepper` — island; Day 1/30/90 advance-through. Landing insight section only.
 - `StepFlow` — island; vertical 5-step connected flow with filling progress line. How-it-works only.
@@ -128,7 +128,7 @@ too much distracts from the number. Restraint is correct here.
 **Existing, kept:**
 - `SpotlightCard` / `BentoGrid` — applied to landing trio cards 2/3 (new) + how-it-works trios (existing). Gets a reduced-motion guard in Phase 4.
 - `ShaderBackground` / `ShaderBackgroundDark` / `GrainOverlay` — ambient layer, unchanged (covered by the global reduced-motion block).
-- `IntegrationHub` — beam engine **harvested** by `MembraneDemo`. If `MembraneDemo` fully subsumes it, the file is retired; if it extends it, `IntegrationHub` stays as the shared engine. Decided at Phase 2 build.
+- `IntegrationHub` — the hero beam-hub. **Kept and re-labeled (2026-06-29)** to the interop framing: left column "Your AIs" (Claude/ChatGPT/Slack/Notion), center yarnnn, right column "One memory" (Notes/Decisions/History/Context); subtitle "Write it in any AI. It's in your memory, everywhere." Gains a `prefers-reduced-motion` guard (beams render as faint static paths). Was briefly retired in Phase 2 in favor of `MembraneDemo`; reinstated on KVK preference.
 
 **Retired (per CLAUDE.md singular-implementation discipline):**
 - `MockOutputs.tsx` — orphaned + off-thesis (shows agent deliverables PDF/email/brief = pre-pivot agent-first story). **Delete in Phase 2.**

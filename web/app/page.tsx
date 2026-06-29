@@ -4,7 +4,7 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackground } from "@/components/landing/ShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
-import { MembraneDemo } from "@/components/landing/MembraneDemo";
+import { IntegrationHub } from "@/components/landing/IntegrationHub";
 import { TraceCard } from "@/components/landing/TraceCard";
 import { CompoundsStepper } from "@/components/landing/CompoundsStepper";
 import { SpotlightCard } from "@/components/landing/SpotlightCard";
@@ -87,7 +87,7 @@ export default function LandingPage() {
               </div>
 
               <div className="flex-shrink-0 pb-16">
-                <MembraneDemo />
+                <IntegrationHub />
               </div>
             </div>
           </div>
