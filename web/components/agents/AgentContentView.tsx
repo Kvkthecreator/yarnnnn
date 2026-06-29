@@ -761,10 +761,10 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
   return (
     <div className="flex-1 overflow-auto">
       <SurfaceIdentityHeader
-        title="Reviewer"
+        title="Freddie"
         metadata={
           <span className="text-xs text-muted-foreground">
-            Your judgment seat — independent verdicts on proposed actions
+            The system agent — stewards your substrate; judges proposed actions when an operation runs
           </span>
         }
       />
@@ -775,12 +775,12 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
             <SubstrateTab
               title="Identity"
               path="/workspace/persona/IDENTITY.md"
-              tagline="The Reviewer's persona — who occupies the judgment seat. Operator-authored; shapes how verdicts are reasoned."
-              editPrompt="I want to evolve my Reviewer's identity and persona. Walk me through the current declaration."
+              tagline="Freddie's persona — who occupies the seat. Operator-authored; shapes how it reasons (stewardship, and judgment when an operation runs)."
+              editPrompt="I want to evolve Freddie's identity and persona. Walk me through the current declaration."
               emptyBody={
                 <p className="text-center text-xs">
-                  No identity declared yet. Author the Reviewer's persona to shape
-                  how the judgment seat reasons — Simons, Buffett, or your own original.
+                  No identity declared yet. Author Freddie's persona to shape
+                  how it reasons — Simons, Buffett, or your own original.
                 </p>
               }
             />

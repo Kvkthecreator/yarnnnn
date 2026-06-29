@@ -31,10 +31,10 @@ interface ReviewerCardProps {
 }
 
 function occupantLabel(occupant: string | undefined, personaName?: string | null): string {
-  if (!occupant) return personaName ?? 'Reviewer';
+  if (!occupant) return personaName ?? 'Freddie';
   if (occupant.startsWith('human:')) return 'You';
-  if (occupant.startsWith('ai:')) return personaName ?? 'Reviewer';
-  if (occupant === 'reviewer-layer:observed') return 'Reviewer';
+  if (occupant.startsWith('ai:')) return personaName ?? 'Freddie';
+  if (occupant === 'reviewer-layer:observed') return 'Freddie';
   return personaName ?? occupant;
 }
 

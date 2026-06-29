@@ -351,7 +351,7 @@ function PulseSection({ onAskTP }: { onAskTP: (prompt: string) => void }) {
           params={{ agent: 'reviewer', tab: 'activity' }}
           className="inline-flex items-center gap-0.5 hover:text-foreground hover:underline underline-offset-4"
         >
-          Reviewer activity <ArrowRight className="h-3 w-3" />
+          Freddie activity <ArrowRight className="h-3 w-3" />
         </SurfaceLink>
         <span className="text-muted-foreground/30">·</span>
         <SurfaceLink

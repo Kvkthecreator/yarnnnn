@@ -75,6 +75,14 @@ function authorLayer(authored_by: string): AuthorLayer {
   return 'unknown';
 }
 
+// ADR-381 D1: the `reviewer` author-layer is displayed as "Freddie" (the system
+// agent). The underlying `reviewer:` attribution prefix in the revision chain is
+// unchanged (data-compat exception) — only the operator-facing chip label maps.
+// The full `authored_by` (incl. the `reviewer:` prefix) stays in the chip tooltip.
+function layerLabel(layer: AuthorLayer): string {
+  return layer === 'reviewer' ? 'Freddie' : layer;
+}
+
 function authorChipColor(layer: AuthorLayer): string {
   switch (layer) {
     case 'operator':
@@ -293,7 +301,7 @@ export function RevisionHistoryPanel({
                           title={rev.authored_by}
                         >
                           <AuthorIcon layer={layer} />
-                          <span className="font-medium">{layer}</span>
+                          <span className="font-medium">{layerLabel(layer)}</span>
                         </span>
                         {isHead && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/30">

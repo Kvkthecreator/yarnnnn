@@ -106,8 +106,8 @@ export default function AgentsPage() {
               onClick={() => p.set({ agent: 'reviewer' })}
               className="w-full text-left rounded-lg border border-border/60 bg-card px-4 py-3 hover:bg-muted/30 transition-colors"
             >
-              <p className="text-sm font-medium">Reviewer</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Your judgment seat — independent verdicts on proposed actions.</p>
+              <p className="text-sm font-medium">Freddie</p>
+              <p className="text-xs text-muted-foreground mt-0.5">The system agent — stewards your substrate; judges proposed actions when an operation runs.</p>
             </button>
           </div>
         )}

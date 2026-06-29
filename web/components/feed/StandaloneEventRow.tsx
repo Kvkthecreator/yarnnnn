@@ -37,7 +37,7 @@ function iconForRole(role: TPMessage['role']) {
 
 function labelForRole(role: TPMessage['role']): string {
   if (role === 'user') return 'You';
-  if (role === 'reviewer') return 'Reviewer';
+  if (role === 'reviewer') return 'Freddie';
   if (role === 'agent') return 'agent';
   // Orchestration-plumbing roles all render as "system" per ADR-272.
   return 'system';

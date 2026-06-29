@@ -223,7 +223,7 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
 function roleDisplayLabel(role: TPMessage['role'], reviewerPersona?: string | null): string {
   switch (role) {
     case 'user': return 'You';
-    case 'reviewer': return reviewerPersona ?? 'Reviewer';
+    case 'reviewer': return reviewerPersona ?? 'Freddie';
     case 'agent': return 'agent';
     // ADR-272: all orchestration-plumbing roles render as ambient "system"
     // activity. The "System Agent" entity label is retired at the cockpit

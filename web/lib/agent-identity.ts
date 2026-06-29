@@ -160,12 +160,18 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
   // and has no cockpit display. The DB role enum 'thinking_partner' persists
   // as substrate (routes/feed.py uses it for the orchestration profile),
   // but the FE never sees a row with this role post-filter.
-  // ADR-214 + ADR-251: Reviewer as first-class surface. Substrate at /workspace/persona/
+  // ADR-214 + ADR-251: first-class surface. Substrate at /workspace/persona/
   // per ADR-194 v2. Autonomy + Principles + heartbeat cadence housed here (ADR-251 D4).
+  // ADR-381 D1: operator-facing label is "Freddie, the system agent" — a relabel
+  // that KEEPS the internal `reviewer` slug + `reviewer:` attribution prefix +
+  // `?agent=reviewer` route (ADR-251 relabel-keep-slug precedent). The systemic
+  // occupant's default name is "Freddie" (the system agent / substrate steward,
+  // ADR-383); when the operator authors a persona (IDENTITY.md), that persona
+  // name shows instead — the per-call fallbacks resolve `persona ?? 'Freddie'`.
   reviewer: {
-    displayName: 'Reviewer',
-    shortLabel: 'Reviewer',
-    tagline: 'Your judgment seat — independent verdicts on proposed actions',
+    displayName: 'Freddie',
+    shortLabel: 'Freddie',
+    tagline: 'The system agent — stewards your substrate; judges proposed actions when an operation runs',
     avatarHex: '#e11d48',
     badgeClass: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
     authorClass: 'text-rose-600 dark:text-rose-400',
@@ -199,8 +205,8 @@ const CLASS_META: Record<AgentClass, { label: string; description: string }> = {
   // exception (workspace_init seeds the row at signup) but is invisible
   // to the cockpit.
   reviewer: {
-    label: 'Reviewer',
-    description: 'Your agent — it weighs each action on its own and decides whether to approve it, hold it for you, or turn it down.',
+    label: 'Freddie',
+    description: 'The system agent — it stewards your workspace substrate, and when an operation runs it weighs each proposed action and decides whether to approve it, hold it for you, or turn it down.',
   },
 };
 
