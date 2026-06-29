@@ -1210,6 +1210,22 @@ export const api = {
         grant_consult_active: boolean;
       }>("/api/workspace/members"),
 
+    // ADR-386 D2 — NARROW: tighten a member's write-region scopes (authz only;
+    // the member stays connected). Owner grant is immutable (403).
+    narrowMember: (principalId: string, scopes: string[]) =>
+      request<{ success: boolean; principal_id: string; action: string; scopes: string[] | null }>(
+        `/api/workspace/members/${encodeURIComponent(principalId)}/narrow`,
+        { method: "POST", body: JSON.stringify({ scopes }) },
+      ),
+
+    // ADR-386 D2/D3 — REVOKE = full eviction: grant revoked + OAuth tokens
+    // deleted. The member must re-authorize from scratch. Owner is immutable (403).
+    revokeMember: (principalId: string) =>
+      request<{ success: boolean; principal_id: string; action: string; tokens_deleted: number | null }>(
+        `/api/workspace/members/${encodeURIComponent(principalId)}/revoke`,
+        { method: "POST" },
+      ),
+
     editFile: (path: string, content: string, summary?: string, message?: string) =>
       request<{ success: boolean; path: string; updated_at: string }>(
         `/api/workspace/file`,

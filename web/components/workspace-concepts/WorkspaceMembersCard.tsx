@@ -12,29 +12,47 @@
  * member (a foreign-llm principal), which is why this panel is "Workspace
  * Members", not "Users".
  *
- * Read-only at launch (ADR-373 D4): the grant table ships now, the consult
- * authorizes per-principal now, and this surfaces the same facts the gate
- * reads. Provisioning — inviting a member, scoping a grant — is deferred to a
- * separate Workspace Members ADR. At N=1 this shows just the owner; the surface
- * is multi-principal-ready, so the moment a member / foreign-LLM grant is
- * written it appears here.
+ * Governable (ADR-386): the grant table + consult ship per-principal
+ * authorization; this surfaces the same facts the gate reads AND lets the
+ * operator govern existing members — NARROW a member's write-region, or REVOKE
+ * (full eviction: grant revoked + OAuth tokens deleted, must reconnect). The
+ * owner grant is immutable here (D4 — no self-lockout). Foreign-LLM members
+ * auto-provision on OAuth connect (ADR-386 D1), so a connected ChatGPT/Claude
+ * appears as a named, revocable row. Human-member invite is still deferred (the
+ * substrate re-key is its prerequisite, ADR-386 D6).
  *
- * ADR-338 management-plane idiom: legible "who can touch this workspace"
- * without the provisioning mechanics.
+ * ADR-338 management-plane idiom: legible + governable "who can touch this
+ * workspace."
  */
 
 import { useEffect, useState } from 'react';
-import { Users, ShieldCheck, Bot, Plug, User, Cpu, Loader2 } from 'lucide-react';
+import { Users, ShieldCheck, Bot, Plug, User, Cpu, Loader2, MoreHorizontal, ShieldMinus, Trash2, AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
 type Member = Awaited<ReturnType<typeof api.workspace.getMembers>>['members'][number];
+
+// The ADR-320 roots a member can be scoped to (the NARROW options). Operators
+// don't think in path prefixes — these render with REGION_LABEL friendly names.
+const NARROWABLE_REGIONS = ['operation/', 'agents/'] as const;
 
 export type WorkspaceMembersVariant = 'full' | 'compact';
 
 interface WorkspaceMembersCardProps {
   variant?: WorkspaceMembersVariant;
   className?: string;
+  /**
+   * ADR-385 D3 — restrict the rendered roster to these principal roles. When
+   * omitted, all roles render (the full Workspace-Settings → Access roster).
+   * The Channels → External Agents pane passes
+   * `['foreign-llm', 'a2a', 'platform']` to show only the external/automation
+   * principals (MCP LLMs, agent-to-agent callers, platform writers) — a second
+   * VIEW of the one principal_grants substrate, not a parallel source (DP29).
+   */
+  roleFilter?: string[];
+  /** Optional override for the empty state (shown when the filtered roster is empty). */
+  emptyTitle?: string;
+  emptyHint?: string;
 }
 
 // Role → presentation (icon + human label). The internal slugs are stable
@@ -64,9 +82,31 @@ function regionLabel(region: string): string {
   return REGION_LABEL[region] ?? REGION_LABEL[region.replace(/\/?$/, '/')] ?? region;
 }
 
-export function WorkspaceMembersCard({ variant = 'full', className }: WorkspaceMembersCardProps) {
+export function WorkspaceMembersCard({
+  variant = 'full',
+  className,
+  roleFilter,
+  emptyTitle,
+  emptyHint,
+}: WorkspaceMembersCardProps) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  // ADR-386 D2 — lifecycle verb state.
+  const [menuFor, setMenuFor] = useState<string | null>(null);   // principal_id whose menu is open
+  const [revokeTarget, setRevokeTarget] = useState<Member | null>(null);
+  const [narrowTarget, setNarrowTarget] = useState<Member | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = async () => {
+    try {
+      const res = await api.workspace.getMembers();
+      setMembers(res.members);
+    } catch {
+      setMembers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +125,32 @@ export function WorkspaceMembersCard({ variant = 'full', className }: WorkspaceM
     };
   }, []);
 
+  const onRevoke = async (m: Member) => {
+    setBusy(true);
+    try {
+      await api.workspace.revokeMember(m.principal_id);
+      setRevokeTarget(null);
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onNarrow = async (m: Member, scopes: string[]) => {
+    setBusy(true);
+    try {
+      await api.workspace.narrowMember(m.principal_id, scopes);
+      setNarrowTarget(null);
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ADR-385 D3 — one substrate, two views: filter the rendered roster by role
+  // without forking the data source.
+  const visible = roleFilter ? members.filter((m) => roleFilter.includes(m.role)) : members;
+
   if (loading) {
     return (
       <div className={cn('flex items-center gap-2 rounded-lg border border-border px-4 py-6 text-sm text-muted-foreground', className)}>
@@ -94,13 +160,13 @@ export function WorkspaceMembersCard({ variant = 'full', className }: WorkspaceM
     );
   }
 
-  if (members.length === 0) {
+  if (visible.length === 0) {
     return (
       <div className={cn('rounded-lg border border-dashed border-border/60 px-4 py-6 text-center', className)}>
         <Users className="mx-auto h-5 w-5 text-muted-foreground/50" />
-        <p className="mt-2 text-sm font-medium text-foreground/80">No members yet</p>
+        <p className="mt-2 text-sm font-medium text-foreground/80">{emptyTitle ?? 'No members yet'}</p>
         <p className="mt-1 text-xs text-muted-foreground/70 max-w-sm mx-auto">
-          This workspace has no principal grants. Once you author substrate, you become its owner.
+          {emptyHint ?? 'This workspace has no principal grants. Once you author substrate, you become its owner.'}
         </p>
       </div>
     );
@@ -109,19 +175,30 @@ export function WorkspaceMembersCard({ variant = 'full', className }: WorkspaceM
   return (
     <div className={cn('space-y-4', className)}>
       {variant === 'full' && (
-        <p className="text-sm text-muted-foreground">
-          Everyone — and everything — that can write to this workspace. In this model an MCP
-          connection from an external LLM is a <span className="font-medium text-foreground/80">member</span>:
-          it attributes its writes as itself and is authorized to a specific region of the substrate.
-          Inviting members and narrowing their access is coming soon.
-        </p>
+        roleFilter ? (
+          <p className="text-sm text-muted-foreground">
+            External LLMs, agent-to-agent callers, and platforms that reach into this workspace —
+            each connects as a <span className="font-medium text-foreground/80">principal</span>,
+            attributes its writes as itself, and is authorized to a specific region of the substrate.
+            Granting and scoping their access is coming soon.
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Everyone — and everything — that can write to this workspace. In this model an MCP
+            connection from an external LLM is a <span className="font-medium text-foreground/80">member</span>:
+            it attributes its writes as itself and is authorized to a specific region of the substrate.
+            You can narrow a member&rsquo;s access or revoke it. Inviting other people is coming soon.
+          </p>
+        )
       )}
 
       <ul className="divide-y divide-border rounded-lg border border-border">
-        {members.map((m) => {
+        {visible.map((m) => {
           const meta = ROLE_META[m.role] ?? { label: m.role, icon: Users, tone: 'text-muted-foreground' };
           const Icon = meta.icon;
           const name = m.label ?? m.principal_id;
+          // ADR-386 D4 — the owner grant is immutable from this surface: no verbs.
+          const governable = m.role !== 'owner';
           return (
             <li key={`${m.principal_id}-${m.role}`} className="flex items-start gap-3 px-4 py-3">
               <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
@@ -152,10 +229,172 @@ export function WorkspaceMembersCard({ variant = 'full', className }: WorkspaceM
                   )}
                 </div>
               </div>
+              {governable && (
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    aria-label={`Manage ${name}`}
+                    onClick={() => setMenuFor(menuFor === m.principal_id ? null : m.principal_id)}
+                    className="rounded p-1 text-muted-foreground/60 hover:bg-muted hover:text-foreground"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+                  {menuFor === m.principal_id && (
+                    <>
+                      {/* click-away */}
+                      <div className="fixed inset-0 z-10" onClick={() => setMenuFor(null)} />
+                      <div className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-md border border-border bg-popover shadow-md">
+                        <button
+                          type="button"
+                          onClick={() => { setMenuFor(null); setNarrowTarget(m); }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+                        >
+                          <ShieldMinus className="h-3.5 w-3.5 text-muted-foreground" />
+                          Narrow access
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setMenuFor(null); setRevokeTarget(m); }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Revoke…
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </li>
           );
         })}
       </ul>
+
+      {/* ADR-386 D2/D3 — REVOKE = full eviction. The modal emphasizes the weight:
+          irreversible-feeling, names the consequence BEFORE the click. */}
+      {revokeTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !busy && setRevokeTarget(null)}>
+          <div className="w-full max-w-md rounded-lg border border-border bg-background p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-foreground">
+                  Revoke {revokeTarget.label ?? revokeTarget.principal_id}?
+                </h3>
+                <p className="mt-1.5 text-sm text-muted-foreground">
+                  This is a full eviction. <span className="font-medium text-foreground/90">{revokeTarget.label ?? 'This principal'}</span> loses
+                  all access immediately, its connection tokens are deleted, and it must
+                  re-authorize from scratch to return. This cannot be undone from here.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setRevokeTarget(null)}
+                className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onRevoke(revokeTarget)}
+                className="inline-flex items-center gap-1.5 rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+              >
+                {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Revoke &amp; disconnect
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADR-386 D2 — NARROW: tighten the member's write-region set (lightweight,
+          token untouched). Distinct in weight from Revoke. */}
+      {narrowTarget && (
+        <NarrowDialog
+          member={narrowTarget}
+          busy={busy}
+          onCancel={() => setNarrowTarget(null)}
+          onConfirm={(scopes) => onNarrow(narrowTarget, scopes)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * NarrowDialog — pick the write-regions a member is allowed to author (ADR-386
+ * D2). Authz-only; lightweight vs the Revoke eviction modal.
+ */
+function NarrowDialog({
+  member,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  member: Member;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: (scopes: string[]) => void;
+}) {
+  // Seed from the member's current explicit scopes (if narrowed already),
+  // else default to operation/ only (the tightest sensible floor).
+  const [selected, setSelected] = useState<string[]>(
+    member.scopes_explicit && member.write_regions.length
+      ? member.write_regions.map((r) => (r.endsWith('/') ? r : `${r}/`))
+      : ['operation/'],
+  );
+  const toggle = (region: string) =>
+    setSelected((s) => (s.includes(region) ? s.filter((x) => x !== region) : [...s, region]));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !busy && onCancel()}>
+      <div className="w-full max-w-md rounded-lg border border-border bg-background p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-sm font-semibold text-foreground">
+          Narrow {member.label ?? member.principal_id}&rsquo;s access
+        </h3>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Choose the regions this principal may write. It stays connected and can still read;
+          writes outside the selected regions are denied.
+        </p>
+        <div className="mt-4 space-y-1.5">
+          {NARROWABLE_REGIONS.map((region) => (
+            <label key={region} className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm hover:bg-muted/50">
+              <input
+                type="checkbox"
+                checked={selected.includes(region)}
+                onChange={() => toggle(region)}
+                className="h-4 w-4"
+              />
+              {regionLabel(region)}
+            </label>
+          ))}
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onCancel}
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={busy || selected.length === 0}
+            onClick={() => onConfirm(selected)}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Apply
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

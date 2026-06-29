@@ -778,6 +778,81 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
 
 
 # =============================================================================
+# Member lifecycle verbs (ADR-386 D2) — NARROW + REVOKE
+# =============================================================================
+# Operate on grants that ALREADY exist (no invite flow). The owner grant is
+# immutable from this surface (ADR-386 D4) — the helpers raise
+# OwnerGrantImmutable, mapped to 403 here. Both resolve the caller's workspace
+# from the authenticated owner.
+
+class NarrowMemberRequest(BaseModel):
+    scopes: list[str]   # the write-region set to narrow the member to (ADR-320 roots)
+
+
+class MemberLifecycleResponse(BaseModel):
+    success: bool
+    principal_id: str
+    action: str                      # "narrow" | "revoke"
+    scopes: Optional[list[str]] = None
+    tokens_deleted: Optional[int] = None
+
+
+def _resolve_caller_workspace(auth: UserClient) -> str:
+    workspace_id = auth.workspace_id
+    if not workspace_id:
+        from services.supabase import resolve_owner_workspace_id
+        workspace_id = resolve_owner_workspace_id(auth.user_id)
+    if not workspace_id:
+        raise HTTPException(status_code=404, detail="no workspace for this caller")
+    return workspace_id
+
+
+@router.post("/workspace/members/{principal_id}/narrow", response_model=MemberLifecycleResponse)
+async def narrow_member(principal_id: str, body: NarrowMemberRequest, auth: UserClient) -> MemberLifecycleResponse:
+    """Tighten a member's write-region scopes (ADR-386 D2 — NARROW).
+
+    Authz-only: the member stays connected, can still read; the gate's allow-list
+    path then denies writes outside the narrowed set. The owner grant is
+    immutable (403)."""
+    from services.principal_grants import narrow_grant, OwnerGrantImmutable
+    workspace_id = _resolve_caller_workspace(auth)
+    try:
+        narrow_grant(principal_id, workspace_id, body.scopes)
+    except OwnerGrantImmutable:
+        raise HTTPException(status_code=403, detail="the owner grant cannot be narrowed")
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        logger.error(f"[WORKSPACE_API] member narrow failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    return MemberLifecycleResponse(
+        success=True, principal_id=principal_id, action="narrow", scopes=body.scopes,
+    )
+
+
+@router.post("/workspace/members/{principal_id}/revoke", response_model=MemberLifecycleResponse)
+async def revoke_member(principal_id: str, auth: UserClient) -> MemberLifecycleResponse:
+    """REVOKE = full eviction (ADR-386 D2/D3): grant revoked + OAuth tokens
+    deleted. The member can no longer authenticate, read, or write; it must
+    re-authorize from scratch to return. The owner grant is immutable (403)."""
+    from services.principal_grants import evict_principal, OwnerGrantImmutable
+    workspace_id = _resolve_caller_workspace(auth)
+    try:
+        result = evict_principal(principal_id, workspace_id)
+    except OwnerGrantImmutable:
+        raise HTTPException(status_code=403, detail="the owner grant cannot be revoked")
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        logger.error(f"[WORKSPACE_API] member revoke failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    return MemberLifecycleResponse(
+        success=True, principal_id=principal_id, action="revoke",
+        tokens_deleted=result.get("tokens_deleted"),
+    )
+
+
+# =============================================================================
 # GET /workspace/recent-revisions — Recently authored substrate (ADR-329 D2)
 # =============================================================================
 # The Files "Recently authored" feed. Reads authored substrate changes across

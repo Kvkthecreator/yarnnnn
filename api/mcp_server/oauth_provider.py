@@ -248,6 +248,37 @@ class YarnnnOAuthProvider(
 
         logger.info(f"[MCP OAuth] Issued tokens for user {user_id}, client {client.client_id}")
 
+        # ADR-386 D1: auto-provision a foreign-LLM membership grant for this
+        # client on the workspace the authorizing operator owns. The connected
+        # LLM was ALREADY authorized at the mcp class default by the consult
+        # (ADR-373); this makes that membership a legible, revocable row
+        # (principal_id == client_id). Idempotent. BEST-EFFORT — a grant-ensure
+        # failure must NEVER break the OAuth flow: the consult still falls back
+        # to the class default, so the LLM is not locked out.
+        try:
+            from services.supabase import resolve_owner_workspace_id
+            from services.principal_grants import ensure_principal_grant
+
+            workspace_id = resolve_owner_workspace_id(user_id)
+            if workspace_id:
+                ensure_principal_grant(
+                    principal_id=client.client_id,
+                    workspace_id=workspace_id,
+                    role="foreign-llm",
+                    granted_by="system:oauth-connect",
+                )
+            else:
+                logger.debug(
+                    "[ADR-386] no owner workspace for user %s — skipping grant "
+                    "auto-provision (LLM still writes via class default).", user_id,
+                )
+        except Exception as exc:  # pragma: no cover — never break OAuth on this
+            logger.warning(
+                "[ADR-386] foreign-llm grant auto-provision failed for client %s "
+                "(OAuth flow unaffected; consult falls to class default): %s",
+                client.client_id, exc,
+            )
+
         return OAuthToken(
             access_token=access_token,
             token_type="Bearer",
