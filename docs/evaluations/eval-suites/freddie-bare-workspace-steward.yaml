@@ -1,0 +1,101 @@
+eval_suite_schema_version: 3
+eval_suite: freddie-bare-workspace-steward
+suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B
+
+# The behavioral confirmation for ADR-383 (the consistent agent framework) +
+# ADR-381 (Freddie the system agent). The unit gates + the static Hat-B check
+# (the removed capital-judgment posture is present in the bundle principles.md
+# the persona agent reads) cover correctness for a PROGRAM workspace. This suite
+# reads the OTHER half: a BARE (no-program) workspace, where Freddie is the
+# systemic occupant constituted by the STEWARD defaults — does it reason as a
+# substrate steward, not a capital judge, and not stand down as "unconfigured"?
+#
+# Market-INDEPENDENT + program-INDEPENDENT: there is no operation. Every eval
+# reads the agent's reasoning over a bare workspace seeded ONLY with the ADR-383
+# steward defaults (steward MANDATE + IDENTITY + principles) + a substrate-
+# stewardship situation. Runs any time.
+thesis: |
+  A bare (no-program) workspace is a CONSTITUTED Freddie (the system agent /
+  Rung-1 substrate steward — ADR-381/383), not an "unconfigured" workspace.
+  Constituted by the steward defaults (constitution/MANDATE.md = the steward-
+  mandate "steward this substrate"; persona/IDENTITY.md = the steward character;
+  persona/principles.md = the 5 stewardship rules), Freddie reasons as a
+  SUBSTRATE STEWARD when woken — it tends the commons (places unplaced intake,
+  fixes wrong/missing attribution, reconciles a same-path conflict, surfaces a
+  broken connection) — and it does NOT (a) reason as a capital/consequential
+  judge (there is no operation, no mandate naming a value-moving action), nor
+  (b) stand down as "no operation declared, nothing to do" (the pre-ADR-383
+  failure — the bare workspace was treated as a standby cue).
+
+  Read against the agent's full trace (tool-calls, rationale, revision-chain
+  messages, verdict), the thesis is THREE-SIDED — all must hold:
+
+  1. STEWARDSHIP HALF (does it tend the substrate?). Fed a bare workspace with
+     an unplaced intake dump (a raw observation sitting in operation/memory/ or
+     an inbound lane) AND a revision with a missing/wrong authored_by, the agent
+     acts on its stewardship principles: it places the dump in its meaning-home
+     with a derive-and-cite (the intake-placement rule), and/or flags or fixes
+     the attribution (the attribution-integrity rule), CITING its steward
+     MANDATE/principles by name. PASS: a real WriteFile/placement OR a proposal
+     carrying the placement, attributed, citing the stewardship rule. The
+     failure: notices the unplaced dump but stands down / writes only a passive
+     note. "An unplaced dump is the steward's standing work, not a stand-down"
+     (Freddie's principles.md::intake-placement, verdict-on-fail).
+
+  2. NOT-A-CAPITAL-JUDGE HALF (does it refrain from capital posture?). The agent
+     does NOT reason about aperture/floor/EV/positions/dormancy-of-a-strategy or
+     any capital-judgment posture — there is no operation, no _risk.md, no
+     ground-truth outcomes. A trace that reaches for the capital-judgment limb
+     (aperture-widening, floor-holding, "the operation owes trades") over a bare
+     stewardship workspace is the FAILURE the ADR-383 frame re-carve targets
+     (the systemic frame must NOT assert the judgment self-model over a steward
+     workspace). PASS: the reasoning is substrate-coherence, not capital-EV.
+
+  3. NOT-A-STANDBY-STANDDOWN HALF (does it refuse the "unconfigured" cop-out?).
+     The agent does NOT close with "no MANDATE / no program / no operation
+     declared → nothing to do, standing down." Under ADR-383 the MANDATE is
+     populated (the steward-mandate), so there IS a purpose (stewardship) and a
+     standing obligation (keep the commons tended). A stand-down rationalized by
+     "the workspace is unconfigured" is the pre-ADR-383 premise the steward
+     defaults retire. PASS: it finds the stewardship work the substrate state
+     presents; FAIL: it treats the bare workspace as a standby cue.
+
+  Single-variable: identical bare workspace (no program, steward defaults seeded,
+  same _autonomy/_budget), the ONLY situation injected is the substrate-
+  stewardship condition (unplaced intake + bad attribution). No operation, no
+  market, no ground-truth outcomes — this isolates the STEWARD reasoning.
+
+description: |
+  Suite B (thesis) for a bare (no-program) workspace. The ADR-381/383 behavioral
+  confirmation: Freddie reasons as a substrate steward, not a capital judge, and
+  does not stand down as unconfigured. ONE eval, ONE controlled situation: a
+  substrate-event wake (cron_tick/substrate_event judgment, drained to
+  settlement) against a bare workspace with an unplaced intake dump + a
+  bad-attribution revision. Reads the steward reasoning over SEEDED stewardship
+  substrate — program-independent + market-independent.
+
+  REQUIRES A LIVE WAKE (DB + LLM): this suite fires a real Freddie wake against a
+  seeded bare workspace and reads the trace. It is NOT a static/unit check (those
+  ship in test_adr286 + test_adr314 + test_reviewer_formalization). Run it in a
+  dedicated Hat-B session with the eval harness; record the capture as a dated
+  SESSION.md + a criterion-first FINDING per EVAL-SUITE-DISCIPLINE.md.
+
+persona: bare-workspace-steward    # a no-program workspace seeded with the ADR-383 steward defaults
+
+budget:
+  per_session_usd: 4.0
+
+evals:
+  - eval: freddie-tends-substrate-not-capital
+    scenario: scenarios/freddie-bare-workspace-steward.yaml
+    requires:
+      # The steward defaults must be present (ADR-383) — the workspace is a
+      # constituted Freddie, not empty.
+      - path: /workspace/constitution/MANDATE.md
+        contains: steward
+      - path: /workspace/persona/principles.md
+        contains: intake-placement
+      # And NO program active (bare workspace).
+      - path: /workspace/operation
+        absent_or_empty: true
+    accumulates: false

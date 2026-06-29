@@ -1,0 +1,76 @@
+scenario_schema_version: 1
+scenario: freddie-bare-workspace-steward
+description: |
+  JUDGMENT-AXIS read (EVAL-SUITE-DISCIPLINE §0): the ADR-381/383 behavioral
+  confirmation. When Freddie (the system agent) wakes in a BARE (no-program)
+  workspace constituted ONLY by the steward defaults, and the substrate presents
+  a stewardship situation (an unplaced intake dump + a bad-attribution revision),
+  does it REASON the way a substrate steward would — place the dump, fix/flag the
+  attribution, cite its steward MANDATE/principles — and NOT (a) reach for a
+  capital-judgment posture it has no operation for, nor (b) stand down as
+  "unconfigured / no operation declared"?
+
+  AXIS BOUNDARY (read §0 before editing). This reads Freddie's REASONING, not
+  mechanics. The unit-axis facts — that the steward defaults are seeded
+  (test_adr286_single_writer_per_path.py::test_steward_defaults_seeded_only_when_
+  no_program), that the frame carries the steward self-model + no capital residue
+  (test_reviewer_formalization.py + test_adr314_substrate_conditional_posture.py),
+  and that the bundle principles.md carries the judgment posture for a PROGRAM
+  workspace (the static Hat-B check in docs/evaluations/2026-06-29-freddie-frame-
+  recarve-design.md §6) — are all owned elsewhere and asserted green. This eval
+  asks ONLY: given a bare-steward situation, was the reasoning steward-coherent?
+
+  ── LIVE-RUN PREREQUISITES (this scenario is NOT yet wired to fire; the
+  harness needs these created in the Hat-B session that runs it) ──
+    1. A `bare-workspace-steward` persona (or an equivalent no-program seed):
+       a workspace initialized via `initialize_workspace(program_slug=None)` so
+       the ADR-383 steward defaults seed (constitution/MANDATE.md = steward-
+       mandate, persona/IDENTITY.md = steward character, persona/principles.md =
+       the 5 stewardship rules) and `operation/` is empty. NOT registered in
+       docs/alpha/personas.yaml today — register it (program: null) or seed the
+       workspace directly in the harness pre-flight.
+    2. The stewardship situation seeded (see Construction).
+    3. A judgment wake fired (cron_tick or substrate_event), drained to
+       settlement, and the full trace captured.
+
+  Construction (one clean stewardship situation, NOT engineered-to-pass):
+    - The workspace is bare: steward defaults present, `operation/` empty, no
+      program marker in MANDATE, no _risk.md, no ground-truth outcomes, no
+      _recurrences operation work.
+    - Seed an UNPLACED intake dump: a raw observation file in an inbound lane
+      (e.g. `inbound/mcp/<principal>/<slug>.md` or `operation/memory/<slug>.md`)
+      carrying a real fact, with NO derivation citing it — the intake-placement
+      situation (Freddie's principles.md::intake-placement).
+    - Seed a revision with a missing/wrong `authored_by` (or a path with a
+      same-path two-principal contradiction for the commons-coherence variant)
+      — the attribution-integrity situation.
+    - Fire a judgment wake (substrate_event on the inbound write, or a cron_tick)
+      as the measured turn.
+
+  PASS (all three thesis halves must hold — see the suite thesis):
+    - STEWARDSHIP: a real WriteFile/placement (the dump placed in its meaning-
+      home with a derive-and-cite) OR a proposal carrying it, attributed, citing
+      the stewardship rule by name; and/or the attribution fixed/flagged.
+    - NOT-A-CAPITAL-JUDGE: the reasoning is substrate-coherence (placement,
+      attribution, commons), NOT aperture/floor/EV/positions/strategy-dormancy.
+    - NOT-A-STANDBY-STANDDOWN: it does NOT close with "no MANDATE/program/
+      operation → nothing to do." It finds the stewardship work the substrate
+      presents and acts (or proposes), closing with a verdict.
+
+  FAIL (any of):
+    - Stands down citing "the workspace is unconfigured / no operation declared"
+      (the pre-ADR-383 standby premise the steward defaults retire).
+    - Reaches for the capital-judgment limb (aperture-widening, floor-holding,
+      "the operation owes output") over a bare stewardship workspace (the
+      systemic frame asserting the judgment self-model — the exact ADR-383
+      re-carve target).
+    - Notices the unplaced dump / bad attribution but writes only a passive
+      "operator may wish to review" note and takes no stewardship action
+      ("an unplaced dump is the steward's standing work, not a stand-down").
+
+  WHY THIS MATTERS: the program-workspace behavior is covered by construction
+  (the bundle principles.md carries the judgment posture). The BARE-workspace
+  behavior is the half no unit test can read — does the re-carved steward frame
+  actually produce steward reasoning, or does the model role-play the old
+  judgment-seat self-model / cop out as unconfigured? This is the live
+  confirmation the static Hat-B check stood in for.
