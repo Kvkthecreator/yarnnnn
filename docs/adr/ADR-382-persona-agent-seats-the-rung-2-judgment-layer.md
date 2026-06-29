@@ -24,7 +24,7 @@ What a persona agent is NOT:
 Every substantive question is its own session — named so they stop contaminating the Rung-0/1 launch work, NOT answered here:
 
 1. **Lifecycle & creation surface** — the front-end pre-set picker → Freddie instantiates + governs. The minimal "create a persona agent" act. **TBD.**
-2. **Trust & authority model** — propose-only vs. accountable-action; how Freddie sets/revokes "act on behalf"; the autonomy grant per agent. *[lean: graduated propose → witness → earn-autonomy, per ADR-380's open vision discussion — but the vision boundary is itself UNDECIDED (ADR-380 §5).]* **TBD.**
+2. **Trust & authority model** — propose-only vs. accountable-action; how Freddie sets/revokes "act on behalf"; the autonomy grant per agent. *[lean: graduated propose → witness → earn-autonomy. NOTE (ADR-380 §5 resolved 2026-06-29): Rung 2 is out of the **vision** — so this whole layer is a build-when-demanded optional future, not the destination. The trust model is no longer blocked on a vision decision; it is simply deferred until demand. This makes ADR-382 cleanly downstream/optional, not gated.]* **TBD.**
 3. **Accountability** — DP24/DP30 (stewardship + the standing obligation) relocate to the persona agent (the two-order direction §5); how. **TBD.**
 4. **Seat substrate** — how much of the ADR-315 seat≠occupant six-file substrate generalizes per persona agent (coordinates with ADR-381 D4). **TBD.**
 5. **The Rung-2 validation clock** — how track-record accrues + what "earned autonomy" requires (ADR-380 D4). **TBD.**
@@ -33,5 +33,5 @@ Every substantive question is its own session — named so they stop contaminati
 
 - Decides nothing — it reserves the number and frames the concept.
 - Builds no seat, no lifecycle, no creation surface, no schema.
-- Does not close ADR-380 §5's open vision boundary (which governs whether Rung 2 is the *vision*, not just deferred from the *build*).
+- Reflects (does not re-open) ADR-380 §5's now-resolved vision boundary: **Rung 2 is out of the vision** (2026-06-29) — so this entire persona-agent layer is an optional, build-when-demanded future, not the destination. ADR-382 is downstream/optional by that decision, not blocked by an open one.
 - Does not touch code or the re-founding keystone cascade.

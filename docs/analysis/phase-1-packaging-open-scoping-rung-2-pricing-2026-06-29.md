@@ -33,12 +33,12 @@ This note deliberately does **not** propose an answer — ADR-380 §6 named it o
 ## 4. Disposition
 
 - **ADR-334** → recommended re-label as the Rung-2/Phase-2 pricing model (one-line status note, when a session next touches it). Not edited here.
-- **Phase-1 packaging thesis** → **OPEN.** Owed its own scoping discourse. Inputs: ADR-327 (the cost ledger the launch already has), ADR-379 (interop reach), the ADR-375 substrate-wedge value, the ADR-380 §5 *open* vision/moat items (which shape whether Phase-1 pre-sells Rung 2).
-- **Coupling to the open vision boundary (ADR-380 §5)**: whether Phase-1 packaging *pre-sells* the Rung-2 judgment layer depends on the still-open vision-boundary decision. So the packaging thesis cannot fully close until the vision boundary does. Named, not resolved.
+- **Phase-1 packaging thesis** → **OPEN** (but now *unblocked* — see the §5-resolution note). Owed its own scoping discourse. Inputs: ADR-327 (the cost ledger the launch already has), ADR-379 (interop reach), the ADR-375 substrate-wedge value, and — now decided — the ADR-380 §5 vision/moat resolutions.
+- **The vision-boundary coupling is now RESOLVED (ADR-380 §5, 2026-06-29).** This note originally said the packaging thesis "cannot fully close until the vision boundary does." The vision boundary has since closed: **Rung 2 is out of the vision** (YARNNN's vision = the multi-principal substrate commons + Freddie, the context-management OS). The consequence for packaging is now decided in principle: **Phase-1 does NOT pre-sell the Rung-2 judgment layer** — the packaging thesis prices the substrate-OS (Rung 0–1) on its own merits, not as an on-ramp to autonomous agents. The moat is "durable attributed memory" with `trace`/provenance as its defensible core (ADR-380 §5). So the packaging discourse is unblocked: it scopes a substrate-OS offering, not a delegation funnel. (The pricing *mechanics* — seat/subscription vs. usage over the ADR-327 ledger — remain its own open scoping item; only the vision-coupling is resolved.)
 
 ## 5. What this note does NOT do
 
 - Does not decide Phase-1 pricing (ADR-380 §6 — out of scope by instruction).
 - Does not edit ADR-334 (recommends a status note for a future session).
-- Does not close ADR-380 §5's vision/moat open items (it depends on them).
+- Does not re-open ADR-380 §5 (its vision/moat items resolved 2026-06-29; this note now reflects that resolution).
 - Implies no code.
