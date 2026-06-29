@@ -14,13 +14,21 @@
  * individual agent pages or legacy role names.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ComponentType } from 'react';
 import {
   ArrowUpRight,
   ChevronRight,
   FolderKanban,
   Sparkles,
   Loader2,
+  // ADR-387 — Freddie grouped-nav pane icons
+  User,
+  Scale,
+  ShieldCheck,
+  Wallet,
+  Crosshair,
+  FileCode,
+  Activity as ActivityIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
@@ -34,6 +42,13 @@ import { humanizeSchedule, scheduleDisplay } from '@/lib/schedule';
 import { SubstrateTab } from './SubstrateTab';
 import { FreddieActivityPanel } from './FreddieActivityPanel';
 import { FreddieCapabilitiesPanel } from './FreddieCapabilitiesPanel';
+// ADR-387 (2026-06-29): Freddie's pane absorbs the agent-scoped governance
+// panes out of Workspace Settings. The same *Card full variants render here
+// (a MOVE, not a copy — Workspace Settings loses them; Singular Implementation).
+import { PrinciplesCard } from '@/components/workspace-concepts/PrinciplesCard';
+import { AutonomyCard } from '@/components/workspace-concepts/AutonomyCard';
+import { BudgetCard } from '@/components/workspace-concepts/BudgetCard';
+import { ExpectedOutputCard } from '@/components/workspace-concepts/ExpectedOutputCard';
 import {
   agentClassDescription,
   agentClassLabel,
@@ -666,36 +681,9 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 // Shared tab bar
 // ---------------------------------------------------------------------------
 
-interface TabDef { key: string; label: string }
-
-function AgentTabBar({
-  tabs,
-  active,
-  onChange,
-}: {
-  tabs: TabDef[];
-  active: string;
-  onChange: (key: string) => void;
-}) {
-  return (
-    <div className="flex items-center gap-1 px-6 py-2 border-b border-border/40 bg-background">
-      {tabs.map((tab) => (
-        <button
-          key={tab.key}
-          onClick={() => onChange(tab.key)}
-          className={cn(
-            'px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
-            active === tab.key
-              ? 'bg-muted text-foreground'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
-          )}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </div>
-  );
-}
+// ADR-387: AgentTabBar (the flat Freddie tab bar) + TabDef DELETED — Freddie's
+// surface now uses the grouped sidebar (FREDDIE_PANE_GROUPS) below. No other
+// consumer existed (Singular Implementation — no dead code left behind).
 
 // ---------------------------------------------------------------------------
 // ADR-272 (2026-05-14): YarnnnDetail function DELETED. System Agent surface
@@ -730,36 +718,116 @@ function AgentTabBar({
 // (ADR-228); raw files remain accessible via /files.
 // ---------------------------------------------------------------------------
 
-// ADR-297: Autonomy + Principles tabs DELETED. Operator-authored
-// governance (autonomy level + judgment principles) lives on atomic
-// surfaces (/autonomy, /principles). Reviewer page shrinks to
-// Reviewer-substance only — who occupies the seat, what it can do, what
-// it did. URL params ?tab=autonomy and ?tab=principles fail the
-// validTab check below and gracefully fall through to 'identity'.
-const REVIEWER_TABS: TabDef[] = [
-  { key: 'identity', label: 'Identity' },
-  { key: 'capabilities', label: 'Capabilities' },
-  { key: 'activity', label: 'Activity' },
+// ADR-387 (2026-06-29): Freddie's pane absorbs the agent-scoped governance
+// out of Workspace Settings. ADR-297 had DELETED Autonomy + Principles tabs
+// (moving them to atomic surfaces, later consolidated into Workspace
+// Settings); ADR-387 RE-AFFIRMS ADR-251's thesis — these are the AGENT's
+// settings — now that ADR-381/383 makes "the agent" (Freddie) a concrete
+// identity-backed entity. The flat tab bar becomes a grouped sidebar
+// (SettingsPaneShell grammar) grouped by SUBSTRATE ROOT-OWNERSHIP so the
+// surface teaches the lock model (ADR-341): PERSONA (persona/ — the agent's
+// own) · GRANT (governance/ — the ceiling the operator sets, the agent runs
+// under) · CONTRACT (contract/ — what the operator declares it owes) ·
+// OPERATION (specs) · SUPERVISION (activity).
+//
+// A MOVE not a copy: these panes are simultaneously removed from
+// workspace-settings PANE_GROUPS (Singular Implementation, the ADR-297
+// invariant). The param stays `agents.tab` (ADR-358 D6) so every existing
+// deep-link (?agent=freddie&agents.tab=identity|activity, and the dangling
+// HomeHeader autonomy deep-link ADR-297 had broken) keeps working — the
+// autonomy/principles keys now RESOLVE instead of falling through.
+interface FreddiePaneGroup {
+  label: string;
+  panes: { key: string; label: string; icon: ComponentType<{ className?: string }> }[];
+}
+const FREDDIE_PANE_GROUPS: FreddiePaneGroup[] = [
+  {
+    label: 'Persona',
+    panes: [
+      { key: 'identity', label: 'Identity', icon: User },
+      { key: 'principles', label: 'Principles', icon: Scale },
+    ],
+  },
+  {
+    label: 'Grant',
+    panes: [
+      { key: 'autonomy', label: 'Autonomy', icon: ShieldCheck },
+      { key: 'budget', label: 'Budget', icon: Wallet },
+    ],
+  },
+  {
+    label: 'Contract',
+    panes: [{ key: 'expected-output', label: 'Expected Output', icon: Crosshair }],
+  },
+  {
+    label: 'Operation',
+    panes: [{ key: 'capabilities', label: 'Capabilities', icon: FileCode }],
+  },
+  {
+    label: 'Supervision',
+    panes: [{ key: 'activity', label: 'Activity', icon: ActivityIcon }],
+  },
 ];
+const FREDDIE_PANE_KEYS = FREDDIE_PANE_GROUPS.flatMap((g) => g.panes.map((p) => p.key));
+
+/** ADR-387 — render one Freddie pane body. The *Card full variants are the
+ *  SAME components Workspace Settings used (they leave there; Singular
+ *  Implementation). Identity + Capabilities + Activity keep their existing
+ *  Freddie-surface renderers. */
+function renderFreddiePane(pane: string) {
+  switch (pane) {
+    case 'identity':
+      return (
+        <SubstrateTab
+          title="Identity"
+          path="/workspace/persona/IDENTITY.md"
+          tagline="Freddie's persona — who occupies the seat. Operator-authored; shapes how it reasons (stewardship, and judgment when an operation runs)."
+          editPrompt="I want to evolve Freddie's identity and persona. Walk me through the current declaration."
+          emptyBody={
+            <p className="text-center text-xs">
+              No identity declared yet. Author Freddie's persona to shape
+              how it reasons — Simons, Buffett, or your own original.
+            </p>
+          }
+        />
+      );
+    case 'principles':
+      return <PrinciplesCard variant="full" />;
+    case 'autonomy':
+      return <AutonomyCard variant="full" />;
+    case 'budget':
+      return <BudgetCard variant="full" />;
+    case 'expected-output':
+      return <ExpectedOutputCard variant="full" />;
+    case 'capabilities':
+      return <FreddieCapabilitiesPanel />;
+    case 'activity':
+      return <FreddieActivityPanel />;
+    default:
+      return null;
+  }
+}
 
 function ReviewerDetail({ agent }: { agent: Agent }) {
-  // ADR-358 D6 (2026-06-25): the Reviewer's sub-tab is THIS window's own
+  // ADR-358 D6 (2026-06-25): the Reviewer's sub-pane is THIS window's own
   // deep-link state — read/written under the `agents.tab` namespace via
   // useSurfaceParam, NO pathname flip. Pre-fix this used
   // router.replace('/agents?tab=…') with a BARE key, which hard-navigated
   // off the /desktop baseline (resetting chat) and collided with any other
   // window's flat ?tab=. The URL is the single source of truth — derive
-  // activeTab from it directly, no parallel useState.
+  // activePane from it directly, no parallel useState. ADR-387: the key
+  // space grew (principles/autonomy/budget/expected-output added); the param
+  // name stays `tab` for deep-link continuity.
   const p = useSurfaceParam('agents');
   const tabParam = p.get('tab');
-  const activeTab = REVIEWER_TABS.some(t => t.key === tabParam) ? tabParam! : 'identity';
+  const activePane = tabParam && FREDDIE_PANE_KEYS.includes(tabParam) ? tabParam : 'identity';
 
-  function handleTabChange(key: string) {
+  function handlePaneChange(key: string) {
     p.set({ tab: key });
   }
 
   return (
-    <div className="flex-1 overflow-auto">
+    <div className="flex-1 overflow-hidden flex flex-col">
       <SurfaceIdentityHeader
         title="Freddie"
         metadata={
@@ -768,34 +836,44 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
           </span>
         }
       />
-      <AgentTabBar tabs={REVIEWER_TABS} active={activeTab} onChange={handleTabChange} />
-      <div className="max-w-3xl">
-        {activeTab === 'identity' && (
-          <div className="px-6 py-5">
-            <SubstrateTab
-              title="Identity"
-              path="/workspace/persona/IDENTITY.md"
-              tagline="Freddie's persona — who occupies the seat. Operator-authored; shapes how it reasons (stewardship, and judgment when an operation runs)."
-              editPrompt="I want to evolve Freddie's identity and persona. Walk me through the current declaration."
-              emptyBody={
-                <p className="text-center text-xs">
-                  No identity declared yet. Author Freddie's persona to shape
-                  how it reasons — Simons, Buffett, or your own original.
-                </p>
-              }
-            />
-          </div>
-        )}
-        {activeTab === 'capabilities' && (
-          <div className="px-6 py-5">
-            <FreddieCapabilitiesPanel />
-          </div>
-        )}
-        {activeTab === 'activity' && (
-          <div className="px-6 py-5">
-            <FreddieActivityPanel />
-          </div>
-        )}
+      {/* ADR-387 grouped sidebar (SettingsPaneShell grammar) grouped by
+          substrate root-ownership: Persona · Grant · Contract · Operation ·
+          Supervision. */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        <nav
+          aria-label="Freddie panes"
+          className="w-44 sm:w-52 shrink-0 border-r border-border overflow-y-auto py-3 px-2 space-y-4"
+        >
+          {FREDDIE_PANE_GROUPS.map((group) => (
+            <div key={group.label}>
+              <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                {group.label}
+              </div>
+              {group.panes.map((pane) => {
+                const Icon = pane.icon;
+                const isActive = activePane === pane.key;
+                return (
+                  <button
+                    key={pane.key}
+                    onClick={() => handlePaneChange(pane.key)}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                      isActive
+                        ? 'bg-muted text-foreground font-medium'
+                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                    )}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    {pane.label}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-3xl px-6 py-5">{renderFreddiePane(activePane)}</div>
+        </div>
       </div>
     </div>
   );

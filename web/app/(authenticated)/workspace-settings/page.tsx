@@ -29,50 +29,47 @@
  */
 
 import { useEffect, useState } from "react";
-import { Target, UserCircle, Scale, Package, AlertCircle, Rocket, Loader2, Wallet, ShieldCheck, Crosshair, Users } from "lucide-react";
+import { Target, UserCircle, Package, AlertCircle, Rocket, Loader2, Users } from "lucide-react";
 import { api, APIError } from "@/lib/api/client";
-import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
+import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { MandateCard } from "@/components/workspace-concepts/MandateCard";
-import { IdentityBrandCard } from "@/components/workspace-concepts/IdentityBrandCard";
-import { PrinciplesCard } from "@/components/workspace-concepts/PrinciplesCard";
-import { AutonomyCard } from "@/components/workspace-concepts/AutonomyCard";
-import { BudgetCard } from "@/components/workspace-concepts/BudgetCard";
-import { ExpectedOutputCard } from "@/components/workspace-concepts/ExpectedOutputCard";
 import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
+import { WorkspaceFileView } from "@/components/shared/WorkspaceFileView";
 import { ProgramLifecycleDrawer } from "@/components/library/ProgramLifecycleDrawer";
 
 // ADR-341/347: pane keys match the kernel registry slugs for pane-grade
 // surfaces (mandate/identity/principles/budget/autonomy/expected-output/
 // program), so foregroundSurface(slug) → workspace-settings + ?pane=slug
 // resolves here. ADR-385: connectors/sources moved to pane_of: channels.
+// ADR-387 D1 (2026-06-29): the agent-scoped panes — Identity + Principles
+// (persona/), Autonomy + Budget (governance/ grant), Expected Output
+// (contract/) — MOVED OUT to Freddie's pane (?agent=freddie), where the
+// agent's settings belong post-ADR-381/383. A MOVE not a copy (Singular
+// Implementation, the ADR-297 invariant): they are gone from here. Deep-links
+// to the old pane slugs redirect (ADR-308 stub, see redirectToFreddie below).
+// Workspace Settings keeps Mandate (constitution/ — operator intent), Brand
+// (operation/ — D3 interim home pending its own rethink), Program (operation/
+// — D4, its own scoped ADR), Members (access).
 const PANE_GROUPS: PaneGroup[] = [
   {
     label: "Constitution",
-    panes: [
-      { key: "mandate", label: "Mandate", icon: Target },
-      { key: "identity", label: "Identity", icon: UserCircle },
-      { key: "principles", label: "Principles", icon: Scale },
-    ],
+    panes: [{ key: "mandate", label: "Mandate", icon: Target }],
   },
   {
-    // ADR-347/ADR-348 — the operating contract, gathered: Rhythm · Witness
-    // · Expected Output. Moved in from the dissolved System Settings door.
-    label: "Contract",
-    panes: [
-      { key: "budget", label: "Budget", icon: Wallet },
-      { key: "autonomy", label: "Autonomy", icon: ShieldCheck },
-      { key: "expected-output", label: "Expected Output", icon: Crosshair },
-    ],
-  },
-  {
+    // ADR-387 D3 — Brand stays here (interim). It is operation/-rooted output
+    // styling consumed by writing-agents, NOT Freddie's reasoning-character —
+    // so it did not move with Identity. Its permanent home is deferred to the
+    // D4 follow-on ADR (agent output-styling vs operator brand vs per-persona).
     label: "Operation",
-    panes: [{ key: "program", label: "Program", icon: Package }],
+    panes: [
+      { key: "brand", label: "Brand", icon: UserCircle },
+      { key: "program", label: "Program", icon: Package },
+    ],
   },
-  // ADR-385 D4 — the Perception group (Connectors · Sources) is removed from
-  // Workspace Settings; perception is now wholly owned by the Channels surface
-  // (the connectors/sources slugs are pane_of: channels). Settings tightens to
-  // Constitution · Contract · Operation · Access.
+  // ADR-385 D4 — the Perception group (Connectors · Sources) was removed.
+  // ADR-387 D1 — the Constitution (Identity/Principles) + Contract
+  // (Budget/Autonomy/Expected Output) groups dissolved (moved to Freddie).
   {
     // ADR-373 D2 — the multi-principal access view. Who (humans, agents,
     // external LLMs over MCP, platforms) can write to this workspace, and
@@ -83,8 +80,33 @@ const PANE_GROUPS: PaneGroup[] = [
   },
 ];
 
+// ADR-387 D1 — ADR-308 pure-transport redirect: the moved pane slugs land on
+// Freddie's pane. A deep-link to workspace-settings.pane=identity (etc.) now
+// foregrounds the agents window on Freddie with the matching tab.
+const MOVED_TO_FREDDIE: Record<string, string> = {
+  identity: "identity",
+  principles: "principles",
+  autonomy: "autonomy",
+  budget: "budget",
+  "expected-output": "expected-output",
+};
+
 export default function WorkspaceSettingsPage() {
   const { navigateToSurface } = useSurfacePreferences();
+  const surfaceParam = useSurfaceParam("workspace-settings");
+  const requestedPane = surfaceParam.get("pane");
+
+  // ADR-387 D1 — ADR-308 pure-transport redirect. A deep-link to a moved pane
+  // (workspace-settings.pane=identity|principles|autonomy|budget|expected-output)
+  // foregrounds Freddie's pane with the matching tab. Done in an effect (a
+  // navigation side-effect, not render) so the redirect stub paints nothing
+  // (no orphaned frame — ADR-308).
+  useEffect(() => {
+    if (requestedPane && MOVED_TO_FREDDIE[requestedPane]) {
+      navigateToSurface("agents", { agent: "freddie", tab: MOVED_TO_FREDDIE[requestedPane] });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedPane]);
 
   const renderPane = (pane: string) => {
     switch (pane) {
@@ -94,36 +116,25 @@ export default function WorkspaceSettingsPage() {
             <MandateCard variant="full" />
           </section>
         );
-      case "identity":
+      // ADR-387 D3 — Brand stays here (interim). Rendered via the universal
+      // WorkspaceFileView reading operation/BRAND.md directly (Identity moved
+      // to Freddie, so the old merged "Identity & Brand" card no longer fits).
+      case "brand":
         return (
           <section className="mb-8">
-            <IdentityBrandCard variant="full" />
-          </section>
-        );
-      case "principles":
-        return (
-          <section className="mb-8">
-            <PrinciplesCard variant="full" />
-          </section>
-        );
-      // ADR-347/ADR-348 — the Contract group (Rhythm · Witness · Expected
-      // Output). Operator-authored governance-region → inline editors.
-      case "budget":
-        return (
-          <section className="mb-8">
-            <BudgetCard variant="full" />
-          </section>
-        );
-      case "autonomy":
-        return (
-          <section className="mb-8">
-            <AutonomyCard variant="full" />
-          </section>
-        );
-      case "expected-output":
-        return (
-          <section className="mb-8">
-            <ExpectedOutputCard variant="full" />
+            <WorkspaceFileView
+              title="Brand voice"
+              path="/workspace/operation/BRAND.md"
+              tagline="How produced output should sound — the brand voice writing-agents apply. Operator-authored. (Its permanent home is a follow-on ADR — ADR-387 D3.)"
+              editPrompt="Help me define my brand voice — the tone, style, and conventions all produced content should follow."
+              onEdit={(prompt) => navigateToSurface("chat", { prompt })}
+              emptyBody={
+                <p className="text-center text-xs">
+                  No brand voice declared yet. Author it to shape how produced
+                  content sounds.
+                </p>
+              }
+            />
           </section>
         );
       case "program":
@@ -132,9 +143,9 @@ export default function WorkspaceSettingsPage() {
             <ProgramPaneBody onRerunSetup={() => navigateToSurface("setup")} />
           </section>
         );
-      // ADR-385 D4 — the connectors + sources render cases are deleted here;
-      // those slugs are now pane_of: channels and render on the Channels
-      // surface. /connectors + /sources route stubs redirect there.
+      // ADR-385 D4 — connectors/sources moved to Channels.
+      // ADR-387 D1 — identity/principles/autonomy/budget/expected-output MOVED
+      // to Freddie's pane (redirected above); their render cases are gone here.
       case "members":
         // ADR-373 D2 — read-only Workspace Members legibility.
         return (
