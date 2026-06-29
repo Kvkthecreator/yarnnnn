@@ -556,17 +556,20 @@ async def recall(
     context. Every LLM the user touches sees the same memory, so their thinking
     stays coherent across rooms.
 
-    Use the `confidence` field to decide how to respond — this is the key to not
-    guessing when the memory is ambiguous:
+    The `confidence` field is ALWAYS present (even on a miss) and uses the same
+    4-value scale as `trace`'s `resolution` — use it to decide how to respond:
       • "high"      — a clear, dominant match (or an exact subject hit). Use it.
       • "ambiguous" — several recorded items match and none dominates. Do NOT
                       silently pick the first; surface the candidates (in `chunks`)
                       and ASK the user which they mean. This is the clarify case.
-      • "weak"      — only loose matches below the confidence bar. Treat as weak;
-                      answer from your own knowledge or ask the user to be specific.
-    If nothing matches at all, tell them YARNNN has nothing recorded yet and answer
-    from your own knowledge. (YARNNN never clarifies or guesses itself — it's the
-    memory; you're the one in the conversation.)
+      • "weak"      — only loose matches below the confidence bar. A lead, not an
+                      answer; answer from your own knowledge or ask the user to be
+                      specific.
+      • "none"      — NOTHING recorded on this subject (a true miss; `chunks` empty).
+                      The strongest "nothing here" signal — answer from your own
+                      knowledge. (Distinct from "weak", which is a real but shaky hit.)
+    (YARNNN never clarifies or guesses itself — it's the memory; you're the one in
+    the conversation.)
 
     Args:
         subject: What to recall (entity, topic, keyword). Required.
@@ -627,15 +630,18 @@ async def trace(
     recorded material and returns its revision history, newest first. Reason over
     the chain and narrate the evolution in your own voice.
 
-    Check the `resolution` field before narrating — it tells you how sure YARNNN
-    is that it traced the RIGHT thing (a wrong trace reads as authoritative, so
-    don't narrate a confident "here's how your thinking evolved" over the wrong
-    file):
+    Check the `resolution` field before narrating — ALWAYS present, same 4-value
+    scale as `recall`'s `confidence` (the lower three mean the same thing). A wrong
+    trace reads as authoritative, so don't narrate a confident "here's how your
+    thinking evolved" over the wrong file:
       • "exact"     — the subject named a single file; this IS its history. Narrate.
-      • "ambiguous" — the subject matched several files (or only loosely); this is
-                      the closest, not a certain one. CONFIRM with the user that
-                      this is what they meant before narrating its history.
-      • "weak"      — nothing recorded on this subject yet; say so.
+                      (trace's name for the confident value, ≡ recall's "high".)
+      • "ambiguous" — the subject matched several files; this is the closest, not a
+                      certain one. CONFIRM with the user before narrating.
+      • "weak"      — only a single loose mention-match (not a name-match). A lead;
+                      confirm before narrating it as the subject's history.
+      • "none"      — NOTHING recorded on this subject (path is null, history empty).
+                      Say so; don't narrate.
 
     On a rich-render host (ChatGPT / MCP Apps) the revision chain ALSO renders as
     an interactive timeline widget (ADR-372) — but you STILL narrate the evolution
@@ -707,7 +713,7 @@ _OUTPUT_SCHEMAS = {
             "chunks": {"type": "array", "items": {"type": "object"}, "description": "ranked excerpts of recorded material (path, excerpt, last_updated, domain, source_tag, similarity)"},
             "total_matches": {"type": "integer"},
             "returned": {"type": "integer"},
-            "confidence": {"type": "string", "enum": ["high", "ambiguous", "weak"], "description": "honest-state signal for the host: high=use it; ambiguous=ask which the user means; weak=loose matches only"},
+            "confidence": {"type": "string", "enum": ["high", "ambiguous", "weak", "none"], "description": "ALWAYS present (even on a miss). Shared scale with trace.resolution: high=use it; ambiguous=ask which the user means; weak=loose lead only; none=nothing recorded (true miss)"},
             "explanation": {"type": "string"},
         },
     },
@@ -716,7 +722,7 @@ _OUTPUT_SCHEMAS = {
         "properties": {
             "subject": {"type": "string"},
             "path": {"type": ["string", "null"]},
-            "resolution": {"type": "string", "enum": ["exact", "ambiguous", "weak"], "description": "how sure YARNNN is it traced the right file: exact=narrate; ambiguous=confirm the subject first; weak=nothing recorded"},
+            "resolution": {"type": "string", "enum": ["exact", "ambiguous", "weak", "none"], "description": "ALWAYS present. Shared scale with recall.confidence: exact=narrate (≡high); ambiguous=confirm first; weak=loose lead, confirm; none=nothing recorded (true miss)"},
             "history": {"type": "array", "items": _REVISION_SCHEMA, "description": "revision chain, newest first"},
             "returned": {"type": "integer"},
             "explanation": {"type": "string"},

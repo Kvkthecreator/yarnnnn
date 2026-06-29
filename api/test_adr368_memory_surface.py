@@ -157,13 +157,27 @@ def main():
             (conf([{"path": "a", "similarity": 0.60}, {"path": "b", "similarity": 0.58}]) == "ambiguous"),
         "best below dominant bar → weak":
             (conf([{"path": "a", "similarity": 0.33}]) == "weak"),
-        "empty → weak":
-            (conf([]) == "weak"),
+        "empty → none (true miss, NOT weak — the 2026-06-29 overload split)":
+            (conf([]) == "none"),
     }
     conf_ok = all(cases.values())
     results.append(_check(
-        "12 recall confidence: exact/single/dominant=high, close=ambiguous, low=weak (host decides clarify; zero inference)",
+        "12 recall confidence: exact/single/dominant=high, close=ambiguous, low=weak, empty=none (4-value scale; zero inference)",
         conf_ok, "" if conf_ok else f"failed={[k for k,v in cases.items() if not v]}"))
+
+    # 12b. the SHARED vocabulary: recall miss + trace miss both report the field
+    #      (never absent) and both use "none" for a true miss (Seam 1 + Seam 2 from
+    #      the live discrimination test). The recall empty-branch must carry
+    #      confidence:"none"; trace's empty-branch must carry resolution:"none".
+    recall_src_full = inspect.getsource(m.compose_recall)
+    trace_src_full = inspect.getsource(m.compose_trace)
+    miss_uniform = (
+        '"confidence": CONFIDENCE_NONE' in recall_src_full   # recall miss carries the field
+        and '"resolution": CONFIDENCE_NONE' in trace_src_full  # trace miss = none, not weak
+    )
+    results.append(_check(
+        "12b miss path is uniform: recall + trace BOTH emit the field = 'none' on a true miss (no absent-field hole, no weak/none overload)",
+        miss_uniform))
 
     # 13. confidence is actually returned by compose_recall + the host is taught
     #     (server tool description) to ask on ambiguous — the bright line stays:

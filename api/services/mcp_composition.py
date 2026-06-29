@@ -208,6 +208,32 @@ def _short_excerpt(text: str, limit: int = 400) -> str:
     return text[:limit].rstrip() + "…"
 
 
+# =============================================================================
+# The honest-state vocabulary — ONE shared 4-value scale across recall + trace
+# =============================================================================
+# (2026-06-29, hardened after a live discrimination test surfaced two seams.)
+# recall reports `confidence`, trace reports `resolution`; BOTH use this SAME
+# vocabulary with the SAME meaning, and the field is ALWAYS PRESENT (never absent
+# on a miss — the earlier recall-miss dropped the field entirely, an honest-state
+# hole a `switch(confidence)` integrator hits as `undefined`). Documented in
+# docs/features/mcp/honest-state-contract.md.
+#
+#   "high"      — confident hit (recall: dominant/exact; trace: exact name-match).
+#                 Use it.
+#   "ambiguous" — found multiple, none dominant. The host should surface the
+#                 candidates and ASK / CONFIRM rather than crowning the top.
+#   "weak"      — found SOMETHING but low-confidence (recall: below the dominant
+#                 bar; trace: an FTS mention-match, not a name-match). Treat as a
+#                 loose lead, not an answer.
+#   "none"      — NOTHING recorded at all. The strongest "nothing here" signal;
+#                 answer from own knowledge. (Distinct from "weak": weak = a real
+#                 but shaky hit; none = a true miss. This split is why the two
+#                 tools no longer overload one word for both.)
+CONFIDENCE_HIGH = "high"
+CONFIDENCE_AMBIGUOUS = "ambiguous"
+CONFIDENCE_WEAK = "weak"
+CONFIDENCE_NONE = "none"
+
 # Recall confidence thresholds (derived from the similarity QueryKnowledge already
 # returns — ZERO extra inference / DB cost). The connector's job is fidelity, not
 # judgment: it reports the honest state so the HOST LLM (the one in the
@@ -223,32 +249,30 @@ _RECALL_AMBIGUOUS_GAP = 0.08  # if #1 and #2 are within this, no clear winner
 def _recall_confidence(chunks: list[dict]) -> str:
     """Derive an honest confidence label from chunks (pure; no inference).
 
-    Returns one of:
-      'high'      — an exact deterministic hit, OR a single chunk, OR a dominant
-                    top score with a clear gap to the runner-up.
-      'ambiguous' — multiple candidates with close top scores and no dominant one;
-                    the host SHOULD surface the choice rather than assume the top.
+    Returns a value from the shared honest-state vocabulary (see above):
+      'high'      — exact deterministic hit, single chunk, or dominant top score.
+      'ambiguous' — multiple candidates, close top scores, no dominant one.
       'weak'      — the best score is below the dominant bar (loose matches only).
-    The empty case is handled by the caller before this is reached.
+      'none'      — no chunks at all (a true miss). The field is ALWAYS present.
     """
     if not chunks:
-        return "weak"
+        return CONFIDENCE_NONE
     # An exact subject→path resolve is maximally confident regardless of fuzzy scores.
     if chunks[0].get("match") == "exact":
-        return "high"
+        return CONFIDENCE_HIGH
     sims = sorted((c["similarity"] for c in chunks if "similarity" in c), reverse=True)
     if not sims:
         # BM25/list path (no scores) — single hit is high; multiple is ambiguous.
-        return "high" if len(chunks) == 1 else "ambiguous"
+        return CONFIDENCE_HIGH if len(chunks) == 1 else CONFIDENCE_AMBIGUOUS
     top = sims[0]
     second = sims[1] if len(sims) > 1 else 0.0
     if top >= _RECALL_DOMINANT_MIN and (top - second) >= _RECALL_AMBIGUOUS_GAP:
-        return "high"
+        return CONFIDENCE_HIGH
     if len(sims) > 1 and (top - second) < _RECALL_AMBIGUOUS_GAP:
-        return "ambiguous"
+        return CONFIDENCE_AMBIGUOUS
     if top < _RECALL_DOMINANT_MIN:
-        return "weak"
-    return "high"
+        return CONFIDENCE_WEAK
+    return CONFIDENCE_HIGH
 
 
 def _slugify(text: str) -> str:
@@ -533,19 +557,23 @@ async def resolve_trace_path(auth: Any, subject: str) -> tuple[Optional[str], st
          beats a 1-revision file that merely mentions it.
       3. None → caller reports "nothing recorded".
 
-    Returns `(path, resolution)` where resolution is the SAME honest-state signal
-    recall carries (2026-06-29): "exact" when a SINGLE file's basename is the
-    subject (the file IS it — confident), "ambiguous" when several name-matches
-    competed OR resolution fell to FTS (mention-ranking, looser — the host should
-    confirm it traced the right thing before narrating "how your thinking
-    evolved"). Zero added inference — derived from the resolve branch already
-    taken. `(None, "weak")` when nothing matched.
+    Returns `(path, resolution)` on the SHARED honest-state vocabulary (the lower
+    three values mean exactly what they mean in recall, so one host handler works):
+      "exact"     — a SINGLE file's basename IS the subject (confident; trace's
+                    name for recall's "high"). Narrate.
+      "ambiguous" — several name-matches competed (we picked one) OR FTS returned
+                    several candidates. Host should confirm/surface before narrating.
+      "weak"      — only a single FTS MENTION-match (a loose lead, never a
+                    name-match — "exact" is reserved for name-matches). Narrate
+                    cautiously / confirm.
+      "none"      — nothing matched at all (a true miss). `(None, "none")`.
+    Zero added inference — derived from the resolve branch already taken.
     """
     from services.primitives.registry import execute_primitive
 
     raw = (subject or "").strip()
     if not raw:
-        return None, "weak"
+        return None, CONFIDENCE_NONE
     slug = _slugify(raw)
     # Candidate basenames to match against (no extension assumed).
     stems = {raw, slug, slug.replace("-", "_"), slug.replace("_", "-")}
@@ -587,9 +615,10 @@ async def resolve_trace_path(auth: Any, subject: str) -> tuple[Optional[str], st
                 n = await _rev_count(p)
                 if n > best_revs:
                     best, best_revs = p, n
-            # A SINGLE name-match is the file that IS the subject → exact. Multiple
-            # competing name-matches means we PICKED one — honest state is ambiguous.
-            return best, ("exact" if len(name_hits) == 1 else "ambiguous")
+            # A SINGLE name-match is the file that IS the subject → "exact" (trace's
+            # name for the confident value, ≡ recall's "high"). Multiple competing
+            # name-matches means we PICKED one → "ambiguous" (same meaning as recall).
+            return best, ("exact" if len(name_hits) == 1 else CONFIDENCE_AMBIGUOUS)
     except Exception as exc:  # noqa: BLE001
         logger.debug("[MCP] trace name-match resolve failed: %s", exc)
 
@@ -600,7 +629,7 @@ async def resolve_trace_path(auth: Any, subject: str) -> tuple[Optional[str], st
         )
         results = (qk.get("results") or []) if qk.get("success") else []
         if not results:
-            return None, "weak"
+            return None, CONFIDENCE_NONE
         subj_token = slug.replace("-", "").replace("_", "")
 
         async def _score(path: str) -> tuple:
@@ -614,18 +643,21 @@ async def resolve_trace_path(auth: Any, subject: str) -> tuple[Optional[str], st
             if p:
                 scored.append((await _score(p), p))
         if not scored:
-            return None, "weak"
+            return None, CONFIDENCE_NONE
         scored.sort(key=lambda x: x[0], reverse=True)  # path-match then revs
-        # FTS fallback = mention-ranking, inherently looser than a name match.
-        # If the top candidate's PATH contains the subject token it's a strong
-        # pick; otherwise it merely MENTIONS the subject → ambiguous, the host
-        # should confirm it's the right thing before narrating its history.
-        top_score, top_path = scored[0]
-        resolution = "exact" if top_score[0] == 1 and len(scored) == 1 else "ambiguous"
+        # FTS fallback = mention-ranking, inherently looser than a name-match — so
+        # it NEVER returns "exact" ("exact" is reserved for the name-match branch
+        # above, where the file's basename IS the subject). Honest mapping onto the
+        # shared vocabulary: a SINGLE loose candidate → "weak" (a lead, not an
+        # answer — narrate cautiously / confirm); SEVERAL candidates → "ambiguous"
+        # (the host should surface the choice). Either way the host should confirm
+        # before narrating "how your thinking evolved".
+        _top_score, top_path = scored[0]
+        resolution = CONFIDENCE_WEAK if len(scored) == 1 else CONFIDENCE_AMBIGUOUS
         return top_path, resolution
     except Exception as exc:  # noqa: BLE001
         logger.debug("[MCP] trace FTS resolve failed: %s", exc)
-        return None, "weak"
+        return None, CONFIDENCE_NONE
 
 
 async def dispatch_remember_this(
@@ -770,7 +802,14 @@ async def compose_recall(
     if not chunks:
         return {
             "success": True, "subject": subject, "chunks": [], "total_matches": 0,
-            "returned": 0, "citations": [],
+            "returned": 0,
+            # ALWAYS emit `confidence` — even on a true miss. The earlier branch
+            # dropped the field, so a host's switch(confidence) hit `undefined` on a
+            # clean miss (the honest-state hole the live test surfaced). "none" is
+            # the strongest "nothing here" signal — distinct from "weak" (a real
+            # but shaky hit). The field is now never absent.
+            "confidence": CONFIDENCE_NONE,
+            "citations": [],
             "explanation": (
                 f"YARNNN has no accumulated memory about '{subject}'. The user "
                 "hasn't recorded this yet. Answer from your own knowledge if you can."
@@ -839,7 +878,10 @@ async def compose_trace(
     if not path:
         return {
             "success": True, "subject": subject, "path": None, "history": [],
-            "resolution": "weak",
+            # "none" = nothing recorded at all (a true miss) — the SAME meaning as
+            # recall's "none". Was "weak", which overloaded the word: trace's empty
+            # case is a true miss, not a low-confidence hit. Shared vocabulary now.
+            "resolution": CONFIDENCE_NONE,
             "explanation": (
                 f"YARNNN has no recorded material about '{subject}' to trace. "
                 "Nothing has been authored on this subject yet."
@@ -944,11 +986,12 @@ async def compose_trace(
         + " (the source(s) of record this understanding was derived from)"
         if raw_path else ""
     )
-    # Honest-state: if resolution was ambiguous (several candidates, or an FTS
-    # mention-match), tell the host so it can CONFIRM it traced the right thing
-    # before narrating "how your thinking on X evolved" — a wrong trace reads as
-    # authoritative, the failure mode this guards (parallel to recall's ambiguous).
-    if resolution == "ambiguous":
+    # Honest-state: if resolution was NOT confident ("exact"), tell the host so it
+    # can CONFIRM it traced the right thing before narrating "how your thinking on X
+    # evolved" — a wrong trace reads as authoritative, the failure mode this guards
+    # (parallel to recall's ambiguous/weak). "ambiguous" = several candidates;
+    # "weak" = a single loose FTS lead. Both warrant a confirm.
+    if resolution in (CONFIDENCE_AMBIGUOUS, CONFIDENCE_WEAK):
         explanation = (
             f"Traced `{abs_path}` for '{subject}', but the subject didn't resolve "
             f"to a single unambiguous file — this is the closest match, not a "

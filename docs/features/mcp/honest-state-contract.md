@@ -18,15 +18,32 @@ A tool return is correct iff it passes all three:
 2. **The act belongs to the host.** YARNNN reports; the host decides to use / clarify / confirm / retry / fall back. YARNNN never authors conversational behavior (it can't see the conversation).
 3. **Zero added inference.** Surface signals already computed. Don't spin up a YARNNN-side LLM to do what the host's existing turn already covers. The clarify/confirm happens in the host turn the user already paid for.
 
-## How the three current tools satisfy it
+## The shared 4-value vocabulary (recall + trace)
 
-| Tool | The judgment it makes | Honest-state field | What the host does with it |
-|------|----------------------|--------------------|----------------------------|
-| **recall** | picks which recorded material matches the subject | `confidence`: `high` \| `ambiguous` \| `weak` (+ per-chunk `similarity`) | `high` → use it; `ambiguous` → surface candidates + ASK which they mean; `weak` → treat as loose / answer from own knowledge |
-| **trace** | resolves the subject to ONE file whose history it returns | `resolution`: `exact` \| `ambiguous` \| `weak` | `exact` → narrate the history; `ambiguous` → CONFIRM it's the right thing before narrating; `weak` → nothing recorded |
-| **remember** | captures a raw observation (the seat's derive/place/judge is ASYNC) | `status`: `captured` (raw stored + durable now; not yet placed/judged) | set the expectation "saved — filed + checked in a moment"; don't promise it's organized/validated yet |
+`recall` reports `confidence`; `trace` reports `resolution`. **Different field names, but ONE shared value scale with identical meaning** — so a single host-side handler works across both. The field is **ALWAYS present** (never absent on a miss).
 
-All three signals are **derived from data the tool already had** (similarity scores from the semantic search, the resolve-branch taken, the synchronous-vs-async write boundary). None costs an extra LLM call or DB round-trip.
+| Value | Meaning | Host action |
+|-------|---------|-------------|
+| `high` (recall) / `exact` (trace) | confident hit — recall: dominant/exact; trace: the file's basename IS the subject | use it / narrate |
+| `ambiguous` | found multiple, none dominant | surface candidates + ASK / CONFIRM which they mean |
+| `weak` | found SOMETHING but low-confidence (recall: below the dominant bar; trace: a single loose FTS mention-match) | a lead, not an answer — confirm / answer cautiously |
+| `none` | NOTHING recorded at all (a true miss) | the strongest "nothing here" signal — answer from own knowledge |
+
+> The top value is the one place the two tools' names diverge: `high` reads right for recall ("how confident is this match"), `exact` reads right for trace ("the file IS the subject"). The **lower three** — the ones that gate clarify/confirm/fallback — are identical in name and meaning, which is what a uniform integration handler keys on.
+
+**Two seams this scale closed** (live discrimination test, 2026-06-29 — a host dev writing `switch(confidence)` would have hit both):
+1. **Absent-field hole** — the recall miss used to omit `confidence` entirely (→ `undefined`), while trace always returned its field. Now both ALWAYS emit the field.
+2. **`weak` overload** — `weak` used to mean "nothing recorded" in trace but "loose-but-present hit" in recall — same word, two host actions. Split: `weak` = a real-but-shaky hit (both tools), `none` = a true miss (both tools).
+
+## How the three current tools satisfy the principle
+
+| Tool | The judgment it makes | Honest-state field | Notes |
+|------|----------------------|--------------------|-------|
+| **recall** | picks which recorded material matches the subject | `confidence` (4-value, + per-chunk `similarity`) | always present |
+| **trace** | resolves the subject to ONE file whose history it returns | `resolution` (4-value) | always present; `exact`≡recall `high` |
+| **remember** | captures a raw observation (the seat's derive/place/judge is ASYNC) | `status`: `captured` (raw stored + durable now; not yet placed/judged) | also emits legacy `captured: true` — a back-compat alias the `remember-receipt` widget's type-guard reads; keep both until the widget migrates |
+
+All signals are **derived from data the tool already had** (similarity scores from the semantic search, the resolve-branch taken, the synchronous-vs-async write boundary). None costs an extra LLM call or DB round-trip.
 
 ## The failure mode this exists to prevent
 

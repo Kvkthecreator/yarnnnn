@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.29.7] - honest-state contract: close the two miss-path seams (live discrimination test)
+
+**A live discrimination test (hit + deliberate miss on each tool) confirmed the fields discriminate, and surfaced two seams in the MISS path — exactly where a `switch(confidence)` integrator is most likely to mis-handle:**
+- **Seam 1 — absent field on recall miss.** The recall empty-branch omitted `confidence` entirely (→ `undefined`), while trace always returned its field. An integrator can't write one uniform handler. Fix: recall ALWAYS emits `confidence` now (even on a true miss).
+- **Seam 2 — `weak` overloaded.** `weak` meant "nothing recorded" in trace but "loose-but-present hit" in recall — same word, two host actions. Fix: a shared 4-value vocabulary — `weak` = a real-but-shaky hit (both tools), `none` = a true miss (both tools).
+
+- `api/services/mcp_composition.py`: shared vocabulary constants (`CONFIDENCE_HIGH/AMBIGUOUS/WEAK/NONE`); `_recall_confidence` empty → `none`; recall + trace miss-branches both emit the field = `none`; trace FTS fallback maps onto the scale honestly (single loose mention → `weak`, several → `ambiguous`, never `exact` from FTS — `exact` is reserved for name-matches). `exact`(trace) ≡ `high`(recall) for the confident value; the lower three are identical so one host handler works.
+- `api/mcp_server/server.py`: recall + trace descriptions + output-schema enums updated (4 values, "ALWAYS present", shared-scale note).
+- `docs/features/mcp/honest-state-contract.md`: the shared 4-value table + the two-seams note + the `captured`/`status` back-compat-alias note (kept — the remember-receipt widget's type-guard reads `captured`).
+- Gate `test_adr368_memory_surface.py` 16/16 (12 updated empty→none; +12b miss-path uniformity). Siblings green. MCP-server path.
+
 ## [2026.06.29.6] - honest-state contract across all 3 MCP tools (trace resolution + remember status)
 
 **Applied the recall host-LLM/honest-state lens to the other two tools.** Same principle (YARNNN reports honest state, the HOST decides/acts, never launder uncertainty, zero added inference). Surfaced one real bug + one polish:
