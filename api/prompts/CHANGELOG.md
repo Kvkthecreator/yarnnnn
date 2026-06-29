@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.29.2] - recall counter fix: total_matches must be >= returned
+
+**Follow-on to [2026.06.29.1], surfaced by a live document-recall test.** `recall` returned `{total_matches: 0, returned: 1}` — an internally inconsistent counter (you can't return more rows than matched). Root cause: `total_matches` was sourced from the fuzzy `QueryKnowledge` `count` alone (`compose_recall`, `mcp_composition.py`), but `chunks` includes the DETERMINISTIC path-resolved hit (`resolve_memory_path`) that the fuzzy ranked path doesn't see. So a freshly-resolved file returned 1 chunk while the fuzzy counter read 0. (NOT an eventual-consistency lag — the two counters were sourced from different retrieval paths and never reconciled.)
+
+- `api/services/mcp_composition.py`: `total_matches = max(fuzzy_count, len(chunks))` — the counter can never report fewer matches than rows actually returned. The deterministic hit is a real match and now counts.
+- Out of scope (correct-by-design, left alone): `recall`'s 400-char excerpt is an intentional preview, not the full body (ADR-368 D1 — recall returns material to reason over, with the path cited so the full file is reachable). Not a bug.
+- Gate `test_adr368_memory_surface.py` 11/11 (+11 asserts the counter reconciliation, no fuzzy-count-only regression). Siblings green.
+
 ## [2026.06.29.1] - recall round-trip FIXED: embedding-population gap + broken ivfflat index (two compounding bugs)
 
 **`recall`/`trace` returned empty across every session because of TWO compounding bugs — both fixed, live-validated (recall on the Claude connector now returns real substrate).** Investigation receipts: `docs/evaluations/2026-06-29-recall-empty-embedding-gap.md`.

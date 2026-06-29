@@ -712,9 +712,17 @@ async def compose_recall(
                 "hasn't recorded this yet. Answer from your own knowledge if you can."
             ),
         }
+    # total_matches must be >= returned: it counts everything that matched, and we
+    # are handing back `chunks` (which may include the DETERMINISTIC path-resolved
+    # chunk that the fuzzy QueryKnowledge `count` does not see). Sourcing
+    # total_matches from the fuzzy count alone produced the {total_matches:0,
+    # returned:1} inconsistency (2026-06-29) — the deterministic hit is a real
+    # match the ranked counter missed. Reconcile to the max so the counter can
+    # never report fewer matches than rows actually returned.
+    fuzzy_count = result.get("count", 0) if result.get("success") else 0
     return {
         "success": True, "subject": subject, "chunks": chunks,
-        "total_matches": result.get("count", len(chunks)) if result.get("success") else len(chunks),
+        "total_matches": max(fuzzy_count, len(chunks)),
         "returned": len(chunks),
         "citations": [c["path"] for c in chunks],
     }

@@ -125,6 +125,19 @@ def main():
         deterministic_first and naturalized,
         f"deterministic={deterministic_first} naturalized={naturalized}"))
 
+    # 11. total_matches must never be LESS than the rows returned (2026-06-29 bug:
+    #     total_matches was sourced from the fuzzy QueryKnowledge count alone, so a
+    #     deterministic path-resolved hit produced {total_matches:0, returned:1}).
+    #     Assert the reconciliation is in place: total_matches = max(fuzzy, chunks).
+    counter_reconciled = (
+        "max(fuzzy_count, len(chunks))" in recall_src
+        and 'result.get("count", len(chunks))' not in recall_src
+    )
+    results.append(_check(
+        "11 recall total_matches >= returned — counter reconciled (no fuzzy-count-only regression)",
+        counter_reconciled,
+        f"reconciled={counter_reconciled}"))
+
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} ADR-368 assertions pass")
     if passed != total:
