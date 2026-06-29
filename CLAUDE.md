@@ -245,6 +245,21 @@ The live frontier. These are concise pointers — **read `docs/adr/ADR-NNN-*.md`
 
 ---
 
+### Interop-first band (372–380) — the launch arc + the substrate re-founding direction
+
+The current frontier: the interop-first launch (substrate served to external agents), the multi-principal re-key, and a first-principles re-founding of the filesystem. **Read `docs/adr/ADR-NNN-*.md` directly for any one you touch** — several are doc-first *direction* (not yet Implemented) and the distinction matters.
+
+- **ADR-372**: ChatGPT widget rendering (the `ui://` presentation surface for `trace`/`recall`/`remember`; CallToolResult `_meta` linkage). **ADR-379** Host Profiles (the interop-reach registry — scale to N LLM hosts; widget host-gating).
+- **ADR-373**: **The Multi-Principal Workspace + `user_id → workspace_id` re-key** (Accepted, **not yet Implemented — foundational pre-launch**). The substrate's binding unit moves user→workspace; an open set of *principals* (humans, their agents, other humans, platforms, foreign/local LLMs) attribute into one judged commons; per-principal `principal_grants` reinterprets `CALLER_WRITE_POLICY` as class-defaults. The 1:1 world is the N=1 case. See the schema section for the table detail.
+- **ADR-375**: **Phase 1 = the substrate operated by humans AND external agents** (the interop wedge; §6 `AGENT_ENABLED` gate Implemented, default ON). The "agent" in the wedge is the EXTERNAL operator (a principal), NOT the internal steward. **Refined by ADR-380.** §7 still owes the Freddie hardening ADR (Cut 1) + the persona-agent seat ADR (Cut 2).
+- **ADR-376**: **Ledger-intake axiom** (LIVE — FOUNDATIONS v9.12, Axiom 1 §9 + DP32). `retain + attribute + cite`: raw observation in, derived citing act out, raw never rewritten; system-wide across all context-in transports. **NOTE**: the `inbound/` raw-lane *mechanism* is what the re-founding keystone reconsiders (provenance → revision metadata); the invariant is preserved.
+- **ADR-377**: Context as the perception home (Connections + Sources + the Feed group's In/Out/Flow direction-filtered views; direction inferred FE-side from `writtenTo`, ADR-377 §2 honest ceiling).
+- **ADR-378**: **The workspace is the OUTERMOST unit** (the scope ceiling). One workspace = one multi-principal commons; an enterprise is served iff it fits one commons; a second workspace is allowed but UNRELATED — federation across workspaces is the deliberately-unbuilt layer above the ceiling. Framed "the workspace is the unit; federation undefined," NOT "one enterprise max."
+- **ADR-380**: **The Activation Ladder** (Accepted 2026-06-29, with vision/moat carved open — doc-first, refines ADR-375's binary). The launch deferral line is **autonomy-over-consequential-action** (the Rung-1→Rung-2 boundary = the ADR-307 consequential gate), NOT "judgment" or "steward on/off". Three rungs: **Rung 0** = substrate wedge (`AGENT_ENABLED` off) · **Rung 1** = Freddie, 1st-order substrate steward, reversible, ships on engineering time · **Rung 2** = 2nd-order persona agents taking consequential external action, gated by an exogenous track-record clock (deferred from the build, kept running as off-critical-path dogfood). **Harness honesty (D3)**: budget/pace are live+meaningful on Freddie; mandate/autonomy go DEGENERATE on a stakeless steward — "we validated the autonomy harness on Freddie" is FALSE. Changes no code/schema/gate.
+- **The re-founding keystone** (`docs/analysis/the-re-founding-meaning-folders-and-permission-as-metadata-2026-06-29.md`, **doc-only, under separate stress-test — NOT ratified**): the filesystem is organized by MEANING; permission + provenance are METADATA on files/revisions, not namespace. Retires the six semantic-class roots (Axiom 1 §7/DP25) + the `inbound/` lane into the one ledger. The Phase-0 spine of a future axiom-layer cascade. Do NOT treat as canon until its cascade ratifies.
+
+---
+
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 
 ### 1. Documentation Alongside Code

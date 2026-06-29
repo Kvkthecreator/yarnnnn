@@ -1,0 +1,120 @@
+# ADR-380 — The Activation Ladder: the Deferral Line is Autonomy-over-Consequential-Action, not "Judgment" — and the Three Scope Boundaries (Build / Harness / Vision)
+
+> **Status**: **Accepted** (2026-06-29) — with two items carved open (§5), the ADR-375/378 ratified-with-open-riders pattern. Doc-first; **scope-refining, not code-changing**. It changes no schema, no primitive, no gate. It refines a *granularity* inside already-ratified [ADR-375](ADR-375-phase-1-substrate-for-humans-and-external-agents.md) in light of the later [two-order agent model](../analysis/freddie-as-the-workspace-agent-and-the-two-order-agent-model-2026-06-27.md), and records the macro scope-frame the operator reasoned the launch against. **What is ratified**: the activation ladder (D1), the deferral line = autonomy-over-consequential-action / the Rung-1→Rung-2 boundary (D2), the build/harness/vision triple + the harness-theater honesty (D3), the exogenous-clock dogfood discipline (D4), and the §D5 topology-conditioning *as a note to the keystone session* (D5, softened per operator 2026-06-29 — a recommendation the keystone *may* adopt, not a directive). **Two decisions are deliberately left open by operator instruction (§5): the *vision boundary* and the *moat reframe* — carved open, not closed; a future ADR may resolve either, and silence here is not ratification.**
+> **Date**: 2026-06-29
+> **Authors**: KVK (operator) + Claude (collaborator)
+> **Discourse base**: this session (2026-06-29) — the macro re-frame (kernel-general / instance-narrow; the three width-axes; the OS-history placement) and the granularity correction (the deferral line is *autonomy over consequential action*, not "judgment"). Builds on [`the-three-rung-framework-and-the-multi-principal-wedge`](../analysis/the-three-rung-framework-and-the-multi-principal-wedge-2026-06-26.md), [`interop-first-pivot-and-agent-gating`](../analysis/interop-first-pivot-and-agent-gating-2026-06-25.md), [`freddie-as-the-workspace-agent-and-the-two-order-agent-model`](../analysis/freddie-as-the-workspace-agent-and-the-two-order-agent-model-2026-06-27.md), [`phase-2-internal-agents-freddie-and-user-personas`](../analysis/phase-2-internal-agents-freddie-and-user-personas-2026-06-26.md), [`mcp-interop-face-vs-topology`](../analysis/mcp-interop-face-vs-topology-2026-06-25.md).
+> **Amends**: [ADR-375](ADR-375-phase-1-substrate-for-humans-and-external-agents.md) — the binary `AGENT_ENABLED` steward gate (steward present / absent) is refined into a **three-rung activation ladder** once the [two-order model](../analysis/freddie-as-the-workspace-agent-and-the-two-order-agent-model-2026-06-27.md) splits Freddie (1st-order substrate steward) from persona agents (2nd-order judgment). The gate is not changed; the *granularity at which it is reasoned about* is. The de-risking deferral line sits one rung above where 375's binary draws it.
+> **Notes (non-directive) to the re-founding keystone** [`the-re-founding-meaning-folders-and-permission-as-metadata`](../analysis/the-re-founding-meaning-folders-and-permission-as-metadata-2026-06-29.md) §7.1 — §D5 surfaces two observations the keystone session **may adopt** in its own cascade (it does not constrain or amend the keystone, which is stress-tested separately): (i) the single-writer relaxation's "serialization, not merge/CRDT" answer is valid *conditioned on the single-substrate topology* ([ADR-378](ADR-378-the-workspace-as-the-outermost-unit.md) defers federation); (ii) within one substrate, semantic merge *relocates to the steward seat*, it does not vanish. These are recommendations to that track, ratified there, not here.
+> **Preserves**: [ADR-378](ADR-378-the-workspace-as-the-outermost-unit.md) (the topology ceiling — this ADR names topology as the *deferred axis* and is consistent with federation-undefined), [ADR-373](ADR-373-multi-principal-workspace-and-the-re-key.md) (the multi-principal commons), [ADR-307](ADR-307-unified-permission-taxonomy.md) (the consequential-action gate is **the seam this ADR's deferral line rides on** — untouched), [ADR-345](ADR-345-expected-output-contract.md) (autonomy-as-witness — the dial whose *degeneracy on a stakeless steward* §D3 names), [ADR-327](ADR-327-budget-and-the-self-improving-loop.md) (budget/pace — the harness mechanics that **stay live** at Rung 1), [ADR-194](ADR-194-pluggable-reviewer-and-impersonation.md)/[ADR-315](ADR-315-reviewer-occupant-contract.md) (seat≠occupant — kept in substrate while unsurfaced), the [two-order Freddie direction](../analysis/freddie-as-the-workspace-agent-and-the-two-order-agent-model-2026-06-27.md).
+> **Dimensional classification** (Axiom 0): **Identity** (Axiom 2 — *which order of agent* acts: substrate steward vs consequential persona) over **Trigger + Purpose** (Axiom 4 + Axiom 3 — what is deferred from the launch build, and why) + **Channel** (Axiom 6 — the secondary effect on which surfaces appear).
+
+---
+
+## 1. The question this answers
+
+ADR-375 partitioned the product into Phase 1 (the substrate humans + external agents operate — the wedge) and Phase 2 (internal agents). Its lever is one binary flag: `AGENT_ENABLED` — *steward present* or *steward absent*. This ADR asks a sharper question the binary cannot express:
+
+**Is "the steward" / "judgment" the right granularity for the launch deferral?**
+
+The discourse answer is **no**. "Judgment" is too coarse. Most of what the canon calls judgment — reasoning over the substrate, deriving-and-citing, placing intake, arbitrating the commons, *proposing* an action and surfacing it for a witness — is **reversible, substrate-internal, and shippable**. The genuinely deferrable, genuinely risky, genuinely *validation-gated* slice is much narrower: **autonomy over consequential external action** — the moment an agent moves money or sends an irreversible message on its own authority, without a witness. That narrow slice, not "judgment" as such, is what must sit outside the launch build. Drawing the line there — and only there — is the work of this ADR.
+
+## 2. Background — the macro frame the launch is reasoned against
+
+Three observations from the discourse, recorded because the operator ratified the frame as load-bearing, not preamble.
+
+**The kernel is general; the instance is narrow.** The substrate — authored filesystem ([ADR-209](ADR-209-authored-substrate.md)), content-addressed blobs, parent-pointered revisions, attribution, and the `workspace_id`-keyed multi-principal grants ([ADR-373](ADR-373-multi-principal-workspace-and-the-re-key.md)) — is a genuinely general, filesystem-native context-management kernel. Everything above it is still N=1: one operator, two dogfood programs, one cloud substrate, no second human principal, no local deployment. A wide *floor* under a narrow *building*. Re-keys are cheapest pre-launch (373 is correct to land now); but floor-generality must not be read as system-generality.
+
+**"Wide scope" is three independent axes, not one.** They are routinely collapsed into a single word and must be held apart:
+
+| Axis | What it widens | Where it actually is | Canon |
+|---|---|---|---|
+| **Principal width** | who writes — one human + their agents → many humans, foreign/local LLMs, platforms, a2a | **actively founded; Phase-1-justified** — every external LLM writing via the interop face is a foreign principal attributing as itself; the re-key earns its keep on day one, not in a hypothetical multi-human future | ADR-373, ADR-375 |
+| **Topology width** | where it runs — single cloud substrate → local / on-prem / cloud-shared / synced | **deliberately deferred** — the workspace is the outermost unit; federation is undefined | ADR-378 |
+| **Use-case width** | what it does — the horizontal context-management use case → vertical judgment programs (trader, author) | **horizontal locked for launch; verticals are Phase-2 judgment programs** | ADR-375 §4 |
+
+The list that *sounds* like "we should be wider" — local LLM, on-prem, cloud-shared — lives almost entirely on the **topology** axis, which is exactly the one ADR-378 walls off. Naming the axes prevents a topology ambition from being smuggled in under a principal-width or use-case-width decision. (One conflation worth cutting permanently: a **local model that writes** is just another *principal* — already accommodated cheaply by 373; a **local substrate replicated to cloud** is the *topology* axis — expensive, deferred. They are not the same "local LLM.")
+
+**The OS-history placement.** Kernels went single-user-single-machine → multi-user (time-sharing: add principals, permissions, serialize writes through the kernel) → networked/distributed (the genuinely hard transition). ADR-373 is YARNNN's **multi-user transition**. The keystone's §7.1 "serialize through the revision chain, no CRDT" is the *time-sharing-era* answer: one substrate, one head per path, the kernel orders the writes. It is correct for multi-user-one-substrate and is exactly the discipline distributed systems must throw out. This places the launch precisely — and it is why §D5 conditions §7.1 on topology rather than ratifying it for all time.
+
+## 3. The granularity correction — the activation ladder
+
+Once the [two-order model](../analysis/freddie-as-the-workspace-agent-and-the-two-order-agent-model-2026-06-27.md) splits **Freddie** (1st-order: the workspace/system agent — substrate management, base-LLM, *no* operator-authored persona, *no* capital judgment) from **persona agents** (2nd-order: operator-authored judgment, capital/domain decisions), ADR-375's single "steward" resolves into **three rungs**, and the deferral that de-risks the launch is one specific rung-transition:
+
+| Rung | What runs | Action surface | Reversibility | Validation gate |
+|---|---|---|---|---|
+| **0 — Substrate (the wedge)** | none — `remember`/`recall`/`trace` + connectors + files; `AGENT_ENABLED=false` | reads + attributed writes; intake *dumps*, never places | fully reversible | none — ships on engineering time |
+| **1 — Freddie (1st-order steward)** | substrate management: derive-and-cite, placement, multi-principal arbitration, persona-agent governance; reasons over the substrate as a base-LLM | substrate-internal mutations | reversible (a wrong placement is re-placed; a wrong memory is re-written — the revision chain holds both) | **engineering** only — no consequence to attest to |
+| **2 — Persona agents (2nd-order judgment)** | operator-authored personas taking *consequential external action* (capital, sends) under an autonomy grant | irreversible external writes | **irreversible / consequential** | **track-record** — exogenous, multi-quarter, can fail |
+
+**The correction:** ADR-375's binary collapses Rung 1 and Rung 2 into one switch ("steward on/off"). But the de-risking deferral line is **the Rung-1 → Rung-2 boundary**, not the Rung-0 → Rung-1 boundary. Freddie managing context (Rung 1) carries the *engineering* integration risk; autonomous consequential persona action (Rung 2) carries the *trust-validation* risk — and only Rung 2 is gated by a clock you do not control (§D4). The line is drawn precisely at the [ADR-307](ADR-307-unified-permission-taxonomy.md) consequential boundary: **reversible substrate acts ship; consequential external autonomy defers.**
+
+## 4. The decisions
+
+### D1 — Reason about the steward as a three-rung ladder, not a binary
+
+`AGENT_ENABLED` (ADR-375 §6) stays exactly as built — one flag, default ON, dormant-not-deleted. This ADR adds no code. It **refines the model the flag is reasoned through**: Rung 0 (flag off) is the wedge; Rung 1 (Freddie) and Rung 2 (persona judgment) are distinct activations that 375's binary fused. Future per-workspace / per-order gating (forward-compatible per ADR-375 D4) should branch on **rung**, not on a single "steward" boolean. *Naming the ladder is the decision; building a second flag is not — it is demand-gated.*
+
+### D2 — The launch deferral line is autonomy-over-consequential-action (the Rung-1 → Rung-2 boundary)
+
+What sits *outside* the launch build is **not "judgment" and not "the steward"** — it is **2nd-order autonomous consequential external action**. Rung 0 ships as the wedge. Rung 1 (Freddie as the substrate steward) is the *activation upgrade*, shippable on engineering time because its actions are reversible. Rung 2 is deferred. The line is the [ADR-307](ADR-307-unified-permission-taxonomy.md) consequential gate; this ADR does not move that gate, it **names it as the scope boundary**.
+
+### D3 — Three scope boundaries (build / harness / vision), and the harness-theater honesty
+
+The deferral is not one boundary but three, and conflating them produces a false validation claim:
+
+- **Build boundary** — Rung 2 (autonomous consequential action) is out of the launch build. Rungs 0–1 ship.
+- **Harness boundary** — the governance harness ([ADR-327](ADR-327-budget-and-the-self-improving-loop.md) budget/pace; [ADR-345](ADR-345-expected-output-contract.md) autonomy-as-witness; the mandate gate) splits when applied to Freddie (Rung 1): **budget and pace stay live and meaningful** (Freddie burns tokens, has a cadence); **mandate and autonomy go degenerate** (Freddie has no consequential external write to gate — an autonomy dial over reversible substrate has nothing to bite on, and a mandate with no value-moving action to hard-gate is a config string). The consequence is load-bearing: **"we validated the autonomy harness on Freddie" is false.** Running the harness on a stakeless steward de-risks the *engineering integration* of the mechanics, **not the trust validity of delegation**. Keep mandate/autonomy/the seat present-in-substrate for future-proofing — but the canon must state they are *carried, not exercised* at Rung 1. The validation clock only runs where there are real stakes (Rung 2).
+- **Vision boundary** — **left UNDECIDED (§5).**
+
+### D4 — The validation clock is exogenous; keep the Rung-2 dogfood running off the critical path
+
+The reason Rung 2 cannot be load-bearing for launch is not build effort — it is that **judgment-as-product ships on track-record time, which is exogenous.** "Can a persona be trusted with autonomous capital action" is answered by months of accruing record that can come out negative; it cannot be compressed by writing better code, and it cannot sit on the critical path to revenue. Rung 0–1 ship on engineering time and have low, reversible blast radius; Rung 2 has irreversible blast radius and an uncontrollable clock. **Therefore: defer Rung 2 from the build, but keep the Rung-2 dogfood (alpha-trader, alpha-author) running as a parallel evaluation track off the critical path** — so the exogenous clock accrues *during* the Phase-1 build, and Rung 2 is a flip with a record behind it, not a cold start. (This is the Hat-B discipline of CLAUDE.md: the dogfood/eval track keeps probing judgment while the shipping track lands the substrate. Deleting Rung 2 entirely would stop the clock.)
+
+### D5 — Topology is the deferred axis; two non-directive notes the keystone session *may adopt*
+
+> **Softened per operator (2026-06-29):** this section is a **recommendation to the separate keystone track, not a constraint on it.** The keystone doc is being stress-tested in its own session; ADR-380 does not edit it, amend it, or gate its ratification. The two notes below are offered for that session to take or leave on its own cascade. They are recorded here only so the topology-conditioning is not silently lost between the two tracks.
+
+ADR-378 makes the workspace the outermost unit and leaves federation undefined — the **topology axis is deferred by ratified decision.** The observation this ADR surfaces: the keystone's §7.1 relaxation of single-writer-per-path ([ADR-286](ADR-286-kernel-program-substrate-single-writer.md)) to "single current state, many revisions" rests on the claim *"the revision chain serializes writes, so it is not a merge/CRDT."* That claim is **valid precisely because there is one substrate with one head pointer per path** (the time-sharing answer, §2). It is **not topology-independent**: under federation (local + cloud replicas with no shared head), genuinely concurrent cross-replica writes reintroduce the merge problem, and serialization-by-CAS no longer suffices. Two notes the keystone session **may adopt**:
+
+1. **Condition, don't universalize (suggested).** The keystone *may* ratify §7.1 as *"settled for the single-substrate topology; re-open if/when federation is built,"* rather than stamping it topology-independent.
+2. **Merge relocates, it does not vanish (suggested).** Even within one substrate, compare-and-swap eliminates the *mechanical* race (no two commits share a parent) but a *semantic* collision on one path is relocated into the retrying writer's reasoning — i.e. into the steward seat as a judgment act, escalated as a wake. The substrate carries no merge function; **the seat is the merge function.** The keystone is honest if it says this; it has a hole if it claims the merge is *gone* rather than *relocated to judgment.*
+
+A soft tension these notes also touch, offered to the keystone's own §7.1: confining the single-writer relaxation to *commons* paths (leaving hot machine-written paths single-writer) requires distinguishing commons-paths from single-writer-paths — a permission-relevant fact. The keystone's own thesis (permission lives on the **file's grant**, not the directory) resolves it: the writer-set is a per-file grant, defaulted by the meaning-folder's class, owned and overridable per file. The keystone *may* state this join explicitly — *permission is defaulted-by-meaning, owned-by-grant* — rather than the absolutist *"never on directories."* (A recommendation, not a required edit.)
+
+## 5. What is explicitly UNDECIDED (operator instruction, 2026-06-29)
+
+Two questions are **named and deliberately left open.** The operator holds counterpoints and chose not to make them the focus of this discourse. They are recorded so a future session does not mistake silence for ratification.
+
+- **The vision boundary** — *does the judgment layer (Rung 2 / autonomous consequential delegation) remain the company's stated destination and venture-scale narrative, or is it scoped out of the vision and not only the build?* The build-boundary (§D2) is decided: Rung 2 is out of the launch build. Whether Rung 2 is the *vision* — and therefore whether the Phase-1 narrative pre-sells it — is **open.** (The discourse surfaced the consideration that build-boundary ≠ vision-boundary, and that the graduated propose → witness → earn-autonomy continuum is more trust-acceptable than full-autonomy-delegation framing; these are inputs to the open question, not a decision.)
+- **The moat reframe** — *is the Phase-1 moat framed as "the multi-principal context commons with provenance" or left at "durable attributed memory"?* The discourse surfaced that the former is differentiated and needs exactly the kept pieces (the re-key + `trace`) while the latter risks the red ocean; ADR-375 §2 already carries a moat sentence. Whether to **re-frame** it at the commons-altitude is **open** and not ratified here.
+
+A future ADR may close either. Until then, neither is canon.
+
+## 6. Doc impact / cascade positioning
+
+This ADR sits in the **interop-first band** (372–380) as a granularity amendment to ADR-375; it is *not* part of the re-founding keystone's axiom cascade (that cascade — FOUNDATIONS → architecture → ESSENCE/NARRATIVE → ADRs → design — derives from the 2026-06-29 keystone and concerns permission-as-metadata). The two intersect at exactly one point: **§D5 is this ADR's only contact with the keystone track** — and per the operator's 2026-06-29 softening it is a *non-directive note* the keystone session may adopt, not a constraint it must carry. ADR-380 neither edits nor gates the keystone.
+
+Downstream doc work this ADR implies (named, not done here):
+
+- **The Freddie hardening ADR** (ADR-375 §7, still owed) should adopt the rung vocabulary: Freddie = Rung 1 (substrate steward, reversible, harness = budget/pace live + mandate/autonomy carried-not-exercised); persona agents = Rung 2.
+- **A FOUNDATIONS touch** is *not* required by this ADR — it refines an ADR-level granularity, not an axiom. If a future session promotes the ladder to an axiom-level distinction, that is a separate, deliberate Phase-1-of-the-cascade edit.
+- **A Phase-1 packaging note** is implied but not written: [ADR-334](ADR-334-per-operation-pricing.md) prices the autonomy/delegation dial — a **Rung-2** axis. With Rung 2 deferred, the launch needs its own pricing thesis, and ADR-334 should be marked the Phase-2 (Rung-2) model. **Out of scope here; named so it is not lost.**
+
+## 7. What this does NOT do
+
+- **Does not change the gate, schema, primitives, or any code.** `AGENT_ENABLED` is untouched (ADR-375 §6). This is a model refinement.
+- **Does not decide the vision boundary or the moat reframe.** §5 — open by instruction.
+- **Does not move the [ADR-307](ADR-307-unified-permission-taxonomy.md) consequential gate.** It names that existing seam as the scope boundary.
+- **Does not build a second (per-rung) gate.** D1 names the ladder; a per-rung flag is forward-compatible and demand-gated, not built.
+- **Does not ratify the keystone's §7.1.** It supplies two riders (§D5) the keystone should carry; the keystone ratifies in its own cascade.
+- **Does not rename the Reviewer or build persona-agent seats.** Those are the owed Phase-2 ADRs (ADR-375 §7); this ADR only supplies their rung vocabulary.
+
+## 8. Rejected alternatives
+
+- **Keep ADR-375's binary "steward on/off" as the launch granularity.** Rejected (§3) — once the two-order model splits Freddie from persona judgment, the binary fuses a reversible Rung-1 steward with an irreversible Rung-2 consequence and mis-locates the de-risking line one rung too low.
+- **Defer "judgment" wholesale.** Rejected (§D2) — most of judgment (reason / derive / place / arbitrate / propose-and-witness) is reversible and shippable; deferring it wholesale would strip Rung 1 (Freddie) and cost the activation upgrade for no risk reduction. The narrow consequential-autonomy slice is the only thing that must defer.
+- **Scope Rung 2 out of the vision, not just the build.** **Not rejected — left open (§5).** The operator holds counterpoints; this ADR decides only the build boundary.
+- **Run the full governance harness on Freddie and call it validated.** Rejected (§D3) — budget/pace are exercised at Rung 1, but mandate/autonomy are degenerate over reversible substrate; claiming autonomy-harness validation from a stakeless steward is false. Validation accrues only at Rung 2.
+- **Delete the Rung-2 dogfood to focus.** Rejected (§D4) — the dogfood is the parallel evaluation track that runs the exogenous validation clock; deleting it makes Rung 2 a cold start whenever it returns.
+- **Ratify the keystone's §7.1 as topology-independent.** Rejected (§D5) — the serialization answer is the time-sharing answer, valid for the single substrate ADR-378 confines us to; federation would re-open it. Condition it; do not universalize it.
