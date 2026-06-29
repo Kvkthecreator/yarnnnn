@@ -1,6 +1,6 @@
 # ADR-381 — Freddie: the Rung-1 Substrate Steward (the steward hardening ADR ADR-375 §7 owes)
 
-> **Status**: **Accepted** (2026-06-29) — D1–D5 decided. Doc-first; **canon-hardening, not code-changing** (D3 scopes one *optional* legibility marker, held behind explicit operator go — see §D3). It changes no schema, no primitive, no gate, and does **not** rename the internal `reviewer` slug or `reviewer:` attribution prefix (D1). It names the converged Rung-1 role first-class and generalizes the seat canon along the management/judgment seam (D4), without deciding the Rung-2 persona-agent discourse (ADR-382's, deferred).
+> **Status**: **Accepted** (2026-06-29) — D1–D5 decided. Canon-hardening; **the only code change is one inert comment block** (the D3 legibility marker, landed on explicit operator go — see §5). It changes no schema, no primitive, no gate, no behavior, and does **not** rename the internal `reviewer` slug or `reviewer:` attribution prefix (D1). It names the converged Rung-1 role first-class and generalizes the seat canon along the management/judgment seam (D4), without deciding the Rung-2 persona-agent discourse (ADR-382's, deferred).
 > **Date**: 2026-06-29
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Owes-from**: [ADR-375](ADR-375-phase-1-substrate-for-humans-and-external-agents.md) §7 Cut 1 — *"name it Freddie (Frankenstein → the creature we intentionally built and are hardening) and harden it as the de-facto system agent… This is a separate ADR. Not built here."* This is that ADR.
@@ -23,9 +23,14 @@
 **Defers (named, not decided here — ADR-382's discourse):**
 - the per-persona-judgment-seat substrate shape (how much of the ADR-315 six-file substrate generalizes per seat — D4 names the seam; ADR-382 fills it);
 - persona-agent lifecycle, creation-surface UX, and trust model (ADR-375 §7 Cut 2 / ADR-382 §2);
-- the **vision boundary** and the **moat reframe** — *(see reconciliation note below)*.
+- the **vision boundary** and the **moat reframe** — *resolved by ADR-380 §5 the same day (see reconciliation note below); ADR-382's persona-agent trust model is now build-when-demanded, not blocked.*
 
-> **⚠ Reconciliation (2026-06-29, post-Accept): ADR-380 §5 has since RESOLVED both open items this ADR cites as open.** This ADR was authored while ADR-380 §5 was open; the operator closed it the same day. The in-body references below (§0, §4 cascade, §4.x, §5) that say "open per ADR-380 §5" should now read as: **(1) vision boundary — DECIDED: Rung 2 is out of the *vision*, not only the build.** Consequence for this ADR: *"ADR-382's trust model depends on the open vision boundary"* (§4.x / §7) is now **resolved** — Rung 2 being out of the vision makes ADR-382 cleanly *build-when-demanded*, not blocked on a vision decision. **(2) moat — DECIDED: kept at "durable attributed memory" (NOT relocated to the commons-altitude), with `trace`/provenance as its defensible core.** Consequence: this ADR's decision to **hold the ESSENCE moat-sentence relocation** is now **vindicated as the final state** — the moat sentence does *not* relocate; the ESSENCE cascade names Freddie as management (D1) and leaves the moat sentence as-is, which is now the decision, not a pending hold. **The DP24/DP30 accountability relocation** (to the persona agent) is *not* governed by the moat decision and remains ADR-382's to land. This note reconciles the cross-reference; the D1–D5 substance of this ADR is unchanged.
+> **⚠ Reconciliation (2026-06-29, post-Accept): ADR-380 §5 RESOLVED both open items, and the ESSENCE cascade was taken to full reconciliation accordingly.** This ADR's skeleton-fill was authored while ADR-380 §5 was briefly open; the operator closed it the same day, and the ESSENCE edit (§4) was then taken further than this ADR's first draft of §4 anticipated. The resolved state, which the in-body references below now reflect:
+> - **(1) Vision boundary — DECIDED (ADR-380 §5): Rung 2 is scoped out of the *vision*, not only the build.** The vision is the **multi-principal substrate commons + Freddie (the context-management OS)**; the Rung-2 judgment layer is an optional future capability the launch + vision narrative does not pre-sell. Consequence: ADR-382's trust model is now **cleanly *build-when-demanded*, not blocked on a vision decision** (ADR-380 §5 names this relief explicitly).
+> - **(2) Moat — DECIDED (ADR-380 §5): kept at "durable attributed memory," led by the substrate + `trace`/provenance (the walkable revision chain), NOT relocated to the commons-altitude and NOT led by the judgment seat.** Consequence: the **ESSENCE external lead was re-cut** from v14.0's "the judgment seat leads" to the substrate-led, `trace`-defended framing (ESSENCE v14.2; per operator decision "full ESSENCE reconciliation"). The management role is renamed Reviewer→Freddie (D1); the judgment seat is named the *future deepening*, not the systemic moat.
+> - **(3) DP24/DP30 accountability relocation** (judgment-accountability to the persona agent) is *not* governed by the moat decision and **remains ADR-382's to land** — NOT done here.
+>
+> The D1–D5 substance of this ADR is unchanged; this note + the §4 cascade reflect the resolved vision/moat state and the full ESSENCE re-cut.
 
 ---
 
@@ -45,11 +50,12 @@ The one-line statement the [two-order direction §8](../analysis/freddie-as-the-
 
 ### D1 — The label is "Freddie"; the internal `reviewer` slug + `reviewer:` prefix are preserved (data-compat exceptions)
 
-The operator-facing label for the 1st-order substrate steward is **Freddie** — in the cockpit, in canon prose, on surfaces, in operator-facing copy.
+The operator-facing label for the 1st-order substrate steward is **"Freddie, the system agent"** — a proper *name* (Freddie) carried with a descriptive *role-anchor* (the system agent). The cockpit shows "Freddie"; canon prose + the role anchor say "the system agent (Freddie)." This is deliberate: "Freddie" alone is a proper noun with zero code/role semantics (a reader hops reviewer→Freddie→"the system agent"); pairing it with the descriptive anchor gives code-readers + canon the role meaning in one hop while operators get a name they talk *to*. It is exactly how ADR-251 worked (cockpit label + descriptive concept), and it **explicitly refills the System-Agent-shaped role ADR-272 left** when it dissolved "System Agent" as a cockpit entity — Freddie *is* the system agent, now first-class and substrate-backed (not the "ambient activity" label ADR-272 demoted).
 
 **What changes (operator-facing label only):**
-- Canon prose + operator surfaces refer to the Rung-1 steward as "Freddie" where they refer to a *named, hardened occupant* (as distinct from "the Reviewer seat," which remains the seat's role-name — see D4).
-- GLOSSARY gains a **Freddie** entry (the Rung-1 substrate steward, the named occupant of the management seat).
+- The cockpit + operator surfaces show **"Freddie"**; canon prose anchors it as **"the system agent (Freddie)"** / "the Rung-1 substrate steward (Freddie)" where the *role* is what's referenced (as distinct from "the Reviewer seat" / "the management seat," which remain the seat's role-names — see D4).
+- GLOSSARY gains a **Freddie** entry (the system agent — the Rung-1 substrate steward, the named occupant of the management seat).
+- The frame (the model-facing system prompt) describes the *role* — "this workspace's installed steward / the system agent" — not the proper noun (the model should anchor on the role, not over-index on a name). The proper noun is the operator-facing label; the role is what the model reasons as. *(This is a note for the downstream persona-frame re-carve — [ADR-383](ADR-383-the-consistent-agent-framework-and-mandate-as-purpose.md) §7 item 1 — not a change in this ADR.)*
 
 **What does NOT change (Singular-Implementation + ADR-251 precedent — GLOSSARY Exceptions table):**
 - `agents.role` DB value `thinking_partner` / `reviewer` slug — internal, never surfaced outside DB.
@@ -80,7 +86,7 @@ ADR-380 D3 demands the harness honesty be **stated in canon**, because conflatin
 
 **Why carried-not-exercised is correct (not a bug to fix):** the envelope *should* pre-load mandate/autonomy unconditionally — the occupant contract (`ReviewerContext`) is one shape across both rungs (ADR-256 unified entry; ADR-315 single contract). Conditionally stripping the fields at Rung 1 would fork the contract (Singular-Implementation violation) and break the moment a persona agent (Rung 2) fills a seat with the same code. **The honesty is about what we CLAIM from running the harness, not about what the envelope LOADS.** No code change is *required* for correctness; the envelope already does the right thing.
 
-**The optional legibility marker (scoped; held behind explicit operator go — NOT implemented in this ADR):** a single docstring/comment block on `ReviewerContext` (`occupant_contract.py`) and/or the governance-block assembler (`reviewer_agent.py:704–707`) noting that `mandate_md` + `autonomy_md` are *carried for cross-rung contract uniformity and exercised only when a consequential-action (Rung-2) occupant fills the seat; over a Rung-1 steward they are degenerate.* This is **doc-in-code**, not a behavior change. Per the canon-hardening guardrail it is **scoped here and held** — it lands only on explicit operator go, in a separate code commit. (See §5.)
+**The legibility marker (LANDED on explicit operator go — the one code change in this ADR):** a comment block on `ReviewerContext` (`api/agents/occupant_contract.py`, above the `mandate_md`/`autonomy_md` fields) noting that they are *carried for cross-rung contract uniformity and exercised only when a consequential-action (Rung-2) occupant fills the seat; over a Rung-1 steward they are degenerate.* This is **doc-in-code** — an inert comment, no field add/remove, no behavior change (`occupant_contract.py` stays pure-data; it imports clean). The operator approved landing it this session (see §5).
 
 The canonical prose home for D3 is **[reviewer-occupant-contract.md](../architecture/reviewer-occupant-contract.md)** (the published ABI doc) + **[reviewer-occupant.md](../architecture/reviewer-occupant.md)** — the cascade updates them (§4).
 
@@ -118,7 +124,7 @@ Per the two-order direction H1 + H2:
 
 **What D5 explicitly does NOT decide (ADR-382 inherits the governed side):**
 - the persona-agent **lifecycle** (the minimal create/pause/retire acts), the **creation-surface UX** (the pre-set picker's shape), and the **trust model** (propose-only vs accountable-action; how "act on behalf" is set/revoked/earned; the Rung-2 validation clock). These are ADR-382 §2's deferred discourse.
-- **whether the graduated propose → witness → earn-autonomy continuum is the trust model** — that depends on ADR-380 §5's **open vision boundary** (whether Rung-2 autonomous consequential delegation is the vision, not just deferred from the build). **This ADR does not close the vision boundary; ADR-382's trust model is downstream of it.**
+- **whether the graduated propose → witness → earn-autonomy continuum is the trust model** — ADR-380 §5 **resolved** the vision boundary (Rung-2 autonomous consequential delegation is scoped *out* of the vision, an optional future capability). The consequence ADR-380 §5 names: ADR-382's trust model is now **cleanly build-when-demanded, not blocked on a vision decision.** **This ADR still does not *decide* that trust model — it is ADR-382's discourse — but it is no longer gated on an open vision question.**
 
 The boundary: *ADR-381 decides that Freddie holds the CRUD + authority-setting power; ADR-382 decides what that power operates on (the persona seat's lifecycle + trust).*
 
@@ -129,7 +135,7 @@ The boundary: *ADR-381 decides that Freddie holds the CRUD + authority-setting p
 The full alignment argument is the [two-order direction §3](../analysis/freddie-as-the-workspace-agent-and-the-two-order-agent-model-2026-06-27.md); the load-bearing points:
 
 - **ADR-216 (orchestration vs judgment) — RE-ASSERTED.** Freddie ← the orchestration/OS half (now first-class + named); persona agents ← the judgment half (now N user-directed seats). The ADR-260→345 hybrid is re-cut, not extended.
-- **ESSENCE (asset/labor/management/dividends) — survives, made MORE literal.** Management renames Reviewer→Freddie; the labor (persona agents) bears the judgment. *(The ESSENCE moat-sentence relocation — "judgment seat = the 2nd-order persona agent" — touches the **moat reframe ADR-380 §5 left open**; this ADR does NOT relocate the moat sentence. The ESSENCE cascade in §4 names Freddie as management but leaves the moat sentence to the open ADR-380 §5 decision. See §4 cascade note.)*
+- **ESSENCE (asset/labor/management/dividends) — survives, made MORE literal.** Management renames Reviewer→Freddie; the labor (persona agents) bears the judgment. *(With ADR-380 §5 resolved, the ESSENCE external lead was re-cut to v14.2: the moat is led by the **substrate + `trace`/provenance**, not the judgment seat; the vision is the **substrate commons + Freddie**; the judgment layer is the future deepening. The moat sentence was NOT escalated to the commons-altitude — it stays at "durable attributed memory" with `trace` as its defensible core. See §4.)*
 - **ADR-222 (OS framing) — Freddie is the kernel-agent personified.** Substrate operationally owned by the kernel-agent; persona agents = applications under operator-authored judgment.
 - **ADR-373 (multi-principal) — Freddie is the arbiter as system manager.** It reconciles the commons (keeping it coherent), not by overriding a persona's judgment.
 - **ADR-378 (workspace = outermost unit) — composes.** One Freddie per workspace is why the ceiling lands at the workspace; "one Freddie across many workspaces" *is* the undefined federation case.
@@ -138,7 +144,7 @@ The full alignment argument is the [two-order direction §3](../analysis/freddie
 
 ## 4. Cascade (the doc updates this ADR lands)
 
-Per the seat-canon-generalization (D4) and the Freddie label (D1), the cascade touches the seat canon + GLOSSARY + the occupant docs. **ESSENCE's moat sentence is held** (open per ADR-380 §5).
+Per the seat-canon-generalization (D4) and the Freddie label (D1), the cascade touches the seat canon + GLOSSARY + the occupant docs + ESSENCE. **With ADR-380 §5 resolved, ESSENCE was taken to full reconciliation (v14.2): management renamed Reviewer→Freddie AND the external lead re-cut to substrate-led + `trace`-defended, with the judgment seat named the future deepening** (per operator decision, this session).
 
 | Doc | Update | Bound by |
 |---|---|---|
@@ -146,30 +152,31 @@ Per the seat-canon-generalization (D4) and the Freddie label (D1), the cascade t
 | **[reviewer-occupant.md](../architecture/reviewer-occupant.md)** | Name Freddie as today's Rung-1 occupant of the management seat; add the Rung-1 harness note (budget/pace exercised, mandate/autonomy carried-not-exercised). | D1, D2, D3 |
 | **[reviewer-occupant-contract.md](../architecture/reviewer-occupant-contract.md)** | The canonical prose home for D3 — note that `ReviewerContext` carries `mandate_md`/`autonomy_md` on every wake but they are *exercised only at Rung 2* (the contract is uniform across rungs; the fields are degenerate over a Rung-1 steward). | D3 |
 | **[GLOSSARY.md](../architecture/GLOSSARY.md)** | Add **Freddie** entry (Rung-1 substrate steward / named occupant of the management seat); add the `reviewer`-slug + `reviewer:`-prefix data-compat rows to the Exceptions table (Freddie label keeps the slug/prefix, ADR-251 precedent). | D1, D4 |
-| **ESSENCE.md** | Name Freddie as the management role (asset/labor/**Freddie**/dividends). **The moat sentence ("authored substrate under a persona-bearing judgment seat") is NOT relocated** — that relocation depends on ADR-380 §5's open moat reframe + vision boundary. Flag the dependency; do not resolve it. *(Operator sign-off per ESSENCE edit — ESSENCE is downstream of axioms.)* | D1; ADR-380 §5 open |
+| **ESSENCE.md** (DONE — v14.2) | (1) Name Freddie as the management role (asset/labor/**Freddie**/dividends). (2) **Re-cut the external lead** per the resolved ADR-380 §5: the moat leads with the **substrate + `trace`/provenance** (NOT the judgment seat — reverses v14.0's "judgment seat leads"); the vision is the **substrate commons + Freddie**; the judgment seat is named the future Rung-2 deepening. (3) Retire the judgment-led positioning seeds (preserved for lineage). The moat sentence stays at "durable attributed memory" with `trace` as its defensible core — NOT escalated to the commons-altitude. *(Operator decision this session: "full ESSENCE reconciliation.")* | D1; ADR-380 §5 (resolved) |
 
-**Cascade note (the open-item discipline):** the two-order direction §7 named the ESSENCE moat-sentence relocation and the DP24/DP30 accountability relocation as cascade surface. Both touch **ADR-380 §5's open items** (the moat reframe; the vision boundary on which Rung-2 trust depends). This ADR **names Freddie as management** in ESSENCE but **does NOT relocate the moat sentence and does NOT relocate DP24/DP30** — those land when ADR-380 §5 resolves (or in ADR-382's discourse, which inherits the vision boundary). Silence here is not ratification of either relocation.
+**Cascade note (the open-item discipline):** the two-order direction §7 named the ESSENCE moat-sentence relocation and the DP24/DP30 accountability relocation as cascade surface, both gated on ADR-380 §5's then-open items. **ADR-380 §5 is now resolved** (same day): the moat is **NOT** escalated to the commons-altitude (it stays "durable attributed memory," led by `trace`), and Rung-2 judgment is out of the vision. So the ESSENCE re-cut here (v14.2) renames management→Freddie and re-leads with the substrate + `trace` — it does **not** relocate the moat *sentence* to "judgment seat = the 2nd-order persona agent" (that escalation was the rejected option). **The DP24/DP30 accountability relocation** (judgment-accountability → the persona agent) is **NOT done here** — it is ADR-382's, not governed by the moat decision. That is the one cascade item this ADR still leaves to ADR-382.
 
 ---
 
-## 5. The D3 code scope (held behind explicit operator go — NOT in this ADR's commit)
+## 5. The D3 code marker (LANDED on explicit operator go)
 
-Per the operator's D3 instruction ("scope a code change, get go-ahead") and the canon-hardening guardrail, the *optional* legibility marker is scoped but **not implemented**:
+Per the operator's D3 instruction ("scope a code change, get go-ahead") the marker was scoped, presented, and — on explicit go this session — **landed**:
 
-- **What**: a docstring/comment block on `ReviewerContext` (`api/agents/occupant_contract.py`, near the `mandate_md`/`autonomy_md` fields ~:128–132) and optionally on the governance-block assembler (`api/agents/reviewer_agent.py:704–707`), noting these fields are carried for cross-rung contract uniformity and are *exercised only when a consequential-action (Rung-2) occupant fills the seat — degenerate over a Rung-1 steward.*
-- **What it is NOT**: not a behavior change, not a contract change, not a field add/remove. The envelope keeps loading both fields unconditionally (Singular-Implementation; the contract is uniform across rungs — §D3).
-- **Why optional**: D3's honesty is satisfied by the **canon prose** (reviewer-occupant-contract.md + reviewer-occupant.md, §4). The in-code marker only makes the same honesty legible at the field definition. **It lands only on explicit operator go, in a separate commit** — this ADR ships doc-only.
+- **What landed**: a comment block on `ReviewerContext` (`api/agents/occupant_contract.py`, above the `mandate_md`/`autonomy_md` fields) noting these fields are carried for cross-rung contract uniformity and are *exercised only when a consequential-action (Rung-2) occupant fills the seat — degenerate over a Rung-1 steward*; with the explicit contrast that `budget_yaml`/pace ARE exercised at Rung 1; and the load-bearing consequence ("autonomy harness validated on Freddie" is false).
+- **What it is NOT**: not a behavior change, not a contract change, not a field add/remove. The envelope keeps loading both fields unconditionally (Singular-Implementation; the contract is uniform across rungs — §D3). `occupant_contract.py` stays pure-data — it parses + imports clean (verified this session).
+- **Render parity (CLAUDE.md §5)**: none required — `occupant_contract.py` is a pure-data module with no env-var/secret/schema surface; the comment is inert across all four services.
+- **Why a comment, not prose-only**: D3's honesty is *also* carried by canon prose (reviewer-occupant-contract.md §"The Rung-1 harness split" + reviewer-occupant.md, §4); the in-code marker makes the same honesty legible at the field definition a future engineer reads. The two are redundant by design (the prose is the canonical home; the comment points back to it).
 
 ---
 
 ## 6. What this ADR does NOT do
 
 - Does not rename the internal `reviewer` slug or the `reviewer:` attribution prefix (D1 — data-compat exceptions, ADR-251 precedent).
-- Does not change code, schema, the gate, the wake architecture, or the occupant contract's behavior (the §5 marker is held behind explicit go).
+- Does not change schema, the gate, the wake architecture, or the occupant contract's *behavior*. The only code change is the §5 legibility comment (inert; landed on explicit operator go).
 - Does not build persona-agent seats, lifecycle, creation surface, or trust model (ADR-382, Rung 2 — D4/D5 name only Freddie's governing side).
 - Does not decide the per-judgment-seat substrate shape (D4 — ADR-382 inherits).
-- Does not close ADR-380 §5's open items (the vision boundary; the moat reframe) — ADR-382's trust model depends on the vision boundary; this ADR flags the dependency.
-- Does not relocate ESSENCE's moat sentence or DP24/DP30 accountability (held — depends on ADR-380 §5; §4 cascade note).
+- Does not *itself* close ADR-380 §5's items (the operator closed them the same day — vision: Rung 2 out of the vision; moat: kept at "durable attributed memory" led by `trace`). This ADR *consumes* the resolution in its ESSENCE re-cut; it does not re-decide it.
+- Does not escalate ESSENCE's moat sentence to the commons-altitude (the rejected option) — the v14.2 re-cut keeps "durable attributed memory" and re-leads with the substrate + `trace`. Does not relocate DP24/DP30 accountability (that is ADR-382's — §4 cascade note).
 - Does not promote the rung ladder to an axiom (ADR-380 §6 — a separate, deliberate cascade edit if ever).
 - Does not touch the re-founding keystone cascade (orthogonal track).
 
@@ -179,4 +186,5 @@ Per the operator's D3 instruction ("scope a code change, get go-ahead") and the 
 - Sibling: [ADR-382](ADR-382-persona-agent-seats-the-rung-2-judgment-layer.md) (the Rung-2 persona-agent seat ADR — inherits D4/D5's governed side).
 - Precedent: [ADR-251](ADR-251-system-agent-reviewer-first-class-surfaces.md) (relabel-keep-slug).
 - Seat canon generalized: [reviewer-seat-substrate.md](../architecture/reviewer-seat-substrate.md) + [reviewer-occupant.md](../architecture/reviewer-occupant.md) + [reviewer-occupant-contract.md](../architecture/reviewer-occupant-contract.md) (ADR-315).
+- File-structure beneath Freddie: [ADR-383](ADR-383-the-consistent-agent-framework-and-mandate-as-purpose.md) (the consistent agent framework — one file-structure; MANDATE = every agent's purpose, Freddie's is the steward-mandate; the persona-frame re-carve scope). Surfaced *from* this ADR's frame-re-carve discourse.
 - Owed-from: [ADR-375](ADR-375-phase-1-substrate-for-humans-and-external-agents.md) §7 Cut 1.

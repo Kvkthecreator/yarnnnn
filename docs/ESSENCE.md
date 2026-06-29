@@ -5,6 +5,7 @@
 **Date**: 2026-01-28
 **Updated**: 2026-06-10 (v14.0 — **the cumulative workspace**. Product identity re-centered on *the workspace where work is cumulative*: the substrate is the asset, the agents are the labor, the Reviewer is the management, the artifacts are the dividends. Ratified in the 2026-06-10 business-model regroup against fresh June-2026 competitive evidence — see `docs/analysis/cumulative-workspace-product-formulation-2026-06-10.md`. The v13.0 two-layer structure (substrate floor + judgment layer) is preserved; what changes: (a) the external lead is the **judgment seat**, with substrate portability as supporting proof, because capability claims ("persistent," "compounds," "runs in your absence") have been verbally commoditized by platform incumbents while the accountable-judgment claim remains unoccupied; (b) the competitive posture is canonized — *capability parity arrives in waves; differentiate on structure, ownership, accountability*; (c) the neutrality card is named — a platform judging its own model's agents has a self-audit problem; a model-agnostic seat does not.)
 **v14.1 amendment** (2026-06-10, ADR-332): the cumulative asset's world-facing half — the workspace also accumulates the declared universe's distilled history (the perception field). One paragraph added to Core Thesis.
+**v14.2 amendment** (2026-06-29, ADR-380 §5 + ADR-381): **the vision/moat re-cut.** ADR-380 §5 (operator, 2026-06-29) closed two open items in the conservative direction: **(a) Rung-2 autonomous judgment is scoped OUT of the vision** — the vision is the **multi-principal substrate commons + Freddie (the context-management OS)**: the substrate floor (Rung 0) operated by humans and external agents, stewarded by **Freddie** (Rung 1, the 1st-order substrate steward); the judgment layer (Rung 2 / persona agents taking consequential action) is an **optional future capability, not the destination**; **(b) the moat stays at "durable attributed memory" with `trace`/provenance (the walkable revision chain) named as its defensible core** — NOT re-framed to the commons-altitude, NOT led by the judgment seat. **This reverses v14.0's "the judgment seat leads" external posture** (line 6/145): the external lead is now the **authored, attributed, portable substrate + `trace`** (the proven, defensible, red-ocean-surviving core); the judgment seat is named as the future Rung-2 deepening, not the systemic moat. **management role renamed Reviewer → Freddie** (asset/labor/**Freddie**/dividends) per [ADR-381](adr/ADR-381-freddie-the-rung-1-substrate-steward.md) D1 — a relabel-keep-slug (the internal `reviewer` slug + `reviewer:` prefix + `/workspace/persona/` path unchanged; ADR-251 precedent). See [ADR-380](adr/ADR-380-the-activation-ladder-and-the-judgment-deferral-line.md) §5 + [ADR-381](adr/ADR-381-freddie-the-rung-1-substrate-steward.md) + the [two-order direction](analysis/freddie-as-the-workspace-agent-and-the-two-order-agent-model-2026-06-27.md).
 **Prior**: v13.0 (2026-06-02 — substrate-first rewrite; grounded in THESIS four commitments, ADR-310/311 one-moat-two-faces, ADR-222 kernel/program framing, ADR-209 authored substrate, ADR-216 orchestration vs judgment.)
 
 ---
@@ -13,7 +14,9 @@
 
 **YARNNN is the workspace where work is cumulative.**
 
-> The substrate is the asset. The agents are the labor. The Reviewer is the management. The artifacts are the dividends. Buyers come for the dividends; they stay for the asset.
+> The substrate is the asset. The agents are the labor. **Freddie** is the management. The artifacts are the dividends. Buyers come for the dividends; they stay for the asset.
+>
+> *(Management = Freddie, the 1st-order substrate steward — the workspace agent that operationally owns the substrate and governs the labor, ADR-381. "Reviewer" was the prior name for this management role; "Freddie" names the hardened occupant filling the management seat, the internal slug unchanged. The 2nd-order persona agents that bear consequential judgment are a future capability — ADR-380 §5, ADR-382 — not part of the launch or the vision narrative.)*
 
 Every other AI system makes work *episodic*: an artifact generated in a session is constant-quality regardless of tenure, and correcting it improves nothing. In YARNNN, artifacts are synthesized from an authored, attributed substrate — which makes them different in three structural ways:
 
@@ -88,7 +91,9 @@ This is where the operation runs in the operator's absence and improves through 
 
 3. **YARNNN (the orchestration surface)** — the chat surface the operator addresses. It keeps the workspace legible, drafts work, and routes mutations. It is orchestration, not a judgment persona — it is *how the operator drives the system*, not a seat that renders verdicts (ADR-216).
 
-4. **The Reviewer** — the judgment seat (one per workspace). Reads proposed actions, renders approve/reject/defer, accumulates calibration over tenure. The seat where trust is earned (ADR-194).
+4. **Freddie** — the 1st-order substrate steward (one per workspace, systemic). The workspace agent that operationally owns the substrate (files, context, attributions, intake, connections) and governs the labor. Base-LLM reasoning about the substrate + the system; reversible mutations; no consequential capital judgment. The named occupant of the **management seat** (`/workspace/persona/`, the internal `reviewer` slug unchanged — ADR-381). *(This is the Rung-1 steward the vision is built on — ADR-380.)*
+
+4a. **The judgment seat (the Reviewer / Rung-2 persona agents)** — the judgment layer a program adds. Reads proposed actions, renders approve/reject/defer, accumulates calibration over tenure; the seat where trust is earned (ADR-194). **A future deepening, not the systemic lead** (ADR-380 §5): the consequential-judgment occupant is the 2nd-order persona agent (ADR-382), an optional capability the launch + vision narrative does not pre-sell.
 
 5. **Programs** — applications that activate the judgment layer on bare substrate. They ship a mandate template, a Reviewer persona, recurrences, and a cockpit composition. Workspaces don't have *types*; they *run programs* (ADR-222).
 
@@ -122,12 +127,14 @@ YARNNN's stance: **context is authored, attributed, retained, and portable.** It
 
 ## The Moat
 
-There is **one moat: authored substrate under a persona-bearing judgment seat.** It is served two ways — a **cockpit face** (the operator, in-app) and an **interop face** (any LLM, via MCP). The two are faces of the same moat, not two moats (ADR-310).
+> **Re-cut by ADR-380 §5 (2026-06-29):** the moat is communicated as **durable, attributed, portable memory — and its defensible core is `trace`** (the walkable, attributed revision chain no plain storage connector can show). The judgment seat is named below as the *future deepening* (Rung 2), not the systemic moat. This is the conservative, honest, red-ocean-surviving framing the operator ratified — see the v14.2 banner.
 
-- The substrate is the differentiator that exists *before* any judgment: attributed, retained, LLM-native, portable. No competitor's agent-filesystem exposes an attributed, walkable revision chain across the boundary.
-- The judgment seat is where accumulation compounds and trust is earned: the longer the Reviewer runs against ground truth, the harder its calibrated judgment is to replicate elsewhere.
+There is **one moat: the authored, attributed, portable substrate — defended by `trace`.** It is served two ways — a **cockpit face** (the operator, in-app) and an **interop face** (any LLM, via MCP). The two are faces of the same moat, not two moats (ADR-310).
 
-Inferred-context layers commoditize. Authored substrate, judged over tenure, compounds.
+- **The substrate is the differentiator that exists before any judgment**: attributed, retained, LLM-native, portable. The incumbents have verbally commoditized "durable memory" (ESSENCE §Why This Is Different) — so the defensible core inside the memory framing is **`trace`**: no competitor's agent-filesystem exposes an attributed, walkable revision chain across the boundary. *That* is what does not wash out in the capability waves.
+- **The judgment seat is the future deepening, not today's moat lead.** When the Rung-2 judgment layer activates, the longer the seat runs against ground truth the harder its calibrated judgment is to replicate — but per ADR-380 §5 that layer is an optional future capability scoped out of the launch and the vision narrative. The vision is the **substrate commons + Freddie** (the context-management OS); the judgment seat deepens it later, it does not lead it now.
+
+Inferred-context layers commoditize. Authored substrate with a walkable provenance chain does not.
 
 ## What YARNNN Is Not
 
@@ -142,19 +149,26 @@ YARNNN is not:
 
 ## Canonical Positioning
 
-External framing is Path B (YARNNN as a platform for operators), per the communication discipline in THESIS + ADR-210. **The judgment seat leads; the cumulative substrate is the proof beneath it** (ratified 2026-06-10).
+External framing is Path B (YARNNN as a platform for operators), per the communication discipline in THESIS + ADR-210. **The authored, portable substrate leads — defended by `trace` (the walkable provenance chain); the judgment layer is the future deepening, not the lead** (re-cut by ADR-380 §5, 2026-06-29; reverses the v14.0 "judgment seat leads" posture — see the v14.2 banner). The vision is the **multi-principal substrate commons + Freddie** (the context-management OS); Rung-2 autonomous judgment is an optional future capability the launch narrative does not pre-sell.
+
+> **Positioning re-cut (ADR-380 §5, 2026-06-29):** the lead is the **authored, attributed, portable substrate + `trace`** (the context commons that follows you, provable by its revision chain). The judgment/delegate framing is demoted to "when you're ready" — a future capability, not the headline. The prior delegate-led seeds are preserved below the line as *retired (judgment-led) copy* for lineage.
 
 **Primary:**
-> The workspace where work is cumulative — run by agents you own, under a judgment you control.
+> The workspace where work is cumulative — authored, attributed, and yours, reachable from every AI you use.
 
 **Short form:**
-> Everyone's selling you delegates. Nobody's selling the seat that holds them accountable.
+> Your context, authored and portable — with a provenance chain no memory feature can show.
 
-**The USP (per the hardened spine — Entrust → Judgment → Continuity → Compounding):**
-> A standing delegate that produces the work — and makes the calls — on your behalf, the way you would, on a workspace where nothing resets.
+**The USP (substrate-led — Author → Attribute → Carry → Compound):**
+> An authored context commons that follows you into every AI — every claim traceable to its source, every correction inherited by everything after — on a workspace where nothing resets.
 
 **Expanded:**
-> YARNNN is the workspace where work is cumulative. You author your context — attributed, retained, sovereign — and agents you own produce work from it: every artifact traceable to its sources, every correction inherited by everything that comes after. Activate a program and the operation runs in your absence under an independent Reviewer whose judgment is calibrated against what actually happened — not against its own confidence. The substrate is the asset; the agents are the labor; the Reviewer is the management; the artifacts are the dividends.
+> YARNNN is the workspace where work is cumulative. You author your context — attributed, retained, sovereign — and carry it into every AI you use; every file traces to its sources through a walkable revision chain (`trace`) no inferred-memory feature can show. Agents you own produce work from that substrate, governed by **Freddie**, the workspace's substrate steward. And when you're ready, a program adds a declared mandate and an independent judgment seat — a future deepening, evaluated against what actually happened. The substrate is the asset; the agents are the labor; **Freddie is the management**; the artifacts are the dividends.
+
+**Retired (judgment-led) copy seeds** — preserved for lineage; superseded by the substrate-led lead above (ADR-380 §5). *Do not use as the external lead:*
+> *Primary (retired):* "The workspace where work is cumulative — run by agents you own, under a judgment you control."
+> *Short form (retired):* "Everyone's selling you delegates. Nobody's selling the seat that holds them accountable."
+> *USP (retired):* "A standing delegate that produces the work — and makes the calls — on your behalf, the way you would, on a workspace where nothing resets."
 
 **Retired copy seeds** (do not use — verbally commoditized by incumbents as of June 2026): *"It runs on your behalf. It gets better the longer it does."* and any bare capability claim (persistent / compounds / runs-while-you're-away) without its mechanism.
 

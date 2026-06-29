@@ -22,7 +22,7 @@ The boundary is a **data contract over substrate** (`ReviewerContext` / `Reviewe
 The seat (per [reviewer-seat-substrate.md](reviewer-seat-substrate.md) `OCCUPANT.md`) is occupant-class-agnostic. Four classes can fill it, all reading and writing the same substrate:
 
 - `human:<user_id>` — the operator themselves, filling the seat via approval UX. No `reviewer_agent.py` invocation; the operator renders verdicts by clicking.
-- `ai:<model>-<version>` — a YARNNN-internal AI occupant. **This is the occupant `reviewer_agent.py` implements.** Today: `ai:reviewer-sonnet-v8` (the `REVIEWER_MODEL_IDENTITY` constant in `occupant_contract.py`).
+- `ai:<model>-<version>` — a YARNNN-internal AI occupant. **This is the occupant `reviewer_agent.py` implements.** Today: `ai:reviewer-sonnet-v8` (the `REVIEWER_MODEL_IDENTITY` constant in `occupant_contract.py`). **Operator-facing label: "Freddie"** (ADR-381 D1) — the 1st-order substrate steward (Rung 1, ADR-380), the named occupant of the **management seat**. "Freddie" is a relabel-keep-slug (ADR-251 precedent): the `reviewer` slug + `reviewer:` attribution prefix + `/workspace/persona/` seat path are unchanged. The seat keeps its role-name ("the Reviewer seat" / "the management seat"); "Freddie" names who fills it.
 - `external:<service>-<identifier>` — an external AI service filling the seat via adapter. **Not built** (ADR-315 D6 names this the trigger for the L3 package carve).
 - `impersonated:<admin_user_id>-as-<persona_slug>` — admin alpha-stress-testing mode (ADR-194 v2).
 
@@ -83,6 +83,10 @@ Everything else lives elsewhere and is **not** narrated in the frame (the anti-r
 Beyond partition (§3.2.1), the assembled frame must pass the **composed-coherence** discipline ([agent-composition.md](agent-composition.md) §3.2.2): read the assembled frame as one document — does it tell a single consistent story about (a) what the Reviewer is, (b) how it acts, (c) where its agency ends, consistent with FOUNDATIONS Axiom 1 §4 + Axiom 2? The directs-not-executes action-grammar is the canonical resolution (the Reviewer directs the System Agent; it does not execute with its own hands). **Any edit to a persona-frame section must run the composed-coherence test in the same commit.**
 
 ---
+
+## The Rung-1 harness split (ADR-381 D3)
+
+Today's occupant (Freddie, the Rung-1 substrate steward) operates over **reversible substrate**. Per ADR-380 D3 + ADR-381 D3, the governance harness splits across the activation rungs: **budget + pace are exercised** at Rung 1 (Freddie burns tokens, has a cadence); **mandate + autonomy are carried, not exercised** (degenerate over reversible substrate — no consequential external write for the AUTONOMY ceiling to gate). The envelope pre-loads all of them uniformly (the contract is one shape across rungs); the degeneracy is in *exercise*, not *carriage*. **Canon must not claim "the autonomy harness was validated on Freddie."** The full statement — and why carried-not-exercised is correct, not a bug — is the canonical prose in [reviewer-occupant-contract.md](reviewer-occupant-contract.md) §"The Rung-1 harness split."
 
 ## How the occupant consumes the contract
 

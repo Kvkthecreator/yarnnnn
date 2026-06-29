@@ -64,6 +64,19 @@ The kernel-universal envelope (`_UNIVERSAL_ENVELOPE_DECLS`, always present) is t
 
 ---
 
+## The Rung-1 harness split (ADR-381 D3 — the carried-not-exercised honesty)
+
+> **Canonical prose home for ADR-381 D3 + ADR-380 D3.** The `ReviewerContext` carries governance fields uniformly across both activation rungs; whether they are *exercised* depends on the occupant filling the seat.
+
+The contract is **one shape across both rungs** (ADR-256 unified entry; the kernel never forks `ReviewerContext` by occupant). The envelope pre-loads `mandate_md`, `autonomy_md`, `budget_yaml`, etc. on **every** wake, regardless of which rung's occupant is filling the seat. But the activation ladder (ADR-380) means not every carried field *bites*:
+
+- **Rung 1 — Freddie (the substrate steward).** Freddie's actions are reversible substrate-internal mutations (a wrong placement is re-placed; the revision chain holds both). Over reversible substrate there is **no consequential external write for the AUTONOMY ceiling to gate**, and a MANDATE with no value-moving action to hard-gate is a config string. So `mandate_md` + `autonomy_md` are **carried, not exercised** at Rung 1 — they are pre-loaded for cross-rung contract uniformity, but they are *degenerate* over a Rung-1 steward. **`budget_yaml` + pace, by contrast, ARE exercised** at Rung 1 — Freddie burns tokens and has a cadence; the spend envelope bites on real spend.
+- **Rung 2 — persona agents (consequential judgment).** When a 2nd-order persona agent (ADR-382) fills a judgment seat and takes consequential external action under an autonomy grant, `mandate_md` + `autonomy_md` **are exercised** — the AUTONOMY ceiling gates the consequential write, the MANDATE hard-gates task creation. The *same* carried fields, now load-bearing.
+
+**The load-bearing consequence (ADR-380 D3, canon must state it):** *"the autonomy harness was validated on Freddie" is **false**.* Running budget/pace on a stakeless steward de-risks the **engineering integration** of the harness mechanics — not the **trust validity of delegation**, which has nothing to bite on over reversible substrate. The delegation-validation clock runs only where there are real stakes: **Rung 2** (ADR-380 D4, the exogenous track-record clock).
+
+**Why carried-not-exercised is correct, not a bug:** conditionally stripping `mandate_md`/`autonomy_md` at Rung 1 would fork the contract by occupant (a Singular-Implementation violation) and break the moment a persona agent fills a seat with the same code. The honesty is about what we *claim from running the harness*, not about what the envelope *loads*. No contract change is required; the field carriage is correct. (ADR-381 §5 scopes an *optional* in-code legibility marker — a docstring noting the degeneracy at the field definition — held behind explicit operator go; it changes no behavior.)
+
 ## The dependency rule (ADR-315 D3)
 
 > **The kernel/harness depends on the contract, never on the occupant implementation.**

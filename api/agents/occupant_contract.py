@@ -128,6 +128,20 @@ class ReviewerContext(TypedDict, total=False):
     identity_md: str
     principles_md: str
     precedent_md: str
+    # ADR-381 D3 / ADR-380 D3 — the Rung harness split (carried, not exercised).
+    #   mandate_md + autonomy_md are CARRIED on every wake (one contract across
+    #   activation rungs — the kernel never forks ReviewerContext by occupant)
+    #   but EXERCISED only at Rung 2 (a consequential-action persona occupant,
+    #   ADR-382). Over a Rung-1 steward (Freddie, reversible substrate) they are
+    #   DEGENERATE — there is no consequential external write for the AUTONOMY
+    #   ceiling to gate, and a MANDATE with no value-moving action to hard-gate
+    #   is a config string. Do NOT read budget_yaml/pace the same way: those ARE
+    #   exercised at Rung 1 (Freddie burns tokens + has a cadence). Consequence
+    #   (load-bearing): "the autonomy harness was validated on Freddie" is FALSE.
+    #   Conditionally stripping these at Rung 1 would fork the contract by
+    #   occupant (Singular-Implementation violation) — the carriage is correct;
+    #   the degeneracy is in EXERCISE, not LOADING. Canon prose:
+    #   docs/architecture/reviewer-occupant-contract.md §"The Rung-1 harness split."
     mandate_md: str
     autonomy_md: str
     # ADR-275 refinement (run-2): operator-authored cadence preferences.
