@@ -37,6 +37,11 @@ import {
 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import {
+  authorClass,
+  formatAuthorLabelOrSystem,
+  type AuthorClass,
+} from '@/lib/workspace/attribution';
 
 interface RevisionSummary {
   id: string;
@@ -62,60 +67,51 @@ interface RevisionHistoryPanelProps {
   revertDisabled?: boolean;
 }
 
-type AuthorLayer = 'operator' | 'yarnnn' | 'agent' | 'specialist' | 'freddie' | 'system' | 'unknown';
+// ADR-388 follow-up: classification + label now come from the ONE shared
+// attribution module (was a local authorLayer/layerLabel that collapsed
+// yarnnn:mcp:* → "yarnnn", so an MCP write showed "yarnnn" while the file
+// header correctly showed "ChatGPT (via MCP)"). The chip color + icon are
+// keyed on the shared AuthorClass so the row matches the header.
 
-function authorLayer(authored_by: string): AuthorLayer {
-  if (!authored_by) return 'unknown';
-  if (authored_by === 'operator') return 'operator';
-  if (authored_by.startsWith('yarnnn:')) return 'yarnnn';
-  if (authored_by.startsWith('agent:')) return 'agent';
-  if (authored_by.startsWith('specialist:')) return 'specialist';
-  if (authored_by.startsWith('freddie:')) return 'freddie';
-  if (authored_by.startsWith('system:')) return 'system';
-  return 'unknown';
-}
-
-// ADR-381 D1 (full rename): the `freddie` author-layer (from the `freddie:`
-// attribution prefix) is displayed as "Freddie" (the system agent). The full
-// `authored_by` (incl. the `freddie:` prefix) stays in the chip tooltip.
-function layerLabel(layer: AuthorLayer): string {
-  return layer === 'freddie' ? 'Freddie' : layer;
-}
-
-function authorChipColor(layer: AuthorLayer): string {
-  switch (layer) {
-    case 'operator':
+function authorChipColor(cls: AuthorClass): string {
+  switch (cls) {
+    case 'you':
       return 'bg-blue-500/10 text-blue-700 border-blue-500/30';
     case 'yarnnn':
       return 'bg-purple-500/10 text-purple-700 border-purple-500/30';
+    case 'mcp':
+      return 'bg-amber-500/10 text-amber-700 border-amber-500/30';
     case 'agent':
       return 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30';
     case 'specialist':
       return 'bg-cyan-500/10 text-cyan-700 border-cyan-500/30';
-    case 'freddie':
-      return 'bg-amber-500/10 text-amber-700 border-amber-500/30';
+    case 'reviewer':
+      return 'bg-rose-500/10 text-rose-700 border-rose-500/30';
+    case 'platform':
+      return 'bg-sky-500/10 text-sky-700 border-sky-500/30';
     case 'system':
-      return 'bg-zinc-500/10 text-zinc-600 border-zinc-500/30';
     default:
       return 'bg-zinc-500/10 text-zinc-600 border-zinc-500/30';
   }
 }
 
-function AuthorIcon({ layer }: { layer: AuthorLayer }) {
-  const cls = 'w-3 h-3';
-  switch (layer) {
-    case 'operator':
-      return <User className={cls} />;
+function AuthorIcon({ cls }: { cls: AuthorClass }) {
+  const c = 'w-3 h-3';
+  switch (cls) {
+    case 'you':
+      return <User className={c} />;
     case 'yarnnn':
-      return <Bot className={cls} />;
+      return <Bot className={c} />;
+    case 'mcp':
     case 'agent':
-      return <Cpu className={cls} />;
-    case 'freddie':
-      return <AlertTriangle className={cls} />;
+      return <Cpu className={c} />;
+    case 'reviewer':
+      return <AlertTriangle className={c} />;
     case 'specialist':
+    case 'platform':
     case 'system':
     default:
-      return <Wrench className={cls} />;
+      return <Wrench className={c} />;
   }
 }
 
@@ -274,8 +270,8 @@ export function RevisionHistoryPanel({
             <ul className="divide-y divide-border">
               {revisions.map((rev, idx) => {
                 const isHead = rev.id === headId;
-                const layer = authorLayer(rev.authored_by);
-                const chipCls = authorChipColor(layer);
+                const cls = authorClass(rev.authored_by);
+                const chipCls = authorChipColor(cls);
                 const isSelected = selectedId === rev.id;
                 const revNumber = totalCount - idx; // newest = highest r-number
 
@@ -299,8 +295,8 @@ export function RevisionHistoryPanel({
                           )}
                           title={rev.authored_by}
                         >
-                          <AuthorIcon layer={layer} />
-                          <span className="font-medium">{layerLabel(layer)}</span>
+                          <AuthorIcon cls={cls} />
+                          <span className="font-medium">{formatAuthorLabelOrSystem(rev.authored_by)}</span>
                         </span>
                         {isHead && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/30">

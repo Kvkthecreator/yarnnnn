@@ -89,22 +89,38 @@ def test_shared_attribution_module():
 
 
 def test_no_duplicate_author_helpers_in_files_surface():
-    """The four pre-ADR-388 duplicate author formatters are consolidated.
-    No LOCAL `function formatAuthorLabel/authorAccent/formatHeadAuthor` in the
-    Files surface components (RecentlyAuthored.tsx is another lane's file —
-    excluded)."""
+    """Every Files-surface component routes author classification/labeling
+    through the ONE shared module (lib/workspace/attribution.ts). No LOCAL
+    author-formatter functions. Pattern broadened (and RevisionHistoryPanel
+    added) after the follow-up found `authorLayer`/`layerLabel` there still
+    collapsed yarnnn:mcp:* → "yarnnn" — the gate's original narrow regex missed
+    it. (RecentlyAuthored.tsx is another lane's file — excluded.)"""
     files = [
         _PAGE,
         _CONTENT,
         "components/workspace/RecentsView.tsx",
         "components/workspace/NodeDetailsPanel.tsx",
         "components/workspace/WorkspaceTree.tsx",
+        "components/workspace/RevisionHistoryPanel.tsx",
     ]
-    pat = re.compile(r"function\s+(formatAuthorLabel|authorAccent|formatHeadAuthor)\b")
+    # Catch any locally-defined author classifier/labeler, by name shape.
+    pat = re.compile(
+        r"function\s+(formatAuthorLabel|formatAuthorLabelOrSystem|authorAccent|"
+        r"formatHeadAuthor|authorLayer|layerLabel|authorClass)\b"
+    )
     for f in files:
         src = _read_web(f)
         m = pat.search(src)
         assert m is None, f"{f} still defines a local author helper: {m.group(0) if m else ''}"
+
+
+def test_revision_panel_uses_shared_attribution():
+    """RevisionHistoryPanel labels rows via the shared module so an MCP write
+    reads 'Claude (via MCP)' — matching the header (was 'yarnnn')."""
+    src = _read_web("components/workspace/RevisionHistoryPanel.tsx")
+    assert "from '@/lib/workspace/attribution'" in src
+    assert "formatAuthorLabelOrSystem" in src
+    assert "authorClass" in src
 
 
 def test_folder_listing_shows_attribution():
