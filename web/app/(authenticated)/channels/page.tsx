@@ -50,7 +50,7 @@
  */
 
 import { Link2, Rss, Cpu, ScrollText, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
-import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
+import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
 import { SourcesCard } from "@/components/workspace-concepts/SourcesCard";
 import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
@@ -93,15 +93,8 @@ const PANE_GROUPS: PaneGroup[] = [
   },
 ];
 
-/** Shared pane header — title + subtitle. Flow/In own their own header (FeedSurface). */
-function PaneHeader({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div className="border-b border-border/60 px-6 py-3 shrink-0">
-      <h2 className="text-sm font-medium text-foreground">{title}</h2>
-      <p className="text-xs text-muted-foreground">{subtitle}</p>
-    </div>
-  );
-}
+// PaneHeader is the shared shell component (Singular Implementation, 2026-07-01).
+// Flow/In own their own header (FeedSurface), so they skip it.
 
 export default function ChannelsPage() {
   // Pane-switch within the Channels window (the "View flow →" link).
@@ -121,8 +114,6 @@ export default function ChannelsPage() {
             />
             <div className="flex-1 overflow-y-auto p-6">
               <ConnectedIntegrationsSection
-                title="Connectors"
-                description="Connect platforms to give the operation data. Platforms are infrastructure — connect once, the operation reads automatically."
                 redirectTo="/channels?channels.pane=connectors"
                 showFreshness
                 onViewFlow={() => surfaceParam.set({ pane: "flow" })}

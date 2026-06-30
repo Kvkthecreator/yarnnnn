@@ -74,6 +74,56 @@ export interface PaneDef {
   icon: ComponentType<{ className?: string }>;
 }
 
+/**
+ * PaneHeader — THE canonical title block at the top of a pane body inside the
+ * shell (2026-07-01 unification). One `<h2>` size/weight/spacing for EVERY
+ * split-nav pane, replacing the per-surface hand-rolled copies that had drifted
+ * (Channels + Notifications each defined their own identical-but-separate
+ * `PaneHeader`; the body cards then often rendered a SECOND header of their own
+ * — the Connectors double-header).
+ *
+ * Distinct from `SurfaceIdentityHeader` (the page-level `<h1>` hero for DETAIL
+ * surfaces — "what is this page about"). This is the pane-level `<h2>` — "what
+ * is this pane" — inside a multi-pane shell. The two never both apply to one
+ * region, so they stay separate components.
+ *
+ * Slots:
+ *   - `icon` (optional) — renders left of the title. Most panes omit it (the
+ *     nav already carries the pane icon); keep it for parity where a body
+ *     component used to self-render an icon'd header.
+ *   - `subtitle` (optional) — the one-line description under the title.
+ *   - `action` (optional) — right-aligned escape-hatch link / button
+ *     (Notifications' "Open full Queue →" mirror links).
+ *
+ * The body card mounted UNDER this header should NOT render its own title +
+ * description — this header owns them. (A card may still render finer-grained
+ * sub-section labels inside its content.)
+ */
+export function PaneHeader({
+  title,
+  subtitle,
+  icon: Icon,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: ComponentType<{ className?: string }>;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-border/60 px-6 py-3 shrink-0">
+      <div className="flex items-center gap-2 min-w-0">
+        {Icon && <Icon className="w-4 h-4 shrink-0 text-muted-foreground" />}
+        <div className="min-w-0">
+          <h2 className="text-sm font-medium text-foreground">{title}</h2>
+          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+        </div>
+      </div>
+      {action && <div className="shrink-0">{action}</div>}
+    </div>
+  );
+}
+
 export interface PaneGroup {
   label: string;
   panes: PaneDef[];

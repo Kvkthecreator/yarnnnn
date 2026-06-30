@@ -7,7 +7,6 @@ import {
   Check,
   Clock,
   ExternalLink,
-  Link2,
   Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
@@ -56,8 +55,6 @@ function relativeTime(iso: string | null): string {
 }
 
 interface ConnectedIntegrationsSectionProps {
-  title?: string;
-  description?: string;
   className?: string;
   children?: React.ReactNode;
   /** Frontend path to return to after OAuth (e.g. "/system"). Defaults to /dashboard. */
@@ -74,8 +71,6 @@ interface ConnectedIntegrationsSectionProps {
 }
 
 export function ConnectedIntegrationsSection({
-  title = "Connected Platforms",
-  description = "Connect platforms to give your agents data. Platforms are infrastructure — connect once, agents read automatically.",
   className,
   children,
   redirectTo,
@@ -279,12 +274,10 @@ export function ConnectedIntegrationsSection({
 
   return (
     <section className={className}>
-      <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-        <Link2 className="w-5 h-5" />
-        {title}
-      </h2>
-      <p className="text-sm text-muted-foreground mb-6">{description}</p>
-
+      {/* No self-header — the pane-level PaneHeader ("Connections") owns the
+          title + description. This component renders only the connector cards.
+          (Singular Implementation, 2026-07-01 — killed the Connectors double-
+          header; its sole mount is the Channels Connections pane.) */}
       {isLoadingIntegrations ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />

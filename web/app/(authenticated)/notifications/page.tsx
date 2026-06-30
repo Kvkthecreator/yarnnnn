@@ -31,7 +31,7 @@
 import { ExternalLink, ClipboardCheck, ScrollText, Clock } from "lucide-react";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { useAgentsAndRecurrences } from "@/hooks/useAgentsAndRecurrences";
-import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
+import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { QueueBody } from "@/components/queue/QueueBody";
 import { StandingBand } from "@/components/queue/StandingBand";
 import { FeedSurface } from "@/components/feed-surface/FeedSurface";
@@ -68,18 +68,8 @@ function MirrorLink({ label, onClick }: { label: string; onClick: () => void }) 
   );
 }
 
-/** Shared pane header — title + subtitle + escape-hatch link. */
-function PaneHeader({ title, subtitle, link }: { title: string; subtitle: string; link: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between border-b border-border/60 px-6 py-3 shrink-0">
-      <div>
-        <h2 className="text-sm font-medium text-foreground">{title}</h2>
-        <p className="text-xs text-muted-foreground">{subtitle}</p>
-      </div>
-      {link}
-    </div>
-  );
-}
+// PaneHeader is the shared shell component (Singular Implementation, 2026-07-01);
+// the escape-hatch MirrorLink rides its `action` slot.
 
 export default function OperationPage() {
   const { navigateToSurface } = useSurfacePreferences();
@@ -94,7 +84,7 @@ export default function OperationPage() {
             <PaneHeader
               title="To do"
               subtitle="What wants your decision — approve or reject below."
-              link={<MirrorLink label="Open full Queue" onClick={() => navigateToSurface("queue")} />}
+              action={<MirrorLink label="Open full Queue" onClick={() => navigateToSurface("queue")} />}
             />
             <div className="flex-1 overflow-y-auto p-6">
               {/* ADR-350: the standing obligation (owed-vs-actual + the
@@ -114,7 +104,7 @@ export default function OperationPage() {
             <PaneHeader
               title="Activity"
               subtitle="What just happened — the narrative of every invocation."
-              link={<MirrorLink label="Open run ledger" onClick={() => navigateToSurface("recurrence", { pane: "activity" })} />}
+              action={<MirrorLink label="Open run ledger" onClick={() => navigateToSurface("recurrence", { pane: "activity" })} />}
             />
             <div className="flex-1 min-h-0">
               <FeedSurface />
@@ -161,7 +151,7 @@ function TunePane({ onSelect, onOpenFull }: { onSelect: (slug: string) => void; 
       <PaneHeader
         title="Schedule"
         subtitle="The recurring work — pick a row to pause, run now, or edit."
-        link={<MirrorLink label="Open full Schedule" onClick={onOpenFull} />}
+        action={<MirrorLink label="Open full Schedule" onClick={onOpenFull} />}
       />
       <div className="flex-1 overflow-y-auto">
         <RecurrenceList
