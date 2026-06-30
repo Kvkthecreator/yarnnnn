@@ -60,9 +60,11 @@ Both facts are read-and-present (kernel presents, the steward's `attribution-int
 - `api/routes/workspace.py` — imports the shared helper (D4).
 - Gate: `api/test_perception_envelope.py` (27/27).
 
-## 5. Validation (owed)
+## 5. Validation (done — FAIL on the catch, roster ruled IN-but-insufficient)
 
-Fire the bare-steward confirmation wake: does a steward that can now SEE its principals catch the seeded mis-attribution (AI-voiced content stamped `operator`)? PASS closes the attribution arc and validates the envelope direction; FAIL routes to the rule-trigger lever (the prior FINDING's named next step), now with the roster ruled in or out. Logged as a dated FINDING per EVAL-SUITE-DISCIPLINE.
+Fired the bare-steward wake (2026-06-30, $0.087, [validation FINDING](../evaluations/2026-06-30-principal-commons-validation-FINDING.md)). The principal commons rendered correctly (owner named "the human operator (writes as `operator`)" + the foreign-LLM principal) — the referent the attribution check lacked is now present. **But the steward still did not catch the mis-attribution.** It read the file, placed the honest dump well, and took zero action on the `authored_by=operator` lie (one improvement: it stopped *propagating* the false stamp, which the prior run did).
+
+This is the **FAIL branch**, reached cleanly. The arc has now eliminated every perception hypothesis (presence → salience → referent), and none closed the catch. **The roster is ruled IN — built, correct, necessary, but insufficient on its own.** The confirmed remaining gap is the **rule trigger**: the steward does not RUN the `attribution-integrity` check unprompted even with the referent in hand. The next lever (§6) is now singular and unambiguous: sharpen the `attribution-integrity` trigger in the steward-default `persona/principles.md` to an imperative per-file voice-vs-stamp-vs-roster check. Probe before building it (re-fire this same wake). This ADR's build is not wasted — the principal commons is the referent the eventual catch needs, and serves connection-hygiene + multi-principal reasoning + the re-founding's provenance projection independent of this one catch.
 
 ## 6. Open follow-ons (deferred, NOT in this ADR)
 
