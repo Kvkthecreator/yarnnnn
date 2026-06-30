@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.30.1] - Freddie wake envelope: the attribution fact (the steward's perception surface)
+
+**ADR-387 follow-on. The bare-Freddie steward eval (docs/evaluations/2026-06-29-freddie-bare-workspace-steward-FINDING.md, Finding 1) found the steward PLACED a mis-attributed file but ACCEPTED the `authored_by=operator` lie on AI-voiced content — because nothing in the wake envelope surfaced attribution. A sweep had to `ListRevisions` every file to perceive a mismatch, with no cue to do so. Fix: give the steward the missing perception surface.**
+
+- `api/agents/occupant_contract.py`: new `FreddieContext.attribution_fact: str` field (sibling of `reflection_gap_fact` — the perception analogue on the attribution axis).
+- `api/services/freddie_envelope.py`: new `_attribution_fact()` — a bounded read-and-present of recent `workspace_file_versions` (path · authored_by · message), DP19-clean (the kernel PRESENTS; Freddie's `attribution-integrity` + `intake-placement` rules JUDGE). Bounded to recent activity (`_ATTRIBUTION_FACT_WINDOW_HOURS=48`, `_ATTRIBUTION_FACT_LIMIT=12`) — a discovery surface, not the ledger; empty on a quiet workspace (no noise on program wakes). Wired into the envelope dict.
+- `api/agents/freddie_agent.py`: new "## Attribution fact" render block in the user message (after the reflection gap-fact). Header routes the steward to VERIFY voice-vs-attribution ("Don't assume the stamp is honest because it is present") and names both rules it serves.
+- **Expected behavior change**: a Freddie wake (steward or program) over a workspace with recent cross-principal writes now SEES who authored what, and can catch an attribution lie (AI-voiced content stamped `operator`) or an unplaced intake dump it would otherwise miss. The kernel adds no judgment — Freddie decides; this only makes the drift perceivable.
+- Gate `api/test_attribution_fact.py` 13/13 (presents recent attribution incl. the eval's mis-attribution; empty-on-quiet; row-cap bound; contract+envelope+render wiring). Sibling reflection/envelope gates green.
+
 ## [2026.06.29.7] - honest-state contract: close the two miss-path seams (live discrimination test)
 
 **A live discrimination test (hit + deliberate miss on each tool) confirmed the fields discriminate, and surfaced two seams in the MISS path — exactly where a `switch(confidence)` integrator is most likely to mis-handle:**

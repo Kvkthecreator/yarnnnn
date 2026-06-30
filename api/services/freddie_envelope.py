@@ -47,7 +47,7 @@ from __future__ import annotations
 
 import asyncio as _asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Awaitable
 
 from services.workspace_paths import (
@@ -378,6 +378,13 @@ async def load_freddie_governance_envelope(
     # fake. Empty string when no joinable verdict↔outcome pairs exist yet.
     envelope["reflection_gap_fact"] = await _reflection_gap_fact(client, user_id)
 
+    # --- Attribution fact (ADR-387 follow-on) ---
+    # Recent revisions + their authored_by, presented raw — the steward's
+    # perception surface for intake-placement + attribution-integrity. DP19-clean
+    # (present, don't judge). Empty on a quiet workspace (no noise). Closes the
+    # bare-Freddie eval gap (Finding 1): a sweep can now SEE attribution drift.
+    envelope["attribution_fact"] = await _attribution_fact(client, user_id)
+
     elapsed_ms = int(
         (datetime.now(timezone.utc) - _started_at).total_seconds() * 1000
     )
@@ -431,6 +438,15 @@ async def _inventory_specs(client: Any, user_id: str) -> str:
 #: per DP19 + the _inventory_specs precedent — a discovery surface, not a dump;
 #: the Reviewer ReadFiles the full judgment_log / ground-truth file on demand.
 _REFLECTION_GAP_LIMIT = 8
+
+#: How many recent revisions to present in the attribution fact, and the
+#: look-back window. Bounded per DP19 (same discipline as the gap-fact): a
+#: discovery surface the steward scans for attribution/placement drift, not a
+#: full ledger — the steward ListRevisions a specific path on demand. The window
+#: keeps it to RECENT activity (the cross-principal writes a sweep should tend),
+#: not the whole history.
+_ATTRIBUTION_FACT_LIMIT = 12
+_ATTRIBUTION_FACT_WINDOW_HOURS = 48
 
 
 def _extract_ground_truth_events(content: str) -> list[dict[str, Any]]:
@@ -591,4 +607,62 @@ async def _reflection_gap_fact(client: Any, user_id: str) -> str:
             f"- {d.get('decision', '?')} {d.get('action_type', '?')} "
             f"→ outcome {val_str} [{attest}] — verdict: {head}"
         )
+    return "\n".join(lines)
+
+
+async def _attribution_fact(client: Any, user_id: str) -> str:
+    """ADR-387 follow-on (2026-06-30): present recent substrate revisions with
+    their attribution, as raw rows — the steward's perception surface for the
+    intake-placement + attribution-integrity duties.
+
+    The bare-Freddie eval (docs/evaluations/2026-06-29-freddie-bare-workspace-
+    steward-FINDING.md, Finding 1) found the steward placed a mis-attributed
+    file but ACCEPTED the `authored_by=operator` lie on AI-voiced content —
+    because nothing in the wake envelope surfaced attribution. A steward sweep
+    had to ListRevisions every file to perceive a mismatch, which it had no cue
+    to do. This is the missing signal: the attribution analogue of the ADR-364
+    reflection gap-fact.
+
+    DP19-clean (the same discipline as `_reflection_gap_fact`): a bounded
+    READ-AND-PRESENT. The kernel presents `path · authored_by · message · when`
+    for the most recent revisions; it does NOT label any of them wrong (that
+    judgment is the LLM's — Freddie's `attribution-integrity` rule reads the
+    content vs the attribution and decides). Bounded to recent activity
+    (_ATTRIBUTION_FACT_WINDOW_HOURS) and a row cap (_ATTRIBUTION_FACT_LIMIT) —
+    a discovery surface, not the full ledger; the steward ListRevisions a
+    specific path on demand. Empty string when no recent revisions (a quiet
+    workspace has nothing to tend — no noise on program wakes either).
+    """
+    try:
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(hours=_ATTRIBUTION_FACT_WINDOW_HOURS)
+        ).isoformat()
+        res = (
+            client.table("workspace_file_versions")
+            .select("path, authored_by, message, created_at")
+            .eq("user_id", user_id)
+            .gte("created_at", cutoff)
+            .order("created_at", desc=True)
+            .limit(_ATTRIBUTION_FACT_LIMIT)
+            .execute()
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[REVIEWER_ENVELOPE] attribution-fact read failed user=%s: %s",
+            user_id[:8], exc,
+        )
+        return ""
+    rows = res.data or []
+    if not rows:
+        return ""
+
+    lines: list[str] = []
+    for r in rows:
+        path = (r.get("path") or "").replace("/workspace/", "")
+        author = (r.get("authored_by") or "?").strip() or "?"
+        msg = (r.get("message") or "").strip()
+        # Keep the line tight — path · who · why. The full body is one ReadFile
+        # away; this is the scan surface, not the content.
+        msg_str = f" — {msg[:80]}" if msg else ""
+        lines.append(f"- {path} · authored_by: {author}{msg_str}")
     return "\n".join(lines)

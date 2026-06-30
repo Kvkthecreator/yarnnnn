@@ -177,6 +177,17 @@ class FreddieContext(TypedDict, total=False):
     # presented (not judged). The Reviewer authors persona/reflection.md from
     # it. Empty string when no joinable verdict↔outcome pairs exist yet.
     reflection_gap_fact: str
+    # ADR-387 follow-on (2026-06-30): the attribution fact — recent
+    # workspace_file_versions rows (path · authored_by · message · when),
+    # presented raw (DP19-clean: the kernel presents, Freddie's
+    # attribution-integrity rule judges). The steward's perception surface for
+    # the attribution-integrity + intake-placement duties — without it a sweep
+    # has NO signal that attribution drifted (the bare-Freddie eval gap,
+    # docs/evaluations/2026-06-29-freddie-bare-workspace-steward-FINDING.md
+    # Finding 1: Freddie placed a mis-attributed file but accepted the
+    # authored_by lie because nothing surfaced it). Empty when no recent
+    # revisions. Analogous to reflection_gap_fact but on the perception axis.
+    attribution_fact: str
     # Domain substrate
     ground_truth_md: str
     risk_md: str

@@ -1011,6 +1011,36 @@ def _partition_envelope(trigger: str, ctx: FreddieContext) -> tuple[str, str]:
             "",
         ]
 
+    # ADR-387 follow-on (2026-06-30): the attribution fact — recent revisions +
+    # their authored_by, PRESENTED not judged (the perception analogue of the
+    # reflection gap-fact). This is the steward's surface for the intake-placement
+    # + attribution-integrity duties: a sweep can SEE who wrote what recently and
+    # decide whether any attribution is wrong (AI-voiced content stamped
+    # `operator`, a foreign-LLM dump left unplaced) — the gap the bare-Freddie
+    # eval found (Finding 1: the file was placed but the authored_by lie was
+    # accepted because nothing surfaced it). Only renders when there is recent
+    # activity (empty on a quiet workspace — no noise on program wakes).
+    if ctx.get("attribution_fact"):
+        parts += [
+            "## Attribution fact — recent revisions and who authored them",
+            "",
+            "Each line: a recently-written path · its `authored_by` · the revision "
+            "message. This is presented, not judged — YOU judge whether any "
+            "attribution is wrong or any intake is unplaced, applying your "
+            "`attribution-integrity` and `intake-placement` rules (principles.md). "
+            "Read the line against the file's content when something looks off: "
+            "content that reads as one principal's voice (e.g. an external LLM's) "
+            "stamped as another's (e.g. `operator`) is an attribution-integrity "
+            "violation to fix or flag; a raw `remember`/inbound dump with no "
+            "deriving revision citing it is an intake-placement situation to place. "
+            "Don't assume the stamp is honest because it is present — verify voice "
+            "against attribution. (This is a recent-activity scan, not the full "
+            "ledger; ListRevisions a specific path for its complete chain.)",
+            "",
+            ctx["attribution_fact"],
+            "",
+        ]
+
     # ADR-301 Pulse envelope — Reviewer's perception of its own cadence +
     # recent fires. Kernel-mirrored from `tasks` + `execution_events` per
     # scheduler tick via services.kernel_mirrors. Read these BEFORE
