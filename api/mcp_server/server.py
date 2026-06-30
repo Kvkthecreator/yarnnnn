@@ -422,14 +422,18 @@ async def remember(
     clearly about a subject (a company, person, project, topic), pass that as
     `about`.
 
-    The write is synchronous and durable — the raw observation is captured and
-    attributed the moment this returns (`status: "captured"`). YARNNN's own
-    judgment seat THEN files the memory where it belongs and checks it against what
-    it already knows — but that pass is asynchronous (a short moment later), so a
-    recall an instant later may not surface it yet. Set the user's expectation
-    accordingly ("saved — it'll be filed and checked in a moment"); don't promise
-    it's already organized or validated. You are saving to the user's durable
-    memory; you are not asking YARNNN to do work.
+    The write is synchronous and durable — the moment this returns the memory is
+    stored, attributed, and ALREADY RETRIEVABLE (`status: "remembered"`): a
+    `recall` (or `trace`) on the same subject will return THIS exact memory
+    immediately, by key, with no waiting. That retrievable-now guarantee is the
+    floor and it never depends on anything async. YARNNN's judgment seat THEN does
+    a separate pass — files the memory alongside related understanding and checks
+    it against what it already knows — and that ENRICHMENT is asynchronous (a short
+    moment later). So you can tell the user it's saved and they can recall it now;
+    just don't promise it's already been organized-with or validated by the seat
+    ("saved and recallable — it'll be filed and checked against the rest in a
+    moment"). You are saving to the user's durable memory; you are not asking
+    YARNNN to do work.
 
     Args:
         content: The thing to remember. Required.
@@ -507,13 +511,17 @@ async def remember(
         },
         # ADR-368 D5: the seat will file this where it belongs + validate it.
         "captured": True,
-        # Honest-state (2026-06-29): the raw observation is CAPTURED + durable +
-        # recallable now, but the seat's derive/place/judge pass is ASYNC and
-        # hasn't run yet. "captured" (not "placed") lets the host set the right
-        # expectation — "saved; it'll be filed + checked in a moment" — instead of
-        # implying instant full integration. The host should NOT promise the user
-        # it's been judged/organized yet.
-        "status": "captured",
+        # Honest-state (2026-06-30): "remembered" — not "captured". THE FLOOR
+        # (mcp_composition: store-by-key/fetch-by-key) guarantees the memory is
+        # durable AND retrievable by subject the instant this returns — a recall on
+        # the same subject hits THIS exact file deterministically, no seat/embedding.
+        # "captured" undersold that (it reads as "received, awaiting processing");
+        # "remembered" states the retrievable-now floor honestly. The seat's
+        # derive/place/judge pass is still ASYNC and additive — the host should set
+        # "saved and recallable now; filed-and-checked in a moment", and must NOT
+        # promise the seat has already judged/organized it. ("placed" would be the
+        # false over-promise; "remembered" is the true floor.)
+        "status": "remembered",
     }, client_name=client_name)
 
 
@@ -702,7 +710,7 @@ _OUTPUT_SCHEMAS = {
         "type": "object",
         "properties": {
             "captured": {"type": "boolean", "description": "true when the observation was committed"},
-            "status": {"type": "string", "enum": ["captured"], "description": "captured = raw observation stored + durable now; the seat's derive/place/judge pass is async (a moment later)"},
+            "status": {"type": "string", "enum": ["remembered"], "description": "remembered = stored + durable + retrievable-by-subject NOW (a recall on the same subject hits this memory deterministically); the seat's derive/place/judge enrichment is async (a moment later)"},
             "written_to": {"type": "string", "description": "the raw-capture path the observation landed at"},
         },
     },

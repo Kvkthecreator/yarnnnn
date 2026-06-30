@@ -525,6 +525,20 @@ async def resolve_memory_path(auth: Any, subject: str) -> Optional[str]:
     via `derived_from`). `recall` wants the **understanding first, raw as the
     receipt behind it** (ADR-376 §4): so this resolves DERIVED-FIRST.
 
+    DERIVED-FIRST IS THE SETTLED ORDER (operator-affirmed 2026-06-30 — the "should
+    the floor be explicitly first?" question, resolved). It does NOT weaken the
+    floor: the floor's promise is *reachability*, not *priority*. Step 2 (RAW) is
+    reached by fallthrough and guarded by test_adr368 #16/#17 — it can never be
+    removed or made conditional on the seat. Within that guarantee, preferring the
+    seat's derived understanding WHEN ONE EXISTS is the correct embodiment of
+    "judgment is enrichment": flipping to raw-first would actively discard the
+    seat's understanding (the moat you graduate into), returning the unprocessed
+    dump even after the seat has understood it. So: floor ALWAYS reachable (the
+    invariant), derived preferred WHEN PRESENT (the enrichment). At N where the
+    seat hasn't derived (e.g. a fresh/wiped operation/ tree), step 1 simply misses
+    and step 2 carries the round-trip unaided — the floor doing all the work, by
+    design, not by accident.
+
     Resolution order (first hit wins), all scoped to the caller's substrate:
         1. DERIVED — an active operation/ (or other non-inbound) file whose
            basename is {slug}.md (the seat's filed understanding; if none yet,

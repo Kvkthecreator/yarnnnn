@@ -41,13 +41,15 @@ A tool return is correct iff it passes all three:
 |------|----------------------|--------------------|-------|
 | **recall** | picks which recorded material matches the subject | `confidence` (4-value, + per-chunk `similarity`) | always present |
 | **trace** | resolves the subject to ONE file whose history it returns | `resolution` (4-value) | always present; `exact`≡recall `high` |
-| **remember** | captures a raw observation (the seat's derive/place/judge is ASYNC) | `status`: `captured` (raw stored + durable now; not yet placed/judged) | also emits legacy `captured: true` — a back-compat alias the `remember-receipt` widget's type-guard reads; keep both until the widget migrates |
+| **remember** | none on the floor — it stores by key (the seat's derive/place/judge is the only judgment, and it's ASYNC) | `status`: `remembered` (stored + durable + retrievable-by-subject NOW — a recall on the same subject hits this memory deterministically; the seat's enrichment is async, not promised) | also emits legacy `captured: true` — a back-compat alias the `remember-receipt` widget's type-guard reads; keep both until the widget migrates |
 
 All signals are **derived from data the tool already had** (similarity scores from the semantic search, the resolve-branch taken, the synchronous-vs-async write boundary). None costs an extra LLM call or DB round-trip.
 
 ## The failure mode this exists to prevent
 
-The bug that motivated the contract: a tool **crowns one result and presents it as the answer** even when the honest state is "several candidates, none dominant" or "captured but not yet integrated." The caller (host LLM) then trusts the false certainty and does NOT clarify when it should. The fix is never "make YARNNN clarify" (wrong layer) — it's "make YARNNN stop hiding the ambiguity," so the host's existing intelligence can clarify in-conversation.
+The bug that motivated the contract: a tool **crowns one result and presents it as the answer** even when the honest state is "several candidates, none dominant" or "stored but not yet integrated by the seat." The caller (host LLM) then trusts the false certainty and does NOT clarify when it should. The fix is never "make YARNNN clarify" (wrong layer) — it's "make YARNNN stop hiding the ambiguity," so the host's existing intelligence can clarify in-conversation.
+
+The symmetric over-promise (also a laundering) is `remember` claiming more than the floor delivers. The floor delivers *retrievable-now* (store-by-key → fetch-by-key), so `status: "remembered"` is honest; it does NOT yet deliver *filed-and-judged* (the seat's async pass), so the description forbids the host from promising that. Underselling is laundering too: `"captured"` (the prior value) read as "received, awaiting processing," hiding the deterministic round-trip the floor guarantees. Honest = says exactly what's true the instant the call returns: stored, attributed, recallable; not-yet-judged.
 
 `trace` was the sharpest case: a wrong trace returns a plausible, authoritative-looking revision history ("here's how your thinking on X evolved") over the wrong file — exactly the differentiator you don't want lying. Hence the `resolution` signal.
 
