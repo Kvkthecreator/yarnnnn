@@ -136,13 +136,17 @@ def resolve_principal_id(auth: "AuthenticatedClient") -> Optional[str]:
     ``principal_grants(principal_id, workspace_id)`` with the returned id; a new
     principal type needs a mapping entry HERE and a grant row — no gate change.
 
-    Resolution (prefer the explicit field, else derive from caller_identity):
+    Resolution (the MCP/foreign-LLM branch is FIRST — ADR-373 D2.a — so it
+    resolves to the PROVIDER host-id, not the explicit client_id):
+      - ``yarnnn:mcp:<client>`` / ``yarnnn:mcp``  → the PROVIDER host-id (ADR-373
+        D2.a): the member is the provider (claude.ai/chatgpt), NOT the churning
+        OAuth client_id. Resolved via the ADR-379 registry from the room name,
+        then the explicit principal_id (the client_id). A narrow on the provider
+        then binds ALL its sessions incl. future re-registrations. Falls back to
+        the room name / explicit client_id / user_id when the registry doesn't
+        recognize the provider (still keyed stably, just not collapsed).
       - explicit ``auth.principal_id`` set        → use it verbatim (human JWT path
-        stamps ``user_id``; MCP path stamps the OAuth ``client_id``).
-      - ``yarnnn:mcp:<client>`` / ``yarnnn:mcp``  → the client room name if present,
-        else fall back to ``user_id`` (the authorizing operator). NOTE: the MCP auth
-        path SHOULD stamp ``principal_id=client_id`` explicitly (a stable UUID); this
-        derivation is the safety net for callers that didn't.
+        stamps ``user_id``; non-MCP callers that set it explicitly).
       - ``agent:<slug>`` / ``specialist:<role>``  → the slug/role (the agent's id).
       - ``system:<actor>``                        → the actor (class-default only; no
         system grant rows by design).
@@ -151,18 +155,31 @@ def resolve_principal_id(auth: "AuthenticatedClient") -> Optional[str]:
 
     Returns ``None`` only when no id can be derived (no user_id, no caller_identity)
     — the gate then falls straight to the class default (today's behavior).
+
+    SAFETY INVARIANT (ADR-373 D2.a): only the ``yarnnn:mcp*`` branch changed. The
+    owner / agent / system / reviewer branches are byte-identical to the
+    pre-D2.a resolver — so the owner-path 99/0 proof is preserved by construction.
     """
-    explicit = getattr(auth, "principal_id", None)
-    if explicit:
-        return explicit
     caller_identity = getattr(auth, "caller_identity", "") or ""
     user_id = getattr(auth, "user_id", None)
+    explicit = getattr(auth, "principal_id", None)
+    # ADR-373 D2.a — MCP/foreign-LLM FIRST: resolve to the PROVIDER host-id.
     if caller_identity.startswith("yarnnn:mcp"):
-        # yarnnn:mcp:<client> → the client room; bare yarnnn:mcp → the operator.
+        from mcp_server.presentation.hosts import resolve_host_id
         parts = caller_identity.split(":", 2)
-        if len(parts) == 3 and parts[2]:
-            return parts[2]
-        return user_id
+        room = parts[2] if len(parts) == 3 and parts[2] else None
+        # Strongest-first: the room name, then the explicit client_id.
+        for signal in (room, explicit):
+            if signal:
+                hid = resolve_host_id(signal)
+                if hid:
+                    return hid
+        # Provider unknown to the registry → keep a stable best-effort key
+        # (room name, else the explicit client_id, else the operator).
+        return room or explicit or user_id
+    # Non-MCP: explicit principal_id wins (unchanged).
+    if explicit:
+        return explicit
     if caller_identity.startswith("agent:") or caller_identity.startswith("specialist:"):
         return caller_identity.split(":", 1)[1] or user_id
     if caller_identity.startswith("system:"):

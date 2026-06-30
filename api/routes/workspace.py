@@ -791,22 +791,29 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
             .execute()
         ).data or []
 
-        # Humanize: owner → email (this auth IS the owner); foreign-LLM/platform
-        # principal_id is an OAuth client_id → resolve its room name.
-        client_names: dict[str, str] = {}
-        client_ids = [r["principal_id"] for r in rows
-                      if r.get("role") in ("foreign-llm", "platform", "a2a")]
-        if client_ids:
+        # Humanize: owner → email (this auth IS the owner). ADR-373 D2.a:
+        # foreign-LLM/platform principal_id is now the PROVIDER host-id
+        # (claude.ai / chatgpt), so humanize via the host registry's friendly
+        # label. A legacy client_id-keyed row (pre-D2.a, not yet migrated) falls
+        # back to the mcp_oauth_clients name lookup so it still shows a name.
+        from services.principal_grants import provider_label
+        legacy_client_names: dict[str, str] = {}
+        legacy_ids = [
+            r["principal_id"] for r in rows
+            if r.get("role") in ("foreign-llm", "platform", "a2a")
+            and provider_label(r["principal_id"]) is None  # not a known host-id
+        ]
+        if legacy_ids:
             try:
                 name_rows = (
                     svc.table("mcp_oauth_clients")
                     .select("client_id, client_name")
-                    .in_("client_id", client_ids)
+                    .in_("client_id", legacy_ids)
                     .execute()
                 ).data or []
-                client_names = {r["client_id"]: r.get("client_name") for r in name_rows}
+                legacy_client_names = {r["client_id"]: r.get("client_name") for r in name_rows}
             except Exception as exc:  # best-effort humanization
-                logger.debug("[WORKSPACE_API] member client-name lookup failed: %s", exc)
+                logger.debug("[WORKSPACE_API] legacy member client-name lookup failed: %s", exc)
 
         members: list[WorkspaceMember] = []
         for r in rows:
@@ -820,7 +827,12 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
             if role == "owner" and principal_id == auth.user_id:
                 label = auth.email or "You (owner)"
             elif role in ("foreign-llm", "platform", "a2a"):
-                label = client_names.get(principal_id) or principal_id
+                # Provider host-id → friendly label; legacy client_id → name lookup.
+                label = (
+                    provider_label(principal_id)
+                    or legacy_client_names.get(principal_id)
+                    or principal_id
+                )
 
             members.append(WorkspaceMember(
                 principal_id=principal_id,

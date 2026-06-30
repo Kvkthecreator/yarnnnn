@@ -69,7 +69,9 @@ def _live_client_users(svc) -> dict[str, str]:
 
 def main(apply: bool) -> int:
     from services.supabase import get_service_client, resolve_owner_workspace_id
-    from services.principal_grants import ensure_principal_grant
+    from services.principal_grants import (
+        ensure_principal_grant, resolve_provider_id_for_client, provider_label,
+    )
 
     svc = get_service_client()
 
@@ -82,42 +84,44 @@ def main(apply: bool) -> int:
     client_user = _live_client_users(svc)
     logger.info("Found %d clients with a live token.", len(client_user))
 
+    # ADR-373 D2.a: the member is the PROVIDER host-id, not the client_id. Collapse
+    # every live client → its provider; one grant per (workspace, provider). A
+    # provider unknown to the registry falls back to its client_id (still legible).
+    seen: dict[tuple, str] = {}  # (workspace_id, provider_id) → provider label
     provisioned = 0
     skipped_no_ws = 0
-    for client_id, user_id in sorted(client_user.items(), key=lambda kv: names.get(kv[0], kv[0])):
-        name = names.get(client_id, client_id)
+    for client_id, user_id in client_user.items():
         workspace_id = resolve_owner_workspace_id(user_id)
         if not workspace_id:
-            logger.warning(
-                "  SKIP %s (%s): no owner workspace for user %s",
-                name, client_id[:8], user_id,
-            )
+            logger.warning("  SKIP %s: no owner workspace for user %s", client_id[:8], user_id)
             skipped_no_ws += 1
             continue
+        provider_id = resolve_provider_id_for_client(client_id) or client_id
+        label = provider_label(provider_id) or names.get(client_id, provider_id)
+        key = (workspace_id, provider_id)
+        if key in seen:
+            continue  # already provisioned this provider for this workspace
+        seen[key] = label
 
         if not apply:
-            logger.info(
-                "  [dry-run] would ensure foreign-llm grant: %s (%s) → workspace %s",
-                name, client_id[:8], workspace_id[:8],
-            )
+            logger.info("  [dry-run] provider grant: %s (%s) → workspace %s", label, provider_id, workspace_id[:8])
             provisioned += 1
             continue
 
         grant = ensure_principal_grant(
-            principal_id=client_id,
+            principal_id=provider_id,
             workspace_id=workspace_id,
             role="foreign-llm",
             granted_by="system:adr386-backfill",
         )
-        status = grant.get("status", "?")
         logger.info(
-            "  ensured foreign-llm grant: %s (%s) → workspace %s [status=%s]",
-            name, client_id[:8], workspace_id[:8], status,
+            "  ensured provider grant: %s (%s) → workspace %s [status=%s]",
+            label, provider_id, workspace_id[:8], grant.get("status", "?"),
         )
         provisioned += 1
 
     logger.info(
-        "%s: %d grants %s, %d skipped (no workspace).",
+        "%s: %d PROVIDER grants %s, %d skipped (no workspace).",
         "APPLIED" if apply else "DRY-RUN",
         provisioned,
         "ensured" if apply else "would be ensured",

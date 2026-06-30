@@ -280,6 +280,49 @@ def test_resolve_principal_id_agent_is_slug():
                                       principal_id=None)) == "writer"
 
 
+# ===========================================================================
+# 3a. ADR-373 D2.a — the MCP principal is the PROVIDER host-id, not client_id
+# ===========================================================================
+
+def test_d2a_mcp_resolves_to_host_id_over_explicit_client_id():
+    """The D2.a change: for an MCP caller, the PROVIDER host-id wins over the
+    explicit client_id. (For NON-MCP callers, explicit still wins — test below.)
+    A connector's churning client_id no longer keys the grant."""
+    auth = _auth(caller_identity="yarnnn:mcp:claude.ai", user_id="u-1",
+                 principal_id="some-churning-client-uuid")
+    assert resolve_principal_id(auth) == "claude.ai"  # host-id, NOT the uuid
+
+
+def test_d2a_reconnect_resolves_to_same_provider():
+    """Two DIFFERENT client_ids for the same provider resolve to ONE principal —
+    so a reconnect maps to the same grant (the unbounded-tail fix)."""
+    a = _auth(caller_identity="yarnnn:mcp:ChatGPT", user_id="u-1", principal_id="client-A")
+    b = _auth(caller_identity="yarnnn:mcp:ChatGPT", user_id="u-1", principal_id="client-B")
+    assert resolve_principal_id(a) == resolve_principal_id(b) == "chatgpt"
+
+
+def test_d2a_unknown_provider_falls_back_to_room_then_client():
+    """An MCP caller whose provider the registry doesn't know keeps a stable
+    best-effort key (the room name), so it's still legible + revocable."""
+    auth = _auth(caller_identity="yarnnn:mcp:weirdclient", user_id="u-1", principal_id="c-id")
+    assert resolve_principal_id(auth) == "weirdclient"
+
+
+def test_d2a_non_mcp_explicit_still_wins():
+    """SAFETY: the D2.a reorder must NOT change non-MCP callers. An explicit
+    principal_id on a non-MCP caller still wins (byte-identical)."""
+    assert resolve_principal_id(_auth(principal_id="explicit-id")) == "explicit-id"
+
+
+def test_d2a_owner_path_byte_identical():
+    """SAFETY INVARIANT: the owner branch is untouched by D2.a — owner resolves
+    to user_id exactly as before (the 99/0 proof basis)."""
+    assert resolve_principal_id(_auth(caller_identity="operator", user_id="u-owner",
+                                      principal_id="u-owner")) == "u-owner"
+    assert resolve_principal_id(_auth(caller_identity="operator", user_id="u-owner",
+                                      principal_id=None)) == "u-owner"
+
+
 def test_resolve_principal_id_system_is_actor():
     assert resolve_principal_id(_auth(caller_identity="system:reconciler", user_id="u-1",
                                       principal_id=None)) == "reconciler"

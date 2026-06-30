@@ -53,6 +53,23 @@ principal_grants(
 
 The grant is the authorization unit. It **completes a symmetry the code already half-has**: today the system *attributes* at principal granularity (`agent:alpha-research`, `reviewer:ai-sonnet-v8`, `yarnnn:mcp:claude.ai`) but *authorizes* only at a coarse class level (`CALLER_WRITE_POLICY[class]`). After this ADR, *who may write here* is described at the same granularity as *who wrote here* — which is exactly what lets `trace` say "bob's agent, scoped to specs, wrote this" **with authority**.
 
+#### D2.a — The foreign-LLM principal is the PROVIDER (host-id), not the OAuth client_id (AMENDED 2026-06-30)
+
+The original D2 keyed the foreign-LLM `principal_id` on the **OAuth `client_id`** ("the OAuth client_id for MCP/A2A"). A live measurement (2026-06-30, prompted by the AI Connections roster showing 5 Claude + 2 ChatGPT rows) falsified that as the right grain:
+
+- **`client_id` is an OAuth *session-registration* identity, not a *membership* identity.** Connectors re-register over dynamic client registration (DCR) on reconnect / version bump / token loss — each time minting a **brand-new `client_id`**. The live data: one human's Claude fragmented into **5** distinct `client_id`s (only 1 with a token today; 4 stale) and ChatGPT into **2**. Keying membership on `client_id` makes the roster grow an unbounded tail of dead registrations — one per reconnect, forever. That is not a display bug to group away; it is the wrong identity.
+- **The operator's mental model is the PROVIDER**: "Claude is connected to my workspace" is *one* relationship, regardless of how many times its connector re-registered. The member is "Claude", not "this week's Claude OAuth client".
+
+**The correction:** the foreign-LLM (+ platform/a2a) `principal_id` is the **stable provider/host id** resolved through the **ADR-379 Host Profiles registry** (`mcp_server/presentation/hosts.py::resolve_host_id` → `"chatgpt" | "claude.ai" | "gemini" | …`) — the SINGLE canonical identity resolver the codebase already owns (its CI gate forbids host-name resolution leaking elsewhere). One provider = one grant per workspace, across all its `client_id` re-registrations.
+
+This is **non-breaking for the consult's safety invariant** and *strengthens* authorization:
+- **`resolve_principal_id` (the consult key)** resolves the MCP caller to its host-id (it already carries `caller_identity = yarnnn:mcp:<client_name>`, and falls back to the registered name / client_id via `resolve_host_id`). The owner / agent / system branches are **untouched** — only the `yarnnn:mcp*` branch changes, so the owner-path byte-identical invariant (proven 99/0) is preserved by construction.
+- **Narrowing now binds the provider, not a session.** Pre-amendment, an operator narrowing "Claude" would be escaped by Claude's next reconnect (new `client_id` → no grant → class default). Provider-keying closes that hole: the narrow attaches to `claude.ai`, and every Claude session — including future reconnects — inherits it. The amendment *fixes a latent narrow-escape bug*, it doesn't introduce risk.
+- **Eviction sweeps all of the provider's tokens.** `evict_principal` must delete OAuth tokens across **every `client_id` registered to the host** (not by `principal_id`, which is now a host-id with no matching token rows) — so "revoke Claude" disconnects all its sessions, the honest semantic.
+- **The roster is naturally one-row-per-provider** — no display grouping, no stale tail. The members endpoint humanizes the host-id directly (`claude.ai` → "Claude").
+
+A migration collapses the live 7 `client_id`-keyed grants → 2 host-keyed grants (`claude.ai`, `chatgpt`), reversibly (the stale rows → `revoked` audit; the host rows created `granted_by='system:adr373-d2a-rekey'`). The owner grants (keyed on `user_id`, a stable human identity — not a churning registration) are **untouched**: D2.a is scoped to the foreign-LLM/platform/a2a classes whose identity was a session artifact.
+
 "Grant" is deliberate, not incidental, vocabulary: ADR-366 already split `governance/` into **GRANT** (`_autonomy` + `_budget`, *how far a principal's decisions bind*) vs contract. The write-region grant is the same concept one level out: *what substrate a principal may author*. One vocabulary, two altitudes — Singular Implementation, not a second authorization language.
 
 ### D3 — `CALLER_WRITE_POLICY` is REINTERPRETED as the per-class default grant — not deleted

@@ -170,24 +170,42 @@ def test_narrow_writes_scopes(fake):
 
 def test_narrow_then_gate_denies_outside(fake, monkeypatch):
     """The round-trip: narrow to operation/, then _is_path_locked_for_principal
-    DENIES a write to governance/ and ALLOWS operation/."""
+    DENIES a write to governance/ and ALLOWS operation/.
+
+    ADR-373 D2.a: the grant is keyed on the PROVIDER host-id (`claude.ai`) — the
+    same key resolve_principal_id derives for an MCP caller — so the narrow binds
+    the provider regardless of which client_id the live session carries. The two
+    different principal_ids below (`session-A`, `session-B`) prove the narrow
+    holds ACROSS re-registrations, the whole point of provider-keying."""
     from services.principal_grants import ensure_principal_grant, narrow_grant
     from services.primitives import workspace as ws
     from services.primitives.workspace import _is_path_locked_for_principal
     from types import SimpleNamespace
 
-    ensure_principal_grant("client-abc", "ws-1", "foreign-llm")
-    narrow_grant("client-abc", "ws-1", ["operation/"])
+    # Grant + narrow keyed on the PROVIDER host-id (not a client_id).
+    ensure_principal_grant("claude.ai", "ws-1", "foreign-llm")
+    narrow_grant("claude.ai", "ws-1", ["operation/"])
     if hasattr(ws._grant_cache, "store"):
         ws._grant_cache.store = {}
 
-    auth = SimpleNamespace(
+    # Session A — one client_id; the consult resolves caller → claude.ai.
+    auth_a = SimpleNamespace(
         caller_identity="yarnnn:mcp:claude.ai", user_id="u-1", workspace_id="ws-1",
-        principal_id="client-abc", freddie_caller=False, client=None,
+        principal_id="session-A", freddie_caller=False, client=None,
     )
-    assert _is_path_locked_for_principal(auth, "operation/memory/n.md") is False  # in scope
-    assert _is_path_locked_for_principal(auth, "governance/x.md") is True          # out of scope
-    assert _is_path_locked_for_principal(auth, "agents/x/m.md") is True            # out of scope
+    assert _is_path_locked_for_principal(auth_a, "operation/memory/n.md") is False  # in scope
+    assert _is_path_locked_for_principal(auth_a, "governance/x.md") is True          # out of scope
+    assert _is_path_locked_for_principal(auth_a, "agents/x/m.md") is True            # out of scope
+
+    # Session B — a DIFFERENT client_id (a reconnect). Same provider → same grant
+    # → the narrow STILL binds. (Pre-D2.a this escaped the narrow.)
+    ws._grant_cache.store = {}
+    auth_b = SimpleNamespace(
+        caller_identity="yarnnn:mcp:claude.ai", user_id="u-1", workspace_id="ws-1",
+        principal_id="session-B", freddie_caller=False, client=None,
+    )
+    assert _is_path_locked_for_principal(auth_b, "operation/x.md") is False          # in scope
+    assert _is_path_locked_for_principal(auth_b, "agents/x/m.md") is True            # narrow holds across reconnect
 
 
 def test_narrow_missing_grant_raises(fake):
@@ -341,3 +359,47 @@ def test_shared_helper_skips_when_no_workspace(fake, monkeypatch):
 
     inserts = [r for r in fake.recorder if r[0] == "principal_grants" and r[1] == "insert"]
     assert len(inserts) == 0, "no workspace → no grant insert"
+
+
+# ===========================================================================
+# 8. ADR-373 D2.a — provider-as-member (the foreign-LLM member is the host-id)
+# ===========================================================================
+
+def test_provider_id_resolves_via_registry():
+    """resolve_provider_id routes every signal through the ADR-379 host registry."""
+    from services.principal_grants import resolve_provider_id
+    assert resolve_provider_id(client_name="ChatGPT") == "chatgpt"
+    # Claude's bare registered name doesn't match; its redirect_uri does.
+    assert resolve_provider_id(client_name="Claude") is None
+    assert resolve_provider_id(
+        client_name="Claude",
+        redirect_uris=["https://claude.ai/api/mcp/auth_callback"],
+    ) == "claude.ai"
+    # Unknown provider → None (caller keeps the client_id).
+    assert resolve_provider_id(client_id="random-uuid") is None
+
+
+def test_provider_label_maps_host_id_else_none():
+    """provider_label humanizes a known host-id; returns None for a non-host-id
+    (the signal the members endpoint uses to fall back to a client_id lookup)."""
+    from services.principal_grants import provider_label
+    assert provider_label("chatgpt") == "ChatGPT"
+    assert provider_label("claude.ai") == "Claude"
+    assert provider_label("2308d0a8-some-uuid") is None  # legacy client_id-keyed row
+
+
+@_requires_mcp
+def test_hook_keys_grant_on_provider_not_client_id(fake, monkeypatch):
+    """The OAuth hook provisions a grant keyed on the PROVIDER host-id, not the
+    churning client_id (ADR-373 D2.a)."""
+    from mcp_server.oauth_provider import _ensure_foreign_llm_grant
+    monkeypatch.setattr("services.supabase.resolve_owner_workspace_id", lambda u: "ws-1")
+    # The client resolves to the chatgpt provider.
+    monkeypatch.setattr(
+        "services.principal_grants.resolve_provider_id_for_client",
+        lambda cid: "chatgpt",
+    )
+    _ensure_foreign_llm_grant("u-1", "churning-client-uuid", "system:oauth-connect")
+    inserts = [r for r in fake.recorder if r[0] == "principal_grants" and r[1] == "insert"]
+    assert len(inserts) == 1
+    assert inserts[0][2]["principal_id"] == "chatgpt", "grant must key on the provider host-id"

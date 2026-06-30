@@ -75,12 +75,20 @@ def _ensure_foreign_llm_grant(user_id: str, client_id: str, granted_by: str) -> 
     """
     try:
         from services.supabase import resolve_owner_workspace_id
-        from services.principal_grants import ensure_principal_grant
+        from services.principal_grants import (
+            ensure_principal_grant, resolve_provider_id_for_client,
+        )
 
         workspace_id = resolve_owner_workspace_id(user_id)
         if workspace_id:
+            # ADR-373 D2.a: the member is the PROVIDER (host-id), not the churning
+            # OAuth client_id. Resolve the stable host-id so re-registrations map
+            # to ONE grant. Falls back to the client_id when the provider is
+            # unknown to the registry (still legible + revocable, just not
+            # collapsed across re-registrations).
+            provider_id = resolve_provider_id_for_client(client_id) or client_id
             ensure_principal_grant(
-                principal_id=client_id,
+                principal_id=provider_id,
                 workspace_id=workspace_id,
                 role="foreign-llm",
                 granted_by=granted_by,

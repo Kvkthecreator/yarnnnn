@@ -37,6 +37,142 @@ def _svc():
     return get_service_client()
 
 
+# ---------------------------------------------------------------------------
+# Provider identity (ADR-373 D2.a) — the foreign-LLM member is the PROVIDER
+# (host-id), NOT the churning OAuth client_id.
+# ---------------------------------------------------------------------------
+
+def resolve_provider_id(
+    *,
+    client_id: Optional[str] = None,
+    client_name: Optional[str] = None,
+    redirect_uris: Optional[list] = None,
+) -> Optional[str]:
+    """Resolve an MCP client's OAuth identity to its STABLE provider/host id
+    (ADR-373 D2.a) — `"chatgpt" | "claude.ai" | "gemini" | …`.
+
+    The foreign-LLM membership principal is the provider, not the OAuth
+    `client_id` (which a connector re-mints on every re-registration). Routes
+    EVERY signal through the SINGLE canonical resolver — `resolve_host_id` (the
+    ADR-379 Host Profiles registry, whose CI gate forbids host-name resolution
+    leaking elsewhere). Tries the available signals strongest-first:
+
+      1. client_name   — "ChatGPT" → chatgpt. (Claude's registered name is bare
+                         "Claude", which the registry doesn't match — that's why
+                         we also try the redirect_uri.)
+      2. client_id     — ChatGPT's client_id carries "openai"/"chatgpt".
+      3. redirect_uri  — the strongest signal for claude.ai
+                         (https://claude.ai/api/mcp/auth_callback) and chatgpt.com.
+
+    Returns the host-id, or None when no signal resolves (an unknown provider —
+    the caller keeps the client_id as a best-effort principal so the member is
+    still legible + revocable, just not collapsed across re-registrations).
+    """
+    from mcp_server.presentation.hosts import resolve_host_id
+
+    for signal in (client_name, client_id):
+        if signal:
+            hid = resolve_host_id(signal)
+            if hid:
+                return hid
+    for uri in (redirect_uris or []):
+        hid = resolve_host_id(str(uri))
+        if hid:
+            return hid
+    return None
+
+
+#: host-id → operator-facing display label. The host-id is the stable provider
+#: key (ADR-379 registry); this is just its friendly name for the roster. A
+#: host-id not listed here falls back to the registry id itself (still legible).
+_PROVIDER_LABELS = {
+    "chatgpt": "ChatGPT",
+    "claude.ai": "Claude",
+    "claude_desktop": "Claude Desktop",
+    "claude_code": "Claude Code",
+    "gemini": "Gemini",
+    "cursor": "Cursor",
+    "copilot": "GitHub Copilot",
+    "perplexity": "Perplexity",
+}
+
+
+def provider_label(principal_id: str) -> Optional[str]:
+    """Friendly display name for a PROVIDER-keyed foreign-LLM principal (ADR-373
+    D2.a), or None when `principal_id` is NOT a known host-id.
+
+    None is the signal the caller uses to fall back to a legacy client_id name
+    lookup (a pre-D2.a grant not yet migrated). A known host-id with no explicit
+    label maps to the id itself (e.g. a future host) so it still renders.
+    """
+    from mcp_server.presentation.hosts import _BY_ID
+    if principal_id in _BY_ID:
+        return _PROVIDER_LABELS.get(principal_id, principal_id)
+    return None
+
+
+def resolve_provider_id_for_client(client_id: str) -> Optional[str]:
+    """DB-backed `resolve_provider_id` — looks up the client row and resolves its
+    provider id (ADR-373 D2.a). Used by the OAuth hooks + the backfill, which
+    have the `client_id` and need the host-id to key the grant.
+
+    Returns None when the client is unknown to the registry — callers fall back
+    to the raw `client_id` so the member is still provisioned (legible +
+    revocable), just not collapsed across the provider's re-registrations.
+    """
+    try:
+        row = (
+            _svc()
+            .table("mcp_oauth_clients")
+            .select("client_id, client_name, redirect_uris")
+            .eq("client_id", client_id)
+            .limit(1)
+            .execute()
+        ).data
+        if not row:
+            return resolve_provider_id(client_id=client_id)
+        r = row[0]
+        return resolve_provider_id(
+            client_id=r.get("client_id"),
+            client_name=r.get("client_name"),
+            redirect_uris=r.get("redirect_uris"),
+        )
+    except Exception as exc:  # pragma: no cover — best-effort
+        logger.warning("[ADR-373 D2.a] provider-id resolve failed for %s: %s", client_id, exc)
+        return resolve_provider_id(client_id=client_id)
+
+
+def client_ids_for_provider(workspace_id: str, provider_id: str) -> list[str]:
+    """All OAuth `client_id`s registered to a provider/host (ADR-373 D2.a).
+
+    Eviction needs this: the grant is keyed on the host-id (e.g. `claude.ai`),
+    but tokens are keyed on `client_id`. To "revoke Claude" we must delete every
+    Claude session's tokens — so resolve every registered client whose provider
+    id matches. Scans `mcp_oauth_clients` (all registrations) and filters by the
+    resolved provider id. (Workspace scoping is via the token's user_id at the
+    delete site; the client registry itself is not workspace-keyed.)
+    """
+    try:
+        rows = (
+            _svc()
+            .table("mcp_oauth_clients")
+            .select("client_id, client_name, redirect_uris")
+            .execute()
+        ).data or []
+    except Exception as exc:  # pragma: no cover — best-effort
+        logger.warning("[ADR-373 D2.a] client enumeration failed: %s", exc)
+        return []
+    out = []
+    for r in rows:
+        if resolve_provider_id(
+            client_id=r.get("client_id"),
+            client_name=r.get("client_name"),
+            redirect_uris=r.get("redirect_uris"),
+        ) == provider_id:
+            out.append(r["client_id"])
+    return out
+
+
 def delete_tokens_for_client(client_id: str) -> int:
     """Delete ALL OAuth tokens for a client_id (ADR-386 D2 — REVOKE = eviction).
 
@@ -185,13 +321,25 @@ def evict_principal(
     svc = _svc()
     svc.table("principal_grants").update({"status": "revoked"}).eq("id", grant["id"]).execute()
 
-    # Delete the principal's OAuth tokens (the eviction). principal_id for a
-    # foreign-LLM IS its OAuth client_id (ADR-373 D2 / resolve_principal_id), so
-    # delete by client_id. Best-effort: a token-delete failure must not leave the
-    # grant un-revoked — the status flip already happened above.
+    # Delete the principal's OAuth tokens (the eviction). ADR-373 D2.a: the
+    # foreign-LLM principal_id is the PROVIDER host-id (e.g. `claude.ai`), but
+    # tokens are keyed on `client_id` — and a provider has MANY client_ids (one
+    # per re-registration). So sweep EVERY client_id registered to this provider,
+    # not just `principal_id` (which now matches no token row). For a legacy
+    # client_id-keyed grant (pre-D2.a) `client_ids_for_provider` returns [] and
+    # we fall back to deleting by the principal_id directly. Best-effort: a
+    # token-delete failure must not leave the grant un-revoked — the status flip
+    # already happened above.
     tokens_deleted = 0
     try:
-        tokens_deleted = delete_tokens_for_client(principal_id)
+        role = grant.get("role")
+        client_ids: list[str] = []
+        if role in ("foreign-llm", "platform", "a2a"):
+            client_ids = client_ids_for_provider(workspace_id, principal_id)
+        # Fallback: a legacy client_id-keyed grant (or unknown provider) — the
+        # principal_id IS the client_id, so delete by it directly.
+        for cid in (client_ids or [principal_id]):
+            tokens_deleted += delete_tokens_for_client(cid)
     except Exception as exc:  # pragma: no cover — best-effort token sweep
         logger.warning(
             "[ADR-386] token eviction for principal=%s failed: %s "
