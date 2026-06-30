@@ -980,21 +980,60 @@ async def get_recent_revisions(
     auth: UserClient,
     limit: int = Query(20, ge=1, le=50),
 ) -> RecentRevisionsResponse:
-    """Recently authored substrate changes across the workspace (ADR-329 D2)."""
+    """Recently authored substrate changes across the workspace (ADR-329 D2).
+
+    Two honesty filters (2026-06-30) so a Recents row always opens a real file:
+      1. DEDUP by path — keep only the latest revision per path. A file written
+         16× was showing 16 identical rows; the feed is "recently-changed
+         FILES", not "every revision event".
+      2. LIVE-FILE filter — drop paths with no current `workspace_files` row.
+         A revision can outlive its file (e.g. a `remember`-dump inbox path that
+         was placed/removed by judgment, ADR-368): the revision survives in the
+         chain but `GET /workspace/file` 404s. Listing it produced a Recents row
+         that opened to "This file isn't here". A revision to a vanished file is
+         not browsable substrate, so it leaves the feed.
+    """
     try:
-        # Over-fetch to absorb the post-query hide-filter, then trim to limit.
+        # Over-fetch generously: dedup + the live-file filter both shrink the
+        # set, and a hot path (16 revisions to one file) collapses to one row.
         result = (
             auth.client.table("workspace_file_versions")
             .select("path, authored_by, message, created_at")
             .eq("user_id", auth.user_id)
             .order("created_at", desc=True)
-            .limit(limit * 3)
+            .limit(limit * 10)
             .execute()
         )
-        revisions: list[RecentRevision] = []
+
+        # Dedup by path (keep first = latest, since ordered created_at desc) +
+        # apply the authored-substrate hide rule.
+        latest_by_path: dict[str, dict] = {}
         for row in result.data or []:
             path = row.get("path") or ""
+            if not path or path in latest_by_path:
+                continue
             if not _is_authored_substrate_path(path):
+                continue
+            latest_by_path[path] = row
+
+        # One round-trip to find which of those paths still have a live file.
+        candidate_paths = list(latest_by_path.keys())
+        live_paths: set[str] = set()
+        if candidate_paths:
+            existing = (
+                auth.client.table("workspace_files")
+                .select("path")
+                .eq("user_id", auth.user_id)
+                .in_("path", candidate_paths)
+                .execute()
+            )
+            live_paths = {r["path"] for r in (existing.data or [])}
+
+        # Emit in recency order (dict preserves insertion = created_at desc),
+        # live files only, trimmed to limit.
+        revisions: list[RecentRevision] = []
+        for path, row in latest_by_path.items():
+            if path not in live_paths:
                 continue
             revisions.append(
                 RecentRevision(

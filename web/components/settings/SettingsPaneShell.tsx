@@ -26,10 +26,19 @@
  *   - NARROW (< MOBILE_BREAKPOINT_PX, the existing `useViewport().isMobile`
  *     signal that already drives single-window mode): a list→detail DRILL-IN.
  *     The nav fills the width as a list; selecting a pane swaps to the
- *     full-width body with a `‹ Back` row. The iOS-Settings model. One thing
- *     on screen at a time; the body always gets full width. Drill-in state is
- *     LOCAL (`drilledIn`) — it does not touch the URL; the `pane` param is
- *     still the source of truth for WHICH pane.
+ *     full-width body. The iOS-Settings model. One thing on screen at a time;
+ *     the body always gets full width. Drill-in state is LOCAL (`drilledIn`) —
+ *     it does not touch the URL; the `pane` param is still the source of truth
+ *     for WHICH pane.
+ *
+ *     The "‹ back to the list" affordance is NOT a shell-rendered row — it is
+ *     the OS's single always-mounted locator (`GlobalLocatorStrip`, fed by
+ *     `useWindowCrumb`). In paneGroups mode the shell REGISTERS the active
+ *     pane as this window's crumb (leaf `onClick` drills out), so the one OS
+ *     locator shows `‹ {paneLabel}` on mobile — no parallel Back row (that
+ *     stacked a second identical `‹ leaf` chip over the locator's). In
+ *     navContent mode the SURFACE owns its crumb (Files registers the selected
+ *     node); it drives drill-out via the `onDrillOut` the shell hands back.
  *
  * Mechanism (ADR-340 P2 + ADR-358 D6):
  *   - macOS System Settings shape: one door, sidebar of grouped panes.
@@ -43,18 +52,19 @@
  *
  * NAV-CONTENT MODE (Files): when `navContent` is supplied the shell renders it
  * verbatim in the nav region instead of the grouped pane list. The surface owns
- * pane selection itself (Files uses internal `selectedPath`); it tells the shell
- * the current leaf label via `activeLabel` so the narrow Back row reads right.
- * `onActivate` lets a custom nav request the drill-in (push to the body) when
- * the operator picks an item. Optional `resizable` enables a drag handle + the
+ * pane selection itself (Files uses internal `selectedPath`) AND its own OS
+ * locator crumb. It reports `hasSelection` so the narrow view knows the body is
+ * worth drilling into; `onActivateRef`/`onDrillOutRef` hand the surface the
+ * shell's drill-in / drill-out fns (a tree click drills in; the locator's
+ * "back" drills out). Optional `resizable` enables a drag handle + the
  * persisted width (Files' explorer).
  */
 
 import { useState, useEffect, useRef, useCallback, type ComponentType, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
 import { useSurfaceParam, useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { useViewport } from "@/lib/shell/useViewport";
+import { useWindowCrumb } from "@/contexts/BreadcrumbContext";
 
 export interface PaneDef {
   /** Pane key — matches the registry slug for pane-grade surfaces, or a
@@ -92,11 +102,16 @@ interface SettingsPaneShellProps {
   navContent?: ReactNode;
   /** Body to render alongside `navContent`. */
   children?: ReactNode;
-  /** Current selection label for the narrow Back row (navContent mode).
-   *  When falsy, narrow mode stays on the nav list (nothing selected). */
-  activeLabel?: string | null;
-  /** Custom nav signals a selection was made → drill into the body (narrow). */
+  /** navContent mode: whether the surface currently has something selected to
+   *  show in the body. Drives whether the narrow view drills in. When false,
+   *  narrow stays on the nav list. */
+  hasSelection?: boolean;
+  /** Custom nav signals a selection was made → drill into the body (narrow).
+   *  The shell hands back its `activate` fn via this ref-setter. */
   onActivateRef?: (activate: () => void) => void;
+  /** Custom nav requests drill-OUT (its crumb "back" action) → return to the
+   *  nav list on narrow. The shell hands back its `drillOut` fn here. */
+  onDrillOutRef?: (drillOut: () => void) => void;
   /** Enable a draggable resize handle + persisted width (Files). */
   resizable?: boolean;
   /** navContent mode: drop the default nav padding so custom nav (the Files
@@ -132,8 +147,9 @@ export function SettingsPaneShell({
   renderPane,
   navContent,
   children,
-  activeLabel,
+  hasSelection = false,
   onActivateRef,
+  onDrillOutRef,
   resizable = false,
   navPadded = true,
   banner,
@@ -198,13 +214,34 @@ export function SettingsPaneShell({
     setSurfaceParams({ tab: null });
   };
 
-  // navContent mode: expose a drill-in trigger to the custom nav.
+  // navContent mode: expose drill-in / drill-out triggers to the custom nav.
   const activateFromNav = useCallback(() => {
     if (isNarrow) setDrilledIn(true);
   }, [isNarrow]);
+  const drillOut = useCallback(() => setDrilledIn(false), []);
   useEffect(() => {
     onActivateRef?.(activateFromNav);
   }, [onActivateRef, activateFromNav]);
+  useEffect(() => {
+    onDrillOutRef?.(drillOut);
+  }, [onDrillOutRef, drillOut]);
+
+  // The active pane's label (paneGroups mode) — used for the OS locator crumb.
+  const activePaneLabel =
+    (paneGroups ?? []).flatMap((g) => g.panes).find((p) => p.key === activePane)?.label ?? null;
+
+  // SINGLE-LOCATOR contract: in paneGroups mode, register THIS window's crumb
+  // for the active pane while drilled in on narrow, so the OS's one locator
+  // (`GlobalLocatorStrip`) shows `‹ {paneLabel}` — instead of the shell drawing
+  // a SECOND parallel back row. The leaf `onClick` drills out (= the locator's
+  // "back to list"). navContent surfaces own their own crumb (Files), so the
+  // shell registers nothing for them (empty array, no double-registration).
+  useWindowCrumb(
+    windowSlug,
+    !navMode && isNarrow && drilledIn && activePaneLabel
+      ? [{ label: activePaneLabel, onClick: drillOut }]
+      : []
+  );
 
   // --- resizable nav (Files) -------------------------------------------------
   const resizeStorageKey = RESIZE_KEY_PREFIX + windowSlug;
@@ -302,30 +339,21 @@ export function SettingsPaneShell({
 
   // === NARROW: list→detail drill-in ==========================================
   if (isNarrow) {
-    // The label that heads the Back row. paneGroups: the active pane's label;
-    // navContent: the surface-provided activeLabel (falls back to navLabel).
-    const activeMeta = (paneGroups ?? []).flatMap((g) => g.panes).find((p) => p.key === activePane);
-    const backLabel = navMode ? (activeLabel ?? navLabel) : (activeMeta?.label ?? null);
-
     // Drill in whenever a selection has been made. paneGroups: drilledIn is set
     // by selectPane. navContent: the custom nav calls onActivate (which sets
-    // drilledIn) on any selection — including a deselect-to-Recents.
-    const showBody = drilledIn;
+    // drilledIn) on any selection — including a deselect-to-Recents. The
+    // navContent body is only worth showing when the surface reports a
+    // selection (else there is nothing to drill into — stay on the list).
+    const showBody = drilledIn && (navMode ? hasSelection : true);
 
+    // NO shell-rendered back row — the OS's single locator (GlobalLocatorStrip)
+    // owns the `‹ {leaf}` back affordance (paneGroups: the crumb registered
+    // above; navContent: the surface's own crumb). One locator, not two.
     return (
       <div className="h-full flex flex-col min-h-0">
         {header}
         {showBody ? (
-          <div className="flex-1 min-h-0 flex flex-col">
-            <button
-              onClick={() => setDrilledIn(false)}
-              className="flex items-center gap-1 px-3 py-2 text-sm text-muted-foreground hover:text-foreground border-b border-border shrink-0"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              {backLabel ?? navLabel}
-            </button>
-            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{bodyChildren}</div>
-          </div>
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{bodyChildren}</div>
         ) : (
           <nav
             aria-label={navLabel}

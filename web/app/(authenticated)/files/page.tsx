@@ -89,20 +89,6 @@ function resolveNodeByPath(root: TreeNode, targetPath: string): TreeNode | null 
   return null;
 }
 
-function buildBreadcrumbs(root: TreeNode, targetPath: string): TreeNode[] {
-  const trail: TreeNode[] = [];
-  function walk(node: TreeNode): boolean {
-    trail.push(node);
-    if (node.path === targetPath) return true;
-    for (const child of node.children || []) {
-      if (walk(child)) return true;
-    }
-    trail.pop();
-    return false;
-  }
-  walk(root);
-  return trail;
-}
 
 // Files surface group assembly — ADR-320 topology (2026-06-10 correction).
 //
@@ -268,14 +254,22 @@ export default function ContextPage() {
   const { mode: viewMode, setMode: setViewMode } = useFilesViewMode();
 
   // 2026-06-30 unification: the explorer mounts the shared SettingsPaneShell.
-  // The shell owns the responsive contract (wide two-pane / narrow drill-in),
-  // the resizable nav width (persisted), and the narrow Back row. Files'
-  // bespoke split-pane/resize/icon-rail-collapse plumbing is deleted —
-  // Singular Implementation. The shell's `onActivateRef` lets a tree click
-  // drill into the viewer on narrow screens.
+  // The shell owns the responsive contract (wide two-pane / narrow drill-in)
+  // and the resizable nav width (persisted). Files' bespoke split-pane/resize/
+  // icon-rail-collapse plumbing is deleted — Singular Implementation.
+  //
+  // Narrow drill: a tree click drills INTO the viewer (activateBodyRef); the OS
+  // locator's "back" drills OUT to the tree (drillOutRef). The shell hands both
+  // fns back via its onActivateRef / onDrillOutRef. The back affordance itself
+  // is the OS's single GlobalLocatorStrip (fed by the useWindowCrumb below) —
+  // the shell renders no parallel back row.
   const activateBodyRef = useRef<() => void>(() => {});
+  const drillOutRef = useRef<() => void>(() => {});
   const registerActivate = useCallback((fn: () => void) => {
     activateBodyRef.current = fn;
+  }, []);
+  const registerDrillOut = useCallback((fn: () => void) => {
+    drillOutRef.current = fn;
   }, []);
 
   const virtualRoot: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
@@ -375,18 +369,23 @@ export default function ContextPage() {
   const selectedNode = selectedPath
     ? (resolveNodeByPath(virtualRoot, selectedPath) ?? syntheticNodeForPath(selectedPath))
     : null;
-  const breadcrumbs = selectedNode ? buildBreadcrumbs(virtualRoot, selectedNode.path).filter(n => n.path !== EXPLORER_ROOT_PATH) : [];
 
   // D19 (2026-05-22): workspace-wide setBreadcrumb removed. The full
   // path-trail lives inside the surface body via SurfaceIdentityHeader.
-  // Per-window locator (2026-06-25): the WindowFrame title bar shows
-  // "Files › {leaf}" (the selected node's name) so each open window
-  // states its own position; back crumb returns to the root listing.
+  // Per-window locator (2026-06-25): the OS GlobalLocatorStrip shows
+  // "Files › {leaf}" (the selected node's name) so each open window states its
+  // own position. This is the SINGLE back affordance — the shell renders no
+  // parallel row. Leaf `onClick` = "back to the listing": clear the selection
+  // AND (on narrow) drill out of the viewer to the tree.
   // List mode (nothing selected) registers [] — flat "Files" title.
   useWindowCrumb(
     'files',
     selectedNode
-      ? [{ label: selectedNode.name, kind: 'context', onClick: () => setSelectedPath(null) }]
+      ? [{
+          label: selectedNode.name,
+          kind: 'context',
+          onClick: () => { setSelectedPath(null); drillOutRef.current(); },
+        }]
       : []
   );
 
@@ -604,10 +603,12 @@ export default function ContextPage() {
 
   // 2026-06-30 unification: mount the shared SettingsPaneShell in navContent +
   // resizable mode. The shell owns the responsive contract (wide two-pane tree |
-  // viewer / narrow drill-in with a Back row), the resizable nav width, and the
-  // narrow collapse — replacing Files' bespoke split-pane/resize/icon-rail
-  // plumbing (Singular Implementation). `activeLabel` heads the narrow Back row;
-  // `onActivateRef` lets a tree click drill into the viewer on narrow.
+  // viewer / narrow drill-in), the resizable nav width, and the narrow collapse
+  // — replacing Files' bespoke split-pane/resize/icon-rail plumbing (Singular
+  // Implementation). `hasSelection` gates the narrow body (a selected node OR
+  // the explicit Recents drill-in); `onActivateRef`/`onDrillOutRef` give the
+  // tree + the OS locator their drill in/out hooks. The back affordance is the
+  // single GlobalLocatorStrip (the useWindowCrumb above), not a shell row.
   return (
     <>
       <SettingsPaneShell
@@ -616,8 +617,12 @@ export default function ContextPage() {
         navContent={treePaneContent}
         navPadded={false}
         resizable
-        activeLabel={selectedNode?.name ?? null}
+        // Files' body is always meaningful once drilled in — a selected node,
+        // or the Recents view (the deselected state). So narrow drill always
+        // has something to show.
+        hasSelection
         onActivateRef={registerActivate}
+        onDrillOutRef={registerDrillOut}
       >
         <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-y-auto bg-background">
           {bodyContent}
