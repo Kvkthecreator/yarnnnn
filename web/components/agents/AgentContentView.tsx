@@ -14,7 +14,7 @@
  * individual agent pages or legacy role names.
  */
 
-import { useEffect, useState, type ComponentType } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowUpRight,
   ChevronRight,
@@ -36,12 +36,12 @@ import { AgentIcon } from './AgentIcon';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
-import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { formatRelativeTime } from '@/lib/formatting';
 import { humanizeSchedule, scheduleDisplay } from '@/lib/schedule';
 import { SubstrateTab } from './SubstrateTab';
 import { FreddieActivityPanel } from './FreddieActivityPanel';
 import { FreddieCapabilitiesPanel } from './FreddieCapabilitiesPanel';
+import { SettingsPaneShell, type PaneGroup } from '@/components/settings/SettingsPaneShell';
 // ADR-387 (2026-06-29): Freddie's pane absorbs the agent-scoped governance
 // panes out of Workspace Settings. The same *Card full variants render here
 // (a MOVE, not a copy — Workspace Settings loses them; Singular Implementation).
@@ -736,11 +736,9 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 // deep-link (?agent=freddie&agents.tab=identity|activity, and the dangling
 // HomeHeader autonomy deep-link ADR-297 had broken) keeps working — the
 // autonomy/principles keys now RESOLVE instead of falling through.
-interface FreddiePaneGroup {
-  label: string;
-  panes: { key: string; label: string; icon: ComponentType<{ className?: string }> }[];
-}
-const FREDDIE_PANE_GROUPS: FreddiePaneGroup[] = [
+// Freddie's grouped pane list — the shared PaneGroup shape (Singular
+// Implementation: the same shell behind the Settings doors renders this).
+const FREDDIE_PANE_GROUPS: PaneGroup[] = [
   {
     label: 'Persona',
     panes: [
@@ -818,67 +816,35 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
   // mechanism delivers (the 5 governance panes are now pane_of: agents, so
   // foregroundSurface('autonomy') reconciles agents.pane=autonomy here). This
   // mirrors the channels surface precedent exactly (windowSlug.pane). The
-  // legacy `agents.tab` form is read as a fallback for any in-flight deep-link
-  // (and the autonomy/principles keys now RESOLVE — fixing the dangling
-  // HomeHeader autonomy link ADR-297 left broken).
-  const p = useSurfaceParam('agents');
-  const paneParam = p.get('pane') ?? p.get('tab');
-  const activePane = paneParam && FREDDIE_PANE_KEYS.includes(paneParam) ? paneParam : 'identity';
-
-  function handlePaneChange(key: string) {
-    p.set({ pane: key, tab: null });
-  }
-
+  // legacy `agents.tab` form is read as a fallback (the shell resolves
+  // `{windowSlug}.pane ?? {windowSlug}.tab`), so the autonomy/principles
+  // deep-links still RESOLVE — fixing the dangling HomeHeader autonomy link.
+  //
+  // ADR-387 grouped sidebar — now mounts the shared SettingsPaneShell
+  // (Singular Implementation, the 2026-06-30 unification: Freddie's forked
+  // sidebar copy is deleted). The shell owns the responsive drill-in + the
+  // `agents.pane=` URL sync; Freddie passes its identity bar as `header` and
+  // wraps each pane body in the prior `max-w-3xl px-6 py-5` card column.
   return (
-    <div className="flex-1 overflow-hidden flex flex-col">
-      <SurfaceIdentityHeader
-        title="Freddie"
-        metadata={
-          <span className="text-xs text-muted-foreground">
-            The system agent — stewards your substrate; judges proposed actions when an operation runs
-          </span>
-        }
-      />
-      {/* ADR-387 grouped sidebar (SettingsPaneShell grammar) grouped by
-          substrate root-ownership: Persona · Grant · Contract · Operation ·
-          Supervision. */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        <nav
-          aria-label="Freddie panes"
-          className="w-44 sm:w-52 shrink-0 border-r border-border overflow-y-auto py-3 px-2 space-y-4"
-        >
-          {FREDDIE_PANE_GROUPS.map((group) => (
-            <div key={group.label}>
-              <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-                {group.label}
-              </div>
-              {group.panes.map((pane) => {
-                const Icon = pane.icon;
-                const isActive = activePane === pane.key;
-                return (
-                  <button
-                    key={pane.key}
-                    onClick={() => handlePaneChange(pane.key)}
-                    className={cn(
-                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                      isActive
-                        ? 'bg-muted text-foreground font-medium'
-                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                    )}
-                  >
-                    <Icon className="w-4 h-4 shrink-0" />
-                    {pane.label}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-3xl px-6 py-5">{renderFreddiePane(activePane)}</div>
-        </div>
-      </div>
-    </div>
+    <SettingsPaneShell
+      windowSlug="agents"
+      paneGroups={FREDDIE_PANE_GROUPS}
+      defaultPane="identity"
+      navLabel="Freddie panes"
+      header={
+        <SurfaceIdentityHeader
+          title="Freddie"
+          metadata={
+            <span className="text-xs text-muted-foreground">
+              The system agent — stewards your substrate; judges proposed actions when an operation runs
+            </span>
+          }
+        />
+      }
+      renderPane={(pane) => (
+        <div className="max-w-3xl px-6 py-5">{renderFreddiePane(pane)}</div>
+      )}
+    />
   );
 }
 

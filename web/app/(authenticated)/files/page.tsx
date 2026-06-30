@@ -41,13 +41,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Loader2,
-  FolderOpen,
-  X,
   Info,
   History,
   LayoutGrid,
   List as ListIcon,
 } from 'lucide-react';
+import { SettingsPaneShell } from '@/components/settings/SettingsPaneShell';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
@@ -65,22 +64,6 @@ import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader'
 import { DeliverableMiddle } from '@/components/work/details/DeliverableMiddle';
 
 type TreeNode = import('@/types').WorkspaceTreeNode;
-
-// Internal split-pane sizing (D19: the surface owns its own tree pane;
-// ThreePanelLayout's workspace-wide left panel was deleted).
-const TREE_PANE_KEY = 'yarnnn:files:tree-width';
-const TREE_PANE_DEFAULT = 280;
-const TREE_PANE_MIN = 200;
-const TREE_PANE_MAX = 560;
-
-function loadStoredTreeWidth(): number {
-  if (typeof window === 'undefined') return TREE_PANE_DEFAULT;
-  const raw = window.localStorage.getItem(TREE_PANE_KEY);
-  if (!raw) return TREE_PANE_DEFAULT;
-  const n = parseInt(raw, 10);
-  if (Number.isNaN(n)) return TREE_PANE_DEFAULT;
-  return Math.max(TREE_PANE_MIN, Math.min(TREE_PANE_MAX, n));
-}
 
 const EXPLORER_ROOT_PATH = '/explorer';
 
@@ -284,43 +267,15 @@ export default function ContextPage() {
   // shared across Recents + folder listings (was Recents-only).
   const { mode: viewMode, setMode: setViewMode } = useFilesViewMode();
 
-  // D19 split-pane state — the surface owns its own tree pane.
-  const [treePaneOpen, setTreePaneOpen] = useState(true);
-  const [treeWidth, setTreeWidth] = useState(TREE_PANE_DEFAULT);
-  const treeDragging = useRef(false);
-
-  useEffect(() => {
-    setTreeWidth(loadStoredTreeWidth());
-  }, []);
-
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!treeDragging.current) return;
-      const next = Math.max(TREE_PANE_MIN, Math.min(TREE_PANE_MAX, e.clientX));
-      setTreeWidth(next);
-    };
-    const onUp = () => {
-      if (!treeDragging.current) return;
-      treeDragging.current = false;
-      try {
-        window.localStorage.setItem(TREE_PANE_KEY, String(treeWidth));
-      } catch {}
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, [treeWidth]);
-
-  const onTreeDragStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    treeDragging.current = true;
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
+  // 2026-06-30 unification: the explorer mounts the shared SettingsPaneShell.
+  // The shell owns the responsive contract (wide two-pane / narrow drill-in),
+  // the resizable nav width (persisted), and the narrow Back row. Files'
+  // bespoke split-pane/resize/icon-rail-collapse plumbing is deleted —
+  // Singular Implementation. The shell's `onActivateRef` lets a tree click
+  // drill into the viewer on narrow screens.
+  const activateBodyRef = useRef<() => void>(() => {});
+  const registerActivate = useCallback((fn: () => void) => {
+    activateBodyRef.current = fn;
   }, []);
 
   const virtualRoot: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
@@ -481,6 +436,7 @@ export default function ContextPage() {
   // entry to seed selectedPath) — it is never written from intra-surface clicks.
   const handleExplorerSelect = useCallback((node: TreeNode) => {
     setSelectedPath(node.path);
+    activateBodyRef.current(); // narrow: drill into the viewer
   }, []);
 
   // Path-based select — a path string, not a TreeNode. The file may not be in
@@ -490,6 +446,7 @@ export default function ContextPage() {
   // the (newly-selected) node's own scope.
   const handleExplorerSelect_byPath = useCallback((path: string) => {
     setSelectedPath(path);
+    activateBodyRef.current(); // narrow: drill into the viewer
   }, []);
 
   // ADR-329 (amended): right-click "Get Info" on a tree node → select it (so
@@ -511,176 +468,161 @@ export default function ContextPage() {
   // is selected. The cramped sidebar feed it replaces is deleted; the recency
   // DATA lives in the center pane where filenames are readable (Singular
   // Implementation: one recency view, reached by this nav item).
+  // The nav region the shell hosts: Explorer header (label + upload) over the
+  // Recents item + tree. On narrow screens the shell drops this in full-width;
+  // selecting drills into the viewer. The prior in-surface Explorer header
+  // (with the manual collapse `×`) folds in here — the shell owns collapse now.
   const treePaneContent = (
-    <div className="flex-1 overflow-y-auto">
-      {fileTreeLoading && treeNodes.length === 0 ? (
-        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          Loading...
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0 gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground">Explorer</p>
+          <p className="text-[11px] text-muted-foreground">Workspace context and settings</p>
         </div>
-      ) : treeNodes.length > 0 ? (
-        <div className="p-2">
-          <button
-            onClick={() => setSelectedPath(null)}
-            aria-current={selectedPath === null ? 'page' : undefined}
-            className={cn(
-              'w-full flex items-center gap-2 px-2 py-1.5 mb-1 rounded-md text-left text-sm transition-colors',
-              selectedPath === null
-                ? 'bg-primary/10 text-foreground font-medium'
-                : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
-            )}
-            title="Recent changes across the workspace"
-          >
-            <History className="w-4 h-4 shrink-0" />
-            <span>Recents</span>
-          </button>
-          <WorkspaceTree
-            nodes={treeNodes}
-            selectedPath={selectedPath || undefined}
-            onSelect={handleExplorerSelect}
-            onGetInfo={handleGetInfo}
-          />
-        </div>
-      ) : (
-        <div className="p-3 text-sm text-muted-foreground">Failed to load explorer</div>
-      )}
+        {/* ADR-329: 'add' is an operator verb, homed on Files. */}
+        <UploadButton onUploaded={() => loadExplorer()} />
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {fileTreeLoading && treeNodes.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            Loading...
+          </div>
+        ) : treeNodes.length > 0 ? (
+          <div className="p-2">
+            <button
+              onClick={() => { setSelectedPath(null); activateBodyRef.current(); }}
+              aria-current={selectedPath === null ? 'page' : undefined}
+              className={cn(
+                'w-full flex items-center gap-2 px-2 py-1.5 mb-1 rounded-md text-left text-sm transition-colors',
+                selectedPath === null
+                  ? 'bg-primary/10 text-foreground font-medium'
+                  : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
+              )}
+              title="Recent changes across the workspace"
+            >
+              <History className="w-4 h-4 shrink-0" />
+              <span>Recents</span>
+            </button>
+            <WorkspaceTree
+              nodes={treeNodes}
+              selectedPath={selectedPath || undefined}
+              onSelect={handleExplorerSelect}
+              onGetInfo={handleGetInfo}
+            />
+          </div>
+        ) : (
+          <div className="p-3 text-sm text-muted-foreground">Failed to load explorer</div>
+        )}
+      </div>
     </div>
   );
 
-  return (
-    <div className="flex h-full overflow-hidden">
-      {/* In-surface tree pane (D19: surface owns its own internal layout;
-          ThreePanelLayout dissolved). Collapsible to an icon rail. */}
-      {treePaneOpen ? (
-        <>
-          <div
-            className="shrink-0 border-r border-border flex flex-col bg-background"
-            style={{ width: treeWidth }}
-          >
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0 gap-2">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">Explorer</p>
-                <p className="text-[11px] text-muted-foreground">Workspace context and settings</p>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {/* ADR-329: 'add' is an operator verb, homed on Files. */}
-                <UploadButton onUploaded={() => loadExplorer()} />
+  // The viewer body — selected node (its header + content) or the Recents
+  // empty-state. This is the shell's `children` (the detail pane).
+  const bodyContent = selectedNode ? (
+    <div className="flex-1 overflow-auto bg-background flex flex-col min-h-0">
+      <SurfaceIdentityHeader
+        title={selectedNode.name}
+        metadata={getNodeMetadata(selectedNode)}
+        actions={
+          <div className="flex items-center gap-2">
+            {/* ADR-388 D4: surface-wide view toggle (folder listings honor it). */}
+            {selectedNode.type === 'folder' && (
+              <div className="inline-flex items-center rounded-md border border-border p-0.5">
                 <button
-                  onClick={() => setTreePaneOpen(false)}
-                  className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded"
-                  title="Collapse explorer"
+                  onClick={() => setViewMode('icon')}
+                  title="Icon view"
+                  aria-pressed={viewMode === 'icon'}
+                  className={cn(
+                    'rounded p-1 transition-colors',
+                    viewMode === 'icon' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+                  )}
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  title="List view"
+                  aria-pressed={viewMode === 'list'}
+                  className={cn(
+                    'rounded p-1 transition-colors',
+                    viewMode === 'list' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <ListIcon className="h-3.5 w-3.5" />
                 </button>
               </div>
-            </div>
-            {treePaneContent}
+            )}
+            {/* ADR-388 D5: Get Info → modal (was an inline collapsible panel).
+                Also reachable by right-click on any tree/row node. */}
+            <button
+              onClick={() => setDetailsOpen(true)}
+              title="Get Info"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+            >
+              <Info className="w-3.5 h-3.5" />
+              Get Info
+            </button>
           </div>
-          <div
-            onMouseDown={onTreeDragStart}
-            className="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
-            title="Drag to resize"
+        }
+      />
+      <div className="flex-1 overflow-auto">
+        {/* DELIVERABLE recurrence substrate roots render DeliverableMiddle
+            (ADR-180 + ADR-231 D2). Path shape: /workspace/operation/reports/{slug}. */}
+        {/^\/workspace\/reports\/[^/]+\/?$/.test(selectedNode.path) ? (() => {
+          // path = /workspace/operation/reports/{slug}  →  slug at index 3
+          const taskSlug = selectedNode.path.split('/')[3];
+          return <DeliverableMiddle taskSlug={taskSlug} refreshKey={0} />;
+        })() : (
+          <ContentViewer
+            selectedNode={selectedNode}
+            onNavigate={handleExplorerSelect}
+            showHeader={false}
+            viewMode={viewMode}
+            onGetInfo={handleGetInfo}
+            onOpenChatDraft={(prompt) => sendMessage(prompt, { surface: effectiveSurface })}
+            onDeleted={() => {
+              // ADR-329: file archived — clear selection + refresh the
+              // tree (the archived file self-filters out server-side).
+              // D19.2: selection is component state, never a URL write.
+              setSelectedPath(null);
+              loadExplorer();
+            }}
           />
-        </>
-      ) : (
-        <div className="w-10 shrink-0 border-r border-border flex flex-col items-center py-2 gap-2 bg-background">
-          <button
-            onClick={() => setTreePaneOpen(true)}
-            className="p-2 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
-            title="Open explorer"
-          >
-            <FolderOpen className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Center content */}
-      <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-y-auto bg-background">
-        {selectedNode ? (
-          <div className="flex-1 overflow-auto bg-background flex flex-col">
-            <SurfaceIdentityHeader
-              title={selectedNode.name}
-              metadata={getNodeMetadata(selectedNode)}
-              actions={
-                <div className="flex items-center gap-2">
-                  {/* ADR-388 D4: surface-wide view toggle (folder listings honor it). */}
-                  {selectedNode.type === 'folder' && (
-                    <div className="inline-flex items-center rounded-md border border-border p-0.5">
-                      <button
-                        onClick={() => setViewMode('icon')}
-                        title="Icon view"
-                        aria-pressed={viewMode === 'icon'}
-                        className={cn(
-                          'rounded p-1 transition-colors',
-                          viewMode === 'icon' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        <LayoutGrid className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setViewMode('list')}
-                        title="List view"
-                        aria-pressed={viewMode === 'list'}
-                        className={cn(
-                          'rounded p-1 transition-colors',
-                          viewMode === 'list' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        <ListIcon className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  )}
-                  {/* ADR-388 D5: Get Info → modal (was an inline collapsible panel).
-                      Also reachable by right-click on any tree/row node. */}
-                  <button
-                    onClick={() => setDetailsOpen(true)}
-                    title="Get Info"
-                    className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
-                  >
-                    <Info className="w-3.5 h-3.5" />
-                    Get Info
-                  </button>
-                </div>
-              }
-            />
-            <div className="flex-1 overflow-auto">
-              {/* DELIVERABLE recurrence substrate roots render DeliverableMiddle
-                  (ADR-180 + ADR-231 D2). Path shape: /workspace/operation/reports/{slug}. */}
-              {/^\/workspace\/reports\/[^/]+\/?$/.test(selectedNode.path) ? (() => {
-                // path = /workspace/operation/reports/{slug}  →  slug at index 3
-                const taskSlug = selectedNode.path.split('/')[3];
-                return <DeliverableMiddle taskSlug={taskSlug} refreshKey={0} />;
-              })() : (
-                <ContentViewer
-                  selectedNode={selectedNode}
-                  onNavigate={handleExplorerSelect}
-                  showHeader={false}
-                  viewMode={viewMode}
-                  onGetInfo={handleGetInfo}
-                  onOpenChatDraft={(prompt) => sendMessage(prompt, { surface: effectiveSurface })}
-                  onDeleted={() => {
-                    // ADR-329: file archived — clear selection + refresh the
-                    // tree (the archived file self-filters out server-side).
-                    // D19.2: selection is component state, never a URL write.
-                    setSelectedPath(null);
-                    loadExplorer();
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        ) : (
-          // ADR-329 Amendment 2: the center pane's empty state IS the Finder
-          // "Recents" view — a columnar glance of recent authored changes
-          // across the workspace, replacing the bare "select a file"
-          // placeholder. Selecting a row swaps to the node view; the
-          // workspace-wide recency question lives here (center pane), the
-          // per-node history question lives in Get Info/Details.
-          <div className="flex-1 min-h-0">
-            <RecentRevisions onSelectPath={handleExplorerSelect_byPath} />
-          </div>
         )}
       </div>
+    </div>
+  ) : (
+    // ADR-329 Amendment 2: the center pane's empty state IS the Finder
+    // "Recents" view — a columnar glance of recent authored changes across the
+    // workspace. Selecting a row swaps to the node view.
+    <div className="flex-1 min-h-0">
+      <RecentRevisions onSelectPath={handleExplorerSelect_byPath} />
+    </div>
+  );
+
+  // 2026-06-30 unification: mount the shared SettingsPaneShell in navContent +
+  // resizable mode. The shell owns the responsive contract (wide two-pane tree |
+  // viewer / narrow drill-in with a Back row), the resizable nav width, and the
+  // narrow collapse — replacing Files' bespoke split-pane/resize/icon-rail
+  // plumbing (Singular Implementation). `activeLabel` heads the narrow Back row;
+  // `onActivateRef` lets a tree click drill into the viewer on narrow.
+  return (
+    <>
+      <SettingsPaneShell
+        windowSlug="files"
+        navLabel="Explorer"
+        navContent={treePaneContent}
+        navPadded={false}
+        resizable
+        activeLabel={selectedNode?.name ?? null}
+        onActivateRef={registerActivate}
+      >
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-y-auto bg-background">
+          {bodyContent}
+        </div>
+      </SettingsPaneShell>
 
       {/* ADR-388 D5: Get Info modal — path/type/when + the ADR-209 revision
           chain (who wrote each version). Opened by the header button or a
@@ -691,6 +633,6 @@ export default function ContextPage() {
         onSelectPath={handleExplorerSelect_byPath}
         onRevert={loadExplorer}
       />
-    </div>
+    </>
   );
 }
