@@ -49,9 +49,11 @@ The program-active path is unchanged: a program still mounts its full machinery 
 - **Not removing perception.** The commons is always present (steward-base). What's removed is the *operation* machinery a bare steward shouldn't read.
 - **Not a behavior change for programs.** A program workspace's envelope is the steward base + its declared machinery — same content as before, just no longer the universal default.
 
-## 5. Validation
+## 5. Validation (done — PASS, the catch landed)
 
-Re-fire the bare-steward wake against the CONCENTRATED envelope: does a steward whose attention is no longer diluted catch the seeded mis-attribution? This tests the reassessment's core claim — that the catch failed from dilution, not from a missing signal or an unsharpened rule. Logged as a dated FINDING. If it catches, the discipline (removal > addition) is validated and the rule-trigger lever is moot. If it still misses with a concentrated envelope, the gap is genuinely the rule wording (the ADR-389 §6 lever), now tested against a clean surface.
+Fired the bare-steward wake against the concentrated envelope (2026-06-30, $0.162, [PASS FINDING](../evaluations/2026-06-30-concentrated-envelope-PASS-FINDING.md)). **The steward CAUGHT the mis-attribution** — for the first time across five wakes. It flagged that `competitor-scan.md` (authored `operator`) carries an external AI's first-person voice, named the likely true principal (`yarnnn:mcp:claude-desktop`), and reasoned the authority boundary correctly (the steward flags another principal's bad attribution rather than fixing it — the exact `attribution-integrity` verdict).
+
+This validates the reassessment's core claim by controlled sequence: addition (presence → salience → referent, through ADR-389) failed four times; **removal (this ADR) succeeded on the first wake.** The catch was a dilution problem the whole time. The rule-trigger lever (ADR-389 §6) is **moot** — the rule fired once the envelope stopped burying it. The ADR-389 referent was necessary (the flag uses it); the concentration was the sufficient condition. **Removal beat three additions.** Two minor follow-ons noted (not catch-fixes): a principles.md note that the stewardship-log home is `persona/` not `system/` (the steward reached for a locked path first, recovered correctly); the orthogonal `verdict=None` close-discipline gap.
 
 ## 6. The principle (for the next envelope change)
 
