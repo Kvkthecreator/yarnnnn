@@ -210,6 +210,92 @@ def main():
         "15 remember returns status:'captured' (raw stored now; seat derive/place/judge is async — honest expectation)",
         remember_honest))
 
+    # =====================================================================
+    # ⭐ THE FLOOR (operator-affirmed 2026-06-30) — the load-bearing invariant:
+    # remember(X) → store by key; recall(X)/trace(X) → fetch THAT key,
+    # deterministically, instantly, with NO seat/wake/cron/embedding dependency.
+    # Embedding + seat-placement are STRICTLY ADDITIVE enrichment. These two
+    # assertions lock that in — a refactor that breaks the floor fails the build.
+    # =====================================================================
+
+    # 16. the FLOOR invariant is NAMED in the source (so a refactorer sees it's
+    #     load-bearing, not incidental) AND the fetch side keeps the RAW step that
+    #     makes the round-trip seat-independent.
+    rmp_src = inspect.getsource(m.resolve_memory_path)
+    floor_named = "THE FLOOR" in inspect.getsource(m).split("def resolve_remember_path")[0][-2500:] or "FLOOR" in inspect.getsource(m.resolve_remember_path)
+    raw_step_present = (
+        f'"%/{{INBOUND_ROOT}}%/{{slug}}.md"' in rmp_src
+        or '%/{INBOUND_ROOT}%/{slug}.md' in rmp_src  # the step-2 RAW key match
+    )
+    results.append(_check(
+        "16 THE FLOOR is named in source + the seat-independent RAW fetch step is present (not removed/conditional on the seat)",
+        floor_named and raw_step_present,
+        f"named={floor_named} raw_step={raw_step_present}"))
+
+    # 17. BEHAVIORAL round-trip with a FAKE client carrying ONLY the raw inbound
+    #     file (NO derived operation/ file, NO embedding) — proves recall resolves
+    #     the exact key remember wrote, with zero seat/embedding. This is the live
+    #     keytest ('Acme Corp keytest' → instant exact hit) made a permanent gate.
+    import asyncio
+
+    class _Resp:
+        def __init__(self, data=None): self.data = data or []
+
+    class _Q:
+        def __init__(self, store, table):
+            self._s, self._t, self._filters, self._notlike, self._like = store, table, {}, [], []
+        def select(self, *a, **k): return self
+        def eq(self, c, v): self._filters[c] = v; return self
+        def in_(self, c, v): return self
+        def like(self, c, pat): self._like.append(pat); return self
+        def not_(self): return self  # chain placeholder
+        @property
+        def not_like(self): return self
+        def order(self, *a, **k): return self
+        def limit(self, *a, **k): return self
+        def execute(self):
+            import re as _re
+            rows = []
+            for p in self._s:
+                ok = True
+                for pat in self._like:
+                    rx = "^" + ".*".join(_re.escape(s) for s in pat.split("%")) + "$"
+                    if not _re.match(rx, p):
+                        ok = False
+                if ok:
+                    rows.append({"path": p, "updated_at": "t"})
+            return _Resp(rows)
+
+    # supabase client `.not_.like(...)` is a property-then-method chain; emulate it.
+    class _NotProxy:
+        def __init__(self, q): self._q = q
+        def like(self, c, pat): return self._q  # DERIVED step excludes inbound; for the
+                                                # floor test there IS no derived file, so
+                                                # ignoring the exclusion is safe (raw-only store)
+    class _Q2(_Q):
+        @property
+        def not_(self): return _NotProxy(self)
+
+    class _Client:
+        def __init__(self, store): self._s = store
+        def table(self, name): return _Q2(self._s, name)
+
+    class _Auth:
+        def __init__(self, store): self.client, self.user_id = _Client(store), "u"
+
+    # store: ONLY the raw inbound file remember(X) would have written. No derived,
+    # no embedding column even consulted (resolve_memory_path never touches it).
+    subject = "Acme Corp keytest"
+    raw_path = m.resolve_remember_path(subject, client_name="claude")  # the store key
+    abs_raw = "/workspace/" + raw_path
+    store = [abs_raw]
+    got = asyncio.run(m.resolve_memory_path(_Auth(store), subject))
+    floor_roundtrips = (got == abs_raw)
+    results.append(_check(
+        "17 FLOOR round-trip: recall resolves the EXACT raw key remember wrote, with NO derived file + NO embedding (seat-independent)",
+        floor_roundtrips,
+        f"store_key={abs_raw} resolved={got}"))
+
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} ADR-368 assertions pass")
     if passed != total:

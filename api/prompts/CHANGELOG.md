@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.30.2] - lock in THE FLOOR: the deterministic seat-independent store/fetch-by-key round-trip
+
+**Conceptual re-grounding (operator-affirmed): the rudimentary interop primitive is FILE STORAGE WITH ATTRIBUTION — store by a subject key, fetch by that key, instantly, with no dependency on the Reviewer/seat, wake, cron, or embeddings.** A live test confirmed this floor already WORKS (`remember(about="Acme Corp keytest")` → `recall("Acme Corp keytest")` returned the exact raw file, `match:exact`, instant, seat-independent). The embedding/index machinery we firefought (NULL embeddings, ivfflat→HNSW) and the seat-derivation are the ENRICHMENT layer — additive, not load-bearing for the basic promise. This commit NAMES + GUARDS the floor so a future refactor can't silently break it.
+
+- `api/services/mcp_composition.py`: added the `⭐ THE FLOOR` invariant block above `resolve_remember_path` (store side) + a back-reference on `resolve_memory_path` (fetch side). States the contract: `remember(X) → inbound/mcp/{client}/{slug(X)}.md`; `recall/trace(X) → fetch that exact key`; deterministic, instant, seat/embedding-independent; the two sides MUST stay slug-symmetric. No behavior change — the floor already worked; this makes it a recognized, documented invariant.
+- `api/test_adr368_memory_surface.py`: +16 (the FLOOR is named in source + the seat-independent RAW fetch step is present) +17 (BEHAVIORAL round-trip via a fake client carrying ONLY the raw file — no derived file, no embedding — proving recall resolves the exact key remember wrote). Gate 18/18. (Assertion 9 already locked store-key==fetch-key slug symmetry; 16/17 add the named-invariant + seat-independence guards.)
+- No production code path changed — pure lock-in (docstring invariant + regression gate). Siblings green (ADR-372/379/325). The resolution-order philosophy (raw-first vs derived-first) is deliberately NOT changed here — flagged for the next session.
+
 ## [2026.06.30.1] - Freddie wake envelope: the attribution fact (the steward's perception surface)
 
 **ADR-387 follow-on. The bare-Freddie steward eval (docs/evaluations/2026-06-29-freddie-bare-workspace-steward-FINDING.md, Finding 1) found the steward PLACED a mis-attributed file but ACCEPTED the `authored_by=operator` lie on AI-voiced content — because nothing in the wake envelope surfaced attribution. A sweep had to `ListRevisions` every file to perceive a mismatch, with no cue to do so. Fix: give the steward the missing perception surface.**

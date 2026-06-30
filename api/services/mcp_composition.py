@@ -309,8 +309,43 @@ INBOUND_MCP_PREFIX = "inbound/mcp/"
 INBOUND_MCP_DEFAULT_SLUG = "inbox"
 
 
+# =============================================================================
+# ⭐ THE FLOOR — the deterministic, seat-independent store/fetch-by-key round-trip
+# =============================================================================
+# THE LOAD-BEARING INVARIANT of the interop wedge (operator-affirmed 2026-06-30):
+#
+#   remember(about=X)  →  inbound/mcp/{client}/{slug(X)}.md   (store by key)
+#   recall(X) / trace(X)  →  fetch THAT EXACT file by key      (fetch by key)
+#
+# This round-trip MUST work:
+#   • DETERMINISTICALLY — `recall(X)` returns what `remember(X)` wrote, by exact
+#     key match, never by ranking/guessing;
+#   • INSTANTLY — the moment `remember` returns, before any async work;
+#   • with NO dependency on the Reviewer/seat, the wake queue, the cron, OR
+#     embeddings. Those are ENRICHMENT layered on top, never load-bearing for the
+#     basic promise.
+#
+# This is the rudimentary primitive a non-technical interop user installs and
+# "gets" on first contact: "I told one LLM X; another LLM gets X back, attributed."
+# Semantic/fuzzy recall (embeddings, QueryKnowledge) and judgment-based placement
+# (the seat deriving into operation/) are STRICTLY ADDITIVE — they make recall
+# better at scale, but the floor stands without them.
+#
+# The symmetry that makes it work: `resolve_remember_path` (store key) and
+# `resolve_memory_path` step-2 / `resolve_trace_path` (fetch key) BOTH derive the
+# key via `_slugify(subject)` against the same `inbound/mcp/{client}/{slug}.md`
+# shape. CHANGING THE SLUG/PATH DERIVATION IN ONE WITHOUT THE OTHER BREAKS THE
+# FLOOR. The regression gate (test_adr368_memory_surface.py) asserts store-key ==
+# fetch-key symmetry; do not refactor either side without re-running it.
+# =============================================================================
+
+
 def resolve_remember_path(about: Optional[str], client_name: Optional[str] = None) -> str:
     """Resolve where a foreign-LLM `remember` RAW observation lands (ADR-376/DP32).
+
+    ⭐ STORE SIDE OF THE FLOOR (see the THE FLOOR block above). The key is
+    `_slugify(about)`; the symmetric FETCH side is `resolve_memory_path` step-2 +
+    `resolve_trace_path`. The two must stay slug-symmetric or the round-trip breaks.
 
     The ledger-intake axiom: a contribution enters as an ATTRIBUTED RAW
     observation, kept distinct from what the workspace makes of it. The MCP layer
@@ -474,6 +509,14 @@ async def _find_derived_from_raw(auth: Any, raw_abs_path: str) -> Optional[str]:
 
 async def resolve_memory_path(auth: Any, subject: str) -> Optional[str]:
     """Resolve a `recall`/`trace` subject to its authored path DETERMINISTICALLY.
+
+    ⭐ FETCH SIDE OF THE FLOOR (see the THE FLOOR block above `resolve_remember_path`).
+    Step 2 (RAW) is the load-bearing half: `inbound/mcp/{*}/{slug(subject)}.md`,
+    keyed by the SAME `_slugify` the store side uses — this is what makes
+    `recall(X)` return what `remember(X)` wrote, instantly, with no seat/embedding.
+    Step 1 (DERIVED) is the ENRICHMENT: when the seat HAS derived an understanding,
+    prefer it; but the floor (step 2) must never be removed or made conditional on
+    the seat. Do not reorder so RAW is unreachable.
 
     The save→read round-trip is deterministic, not fuzzy. Under the ledger-intake
     axiom (ADR-376/DP32) a `remember(about=X)` lands a RAW observation at
