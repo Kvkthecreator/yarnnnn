@@ -624,14 +624,20 @@ async def _attribution_fact(client: Any, user_id: str) -> str:
     reflection gap-fact.
 
     DP19-clean (the same discipline as `_reflection_gap_fact`): a bounded
-    READ-AND-PRESENT. The kernel presents `path · authored_by · message · when`
-    for the most recent revisions; it does NOT label any of them wrong (that
-    judgment is the LLM's — Freddie's `attribution-integrity` rule reads the
-    content vs the attribution and decides). Bounded to recent activity
-    (_ATTRIBUTION_FACT_WINDOW_HOURS) and a row cap (_ATTRIBUTION_FACT_LIMIT) —
-    a discovery surface, not the full ledger; the steward ListRevisions a
-    specific path on demand. Empty string when no recent revisions (a quiet
-    workspace has nothing to tend — no noise on program wakes either).
+    READ-AND-PRESENT. The kernel presents `path · authored_by · message` for the
+    CURRENT head of each recently-touched path; it does NOT label any of them
+    wrong (that judgment is the LLM's — Freddie's `attribution-integrity` rule
+    reads the content vs the attribution and decides). Bounded to recent activity
+    (_ATTRIBUTION_FACT_WINDOW_HOURS) and a distinct-path cap
+    (_ATTRIBUTION_FACT_LIMIT) — a discovery surface, not the full ledger; the
+    steward ListRevisions a specific path on demand.
+
+    PRESENTS THE CURRENT HEAD PER PATH (not the raw revision stream): the live
+    2026-06-30 re-run showed the un-deduped stream buries the signal — a churny
+    path appears N times across superseded revisions + tombstones, so "who
+    CURRENTLY owns this file" (what the rule judges) is lost. Dedup to the latest
+    revision per path makes the mismatch legible. Empty string when no recent
+    revisions (a quiet workspace has nothing to tend — no noise on program wakes).
     """
     try:
         cutoff = (
@@ -643,7 +649,11 @@ async def _attribution_fact(client: Any, user_id: str) -> str:
             .eq("user_id", user_id)
             .gte("created_at", cutoff)
             .order("created_at", desc=True)
-            .limit(_ATTRIBUTION_FACT_LIMIT)
+            # Fetch a wider raw window than the line cap: the rows dedupe to one
+            # head per path (below), so N raw revisions of a churny path collapse
+            # to one line. Over-fetch so the deduped result can reach the cap of
+            # DISTINCT paths, not run dry on one path's history.
+            .limit(_ATTRIBUTION_FACT_LIMIT * 6)
             .execute()
         )
     except Exception as exc:  # noqa: BLE001
@@ -656,13 +666,25 @@ async def _attribution_fact(client: Any, user_id: str) -> str:
     if not rows:
         return ""
 
+    # Present the CURRENT head per path, not the raw revision stream. The live
+    # eval (2026-06-30 re-run) showed the un-deduped stream buries the signal:
+    # one path appears N times across superseded revisions + tombstone churn, so
+    # "who CURRENTLY owns this file" — the thing the attribution-integrity rule
+    # judges — is lost in history. Dedupe to the latest revision per path (rows
+    # are created_at DESC, so the first occurrence of each path IS its head).
+    seen: set[str] = set()
     lines: list[str] = []
     for r in rows:
         path = (r.get("path") or "").replace("/workspace/", "")
+        if path in seen:
+            continue
+        seen.add(path)
         author = (r.get("authored_by") or "?").strip() or "?"
         msg = (r.get("message") or "").strip()
         # Keep the line tight — path · who · why. The full body is one ReadFile
         # away; this is the scan surface, not the content.
         msg_str = f" — {msg[:80]}" if msg else ""
         lines.append(f"- {path} · authored_by: {author}{msg_str}")
+        if len(lines) >= _ATTRIBUTION_FACT_LIMIT:  # cap DISTINCT paths
+            break
     return "\n".join(lines)

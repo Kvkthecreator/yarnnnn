@@ -125,6 +125,30 @@ def test_empty_on_quiet_workspace():
     check(fact == "", "no recent revisions → empty string (silent)")
 
 
+def test_dedupes_to_current_head_per_path():
+    print("\n[attribution] presents the CURRENT head per path (not the raw stream)")
+    from services.freddie_envelope import _attribution_fact
+    # A churny path: 4 revisions (head = operator) + tombstone noise, like the
+    # live re-run's seed/restore churn that buried the signal.
+    churn = [
+        {"user_id": "u", "path": "/workspace/operation/memory/competitor-scan.md",
+         "authored_by": "operator", "message": "competitor scan", "created_at": "2026-06-30T06:05:00+00:00"},
+        {"user_id": "u", "path": "/workspace/operation/memory/competitor-scan.md",
+         "authored_by": "operator", "message": "restore: remove seed", "created_at": "2026-06-30T06:03:00+00:00"},
+        {"user_id": "u", "path": "/workspace/operation/memory/competitor-scan.md",
+         "authored_by": "operator", "message": "competitor scan", "created_at": "2026-06-30T06:01:00+00:00"},
+        {"user_id": "u", "path": "/workspace/operation/memory/q3-pricing-note.md",
+         "authored_by": "yarnnn:mcp:claude-desktop", "message": "dump", "created_at": "2026-06-30T06:04:00+00:00"},
+    ]
+    fact = _run(_attribution_fact(_Client(churn), "u"))
+    lines = fact.splitlines()
+    check(len(lines) == 2, f"4 revisions over 2 paths → 2 lines (one head each), got {len(lines)}")
+    comp = [l for l in lines if "competitor-scan.md" in l]
+    check(len(comp) == 1, "competitor-scan.md appears exactly once (its head)")
+    check("authored_by: operator" in comp[0] and "competitor scan" in comp[0],
+          "the head line carries the latest revision's author + message (the live mismatch)")
+
+
 def test_bounded_by_limit():
     print("\n[attribution] bounded to the row cap (DP19 discovery surface, not a dump)")
     from services.freddie_envelope import _attribution_fact, _ATTRIBUTION_FACT_LIMIT
@@ -161,6 +185,7 @@ def test_wired_into_contract_and_envelope():
 if __name__ == "__main__":
     test_presents_recent_attribution()
     test_empty_on_quiet_workspace()
+    test_dedupes_to_current_head_per_path()
     test_bounded_by_limit()
     test_wired_into_contract_and_envelope()
     print(f"\n  {PASSED} passed, {FAILED} failed")
