@@ -209,21 +209,28 @@ export function FeedSurface({ messageFilter, emptyLabel }: FeedSurfaceProps = {}
           substrate) are always reachable. ADR-377 (2026-06-26): the redundant
           in-pane `yarnnn` brand mark + title is REMOVED — the Flow pane lives
           inside Context (the global locator already names it; the OS shell
-          owns identity). Only the functional actions row remains. */}
+          owns identity). Only the functional actions row remains.
+
+          2026-06-30: the `mx-auto` was dropped from the header/filter/body
+          (kept `max-w-3xl` for line length). FeedSurface mounts in fullBleed
+          (=fill) panes (Channels Flow/In, Notifications Activity); `mx-auto`
+          floated the timeline dead-center in a maximized window, leaving a
+          large gap between the split-nav and the rows. Left-pinned now —
+          matching the SettingsPaneShell `reading` width policy. */}
       <div className="shrink-0 border-b border-border/40 bg-background z-10">
-        <div className="mx-auto w-full max-w-3xl px-3 sm:px-4">
+        <div className="w-full max-w-3xl px-3 sm:px-4">
           <div className="flex items-center justify-end gap-2 py-2">
             {headerActions}
           </div>
         </div>
         {filterBarOpen && (
-          <div className="mx-auto w-full max-w-3xl">
+          <div className="w-full max-w-3xl">
             <FeedFilterBar />
           </div>
         )}
       </div>
       <div className="flex-1 min-h-0">
-        <div className="mx-auto h-full w-full max-w-3xl px-3 sm:px-4 py-3 sm:py-5">
+        <div className="h-full w-full max-w-3xl px-3 sm:px-4 py-3 sm:py-5">
           {/* ADR-289 Phase 2: FeedTimeline replaces FeedPanel on /feed.
               Renders typed-event rows (InvocationCard, OperatorEventMarker,
               StandaloneEventRow, DaySeparator) — no chat bubbles. The

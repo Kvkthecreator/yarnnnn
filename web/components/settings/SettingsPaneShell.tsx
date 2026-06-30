@@ -129,8 +129,27 @@ interface SettingsPaneShellProps {
    * pane owns its own layout. Config doors want the constrained card column
    * (default false); full-bleed panes (FeedSurface, RecurrenceList, the Files
    * viewer) fill the pane region.
+   *
+   * Equivalent to `contentWidth="fill"` — kept as the legacy boolean alias.
+   * When both are passed, `contentWidth` wins.
    */
   fullBleed?: boolean;
+  /**
+   * Body-width policy (2026-06-30 — the missing third leg of the shared-shell
+   * contract). Resolves the awkward "narrow column floating dead-center in a
+   * wide window" gap by making readable-width an explicit property of the
+   * content TYPE, instead of each surface improvising `mx-auto max-w-3xl`:
+   *   - `form` (DEFAULT) — `max-w-3xl mx-auto p-6`: centered card column. Right
+   *     for settings/config forms (workspace-settings, account, channels config
+   *     panes) — a centered narrow column reads well for short forms.
+   *   - `reading` — `max-w-3xl p-6` WITHOUT `mx-auto`: a readable column
+   *     LEFT-PINNED next to the nav (no center gap). Right for prose/doc panes
+   *     (Freddie's persona/governance panes).
+   *   - `fill` — edge-to-edge; the pane owns its own layout (= `fullBleed`).
+   *     Right for viewers/timelines that should use the width (Files viewer,
+   *     FeedSurface, RecurrenceList).
+   */
+  contentWidth?: "form" | "reading" | "fill";
   /** Sidebar section header label (default "Settings panes" for a11y). */
   navLabel?: string;
 }
@@ -155,8 +174,14 @@ export function SettingsPaneShell({
   banner,
   header,
   fullBleed = false,
+  contentWidth,
   navLabel = "Settings panes",
 }: SettingsPaneShellProps) {
+  // Resolve the body-width policy. `contentWidth` is canonical; `fullBleed`
+  // is the legacy boolean alias (→ `fill`). Default is `form` (centered card
+  // column) to preserve the config-door behavior.
+  const widthMode: "form" | "reading" | "fill" =
+    contentWidth ?? (fullBleed ? "fill" : "form");
   const viewport = useViewport();
   const isNarrow = viewport.isMobile;
 
@@ -321,16 +346,19 @@ export function SettingsPaneShell({
   );
 
   // === body region ===========================================================
+  // Three width modes (2026-06-30): fill = edge-to-edge (viewers/timelines);
+  // reading = readable column LEFT-pinned next to the nav (prose/docs, no
+  // center gap); form = centered card column (config forms).
   const bodyChildren = navMode ? (
     children
-  ) : fullBleed ? (
+  ) : widthMode === "fill" ? (
     <div className="flex-1 min-w-0 min-h-0 overflow-hidden flex flex-col">
       {banner}
       {renderPane?.(activePane)}
     </div>
   ) : (
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-3xl mx-auto p-6">
+      <div className={widthMode === "reading" ? "max-w-3xl p-6" : "max-w-3xl mx-auto p-6"}>
         {banner}
         {renderPane?.(activePane)}
       </div>

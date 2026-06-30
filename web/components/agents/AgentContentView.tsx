@@ -823,14 +823,21 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
   // ADR-387 grouped sidebar — now mounts the shared SettingsPaneShell
   // (Singular Implementation, the 2026-06-30 unification: Freddie's forked
   // sidebar copy is deleted). The shell owns the responsive drill-in + the
-  // `agents.pane=` URL sync; Freddie passes its identity bar as `header` and
-  // wraps each pane body in the prior `max-w-3xl px-6 py-5` card column.
+  // `agents.pane=` URL sync; Freddie passes its identity bar as `header`.
+  // contentWidth="reading" (2026-06-30): Freddie's panes are prose (IDENTITY.md
+  // via WorkspaceFileView) + governance cards — a doc surface, not a config
+  // form. The shell pins them to a readable column LEFT-aligned next to the nav
+  // instead of the prior `mx-auto` centering, which floated the column
+  // dead-center in a maximized window (the awkward left gap). The former inner
+  // `max-w-3xl px-6 py-5` wrapper is dropped — the shell owns width + padding
+  // now (Singular Implementation; the cards are already width-unconstrained).
   return (
     <SettingsPaneShell
       windowSlug="agents"
       paneGroups={FREDDIE_PANE_GROUPS}
       defaultPane="identity"
       navLabel="Freddie panes"
+      contentWidth="reading"
       header={
         <SurfaceIdentityHeader
           title="Freddie"
@@ -841,9 +848,7 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
           }
         />
       }
-      renderPane={(pane) => (
-        <div className="max-w-3xl px-6 py-5">{renderFreddiePane(pane)}</div>
-      )}
+      renderPane={(pane) => renderFreddiePane(pane)}
     />
   );
 }
