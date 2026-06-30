@@ -25,10 +25,15 @@ import type { KernelSurfaceSlug } from '@/types/desk';
 // Window-grade like Home / Notifications; its panes re-mount existing mirror
 // bodies (ConnectedIntegrations → Connections, SourcesCard → Sources,
 // WorkspaceMembersCard → AI Connections, FeedSurface → Flow/In, EmissionsView
-// → Out). The legacy `feed` + `context` SLUGS map to ChannelsPage so any
-// legacy deck state foregrounding them mounts the live surface (Flow default),
-// never the redirect stub (which would paint an orphaned frame); the `/feed`
-// and `/context` ROUTES are ADR-308 redirect stubs → /channels.
+// → Out).
+//
+// ADR-385 follow-on (2026-06-30): the legacy `feed` + `context` alias slugs
+// are RETIRED from this registry (full alias deletion). They produced a
+// duplicate dock icon from stale persisted state; persisted dock state naming
+// them is now normalized → `channels` at the surface-preferences read boundary
+// (lib/shell/surface-preferences.ts), and the OLD `/feed` + `/context` URLs are
+// next.config.js server redirects. So nothing foregrounds `feed`/`context`
+// anymore — they need no registry entry.
 import ChannelsPage from '@/app/(authenticated)/channels/page';
 import HomePage from '@/app/(authenticated)/home/page';
 import RecurrencePage from '@/app/(authenticated)/recurrence/page';
@@ -75,13 +80,11 @@ import SettingsPage from '@/app/(authenticated)/settings/page';
 import WorkspaceSettingsPage from '@/app/(authenticated)/workspace-settings/page';  // ADR-347 — the one Settings door
 
 export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, ComponentType>> = {
-  // ADR-385 — the Channels perception+principal surface. `feed` + `context`
-  // are legacy alias slugs mapping to ChannelsPage (defaults to the Flow pane)
-  // so legacy deck state foregrounding them mounts the live surface, not the
-  // redirect stub.
+  // ADR-385 — the Channels perception+principal surface. (The legacy `feed` +
+  // `context` alias keys were deleted 2026-06-30 — full alias deletion; their
+  // slugs no longer exist in the union, persisted dock state is normalized →
+  // `channels`, and the old URLs are next.config redirects.)
   channels: ChannelsPage,
-  feed: ChannelsPage,
-  context: ChannelsPage,
   home: HomePage,
   recurrence: RecurrencePage,
   // ADR-309 (2026-06-01): `brand` slug DELETED. Brand is not a standalone

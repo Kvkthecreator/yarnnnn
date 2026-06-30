@@ -77,6 +77,45 @@ function key(prefix: string, userId: string): string {
 }
 
 // ----------------------------------------------------------------------------
+// Legacy-slug normalization (ADR-385 follow-on, 2026-06-30)
+// ----------------------------------------------------------------------------
+//
+// The `context` (ADR-385) and `feed` (ADR-370) surface slugs were renamed/
+// folded into `channels`. They were deleted from the registry + slug union
+// (full alias deletion). But persisted dock state (kept / open / foregrounded,
+// in localStorage) can still NAME them from before the rename. Left as-is, a
+// stale `context` entry rendered a SECOND `arrow-left-right` dock icon next to
+// the live `channels` one (the operator-observed duplicate), and a stale `feed`
+// entry pointed at a now-nonexistent registry row.
+//
+// Normalize on READ: every legacy alias collapses to `channels` (deduped), so a
+// returning operator's kept/open icon lands on the live Channels icon — no
+// vanished icon, no duplicate. The canonical map; extend if a future rename
+// retires another slug.
+const LEGACY_SLUG_ALIASES: Record<string, string> = {
+  context: 'channels',
+  feed: 'channels',
+};
+
+function normalizeSlug(slug: string): string {
+  return LEGACY_SLUG_ALIASES[slug] ?? slug;
+}
+
+/** Normalize + dedupe a persisted slug list (order-preserving). */
+function normalizeSlugList(slugs: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of slugs) {
+    const n = normalizeSlug(s);
+    if (!seen.has(n)) {
+      seen.add(n);
+      out.push(n);
+    }
+  }
+  return out;
+}
+
+// ----------------------------------------------------------------------------
 // Kept surfaces (D14 — was `pinned`)
 // ----------------------------------------------------------------------------
 //
@@ -92,7 +131,9 @@ export function getKeptSurfaces(userId: string): string[] {
     if (!raw) return DEFAULT_KEPT_SURFACES;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.every((s) => typeof s === 'string')) {
-      return parsed;
+      // Normalize legacy alias slugs (context/feed → channels, deduped) so a
+      // stale persisted dock entry doesn't render a duplicate icon.
+      return normalizeSlugList(parsed);
     }
     return DEFAULT_KEPT_SURFACES;
   } catch {
@@ -140,7 +181,8 @@ export function getOpenSurfaces(userId: string): string[] {
     if (!raw) return DEFAULT_OPEN_SURFACES;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.every((s) => typeof s === 'string')) {
-      return parsed;
+      // Normalize legacy alias slugs (context/feed → channels, deduped).
+      return normalizeSlugList(parsed);
     }
     return DEFAULT_OPEN_SURFACES;
   } catch {
@@ -184,7 +226,8 @@ export function getForegroundedSurface(userId: string): string | null {
   if (!isBrowser() || !userId) return DEFAULT_FOREGROUNDED_SURFACE;
   try {
     const raw = localStorage.getItem(key(FOREGROUND_KEY_PREFIX, userId));
-    return raw || DEFAULT_FOREGROUNDED_SURFACE;
+    // Normalize a stale legacy foregrounded slug (context/feed → channels).
+    return raw ? normalizeSlug(raw) : DEFAULT_FOREGROUNDED_SURFACE;
   } catch {
     return DEFAULT_FOREGROUNDED_SURFACE;
   }

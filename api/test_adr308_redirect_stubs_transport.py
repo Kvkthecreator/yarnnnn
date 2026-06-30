@@ -157,10 +157,14 @@ def test_server_redirect_targets_resolve() -> None:
 def test_known_stubs_are_server_transport() -> None:
     print("\n[3] the converted stubs use server redirect() (not client)")
 
-    # The 12 authenticated-interior stubs converted by ADR-308. Each must
+    # The authenticated-interior stubs converted by ADR-308. Each must
     # NOT be 'use client' and MUST call redirect().
+    # ADR-385 follow-on (2026-06-30): `context` removed from this list — its
+    # page-component stub was deleted (full alias deletion of the context/feed
+    # surface slugs); `/context` is now a next.config.js server redirect, not an
+    # in-app page stub. Asserted by test_adr385_channels_surface.py instead.
     converted = [
-        "backend", "brand", "chat", "context", "docs", "memory",
+        "backend", "brand", "chat", "docs", "memory",
         "operation", "orchestrator", "system", "team", "workfloor",
     ]
     for slug in converted:

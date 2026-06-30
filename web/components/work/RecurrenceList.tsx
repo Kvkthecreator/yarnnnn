@@ -504,7 +504,8 @@ function EmptySchedule({ hasFilters }: { hasFilters: boolean }) {
         </p>
         {!hasFilters && (
           <SurfaceLink
-            to="feed"
+            // ADR-385 follow-on (2026-06-30): narrative is the Channels Flow pane (`feed` alias retired).
+            to="channels"
             className="inline-flex items-center gap-2 rounded-md bg-foreground px-3.5 py-1.5 text-xs font-medium text-background hover:bg-foreground/90 transition-colors"
           >
             Talk to YARNNN

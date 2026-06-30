@@ -201,57 +201,23 @@ ARCHETYPES = (
 # land in Phase D (out of scope for D11 minimum-viable).
 
 KERNEL_SURFACES: list[dict[str, Any]] = [
-    {
-        # ADR-346 (2026-06-19) — Feed demoted primary → utilities. With the
-        # Operation composition fronting it (Understand pane), Feed stops being
-        # a default destination and becomes a reachable mirror (the escape
-        # hatch). The substrate read + route + deep-links all survive; only the
-        # launcher prominence drops (ADR-340 D1 "mirror once, compose few" —
-        # the cost optimized is launcher breadth, not surface count).
-        #
-        # ADR-370 (2026-06-25) — the Feed dissolves into the Context
-        # composition as its Flow lens (FeedSurface re-mounts there, one body
-        # / two mounts per ADR-340 D8). The `feed` slug is no longer an
-        # operator-reachable surface; `/feed` survives as an ADR-308 redirect
-        # stub (bookmark safety). default_pinned False (the launcher slot is
-        # inherited by the perception surface); the narrative substrate, render
-        # grammar, and the route-as-transport all survive unchanged.
-        #
-        # ADR-385 (2026-06-29) — the perception surface renamed `context` →
-        # `channels`. The `/feed` stub now redirects to
-        # /channels?channels.pane=flow.
-        "slug": "feed",
-        "launcher_tier": "search-only",  # ADR-370 — folded into Channels (Flow pane); reachable by name + as the Flow body
-        "register": "application",  # ADR-309 two-register model
-        "title": "Feed",
-        "archetype": "stream",
-        "substrate_paths": [],  # session_messages DB table
-        # ADR-385 (2026-06-29) — `feed` is a search-only legacy alias; no
-        # at-rest launcher consumes its icon (the scroll-text glyph is
-        # retired). The live perception surface is `channels` with the
-        # arrow-left-right (in↔out boundary) icon.
-        "icon_key": "scroll-text",
-        "default_pinned": False,  # ADR-370 — slot inherited by `channels`
-        "route": "/feed",
-        "summary": "Operator chat surface and multi-actor narrative timeline.",
-    },
-    {
-        # ADR-385 (2026-06-29) — `context` renamed → `channels`. The slug
-        # survives as a search-only legacy alias (parity with `feed`): the FE
-        # allowlist + SurfaceRegistry keep it for already-persisted deck/dock
-        # state (it maps to ChannelsPage), and `/context` is an ADR-308
-        # redirect stub → /channels. Not operator-reachable at-rest.
-        "slug": "context",
-        "launcher_tier": "search-only",
-        "register": "application",
-        "title": "Channels",  # borrows the live surface's title
-        "archetype": "dashboard",
-        "substrate_paths": [],
-        "icon_key": "arrow-left-right",
-        "default_pinned": False,  # slot inherited by `channels`
-        "route": "/context",
-        "summary": "Legacy alias of the Channels surface (renamed from Context, ADR-385).",
-    },
+    # ADR-385 follow-on (2026-06-30) — the legacy `feed` + `context` alias
+    # surface entries are DELETED (full alias deletion). They were search-only
+    # registry rows that still carried an `icon_key` + no `pane_of`, so any
+    # stale persisted dock entry (`kept`/`open`/`foregrounded` naming `feed` or
+    # `context` from before the renames) rendered a SECOND dock icon — for
+    # `context`, an identical `arrow-left-right` glyph next to the live
+    # `channels` icon — whose click bounced through the `/context`→`/channels`
+    # (resp. `/feed`→/channels?channels.pane=flow) redirect. That duplicate
+    # icon + confusing-redirect was the operator-observed symptom.
+    #
+    # The slugs are now retired from the registry entirely. Bookmark safety for
+    # the OLD external `/feed` + `/context` URLs moves to next.config.js
+    # `redirects()` (pure server transport, ADR-308). Persisted dock state that
+    # still names `feed`/`context` is normalized → `channels` at the
+    # surface-preferences read boundary (lib/shell/surface-preferences.ts), so a
+    # returning operator's kept icon collapses onto the live Channels icon —
+    # no vanished icon, no duplicate. (Was: two search-only alias rows here.)
     {
         # ADR-370 (2026-06-25) → ADR-377 (2026-06-26) → ADR-385 (2026-06-29):
         # Channels — the operation's perception + principal surface (was

@@ -183,7 +183,8 @@ export function SetupSequence() {
         <StepAction
           icon={<Sparkles className="w-3.5 h-3.5" />}
           label={constitutionAuthored ? 'Revisit in chat' : 'Author in chat'}
-          onClick={() => navigateToSurface('feed')}
+          // ADR-385 follow-on (2026-06-30): narrative is the Channels Flow pane.
+          onClick={() => navigateToSurface('channels')}
         />
       ),
     },

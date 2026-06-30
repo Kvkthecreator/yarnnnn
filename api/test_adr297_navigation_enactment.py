@@ -407,9 +407,20 @@ def _be_navigable_slugs() -> set[str]:
     return {s["slug"] for s in KERNEL_SURFACES if s.get("route")}
 
 
+def _strip_line_comments(text: str) -> str:
+    """Drop `// …` line comments so quoted-slug literals and semicolons INSIDE
+    comments don't pollute the slug parse / truncate the union early.
+    (2026-06-30: the union + array carry explanatory comments that mention
+    legacy slugs in quotes and contain semicolons — e.g. `(was 'operation')`,
+    `…surface-preferences.ts);` — which the prior regex mis-read as members or
+    used as the union's terminating `;`. Stripping comments first makes the
+    parser robust to comment content.)"""
+    return "\n".join(re.sub(r"//.*$", "", line) for line in text.splitlines())
+
+
 def _fe_slug_union() -> set[str]:
     """FE `KernelSurfaceSlug` type union members from types/desk.ts."""
-    src = (WEB / "types" / "desk.ts").read_text()
+    src = _strip_line_comments((WEB / "types" / "desk.ts").read_text())
     m = re.search(
         r"export type KernelSurfaceSlug\s*=\s*(.*?);", src, re.DOTALL
     )
@@ -418,7 +429,7 @@ def _fe_slug_union() -> set[str]:
 
 def _fe_slug_array() -> set[str]:
     """FE `KERNEL_SURFACE_SLUGS` runtime array from types/desk.ts."""
-    src = (WEB / "types" / "desk.ts").read_text()
+    src = _strip_line_comments((WEB / "types" / "desk.ts").read_text())
     m = re.search(
         r"export const KERNEL_SURFACE_SLUGS[^=]*=\s*\[(.*?)\]", src, re.DOTALL
     )

@@ -83,8 +83,9 @@ const AUTHOR_SURFACES = new Set([
 const SUPERVISE_SURFACES = new Set([
   'queue',
   'channels', // ADR-385 (was 'context') — the perception+principal read-surface workbench, narrow rail default
-  'context',  // legacy alias slug (ADR-385 redirect) — keep for already-persisted foreground state
-  'feed',     // legacy alias slug (ADR-370) — same
+  // ADR-385 follow-on (2026-06-30): the 'context'/'feed' legacy alias slugs are
+  // gone — persisted foreground state is normalized → 'channels' on read
+  // (surface-preferences.ts), so foregrounded can never be those slugs.
   'activity',
   'recurrence',
   'files',

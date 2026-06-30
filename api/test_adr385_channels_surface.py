@@ -59,30 +59,35 @@ def test_kernel_surface_is_channels():
     assert chan["launcher_tier"] == "primary"
     # the operator-preferred in/out arrows glyph is preserved
     assert chan["icon_key"] == "arrow-left-right"
-    # `context` survives only as a search-only legacy alias (parity with feed),
-    # NOT a primary at-rest surface
-    ctx = by_slug.get("context")
-    assert ctx is not None, "context legacy alias should exist for FE-allowlist parity"
-    assert ctx["launcher_tier"] == "search-only"
-    assert ctx["route"] == "/context"
+    # ADR-385 follow-on (2026-06-30): the `context` (and `feed`) legacy alias
+    # ROWS are DELETED (full alias deletion). They were search-only registry
+    # rows still carrying an `icon_key` + no `pane_of`, so any stale persisted
+    # dock entry rendered a SECOND `arrow-left-right` icon next to `channels`
+    # (the operator-observed duplicate + confusing /context→/channels redirect).
+    # The slugs are retired from the registry entirely; bookmark safety moved to
+    # next.config.js redirects, and persisted dock state is normalized →
+    # `channels` on read (web/lib/shell/surface-preferences.ts).
+    assert "context" not in by_slug, "context legacy alias row should be deleted"
+    assert "feed" not in by_slug, "feed legacy alias row should be deleted"
 
 
-# ---- 2. /context + /feed are redirect stubs ------------------------------
+# ---- 2. /context + /feed are next.config redirects (alias deletion) -------
 
-def test_context_route_is_redirect_stub():
-    src = _read_web(_CONTEXT_STUB)
-    assert "redirect(" in src
-    assert "/channels" in src
-    assert "'use client'" not in src and '"use client"' not in src
-    assert "context.pane" in src and "channels.pane" in src
+def test_context_and_feed_route_stubs_deleted():
+    # The page-component redirect stubs are removed (full alias deletion); the
+    # route directories should no longer hold a page.
+    assert not os.path.exists(os.path.join(_HERE, _CONTEXT_STUB)), \
+        "/context page stub should be deleted (next.config redirect now)"
+    assert not os.path.exists(os.path.join(_HERE, _FEED_STUB)), \
+        "/feed page stub should be deleted (next.config redirect now)"
 
 
-def test_feed_route_is_redirect_stub():
-    src = _read_web(_FEED_STUB)
-    assert "redirect(" in src
-    assert "/channels" in src
-    assert "channels.pane" in src and "flow" in src
-    assert "'use client'" not in src and '"use client"' not in src
+def test_context_and_feed_redirects_in_next_config():
+    src = _read_web("next.config.js")
+    # Bookmark safety for the old URLs lives in next.config.js redirects().
+    assert "redirects()" in src
+    assert "'/feed'" in src and "/channels?channels.pane=flow" in src
+    assert "'/context'" in src
 
 
 # ---- 3. Channels page shape ----------------------------------------------
@@ -169,14 +174,25 @@ def test_default_kept_is_channels():
     assert "DEFAULT_KEPT_SURFACES: string[] = ['channels']" in src
 
 
-def test_legacy_slugs_title_alias_to_channels():
-    src = _read_web("lib/compositor/surfaceTitle.ts")
-    assert "feed: 'channels'" in src
-    assert "context: 'channels'" in src
+def test_legacy_slugs_normalized_in_persisted_state():
+    # ADR-385 follow-on (2026-06-30): full alias deletion. The legacy `feed`/
+    # `context` slugs are normalized → `channels` ONCE, at the surface-
+    # preferences read boundary (replacing the scattered title/registry alias
+    # maps). The title-alias map is gone; the normalizer is the single point.
+    prefs = _read_web("lib/shell/surface-preferences.ts")
+    assert "LEGACY_SLUG_ALIASES" in prefs
+    assert "context: 'channels'" in prefs and "feed: 'channels'" in prefs
+    assert "normalizeSlugList" in prefs
+    # The render-alias title map is deleted (no longer needed — nothing
+    # foregrounds the legacy slugs after normalization).
+    title = _read_web("lib/compositor/surfaceTitle.ts")
+    assert "TITLE_ALIAS" not in title
 
 
-def test_registry_maps_channels_and_legacy_aliases():
+def test_registry_drops_legacy_aliases():
+    # ADR-385 follow-on (2026-06-30): the `feed`/`context` → ChannelsPage alias
+    # keys are DELETED from the registry (full alias deletion). Only `channels`.
     src = _read_web("components/shell/SurfaceRegistry.tsx")
     assert "channels: ChannelsPage" in src
-    assert "feed: ChannelsPage" in src
-    assert "context: ChannelsPage" in src
+    assert "feed: ChannelsPage" not in src
+    assert "context: ChannelsPage" not in src

@@ -47,12 +47,14 @@ def test_at_rest_launcher() -> None:
     tiers = {e["slug"]: e.get("launcher_tier") for e in KERNEL_SURFACES if e.get("route")}
     # D1/D3 — Workspace tier = the standing loop (Home + Notifications + Files
     # + Agents). Agents upgraded (D3).
-    # ADR-370 (2026-06-25): `context` (the boundary composition) joins the
-    # primary tier, inheriting the slot the Feed vacated when it folded into
-    # Context as the Flow lens.
+    # ADR-370 (2026-06-25): the boundary composition joins the primary tier,
+    # inheriting the slot the Feed vacated. ADR-385 (2026-06-29): that surface
+    # is `channels` (renamed from `context`). ADR-385 follow-on (2026-06-30):
+    # the legacy `context`/`feed` alias rows are DELETED, so the live primary
+    # perception surface is `channels`.
     check(
-        "primary == {home, context, notifications, files, agents}",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "context", "notifications", "files", "agents"},
+        "primary == {home, channels, notifications, files, agents}",
+        {s for s, t in tiers.items() if t == "primary"} == {"home", "channels", "notifications", "files", "agents"},
         str(sorted(s for s, t in tiers.items() if t == "primary")),
     )
     # D4 — two settings doors.
@@ -71,7 +73,13 @@ def test_mirrors_and_setup_search_only() -> None:
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
     # D1/D6 — the fronted mirrors go search-only (summon by name, not browse).
-    for slug in ("feed", "queue", "recurrence"):
+    # ADR-385 follow-on (2026-06-30): `feed` is no longer a mirror row — it was
+    # DELETED with `context` (full alias deletion); the narrative lives in the
+    # Channels Flow pane and `/feed` is a next.config redirect. Removed from the
+    # mirror loop.
+    check("feed is no longer a registry slug (alias deleted, 2026-06-30)",
+          "feed" not in by_slug)
+    for slug in ("queue", "recurrence"):
         check(f"{slug} is search-only (fronted by Notifications)",
               by_slug[slug].get("launcher_tier") == "search-only")
         # Mirrors NOT deleted (ADR-346 D1) — still real windowed surfaces.

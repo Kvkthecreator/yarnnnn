@@ -24,9 +24,14 @@
 // spoke "recurrence"; only the surface label lagged). /cadence is a
 // redirect stub.
 export type KernelSurfaceSlug =
-  | 'channels'  // ADR-385 — the perception + principal surface (was 'context'). Connections · Sources · AI Connections + Flow · In · Out
-  | 'feed'  // ADR-370 — folded into channels (Flow pane); legacy alias slug + /feed redirect stub
-  | 'context'  // ADR-385 — renamed → 'channels'; legacy alias slug + /context redirect stub
+  | 'channels'  // ADR-385 — the perception + principal surface (was the context surface). Connections · Sources · AI Connections + Flow · In · Out
+  // ADR-385 follow-on (2026-06-30): the legacy feed + context alias slugs are
+  // DELETED from the union (full alias deletion — they caused a duplicate dock
+  // icon from stale persisted state). Persisted dock state naming them is
+  // normalized to channels by the surface-preferences read boundary, and the
+  // old /feed + /context URLs are next.config.js server redirects. (Keep this
+  // comment free of quoted-slug literals AND semicolons — the ADR-297 parity
+  // gate parses the union up to the first semicolon and reads quoted names.)
   | 'home'
   | 'recurrence'
   | 'budget'
@@ -70,7 +75,7 @@ export type DeskSurface =
   | { type: 'idle' };
 
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
-  'channels', 'feed', 'context', 'home', 'recurrence', 'budget', 'autonomy', 'expected-output', 'mandate', 'principles',
+  'channels', 'home', 'recurrence', 'budget', 'autonomy', 'expected-output', 'mandate', 'principles',
   'identity', 'files', 'agents', 'setup', 'program', 'queue', 'notifications', 'activity',
   'settings', 'workspace-settings', 'connectors', 'sources',
 ] as const;

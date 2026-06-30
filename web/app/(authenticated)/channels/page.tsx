@@ -40,7 +40,9 @@
  * connection into the Flow narrative + the in-card coverage/freshness — NOT a
  * per-event inbound ledger (platform_content was sunset by ADR-153).
  *
- * `/context` and `/feed` are ADR-308 redirect stubs onto this surface.
+ * `/context` and `/feed` redirect onto this surface — as of the ADR-385
+ * follow-on (2026-06-30) via next.config.js `redirects()` (the legacy `context`
+ * + `feed` surface slugs + their page stubs were deleted; full alias deletion).
  *
  * Mounts the shared SettingsPaneShell (Singular Implementation — same shell
  * behind System/Workspace Settings) in fullBleed mode so the Flow pane fills

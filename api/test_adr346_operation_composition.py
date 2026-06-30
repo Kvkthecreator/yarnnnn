@@ -81,9 +81,11 @@ def test_mirrors_survive() -> None:
               "found redirect() — mirror was stubbed")
 
     # ADR-349: the fronted mirrors go search-only (summon by name, not browse)
-    # — the Utilities tier dissolved; Notifications fronts them. (feed: per
-    # ADR-370 it stays search-only as the Flow-lens body; its tier is unchanged.)
-    check("feed is search-only (Flow-lens body; ADR-370)", by_slug["feed"].get("launcher_tier") == "search-only")
+    # — the Utilities tier dissolved; Notifications fronts them. ADR-385
+    # follow-on (2026-06-30): `feed` was DELETED (full alias deletion with
+    # `context`); the narrative is the Channels Flow pane and `/feed` is a
+    # next.config redirect, so `feed` is no longer a registry slug.
+    check("feed is no longer a registry slug (alias deleted, 2026-06-30)", "feed" not in by_slug)
     check("queue is search-only (fronted by Notifications)", by_slug["queue"].get("launcher_tier") == "search-only")
     check("recurrence is search-only (fronted by Notifications)", by_slug["recurrence"].get("launcher_tier") == "search-only")
 

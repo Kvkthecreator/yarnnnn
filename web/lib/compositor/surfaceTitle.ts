@@ -10,19 +10,14 @@
 
 import type { Surface } from '@/lib/compositor/types';
 
-// Render-alias slugs: a slug that the SurfaceRegistry maps to ANOTHER surface's
-// component should borrow that surface's TITLE too. `feed` + `context` both
-// render ChannelsPage (ADR-370 — Feed dissolved into the perception surface;
-// ADR-385 — that surface renamed `context` → `channels`), so a window/dock
-// state still foregrounding the legacy `feed`/`context` slugs must read
-// "Channels". Without this, existing operators (with `feed`/`context` persisted
-// in their kept/foreground localStorage) saw a stale title even though the body
-// IS Channels. The DEFAULT_KEPT fix covers fresh/cleared operators; this covers
-// the already-persisted ones.
-const TITLE_ALIAS: Record<string, string> = {
-  feed: 'channels',
-  context: 'channels',
-};
+// ADR-385 follow-on (2026-06-30): the render-alias TITLE map (`feed`/`context`
+// → `channels`) is DELETED. Those legacy slugs were retired from the registry
+// (full alias deletion); persisted dock/foreground state naming them is now
+// normalized → `channels` at the surface-preferences READ boundary
+// (lib/shell/surface-preferences.ts), so no `feed`/`context` slug ever reaches
+// this resolver. The single normalization point replaces the scattered
+// per-consumer alias handling (registry / title / chat-drawer) — Singular
+// Implementation.
 
 /**
  * @param surfaces composition.surfaces (may be undefined before load)
@@ -35,7 +30,7 @@ export function surfaceTitleFor(
   fallback = 'Desktop'
 ): string {
   if (!slug) return fallback;
-  const resolved = TITLE_ALIAS[slug] ?? slug;
+  const resolved = slug;
   const match = (surfaces || []).find((s) => s.slug === resolved);
   if (match?.title) return match.title;
   // Title-Case the slug as a last resort (e.g. "workspace-settings" →

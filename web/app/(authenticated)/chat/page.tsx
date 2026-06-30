@@ -1,5 +1,9 @@
 /**
- * Legacy /chat route — redirects to /feed per ADR-259 (Feed Surface).
+ * Legacy /chat route — redirects to the Channels surface's Flow pane (the
+ * narrative). ADR-259 originally pointed it at /feed; ADR-385 folded the Feed
+ * into Channels as the Flow pane, and the ADR-385 follow-on (2026-06-30) DELETED
+ * the `/feed` page stub (full alias deletion). So `/chat` now redirects DIRECTLY
+ * to /channels?channels.pane=flow — no double-hop through the retired /feed.
  *
  * Preserves query params so deep-linked operator bookmarks survive the
  * vocabulary migration.
@@ -15,6 +19,7 @@ export default function ChatRedirect({
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
-  const qs = new URLSearchParams(searchParams as Record<string, string>).toString();
-  redirect(qs ? `/feed?${qs}` : '/feed');
+  const params = new URLSearchParams(searchParams as Record<string, string>);
+  if (!params.has('channels.pane')) params.set('channels.pane', 'flow');
+  redirect(`/channels?${params.toString()}`);
 }

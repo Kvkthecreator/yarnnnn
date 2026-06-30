@@ -57,11 +57,13 @@ function useIsFirstTime(): boolean {
   if (open.length > 0) return false;
   if (Object.keys(windowStates).length > 0) return false;
   // Default-kept set is ['channels'] (ADR-385; was ['context'] per ADR-377 D3,
-  // 'feed' before that — accept the legacy aliases so a returning operator
-  // whose persisted set is an old default isn't misclassified). If the
-  // operator modified it (added/removed surfaces), they've used the workspace.
+  // 'feed' before that). ADR-385 follow-on (2026-06-30): legacy 'context'/'feed'
+  // kept entries are normalized → 'channels' on read (surface-preferences.ts),
+  // so an old default reads as ['channels'] and isn't misclassified — the
+  // alias list here is no longer needed. If the operator modified the set
+  // (added/removed surfaces), they've used the workspace.
   if (kept.length !== 1) return false;
-  if (!['channels', 'context', 'feed'].includes(kept[0])) return false;
+  if (kept[0] !== 'channels') return false;
   return true;
 }
 

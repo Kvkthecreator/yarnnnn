@@ -91,9 +91,11 @@ def test_register_split_intent_vs_os_config():
         assert by_slug[slug]["register"] == "os-config", (
             f"ADR-312 D5: '{slug}' belongs to the `os-config` register."
         )
-    # `application` register — unchanged.
+    # `application` register — unchanged. ADR-385 follow-on (2026-06-30): the
+    # `feed` alias row was deleted; `channels` (which inherited Feed's slot and
+    # carries the Flow narrative pane) is the live application-register surface.
     assert by_slug["home"]["register"] == "application"
-    assert by_slug["feed"]["register"] == "application"
+    assert by_slug["channels"]["register"] == "application"
 
 
 # ---------------------------------------------------------------------------

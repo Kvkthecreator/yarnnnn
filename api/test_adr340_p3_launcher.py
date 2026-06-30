@@ -50,10 +50,12 @@ def test_registry_tiers() -> None:
         # ADR-349 D1/D3: primary == the standing loop — Home + Notifications
         # (the composition, was 'operation') + Files + Agents (the judgment
         # seat upgraded to first-class).
-        # ADR-370 (2026-06-25): `context` (the boundary composition) joins the
-        # primary tier, inheriting the slot the Feed vacated.
-        "primary == the standing loop (home/context/notifications/files/agents)",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "context", "notifications", "files", "agents"},
+        # ADR-370 (2026-06-25): the boundary composition joins the primary tier,
+        # inheriting the slot the Feed vacated. ADR-385 (2026-06-29): renamed
+        # `context` → `channels`. ADR-385 follow-on (2026-06-30): the legacy
+        # `context`/`feed` alias rows are deleted; the live primary is `channels`.
+        "primary == the standing loop (home/channels/notifications/files/agents)",
+        {s for s, t in tiers.items() if t == "primary"} == {"home", "channels", "notifications", "files", "agents"},
     )
     # ADR-349 D4: two settings doors re-split — Workspace Settings (operation)
     # + System Settings (account). The `configure` lump (ADR-347) is retired.
@@ -69,13 +71,15 @@ def test_registry_tiers() -> None:
     check("Utilities tier dissolved (no member carries it)",
           not any(t == "utilities" for t in tiers.values()))
     check(
-        # ADR-349: the fronted mirrors (feed/queue/recurrence), Setup, and all
-        # panes go search-only. Agents upgraded to primary (D3).
+        # ADR-349: the fronted mirrors (queue/recurrence), Setup, and all panes
+        # go search-only. Agents upgraded to primary (D3). ADR-385 follow-on
+        # (2026-06-30): `feed` (and `context`) deleted — the narrative is the
+        # Channels Flow pane; `/feed` is a next.config redirect, not a surface.
         "search-only == mirrors + Setup + panes (the at-rest-hidden set)",
         {s for s, t in tiers.items() if t == "search-only"}
         == {"mandate", "principles", "identity", "budget", "autonomy", "expected-output",
             "program", "connectors", "sources", "activity",
-            "feed", "queue", "recurrence", "setup"},
+            "queue", "recurrence", "setup"},
     )
     chrome = [e for e in KERNEL_SURFACES if not e.get("route")]
     check("chrome entries carry no tier", all(not e.get("launcher_tier") for e in chrome))
