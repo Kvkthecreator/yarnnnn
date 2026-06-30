@@ -1,6 +1,8 @@
 # Perception and the Principal Commons — a first-principles pass on Freddie's wake envelope
 
-**Date**: 2026-06-30. **Status**: analysis / direction — NOT ratified canon. Doc-first; probe before building.
+> **UPDATE 2026-06-30 — RATIFIED + IMPLEMENTED as [ADR-389](../adr/ADR-389-principal-vs-peripheral-and-the-steward-shaped-envelope.md).** The principal-vs-peripheral taxonomy (§2) is the ADR's D1; the steward-shaped envelope (§3) shipped as the principal-commons fact + peripheral-field fact + refolded attribution. The operator chose "full steward envelope now" over the probe-gated sequence (§7) — the envelope work landed first; the catch-closing validation wake is the remaining step (ADR-389 §5). The primitive audit (§4) verdict held: reach is sufficient, the gap was pre-load/salience.
+
+**Date**: 2026-06-30. **Status**: ~~analysis / direction — NOT ratified canon~~ → **ratified as ADR-389**. Doc-first; probe before building.
 **Companion finding**: [2026-06-30-perception-envelope-completeness-FINDING.md](../evaluations/2026-06-30-perception-envelope-completeness-FINDING.md) (the receipted gap).
 **Origin**: the operator's read of the attribution-fact arc — "the prompt envelope + primitives may need revisiting from first principles, because the current setup still assumes the pre-Freddie reviewer posture; and I'm not sure how Sources/Connections are fundamentally different from an MCP-AI writing documents into the substrate — if that nuance needs its own scoping, now is the time."
 

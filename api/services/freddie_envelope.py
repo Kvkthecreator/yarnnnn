@@ -385,6 +385,18 @@ async def load_freddie_governance_envelope(
     # bare-Freddie eval gap (Finding 1): a sweep can now SEE attribution drift.
     envelope["attribution_fact"] = await _attribution_fact(client, user_id)
 
+    # --- Principal commons + peripheral field (steward-envelope re-scope, 2026-06-30) ---
+    # The steward-shaped envelope: perceive the workspace as a commons-with-a-
+    # perimeter, not just a governance packet. The principal commons gives the
+    # attribution fact a REFERENT (who may write, who did) so the steward can
+    # judge a stamp's honesty; the peripheral field gives connection-hygiene +
+    # source-freshness perceptible state. Both DP19-clean (present, don't judge),
+    # both empty on a quiet single-owner bare workspace (no noise on program
+    # wakes). See docs/analysis/perception-and-the-principal-commons-first-
+    # principles-2026-06-30.md + the ADR for the principal-vs-peripheral taxonomy.
+    envelope["principal_commons_fact"] = await _principal_commons_fact(client, user_id)
+    envelope["peripheral_field_fact"] = await _peripheral_field_fact(client, user_id)
+
     elapsed_ms = int(
         (datetime.now(timezone.utc) - _started_at).total_seconds() * 1000
     )
@@ -687,4 +699,178 @@ async def _attribution_fact(client: Any, user_id: str) -> str:
         lines.append(f"- {path} · authored_by: {author}{msg_str}")
         if len(lines) >= _ATTRIBUTION_FACT_LIMIT:  # cap DISTINCT paths
             break
+    return "\n".join(lines)
+
+
+async def _principal_commons_fact(client: Any, user_id: str) -> str:
+    """The principal-commons fact — WHO can write this workspace, and who DID
+    recently (the steward-envelope re-scope, 2026-06-30; see
+    docs/analysis/perception-and-the-principal-commons-first-principles-2026-06-30.md).
+
+    The attribution fact (above) presents `path · authored_by` — but a bare
+    `authored_by: operator` string has no REFERENT: the steward cannot judge
+    whether the stamp is honest without knowing who the workspace's principals
+    are. This fact is that referent. It presents two things:
+
+      1. THE ROSTER — each active principal_grants row: principal · role · the
+         write-regions it may author (ADR-373). This is the set the
+         attribution-integrity rule checks a stamp against ("the only `operator`
+         principal is human X; this AI-voiced content stamped `operator` does not
+         fit any human principal").
+      2. RECENT AUTHORSHIP BY PRINCIPAL — a GROUP-BY over recent
+         workspace_file_versions: per distinct authored_by, how many revisions in
+         the window. Shows the steward who is ACTIVELY writing (a foreign-LLM
+         dumping, a `system:` mechanism mirroring) vs merely granted.
+
+    DP19-clean (present, don't judge): the kernel presents the roster + the
+    counts; the steward's `attribution-integrity` rule decides whether any write
+    is mis-attributed. Forward-compatible with the re-founding (provenance-as-
+    metadata): the recent-authorship half IS a `GROUP BY principal` over the
+    ledger, which is what the re-founding wants the commons to be. Sourced from
+    the SAME roster logic as the Workspace Members surface (services.principals).
+
+    Empty string when there is neither a roster beyond the lone owner NOR recent
+    authorship — a quiet single-owner workspace has no commons to reconcile (no
+    noise on program wakes). Never raises.
+    """
+    from services.principals import load_principal_roster
+
+    try:
+        roster = load_principal_roster(client, user_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[REVIEWER_ENVELOPE] principal-commons roster read failed user=%s: %s",
+            user_id[:8], exc,
+        )
+        roster = []
+
+    # Recent authorship GROUP-BY (the active half of the commons). Reuse the
+    # attribution window so the two facts describe the same recent slice.
+    counts: dict[str, int] = {}
+    try:
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(hours=_ATTRIBUTION_FACT_WINDOW_HOURS)
+        ).isoformat()
+        res = (
+            client.table("workspace_file_versions")
+            .select("authored_by")
+            .eq("user_id", user_id)
+            .gte("created_at", cutoff)
+            .order("created_at", desc=True)
+            .limit(_ATTRIBUTION_FACT_LIMIT * 12)  # over-fetch; collapses to a few authors
+            .execute()
+        )
+        for r in res.data or []:
+            who = (r.get("authored_by") or "?").strip() or "?"
+            counts[who] = counts.get(who, 0) + 1
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[REVIEWER_ENVELOPE] principal-commons authorship read failed user=%s: %s",
+            user_id[:8], exc,
+        )
+
+    # A single-owner workspace with no foreign principals and no recent
+    # cross-principal activity has no commons to tend — stay silent.
+    non_owner_principals = [p for p in roster if p.get("role") != "owner"]
+    if not non_owner_principals and len(counts) <= 1:
+        return ""
+
+    lines: list[str] = []
+    if roster:
+        lines.append("Principals (who holds a grant to write this workspace):")
+        for p in roster:
+            role = p.get("role") or "?"
+            regions = ", ".join(p.get("write_regions") or []) or "(none)"
+            # Name WHAT KIND of principal, so the attribution check has a referent.
+            # An owner's principal_id is the user_id (a UUID) — don't leak it;
+            # name it as the human operator (the `operator` stamp's true author).
+            # foreign-llm/platform/a2a get their humanized room label. The KIND is
+            # the load-bearing fact: `operator` stamps must match the human owner's
+            # voice; `yarnnn:mcp:*` stamps must match a foreign-LLM principal.
+            if role == "owner":
+                who = "the human operator (writes as `operator`)"
+            elif p.get("label"):
+                kind = "foreign LLM" if role == "foreign-llm" else role
+                who = f"{p['label']} ({kind}, writes as `yarnnn:mcp:{p['label']}`)" \
+                    if role in ("foreign-llm", "platform", "a2a") else p["label"]
+            else:
+                who = role
+            lines.append(f"- {who} · role: {role} · may write: {regions}")
+    if counts:
+        lines.append("")
+        lines.append("Recent authorship (revisions in the last "
+                     f"{_ATTRIBUTION_FACT_WINDOW_HOURS}h, by attribution):")
+        for who, n in sorted(counts.items(), key=lambda kv: kv[1], reverse=True):
+            lines.append(f"- {who} · {n} revision{'s' if n != 1 else ''}")
+    return "\n".join(lines)
+
+
+async def _peripheral_field_fact(client: Any, user_id: str) -> str:
+    """The peripheral-field fact — the HEALTH of the non-principal transports that
+    feed the operation (the steward-envelope re-scope, 2026-06-30).
+
+    A PERIPHERAL (ADR-335: "transports are peripherals, driver-class, transport-
+    blind judgment") is a feed or an API — no intent, no grant, attributed to the
+    `system:` mechanism that operated it. The steward's duty over peripherals is
+    not HONESTY (there is no "who" to lie) but HEALTH: is what feeds the operation
+    live and current? This is the substrate the persona-frame's `connection-
+    hygiene` duty ("are declared connections live?") needs — without it the duty
+    has no perceptible state, the gap the 2026-06-30 perception-envelope-
+    completeness finding named.
+
+    Presents two peripheral classes:
+      - CONNECTIONS — platform_connections rows: platform · status. The OAuth/
+        capability layer (ADR-153/264): a connection gates tools + (via
+        SyncPlatformState) mirrors external state into substrate as
+        `system:sync-platform-state`.
+      - SOURCES — declared web/RSS watches (ADR-335/336): presented as their
+        count + last-observed freshness IF a watch-signal file exists. (The
+        steward ReadFiles the signal for detail; this is the discovery surface.)
+
+    DP19-clean: presents status, does not judge. Empty string when the workspace
+    has neither connections nor declared sources (a bare workspace has no
+    perimeter — no noise). Never raises.
+    """
+    lines: list[str] = []
+
+    # --- Connections (platform_connections) ---
+    try:
+        res = (
+            client.table("platform_connections")
+            .select("platform, status")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        conns = res.data or []
+        if conns:
+            lines.append("Connections (platform transports — capability + mirrored state):")
+            for c in conns:
+                platform = c.get("platform") or "?"
+                status = c.get("status") or "?"
+                lines.append(f"- {platform} · status: {status}")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[REVIEWER_ENVELOPE] peripheral connections read failed user=%s: %s",
+            user_id[:8], exc,
+        )
+
+    # --- Sources (declared web/RSS watches) ---
+    # Discovery-surface only: the count of declared sources, sourced from the
+    # active bundle's watch declarations. The steward ReadFiles the signal file
+    # for per-source freshness. Best-effort: bundle reader may have no watches.
+    try:
+        from services import bundle_reader
+        watches = bundle_reader.get_watches_for_workspace(user_id, client) or []
+        if watches:
+            if lines:
+                lines.append("")
+            lines.append(f"Sources (declared standing watches — perception field): "
+                         f"{len(watches)} declared. ReadFile the watch signal for "
+                         f"per-source freshness.")
+    except Exception as exc:  # noqa: BLE001
+        logger.debug(
+            "[REVIEWER_ENVELOPE] peripheral sources read skipped user=%s: %s",
+            user_id[:8], exc,
+        )
+
     return "\n".join(lines)

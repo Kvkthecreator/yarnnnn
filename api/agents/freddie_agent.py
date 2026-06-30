@@ -1011,15 +1011,44 @@ def _partition_envelope(trigger: str, ctx: FreddieContext) -> tuple[str, str]:
             "",
         ]
 
+    # Steward-envelope re-scope (2026-06-30): the PRINCIPAL COMMONS — who holds a
+    # grant to write this workspace, and who authored recently. This is the
+    # REFERENT the attribution check needs: a bare `authored_by: operator` stamp
+    # is unjudgeable without knowing the workspace's principals (the catch the
+    # attribution-fact arc kept missing — content read AI-voiced but the steward
+    # had nothing to check the `operator` stamp against). PRESENTED not judged
+    # (DP19). Renders before the attribution fact so the steward reads roster →
+    # recent authorship → per-path attribution as one coherent commons view.
+    # Empty (silent) on a quiet single-owner bare workspace.
+    if ctx.get("principal_commons_fact"):
+        parts += [
+            "## Principal commons — who may write this workspace, and who did",
+            "",
+            "A PRINCIPAL is an intent-bearing, grant-backed identity that "
+            "attributes as itself (the owner, members, your own agents, foreign "
+            "LLMs via MCP, A2A callers). This is presented, not judged — it is the "
+            "REFERENT for your `attribution-integrity` rule. When you read the "
+            "attribution fact below, check each stamp against THIS roster: a "
+            "revision stamped `operator` whose content reads as an external LLM's "
+            "voice is a violation precisely because the `operator` principal is a "
+            "specific human, and this is not their writing. A stamp with no "
+            "matching principal, or a principal writing outside its granted "
+            "regions, is the integrity question to act on (fix where you authored "
+            "it, flag where another principal did).",
+            "",
+            ctx["principal_commons_fact"],
+            "",
+        ]
+
     # ADR-387 follow-on (2026-06-30): the attribution fact — recent revisions +
     # their authored_by, PRESENTED not judged (the perception analogue of the
-    # reflection gap-fact). This is the steward's surface for the intake-placement
-    # + attribution-integrity duties: a sweep can SEE who wrote what recently and
-    # decide whether any attribution is wrong (AI-voiced content stamped
-    # `operator`, a foreign-LLM dump left unplaced) — the gap the bare-Freddie
-    # eval found (Finding 1: the file was placed but the authored_by lie was
-    # accepted because nothing surfaced it). Only renders when there is recent
-    # activity (empty on a quiet workspace — no noise on program wakes).
+    # reflection gap-fact). The per-path detail layer of the principal commons
+    # above: a sweep SEES who wrote what recently and decides whether any
+    # attribution is wrong (AI-voiced content stamped `operator`, a foreign-LLM
+    # dump left unplaced) — checked against the roster above. The gap the
+    # bare-Freddie eval found (Finding 1: the file was placed but the authored_by
+    # lie was accepted because nothing surfaced it OR gave it a referent). Only
+    # renders when there is recent activity (empty on a quiet workspace).
     if ctx.get("attribution_fact"):
         parts += [
             "## Attribution fact — recent revisions and who authored them",
@@ -1027,17 +1056,43 @@ def _partition_envelope(trigger: str, ctx: FreddieContext) -> tuple[str, str]:
             "Each line: a recently-written path · its `authored_by` · the revision "
             "message. This is presented, not judged — YOU judge whether any "
             "attribution is wrong or any intake is unplaced, applying your "
-            "`attribution-integrity` and `intake-placement` rules (principles.md). "
+            "`attribution-integrity` and `intake-placement` rules (principles.md), "
+            "**checking each stamp against the principal commons above**. "
             "Read the line against the file's content when something looks off: "
             "content that reads as one principal's voice (e.g. an external LLM's) "
             "stamped as another's (e.g. `operator`) is an attribution-integrity "
             "violation to fix or flag; a raw `remember`/inbound dump with no "
             "deriving revision citing it is an intake-placement situation to place. "
             "Don't assume the stamp is honest because it is present — verify voice "
-            "against attribution. (This is a recent-activity scan, not the full "
-            "ledger; ListRevisions a specific path for its complete chain.)",
+            "against attribution, and attribution against the roster. (This is a "
+            "recent-activity scan, not the full ledger; ListRevisions a specific "
+            "path for its complete chain.)",
             "",
             ctx["attribution_fact"],
+            "",
+        ]
+
+    # Steward-envelope re-scope (2026-06-30): the PERIPHERAL FIELD — the health of
+    # the non-principal transports that feed the operation (connections, sources).
+    # A peripheral is driver-class (a feed, an API) with no intent — you judge its
+    # HEALTH (is it live? current?), not its honesty (there is no "who" to lie).
+    # This is the substrate your `connection-hygiene` duty needs. PRESENTED not
+    # judged (DP19). Empty (silent) on a bare workspace with no perimeter.
+    if ctx.get("peripheral_field_fact"):
+        parts += [
+            "## Peripheral field — health of the transports that feed the operation",
+            "",
+            "Connections and sources are PERIPHERALS — driver-class transports "
+            "with no standing intent (unlike a principal). You tend their HEALTH, "
+            "not their honesty: is a declared connection live or expired, is a "
+            "source still observing or gone stale? Their writes are correctly "
+            "attributed to the `system:` mechanism that operated them (e.g. "
+            "`system:track-web-sources`, `system:sync-platform-state`) — that is "
+            "honest by construction, never an attribution violation. This is "
+            "presented, not judged — surface or act on a transport that has gone "
+            "dark if your mandate depends on what it feeds.",
+            "",
+            ctx["peripheral_field_fact"],
             "",
         ]
 

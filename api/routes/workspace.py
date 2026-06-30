@@ -751,32 +751,11 @@ async def get_recent_artifacts(
 # facts the gate reads. Provisioning (invite / scope) is a separate ADR — this
 # is legibility only.
 
-#: The five semantic-class roots, for rendering the class-default write-region
-#: set as the COMPLEMENT of CALLER_WRITE_POLICY's locked prefixes.
-_ALL_WRITE_ROOTS = (
-    "governance/", "constitution/", "persona/", "operation/", "system/", "contract/",
-)
-
-#: principal_grants.role → the CALLER_WRITE_POLICY class key whose default the
-#: role inherits (ADR-373 D3 table). owner→operator, foreign-llm→mcp,
-#: own-agent/member→agent (the member ceiling), platform/a2a→mcp (lowest-trust).
-_ROLE_TO_CLASS = {
-    "owner": "operator",
-    "member": "agent",
-    "own-agent": "agent",
-    "foreign-llm": "mcp",
-    "platform": "mcp",
-    "a2a": "mcp",
-}
-
-
-def _class_default_write_regions(role: str) -> list[str]:
-    """The write-region set a role inherits from its class default (the
-    complement of the class's locked prefixes in CALLER_WRITE_POLICY)."""
-    from services.workspace_paths import CALLER_WRITE_POLICY
-    klass = _ROLE_TO_CLASS.get(role, "agent")
-    locked = set(CALLER_WRITE_POLICY.get(klass, ()))
-    return [r for r in _ALL_WRITE_ROOTS if r not in locked]
+# The class-default write-region logic now lives in services/principals.py (the
+# shared principal-commons home) so the steward wake envelope reads the SAME
+# roster logic this route does — Singular Implementation. Re-exported under the
+# route's prior private name to keep call sites below unchanged.
+from services.principals import class_default_write_regions as _class_default_write_regions
 
 
 @router.get("/workspace/members", response_model=WorkspaceMembersResponse)

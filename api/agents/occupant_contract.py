@@ -188,6 +188,18 @@ class FreddieContext(TypedDict, total=False):
     # authored_by lie because nothing surfaced it). Empty when no recent
     # revisions. Analogous to reflection_gap_fact but on the perception axis.
     attribution_fact: str
+    # Steward-envelope re-scope (2026-06-30): the workspace as a commons-with-a-
+    # perimeter. The principal commons (WHO may write + who DID recently) gives
+    # the attribution_fact a REFERENT — the steward cannot judge whether
+    # `authored_by: operator` is honest without knowing the workspace's
+    # principals. The peripheral field (connection + source HEALTH) gives the
+    # connection-hygiene + source-freshness duties perceptible state. Both
+    # present-not-judged (DP19), both empty on a quiet single-owner bare
+    # workspace. See docs/analysis/perception-and-the-principal-commons-first-
+    # principles-2026-06-30.md. principal = intent-bearing/grant-backed (judge
+    # HONESTY); peripheral = driver-class transport (judge HEALTH).
+    principal_commons_fact: str
+    peripheral_field_fact: str
     # Domain substrate
     ground_truth_md: str
     risk_md: str
