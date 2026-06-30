@@ -92,3 +92,29 @@ The lifecycle and the consult compose with no drift. The architecture is coheren
 **ADR-386 is PRODUCTION-SOUND.** Schema, indexes, RLS, FK (L1); the live helpers incl. the reconnect cycle + owner-immutability (L2); the deployed API endpoints incl. the 403 self-lockout guard (L3); the auto-provision hook deployed + resolution-sound (L4); and the lifecycle↔consult coherence — all confirmed with substrate-receipts against the live system. Zero production grants were mutated (11 owner grants intact, 0 test residue).
 
 **One named, non-faked gap:** the auto-provision's first live grant row is observed on the next real foreign-LLM re-authorization (browser OAuth handshake required), not forceable headless. The path is deployed and sound; only its first firing awaits a real connect.
+
+---
+
+## Gap CLOSED — 2026-06-30 (the D1.a amendment)
+
+The named gap above turned out to be *more* than "awaits a real connect." A follow-up live measurement (2026-06-30, prompted by the operator noticing the External-Agents/AI-Connections pane reading EMPTY despite "Claude saved to memory" activity) found the real shape:
+
+- **Tokens were minting, but as REFRESH ROTATIONS, not authorizes.** Live receipt: Claude client `2308d0a8…` had 1 refresh token (newest 02:31, signature of rotation) + 18 access tokens, and 0 rows in `mcp_oauth_codes` (no authorize in flight). Every one of the 7 active clients authorized *before* the hook deployed and stays alive via silent `exchange_refresh_token` rotation — which the authorize-only hook never fired for. So a *real reconnect* wasn't even guaranteed to fix it (a connector "refresh" rotates rather than re-authorizes).
+- **This was an empty-but-honest pane, not a display bug.** `GET /api/workspace/members` faithfully showed 0 foreign-llm members because there were genuinely 0 grant rows. The substrate was wrong relative to reality, not the surface.
+
+**The fix (ADR-386 D1.a):** provisioning now fires on the refresh path too (`_ensure_foreign_llm_grant`, one shared helper, both OAuth sites) + a one-time backfill (`scripts/oneshot/adr386_backfill_foreign_llm_grants.py`).
+
+**Receipts (live DB):**
+| | BEFORE 02:38 | AFTER backfill 03:06 |
+|---|---|---|
+| owner grants | 11 | 11 (untouched) |
+| foreign-llm grants | **0** | **7** (2 ChatGPT + 5 Claude → workspace `d5b9029b`) |
+
+- All 7: `status=active`, `scopes=NULL` (mcp class default = `operation/`), `granted_by=system:adr386-backfill`.
+- **Idempotency proven live**: re-run `--apply` held the count at 7 (not 14).
+- **Endpoint render verified**: `GET /api/workspace/members` resolution simulated → 7 named, governable external members on the AI Connections pane.
+- Tests: 31 + 3 mcp-gated helper tests (`.venv-mcp` 3.11 → 3 pass; api venv 3.9 → 3 skip). `tsc --noEmit` clean.
+
+**Honest residue:** the pane shows "Claude" 5× / "ChatGPT" 2× because each is a distinct OAuth client registration (separately revocable). Correct grain, possibly cluttered display — a future dedup/group-by-name refinement, not a bug.
+
+This is the live firing the authorize-only spec couldn't produce. The original validation was sound for its moment; the gap it named was deeper than "awaits a connect," and is now closed structurally (refresh-path) + immediately (backfill).

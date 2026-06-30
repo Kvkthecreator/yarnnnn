@@ -44,7 +44,7 @@ interface WorkspaceMembersCardProps {
   /**
    * ADR-385 D3 — restrict the rendered roster to these principal roles. When
    * omitted, all roles render (the full Workspace-Settings → Access roster).
-   * The Channels → External Agents pane passes
+   * The Channels → AI Connections pane (slug `external-agents`) passes
    * `['foreign-llm', 'a2a', 'platform']` to show only the external/automation
    * principals (MCP LLMs, agent-to-agent callers, platform writers) — a second
    * VIEW of the one principal_grants substrate, not a parallel source (DP29).

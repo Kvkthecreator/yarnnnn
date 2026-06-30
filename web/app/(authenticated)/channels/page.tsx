@@ -18,9 +18,9 @@
  *       "View flow →" link into the Flow pane.
  *     Sources (pane `sources`) — standing web/RSS watches (SourcesCard,
  *       ADR-335/336).
- *     External Agents (pane `external-agents`) — MCP / external-LLM principals.
- *       A FILTERED VIEW of WorkspaceMembersCard (role ∈ {foreign-llm, a2a,
- *       platform}) reading principal_grants (ADR-373). One substrate, two
+ *     AI Connections (pane slug `external-agents`) — MCP / external-LLM
+ *       principals. A FILTERED VIEW of WorkspaceMembersCard (role ∈ {foreign-llm,
+ *       a2a, platform}) reading principal_grants (ADR-373). One substrate, two
  *       views — NOT a parallel data source (ADR-385 D3, DP29).
  *   ACTIVITY — the running record of crossings
  *     Flow (pane `flow`, DEFAULT) — the complete NARRATIVE (FeedSurface,
@@ -58,9 +58,9 @@ import { useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 import { isInbound } from "@/lib/feed-direction";
 
 // ADR-385 D3 — the external/automation principal classes shown on the
-// External Agents pane (MCP LLMs, agent-to-agent callers, platform writers).
-// Human owner/member and internal own-agent live on Workspace-Settings →
-// Access (the full roster).
+// AI Connections pane (slug `external-agents`): MCP LLMs, agent-to-agent
+// callers, platform writers. Human owner/member and internal own-agent live on
+// Workspace-Settings → Access (the full roster).
 const EXTERNAL_PRINCIPAL_ROLES = ["foreign-llm", "a2a", "platform"];
 
 const PANE_GROUPS: PaneGroup[] = [
@@ -73,7 +73,9 @@ const PANE_GROUPS: PaneGroup[] = [
       // resolves here (the generic pane_of mechanism delivers `pane: slug`).
       { key: "connectors", label: "Connections", icon: Link2 },
       { key: "sources", label: "Sources", icon: Rss },
-      { key: "external-agents", label: "External Agents", icon: Cpu },
+      // Label "AI Connections" (display) — slug stays `external-agents` for
+      // deep-link/URL stability (relabel-keep-slug, ADR-251 precedent).
+      { key: "external-agents", label: "AI Connections", icon: Cpu },
     ],
   },
   {
@@ -149,15 +151,15 @@ export default function ChannelsPage() {
         return (
           <div className="flex h-full flex-col">
             <PaneHeader
-              title="External Agents"
-              subtitle="External LLMs and agents that connect to this workspace as principals — who they are and what they can write."
+              title="AI Connections"
+              subtitle="The AI that connects to this workspace — ChatGPT, Claude, and other LLMs reaching in over MCP. Each writes as itself, to a specific region."
             />
             <div className="flex-1 overflow-y-auto p-6">
               <WorkspaceMembersCard
                 variant="full"
                 roleFilter={EXTERNAL_PRINCIPAL_ROLES}
-                emptyTitle="No external agents yet"
-                emptyHint="When an external LLM (ChatGPT, Claude, …) or another agent connects to this workspace over MCP, it appears here as a principal — attributing its writes as itself."
+                emptyTitle="No AI connected yet"
+                emptyHint="When an external LLM (ChatGPT, Claude, …) connects to this workspace over MCP, it appears here as a connection — attributing its writes as itself."
               />
             </div>
           </div>

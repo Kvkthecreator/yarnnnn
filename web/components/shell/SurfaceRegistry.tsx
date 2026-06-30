@@ -24,7 +24,7 @@ import type { KernelSurfaceSlug } from '@/types/desk';
 // ADR-385 — the Channels perception+principal surface (was `context`).
 // Window-grade like Home / Notifications; its panes re-mount existing mirror
 // bodies (ConnectedIntegrations → Connections, SourcesCard → Sources,
-// WorkspaceMembersCard → External Agents, FeedSurface → Flow/In, EmissionsView
+// WorkspaceMembersCard → AI Connections, FeedSurface → Flow/In, EmissionsView
 // → Out). The legacy `feed` + `context` SLUGS map to ChannelsPage so any
 // legacy deck state foregrounding them mounts the live surface (Flow default),
 // never the redirect stub (which would paint an orphaned frame); the `/feed`

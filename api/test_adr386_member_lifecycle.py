@@ -25,10 +25,22 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import importlib.util
+
 import pytest
 
 API_DIR = Path(__file__).parent
 sys.path.insert(0, str(API_DIR))
+
+# mcp_server.oauth_provider imports the `mcp` SDK at module top (3.11-only,
+# absent from the api venv 3.9). The shared-helper tests (§7) import it; skip
+# them gracefully where `mcp` is unavailable. The OTHER tests test
+# services.principal_grants directly (no mcp dependency) and always run.
+_MCP_AVAILABLE = importlib.util.find_spec("mcp") is not None
+_requires_mcp = pytest.mark.skipif(
+    not _MCP_AVAILABLE,
+    reason="mcp_server.oauth_provider needs the mcp SDK (3.11; absent from the api venv)",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -278,3 +290,54 @@ def test_oauth_hook_failsafe_on_grant_error(monkeypatch):
     except Exception:
         raised = True  # the REAL hook swallows; this mirror asserts the call DOES raise
     assert raised, "ensure_principal_grant raises — the OAuth hook's try/except must swallow it"
+
+
+# ===========================================================================
+# 7. The shared provision helper fires on BOTH OAuth paths (ADR-386 D1.a)
+# ===========================================================================
+# The 2026-06-30 amendment: provisioning fires on authorize AND refresh, via one
+# shared helper `_ensure_foreign_llm_grant`, so a connector that authorized
+# before the hook deployed self-heals on its next silent refresh rotation.
+
+@_requires_mcp
+def test_shared_helper_provisions_grant(fake, monkeypatch):
+    """`_ensure_foreign_llm_grant` resolves the workspace and ensures a
+    foreign-llm grant. This is the singular block both hook sites call."""
+    from mcp_server.oauth_provider import _ensure_foreign_llm_grant
+    monkeypatch.setattr("services.supabase.resolve_owner_workspace_id", lambda u: "ws-1")
+
+    _ensure_foreign_llm_grant("u-1", "client-xyz", "system:oauth-refresh")
+
+    inserts = [r for r in fake.recorder if r[0] == "principal_grants" and r[1] == "insert"]
+    assert len(inserts) == 1
+    payload = inserts[0][2]
+    assert payload["principal_id"] == "client-xyz"
+    assert payload["role"] == "foreign-llm"
+    assert payload["granted_by"] == "system:oauth-refresh"
+
+
+@_requires_mcp
+def test_shared_helper_is_best_effort(fake, monkeypatch):
+    """A grant-ensure failure inside the helper must NOT raise — the OAuth
+    token flow (its caller) must be unaffected (ADR-386 §6.3)."""
+    import services.principal_grants as pg
+    from mcp_server.oauth_provider import _ensure_foreign_llm_grant
+
+    monkeypatch.setattr("services.supabase.resolve_owner_workspace_id", lambda u: "ws-1")
+    monkeypatch.setattr(pg, "ensure_principal_grant", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("db down")))
+
+    # Must not raise.
+    _ensure_foreign_llm_grant("u-1", "client-xyz", "system:oauth-refresh")
+
+
+@_requires_mcp
+def test_shared_helper_skips_when_no_workspace(fake, monkeypatch):
+    """If the user owns no workspace, the helper skips silently (no grant
+    written) — the LLM still writes via the class default."""
+    from mcp_server.oauth_provider import _ensure_foreign_llm_grant
+    monkeypatch.setattr("services.supabase.resolve_owner_workspace_id", lambda u: None)
+
+    _ensure_foreign_llm_grant("u-1", "client-xyz", "system:oauth-refresh")
+
+    inserts = [r for r in fake.recorder if r[0] == "principal_grants" and r[1] == "insert"]
+    assert len(inserts) == 0, "no workspace → no grant insert"

@@ -53,6 +53,51 @@ REFRESH_TOKEN_LIFETIME = 30 * 24 * 3600  # 30 days
 AUTH_CODE_LIFETIME = 300  # 5 minutes
 
 
+def _ensure_foreign_llm_grant(user_id: str, client_id: str, granted_by: str) -> None:
+    """Auto-provision a foreign-LLM membership grant for an MCP client (ADR-386 D1/D1.a).
+
+    Called from BOTH OAuth token-mint paths — `exchange_authorization_code`
+    (first connect, granted_by='system:oauth-connect') and
+    `exchange_refresh_token` (silent rotation, granted_by='system:oauth-refresh').
+    The connected LLM was ALREADY authorized at the mcp class default by the
+    consult (ADR-373); this makes that membership a legible, revocable row
+    (principal_id == client_id).
+
+    Idempotent (the partial-unique index makes a steady-state rotation a no-op).
+    The refresh site is what HEALS the live population — every connector in
+    production authorized before the hook deployed and stays alive via silent
+    refresh rotation, so authorize-only never fired for them (D1.a, 2026-06-30).
+
+    Singular Implementation: one helper, two hook sites, so the two paths cannot
+    drift. BEST-EFFORT — a grant-ensure failure must NEVER break the OAuth flow:
+    the consult still falls back to the class default, so the LLM is not locked
+    out.
+    """
+    try:
+        from services.supabase import resolve_owner_workspace_id
+        from services.principal_grants import ensure_principal_grant
+
+        workspace_id = resolve_owner_workspace_id(user_id)
+        if workspace_id:
+            ensure_principal_grant(
+                principal_id=client_id,
+                workspace_id=workspace_id,
+                role="foreign-llm",
+                granted_by=granted_by,
+            )
+        else:
+            logger.debug(
+                "[ADR-386] no owner workspace for user %s — skipping grant "
+                "auto-provision (LLM still writes via class default).", user_id,
+            )
+    except Exception as exc:  # pragma: no cover — never break OAuth on this
+        logger.warning(
+            "[ADR-386] foreign-llm grant auto-provision failed for client %s "
+            "(OAuth flow unaffected; consult falls to class default): %s",
+            client_id, exc,
+        )
+
+
 class YarnnnAccessToken(AccessToken):
     """Access token with user_id for data scoping."""
     user_id: str
@@ -248,36 +293,9 @@ class YarnnnOAuthProvider(
 
         logger.info(f"[MCP OAuth] Issued tokens for user {user_id}, client {client.client_id}")
 
-        # ADR-386 D1: auto-provision a foreign-LLM membership grant for this
-        # client on the workspace the authorizing operator owns. The connected
-        # LLM was ALREADY authorized at the mcp class default by the consult
-        # (ADR-373); this makes that membership a legible, revocable row
-        # (principal_id == client_id). Idempotent. BEST-EFFORT — a grant-ensure
-        # failure must NEVER break the OAuth flow: the consult still falls back
-        # to the class default, so the LLM is not locked out.
-        try:
-            from services.supabase import resolve_owner_workspace_id
-            from services.principal_grants import ensure_principal_grant
-
-            workspace_id = resolve_owner_workspace_id(user_id)
-            if workspace_id:
-                ensure_principal_grant(
-                    principal_id=client.client_id,
-                    workspace_id=workspace_id,
-                    role="foreign-llm",
-                    granted_by="system:oauth-connect",
-                )
-            else:
-                logger.debug(
-                    "[ADR-386] no owner workspace for user %s — skipping grant "
-                    "auto-provision (LLM still writes via class default).", user_id,
-                )
-        except Exception as exc:  # pragma: no cover — never break OAuth on this
-            logger.warning(
-                "[ADR-386] foreign-llm grant auto-provision failed for client %s "
-                "(OAuth flow unaffected; consult falls to class default): %s",
-                client.client_id, exc,
-            )
+        # ADR-386 D1: auto-provision the foreign-LLM membership grant on first
+        # connect. Best-effort — never breaks the OAuth flow.
+        _ensure_foreign_llm_grant(user_id, client.client_id, "system:oauth-connect")
 
         return OAuthToken(
             access_token=access_token,
@@ -347,6 +365,14 @@ class YarnnnOAuthProvider(
         self._client().table("mcp_oauth_refresh_tokens").delete().eq("token", refresh_token.token).execute()
 
         logger.info(f"[MCP OAuth] Rotated tokens for user {user_id}")
+
+        # ADR-386 D1.a (2026-06-30): provision on the REFRESH path too. Every
+        # connector in production authorized BEFORE the auto-provision hook
+        # shipped and stays alive via this silent rotation — authorize-only
+        # never fired for them, so they had no grant + the External-Agents pane
+        # read empty while they were demonstrably writing. Idempotent (no-op once
+        # the grant exists); a pre-hook connector self-heals here. Best-effort.
+        _ensure_foreign_llm_grant(user_id, client.client_id, "system:oauth-refresh")
 
         return OAuthToken(
             access_token=new_access,

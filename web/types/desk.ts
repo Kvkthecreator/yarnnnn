@@ -24,7 +24,7 @@
 // spoke "recurrence"; only the surface label lagged). /cadence is a
 // redirect stub.
 export type KernelSurfaceSlug =
-  | 'channels'  // ADR-385 — the perception + principal surface (was 'context'). Connections · Sources · External Agents + Flow · In · Out
+  | 'channels'  // ADR-385 — the perception + principal surface (was 'context'). Connections · Sources · AI Connections + Flow · In · Out
   | 'feed'  // ADR-370 — folded into channels (Flow pane); legacy alias slug + /feed redirect stub
   | 'context'  // ADR-385 — renamed → 'channels'; legacy alias slug + /context redirect stub
   | 'home'
