@@ -17,6 +17,7 @@
 
 import { CornerDownRight, MessageCircle } from 'lucide-react';
 import type { OperatorEventUnit } from '@/lib/feed-grouping';
+import { PrincipalBadge } from '@/lib/workspace/principal-badge';
 
 interface OperatorEventMarkerProps {
   unit: OperatorEventUnit;
@@ -40,11 +41,11 @@ export function OperatorEventMarker({
 
   return (
     <div className="px-2 py-1.5 my-0.5">
-      {/* Header row: actor + time */}
+      {/* Header row: actor + time. Operator marker is always the operator →
+          the shared PrincipalBadge ("You" + the operator glyph), consistent
+          with the actor identity shown on every other surface (2026-06-30). */}
       <div className="flex items-baseline gap-2 mb-0.5">
-        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-          You
-        </span>
+        <PrincipalBadge authoredBy="operator" size={12} />
         <span className="text-[10px] text-muted-foreground/50 tabular-nums">
           {time}
         </span>

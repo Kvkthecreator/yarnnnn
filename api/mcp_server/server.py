@@ -181,6 +181,13 @@ def _emit_mcp_narrative(
         meta = {"mcp_tool": tool, "mcp_client": client_name}
         if extra_metadata:
             meta.update(extra_metadata)
+        # Actor identity (2026-06-30): stamp the ADR-209 `authored_by` so the
+        # feed/notifications/chat rows show WHICH external LLM acted by name —
+        # "ChatGPT (via MCP)" / "Claude (via MCP)" — instead of a flat "system".
+        # `client_name` is the canonical lowercase host slug (chatgpt | claude.ai
+        # | gemini | …) the FE attribution map keys on; matches the durable
+        # `authored_by` already written on the revision (one identity, both
+        # layers). "unknown" degrades to "Unknown (via MCP)" — still honest.
         write_narrative_entry(
             auth.client,
             session_id,
@@ -189,6 +196,7 @@ def _emit_mcp_narrative(
             body=body or summary,
             pulse="addressed",
             weight=weight,  # type: ignore[arg-type]
+            authored_by=f"yarnnn:mcp:{client_name}",
             extra_metadata=meta,
         )
     except Exception as exc:  # noqa: BLE001

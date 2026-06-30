@@ -282,6 +282,10 @@ async def append_message(
     invocation_id = md.pop("invocation_id", None)
     task_slug = md.pop("task_slug", None)
     provenance = md.pop("provenance", None)
+    # ADR-209 actor identity (2026-06-30): popped to the explicit envelope param
+    # so a caller can add `authored_by` to its metadata dict the same way it adds
+    # `pulse`/`weight` — it lands in the envelope, not loose in extra_metadata.
+    authored_by = md.pop("authored_by", None)
 
     return write_narrative_entry(
         client,
@@ -294,6 +298,7 @@ async def append_message(
         invocation_id=invocation_id,
         task_slug=task_slug,
         provenance=provenance,
+        authored_by=authored_by,
         extra_metadata=md or None,
     )
 
@@ -1105,6 +1110,7 @@ async def global_chat(
         await append_message(auth.client, session_id, "system_agent", narration, {
             "tools_used": routed_tools, "tool_history": [],
             "pulse": "addressed", "weight": "routine", "execution_router": True,
+            "authored_by": "system:execution-router",  # actor identity (2026-06-30)
         })
         yield f"data: {json.dumps({'content': narration})}\n\n"
         yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': routed_tools})}\n\n"
@@ -1201,10 +1207,18 @@ async def global_chat(
                     # for persona attribution; default → 'system_agent').
                     # Honor that decision here instead of hardcoding.
                     row_role = event.get("role", "system_agent")
+                    # Actor identity (2026-06-30): a Clarify row attributed to the
+                    # persona (row_role freddie/reviewer) authors as Freddie; the
+                    # default reviewer-directed action authors as the system agent.
                     meta_out: dict = {
                         "tools_used": [tool_name], "tool_history": [],
                         "pulse": "addressed", "weight": "material", "reviewer_directed": True,
                         "invocation_id": invocation_id,
+                        "authored_by": (
+                            "freddie:reviewer"
+                            if row_role in ("freddie", "reviewer")
+                            else "system:reviewer-directed"
+                        ),
                     }
                     # Pass through Clarify structured payload so future FE
                     # response affordances (inline button strip) have
@@ -1304,6 +1318,7 @@ async def global_chat(
             await append_message(auth.client, session_id, "user", request.content, {
                 "pulse": "addressed",
                 "invocation_id": invocation_id,
+                "authored_by": "operator",  # actor identity (2026-06-30)
             })
             logger.info("[SYSTEM_AGENT] turn for: %.50r", request.content)
 
@@ -1356,6 +1371,7 @@ async def global_chat(
                 await append_message(auth.client, session_id, "system_agent", msg, {
                     "pulse": "addressed", "weight": "routine",
                     "invocation_id": invocation_id, "agent_disabled": True,
+                    "authored_by": "system:agent-gate",  # actor identity (2026-06-30)
                 })
                 yield f"data: {json.dumps({'content': msg})}\n\n"
                 yield f"data: {json.dumps({'done': True, 'session_id': session_id})}\n\n"

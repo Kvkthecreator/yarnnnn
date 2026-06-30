@@ -146,6 +146,10 @@ async def write_freddie_message(
             weight="material",
             task_slug=task_slug,
             invocation_id=invocation_id,
+            # Actor identity (2026-06-30): the persona-bearing seat. Carries the
+            # occupant tail when known (ai:reviewer-… / human:…) so the FE can
+            # attribute the specific occupant; classifies as 'reviewer' regardless.
+            authored_by=f"freddie:{occupant}" if occupant else "freddie:reviewer",
             extra_metadata=metadata,
         )
     except Exception as exc:
@@ -603,6 +607,14 @@ async def surface_freddie_actions(
                 pulse="reactive",
                 weight="material",
                 invocation_id=action_invocation_id,
+                # Actor identity (2026-06-30): a Clarify (row_role freddie) is the
+                # persona asking → freddie:reviewer; other reviewer-directed
+                # actions narrate as the system agent acting on its direction.
+                authored_by=(
+                    "freddie:reviewer"
+                    if row_role == "freddie"
+                    else "system:reviewer-directed"
+                ),
                 extra_metadata=meta,
             )
             written += 1

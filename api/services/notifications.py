@@ -223,6 +223,11 @@ async def _insert_chat_notification(
             body=chat_message,
             pulse="reactive",
             weight="routine",
+            # Actor identity (2026-06-30): the system's notification dispatcher
+            # (an outbound send surfaced as a pointer, ADR-202). source_type/
+            # source_id carry the finer trigger but "system:notification" is the
+            # honest actor for the FE badge.
+            authored_by="system:notification",
             extra_metadata={
                 "type": "notification",
                 "channel": "email",

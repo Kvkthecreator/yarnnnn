@@ -48,6 +48,7 @@ import { formatRelativeTime } from '@/lib/formatting';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { cn } from '@/lib/utils';
+import { PrincipalBadge } from '@/lib/workspace/principal-badge';
 
 const REFRESH_INTERVAL_MS = 60_000;
 const LOW_BALANCE_THRESHOLD_USD = 1.0;
@@ -68,6 +69,10 @@ interface MaterialEvent {
   role: string;
   headline: string;
   created_at: string;
+  /** Actor identity (2026-06-30): the authored_by taxonomy → the shared
+   *  PrincipalBadge, so an Activity row shows the actor's icon + canonical
+   *  label (fixing the "Claude" vs "chatgpt" casing drift in the raw headline). */
+  authoredBy?: string;
 }
 
 // "Coming up" — a derived view over each recurrence's next_run_at. No new
@@ -150,6 +155,7 @@ export function AttentionCenter() {
               role: msg.role,
               headline: msg.metadata?.summary || msg.content?.slice(0, 120) || '(event)',
               created_at: msg.created_at,
+              authoredBy: msg.metadata?.authored_by,
             });
           }
         }
@@ -347,7 +353,14 @@ export function AttentionCenter() {
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
                   >
                     <span className="block text-foreground truncate">{e.headline}</span>
-                    <span className="block text-[10px] text-muted-foreground">
+                    <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      {/* Actor identity (2026-06-30): icon-only badge before
+                          the timestamp — the headline already names the actor;
+                          the icon makes Claude vs ChatGPT vs system legible at
+                          a glance. */}
+                      {e.authoredBy && (
+                        <PrincipalBadge authoredBy={e.authoredBy} showLabel={false} size={11} />
+                      )}
                       {new Date(e.created_at).toLocaleString([], {
                         month: 'short',
                         day: 'numeric',

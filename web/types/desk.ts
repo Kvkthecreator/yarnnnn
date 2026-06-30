@@ -147,6 +147,17 @@ export interface NarrativeEnvelope {
    *  derive in/out/internal for the Context In/Out/Flow filtered views. */
   writtenTo?: string;
   tool?: string;
+  /** ADR-209 actor identity (2026-06-30): WHO authored this entry, as the
+   *  `authored_by` taxonomy string (operator | yarnnn:mcp:{host} |
+   *  yarnnn:{model} | freddie:{occupant} | reviewer:{id} | agent:{slug} |
+   *  specialist:{role} | system:{actor} | platform:{provider}). The
+   *  attribution module (lib/workspace/attribution.ts) + principal-badge.tsx
+   *  map it to the operator-facing label + icon, so Flow / Notifications / chat
+   *  rows show "ChatGPT (via MCP)" / "Claude" / "Freddie" / "You" distinctly
+   *  instead of collapsing every non-human actor to "system". Rides the same
+   *  metadata envelope as writtenTo/tool. Mirrors the workspace-revision
+   *  authored_by — one identity, both layers. */
+  authoredBy?: string;
 }
 
 export type MessageBlock =

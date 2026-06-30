@@ -359,6 +359,9 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                   // In/Out/Flow filtered views.
                   ...(m.metadata.written_to && { writtenTo: m.metadata.written_to }),
                   ...(m.metadata.tool && { tool: m.metadata.tool }),
+                  // Actor identity (2026-06-30): the authored_by taxonomy →
+                  // the shared PrincipalBadge label + icon on every surface.
+                  ...(m.metadata.authored_by && { authoredBy: m.metadata.authored_by }),
                   ...(m.role === 'system_agent' && m.metadata.proposal_id && {
                     proposalId: m.metadata.proposal_id,
                   }),

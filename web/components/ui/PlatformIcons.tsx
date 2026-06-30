@@ -32,6 +32,27 @@ export const YarnnnIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+// --- MCP-principal brand marks (2026-06-30) ----------------------------------
+// The external LLMs that write via MCP. Monochrome single-path SVGs taking
+// `currentColor`, same pattern as the connector marks above — so a principal
+// badge tints the mark with the per-class accent (attribution.ts). Only the
+// hosts an operator will actually see get a real mark (ADR-379 host profiles);
+// the long tail degrades to a lucide glyph in the registry (principalIcon).
+
+// Anthropic / Claude — the Anthropic "burst" mark.
+export const ClaudeIcon = ({ className }: IconProps) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128h-.23l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.054-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061 1.123.866 2.39 1.835 3.117 2.294.456.38.182-.129.025-.091-.207-.345-1.72-3.106-1.835-3.16-.817-1.31-.216-.787a3.79 3.79 0 01-.133-.926l.748-1.016L5.95 0l.97.137.41.354.602 1.378.974 2.165 1.512 2.948.443.875.236.81.09.249h.152V9.984l.123-1.652.231-2.027.225-2.608.078-.733.366-.882.726-.477.566.27.466.666-.066.43-.28 1.823-.547 2.842-.355 1.9h.207l.236-.237.96-1.275 1.61-2.015.708-.795.83-.882.534-.421h1.009l.741 1.099-.332 1.135-1.039 1.318-.86 1.123-1.232 1.658-.769 1.323.071.106.182-.018 2.766-.589 1.495-.272 1.78-.305.81.378.09.383-.319.785-1.908.473-2.243.448-3.343.79-.041.03.048.06 1.505.142.643.036h1.578l2.94.219.768.508.461.62-.077.471-1.183.602-1.598-.378-3.732-.888-1.28-.32-.18.255 1.123 1.097 2.06 1.85 2.58 2.27.13.59-.328.46-.347-.05-2.247-1.69-.866-.762-1.96-1.652h-.13v.173l.451.661 2.387 3.59.124 1.105-.174.36-.62.218-.682-.124-1.402-1.967-1.445-2.218-1.165-1.985-.142.082-.69 7.385-.323.382-.748.286-.622-.474-.33-.766.33-1.512.398-1.972.323-1.568.293-1.947.174-.646-.012-.044-.142.018-1.461 2.006-2.225 3.005-1.76 1.882-.422.166-.732-.379.069-.677.41-.602 2.44-3.106 1.473-1.929.952-1.114-.005-.16h-.057L4.69 19.682l-1.298.168-.558-.524.07-.86.265-.279 2.183-1.5z" />
+  </svg>
+);
+
+// OpenAI / ChatGPT — the OpenAI "blossom" mark.
+export const ChatGPTIcon = ({ className }: IconProps) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v3l-2.597 1.5-2.607-1.5z" />
+  </svg>
+);
+
 /**
  * Get platform icon component by provider name
  */
@@ -46,6 +67,30 @@ export function getPlatformIcon(
       return <NotionIcon className={className} />;
     case "github":
       return <GitHubIcon className={className} />;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Get an MCP-host brand mark by host id (the `yarnnn:mcp:{host}` tail), or
+ * null when no brand mark exists for that host (caller falls back to a glyph).
+ * Mirrors the known-host set in attribution.ts::MCP_HOST_NAMES + the backend
+ * api/mcp_server/presentation/hosts.py — only the big two get real marks
+ * (ADR-379 "brand SVG where known, glyph fallback"); the long tail degrades.
+ */
+export function getMcpHostIcon(
+  host: string,
+  className?: string
+): React.ReactNode {
+  switch (host.toLowerCase()) {
+    case "claude":
+    case "claude.ai":
+    case "claude-desktop":
+    case "claude-code":
+      return <ClaudeIcon className={className} />;
+    case "chatgpt":
+      return <ChatGPTIcon className={className} />;
     default:
       return null;
   }

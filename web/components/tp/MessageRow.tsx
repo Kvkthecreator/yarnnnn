@@ -44,6 +44,7 @@ import { WorkspaceFileView } from '@/components/shared/WorkspaceFileView';
 import { useFreddiePersona } from '@/lib/freddie-persona';
 import { InteractiveModal } from './InteractiveModal';
 import { useNarrative } from '@/contexts/NarrativeContext';
+import { PrincipalBadge } from '@/lib/workspace/principal-badge';
 
 // ---------------------------------------------------------------------------
 // Per-weight wrappers
@@ -248,11 +249,21 @@ function RoutineRow({ msg, freddiePersona }: { msg: TPMessage; freddiePersona?: 
   const summary =
     msg.narrative?.summary ??
     (msg.content?.split('\n', 1)[0]?.slice(0, 200) ?? '');
+  const authoredBy = msg.narrative?.authoredBy;
   return (
     <div className="text-[12px] rounded-2xl px-3 py-1.5 max-w-[92%] bg-muted/60 rounded-bl-md opacity-80">
-      <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-0.5 uppercase">
-        {roleDisplayLabel(msg.role, freddiePersona)}
-      </span>
+      {/* Actor identity (2026-06-30): the shared PrincipalBadge when authored_by
+          is present (so an MCP write reads "ChatGPT (via MCP)" rather than the
+          flat "system"); the role label otherwise (legacy rows). */}
+      {authoredBy ? (
+        <span className="block mb-0.5">
+          <PrincipalBadge authoredBy={authoredBy} fallbackToSystem size={11} />
+        </span>
+      ) : (
+        <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-0.5 uppercase">
+          {roleDisplayLabel(msg.role, freddiePersona)}
+        </span>
+      )}
       <div className="flex items-center gap-2">
         <span className="text-muted-foreground flex-1">{summary}</span>
         <span className="text-[10px] text-muted-foreground/50 shrink-0 tabular-nums">

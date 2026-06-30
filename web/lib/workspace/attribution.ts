@@ -54,6 +54,17 @@ function mcpHostName(raw: string): string {
   return raw.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/**
+ * The raw MCP host id (the `yarnnn:mcp:{host}` tail), or null when this is not
+ * an MCP write. Lets a presentational layer pick a host brand mark without
+ * re-deriving the slice. (The icon registry — principal-badge.tsx — uses this
+ * so the host-string parsing stays in this one module.)
+ */
+export function mcpHostId(authored_by: string | null | undefined): string | null {
+  if (!authored_by || !authored_by.startsWith('yarnnn:mcp:')) return null;
+  return authored_by.slice('yarnnn:mcp:'.length) || null;
+}
+
 /** Classify an `authored_by` string into a stable author class. */
 export function authorClass(authored_by: string | null | undefined): AuthorClass {
   if (!authored_by) return 'system';

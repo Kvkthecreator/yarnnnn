@@ -417,6 +417,11 @@ export const api = {
               written_to?: string;
               tool?: string;
               outcome?: string;
+              // Actor identity (2026-06-30): the ADR-209 authored_by taxonomy,
+              // stamped on every narrative row by write_narrative_entry. The FE
+              // attribution module + PrincipalBadge map it to the actor's label
+              // + icon so chat/Flow/Notifications show who acted by name.
+              authored_by?: string;
               // ADR-219 Commit 3: narrative_digest rollup card
               rolled_up_count?: number;
               rolled_up_window_hours?: number;

@@ -91,6 +91,7 @@ def write_narrative_entry(
     invocation_id: Optional[str] = None,
     task_slug: Optional[str] = None,
     provenance: Optional[list[dict[str, Any]]] = None,
+    authored_by: Optional[str] = None,
     extra_metadata: Optional[dict[str, Any]] = None,
 ) -> Optional[dict]:
     """Emit one narrative entry for one invocation.
@@ -126,6 +127,18 @@ def write_narrative_entry(
             actions and unlabelled workspace events.
         provenance: list of {"path": ..., "kind": ...} substrate pointers
             for drill-in. Frontend renders as a footer of clickable refs.
+        authored_by: the ADR-209 `authored_by` taxonomy string naming WHO
+            acted (operator | yarnnn:mcp:{host} | yarnnn:{model} |
+            freddie:{occupant} | reviewer:{id} | agent:{slug} |
+            specialist:{role} | system:{actor} | platform:{provider}). Rides
+            the metadata envelope alongside writtenTo/tool; the FE attribution
+            module (web/lib/workspace/attribution.ts) maps it to the
+            operator-facing label + icon so chat/Flow/Notifications rows show
+            "ChatGPT (via MCP)" / "Claude" / "Freddie" / "You" distinctly
+            instead of collapsing every non-human actor to "system"
+            (2026-06-30 actor-identity unification). Raw string sent on the
+            wire — the FE owns the label, keeping the host-name map in one
+            place. None when the actor is genuinely unknown.
         extra_metadata: pass-through for caller-specific fields that
             haven't earned envelope status yet (e.g. `tools_used`,
             `model`, `input_tokens`, `system_card`). Merged under the
@@ -172,6 +185,8 @@ def write_narrative_entry(
         "pulse": pulse,
         "weight": resolved_weight,
     }
+    if authored_by:
+        envelope["authored_by"] = authored_by
     if invocation_id:
         envelope["invocation_id"] = invocation_id
     if task_slug:
