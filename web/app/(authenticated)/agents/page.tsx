@@ -26,7 +26,7 @@ import { useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 import { getAgentSlug, agentDisplayName } from '@/lib/agent-identity';
-import { AgentContentView } from '@/components/agents/AgentContentView';
+import { AgentContentView, FREDDIE_PANE_KEYS } from '@/components/agents/AgentContentView';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 
@@ -37,16 +37,24 @@ export default function AgentsPage() {
   const { agents, tasks, loading } = useAgentsAndRecurrences();
 
   const agentFromUrl = p.get('agent');
+  // ADR-387 §6.4 — the agent-scoped governance panes are pane_of: agents. The
+  // generic mechanism delivers `agents.pane=autonomy` (etc.) but NOT
+  // `agents.agent=freddie`, so when the pane param names a Freddie pane we
+  // infer the Freddie selection — foregroundSurface('autonomy') lands on
+  // Freddie's pane. (Mirrors the channels precedent: the pane param drives the
+  // view.)
+  const paneFromUrl = p.get('pane');
+  const freddiePaneActive = !!paneFromUrl && FREDDIE_PANE_KEYS.includes(paneFromUrl);
 
   // Detail mode is URL-driven. Intra-surface state — D19.4: ?agent=X is
   // window-internal deep-link, not cross-surface navigation.
   const selectedAgent = useMemo(() => {
-    if (!agentFromUrl) return null;
-    if (agentFromUrl === 'freddie') {
+    if (agentFromUrl === 'freddie' || (!agentFromUrl && freddiePaneActive)) {
       return agents.find(a => a.agent_class === 'freddie') ?? null;
     }
+    if (!agentFromUrl) return null;
     return agents.find(a => a.id === agentFromUrl || getAgentSlug(a) === agentFromUrl) ?? null;
-  }, [agentFromUrl, agents]);
+  }, [agentFromUrl, freddiePaneActive, agents]);
 
   const agentTasks = selectedAgent
     ? tasks.filter(t => t.agent_slugs?.includes(getAgentSlug(selectedAgent)))

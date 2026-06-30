@@ -89,10 +89,13 @@ function ConstitutionLinks() {
 function AutonomyBadge({ level, summary }: { level: AutonomyDelegation | null; summary: string }) {
   // ADR-358 (2026-06-23) — open the Autonomy pane via foregroundSurface
   // (which resolves the pane to its parent window + ?pane= WITHOUT flipping
-  // the pathname), NOT a <Link> to /workspace-settings?pane=autonomy. The
-  // <Link> did a full Next.js navigation that left the /desktop SPA and
-  // reset the chat rail — breaking the Canvas two-pane continuity. Matches
-  // the ConstitutionLinks pattern above.
+  // the pathname), NOT a <Link>. The <Link> did a full Next.js navigation
+  // that left the /desktop SPA and reset the chat rail — breaking the Canvas
+  // two-pane continuity. ADR-387 §6.4 (2026-06-30): autonomy is now
+  // pane_of: agents, so this resolves to agents.pane=autonomy → Freddie's
+  // pane (where the agent's governance lives). This call is unchanged — the
+  // registry re-point makes it land in the right place; it had been DANGLING
+  // since ADR-297 deleted the autonomy tab (the bug this whole arc fixes).
   const { foregroundSurface } = useSurfacePreferences();
   const Icon =
     level === 'autonomous' ? ShieldCheck :

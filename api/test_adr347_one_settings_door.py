@@ -72,14 +72,21 @@ def test_one_door_registry() -> None:
 
 
 def test_contract_group() -> None:
-    print("\n[contract] Rhythm · Witness · Expected Output in the one door")
+    # ADR-387 §6.4 (2026-06-30): the agent-scoped governance panes (Budget +
+    # Autonomy = governance/ GRANT, Expected Output = contract/ CONTRACT) LEFT
+    # the one Settings door for Freddie's pane (the agents window). They are the
+    # agent's settings; they live on the agent's pane. ADR-347's "gather the
+    # operating contract into one door" was correct for its moment; ADR-381/383
+    # made "the agent" a concrete entity, and ADR-387 routes its governance to
+    # it. The pane_of/pane_group are now asserted in test_adr341.
+    print("\n[contract] agent-scoped governance moved to Freddie's pane (ADR-387 §6.4)")
     from services.kernel_surfaces import KERNEL_SURFACES
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
     for slug in ("budget", "autonomy", "expected-output"):
-        check(f"{slug} → workspace-settings", by_slug[slug].get("pane_of") == "workspace-settings")
-        check(f"{slug} grouped Contract", by_slug[slug].get("pane_group") == "Contract")
-    # Governance is no longer in the dissolved System Settings door.
+        check(f"{slug} → Freddie's pane (ADR-387)", by_slug[slug].get("pane_of") == "agents")
+    # Governance is no longer in the dissolved System Settings door, and no
+    # longer a 'Governance' OR 'Contract'-in-workspace-settings group.
     check("no pane homes to a 'Governance' group anymore",
           not any(e.get("pane_group") == "Governance" for e in KERNEL_SURFACES))
 
@@ -122,15 +129,18 @@ def test_account_window_is_account_only() -> None:
 
 
 def test_redirect_stubs_point_to_one_door() -> None:
-    print("\n[stubs] re-homed routes redirect to the one door")
+    # ADR-387 §6.4 (2026-06-30): the agent-scoped governance route stubs now
+    # redirect to FREDDIE'S pane (the agents window), not Workspace Settings —
+    # the panes moved there. Window-namespaced params select Freddie + the pane.
+    print("\n[stubs] re-homed governance routes redirect to Freddie's pane (ADR-387 §6.4)")
     for slug in ("budget", "autonomy", "expected-output"):
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
-        # ADR-358 D6: stubs redirect with the window-NAMESPACED pane param.
-        target = f"/workspace-settings?workspace-settings.pane={slug}"
+        target = f"/agents?agents.agent=freddie&agents.pane={slug}"
         check(f"/{slug} → {target}", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (ADR-308)", "'use client'" not in stub)
-    # The Home autonomy badge deep-links into the one door via the
-    # navigation-enactment verb (ADR-297 D19.5), not a <Link> route.
+    # The Home autonomy badge deep-links via the navigation-enactment verb
+    # (ADR-297 D19.5). foregroundSurface('autonomy') is UNCHANGED — the registry
+    # re-point (pane_of: agents) makes it resolve to Freddie's pane now.
     home = _read("components/library/HomeHeader.tsx")
     check("Home autonomy badge → foregroundSurface('autonomy')",
           "foregroundSurface('autonomy')" in home)

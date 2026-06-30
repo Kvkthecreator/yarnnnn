@@ -30,16 +30,22 @@ FAILED = 0
 # *mechanism* is unchanged — only which door each pane folds into.
 # ACCOUNT_PANES (billing/usage/account) are page-local tabs on the account
 # window, NOT registry pane-grade surfaces, so they are not in the registry.
-ALL_SETTINGS_PANES = {
-    "budget", "autonomy", "expected-output",  # Contract (ADR-347/348)
-    "program",                                  # Operation
-    "mandate", "identity", "principles",        # Constitution
+# ADR-387 §6.4 (2026-06-30): the agent-scoped governance panes LEFT Workspace
+# Settings for Freddie's pane (the agents window). Only Mandate (constitution/)
+# + Program (operation/) remain Workspace-Settings panes.
+WORKSPACE_SETTINGS_PANES = {
+    "mandate",   # Constitution
+    "program",   # Operation
 }
-# ADR-385: connectors + sources are still pane-grade, but pane_of: channels
-# (Perception left Workspace Settings). They stay in the pane-grade set but
-# NOT in the workspace-settings-parent set.
+# ADR-387 §6.4: the agent's settings live on the agent's pane (pane_of: agents).
+FREDDIE_PANES = {
+    "identity", "principles",          # Persona (the agent's own)
+    "autonomy", "budget",              # Grant (governance/ ceilings)
+    "expected-output",                 # Contract (what it owes)
+}
+# ADR-385: connectors + sources are still pane-grade, but pane_of: channels.
 CHANNELS_PANES = {"connectors", "sources"}
-EXPECTED_PANES = ALL_SETTINGS_PANES | CHANNELS_PANES
+EXPECTED_PANES = WORKSPACE_SETTINGS_PANES | FREDDIE_PANES | CHANNELS_PANES
 
 
 def check(label: str, condition: bool, detail: str = "") -> None:
@@ -69,9 +75,13 @@ def test_registry_pane_model() -> None:
         check(f"{slug} is pane-grade", slug in panes, f"panes={sorted(panes)}")
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
-    # ADR-347: ALL operation panes fold into the ONE Settings door.
-    for slug in sorted(ALL_SETTINGS_PANES):
+    # ADR-387 §6.4: Mandate + Program remain Workspace-Settings panes.
+    for slug in sorted(WORKSPACE_SETTINGS_PANES):
         check(f"{slug}: pane_of == 'workspace-settings'", by_slug[slug].get("pane_of") == "workspace-settings")
+        check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
+    # ADR-387 §6.4: the agent-scoped governance panes fold into Freddie's pane.
+    for slug in sorted(FREDDIE_PANES):
+        check(f"{slug}: pane_of == 'agents' (ADR-387 §6.4)", by_slug[slug].get("pane_of") == "agents")
         check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
     # ADR-385: connectors + sources re-home onto the Channels surface.
     for slug in sorted(CHANNELS_PANES):
@@ -92,16 +102,20 @@ def test_registry_pane_model() -> None:
         "setup stays window-grade (Sequence surface, ADR-331)",
         not by_slug["setup"].get("pane_of"),
     )
-    # ADR-347 grouping — the Contract group gathers Rhythm/Witness/Expected Output.
-    for slug in ("budget", "autonomy", "expected-output"):
-        check(f"{slug} grouped Contract", by_slug[slug]["pane_group"] == "Contract")
+    # ADR-387 §6.4 grouping on Freddie's pane — by substrate root-ownership:
+    # Persona (the agent's own), Grant (governance/ ceilings), Contract (owed).
+    for slug in ("identity", "principles"):
+        check(f"{slug} grouped Persona (ADR-387)", by_slug[slug]["pane_group"] == "Persona")
+    for slug in ("autonomy", "budget"):
+        check(f"{slug} grouped Grant (ADR-387)", by_slug[slug]["pane_group"] == "Grant")
+    check("expected-output grouped Contract (ADR-387)", by_slug["expected-output"]["pane_group"] == "Contract")
     # ADR-385 (2026-06-29): Perception left Workspace Settings — connectors +
     # sources re-home onto the Channels surface (group Channels).
     check("connectors grouped Channels (ADR-385)", by_slug["connectors"]["pane_group"] == "Channels")
     check("sources grouped Channels (ADR-385)", by_slug["sources"]["pane_group"] == "Channels")
+    # Workspace Settings keeps Mandate (Constitution) + Program (Operation).
     check("program grouped Operation", by_slug["program"]["pane_group"] == "Operation")
-    for slug in ("mandate", "identity", "principles"):
-        check(f"{slug} grouped Constitution", by_slug[slug]["pane_group"] == "Constitution")
+    check("mandate grouped Constitution", by_slug["mandate"]["pane_group"] == "Constitution")
 
 
 def test_settings_container() -> None:
@@ -129,32 +143,54 @@ def test_settings_container() -> None:
     ws_src = _read("app/(authenticated)/workspace-settings/page.tsx")
     check("Settings door mounts SettingsPaneShell", "SettingsPaneShell" in ws_src)
     check("Settings door declares PANE_GROUPS", "PANE_GROUPS" in ws_src)
+    # ADR-387 §6.4: Workspace Settings keeps Mandate + Brand (D3 interim) +
+    # Program. The agent-scoped governance cards moved to Freddie's pane.
     for needle, label in [
         ("MandateCard", "Mandate pane body"),
-        ("IdentityBrandCard", "Identity pane body"),
-        ("PrinciplesCard", "Principles pane body"),
-        ("BudgetCard", "Budget (Rhythm) pane body"),
-        ("AutonomyCard", "Autonomy (Witness) pane body"),
-        ("ExpectedOutputCard", "Expected Output pane body"),
-        # ADR-385: Connectors + Sources pane bodies moved to the Channels surface.
         ("ProgramLifecycleDrawer", "Program pane body"),
     ]:
         check(f"Settings door: {label}", needle in ws_src)
     check("Settings door Program pane carries re-run-setup door", "Re-run setup" in ws_src)
+    # ADR-387 §6.4: the moved cards are GONE from the Settings door (a MOVE not a
+    # copy — Singular Implementation, no two-surfaces-one-substrate).
+    for needle, label in [
+        ("PrinciplesCard", "Principles"),
+        ("BudgetCard", "Budget"),
+        ("AutonomyCard", "Autonomy"),
+        ("ExpectedOutputCard", "Expected Output"),
+        ("IdentityBrandCard", "Identity (merged card)"),
+    ]:
+        check(f"Settings door no longer renders {label} (moved to Freddie)", needle not in ws_src)
+    # ADR-387 §6.4: the moved cards render on Freddie's pane instead.
+    agent_src = _read("components/agents/AgentContentView.tsx")
+    for needle, label in [
+        ("PrinciplesCard", "Principles"),
+        ("BudgetCard", "Budget"),
+        ("AutonomyCard", "Autonomy"),
+        ("ExpectedOutputCard", "Expected Output"),
+    ]:
+        check(f"Freddie's pane renders {label} (ADR-387 §6.4)", needle in agent_src)
 
 
 def test_redirect_stubs() -> None:
-    print("\n[stubs] old routes are ADR-308 server redirects to the one door (ADR-347)")
-    # ADR-347: ALL panes fold into the one Settings door. Only check slugs
-    # that have a page.tsx stub (budget/autonomy/expected-output + the
-    # re-homed + constitution routes; some panes never had a window route).
-    for slug in sorted(ALL_SETTINGS_PANES):
+    print("\n[stubs] old routes are ADR-308 server redirects to their pane home")
+    # ADR-387 §6.4: Mandate + Program stubs still point to Workspace Settings.
+    for slug in sorted(WORKSPACE_SETTINGS_PANES):
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
         if not stub:
             continue
         # ADR-358 D6: stubs redirect with the window-NAMESPACED pane param.
         target = f"/workspace-settings?workspace-settings.pane={slug}"
         check(f"/{slug} → {target}", f"redirect('{target}')" in stub)
+        check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
+    # ADR-387 §6.4: the agent-scoped governance route stubs redirect to Freddie's
+    # pane (the agents window) — agents.agent selects Freddie, agents.pane the pane.
+    for slug in sorted(FREDDIE_PANES):
+        stub = _read(f"app/(authenticated)/{slug}/page.tsx")
+        if not stub:
+            continue
+        target = f"/agents?agents.agent=freddie&agents.pane={slug}"
+        check(f"/{slug} → {target} (ADR-387 §6.4)", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
     # ADR-385: the re-homed Perception routes redirect to the Channels surface.
     for slug in sorted(CHANNELS_PANES):

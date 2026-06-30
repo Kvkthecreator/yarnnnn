@@ -1,14 +1,13 @@
 /**
- * /budget → /workspace-settings?pane=budget redirect stub (ADR-347).
+ * /budget → Freddie's pane redirect stub (ADR-387 §6.4, 2026-06-30).
  *
- * Budget (Rhythm) is pane-grade — a Contract pane inside the ONE Settings
- * door (the operation's settings). ADR-347 moved it out of the dissolved
- * System Settings door into workspace-settings. BudgetCard rendering is
- * unchanged; only the parent door moved. Pure server transport per ADR-308.
+ * Budget (Rhythm) is a governance/ GRANT — the spend ceiling the agent runs
+ * under (ADR-366). Post-ADR-387 it lives on Freddie's pane (the agents window),
+ * Grant group, not in Workspace Settings. Pure server transport per ADR-308.
  */
 
 import { redirect } from 'next/navigation';
 
 export default function BudgetRedirect() {
-  redirect('/workspace-settings?workspace-settings.pane=budget');
+  redirect('/agents?agents.agent=freddie&agents.pane=budget');
 }

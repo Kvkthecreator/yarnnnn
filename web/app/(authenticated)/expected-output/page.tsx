@@ -1,16 +1,14 @@
 /**
- * /expected-output → /workspace-settings?pane=expected-output redirect stub
- * (ADR-348).
+ * /expected-output → Freddie's pane redirect stub (ADR-387 §6.4, 2026-06-30).
  *
- * Expected Output is pane-grade — a Contract pane inside the ONE Settings
- * door (the operation's settings), alongside Budget (Rhythm) + Autonomy
- * (Witness). The ExpectedOutputCard substrate rendering lives in the door's
- * renderPane; this route is pure server transport per ADR-308 —
- * `redirect()`, never a client-side useEffect redirect.
+ * Expected Output is the contract/ CONTRACT — what the operator declares the
+ * agent owes (ADR-345/366). Post-ADR-387 it lives on Freddie's pane (the agents
+ * window), Contract group, not in Workspace Settings. Pure server transport per
+ * ADR-308 — `redirect()`, never a client-side useEffect redirect.
  */
 
 import { redirect } from 'next/navigation';
 
 export default function ExpectedOutputRedirect() {
-  redirect('/workspace-settings?workspace-settings.pane=expected-output');
+  redirect('/agents?agents.agent=freddie&agents.pane=expected-output');
 }

@@ -96,14 +96,15 @@ export default function WorkspaceSettingsPage() {
   const surfaceParam = useSurfaceParam("workspace-settings");
   const requestedPane = surfaceParam.get("pane");
 
-  // ADR-387 D1 — ADR-308 pure-transport redirect. A deep-link to a moved pane
-  // (workspace-settings.pane=identity|principles|autonomy|budget|expected-output)
-  // foregrounds Freddie's pane with the matching tab. Done in an effect (a
-  // navigation side-effect, not render) so the redirect stub paints nothing
-  // (no orphaned frame — ADR-308).
+  // ADR-387 §6.4 — STALE-BOOKMARK safety net. Post-§6.4 the five panes are
+  // pane_of: agents, so nothing in-app generates a workspace-settings.pane=
+  // moved-slug URL anymore (foregroundSurface lands them on Freddie directly).
+  // This effect only catches an OLD external bookmark of the pre-§6.4 URL and
+  // forwards it to Freddie's pane (ADR-308 pure transport; param is now `pane`
+  // to match the unified Freddie param model).
   useEffect(() => {
     if (requestedPane && MOVED_TO_FREDDIE[requestedPane]) {
-      navigateToSurface("agents", { agent: "freddie", tab: MOVED_TO_FREDDIE[requestedPane] });
+      navigateToSurface("agents", { agent: "freddie", pane: MOVED_TO_FREDDIE[requestedPane] });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedPane]);

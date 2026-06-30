@@ -80,11 +80,14 @@ def test_card() -> None:
 
 
 def test_mounted_in_contract_group() -> None:
-    print("\n[mount] ExpectedOutputCard in the one door's Contract group (ADR-347)")
-    ws = _read("app/(authenticated)/workspace-settings/page.tsx")
-    check("Settings door imports ExpectedOutputCard", "ExpectedOutputCard" in ws)
-    check("Contract group declared", '"Contract"' in ws or "'Contract'" in ws)
-    check("expected-output pane key present", '"expected-output"' in ws or "'expected-output'" in ws)
+    # ADR-387 §6.4 (2026-06-30): Expected Output (the contract/ CONTRACT — what
+    # the agent owes) moved to FREDDIE'S pane, Contract group. It is the agent's
+    # output contract; it lives on the agent's pane.
+    print("\n[mount] ExpectedOutputCard in Freddie's pane Contract group (ADR-387 §6.4)")
+    agent_src = _read("components/agents/AgentContentView.tsx")
+    check("Freddie's pane imports ExpectedOutputCard", "ExpectedOutputCard" in agent_src)
+    check("Contract group declared on Freddie's pane", "'Contract'" in agent_src or '"Contract"' in agent_src)
+    check("expected-output pane key present", "'expected-output'" in agent_src or '"expected-output"' in agent_src)
 
 
 def test_bundle_instances() -> None:

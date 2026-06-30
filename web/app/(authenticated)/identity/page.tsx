@@ -1,15 +1,17 @@
 /**
- * /identity → /workspace-settings?pane=identity redirect stub.
+ * /identity → Freddie's pane redirect stub (ADR-387 §6.4, 2026-06-30).
  *
- * ADR-341 (2026-06-18): Identity (+ Brand, co-rendered) is a Constitution
- * pane inside Workspace Settings (read/manage via IdentityBrandCard full
- * variant). Its FIRST-CLASS door stays the Home constitution band
- * (ADR-312 D5). /brand also redirects here (sibling). Pure server
- * transport per ADR-308.
+ * Identity is the agent's persona/ reasoning-character (persona/IDENTITY.md —
+ * the operator-identity already collapsed here per ADR-320 D2b). Post-ADR-387
+ * it lives on Freddie's pane (the agents window), Persona group, not in
+ * Workspace Settings. Pure server transport per ADR-308.
+ *
+ * NOTE: /brand no longer redirects here — Brand (operation/BRAND.md) stayed in
+ * Workspace Settings (ADR-387 D3), so /brand points there directly.
  */
 
 import { redirect } from 'next/navigation';
 
 export default function IdentityRedirect() {
-  redirect('/workspace-settings?workspace-settings.pane=identity');
+  redirect('/agents?agents.agent=freddie&agents.pane=identity');
 }

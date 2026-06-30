@@ -395,8 +395,12 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # operation-settings door (workspace-settings), as the "Contract"
         # group (Rhythm · Witness · Expected Output — the operating contract).
         # Budget (Rhythm) is per-operation config, not machine config.
-        "pane_of": "workspace-settings",  # ADR-347 — Contract pane in the one Settings door
-        "pane_group": "Contract",
+        # ADR-387 §6.4 (2026-06-30): the agent-scoped governance panes move to
+        # Freddie's pane (the agents window). Budget is a governance/ GRANT —
+        # the spend ceiling the agent runs under (ADR-366). pane_of: agents +
+        # pane_group: Grant so foregroundSurface('budget') lands on Freddie.
+        "pane_of": "agents",
+        "pane_group": "Grant",
         "title": "Budget",
         "archetype": "document",
         "substrate_paths": [
@@ -421,8 +425,10 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "register": "os-config",  # ADR-312 D5 (was `settings`)
         # ADR-347 (2026-06-19): Governance → the one operation-settings door's
         # Contract group (Witness dial = per-operation config, not machine).
-        "pane_of": "workspace-settings",  # ADR-347 — Contract pane in the one Settings door
-        "pane_group": "Contract",
+        # ADR-387 §6.4 — Autonomy is a governance/ GRANT (the delegation ceiling
+        # the agent runs under, ADR-366). Moves to Freddie's pane, Grant group.
+        "pane_of": "agents",
+        "pane_group": "Grant",
         "title": "Autonomy",
         "archetype": "document",
         "substrate_paths": [
@@ -444,7 +450,10 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "slug": "expected-output",
         "launcher_tier": "search-only",  # ADR-340 P3 — pane-grade
         "register": "os-config",  # governance-region machine config (like budget/autonomy)
-        "pane_of": "workspace-settings",  # ADR-347 — Contract pane in the one Settings door
+        # ADR-387 §6.4 — Expected Output is the contract/ CONTRACT (what the
+        # operator declares the agent owes, ADR-345/366). Moves to Freddie's
+        # pane, Contract group.
+        "pane_of": "agents",
         "pane_group": "Contract",
         "title": "Expected Output",
         "archetype": "document",
@@ -476,8 +485,10 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "slug": "principles",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "intent",  # ADR-312 D5 — constitution band (was `settings`)
-        "pane_of": "workspace-settings",  # ADR-341 — Constitution read/manage pane (band stays first-class, ADR-312 D5)
-        "pane_group": "Constitution",
+        # ADR-387 §6.4 — Principles is the agent's persona/ judgment framework.
+        # Moves to Freddie's pane, Persona group.
+        "pane_of": "agents",
+        "pane_group": "Persona",
         "title": "Principles",
         "archetype": "document",
         "substrate_paths": [
@@ -493,8 +504,11 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "slug": "identity",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "intent",  # ADR-312 D5 — constitution band (was `settings`)
-        "pane_of": "workspace-settings",  # ADR-341 — Constitution read/manage pane (band stays first-class, ADR-312 D5)
-        "pane_group": "Constitution",
+        # ADR-387 §6.4 — Identity is the agent's persona/ reasoning-character.
+        # Moves to Freddie's pane, Persona group. (ADR-320 D2b already collapsed
+        # the legacy operator-identity into persona/IDENTITY.md — the agent's.)
+        "pane_of": "agents",
+        "pane_group": "Persona",
         "title": "Identity",
         "archetype": "document",
         "substrate_paths": [

@@ -87,12 +87,26 @@ def test_pane_homing() -> None:
     from services.kernel_surfaces import KERNEL_SURFACES
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
-    # ADR-347: Governance (Budget=Rhythm, Autonomy=Witness) + Expected Output
-    # = the Contract group, in the ONE operation-settings door.
-    for slug in ("budget", "autonomy", "expected-output"):
-        check(f"{slug} → the one Settings door", by_slug[slug].get("pane_of") == "workspace-settings")
+    # ADR-387 §6.4 (2026-06-30): the agent-scoped governance panes LEFT
+    # Workspace Settings for Freddie's pane (the agents window), grouped by
+    # substrate root-ownership. Identity + Principles (persona/) = Persona;
+    # Autonomy + Budget (governance/ GRANT) = Grant; Expected Output (contract/
+    # CONTRACT) = Contract. These are the agent's settings — they live on the
+    # agent's pane (re-affirming ADR-251 on the ADR-381/383 Freddie foundation).
+    for slug in ("identity", "principles"):
+        check(f"{slug} → Freddie's pane (ADR-387)", by_slug[slug].get("pane_of") == "agents")
+        check(f"{slug} grouped Persona", by_slug[slug].get("pane_group") == "Persona")
+    for slug in ("autonomy", "budget"):
+        check(f"{slug} → Freddie's pane (ADR-387)", by_slug[slug].get("pane_of") == "agents")
+        check(f"{slug} grouped Grant", by_slug[slug].get("pane_group") == "Grant")
+    for slug in ("expected-output",):
+        check(f"{slug} → Freddie's pane (ADR-387)", by_slug[slug].get("pane_of") == "agents")
         check(f"{slug} grouped Contract", by_slug[slug].get("pane_group") == "Contract")
-    # Operation + Perception (constitution/ + operation/).
+    # Workspace Settings keeps the genuinely workspace-level residue: Mandate
+    # (constitution/ — operator intent) + Program (operation/). ADR-387 D1.
+    for slug in ("mandate",):
+        check(f"{slug} → the one Settings door", by_slug[slug].get("pane_of") == "workspace-settings")
+        check(f"{slug} grouped Constitution", by_slug[slug].get("pane_group") == "Constitution")
     for slug in ("program",):
         check(f"{slug} → the one Settings door", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug} grouped Operation", by_slug[slug].get("pane_group") == "Operation")
@@ -102,10 +116,6 @@ def test_pane_homing() -> None:
     for slug in ("connectors", "sources"):
         check(f"{slug} → Channels (ADR-385)", by_slug[slug].get("pane_of") == "channels")
         check(f"{slug} grouped Channels (ADR-385)", by_slug[slug].get("pane_group") == "Channels")
-    # Constitution (the persona/ + constitution/ roots).
-    for slug in ("mandate", "identity", "principles"):
-        check(f"{slug} → the one Settings door", by_slug[slug].get("pane_of") == "workspace-settings")
-        check(f"{slug} grouped Constitution", by_slug[slug].get("pane_group") == "Constitution")
 
 
 def test_registers_unchanged() -> None:
@@ -143,13 +153,18 @@ def test_constitution_band_preserved() -> None:
     print("\n[band] constitution stays first-class on Home (D2, ADR-312 D5)")
     home = _read("components/library/HomeHeader.tsx")
     check("HomeHeader still renders the constitution band", "ConstitutionLinks" in home)
-    # Constitution routes are now ADR-308 stubs → Workspace Settings panes;
-    # the band consumes the cards directly, independent of these routes.
-    for slug in ("mandate", "identity", "principles"):
+    # Mandate (constitution/ — operator intent) stays a Workspace-Settings pane
+    # stub. ADR-387 §6.4: Identity + Principles (persona/ — the agent's) moved to
+    # Freddie's pane, so THEIR stubs now redirect to the agents window. The band
+    # consumes the cards directly, independent of these routes.
+    mandate_stub = _read("app/(authenticated)/mandate/page.tsx")
+    check("/mandate → Workspace Settings pane stub",
+          "redirect('/workspace-settings?workspace-settings.pane=mandate')" in mandate_stub)
+    check("/mandate stub is server-side (no 'use client')", "'use client'" not in mandate_stub)
+    for slug in ("identity", "principles"):
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
-        # ADR-358 D6: window-NAMESPACED pane param.
-        check(f"/{slug} is a server redirect stub",
-              f"redirect('/workspace-settings?workspace-settings.pane={slug}')" in stub)
+        check(f"/{slug} → Freddie's pane stub (ADR-387 §6.4)",
+              f"redirect('/agents?agents.agent=freddie&agents.pane={slug}')" in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
 
 

@@ -768,7 +768,10 @@ const FREDDIE_PANE_GROUPS: FreddiePaneGroup[] = [
     panes: [{ key: 'activity', label: 'Activity', icon: ActivityIcon }],
   },
 ];
-const FREDDIE_PANE_KEYS = FREDDIE_PANE_GROUPS.flatMap((g) => g.panes.map((p) => p.key));
+// Exported (ADR-387 §6.4) so the agents page can auto-select Freddie when a
+// pane_of-delivered `agents.pane` is one of these — the generic mechanism sets
+// the pane param but not `agents.agent=freddie`, so the page infers it.
+export const FREDDIE_PANE_KEYS = FREDDIE_PANE_GROUPS.flatMap((g) => g.panes.map((p) => p.key));
 
 /** ADR-387 — render one Freddie pane body. The *Card full variants are the
  *  SAME components Workspace Settings used (they leave there; Singular
@@ -809,21 +812,21 @@ function renderFreddiePane(pane: string) {
 }
 
 function ReviewerDetail({ agent }: { agent: Agent }) {
-  // ADR-358 D6 (2026-06-25): the Reviewer's sub-pane is THIS window's own
-  // deep-link state — read/written under the `agents.tab` namespace via
-  // useSurfaceParam, NO pathname flip. Pre-fix this used
-  // router.replace('/agents?tab=…') with a BARE key, which hard-navigated
-  // off the /desktop baseline (resetting chat) and collided with any other
-  // window's flat ?tab=. The URL is the single source of truth — derive
-  // activePane from it directly, no parallel useState. ADR-387: the key
-  // space grew (principles/autonomy/budget/expected-output added); the param
-  // name stays `tab` for deep-link continuity.
+  // ADR-358 D6: the Reviewer's sub-pane is THIS window's own deep-link state,
+  // read/written via useSurfaceParam (no pathname flip). ADR-387 §6.4
+  // (2026-06-30): the param is `agents.pane` — the name the generic pane_of
+  // mechanism delivers (the 5 governance panes are now pane_of: agents, so
+  // foregroundSurface('autonomy') reconciles agents.pane=autonomy here). This
+  // mirrors the channels surface precedent exactly (windowSlug.pane). The
+  // legacy `agents.tab` form is read as a fallback for any in-flight deep-link
+  // (and the autonomy/principles keys now RESOLVE — fixing the dangling
+  // HomeHeader autonomy link ADR-297 left broken).
   const p = useSurfaceParam('agents');
-  const tabParam = p.get('tab');
-  const activePane = tabParam && FREDDIE_PANE_KEYS.includes(tabParam) ? tabParam : 'identity';
+  const paneParam = p.get('pane') ?? p.get('tab');
+  const activePane = paneParam && FREDDIE_PANE_KEYS.includes(paneParam) ? paneParam : 'identity';
 
   function handlePaneChange(key: string) {
-    p.set({ tab: key });
+    p.set({ pane: key, tab: null });
   }
 
   return (

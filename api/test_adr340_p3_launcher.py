@@ -103,7 +103,10 @@ def test_constitution_band_door() -> None:
     for slug in ("mandate", "principles", "identity"):
         check(f"band links to {slug}", f"slug: '{slug}'" in src)
     check("links open via foregroundSurface", "foregroundSurface(item.slug)" in src)
-    check("autonomy badge points at the Contract pane (ADR-347)", "/workspace-settings?pane=autonomy" in src)
+    # ADR-387 §6.4 (2026-06-30): the autonomy badge resolves to Freddie's pane
+    # (pane_of: agents) via the navigation-enactment verb foregroundSurface —
+    # NOT a hardcoded /workspace-settings URL. The registry re-point lands it.
+    check("autonomy badge → foregroundSurface('autonomy') (ADR-387 §6.4)", "foregroundSurface('autonomy')" in src)
 
 
 def main() -> int:
