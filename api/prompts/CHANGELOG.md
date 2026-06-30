@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.30.6] - steward principles: the stewardship-log home is persona/, not locked system/ (ADR-390 follow-on)
+
+**The ADR-390 PASS wake surfaced a steward-UX wrinkle: when flagging the mis-attribution, Freddie first tried to write its stewardship log to `system/notes.md` → `governance_locked` (correct gate, ADR-320), then recovered to `persona/standing_intent.md`. The `attribution-integrity` verdict-on-fail said "flag where another principal did" but never said WHERE to write the flag. One-line fix to the steward-default seed.**
+
+- `api/services/orchestration.py::DEFAULT_STEWARD_PRINCIPLES_MD`: the `attribution-integrity` verdict-on-fail now names the steward's log home — write the flag (and any stewardship log) to a path you can author (`persona/standing_intent.md`); `system/`+`governance/` are locked and return `governance_locked`, not a flag; name the mismatch + likely true principal for the next wake/operator.
+- **Expected behavior change**: a steward flagging an attribution issue writes the flag to `persona/` on the first try instead of bouncing off the `system/` lock. No gate/permission change — the lock was always correct; this stops the steward reaching for the locked path. Seeds into NEW workspaces' steward principles; existing workspaces' principles.md is operator/program-owned (not retroactively rewritten — single-writer-per-path, ADR-286). No test pins the seed content; imports clean.
+
 ## [2026.06.30.5] - the removal pass: strip the steward envelope to its job (ADR-390, amends .4)
 
 **Reassessment after the ADR-389 (.4) validation FAILED: the discipline that historically purified this agent's prompt was REMOVAL (persona-frame 36K→3.5K; the ADR-299 finding that section VOLUME is corrosive to judgment), and .4 ADDED two facts onto an envelope already grown to 63 sections / 19 facts (10 EMPTY on a bare steward, most rendering empty-state scaffolding for an operation the steward doesn't run). The catch wasn't missing for lack of a signal — it was DILUTED. ADR-390 keeps .4's principal-vs-peripheral TAXONOMY (right) and deletes its ADDITION method (wrong axis).**

@@ -942,7 +942,11 @@ external action; that limb belongs to a program's persona agent (ADR-382).
   `authored_by`.
 - **Pass**: every revision attributes the principal that authored it.
 - **Verdict on fail**: fix where the steward authored it; flag where another
-  principal did.
+  principal did. Write the flag (and any stewardship log) to a path you can
+  author — `persona/standing_intent.md` is the steward's log home. `system/` and
+  `governance/` are locked (ADR-320); a write there returns `governance_locked`,
+  not a flag. Name the mismatch and the likely true principal so the next wake
+  (or the operator) can resolve it.
 
 ## commons-coherence
 
