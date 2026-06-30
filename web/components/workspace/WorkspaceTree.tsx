@@ -10,7 +10,6 @@
 import { useEffect, useState } from 'react';
 import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, Boxes, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { authorAccent, formatAuthorLabel } from '@/lib/workspace/attribution';
 import type { WorkspaceTreeNode } from '@/types';
 import { FileIcon } from '@/components/workspace/FileIcon';
 
@@ -163,17 +162,10 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu }: TreeIt
             sys
           </span>
         )}
-        {/* ADR-388 D3: who last touched this file — a quiet accent dot from
-            the ONE shared attribution module (was a divergent inline shorthand
-            that collapsed MCP writes to "TP"). The dot's color encodes the
-            author class; the title carries the full legible label, including
-            the interop form "ChatGPT (via MCP)". */}
-        {!isFolder && !isSystem && node.authored_by && (
-          <span
-            className={cn('shrink-0 h-1.5 w-1.5 rounded-full ml-1', authorAccent(node.authored_by))}
-            title={formatAuthorLabel(node.authored_by) ?? undefined}
-          />
-        )}
+        {/* ADR-388 follow-up: author dots removed from the tree. An unlabeled
+            color dot is a riddle — "who wrote it" now lives where it's a full
+            legible label (the file header + the Get-Info modal), not a color
+            the operator must decode. The tree is for navigation. */}
       </button>
       {isFolder && expanded && node.children && (
         <div>

@@ -8,20 +8,20 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Download, ExternalLink, FileText, Folder, Loader2, Trash2 } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { Download, ExternalLink, FileText, Folder, Loader2, Trash2, FileQuestion } from 'lucide-react';
+import { api, APIError } from '@/lib/api/client';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
-import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { FileIcon } from '@/components/workspace/FileIcon';
 // ADR-236 Files page rework (2026-04-30): SubstrateEditor deleted. Direct
 // inline editing of substrate files is removed per the original assessment
 // ("not notion-like, streamline back to edit via Chat"). Every file now
 // shows the EditInChatButton; substrate writes flow through chat (which
 // invokes WriteFile(scope='workspace') per ADR-235).
-// ADR-329 (amended): the full revision chain (RevisionHistoryPanel, with its
-// revert affordance) moved out of the file body into the node Details panel
-// ("Get Info"). The file header still shows the head-revision author glance.
+// ADR-329 (amended) + ADR-388 follow-up: the full revision chain (with its
+// revert affordance) moved out of the file body into the Get-Info modal — it
+// was double-mounted; the modal is its single home. The file header still
+// shows the head-revision author glance.
 import { InferenceContentView } from '@/components/context/InferenceContentView';
 // ADR-309: the type→application association layer (Applications register).
 // Lifted out of this file's private getFileKind into the shared kernel-
@@ -289,6 +289,11 @@ function FileView({
   const [file, setFile] = useState<WorkspaceFile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // ADR-388 follow-up: a 404 here means the file doesn't exist at this path
+  // (e.g. a stale deep-link, or a synthetic node fabricated for a typed path
+  // that was never written). That's an honest "no longer here" empty state,
+  // NOT a red "API Error" — distinguished from a real load failure.
+  const [notFound, setNotFound] = useState(false);
   const [reloadKey] = useState(0);
   const [deleting, setDeleting] = useState(false);
   // ADR-236 Cluster B: head-revision authorship surfaced on the file
@@ -299,11 +304,19 @@ function FileView({
   useEffect(() => {
     setLoading(true);
     setError(null);
+    setNotFound(false);
     setHeadRevision(null);
     api.workspace
       .getFile(path)
       .then((data) => setFile(data))
-      .catch((err) => setError(err.message || 'Failed to load file'))
+      .catch((err) => {
+        // 404 → honest "no longer at this path" state, not a red error.
+        if (err instanceof APIError && err.status === 404) {
+          setNotFound(true);
+        } else {
+          setError(err?.message || 'Failed to load file');
+        }
+      })
       .finally(() => setLoading(false));
     // Fire revision lookup in parallel — non-blocking on file render.
     api.workspace
@@ -344,6 +357,21 @@ function FileView({
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // ADR-388 follow-up: 404 = the file isn't at this path (stale deep-link /
+  // synthetic node for a never-written path). Honest empty state, not an error.
+  if (notFound) {
+    return (
+      <div className="p-8 text-center text-muted-foreground text-sm">
+        <FileQuestion className="mx-auto mb-3 h-10 w-10 opacity-40" />
+        <p className="font-medium text-foreground/80">This file isn’t here</p>
+        <p className="mt-1 text-xs max-w-sm mx-auto">
+          Nothing exists at <span className="font-mono">{path}</span>. It may have
+          been moved or never written — pick a file from the explorer.
+        </p>
       </div>
     );
   }
@@ -512,16 +540,14 @@ function FileView({
           </div>
         )}
 
-        {/* ADR-329 D1: provenance promoted to a first-class element of the
-            file view. The authored, attributed revision chain (ADR-209) is
-            the moat made visible — "who authored this claim, how did it
-            evolve, has it been judged." Rendered for text-shaped authored
-            substrate (markdown/text/csv/html); binary kinds (image/pdf/
-            download) don't carry an operator-auditable authoring story.
-            The panel is itself collapsible — open it to walk the history. */}
-        {file.content && (kind === 'markdown' || kind === 'text' || kind === 'csv' || kind === 'html') && (
-          <RevisionHistoryPanel path={file.path} />
-        )}
+        {/* ADR-388 follow-up: the revision chain (ADR-209 provenance) moved
+            OUT of the file body — it was double-mounted (here inline AND in the
+            Get-Info modal). Singular home: Get Info (right-click or the header
+            button). The file body shows content; "who wrote it" + the full
+            history live one click away in Get Info, where the attribution
+            summary heads the chain. (ADR-329 D1's "provenance first-class"
+            intent is preserved — it's first-class in Get Info, not duplicated
+            below every file.) */}
       </div>
     </div>
   );

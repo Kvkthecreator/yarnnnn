@@ -144,3 +144,35 @@ def test_right_click_get_info_wired():
     assert "onContextMenu" in content
     page = _read_web(_PAGE)
     assert "handleGetInfo" in page
+
+
+# ---- follow-up (2026-06-30): single revision home, honest 404, no tree dots --
+
+def test_revision_chain_single_home():
+    """The revision chain was double-mounted (FileView inline + the modal).
+    It now lives ONLY in the Get-Info modal (via NodeDetailsPanel)."""
+    content = _read_web(_CONTENT)
+    # FileView no longer renders RevisionHistoryPanel inline
+    assert "RevisionHistoryPanel" not in content
+    # the modal's panel still mounts it (single home) + the attribution synthesis
+    nd = _read_web("components/workspace/NodeDetailsPanel.tsx")
+    assert "RevisionHistoryPanel" in nd
+    assert "FileAttributionSummary" in nd
+
+
+def test_missing_file_honest_empty_state():
+    """A 404 from getFile renders an honest 'this file isn't here' empty state,
+    not a raw red 'API Error' — distinguished by APIError.status === 404."""
+    content = _read_web(_CONTENT)
+    assert "APIError" in content
+    assert "status === 404" in content
+    assert "notFound" in content
+
+
+def test_tree_has_no_author_dots():
+    """Author dots removed from the tree (unlabeled color is a riddle). The
+    accent/label helpers are no longer imported there; attribution lives in the
+    file header + Get-Info modal."""
+    tree = _read_web("components/workspace/WorkspaceTree.tsx")
+    assert "authorAccent" not in tree
+    assert "formatAuthorLabel" not in tree

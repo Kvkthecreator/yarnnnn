@@ -31,6 +31,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Loader2, FileText, Folder } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
+import { cn } from '@/lib/utils';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import {
   formatAuthorLabelOrSystem as formatAuthorLabel,
@@ -150,6 +151,75 @@ function FolderDetails({
   );
 }
 
+// ADR-388 follow-up: a compact attribution SYNTHESIS for a file, derived from
+// its revision chain — the interop-wedge story in one line (who started it, who
+// last touched it, how many principals have contributed). Heads the Get-Info
+// modal's file branch, above the full chain.
+function FileAttributionSummary({ path }: { path: string }) {
+  const [summary, setSummary] = useState<{
+    count: number;
+    distinct: number;
+    first: string | null;
+    last: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.workspace
+      .listRevisions({ path }, 50)
+      .then((res) => {
+        if (cancelled) return;
+        const revs = res.revisions || [];
+        if (revs.length === 0) {
+          setSummary(null);
+          return;
+        }
+        // revisions come newest-first; first authored = the oldest.
+        const authors = revs.map((r) => r.authored_by);
+        const distinct = new Set(authors).size;
+        setSummary({
+          count: revs.length,
+          distinct,
+          last: authors[0] ?? null,
+          first: authors[authors.length - 1] ?? null,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setSummary(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+
+  if (!summary) return null;
+
+  const firstLabel = formatAuthorLabel(summary.first);
+  const lastLabel = formatAuthorLabel(summary.last);
+  return (
+    <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground space-y-1">
+      <div className="flex items-center gap-1.5">
+        <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', authorAccent(summary.last))} />
+        <span>
+          Last edited by <span className="font-medium text-foreground/80">{lastLabel}</span>
+        </span>
+      </div>
+      {summary.first !== summary.last && (
+        <div className="flex items-center gap-1.5">
+          <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', authorAccent(summary.first))} />
+          <span>
+            First authored by <span className="font-medium text-foreground/80">{firstLabel}</span>
+          </span>
+        </div>
+      )}
+      <div className="text-muted-foreground/70">
+        {summary.count} {summary.count === 1 ? 'revision' : 'revisions'}
+        {summary.distinct > 1 ? ` · ${summary.distinct} contributors` : ''}
+      </div>
+    </div>
+  );
+}
+
 interface NodeDetailsPanelProps {
   node: WorkspaceTreeNode;
   /** Navigate to a file path (folder Details rows deep-link into files). */
@@ -190,12 +260,14 @@ export function NodeDetailsPanel({ node, onSelectPath, onRevert }: NodeDetailsPa
       {isFolder ? (
         <FolderDetails node={node} onSelectPath={onSelectPath} />
       ) : (
-        // File Details — the full revision chain with revert/diff (ADR-209).
-        // revertDisabled mirrors ContentViewer's prior behavior: revert writes
-        // through PATCH /workspace/file, which the backend gates to editable
-        // prefixes; non-editable system files still show history (read), just
-        // no revert button.
-        <RevisionHistoryPanel path={node.path} onRevert={onRevert} />
+        // File Details — the attribution synthesis (who started/last-touched,
+        // how many contributors) heading the full revision chain with
+        // revert/diff (ADR-209). Now the SINGLE home for provenance (the
+        // inline FileView panel was removed — ADR-388 follow-up).
+        <div className="space-y-3">
+          <FileAttributionSummary path={node.path} />
+          <RevisionHistoryPanel path={node.path} onRevert={onRevert} />
+        </div>
       )}
     </div>
   );
