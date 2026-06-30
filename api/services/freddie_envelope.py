@@ -92,41 +92,22 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     # read returns empty (no _budget.yaml authored yet) the helper still
     # yields ("budget_yaml", "") so the FreddieContext key is present.
     ("budget_yaml", GOVERNANCE_BUDGET_PATH),
-    # ADR-345: the operation's output contract (Expected Output) — what the
-    # workspace owes (kind + delivery-cadence + bar). Orthogonal to budget
-    # (Rhythm = rate of attention; Expected Output = the deliverable). The
-    # standing-obligation check (DP30) reads it declared-then-derive: when
-    # present it is the shared referent for "behind on the contract"; when
-    # empty the ADR-344 derivation is the fallback. Empty string keeps the
-    # FreddieContext key present (same shape as budget_yaml).
-    ("expected_output_yaml", CONTRACT_EXPECTED_OUTPUT_PATH),
     # — Seat Occupant (ADR-284) — current occupant identity, runtime-truth-aligned
     ("occupant_md", PERSONA_OCCUPANT_PATH),
     # — Standing Intent (ADR-284) — what the Reviewer was watching for last cycle.
     # The Reviewer reads this on every wake, compares against current world state,
     # and updates it before standing down. The substrate counterpart to a no-fire
-    # judgment is an updated standing_intent.md.
+    # judgment is an updated standing_intent.md. Steward-base: a steward carries
+    # standing intent over ANY workspace (what it was watching to tend).
     ("standing_intent_md", PERSONA_STANDING_INTENT_PATH),
-    # — Pulse (ADR-301) — Reviewer's own cadence + recent fires.
-    # Mechanically mirrored from `tasks` (scheduling index) +
-    # `execution_events` (ledger) by `services.kernel_mirrors`, run per
-    # scheduler tick in the maintenance phase. Both files are diff-aware
-    # writes (most ticks produce zero revisions). The Reviewer reads them
-    # to reason correctly about its own pulse — closes the schedule-
-    # hallucination class documented in docs/evaluations/2026-05-24-
-    # 045348-reviewer-schedule-self-misdiagnosis/findings.md.
-    ("schedule_index_md", SYSTEM_SCHEDULE_INDEX_PATH),
-    ("recent_execution_md", SYSTEM_RECENT_EXECUTION_PATH),
-    # ADR-327 D6 — calibration evidence for the self-improving loop. Mirrors
-    # the Reviewer's cadence-authoring history against ground-truth outcome
-    # quality (per-recurrence fires vs proposals-produced + ground-truth
-    # head). The Reviewer reads this BEFORE reasoning about cadence; where its
-    # prior cadence choices are falsified by ground truth, it re-authors.
-    # NOTE: this is `system/_calibration.md` (ADR-327 D6, mechanically mirrored,
-    # cadence-vs-outcome evidence) — NOT the retired persona-side `calibration.md`
-    # (the old ADR-211 per-occupant aggregate-windows file, superseded by
-    # `persona/reflection.md` per ADR-364 D4). Same word, different mechanism.
-    ("calibration_md", SYSTEM_CALIBRATION_PATH),
+    # NOTE (ADR-390 removal pass): expected_output_yaml, schedule_index_md,
+    # recent_execution_md, and calibration_md were UNIVERSAL reads. They are
+    # capital-OPERATION machinery (the output contract, the pulse, the cadence-vs-
+    # outcome calibration) — a bare steward has no operation that owes output, no
+    # cadence it must calibrate. They moved OUT of the universal set into the
+    # program-active branch of load_freddie_governance_envelope so a bare steward
+    # never reads (nor renders) them. Single-ownership: each is read in exactly
+    # ONE place, gated on program_active. See ADR-390 D3.
 ]
 
 
@@ -345,57 +326,68 @@ async def load_freddie_governance_envelope(
         # generic renderer skips keys already rendered with a bespoke header.
         envelope["_program_envelope_keys"] = list(program_keys)
 
+    # --- The program-active predicate (ADR-390 removal pass) ---
+    # The SINGLE predicate the envelope-by-agent-kind gate keys on. A workspace
+    # runs a program iff its active bundle declared wake-envelope substrate —
+    # exactly `program_decls` (sourced from bundle_reader.get_substrate_abi_for_
+    # workspace → bundles_active_for_workspace, the canonical connection-or-
+    # MANDATE-slug activation truth). No new concept: a bundle that ships ground-
+    # truth/risk/signals to the envelope IS an operation; a bare steward ships
+    # none. This is the ADR-383 two-order base-case/overlay boundary made
+    # structural — the steward is the base envelope; a program ADDS its machinery.
+    program_active = bool(program_decls)
+
     # --- Operating Context (ADR-274 + ADR-301 D5 consolidation) ---
-    # Composed here so the envelope helper is the singular envelope
-    # assembly point. Same content as the pre-ADR-301 build_operating_
-    # context_block. Callers no longer need to compose it separately;
-    # the envelope dict carries it through to the Reviewer's user message
-    # renderer alongside every other envelope key.
+    # now/tz/tenure. Steward-base — a steward reasons about time regardless of
+    # whether a program runs. Always present.
     envelope["operating_context_block"] = build_operating_context_block(
         client, user_id
     )
 
-    # --- Specs inventory (name + title only, no bodies) ---
-    # Program bundles fork capability specs into /workspace/operation/specs/ at activation
-    # (per ADR-261 D6 + ADR-275). The Reviewer's _PERSONA_FRAME tells it specs
-    # exist but doesn't enumerate them — without an inventory, the Reviewer
-    # ends up asking the operator "do those spec files exist?" when it could
-    # have known. The inventory is a name+title list, NOT spec bodies — bodies
-    # are read on demand via ReadFile. Cheap (one indexed query), bounded
-    # (typical bundle ships ~5-10 specs), and respects Derived Principle 19
-    # (substrate read, no LLM-time derivation).
-    envelope["specs_inventory"] = await _inventory_specs(client, user_id)
-
-    # --- Reflection gap-fact (ADR-364 D2) ---
-    # The closed intent→outcome loop, presented (not computed). For each recent
-    # material verdict in judgment_log carrying a proposal_id, joined to its
-    # outcome event (value + attestation) in the active bundle's ground-truth
-    # file by that proposal_id (the ADR-364 D1 keystone FK). DP19-clean: a
-    # bounded read-and-present (same shape as _inventory_specs) — the kernel
-    # presents the raw join; it does NOT label matched/diverged (that analytical
-    # state is the LLM's judgment, authored into persona/reflection.md). Honest
-    # by construction: the outcome carries ADR-330 attestation the agent can't
-    # fake. Empty string when no joinable verdict↔outcome pairs exist yet.
-    envelope["reflection_gap_fact"] = await _reflection_gap_fact(client, user_id)
-
-    # --- Attribution fact (ADR-387 follow-on) ---
-    # Recent revisions + their authored_by, presented raw — the steward's
-    # perception surface for intake-placement + attribution-integrity. DP19-clean
-    # (present, don't judge). Empty on a quiet workspace (no noise). Closes the
-    # bare-Freddie eval gap (Finding 1): a sweep can now SEE attribution drift.
-    envelope["attribution_fact"] = await _attribution_fact(client, user_id)
-
-    # --- Principal commons + peripheral field (steward-envelope re-scope, 2026-06-30) ---
-    # The steward-shaped envelope: perceive the workspace as a commons-with-a-
-    # perimeter, not just a governance packet. The principal commons gives the
-    # attribution fact a REFERENT (who may write, who did) so the steward can
-    # judge a stamp's honesty; the peripheral field gives connection-hygiene +
-    # source-freshness perceptible state. Both DP19-clean (present, don't judge),
-    # both empty on a quiet single-owner bare workspace (no noise on program
-    # wakes). See docs/analysis/perception-and-the-principal-commons-first-
-    # principles-2026-06-30.md + the ADR for the principal-vs-peripheral taxonomy.
+    # --- Perception facts (steward-base — ALWAYS present) ---
+    # The steward's job over ANY workspace is to tend the commons: who wrote
+    # what, is it honestly attributed, is intake placed (the principal commons +
+    # attribution detail), and is the perimeter healthy (the peripheral field).
+    # These are the base case — present whether or not a program runs. Folded
+    # into ONE commons-perception surface at the render layer (ADR-390 D2):
+    # roster → recent authorship → per-path attribution → peripheral health, one
+    # header, one owner. Each empty-graceful (silent on a quiet single-owner bare
+    # workspace — no noise). DP19-clean.
     envelope["principal_commons_fact"] = await _principal_commons_fact(client, user_id)
+    envelope["attribution_fact"] = await _attribution_fact(client, user_id)
     envelope["peripheral_field_fact"] = await _peripheral_field_fact(client, user_id)
+
+    # --- Operation machinery (program-active ONLY — ADR-390 D3 removal pass) ---
+    # specs inventory, the reflection gap-fact, pulse (schedule/recent-execution),
+    # calibration, and the expected-output contract are ALL capital-operation
+    # machinery: they describe a value-moving operation's specs, its closed
+    # intent→outcome loop, its cadence-vs-outcome calibration, and its output
+    # contract. A BARE STEWARD has no operation — it does not run cadence it must
+    # calibrate, has no ground-truth outcomes to reflect on, no specs, no owed
+    # output. Rendering empty-state scaffolding for all of it ("(empty — kernel
+    # mirror hasn't run yet)") DILUTED the steward's attention across machinery
+    # for an operation it doesn't have — the accretion the ADR-390 reassessment
+    # named (envelope had grown to 63 sections; the steward's actual judgment was
+    # one voice among many). Gated behind program_active: the steward base
+    # envelope omits them entirely (not even empty-state headers); a program
+    # MOUNTS them. The keys are still set (empty when not program-active) so the
+    # FreddieContext shape is stable and the render layer skips empties.
+    if program_active:
+        envelope["specs_inventory"] = await _inventory_specs(client, user_id)
+        envelope["reflection_gap_fact"] = await _reflection_gap_fact(client, user_id)
+        envelope["schedule_index_md"] = await _read(SYSTEM_SCHEDULE_INDEX_PATH)
+        envelope["recent_execution_md"] = await _read(SYSTEM_RECENT_EXECUTION_PATH)
+        envelope["calibration_md"] = await _read(SYSTEM_CALIBRATION_PATH)
+        envelope["expected_output_yaml"] = await _read(CONTRACT_EXPECTED_OUTPUT_PATH)
+    else:
+        # Bare steward — operation machinery is not its concern. Empty keys keep
+        # the contract shape stable; the render layer omits empties (ADR-390 D3).
+        envelope["specs_inventory"] = ""
+        envelope["reflection_gap_fact"] = ""
+        envelope["schedule_index_md"] = ""
+        envelope["recent_execution_md"] = ""
+        envelope["calibration_md"] = ""
+        envelope["expected_output_yaml"] = ""
 
     elapsed_ms = int(
         (datetime.now(timezone.utc) - _started_at).total_seconds() * 1000

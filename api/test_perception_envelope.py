@@ -222,14 +222,40 @@ def test_contract_and_envelope_wiring():
 
     import agents.freddie_agent as fa
     rsrc = inspect.getsource(fa)
-    check('ctx.get("principal_commons_fact")' in rsrc, "user message renders principal_commons_fact")
-    check('ctx.get("peripheral_field_fact")' in rsrc, "user message renders peripheral_field_fact")
-    check("Principal commons —" in rsrc, "renders under the Principal-commons header")
-    check("Peripheral field —" in rsrc, "renders under the Peripheral-field header")
-    check("A PRINCIPAL is an intent-bearing" in rsrc, "header carries the principal definition (the referent cue)")
-    check("PERIPHERALS — driver-class" in rsrc, "header carries the peripheral definition (health-not-honesty)")
-    check("checking each stamp against the principal commons" in rsrc,
-          "attribution fact now routes the check through the roster (the catch-fix)")
+    # ADR-390: the three perception facts fold into ONE commons surface (mutual-
+    # exclusivity). The render reads all three keys, under one header.
+    check('"principal_commons_fact"' in rsrc, "commons surface reads principal_commons_fact")
+    check('"peripheral_field_fact"' in rsrc, "commons surface reads peripheral_field_fact")
+    check('"attribution_fact"' in rsrc, "commons surface reads attribution_fact")
+    check("## The commons —" in rsrc, "the three facts render under ONE commons header (the fold)")
+    check("PRINCIPAL is an intent-bearing, grant-backed" in rsrc, "commons carries the principal definition (the referent cue)")
+    check("driver-class transports with no intent" in rsrc, "commons carries the peripheral definition (health-not-honesty)")
+    check("check every stamp below against this roster" in rsrc.lower() or
+          "check every stamp" in rsrc, "attribution detail routes the check through the roster (the catch-fix)")
+
+
+def test_operation_machinery_gated_on_program_active():
+    print("\n[ADR-390] operation machinery is gated on program_active (bare steward sees none)")
+    import inspect
+    import services.freddie_envelope as fe
+    src = inspect.getsource(fe.load_freddie_governance_envelope)
+    check("program_active = bool(program_decls)" in src,
+          "the single program-active predicate exists (bool(program_decls))")
+    check("if program_active:" in src, "machinery reads are gated behind program_active")
+    # the six operation-machinery facts are read INSIDE the gate, not universally
+    for fact in ("reflection_gap_fact", "schedule_index_md", "recent_execution_md",
+                 "calibration_md", "expected_output_yaml", "specs_inventory"):
+        # appears in the program-active branch; must NOT be in _UNIVERSAL_ENVELOPE_DECLS
+        decls = inspect.getsource(fe)
+        in_universal = f'("{fact}",' in decls.split("_UNIVERSAL_ENVELOPE_DECLS")[1].split("]")[0] \
+            if "_UNIVERSAL_ENVELOPE_DECLS" in decls else False
+        check(not in_universal, f"{fact} removed from the universal set (program-gated, single-ownership)")
+
+    # render layer: pulse/calibration no longer emit empty-state headers
+    import agents.freddie_agent as fa
+    rsrc = inspect.getsource(fa)
+    check("(empty — kernel mirror hasn't run yet" not in rsrc,
+          "the empty-state pulse/calibration scaffolding headers are GONE (bare steward sees nothing)")
 
 
 def test_route_imports_shared_helper():
@@ -251,6 +277,7 @@ if __name__ == "__main__":
     test_peripheral_field_presents_connections_and_sources()
     test_peripheral_field_silent_on_bare_workspace()
     test_contract_and_envelope_wiring()
+    test_operation_machinery_gated_on_program_active()
     test_route_imports_shared_helper()
     print(f"\n  {PASSED} passed, {FAILED} failed")
     sys.exit(1 if FAILED else 0)

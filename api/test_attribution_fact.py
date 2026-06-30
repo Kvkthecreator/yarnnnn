@@ -170,16 +170,18 @@ def test_wired_into_contract_and_envelope():
     env_src = (_API_ROOT / "services" / "freddie_envelope.py").read_text()
     check('envelope["attribution_fact"]' in env_src, "envelope sets attribution_fact")
     agent_src = (_API_ROOT / "agents" / "freddie_agent.py").read_text()
-    check('ctx.get("attribution_fact")' in agent_src, "user message renders attribution_fact")
-    check("Attribution fact —" in agent_src, "renders under the Attribution-fact header")
-    # The header routes the steward to verify voice-vs-attribution (the eval
-    # gap) and to apply the two rules by name. (The "verify voice / against
-    # attribution" sentence spans a string-concat boundary in source, so assert
-    # on the rule names + the stamp-honesty cue, which live in single literals.)
+    # ADR-390: the attribution fact folded into the ONE commons surface (it is no
+    # longer a standalone "## Attribution fact" header — that was accretion). It
+    # is rendered (read) inside the commons, under the commons header, after the
+    # principal roster (so the stamp has a referent). Assert the fold.
+    check('"attribution_fact"' in agent_src, "commons surface reads attribution_fact")
+    check("## The commons —" in agent_src, "renders inside the ONE commons header (the ADR-390 fold)")
+    # The commons routes the steward to verify voice-vs-attribution-vs-roster (the
+    # eval gap) and names the two rules. (Strings live in single literals.)
     check("attribution-integrity" in agent_src and "intake-placement" in agent_src,
-          "header names both stewardship rules the fact serves")
-    check("Don't assume the stamp is honest" in agent_src,
-          "header cues the steward not to trust the stamp at face value (the eval gap)")
+          "commons names both stewardship rules the fact serves")
+    check("Voice that doesn't match the stamp" in agent_src,
+          "commons cues the steward to verify voice against the stamp (the eval gap)")
 
 
 if __name__ == "__main__":
