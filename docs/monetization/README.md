@@ -4,9 +4,10 @@
 
 ## TL;DR — where pricing stands (2026-07-01)
 
-- **What ships + charges today**: **balance as the single gate** (ADR-172/291) — pay-as-you-go, $3 signup grant, top-ups, 2× Anthropic, hard-stop at zero. **No tiers, no seats.** This is the *floor*, and today it is also the *whole live model*.
-- **The direction — capture first, pricing second**: the pricing question is split into two ordered layers ([PRICING-CONSOLIDATION-2026-07-01.md](./PRICING-CONSOLIDATION-2026-07-01.md)). **(1) Capture** — build a transparent, legible cost & activity surface (every action × principal × cost, as-is) *first*; it needs no pricing decision and is the `trace` of spend, coherent with the product's legibility moat. **(2) Pricing** — a commercial model layered *on top* of the honest capture, decided *later* with real usage data. The prior "two-objects-over-a-floor" framework is preserved as a **Layer-2 candidate**, not a committed model.
-- **Deferred**: delegation-tiered seats (ADR-334) — a Rung-2/Phase-2 model, not the launch.
+- **The MODEL is decided — [ADR-396](../adr/ADR-396-the-pricing-model-type-b-subscription-over-the-metered-balance.md)**: a **Type-B subscription over the metered balance** (plan tier + included allowance + overage; activity transparent, dollars not shown — the Claude pattern). **One meter** (LLM judgment invocations), **two gates** (connector retention [built] + count [candidate]), the **moat's reads free**. Overage = hard-stop + top-up the existing `balance_usd`; **no credit currency.** Ships on existing machinery (subscription_refill + top-up + hard-stop) — only new build is a plan-tier record + showing balance as a usage quantity.
+- **What ships + charges TODAY (until an ADR-396 tier ships)**: **balance as the single gate** (ADR-172/291) — pay-as-you-go, $3 grant, top-ups, 2× Anthropic, hard-stop at zero. The live gate remains this until the first tier ships.
+- **The one thing NOT decided**: the tier NUMBERS (base price + allowance size). Economics bound the base to ~$15–25/mo; the felt-value number is **customer-gated** — set against a first paying user, not ahead of one.
+- **Deferred**: delegation-tiered seats (ADR-334) — a Rung-2/Phase-2 layer over ADR-396, not the launch.
 
 ## Two commerce surfaces (unchanged)
 
@@ -28,7 +29,7 @@
 | [COST-MODEL.md](./COST-MODEL.md) | Unit economics. *Figures are historical guidance; cost unit is now the wake, not the task (ADR-260/261).* |
 | [IMPLEMENTATION.md](./IMPLEMENTATION.md) | **How Lemon Squeezy is wired** (mechanism — current; the *products* extend when a new model ratifies). |
 
-### 🔵 FORWARD — the direction under active consolidation (NOT ratified)
+### 🔵 THE DECIDED MODEL — ratified by ADR-396 (numbers demand-gated)
 | Doc | What it is |
 |---|---|
 | [**PRICING-CONSOLIDATION-2026-07-01.md**](./PRICING-CONSOLIDATION-2026-07-01.md) | **The synthesis** — threads every scattered artifact into the two-objects framework + implementation seams + the 6 decisions that would end the delay. *Start here for the forward model.* |
@@ -43,8 +44,9 @@
 | [ADR-291: Unified Cost Ledger](../adr/ADR-291-unified-cost-ledger.md) | `execution_events` = the sole cost substrate; 2× cache-inclusive. |
 | [ADR-327: Budget & the Self-Improving Loop](../adr/ADR-327-budget-and-the-self-improving-loop.md) | `_budget.yaml` = the self-governed attention envelope (distinct from `balance_usd`). |
 | [ADR-391: Three-Layer Cost Model](../adr/ADR-391-budget-balance-and-the-three-layer-cost-model.md) | **The cost architecture** (balance=workspace, allocation=principal, ledger=attributed). *Pricing decisions D2/D4/D6 reopened by the value analysis.* |
-| [ADR-392: The Connector Lane](../adr/ADR-392-the-connector-lane.md) §D8 | **Retention window** — built pricing-ready (`connector_retention.py`); folds into the base as a substrate-depth dimension. |
-| [ADR-334: Per-Operation Pricing](../adr/ADR-334-per-operation-pricing.md) | **Deferred** — delegation-tiered seats; the Rung-2/Phase-2 model, not the launch. |
+| [**ADR-396: The Pricing Model**](../adr/ADR-396-the-pricing-model-type-b-subscription-over-the-metered-balance.md) | **THE RATIFIED MODEL** — Type-B subscription over the metered balance; one meter, two gates, no credit currency. Numbers demand-gated. |
+| [ADR-392: The Connector Lane](../adr/ADR-392-the-connector-lane.md) §D8 | **Retention window** — built pricing-ready (`connector_retention.py`); the model's first non-LLM tier gate. |
+| [ADR-334: Per-Operation Pricing](../adr/ADR-334-per-operation-pricing.md) | **Deferred** — delegation-tiered seats; a Rung-2/Phase-2 layer over ADR-396, not the launch. |
 | [ADR-171: Token Spend Metering](../adr/ADR-171-token-spend-metering.md) | Universal `cost_usd` meter (amended by ADR-291). |
 
 ### ⚪ HISTORICAL / ARCHIVED — kept for reference, not current
