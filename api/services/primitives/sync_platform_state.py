@@ -44,11 +44,57 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any, Optional
 
 import yaml
 
 logger = logging.getLogger(__name__)
+
+
+# --- ADR-392 D2 — the connector raw capture lane (ledger-intake, ADR-376/DP32) ---
+# Connectors are the third context-in transport; a platform sync is an attributed
+# RAW observation that lands IMMUTABLY in the capture lane (retain + attribute),
+# and a SEPARATE derive act distills understanding into operation/ (cite via
+# derived_from). Sibling to the live inbound/mcp/ + inbound/web/ lanes; NOT
+# operation/ (that fusion was the pre-ADR-376 conflation). Raw-lane mechanism =
+# Option A (inbound/ namespace, ADR-392 §3, ratified 2026-07-01); connectors
+# enrol in the re-founding flag-day A→B flip with the other two lanes.
+INBOUND_CAPTURE_PREFIX = "inbound/"
+_DEFAULT_SELECTOR = "inbox"
+
+
+def _slugify_selector(value: str) -> str:
+    """Turn a channel/page/label/id into a safe single path segment.
+
+    Mirrors the mcp/web sublane convention (lowercase, hyphenated, no slashes)
+    so the connector lane is byte-parallel to inbound/mcp/{client}/ +
+    inbound/web/{source}/.
+    """
+    s = re.sub(r"[^a-zA-Z0-9]+", "-", (value or "").strip().lower()).strip("-")
+    return s or _DEFAULT_SELECTOR
+
+
+def resolve_capture_path(
+    platform: str,
+    selector: Optional[str],
+    observed_at: str,
+    ext: str = "md",
+) -> str:
+    """Resolve where a connector RAW observation lands (ADR-392 D2 / ADR-376).
+
+    inbound/{platform}/{selector}/{observed_at}.{ext} — the per-platform,
+    per-selector capture sub-lane. `selector` is the channel/page/label/repo;
+    absent → the platform's `inbox` sub-lane. `observed_at` is the caller-supplied
+    intake timestamp (the primitive does not read the clock — Axiom 1 / resume
+    safety; the recurrence stamps it). Immutable, attributed
+    `system:sync-platform-state`; never rewritten.
+    """
+    plat = _slugify_selector(platform)
+    sel = _slugify_selector(selector) if selector else _DEFAULT_SELECTOR
+    stamp = (observed_at or "").strip() or "unknown"
+    ext = (ext or "md").lstrip(".")
+    return f"{INBOUND_CAPTURE_PREFIX}{plat}/{sel}/{stamp}.{ext}"
 
 
 SYNC_PLATFORM_STATE_TOOL = {
@@ -107,6 +153,28 @@ Diff-aware: when content matches the prior revision, the write is skipped
                 "type": "boolean",
                 "description": "Default True. If True, skip writes whose content matches the prior revision (no new revision row).",
             },
+            "capture": {
+                "type": "object",
+                "description": (
+                    "ADR-392 D2 — connector context-in capture mode. When present, the "
+                    "primitive routes the raw observation to the capture lane "
+                    "inbound/{platform}/{selector}/{observed_at}.{ext} (retain + attribute; "
+                    "ADR-376) instead of writing `write_to` directly. A SEPARATE derive act "
+                    "(a judgment recurrence or steward wake) distills understanding into "
+                    "operation/ citing the raw. Fields: platform (required, e.g. 'slack'), "
+                    "selector (channel/page/label/repo; per-item resolved from item_key when "
+                    "iterating), observed_at (required intake timestamp — the caller stamps it; "
+                    "the primitive never reads the clock), ext (default 'md'). When absent, "
+                    "legacy write_to-direct behavior is preserved (the alpha-trader migration "
+                    "window; ADR-392 §5 step 7)."
+                ),
+                "properties": {
+                    "platform": {"type": "string"},
+                    "selector": {"type": "string"},
+                    "observed_at": {"type": "string"},
+                    "ext": {"type": "string"},
+                },
+            },
         },
         "required": ["tool", "write_to"],
     },
@@ -147,6 +215,36 @@ async def handle_sync_platform_state(auth: Any, input: dict) -> dict:
     item_key = input.get("item_key")
     diff_aware = bool(input.get("diff_aware", True))
 
+    # ADR-392 D2 — connector capture mode. When `capture` is present, the raw
+    # observation routes to the inbound/ lane (retain + attribute) and the
+    # primitive derives the path itself; `write_to` is then optional. When
+    # absent, legacy write_to-direct behavior holds (trader-migration window).
+    capture = input.get("capture")
+    capture_platform: Optional[str] = None
+    capture_observed_at: Optional[str] = None
+    capture_ext: str = "md"
+    capture_selector: Optional[str] = None
+    if capture is not None:
+        if not isinstance(capture, dict):
+            return {
+                "success": False, "error": "capture_must_be_object",
+                "paths_written": [], "paths_skipped": [], "items_processed": 0,
+            }
+        capture_platform = capture.get("platform")
+        capture_observed_at = capture.get("observed_at")
+        capture_ext = capture.get("ext") or "md"
+        capture_selector = capture.get("selector")
+        if not capture_platform or not isinstance(capture_platform, str):
+            return {
+                "success": False, "error": "capture_missing_platform",
+                "paths_written": [], "paths_skipped": [], "items_processed": 0,
+            }
+        if not capture_observed_at or not isinstance(capture_observed_at, str):
+            return {
+                "success": False, "error": "capture_missing_observed_at",
+                "paths_written": [], "paths_skipped": [], "items_processed": 0,
+            }
+
     # Validate inputs
     if not tool or not isinstance(tool, str):
         return {
@@ -154,7 +252,9 @@ async def handle_sync_platform_state(auth: Any, input: dict) -> dict:
             "error": "missing_tool",
             "paths_written": [], "paths_skipped": [], "items_processed": 0,
         }
-    if not write_to or not isinstance(write_to, str):
+    # write_to is required ONLY in legacy (non-capture) mode; capture mode
+    # derives the raw-lane path itself.
+    if capture is None and (not write_to or not isinstance(write_to, str)):
         return {
             "success": False,
             "error": "missing_write_to",
@@ -192,7 +292,14 @@ async def handle_sync_platform_state(auth: Any, input: dict) -> dict:
 
     # Single-write path
     if not iterate_field:
-        path = write_to
+        # Capture mode derives inbound/{platform}/{selector}/{observed_at}.{ext};
+        # legacy mode uses the caller's write_to directly.
+        if capture is not None:
+            path = resolve_capture_path(
+                capture_platform, capture_selector, capture_observed_at, capture_ext,
+            )
+        else:
+            path = write_to
         new_content = _serialize_for_substrate(path, result)
         wrote = await _write_if_changed(
             um, path, new_content, diff_aware=diff_aware,
@@ -233,15 +340,22 @@ async def handle_sync_platform_state(auth: Any, input: dict) -> dict:
             )
             continue
 
-        # Resolve template
-        try:
-            path = write_to.format(**{item_key: str(item_value)})
-        except KeyError as e:
-            logger.warning(
-                "[SYNC_PLATFORM_STATE] template resolution failed for write_to=%r missing %s",
-                write_to, e,
+        # Resolve path. Capture mode: the per-item selector is the item_key
+        # value (each channel/page becomes its own inbound sub-lane); legacy
+        # mode: interpolate the caller's write_to template.
+        if capture is not None:
+            path = resolve_capture_path(
+                capture_platform, str(item_value), capture_observed_at, capture_ext,
             )
-            continue
+        else:
+            try:
+                path = write_to.format(**{item_key: str(item_value)})
+            except KeyError as e:
+                logger.warning(
+                    "[SYNC_PLATFORM_STATE] template resolution failed for write_to=%r missing %s",
+                    write_to, e,
+                )
+                continue
 
         new_content = _serialize_for_substrate(path, item)
         wrote = await _write_if_changed(
@@ -321,4 +435,9 @@ def _full_path_for_logging(rel_path: str) -> str:
     return f"/workspace/{rel_path.lstrip('/')}"
 
 
-__all__ = ["SYNC_PLATFORM_STATE_TOOL", "handle_sync_platform_state"]
+__all__ = [
+    "SYNC_PLATFORM_STATE_TOOL",
+    "handle_sync_platform_state",
+    "resolve_capture_path",
+    "INBOUND_CAPTURE_PREFIX",
+]
