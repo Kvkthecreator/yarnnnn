@@ -32,6 +32,7 @@ import {
 } from '@/lib/file-types';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel, authorAccent } from '@/lib/workspace/attribution';
+import { parseUploadFrontmatter, uploadSourceCaption } from '@/lib/workspace/upload-frontmatter';
 import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
 
 // ADR-162 Sub-phase D / ADR-215: IDENTITY and BRAND files carry an
@@ -486,10 +487,28 @@ function FileView({
             // surfaced as a source caption + gap banner above the body.
             return <InferenceContentView content={file.content} target={target} />;
           }
+          // 2026-07-01: an uploaded document's extracted-text `.md` carries a
+          // `---…---` YAML header (documents.py) that would otherwise render as
+          // raw body text. Strip it before rendering; surface the original
+          // filename + type as a clean Source caption. General strip (harmless
+          // on prose files, which have no leading frontmatter); caption is
+          // upload-scoped. Orthogonal to ADR-395, which retires the header.
+          const { fields, body, hasFrontmatter } = parseUploadFrontmatter(file.content);
+          const sourceCaption = hasFrontmatter ? uploadSourceCaption(fields) : null;
           return (
-            <div className="prose prose-sm max-w-none dark:prose-invert">
-              <MarkdownRenderer content={file.content} />
-            </div>
+            <>
+              {sourceCaption && (
+                <div className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <FileText className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate" title={sourceCaption}>
+                    Extracted from {sourceCaption}
+                  </span>
+                </div>
+              )}
+              <div className="prose prose-sm max-w-none dark:prose-invert">
+                <MarkdownRenderer content={body} />
+              </div>
+            </>
           );
         })()}
 

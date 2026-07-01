@@ -75,11 +75,25 @@ async def extract_text(file_content: bytes, file_type: str) -> tuple[str, int]:
 # =============================================================================
 
 def _filename_to_slug(filename: str) -> str:
-    """Convert a filename to a workspace-safe slug (kebab-case, max 60 chars)."""
+    """Convert a filename to a workspace-safe slug (max 60 chars).
+
+    Unicode-preserving (2026-07-01 fix): the prior ASCII-only filter
+    (`[^a-z0-9-]`) replaced EVERY non-Latin character with a dash, so a fully
+    non-ASCII name (e.g. Korean `배출증 출력.pdf`) collapsed to all-dashes →
+    stripped → the generic `"document"` fallback (operator-observed KVK). Path
+    segments in this filesystem are Unicode-safe (the tree already holds Korean
+    filenames), so we keep letters/digits of ANY script + dash, lowercase only
+    the ASCII (casefold on CJK is a no-op), and replace only whitespace +
+    path-unsafe punctuation with dashes.
+    """
     # Strip extension
     name = filename.rsplit(".", 1)[0] if "." in filename else filename
-    slug = name.lower().strip()
-    slug = re.sub(r"[^a-z0-9-]", "-", slug)
+    slug = name.strip().lower()
+    # Replace anything that is NOT a Unicode word char (letters/digits/_ of any
+    # script) or a dash with a dash. `re.UNICODE` is default in Py3; `\w`
+    # includes CJK/Hangul. Underscores → dashes for kebab consistency.
+    slug = re.sub(r"[^\w-]", "-", slug, flags=re.UNICODE)
+    slug = slug.replace("_", "-")
     slug = re.sub(r"-+", "-", slug).strip("-")
     return slug[:60] or "document"
 
