@@ -2,7 +2,7 @@
 
 /**
  * SystemStatusCluster — agent-OS menu-bar status cluster (ADR-297 D20;
- * consolidated by ADR-340 P1).
+ * consolidated by ADR-340 P1; conceptually reframed 2026-07-01).
  *
  * Three kernel-general status chips in the Right region of the top bar,
  * between the Dock and UserMenu. macOS Control Center / menu-bar-extras
@@ -11,11 +11,18 @@
  * different chrome role — the AttentionCenter (Notification Center
  * analog, ADR-340 D3), a sibling top-bar item, never a chip here.
  *
- * Order (kernel-priority, left-to-right):
- *   1. Autonomy    — governance (what the agent CAN do)
- *   2. Money       — budget envelope + balance runway (battery analog;
- *                    Budget absorbed Balance per ADR-340 P1)
- *   3. Connections — reach (Wi-Fi analog)
+ * THE MENTAL MODEL (2026-07-01 reframe): the substrate filesystem is the
+ * service, and Freddie is the system agent latched onto it (GitHub ⇄ Copilot
+ * — the substrate is the repo, Freddie is the agent working over it). The
+ * cluster reads through that lens, left-to-right:
+ *   1. Freddie      — the system agent's disposition (autonomy = how much it
+ *                     acts on its own). The chip names the ENTITY, not an
+ *                     abstract OS dial. Footer → Freddie's settings.
+ *   2. Money        — the spend that backs the work (budget envelope + balance
+ *                     runway, battery analog). Being reframed separately with
+ *                     the pricing-model work — untouched in the 2026-07-01 pass.
+ *   3. Connections  — the SUBSTRATE's reach: what feeds the service (Wi-Fi
+ *                     analog). Not Freddie — the inputs the operation perceives.
  *
  * Responsive collapse:
  *   md+   → all three chips inline
@@ -26,11 +33,12 @@
  * corresponding atomic surface via the popover footer link.
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Cpu } from 'lucide-react';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
+import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
 import { cn } from '@/lib/utils';
-import { AutonomyStatusItem } from './AutonomyStatusItem';
+import { FreddieStatusItem } from './FreddieStatusItem';
 import { BudgetStatusItem } from './BudgetStatusItem';
 import { ConnectionsStatusItem } from './ConnectionsStatusItem';
 
@@ -43,7 +51,7 @@ export function SystemStatusCluster() {
         role="group"
         aria-label="System status"
       >
-        <AutonomyStatusItem />
+        <FreddieStatusItem />
         <BudgetStatusItem />
         <ConnectionsStatusItem />
       </div>
@@ -67,25 +75,8 @@ function MobileRollup() {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsOpen(false);
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [isOpen]);
+  // Click-outside + Escape close (shared dismissal contract, 2026-07-01).
+  usePopoverDismissal(containerRef, isOpen, () => setIsOpen(false));
 
   return (
     <div className="relative" ref={containerRef}>
@@ -111,7 +102,7 @@ function MobileRollup() {
           role="dialog"
         >
           <div className="flex items-center gap-1">
-            <AutonomyStatusItem />
+            <FreddieStatusItem />
             <BudgetStatusItem />
             <ConnectionsStatusItem />
           </div>

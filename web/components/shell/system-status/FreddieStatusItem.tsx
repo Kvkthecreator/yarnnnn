@@ -1,22 +1,28 @@
 'use client';
 
 /**
- * AutonomyStatusItem — autonomy posture chip in the agent-OS menu-bar
- * status cluster (ADR-297 D20, slot 1).
+ * FreddieStatusItem — the SYSTEM-AGENT chip in the agent-OS menu-bar status
+ * cluster (ADR-297 D20 slot 1; reframed 2026-07-01).
  *
- * Consumes useAutonomy() (ADR-238 D2). Read-only popover; mutations
- * happen on the /autonomy atomic surface (ADR-297 D1).
+ * The conceptual reframe (operator call, 2026-07-01): now that the substrate
+ * filesystem is the service model and Freddie is the system agent latched onto
+ * it (the GitHub-⇄-Copilot shape — the substrate is the repo, Freddie is the
+ * agent working over it), this chip is not an abstract "OS autonomy dial." It
+ * is FREDDIE's disposition — how much the system agent acts on its own. Autonomy
+ * is the READOUT; Freddie is the entity. The chip reads "Freddie · <posture>",
+ * the copy speaks of Freddie, and the footer opens Freddie's settings (the
+ * `autonomy` pane resolves to Freddie's pane, Grant group — ADR-387 §6.4).
  *
- * Replaces AutonomyHeaderChip (deleted in same commit) — the autonomy
- * indicator moves from Feed-only chrome to kernel chrome (every
- * surface). PauseAutonomyModal also deleted — pause/resume happens on
- * /autonomy via AutonomyCard's confirm-modal pattern.
+ * Consumes useAutonomy() (ADR-238 D2). Read-only popover; mutations happen on
+ * Freddie's Autonomy pane (footer link; the `autonomy` slug is pane_of: agents,
+ * so foregroundSurface delivers agents.pane=autonomy → Freddie's Grant group).
  *
- * Icon discipline (ADR-297 D20 amendment 2026-05-25): the default chip
- * icon is the canonical /autonomy surface icon resolved via
- * `resolveSurfaceIcon('shield-check')` — same glyph as the Dock and
- * Launcher render. State-specific overrides (Pause when paused) are
- * the only deviation. Singular Implementation: one icon per surface.
+ * Icon: the canonical autonomy glyph `shield-check` (also Freddie's Grant/
+ * autonomy pane icon) resolved via resolveSurfaceIcon. Paused state overrides
+ * to Pause. Singular Implementation: one icon per surface.
+ *
+ * NOTE: Budget (the adjacent MONEY chip) is being reframed separately with the
+ * pricing-model work — it is deliberately untouched here (operator, 2026-07-01).
  */
 
 import { Pause } from 'lucide-react';
@@ -31,11 +37,12 @@ function delegationLabel(d: AutonomyDelegation | null): string {
   return 'Not set';
 }
 
+// Freddie-framed disposition copy — "how much the system agent acts on its own."
 function delegationDescription(d: AutonomyDelegation | null): string {
-  if (d === 'autonomous') return 'Reviewer approves any capital action within ceiling.';
-  if (d === 'bounded') return 'Reviewer approves under ceiling; above ceiling queues for operator.';
-  if (d === 'manual') return 'Every Reviewer verdict queues for operator approval.';
-  return 'Autonomy posture not configured.';
+  if (d === 'autonomous') return 'Freddie acts on any step within the ceiling without waiting for you.';
+  if (d === 'bounded') return 'Freddie acts under the ceiling; above it, it queues for your approval.';
+  if (d === 'manual') return 'Every Freddie decision queues for your approval before it binds.';
+  return "Freddie's autonomy isn't configured yet.";
 }
 
 function formatPauseUntil(untilIso: string): string {
@@ -53,7 +60,7 @@ function formatPauseUntil(untilIso: string): string {
   return `until ${dt.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
 }
 
-export function AutonomyStatusItem() {
+export function FreddieStatusItem() {
   const { effectiveDelegation, pause, meta, loading } = useAutonomy();
 
   if (loading) {
@@ -69,9 +76,9 @@ export function AutonomyStatusItem() {
         ? 'ok'
         : 'muted';
 
-  // ADR-297 D20 amendment: canonical surface icon for /autonomy
-  // (resolved from kernel_surfaces.icon_key = "shield-check"). Paused
-  // state is the only state-specific override.
+  // ADR-297 D20 amendment: canonical surface icon for the autonomy pane
+  // (resolved from kernel_surfaces.icon_key = "shield-check"; also Freddie's
+  // Grant-group pane icon). Paused state is the only state-specific override.
   const AutonomyIcon = resolveSurfaceIcon('shield-check');
   const Icon = isPaused ? Pause : AutonomyIcon;
   const label = delegationLabel(effectiveDelegation);
@@ -81,15 +88,19 @@ export function AutonomyStatusItem() {
       ? ` · $${(ceilingCents / 100).toLocaleString()}`
       : '';
 
+  // The chip names the ENTITY (Freddie), with its disposition as the readout.
   const tooltip = isPaused
-    ? `Autonomy paused ${formatPauseUntil(pause.until!)}`
-    : `Autonomy: ${label}${ceilingLabel}`;
+    ? `Freddie paused ${formatPauseUntil(pause.until!)}`
+    : `Freddie · ${label}${ceilingLabel}`;
 
   const popoverHeader = (
     <div className="flex items-center gap-2">
       <Icon className="w-3.5 h-3.5 shrink-0" />
       <span className="text-sm font-medium">
-        {isPaused ? `Paused ${formatPauseUntil(pause.until!)}` : `${label}${ceilingLabel}`}
+        Freddie
+        <span className="text-muted-foreground">
+          {isPaused ? ` · paused ${formatPauseUntil(pause.until!)}` : ` · ${label}${ceilingLabel}`}
+        </span>
       </span>
     </div>
   );
@@ -147,11 +158,14 @@ export function AutonomyStatusItem() {
       icon={Icon}
       tooltip={tooltip}
       tone={tone}
-      ariaLabel="Autonomy posture"
+      ariaLabel="Freddie, the system agent"
       popoverHeader={popoverHeader}
       popoverBody={popoverBody}
+      // The `autonomy` slug is pane_of: agents (ADR-387 §6.4), so this lands on
+      // Freddie's Autonomy pane (Grant group) — "Freddie's settings", not a
+      // standalone OS dial.
       footerTarget={{ kind: 'surface', slug: 'autonomy' }}
-      footerLabel="Autonomy Settings"
+      footerLabel="Freddie settings"
     />
   );
 }
