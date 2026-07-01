@@ -152,10 +152,191 @@ async def read_selected_ids(
     ]
 
 
+# ---------------------------------------------------------------------------
+# Seed-at-select — the connector capture declaration (ADR-394 D2)
+#
+# Connectors are KERNEL-UNIVERSAL (a bare workspace connects Slack with no
+# bundle), so their capture declaration can't ship in a bundle. But *whether*
+# to capture a selected channel has no judgment in it — the capture is a
+# deterministic function of (platform, selected ids). So the declaration is
+# SEEDED at select-time: when the operator saves a watch with ≥1 selection, we
+# idempotently upsert a `capture-{platform}` entry into /workspace/_captures.yaml
+# naming CaptureConnector; a deselect-to-empty pauses it. Deterministic Python,
+# zero LLM, no new primitive (ADR-394 §2 D2 — NOT a captures-authoring primitive).
+# ---------------------------------------------------------------------------
+
+# Per-platform read-tool binding: how CaptureConnector reads each platform's
+# selected slices. Kernel-universal (beside orchestration.py::CAPABILITIES'
+# read_slack/read_notion/read_github), NOT bundle-scoped. Slack is the first
+# connector with a selection UI; Notion/GitHub bindings land with their UIs
+# (ADR-394 §6). A platform absent from this table has no seedable capture yet.
+CONNECTOR_CAPTURE_BINDINGS: dict[str, dict] = {
+    "slack": {
+        "read_tool": "platform_slack_get_channel_history",
+        "selector_arg": "channel_id",
+        "tool_args": {"limit": 50},
+        # Kernel default cadence for chat-channel freshness; operator-tunable
+        # later by editing _captures.yaml directly. 15 min balances freshness
+        # against per-channel API volume.
+        "schedule": "@every 15min",
+        "display_name": "Slack Channel Capture",
+    },
+}
+
+
+def connector_capture_slug(platform: str) -> str:
+    """The stable capture slug for a platform's connector capture."""
+    return f"capture-{(platform or '').strip().lower()}"
+
+
+def _build_capture_primitive(platform: str, binding: dict) -> str:
+    """Render the `@primitive: CaptureConnector(...)` directive for a platform."""
+    import json as _json
+
+    args = [
+        f'platform="{platform}"',
+        f'read_tool="{binding["read_tool"]}"',
+        f'selector_arg="{binding["selector_arg"]}"',
+    ]
+    tool_args = binding.get("tool_args")
+    if tool_args:
+        # Compact JSON is valid YAML flow-mapping — the lane's directive parser
+        # (services.capture.lane.parse_primitive_directive) handles it.
+        args.append(f"tool_args={_json.dumps(tool_args)}")
+    joined = ",\n        ".join(args)
+    return f"@primitive: CaptureConnector(\n        {joined}\n      )\n"
+
+
+async def seed_connector_capture(
+    client: Any,
+    user_id: str,
+    platform: str,
+    *,
+    selected_count: int,
+) -> Optional[str]:
+    """Idempotently ensure the connector capture declaration (ADR-394 D2).
+
+    Called from the PUT-selection route after the watch declaration is written.
+    Upserts a `capture-{platform}` entry into /workspace/_captures.yaml naming
+    CaptureConnector, then materializes the capture index so the drainer sees
+    it. When `selected_count == 0` the entry is PAUSED (kept for legibility —
+    "watched, nothing in scope" — but the scheduler leaves next_run_at None).
+
+    Single-writer (ADR-286): this is the sole writer of `capture-{platform}`
+    slugs. Bundle-shipped capture entries (other slugs) are never touched — the
+    upsert replaces only the connector slug in the parsed list.
+
+    Returns the slug touched, or None when the platform has no capture binding
+    (Notion/GitHub before their UIs ship) — a no-op, not an error. Best-effort:
+    the caller wraps this so a seed failure never fails the selection save.
+    """
+    from services.workspace import UserMemory
+    from services.conventions import CAPTURES_PATH
+    from services.capture.scheduling import materialize_capture_index
+
+    plat = (platform or "").strip().lower()
+    binding = CONNECTOR_CAPTURE_BINDINGS.get(plat)
+    if not binding:
+        logger.debug(
+            "[CONNECTOR_CAPTURE] no capture binding for %s — nothing to seed", plat
+        )
+        return None
+
+    slug = connector_capture_slug(plat)
+    rel = CAPTURES_PATH.lstrip("/").removeprefix("workspace/")
+    um = UserMemory(client, user_id)
+
+    # Read the current _captures.yaml (empty for a bare workspace, or a forked
+    # bundle's file). Parse to a list of entry dicts; replace/insert only OUR
+    # slug; re-serialize. We keep the raw entry dicts (not CaptureDeclaration)
+    # so bundle entries round-trip byte-for-byte.
+    try:
+        body = await um.read(rel)
+    except Exception:
+        body = None
+
+    entries: list[dict] = []
+    if body and body.strip():
+        try:
+            parsed = yaml.safe_load(body) or {}
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "[CONNECTOR_CAPTURE] _captures.yaml parse failed for %s: %s — "
+                "refusing to seed (would clobber unparseable operator file)",
+                user_id[:8], exc,
+            )
+            return None
+        if isinstance(parsed, dict):
+            existing = parsed.get("captures") or parsed.get("entries") or []
+        elif isinstance(parsed, list):
+            existing = parsed
+        else:
+            existing = []
+        entries = [e for e in existing if isinstance(e, dict)]
+
+    our_entry = {
+        "slug": slug,
+        "schedule": binding["schedule"],
+        "primitive": _build_capture_primitive(plat, binding),
+        "display_name": binding.get("display_name", f"{plat.title()} Capture"),
+    }
+    # Deselect-to-empty pauses (kept for legibility, scheduler skips it).
+    if selected_count <= 0:
+        our_entry["paused"] = True
+
+    # Replace our slug if present, else append — leaving all other entries intact.
+    replaced = False
+    new_entries: list[dict] = []
+    for e in entries:
+        if e.get("slug") == slug:
+            new_entries.append(our_entry)
+            replaced = True
+        else:
+            new_entries.append(e)
+    if not replaced:
+        new_entries.append(our_entry)
+
+    content = yaml.safe_dump(
+        {"captures": new_entries},
+        sort_keys=False,
+        default_flow_style=False,
+        allow_unicode=True,
+    )
+    await um.write(
+        rel,
+        content,
+        summary=f"connector-capture:{plat}",
+        authored_by="system:connector-seed",
+        message=(
+            f"{'pause' if selected_count <= 0 else 'seed'} {slug} "
+            f"({selected_count} selected)"
+        ),
+    )
+
+    # Materialize the capture index so the drainer sees the new/updated row.
+    try:
+        await materialize_capture_index(client, user_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[CONNECTOR_CAPTURE] materialize_capture_index failed for %s/%s: %s",
+            user_id[:8], slug, exc,
+        )
+
+    logger.info(
+        "[CONNECTOR_CAPTURE] %s %s (%d selected) for %s",
+        "paused" if selected_count <= 0 else "seeded", slug, selected_count,
+        user_id[:8],
+    )
+    return slug
+
+
 __all__ = [
     "CONNECTOR_WATCH_ROOT",
     "watch_declaration_path",
     "write_selection",
     "read_selection",
     "read_selected_ids",
+    "CONNECTOR_CAPTURE_BINDINGS",
+    "connector_capture_slug",
+    "seed_connector_capture",
 ]

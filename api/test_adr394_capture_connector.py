@@ -247,6 +247,120 @@ def _test_fanout(results):
         cw.read_selected_ids = orig_ids
 
 
+def _test_seed_at_select(results):
+    """Seed-at-select (ADR-394 D2): the connector capture declaration is an
+    idempotent function of the operator's selection. Exercises against an
+    in-memory _captures.yaml, with materialize_capture_index stubbed."""
+    import services.workspace as ws
+    import services.capture.scheduling as csched
+    from services import connector_watch as cw
+    from services.capture.lane import parse_primitive_directive
+    from services.capture.declarations import parse_captures_yaml
+    from services.conventions import CAPTURES_PATH
+
+    store: dict[str, str] = {}
+    rel = CAPTURES_PATH.lstrip("/").removeprefix("workspace/")
+
+    class _FakeUM:
+        def __init__(self, db, user_id):
+            pass
+
+        async def read(self, filename):
+            return store.get(filename)
+
+        async def write(self, filename, content, **kw):
+            store[filename] = content
+
+    materialize_calls = []
+
+    async def _fake_materialize(client, user_id, **kw):
+        materialize_calls.append(user_id)
+        return 1
+
+    orig_um = ws.UserMemory
+    orig_mat = csched.materialize_capture_index
+    ws.UserMemory = _FakeUM
+    csched.materialize_capture_index = _fake_materialize
+
+    try:
+        # --- 10: bare workspace, 2 selected → active capture-slack entry ---
+        store.clear()
+        materialize_calls.clear()
+        slug = asyncio.run(cw.seed_connector_capture(None, "u1", "slack", selected_count=2))
+        seeded_body = store.get(rel)
+        decls = parse_captures_yaml(seeded_body or "")
+        by_slug = {d.slug: d for d in decls}
+        cap = by_slug.get("capture-slack")
+        results.append(_check(
+            "10 seed: bare ws + 2 selected → active capture-slack entry + index materialized",
+            slug == "capture-slack" and cap is not None and not cap.paused
+            and materialize_calls == ["u1"],
+            f"slug={slug} decls={list(by_slug)} mat={materialize_calls}"))
+
+        # --- 11: the seeded directive parses to CaptureConnector with our args ---
+        parsed = parse_primitive_directive(cap.primitive) if cap else None
+        ok_directive = (
+            parsed is not None
+            and parsed[0] == "CaptureConnector"
+            and parsed[1].get("platform") == "slack"
+            and parsed[1].get("read_tool") == "platform_slack_get_channel_history"
+            and parsed[1].get("selector_arg") == "channel_id"
+            and parsed[1].get("tool_args") == {"limit": 50}
+        )
+        results.append(_check(
+            "11 seeded @primitive directive round-trips through the lane parser",
+            ok_directive, f"parsed={parsed}"))
+
+        # --- 12: deselect-to-empty → entry PAUSED (kept for legibility) ---
+        asyncio.run(cw.seed_connector_capture(None, "u1", "slack", selected_count=0))
+        decls2 = parse_captures_yaml(store.get(rel) or "")
+        cap2 = {d.slug: d for d in decls2}.get("capture-slack")
+        results.append(_check(
+            "12 deselect-all → capture-slack PAUSED (kept, not deleted)",
+            cap2 is not None and cap2.paused,
+            f"cap2={cap2}"))
+
+        # --- 13: idempotent + bundle entries untouched ---
+        # Seed a pre-existing bundle capture, then re-seed slack; the bundle
+        # entry must survive and slack must be replaced (not duplicated).
+        store[rel] = (
+            "captures:\n"
+            "  - slug: track-positions\n"
+            "    schedule: \"@every 1min\"\n"
+            "    primitive: |\n"
+            "      @primitive: SyncPlatformState(tool=\"platform_trading_get_positions\", write_to=\"operation/x.yaml\")\n"
+        )
+        asyncio.run(cw.seed_connector_capture(None, "u1", "slack", selected_count=3))
+        decls3 = parse_captures_yaml(store.get(rel) or "")
+        slugs3 = [d.slug for d in decls3]
+        results.append(_check(
+            "13 idempotent + bundle entries untouched (track-positions survives, one capture-slack)",
+            "track-positions" in slugs3 and slugs3.count("capture-slack") == 1
+            and len(slugs3) == 2,
+            f"slugs={slugs3}"))
+
+        # --- 14: no-binding platform → no-op (None), file untouched ---
+        store[rel] = "captures: []\n"
+        before = store[rel]
+        slug_n = asyncio.run(cw.seed_connector_capture(None, "u1", "notion", selected_count=2))
+        results.append(_check(
+            "14 no-binding platform (notion) → no-op, _captures.yaml untouched",
+            slug_n is None and store[rel] == before,
+            f"slug={slug_n}"))
+
+        # --- 15: unparseable existing file → refuse (never clobber) ---
+        store[rel] = "captures: [ this is: not valid yaml : :\n"
+        before_bad = store[rel]
+        slug_bad = asyncio.run(cw.seed_connector_capture(None, "u1", "slack", selected_count=1))
+        results.append(_check(
+            "15 unparseable _captures.yaml → refuse to seed (no clobber)",
+            slug_bad is None and store[rel] == before_bad,
+            f"slug={slug_bad}"))
+    finally:
+        ws.UserMemory = orig_um
+        csched.materialize_capture_index = orig_mat
+
+
 _SELECTED: list[str] = []
 
 
@@ -256,6 +370,7 @@ def main():
     _test_registration(results)
     _test_capability_gate(results)
     _test_fanout(results)
+    _test_seed_at_select(results)
 
     passed = sum(1 for r in results if r)
     total = len(results)
