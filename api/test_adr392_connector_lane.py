@@ -136,10 +136,80 @@ def main():
         "7 system: writes inbound/ (unlocked) + the lane is OUTSIDE operation/ (quarantine)",
         ok7, f"system_locks={system_locks}"))
 
+    # --- ADR-392 D7 (Phase 2 Select) — the connector-watch declaration ---
+    results += _test_connector_watch()
+
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} ADR-392 assertions pass")
     if passed != total:
         sys.exit(1)
+
+
+def _test_connector_watch():
+    """D7 — the connector-watch declaration substrate + selected-id consumer.
+
+    Exercises the store→read round-trip against an in-memory UserMemory fake, so
+    the declaration path, serialization, and the `selected: true` filter (the
+    Phase-3 capture consumer) are all proven without a DB.
+    """
+    import asyncio
+    import services.workspace as ws
+    from services import connector_watch as cw
+
+    out = []
+
+    # 8 — declaration path is the kernel-universal machine-parsed convention
+    path = cw.watch_declaration_path("Slack")
+    out.append(_check(
+        "8 watch declaration path = operation/_connectors/{platform}/_watch.yaml",
+        path == "operation/_connectors/slack/_watch.yaml", f"got {path}"))
+
+    # In-memory UserMemory fake (files keyed by relative path).
+    store = {}
+
+    class _FakeUM:
+        def __init__(self, db, user_id):
+            pass
+
+        async def write(self, filename, content, **kw):
+            store[filename] = content
+            return True
+
+        async def read(self, filename):
+            return store.get(filename)
+
+    original = ws.UserMemory
+    ws.UserMemory = _FakeUM
+    try:
+        selections = [
+            {"id": "C001", "name": "#daily-work", "selected": True},
+            {"id": "C002", "name": "#random", "selected": False},
+            {"id": "C003", "name": "#eng", "selected": True},
+            {"id": "", "name": "junk", "selected": True},  # dropped (no id)
+        ]
+        asyncio.run(cw.write_selection(None, "u1", "slack", selections))
+
+        # 9 — round-trip: read_selection returns the full set minus the no-id row
+        read_back = asyncio.run(cw.read_selection(None, "u1", "slack"))
+        out.append(_check(
+            "9 write→read round-trip preserves selections (no-id row dropped)",
+            len(read_back) == 3 and {s["id"] for s in read_back} == {"C001", "C002", "C003"},
+            f"read_back={read_back}"))
+
+        # 10 — the Phase-3 consumer: only `selected: true` ids
+        ids = asyncio.run(cw.read_selected_ids(None, "u1", "slack"))
+        out.append(_check(
+            "10 read_selected_ids returns only selected:true (the capture consumer)",
+            set(ids) == {"C001", "C003"}, f"ids={ids}"))
+
+        # 11 — empty declaration reads as [] (never raises)
+        empty = asyncio.run(cw.read_selection(None, "u1", "notion"))
+        out.append(_check(
+            "11 unset declaration reads as [] (never raises)", empty == []))
+    finally:
+        ws.UserMemory = original
+
+    return out
 
 
 if __name__ == "__main__":
