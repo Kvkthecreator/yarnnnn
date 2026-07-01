@@ -1,19 +1,17 @@
 "use client";
 
 /**
- * ADR-171/172: Billing hook — pure pay-as-you-go.
- * Balance is the single gate. The only purchase is a one-time top-up
- * ($10 / $25 / $50). The recurring Pro subscription was retired from the
- * billing surface (2026-06-24): `upgrade`/`manageSubscription` removed,
- * replaced by `topup`. `status`/`isPaid` are retained as harmless reads for
- * any legacy consumer but the billing pane no longer branches on them.
+ * ADR-396: Type-B subscription over the metered balance.
+ *
+ * The plan tier (free / starter / pro) grants a monthly INCLUDED ALLOWANCE; a
+ * dynamic top-up (any dollar amount) is the overage pool beneath it. Two purchase
+ * paths: `subscribe(tier)` (plan) + `topup(amountUsd)` (overage). Draw order is
+ * server-side: allowance → balance → hard-stop at zero.
  */
 
 import { useState, useEffect, useCallback } from "react";
 import { api, APIError } from "@/lib/api/client";
-import type { SubscriptionStatus } from "@/types";
-
-export type SubscriptionTier = "free" | "pro";
+import type { SubscriptionStatus, SubscriptionTier } from "@/types";
 
 export function useSubscription() {
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
@@ -37,10 +35,8 @@ export function useSubscription() {
     fetchStatus();
   }, [fetchStatus]);
 
-  const rawTier = (status?.status as string) || "free";
-  const tier: SubscriptionTier = rawTier === "pro" || rawTier === "starter" ? "pro" : "free";
-  const isPro = tier === "pro";
-  const isPaid = tier === "pro";
+  const tier: SubscriptionTier = status?.tier ?? "free";
+  const isPaid = tier === "starter" || tier === "pro";
 
   const toUserError = (err: unknown, fallback: string) => {
     if (err instanceof APIError) {
@@ -53,11 +49,11 @@ export function useSubscription() {
     return err instanceof Error ? err : new Error(fallback);
   };
 
-  const topup = async (amount: 10 | 25 | 50) => {
+  const topup = async (amountUsd: number) => {
     try {
       setIsLoading(true);
       setError(null);
-      const { checkout_url } = await api.subscription.createTopup(amount);
+      const { checkout_url } = await api.subscription.createTopup(amountUsd);
       window.location.href = checkout_url;
     } catch (err) {
       setError(toUserError(err, "Failed to start top-up"));
@@ -65,14 +61,39 @@ export function useSubscription() {
     }
   };
 
+  const subscribe = async (nextTier: "starter" | "pro") => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const { checkout_url } = await api.subscription.createSubscription(nextTier);
+      window.location.href = checkout_url;
+    } catch (err) {
+      setError(toUserError(err, "Failed to start subscription"));
+      setIsLoading(false);
+    }
+  };
+
+  const manageSubscription = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const { portal_url } = await api.subscription.getPortal();
+      window.location.href = portal_url;
+    } catch (err) {
+      setError(toUserError(err, "Failed to open billing portal"));
+      setIsLoading(false);
+    }
+  };
+
   return {
     status,
     tier,
-    isPro,
     isPaid,
     isLoading,
     error,
     topup,
+    subscribe,
+    manageSubscription,
     refresh: fetchStatus,
   };
 }

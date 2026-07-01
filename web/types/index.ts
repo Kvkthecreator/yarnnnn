@@ -121,11 +121,11 @@ export interface DeleteResponse {
 }
 
 // Subscription (Lemon Squeezy) — ADR-100: 2-tier model
-export type SubscriptionTier = "free" | "pro";
+// ADR-396: Type-B subscription — three plan tiers.
+export type SubscriptionTier = "free" | "starter" | "pro";
 
 export interface SubscriptionStatus {
-  status: SubscriptionTier;
-  plan: string | null;  // ADR-172: 'pro', 'pro_yearly'
+  tier: SubscriptionTier;
   expires_at: string | null;
   customer_id: string | null;
   subscription_id: string | null;

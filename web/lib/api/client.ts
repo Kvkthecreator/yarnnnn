@@ -436,18 +436,25 @@ export const api = {
   },
 
   // Billing endpoints (Lemon Squeezy)
-  // ADR-171/172: balance is the single gate. Pure pay-as-you-go — the only
-  // purchase is a one-time top-up ($10 / $25 / $50). The recurring Pro
-  // subscription was retired from the billing surface (2026-06-24); the
-  // /checkout endpoint still accepts checkout_type="subscription" server-side
-  // but the client no longer offers it.
+  // ADR-396: Type-B subscription over the metered balance. The plan tier
+  // (starter/pro) grants a monthly allowance; a dynamic top-up (any amount) is
+  // the overage pool beneath it. Draw order: allowance → balance → hard-stop.
   subscription: {
     getStatus: () => request<SubscriptionStatus>("/api/subscription/status"),
 
-    createTopup: (amount: 10 | 25 | 50) =>
+    // Dynamic top-up: any dollar amount (server bounds it $5–$500), priced via
+    // Lemon Squeezy custom_price.
+    createTopup: (amountUsd: number) =>
       request<CheckoutResponse>("/api/subscription/checkout", {
         method: "POST",
-        body: JSON.stringify({ checkout_type: "topup", topup_amount: amount }),
+        body: JSON.stringify({ checkout_type: "topup", topup_amount: amountUsd }),
+      }),
+
+    // Subscribe to a plan tier.
+    createSubscription: (tier: "starter" | "pro") =>
+      request<CheckoutResponse>("/api/subscription/checkout", {
+        method: "POST",
+        body: JSON.stringify({ checkout_type: "subscription", tier }),
       }),
 
     getPortal: () => request<PortalResponse>("/api/subscription/portal"),
@@ -1600,12 +1607,17 @@ export const api = {
         total_agents: number;
       }>("/api/integrations/summary"),
 
-    // ADR-171: token spend metering — tier limits and current usage
+    // ADR-396: usage + subscription tier. Dollar fields are internal truth; the
+    // FE renders ACTIVITY (allowance consumed %, invocations) on customer
+    // surfaces, not raw dollars.
     getLimits: () =>
       request<{
         balance_usd: number;
         spend_usd: number;
         raw_balance_usd: number;
+        allowance_usd: number;
+        topup_balance_usd: number;
+        tier: "free" | "starter" | "pro";
         is_subscriber: boolean;
         subscription_plan: string | null;
         next_refill: string | null;

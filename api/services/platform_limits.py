@@ -1,22 +1,32 @@
 """
-Platform Limits Service — ADR-172 (Usage-First Billing) + ADR-291 (Unified Cost Ledger)
+Platform Limits Service — ADR-396 (Type-B subscription over the metered balance)
++ ADR-291 (Unified Cost Ledger). Supersedes the ADR-172 flat pay-as-you-go shape.
 
-Single gate: effective balance > 0. No tier limits, no capability gates.
+Single gate: effective balance > 0. No capability gates (ADR-172 discipline
+preserved — a tier sets ceilings, never feature locks).
 
-Balance model:
-  balance_usd on workspace = sum of all top-ups + grants (signup $3, topup $10/$25/$50,
-  subscription $20 refill, admin grants).
-  Effective balance = balance_usd − SUM(execution_events.cost_usd since last subscription_refill_at).
+Balance model (ADR-396):
+  A plan TIER (free | starter | pro; see services.billing_tiers) grants a monthly
+  INCLUDED ALLOWANCE (allowance_usd). Paid TOP-UPS accumulate onto balance_usd and
+  never reset — the overage pool ("balance IS the currency", no credit unit).
+  Draw order: allowance → balance → hard-stop at zero.
+  Effective balance = (allowance_usd + balance_usd) − SUM(execution_events.cost_usd
+  since the allowance anchor). Computed in the get_effective_balance RPC
+  (migration 194). Spend draws allowance-first by construction (both summed).
+
+Grants:
+  grant_allowance()  — the monthly billing cycle: fresh allowance, banks surviving
+                       top-ups, moves the anchor. Allowance expires; top-ups survive.
+  grant_balance()    — additive top-ups + signup/admin grants onto balance_usd.
+  (Legacy 'subscription_refill' balance-reset removed by ADR-396 — it wiped top-ups.)
 
 Token metering (ADR-291 — substrate collapse):
   Every LLM call → record_execution_event() → execution_events table.
   Cost computed via services.telemetry.compute_cost_usd_inclusive (cache-aware, 2x markup).
   Billing rates live in services.telemetry._BILLING_RATES — single source of truth.
 
-Subscription (optional):
-  Pro Monthly $19/mo or Pro Yearly $180/yr.
-  Subscriber = is_subscriber flag in usage summary (UI only, no capability gating).
-  Subscription billing event resets balance to $20 via balance_transactions row.
+Transparency (ADR-396): the customer surfaces show ACTIVITY (usage + allowance
+consumed), NOT dollar figures. Dollars stay internal to this service + the ledger.
 """
 
 import logging
@@ -121,26 +131,18 @@ def should_sync_now(sync_frequency: SyncFrequency, user_timezone: str = "UTC") -
 # =============================================================================
 
 def get_user_tier(client, user_id: str) -> str:
-    """Returns 'pro' or 'free'. Preserved for legacy callers — not used for gating."""
-    try:
-        result = client.table("workspaces")\
-            .select("subscription_status")\
-            .eq("owner_id", user_id)\
-            .limit(1)\
-            .execute()
-        rows = result.data or []
-        if rows:
-            status = rows[0].get("subscription_status", "free")
-            if status in ("starter", "pro"):
-                return "pro"
-        return "free"
-    except Exception:
-        return "free"
+    """Returns 'free' | 'starter' | 'pro' — the workspace's subscription tier
+    (ADR-396). Reads `subscription_tier` via the billing_tiers source of truth.
+    Not used for gating (the balance gate is tier-agnostic); drives display +
+    the retention/connector ceilings."""
+    from services.billing_tiers import get_tier
+    return get_tier(client, user_id)
 
 
 def is_subscriber(client, user_id: str) -> bool:
-    """True if user has an active Pro subscription (monthly or yearly)."""
-    return get_user_tier(client, user_id) == "pro"
+    """True if the workspace is on any paid tier (ADR-396)."""
+    from services.billing_tiers import PAID_TIERS
+    return get_user_tier(client, user_id) in PAID_TIERS
 
 
 def get_sync_frequency_for_user(client, user_id: str) -> SyncFrequency:
@@ -177,16 +179,74 @@ def check_balance(client, user_id: str) -> tuple[bool, float]:
     return balance > 0, balance
 
 
+def grant_allowance(client, workspace_id: str, user_id: str, allowance_usd: float,
+                    lemon_subscription_id: str = None, metadata: dict = None) -> None:
+    """Grant a monthly included allowance (ADR-396 — the billing-cycle event).
+
+    Type-B rule (confirmed 2026-07-01): allowance EXPIRES each cycle, paid top-ups
+    ALWAYS survive. Spend draws allowance-first then top-ups (get_effective_balance
+    sums both against spend), so at grant time the surviving top-up portion is:
+
+        surviving_topups = min(old_balance_usd, max(0, effective_balance))
+
+    Proof: with pool = allowance A + topups T and cycle spend S (allowance-first),
+    top-ups remaining = T if S≤A else T−(S−A); effective = (A+T)−S. If S≤A then
+    effective ≥ T so min(T, effective)=T (all top-ups intact). If S>A then
+    effective = T−(S−A) < T so min(T, effective)=effective (allowance gone). Both
+    collapse to the formula. This replaces the legacy subscription_refill that
+    RESET balance to a flat $20 and wiped paid top-ups — the ADR-396 core fix.
+
+    Sets allowance_usd = the fresh allowance, banks surviving top-ups into
+    balance_usd, and moves allowance_granted_at (the new spend anchor) so the
+    spend counter restarts for the cycle.
+    """
+    try:
+        effective = get_effective_balance(client, user_id)
+        ws = (
+            client.table("workspaces")
+            .select("balance_usd")
+            .eq("id", workspace_id)
+            .limit(1)
+            .execute()
+        )
+        if not ws.data:
+            logger.warning(f"[BALANCE] Workspace {workspace_id} not found for allowance grant")
+            return
+        old_balance = float(ws.data[0].get("balance_usd", 0) or 0)
+        surviving_topups = round(min(old_balance, max(0.0, effective)), 4)
+
+        client.table("workspaces").update({
+            "allowance_usd": round(allowance_usd, 4),
+            "balance_usd": surviving_topups,
+            "allowance_granted_at": datetime.utcnow().isoformat(),
+        }).eq("id", workspace_id).execute()
+
+        tx = {
+            "workspace_id": workspace_id,
+            "kind": "allowance_grant",
+            "amount_usd": allowance_usd,
+        }
+        if lemon_subscription_id:
+            tx["lemon_subscription_id"] = lemon_subscription_id
+        tx["metadata"] = {**(metadata or {}), "banked_topups_usd": surviving_topups}
+        client.table("balance_transactions").insert(tx).execute()
+
+    except Exception as e:
+        logger.warning(f"[BALANCE] Failed to grant allowance ${allowance_usd} to workspace {workspace_id}: {e}")
+
+
 def grant_balance(client, workspace_id: str, amount_usd: float, kind: str,
                   lemon_order_id: str = None, lemon_subscription_id: str = None,
                   metadata: dict = None) -> None:
-    """Add to workspace balance and record in balance_transactions.
+    """Add to the topped-up balance and record in balance_transactions.
 
-    kind: 'signup_grant' | 'topup' | 'subscription_refill' | 'admin_grant'
-    For 'subscription_refill': also resets subscription_refill_at to now.
+    kind: 'signup_grant' | 'topup' | 'admin_grant' — the ADDITIVE grants. Top-ups
+    accumulate onto balance_usd and never reset (ADR-396 — balance IS the currency,
+    the overage pool beneath the allowance). The monthly allowance is granted by
+    grant_allowance(), NOT here — the legacy 'subscription_refill' balance-reset
+    branch was removed by ADR-396 (it wiped paid top-ups).
     """
     try:
-        # Add to balance
         workspace = client.table("workspaces")\
             .select("balance_usd")\
             .eq("id", workspace_id)\
@@ -197,15 +257,9 @@ def grant_balance(client, workspace_id: str, amount_usd: float, kind: str,
             return
 
         current = float(workspace.data[0].get("balance_usd", 0) or 0)
-        update_data = {"balance_usd": round(current + amount_usd, 4)}
-
-        if kind == "subscription_refill":
-            # Reset refill anchor so spend counter restarts
-            update_data["subscription_refill_at"] = datetime.utcnow().isoformat()
-            # For subscription refill: set balance to $20, don't accumulate
-            update_data["balance_usd"] = amount_usd
-
-        client.table("workspaces").update(update_data).eq("id", workspace_id).execute()
+        client.table("workspaces").update(
+            {"balance_usd": round(current + amount_usd, 4)}
+        ).eq("id", workspace_id).execute()
 
         # Record transaction
         tx = {
@@ -229,32 +283,44 @@ def grant_balance(client, workspace_id: str, amount_usd: float, kind: str,
 # Spend display — ADR-291 (reads from execution_events)
 # =============================================================================
 
+def _spend_anchor(ws_row: dict) -> Optional[str]:
+    """The spend-window anchor for a workspace row — the SINGLE source of the
+    anchor precedence, matched byte-for-byte by the get_effective_balance RPC
+    (migration 194): allowance_granted_at → subscription_refill_at → created_at.
+
+    The allowance grant moves allowance_granted_at each cycle, so spend counts
+    from the current cycle's grant; a never-subscribed workspace falls through to
+    created_at (lifetime spend, same as pre-ADR-396). Any Python reader that sums
+    spend against the balance MUST anchor here, or spend + remaining won't
+    reconcile to the pool."""
+    return (
+        ws_row.get("allowance_granted_at")
+        or ws_row.get("subscription_refill_at")
+        or ws_row.get("created_at")
+    )
+
+
 def get_lifetime_spend_usd(client, user_id: str) -> float:
     """Total LLM spend since the current balance anchor (analytics/display).
 
-    This is the SAME spend window the effective-balance RPC subtracts:
-    cost since workspace.subscription_refill_at (or created_at if never
-    refilled). Anchoring spend and remaining on one window is what makes
-    the billing surface reconcile — spend + remaining == raw balance_usd
-    by construction (a $33 raw balance with $25.49 spent → $7.51 left).
-
-    Prior to 2026-06-03 the billing surface mixed windows: "remaining"
-    was anchor-relative (lifetime) while "spend_usd" was calendar-month.
-    The two never summed to the raw balance, which read as a bug to the
-    operator. ADR-291: reads execution_events.cost_usd, the sole canonical
+    This is the SAME spend window the effective-balance RPC subtracts (ADR-396):
+    cost since the allowance anchor (allowance_granted_at → subscription_refill_at
+    → created_at). Anchoring spend and remaining on one window is what makes the
+    billing surface reconcile — spend + remaining == (allowance_usd + balance_usd)
+    by construction. ADR-291: reads execution_events.cost_usd, the sole canonical
     cost ledger.
     """
     try:
         ws = (
             client.table("workspaces")
-            .select("subscription_refill_at, created_at")
+            .select("allowance_granted_at, subscription_refill_at, created_at")
             .eq("owner_id", user_id)
             .limit(1)
             .execute()
         )
         if not ws.data:
             return 0.0
-        anchor = ws.data[0].get("subscription_refill_at") or ws.data[0].get("created_at")
+        anchor = _spend_anchor(ws.data[0])
         result = (
             client.table("execution_events")
             .select("cost_usd")
@@ -289,22 +355,27 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
     """
     balance = get_effective_balance(client, user_id)
     spend = get_lifetime_spend_usd(client, user_id)
-    subscriber = is_subscriber(client, user_id)
+    tier = get_user_tier(client, user_id)
+    subscriber = tier in ("starter", "pro")
 
-    # Get subscription details + raw balance for display
-    sub_plan = None
+    # Get subscription details + the allowance pool for display. raw_balance is the
+    # POOL the RPC draws from (allowance_usd + balance_usd), so spend + balance ==
+    # raw_balance by construction and the usage bar's denominator is correct.
     next_refill = None
     raw_balance = round(balance + spend, 4)  # fallback: reconstruct from anchor window
+    allowance = 0.0
+    topup_balance = 0.0
     try:
         ws = client.table("workspaces")\
-            .select("subscription_plan, subscription_expires_at, balance_usd")\
+            .select("subscription_expires_at, balance_usd, allowance_usd")\
             .eq("owner_id", user_id)\
             .limit(1)\
             .execute()
         if ws.data:
-            sub_plan = ws.data[0].get("subscription_plan")
             next_refill = ws.data[0].get("subscription_expires_at")
-            raw_balance = round(float(ws.data[0].get("balance_usd") or raw_balance), 4)
+            allowance = round(float(ws.data[0].get("allowance_usd") or 0), 4)
+            topup_balance = round(float(ws.data[0].get("balance_usd") or 0), 4)
+            raw_balance = round(allowance + topup_balance, 4)
     except Exception:
         pass
 
@@ -312,8 +383,11 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
         "balance_usd": round(balance, 4),
         "spend_usd": round(spend, 4),
         "raw_balance_usd": raw_balance,
+        "allowance_usd": allowance,
+        "topup_balance_usd": topup_balance,
+        "tier": tier,
         "is_subscriber": subscriber,
-        "subscription_plan": sub_plan,
+        "subscription_plan": tier if subscriber else None,
         "next_refill": next_refill,
     }
 
@@ -350,14 +424,14 @@ def get_usage_detail(client, user_id: str) -> dict:
     try:
         ws = (
             client.table("workspaces")
-            .select("subscription_refill_at, created_at")
+            .select("allowance_granted_at, subscription_refill_at, created_at")
             .eq("owner_id", user_id)
             .limit(1)
             .execute()
         )
         if not ws.data:
             return empty
-        anchor = ws.data[0].get("subscription_refill_at") or ws.data[0].get("created_at")
+        anchor = _spend_anchor(ws.data[0])
 
         rows = (
             client.table("execution_events")

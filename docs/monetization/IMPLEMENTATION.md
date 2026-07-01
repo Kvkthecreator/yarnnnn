@@ -1,6 +1,18 @@
 # yarnnn Subscription Implementation Guide
 
-> **Status**: Live technical reference — the Lemon Squeezy integration pattern (subscription + top-up webhooks). **Currency note (2026-07-01)**: the LS wiring here is the *mechanism* and is current; the *products* it references (Pro $19/mo) are the ADR-172 balance model. When the consolidated pricing model ([PRICING-CONSOLIDATION-2026-07-01.md](./PRICING-CONSOLIDATION-2026-07-01.md)) ratifies a base/tier, its LS products extend this same integration — no new payment stack. Read this for *how LS is wired*, not for *what we sell*.
+> **Status**: Live technical reference — the Lemon Squeezy integration pattern (subscription + top-up webhooks). **ADR-396 (Implemented 2026-07-01)** shipped the Type-B tiers over this same integration; the sections below describe the LS *mechanism*, still current. The tier NUMBERS live in `services/billing_tiers.py::TIER_CONFIG` (not here).
+
+## ADR-396 operator setup — what to do in the Lemon Squeezy dashboard
+
+The code is deployed; these are the **dashboard + env-var steps** (no code) to make checkout live:
+
+1. **Top-up product** — create ONE product ("Top up balance") with **price-override / "pay what you want" enabled** (so the checkout's `custom_price` is accepted; the operator chooses any $5–$500 amount). Set its variant id as **`LEMONSQUEEZY_TOPUP_VARIANT_ID`**. (This replaces the retired three fixed `LEMONSQUEEZY_TOPUP_{10,25,50}_VARIANT_ID` vars.)
+2. **Starter subscription product** — $19/mo. Set its variant id as **`LEMONSQUEEZY_STARTER_VARIANT_ID`**.
+3. **Pro subscription product** — $49/mo. Set its variant id as **`LEMONSQUEEZY_PRO_VARIANT_ID`**.
+4. **Render env-var parity** — set all three on **API + Unified Scheduler** (the scheduler does not create checkouts, but env parity is the standing discipline; the webhook runs on API). `LEMONSQUEEZY_WEBHOOK_SECRET` / `LEMONSQUEEZY_API_KEY` / `LEMONSQUEEZY_STORE_ID` are unchanged.
+5. **Webhook events** — ensure `subscription_created/updated/resumed/cancelled/expired`, `subscription_payment_success/failed`, and `order_created` are all subscribed (the handler branches on each).
+
+Prices in the dashboard should match `TIER_CONFIG`; if they drift, `TIER_CONFIG` is the source of truth for the app's allowance/gate behavior, the LS product is the source of truth for the *charge*. Keep them aligned.
 
 ## Overview
 

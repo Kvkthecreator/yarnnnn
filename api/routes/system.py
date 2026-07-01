@@ -94,14 +94,12 @@ async def get_system_status(auth: UserClient):
 
     # ─── Tier & Frequency ──────────────────────────────────────────────────────
     from services.platform_limits import TIER_LIMITS
+    from services.billing_tiers import get_tier
 
-    ws_result = auth.client.table("workspaces").select(
-        "subscription_status"
-    ).eq("owner_id", user_id).limit(1).execute()
-    ws_rows = ws_result.data if ws_result else []
-    tier = ws_rows[0].get("subscription_status", "free") if ws_rows else "free"
-
-    limits = TIER_LIMITS.get(tier, TIER_LIMITS["free"])
+    tier = get_tier(auth.client, user_id)
+    # Paid tiers all sync at the fastest frequency; free at the base. TIER_LIMITS
+    # is keyed on the legacy 'pro'/'free' axis for sync-frequency only.
+    limits = TIER_LIMITS["pro"] if tier in ("starter", "pro") else TIER_LIMITS["free"]
     sync_frequency = limits.sync_frequency
 
     # ADR-084: Freshness thresholds for resource status badges

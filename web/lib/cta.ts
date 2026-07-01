@@ -4,12 +4,14 @@
  * Per SITE-COPY-SPEC-v1 §0.7 + discourse §-9.7: CTA hrefs route through these
  * constants, never scattered string literals, so the two pending swaps have one home.
  *
- * CHECKOUT GUARD (spec §0.8): the active pricing model is the ADR-172/291 balance
- * gate (pay-as-you-go) — the `/pricing` page reflects this. ADR-334's seat tiers were
- * DEMOTED 2026-06-19 to a deferred hypothesis (evidence-gated; see ADR-334 Amendment
- * 2026-06-19), so there is no seat checkout to wire and none is on the roadmap. All
- * marketing CTAs route to `signup` (the live bare-workspace entry). `seatCheckout`
- * stays null. No CTA may imply a seat purchase.
+ * CHECKOUT GUARD (spec §0.8): the active pricing model is ADR-396 — a Type-B
+ * subscription (Free / Starter / Pro) over the metered balance; the `/pricing` page
+ * reflects this. Plan checkout is an IN-APP action (the SubscriptionCard's tier +
+ * top-up flow via `/api/subscription`), NOT a marketing CTA — so marketing surfaces
+ * still route to `signup` (the live bare-workspace entry) and never open a checkout.
+ * The ADR-396 tiers are plans, NOT ADR-334 seats: ADR-334's per-seat autonomy pricing
+ * stays DEMOTED to a Rung-2/Phase-2 hypothesis, so `seatCheckout` stays null and no CTA
+ * may imply a seat purchase. (A plan subscription is not a seat.)
  *
  * STAGE-B SWAP (spec §0.6): when ADR-331 Stage B ships the retrospective audit, the
  * primary CTA label upgrades from "Start free" to `stageBLabel`. The slot is wired now,

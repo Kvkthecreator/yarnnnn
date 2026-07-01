@@ -48,10 +48,20 @@ interface BudgetState {
 interface BalanceState {
   balance_usd: number;
   spend_usd: number;
+  raw_balance_usd: number;
+  allowance_usd: number;
+  topup_balance_usd: number;
+  tier: 'free' | 'starter' | 'pro';
   is_subscriber: boolean;
   subscription_plan: string | null;
   next_refill: string | null;
 }
+
+const TIER_LABEL: Record<BalanceState['tier'], string> = {
+  free: 'Free',
+  starter: 'Starter',
+  pro: 'Pro',
+};
 
 const WINDOW_LABEL: Record<BudgetState['window'], string> = {
   monthly: 'this month',
@@ -106,6 +116,13 @@ export function BudgetStatusItem() {
     : 0;
   const balanceLow = balance != null && balance.balance_usd <= LOW_BALANCE_THRESHOLD_USD;
   const balanceCritical = balance != null && balance.balance_usd <= CRITICAL_BALANCE_THRESHOLD_USD;
+  // ADR-396 transparency contract: on this customer glance we express funds as
+  // USAGE (allowance consumed this cycle), not raw dollars. The pool = allowance
+  // + top-ups; consumed = spend to date this cycle.
+  const usagePct = balance && balance.raw_balance_usd > 0
+    ? Math.min(100, Math.round((balance.spend_usd / balance.raw_balance_usd) * 100))
+    : 0;
+  const tierLabel = balance ? TIER_LABEL[balance.tier] : null;
   // Tone: balance trouble dominates (funds gate everything); then the
   // envelope filling; ok/muted otherwise.
   const tone: StatusTone = balanceCritical || balanceLow
@@ -118,15 +135,16 @@ export function BudgetStatusItem() {
           ? 'ok'
           : 'muted';
 
-  const balanceLabel = balance ? `$${balance.balance_usd.toFixed(2)}` : null;
+  // The menu-bar label shows the plan + usage, not dollars (ADR-396).
+  const usageLabel = balance ? `${usagePct}% used` : null;
   const tooltipParts: string[] = [];
   if (budget) {
     tooltipParts.push(
       `Budget: $${budget.window_spend_usd.toFixed(0)} / $${budget.amount_usd.toFixed(0)} ${WINDOW_LABEL[budget.window]}`,
     );
   }
-  if (balanceLabel) {
-    tooltipParts.push(`Balance: ${balanceLabel}${balance?.is_subscriber ? ' (Pro)' : ''}`);
+  if (tierLabel) {
+    tooltipParts.push(`${tierLabel} · ${usagePct}% of allowance used`);
   }
   const tooltip = tooltipParts.length > 0 ? tooltipParts.join(' · ') : 'Budget not set';
 
@@ -137,8 +155,8 @@ export function BudgetStatusItem() {
         {budget ? `$${budget.window_spend_usd.toFixed(2)} of $${budget.amount_usd.toFixed(2)}` : 'Budget not set'}
         {budget && <span className="text-muted-foreground"> {WINDOW_LABEL[budget.window]}</span>}
       </span>
-      {balanceLabel && (
-        <span className="ml-auto text-xs text-muted-foreground font-mono">{balanceLabel}</span>
+      {usageLabel && (
+        <span className="ml-auto text-xs text-muted-foreground font-mono">{usageLabel}</span>
       )}
     </div>
   );
@@ -176,27 +194,24 @@ export function BudgetStatusItem() {
         <div className="pt-1.5 mt-1.5 border-t border-border/60 space-y-0.5">
           {balanceCritical ? (
             <p className="text-amber-600 dark:text-amber-400">
-              Balance is critical. Workspace will hard-stop when it reaches $0.
+              Usage is nearly exhausted. The workspace pauses when the allowance runs out.
             </p>
           ) : balanceLow ? (
             <p className="text-amber-600 dark:text-amber-400">
-              Balance is low. Consider topping up or activating Pro.
+              Usage is running low. Top up or upgrade your plan to keep running.
             </p>
           ) : null}
           <div className="flex justify-between">
-            <span>
-              Balance
-              {balance.is_subscriber && <span className="text-muted-foreground"> · Pro</span>}
-            </span>
-            <span className="font-mono">${balance.balance_usd.toFixed(2)}</span>
+            <span>Plan</span>
+            <span className="font-mono">{tierLabel}</span>
           </div>
           <div className="flex justify-between">
-            <span>Spend to date</span>
-            <span className="font-mono">${balance.spend_usd.toFixed(2)}</span>
+            <span>Allowance used this cycle</span>
+            <span className="font-mono">{usagePct}%</span>
           </div>
           {balance.next_refill && (
             <div className="flex justify-between">
-              <span>Next refill</span>
+              <span>Renews</span>
               <span className="font-mono text-[10px]">
                 {new Date(balance.next_refill).toLocaleDateString([], { month: 'short', day: 'numeric' })}
               </span>
@@ -206,8 +221,8 @@ export function BudgetStatusItem() {
       )}
 
       <p className="pt-1">
-        Balance funds Reviewer wakes + agent execution; the Reviewer
-        allocates wakes within the declared envelope.
+        Your plan&rsquo;s monthly allowance funds Reviewer wakes + agent execution;
+        the Reviewer allocates wakes within the declared envelope.
       </p>
     </div>
   );

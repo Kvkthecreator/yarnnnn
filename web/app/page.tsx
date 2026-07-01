@@ -234,12 +234,12 @@ export default function LandingPage() {
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <ScrollReveal className="max-w-3xl mx-auto text-center">
             <h2 className="text-2xl md:text-3xl font-medium mb-4 text-[#1a1a1a]">
-              Free to keep. Pay only for what runs.
+              Free to keep. A plan for the work.
             </h2>
             <p className="text-[#1a1a1a]/50 mb-10 max-w-xl mx-auto leading-relaxed">
               Your memory is free forever — your files, your context, reachable from any AI you
-              use. The optional assistant is the only thing that ever costs anything, and only
-              while it&apos;s working — capped by a monthly limit you set. No seats, no subscription.
+              use. When the optional assistant runs on it, pick a plan for the work: each includes
+              a monthly usage allowance, and you cap monthly spend with a budget you set. No seats.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link

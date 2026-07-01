@@ -1771,10 +1771,18 @@ async def update_coverage(
 # =============================================================================
 
 class UserLimitsResponse(BaseModel):
-    """User's balance and subscription status (ADR-172: usage-first billing)."""
+    """Workspace balance + subscription tier (ADR-396: Type-B subscription).
+
+    Dollar fields are the internal truth; the FE renders the ACTIVITY (allowance
+    consumed %, invocation counts) on customer surfaces, not the raw dollars
+    (ADR-396 transparency contract). `tier` + `allowance_usd` drive that display.
+    """
     balance_usd: float
     spend_usd: float
     raw_balance_usd: float
+    allowance_usd: float = 0.0
+    topup_balance_usd: float = 0.0
+    tier: str = "free"
     is_subscriber: bool
     subscription_plan: Optional[str] = None
     next_refill: Optional[str] = None
@@ -1814,6 +1822,9 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
         balance_usd=summary["balance_usd"],
         spend_usd=summary["spend_usd"],
         raw_balance_usd=summary["raw_balance_usd"],
+        allowance_usd=summary.get("allowance_usd", 0.0),
+        topup_balance_usd=summary.get("topup_balance_usd", 0.0),
+        tier=summary.get("tier", "free"),
         is_subscriber=summary["is_subscriber"],
         subscription_plan=summary.get("subscription_plan"),
         next_refill=summary.get("next_refill"),
@@ -2094,12 +2105,20 @@ async def get_retention(auth: UserClient) -> dict[str, Any]:
     'eventually'. Returns the declared value + the kernel default + the UI presets.
     """
     from services.connector_retention import read_retention_days, DEFAULT_RETENTION_DAYS
+    from services.billing_tiers import get_tier, tier_retention_max_days
 
     days = await read_retention_days(auth.client, auth.user_id)
+    tier = get_tier(auth.client, auth.user_id)
+    tier_max = tier_retention_max_days(tier)
     return {
+        # The DECLARED window (what the dial edits), and the effective window the
+        # GC honors — the declared value clamped to the tier ceiling (ADR-396 gate 1).
         "retention_days": days,
+        "effective_days": min(days, tier_max),
         "default_days": DEFAULT_RETENTION_DAYS,
-        "presets": [7, 14, 30],
+        "tier": tier,
+        "tier_max_days": tier_max,
+        "presets": [p for p in (7, 14, 30, 90) if p <= tier_max],
     }
 
 
@@ -2107,13 +2126,19 @@ async def get_retention(auth: UserClient) -> dict[str, Any]:
 async def update_retention(request: RetentionRequest, auth: UserClient) -> dict[str, Any]:
     """Author the workspace-level raw-capture retention window (ADR-392 D8).
 
-    Writes governance/_retention.yaml. Clamps to a 1-day floor. governance/ is
-    operator-authored (the steward reads-not-authors), so authored_by='operator'.
+    Writes governance/_retention.yaml. Clamps to a 1-day floor AND to the
+    subscription tier ceiling (ADR-396 gate 1) — a free-tier operator can declare
+    at most the free ceiling; the declared value is stored clamped so the dial and
+    the GC agree. governance/ is operator-authored, so authored_by='operator'.
     """
     from services.connector_retention import write_retention_days
+    from services.billing_tiers import retention_max_days_for_user
 
-    written = await write_retention_days(auth.client, auth.user_id, request.retention_days)
-    return {"retention_days": written, "success": True}
+    tier_max = retention_max_days_for_user(auth.client, auth.user_id)
+    requested = min(request.retention_days, tier_max)
+    written = await write_retention_days(auth.client, auth.user_id, requested)
+    clamped = written < request.retention_days
+    return {"retention_days": written, "success": True, "clamped": clamped, "tier_max_days": tier_max}
 
 
 @router.post("/integrations/{provider}/sync")

@@ -193,8 +193,12 @@ async def prune_raw_lane(
         return {"scanned": 0, "pruned": 0, "kept_uncited": 0, "kept_fresh": 0,
                 "retention_days": 0, "dry_run": dry_run, "error": "bad_now_iso"}
 
+    # ADR-396: clamp the declared window to the subscription tier's ceiling (gate 1).
+    # An explicit retention_days arg (test/caller override) still wins as before.
+    from services.billing_tiers import retention_max_days_for_user
+    tier_max = retention_max_days_for_user(client, user_id)
     window = retention_days if isinstance(retention_days, int) and retention_days > 0 \
-        else await resolve_retention_days(client, user_id)
+        else await resolve_retention_days(client, user_id, tier_max_days=tier_max)
 
     um = UserMemory(client, user_id)
     # List the connector raw lane. inbound/mcp/ + inbound/web/ are siblings we do

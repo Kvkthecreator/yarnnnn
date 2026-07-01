@@ -387,7 +387,7 @@ export default function SettingsPage() {
           <PaneHeader
             icon={BarChart3}
             title="Usage"
-            subtitle="Your balance and token spend this month."
+            subtitle="Your plan's included usage this cycle."
             bordered={false}
           />
 
@@ -398,19 +398,17 @@ export default function SettingsPage() {
             </div>
           ) : limits ? (
             <>
-              {/* Balance — the single meter (ADR-172) */}
+              {/* Included usage — activity, not dollars (ADR-396 transparency) */}
               <div className="p-4 border border-border rounded-lg space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-medium">Balance</h3>
-                  <span className="text-sm font-medium">
-                    ${limits.balance_usd.toFixed(2)} remaining
-                  </span>
-                </div>
                 {(() => {
                   const total = limits.raw_balance_usd;
                   const percent = total > 0 ? Math.min(100, Math.round((limits.spend_usd / total) * 100)) : 0;
                   return (
                     <>
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium">Included usage</h3>
+                        <span className="text-sm font-medium">{percent}% used</span>
+                      </div>
                       <div className="h-2 rounded-full bg-muted overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all ${percent >= 90 ? "bg-destructive" : percent >= 70 ? "bg-yellow-500" : "bg-primary"}`}
@@ -418,8 +416,10 @@ export default function SettingsPage() {
                         />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        ${limits.spend_usd.toFixed(2)} used · covers chat, tasks, and web search.
-                        {limits.is_subscriber && " Refills $20/month with your Pro subscription."}
+                        Covers chat, recurrences, and web search this cycle.
+                        {limits.tier === "free"
+                          ? " Top up or upgrade for more headroom."
+                          : " Your plan's allowance renews each cycle."}
                       </p>
                     </>
                   );
@@ -430,7 +430,7 @@ export default function SettingsPage() {
               {usageDetail && usageDetail.by_work.length > 0 && (
                 <div className="p-4 border border-border rounded-lg space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-medium">Where your balance went</h3>
+                    <h3 className="font-medium">Where your usage went</h3>
                     <span className="text-xs text-muted-foreground">
                       {usageDetail.activity.runs} runs
                     </span>
@@ -441,7 +441,7 @@ export default function SettingsPage() {
                         <div className="flex items-center justify-between text-sm">
                           <span className="truncate pr-3">{humanizeSlug(item.slug)}</span>
                           <span className="font-mono text-xs text-muted-foreground shrink-0">
-                            ${item.cost_usd.toFixed(2)} · {item.pct}%
+                            {item.runs} runs · {item.pct}%
                           </span>
                         </div>
                         <div className="h-1.5 rounded-full bg-muted overflow-hidden">
@@ -456,13 +456,13 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* Spend trend — last 14 days (ADR-172 surface) */}
+              {/* Activity trend — last 14 days (ADR-396: relative activity, not $) */}
               {usageDetail && usageDetail.trend.some((d) => d.cost_usd > 0) && (
                 <div className="p-4 border border-border rounded-lg space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="font-medium flex items-center gap-2">
                       <BarChart3 className="w-4 h-4" />
-                      Spend trend
+                      Activity trend
                     </h3>
                     <span className="text-xs text-muted-foreground">last 14 days</span>
                   </div>
@@ -475,7 +475,7 @@ export default function SettingsPage() {
                             key={d.date}
                             className="flex-1 bg-primary/15 rounded-t relative group"
                             style={{ height: `${Math.max(2, (d.cost_usd / max) * 100)}%` }}
-                            title={`${new Date(d.date + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" })}: $${d.cost_usd.toFixed(2)}`}
+                            title={new Date(d.date + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" })}
                           >
                             <div className="absolute inset-0 bg-primary/70 rounded-t opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
@@ -485,8 +485,7 @@ export default function SettingsPage() {
                   })()}
                   {usageDetail.activity.success_rate !== null && (
                     <p className="text-xs text-muted-foreground">
-                      {usageDetail.activity.success_rate}% success rate · avg $
-                      {usageDetail.activity.avg_cost_usd.toFixed(2)}/run
+                      {usageDetail.activity.success_rate}% success rate
                       {usageDetail.activity.failed > 0 && ` · ${usageDetail.activity.failed} failed`}
                     </p>
                   )}
@@ -497,13 +496,13 @@ export default function SettingsPage() {
               <div className="p-4 border border-border rounded-lg">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Plan</span>
-                  <span className="text-sm text-muted-foreground">
-                    {limits.is_subscriber ? (limits.subscription_plan === "pro_yearly" ? "Pro (Annual)" : "Pro") : "Pay as you go"}
+                  <span className="text-sm text-muted-foreground capitalize">
+                    {limits.tier}
                   </span>
                 </div>
                 {limits.next_refill && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Next refill: {new Date(limits.next_refill).toLocaleDateString()}
+                    Renews: {new Date(limits.next_refill).toLocaleDateString()}
                   </p>
                 )}
               </div>

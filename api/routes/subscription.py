@@ -1,27 +1,33 @@
 """
-Subscription management API routes — ADR-172: Usage-First Billing
+Subscription management API routes — ADR-396: Type-B subscription over the metered balance.
+
+The plan tier grants a monthly INCLUDED ALLOWANCE; the topped-up balance is the
+OVERAGE pool beneath it. Draw order (ADR-396 §3): allowance → balance → hard-stop
+at zero. Tiers + numbers are the single source of truth in services.billing_tiers.
 
 Endpoints:
-- GET /status  — current subscription status
-- POST /checkout — create checkout (subscription or top-up)
+- GET /status  — current subscription tier + billing state
+- POST /checkout — create checkout (subscription tier or dynamic top-up)
 - GET /portal  — Lemon Squeezy customer portal URL
 
 Webhooks:
 - POST /webhooks/lemonsqueezy — subscription events + order_created (top-up)
 
 Checkout types:
-  subscription: 'monthly' ($19/mo) or 'yearly' ($180/yr)
-  topup: $10 / $25 / $50 one-time purchase
+  subscription: tier ∈ {starter, pro} → the tier's LS subscription variant
+  topup: a custom dollar amount → one LS top-up variant with LS custom_price
 
 Webhook events handled:
   subscription_created / subscription_updated / subscription_resumed →
-    activate pro, grant subscription_refill balance ($20)
+    set subscription_tier from the LS variant → tier map; grant the tier's
+    monthly allowance (allowance expires each cycle, top-ups survive)
   subscription_cancelled / subscription_expired →
-    downgrade to free (balance unchanged — they keep what they bought)
+    downgrade to free (balance + allowance unchanged — they keep what they bought)
   subscription_payment_success →
-    recurring billing cycle: grant $20 subscription_refill balance
+    recurring billing cycle: grant the tier's monthly allowance
   order_created →
-    one-time top-up purchase: grant balance by variant ID amount
+    one-time top-up: grant balance by the ACTUAL PAID TOTAL from the order payload
+    (NOT a variant→amount lookup — the amount is operator-chosen via custom_price)
 """
 
 import hashlib
@@ -36,6 +42,13 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
 
+from services.billing_tiers import (
+    PAID_TIERS,
+    normalize_tier,
+    tier_allowance_usd,
+    tier_for_variant_id,
+    variant_id_for_tier,
+)
 from services.supabase import UserClient, get_service_client
 
 log = logging.getLogger(__name__)
@@ -48,25 +61,19 @@ LEMONSQUEEZY_API_KEY = os.getenv("LEMONSQUEEZY_API_KEY")
 LEMONSQUEEZY_STORE_ID = os.getenv("LEMONSQUEEZY_STORE_ID")
 LEMONSQUEEZY_WEBHOOK_SECRET = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET")
 
-# Subscription variants
-LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID = os.getenv("LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID")
-LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID = os.getenv("LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID")
+# One top-up variant — the dollar amount is set per-checkout via LS custom_price
+# (the LS product must have price-override / "pay what you want" enabled). The
+# webhook reads the actual paid total from the order, so no variant→amount map.
+LEMONSQUEEZY_TOPUP_VARIANT_ID = os.getenv("LEMONSQUEEZY_TOPUP_VARIANT_ID")
 
-# Top-up variants (one-time purchases) — fill after LS product creation
-LEMONSQUEEZY_TOPUP_10_VARIANT_ID = os.getenv("LEMONSQUEEZY_TOPUP_10_VARIANT_ID")
-LEMONSQUEEZY_TOPUP_25_VARIANT_ID = os.getenv("LEMONSQUEEZY_TOPUP_25_VARIANT_ID")
-LEMONSQUEEZY_TOPUP_50_VARIANT_ID = os.getenv("LEMONSQUEEZY_TOPUP_50_VARIANT_ID")
-
-# Variant → top-up amount mapping (populated when env vars are set)
-TOPUP_AMOUNTS: dict[str, float] = {}
-if LEMONSQUEEZY_TOPUP_10_VARIANT_ID:
-    TOPUP_AMOUNTS[LEMONSQUEEZY_TOPUP_10_VARIANT_ID] = 10.0
-if LEMONSQUEEZY_TOPUP_25_VARIANT_ID:
-    TOPUP_AMOUNTS[LEMONSQUEEZY_TOPUP_25_VARIANT_ID] = 25.0
-if LEMONSQUEEZY_TOPUP_50_VARIANT_ID:
-    TOPUP_AMOUNTS[LEMONSQUEEZY_TOPUP_50_VARIANT_ID] = 50.0
+# Subscription tier variant ids resolve from services.billing_tiers via the tier's
+# ls_variant_env (LEMONSQUEEZY_STARTER_VARIANT_ID / LEMONSQUEEZY_PRO_VARIANT_ID).
 
 CHECKOUT_SUCCESS_URL = os.getenv("CHECKOUT_SUCCESS_URL", "https://yarnnn.com/settings?subscription=success")
+
+# Dynamic top-up bounds (dollars) — a sane floor + ceiling on the custom amount.
+TOPUP_MIN_USD = 5
+TOPUP_MAX_USD = 500
 
 
 # ── LS HTTP helpers ───────────────────────────────────────────────────────────
@@ -148,15 +155,6 @@ async def _lookup_customer_by_email(http: httpx.AsyncClient, email: Optional[str
     return str(data[0]["id"]) if data[0].get("id") else None
 
 
-# ── Variant helpers ───────────────────────────────────────────────────────────
-
-def get_plan_from_variant_id(variant_id: str) -> str:
-    """Subscription variant → plan label for display."""
-    if variant_id == LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID:
-        return "pro_yearly"
-    return "pro"
-
-
 def parse_iso_date(date_str: Optional[str]) -> Optional[str]:
     if not date_str:
         return None
@@ -174,13 +172,14 @@ def parse_iso_date(date_str: Optional[str]) -> Optional[str]:
 class CheckoutRequest(BaseModel):
     """Request to create a checkout session.
 
-    checkout_type: 'subscription' (monthly/yearly) or 'topup' ($10/$25/$50)
-    billing_period: 'monthly' | 'yearly' — for subscriptions only
-    topup_amount: 10 | 25 | 50 — for top-ups only
+    checkout_type: 'subscription' | 'topup'
+    tier: 'starter' | 'pro' — for subscriptions only
+    topup_amount: dollars (int) — for top-ups only; a custom operator-chosen amount
+                  bounded by TOPUP_MIN_USD..TOPUP_MAX_USD, priced via LS custom_price.
     """
     checkout_type: str = "subscription"  # 'subscription' | 'topup'
-    billing_period: Optional[str] = "monthly"
-    topup_amount: Optional[int] = None  # 10 | 25 | 50
+    tier: Optional[str] = None           # 'starter' | 'pro'
+    topup_amount: Optional[int] = None   # dollars, e.g. 10 / 25 / 50 / any custom
 
 
 class CheckoutResponse(BaseModel):
@@ -188,8 +187,7 @@ class CheckoutResponse(BaseModel):
 
 
 class SubscriptionStatus(BaseModel):
-    status: str           # 'free' | 'pro'
-    plan: Optional[str] = None  # 'pro' | 'pro_yearly'
+    tier: str                            # 'free' | 'starter' | 'pro'
     expires_at: Optional[str] = None
     customer_id: Optional[str] = None
     subscription_id: Optional[str] = None
@@ -204,19 +202,16 @@ class PortalResponse(BaseModel):
 @router.get("/status", response_model=SubscriptionStatus)
 async def get_subscription_status(auth: UserClient):
     result = auth.client.table("workspaces")\
-        .select("subscription_status, subscription_plan, subscription_expires_at, lemonsqueezy_customer_id, lemonsqueezy_subscription_id")\
+        .select("subscription_tier, subscription_expires_at, lemonsqueezy_customer_id, lemonsqueezy_subscription_id")\
         .eq("owner_id", auth.user_id)\
         .limit(1)\
         .execute()
     rows = result.data or []
     if not rows:
-        return SubscriptionStatus(status="free")
+        return SubscriptionStatus(tier="free")
     ws = rows[0]
-    raw_status = ws.get("subscription_status") or "free"
-    norm_status = "pro" if raw_status in ("starter", "pro") else "free"
     return SubscriptionStatus(
-        status=norm_status,
-        plan=ws.get("subscription_plan"),
+        tier=normalize_tier(ws.get("subscription_tier")),
         expires_at=ws.get("subscription_expires_at"),
         customer_id=ws.get("lemonsqueezy_customer_id"),
         subscription_id=ws.get("lemonsqueezy_subscription_id"),
@@ -227,7 +222,7 @@ async def get_subscription_status(auth: UserClient):
 
 @router.post("/checkout", response_model=CheckoutResponse)
 async def create_checkout(request: CheckoutRequest, auth: UserClient):
-    """Create Lemon Squeezy checkout — subscription or top-up."""
+    """Create Lemon Squeezy checkout — subscription tier or dynamic top-up."""
     if not LEMONSQUEEZY_API_KEY:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Payment service not configured")
 
@@ -237,27 +232,42 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
     if not workspace_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No workspace found")
 
+    # custom_price (integer cents) is set only for top-ups.
+    custom_price_cents: Optional[int] = None
+
     if request.checkout_type == "topup":
         amount = request.topup_amount
-        topup_variant_map = {10: LEMONSQUEEZY_TOPUP_10_VARIANT_ID, 25: LEMONSQUEEZY_TOPUP_25_VARIANT_ID, 50: LEMONSQUEEZY_TOPUP_50_VARIANT_ID}
-        variant_id = topup_variant_map.get(amount)
+        if amount is None or amount < TOPUP_MIN_USD or amount > TOPUP_MAX_USD:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Top-up amount must be between ${TOPUP_MIN_USD} and ${TOPUP_MAX_USD}",
+            )
+        variant_id = LEMONSQUEEZY_TOPUP_VARIANT_ID
         if not variant_id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Top-up variant for ${amount} not configured yet")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Top-up variant not configured")
+        custom_price_cents = int(amount) * 100
     else:
-        billing = request.billing_period or "monthly"
-        variant_id = LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID if billing == "yearly" else LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID
+        tier = normalize_tier(request.tier)
+        if tier not in PAID_TIERS:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown subscription tier: {request.tier}")
+        variant_id = variant_id_for_tier(tier)
         if not variant_id:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Subscription variant not configured for {billing}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Subscription variant not configured for {tier}")
+
+    attributes: dict = {
+        "checkout_data": {
+            "custom": {"user_id": auth.user_id, "workspace_id": workspace_id}
+        },
+        "product_options": {"redirect_url": CHECKOUT_SUCCESS_URL},
+    }
+    if custom_price_cents is not None:
+        # LS reads custom_price at the checkout root (integer cents).
+        attributes["custom_price"] = custom_price_cents
 
     checkout_data = {
         "data": {
             "type": "checkouts",
-            "attributes": {
-                "checkout_data": {
-                    "custom": {"user_id": auth.user_id, "workspace_id": workspace_id}
-                },
-                "product_options": {"redirect_url": CHECKOUT_SUCCESS_URL},
-            },
+            "attributes": attributes,
             "relationships": {
                 "store": {"data": {"type": "stores", "id": LEMONSQUEEZY_STORE_ID}},
                 "variant": {"data": {"type": "variants", "id": variant_id}},
@@ -339,11 +349,11 @@ def verify_webhook_signature(payload: bytes, signature: str) -> bool:
 
 @webhook_router.post("/lemonsqueezy")
 async def handle_lemonsqueezy_webhook(request: Request):
-    """Handle Lemon Squeezy webhook events.
+    """Handle Lemon Squeezy webhook events (ADR-396).
 
-    Subscription events: activate/deactivate pro status
-    subscription_payment_success: grant $20 subscription_refill balance
-    order_created: grant top-up balance ($10/$25/$50)
+    Subscription events: set tier + grant the tier's monthly allowance
+    subscription_payment_success: grant the tier's monthly allowance (cycle renewal)
+    order_created: grant top-up balance by the ACTUAL PAID TOTAL from the order
     """
     body = await request.body()
     signature = request.headers.get("X-Signature", "")
@@ -379,6 +389,12 @@ async def handle_lemonsqueezy_webhook(request: Request):
         log.warning(f"No workspace_id for event: {event_name}")
         return {"status": "ok", "message": "No workspace_id found"}
 
+    # Resolve the owner user_id for allowance grants (grant_allowance keys on both).
+    user_id: Optional[str] = None
+    ws_owner = client.table("workspaces").select("owner_id").eq("id", workspace_id).limit(1).execute()
+    if ws_owner.data:
+        user_id = ws_owner.data[0].get("owner_id")
+
     # Audit log
     try:
         client.table("subscription_events").insert({
@@ -392,40 +408,52 @@ async def handle_lemonsqueezy_webhook(request: Request):
     except Exception as e:
         log.warning(f"Failed to log subscription event: {e}")
 
-    # ── Subscription events ────────────────────────────────────────────────────
+    # ── Subscription lifecycle events ──────────────────────────────────────────
     if event_name in ("subscription_created", "subscription_updated", "subscription_resumed"):
         renews_at = parse_iso_date(attrs.get("renews_at"))
         status_value = attrs.get("status", "active")
         variant_id = str(attrs.get("variant_id", ""))
+        resolved_tier = tier_for_variant_id(variant_id)
 
-        if status_value in ("active", "on_trial", "past_due"):
-            sub_status = "pro"
-            sub_plan = get_plan_from_variant_id(variant_id)
+        if status_value in ("active", "on_trial", "past_due") and resolved_tier:
+            tier = resolved_tier
         else:
-            sub_status = "free"
-            sub_plan = None
+            tier = "free"
 
         update_data = {
-            "subscription_status": sub_status,
-            "subscription_plan": sub_plan,
+            "subscription_tier": tier,
             "subscription_expires_at": renews_at,
             "lemonsqueezy_subscription_id": subscription_id,
         }
         if customer_id:
             update_data["lemonsqueezy_customer_id"] = customer_id
         client.table("workspaces").update(update_data).eq("id", workspace_id).execute()
-        log.info(f"Subscription {event_name}: workspace {workspace_id} → {sub_status} ({sub_plan})")
+        log.info(f"Subscription {event_name}: workspace {workspace_id} → tier {tier}")
+
+        # Grant the tier's monthly allowance on activation. subscription_created
+        # fires with the first payment; payment_success covers renewals. Guarding
+        # on tier != free avoids granting a $0 allowance no-op.
+        if tier in PAID_TIERS and user_id:
+            from services.platform_limits import grant_allowance
+            grant_allowance(
+                client,
+                workspace_id=workspace_id,
+                user_id=user_id,
+                allowance_usd=tier_allowance_usd(tier),
+                lemon_subscription_id=subscription_id,
+                metadata={"event": event_name, "tier": tier},
+            )
+            log.info(f"Allowance grant: ${tier_allowance_usd(tier)} ({tier}) for workspace {workspace_id}")
 
     elif event_name in ("subscription_cancelled", "subscription_expired"):
         client.table("workspaces").update({
-            "subscription_status": "free",
-            "subscription_plan": None,
+            "subscription_tier": "free",
             "subscription_expires_at": None,
         }).eq("id", workspace_id).execute()
-        log.info(f"Subscription {event_name}: workspace {workspace_id} → free (balance unchanged)")
+        log.info(f"Subscription {event_name}: workspace {workspace_id} → free (balance + allowance unchanged)")
 
     elif event_name == "subscription_payment_success":
-        # Recurring billing cycle — grant $20 balance reset (ADR-172)
+        # Recurring billing cycle — grant the tier's monthly allowance (ADR-396).
         renews_at = parse_iso_date(attrs.get("renews_at"))
         update_data = {}
         if renews_at:
@@ -437,28 +465,37 @@ async def handle_lemonsqueezy_webhook(request: Request):
         if update_data:
             client.table("workspaces").update(update_data).eq("id", workspace_id).execute()
 
-        from services.platform_limits import grant_balance
-        grant_balance(
-            client,
-            workspace_id=workspace_id,
-            amount_usd=20.0,
-            kind="subscription_refill",
-            lemon_subscription_id=subscription_id,
-            metadata={"event": "subscription_payment_success"},
-        )
-        log.info(f"Subscription refill: $20 balance reset for workspace {workspace_id}")
+        # Read the current tier to size the allowance.
+        tier_row = client.table("workspaces").select("subscription_tier").eq("id", workspace_id).limit(1).execute()
+        tier = normalize_tier(tier_row.data[0].get("subscription_tier")) if tier_row.data else "free"
+
+        if tier in PAID_TIERS and user_id:
+            from services.platform_limits import grant_allowance
+            grant_allowance(
+                client,
+                workspace_id=workspace_id,
+                user_id=user_id,
+                allowance_usd=tier_allowance_usd(tier),
+                lemon_subscription_id=subscription_id,
+                metadata={"event": "subscription_payment_success", "tier": tier},
+            )
+            log.info(f"Cycle allowance: ${tier_allowance_usd(tier)} ({tier}) for workspace {workspace_id}")
 
     elif event_name == "subscription_payment_failed":
         log.warning(f"Payment failed for workspace {workspace_id}")
 
     elif event_name == "order_created":
-        # One-time top-up purchase — grant balance by variant amount (ADR-172)
+        # One-time top-up — grant balance by the ACTUAL PAID TOTAL (ADR-396). The
+        # amount is operator-chosen via custom_price, so we read the order total
+        # (cents) rather than mapping a variant → fixed amount.
         order_id = str(payload.get("data", {}).get("id", ""))
-        first_item = (attrs.get("first_order_item") or {})
-        variant_id = str(first_item.get("variant_id", ""))
-        amount = TOPUP_AMOUNTS.get(variant_id)
+        total_cents = attrs.get("total")
+        if total_cents is None:
+            # Fallback fields some LS payloads use for the order total.
+            total_cents = attrs.get("total_usd") or attrs.get("subtotal")
 
-        if amount:
+        if total_cents:
+            amount = round(int(total_cents) / 100, 2)
             from services.platform_limits import grant_balance
             grant_balance(
                 client,
@@ -466,10 +503,10 @@ async def handle_lemonsqueezy_webhook(request: Request):
                 amount_usd=amount,
                 kind="topup",
                 lemon_order_id=order_id,
-                metadata={"variant_id": variant_id, "amount": amount},
+                metadata={"order_id": order_id, "total_cents": int(total_cents)},
             )
             log.info(f"Top-up: ${amount} for workspace {workspace_id} (order {order_id})")
         else:
-            log.warning(f"order_created: unknown variant_id {variant_id} — no balance granted")
+            log.warning(f"order_created: no total on order {order_id} — no balance granted")
 
     return {"status": "ok"}

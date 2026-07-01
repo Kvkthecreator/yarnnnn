@@ -69,17 +69,17 @@ const faqSections: FaqSection[] = [
       {
         question: "What does it cost?",
         answer:
-          "Your memory is free forever — your files, your context, reachable from any AI. You only pay when the optional assistant is working: pay-as-you-go, metered at transparent rates, drawn from a balance, with a hard stop at zero. No seats, no subscription, no feature gates. Every workspace starts with a $3 balance; top up from $10 when you need more.",
+          "Your memory is free forever — your files, your context, reachable from any AI. When the optional assistant runs on it, you pick a plan for the work: Free, Starter ($19/mo), or Pro ($49/mo). Each paid plan includes a monthly usage allowance; heavier months you top up any amount from $5 (top-ups never expire). No seats, no feature gates — a plan sets an included allowance and a couple of ceilings (connector history, connector count), never a feature lock. Every workspace starts with a $3 balance to feel the loop before you spend a cent.",
       },
       {
         question: "Can I cap what it spends?",
         answer:
-          "Yes. Set a monthly ceiling (most start around $50; $100 and $150+ suit busier use), and the assistant paces itself to stay under it. It's a cap you set, not a charge we bill — you're only ever charged for what actually runs. Two guardrails: a ceiling you plan, and a floor (zero balance) that never lets anything break.",
+          "Yes — separately from your plan. Set a monthly budget ceiling and the assistant paces its own work to stay under it. That's a cap you set, not a charge we bill. Two guardrails, so spend is never a surprise: a budget ceiling you plan, and a floor (zero allowance and balance) that pauses the operation without losing anything.",
       },
       {
-        question: "What if my balance hits zero, or I turn the assistant off?",
+        question: "What if my allowance runs out, or I turn the assistant off?",
         answer:
-          "Nothing is deleted. At zero, the assistant pauses — top up to resume. Turn it off and it simply stops drawing usage. Either way, your memory and every file stay yours, free.",
+          "Nothing is deleted. When your monthly allowance and balance are spent, the assistant pauses — upgrade your plan or top up to resume. Turn it off and it simply stops drawing usage. Either way, your memory and every file stay yours, free.",
       },
     ],
   },

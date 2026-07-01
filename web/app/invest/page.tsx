@@ -236,9 +236,9 @@ export default function InvestPage() {
                     <h3 className="text-base font-medium mb-2">Delegation, earned</h3>
                     <p className="text-white/50 text-xs leading-relaxed">
                       Manual → bounded → autonomous. The trust dial the operator controls is held in
-                      code. Today the model is pay-as-you-go on transparent usage; whether
-                      delegation level becomes the pricing axis is a hypothesis we validate against
-                      real operators, not assume.
+                      code. Today the model is a plan with included usage over a metered balance;
+                      whether delegation level becomes a further pricing axis is a hypothesis we
+                      validate against real operators, not assume.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -308,7 +308,7 @@ export default function InvestPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
                 {([
-                  { title: "Value, not compute", desc: "Pay-as-you-go on transparent usage today; the long-run motion prices the call made correctly and the asset that compounds — what real operators pay for is what we'll validate, not assume." },
+                  { title: "Value, not compute", desc: "A plan with included usage over a metered balance today; the long-run motion prices the call made correctly and the asset that compounds — what real operators pay for is what we'll validate, not assume." },
                   { title: "Land narrow", desc: "Bounded operations with fast feedback loops — a portfolio, a channel, a pipeline, a shop, a book of business." },
                   { title: "Expansion-led", desc: "Grow through tight communities that talk to themselves. Hundreds of operators paying real money is a real business — never a volume play." },
                 ] as const).map((item) => (

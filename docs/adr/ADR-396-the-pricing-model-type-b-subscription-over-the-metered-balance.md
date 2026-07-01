@@ -1,6 +1,6 @@
 # ADR-396 — The Pricing Model: a Type-B subscription over the metered balance (one meter, two gates, no credit currency)
 
-> **Status**: **Accepted (doc-first, model ratified; numbers demand-gated)** — 2026-07-01. Ratifies the pricing MODEL decided across this session. **No code in this commit** — the model ships on existing machinery (subscription_refill + top-up + hard-stop all exist per ADR-172); the only new build is a plan-tier record + displaying balance-as-usage. **The tier NUMBERS (base price + included-allowance size) are deliberately NOT set here** — they are customer-gated (the one thing analysis cannot resolve; ADR-172/334 anti-speculation discipline). Do NOT wire checkout or set a price until a first paying user validates the base's felt value.
+> **Status**: **Implemented (model + code) — 2026-07-01.** Ratifies the pricing MODEL decided across this session, and (updated) ships the code. **The numbers-deferral was consciously relaxed at implementation** (see §7): the launch-test tiers are **Free ($0) / Starter ($19) / Pro ($49)** with included allowances **$0 / $15 / $45** and retention ceilings **7 / 30 / 90 days** — set to *test in front of a first user, not to be right*, reversible against first-customer evidence. Code: `services/billing_tiers.py` (the single source of truth), migration 194 (`subscription_tier` + `allowance_usd` + `allowance_granted_at`; `get_effective_balance` draws against the allowance+balance pool), `grant_allowance()` (the monthly cycle; allowance expires, top-ups survive — replaces the legacy $20 `subscription_refill` reset), dynamic top-ups (LS `custom_price`, webhook reads the actual paid total), tier-based subscription checkout, and the FE hide-$/show-usage transparency contract. Gate `api/test_adr396_type_b_billing.py` 28/28; migration applied to prod (12/12 workspaces default free/$0 → N=1 byte-identical; RPC + banking rule verified on live data). **Still customer-gated:** whether these launch-test numbers are the *right* numbers (only a paying user resolves felt value); whether connector-count is a v1 gate. **Operator dashboard setup remaining (not code):** create the LS products (one "Top up balance" with price-override enabled; Starter/Pro subscription products) + set the variant-id env vars on API + Scheduler.
 > **Date**: 2026-07-01
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Hat**: A (system canon — real-operator-facing)
@@ -77,11 +77,21 @@ The billing ledger is **singular**: `get_effective_balance` nets `balance_usd` a
 
 That is the entire implementation surface. **No new currency, no new ledger, no money-model migration.**
 
-## 7. What is deliberately NOT decided (the customer-gated last mile)
+## 7. The numbers — relaxed to launch-test values (2026-07-01, implementation)
 
-- **The base price and included-allowance size.** The economics bound the base to a **~$15–25/mo band** (UNIT-ECONOMICS §5): it must clear a Light user's ~$3 COGS by a business margin AND be ≤ the felt value of durable-memory-served-everywhere. **The felt-value number is the one thing analysis cannot supply — only a first paying user resolves whether $19 (or $X) clears.** Do not set it, advertise it, or wire checkout ahead of that evidence.
-- **The exact allowance display unit** (§4) — finalized at build.
-- **Whether connector-count (C″) is a v1 gate** — demand-gated.
+The original §7 deferred the tier numbers entirely (customer-gated). **At implementation the operator consciously relaxed that deferral** — you cannot put a subscription in front of a first user with no price. The distinction the anti-speculation discipline actually protects is *test vs be-right*, not *set vs unset*: numbers set **to test** (reversible, held as hypotheses) are honest; numbers advertised **as correct** (load-bearing on a valuation or a roadmap) are the drift. The launch-test tiers are:
+
+| Tier | Base | Included allowance | Retention ceiling | Connectors |
+|------|------|--------------------|-------------------|------------|
+| Free | $0 | $0 (top-up to use) | 7 days | 1 |
+| Starter | $19/mo | $15 | 30 days | 3 |
+| Pro | $49/mo | $45 | 90 days | unlimited |
+
+These sit at/above the UNIT-ECONOMICS ~$15–25 base band. They are the **single source of truth** in `services/billing_tiers.py::TIER_CONFIG` — one edit re-prices checkout + the retention gate + the FE. **They are hypotheses, not claims:** the felt-value number is still the one thing analysis cannot supply — only a first paying user resolves whether $19/$49 clears. Change them freely against evidence.
+
+**Still genuinely undecided:**
+- **The exact allowance display unit** (§4) — the FE renders allowance-consumed % + run counts today; a friendlier unit (e.g. "judgment calls") is a later polish.
+- **Whether connector-count is a v1 gate** — the ceiling exists in `TIER_CONFIG` but is not yet enforced at connector-add time; demand-gated.
 - **Phase-2 seats** (ADR-334) — revived only against the desire-axis evidence ADR-334's amendment names.
 
 ## 8. Rejected alternatives
@@ -92,9 +102,10 @@ That is the entire implementation surface. **No new currency, no new ledger, no 
 - **Commons-scale headcount tiers** (ADR-391 D4/D6) — a proxy for value; the §2 meter/gate carve prices the actual cost mechanics instead.
 
 ## 9. Doc cascade
-- `docs/monetization/STRATEGY.md` — rewrite to this model when the first tier number is set (banner added now: "the model is ADR-396; the live gate remains ADR-172 balance until a tier ships").
-- `docs/monetization/README.md` — index ADR-396 as the ratified model (the FORWARD section becomes DECIDED).
-- CLAUDE.md ADR index — ADR-396 entry.
-- The three session analysis docs (matrix / unit-economics / carve) — referenced as the derivation; unchanged.
+- `docs/monetization/STRATEGY.md` + `README.md` — reconciled to the implemented Type-B tiers (2026-07-01).
+- `docs/monetization/IMPLEMENTATION.md` — the LS-dashboard setup checklist (products + variant-id env vars) + the code map.
+- CLAUDE.md ADR index — ADR-396 entry updated (numbers set as launch-test values).
+- `docs/database/ACCESS.md` — the new `workspaces` columns noted.
+- The three session analysis docs (matrix / unit-economics / carve) — the derivation; unchanged.
 
-**The model is decided. The number is the demand-gated last mile. Nothing else blocks.**
+**The model is decided and shipped. The launch-test numbers (Free/$19/$49) are set to test, not to be right — reversible against the first paying user.**
