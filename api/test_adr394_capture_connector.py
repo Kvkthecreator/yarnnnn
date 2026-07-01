@@ -361,6 +361,83 @@ def _test_seed_at_select(results):
         csched.materialize_capture_index = orig_mat
 
 
+def _test_gc_gather(results):
+    """GC gatherer (ADR-394 D4): gather_cited_raw_paths collects the raw paths
+    any derived object cites via derived_from — the input to derive-then-prune.
+    (prune_raw_lane itself is gated by test_adr392 15-18.) Fakes the supabase
+    query chain; no DB."""
+    from services import connector_retention as cr
+
+    # Two derived files citing connector + one citing an mcp sibling. The
+    # gatherer collects ALL cited paths (prune_raw_lane later restricts to the
+    # connector lane); it must dedupe and handle bare + block-list shapes.
+    derived_rows = [
+        {"content": "---\nderived_from: /workspace/inbound/slack/eng/2026-06-01T00:00:00Z.md\n---\nunderstanding\n"},
+        {"content": (
+            "---\nderived_from:\n"
+            "  - /workspace/inbound/slack/eng/2026-06-01T00:00:00Z.md\n"   # dup of above
+            "  - /workspace/inbound/slack/random/2026-06-02T00:00:00Z.md\n"
+            "---\n"
+        )},
+        {"content": "derived_from: /workspace/inbound/mcp/claude.ai/acme.md\n"},
+        {"content": "no citation here — a plain derived file\n"},
+    ]
+
+    class _FakeExec:
+        def __init__(self, data):
+            self.data = data
+
+    class _FakeQuery:
+        def __init__(self, data):
+            self._data = data
+
+        def select(self, *a, **k):
+            return self
+
+        def eq(self, *a, **k):
+            return self
+
+        def like(self, *a, **k):
+            return self
+
+        def ilike(self, *a, **k):
+            return self
+
+        def limit(self, *a, **k):
+            return self
+
+        def execute(self):
+            return _FakeExec(self._data)
+
+    class _FakeClient:
+        def __init__(self, data):
+            self._data = data
+
+        def table(self, name):
+            return _FakeQuery(self._data)
+
+    import asyncio as _aio
+    cited = _aio.run(cr.gather_cited_raw_paths(_FakeClient(derived_rows), "u1"))
+    expected = {
+        "/workspace/inbound/slack/eng/2026-06-01T00:00:00Z.md",
+        "/workspace/inbound/slack/random/2026-06-02T00:00:00Z.md",
+        "/workspace/inbound/mcp/claude.ai/acme.md",
+    }
+    results.append(_check(
+        "16 gather_cited_raw_paths collects+dedupes all derived_from cites (bare + block)",
+        cited == expected, f"got {sorted(cited)}"))
+
+    # Fail-safe: a query error → empty set (never a false prune input).
+    class _BoomClient:
+        def table(self, name):
+            raise RuntimeError("db down")
+
+    cited_boom = _aio.run(cr.gather_cited_raw_paths(_BoomClient(), "u1"))
+    results.append(_check(
+        "17 gather fail-safe: query error → empty set (never a false prune)",
+        cited_boom == set(), f"got {cited_boom}"))
+
+
 _SELECTED: list[str] = []
 
 
@@ -371,6 +448,7 @@ def main():
     _test_capability_gate(results)
     _test_fanout(results)
     _test_seed_at_select(results)
+    _test_gc_gather(results)
 
     passed = sum(1 for r in results if r)
     total = len(results)
