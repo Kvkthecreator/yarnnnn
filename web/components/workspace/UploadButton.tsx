@@ -174,11 +174,10 @@ function UploadModal({
             <ArrowDownToLine className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
             <div className="min-w-0">
               <p className="font-medium text-foreground">
-                Lands in <span className="font-mono">Uploads/</span>
+                Saved to <span className="font-mono">Uploads/</span>
               </p>
               <p className="text-muted-foreground">
-                Your raw source material. Files are indexed so agents can read
-                them; nothing is published anywhere.
+                Your agents can read these files.
               </p>
             </div>
           </div>
@@ -257,12 +256,8 @@ function UploadModal({
             disabled={busy || picked.length === 0}
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowDownToLine className="h-3.5 w-3.5" />}
-            {busy
-              ? 'Adding…'
-              : picked.length > 0
-                ? `Add ${picked.length} to Uploads/`
-                : 'Add to Uploads/'}
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+            {busy ? 'Uploading…' : picked.length > 1 ? `Upload ${picked.length}` : 'Upload'}
           </button>
         </div>
       </div>

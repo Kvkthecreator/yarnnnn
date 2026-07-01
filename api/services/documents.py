@@ -202,7 +202,14 @@ async def process_document(
             content=content,
             authored_by="operator",
             message=f"upload {filename}",
-            lifecycle="permanent",
+            # An uploaded source file is live, browseable workspace content →
+            # 'active' (the workspace_files default + the migration-116/184 valid
+            # set: ephemeral|active|delivered|archived). The prior 'permanent'
+            # was never a valid enum value — it violated
+            # workspace_files_lifecycle_check, so EVERY upload's substrate write
+            # failed (operator-observed KVK 2026-07-01: "Failed to write
+            # workspace file … violates check constraint").
+            lifecycle="active",
         )
     except Exception as e:
         logger.error(f"[DOCUMENTS] Failed to write workspace file {workspace_path}: {e}")
