@@ -64,94 +64,88 @@ export interface FreddieAvatarProps {
 // skin/light fills drop out (so the punk reads as a one-color glyph).
 const PALETTE_FULL: Record<string, string> = {
   K: '#1f2937', //  hair / flat-top + outline (near-black slate)
-  G: '#4ade80', //  skin (Frankenstein green)
-  D: '#16a34a', //  skin shadow (jaw / brow underside)
-  B: '#e5e7eb', //  bolt metal (light steel)
-  M: '#334155', //  bolt shadow / stitch ink
+  G: '#5bbf57', //  skin (Frankenstein green — matches the reference)
+  D: '#3f9a45', //  skin shadow (jaw / cheek / brow underside)
+  B: '#9ca3af', //  bolt metal (steel)
+  H: '#e5e7eb', //  bolt highlight (the shiny cap)
+  M: '#4b5563', //  bolt shadow / dark rim
   E: '#111827', //  eyes / mouth ink
-  S: '#15803d', //  brow scar stitch (dark green — reads as sewn skin)
+  S: '#3f9a45', //  forehead stitch scar (skin shadow tone)
 };
 
 // In mono, ink-ish keys → currentColor, everything else → transparent so the
-// silhouette + features read in a single tint (the glyph contract).
-const MONO_INK = new Set(['K', 'E', 'M']);
+// punk reads as a single-tint glyph (the drop-in contract).
+const MONO_INK = new Set(['K', 'E', 'M', 'B']);
 
 // ── Base grid (24×24) ─────────────────────────────────────────────────────
-// '.' = empty. Rows are the flat-top head, face, jaw, and neck+bolts. Eyes and
-// mouth are left as '.' here — the per-state overlay stamps them (the modular
-// trait layer). Designed so the head is centered with a heavy flat-top and two
-// neck bolts poking out the sides.
+// '.' = empty. Frankenstein anatomy (per the reference): a blocky flat-top HAIR
+// crown with a small fringe, a TALL square FOREHEAD (the signature), cylindrical
+// BOLTS at the TEMPLES (ear-level, sticking out the sides), low-set dot eyes, a
+// long flat mouth, and a squared jaw. Eyes + mouth are '.' here — the per-state
+// overlay stamps them (the modular trait layer).
+//   bolt = M B B H  (dark rim · steel · steel · shiny cap) out each temple.
 // prettier-ignore
 const BASE: string[] = [
-  '........................',
-  '.....KKKKKKKKKKKKKK.....',  // flat-top hair, one row taller
-  '.....KKKKKKKKKKKKKK.....',
-  '.....KKKKKKKKKKKKKK.....',
-  '....KKKKKKKKKKKKKKKK....',
-  '....KGGGGGGGGGGGGGGK....',  // forehead
-  '....KGGGGGGGGGGGGGGK....',
-  '....KGSSGGGGGGGGSSGK....',  // stitched brow scar (dark stitch marks S)
-  '....KGGGGGGGGGGGGGGK....',
-  '....KGG..GGGG..GGGGK....',  // eye sockets (overlay fills)
-  '....KGG..GGGG..GGGGK....',
-  '....KGGGGGGGGGGGGGGK....',
-  '....KGGGGGGGGGGGGGGK....',
-  '....KGGGGGGGGGGGGGGK....',  // mouth region (overlay fills)
-  '....KGGGGGGGGGGGGGGK....',
-  '....KDGGGGGGGGGGGGDK....',  // jaw shadow
-  '....KKDDDDDDDDDDDDKK....',
-  'MB...KKKKKKKKKKKKKK...BM',  // BOLTS: metal stud (B) + shadow (M), on neck line
-  'MB...KMMMMMMMMMMMMK...BM',  // neck band, bolts flush to the sides
-  '.....KMGGGGGGGGGGMK.....',
-  '.....KMMMMMMMMMMMMK.....',
-  '......KKKKKKKKKKKK......',
-  '........................',
-  '........................',
+  '........................',  // 0
+  '........................',  // 1
+  '......KKKKKKKKKKKK......',  // 2  hair crown
+  '.....KKKKKKKKKKKKKK.....',  // 3
+  '.....KKKKKKKKKKKKKK.....',  // 4  flat-top block
+  '.....KKK.KKKK.KKKKK.....',  // 5  hair fringe (little gaps)
+  '.....KGGGGGGGGGGGGK.....',  // 6  forehead begins
+  '.....KGGGGGGGGGGGGK.....',  // 7  TALL forehead
+  '.....KGGGSSSSSSGGGK.....',  // 8  forehead stitch scar
+  '.MBBHKGGGGGGGGGGGGKHBBM.',  // 9  ← TEMPLE BOLTS attach flush to the head
+  '.MBBHKGGGGGGGGGGGGKHBBM.',  // 10 bolt is 2px tall (H = cap next to head)
+  '.....KGG.GGGGGG.GGK.....',  // 11 eye row (overlay fills the sockets @ c8, c15)
+  '.....KGGGGGGGGGGGGK.....',  // 12
+  '.....KGGGGGGGGGGGGK.....',  // 13
+  '.....KGGGGGGGGGGGGK.....',  // 14 mouth region (overlay fills)
+  '.....KGGGGGGGGGGGGK.....',  // 15
+  '.....KDGGGGGGGGGGDK.....',  // 16 cheek/jaw shadow
+  '.....KKDDDDDDDDDDKK.....',  // 17 jaw
+  '......KKKKKKKKKKKK......',  // 18 chin/neck line
+  '......KKKKKKKKKKKK......',  // 19
+  '........................',  // 20
+  '........................',  // 21
+  '........................',  // 22
+  '........................',  // 23
 ];
 
 // ── Per-state overlays ─────────────────────────────────────────────────────
-// Each entry stamps pixels at [row, col] = key. Only eyes + mouth (+ brow tweak)
-// change — the modular trait swap. Coordinates target the BASE eye sockets
-// (cols 7-8 and 13-14, rows 9-10) and the mouth band (rows 13-14).
+// Stamp pixels at [row, col] = key. Only eyes + mouth change — the modular trait
+// swap. New anatomy (matches the reference): deep-set dot EYES at the sockets
+// (cols 8 & 15), 2px tall; a long flat MOUTH low on the face (row 14). Rows:
+// eyes 11-12, mouth 14 (band 13-14).
 type Stamp = { r: number; c: number; k: string };
 
 function overlayFor(state: FreddieLiveness): Stamp[] {
-  const eyeCols = [7, 8, 13, 14];
-  const eye = (r: number, k = 'E'): Stamp[] => eyeCols.map((c) => ({ r, c, k }));
+  const eyeColsL = [8];
+  const eyeColsR = [15];
+  const eyeCols = [...eyeColsL, ...eyeColsR];
+  // A pair of eyes at row r (each a single dot; `tall` adds the row below).
+  const eyes = (r: number, tall = true): Stamp[] => {
+    const s = eyeCols.map((c) => ({ r, c, k: 'E' }));
+    return tall ? [...s, ...eyeCols.map((c) => ({ r: r + 1, c, k: 'E' }))] : s;
+  };
+  // A flat mouth row across cols [a..b] at row r.
+  const mouth = (r: number, a: number, b: number): Stamp[] => {
+    const out: Stamp[] = [];
+    for (let c = a; c <= b; c++) out.push({ r, c, k: 'E' });
+    return out;
+  };
 
   switch (state) {
-    case 'paused': // closed eyes (a single ink line) + flat mouth
-      return [
-        ...eye(10),
-        { r: 13, c: 9, k: 'E' }, { r: 13, c: 10, k: 'E' }, { r: 13, c: 11, k: 'E' },
-        { r: 13, c: 12, k: 'E' }, { r: 13, c: 13, k: 'E' }, { r: 13, c: 14, k: 'E' },
-      ];
-    case 'thinking': // eyes up (row 9) + small neutral mouth
-      return [
-        ...eye(9),
-        { r: 14, c: 10, k: 'E' }, { r: 14, c: 11, k: 'E' },
-        { r: 14, c: 12, k: 'E' }, { r: 14, c: 13, k: 'E' },
-      ];
-    case 'acting': // full eyes (both rows) + open focus mouth
-      return [
-        ...eye(9), ...eye(10),
-        { r: 13, c: 10, k: 'E' }, { r: 13, c: 13, k: 'E' },
-        { r: 14, c: 10, k: 'E' }, { r: 14, c: 11, k: 'E' },
-        { r: 14, c: 12, k: 'E' }, { r: 14, c: 13, k: 'E' },
-      ];
-    case 'waiting': // wide eyes (both rows) + upward mouth (looking AT you)
-      return [
-        ...eye(9), ...eye(10),
-        { r: 14, c: 9, k: 'E' }, { r: 14, c: 14, k: 'E' },
-        { r: 13, c: 10, k: 'E' }, { r: 13, c: 11, k: 'E' },
-        { r: 13, c: 12, k: 'E' }, { r: 13, c: 13, k: 'E' },
-      ];
-    default: // idle — steady eyes (row 10) + calm flat mouth
-      return [
-        ...eye(10),
-        { r: 14, c: 10, k: 'E' }, { r: 14, c: 11, k: 'E' },
-        { r: 14, c: 12, k: 'E' }, { r: 14, c: 13, k: 'E' },
-      ];
+    case 'paused': // eyes shut (thin single row) + flat mouth
+      return [...eyes(12, false), ...mouth(14, 9, 14)];
+    case 'thinking': // eyes up (row 10-11) + short neutral mouth
+      return [...eyes(10), ...mouth(14, 10, 13)];
+    case 'acting': // steady eyes + open grin (two mouth rows)
+      return [...eyes(11), ...mouth(14, 9, 14), { r: 13, c: 10, k: 'E' }, { r: 13, c: 13, k: 'E' }];
+    case 'waiting': // steady eyes + frown-ish upcurl corners (attentive)
+      return [...eyes(11), ...mouth(13, 10, 13), { r: 14, c: 9, k: 'E' }, { r: 14, c: 14, k: 'E' }];
+    default: // idle — steady eyes (row 11-12) + long flat mouth
+      return [...eyes(11), ...mouth(14, 9, 14)];
   }
 }
 
