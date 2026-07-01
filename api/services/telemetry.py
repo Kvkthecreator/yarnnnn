@@ -128,6 +128,7 @@ def record_execution_event(
     wake_source: Optional[str] = None,
     funnel_decision: Optional[str] = None,
     agent_run_id: Optional[str] = None,
+    principal_id: Optional[str] = None,
 ) -> Optional[str]:
     """Write one row to execution_events. Never raises. Returns the row id on
     success, None on insert failure.
@@ -170,6 +171,14 @@ def record_execution_event(
                             + Session B. Population wired in Session C/D when
                             wake_evaluation.evaluate() produces the decision.
         agent_run_id:       agent_runs.id if a row was created (NULL for early exits)
+        principal_id:       the PRINCIPAL that caused this invocation (ADR-373
+                            resolve_principal_id: owner user_id | foreign-LLM
+                            provider host-id | agent slug). NULL = unattributed
+                            (existing rows + sites without principal context).
+                            Capture-first Layer-1 (migration 192) — attributes
+                            the cost so the Cost & Activity Surface can answer
+                            "who spent what" per principal. N=1 safe: owner rows
+                            carry the owner user_id, byte-identical rollup.
 
         ADR-298 Phase 5 cleanup (2026-05-22): the `wake_dedup_key` kwarg
         was DELETED. Cross-source dedup migrated to wake_queue.dedup_key
@@ -231,6 +240,14 @@ def record_execution_event(
             row["funnel_decision"] = funnel_decision
         if agent_run_id is not None:
             row["agent_run_id"] = agent_run_id
+        # Capture-first (migration 192): attribute the row to the causing
+        # PRINCIPAL. Explicit principal_id wins (the interop path passes the
+        # foreign provider host-id); otherwise default to user_id — correct for
+        # every owner/reviewer/recurrence site (ADR-373 resolve_principal_id maps
+        # reviewer→user_id), so no owner-attributed call site needs to change.
+        # New rows are therefore always attributed; only rows written before this
+        # migration stay NULL.
+        row["principal_id"] = principal_id if principal_id is not None else user_id
 
         result = client.table("execution_events").insert(row).execute()
         # Supabase returns the inserted row(s) in result.data when the client

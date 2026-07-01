@@ -215,6 +215,9 @@ async def _dispatch_drained_wake(
             path=payload.get("path") or "",
             field_change=payload.get("field_change") or {},
             revision_id=payload.get("revision_id"),
+            # Capture-first (migration 192): the foreign principal that wrote,
+            # threaded through the wake_queue payload (mcp_composition submit).
+            principal_id=payload.get("principal_id"),
         )
 
     if wake_source == "proposal_arrival":

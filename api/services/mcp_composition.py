@@ -1208,6 +1208,14 @@ async def submit_foreign_write_wake(
         )
 
         from services.wake import submit_wake_proposal
+        from services.supabase import resolve_principal_id
+
+        # Capture-first (migration 192): attribute the review wake to the FOREIGN
+        # principal that wrote (the provider host-id — chatgpt/claude.ai — per
+        # ADR-373 D2.a), not the workspace owner. The drainer reads this from the
+        # payload and stamps execution_events.principal_id, so the cost surface
+        # shows "ChatGPT caused this review", not "you".
+        foreign_principal = resolve_principal_id(auth)
 
         await submit_wake_proposal(
             auth.client,
@@ -1222,6 +1230,9 @@ async def submit_foreign_write_wake(
                 "path": abs_path,
                 "field_change": {"source": "mcp", "target": "inbound-raw-lane"},
                 "revision_id": revision_id,
+                # ADR-373 principal attribution — survives the wake_queue payload
+                # round-trip; read in the drainer's substrate_event dispatch body.
+                "principal_id": foreign_principal,
             },
         )
         logger.info(
