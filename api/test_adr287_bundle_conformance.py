@@ -76,6 +76,23 @@ def _load_recurrences(bundle_dir: Path) -> list[dict]:
     return data.get("recurrences", []) or []
 
 
+def _load_captures(bundle_dir: Path) -> list[dict]:
+    """Load _captures.yaml entries from a bundle's reference-workspace (ADR-393).
+
+    Captures are the deterministic-intake declarations the capture lane runs
+    outside the wake funnel. A watch's Trigger (cadence) may live on a capture
+    (a standing web/repo watch — track-sources/track-repo) or, historically, a
+    recurrence; both are valid Trigger homes for a watch declaration."""
+    cap_path = bundle_dir / "reference-workspace" / "_captures.yaml"
+    if not cap_path.exists():
+        return []
+    try:
+        data = yaml.safe_load(cap_path.read_text()) or {}
+    except yaml.YAMLError:
+        return []
+    return data.get("captures", []) or []
+
+
 # =============================================================================
 # ADR-284 — Standing Intent + OCCUPANT runtime-alignment
 # =============================================================================
@@ -552,15 +569,19 @@ def test_adr335_d9_flows_na_keys_are_valid():
 
 def test_adr335_d2_watch_declarations_well_formed():
     """ADR-335 D2: every declared watch carries id + shape + distills_to;
-    when a recurrence pointer is present it resolves to a recurrence slug in
-    the bundle's _recurrences.yaml (the cadence lives ON the recurrence —
-    singular — so a dangling pointer means a watch with no Trigger)."""
+    when a recurrence pointer is present it resolves to a Trigger slug in the
+    bundle. ADR-393: a watch's cadence (Trigger) lives on a CAPTURE (a standing
+    web/repo watch is deterministic intake — track-sources/track-repo moved to
+    _captures.yaml) OR, historically, a recurrence. The pointer must resolve to
+    one of them — a dangling pointer means a watch with no Trigger."""
     for bundle in _all_active_or_deferred_bundles():
         abi = _manifest(bundle).get("substrate_abi") or {}
         watches = abi.get("watches") or []
         if not watches:
             continue
-        recurrence_slugs = {r.get("slug") for r in _load_recurrences(bundle)}
+        trigger_slugs = {r.get("slug") for r in _load_recurrences(bundle)} | {
+            c.get("slug") for c in _load_captures(bundle)
+        }
         for watch in watches:
             assert isinstance(watch, dict), (
                 f"bundle '{bundle.name}' has a non-dict watches entry: {watch!r}"
@@ -573,10 +594,10 @@ def test_adr335_d2_watch_declarations_well_formed():
                 )
             rec = watch.get("recurrence")
             if rec is not None:
-                assert rec in recurrence_slugs, (
+                assert rec in trigger_slugs, (
                     f"bundle '{bundle.name}' watch '{watch['id']}' points at "
-                    f"recurrence '{rec}' which does not exist in the bundle's "
-                    f"_recurrences.yaml — a watch with no Trigger never fires"
+                    f"Trigger '{rec}' which is neither a recurrence nor a capture "
+                    f"in the bundle — a watch with no Trigger never fires"
                 )
 
 

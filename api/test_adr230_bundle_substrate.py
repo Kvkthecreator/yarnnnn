@@ -176,56 +176,63 @@ def test_activate_persona_exists():
 
 
 def test_alpha_trader_recurrences_yaml_carries_default_recurrences():
-    """ADR-230 D2 + ADR-231 cutover: program-default scheduled work lives
-    at docs/programs/{program}/reference-workspace/_recurrences.yaml
-    (tasks.yaml was dissolved by ADR-231 Phase 3 cutover).
+    """ADR-230 D2 + ADR-231 cutover + ADR-393 split: program-default scheduled
+    work lives at docs/programs/{program}/reference-workspace/ across TWO files.
 
-    Rewritten per ADR-287 D3 — the original tasks.yaml-shaped assertion
-    bit-rotted when ADR-231 landed. The conformance contract preserved:
-    alpha-trader ships its canonical recurrence set in the bundle.
+    ADR-393: recurrences are JUDGMENT-only (_recurrences.yaml); deterministic
+    intake is CAPTURES (_captures.yaml, run by the capture lane). The trader's
+    mechanical mirrors (track-positions/account/orders, track-regime,
+    track-universe, mirror-signal-state) moved from _recurrences.yaml to
+    _captures.yaml — same primitives, same cadence, new dispatch home. This
+    assertion pins the post-split shape.
     """
-    recurrences_yaml = PROGRAMS_ROOT / "alpha-trader" / "reference-workspace" / "_recurrences.yaml"
+    ref = PROGRAMS_ROOT / "alpha-trader" / "reference-workspace"
+    recurrences_yaml = ref / "_recurrences.yaml"
+    captures_yaml = ref / "_captures.yaml"
     assert recurrences_yaml.exists(), "alpha-trader/reference-workspace/_recurrences.yaml missing"
+    assert captures_yaml.exists(), (
+        "alpha-trader/reference-workspace/_captures.yaml missing — ADR-393 "
+        "requires the mechanical mirrors to ship as captures"
+    )
 
-    raw = yaml.safe_load(recurrences_yaml.read_text())
-    recurrences = (raw or {}).get("recurrences") or []
-    slugs = {r.get("slug") for r in recurrences}
+    rec_slugs = {r.get("slug") for r in (yaml.safe_load(recurrences_yaml.read_text()) or {}).get("recurrences") or []}
+    cap_entries = (yaml.safe_load(captures_yaml.read_text()) or {}).get("captures") or []
+    cap_slugs = {c.get("slug") for c in cap_entries}
 
-    # Post-ADR-275: bundles ship substrate-maintenance + reactive + event-
-    # anchored heartbeats. Judgment-cadence (introspection / housekeeping /
-    # deliverable production) is Reviewer-authored from _preferences.yaml.
-    # This assertion pins the bundle-shipped set; deliverable cadence lives
-    # in _preferences.yaml separately.
-    # Stale-test fix (2026-06-05, pre-existing rot surfaced during ADR-320 bundle
-    # re-root): `trade-proposal` was dissolved into `signal-evaluation` inline
-    # ProposeAction per ADR-296 v2 (CLAUDE.md wake-architecture note). The bundle
-    # ships signal-evaluation as the judgment-mode capital recurrence; there is no
-    # standalone trade-proposal slug. Assertions updated to current bundle reality.
-    expected_subset = {
-        "outcome-reconciliation",
-        "signal-evaluation",
-        "track-universe",
-        "track-regime",
-        "track-account",
-        "track-orders",
-        "track-positions",
+    # Judgment recurrences the bundle ships (deliverable cadence lives in
+    # _preferences.yaml separately, Reviewer-authored per ADR-275).
+    expected_recurrences = {"outcome-reconciliation", "signal-evaluation"}
+    missing_rec = expected_recurrences - rec_slugs
+    assert not missing_rec, (
+        f"alpha-trader _recurrences.yaml missing judgment recurrences: {missing_rec}."
+    )
+
+    # Deterministic-intake captures the bundle ships (ADR-393).
+    expected_captures = {
+        "track-universe", "track-regime", "track-account",
+        "track-orders", "track-positions", "mirror-signal-state",
     }
-    missing = expected_subset - slugs
-    assert not missing, (
-        f"alpha-trader _recurrences.yaml missing required recurrences: {missing}. "
-        f"Per ADR-275 the bundle ships substrate-maintenance + reactive entries; "
-        f"these are the load-bearing set."
+    missing_cap = expected_captures - cap_slugs
+    assert not missing_cap, (
+        f"alpha-trader _captures.yaml missing captures: {missing_cap}. "
+        f"ADR-393: the mechanical mirrors ship as captures, not recurrences."
     )
 
-    # Pipeline wiring sanity per ADR-263 mode discipline
-    by_slug = {r["slug"]: r for r in recurrences}
-    assert by_slug["track-positions"]["mode"] == "mechanical", (
-        "track-positions must be mechanical-mode per ADR-264 SyncPlatformState"
-    )
-    assert by_slug["signal-evaluation"]["mode"] == "judgment", (
-        "signal-evaluation must be judgment-mode (Reviewer renders capital judgment "
-        "via inline ProposeAction per ADR-296 v2)"
-    )
+    # The split is clean: no @primitive directive survives in a recurrence, and
+    # no recurrence carries a `mode` field (retired by ADR-393).
+    for r in (yaml.safe_load(recurrences_yaml.read_text()) or {}).get("recurrences") or []:
+        assert "@primitive:" not in (r.get("prompt") or ""), (
+            f"recurrence '{r.get('slug')}' still carries a @primitive directive — "
+            f"it must move to _captures.yaml (ADR-393)"
+        )
+        assert "mode" not in r, (
+            f"recurrence '{r.get('slug')}' still carries a `mode` field — retired by ADR-393"
+        )
+    # Every capture carries a @primitive directive (that's what the lane runs).
+    for c in cap_entries:
+        assert "@primitive:" in (c.get("primitive") or ""), (
+            f"capture '{c.get('slug')}' missing a @primitive directive"
+        )
 
 
 # =============================================================================

@@ -194,7 +194,7 @@ async def _dispatch_drained_wake(
             slug=rec_data.get("slug", ""),
             schedule=rec_data.get("schedule"),
             prompt=rec_data.get("prompt", ""),
-            mode=rec_data.get("mode", "judgment"),
+            # ADR-393: `mode` removed — recurrences are judgment-only.
         )
         # Restore fields not in the bare dataclass constructor.
         if "paused" in rec_data:

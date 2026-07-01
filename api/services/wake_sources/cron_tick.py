@@ -10,11 +10,12 @@ remains thin per ADR-261 D3 — it computes "which recurrences are due"
 and hands each one to `dispatch_recurrence()`. The funnel decides
 whether the wake escalates to the Reviewer's full cycle.
 
-ADR-296 v2 D2 — funnel decisions for cron-tick wakes:
-  - mechanical-mode recurrence → "mechanical" (deterministic Python; no Reviewer)
-  - judgment-mode + budget OK + ambiguous freshness → "tier_2" (Haiku gate)
-  - judgment-mode + kernel gate failed → "skip" (balance/spend/cap/min-interval)
-  - judgment-mode + clean → "escalate" (Reviewer full cycle)
+ADR-296 v2 D2 — funnel decisions for cron-tick wakes (ADR-393: recurrences are
+judgment-only; the mechanical carve-out is gone — deterministic intake is the
+capture lane's, services.capture):
+  - budget OK + ambiguous freshness → "tier_2" (Haiku gate)
+  - kernel gate failed → "skip" (balance/spend/cap/min-interval)
+  - clean → "escalate" (Reviewer full cycle)
 """
 
 from __future__ import annotations

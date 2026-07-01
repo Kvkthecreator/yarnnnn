@@ -131,41 +131,56 @@ def test_dispatcher_all_telemetry_sites_stamp_wake_source() -> None:
 
 
 def test_dispatcher_funnel_decision_taxonomy() -> None:
-    """funnel_decision values at dispatcher sites match the D2 taxonomy."""
+    """funnel_decision values at wake sites match the D2 taxonomy.
+
+    ADR-393: `mechanical` is removed from the taxonomy — the wake funnel serves
+    JUDGMENT only. Deterministic intake is the capture lane's (services.capture),
+    which records funnel_decision="capture" on its OWN execution_events rows,
+    never through wake.py.
+    """
     src = _read("services/wake.py")
-    # Find all funnel_decision= populations
     populations = re.findall(r'funnel_decision="([^"]+)"', src)
-    allowed = {"skip", "tier_2_wait", "tier_2_observe", "escalate", "mechanical"}
+    allowed = {"skip", "tier_2_wait", "tier_2_observe", "escalate"}
     bad = [p for p in populations if p not in allowed]
     if bad:
         _fail(
-            "invocation_dispatcher uses funnel_decision values outside the D2 taxonomy",
-            f"bad values: {sorted(set(bad))}",
+            "wake.py uses funnel_decision values outside the D2 taxonomy",
+            f"bad values: {sorted(set(bad))} (note: 'mechanical' retired by ADR-393)",
         )
-    _ok(f"invocation_dispatcher funnel_decision values all within taxonomy "
+    _ok(f"wake.py funnel_decision values all within taxonomy "
         f"(found: {sorted(set(populations))})")
 
-    # All four expected categories must appear in the dispatcher.
-    expected_present = {"skip", "escalate", "mechanical"}
+    # The judgment categories must appear.
+    expected_present = {"skip", "escalate"}
     missing = expected_present - set(populations)
     if missing:
         _fail(
-            "invocation_dispatcher missing funnel_decision categories",
+            "wake.py missing funnel_decision categories",
             f"expected at least {sorted(expected_present)}, missing {sorted(missing)}",
         )
-    _ok(f"invocation_dispatcher carries all expected funnel_decision categories: "
+    _ok(f"wake.py carries all expected funnel_decision categories: "
         f"{sorted(expected_present)}")
 
-
-def test_dispatch_mechanical_accepts_wake_source() -> None:
-    """_dispatch_mechanical accepts wake_source as a keyword-only parameter."""
-    src = _read("services/wake.py")
-    if not re.search(r"async def _dispatch_mechanical\([^)]*wake_source:\s*str", src, re.DOTALL):
+    # ADR-393: `mechanical` must NOT appear (the carve-out is deleted).
+    if "mechanical" in populations:
         _fail(
-            "_dispatch_mechanical signature missing wake_source",
-            "must accept wake_source: str as kw-only per ADR-296 v2",
+            "wake.py still stamps funnel_decision=\"mechanical\"",
+            "ADR-393 deleted the mechanical carve-out — captures record their own "
+            "funnel_decision=\"capture\" in services.capture, never through wake.py",
         )
-    _ok("_dispatch_mechanical accepts wake_source kw-only parameter")
+    _ok("wake.py no longer stamps funnel_decision=\"mechanical\" (ADR-393)")
+
+
+def test_wake_py_has_no_mechanical_dispatch() -> None:
+    """ADR-393: the mechanical carve-out (_dispatch_mechanical + its directive
+    parser) is DELETED from wake.py — deterministic intake is the capture lane's."""
+    src = _read("services/wake.py")
+    if "_dispatch_mechanical" in src or "_parse_primitive_directive" in src:
+        _fail(
+            "wake.py still contains mechanical-dispatch machinery",
+            "ADR-393 moved it to services.capture.lane; wake.py serves judgment only",
+        )
+    _ok("wake.py has no _dispatch_mechanical / _parse_primitive_directive (ADR-393)")
 
 
 # ----------------------------------------------------------------------------
@@ -283,7 +298,7 @@ def main() -> None:
     test_dispatcher_computes_wake_source_at_entry()
     test_dispatcher_all_telemetry_sites_stamp_wake_source()
     test_dispatcher_funnel_decision_taxonomy()
-    test_dispatch_mechanical_accepts_wake_source()
+    test_wake_py_has_no_mechanical_dispatch()
     test_feed_addressed_stamps_wake_source()
     test_non_wake_sites_do_not_stamp_wake_source()
 

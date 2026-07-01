@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.01.2] - the capture pipeline: recurrences are judgment-only; `mode` retired from Schedule (ADR-393)
+
+**ADR-393 separates deterministic upstream CAPTURE (peripherals, ADR-335/389 — judged for health not honesty) from judgment WAKES. Capture becomes its own mechanical lane (`services.capture`, run in the scheduler tick outside the wake funnel); `_recurrences.yaml` narrows to judgment-only. The `mode: mechanical` recurrence carve-out (the "theatre" bypass in `wake.py::_dispatch_mechanical`) is DELETED, not carried as a fallback (Singular Implementation). Deterministic intake now lives in `_captures.yaml`.**
+
+- `api/services/primitives/schedule.py`: the `Schedule` tool definition drops the `mode` property + all mode validation/mutation. Description rewritten — a recurrence is a JUDGMENT prompt with three load-bearing fields (slug, schedule, prompt); a new note tells the model that deterministic intake (mirroring state, `@primitive:` directives, standing watches) is a CAPTURE in `_captures.yaml`, NOT a recurrence, and must not be put in a recurrence prompt. `create` no longer accepts `mode`; `update` ignores a stale `mode` change (logs, does not error).
+- `api/services/recurrence.py`: `Recurrence.mode` field + `RECURRENCE_MODES` / `DEFAULT_RECURRENCE_MODE` / `is_valid_mode` deleted. The parser DROPS any legacy `mode: mechanical` entry with a loud warning (it must not reach the wake funnel — its `@primitive:` prompt is not a judgment prompt); `mode: judgment`/absent is ignored.
+- **Expected behavior change**: the model can no longer author a mechanical recurrence via `Schedule` — mechanical work is a bundle-shipped `_captures.yaml` declaration run by the capture lane. A judgment recurrence is authored exactly as before (minus the always-`judgment` mode arg). Any stale `mode: mechanical` recurrence surviving in a live `_recurrences.yaml` is dropped at parse time (re-home it to `_captures.yaml`). Gate: `api/test_adr393_capture_pipeline.py` (10/10); `test_adr392_connector_lane.py` 20/20 (no break).
+
 ## [2026.07.01.1] - SyncPlatformState gains a connector capture mode → the raw lane (ADR-392 D2)
 
 **Connectors are the third context-in transport and the lone non-conformer to the ledger-intake axiom (ADR-376/DP32): `SyncPlatformState` (ADR-264) wrote straight to `operation/`, fusing capture and derive and skipping the raw lane MCP + web already honor. ADR-392 (Accepted, raw-lane mechanism = Option A `inbound/` namespace) makes it conform: a platform sync is an attributed RAW observation that lands in the capture lane, and a SEPARATE derive act distills understanding into `operation/`.**

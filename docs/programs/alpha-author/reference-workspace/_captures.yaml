@@ -1,0 +1,58 @@
+# /workspace/_captures.yaml — alpha-author bundle (ADR-393)
+#
+# The capture lane's declaration file. A CAPTURE is deterministic, upstream,
+# intent-free perception: it runs on cadence, writes substrate, and wakes no
+# one. The capture lane (services.capture) runs these OUTSIDE the wake funnel,
+# as a maintenance phase in the scheduler tick — zero LLM cost. This is where
+# the author's standing perception watches live (moved here from
+# _recurrences.yaml when ADR-393 narrowed recurrences to judgment-only).
+#
+# Each entry is {slug, schedule, primitive}:
+#   - slug:      stable identifier
+#   - schedule:  plain UTC cron (this bundle is market-agnostic — no @-semantic)
+#   - primitive: a `@primitive: <Name>(<args>)` directive the lane parses + runs
+#
+# There is NO `mode` field — being in _captures.yaml IS the class (a capture
+# never wakes the Reviewer). Judgment reads the distilled signal substrate these
+# produce (substrate-aware, transport-blind per ADR-335 D3) — it never fetches
+# the web/repo itself for standing perception.
+#
+# ADR-283 step 2: audience-bearing capture (track-linkedin/x/newsletter via
+# SyncPlatformState) will be added here when the publishing-platform capabilities
+# ship — following the trader's state-mirror pattern in its _captures.yaml.
+
+captures:
+
+  # ── track-sources — the standing web/RSS watch (ADR-335/336) ─────────────
+  # Mechanical, deterministic, zero-LLM. Reads operator-declared sources
+  # (_sources.yaml) and distills them into _watch_signal.yaml per the ADR-335
+  # D3 observation contract (source_ref + attestation + observed_at + bounded
+  # entries). Scheduled 30min before corpus-coherence-check's default window so
+  # judgment reads a FRESH watch signal (the envelope carries watch_signal per
+  # MANIFEST reviewer_wake_envelope). Judgment never fetches the web for standing
+  # perception — it reads this substrate (substrate-aware, transport-blind per
+  # ADR-335 D3).
+  - slug: track-sources
+    schedule: "30 11 * * *"   # daily 11:30 UTC — 30min before the coherence window
+    primitive: |
+      @primitive: TrackWebSources(declaration="operation/authored/_sources.yaml", distills_to="operation/authored/_watch_signal.yaml")
+    display_name: "Track Sources (standing watch)"
+
+  # ── track-repo — the standing repository watch (ADR-335 Crawl-B / D4-D5) ──
+  # Mechanical, deterministic, zero-LLM. For an author workspace whose SUBJECT
+  # is a code/doc repository: reads operator-declared repo file paths
+  # (_repo_sources.yaml; EMPTY = deliberate no-op) through a watch-bound MCP
+  # transport (the GitHub MCP server's get_file_contents) and distills them into
+  # _repo_signal.yaml per the ADR-335 D3 observation contract (source_ref +
+  # attestation + observed_at + bounded excerpt). Every foreign call routes
+  # through the metered executor (read_foreign_tool → execution_events). Judgment
+  # never calls the foreign server for perception — it reads this substrate +
+  # each source_ref to author with VERIFIABLE citations to the exact repo path.
+  # Scheduled before the compose/coherence windows so judgment reads a FRESH
+  # repo signal. Distinct distills_to from track-sources (the two watches don't
+  # collide on one signal file).
+  - slug: track-repo
+    schedule: "0 11 * * *"   # daily 11:00 UTC — before track-sources + the compose window
+    primitive: |
+      @primitive: TrackForeign(declaration="operation/authored/_repo_sources.yaml", distills_to="operation/authored/_repo_signal.yaml", tool="get_file_contents")
+    display_name: "Track Repo (standing repository watch)"

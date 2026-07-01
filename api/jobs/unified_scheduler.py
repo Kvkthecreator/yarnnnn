@@ -340,6 +340,28 @@ async def run_unified_scheduler():
             logger.info("[SCHED] no due declarations")
 
         # ---------------------------------------------------------------------
+        # ADR-393: the capture lane — deterministic intake, OUTSIDE the wake
+        # funnel. Runs due _captures.yaml declarations (connector captures,
+        # ground-truth state mirrors, perception watches, substrate mirrors)
+        # deterministically (zero LLM), writing the per-declaration health
+        # signal. Sibling maintenance phase to the recurrence dispatch above +
+        # the kernel mirrors / wake drain below — captures wake no one.
+        #
+        # Runs BEFORE the wake drain so a capture makes substrate fresh for the
+        # same tick's judgment wakes (a signal-evaluation wake reads the
+        # positions/regime the capture just mirrored).
+        # ---------------------------------------------------------------------
+        try:
+            from services.capture.drainer import drain_due_captures
+            c_found, c_succeeded, c_failed = await drain_due_captures(supabase)
+            if c_found > 0:
+                logger.info(
+                    f"[SCHED] captures: {c_succeeded}/{c_found} succeeded, {c_failed} failed"
+                )
+        except Exception as exc:
+            logger.warning("[SCHED] capture lane raised: %s", exc)
+
+        # ---------------------------------------------------------------------
         # ADR-296 v2 D1 + D2: substrate-event wake source walker.
         # For each active user, walk /workspace/_hooks.yaml against recent
         # workspace_file_versions revisions. Hook matches submit wake proposals

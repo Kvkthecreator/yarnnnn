@@ -563,8 +563,9 @@ async def fork_reference_workspace(
         _load_manifest,
         get_bundle_version,
     )
-    from services.conventions import RECURRENCES_PATH
+    from services.conventions import CAPTURES_PATH, RECURRENCES_PATH
     from services.scheduling import materialize_scheduling_index
+    from services.capture.scheduling import materialize_capture_index
     from services.substrate_reapply import (
         CONFIG_PATHS,
         CONFLICT_BACKUP_PREFIX,
@@ -774,6 +775,29 @@ async def fork_reference_workspace(
                 f"[FORK] materialize_scheduling_index failed for {user_id[:8]}: {exc}"
             )
 
+    # ADR-393: materialize the capture index when the fork touched _captures.yaml.
+    # Same rationale as the recurrence index — without it a freshly-forked
+    # workspace has capture declarations on disk but zero kind='capture' rows,
+    # so the capture drainer can't see them. Idempotent; kind-scoped (never
+    # touches recurrence rows). Independent of the recurrence branch above —
+    # a bundle may ship captures without recurrences or vice versa.
+    captures_relative = CAPTURES_PATH.lstrip("/").removeprefix("workspace/")
+    fork_touched_captures = (
+        captures_relative in files_written or captures_relative in files_skipped
+    )
+    capture_index_rows = 0
+    if fork_touched_captures:
+        try:
+            capture_index_rows = await materialize_capture_index(client, user_id)
+            logger.info(
+                f"[FORK] materialized capture index for {user_id[:8]}: "
+                f"{capture_index_rows} rows"
+            )
+        except Exception as exc:
+            logger.warning(
+                f"[FORK] materialize_capture_index failed for {user_id[:8]}: {exc}"
+            )
+
     return {
         "files_written": files_written,
         "files_skipped": files_skipped,
@@ -781,6 +805,7 @@ async def fork_reference_workspace(
         "program_slug": program_slug,
         "bundle_version": bundle_version,  # ADR-292 v3 D10: surface to caller
         "scheduling_index_rows": scheduling_index_rows,
+        "capture_index_rows": capture_index_rows,  # ADR-393
         "preferences_seeded": prefs_seeded,  # ADR-275 D9 (2026-05-21)
         "preferences_skipped_already_present": prefs_skipped,  # ADR-275 D9
     }

@@ -36,11 +36,12 @@ in CHAT_PRIMITIVES (operator manual fire path); it routes through the
 Schedule + WriteFile + ProposeAction + DispatchSpecialist + Compose +
 reads + Clarify + ReturnVerdict.
 
-Per ADR-263, the recurrence's `mode` field declares whether a fire wakes
-the Reviewer. Mechanical-mode recurrences bypass Reviewer invocation via
-the `mechanical` funnel decision (deterministic Python primitive
-execution; no LLM); judgment-mode recurrences flow through the Reviewer-
-invocation path on `escalate`.
+Per ADR-393, a recurrence is ALWAYS a judgment prompt — the wake funnel
+serves it. The ADR-263 `mode: mechanical` carve-out (the "theatre" bypass
+that ran deterministic primitives inside this funnel) is DELETED:
+deterministic intake moved to the capture lane (`_captures.yaml` /
+`services.capture`), a distinct pipeline outside the wake funnel. This
+module handles judgment wakes only.
 
 Cost gating (Tier 1 deterministic — these are kernel pre-conditions that
 short-circuit the funnel to "skip"):
@@ -101,12 +102,14 @@ WakeSource = Literal[
     "manual_fire",
 ]
 
+# ADR-393: `mechanical` removed — the wake funnel serves judgment only. The
+# capture lane records its own execution_events with a capture-class decision
+# (a distinct pipeline; that value never flows through this Literal).
 FunnelDecision = Literal[
     "skip",
     "tier_2_wait",
     "tier_2_observe",
     "escalate",
-    "mechanical",
 ]
 
 
@@ -201,7 +204,7 @@ async def submit_wake_proposal(
                 "slug": recurrence.slug,
                 "schedule": recurrence.schedule,
                 "prompt": recurrence.prompt,
-                "mode": getattr(recurrence, "mode", "judgment"),
+                # ADR-393: no `mode` — recurrences are judgment-only.
                 "paused": getattr(recurrence, "paused", False),
                 "options": dict(getattr(recurrence, "options", {}) or {}),
             },
@@ -291,15 +294,13 @@ async def _invoke_recurrence_wake(
     wake_source: WakeSource,  # "cron_tick" | "manual_fire"
     context: Optional[str] = None,
 ) -> dict:
-    """Fire one recurrence (mode=judgment → Reviewer; mode=mechanical → primitive).
+    """Fire one recurrence — invoke the Reviewer with its prompt.
 
-    Per ADR-260 D1 + ADR-261 D3 + ADR-263:
-    - Judgment-mode recurrences invoke the Reviewer with ``recurrence.prompt``
-      as the addressed-equivalent envelope. The Reviewer's real-time loop runs
-      synchronously to completion.
-    - Mechanical-mode recurrences route to `_dispatch_mechanical` which parses
-      the prompt's `@primitive: ...` directive and executes deterministically.
-      No Reviewer, no LLM.
+    Per ADR-260 D1 + ADR-261 D3: the recurrence invokes the Reviewer with
+    ``recurrence.prompt`` as the addressed-equivalent envelope; the Reviewer's
+    real-time loop runs synchronously to completion. Per ADR-393 there is no
+    mechanical branch — a recurrence is always judgment (deterministic intake
+    is the capture lane's, `services.capture`).
 
     ADR-296 v2: the legacy `trigger` parameter is computed here from
     `wake_source` for backwards compatibility with downstream functions
@@ -354,24 +355,18 @@ async def _invoke_recurrence_wake(
             scope.set_user({"id": user_id})
             scope.set_tag("recurrence_slug", recurrence.slug)
             scope.set_tag("trigger", trigger)
-            scope.set_tag("recurrence_mode", recurrence.mode)
 
     logger.info(
-        "[DISPATCH] %s/%s start (trigger=%s, mode=%s)",
-        user_id[:8], recurrence.slug, trigger, recurrence.mode,
+        "[DISPATCH] %s/%s start (trigger=%s)",
+        user_id[:8], recurrence.slug, trigger,
     )
 
-    # ADR-263 D5 + ADR-264 D2: mechanical-mode recurrences run as deterministic
-    # Python primitive invocations. The recurrence's prompt is expected to name
-    # a primitive call via the @primitive: <Name>(<args>) convention. The
-    # dispatcher parses the directive, looks up the handler, and executes it.
-    # NO Reviewer invocation, NO LLM session, NO balance gate (mechanical work
-    # has zero LLM cost so the balance check would be theatre).
-    if recurrence.mode == "mechanical":
-        return await _dispatch_mechanical(
-            client, user_id, recurrence, trigger=trigger, context=context,
-            started_at=started_at, wake_source=wake_source,
-        )
+    # ADR-393: the `mode == "mechanical"` carve-out (the "theatre" bypass) is
+    # DELETED. Deterministic intake moved to the capture lane (_captures.yaml /
+    # services.capture), a distinct pipeline outside this wake funnel. A
+    # recurrence is always a judgment prompt; the recurrence parser drops any
+    # stale `mode: mechanical` entry before it reaches here. This function now
+    # handles judgment wakes only, full stop.
 
     # ---- Balance gate (ADR-172) ----
     try:
@@ -917,385 +912,6 @@ async def _invoke_recurrence_wake(
         "proposals": proposals,
         "summary": verdict_summary or f"{recurrence.slug} completed",
         "message": verdict_summary or f"{recurrence.slug} completed",
-    }
-
-
-# ---------------------------------------------------------------------------
-# Mechanical recurrence dispatch (ADR-263 D5 + ADR-264 D2)
-# ---------------------------------------------------------------------------
-
-import re as _re
-
-# Match: @primitive: <Name>(<args>) — args parsed as a Python literal-ish
-# kwarg expression (yaml.safe_load on the args body for type fidelity).
-# Example match: @primitive: SyncPlatformState(
-#     tool="platform_trading_get_positions",
-#     write_to="operation/portfolio/positions/{symbol}.yaml"
-# )
-_PRIMITIVE_DIRECTIVE_RE = _re.compile(
-    r"@primitive:\s*(\w+)\s*\((.*?)\)\s*$",
-    _re.DOTALL,
-)
-
-
-def _parse_primitive_directive(prompt: str) -> Optional[tuple[str, dict]]:
-    """Parse a `@primitive: <Name>(<args>)` directive from a mechanical
-    recurrence's prompt body. Returns (primitive_name, kwargs_dict) or None
-    if the prompt doesn't contain a parseable directive.
-
-    Args body is parsed by wrapping the kwarg expression in YAML mapping
-    syntax — operators write Python-flavored kwargs (`tool="...", write_to="..."`),
-    which we coerce to YAML by replacing `=` with `:` at top level. This
-    keeps the operator syntax close to LLM tool-call vocabulary while
-    sidestepping a custom parser.
-    """
-    if not prompt:
-        return None
-    text = prompt.strip()
-    m = _PRIMITIVE_DIRECTIVE_RE.search(text)
-    if not m:
-        return None
-    primitive_name = m.group(1)
-    args_body = m.group(2).strip()
-    if not args_body:
-        return (primitive_name, {})
-
-    # Coerce Python-style kwargs to YAML mapping body. Naive transform:
-    # `key="value"` → `key: "value"`. Conservative — only operates on
-    # top-level `=` adjacent to identifier characters.
-    yaml_body = _re.sub(r"(\b\w+)\s*=\s*", r"\1: ", args_body)
-    try:
-        import yaml as _yaml
-        # Wrap in braces to ensure flow-style mapping parse
-        parsed = _yaml.safe_load("{" + yaml_body + "}")
-    except Exception as e:
-        logger.warning(
-            "[DISPATCH:mechanical] failed to parse @primitive args: %s | body=%r",
-            e, args_body,
-        )
-        return None
-    if not isinstance(parsed, dict):
-        logger.warning(
-            "[DISPATCH:mechanical] @primitive args did not parse to a dict: %r", parsed,
-        )
-        return None
-    return (primitive_name, parsed)
-
-
-# ---------------------------------------------------------------------------
-# Capability gate helpers (ADR-263 amendment 2026-05-12)
-#
-# Mechanical primitives that wrap platform APIs (SyncPlatformState today;
-# others later) can be derived to a required platform_connections.platform
-# value from their args. The dispatcher checks the connection before firing
-# and skips with capability_missing when absent — preventing per-minute
-# credential-failure feed spam on workspaces that have a recurrence
-# scheduled but no platform connected.
-#
-# Detection is convention-based (no schema bump): every platform tool name
-# is `platform_<name>_<verb>` and `platform_connections.platform` stores
-# `<name>` (slack | notion | github | commerce | trading). One-line parser.
-# ---------------------------------------------------------------------------
-
-
-def _required_platform_for_primitive(
-    primitive_name: str, primitive_args: dict
-) -> Optional[str]:
-    """Derive the required platform_connections.platform value (e.g. "trading")
-    from a mechanical primitive's args, or None if the primitive doesn't
-    depend on a platform connection.
-
-    Today only SyncPlatformState (ADR-264) needs this — its `tool` arg names
-    a platform tool 1:1 with the connection record. Future platform-bound
-    primitives can be added here without changing the dispatcher gate
-    structure.
-    """
-    if primitive_name != "SyncPlatformState":
-        return None
-    tool = (primitive_args or {}).get("tool")
-    if not isinstance(tool, str) or not tool.startswith("platform_"):
-        return None
-    # platform_<name>_<verb> → <name>
-    parts = tool.split("_", 2)
-    if len(parts) < 3:
-        return None
-    return parts[1]
-
-
-def _platform_connection_active(
-    client, user_id: str, platform: str
-) -> bool:
-    """True iff the user has an active platform_connections row for `platform`.
-    Fail-closed: any DB error returns False (treat as missing — better to
-    skip than to fire-and-fail on broken auth)."""
-    try:
-        result = (
-            client.table("platform_connections")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("platform", platform)
-            .eq("status", "active")
-            .limit(1)
-            .execute()
-        )
-        return bool(result.data)
-    except Exception as e:
-        logger.warning(
-            "[DISPATCH:cap-gate] platform_connections lookup failed for %s/%s: %s",
-            user_id[:8], platform, e,
-        )
-        return False
-
-
-def _last_skip_reason(client, user_id: str, slug: str) -> Optional[str]:
-    """Most-recent execution_events.error_reason for this slug — used by the
-    capability gate to emit a narrative entry only on transition (first
-    detection of capability_missing) and stay silent on subsequent firings.
-    Returns None on no-history or DB error (treat as transition — emit once)."""
-    try:
-        result = (
-            client.table("execution_events")
-            .select("error_reason")
-            .eq("user_id", user_id)
-            .eq("slug", slug)
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        rows = result.data or []
-        if not rows:
-            return None
-        return rows[0].get("error_reason")
-    except Exception as e:
-        logger.warning(
-            "[DISPATCH:cap-gate] last_skip_reason lookup failed for %s/%s: %s",
-            user_id[:8], slug, e,
-        )
-        return None
-
-
-async def _dispatch_mechanical(
-    client,
-    user_id: str,
-    recurrence: Recurrence,
-    *,
-    trigger: str,
-    context: Optional[str],
-    started_at: datetime,
-    wake_source: str,
-) -> dict:
-    """Execute a mechanical-mode recurrence (ADR-263 + ADR-264).
-
-    The recurrence's `prompt` is expected to name a primitive invocation
-    via `@primitive: <Name>(<args>)`. The dispatcher parses, looks up the
-    handler in HANDLERS, and executes it.
-
-    No Reviewer involvement. No LLM session. Substrate writes happen via
-    the primitive's normal write path with the primitive's authoring
-    attribution (e.g., `system:sync-platform-state`).
-    """
-    parsed = _parse_primitive_directive(recurrence.prompt)
-    if parsed is None:
-        msg = (
-            f"mechanical recurrence {recurrence.slug!r} has no parseable "
-            f"@primitive: directive in its prompt"
-        )
-        logger.warning("[DISPATCH:mechanical] %s", msg)
-        record_execution_event(
-            client, user_id=user_id, slug=recurrence.slug,
-            mode="mechanical", trigger_type=trigger,
-            status="failed", error_reason="no_primitive_directive",
-            error_detail=msg,
-            wake_source=wake_source,
-            funnel_decision="mechanical",  # ADR-296 v2 D2
-        )
-        return _result_failed(recurrence, msg, trigger=trigger)
-
-    primitive_name, primitive_args = parsed
-
-    # Capability gate (ADR-263 amendment 2026-05-12): when a mechanical primitive
-    # depends on a platform connection that isn't active, skip without firing
-    # the primitive. Detection is derived from primitive args (no schema bump):
-    # SyncPlatformState's `tool="platform_<name>_..."` argument names the
-    # required platform 1:1 with platform_connections.platform.
-    #
-    # Suppression rule: emit ONE narrative entry on the transition firing
-    # (prior status was anything other than capability_missing); subsequent
-    # firings remain silent until the operator either connects the platform
-    # or pauses the recurrence. Eliminates per-minute feed spam without
-    # losing first-detection signal.
-    required_platform = _required_platform_for_primitive(primitive_name, primitive_args)
-    if required_platform and not _platform_connection_active(client, user_id, required_platform):
-        prior_reason = _last_skip_reason(client, user_id, recurrence.slug)
-        is_transition = prior_reason != "capability_missing"
-        record_execution_event(
-            client, user_id=user_id, slug=recurrence.slug,
-            mode="mechanical", trigger_type=trigger,
-            status="skipped", error_reason="capability_missing",
-            error_detail=f"required platform {required_platform!r} not connected",
-            wake_source=wake_source,
-            funnel_decision="mechanical",  # ADR-296 v2 D2
-        )
-        if is_transition:
-            # ADR-277: material weight — first-detection of capability
-            # loss. Operator-actionable (go reconnect). The transition
-            # guard above keeps this firing at most once per disconnect
-            # event (not per per-minute fire), so material weight is
-            # safe — no flood risk.
-            await _emit_system_narrative(
-                client, user_id, recurrence,
-                summary=(
-                    f"{recurrence.slug} paused — {required_platform.title()} not connected"
-                ),
-                body=(
-                    f"`{recurrence.slug}` requires the {required_platform.title()} platform "
-                    f"to be connected. Reconnect at /settings?tab=connectors, or pause this "
-                    f"recurrence in /workspace/_recurrences.yaml. Subsequent firings will "
-                    f"stay silent until either action is taken."
-                ),
-                trigger=trigger,
-                weight="material",
-            )
-        else:
-            logger.info(
-                "[DISPATCH:mechanical] %s/%s skipped (capability_missing, silent — repeat)",
-                user_id[:8], recurrence.slug,
-            )
-        return _result_failed(
-            recurrence,
-            f"capability_missing: {required_platform}",
-            trigger=trigger,
-            error_reason="capability_missing",
-        )
-
-    # Look up the handler in the central HANDLERS dict.
-    try:
-        from services.primitives.registry import HANDLERS
-    except ImportError as e:
-        logger.exception("[DISPATCH:mechanical] HANDLERS import failed: %s", e)
-        return _result_failed(recurrence, f"registry import failed: {e}", trigger=trigger)
-
-    handler = HANDLERS.get(primitive_name)
-    if handler is None:
-        msg = (
-            f"mechanical recurrence {recurrence.slug!r} names unknown primitive "
-            f"{primitive_name!r}"
-        )
-        logger.warning("[DISPATCH:mechanical] %s", msg)
-        record_execution_event(
-            client, user_id=user_id, slug=recurrence.slug,
-            mode="mechanical", trigger_type=trigger,
-            status="failed", error_reason="unknown_primitive",
-            error_detail=msg,
-            wake_source=wake_source,
-            funnel_decision="mechanical",  # ADR-296 v2 D2
-        )
-        return _result_failed(recurrence, msg, trigger=trigger)
-
-    # Build a minimal auth-shaped object for the primitive handler.
-    # Mechanical dispatch runs as the system actor under the workspace owner's
-    # user_id. Per ADR-288 D1, caller_identity carries the canonical
-    # attribution string — the recurrence slug names the system actor
-    # responsible for the write (e.g., system:sync-platform-state). Primitives
-    # that need attribution default authored_by from auth.caller_identity
-    # (ADR-288 D2). Explicit per-primitive authored_by="system:<actor>" still
-    # wins where the primitive asserts its own specific actor name (e.g.,
-    # SyncPlatformState passes its primitive name as the actor).
-    class _MechanicalAuth:
-        def __init__(self, user_id: str, client, caller_identity: str):
-            self.user_id = user_id
-            self.client = client
-            self.caller_identity = caller_identity
-    auth = _MechanicalAuth(
-        user_id=user_id,
-        client=client,
-        caller_identity=f"system:{recurrence.slug}",
-    )
-
-    try:
-        result = await handler(auth, primitive_args)
-    except Exception as e:
-        logger.exception(
-            "[DISPATCH:mechanical] %s/%s primitive %s raised: %s",
-            user_id[:8], recurrence.slug, primitive_name, e,
-        )
-        if _SENTRY_AVAILABLE:
-            _sentry.capture_exception(e)
-        duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
-        record_execution_event(
-            client, user_id=user_id, slug=recurrence.slug,
-            mode="mechanical", trigger_type=trigger,
-            status="failed", error_reason="primitive_raised",
-            error_detail=str(e), duration_ms=duration_ms,
-            wake_source=wake_source,
-            funnel_decision="mechanical",  # ADR-296 v2 D2
-        )
-        return _result_failed(recurrence, str(e), trigger=trigger)
-
-    duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
-    success = bool(result.get("success", False)) if isinstance(result, dict) else False
-    status = "success" if success else "failed"
-
-    record_execution_event(
-        client, user_id=user_id, slug=recurrence.slug,
-        mode="mechanical", trigger_type=trigger,
-        status=status, duration_ms=duration_ms,
-        error_reason=None if success else (result.get("error") if isinstance(result, dict) else None),
-        wake_source=wake_source,
-        funnel_decision="mechanical",  # ADR-296 v2 D2
-    )
-
-    # FOUNDATIONS Axiom 9: every invocation emits a narrative entry. Mechanical
-    # recurrences ARE invocations (Axiom 9 + ADR-263) and emit ONE housekeeping-
-    # weight entry per successful fire. The narrative_digest rolls these up
-    # into daily roll-ups; per-fire entries stay weight-gated out of
-    # material/routine FE rendering by default.
-    #
-    # ADR-277 (2026-05-15) emission policy: per-fire success narrative
-    # DELETED. The 478 "SyncPlatformState: 0 written, 1 unchanged" rows
-    # per 24h were pure duplication — execution_events already records
-    # every fire with status + duration + cost; workspace_file_versions
-    # records what got written. The feed is for events whose canonical
-    # home is conversation, not for events the system happened to do.
-    # Mechanical-mirror success carries no operator-relevant judgment
-    # the substrate rows don't already have.
-    #
-    # What stays:
-    #   - The transition guard above emits ONCE per capability-loss
-    #     event (operator-actionable; weight=material).
-    #   - Failure suppression (ADR-263 amendment 2026-05-12) preserved —
-    #     execution_events carries forensic failure detail.
-    #   - execution_events records every fire (visible at /activity).
-    #
-    # The original ADR-219 D5 design intended housekeeping rows to roll
-    # into a daily narrative_digest; that digest job was deleted by the
-    # ADR-260/261/262 back-office package cleanup. Rather than rebuild
-    # the roll-up, ADR-277 makes the emission intentional at source.
-
-    logger.info(
-        "[DISPATCH:mechanical] %s/%s done (status=%s duration_ms=%d primitive=%s)",
-        user_id[:8], recurrence.slug, status, duration_ms, primitive_name,
-    )
-
-    # Propagate inner-result `error` field as `error_reason` so the
-    # scheduler's record_task_run can recognize capability_missing and
-    # preserve fire_on_activation arming (cold-start ordering fix). The
-    # dispatcher's capability gate only covers SyncPlatformState; primitives
-    # like TrackUniverse/TrackRegime that self-load credentials report
-    # capability_missing from inside the handler and would otherwise be
-    # invisible to record_task_run.
-    error_reason = None
-    if not success and isinstance(result, dict):
-        error_reason = result.get("error")
-    return {
-        "success": success,
-        "slug": recurrence.slug,
-        "trigger": trigger,
-        "mode": "mechanical",
-        "primitive": primitive_name,
-        "result": result,
-        "duration_ms": duration_ms,
-        "error_reason": error_reason,
     }
 
 
