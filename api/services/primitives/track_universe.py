@@ -23,10 +23,11 @@ Behavior:
     4. Return ``{success, items_processed, paths_written, errors}``.
 
 Dispatch surface:
-    - Mechanical recurrence dispatcher only (per ADR-264 D3 — operators don't
-      directly invoke mechanical primitives from chat). Not in CHAT_PRIMITIVES,
-      not in HEADLESS_PRIMITIVES, not in FREDDIE_PRIMITIVES. Registered in
-      HANDLERS so ``_dispatch_mechanical`` can route to it.
+    - Capture lane only (ADR-393; per ADR-264 D3 — operators don't directly
+      invoke mechanical primitives from chat). Not in CHAT_PRIMITIVES, not in
+      HEADLESS_PRIMITIVES, not in FREDDIE_PRIMITIVES. Registered in HANDLERS so
+      the capture lane (``services.capture.lane``) can route a `_captures.yaml`
+      `@primitive: TrackUniverse()` declaration to it.
 
 Attribution:
     All writes go through ``write_revision(authored_by="system:track-universe")``

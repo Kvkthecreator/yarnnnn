@@ -87,8 +87,16 @@ from typing import Optional
 
 DATE_FOLDER_FORMAT = "%Y-%m-%dT%H%M"
 
-# Canonical recurrences file (ADR-261 D2)
+# Canonical recurrences file (ADR-261 D2) — the AGENT's judgment scheduling.
+# A recurrence is a judgment prompt served by the wake funnel (services.wake).
 RECURRENCES_PATH = "/workspace/_recurrences.yaml"
+
+# Canonical captures file (ADR-393) — deterministic intake declarations
+# (connector captures, ground-truth state mirrors, perception watches,
+# substrate mirrors). Run by the capture lane (services.capture), OUTSIDE the
+# wake funnel. Sibling to _recurrences.yaml; the two are cleanly separated —
+# _recurrences.yaml is judgment cadence, _captures.yaml is mechanical intake.
+CAPTURES_PATH = "/workspace/_captures.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -314,6 +322,7 @@ def spec_path(name: str) -> str:
 __all__ = [
     "DATE_FOLDER_FORMAT",
     "RECURRENCES_PATH",
+    "CAPTURES_PATH",
     # Reports
     "report_root",
     "report_dated_folder",

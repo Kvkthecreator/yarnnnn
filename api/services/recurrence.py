@@ -59,35 +59,19 @@ Schedule = Optional[Union[str, list[str]]]
 # ---------------------------------------------------------------------------
 
 
-# ADR-263: recurrence mode declares at authoring time whether a recurrence
-# wakes the Reviewer (judgment) or runs as deterministic Python (mechanical).
-# Default is "judgment" — preserves backward compatibility for legacy entries
-# in existing _recurrences.yaml files. Mechanical recurrences expect their
-# `prompt` field to name a primitive invocation (`@primitive: ...`); the
-# dispatcher parses and executes deterministically with no LLM session.
-RECURRENCE_MODES = ("judgment", "mechanical")
-DEFAULT_RECURRENCE_MODE = "judgment"
-
-
-def is_valid_mode(mode: str) -> bool:
-    """Soft check for caller-side validation. The parser coerces invalid
-    values to the default and logs a warning."""
-    return mode in RECURRENCE_MODES
-
-
 @dataclass
 class Recurrence:
-    """One parsed recurrence entry per ADR-261 D1, extended by ADR-263.
+    """One parsed recurrence entry per ADR-261 D1.
 
-    The four load-bearing fields are ``slug``, ``schedule``, ``mode``, ``prompt``.
-    Optional ``options`` carries operator-legibility metadata
-    (``display_name``, ``description``, etc.) that does not affect
-    execution shape per ADR-261 D1.
+    ADR-393: a recurrence is ALWAYS a judgment prompt — the wake funnel serves
+    it. The ``mode`` field (ADR-263 judgment|mechanical) is DELETED: deterministic
+    intake moved to the capture lane (``_captures.yaml`` / ``services.capture``),
+    a distinct pipeline outside the wake funnel. Recurrences and captures are two
+    cleanly-separated concerns; a recurrence never runs a ``@primitive:`` directive.
 
-    ADR-263: ``mode`` declares whether the recurrence wakes the Reviewer
-    (``judgment``) or runs as deterministic Python (``mechanical``). Authored
-    at create-time by operator-via-YARNNN, Reviewer-mid-loop, or
-    system-bundle-fork; editable thereafter via Schedule(action="update").
+    The load-bearing fields are ``slug``, ``schedule``, ``prompt``. Optional
+    ``options`` carries operator-legibility metadata (``display_name``,
+    ``description``, etc.) that does not affect execution shape per ADR-261 D1.
     """
 
     slug: str  # operator-legible identifier
@@ -98,7 +82,6 @@ class Recurrence:
     # Defaulted only to satisfy dataclass field-ordering after `schedule`
     # gained a default; parser enforces non-empty at construction time.
     prompt: str = ""
-    mode: str = DEFAULT_RECURRENCE_MODE  # ADR-263: judgment | mechanical
 
     # ADR-269: program-specific capability declarations. Operator-authored
     # on the recurrence YAML body via `required_capabilities: [...]`. The
@@ -225,17 +208,22 @@ def parse_recurrences_yaml(
         # ``paused_until``: ISO-8601 string or datetime
         paused_until = _coerce_datetime(raw.get("paused_until"))
 
-        # ADR-263: ``mode`` declares wake intent at authoring time.
-        # Default to "judgment" when absent (legacy entries) for backward
-        # compatibility. Coerce invalid values to default + log warning.
-        mode_raw = raw.get("mode") or DEFAULT_RECURRENCE_MODE
-        mode = str(mode_raw).strip().lower()
-        if mode not in RECURRENCE_MODES:
+        # ADR-393: the `mode` field is deleted from the recurrence schema —
+        # a recurrence is always a judgment prompt. Deterministic intake moved
+        # to _captures.yaml (the capture lane). A legacy `mode: mechanical`
+        # entry is a stale carve-out and MUST NOT reach the wake funnel (its
+        # `@primitive:` prompt is not a judgment prompt). Drop it here with a
+        # loud warning so the operator re-homes it to _captures.yaml. `mode:
+        # judgment` (or absent) is the only valid value, and it's ignored.
+        mode_raw = raw.get("mode")
+        if mode_raw is not None and str(mode_raw).strip().lower() == "mechanical":
             logger.warning(
-                "[RECURRENCE] entry '%s' has invalid mode=%r — coercing to %r",
-                slug, mode_raw, DEFAULT_RECURRENCE_MODE,
+                "[RECURRENCE] entry '%s' has mode=mechanical — DROPPED (ADR-393: "
+                "mechanical intake moved to _captures.yaml / the capture lane). "
+                "Re-home this declaration to _captures.yaml.",
+                slug,
             )
-            mode = DEFAULT_RECURRENCE_MODE
+            continue
 
         # ADR-269: ``required_capabilities`` — program-specific capability
         # declarations the dispatcher carries through to the specialist
@@ -276,7 +264,6 @@ def parse_recurrences_yaml(
                 slug=str(slug),
                 schedule=schedule,
                 prompt=str(prompt).strip(),
-                mode=mode,
                 required_capabilities=required_capabilities,
                 paused=bool(raw.get("paused", False)),
                 paused_until=paused_until,
@@ -401,10 +388,8 @@ def serialize_recurrences_yaml(recurrences: list[Recurrence]) -> str:
     out = []
     for rec in recurrences:
         entry = {"slug": rec.slug, "schedule": rec.schedule}
-        # ADR-263: emit `mode` only when non-default to keep legacy YAML clean.
-        # Operator-edited files that don't carry `mode` re-serialize without it.
-        if rec.mode != DEFAULT_RECURRENCE_MODE:
-            entry["mode"] = rec.mode
+        # ADR-393: `mode` is deleted from the recurrence schema (recurrences are
+        # judgment-only; deterministic intake lives in _captures.yaml). Never emitted.
         entry["prompt"] = rec.prompt
         if rec.paused:
             entry["paused"] = True
@@ -431,7 +416,4 @@ __all__ = [
     "compute_next_run_at",
     "serialize_recurrences_yaml",
     "RECURRENCES_PATH",  # re-exported for caller convenience
-    "RECURRENCE_MODES",  # ADR-263
-    "DEFAULT_RECURRENCE_MODE",  # ADR-263
-    "is_valid_mode",  # ADR-263
 ]

@@ -27,9 +27,10 @@ Behavior:
     7. Return ``{success, items_processed, paths_written, errors}``.
 
 Dispatch surface:
-    - Mechanical recurrence dispatcher only (per ADR-264 D3). Not in
-      CHAT_PRIMITIVES / HEADLESS_PRIMITIVES / FREDDIE_PRIMITIVES.
-      Registered in HANDLERS for _dispatch_mechanical routing.
+    - Capture lane only (ADR-393; per ADR-264 D3). Not in CHAT_PRIMITIVES /
+      HEADLESS_PRIMITIVES / FREDDIE_PRIMITIVES. Registered in HANDLERS so the
+      capture lane (``services.capture.lane``) routes a `_captures.yaml`
+      `@primitive: TrackRegime()` declaration to it.
 
 Attribution:
     All writes go through ``write_revision(authored_by="system:track-regime")``
