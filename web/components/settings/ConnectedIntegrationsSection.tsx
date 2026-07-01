@@ -43,7 +43,10 @@ interface PlatformFreshness {
 const FRESHNESS_PROVIDERS = ["slack", "notion", "github"] as const;
 
 function relativeTime(iso: string | null): string {
-  if (!iso) return "never synced";
+  // ADR-392 D5 — honest freshness. A connected-but-unread platform is "not
+  // reading yet" (available, awaiting selection + a capture recurrence), NOT
+  // "never synced" (which implies a sync is pending that never fires).
+  if (!iso) return "not reading yet";
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "unknown";
   const mins = Math.floor((Date.now() - then) / 60000);
@@ -215,7 +218,8 @@ export function ConnectedIntegrationsSection({
             )}
           </>
         ) : (
-          <span>No sync activity yet</span>
+          // ADR-392 D5 — honest empty-state: available, not yet reading.
+          <span>Not reading yet — select channels to pull content in</span>
         )}
         {onViewFlow && (
           <button
@@ -708,8 +712,15 @@ export function ConnectedIntegrationsSection({
 
           <div className="p-4 bg-muted/30 rounded-lg text-sm text-muted-foreground">
             <p>
-              <strong>How it works:</strong> After connecting, a platform-awareness recurrence is created automatically.
-              Use &quot;Manage&quot; to pick which channels, pages, or repos it should read. Connectors here handle connect, reconnect, and disconnect.
+              {/* ADR-392 D5 — honest connect contract. Connecting makes a
+                  platform AVAILABLE; it does not start reading on its own.
+                  Selecting a channel/page/label + a capture recurrence is what
+                  makes it READ. The prior copy ("a platform-awareness recurrence
+                  is created automatically") promised an auto-sync that does not
+                  exist (no sync path fires on connect — landscape discovery lists
+                  names only). */}
+              <strong>How it works:</strong> Connecting makes a platform available to your operation — it doesn&apos;t start reading on its own.
+              To pull content in, pick which channels, pages, or labels are in scope, then ask your agent to read them. Connectors here handle connect, reconnect, and disconnect.
             </p>
           </div>
         </div>
