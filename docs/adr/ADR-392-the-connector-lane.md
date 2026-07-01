@@ -110,7 +110,7 @@ Connectors enrol in the re-founding flag-day A→B flip alongside `inbound/mcp/`
 - **`platform_connections` stays** — connection = peripheral = auth infra; a credential row is a permitted DB kind. Unchanged.
 - **Platform tools stay** — `handle_platform_tool` + the `platform_slack_*` surface are the ad-hoc-lookup dual of `SyncPlatformState` (ADR-264 D4). Freddie can still call `platform_slack_get_channel_history` mid-loop for a one-off. The lane is for *systematic* intake; the tool is for *ad-hoc* lookup.
 - **ADR-209 write path unchanged** — capture and derive are both ordinary `write_revision()` calls.
-- **alpha-trader's live recurrences** — `platform_trading_*` writes currently land in `operation/` directly; they are the migration's first customer (re-target capture to the raw lane; add a derive recurrence). Bundle-scoped follow-on, not a kernel break — the primitive keeps working; the bundle re-authors its recurrences.
+- **alpha-trader's live recurrences are NOT migrated — the two-mode split makes this correct.** `SyncPlatformState` has two distinct uses: (1) **ground-truth state mirror** (the trader's `platform_trading_*` positions/account/orders — the mirrored broker state IS the Reviewer's canonical world-model, read directly; ADR-264's original purpose + Axiom 8 ground-truth) and (2) **connector context-in** (Slack/Notion channel content → distilled; the `capture` mode). ADR-376 §63 is explicit that ground-truth intake is **NOT forced into an `inbound/` lane it doesn't need**. So the trader keeps its direct-`operation/` writes via the legacy `write_to` path — which is not a "migration window" but the **permanent, correct** shape for state mirrors. Every live bundle `SyncPlatformState` is a `platform_trading_*` mirror (verified: zero connector-context-in sync recurrences ship), so there is nothing to migrate. The `capture` mode (D2) serves the connector-context-in use; `write_to`-direct serves the ground-truth-mirror use. Both are permanent.
 - **ADR-389/390 steward envelope unchanged** — the `peripheral_field_fact` already perceives connection *health*; this ADR gives the peripheral the *content* limb its health status was pointing at.
 
 ## 5. Implementation sequence (each limb its own commit, gated on ratification + mechanism)
@@ -122,8 +122,9 @@ Connectors enrol in the re-founding flag-day A→B flip alongside `inbound/mcp/`
 4. **Selection subsurface → watch declaration** (D3 + D7) — the per-platform Manage subsurface on the Channels Connections pane; write a watch declaration; give `selected_sources` its Phase-2 consumer; the capture recurrence reads it.
 5. **Retention-window dial** (D8) — substrate-read `retention_days` + derive-then-prune GC on the capture lane; UI presets (7/14/30) over a dynamic value; leave the pricing tier-map seam documented for the pricing session.
 6. **OAuth write-scope pre-provisioning** (D9) — connect flow requests the read+write scope union the platform's kernel-universal capabilities declare, so connections are write-ready by construction.
-7. **Migrate alpha-trader** to the two-phase shape (bundle follow-on).
-8. **Enroll connectors in the re-founding flag-day** (A→B mechanism flip) with `inbound/mcp/` + `inbound/web/` — cohort migration, no connector-specific work.
+7. **~~Migrate alpha-trader~~ — CANCELLED.** The trader mirrors are ground-truth state (Axiom 8), not connector context-in (§4); ADR-376 §63 keeps them out of `inbound/`. Their `write_to`-direct write is permanently correct. Nothing to migrate.
+8. **Wire the derive step + scheduler GC** — the capture recurrence lands raw; a derive act distils into `operation/` with `derived_from`; the scheduler runs `prune_raw_lane(cited_paths=...)`. The one remaining code limb after the primitives.
+9. **Enroll connectors in the re-founding flag-day** (A→B mechanism flip) with `inbound/mcp/` + `inbound/web/` — cohort migration, no connector-specific work.
 
 ## 6. Anti-conflation summary (Axiom 0 dimensional check)
 

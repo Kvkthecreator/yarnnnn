@@ -165,8 +165,11 @@ Diff-aware: when content matches the prior revision, the write is skipped
                     "selector (channel/page/label/repo; per-item resolved from item_key when "
                     "iterating), observed_at (required intake timestamp — the caller stamps it; "
                     "the primitive never reads the clock), ext (default 'md'). When absent, "
-                    "legacy write_to-direct behavior is preserved (the alpha-trader migration "
-                    "window; ADR-392 §5 step 7)."
+                    "write_to-direct behavior applies — the PERMANENT correct shape for "
+                    "ground-truth STATE MIRRORS (broker positions/account/orders: the mirrored "
+                    "state IS the canonical world-model, read directly, not distilled — ADR-264 "
+                    "+ Axiom 8; ADR-376 §63 keeps ground-truth out of inbound/). Rule of thumb: "
+                    "capture for context-in (channel content → distilled); write_to for state mirrors."
                 ),
                 "properties": {
                     "platform": {"type": "string"},
@@ -218,7 +221,10 @@ async def handle_sync_platform_state(auth: Any, input: dict) -> dict:
     # ADR-392 D2 — connector capture mode. When `capture` is present, the raw
     # observation routes to the inbound/ lane (retain + attribute) and the
     # primitive derives the path itself; `write_to` is then optional. When
-    # absent, legacy write_to-direct behavior holds (trader-migration window).
+    # absent, write_to-direct behavior holds — the PERMANENT shape for ground-
+    # truth state mirrors (broker positions/account; ADR-376 §63 keeps these out
+    # of inbound/). Not a migration window: state mirrors and context-in are two
+    # permanent uses of one primitive.
     capture = input.get("capture")
     capture_platform: Optional[str] = None
     capture_observed_at: Optional[str] = None
