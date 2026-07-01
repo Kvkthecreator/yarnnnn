@@ -4,7 +4,7 @@
  * ChatDrawer — the operator command channel (ADR-297 D16 + ADR-316).
  *
  * The chat the operator addresses, summoned by the FAB. Hosts:
- *   - Persona header (yarnnn icon + persona name + "Viewing: X" subtitle
+ *   - Persona header (Freddie's mascot + persona name + "Viewing: X" subtitle
  *     + close ×)
  *   - Scrollable addressed-conversation timeline (ConversationPanel,
  *     filtered to pulse='addressed' intrinsically)
@@ -48,6 +48,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { ConversationPanel } from '@/components/tp/ConversationPanel';
+import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import { useFreddiePersona } from '@/lib/freddie-persona';
 import { useViewport } from '@/lib/shell/useViewport';
 import { Z_DRAWER_BACKDROP, Z_DRAWER_BODY } from '@/lib/shell/z-tiers';
@@ -234,14 +235,15 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
           {/* Header */}
           <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background shrink-0">
             <div className="flex items-center gap-2">
-              <img
-                src="/assets/logos/circleonly_yarnnn_1.svg"
-                alt=""
-                className="w-5 h-5"
-              />
+              {/* Freddie's face (2026-07-01) — was the yarnnn circle logo, which
+                  read as "the product", not "the agent you're talking to". Animate
+                  always-on for now (matches the chip); a follow-up plumbs the
+                  streaming signal from ConversationPanel to animate only while
+                  Freddie is actually replying. */}
+              <FreddieAvatar animate className="w-5 h-5" />
               <div className="flex flex-col">
                 <span className="text-sm font-medium">
-                  {personaName ?? 'Reviewer'}
+                  {personaName ?? 'Freddie'}
                 </span>
                 <span className="text-[10px] text-muted-foreground/60 -mt-0.5">
                   {viewingTitle ? `Viewing: ${viewingTitle}` : 'Desktop'}
@@ -268,7 +270,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
             <ConversationPanel
               surfaceOverride={surfaceOverride}
               plusMenuActions={[]}
-              placeholder={`Ask ${personaName ?? 'YARNNN'}…`}
+              placeholder={`Ask ${personaName ?? 'Freddie'}…`}
               showCommandPicker={true}
               showInputDivider={true}
             />
@@ -313,7 +315,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
           }}
           role="dialog"
           aria-hidden={!open}
-          aria-label={`Conversation with ${personaName ?? 'Reviewer'}`}
+          aria-label={`Conversation with ${personaName ?? 'Freddie'}`}
         >
           {body}
         </div>
@@ -337,7 +339,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
       style={{ width: open ? width : 0 }}
       role="dialog"
       aria-hidden={!open}
-      aria-label={`Conversation with ${personaName ?? 'Reviewer'}`}
+      aria-label={`Conversation with ${personaName ?? 'Freddie'}`}
     >
       {/* Drag handle — left edge of the right-docked rail. */}
       <div

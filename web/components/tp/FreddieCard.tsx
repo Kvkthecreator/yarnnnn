@@ -16,6 +16,7 @@
 
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { CheckCircle2, XCircle, PauseCircle, Eye, Zap } from 'lucide-react';
+import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import type { FreddieCardData } from '@/types/desk';
 import { cn } from '@/lib/utils';
@@ -89,8 +90,12 @@ export function FreddieCard({ data, content, personaName, confidence, directiveD
   // All non-observation entries: uniform muted bubble — same shape as System Agent
   return (
     <div className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted rounded-bl-md">
-      {/* Label row: persona name + verdict chip (proposal verdicts only) */}
-      <div className="flex items-center gap-2 mb-1">
+      {/* Label row: Freddie's face + persona name + verdict chip. The mascot
+          (2026-07-01) gives every Freddie message the same identity the chat
+          header + top-bar chip carry — one recognizable actor. Static here (a
+          settled message, not a live reply). */}
+      <div className="flex items-center gap-1.5 mb-1">
+        <FreddieAvatar animate={false} className="w-3.5 h-3.5" />
         <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider uppercase">
           {persona}
         </span>

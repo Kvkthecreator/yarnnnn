@@ -359,10 +359,17 @@ export function ConversationPanel({
         )}
 
         <form onSubmit={handleSubmit}>
-          <div className="border border-border bg-background rounded-xl focus-within:ring-2 focus-within:ring-primary/50">
+          {/* Inline composer (2026-07-01): + · textarea · send on ONE row —
+              the iMessage / Claude Code shape. Was a stacked textarea-over-
+              toolbar box that stood ~78px tall even when empty (the placeholder
+              floated far above the buttons); inline is ~46px and grows only as
+              the text wraps. `items-end` keeps the buttons pinned to the bottom
+              as the textarea grows. */}
+          <div className="flex items-end gap-1 border border-border bg-background rounded-xl px-1.5 py-1 focus-within:ring-2 focus-within:ring-primary/50">
             <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.txt,.md" multiple onChange={handleFileSelect} className="hidden" />
 
-            {/* Textarea row */}
+            <PlusMenu actions={allPlusMenuActions} disabled={isLoading} />
+
             <textarea
               ref={textareaRef}
               value={input}
@@ -373,43 +380,34 @@ export function ConversationPanel({
               enterKeyHint="send"
               placeholder={placeholder}
               rows={1}
-              className="w-full px-3 py-1.5 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[150px]"
+              className="flex-1 min-w-0 px-1 py-1.5 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[150px]"
             />
 
-            {/* Bottom toolbar row — mirrors Claude Code: + / … [send|stop].
-                Commit G (2026-05-11): autonomy chip relocated to feed
-                header. ADR-297 D20 (2026-05-24): chip moved to top-bar
-                SystemStatusCluster (kernel chrome).
-                Commit H (2026-05-11): send button toggles to stop button
-                while a Reviewer Loop is in flight (operator's own stream
-                OR autonomous wake within ~30s realtime window). */}
-            <div className="flex items-center gap-1 px-1.5 pb-1 -mt-0.5">
-              <PlusMenu actions={allPlusMenuActions} disabled={isLoading} />
-              <div className="flex-1" />
-              {loopActive ? (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    void stopActiveLoop();
-                  }}
-                  aria-label="Stop in-flight Loop"
-                  title="Stop the Reviewer's in-flight Loop"
-                  className="shrink-0 p-1.5 rounded text-foreground hover:bg-muted transition-colors"
-                >
-                  <Square className="w-4 h-4 fill-current" />
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={!input.trim() && attachments.length === 0}
-                  className="shrink-0 p-1.5 text-primary disabled:text-muted-foreground disabled:opacity-50 transition-colors"
-                  aria-label="Send message"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              )}
-            </div>
+            {/* send toggles to stop while a Reviewer Loop is in flight
+                (operator's own stream OR autonomous wake within ~30s). */}
+            {loopActive ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  void stopActiveLoop();
+                }}
+                aria-label="Stop in-flight Loop"
+                title="Stop the Reviewer's in-flight Loop"
+                className="shrink-0 p-1.5 rounded text-foreground hover:bg-muted transition-colors"
+              >
+                <Square className="w-4 h-4 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!input.trim() && attachments.length === 0}
+                className="shrink-0 p-1.5 text-primary disabled:text-muted-foreground disabled:opacity-50 transition-colors"
+                aria-label="Send message"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </form>
       </div>
