@@ -2003,6 +2003,100 @@ async def get_selected_sources(
     }
 
 
+@router.get("/integrations/{provider}/capture-signal")
+async def get_capture_signal(
+    provider: str,
+    auth: UserClient,
+) -> dict[str, Any]:
+    """Declared × observed for a connector's capture lane (ADR-393 D3 / ADR-392 Phase B).
+
+    Joins two substrate reads:
+      - DECLARED — the connector-watch declaration (operation/_connectors/{platform}/
+        _watch.yaml): which selectors (channels/pages/repos) the operator put in
+        scope. This is the "what should be perceived" half.
+      - OBSERVED — the per-declaration health blocks in _capture_signal.yaml
+        (written by the capture lane, ADR-393): status · observed_at · items ·
+        last_error. This is the "what was actually captured, and how fresh" half.
+
+    The FE renders each selected selector with its freshness (or "not reading yet"
+    when no capture has run for it). Honest by construction: a connector with no
+    capture recurrence scheduled shows every selector as un-observed — connecting +
+    selecting makes a platform AVAILABLE; a capture recurrence makes it READ
+    (ADR-392 D5).
+
+    Returns:
+      {
+        "provider": str,
+        "declared": [{id, name, selected}],   # the full watch declaration
+        "observed": {slug: {status, observed_at, items, last_error, target}},
+        "workspace_capture_count": int,        # captures with any observed block
+      }
+    """
+    from services.connector_watch import read_selection
+    from services.capture.declarations import read_capture_signal
+
+    db_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
+
+    # DECLARED — the watch declaration (full set, in- and out-of-scope).
+    try:
+        declared = await read_selection(auth.client, auth.user_id, db_platform)
+    except Exception as exc:  # noqa: BLE001 — declaration read is best-effort
+        logger.warning("[INTEGRATIONS] capture-signal: watch read failed for %s: %s", provider, exc)
+        declared = []
+
+    # OBSERVED — the capture health signal (workspace-wide; the FE matches
+    # per-selector by convention or shows the workspace capture health).
+    try:
+        signal = await read_capture_signal(auth.client, auth.user_id)
+        observed = signal.get("captures") or {} if isinstance(signal, dict) else {}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[INTEGRATIONS] capture-signal: signal read failed for %s: %s", provider, exc)
+        observed = {}
+
+    return {
+        "provider": provider,
+        "declared": declared,
+        "observed": observed,
+        "workspace_capture_count": len(observed),
+    }
+
+
+class RetentionRequest(BaseModel):
+    retention_days: int
+
+
+@router.get("/integrations/retention")
+async def get_retention(auth: UserClient) -> dict[str, Any]:
+    """The workspace-level raw-capture retention window (ADR-392 D8).
+
+    Reads governance/_retention.yaml `retention_days`. Workspace-scoped (one
+    window for all connectors' raw lanes) — the mechanic the FE dial edits. NOT
+    provider-scoped; ADR-392 D8's per-connection retention is the deferred
+    'eventually'. Returns the declared value + the kernel default + the UI presets.
+    """
+    from services.connector_retention import read_retention_days, DEFAULT_RETENTION_DAYS
+
+    days = await read_retention_days(auth.client, auth.user_id)
+    return {
+        "retention_days": days,
+        "default_days": DEFAULT_RETENTION_DAYS,
+        "presets": [7, 14, 30],
+    }
+
+
+@router.put("/integrations/retention")
+async def update_retention(request: RetentionRequest, auth: UserClient) -> dict[str, Any]:
+    """Author the workspace-level raw-capture retention window (ADR-392 D8).
+
+    Writes governance/_retention.yaml. Clamps to a 1-day floor. governance/ is
+    operator-authored (the steward reads-not-authors), so authored_by='operator'.
+    """
+    from services.connector_retention import write_retention_days
+
+    written = await write_retention_days(auth.client, auth.user_id, request.retention_days)
+    return {"retention_days": written, "success": True}
+
+
 @router.post("/integrations/{provider}/sync")
 async def trigger_platform_sync(
     provider: str,
