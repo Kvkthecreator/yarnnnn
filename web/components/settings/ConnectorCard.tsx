@@ -6,17 +6,15 @@
  * OAuth; Lemon Squeezy / Alpaca over API key), driven by a `ConnectorMeta`
  * entry from `web/lib/connectors/registry.tsx`.
  *
- * This REPLACES the 5 hardcoded per-platform card IIFE blocks that lived in
- * `ConnectedIntegrationsSection.tsx` (Singular Implementation). The section now
- * maps `CONNECTOR_REGISTRY` → this card.
- *
- * Auth-kind branching (the one real per-connector difference):
- *  - oauth  → a brand-coloured "Connect" button that kicks off the OAuth flow;
- *             when connected, a "Manage {resourceNoun}" toggle mounts the
- *             ConnectorSelectionPanel + a "Reconnect".
- *  - apikey → the parent supplies the credential form via `renderConnectForm`;
- *             no Manage/Reconnect/freshness (API-key connectors have no per-
- *             resource sync registry — ADR-377).
+ * Post-Phase-B (ADR-392) the card renders the CONNECT + lifecycle surface only:
+ *  - un-connected OAuth  → a brand-coloured "Connect" button (OAuth flow).
+ *  - un-connected apikey → the parent's credential form (`renderConnectForm`).
+ *  - connected apikey    → Reconnect (n/a) + Disconnect + freshness.
+ * SELECTION (picking channels/pages) moved OUT of the card into the deep
+ * ManageConnectionSubsurface (a `channels.connector=<provider>` drill-in) —
+ * connected OAuth+selection connectors render as a `ConnectedConnectorRow` that
+ * drills into that subsurface, NOT as this card (Singular Implementation: the
+ * inline ConnectorSelectionPanel is deleted).
  *
  * Freshness (ADR-377) is parent-owned (it reads sync-status) and injected via
  * `renderFreshness`, rendered only for connected OAuth connectors.
@@ -24,7 +22,6 @@
 
 import type { ReactNode } from "react";
 import { Check, ExternalLink, Loader2 } from "lucide-react";
-import { ConnectorSelectionPanel } from "./ConnectorSelectionPanel";
 import type { ConnectorMeta } from "@/lib/connectors/registry";
 
 interface ConnectorCardProps {
@@ -35,11 +32,8 @@ interface ConnectorCardProps {
   hasIntegration: boolean;
   connecting: boolean;
   disconnecting: boolean;
-  /** the Phase-2 Select subsurface is open for this provider */
-  managing: boolean;
   onConnect: (provider: string) => void;
   onDisconnect: (provider: string) => void;
-  onToggleManage: (provider: string) => void;
   /** ADR-377 freshness strip (parent-owned, OAuth-only). */
   renderFreshness?: (provider: string) => ReactNode;
   /** API-key credential form (parent-owned, apikey-only). */
@@ -52,15 +46,12 @@ export function ConnectorCard({
   hasIntegration,
   connecting,
   disconnecting,
-  managing,
   onConnect,
   onDisconnect,
-  onToggleManage,
   renderFreshness,
   renderConnectForm,
 }: ConnectorCardProps) {
   const isOauth = meta.authKind === "oauth";
-  const canSelect = isOauth && !!meta.supportsSelection;
 
   return (
     <div className="p-4 border border-border rounded-lg">
@@ -87,15 +78,6 @@ export function ConnectorCard({
           <div className="flex items-center gap-2 mt-3 flex-wrap">
             {hasIntegration ? (
               <>
-                {canSelect && (
-                  /* ADR-392 D7 — the Phase-2 Select subsurface toggle. */
-                  <button
-                    onClick={() => onToggleManage(meta.provider)}
-                    className="px-3 py-1.5 text-sm text-foreground border border-border rounded-md hover:bg-muted transition-colors"
-                  >
-                    {managing ? "Done" : `Manage ${meta.resourceNoun}`}
-                  </button>
-                )}
                 {isOauth && (
                   <button
                     onClick={() => onConnect(meta.provider)}
@@ -142,12 +124,6 @@ export function ConnectorCard({
           </div>
 
           {connected && isOauth && renderFreshness?.(meta.provider)}
-          {connected && canSelect && managing && (
-            <ConnectorSelectionPanel
-              provider={meta.provider as "slack" | "notion" | "github"}
-              resourceNoun={meta.resourceNoun!}
-            />
-          )}
         </div>
       </div>
     </div>

@@ -4,16 +4,22 @@ import { useEffect, useState } from "react";
 import {
   ArrowRight,
   AlertTriangle,
+  Check,
+  ChevronRight,
   Clock,
   Loader2,
+  Plus,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import {
   CONNECTOR_REGISTRY,
   FRESHNESS_PROVIDERS,
+  connectorMeta,
   type ConnectorMeta,
 } from "@/lib/connectors/registry";
 import { ConnectorCard } from "./ConnectorCard";
+import { ManageConnectionSubsurface } from "./ManageConnectionSubsurface";
+import { RetentionDial } from "./RetentionDial";
 
 interface Integration {
   id: string;
@@ -70,6 +76,14 @@ interface ConnectedIntegrationsSectionProps {
    *  Connections pane wires it to switch to the Flow pane). Omitted → no
    *  flow link rendered. */
   onViewFlow?: (provider: string) => void;
+  /** ADR-392 Phase B — the drill-in target: which connected connector's DEEP
+   *  Manage subsurface is open (routed by `channels.connector=<provider>`).
+   *  Null → the connections list. */
+  activeConnector?: string | null;
+  /** Open a connector's deep Manage subsurface (sets the `connector` param). */
+  onManageConnection?: (provider: string) => void;
+  /** Back from the Manage subsurface to the connections list (clears the param). */
+  onBackFromManage?: () => void;
 }
 
 export function ConnectedIntegrationsSection({
@@ -78,6 +92,9 @@ export function ConnectedIntegrationsSection({
   redirectTo,
   showFreshness = false,
   onViewFlow,
+  activeConnector = null,
+  onManageConnection,
+  onBackFromManage,
 }: ConnectedIntegrationsSectionProps) {
 
   const [integrations, setIntegrations] = useState<Integration[]>([]);
@@ -86,8 +103,6 @@ export function ConnectedIntegrationsSection({
   const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
-  // ADR-392 D7 — which platform's selection subsurface (Phase 2 Select) is open.
-  const [managingProvider, setManagingProvider] = useState<string | null>(null);
   // Commerce (API key auth, not OAuth)
   const [commerceApiKey, setCommerceApiKey] = useState("");
   const [commerceError, setCommerceError] = useState<string | null>(null);
@@ -395,55 +410,206 @@ export function ConnectedIntegrationsSection({
     return null;
   };
 
+  // ADR-392 Phase B — the drill-in: when a connector is the active target and it
+  // is connected + selection-capable, render its DEEP Manage subsurface instead
+  // of the list. Guard on connected+canSelect so a stale/invalid `connector`
+  // param falls back to the list.
+  const activeMeta = activeConnector ? connectorMeta(activeConnector) : undefined;
+  const activeConnected =
+    !!activeMeta && platformStatuses[activeMeta.provider] === "active";
+  const activeCanSelect =
+    !!activeMeta && activeMeta.authKind === "oauth" && !!activeMeta.supportsSelection;
+
+  if (activeMeta && activeConnected && activeCanSelect) {
+    return (
+      <section className={className}>
+        <ManageConnectionSubsurface
+          meta={activeMeta}
+          onBack={() => onBackFromManage?.()}
+        />
+      </section>
+    );
+  }
+
+  // The connections list. Partition the registry into connected vs available —
+  // connected connectors are drill-in rows (OAuth+selection) or full cards
+  // (api-key, no selection); un-connected go into the "New connection" discovery
+  // section below.
+  const isConnected = (m: ConnectorMeta) => platformStatuses[m.provider] === "active";
+  const connected = CONNECTOR_REGISTRY.filter(isConnected);
+  const available = CONNECTOR_REGISTRY.filter((m) => !isConnected(m));
+
   return (
     <section className={className}>
       {/* No self-header — the pane-level PaneHeader ("Connections") owns the
-          title + description. This component renders only the connector cards.
-          (Singular Implementation, 2026-07-01 — killed the Connectors double-
-          header; its sole mount is the Channels Connections pane.) */}
+          title + description. (Singular Implementation — its sole mount is the
+          Channels Connections pane.) */}
       {isLoadingIntegrations ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="space-y-4">
-          {CONNECTOR_REGISTRY.map((meta) => {
-            const integration = integrations.find((i) => i.provider === meta.provider);
-            return (
-              <ConnectorCard
-                key={meta.provider}
-                meta={meta}
-                connected={platformStatuses[meta.provider] === "active"}
-                hasIntegration={!!integration}
-                connecting={connectingProvider === meta.provider}
-                disconnecting={disconnectingProvider === meta.provider}
-                managing={managingProvider === meta.provider}
-                onConnect={handleConnectIntegration}
-                onDisconnect={handleDisconnectIntegration}
-                onToggleManage={(p) => setManagingProvider((cur) => (cur === p ? null : p))}
-                renderFreshness={renderFreshness}
-                renderConnectForm={renderConnectForm}
-              />
-            );
-          })}
+        <div className="space-y-6">
+          {/* Retention dial — workspace-level (ADR-392 D8). One window for all
+              connectors' raw lanes. Rendered on the freshness-bearing pane only. */}
+          {showFreshness && <RetentionDial />}
+
+          {/* Connected connectors. OAuth+selection ones are drill-in ROWS (click
+              → the deep Manage subsurface); api-key ones (no selection) keep the
+              full card (connect form is spent, only Disconnect matters). */}
+          {connected.length > 0 && (
+            <div className="space-y-2">
+              {connected.map((meta) => {
+                const canSelect = meta.authKind === "oauth" && !!meta.supportsSelection;
+                if (canSelect) {
+                  return (
+                    <ConnectedConnectorRow
+                      key={meta.provider}
+                      meta={meta}
+                      freshness={freshness[meta.provider]}
+                      onManage={() => onManageConnection?.(meta.provider)}
+                      onViewFlow={onViewFlow ? () => onViewFlow(meta.provider) : undefined}
+                    />
+                  );
+                }
+                // api-key connected connectors — full card, no drill-in.
+                const integration = integrations.find((i) => i.provider === meta.provider);
+                return (
+                  <ConnectorCard
+                    key={meta.provider}
+                    meta={meta}
+                    connected
+                    hasIntegration={!!integration}
+                    connecting={connectingProvider === meta.provider}
+                    disconnecting={disconnectingProvider === meta.provider}
+                    onConnect={handleConnectIntegration}
+                    onDisconnect={handleDisconnectIntegration}
+                    renderFreshness={renderFreshness}
+                    renderConnectForm={renderConnectForm}
+                  />
+                );
+              })}
+            </div>
+          )}
+
+          {/* New connection — the discovery section. Un-connected registry
+              connectors, each with its connect affordance (OAuth Connect button
+              or the api-key credential form). Connecting makes a platform
+              AVAILABLE; selecting + a capture makes it READ (ADR-392 D5). */}
+          {available.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Plus className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-sm font-medium">New connection</h3>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Connect a platform to make it available to your operation. It
+                doesn&apos;t start reading on its own — after connecting, open
+                Manage to pick which channels, pages, or repos are in scope; a
+                capture reads the selected ones into your workspace.
+              </p>
+              {available.map((meta) => {
+                const integration = integrations.find((i) => i.provider === meta.provider);
+                return (
+                  <ConnectorCard
+                    key={meta.provider}
+                    meta={meta}
+                    connected={false}
+                    hasIntegration={!!integration}
+                    connecting={connectingProvider === meta.provider}
+                    disconnecting={disconnectingProvider === meta.provider}
+                    onConnect={handleConnectIntegration}
+                    onDisconnect={handleDisconnectIntegration}
+                    renderFreshness={renderFreshness}
+                    renderConnectForm={renderConnectForm}
+                  />
+                );
+              })}
+            </div>
+          )}
 
           {children}
-
-          <div className="p-4 bg-muted/30 rounded-lg text-sm text-muted-foreground">
-            <p>
-              {/* ADR-392 D5 — honest connect contract. Connecting makes a
-                  platform AVAILABLE; it does not start reading on its own.
-                  Selecting a channel/page/label + a capture recurrence is what
-                  makes it READ. The prior copy ("a platform-awareness recurrence
-                  is created automatically") promised an auto-sync that does not
-                  exist (no sync path fires on connect — landscape discovery lists
-                  names only). */}
-              <strong>How it works:</strong> Connecting makes a platform available to your operation — it doesn&apos;t start reading on its own.
-              Use &quot;Manage&quot; to pick which channels, pages, or repos are in scope; a capture then reads the selected ones into your workspace. Connectors here handle connect, reconnect, disconnect, and selection.
-            </p>
-          </div>
         </div>
       )}
     </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ConnectedConnectorRow — a compact drill-in row for a connected, selection-
+// capable connector. Clicking the row (or "Manage") opens the deep Manage
+// subsurface (ADR-392 Phase B). The footer carries the ADR-377 freshness +
+// "View flow →" (unchanged data source).
+// ---------------------------------------------------------------------------
+
+function ConnectedConnectorRow({
+  meta,
+  freshness,
+  onManage,
+  onViewFlow,
+}: {
+  meta: ConnectorMeta;
+  freshness?: PlatformFreshness;
+  onManage: () => void;
+  onViewFlow?: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border">
+      <button
+        type="button"
+        onClick={onManage}
+        className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/50"
+      >
+        <div
+          className={`w-10 h-10 ${meta.brand.chipClass} rounded-lg flex items-center justify-center shrink-0`}
+        >
+          {meta.brand.icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{meta.displayName}</span>
+            <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+              <Check className="h-3 w-3" />
+              Connected
+            </span>
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+            {freshness ? (
+              <>
+                <span className="inline-flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {relativeTime(freshness.lastSynced)}
+                </span>
+                <span>
+                  {freshness.resourceCount}{" "}
+                  {freshness.resourceCount === 1 ? "source" : "sources"}
+                </span>
+                {freshness.errorCount > 0 && (
+                  <span className="inline-flex items-center gap-1 text-destructive">
+                    <AlertTriangle className="h-3 w-3" />
+                    {freshness.errorCount}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span>Not reading yet — open Manage to pick {meta.resourceNoun}</span>
+            )}
+          </div>
+        </div>
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </button>
+      {onViewFlow && (
+        <div className="border-t border-border/60 px-4 py-2 text-right">
+          <button
+            type="button"
+            onClick={onViewFlow}
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            View flow
+            <ArrowRight className="h-3 w-3" />
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
