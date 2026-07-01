@@ -1949,6 +1949,25 @@ async def update_selected_sources(
             provider, exc,
         )
 
+    # ADR-394 D2 (Phase 3 Capture, seed-at-select) — the watch declaration alone
+    # captures nothing; a capture DECLARATION (_captures.yaml naming
+    # CaptureConnector) is what the capture lane runs. Connectors are
+    # kernel-universal (no bundle), and *whether* to capture a selected channel
+    # has no judgment in it, so the declaration is seeded here deterministically:
+    # ≥1 selected → an active capture-{platform} entry; 0 selected → paused.
+    # Best-effort: a seed failure never fails the selection save.
+    try:
+        from services.connector_watch import seed_connector_capture
+        await seed_connector_capture(
+            auth.client, user_id, providers_to_try[0],
+            selected_count=len(allowed_ids),
+        )
+    except Exception as exc:  # noqa: BLE001 — capture seed is best-effort
+        logger.warning(
+            "[INTEGRATIONS] ADR-394: connector capture seed failed for %s: %s",
+            provider, exc,
+        )
+
     logger.info(f"[INTEGRATIONS] User {user_id} updated {provider} sources: {len(selected_sources)} selected")
 
     return SelectedSourcesResponse(

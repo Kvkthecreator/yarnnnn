@@ -362,6 +362,42 @@ async def run_unified_scheduler():
             logger.warning("[SCHED] capture lane raised: %s", exc)
 
         # ---------------------------------------------------------------------
+        # ADR-394 D4: connector raw-lane GC — derive-then-prune. A sibling
+        # maintenance step to the capture drain. For each active user, gather
+        # the raw paths a derived act already cites (GROUP BY over derived_from),
+        # then prune connector raw (inbound/{platform}/) that is BOTH older than
+        # the workspace's retention window AND already cited (its understanding
+        # is captured, so the raw is safe to drop — DP32 evidence-bounded
+        # retention). Un-cited raw is NEVER pruned (fail-safe). inbound/mcp/ +
+        # inbound/web/ are not touched (own governance). Best-effort per user.
+        # ---------------------------------------------------------------------
+        try:
+            from services.connector_retention import (
+                gather_cited_raw_paths, prune_raw_lane,
+            )
+            now_iso = now.isoformat()
+            gc_pruned_total = 0
+            for gc_user_id in active_user_ids:
+                try:
+                    cited = await gather_cited_raw_paths(supabase, gc_user_id)
+                    res = await prune_raw_lane(
+                        supabase, gc_user_id, now_iso, cited_paths=cited,
+                    )
+                    gc_pruned_total += int(res.get("pruned", 0))
+                except Exception as exc:  # noqa: BLE001 — per-user GC is best-effort
+                    logger.warning(
+                        "[SCHED] connector raw-lane GC failed for %s: %s",
+                        gc_user_id[:8], exc,
+                    )
+            if gc_pruned_total > 0:
+                logger.info(
+                    "[SCHED] connector raw-lane GC pruned %d cited-and-stale raw file(s)",
+                    gc_pruned_total,
+                )
+        except Exception as exc:
+            logger.warning("[SCHED] connector raw-lane GC raised: %s", exc)
+
+        # ---------------------------------------------------------------------
         # ADR-296 v2 D1 + D2: substrate-event wake source walker.
         # For each active user, walk /workspace/_hooks.yaml against recent
         # workspace_file_versions revisions. Hook matches submit wake proposals

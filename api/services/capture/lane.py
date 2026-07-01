@@ -104,12 +104,23 @@ def parse_primitive_directive(directive: str) -> Optional[tuple[str, dict]]:
 def _required_platform_for_primitive(
     primitive_name: str, primitive_args: dict
 ) -> Optional[str]:
-    """Derive the required platform (e.g. 'trading') from a capture primitive's
-    args, or None if it doesn't depend on a platform connection. Convention:
-    ``tool="platform_<name>_<verb>"`` → ``<name>`` == platform_connections.platform."""
+    """Derive the required platform (e.g. 'trading', 'slack') from a capture
+    primitive's args, or None if it doesn't depend on a platform connection.
+
+    Two shapes:
+      - SyncPlatformState: convention ``tool="platform_<name>_<verb>"`` →
+        ``<name>`` == platform_connections.platform.
+      - CaptureConnector (ADR-394): the ``platform=`` arg names it directly.
+
+    A capture on a disconnected platform skips (health-signals) rather than
+    fires-and-fails."""
+    args = primitive_args or {}
+    if primitive_name == "CaptureConnector":
+        platform = args.get("platform")
+        return platform if isinstance(platform, str) and platform else None
     if primitive_name != "SyncPlatformState":
         return None
-    tool = (primitive_args or {}).get("tool")
+    tool = args.get("tool")
     if not isinstance(tool, str) or not tool.startswith("platform_"):
         return None
     parts = tool.split("_", 2)

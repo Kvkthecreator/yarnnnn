@@ -252,6 +252,48 @@ async def prune_raw_lane(
     }
 
 
+async def gather_cited_raw_paths(client: Any, user_id: str) -> set:
+    """The set of /workspace-absolute raw paths cited by any derived object.
+
+    Derive-then-prune (ADR-394 D4) needs to know which raw observations a
+    derived act already cites, so `prune_raw_lane` keeps only un-distilled
+    evidence. A derived object carries `derived_from: <raw path(s)>` (ADR-376
+    D3). This walks the derived homes (operation/) for content mentioning
+    `derived_from` and collects every cited path — the "GROUP BY over
+    derived_from" the prune step consumes.
+
+    Reuses `mcp_composition._extract_derived_from_list` (the single on-wire
+    parser for the three citation shapes — bare/inline/block). Returns an empty
+    set on any error (fail-safe: an empty cited-set means prune_raw_lane drops
+    nothing UNCITED, and with cited=set() it drops nothing at all — never a
+    false prune). Best-effort; never raises.
+    """
+    from services.mcp_composition import _extract_derived_from_list
+
+    cited: set = set()
+    try:
+        hits = (
+            client.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .like("path", "/workspace/operation/%")
+            .ilike("content", "%derived_from%")
+            .limit(500)
+            .execute()
+        ).data or []
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[CONNECTOR_RETENTION] gather_cited_raw_paths query failed user=%s: %s",
+            user_id[:8], exc,
+        )
+        return cited
+
+    for h in hits:
+        for ref in _extract_derived_from_list(h.get("content")):
+            cited.add(ref)
+    return cited
+
+
 __all__ = [
     "RETENTION_POLICY_PATH",
     "DEFAULT_RETENTION_DAYS",
@@ -259,4 +301,5 @@ __all__ = [
     "read_retention_days",
     "write_retention_days",
     "prune_raw_lane",
+    "gather_cited_raw_paths",
 ]
