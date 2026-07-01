@@ -20,6 +20,11 @@ Pure-Python structural gate (no DB, no platform APIs). Asserts:
   7. The capture lane records execution_events with funnel_decision="capture".
   8. The health signal is THIN (status/observed_at/items/target/last_error only)
      — not a content distillation.
+  9. _peripheral_field_fact reads the capture health signal (ADR-393 D3 — the
+     ADR-392 Phase B data source).
+ 10. Kind-isolation: the capture scheduler/drainer is .eq("kind","capture")-scoped
+     on every tasks-table touch, so the two lanes' materializers write disjoint
+     rows and never clobber each other (the correctness property of index reuse).
 """
 
 import inspect
@@ -171,6 +176,33 @@ captures:
     results.append(_check(
         "9. _peripheral_field_fact reads the capture health signal (ADR-393 D3)",
         "read_capture_signal" in env_src and "_peripheral_field_fact" in env_src,
+    ))
+
+    # 10 — kind-isolation invariant: the capture scheduler NEVER touches a
+    # non-capture tasks row (every read/write/delete/claim is .eq("kind", ...)
+    # scoped to CAPTURE_KIND), so the two materializers write DISJOINT row sets
+    # and can't clobber each other. This is the load-bearing correctness property
+    # of reusing the shared `tasks` index (ADR-393 §4-Q2).
+    import services.capture.scheduling as _csched
+    import services.capture.drainer as _cdrain
+    cs_src = inspect.getsource(_csched)
+    cd_src = inspect.getsource(_cdrain)
+    both = cs_src + cd_src
+    import re as _re10
+    # The DANGER is a user_id/slug-scoped write (update/delete) that omits kind —
+    # that could touch a same-named recurrence row. Every such write in the
+    # capture lane must ALSO carry .eq("kind", CAPTURE_KIND). (Writes scoped by a
+    # row `id` are safe by construction — the id came from a kind='capture' read;
+    # inserts are safe — they set kind=CAPTURE_KIND in the payload.)
+    # A capture write chains .eq("slug", ...) → assert each is kind-guarded too.
+    slug_scoped = len(_re10.findall(r'\.eq\(\s*"slug"', both))
+    kind_guarded = len(_re10.findall(r'\.eq\(\s*"kind",\s*CAPTURE_KIND\s*\)', both))
+    # Every capture insert carries kind in its payload dict.
+    payload_kind = '"kind": CAPTURE_KIND' in both
+    results.append(_check(
+        "10. capture lane is kind-scoped (no clobber of same-named recurrence rows)",
+        slug_scoped > 0 and kind_guarded >= slug_scoped and payload_kind,
+        f"slug-scoped writes={slug_scoped}, kind-guards={kind_guarded}, payload-kind={payload_kind}",
     ))
 
     passed = sum(1 for r in results if r)
