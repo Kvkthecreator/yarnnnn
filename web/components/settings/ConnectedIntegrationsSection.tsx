@@ -10,6 +10,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
+import { ConnectorSelectionPanel } from "./ConnectorSelectionPanel";
 
 interface Integration {
   id: string;
@@ -87,6 +88,8 @@ export function ConnectedIntegrationsSection({
   const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
+  // ADR-392 D7 — which platform's selection subsurface (Phase 2 Select) is open.
+  const [managingProvider, setManagingProvider] = useState<string | null>(null);
   // Commerce (API key auth, not OAuth)
   const [commerceApiKey, setCommerceApiKey] = useState("");
   const [commerceError, setCommerceError] = useState<string | null>(null);
@@ -314,6 +317,15 @@ export function ConnectedIntegrationsSection({
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
                       {slackIntegration ? (
                         <>
+                          {/* ADR-392 D7 — the Phase-2 Select subsurface toggle. */}
+                          <button
+                            onClick={() =>
+                              setManagingProvider((p) => (p === "slack" ? null : "slack"))
+                            }
+                            className="px-3 py-1.5 text-sm text-foreground border border-border rounded-md hover:bg-muted transition-colors"
+                          >
+                            {managingProvider === "slack" ? "Done" : "Manage channels"}
+                          </button>
                           <button
                             onClick={() => handleConnectIntegration("slack")}
                             disabled={connectingProvider === "slack"}
@@ -355,6 +367,9 @@ export function ConnectedIntegrationsSection({
                       )}
                     </div>
                     {slackConnected && renderFreshness("slack")}
+                    {slackConnected && managingProvider === "slack" && (
+                      <ConnectorSelectionPanel provider="slack" resourceNoun="channels" />
+                    )}
                   </div>
                 </div>
               </div>
@@ -387,6 +402,15 @@ export function ConnectedIntegrationsSection({
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
                       {notionIntegration ? (
                         <>
+                          {/* ADR-392 D7 — the Phase-2 Select subsurface toggle. */}
+                          <button
+                            onClick={() =>
+                              setManagingProvider((p) => (p === "notion" ? null : "notion"))
+                            }
+                            className="px-3 py-1.5 text-sm text-foreground border border-border rounded-md hover:bg-muted transition-colors"
+                          >
+                            {managingProvider === "notion" ? "Done" : "Manage pages"}
+                          </button>
                           <button
                             onClick={() => handleConnectIntegration("notion")}
                             disabled={connectingProvider === "notion"}
@@ -428,6 +452,9 @@ export function ConnectedIntegrationsSection({
                       )}
                     </div>
                     {notionConnected && renderFreshness("notion")}
+                    {notionConnected && managingProvider === "notion" && (
+                      <ConnectorSelectionPanel provider="notion" resourceNoun="pages" />
+                    )}
                   </div>
                 </div>
               </div>
@@ -460,6 +487,15 @@ export function ConnectedIntegrationsSection({
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
                       {githubIntegration ? (
                         <>
+                          {/* ADR-392 D7 — the Phase-2 Select subsurface toggle. */}
+                          <button
+                            onClick={() =>
+                              setManagingProvider((p) => (p === "github" ? null : "github"))
+                            }
+                            className="px-3 py-1.5 text-sm text-foreground border border-border rounded-md hover:bg-muted transition-colors"
+                          >
+                            {managingProvider === "github" ? "Done" : "Manage repos"}
+                          </button>
                           <button
                             onClick={() => handleConnectIntegration("github")}
                             disabled={connectingProvider === "github"}
@@ -501,6 +537,9 @@ export function ConnectedIntegrationsSection({
                       )}
                     </div>
                     {githubConnected && renderFreshness("github")}
+                    {githubConnected && managingProvider === "github" && (
+                      <ConnectorSelectionPanel provider="github" resourceNoun="repos" />
+                    )}
                   </div>
                 </div>
               </div>
@@ -720,7 +759,7 @@ export function ConnectedIntegrationsSection({
                   exist (no sync path fires on connect — landscape discovery lists
                   names only). */}
               <strong>How it works:</strong> Connecting makes a platform available to your operation — it doesn&apos;t start reading on its own.
-              To pull content in, pick which channels, pages, or labels are in scope, then ask your agent to read them. Connectors here handle connect, reconnect, and disconnect.
+              Use &quot;Manage&quot; to pick which channels, pages, or repos are in scope; a capture then reads the selected ones into your workspace. Connectors here handle connect, reconnect, disconnect, and selection.
             </p>
           </div>
         </div>
