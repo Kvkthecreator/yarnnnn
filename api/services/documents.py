@@ -98,63 +98,47 @@ def _filename_to_slug(filename: str) -> str:
     return slug[:60] or "document"
 
 
-def _unique_upload_path(slug: str, db_client, user_id: str) -> str:
-    """Return /workspace/uploads/{slug}.md, appending -N if path already exists."""
-    base = f"/workspace/uploads/{slug}.md"
+def _unique_raw_path(raw_path: str, db_client, user_id: str) -> str:
+    """Return `raw_path`, appending -N before the extension if it already exists.
+
+    Works on a full raw-lane path with its REAL extension (e.g.
+    /workspace/inbound/uploads/operator/acme-brief.pdf), so re-uploading the
+    same filename yields acme-brief-2.pdf rather than clobbering. The projection
+    sibling is derived from whichever raw path this returns, so the two stay
+    co-located and collision-free together.
+    """
+    head, _, ext = raw_path.rpartition(".")
+    stem = head if _ else raw_path  # no dot → treat whole path as stem
+    suffix = f".{ext}" if _ else ""
     try:
         existing = db_client.table("workspace_files") \
             .select("path") \
             .eq("user_id", user_id) \
-            .like("path", f"/workspace/uploads/{slug}%.md") \
+            .like("path", f"{stem}%{suffix}") \
             .execute()
         paths = {r["path"] for r in (existing.data or [])}
     except Exception:
         paths = set()
 
-    if base not in paths:
-        return base
+    if raw_path not in paths:
+        return raw_path
 
     for i in range(2, 100):
-        candidate = f"/workspace/uploads/{slug}-{i}.md"
+        candidate = f"{stem}-{i}{suffix}"
         if candidate not in paths:
             return candidate
-    return f"/workspace/uploads/{slug}-{int(datetime.now(timezone.utc).timestamp())}.md"
+    return f"{stem}-{int(datetime.now(timezone.utc).timestamp())}{suffix}"
 
 
 # =============================================================================
 # WORKSPACE FILE WRITE
 # =============================================================================
 
-def _build_upload_workspace_file(
-    filename: str,
-    file_type: str,
-    file_size: int,
-    storage_path: str,
-    text: str,
-    unit_count: int,
-    uploaded_at: str,
-    user_id: str,
-) -> str:
-    """Build the markdown content for /workspace/uploads/{slug}.md."""
-    word_count = len(text.split())
-    extraction_method = f"{file_type}-pypdf2" if file_type == "pdf" else f"{file_type}-extract"
-
-    frontmatter_lines = [
-        "---",
-        f"original_filename: {filename}",
-        f"mime_type: application/{file_type}",
-        f"uploaded_at: {uploaded_at}",
-        f"size_bytes: {file_size}",
-        f"storage_path: {storage_path}",
-        f"word_count: {word_count}",
-        f"extraction_method: {extraction_method}",
-        "---",
-        "",
-        f"# {filename}",
-        "",
-        text,
-    ]
-    return "\n".join(frontmatter_lines)
+# ADR-395: `_build_upload_workspace_file` (the frontmatter-in-body extracted-text
+# builder, ADR-249) is DELETED. Uploads no longer write a derived `.md` as the
+# substrate object — the raw blob is retained (content_url) and the text is a
+# separate derived projection (Piece B). Singular Implementation: one intake
+# shape, DP34-conformant.
 
 
 # =============================================================================
@@ -172,88 +156,183 @@ async def process_document(
     db_client,
 ) -> dict:
     """
-    Persistent upload pipeline (ADR-249 Type B):
-      1. Extract text from file
-      2. Build /workspace/uploads/{slug}.md content
-      3. Write via authored_substrate.write_revision (ADR-209)
-      4. Embed at file level via workspace_files.embedding
+    Persistent upload pipeline — ADR-395 conformance (retain raw · derive projection).
 
-    No chunking. No filesystem_chunks writes.
-    The workspace file IS the document — YARNNN reads it via ReadFile.
+    DP34 / DP32: an uploaded file enters as an IMMUTABLE attributed RAW
+    observation, and the searchable text is a SEPARATE derived act that cites
+    the raw. Concretely:
+      1. Land the RAW blob at inbound/uploads/{principal}/{slug}.{ext} —
+         content EMPTY, content_url = the stable blob endpoint, the real MIME.
+         The original bytes are the substrate object (via reference), never a
+         derived .md masquerading as the upload.
+      2. Derive the TEXT PROJECTION inline (Piece B) via the ExtractTextFromBlob
+         primitive — a co-located `.extracted.md` sibling carrying
+         `derived_from: <raw path>`, embedded for search. Model-consumable
+         (DP34): the projection is what a model reads; the raw is retained.
+
+    Inline-mechanical (ADR-395 refined): the derive runs in THIS request
+    (zero-LLM, deterministic) so the file is searchable the instant upload
+    returns — an upload is a one-shot, not a cadenced capture.
 
     Returns:
-        {success, workspace_path, word_count} or {success: False, error}
+        {success, workspace_path, raw_path, projection_path, word_count}
+        or {success: False, error}. `workspace_path` is the RAW path (what the
+        surface opens); the projection is a sibling.
     """
-    uploaded_at = datetime.now(timezone.utc).isoformat()
-
-    # 1. Extract text
+    # 1. Extract text up front to fail fast on unreadable files (before we write
+    #    a raw revision for something with no derivable projection). The SAME
+    #    extraction the derive primitive runs — computed once here for the
+    #    fast-fail, handed to the primitive so it isn't re-run.
     text, unit_count = await extract_text(file_content, file_type)
-
     if not text or len(text.strip()) < 50:
         return {"success": False, "error": "No text could be extracted from document"}
 
-    # 2. Build workspace file content
     slug = _filename_to_slug(filename)
-    workspace_path = _unique_upload_path(slug, db_client, user_id)
-    content = _build_upload_workspace_file(
-        filename=filename,
-        file_type=file_type,
-        file_size=file_size,
-        storage_path=storage_path,
-        text=text,
-        unit_count=unit_count,
-        uploaded_at=uploaded_at,
-        user_id=user_id,
-    )
-
-    # 3. Write via authored substrate (ADR-209)
+    # 2. RETAIN — land the raw blob (Piece A). principal defaults to "operator"
+    #    (ADR-373: the uploading principal; N=1 today).
+    principal = "operator"
+    raw_path = _unique_raw_path(resolve_upload_raw_path(principal, slug, file_type), db_client, user_id)
+    content_url = blob_content_url(storage_path)
     try:
         from services.authored_substrate import write_revision
         write_revision(
             db_client,
             user_id=user_id,
-            path=workspace_path,
-            content=content,
-            authored_by="operator",
+            path=raw_path,
+            # Raw blob: no inline text body — the bytes live in storage, reached
+            # via content_url. A one-line caption keeps the file legible when
+            # opened before its projection renders.
+            content=f"Uploaded file: {filename}",
+            authored_by=principal,
             message=f"upload {filename}",
-            # An uploaded source file is live, browseable workspace content →
-            # 'active' (the workspace_files default + the migration-116/184 valid
-            # set: ephemeral|active|delivered|archived). The prior 'permanent'
-            # was never a valid enum value — it violated
-            # workspace_files_lifecycle_check, so EVERY upload's substrate write
-            # failed (operator-observed KVK 2026-07-01: "Failed to write
-            # workspace file … violates check constraint").
             lifecycle="active",
+            content_url=content_url,
+            content_type=f"application/{file_type}",
         )
     except Exception as e:
-        logger.error(f"[DOCUMENTS] Failed to write workspace file {workspace_path}: {e}")
+        logger.error(f"[DOCUMENTS] Failed to write raw upload {raw_path}: {e}")
         return {"success": False, "error": f"Failed to write workspace file: {e}"}
 
-    # 4. Embed for QueryKnowledge/SearchFiles findability (ADR-325).
-    # Upload is OPERATOR-initiated, not a Reviewer-runtime call — so it is not
-    # autonomy-gated (the gate scopes to Reviewer calls per ADR-293); the
-    # operator's upload action IS the choice to make this AI-ready. We route
-    # through the same `_embed_workspace_file` mechanism as the explicit Embed
-    # primitive (one embed path, ADR-325) instead of a bespoke inline call.
-    # uploads/ is embed-eligible by content-kind (ADR-325 D5).
+    # 3. DERIVE — the text projection, inline + mechanical (Piece B / DP34).
+    #    Runs the ExtractTextFromBlob primitive so upload + connector share ONE
+    #    derive path (Singular Implementation). We pass the already-extracted
+    #    text so the blob isn't re-fetched/re-parsed.
+    projection_path = upload_projection_path(raw_path)
     try:
-        from services.primitives.embed import is_embed_eligible
-        from services.primitives.workspace import _embed_workspace_file
-        rel = workspace_path.lstrip("/")
-        if rel.startswith("workspace/"):
-            rel = rel[len("workspace/"):]
-        eligible, _reason = is_embed_eligible(rel, text)
-        if eligible:
-            await _embed_workspace_file(db_client, user_id, workspace_path, text[:2000])
+        from services.primitives.registry import execute_primitive
+        from services.supabase import AuthenticatedClient
+        # The derive is MECHANICAL make-AI-ready, not the operator's authored
+        # act — attributed `system:extract` (ADR-288 D2; same spirit as the
+        # capture lane's `system:<slug>`). It writes the derived projection,
+        # NOT the raw (the raw is the operator's, written above).
+        auth = AuthenticatedClient(
+            client=db_client, user_id=user_id, caller_identity="system:extract",
+        )
+        derive = await execute_primitive(auth, "ExtractTextFromBlob", {
+            "raw_path": raw_path,
+            "write_to": projection_path,
+            "text": text,          # reuse the fast-fail extraction (no re-parse)
+            "source_filename": filename,
+            "file_type": file_type,
+        })
+        if not (isinstance(derive, dict) and derive.get("success")):
+            # Non-fatal: the raw is retained; the projection just isn't there
+            # yet (retained-but-not-yet-consumable, DP34). Surface in the log.
+            logger.warning(f"[DOCUMENTS] Projection derive failed for {raw_path}: {derive}")
     except Exception as e:
-        # Non-fatal: file is readable, just not semantically searchable yet
-        logger.warning(f"[DOCUMENTS] Embedding failed for {workspace_path}: {e}")
+        logger.warning(f"[DOCUMENTS] Projection derive raised for {raw_path}: {e}")
 
     word_count = len(text.split())
-    logger.info(f"[DOCUMENTS] Wrote {workspace_path} ({word_count} words)")
+    logger.info(f"[DOCUMENTS] Uploaded {raw_path} (raw) + {projection_path} (projection, {word_count} words)")
 
     return {
         "success": True,
-        "workspace_path": workspace_path,
+        "workspace_path": raw_path,       # the surface opens the raw
+        "raw_path": raw_path,
+        "projection_path": projection_path,
         "word_count": word_count,
     }
+
+
+# =============================================================================
+# BLOB REFERENCE + SIGNED URL (ADR-395 Piece A + C)
+# =============================================================================
+# The raw upload blob lives in the PRIVATE `documents` bucket, so a persisted
+# content_url cannot be a signed URL (it expires in 1h). content_url instead
+# carries a STABLE app endpoint that mints a fresh signed URL on each access
+# (ADR-395: the raw revision stores a stable reference; the URL is resolved at
+# read-time). This is also the seam Piece C's MCP raw-reference reuses.
+
+# The bucket the upload route stores originals in (routes/documents.py).
+DOCUMENTS_BUCKET = "documents"
+
+
+def blob_content_url(storage_path: str) -> str:
+    """The STABLE content_url for a raw upload blob (ADR-395 Piece A).
+
+    A relative app endpoint (not a signed URL) — the FE/consumer hits it and it
+    302-redirects to a freshly-minted signed URL. Stored on the raw revision so
+    the reference never goes stale. `storage_path` is the private-bucket key
+    (e.g. `{user_id}/{document_id}/original.pdf`).
+    """
+    from urllib.parse import quote
+    return f"/api/documents/blob?storage_path={quote(storage_path, safe='')}"
+
+
+def create_signed_url_for_storage_path(
+    service_client, storage_path: str, expires_in: int = 3600
+) -> Optional[str]:
+    """Mint a signed download URL for a `documents`-bucket storage_path.
+
+    The service-layer wrapper around `create_signed_url` (was inline in
+    routes/documents.py's download route). Returns None on failure — callers
+    decide whether that is fatal. Reused by the /blob redirect route (Piece A)
+    and, later, the MCP raw-reference (Piece C).
+    """
+    try:
+        signed = service_client.storage.from_(DOCUMENTS_BUCKET).create_signed_url(
+            path=storage_path,
+            expires_in=expires_in,
+        )
+        return signed.get("signedURL") or signed.get("signedUrl")
+    except Exception as e:  # noqa: BLE001 — caller decides fatality
+        logger.error(f"[DOCUMENTS] Signed-URL mint failed for {storage_path}: {e}")
+        return None
+
+
+# =============================================================================
+# RAW-LANE UPLOAD PATH (ADR-395 Piece A / DP32)
+# =============================================================================
+# uploads/ is the N=human case of the inbound/ raw lane (DP32 / ADR-376 §4).
+# A human upload lands its RAW blob at inbound/uploads/{principal}/{slug}.{ext},
+# immutable + attributed, sibling to the machine inbound/{transport}/ sublanes.
+# The DERIVED text projection (ADR-395 Piece B) lands co-located as a sibling
+# `.extracted.md`, citing the raw via `derived_from`.
+
+INBOUND_UPLOADS_PREFIX = "/workspace/inbound/uploads"
+
+
+def resolve_upload_raw_path(principal: str, slug: str, ext: str) -> str:
+    """Where a human upload's RAW blob lands (ADR-395 Piece A / DP32).
+
+    inbound/uploads/{principal}/{slug}.{ext} — immutable, attributed to the
+    uploading principal. `ext` is the real file extension (pdf/docx/…), so the
+    raw lane preserves the original format. The derived text projection is a
+    sibling (see `upload_projection_path`).
+    """
+    p = _filename_to_slug(principal) or "operator"
+    ext = (ext or "bin").lstrip(".")
+    return f"{INBOUND_UPLOADS_PREFIX}/{p}/{slug}.{ext}"
+
+
+def upload_projection_path(raw_path: str) -> str:
+    """The derived text-projection path for a raw upload (ADR-395 Piece B).
+
+    Co-located sibling of the raw blob, `.extracted.md` — a searchable text
+    derivation that CITES the raw via `derived_from`. Kept beside the raw so the
+    two are atomic (ADR-395 §7.1: sibling projection, not a separate operation/
+    file for Phase 1; the additive seat-derive into operation/ layers on later).
+    """
+    # Strip the raw extension, append `.extracted.md`.
+    base = raw_path.rsplit(".", 1)[0] if "." in raw_path.rsplit("/", 1)[-1] else raw_path
+    return f"{base}.extracted.md"

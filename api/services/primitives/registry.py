@@ -79,6 +79,7 @@ from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
 # per ADR-263 D5 + ADR-264 D2 via the @primitive: ... convention.
 from .sync_platform_state import SYNC_PLATFORM_STATE_TOOL, handle_sync_platform_state
 from .capture_connector import CAPTURE_CONNECTOR_TOOL, handle_capture_connector  # ADR-394 — connector fan-out capture
+from .extract_text_from_blob import EXTRACT_TEXT_FROM_BLOB_TOOL, handle_extract_text_from_blob  # ADR-395 — derive text projection from a raw blob
 # ADR-281: derivative-compaction substrate primitive — mirrors per-signal
 # state files into a compact summary substrate file. Mechanical-only
 # (not in any LLM tool surface); dispatched by mechanical-mode recurrences.
@@ -357,6 +358,9 @@ HEADLESS_PRIMITIVES = [
     # ADR-394: CaptureConnector — connector fan-out capture (loops a per-selector
     # read tool over the operator's _watch.yaml selection into inbound/).
     CAPTURE_CONNECTOR_TOOL,
+    # ADR-395: ExtractTextFromBlob — derive a model-consumable text projection
+    # from a retained raw blob (upload/…), citing the raw via derived_from (DP34).
+    EXTRACT_TEXT_FROM_BLOB_TOOL,
     # File layer (8) — ADR-337 added EditFile/DeleteFile/MoveFile
     READ_FILE_TOOL,
     WRITE_FILE_TOOL,
@@ -527,9 +531,14 @@ FREDDIE_PRIMITIVES = [
     # rare mid-loop override, e.g. the seat refreshing a connector's raw before
     # deriving). Primary use is dispatched by a _captures.yaml declaration.
     CAPTURE_CONNECTOR_TOOL,
+    # ADR-395: ExtractTextFromBlob — derive a text projection from a raw blob.
+    # Same class as the captures (dispatcher/inline-primary; LLM-callable surface
+    # here is the rare mid-loop override, e.g. re-deriving a projection). Primary
+    # use is inline on upload arrival (the request path), zero-LLM.
+    EXTRACT_TEXT_FROM_BLOB_TOOL,
     # Conversation
     CLARIFY_TOOL,
-]  # 25 tools — ADR-394 added CaptureConnector (connector fan-out capture; SyncPlatformState sibling)
+]  # 26 tools — ADR-395 added ExtractTextFromBlob (raw-blob → text projection; capture-class)
 
 
 # =============================================================================
@@ -573,6 +582,10 @@ HANDLERS: dict[str, Callable] = {
     # into inbound/{platform}/{selector}/). Sibling to SyncPlatformState; the
     # fan-out-over-a-declaration job SyncPlatformState's one-result shape can't do.
     "CaptureConnector": handle_capture_connector,
+    # ADR-395: ExtractTextFromBlob — derive a model-consumable text projection
+    # from a retained raw blob, citing the raw via derived_from (DP34). Runs
+    # inline on upload arrival (zero-LLM); the derive-registry's first entry.
+    "ExtractTextFromBlob": handle_extract_text_from_blob,
     # ADR-281: MirrorSignalState — derivative-compaction substrate primitive
     # (projects per-signal substrate into a compact summary substrate file
     # so the Reviewer's wake envelope reads substrate instead of computing

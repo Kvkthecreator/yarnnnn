@@ -15,13 +15,14 @@ Endpoints:
 import logging
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
 from services.supabase import UserClient, get_service_client
-from services.documents import process_document
+from services.documents import process_document, create_signed_url_for_storage_path
 
 router = APIRouter()
 
@@ -86,12 +87,13 @@ def _resolve_file_type(content_type: str, filename: str) -> Optional[str]:
 async def _process_single_upload(
     *, content: bytes, content_type: str, filename: str, user_id: str, service,
 ) -> UploadResultItem:
-    """The single-file pipeline, callable N times (ADR-331 D5 + ADR-249 Type B).
+    """The single-file pipeline, callable N times (ADR-331 D5 + ADR-395).
 
-    Storage upload → extract text → write /workspace/uploads/{slug}.md via
-    authored substrate (attributed operator, ADR-209). Never raises — returns
-    a per-file UploadResultItem so a batch can report partial success.
-    process_document's _unique_upload_path guarantees N files → N distinct rows.
+    Storage upload → land the RAW blob at inbound/uploads/{principal}/{slug}.{ext}
+    (content_url, immutable) → derive the text projection inline (ADR-395 Piece
+    A+B). Never raises — returns a per-file UploadResultItem so a batch can report
+    partial success. process_document's _unique_raw_path guarantees N files → N
+    distinct rows.
     """
     file_type = _resolve_file_type(content_type, filename)
     if file_type is None:
@@ -252,11 +254,22 @@ async def list_documents(
     limit: int = 50,
     offset: int = 0,
 ):
-    """List persistent workspace uploads."""
+    """List persistent workspace uploads.
+
+    ADR-395: uploads now land as RAW blobs in inbound/uploads/{principal}/ (not a
+    derived .md under uploads/). We list the raw lane AND the legacy uploads/
+    root (pre-ADR-395 files stay listed), skipping the co-located `.extracted.md`
+    text projections (they're the derivation, not the upload). The filename comes
+    from the path; legacy .md files may still carry `original_filename:` in a
+    frontmatter header (read when present, harmless when absent).
+    """
     result = auth.client.table("workspace_files") \
         .select("path, content, updated_at") \
         .eq("user_id", auth.user_id) \
-        .like("path", "/workspace/uploads/%.md") \
+        .or_(
+            "path.like./workspace/inbound/uploads/%,"
+            "path.like./workspace/uploads/%.md"
+        ) \
         .or_("lifecycle.is.null,lifecycle.neq.archived") \
         .order("updated_at", desc=True) \
         .range(offset, offset + limit - 1) \
@@ -264,8 +277,15 @@ async def list_documents(
 
     items = []
     for row in (result.data or []):
+        path = row["path"]
+        # Skip the derived text projection — it's the derivation, not the upload.
+        if path.endswith(".extracted.md"):
+            continue
         raw = row.get("content", "") or ""
-        original_filename = row["path"].rsplit("/", 1)[-1].removesuffix(".md")
+        # Filename from the path leaf (raw lane preserves the real name+ext);
+        # legacy uploads/ .md drops the .md suffix.
+        leaf = path.rsplit("/", 1)[-1]
+        original_filename = leaf.removesuffix(".md") if path.endswith(".md") else leaf
         word_count = 0
         for line in raw.split("\n"):
             if line.startswith("original_filename:"):
@@ -276,13 +296,42 @@ async def list_documents(
                 except (ValueError, IndexError):
                     pass
         items.append(WorkspaceUploadItem(
-            path=row["path"],
+            path=path,
             filename=original_filename,
             word_count=word_count,
             uploaded_at=(row.get("updated_at") or "")[:10],
         ))
 
     return {"uploads": items, "total": len(items), "limit": limit, "offset": offset}
+
+
+# =============================================================================
+# BLOB (ADR-395 Piece A — stable content_url → fresh signed URL redirect)
+# =============================================================================
+
+@router.get("/documents/blob")
+async def get_blob(auth: UserClient, storage_path: str):
+    """Resolve a raw-upload blob's STABLE content_url to a fresh signed URL.
+
+    A raw upload's `content_url` is `/api/documents/blob?storage_path=<key>`
+    (ADR-395 Piece A) — a stable reference stored on the immutable raw revision.
+    This route mints a fresh (1h) signed URL for the private-bucket blob and
+    302-redirects, so the FE (img/iframe/download `src`) always reaches live
+    bytes without a persisted URL going stale.
+
+    Ownership: the `documents`-bucket key is `{user_id}/{document_id}/…`, so a
+    caller may only resolve blobs under their OWN user_id prefix — this prevents
+    reading another principal's blob by guessing the key.
+    """
+    if not storage_path or not storage_path.startswith(f"{auth.user_id}/"):
+        # Not owned by the caller (or empty) — 404, don't leak existence.
+        raise HTTPException(status_code=404, detail="Blob not found")
+
+    service = get_service_client()
+    signed = create_signed_url_for_storage_path(service, storage_path, expires_in=3600)
+    if not signed:
+        raise HTTPException(status_code=404, detail="Blob not found")
+    return RedirectResponse(url=signed, status_code=302)
 
 
 # =============================================================================
@@ -318,18 +367,11 @@ async def download_document(auth: UserClient, document_path: str):
     if not storage_path:
         raise HTTPException(status_code=404, detail="Storage path not found in document frontmatter")
 
-    try:
-        service = get_service_client()
-        signed = service.storage.from_("documents").create_signed_url(
-            path=storage_path,
-            expires_in=3600
-        )
-        return DownloadResponse(
-            url=signed.get("signedURL") or signed.get("signedUrl"),
-            expires_in=3600
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate download URL: {e}")
+    service = get_service_client()
+    signed = create_signed_url_for_storage_path(service, storage_path, expires_in=3600)
+    if not signed:
+        raise HTTPException(status_code=500, detail="Failed to generate download URL")
+    return DownloadResponse(url=signed, expires_in=3600)
 
 
 # =============================================================================
@@ -341,7 +383,9 @@ async def download_document(auth: UserClient, document_path: str):
 # (Reviewer principles, agent context, the constitution) is NOT archivable
 # from the UI: that's ADR-320 topology-as-permission. Operator-authored
 # constitution files are EDITED via chat, never deleted from a browser.
-_OPERATOR_ARCHIVABLE_PREFIX = "/workspace/uploads/"
+# ADR-395: uploads now land in the inbound/uploads/ raw lane (the N=human case
+# of inbound/); the legacy uploads/ root stays archivable for pre-ADR-395 files.
+_OPERATOR_ARCHIVABLE_PREFIXES = ("/workspace/uploads/", "/workspace/inbound/uploads/")
 
 
 @router.delete("/documents/{document_path:path}")
@@ -364,7 +408,7 @@ async def delete_document(auth: UserClient, document_path: str):
         document_path = "/" + document_path
 
     # ADR-320 scope guard: operator-archivable roots only.
-    if not document_path.startswith(_OPERATOR_ARCHIVABLE_PREFIX):
+    if not document_path.startswith(_OPERATOR_ARCHIVABLE_PREFIXES):
         raise HTTPException(
             status_code=403,
             detail="Only uploaded files can be deleted. System-authored substrate is managed through chat.",

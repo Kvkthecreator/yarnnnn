@@ -32,7 +32,7 @@ import {
 } from '@/lib/file-types';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel, authorAccent } from '@/lib/workspace/attribution';
-import { parseUploadFrontmatter, uploadSourceCaption } from '@/lib/workspace/upload-frontmatter';
+import { parseUploadFrontmatter, uploadSourceCaption, resolveContentUrl } from '@/lib/workspace/upload-frontmatter';
 import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
 
 // ADR-162 Sub-phase D / ADR-215: IDENTITY and BRAND files carry an
@@ -274,7 +274,11 @@ interface HeadRevision {
 
 // ADR-329: the operator 'delete' verb is scoped to operator-owned uploads
 // (ADR-320 topology). System-authored substrate is not deletable from the UI.
-const OPERATOR_DELETABLE_PREFIX = '/workspace/uploads/';
+// ADR-395: uploads now land in the inbound/uploads/ raw lane (the N=human case
+// of inbound/); the legacy uploads/ root stays deletable for pre-ADR-395 files.
+const OPERATOR_DELETABLE_PREFIXES = ['/workspace/uploads/', '/workspace/inbound/uploads/'];
+const isOperatorDeletable = (p: string) =>
+  OPERATOR_DELETABLE_PREFIXES.some((prefix) => p.startsWith(prefix));
 
 function FileView({
   path,
@@ -352,7 +356,7 @@ function FileView({
     }
   };
 
-  const isDeletable = path.startsWith(OPERATOR_DELETABLE_PREFIX);
+  const isDeletable = isOperatorDeletable(path);
 
   if (loading) {
     return (
@@ -523,7 +527,7 @@ function FileView({
         {kind === 'image' && (
           <div className="rounded-xl border border-border bg-muted/10 p-4">
             {file.content_url ? (
-              <img src={file.content_url} alt={filename} className="max-w-full h-auto mx-auto rounded-lg" />
+              <img src={resolveContentUrl(file.content_url)} alt={filename} className="max-w-full h-auto mx-auto rounded-lg" />
             ) : (
               <div
                 className="mx-auto max-w-full [&_svg]:h-auto [&_svg]:max-w-full"
@@ -536,7 +540,7 @@ function FileView({
         {kind === 'pdf' && file.content_url && (
           <iframe
             title={filename}
-            src={file.content_url}
+            src={resolveContentUrl(file.content_url)}
             className="w-full min-h-[800px] rounded-xl border border-border bg-white"
           />
         )}
@@ -573,10 +577,14 @@ function FileView({
 }
 
 function FileActions({ contentUrl }: { contentUrl: string }) {
+  // ADR-395: a raw upload's content_url is a relative /api endpoint; resolve to
+  // absolute so Open/Download reach the API origin (existing absolute URLs pass
+  // through unchanged).
+  const href = resolveContentUrl(contentUrl);
   return (
     <div className="flex items-center gap-2 shrink-0">
       <a
-        href={contentUrl}
+        href={href}
         target="_blank"
         rel="noreferrer"
         className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
@@ -585,7 +593,7 @@ function FileActions({ contentUrl }: { contentUrl: string }) {
         Open
       </a>
       <a
-        href={contentUrl}
+        href={href}
         download
         className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
       >
