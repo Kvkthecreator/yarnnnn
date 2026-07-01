@@ -139,6 +139,9 @@ def main():
     # --- ADR-392 D7 (Phase 2 Select) — the connector-watch declaration ---
     results += _test_connector_watch()
 
+    # --- ADR-392 D8 — the retention-window dial + derive-then-prune GC ---
+    results += _test_retention()
+
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} ADR-392 assertions pass")
     if passed != total:
@@ -206,6 +209,113 @@ def _test_connector_watch():
         empty = asyncio.run(cw.read_selection(None, "u1", "notion"))
         out.append(_check(
             "11 unset declaration reads as [] (never raises)", empty == []))
+    finally:
+        ws.UserMemory = original
+
+    return out
+
+
+def _test_retention():
+    """D8 — the retention dial (default/override/pricing-clamp) + derive-then-prune.
+
+    Uses an in-memory UserMemory fake seeded with a mix of fresh/stale and
+    cited/uncited raw files; asserts only stale+cited connector raws are pruned,
+    mcp/web siblings are untouched, and the pricing clamp works.
+    """
+    import asyncio
+    import services.workspace as ws
+    from services import connector_retention as cr
+
+    out = []
+
+    # 12 — default when unset
+    store = {}
+
+    class _FakeUM:
+        def __init__(self, db, user_id):
+            pass
+
+        async def read(self, filename):
+            return store.get(filename)
+
+        async def write(self, filename, content, **kw):
+            store[filename] = content
+            return True
+
+        async def delete(self, filename):
+            store.pop(filename, None)
+            return True
+
+        async def list(self, relative_path="", recursive=False):
+            prefix = relative_path if relative_path.endswith("/") else relative_path + "/"
+            return [
+                k[len(prefix):] for k in store
+                if k.startswith(prefix) and k != prefix
+            ]
+
+    original = ws.UserMemory
+    ws.UserMemory = _FakeUM
+    try:
+        # 12 — unset → default 30
+        d = asyncio.run(cr.resolve_retention_days(None, "u1"))
+        out.append(_check("12 retention default = 30 when unset", d == 30, f"got {d}"))
+
+        # 13 — operator override read from governance/_retention.yaml
+        store[cr.RETENTION_POLICY_PATH] = "retention_days: 7\n"
+        d7 = asyncio.run(cr.resolve_retention_days(None, "u1"))
+        out.append(_check("13 operator override retention_days: 7 honored", d7 == 7, f"got {d7}"))
+
+        # 14 — pricing-seam clamp: tier_max caps the declared value (ADR-391 seam)
+        store[cr.RETENTION_POLICY_PATH] = "retention_days: 90\n"
+        d_clamped = asyncio.run(cr.resolve_retention_days(None, "u1", tier_max_days=30))
+        out.append(_check(
+            "14 pricing-seam clamp: declared 90 clamped to tier_max 30",
+            d_clamped == 30, f"got {d_clamped}"))
+
+        # --- derive-then-prune GC ---
+        store.clear()
+        # now = 2026-07-01; window 30d. Build the raw lane.
+        NOW = "2026-07-01T00:00:00Z"
+        # stale (60d old) + cited → SHOULD prune
+        stale_cited = "inbound/slack/daily-work/2026-05-02T00:00:00Z.md"
+        # stale (60d) + UNcited → keep (derive-then-prune: no derived act yet)
+        stale_uncited = "inbound/slack/random/2026-05-02T00:00:00Z.md"
+        # fresh (5d) + cited → keep (within window)
+        fresh_cited = "inbound/slack/eng/2026-06-26T00:00:00Z.md"
+        # an mcp sibling, stale + cited → MUST NOT be touched (not connector lane)
+        mcp_sibling = "inbound/mcp/claude.ai/2026-05-02T00:00:00Z.md"
+        for p in (stale_cited, stale_uncited, fresh_cited, mcp_sibling):
+            store[p] = "raw"
+
+        cited = {
+            f"/workspace/{stale_cited}",
+            f"/workspace/{fresh_cited}",
+            f"/workspace/{mcp_sibling}",
+        }
+        res = asyncio.run(cr.prune_raw_lane(
+            None, "u1", NOW, retention_days=30, cited_paths=cited,
+        ))
+
+        out.append(_check(
+            "15 derive-then-prune: only stale+cited connector raw pruned (1)",
+            res["pruned"] == 1 and stale_cited not in store,
+            f"res={res} stale_cited_present={stale_cited in store}"))
+        out.append(_check(
+            "16 stale-but-uncited raw KEPT (no derived act cites it yet)",
+            stale_uncited in store and res["kept_uncited"] == 1))
+        out.append(_check(
+            "17 fresh raw KEPT (within window) + mcp/web siblings untouched",
+            fresh_cited in store and mcp_sibling in store and res["scanned"] == 3,
+            f"scanned={res['scanned']} (should exclude the mcp sibling)"))
+
+        # 18 — fail-safe: cited_paths=None prunes NOTHING
+        store[stale_cited] = "raw"  # restore
+        res_none = asyncio.run(cr.prune_raw_lane(
+            None, "u1", NOW, retention_days=30, cited_paths=None,
+        ))
+        out.append(_check(
+            "18 fail-safe: cited_paths=None prunes nothing (never drop unknown)",
+            res_none["pruned"] == 0 and stale_cited in store))
     finally:
         ws.UserMemory = original
 
