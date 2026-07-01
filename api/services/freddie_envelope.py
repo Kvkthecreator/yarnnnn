@@ -846,10 +846,40 @@ async def _peripheral_field_fact(client: Any, user_id: str) -> str:
             user_id[:8], exc,
         )
 
+    # --- Captures (per-declaration freshness — the real health signal) ---
+    # ADR-393 D3: the capture lane writes a per-declaration health block to
+    # _capture_signal.yaml (slug · status · observed_at · items). THIS is the
+    # freshness the peripheral-field fact was pointing at — the steward's
+    # connection-hygiene duty ("is what feeds the operation live and current?")
+    # gets real per-declaration state instead of only bare connection status.
+    # Best-effort: absent on workspaces with no captures (bare steward).
+    try:
+        from services.capture.declarations import read_capture_signal
+        signal = await read_capture_signal(client, user_id)
+        blocks = (signal.get("captures") or {}) if isinstance(signal, dict) else {}
+        if blocks:
+            if lines:
+                lines.append("")
+            lines.append("Captures (deterministic intake — freshness + health):")
+            for slug in sorted(blocks):
+                b = blocks[slug] if isinstance(blocks[slug], dict) else {}
+                status = b.get("status") or "?"
+                observed = b.get("observed_at") or "never"
+                detail = f"- {slug} · {status} · last observed: {observed}"
+                if b.get("last_error"):
+                    detail += f" · error: {b['last_error']}"
+                lines.append(detail)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug(
+            "[REVIEWER_ENVELOPE] capture-signal read skipped user=%s: %s",
+            user_id[:8], exc,
+        )
+
     # --- Sources (declared web/RSS watches) ---
     # Discovery-surface only: the count of declared sources, sourced from the
-    # active bundle's watch declarations. The steward ReadFiles the signal file
-    # for per-source freshness. Best-effort: bundle reader may have no watches.
+    # active bundle's watch declarations. Per-source distillation detail lives in
+    # the watch signal file; per-declaration freshness is the Captures block above
+    # (ADR-393). Best-effort: bundle reader may have no watches.
     try:
         from services import bundle_reader
         watches = bundle_reader.get_watches_for_workspace(user_id, client) or []
@@ -858,7 +888,7 @@ async def _peripheral_field_fact(client: Any, user_id: str) -> str:
                 lines.append("")
             lines.append(f"Sources (declared standing watches — perception field): "
                          f"{len(watches)} declared. ReadFile the watch signal for "
-                         f"per-source freshness.")
+                         f"per-source distillation detail.")
     except Exception as exc:  # noqa: BLE001
         logger.debug(
             "[REVIEWER_ENVELOPE] peripheral sources read skipped user=%s: %s",

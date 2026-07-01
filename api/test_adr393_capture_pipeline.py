@@ -163,6 +163,16 @@ captures:
         f"params={sorted(sig_params)}",
     ))
 
+    # 9 — the steward's peripheral-field fact reads the capture health signal
+    # (ADR-393 D3 — this is the freshness the fact was pointing at, + the
+    # ADR-392 Phase B data source).
+    import services.freddie_envelope as _env
+    env_src = inspect.getsource(_env)
+    results.append(_check(
+        "9. _peripheral_field_fact reads the capture health signal (ADR-393 D3)",
+        "read_capture_signal" in env_src and "_peripheral_field_fact" in env_src,
+    ))
+
     passed = sum(1 for r in results if r)
     total = len(results)
     print(f"\nADR-393 capture pipeline: {passed}/{total} checks passed")
