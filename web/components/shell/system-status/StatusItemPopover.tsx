@@ -13,9 +13,8 @@
  * (200) to match UserMenu + TopBar context menu.
  */
 
-import { useState, useRef, type ReactNode } from 'react';
+import { useState, useRef, type ComponentType, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import type { LucideIcon } from 'lucide-react';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
@@ -25,8 +24,10 @@ import type { KernelSurfaceSlug } from '@/types/desk';
 export type StatusTone = 'ok' | 'warn' | 'paused' | 'muted';
 
 interface StatusItemPopoverProps {
-  /** Lucide icon for the trigger chip */
-  icon: LucideIcon;
+  /** The trigger-chip glyph. Any className-driven icon component — a lucide
+   *  icon (Budget/Connections chips) OR the FreddieAvatar mascot (the Freddie
+   *  chip). The className carries size + currentColor tint. */
+  icon: ComponentType<{ className?: string }>;
   /** Hover tooltip on the trigger button */
   tooltip: string;
   /** Visual tone — drives chip background/foreground tint */

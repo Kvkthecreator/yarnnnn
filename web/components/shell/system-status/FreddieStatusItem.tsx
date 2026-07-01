@@ -17,24 +17,40 @@
  * Freddie's Autonomy pane (footer link; the `autonomy` slug is pane_of: agents,
  * so foregroundSurface delivers agents.pane=autonomy → Freddie's Grant group).
  *
- * Icon: the canonical autonomy glyph `shield-check` (also Freddie's Grant/
- * autonomy pane icon) resolved via resolveSurfaceIcon. Paused state overrides
- * to Pause. Singular Implementation: one icon per surface.
+ * Visual: the FreddieAvatar mascot (2026-07-01, v1) in `full` tone — Freddie
+ * now has a FACE in the top bar, not the shield-check glyph. The mascot wears
+ * the LIVENESS its posture implies (livenessFor): manual→waiting, autonomous→
+ * acting, bounded/not-set→idle, paused→paused. This is the first mount point of
+ * the Freddie Design System (one mascot, layered SVG, state-expressive).
  *
  * NOTE: Budget (the adjacent MONEY chip) is being reframed separately with the
  * pricing-model work — it is deliberately untouched here (operator, 2026-07-01).
  */
 
-import { Pause } from 'lucide-react';
 import { useAutonomy, type AutonomyDelegation } from '@/lib/content-shapes/autonomy';
-import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
 import { StatusItemPopover, type StatusTone } from './StatusItemPopover';
+import { FreddieAvatar, type FreddieLiveness } from '@/components/freddie/FreddieAvatar';
 
 function delegationLabel(d: AutonomyDelegation | null): string {
   if (d === 'autonomous') return 'Full auto';
   if (d === 'bounded') return 'Bounded';
   if (d === 'manual') return 'Manual';
   return 'Not set';
+}
+
+// Disposition → the liveness the mascot wears in the chip. The chip reads a
+// resting POSTURE (not real-time activity), so we map each posture to the
+// liveness that reads honestly at rest:
+//   paused     → paused  (asleep)
+//   manual     → waiting (defers every decision to you — always looking at you)
+//   autonomous → acting  (acts on its own)
+//   bounded    → idle    (steady; acts within the ceiling, calm at rest)
+//   not set    → idle    (nothing configured — calm/dormant)
+function livenessFor(d: AutonomyDelegation | null, paused: boolean): FreddieLiveness {
+  if (paused) return 'paused';
+  if (d === 'manual') return 'waiting';
+  if (d === 'autonomous') return 'acting';
+  return 'idle';
 }
 
 // Freddie-framed disposition copy — "how much the system agent acts on its own."
@@ -76,11 +92,15 @@ export function FreddieStatusItem() {
         ? 'ok'
         : 'muted';
 
-  // ADR-297 D20 amendment: canonical surface icon for the autonomy pane
-  // (resolved from kernel_surfaces.icon_key = "shield-check"; also Freddie's
-  // Grant-group pane icon). Paused state is the only state-specific override.
-  const AutonomyIcon = resolveSurfaceIcon('shield-check');
-  const Icon = isPaused ? Pause : AutonomyIcon;
+  // The chip is a HERO placement of Freddie — the full-tone mascot, wearing the
+  // liveness its current posture implies (the 2026-07-01 avatar). It replaces
+  // the shield-check glyph: Freddie now literally has a FACE in the top bar.
+  const liveness = livenessFor(effectiveDelegation, !!isPaused);
+  // Bound trigger icon — StatusItemPopover renders `<Icon className=... />`, so
+  // we hand it a component with the state pre-bound.
+  const TriggerIcon = ({ className }: { className?: string }) => (
+    <FreddieAvatar state={liveness} tone="full" className={className} />
+  );
   const label = delegationLabel(effectiveDelegation);
   const ceilingCents = meta?.default_ceiling_cents;
   const ceilingLabel =
@@ -95,7 +115,7 @@ export function FreddieStatusItem() {
 
   const popoverHeader = (
     <div className="flex items-center gap-2">
-      <Icon className="w-3.5 h-3.5 shrink-0" />
+      <FreddieAvatar state={liveness} tone="full" className="w-4 h-4 shrink-0" />
       <span className="text-sm font-medium">
         Freddie
         <span className="text-muted-foreground">
@@ -155,7 +175,7 @@ export function FreddieStatusItem() {
 
   return (
     <StatusItemPopover
-      icon={Icon}
+      icon={TriggerIcon}
       tooltip={tooltip}
       tone={tone}
       ariaLabel="Freddie, the system agent"
