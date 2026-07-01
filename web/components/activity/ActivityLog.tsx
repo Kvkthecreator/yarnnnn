@@ -118,6 +118,114 @@ function groupBySlug(events: ExecutionEvent[]): JobGroup[] {
   );
 }
 
+// ─── per-principal rollup (capture-first, migration 192) ─────────────────────
+// "Who spent what" — the legible-not-raw grammar: friendly names + counts +
+// summed cost, joined from execution_events.principal_id. The moat's usage
+// (an external LLM writing → Freddie reviewing) attributes to the provider,
+// not the owner, so the operator can see "ChatGPT caused $X of review", not
+// just "you".
+
+// principal_id → friendly display. Owner user_ids (uuid-shaped) collapse to
+// "You"; foreign-LLM provider host-ids get a human label; agent slugs pass
+// through. NULL (pre-migration rows) → "Unattributed".
+const PROVIDER_LABELS: Record<string, string> = {
+  chatgpt: 'ChatGPT',
+  'claude.ai': 'Claude',
+  claude: 'Claude',
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function principalLabel(principalId: string | null): string {
+  if (!principalId) return 'Unattributed';
+  if (UUID_RE.test(principalId)) return 'You'; // owner user_id
+  const key = principalId.toLowerCase();
+  if (PROVIDER_LABELS[key]) return PROVIDER_LABELS[key];
+  // agent slug or unknown provider — humanize the raw id
+  return principalId;
+}
+
+function principalKind(principalId: string | null): 'you' | 'external' | 'unattributed' {
+  if (!principalId) return 'unattributed';
+  if (UUID_RE.test(principalId)) return 'you';
+  return 'external';
+}
+
+interface PrincipalGroup {
+  principalId: string | null;
+  label: string;
+  kind: 'you' | 'external' | 'unattributed';
+  runs: number;
+  totalCost: number;
+  lastRun: string;
+}
+
+function groupByPrincipal(events: ExecutionEvent[]): PrincipalGroup[] {
+  const map = new Map<string, PrincipalGroup>();
+  for (const ev of events) {
+    const key = ev.principal_id ?? '__null__';
+    if (!map.has(key)) {
+      map.set(key, {
+        principalId: ev.principal_id,
+        label: principalLabel(ev.principal_id),
+        kind: principalKind(ev.principal_id),
+        runs: 0,
+        totalCost: 0,
+        lastRun: ev.created_at,
+      });
+    }
+    const g = map.get(key)!;
+    g.runs++;
+    g.totalCost += ev.cost_usd ?? 0;
+    if (ev.created_at > g.lastRun) g.lastRun = ev.created_at;
+  }
+  // Sort by cost desc — the operator's eye goes to the biggest spender first.
+  return Array.from(map.values()).sort((a, b) => b.totalCost - a.totalCost);
+}
+
+function PrincipalRollup({ groups }: { groups: PrincipalGroup[] }) {
+  // Only show the band when there's a real story: >1 principal, or a single
+  // external one. A lone "You" is the N=1 case — the band adds nothing there.
+  const hasExternal = groups.some(g => g.kind === 'external');
+  if (groups.length <= 1 && !hasExternal) return null;
+
+  return (
+    <div className="mb-4 max-w-4xl rounded-lg border border-border/60 bg-muted/20">
+      <div className="px-4 py-2.5 border-b border-border/40">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          By principal — who spent what
+        </h2>
+      </div>
+      <div className="divide-y divide-border/30">
+        {groups.map(g => (
+          <div key={g.principalId ?? '__null__'} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+            <span
+              className={cn(
+                'w-2 h-2 rounded-full shrink-0',
+                g.kind === 'you' ? 'bg-blue-500' :
+                g.kind === 'external' ? 'bg-amber-500' :
+                'bg-muted-foreground/30'
+              )}
+            />
+            <span className="font-medium flex-1 truncate">
+              {g.label}
+              {g.kind === 'external' && (
+                <span className="ml-1.5 text-[10px] font-normal text-muted-foreground/60">via MCP</span>
+              )}
+            </span>
+            <span className="text-xs text-muted-foreground/70 shrink-0">
+              {g.runs} {g.runs === 1 ? 'action' : 'actions'}
+            </span>
+            <span className="text-xs font-medium text-muted-foreground shrink-0 w-16 text-right">
+              {g.totalCost > 0 ? `$${g.totalCost.toFixed(4)}` : '—'}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── EventRow ────────────────────────────────────────────────────────────────
 
 function EventRow({ ev }: { ev: ExecutionEvent }) {
@@ -320,6 +428,7 @@ export function ActivityLog({ slugFilter = null, onClearSlugFilter }: ActivityLo
   useEffect(() => { load(); }, [load]);
 
   const groups = useMemo(() => groupBySlug(events), [events]);
+  const principalGroups = useMemo(() => groupByPrincipal(events), [events]);
   const totalCost = useMemo(
     () => events.filter(e => e.mode !== 'mechanical').reduce((s, e) => s + (e.cost_usd ?? 0), 0),
     [events]
@@ -383,17 +492,23 @@ export function ActivityLog({ slugFilter = null, onClearSlugFilter }: ActivityLo
             No activity recorded yet. Jobs appear here after their first run.
           </div>
         ) : (
-          <div className="space-y-2 max-w-4xl">
-            {groups.map(g => (
-              <JobCard
-                key={g.slug}
-                group={g}
-                // Auto-open when arriving via a single-slug filter (the
-                // operator wants the run history without an extra click).
-                defaultOpen={!!slugFilter && groups.length === 1}
-              />
-            ))}
-          </div>
+          <>
+            {/* Capture-first: the "who spent what" rollup above the per-job
+                detail. Renders only when there's a multi-principal story
+                (hidden in the N=1 lone-owner case). */}
+            <PrincipalRollup groups={principalGroups} />
+            <div className="space-y-2 max-w-4xl">
+              {groups.map(g => (
+                <JobCard
+                  key={g.slug}
+                  group={g}
+                  // Auto-open when arriving via a single-slug filter (the
+                  // operator wants the run history without an extra click).
+                  defaultOpen={!!slugFilter && groups.length === 1}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>
