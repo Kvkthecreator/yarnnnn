@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.01.1] - SyncPlatformState gains a connector capture mode → the raw lane (ADR-392 D2)
+
+**Connectors are the third context-in transport and the lone non-conformer to the ledger-intake axiom (ADR-376/DP32): `SyncPlatformState` (ADR-264) wrote straight to `operation/`, fusing capture and derive and skipping the raw lane MCP + web already honor. ADR-392 (Accepted, raw-lane mechanism = Option A `inbound/` namespace) makes it conform: a platform sync is an attributed RAW observation that lands in the capture lane, and a SEPARATE derive act distills understanding into `operation/`.**
+
+- `api/services/primitives/sync_platform_state.py`: added an optional `capture` block to `SYNC_PLATFORM_STATE_TOOL` (fields: `platform` [req], `selector`, `observed_at` [req], `ext`). When present, the primitive derives `inbound/{platform}/{selector}/{observed_at}.{ext}` itself (via new `resolve_capture_path`) and `write_to` becomes optional; per-item iteration uses each item's `item_key` value as its selector sub-lane. When absent, `write_to`-direct behavior applies — the PERMANENT correct shape for ground-truth STATE MIRRORS (broker positions/account/orders: the mirrored state IS the world-model, read directly, not distilled — ADR-264 + Axiom 8; ADR-376 §63 keeps ground-truth out of `inbound/`). Two permanent uses of one primitive: `capture` for context-in (channel content → distilled), `write_to` for state mirrors — NOT a migration window. Attribution unchanged (`system:sync-platform-state`); raw immutable; `write_revision` single write path unchanged.
+- **Expected behavior change**: a recurrence authored with `@primitive: SyncPlatformState(tool=..., capture={platform, selector, observed_at})` now lands raw context in the quarantined `inbound/` lane (not `operation/`), so a high-volume channel does not dilute reasoning context. A separate derive recurrence/wake distils into `operation/` with `derived_from`. Recurrences using the legacy `write_to` shape are unaffected. Gate: `api/test_adr392_connector_lane.py` (7/7); ADR-263/264 regression 39/39 (no break).
+
 ## [2026.06.30.6] - steward principles: the stewardship-log home is persona/, not locked system/ (ADR-390 follow-on)
 
 **The ADR-390 PASS wake surfaced a steward-UX wrinkle: when flagging the mis-attribution, Freddie first tried to write its stewardship log to `system/notes.md` → `governance_locked` (correct gate, ADR-320), then recovered to `persona/standing_intent.md`. The `attribution-integrity` verdict-on-fail said "flag where another principal did" but never said WHERE to write the flag. One-line fix to the steward-default seed.**

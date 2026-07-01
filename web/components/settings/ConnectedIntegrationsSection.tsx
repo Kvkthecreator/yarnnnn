@@ -10,6 +10,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
+import { ConnectorSelectionPanel } from "./ConnectorSelectionPanel";
 
 interface Integration {
   id: string;
@@ -43,7 +44,10 @@ interface PlatformFreshness {
 const FRESHNESS_PROVIDERS = ["slack", "notion", "github"] as const;
 
 function relativeTime(iso: string | null): string {
-  if (!iso) return "never synced";
+  // ADR-392 D5 — honest freshness. A connected-but-unread platform is "not
+  // reading yet" (available, awaiting selection + a capture recurrence), NOT
+  // "never synced" (which implies a sync is pending that never fires).
+  if (!iso) return "not reading yet";
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "unknown";
   const mins = Math.floor((Date.now() - then) / 60000);
@@ -84,6 +88,8 @@ export function ConnectedIntegrationsSection({
   const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
+  // ADR-392 D7 — which platform's selection subsurface (Phase 2 Select) is open.
+  const [managingProvider, setManagingProvider] = useState<string | null>(null);
   // Commerce (API key auth, not OAuth)
   const [commerceApiKey, setCommerceApiKey] = useState("");
   const [commerceError, setCommerceError] = useState<string | null>(null);
@@ -215,7 +221,8 @@ export function ConnectedIntegrationsSection({
             )}
           </>
         ) : (
-          <span>No sync activity yet</span>
+          // ADR-392 D5 — honest empty-state: available, not yet reading.
+          <span>Not reading yet — select channels to pull content in</span>
         )}
         {onViewFlow && (
           <button
@@ -310,6 +317,15 @@ export function ConnectedIntegrationsSection({
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
                       {slackIntegration ? (
                         <>
+                          {/* ADR-392 D7 — the Phase-2 Select subsurface toggle. */}
+                          <button
+                            onClick={() =>
+                              setManagingProvider((p) => (p === "slack" ? null : "slack"))
+                            }
+                            className="px-3 py-1.5 text-sm text-foreground border border-border rounded-md hover:bg-muted transition-colors"
+                          >
+                            {managingProvider === "slack" ? "Done" : "Manage channels"}
+                          </button>
                           <button
                             onClick={() => handleConnectIntegration("slack")}
                             disabled={connectingProvider === "slack"}
@@ -351,6 +367,9 @@ export function ConnectedIntegrationsSection({
                       )}
                     </div>
                     {slackConnected && renderFreshness("slack")}
+                    {slackConnected && managingProvider === "slack" && (
+                      <ConnectorSelectionPanel provider="slack" resourceNoun="channels" />
+                    )}
                   </div>
                 </div>
               </div>
@@ -383,6 +402,15 @@ export function ConnectedIntegrationsSection({
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
                       {notionIntegration ? (
                         <>
+                          {/* ADR-392 D7 — the Phase-2 Select subsurface toggle. */}
+                          <button
+                            onClick={() =>
+                              setManagingProvider((p) => (p === "notion" ? null : "notion"))
+                            }
+                            className="px-3 py-1.5 text-sm text-foreground border border-border rounded-md hover:bg-muted transition-colors"
+                          >
+                            {managingProvider === "notion" ? "Done" : "Manage pages"}
+                          </button>
                           <button
                             onClick={() => handleConnectIntegration("notion")}
                             disabled={connectingProvider === "notion"}
@@ -424,6 +452,9 @@ export function ConnectedIntegrationsSection({
                       )}
                     </div>
                     {notionConnected && renderFreshness("notion")}
+                    {notionConnected && managingProvider === "notion" && (
+                      <ConnectorSelectionPanel provider="notion" resourceNoun="pages" />
+                    )}
                   </div>
                 </div>
               </div>
@@ -456,6 +487,15 @@ export function ConnectedIntegrationsSection({
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
                       {githubIntegration ? (
                         <>
+                          {/* ADR-392 D7 — the Phase-2 Select subsurface toggle. */}
+                          <button
+                            onClick={() =>
+                              setManagingProvider((p) => (p === "github" ? null : "github"))
+                            }
+                            className="px-3 py-1.5 text-sm text-foreground border border-border rounded-md hover:bg-muted transition-colors"
+                          >
+                            {managingProvider === "github" ? "Done" : "Manage repos"}
+                          </button>
                           <button
                             onClick={() => handleConnectIntegration("github")}
                             disabled={connectingProvider === "github"}
@@ -497,6 +537,9 @@ export function ConnectedIntegrationsSection({
                       )}
                     </div>
                     {githubConnected && renderFreshness("github")}
+                    {githubConnected && managingProvider === "github" && (
+                      <ConnectorSelectionPanel provider="github" resourceNoun="repos" />
+                    )}
                   </div>
                 </div>
               </div>
@@ -708,8 +751,15 @@ export function ConnectedIntegrationsSection({
 
           <div className="p-4 bg-muted/30 rounded-lg text-sm text-muted-foreground">
             <p>
-              <strong>How it works:</strong> After connecting, a platform-awareness recurrence is created automatically.
-              Use &quot;Manage&quot; to pick which channels, pages, or repos it should read. Connectors here handle connect, reconnect, and disconnect.
+              {/* ADR-392 D5 — honest connect contract. Connecting makes a
+                  platform AVAILABLE; it does not start reading on its own.
+                  Selecting a channel/page/label + a capture recurrence is what
+                  makes it READ. The prior copy ("a platform-awareness recurrence
+                  is created automatically") promised an auto-sync that does not
+                  exist (no sync path fires on connect — landscape discovery lists
+                  names only). */}
+              <strong>How it works:</strong> Connecting makes a platform available to your operation — it doesn&apos;t start reading on its own.
+              Use &quot;Manage&quot; to pick which channels, pages, or repos are in scope; a capture then reads the selected ones into your workspace. Connectors here handle connect, reconnect, disconnect, and selection.
             </p>
           </div>
         </div>

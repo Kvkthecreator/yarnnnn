@@ -122,6 +122,52 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
 
 
 # =============================================================================
+# ADR-392 D9 — write-ready-by-construction invariant
+#
+# A connection is BOTH a peripheral-for-context-in (ADR-392) and a driver-for-
+# work-out (ADR-353): an active platform_connections row satisfies both the
+# read_{platform} (feeds: context) and write_{platform} (feeds: action)
+# capabilities on the same gate (orchestration.py CAPABILITIES). So the OAuth
+# connect flow MUST request the read+write scope UNION — otherwise a later
+# write_{platform} is capability-available but FAILS at execution for lack of the
+# write scope, forcing a re-auth. The connect flow requesting write scopes up
+# front is what makes a connection write-ready by construction.
+#
+# Today this already holds for the first-party providers (slack: chat:write +
+# im:write; github: repo; notion: app-level, no per-OAuth scope). This map makes
+# the invariant EXPLICIT and the validator below GUARDS it: adding a provider
+# that ships a write_{platform} capability but read-only OAuth scopes fails the
+# check loudly instead of shipping a connection that can't write. `None` = the
+# provider's write authority is not expressed as an OAuth scope (notion's app-
+# level model; a Composio-BYO provider whose scopes it owns) — exempt.
+WRITE_SCOPE_MARKERS: dict[str, Optional[list[str]]] = {
+    "slack": ["chat:write", "im:write"],
+    "github": ["repo"],
+    "notion": None,   # write authority set at the Notion app level, not per-OAuth
+    "reddit": ["submit"],
+}
+
+
+def connection_is_write_ready(provider: str) -> bool:
+    """Does provider's OAuth config request enough scope to accommodate its
+    kernel-universal write_{platform} capability (ADR-392 D9)?
+
+    True when: the provider is exempt (marker is None — write not scope-expressed),
+    OR at least one of its write-scope markers is present in its configured scopes.
+    A provider with NO OAuth config is trivially not write-ready.
+    """
+    cfg = OAUTH_CONFIGS.get(provider)
+    if cfg is None:
+        return False
+    markers = WRITE_SCOPE_MARKERS.get(provider, None)
+    if markers is None:
+        # Either explicitly exempt, or an unknown provider with no declared marker
+        # (treated as exempt — no write capability assumed until declared).
+        return True
+    return any(any(m in s for s in cfg.scopes) for m in markers)
+
+
+# =============================================================================
 # OAuth State Management
 #
 # LIMITATION: In-memory state dict. OAuth flows started on one process/instance

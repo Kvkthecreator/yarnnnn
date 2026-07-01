@@ -1919,12 +1919,42 @@ async def update_selected_sources(
         "landscape": landscape,
     }).eq("id", integration.data[0]["id"]).execute()
 
+    # ADR-392 D7 (Phase 2 Select) — the landscape row is the UI-selection cache;
+    # the WATCH DECLARATION is the substrate the capture recurrence reads. Mirror
+    # the selection into operation/_connectors/{platform}/_watch.yaml so Phase 3
+    # (SyncPlatformState capture) has a consumer. This is what gives
+    # selected_sources a consumer (the gap ADR-392 D3 named). Every resource the
+    # operator could pick is recorded with its in/out state so a de-select is a
+    # `selected: false` entry, not an omission (the walker sees the full set).
+    try:
+        from services.connector_watch import write_selection
+        db_platform = providers_to_try[0]
+        selected_id_set = set(allowed_ids)
+        declaration_selections = [
+            {
+                "id": r.get("id"),
+                "name": r.get("name", r.get("id")),
+                "selected": r.get("id") in selected_id_set,
+            }
+            for r in resources
+            if r.get("id")
+        ]
+        await write_selection(
+            auth.client, user_id, db_platform, declaration_selections,
+            authored_by="operator",
+        )
+    except Exception as exc:  # noqa: BLE001 — declaration mirror is best-effort
+        logger.warning(
+            "[INTEGRATIONS] ADR-392: connector-watch declaration write failed for %s: %s",
+            provider, exc,
+        )
+
     logger.info(f"[INTEGRATIONS] User {user_id} updated {provider} sources: {len(selected_sources)} selected")
 
     return SelectedSourcesResponse(
         success=True,
         selected_sources=selected_sources,
-        message=message,
+        message=f"{len(selected_sources)} source(s) selected",
     )
 
 
