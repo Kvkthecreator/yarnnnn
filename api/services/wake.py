@@ -1518,6 +1518,7 @@ async def _invoke_substrate_event_wake(
     path: str,
     field_change: dict,
     revision_id: Optional[str] = None,
+    principal_id: Optional[str] = None,
 ) -> dict:
     """Invoke the Reviewer with a substrate-event hook's prompt as envelope.
 
@@ -1553,6 +1554,7 @@ async def _invoke_substrate_event_wake(
             status="failed", error_reason="empty_hook_prompt",
             wake_source="substrate_event",
             funnel_decision="skip",
+            principal_id=principal_id,
         )
         return {
             "success": False,
@@ -1577,6 +1579,7 @@ async def _invoke_substrate_event_wake(
             status="failed", error_reason="balance_exhausted",
             wake_source="substrate_event",
             funnel_decision="skip",
+            principal_id=principal_id,
         )
         return {
             "success": False, "slug": slug, "source": "substrate_event",
@@ -1641,6 +1644,7 @@ async def _invoke_substrate_event_wake(
             envelope_load_ms=_env_ms,
             wake_source="substrate_event",
             funnel_decision="escalate",
+            principal_id=principal_id,
         )
         return {
             "success": False, "slug": slug, "source": "substrate_event",
@@ -1663,6 +1667,7 @@ async def _invoke_substrate_event_wake(
         tool_rounds=_ro.get("tool_rounds"),
         wake_source="substrate_event",
         funnel_decision="escalate",
+        principal_id=principal_id,
     )
 
     # ADR-325 follow-on (2026-06-29 finding): mechanically embed any eligible files

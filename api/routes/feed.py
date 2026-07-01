@@ -1127,11 +1127,14 @@ async def global_chat(
         """
         from agents.occupant_contract import FREDDIE_MODEL_IDENTITY  # ADR-315
         from services.freddie_chat_surfacing import write_freddie_message
-        from services.supabase import get_service_client
+        from services.supabase import get_service_client, resolve_principal_id
         from services.telemetry import record_execution_event
         from services.wake_sources.addressed import stream as wake_addressed_stream
         from datetime import timezone as _tz
         addressed_started_at = datetime.now(_tz.utc)
+        # Capture-first (migration 192): attribute the addressed cycle to the
+        # principal that spoke (the owner user_id on a human JWT; ADR-373).
+        addressed_principal = resolve_principal_id(auth)
 
         # ADR-298: wake_queue is service-role-only per RLS. The addressed-wake
         # stream enqueues into wake_queue (single-lane serialization). Pass
@@ -1268,6 +1271,7 @@ async def global_chat(
                         tool_rounds=out.get("tool_rounds"),
                         wake_source="addressed",  # ADR-296 v2 D1
                         funnel_decision="escalate",  # ADR-296 v2 D2: operator presence is wake-warrant
+                        principal_id=addressed_principal,
                     )
                     logger.info(
                         "[REVIEWER] addressed for user=%s actions=%d",
@@ -1293,6 +1297,7 @@ async def global_chat(
                 duration_ms=addressed_duration_ms,
                 wake_source="addressed",  # ADR-296 v2 D1
                 funnel_decision="escalate",  # ADR-296 v2 D2: operator presence escalated; Reviewer raised
+                principal_id=addressed_principal,
             )
             raise
 
