@@ -47,15 +47,17 @@ def test_registry_tiers() -> None:
 
     check("every navigable surface declares a tier", all(tiers.values()), str({k: v for k, v in tiers.items() if not v}))
     check(
-        # ADR-349 D1/D3: primary == the standing loop — Home + Notifications
-        # (the composition, was 'operation') + Files + Agents (the judgment
-        # seat upgraded to first-class).
+        # ADR-349 D1/D3: primary == the standing loop — Home + Files + Agents
+        # (the judgment seat upgraded to first-class).
         # ADR-370 (2026-06-25): the boundary composition joins the primary tier,
         # inheriting the slot the Feed vacated. ADR-385 (2026-06-29): renamed
         # `context` → `channels`. ADR-385 follow-on (2026-06-30): the legacy
         # `context`/`feed` alias rows are deleted; the live primary is `channels`.
-        "primary == the standing loop (home/channels/notifications/files/agents)",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "channels", "notifications", "files", "agents"},
+        # 2026-07-01 operator re-sort: Notifications LEAVES the primary loop for
+        # its own bottom launcher group (it's the always-present top-bar bell).
+        # The Workspace loop is now Home · Channels · Files · Agents.
+        "primary == the standing loop (home/channels/files/agents)",
+        {s for s, t in tiers.items() if t == "primary"} == {"home", "channels", "files", "agents"},
     )
     # ADR-349 D4: two settings doors re-split — Workspace Settings (operation)
     # + System Settings (account). The `configure` lump (ADR-347) is retired.

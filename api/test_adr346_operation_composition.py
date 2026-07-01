@@ -50,7 +50,11 @@ def test_registry_window_grade() -> None:
     if not op:
         return
     check("window-grade (no pane_of — a composition, not a pane)", "pane_of" not in op)
-    check("launcher_tier == primary (the default operating destination)", op.get("launcher_tier") == "primary")
+    # 2026-07-01 operator re-sort: Notifications moved from the primary loop to
+    # its own bottom launcher group (`notifications` tier). Still the default
+    # operating destination via the top-bar bell — the launcher tile just moved
+    # below the Workspace loop (Home · Channels · Files · Agents).
+    check("launcher_tier == notifications (own bottom group)", op.get("launcher_tier") == "notifications")
     check("register == application (a windowed composition)", op.get("register") == "application")
     check("route == /notifications", op.get("route") == "/notifications")
     check("composes substrate (substrate_paths empty — owns no files)", op.get("substrate_paths") == [])

@@ -89,6 +89,12 @@ const KERNEL_TIER_GROUPS: { key: string; label: string; tier: string }[] = [
   { key: 'kernel:primary', label: 'Workspace', tier: 'primary' },
   { key: 'kernel:workspace-config', label: 'Workspace Settings', tier: 'workspace-config' },
   { key: 'kernel:system-config', label: 'System Settings', tier: 'system-config' },
+  // 2026-07-01 — operator re-sort: Notifications leaves the primary loop for
+  // its OWN group at the very BOTTOM, under both Settings doors. It stays
+  // visible + browsable (not search-only) but out of the top-four Workspace
+  // loop — it's also the always-present top-bar bell (ADR-349 "one name, two
+  // zooms"), so its at-rest launcher tile was redundant up top.
+  { key: 'kernel:notifications', label: 'Notifications', tier: 'notifications' },
 ];
 
 function kernelTierGroupFor(s: Surface): { key: string; label: string } | null {

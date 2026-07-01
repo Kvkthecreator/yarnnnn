@@ -219,6 +219,41 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # returning operator's kept icon collapses onto the live Channels icon —
     # no vanished icon, no duplicate. (Was: two search-only alias rows here.)
     {
+        # ADR-312 D1 (2026-06-02): the cockpit surface renames to `home`.
+        # The home is a composition over the workspace's present
+        # constituents (six kernel slots, top→bottom; the program declares
+        # each slot's weight/label/shape via the compositor) — substrate-
+        # forward when empty, operation-forward when a program runs. The
+        # four-face stack (ADR-228) and fixed trader section sequence
+        # (ADR-273) survive ONLY as a program's declared composition, never
+        # as the kernel default. The atomic Home surface hosts HomeRenderer.
+        # (Was: ADR-297 D1 cockpit, the 13th kernel surface.)
+        #
+        # 2026-07-01 — Home is FIRST in the primary (Workspace) launcher group
+        # (operator re-sort: Home · Channels · Files · Agents). Array position
+        # within a `launcher_tier` is the at-rest display order (Launcher.tsx
+        # preserves compositor order within a tier group).
+        "slug": "home",
+        "launcher_tier": "primary",  # ADR-340 P3
+        "register": "application",  # ADR-309 / ADR-312 D5 two-register model
+        "title": "Home",
+        "archetype": "dashboard",
+        "substrate_paths": [
+            "/workspace/constitution/MANDATE.md",
+            "/workspace/governance/_autonomy.yaml",
+            "/workspace/operation/_performance.md",
+            "/workspace/operation/_performance_summary.md",
+        ],
+        # 2026-06-03: icon → `home`. Post the ADR-312 cockpit→home rename the
+        # square-activity glyph (a "live operations monitor" shape) no longer
+        # matched the surface's name or operator mental model. The literal
+        # home glyph reads unambiguously as "the home surface."
+        "icon_key": "home",
+        "default_pinned": False,
+        "route": "/home",  # ADR-312 D1 (was /cockpit)
+        "summary": "The operation, rendered — constitution, ground-truth, decision queue, live entities, recent artifacts, judgment trail. Composition over the workspace's present constituents.",
+    },
+    {
         # ADR-370 (2026-06-25) → ADR-377 (2026-06-26) → ADR-385 (2026-06-29):
         # Channels — the operation's perception + principal surface (was
         # `context`; renamed because "context" is ambiguous with the
@@ -256,36 +291,6 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "The operation's edge — what feeds it (Connections, Sources), who can write it (External Agents), and the running record of every crossing (Flow, In, Out).",
     },
     {
-        # ADR-312 D1 (2026-06-02): the cockpit surface renames to `home`.
-        # The home is a composition over the workspace's present
-        # constituents (six kernel slots, top→bottom; the program declares
-        # each slot's weight/label/shape via the compositor) — substrate-
-        # forward when empty, operation-forward when a program runs. The
-        # four-face stack (ADR-228) and fixed trader section sequence
-        # (ADR-273) survive ONLY as a program's declared composition, never
-        # as the kernel default. The atomic Home surface hosts HomeRenderer.
-        # (Was: ADR-297 D1 cockpit, the 13th kernel surface.)
-        "slug": "home",
-        "launcher_tier": "primary",  # ADR-340 P3
-        "register": "application",  # ADR-309 / ADR-312 D5 two-register model
-        "title": "Home",
-        "archetype": "dashboard",
-        "substrate_paths": [
-            "/workspace/constitution/MANDATE.md",
-            "/workspace/governance/_autonomy.yaml",
-            "/workspace/operation/_performance.md",
-            "/workspace/operation/_performance_summary.md",
-        ],
-        # 2026-06-03: icon → `home`. Post the ADR-312 cockpit→home rename the
-        # square-activity glyph (a "live operations monitor" shape) no longer
-        # matched the surface's name or operator mental model. The literal
-        # home glyph reads unambiguously as "the home surface."
-        "icon_key": "home",
-        "default_pinned": False,
-        "route": "/home",  # ADR-312 D1 (was /cockpit)
-        "summary": "The operation, rendered — constitution, ground-truth, decision queue, live entities, recent artifacts, judgment trail. Composition over the workspace's present constituents.",
-    },
-    {
         # ADR-346 (2026-06-19) — the Operation surface, the SECOND composition
         # window (Home was the first, serving Dwell). A composition OVER the
         # operational mirrors, not a new mirror: one door for operating the
@@ -307,7 +312,17 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # window is the full surface. Pane keys (resolve/understand/tune) +
         # the ADR-340 D2 act identities (Decide/Read/Tune) are unchanged.
         "slug": "notifications",
-        "launcher_tier": "primary",  # ADR-346/349 — the operating-work composition, Workspace tier
+        # 2026-07-01 — operator re-sort: Notifications leaves the primary
+        # (Workspace) loop for its OWN launcher group at the very bottom, under
+        # both Settings doors. Rationale: it is the operating-work composition
+        # fronting Feed/Queue/Recurrence, AND it is always reachable as the
+        # top-bar bell (ADR-349 D2 "one name, two zooms") — so the at-rest
+        # launcher tile is redundant with the bell for the primary loop; demoting
+        # it declutters the Workspace group (Home · Channels · Files · Agents)
+        # without hiding it (own tier, still browsable). A new `notifications`
+        # tier rather than search-only: the operator asked for it visible-but-
+        # below, not hidden.
+        "launcher_tier": "notifications",  # own bottom group (was `primary`)
         "register": "application",  # a windowed composition like home / workspace-settings
         "title": "Notifications",
         "archetype": "dashboard",  # composition over multiple substrates

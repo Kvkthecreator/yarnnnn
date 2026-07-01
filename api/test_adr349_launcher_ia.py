@@ -45,17 +45,25 @@ def test_at_rest_launcher() -> None:
     from services.kernel_surfaces import KERNEL_SURFACES
 
     tiers = {e["slug"]: e.get("launcher_tier") for e in KERNEL_SURFACES if e.get("route")}
-    # D1/D3 — Workspace tier = the standing loop (Home + Notifications + Files
-    # + Agents). Agents upgraded (D3).
+    # D1/D3 — Workspace tier = the standing loop. Agents upgraded (D3).
     # ADR-370 (2026-06-25): the boundary composition joins the primary tier,
     # inheriting the slot the Feed vacated. ADR-385 (2026-06-29): that surface
     # is `channels` (renamed from `context`). ADR-385 follow-on (2026-06-30):
     # the legacy `context`/`feed` alias rows are DELETED, so the live primary
     # perception surface is `channels`.
+    # 2026-07-01 (operator re-sort): Notifications LEAVES the primary loop for
+    # its own bottom group (`notifications` tier) — it's the always-present
+    # top-bar bell, so its at-rest primary tile was redundant. The Workspace
+    # loop is now Home · Channels · Files · Agents.
     check(
-        "primary == {home, channels, notifications, files, agents}",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "channels", "notifications", "files", "agents"},
+        "primary == {home, channels, files, agents}",
+        {s for s, t in tiers.items() if t == "primary"} == {"home", "channels", "files", "agents"},
         str(sorted(s for s, t in tiers.items() if t == "primary")),
+    )
+    check(
+        "notifications == its own bottom tier (2026-07-01 re-sort)",
+        tiers.get("notifications") == "notifications",
+        str(tiers.get("notifications")),
     )
     # D4 — two settings doors.
     check("workspace-config == {workspace-settings}",
@@ -101,7 +109,9 @@ def test_notifications_rename() -> None:
     n = by_slug.get("notifications", {})
     check("notifications route == /notifications", n.get("route") == "/notifications")
     check("notifications title == 'Notifications'", n.get("title") == "Notifications")
-    check("notifications stays primary (Workspace tier)", n.get("launcher_tier") == "primary")
+    # 2026-07-01 re-sort: Notifications moved to its own bottom launcher group
+    # (was primary). Still browsable, still the top-bar bell.
+    check("notifications is its own bottom tier", n.get("launcher_tier") == "notifications")
     # FE wiring renamed.
     desk = _read("types/desk.ts")
     check("desk.ts slug union renamed to 'notifications'", "'notifications'" in desk and "| 'operation'" not in desk)
@@ -138,6 +148,8 @@ def test_launcher_groups() -> None:
     check("Workspace group", "label: 'Workspace'" in src and "tier: 'primary'" in src)
     check("Workspace Settings group", "label: 'Workspace Settings'" in src and "tier: 'workspace-config'" in src)
     check("System Settings group", "label: 'System Settings'" in src and "tier: 'system-config'" in src)
+    # 2026-07-01 re-sort: Notifications is its own bottom group.
+    check("Notifications group (bottom)", "label: 'Notifications'" in src and "tier: 'notifications'" in src)
     check("Utilities group removed", "label: 'Utilities'" not in src)
     check("un-tiered fallback hides at rest (no dead-group tile)", "?? null" in src)
 
