@@ -102,26 +102,36 @@ export default function ChannelsPage() {
 
   const renderPane = (pane: string) => {
     switch (pane) {
-      case "connectors":
-        // The OWNED rich connector UI — the perception home (ADR-377). Status
-        // + coverage + freshness per platform; "View flow →" switches to the
-        // Flow pane. redirectTo lands the OAuth round-trip back here.
+      case "connectors": {
+        // The OWNED rich connector UI — the perception home (ADR-377/392).
+        // ADR-392 Phase B: `channels.connector=<provider>` drills into a
+        // connected connector's DEEP Manage subsurface (declared × observed
+        // selection + freshness). Absent → the connections list (drill-in rows +
+        // New-connection discovery + the workspace retention dial). The pane
+        // header hides in the drill-in — the subsurface owns its back-crumb.
+        const activeConnector = surfaceParam.get("connector");
         return (
           <div className="flex h-full flex-col">
-            <PaneHeader
-              icon={Link2}
-              title="Connections"
-              subtitle="Connected platforms feeding the operation — status, coverage, and freshness."
-            />
+            {!activeConnector && (
+              <PaneHeader
+                icon={Link2}
+                title="Connections"
+                subtitle="Connected platforms feeding the operation — status, coverage, and freshness."
+              />
+            )}
             <div className="flex-1 overflow-y-auto p-6">
               <ConnectedIntegrationsSection
                 redirectTo="/channels?channels.pane=connectors"
                 showFreshness
                 onViewFlow={() => surfaceParam.set({ pane: "flow" })}
+                activeConnector={activeConnector}
+                onManageConnection={(provider) => surfaceParam.set({ connector: provider })}
+                onBackFromManage={() => surfaceParam.set({ connector: null })}
               />
             </div>
           </div>
         );
+      }
       case "sources":
         // Standing web/RSS watches (ADR-336). The non-platform half of the
         // Perception field.

@@ -300,6 +300,10 @@ class ExecutionEventRow(BaseModel):
     cost_usd: Optional[float] = None
     duration_ms: Optional[int] = None
     created_at: str
+    # Capture-first (migration 192): the principal that caused this invocation
+    # (owner user_id | foreign-LLM provider host-id | agent slug). NULL for rows
+    # written before the migration. Drives the per-principal cost rollup.
+    principal_id: Optional[str] = None
 
 
 @router.get("/execution-events", response_model=list[ExecutionEventRow])
@@ -323,7 +327,7 @@ async def get_execution_events(
         .select(
             "id, slug, mode, trigger_type, status, error_reason, error_detail, "
             "tool_rounds, input_tokens, output_tokens, cache_read_tokens, "
-            "cache_create_tokens, cost_usd, duration_ms, created_at"
+            "cache_create_tokens, cost_usd, duration_ms, created_at, principal_id"
         )
         .eq("user_id", auth.user_id)
         .order("created_at", desc=True)

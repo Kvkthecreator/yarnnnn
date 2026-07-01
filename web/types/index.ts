@@ -928,6 +928,11 @@ export interface ExecutionEvent {
   cost_usd: number | null;
   duration_ms: number | null;
   created_at: string;
+  // Capture-first (migration 192): the principal that caused this invocation
+  // (owner user_id | foreign-LLM provider host-id like "chatgpt"/"claude.ai" |
+  // agent slug). null for rows predating the migration. Drives the
+  // per-principal cost rollup on the Activity surface.
+  principal_id: string | null;
 }
 
 // ADR-119 Phase 4b: Output manifest (used by agent outputs)

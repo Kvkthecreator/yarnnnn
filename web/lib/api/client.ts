@@ -1682,6 +1682,42 @@ export const api = {
         error_count: number;
       }>(`/api/integrations/${provider}/sync-status`),
 
+    // ADR-393 D3 / ADR-392 Phase B: declared × observed for a connector's
+    // capture lane. `declared` = the watch declaration (which selectors are in
+    // scope); `observed` = the capture lane's per-declaration health blocks
+    // (freshness). The "observed" half of the enriched selection surface.
+    getCaptureSignal: (provider: "slack" | "notion" | "github") =>
+      request<{
+        provider: string;
+        declared: Array<{ id: string; name: string | null; selected: boolean }>;
+        observed: Record<
+          string,
+          {
+            status?: string;
+            observed_at?: string;
+            items?: number;
+            target?: string;
+            last_error?: string;
+          }
+        >;
+        workspace_capture_count: number;
+      }>(`/api/integrations/${provider}/capture-signal`),
+
+    // ADR-392 D8: the workspace-level raw-capture retention window
+    // (governance/_retention.yaml). One window for all connectors.
+    getRetention: () =>
+      request<{
+        retention_days: number;
+        default_days: number;
+        presets: number[];
+      }>("/api/integrations/retention"),
+
+    updateRetention: (retentionDays: number) =>
+      request<{ retention_days: number; success: boolean }>(
+        "/api/integrations/retention",
+        { method: "PUT", body: JSON.stringify({ retention_days: retentionDays }) },
+      ),
+
     // ADR-049: Trigger platform sync (alias for triggerSync with broader typing)
     syncPlatform: (provider: string) =>
       request<{
