@@ -12,9 +12,9 @@ import type { Metadata } from "next";
 
 export const BRAND = {
   name: "yarnnn",
-  tagline: "One memory for every AI you use",
+  tagline: "Shared memory for AI + human work",
   description:
-    "yarnnn keeps everything your AI tools know about you in one place you own. Tell ChatGPT today, and Claude knows it tomorrow — and you can see every change. Free to start.",
+    "Memory, context, and files that stay with you. Tell ChatGPT today, and Claude knows it tomorrow — everything your AI learns about you lives in one place you own, and every change is yours to trace.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://yarnnn.com",
   ogImage: "/assets/logos/og-card.png",
 };

@@ -11,7 +11,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA, PRIMARY_CTA_LABEL } from "@/lib/cta";
 
 export const metadata: Metadata = getMarketingMetadata({
-  title: "How yarnnn works — one memory for every AI",
+  title: "How yarnnn works — shared memory for AI + human work",
   description:
     "Connect your tools, and everything your AI knows lands in one place you own — reachable from every app, with a full history of every change. Here's the loop.",
   path: "/how-it-works",

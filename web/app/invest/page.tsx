@@ -7,15 +7,15 @@ import { SpotlightCard, BentoGrid } from "@/components/landing/SpotlightCard";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = getMarketingMetadata({
-  title: "Invest — the accountability layer the platforms can't build",
+  title: "Invest — the shared memory layer for AI + human work",
   description:
-    "Platforms build delegates; they won't build the layer that holds delegates accountable. yarnnn is the cumulative, accountable workspace with a neutral judgment seat — premium, high-ACV, expansion-led.",
+    "The neutral, attributed memory layer for AI + human work — one place the operator owns, that every model and teammate reads and writes, with every change traceable. Premium, high-ACV, expansion-led.",
   path: "/invest",
   keywords: [
     "yarnnn invest",
-    "ai accountability layer",
-    "ai judgment seat",
-    "cumulative ai workspace",
+    "shared ai memory",
+    "ai memory infrastructure",
+    "neutral ai memory layer",
     "model-agnostic ai infrastructure",
     "high-acv ai",
   ],
@@ -44,32 +44,32 @@ export default function InvestPage() {
         <LandingHeader inverted />
 
         <main className="flex-1">
-          {/* Hero — self-audit thesis */}
+          {/* Hero — shared-memory thesis */}
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              Platforms build delegates.
+              <span className="text-[#de5a2b]">Shared memory for AI + human work.</span>
               <br />
               <span className="text-white/50">
-                They won&apos;t build the layer that holds them accountable.
+                The neutral layer no model maker can build.
               </span>
             </h1>
             <div className="max-w-2xl space-y-6 text-white/50">
               <p>
-                For the same structural reason ratings agencies aren&apos;t run by the banks they
-                rate: a platform judging its own model&apos;s agents has a self-audit problem. A
-                neutral, model-agnostic judgment seat does not. Their economics want more autonomy
-                with less friction; accountable autonomy <em>is</em> friction, productized.
+                Every model now has memory — but each one&apos;s is walled to its own app, by design.
+                A memory that works across all of them, and across the humans and agents who share
+                the work, can&apos;t belong to any one of them. Being neutral across your rivals is
+                the one thing a rival structurally can&apos;t do.
               </p>
               <p>
-                yarnnn is the workspace where the work you run is cumulative and every consequential
-                call passes through a judgment seat with a track record. The substrate is the asset,
-                the agents are the labor, the seat is the management, the artifacts are the
-                dividends.
+                yarnnn is that layer: one place the operator owns, where every model, teammate, and
+                agent reads and writes, and every change is attributed and traceable. Owned,
+                cross-principal, version-controlled memory — git&apos;s model for AI context, served
+                to every room. Accountable judgment over that commons is the expansion layer on top.
               </p>
               <p className="text-white font-medium">
-                The composition is unoccupied: the memory category is funded but has no judgment
-                layer; the agent category is exploding but has no owned substrate. The window for
-                &ldquo;the accountable one&rdquo; is open now.
+                The composition is unoccupied: the memory category is funded but single-principal and
+                walled; the agent category is exploding but has no owned, neutral substrate. The
+                window for &ldquo;the neutral one&rdquo; is open now.
               </p>
             </div>
           </section>
@@ -94,7 +94,7 @@ export default function InvestPage() {
                 <SpotlightCard variant="dark" className="md:col-span-3" spotlightColor="rgba(99,102,241,0.06)">
                   <div className="p-6 md:p-8">
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Diligence surface</div>
-                    <p className="text-2xl md:text-3xl font-medium mb-3">300+ decisions, in the open</p>
+                    <p className="text-2xl md:text-3xl font-medium mb-3">377 decisions, in the open</p>
                     <p className="text-white/50 text-sm leading-relaxed">
                       Every architectural decision is recorded. The receipts culture is the
                       identity — and the diligence surface. Attribution is enforced at the write
@@ -346,7 +346,7 @@ export default function InvestPage() {
                 <p>
                   Shipped the entire product solo: full-stack application (Next.js + FastAPI +
                   Supabase), platform integrations, the authored-substrate write path, the judgment
-                  seat, and the calibration loop &mdash; documented across 300+ Architecture Decision
+                  seat, and the calibration loop &mdash; documented across 377 Architecture Decision
                   Records and run on its own operations before raising a dollar.
                 </p>
               </div>

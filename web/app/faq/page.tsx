@@ -16,30 +16,30 @@ interface FaqSection {
   items: FaqItem[];
 }
 
-// ≤12 entries per SITE-COPY-SPEC-v1 §4. Competitive lines are GTM v4 §4 verbatim.
+// ≤12 entries per SITE-COPY-SPEC-v1 §4.
 const faqSections: FaqSection[] = [
   {
     category: "The difference",
     items: [
       {
-        question: "How is this different from ChatGPT, Claude, or Cowork?",
+        question: "How is this different from ChatGPT or Claude's memory?",
         answer:
-          "Concede the capability parity plainly: they have scheduled delegates, persistent workspaces, and memory marketed as improvement. What they structurally lack is owned, attributed substrate and an independent judgment seat — because the vendor that builds the delegate also grades it. They grade their own homework. Your seat here has a track record you can read.",
+          "Their memory is walled to their own app — you can't read inside it, version it, or take it with you. yarnnn is one memory that lives outside any single AI: every model reads and writes it, every change is signed and dated, and it's yours to export. Write it in Claude, and it's there in ChatGPT.",
       },
       {
         question: "Is my data mine?",
         answer:
-          "Yes, structurally. Every file is attributed; every revision is kept; the workspace is exportable and reachable from other AIs via MCP. The workspace is the asset — and we never train on it. Memory remembers; this owns, attributes, and answers for what it produces.",
+          "Yes. Every file is attributed, every version is kept, and the whole thing is exportable and reachable from any AI over MCP. It's yours to own — and we never train on it.",
       },
       {
-        question: "What's an operation? What's a program?",
+        question: "What is 'trace'?",
         answer:
-          "An operation is an activated program running on your workspace — your newsletter operation, your portfolio operation. A program declares what the operation watches, produces, and counts as ground truth. Each operation runs on its own seat with its own delegation dial. The workspace itself is never paid.",
+          "Trace shows how any fact changed over time — who changed it, when, and what it was before. It's the thing a plain storage connector or an app's built-in memory can't show you: the full history behind what your AI knows.",
       },
       {
-        question: "What does the Reviewer actually do?",
+        question: "Does it work across my team, not just me?",
         answer:
-          "It's the judgment seat. It evaluates consequential actions against the principles you authored, returns a verdict with reasoning, and reconciles past calls against what actually happened — the trail is the proof. Not a content filter. An approval button isn't judgment; judgment has a track record.",
+          "Yes — the same memory can be written to by you, your teammates, your tools, and even your own AI agents, and you can always see who added what. Working solo is just the simplest case.",
       },
     ],
   },
@@ -47,19 +47,19 @@ const faqSections: FaqSection[] = [
     category: "The work",
     items: [
       {
-        question: "Can it write my newsletter for me?",
+        question: "How do I put things in, and get them out?",
         answer:
-          "It drafts, researches, and runs the operation around the work — but what ships under your name is yours to approve. For work where being you is the product, it's the desk, not the byline. The value it adds is the cumulative substrate underneath: provenance, consistency, and corrections that carry forward.",
+          "Connect your tools (Slack, Notion, your files), or just tell any connected AI to remember something. Any other AI can then recall it on the next session — no copy-paste, no re-explaining who you are.",
       },
       {
-        question: "Which model powers it?",
+        question: "Which AI models does it work with?",
         answer:
-          "Model-agnostic by design. The seat's value depends on its independence — a platform refereeing its own model's agents has a self-audit problem a neutral seat doesn't. Judgments are calibrated against outcomes, not against a vendor's say-so.",
+          "Any that speak MCP — ChatGPT, Claude, and others. It's neutral on purpose: it isn't tied to any one model, which is exactly why it can sit across all of them.",
       },
       {
-        question: "Is this autonomous trading? Is this financial advice?",
+        question: "What's the 'second set of eyes' I've seen mentioned?",
         answer:
-          "No, and no. There are no performance claims and no advice here. You author the rules; the seat enforces them; execution is paper-first. You decide how much it may do without you, and the trail shows you everything.",
+          "That's the optional checker (in beta): an assistant that reviews important work before it goes out, against rules you set, and keeps a record of every call it makes. The memory is valuable on its own; the checker is an upgrade you turn on when you're ready.",
       },
     ],
   },
@@ -69,17 +69,17 @@ const faqSections: FaqSection[] = [
       {
         question: "What does it cost?",
         answer:
-          "The workspace is free forever — your files, your context, reachable from any AI. It's pay-as-you-go: when you run an operation, you pay only the usage it draws, metered at transparent rates and read line by line, with a hard stop at zero. No seats, no subscription, no feature gates. Every workspace starts with a $3 balance; top up from $10 when you need more.",
+          "Your memory is free forever — your files, your context, reachable from any AI. You only pay when the optional assistant is working: pay-as-you-go, metered at transparent rates, drawn from a balance, with a hard stop at zero. No seats, no subscription, no feature gates. Every workspace starts with a $3 balance; top up from $10 when you need more.",
       },
       {
-        question: "Can I cap how much an operation spends?",
+        question: "Can I cap what it spends?",
         answer:
-          "Yes — that's the budget. You set a monthly ceiling (most workspaces start around $50; $100 and $150+ suit busier ones), and the agent paces its own work to stay under it: it decides how often to run, you decide the most it can cost. It's a cap you set, not a charge we bill — you're still only charged for the usage that actually runs. Set any amount in chat or the in-app dial, and change it anytime. So you get two guardrails: a ceiling you plan, and a floor (zero balance) that never lets anything break.",
+          "Yes. Set a monthly ceiling (most start around $50; $100 and $150+ suit busier use), and the assistant paces itself to stay under it. It's a cap you set, not a charge we bill — you're only ever charged for what actually runs. Two guardrails: a ceiling you plan, and a floor (zero balance) that never lets anything break.",
       },
       {
-        question: "What happens when my balance hits zero, or I stop running an operation?",
+        question: "What if my balance hits zero, or I turn the assistant off?",
         answer:
-          "Nothing is deleted. If the balance hits zero, the operation pauses — top up to resume. If you stop running an operation, it simply stops drawing usage. In every case the workspace and every file remain yours, free.",
+          "Nothing is deleted. At zero, the assistant pauses — top up to resume. Turn it off and it simply stops drawing usage. Either way, your memory and every file stay yours, free.",
       },
     ],
   },
@@ -89,12 +89,12 @@ const faqSections: FaqSection[] = [
       {
         question: "How do I start?",
         answer:
-          "Start free on the bare workspace. Pick a program (or stay bare), write the constitution — what it's for, the rules it judges by, how much it may do alone — connect your platforms and bring in your reality, and watch the first artifact synthesize from your context with full provenance.",
+          "Start free. Connect an AI tool over MCP (or upload files, or just start typing), tell it something worth keeping, and watch it show up in the next AI you open — with the full history intact.",
       },
       {
         question: "What's the best first move?",
         answer:
-          "Author your context and run one artifact, so you see the provenance and the correction loop firsthand — or bring an existing history and watch the seat reconcile it into a calibration trail. Either way, the asset exists on day one and compounds from there.",
+          "Connect the two AIs you use most, and save one thing in one of them. Open the other and recall it. That round-trip — write once, there everywhere, fully traceable — is the whole idea in about thirty seconds.",
       },
     ],
   },
@@ -103,16 +103,16 @@ const faqSections: FaqSection[] = [
 const allFaqItems = faqSections.flatMap((s) => s.items);
 
 export const metadata = getMarketingMetadata({
-  title: "FAQ — the accountable, cumulative AI workspace",
+  title: "FAQ — shared memory for AI + human work",
   description:
-    "How yarnnn differs from ChatGPT, Claude, and Cowork; what an operation is; what the judgment seat does; pricing; and how to get started.",
+    "How yarnnn differs from ChatGPT and Claude memory, what 'trace' is, how it works across your AIs and your team, pricing, and how to get started.",
   path: "/faq",
   keywords: [
     "yarnnn faq",
-    "accountable ai faq",
-    "ai judgment seat faq",
-    "cumulative ai workspace faq",
-    "ai operation pricing faq",
+    "shared ai memory faq",
+    "cross-llm memory faq",
+    "portable ai memory",
+    "ai memory pricing faq",
   ],
 });
 
@@ -166,7 +166,7 @@ export default function FaqPage() {
 
             <div className="mt-24 text-center">
               <h2 className="text-2xl font-medium mb-4">Still have questions?</h2>
-              <p className="text-white/50 mb-8">Start free on the workspace and watch the first artifact compound.</p>
+              <p className="text-white/50 mb-8">Start free — save one thing in one AI and watch it show up in the next.</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link
                   href={CTA.signup}

@@ -83,7 +83,7 @@ export default function AboutPage() {
           {/* Hero — self-audit thesis */}
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              We built the memory layer
+              We built the <span className="text-[#de5a2b]">memory layer</span>
               <br />
               <span className="text-white/50">the AI giants can&apos;t.</span>
             </h1>

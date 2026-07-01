@@ -32,7 +32,7 @@ export async function GET() {
     "",
     "## Key pages",
     "",
-    `- [Home](${BRAND.url}): One memory for every AI you use`,
+    `- [Home](${BRAND.url}): Shared memory for AI + human work`,
     `- [How It Works](${BRAND.url}/how-it-works): The substrate loop — capture, recall, trace`,
     `- [Pricing](${BRAND.url}/pricing): Free workspace + pay-as-you-go usage (no seats, no subscription)`,
     `- [FAQ](${BRAND.url}/faq): Product model, integrations, and pricing`,

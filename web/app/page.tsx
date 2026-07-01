@@ -13,19 +13,19 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA, PRIMARY_CTA_LABEL } from "@/lib/cta";
 
 export const metadata: Metadata = getMarketingMetadata({
-  title: "One memory for every AI you use | yarnnn",
+  title: "Shared memory for AI + human work | yarnnn",
   description:
-    "yarnnn keeps everything your AI tools know about you in one place you own. Tell ChatGPT today, Claude knows it tomorrow — and you can see every change. Free to start.",
+    "Memory, context, and files that stay with you. Tell ChatGPT today, Claude knows it tomorrow — everything your AI learns lives in one place you own, and every change is yours to trace.",
   path: "/",
   keywords: [
-    "ai memory",
     "shared ai memory",
+    "ai memory",
+    "ai memory for teams",
     "ai memory across apps",
     "chatgpt and claude memory",
     "ai context",
     "portable ai memory",
     "ai memory you own",
-    "ai that remembers you",
     "cross-llm memory",
   ],
 });
@@ -59,14 +59,16 @@ export default function LandingPage() {
               <div className="text-center lg:text-left flex-1 max-w-2xl mx-auto lg:mx-0">
                 <div className="font-brand text-4xl md:text-5xl mb-8 text-[#1a1a1a]">yarnnn</div>
 
-                <h1 className="text-2xl sm:text-3xl md:text-4xl font-medium tracking-wide text-[#1a1a1a]/90 mb-6">
-                  One memory. Every AI.
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-medium tracking-wide mb-6">
+                  <span className="text-[#de5a2b]">Shared memory for AI + human work.</span>
+                  <br />
+                  <span className="text-[#1a1a1a]/90">Memory, context, and files that stay with you.</span>
                 </h1>
 
                 <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-10 max-w-xl mx-auto lg:mx-0 font-light">
-                  Tell ChatGPT something today, and Claude knows it tomorrow. yarnnn keeps
-                  everything your AI tools know about you in one place you own — where nothing
-                  gets lost and nothing changes without you seeing it.
+                  Tell ChatGPT today, and Claude knows it tomorrow. Everything your AI learns
+                  about you lives in one place you own — nothing lost, and every change is yours
+                  to trace.
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center lg:items-start gap-4 mb-10">
