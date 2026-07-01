@@ -5,7 +5,7 @@
 ## TL;DR — where pricing stands (2026-07-01)
 
 - **What ships + charges today**: **balance as the single gate** (ADR-172/291) — pay-as-you-go, $3 signup grant, top-ups, 2× Anthropic, hard-stop at zero. **No tiers, no seats.** This is the *floor*, and today it is also the *whole live model*.
-- **The forward direction (framework agreed, numbers NOT decided)**: a **two-objects-over-a-floor** model — the balance floor + a **Workspace Plan base** on the durable substrate (the moat) + deferred **per-operation** pricing. Consolidated in [PRICING-CONSOLIDATION-2026-07-01.md](./PRICING-CONSOLIDATION-2026-07-01.md). **Not ratified** — the operator is not committed; the framework is the current best synthesis, pending a decision session.
+- **The direction — capture first, pricing second**: the pricing question is split into two ordered layers ([PRICING-CONSOLIDATION-2026-07-01.md](./PRICING-CONSOLIDATION-2026-07-01.md)). **(1) Capture** — build a transparent, legible cost & activity surface (every action × principal × cost, as-is) *first*; it needs no pricing decision and is the `trace` of spend, coherent with the product's legibility moat. **(2) Pricing** — a commercial model layered *on top* of the honest capture, decided *later* with real usage data. The prior "two-objects-over-a-floor" framework is preserved as a **Layer-2 candidate**, not a committed model.
 - **Deferred**: delegation-tiered seats (ADR-334) — a Rung-2/Phase-2 model, not the launch.
 
 ## Two commerce surfaces (unchanged)
