@@ -4,7 +4,7 @@ Capture scheduling (ADR-393) — the capture lane's slice of the `tasks` index.
 The decision (ADR-393 §4-Q2): the capture lane REUSES the thin `tasks`
 scheduling index (ADR-231 D4) rather than a sibling table — one index, one
 CAS-claim mechanism, one market-context resolver. A `kind` column (migration
-192) discriminates:
+193) discriminates:
 
     kind = 'judgment'  →  a recurrence   (services.scheduling / services.wake)
     kind = 'capture'   →  a capture       (THIS module / services.capture.lane)
@@ -23,7 +23,7 @@ Each materializer only deletes stale rows OF ITS OWN KIND, so they never
 clobber each other. `_recurrences.yaml` and `_captures.yaml` are single-writer
 per ADR-286; a slug appearing in both is an authoring error the operator owns.
 
-Backward-safety: if the `kind` column is not yet present (migration 192 not
+Backward-safety: if the `kind` column is not yet present (migration 193 not
 applied), the capture writers degrade to no-op-safe behavior and the recurrence
 path is byte-identical to today (all rows read as judgment). The branch is
 mergeable before the migration runs.
@@ -82,7 +82,7 @@ async def materialize_capture_index(
     except Exception as e:
         logger.warning(
             "[CAPTURE_SCHED] index read failed for %s (kind column may be absent "
-            "pre-migration-192): %s", user_id[:8], e,
+            "pre-migration-193): %s", user_id[:8], e,
         )
         return 0
 

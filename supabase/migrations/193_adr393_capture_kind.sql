@@ -1,4 +1,5 @@
--- Migration 192 — ADR-393: capture-lane scheduling kind on the tasks index.
+-- Migration 193 — ADR-393: capture-lane scheduling kind on the tasks index.
+-- (Renumbered 192→193: the concurrent principal_id lane also shipped a 192.)
 --
 -- The `tasks` table is the thin, reconstructable scheduling index (ADR-231 D4).
 -- ADR-393 gives the capture lane its own declarations (_captures.yaml) but
