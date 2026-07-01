@@ -65,11 +65,22 @@ The model shows **activity, not dollars**. Applied to each verb:
 
 **So the activity surface stays — but it's a LEGIBILITY surface (what happened), never a BILLING surface (what it cost).** The $ lives invisibly inside the flat plan. This resolves the capture-first↔hide-the-$ tension: transparency of *action*, opacity of *dollars*, because under a Type-B plan the user reasons in *allowance*, not *cost*.
 
+## 4b. Overage + currency — DECIDED (2026-07-01): balance IS the currency, no credit layer
+
+The Type-B defining choice — what happens past the included allowance — is **decided**, and it needs **no new currency**:
+
+- **The plan** refills `balance_usd` monthly (a `subscription_refill` — the included allowance; the machinery already exists, ADR-172).
+- **Overage** = **hard-stop at zero**, then **top-up the same `balance_usd`** to keep going (the existing top-up machinery, $10/$25/$50). Closer to the Claude model: a hard stop, and you can buy more usage.
+- **No separate credit currency.** `balance_usd` (real dollars, 1:1 with COGS) *is* the "usage you can buy more of." A credit unit with its own exchange rate would be a **second ledger + a balance-sheet liability (unspent credits owed) + a reversal of the ADR-171/172 work-credits deletion** — and it is **not needed**, because the Type-B "show usage not $" contract (§4) already hides the dollar figure at the *display* layer. Hiding it at the *ledger* layer too (credits) is redundant complexity: `balance → COGS` (display-as-usage) does the same job as `credits → $ → COGS` with one fewer layer and zero liability.
+- **"Credits" as a UI word is fine** (a friendly label for the balance); a credit *currency* (separate unit, exchange rate, second ledger) is what we avoid. The currency question is not just deferred — under this decision it is **resolved: we don't introduce one.**
+
+**Dividend**: the whole overage path ships on existing machinery — `subscription_refill` + top-up + hard-stop all exist today. The only new build is the *plan-tier record* + displaying *balance-as-usage-quantity*. No new currency, no new ledger, no migration of the money model.
+
 ## 5. Open decisions for the pricing ADR (this doc doesn't set them)
-1. **The included-allowance unit**: do we express the metered D-allowance to the user as invocation-count, a token-budget, an abstract "activity" quantity, or a soft rate-limit (ChatGPT-style, no visible quantity at all)? (Leaning: a legible activity quantity, since that's the on-brand transparency — but rate-limit-only is the simplest.)
+1. **The included-allowance unit** (DISPLAY): express the metered D-allowance to the user as invocation-count, an "activity" quantity, or a soft rate-limit (ChatGPT-style)? The *underlying* unit is decided (real $ balance, §4b); this is purely how it's *shown*. (Leaning: a legible activity quantity — on-brand transparency.)
 2. **Which gates are v1**: retention (built) is in. Connector-count (C″) — confirm demand before gating.
-3. **The base absorbs B′ (embedding COGS)** — confirmed here as free-not-metered; the pricing ADR just needs the base sized to clear it (trivial at ~$0.00002/query, but named).
-4. **Overage behavior** (Type-B's defining choice): past the included allowance, does the operator (a) hit a soft cap / rate-limit (ChatGPT), (b) auto-draw from a top-up (API console), or (c) get bumped to suggest a higher tier? This is the single biggest UX decision and belongs to the pricing ADR.
+3. **The base absorbs B′ (embedding COGS)** — confirmed free-not-metered; the pricing ADR sizes the base to clear it (~$0.00002/query, named).
+4. **~~Overage behavior~~ — DECIDED (§4b)**: hard-stop + top-up the existing balance, no credit currency. Remaining sub-question: the *tier numbers* (base price + included-allowance size) — the customer-gated last mile (UNIT-ECONOMICS §5).
 
 ## 6. What this doc decided
 - **One meter** (LLM judgment, D/E) — confirmed single-ledger, no double-charge (§0).
