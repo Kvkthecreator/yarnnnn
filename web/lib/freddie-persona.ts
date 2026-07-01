@@ -27,13 +27,29 @@ import { api } from '@/lib/api/client';
 
 const REVIEWER_IDENTITY_PATH = '/workspace/persona/IDENTITY.md';
 
-/** Markers that indicate a skeleton/template file with no real persona yet. */
-const SKELETON_MARKERS = ['_(empty', '(template)', '# Reviewer Identity — (template)'];
+/**
+ * Markers that indicate a skeleton/template/kernel-default file with NO
+ * operator-authored persona yet. The most important is the steward-default
+ * marker: a bare workspace ships `persona/IDENTITY.md` seeded with the
+ * kernel steward default (orchestration.py::DEFAULT_STEWARD_IDENTITY_MD),
+ * whose heading is literally "# Identity — the system agent". Without this
+ * guard, `extractPersonaName` reads that heading and returns "Identity — the
+ * system agent" as if it were an operator-authored persona name — which then
+ * OVERWRITES the "Freddie" label in the chat header (the operator-observed
+ * bug: "Freddie" flashes, then gets replaced). The steward default is NOT a
+ * persona; a program activation overwrites IDENTITY.md with a real persona.
+ */
+const SKELETON_MARKERS = [
+  '_(empty',
+  '(template)',
+  '# Reviewer Identity — (template)',
+  'yarnnn:steward-default', // the kernel steward-default IDENTITY.md (ADR-381/383)
+];
 
 function extractPersonaName(content: string): string | null {
   if (!content || !content.trim()) return null;
 
-  // Reject skeleton content
+  // Reject skeleton / template / kernel-default content
   for (const marker of SKELETON_MARKERS) {
     if (content.includes(marker)) return null;
   }
@@ -44,10 +60,13 @@ function extractPersonaName(content: string): string | null {
     const trimmed = line.trim();
     if (trimmed.startsWith('# ')) {
       const name = trimmed.slice(2).trim();
-      // Reject generic/default headings
+      // Reject generic / default headings. "system agent" catches the steward
+      // default even in older workspaces whose seed predates the HTML marker
+      // above ("Identity — the system agent" is the kernel label, not a persona).
       if (
         name.toLowerCase().includes('reviewer identity') ||
         name.toLowerCase().includes('template') ||
+        name.toLowerCase().includes('the system agent') ||
         name.length < 2
       ) {
         return null;
