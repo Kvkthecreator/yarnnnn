@@ -142,6 +142,9 @@ def main():
     # --- ADR-392 D8 — the retention-window dial + derive-then-prune GC ---
     results += _test_retention()
 
+    # --- ADR-392 D9 — OAuth write-scope pre-provisioning (write-ready guard) ---
+    results += _test_write_ready()
+
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} ADR-392 assertions pass")
     if passed != total:
@@ -211,6 +214,45 @@ def _test_connector_watch():
             "11 unset declaration reads as [] (never raises)", empty == []))
     finally:
         ws.UserMemory = original
+
+    return out
+
+
+def _test_write_ready():
+    """D9 — every kernel-universal write_{platform} capability has a write-ready
+    OAuth connection (the connect flow requests write scope up front).
+
+    The load-bearing guard: if a provider ships a write_{platform} capability but
+    read-only OAuth scopes, the capability is gate-available yet fails at execution
+    — a re-auth trap. This fails loudly instead.
+    """
+    from integrations.core.oauth import connection_is_write_ready, OAUTH_CONFIGS
+    from services.orchestration import CAPABILITIES
+
+    out = []
+
+    # 19 — the three first-party providers are write-ready
+    ok19 = all(connection_is_write_ready(p) for p in ("slack", "notion", "github"))
+    out.append(_check(
+        "19 slack/notion/github connections are write-ready by construction", ok19))
+
+    # 20 — cross-check: every write_{platform} kernel capability whose provider has
+    #      an OAuth config is write-ready (the regression guard for new providers).
+    offenders = []
+    for cap_name, cap in CAPABILITIES.items():
+        if not cap_name.startswith("write_"):
+            continue
+        req = cap.get("platform_connection_requirement")
+        if not req:
+            continue
+        provider = req.get("platform")
+        if provider not in OAUTH_CONFIGS:
+            continue  # API-key providers (commerce/trading) — no OAuth scope model
+        if not connection_is_write_ready(provider):
+            offenders.append((cap_name, provider))
+    out.append(_check(
+        "20 every OAuth write_{platform} capability has a write-ready connection",
+        not offenders, f"offenders={offenders}"))
 
     return out
 
