@@ -17,6 +17,24 @@
  * registry entry (over-engineering for a transitional formatter).
  */
 
+/**
+ * Resolve a workspace file's `content_url` to an absolute, fetchable URL.
+ *
+ * ADR-395 Piece A: a raw upload's content_url is a RELATIVE app endpoint
+ * (`/api/documents/blob?storage_path=…`) that 302-redirects to a fresh signed
+ * URL. The FE talks to a SEPARATE API origin, so a relative content_url must be
+ * prefixed with the API base to reach the backend. Existing content_urls from
+ * the output gateway are already absolute (S3/render output URLs) and are
+ * returned unchanged. Used at every `src`/`href` consumption site.
+ */
+export function resolveContentUrl(contentUrl: string | null | undefined): string {
+  if (!contentUrl) return '';
+  // Already absolute (http/https/data/blob) — leave it.
+  if (/^(https?:|data:|blob:)/i.test(contentUrl)) return contentUrl;
+  const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  return `${base}${contentUrl.startsWith('/') ? '' : '/'}${contentUrl}`;
+}
+
 export interface UploadFrontmatter {
   /** The parsed key→value map from the YAML header (string values only). */
   fields: Record<string, string>;

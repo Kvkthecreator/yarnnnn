@@ -525,12 +525,16 @@ class _FakeDB:
 
 
 def test_phase3_real_write_path_lands_attributed_upload_rows():
-    """D5 STRONGEST RECEIPT: drive the REAL upload_documents handler with the
-    REAL process_document + REAL write_revision (against an in-memory DB) and
-    REAL text extraction. Two .md files in one call must produce two
-    workspace_files rows under /workspace/uploads/, each with a
-    workspace_file_versions revision attributed `operator`. Only the network
-    embedding boundary is stubbed."""
+    """D5 STRONGEST RECEIPT (ADR-395 conformance): drive the REAL
+    upload_documents handler with the REAL process_document + REAL write_revision
+    (against an in-memory DB) and REAL text extraction.
+
+    ADR-395 (retain raw · derive projection · DP34): two files in one call now
+    produce, per file, a RAW row at /workspace/inbound/uploads/operator/{slug}.{ext}
+    (content_url populated, attributed `operator`) PLUS a co-located
+    `.extracted.md` TEXT PROJECTION (attributed `system:extract`, citing the raw
+    via derived_from). The old /workspace/uploads/{slug}.md extracted-text-as-
+    substrate shape is retired. Only the network embedding boundary is stubbed."""
     from routes import documents
 
     db = _FakeDB()
@@ -544,8 +548,9 @@ def test_phase3_real_write_path_lands_attributed_upload_rows():
     async def _noop_embed(*a, **k):
         return None
 
-    # _embed_workspace_file is imported lazily inside process_document from
-    # services.primitives.workspace — patch it at its source module.
+    # _embed_workspace_file is imported lazily (in process_document AND in the
+    # ExtractTextFromBlob derive) from services.primitives.workspace — patch it
+    # at its source module.
     with patch.object(documents, "get_service_client", lambda: db), \
          patch("services.primitives.workspace._embed_workspace_file", _noop_embed):
         resp = asyncio.run(documents.upload_documents(_FakeAuth(), files=files, project_id=None))
@@ -553,18 +558,33 @@ def test_phase3_real_write_path_lands_attributed_upload_rows():
     assert resp.succeeded == 2, resp
     assert resp.failed == 0
 
-    # REAL workspace_files rows landed under /workspace/uploads/.
     wf_rows = db.rows("workspace_files")
-    upload_paths = sorted(r["path"] for r in wf_rows if r["path"].startswith("/workspace/uploads/"))
-    assert len(upload_paths) == 2, f"expected 2 upload rows, got {upload_paths}"
-    assert "/workspace/uploads/alpha.md" in upload_paths
-    assert "/workspace/uploads/beta.md" in upload_paths
 
-    # REAL revision rows, attributed operator (ADR-209 + ADR-249 Type B).
+    # RAW blobs land in the inbound/uploads/ lane (ADR-395 Piece A / DP32),
+    # named with the REAL extension, carrying content_url.
+    raw_paths = sorted(
+        r["path"] for r in wf_rows
+        if r["path"].startswith("/workspace/inbound/uploads/") and not r["path"].endswith(".extracted.md")
+    )
+    assert len(raw_paths) == 2, f"expected 2 raw upload rows, got {raw_paths}"
+    assert "/workspace/inbound/uploads/operator/alpha.md" in raw_paths
+    assert "/workspace/inbound/uploads/operator/beta.md" in raw_paths
+    raw_rows = [r for r in wf_rows if r["path"] in raw_paths]
+    assert all(r.get("content_url") for r in raw_rows), "raw rows must carry content_url"
+
+    # TEXT PROJECTIONS land co-located (ADR-395 Piece B / DP34), citing the raw.
+    projection_paths = sorted(r["path"] for r in wf_rows if r["path"].endswith(".extracted.md"))
+    assert len(projection_paths) == 2, f"expected 2 projection rows, got {projection_paths}"
+    assert all("derived_from:" in (r.get("content") or "") for r in wf_rows if r["path"].endswith(".extracted.md"))
+
+    # REAL revision rows: raw attributed operator, projection attributed system:extract.
     ver_rows = db.rows("workspace_file_versions")
-    upload_versions = [r for r in ver_rows if r["path"].startswith("/workspace/uploads/")]
-    assert len(upload_versions) == 2
-    assert all(r["authored_by"] == "operator" for r in upload_versions)
+    raw_versions = [r for r in ver_rows if r["path"] in raw_paths]
+    assert len(raw_versions) == 2
+    assert all(r["authored_by"] == "operator" for r in raw_versions)
+    proj_versions = [r for r in ver_rows if r["path"].endswith(".extracted.md")]
+    assert len(proj_versions) == 2
+    assert all(r["authored_by"] == "system:extract" for r in proj_versions)
 
 
 def test_phase3_behavior_empty_batch_rejected():
