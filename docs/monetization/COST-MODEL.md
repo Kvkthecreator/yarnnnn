@@ -5,6 +5,8 @@
 > **Related**: ADR-138 (agents as work units), ADR-141 (task pipeline), ADR-250 (execution telemetry), ADR-291 (unified cost ledger), [STRATEGY.md](./STRATEGY.md)
 >
 > **ADR-291 update**: per-task cost figures below were computed under the cache-agnostic `compute_cost_usd` function (since deleted). Under ADR-291's `compute_cost_usd_inclusive`, the same calls bill at exactly 2× Anthropic invoice — small margin shift on cache-heavy steps but no change to user-visible costs. Numbers below are still in the right ballpark; treat as historical guidance, not contract.
+>
+> **Cost-unit note (2026-07-01)**: the "per-task" framing predates the task-pipeline dissolution (ADR-260/261). The live cost unit is now the **wake / recurrence** (`execution_events` row per LLM call; addressed→Sonnet, recurrence→Haiku per `freddie_agent.py`), not the task. The per-call $ figures remain representative; the *unit* is the wake. For the current value/pricing framing this feeds, see [PRICING-CONSOLIDATION-2026-07-01.md](./PRICING-CONSOLIDATION-2026-07-01.md).
 
 ---
 
@@ -110,6 +112,6 @@ Work credits (500/mo Pro) provide a secondary bound: even if all 10 tasks run da
 
 ## See Also
 
-- [UNIFIED-CREDITS.md](./UNIFIED-CREDITS.md) — subscription + credits pricing model
+- [UNIFIED-CREDITS.md](./archive/UNIFIED-CREDITS.md) — subscription + credits pricing model
 - [STRATEGY.md](./STRATEGY.md) — business strategy and Lemon Squeezy setup
-- [LIMITS.md](./LIMITS.md) — enforcement framework
+- [LIMITS.md](./archive/LIMITS.md) — enforcement framework

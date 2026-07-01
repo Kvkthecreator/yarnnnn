@@ -1,9 +1,9 @@
 # Token Economics Analysis — Full-Stack LLM Cost Audit
 
-> **Status**: Live analysis — based on production data (2026-03-26 to 2026-03-30)
+> **Status**: **Historical / point-in-time** — production-data audit for 2026-03-26→30. **Kept for reference, NOT current** (2026-07-01 note): predates the task-pipeline dissolution (ADR-260/261), the Reviewer/Freddie loop, ADR-291 unified ledger, and the whole 2026-06 pricing arc. The LLM-consumer *taxonomy* and audit *method* are still instructive; the specific $ figures and the consumer list (task pipeline, Composer, etc.) are superseded. For live cost structure see [COST-MODEL.md](./COST-MODEL.md); for the forward pricing model see [PRICING-CONSOLIDATION-2026-07-01.md](./PRICING-CONSOLIDATION-2026-07-01.md).
 > **Date**: 2026-03-30
 > **Purpose**: Comprehensive token usage audit across all LLM consumers, compared against monetization model
-> **Related**: [COST-MODEL.md](./COST-MODEL.md), [STRATEGY.md](./STRATEGY.md), [UNIFIED-CREDITS.md](./UNIFIED-CREDITS.md)
+> **Related**: [COST-MODEL.md](./COST-MODEL.md), [STRATEGY.md](./STRATEGY.md), [UNIFIED-CREDITS.md](./archive/UNIFIED-CREDITS.md) (archived)
 
 ---
 
@@ -426,5 +426,5 @@ The high "149 LLM calls today" count is misleading — 140+ were from the pre-fi
 
 - [COST-MODEL.md](./COST-MODEL.md) — per-task economics (needs update per this analysis)
 - [STRATEGY.md](./STRATEGY.md) — business strategy and pricing tiers
-- [UNIFIED-CREDITS.md](./UNIFIED-CREDITS.md) — credit model design
-- [LIMITS.md](./LIMITS.md) — enforcement framework
+- [UNIFIED-CREDITS.md](./archive/UNIFIED-CREDITS.md) — credit model design
+- [LIMITS.md](./archive/LIMITS.md) — enforcement framework

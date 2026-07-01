@@ -1,5 +1,7 @@
 # yarnnn Subscription Implementation Guide
 
+> **Status**: Live technical reference — the Lemon Squeezy integration pattern (subscription + top-up webhooks). **Currency note (2026-07-01)**: the LS wiring here is the *mechanism* and is current; the *products* it references (Pro $19/mo) are the ADR-172 balance model. When the consolidated pricing model ([PRICING-CONSOLIDATION-2026-07-01.md](./PRICING-CONSOLIDATION-2026-07-01.md)) ratifies a base/tier, its LS products extend this same integration — no new payment stack. Read this for *how LS is wired*, not for *what we sell*.
+
 ## Overview
 
 This document provides the technical implementation details for integrating Lemon Squeezy subscriptions into yarnnn, based on the proven pattern from episode-0 (chat_companion).

@@ -1,6 +1,7 @@
 # ADR-334 — Per-Operation Pricing: Delegation-Tiered Seats over the Cost Ledger
 
 **Status:** **Deferred (hypothesis, evidence-gated)** — demoted 2026-06-19 from "Ratified (direction)". The seat model below is **parked as one candidate, not committed canon.** The **sole active pricing model is the ADR-172/291 balance gate** (pay-as-you-go: $3 signup grant, top-ups, hard stop at zero, no tiers, no seats). Seats unblock only against the evidence named in the Amendment below. No code shipped on this ADR; nothing is mischarging (the `/pricing` page never wired seat checkout — `cta.ts::seatCheckout` is `null`).
+> **Rung mapping (2026-07-01)**: this ADR prices the **autonomy/delegation dial** — a **Rung-2 (Phase-2)** axis per the [activation ladder](ADR-380-the-activation-ladder-and-the-judgment-deferral-line.md) (the dial is *degenerate at Rung-1* — Freddie has no consequential external write, so an autonomy tier over Freddie prices nothing). It is therefore **NOT the Phase-1 launch pricing model.** The Phase-1 (Rung 0–1) pricing thesis is the substrate-base model consolidated in [`docs/monetization/PRICING-CONSOLIDATION-2026-07-01.md`](../monetization/PRICING-CONSOLIDATION-2026-07-01.md) — where these seats live as the deferred **③ Operation** layer. See also [`phase-1-packaging-open-scoping-rung-2-pricing-2026-06-29.md`](../analysis/phase-1-packaging-open-scoping-rung-2-pricing-2026-06-29.md).
 **Date:** 2026-06-10 (ratified-direction) · 2026-06-19 (demoted to deferred)
 **Deciders:** KVK (operator) + Claude (collaborator)
 **Hat:** A (system canon)
