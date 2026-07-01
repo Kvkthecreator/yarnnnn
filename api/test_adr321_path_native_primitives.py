@@ -111,12 +111,19 @@ def test_conventions_domain_builders_rooted_at_operation():
 
 def test_query_knowledge_prefix_is_operation():
     src = _read("services", "primitives", "workspace.py")
-    # The QueryKnowledge handler's default prefix must be operation/, not context/.
-    assert 'prefix = "/workspace/operation/"' in src, (
-        "QueryKnowledge handler must default its search prefix to /workspace/operation/ (ADR-321)."
+    # ADR-321: a DOMAIN-scoped QueryKnowledge call resolves under operation/{domain}/,
+    # never the dissolved context/ root.
+    assert 'domain_folder = get_domain_folder(domain) or f"operation/{domain}"' in src, (
+        "QueryKnowledge domain-scoped search must resolve under /workspace/operation/{domain}/ (ADR-321)."
     )
     assert 'prefix = "/workspace/context/"' not in src, (
         "QueryKnowledge handler must not default to the dissolved /workspace/context/ root."
+    )
+    # ADR-395: the DEFAULT (no-domain) sweep spans the searchable surface (so upload
+    # text projections under inbound/uploads/ are reachable), post-filtered to the
+    # embed-eligible/searchable roots — not hard-locked to operation/ alone.
+    assert "is_searchable_root" in src, (
+        "QueryKnowledge default sweep must post-filter to searchable roots (ADR-395)."
     )
 
 

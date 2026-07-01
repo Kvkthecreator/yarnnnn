@@ -41,7 +41,16 @@ logger = logging.getLogger(__name__)
 # never semantically ranked (governance yaml, recurrence yaml, signal yaml).
 
 # Roots whose prose content is a semantic-search target.
-_EMBED_ELIGIBLE_ROOTS = ("operation/", "uploads/")
+#   operation/          — accumulated domain context (seat-derived understanding)
+#   uploads/            — legacy operator reference material (pre-ADR-395)
+#   inbound/uploads/    — ADR-395 upload TEXT PROJECTIONS (.extracted.md). The raw
+#                         blob beside them is NOT a search target (it has no text
+#                         body — it's reached via content_url); its DERIVED text
+#                         projection IS (DP34: the projection is the model-
+#                         consumable object). Scoped to inbound/uploads/ only —
+#                         the machine raw lanes (inbound/{slack,mcp,web}/) are raw
+#                         observations reached by deterministic key, not ranked.
+_EMBED_ELIGIBLE_ROOTS = ("operation/", "uploads/", "inbound/uploads/")
 # Extensions that are machine config / structured state — never embed.
 _EMBED_INELIGIBLE_EXTS = (".yaml", ".yml", ".json")
 # Roots that are machine/runtime/ceiling substrate — never embed regardless of ext.
@@ -74,12 +83,29 @@ def is_embed_eligible(path: str, content: str | None = None) -> tuple[bool, str]
         return False, "ineligible_kind: machine config / structured state (read by path, not ranked)"
     if not any(rel.startswith(r) for r in _EMBED_ELIGIBLE_ROOTS):
         return False, (
-            "not_a_search_target: only operation/ (domain context) and uploads/ "
-            "(reference material) are embed-eligible"
+            "not_a_search_target: only operation/ (domain context), uploads/ "
+            "(reference material) and inbound/uploads/ (upload text projections) "
+            "are embed-eligible"
         )
     if content is not None and len(content.strip()) < _EMBED_MIN_CHARS:
         return False, f"too_short: < {_EMBED_MIN_CHARS} chars (not a meaningful search target)"
     return True, "eligible"
+
+
+def is_searchable_root(path: str) -> bool:
+    """True iff `path` lives under a semantic-search root (ADR-325 / ADR-395).
+
+    The path-only companion to `is_embed_eligible` (no content-length / extension
+    check — those govern whether a file gets embedded; this governs whether a
+    result-row belongs in an unscoped QueryKnowledge sweep). Singular source of
+    truth for "what is a search target" — reused by handle_query_knowledge's
+    default (no-domain) sweep so the upload-projection lane (inbound/uploads/) is
+    reachable alongside operation/, without a second hardcoded root list drifting.
+    """
+    rel = _normalize_rel(path)
+    if any(rel.startswith(r) for r in _EMBED_INELIGIBLE_ROOTS):
+        return False
+    return any(rel.startswith(r) for r in _EMBED_ELIGIBLE_ROOTS)
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +148,8 @@ operator approval; under autonomous it applies. Embedding is selective:
 
 ELIGIBLE (semantic-search targets):
 - operation/{domain}/** — accumulated domain context (entities, syntheses, landscapes)
-- uploads/** — user-contributed reference material
+- uploads/** — user-contributed reference material (legacy pre-ADR-395)
+- inbound/uploads/**.extracted.md — upload text projections (ADR-395/DP34)
 
 NOT ELIGIBLE (read by path, never ranked — Embed returns 'not eligible'):
 - governance/** + system/** (machine/runtime substrate)

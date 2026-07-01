@@ -1270,11 +1270,20 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
     domain = input.get("content_class") or input.get("domain")  # content_class kept for backwards compat
     limit = min(input.get("limit", 10), 30)
 
-    # Resolve path prefix — registry for known domains, direct path for unknown.
-    # ADR-321: domains live under operation/{domain}/ (re-rooted from context/).
-    prefix = "/workspace/operation/"
+    # Resolve path prefix.
+    # - A domain-scoped call stays TIGHT: one operation/{domain}/ prefix (ADR-321,
+    #   re-rooted from context/).
+    # - The DEFAULT (no-domain) sweep spans the whole SEARCHABLE surface, not just
+    #   operation/ — so ADR-395 upload text projections (inbound/uploads/*.extracted.md,
+    #   DP34's model-consumable form) are reachable, not only seat-derived operation/
+    #   context. Since the RPCs take a single p_path_prefix (one LIKE), the default
+    #   searches unscoped (prefix=None) and post-filters rows to the searchable roots
+    #   (is_searchable_root — the same source of truth as embed eligibility).
+    from services.directory_registry import get_domain_folder
+    from services.primitives.embed import is_searchable_root
+
+    prefix = None  # default = unscoped sweep + post-filter to searchable roots
     if domain:
-        from services.directory_registry import get_domain_folder
         domain_folder = get_domain_folder(domain) or f"operation/{domain}"
         prefix = f"/workspace/{domain_folder}/"
 
@@ -1317,21 +1326,36 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
                 logger.warning(f"[QUERY_KNOWLEDGE] BM25 fallback also failed: {e}")
 
     else:
-        # No query — list recent files in the domain
+        # No query — list recent files. Domain-scoped: filter by its prefix.
+        # Default (unscoped): pull a wider window then post-filter to searchable
+        # roots below (a bare LIKE can't express the multi-root searchable set),
+        # so recent-but-unsearchable rows don't crowd out searchable ones.
         try:
-            result = (
+            table_query = (
                 auth.client.table("workspace_files")
                 .select("path, content, summary, updated_at, metadata")
                 .eq("user_id", auth.user_id)
-                .like("path", f"{prefix}%")
+            )
+            if prefix is not None:
+                table_query = table_query.like("path", f"{prefix}%")
+            fetch_limit = limit if prefix is not None else min(limit * 10, 300)
+            result = (
+                table_query
                 .order("updated_at", desc=True)
-                .limit(limit)
+                .limit(fetch_limit)
                 .execute()
             )
             rows = result.data or []
             search_method = "list"
         except Exception as e:
             logger.warning(f"[QUERY_KNOWLEDGE] List failed: {e}")
+
+    # Default (unscoped) sweep: restrict to searchable roots so the sweep never
+    # surfaces machine/runtime substrate (governance/, system/, *.yaml) — the RPC
+    # searched everything, so we apply the root filter the tight prefix would have.
+    # Domain-scoped calls (prefix set) were already narrowed by p_path_prefix.
+    if prefix is None:
+        rows = [r for r in rows if is_searchable_root(r.get("path", ""))][:limit]
 
     result_items = []
     for r in rows:

@@ -340,18 +340,41 @@ async def get_blob(auth: UserClient, storage_path: str):
 # DOWNLOAD (reads storage_path from workspace file frontmatter)
 # =============================================================================
 
+def _storage_path_from_content_url(content_url: str) -> Optional[str]:
+    """Extract the private-bucket key from a raw upload's content_url.
+
+    ADR-395: a raw upload row carries `content_url` =
+    `/api/documents/blob?storage_path=<url-encoded key>` (no frontmatter). Parse
+    the `storage_path` query param back out. Returns None for a non-blob URL
+    (e.g. an absolute output-gateway URL that isn't a private-bucket key).
+    """
+    from urllib.parse import urlparse, parse_qs, unquote
+    if not content_url or "storage_path=" not in content_url:
+        return None
+    try:
+        qs = parse_qs(urlparse(content_url).query)
+        vals = qs.get("storage_path")
+        return unquote(vals[0]) if vals else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 @router.get("/documents/{document_path:path}/download")
 async def download_document(auth: UserClient, document_path: str):
     """Get a signed download URL for a persistent upload.
 
     document_path is the workspace file path, e.g.
-    'workspace/uploads/acme-brief.md' (leading slash optional).
+    '/workspace/inbound/uploads/operator/acme-brief.pdf' (leading slash optional).
+
+    ADR-395: new uploads store the raw blob's key in `content_url` (no
+    frontmatter). Resolve `storage_path` from content_url first; fall back to the
+    legacy `storage_path:` frontmatter line for pre-ADR-395 uploads/*.md rows.
     """
     if not document_path.startswith("/"):
         document_path = "/" + document_path
 
     result = auth.client.table("workspace_files") \
-        .select("content") \
+        .select("content, content_url") \
         .eq("user_id", auth.user_id) \
         .eq("path", document_path) \
         .execute()
@@ -359,15 +382,23 @@ async def download_document(auth: UserClient, document_path: str):
     if not result.data:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    raw = result.data[0].get("content", "") or ""
-    storage_path = None
-    for line in raw.split("\n"):
-        if line.startswith("storage_path:"):
-            storage_path = line.split(":", 1)[1].strip()
-            break
+    row = result.data[0]
+    # ADR-395 raw row: storage_path lives in content_url. Legacy row: frontmatter.
+    storage_path = _storage_path_from_content_url(row.get("content_url") or "")
+    if not storage_path:
+        raw = row.get("content", "") or ""
+        for line in raw.split("\n"):
+            if line.startswith("storage_path:"):
+                storage_path = line.split(":", 1)[1].strip()
+                break
 
     if not storage_path:
-        raise HTTPException(status_code=404, detail="Storage path not found in document frontmatter")
+        raise HTTPException(status_code=404, detail="Storage path not found for document")
+
+    # Ownership guard (parity with the /blob route, ADR-373): the documents-bucket
+    # key is `{user_id}/…`, so only resolve blobs under the caller's own prefix.
+    if not storage_path.startswith(f"{auth.user_id}/"):
+        raise HTTPException(status_code=404, detail="Document not found")
 
     service = get_service_client()
     signed = create_signed_url_for_storage_path(service, storage_path, expires_in=3600)
