@@ -105,7 +105,7 @@ export function InvocationCard({ unit }: InvocationCardProps) {
         )}
         <PulseIcon className="w-3 h-3 shrink-0 text-muted-foreground/70" />
         <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-          {personaName ?? 'Reviewer'} · {pulseLabel}
+          {personaName ?? 'Freddie'} · {pulseLabel}
         </span>
         <span className="text-[10px] text-muted-foreground/50 tabular-nums">
           {time}

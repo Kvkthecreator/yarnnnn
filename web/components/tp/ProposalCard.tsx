@@ -379,7 +379,7 @@ interface ProposalChipProps {
 }
 
 function ProposalChip({ proposal, reviewerPosture, personaName, terminalStatus, onClick }: ProposalChipProps) {
-  const name = personaName ?? 'Reviewer';
+  const name = personaName ?? 'Freddie';
 
   const reviewerLine =
     reviewerPosture === 'approve_advisory' ? `${name} approved` :
@@ -531,19 +531,19 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
           {reviewerPosture === 'approve_advisory' && (
             <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
               <ShieldCheck className="w-3 h-3 shrink-0" />
-              <span className="font-medium">{personaName ?? 'Reviewer'} approved</span>
+              <span className="font-medium">{personaName ?? 'Freddie'} approved</span>
             </div>
           )}
           {reviewerPosture === 'defer' && (
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <ShieldQuestion className="w-3 h-3 shrink-0" />
-              <span className="font-medium">{personaName ?? 'Reviewer'} deferred — your judgment needed</span>
+              <span className="font-medium">{personaName ?? 'Freddie'} deferred — your judgment needed</span>
             </div>
           )}
           {reviewerPosture === 'rejected' && (
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <ShieldX className="w-3 h-3 shrink-0" />
-              <span className="font-medium">{personaName ?? 'Reviewer'} rejected</span>
+              <span className="font-medium">{personaName ?? 'Freddie'} rejected</span>
             </div>
           )}
           <p className="text-xs text-muted-foreground leading-relaxed pl-4">
