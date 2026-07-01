@@ -561,7 +561,12 @@ async def get_workspace_roots(auth: UserClient) -> list[dict]:
 
         # Union of: roots that actually have files + canonical roots we always
         # show (even empty) so the operator can create into them.
-        always_show = {"agents", "uploads"}
+        # ADR-395: `uploads` REMOVED from always-show — new uploads land in the
+        # inbound/uploads/ raw lane (shown under the `inbound/` root, "Intake"),
+        # so the legacy uploads/ root would otherwise render EMPTY next to
+        # Intake (the operator-observed duplicate-upload-root). It now shows only
+        # when it actually holds pre-ADR-395 legacy files (count > 0).
+        always_show = {"agents"}
         names = set(counts) | (always_show & set(WORKSPACE_ROOTS))
 
         out: list[dict] = []

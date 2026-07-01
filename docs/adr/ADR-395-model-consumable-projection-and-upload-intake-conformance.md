@@ -81,7 +81,18 @@ Today the upload writes **extracted text** to `/workspace/uploads/{slug}.md` and
 - **`api/mcp_server/server.py:104` `_present()`** — when (1) the result references a file with `content_url` AND (2) `can_fetch_signed_urls(client_name)` is `True`, **append** a `resource_link` (or embedded `type:resource` with the signed URL) to `content[]` — *alongside*, never *instead of*, the text projection. When the gate is `False`, the model gets the text projection only (the guarantee). This exactly parallels the existing `_meta` widget gate (host-gated enhancement, text-safe default).
 - **`api/services/mcp_composition.py:768–993`** (recall/trace) — surface `content_url` on the result chunk so `_present` can build the reference. Today recall/trace return `path`+`excerpt`; add the raw reference when present + gated.
 
-**NEW in C**: the `can_fetch_signed_urls` flag + helper, the service-level signed-URL helper, the `resource_link` assembly in `_present`, and surfacing `content_url` through recall/trace. **All host-gated and text-safe by default — a host that fails the gate is unaffected.**
+**NEW in C**: the `can_fetch_signed_urls` flag + helper, the `resource_link` assembly in `_present`, and surfacing `content_url` through recall/trace. **All host-gated and text-safe by default — a host that fails the gate is unaffected.** (The service-level `create_signed_url_for_storage_path` helper C planned for was **already built in Phase 1** — Piece A's stable blob route reuses it — so C's remaining scope shrank.)
+
+### Piece C is DEFERRED — the explicit rationale (2026-07-01)
+
+C is **named-but-not-built**, and deliberately so — recorded here so it is not picked up prematurely:
+
+1. **The medium does not guarantee it works.** DP34's whole finding is that a `resource_link` over MCP is **host-discretionary and auth-blind** — the spec gives no promise a host fetches it, and a host that does carries none of YARNNN's auth (the signed URL is time-boxed + scoped). So C is, by the axiom's own logic, the *least certain* piece: it is a best-effort garnish, never the guarantee. Building it on the *assumption* that a host will fetch-and-auth is exactly the kind of speculation the axiom warns against.
+2. **A+B already delivered the guaranteed path.** The text projection (Piece B, shipped) is the model-consumable form that *is* guaranteed to reach any host through `recall`/`trace`. C adds only the raw-blob *reference* on top — value only when the operator genuinely needs the original bytes over interop, which the text does not currently block.
+3. **No demonstrated demand.** C is the "referenceable at large / Dropbox" ambition. No operator or connector is asking for the raw file over MCP today; agents read the text. Per ADR-380 §5 (build-when-demanded), C waits for a concrete host + use-case.
+4. **It needs an empirical prerequisite, not a code assumption.** Before C ships, the honest first step is a **live fetch-and-auth test** against a real host (does ChatGPT / claude.ai actually GET a `resource_link` to a signed URL, and does the fetch carry auth?). That test — not an ADR paragraph — determines whether C is even realizable, and which host profiles get `can_fetch_signed_urls = True`. **C is unblocked only once that test passes for at least one host.**
+
+The stability audit (2026-07-01) confirmed A+B + the surrounding MCP/file scope are stable, so nothing depends on C. When demand + an empirical host result arrive, C is a small, well-scoped, host-gated addition on top of the Phase-1 seams (the raw is already a first-class `content_url` revision — the one structural prerequisite A guaranteed).
 
 ---
 
@@ -91,7 +102,7 @@ Ordered so each phase is independently shippable and search never breaks:
 
 1. **Phase 0 — canon** (doc-only): ratify DP34 into FOUNDATIONS (v9.14) + the DP32 cross-reference sentence + this ADR to Accepted. *No code.*
 2. **Phase 1 — A (retain raw)** + **B (derive projection)** together, because A-alone regresses search (a raw with no projection is unsearchable — the whole point of B). Migration/backfill: existing `uploads/*.md` (extracted-text) files stay valid; new uploads take the raw+projection shape. The FE Files-tree `uploads/`→`inbound/uploads/` move ships with this phase (or a compatibility alias during transition).
-3. **Phase 2 — C (host-gated raw reference)**: the `HostProfile` flag (default-off for all hosts until one is verified), the signed-URL helper, the `_present` `resource_link` assembly. Ships dark (gate off) → enable per host as fetch+auth is verified. **Zero risk to non-gated hosts.**
+3. **Phase 2 — C (host-gated raw reference)** — **DEFERRED** (see the Piece-C deferral rationale above): gated on demand + an empirical host fetch-and-auth test, not built on assumption. When unblocked: the `HostProfile` flag (default-off), the `_present` `resource_link` assembly, `content_url` surfaced through recall/trace. Ships dark (gate off) → enable per host as fetch+auth is verified. **Zero risk to non-gated hosts.**
 4. **Phase 3 — registry expansion** (demand-gated): add `xlsx`/`pptx`/`zip`/`audio` derive strategies as demand proves them; each is one registry entry.
 5. **Orthogonal, ship-anytime** (not gated on any of the above): the two cosmetics — (a) the frontmatter-renders-as-body-text viewer bug, (b) the generic `document.md` naming (derive from `original_filename`). These are pure FE/naming fixes and can ship immediately, independent of the whole refactor.
 

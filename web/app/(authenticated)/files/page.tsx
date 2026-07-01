@@ -498,13 +498,13 @@ export default function ContextPage() {
     setDetailsOpen(true);
   }, []);
 
-  // Upload success (2026-07-01): after files land in Uploads/, refresh the tree
-  // AND take the operator to the new file — select the uploaded workspace path
-  // (`/workspace/uploads/{slug}.md`). The tree auto-expands the Uploads root
-  // (WorkspaceTree's nodeContainsPath effect) and highlights the new node; the
-  // viewer opens it. The operator SEES the result of the add, instead of the
-  // modal closing silently onto an unchanged-looking tree. reload → then select
-  // so the fresh node exists in the tree when selection resolves.
+  // Upload success (2026-07-01): after files land in the Intake raw lane
+  // (inbound/uploads/{principal}/{slug}.{ext}, ADR-395), refresh the tree AND
+  // take the operator to the new file — select the uploaded workspace path. The
+  // tree auto-expands the Intake root (WorkspaceTree's nodeContainsPath effect)
+  // and highlights the new node; the viewer opens it. The operator SEES the
+  // result of the add, instead of the modal closing silently onto an unchanged-
+  // looking tree. reload → then select so the fresh node exists when it resolves.
   const handleUploaded = useCallback(async (workspacePath: string) => {
     await loadExplorer();
     setSelectedPath(workspacePath);

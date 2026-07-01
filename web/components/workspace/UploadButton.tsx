@@ -13,15 +13,15 @@
  * file picker directly and never told the operator WHERE the files land. It is
  * now a MODAL (matches the GetInfoModal / SetupConfirmModal shell — the project
  * has no shared Dialog primitive) that states the destination up front: every
- * upload lands in the Uploads/ root (/workspace/uploads/), the operator's raw
- * source-material lane (ADR-320 topology, the human case of the ADR-376 intake
- * lane). The destination is fixed — Uploads/ is the single canonical home for
- * operator-contributed files; the modal makes that legible instead of silent.
+ * upload lands in the Intake raw lane (inbound/uploads/), the operator's raw
+ * source-material home (the N=human case of the ADR-376 intake lane, DP32). The
+ * modal makes the destination legible instead of silent.
  *
  * Drops the file(s) through api.documents.upload → POST /api/documents/upload,
- * which extracts text → /workspace/uploads/{slug}.md via the Authored
- * Substrate (ADR-209, attributed operator) and auto-indexes (ADR-325 D6).
- * On success, calls onUploaded so the explorer re-fetches the tree.
+ * which — per ADR-395 (DP34) — retains the RAW blob at
+ * inbound/uploads/{principal}/{slug}.{ext} (content_url) and derives a searchable
+ * text projection (.extracted.md) citing it. On success, calls onUploaded so the
+ * explorer re-fetches the tree + selects the new file.
  *
  * ADR-331 D5: multi-select + .zip. The operator can pick several files (or a
  * .zip of them) in one go; the batch is non-transactional — per-file results
@@ -129,7 +129,7 @@ function UploadModal({
           // Partial success — keep the modal open, report both sides. Still let
           // the surface refresh + jump to the first file that DID land.
           if (firstOk?.workspace_path) await onUploaded?.(firstOk.workspace_path);
-          setNotice(`${res.succeeded} added to Uploads/`);
+          setNotice(`${res.succeeded} added to Intake`);
           setError(`${res.failed} failed (${detail})`);
           setPicked([]);
         } else {
@@ -168,13 +168,14 @@ function UploadModal({
         </div>
 
         <div className="space-y-3 p-4">
-          {/* Destination — stated up front. Uploads/ is the fixed home for all
-              operator-contributed files (ADR-320 topology). */}
+          {/* Destination — stated up front. ADR-395: files land in the Intake
+              raw lane (inbound/uploads/), the fixed home for operator-contributed
+              files (the N=human case of the intake lane, DP32). */}
           <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
             <ArrowDownToLine className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
             <div className="min-w-0">
               <p className="font-medium text-foreground">
-                Saved to <span className="font-mono">Uploads/</span>
+                Saved to <span className="font-mono">Intake</span>
               </p>
               <p className="text-muted-foreground">
                 Your agents can read these files.

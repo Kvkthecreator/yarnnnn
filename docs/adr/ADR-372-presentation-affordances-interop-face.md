@@ -1,6 +1,6 @@
 # ADR-372 — Presentation Affordances on the Interop Face
 
-> **Status**: Proposed (2026-06-26)
+> **Status**: **Accepted / Implemented** (doc-first 2026-06-26; code landed same arc — the widget/`_meta` presentation layer at `api/mcp_server/presentation/` [registry + per-host adapters] + the `_present` response gate + the `HostGatedFastMCP` discovery gate in `server.py`, including the D4 amendment that gates widget `_meta` on `renders_widgets` after the live claude.ai "Unsupported UI resource" finding. Status synced 2026-07-01 after the ADR-395 stability audit confirmed the implementation is complete + coherent, kernel boundary preserved.)
 > **Authors**: KVK, Claude
 > **Supersedes / amends**: amends **ADR-310** (one moat, two faces → grows a presentation *dimension* on the interop face), **ADR-368** (the memory-first verbs gain optional rich rendering — the recall bright-line is extended, not violated). Preserves ADR-075 (OAuth/transport), ADR-371 (self-contained auth boundary), ADR-311 (deferred raw primitives).
 > **Related**: ADR-209 (authored revision chain — what the first widget renders), ADR-222 (kernel boundary — the adapter never touches the kernel), ADR-168 (primitives matrix — widgets call the same gated tools).

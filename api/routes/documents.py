@@ -2,14 +2,16 @@
 Document routes - File upload and management
 
 ADR-249: Two-Intent File Handling — Ephemeral vs Persistent.
+ADR-395: persistent uploads retain the RAW blob + derive a text projection (DP34).
 ADR-127: User-shared file staging (TP-level)
 
 Endpoints:
-- POST /documents/upload  - Persistent upload → /workspace/uploads/{slug}.md
+- POST /documents/upload  - Persistent upload → inbound/uploads/{principal}/{slug}.{ext} raw + .extracted.md projection (ADR-395)
+- GET /documents/blob     - Resolve a raw blob's content_url to a fresh signed URL (ADR-395)
 - POST /share             - Share a file to global user_shared/ (ADR-127)
 - GET /documents          - List workspace uploads (reads workspace_files)
-- GET /documents/{id}/download - Download original binary from storage (reads frontmatter)
-- DELETE /documents/{id}  - Delete workspace file + storage binary
+- GET /documents/{id}/download - Download original binary from storage
+- DELETE /documents/{id}  - Archive workspace file (trash-semantics)
 """
 
 import logging
@@ -126,7 +128,7 @@ async def _process_single_upload(
         logger.error(f"[DOCUMENTS] Storage upload error for {filename}: {e}", exc_info=True)
         return UploadResultItem(filename=filename, success=False, error=f"Failed to upload file: {e}")
 
-    # Extract text + write /workspace/uploads/{slug}.md
+    # Retain the raw blob + derive the text projection (ADR-395)
     result = await process_document(
         document_id=document_id,
         file_content=content,
@@ -200,8 +202,8 @@ async def upload_documents(
 
     Accepts one or more files in a single call. A .zip is expanded server-side
     to per-file uploads (the archive is a transport envelope, not retained).
-    Each file flows through the SAME single-file path (extract text →
-    /workspace/uploads/{slug}.md via authored substrate, attributed operator).
+    Each file flows through the SAME single-file path (retain the raw blob at
+    inbound/uploads/ + derive a text projection, ADR-395, attributed operator).
     Non-transactional: per-file results are reported; partial success is fine.
 
     Singular Implementation: this is the one upload endpoint. The single-file

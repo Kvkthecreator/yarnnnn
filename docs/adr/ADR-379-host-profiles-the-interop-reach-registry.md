@@ -1,6 +1,6 @@
 # ADR-379 — Host Profiles: the Interop-Reach Registry
 
-> **Status**: Proposed (2026-06-27)
+> **Status**: **Accepted / Implemented** (doc-first 2026-06-27; code landed same arc — `api/mcp_server/presentation/hosts.py` carries the `HostProfile` data-registry + `renders_widgets`/`widget_dialect` gates, guarding both the MCP response and discovery surfaces; test gate `test_adr379_host_profiles.py`. Status synced 2026-07-01 after the ADR-395 stability audit confirmed the implementation is complete and coherent.)
 > **Authors**: KVK, Claude
 > **Supersedes / amends**: amends **ADR-372** (the per-host widget gate `WIDGET_RENDERING_HOSTS` is absorbed into a fuller Host-Profile registry; `presentation/hosts.py` grows from a flag into the registry). Preserves ADR-368 (the three verbs + the recall bright-line), ADR-310/311 (one moat, two faces), ADR-075/371 (OAuth/transport + self-contained auth boundary), ADR-222 (kernel boundary — the registry lives entirely in the interop face).
 > **Related**: ADR-335 (Perception Field — "transports are peripherals, driver-class, transport-blind judgment"; this ADR applies the same driver-class shape to the *outbound* host surface), ADR-162 (provenance stamping — the registry feeds `yarnnn:mcp:<host>` attribution), ADR-373 (multi-principal — a host is a principal class; this ADR is how the substrate learns *which* host is calling).
