@@ -19,15 +19,12 @@
  *     substrate steward, ADR-381/383). An operator persona (IDENTITY.md →
  *     "Simons") changes the NAME, never the face (the ADR-315 seat≠occupant
  *     split). So one mascot is correct.
- *
- * TWO TONES (drop-in discipline):
- *   - `tone="mono"` (default) — the whole punk is drawn in ONE color via
- *     currentColor (ink pixels only; the fills collapse to the ink). A
- *     byte-for-byte drop-in wherever a lucide glyph renders today (the
- *     attribution badge passes a className that sets size + the rose accent).
- *   - `tone="full"` — the full palette Frankie (green skin, dark flat-top,
- *     metal bolts). Right for hero placements (the top-bar chip, the /agents
- *     detail header) where Freddie is the subject.
+ *   - ONE APPEARANCE, LIKE A BRAND LOGO (operator call, 2026-07-01). Freddie is
+ *     ALWAYS the full-color Frankie — green skin, dark flat-top, steel bolts.
+ *     There is no monochrome/tinted variant: a mono `currentColor` glyph was
+ *     the earlier drop-in-for-lucide contract, but it read as a washed-out
+ *     "reddish" thing detached from the mascot. A recognizable mark beats a
+ *     context-tinted glyph. `className` controls SIZE only (not color).
  *
  * GRID: 24×24, viewBox 0 0 24 24, one pixel = one unit. Rendering maps each
  * non-empty grid cell to a `<rect width=1 height=1>`. Adjacent same-color
@@ -48,21 +45,17 @@ export type FreddieLiveness =
 export interface FreddieAvatarProps {
   /** What Freddie is doing. Default 'idle'. */
   state?: FreddieLiveness;
-  /** `mono` (default): one-color via currentColor — the glyph drop-in.
-   *  `full`: the full-palette Frankenstein Freddie for hero placements. */
-  tone?: 'mono' | 'full';
-  /** Sizing + (in mono) color, via currentColor. Mirrors a lucide glyph's
-   *  className contract so this is a drop-in. Default 'w-4 h-4'. */
+  /** Sizing only (Freddie is always the full-color mark). Mirrors a glyph's
+   *  className contract for size. Default 'w-4 h-4'. */
   className?: string;
   /** Accessible label. Default derives from state. */
   title?: string;
 }
 
 // ── Palette ──────────────────────────────────────────────────────────────
-// Single-letter keys keep the grid map readable. In `full` tone each maps to a
-// real color; in `mono` tone every ink key collapses to currentColor and the
-// skin/light fills drop out (so the punk reads as a one-color glyph).
-const PALETTE_FULL: Record<string, string> = {
+// Single-letter keys keep the grid map readable. Freddie is always full-color
+// (one appearance, like a brand logo — the 2026-07-01 operator call).
+const PALETTE: Record<string, string> = {
   K: '#1f2937', //  hair / flat-top + outline (near-black slate)
   G: '#5bbf57', //  skin (Frankenstein green — matches the reference)
   D: '#3f9a45', //  skin shadow (jaw / cheek / brow underside)
@@ -72,10 +65,6 @@ const PALETTE_FULL: Record<string, string> = {
   E: '#111827', //  eyes / mouth ink
   S: '#3f9a45', //  forehead stitch scar (skin shadow tone)
 };
-
-// In mono, ink-ish keys → currentColor, everything else → transparent so the
-// punk reads as a single-tint glyph (the drop-in contract).
-const MONO_INK = new Set(['K', 'E', 'M', 'B']);
 
 // ── Base grid (24×24) ─────────────────────────────────────────────────────
 // '.' = empty. Frankenstein anatomy (per the reference): a blocky flat-top HAIR
@@ -166,19 +155,16 @@ function labelFor(state: FreddieLiveness): string {
 
 export function FreddieAvatar({
   state = 'idle',
-  tone = 'mono',
   className,
   title,
 }: FreddieAvatarProps) {
-  const isFull = tone === 'full';
-
   // Build the final grid: base + state overlay (overlay wins per cell).
   const grid = BASE.map((row) => row.split(''));
   for (const { r, c, k } of overlayFor(state)) {
     if (grid[r] && grid[r][c] !== undefined) grid[r][c] = k;
   }
 
-  // Paused softens the whole punk (dormant); the color still comes from tone.
+  // Paused softens the whole punk (dormant).
   const groupOpacity = state === 'paused' ? 0.55 : 1;
 
   const rects: React.ReactNode[] = [];
@@ -186,24 +172,11 @@ export function FreddieAvatar({
     for (let c = 0; c < grid[r].length; c++) {
       const key = grid[r][c];
       if (key === '.') continue;
-      let fill: string;
-      if (isFull) {
-        fill = PALETTE_FULL[key] ?? '#000';
-      } else {
-        // mono: only ink pixels paint (currentColor); skin/bolt/fill drop out
-        // so the punk reads as a single-tint glyph. Empty cells already skipped.
-        if (!MONO_INK.has(key)) continue;
-        fill = 'currentColor';
-      }
-      rects.push(<rect key={`${r}-${c}`} x={c} y={r} width={1} height={1} fill={fill} />);
+      rects.push(
+        <rect key={`${r}-${c}`} x={c} y={r} width={1} height={1} fill={PALETTE[key] ?? '#000'} />
+      );
     }
   }
-
-  // In mono, an ink-only render loses the head silhouette (skin doesn't paint).
-  // Give mono a currentColor outline pass so the flat-top head still reads.
-  // (The 'K' outline pixels ARE ink in mono, so the silhouette survives — no
-  // extra pass needed; skin interior is simply empty, which reads as a clean
-  // line-art punk. That's the intended mono look.)
 
   return (
     <svg

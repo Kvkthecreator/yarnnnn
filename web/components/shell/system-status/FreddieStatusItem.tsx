@@ -17,7 +17,7 @@
  * Freddie's Autonomy pane (footer link; the `autonomy` slug is pane_of: agents,
  * so foregroundSurface delivers agents.pane=autonomy → Freddie's Grant group).
  *
- * Visual: the FreddieAvatar mascot (2026-07-01, v1) in `full` tone — Freddie
+ * Visual: the FreddieAvatar mascot (2026-07-01) — the full-color Frankie —
  * now has a FACE in the top bar, not the shield-check glyph. The mascot wears
  * the LIVENESS its posture implies (livenessFor): manual→waiting, autonomous→
  * acting, bounded/not-set→idle, paused→paused. This is the first mount point of
@@ -92,14 +92,14 @@ export function FreddieStatusItem() {
         ? 'ok'
         : 'muted';
 
-  // The chip is a HERO placement of Freddie — the full-tone mascot, wearing the
+  // The chip is a HERO placement of Freddie — the mascot, wearing the
   // liveness its current posture implies (the 2026-07-01 avatar). It replaces
   // the shield-check glyph: Freddie now literally has a FACE in the top bar.
   const liveness = livenessFor(effectiveDelegation, !!isPaused);
   // Bound trigger icon — StatusItemPopover renders `<Icon className=... />`, so
   // we hand it a component with the state pre-bound.
   const TriggerIcon = ({ className }: { className?: string }) => (
-    <FreddieAvatar state={liveness} tone="full" className={className} />
+    <FreddieAvatar state={liveness} className={className} />
   );
   const label = delegationLabel(effectiveDelegation);
   const ceilingCents = meta?.default_ceiling_cents;
@@ -115,7 +115,7 @@ export function FreddieStatusItem() {
 
   const popoverHeader = (
     <div className="flex items-center gap-2">
-      <FreddieAvatar state={liveness} tone="full" className="w-4 h-4 shrink-0" />
+      <FreddieAvatar state={liveness} className="w-4 h-4 shrink-0" />
       <span className="text-sm font-medium">
         Freddie
         <span className="text-muted-foreground">
