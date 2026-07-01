@@ -82,6 +82,7 @@ export default function OperationPage() {
         return (
           <div className="flex h-full flex-col">
             <PaneHeader
+              icon={ClipboardCheck}
               title="To do"
               subtitle="What wants your decision — approve or reject below."
               action={<MirrorLink label="Open full Queue" onClick={() => navigateToSurface("queue")} />}
@@ -102,6 +103,7 @@ export default function OperationPage() {
         return (
           <div className="flex h-full flex-col">
             <PaneHeader
+              icon={ScrollText}
               title="Activity"
               subtitle="What just happened — the narrative of every invocation."
               action={<MirrorLink label="Open run ledger" onClick={() => navigateToSurface("recurrence", { pane: "activity" })} />}
@@ -149,6 +151,7 @@ function TunePane({ onSelect, onOpenFull }: { onSelect: (slug: string) => void; 
   return (
     <div className="flex h-full flex-col">
       <PaneHeader
+        icon={Clock}
         title="Schedule"
         subtitle="The recurring work — pick a row to pause, run now, or edit."
         action={<MirrorLink label="Open full Schedule" onClick={onOpenFull} />}

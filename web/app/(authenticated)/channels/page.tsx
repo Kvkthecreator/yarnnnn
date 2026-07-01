@@ -109,6 +109,7 @@ export default function ChannelsPage() {
         return (
           <div className="flex h-full flex-col">
             <PaneHeader
+              icon={Link2}
               title="Connections"
               subtitle="Connected platforms feeding the operation — status, coverage, and freshness."
             />
@@ -127,6 +128,7 @@ export default function ChannelsPage() {
         return (
           <div className="flex h-full flex-col">
             <PaneHeader
+              icon={Rss}
               title="Sources"
               subtitle="Standing web and RSS watches the operation tracks."
             />
@@ -144,6 +146,7 @@ export default function ChannelsPage() {
         return (
           <div className="flex h-full flex-col">
             <PaneHeader
+              icon={Cpu}
               title="AI Connections"
               subtitle="The AI that connects to this workspace — ChatGPT, Claude, and other LLMs reaching in over MCP. Each writes as itself, to a specific region."
             />
@@ -191,6 +194,7 @@ export default function ChannelsPage() {
         return (
           <div className="flex h-full flex-col">
             <PaneHeader
+              icon={ArrowUpFromLine}
               title="Out"
               subtitle="What the operation has emitted — sends to the outside world, to whom and when."
             />

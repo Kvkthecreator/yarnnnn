@@ -32,7 +32,7 @@ import { useNarrative } from "@/contexts/NarrativeContext";
 // setting). Governance (Autonomy, Budget) moved to the one operation-settings
 // door (workspace-settings, the Contract group). The shared SettingsPaneShell
 // renders the sidebar + pane switch (Singular Implementation, ADR-341 D5).
-import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
+import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 
 interface DangerZoneStats {
   workspace_files: number;
@@ -371,6 +371,12 @@ export default function SettingsPage() {
       {/* Billing Tab */}
       {pane === "billing" && (
         <section className="mb-8">
+          <PaneHeader
+            icon={CreditCard}
+            title="Billing"
+            subtitle="Your balance, plan, and top-ups."
+            bordered={false}
+          />
           <SubscriptionCard />
         </section>
       )}
@@ -378,15 +384,12 @@ export default function SettingsPage() {
       {/* Usage Tab */}
       {pane === "usage" && (
         <section className="mb-8 space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5" />
-              Usage
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Your balance and token spend this month.
-            </p>
-          </div>
+          <PaneHeader
+            icon={BarChart3}
+            title="Usage"
+            subtitle="Your balance and token spend this month."
+            bordered={false}
+          />
 
           {limitsLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
@@ -514,23 +517,22 @@ export default function SettingsPage() {
       {/* Account Tab - Data & Privacy */}
       {pane === "account" && (
         <section className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Shield className="w-5 h-5" />
-              Data & Privacy
-            </h2>
-            <button
-              onClick={loadDangerZoneStats}
-              disabled={isLoadingDangerStats}
-              className="p-2 text-muted-foreground hover:text-foreground"
-              title="Refresh stats"
-            >
-              <RefreshCw className={`w-4 h-4 ${isLoadingDangerStats ? "animate-spin" : ""}`} />
-            </button>
-          </div>
-          <p className="text-sm text-muted-foreground mb-6">
-            Manage your data and privacy settings. All deletions are permanent.
-          </p>
+          <PaneHeader
+            icon={Shield}
+            title="Data & Privacy"
+            subtitle="Manage your data and privacy settings. All deletions are permanent."
+            bordered={false}
+            action={
+              <button
+                onClick={loadDangerZoneStats}
+                disabled={isLoadingDangerStats}
+                className="p-2 text-muted-foreground hover:text-foreground"
+                title="Refresh stats"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoadingDangerStats ? "animate-spin" : ""}`} />
+              </button>
+            }
+          />
 
           {isLoadingDangerStats ? (
             <div className="flex items-center justify-center py-8">

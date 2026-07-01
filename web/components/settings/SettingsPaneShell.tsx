@@ -78,9 +78,15 @@ export interface PaneDef {
  * PaneHeader — THE canonical title block at the top of a pane body inside the
  * shell (2026-07-01 unification). One `<h2>` size/weight/spacing for EVERY
  * split-nav pane, replacing the per-surface hand-rolled copies that had drifted
- * (Channels + Notifications each defined their own identical-but-separate
- * `PaneHeader`; the body cards then often rendered a SECOND header of their own
- * — the Connectors double-header).
+ * (Channels + Notifications each defined their own identical-but-separate small
+ * header; Settings hand-rolled a bigger `text-lg` one; the body cards then
+ * sometimes rendered a SECOND header of their own — the Connectors double-
+ * header).
+ *
+ * TREATMENT (2026-07-01, operator call): the bigger, reader-friendly Settings
+ * shape is canon — `text-lg font-semibold` title + a prominent `w-5 h-5`
+ * foreground icon + `text-sm` subtitle. Channels/Notifications level UP to this
+ * (they were the smaller `text-sm` variant before).
  *
  * Distinct from `SurfaceIdentityHeader` (the page-level `<h1>` hero for DETAIL
  * surfaces — "what is this page about"). This is the pane-level `<h2>` — "what
@@ -88,12 +94,17 @@ export interface PaneDef {
  * region, so they stay separate components.
  *
  * Slots:
- *   - `icon` (optional) — renders left of the title. Most panes omit it (the
- *     nav already carries the pane icon); keep it for parity where a body
- *     component used to self-render an icon'd header.
+ *   - `icon` — the pane glyph, rendered prominent (`w-5 h-5`, foreground) left
+ *     of the title. Usually the same icon the nav PaneDef carries.
  *   - `subtitle` (optional) — the one-line description under the title.
  *   - `action` (optional) — right-aligned escape-hatch link / button
  *     (Notifications' "Open full Queue →" mirror links).
+ *   - `bordered` (default true) — a full-width strip with a bottom border + its
+ *     own `px-6 py-3` padding. Right for `fullBleed` panes (Channels,
+ *     Notifications) where the header spans the pane edge-to-edge. Pass
+ *     `bordered={false}` inside a centered `form`/`reading` column (Settings),
+ *     where the shell already owns the `p-6` padding and a full-width border
+ *     would clash with the narrow column.
  *
  * The body card mounted UNDER this header should NOT render its own title +
  * description — this header owns them. (A card may still render finer-grained
@@ -104,19 +115,27 @@ export function PaneHeader({
   subtitle,
   icon: Icon,
   action,
+  bordered = true,
 }: {
   title: string;
   subtitle?: string;
   icon?: ComponentType<{ className?: string }>;
   action?: ReactNode;
+  bordered?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-border/60 px-6 py-3 shrink-0">
+    <div
+      className={
+        bordered
+          ? "flex items-start justify-between gap-3 border-b border-border/60 px-6 py-4 shrink-0"
+          : "flex items-start justify-between gap-3 mb-6"
+      }
+    >
       <div className="flex items-center gap-2 min-w-0">
-        {Icon && <Icon className="w-4 h-4 shrink-0 text-muted-foreground" />}
+        {Icon && <Icon className="w-5 h-5 shrink-0 text-foreground" />}
         <div className="min-w-0">
-          <h2 className="text-sm font-medium text-foreground">{title}</h2>
-          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>}
         </div>
       </div>
       {action && <div className="shrink-0">{action}</div>}
