@@ -89,6 +89,48 @@ async def resolve_retention_days(
     return declared
 
 
+async def read_retention_days(client: Any, user_id: str) -> int:
+    """The operator's DECLARED retention window (no tier clamp) — for the FE dial's
+    current-state read. Returns DEFAULT_RETENTION_DAYS when unset. Never raises.
+
+    Distinct from `resolve_retention_days`: that applies the pricing tier ceiling
+    (the effective GC value); this returns the raw declared value the dial edits."""
+    return await resolve_retention_days(client, user_id, tier_max_days=None)
+
+
+async def write_retention_days(
+    client: Any,
+    user_id: str,
+    days: int,
+    *,
+    authored_by: str = "operator",
+) -> int:
+    """Author governance/_retention.yaml with `retention_days: <days>` (ADR-392 D8).
+
+    The single write path for the retention dial. Clamps to a sane floor (1 day)
+    so a zero/negative can't disable retention silently. governance/ is the GRANT
+    root (operator-authored; the steward reads-not-authors), so authored_by is
+    'operator' by default. Returns the written value.
+    """
+    from services.workspace import UserMemory
+    import yaml as _yaml
+
+    clamped = max(1, int(days))
+    content = _yaml.safe_dump(
+        {"retention_days": clamped}, sort_keys=False, default_flow_style=False,
+    )
+    um = UserMemory(client, user_id)
+    await um.write(
+        RETENTION_POLICY_PATH,
+        content,
+        summary="retention-policy",
+        authored_by=authored_by,
+        message=f"set raw-capture retention window to {clamped} days",
+    )
+    logger.info("[CONNECTOR_RETENTION] user=%s set retention_days=%d", user_id[:8], clamped)
+    return clamped
+
+
 def _observed_at_from_path(path: str) -> Optional[str]:
     """Extract the {observed_at} stamp from inbound/{platform}/{selector}/{stamp}.{ext}."""
     # strip an optional /workspace/ prefix, then take the filename stem
@@ -214,5 +256,7 @@ __all__ = [
     "RETENTION_POLICY_PATH",
     "DEFAULT_RETENTION_DAYS",
     "resolve_retention_days",
+    "read_retention_days",
+    "write_retention_days",
     "prune_raw_lane",
 ]
