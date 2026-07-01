@@ -55,13 +55,14 @@
  *   - Kept + Not-Open   — Open / Remove from Dock
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { LayoutGrid } from 'lucide-react';
 import { useComposition } from '@/lib/compositor/useComposition';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
+import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
 import { isKernelSurfaceSlug } from '@/types/desk';
 import { HOME_ROUTE } from '@/lib/routes';
 import { UserMenu } from '../UserMenu';
@@ -158,22 +159,8 @@ export function TopBarSurface() {
   >(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!contextMenu) return;
-    const close = (e: MouseEvent) => {
-      if (menuRef.current && menuRef.current.contains(e.target as Node)) return;
-      setContextMenu(null);
-    };
-    const closeOnEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setContextMenu(null);
-    };
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', closeOnEsc);
-    return () => {
-      document.removeEventListener('mousedown', close);
-      document.removeEventListener('keydown', closeOnEsc);
-    };
-  }, [contextMenu]);
+  // Click-outside + Escape close (shared dismissal contract, 2026-07-01).
+  usePopoverDismissal(menuRef, contextMenu !== null, () => setContextMenu(null));
 
   // Render helper for one Dock-row icon (single source of truth for
   // both kept and open-only segments).

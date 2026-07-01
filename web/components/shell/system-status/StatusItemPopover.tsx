@@ -13,11 +13,12 @@
  * (200) to match UserMenu + TopBar context menu.
  */
 
-import { useState, useRef, useEffect, type ReactNode } from 'react';
+import { useState, useRef, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import type { LucideIcon } from 'lucide-react';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
+import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
 import { cn } from '@/lib/utils';
 import type { KernelSurfaceSlug } from '@/types/desk';
 
@@ -72,27 +73,8 @@ export function StatusItemPopover({
   const { foregroundSurface } = useSurfacePreferences();
   const router = useRouter();
 
-  // Click outside closes
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
-
-  // Escape closes
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsOpen(false);
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [isOpen]);
+  // Click-outside + Escape close (shared dismissal contract, 2026-07-01).
+  usePopoverDismissal(containerRef, isOpen, () => setIsOpen(false));
 
   const handleFooterClick = (
     target: { kind: 'surface'; slug: KernelSurfaceSlug } | { kind: 'route'; href: string },

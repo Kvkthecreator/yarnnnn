@@ -28,12 +28,13 @@
  * below the breakpoint.
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { Settings, LogOut, Sun, Moon, Monitor, User, Columns2, LayoutGrid } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
+import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { useShellChrome } from './ShellChromeContext';
 import { useViewport } from '@/lib/shell/useViewport';
@@ -57,17 +58,8 @@ export function UserMenu({ email }: UserMenuProps) {
   // dropdown header to top-bar SystemStatusCluster. Singular
   // Implementation: one balance indicator, in kernel chrome.
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  // Click-outside + Escape close (shared dismissal contract, 2026-07-01).
+  usePopoverDismissal(dropdownRef, isOpen, () => setIsOpen(false));
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

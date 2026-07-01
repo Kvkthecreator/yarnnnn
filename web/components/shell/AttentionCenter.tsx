@@ -47,6 +47,7 @@ import { proposalActionLabel } from '@/lib/proposal-labels';
 import { formatRelativeTime } from '@/lib/formatting';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
+import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
 import { cn } from '@/lib/utils';
 import { PrincipalBadge } from '@/lib/workspace/principal-badge';
 
@@ -190,24 +191,8 @@ export function AttentionCenter() {
     };
   }, []);
 
-  // Click-outside + Escape close (same pattern as StatusItemPopover).
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, [isOpen]);
+  // Click-outside + Escape close (shared dismissal contract, 2026-07-01).
+  usePopoverDismissal(containerRef, isOpen, () => setIsOpen(false));
 
   const unseenMaterial = materialEvents.filter(
     (e) => !lastSeen || e.created_at > lastSeen,
