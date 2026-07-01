@@ -579,39 +579,37 @@ def test_reviewer_system_prompt_has_cache_control():
 
 
 def test_alpha_trader_heavy_recurrences_declare_max_rounds():
-    """Bundle-level: heavy judgment-mode recurrences declare per-recurrence
-    round budgets matching their observed workload size.
+    """Bundle-level: heavy judgment recurrences declare per-recurrence round
+    budgets matching their observed workload size.
 
-    ADR-271 Thread A: track-universe migrated to mode=mechanical, no longer
-    routes through specialist dispatch, no longer needs max_rounds. Only
-    judgment-mode heavy recurrences remain in scope here.
+    ADR-271 Thread A: track-universe migrated to deterministic (no specialist
+    dispatch, no max_rounds). ADR-393: it moved out of _recurrences.yaml
+    entirely into _captures.yaml (the capture lane) — a recurrence is now
+    judgment-only. Only judgment recurrences remain in scope here.
     """
     from services.recurrence import parse_recurrences_yaml
+    from services.capture.declarations import parse_captures_yaml
     import os
 
-    path = os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "docs",
-        "programs",
-        "alpha-trader",
-        "reference-workspace",
-        "_recurrences.yaml",
+    ref = os.path.join(
+        os.path.dirname(__file__), "..",
+        "docs", "programs", "alpha-trader", "reference-workspace",
     )
-    with open(path, encoding="utf-8") as f:
-        content = f.read()
-    parsed = parse_recurrences_yaml(content)
+    with open(os.path.join(ref, "_recurrences.yaml"), encoding="utf-8") as f:
+        parsed = parse_recurrences_yaml(f.read())
     by_slug = {r.slug: r for r in parsed}
+    with open(os.path.join(ref, "_captures.yaml"), encoding="utf-8") as f:
+        caps = {c.slug for c in parse_captures_yaml(f.read())}
 
-    # ADR-271 Thread A: track-universe is now mechanical-mode. No max_rounds
-    # required (no specialist dispatched).
+    # ADR-393: track-universe is a CAPTURE now, not a recurrence. It runs in
+    # the capture lane (deterministic, no specialist, no max_rounds).
     assert_true(
-        "track-universe" in by_slug,
-        "alpha-trader bundle declares track-universe",
+        "track-universe" not in by_slug,
+        "track-universe is no longer a recurrence (ADR-393: moved to _captures.yaml)",
     )
-    assert_eq(
-        by_slug["track-universe"].mode, "mechanical",
-        "track-universe is mechanical-mode post-ADR-271",
+    assert_true(
+        "track-universe" in caps,
+        "alpha-trader bundle declares track-universe as a capture (ADR-393)",
     )
 
     # ADR-272 deleted falsify-signals (collapsed into morning-reflection

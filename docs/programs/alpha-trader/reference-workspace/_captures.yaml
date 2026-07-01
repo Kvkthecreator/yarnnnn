@@ -1,0 +1,123 @@
+# /workspace/_captures.yaml — alpha-trader bundle (ADR-393)
+#
+# The capture lane's declaration file. A CAPTURE is deterministic, upstream,
+# intent-free perception: it runs on cadence, writes substrate, and wakes no
+# one. The capture lane (services.capture) runs these OUTSIDE the wake funnel,
+# as a maintenance phase in the scheduler tick — zero LLM cost. This is where
+# the trader's ground-truth state mirrors + world-mirrors live (moved here from
+# _recurrences.yaml when ADR-393 narrowed recurrences to judgment-only).
+#
+# Each entry is {slug, schedule, primitive} where:
+#   - slug:      stable identifier
+#   - schedule:  plain UTC cron, @-prefixed semantic schedule (ADR-268),
+#                or a list of either (multiple fires per day)
+#   - primitive: a `@primitive: <Name>(<args>)` directive the lane parses + runs
+#
+# There is NO `mode` field — being in _captures.yaml IS the class (a capture
+# never wakes the Reviewer). `fire_on_activation: true` is honored (ADR-270).
+# Semantic schedules resolve against this bundle's market_context (MANIFEST.yaml).
+#
+# ADR-392 §7 / ADR-376 §63: these are GROUND-TRUTH STATE MIRRORS (the mirrored
+# broker state IS the Reviewer's canonical world-model, read directly — Axiom 8),
+# so they write operation/ DIRECTLY via write_to; they are NOT connector
+# context-in and do NOT route through the inbound/ raw lane. This is the
+# permanent, correct shape for state mirrors — capture is the pipeline; the
+# write target stays operation/-direct.
+
+captures:
+
+  # ── GROUND-TRUTH STATE MIRRORS (ADR-264) — keep the world-model fresh ─────
+  # Deterministic Python via SyncPlatformState. The Reviewer reads this
+  # substrate, never broker APIs as primary perception (ADR-264 substrate-
+  # canonical world axiom). Diff-aware writes skip on unchanged content —
+  # quiet markets produce zero revision noise.
+
+  - slug: track-positions
+    schedule: "@every 1min during regular_hours"   # ADR-268: every minute during RTH (9:30-16:00 ET)
+    primitive: |
+      @primitive: SyncPlatformState(
+        tool="platform_trading_get_positions",
+        write_to="operation/portfolio/positions/{symbol}.yaml",
+        iterate_field="positions",
+        item_key="symbol",
+        diff_aware=true
+      )
+    display_name: "Position State Mirror"
+
+  - slug: track-account
+    schedule: "@every 5min during regular_hours"   # ADR-268: every 5 min during RTH
+    # ADR-270: fire at activation so the operator sees account state
+    # populated in the cockpit immediately, regardless of RTH timing.
+    fire_on_activation: true
+    primitive: |
+      @primitive: SyncPlatformState(
+        tool="platform_trading_get_account",
+        write_to="operation/portfolio/_account.yaml",
+        diff_aware=true
+      )
+    display_name: "Account State Mirror"
+
+  - slug: track-orders
+    schedule: "@every 1min during regular_hours"   # ADR-268: every minute during RTH
+    primitive: |
+      @primitive: SyncPlatformState(
+        tool="platform_trading_get_orders",
+        tool_args={"status": "open"},
+        write_to="operation/portfolio/_orders.yaml",
+        diff_aware=true
+      )
+    display_name: "Open Orders Mirror"
+
+  # ── track-regime — refresh portfolio-level regime state ──────────────────
+  # Operator declared Signal 5 (VIX regime filter) in _operator_profile.md;
+  # _risk.md sets apply_vix_regime_scalar: true. This capture is the substrate
+  # sensor that makes the predicate live. Deterministic Python computes the
+  # regime predicate from VIXY+SPY 1Day bars; the Reviewer reads the resulting
+  # _regime.yaml at proposal time. (Was a mechanical recurrence pre-ADR-393.)
+  - slug: track-regime
+    # ADR-268: 30 min after RTH close — VIXY's 1Day bar is settled. Fires
+    # before next morning's signal-evaluation so it reads fresh regime state.
+    schedule: "@market_close + 30min"   # 16:30 ET
+    # ADR-270: fire at activation so _regime.yaml exists before the first
+    # signal-evaluation fire. Runs in ~1-2s, zero LLM cost.
+    fire_on_activation: true
+    primitive: |
+      @primitive: TrackRegime()
+    display_name: "Regime Tracker"
+
+  # ── track-universe — refresh ticker fundamentals ─────────────────────────
+  # Deterministic Python fetches 1Day bars per universe ticker and computes
+  # SMA/RSI/ATR/volume indicators; the Reviewer reads each {TICKER}.yaml at
+  # signal-evaluation time. (Was a mechanical recurrence pre-ADR-393.)
+  - slug: track-universe
+    # ADR-268: three RTH snapshots — post-open settle, midday, pre-close.
+    schedule:
+      - "@market_open + 15min"     # 09:45 ET — 15 min after open, price discovery settled
+      - "@market_open + 3h"        # 12:30 ET — midday
+      - "@market_close - 1h"       # 15:00 ET — 1h before close
+    # ADR-270: fire at activation so per-ticker snapshots exist before
+    # signal-evaluation's first fire.
+    fire_on_activation: true
+    primitive: |
+      @primitive: TrackUniverse()
+    display_name: "Universe Tracker"
+
+  # ── mirror-signal-state — compact substrate for the Reviewer wake envelope ──
+  # ADR-281 Derived Principle 19: the Reviewer's wake envelope reads substrate;
+  # it does not derive state at prompt-assembly time. This capture projects
+  # per-signal YAML state files into a compact `_signals_summary.md` the wake
+  # envelope reads as a normal `path` entry (per MANIFEST.substrate_abi.
+  # reviewer_wake_envelope). World-mirror role per the six-role taxonomy.
+  # (A pure substrate→substrate mirror — no platform call.)
+  - slug: mirror-signal-state
+    schedule: "@every 1min during regular_hours"   # ADR-268: every minute during RTH
+    # ADR-270: fire at activation so _signals_summary.md exists before the
+    # first reactive Reviewer wake. Runs in <1s, zero LLM cost.
+    fire_on_activation: true
+    primitive: |
+      @primitive: MirrorSignalState(
+        source="operation/trading/signals/*.yaml",
+        write_to="operation/trading/_signals_summary.md",
+        diff_aware=true
+      )
+    display_name: "Signals Summary Mirror"

@@ -285,32 +285,33 @@ def test_unknown_calendar_raises():
 
 
 def test_alpha_trader_bundle_recurrences_parse():
-    """The shipped alpha-trader bundle's _recurrences.yaml parses cleanly."""
-    bundle_path = (
-        _REPO_ROOT.parent
-        / "docs"
-        / "programs"
-        / "alpha-trader"
-        / "reference-workspace"
-        / "_recurrences.yaml"
+    """The shipped alpha-trader bundle's _recurrences.yaml + _captures.yaml parse
+    cleanly with the semantic schedules intact (ADR-393 split: judgment
+    recurrences vs deterministic captures)."""
+    ref = (
+        _REPO_ROOT.parent / "docs" / "programs" / "alpha-trader" / "reference-workspace"
     )
-    content = bundle_path.read_text()
-    parsed = parse_recurrences_yaml(content)
+    parsed = parse_recurrences_yaml((ref / "_recurrences.yaml").read_text())
     assert_true(len(parsed) > 0, "alpha-trader bundle parses (has recurrences)")
 
-    # Spot-check the rewritten semantic schedules are present
+    # signal-evaluation is a judgment recurrence with a semantic schedule.
     by_slug = {r.slug: r for r in parsed}
     assert_true(
         by_slug["signal-evaluation"].schedule == "@market_open + 15min",
         "signal-evaluation uses semantic schedule",
     )
+
+    # The mechanical mirrors moved to _captures.yaml (ADR-393). track-universe
+    # keeps its list-of-schedules there; semantic schedules parse the same way.
+    from services.capture.declarations import parse_captures_yaml
+    caps = {c.slug: c for c in parse_captures_yaml((ref / "_captures.yaml").read_text())}
     assert_true(
-        isinstance(by_slug["track-universe"].schedule, list),
-        "track-universe uses list-of-schedules",
+        isinstance(caps["track-universe"].schedule, list),
+        "track-universe (capture) uses list-of-schedules",
     )
     assert_true(
-        by_slug["narrative-digest"].schedule == "0 3 * * *",
-        "narrative-digest remains plain cron",
+        caps["track-positions"].schedule == "@every 1min during regular_hours",
+        "track-positions (capture) keeps its semantic schedule",
     )
 
 

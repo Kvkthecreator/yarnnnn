@@ -80,11 +80,15 @@ FRONTMATTER_KERNEL_KEY = "activated_kernel_version"
 # inert or broken under the new code. Discipline: auto-overwrite the bundle's
 # new content into the live path; back up the operator's prior content to
 # `/workspace/system/conflict-backups/{ran_at}/{relative_path}` for manual
-# inspection. Closed-set today — adding a third config file requires an ADR
+# inspection. Closed-set today — adding a config file requires an ADR
 # amendment naming it and updating this constant in the same commit.
 CONFIG_PATHS: frozenset[str] = frozenset({
     "_recurrences.yaml",
     "_hooks.yaml",
+    # ADR-393: the capture-lane declaration file — machine-parsed bundle config,
+    # operationally load-bearing (the capture lane reads it), single-writer.
+    # Same conflict-handling class as _recurrences.yaml / _hooks.yaml.
+    "_captures.yaml",
 })
 
 # Per ADR-292 v3 D10: backup destination convention for operator-edited

@@ -272,17 +272,22 @@ substrate_abi:
   # point a `watches:` block replaces this rationale" — this is that block.
   # alpha-author's standing watch is the generic web/RSS transport
   # (TrackWebSources): the operator declares press/industry/interest feeds
-  # in _sources.yaml; the track-sources mechanical recurrence distills them
-  # into _watch_signal.yaml per the ADR-335 D3 observation contract. The
+  # in _sources.yaml; the track-sources CAPTURE distils them into
+  # _watch_signal.yaml per the ADR-335 D3 observation contract. The
   # template ships EMPTY sources — empty = deliberate no-op, so the lean
   # uploads+websearch shape stays valid (perception is a flow, never a
   # gate). Uploads + websearch remain rungs 1-2 of context-in primacy
   # (ADR-335 §4); this watch is the rung-4a standing extension.
+  #
+  # ADR-393: the watch's Trigger (`recurrence:` field below) now names a
+  # CAPTURE in _captures.yaml, not a recurrence — a standing watch is
+  # deterministic intake run by the capture lane, not a judgment wake. The
+  # field key is retained (schema compat); it resolves against captures.
   watches:
     - id: interest-sources
       shape: web_press_feed
       declaration: operation/authored/_sources.yaml
-      recurrence: track-sources
+      recurrence: track-sources   # ADR-393: this is a capture (see _captures.yaml)
       distills_to: operation/authored/_watch_signal.yaml
     # ADR-335 Crawl-B (D4/D5): the repository standing watch — for an author
     # workspace whose SUBJECT is a code/doc repo (e.g. YARNNN-about-YARNNN).

@@ -1,129 +1,29 @@
-# /workspace/_recurrences.yaml — alpha-trader bundle (ADR-261 D2 + ADR-263 D1 + ADR-268)
+# /workspace/_recurrences.yaml — alpha-trader bundle (ADR-261 D2 + ADR-268 + ADR-393)
 #
-# Single canonical recurrences file. The operator can read the entire
-# scheduled-work surface in 30 seconds. Per ADR-261 D1 each entry is
-# {slug, schedule, mode, prompt} where:
+# Single canonical recurrences file. A recurrence is a JUDGMENT prompt on a
+# cadence — the wake funnel serves it. Per ADR-261 D1 each entry is
+# {slug, schedule, prompt} where:
 #   - slug:     stable identifier
 #   - schedule: plain UTC cron, @-prefixed semantic schedule (ADR-268),
 #               a list of either (multiple fires per day), or null (reactive)
-#   - mode:     judgment (wakes Reviewer with prompt) | mechanical (executes
-#               @primitive: ... directive deterministically; no Reviewer wake)
-#               Default at parse time when absent: 'judgment' (legacy compat).
-#   - prompt:   Reviewer message (judgment mode) OR @primitive: ... (mechanical mode)
+#   - prompt:   the Reviewer message read at fire time
 #
-# Per ADR-263 D2: cron is part of the environment that fires recurrences;
-# the recurrence's `mode` field declares whether the fire wakes the Reviewer.
-#
-# Per ADR-264: SyncPlatformState is the canonical mechanical primitive that
-# mirrors external state into substrate. Mechanical-mode recurrences invoke
-# it via @primitive: SyncPlatformState(...) directives.
+# ADR-393: recurrences are JUDGMENT-ONLY. Deterministic intake (mirroring
+# broker state, running an @primitive: directive, standing watches) is NOT a
+# recurrence — it is a CAPTURE, declared in the sibling _captures.yaml and run
+# by the capture lane OUTSIDE the wake funnel. The mechanical mirrors that used
+# to live here (track-positions/account/orders, track-regime, track-universe,
+# mirror-signal-state) moved to _captures.yaml verbatim (same primitives, same
+# cadence, same write targets — only their dispatch home changed). The `mode`
+# field is retired.
 #
 # Per ADR-262 D1: every output path is slug-templated by CONVENTIONS.md;
 # every spec referenced by a prompt lives under /workspace/operation/specs/.
 #
-# Per ADR-268: semantic schedules ("@market_open + 15min",
-# "@every 1min during regular_hours") resolve to UTC at materialize-due
-# time against this bundle's market_context (declared in MANIFEST.yaml).
-# Market-anchored recurrences live in the trading-business section below;
-# market-agnostic housekeeping uses plain UTC cron.
+# Per ADR-268: semantic schedules ("@market_open + 15min") resolve to UTC at
+# materialize-due time against this bundle's market_context (MANIFEST.yaml).
 
 recurrences:
-
-  # ── MECHANICAL MIRRORS (ADR-264) — keep substrate fresh, no LLM cost ─────
-  # These recurrences run as deterministic Python via SyncPlatformState.
-  # They write to substrate at known paths; the Reviewer reads substrate,
-  # never broker APIs as primary perception (ADR-264 substrate-canonical
-  # world axiom). Diff-aware writes skip when content unchanged — quiet
-  # markets produce zero revision noise.
-
-  - slug: track-positions
-    schedule: "@every 1min during regular_hours"   # ADR-268: every minute during RTH (9:30-16:00 ET)
-    mode: mechanical
-    prompt: |
-      @primitive: SyncPlatformState(
-        tool="platform_trading_get_positions",
-        write_to="operation/portfolio/positions/{symbol}.yaml",
-        iterate_field="positions",
-        item_key="symbol",
-        diff_aware=true
-      )
-    display_name: "Position State Mirror"
-
-  - slug: track-account
-    schedule: "@every 5min during regular_hours"   # ADR-268: every 5 min during RTH
-    mode: mechanical
-    # ADR-270: fire at activation so the operator sees account state
-    # populated in the cockpit immediately, regardless of RTH timing.
-    fire_on_activation: true
-    prompt: |
-      @primitive: SyncPlatformState(
-        tool="platform_trading_get_account",
-        write_to="operation/portfolio/_account.yaml",
-        diff_aware=true
-      )
-    display_name: "Account State Mirror"
-
-  - slug: track-orders
-    schedule: "@every 1min during regular_hours"   # ADR-268: every minute during RTH
-    mode: mechanical
-    prompt: |
-      @primitive: SyncPlatformState(
-        tool="platform_trading_get_orders",
-        tool_args={"status": "open"},
-        write_to="operation/portfolio/_orders.yaml",
-        diff_aware=true
-      )
-    display_name: "Open Orders Mirror"
-
-  # ── JUDGMENT RECURRENCES — wake the Reviewer with a prompt ──────────────
-
-  # ── track-regime — refresh portfolio-level regime state ──────────────────
-  # Operator declared Signal 5 (VIX regime filter) in _operator_profile.md;
-  # _risk.md sets apply_vix_regime_scalar: true. This recurrence is the
-  # substrate sensor that makes the predicate live. ADR-271 Thread A:
-  # migrated to mechanical mode — deterministic Python computes the regime
-  # predicate from VIXY+SPY 1Day bars; zero LLM cost; the Reviewer reads
-  # the resulting _regime.yaml at proposal time.
-  #
-  # Was judgment-mode pre-ADR-271; ADR-263 §"Why this rewrite" named this
-  # exact recurrence as the canonical mechanical-vs-judgment mismatch case.
-  - slug: track-regime
-    # ADR-268: 30 min after RTH close — VIXY's 1Day bar is settled.
-    # Fires before next morning's pre-market-brief so the brief reads
-    # fresh regime state.
-    schedule: "@market_close + 30min"   # 16:30 ET
-    mode: mechanical
-    # ADR-270: fire at activation so _regime.yaml exists before the
-    # first signal-evaluation fire. Mechanical mode means this runs in
-    # ~1-2s with no LLM cost, so cold-start cost is negligible.
-    fire_on_activation: true
-    prompt: |
-      @primitive: TrackRegime()
-    display_name: "Regime Tracker"
-
-  # ── track-universe — refresh ticker fundamentals ─────────────────────────
-  # ADR-271 Thread A: migrated to mechanical mode. Deterministic Python
-  # fetches 1Day bars per universe ticker and computes SMA/RSI/ATR/volume
-  # indicators; zero LLM cost; the Reviewer reads each {TICKER}.yaml at
-  # signal-evaluation time.
-  #
-  # Was judgment-mode pre-ADR-271; the cold-start audit 2026-05-13 showed
-  # the LLM specialist exited early without writing per-ticker substrate
-  # (brief-composition gap). The mechanical primitive eliminates that
-  # failure class entirely.
-  - slug: track-universe
-    # ADR-268: three RTH snapshots — post-open settle, midday, pre-close.
-    schedule:
-      - "@market_open + 15min"     # 09:45 ET — 15 min after open, price discovery settled
-      - "@market_open + 3h"        # 12:30 ET — midday
-      - "@market_close - 1h"       # 15:00 ET — 1h before close
-    mode: mechanical
-    # ADR-270: fire at activation so per-ticker snapshots exist before
-    # signal-evaluation's first fire.
-    fire_on_activation: true
-    prompt: |
-      @primitive: TrackUniverse()
-    display_name: "Universe Tracker"
 
   # ── signal-evaluation — evaluate signals + inline ProposeAction ────────────
   # ADR-296 v2 D3: Reviewer does not self-invoke. The previous pattern
@@ -133,10 +33,14 @@ recurrences:
   # signal-evaluation's prompt. The Reviewer evaluates signals AND emits
   # ProposeAction(...) inline when conditions warrant — one judgment
   # cycle, one decision, no self-fire.
+  #
+  # It reads the substrate the CAPTURE LANE keeps fresh (per-ticker snapshots
+  # from track-universe, _regime.yaml from track-regime, positions from
+  # track-positions — all in _captures.yaml); the capture drain runs before
+  # the wake drain each tick, so this wake sees fresh substrate.
   - slug: signal-evaluation
     # ADR-268: post-open after price discovery settles.
     schedule: "@market_open + 15min"   # 09:45 ET
-    mode: judgment
     # ADR-269: Reviewer reads pre-computed ticker.yaml snapshots (no broker
     # call for signal eval), but may dispatch a specialist to verify open
     # positions via Alpaca for exit-trigger checks. write_trading needed so
@@ -184,29 +88,6 @@ recurrences:
       from your substrate? — not an instruction to stand down.
     display_name: "Signal Evaluator"
 
-  # ── mirror-signal-state — compact substrate for Reviewer wake envelope ──
-  # ADR-281 Derived Principle 19: the Reviewer's wake envelope reads
-  # substrate; it does not derive state at prompt-assembly time. This
-  # mechanical recurrence projects per-signal YAML state files into a
-  # compact `_signals_summary.md` substrate file that the wake envelope
-  # reads as a normal `path` entry (per MANIFEST.substrate_abi.reviewer_wake_envelope).
-  # Replaces the deleted ENVELOPE_SUMMARIZERS["signal_files"] kernel
-  # function. World-mirror role per the six-role taxonomy.
-  - slug: mirror-signal-state
-    schedule: "@every 1min during regular_hours"   # ADR-268: every minute during RTH
-    mode: mechanical
-    # ADR-270: fire at activation so _signals_summary.md exists before
-    # the first reactive Reviewer wake. Mechanical mode means this runs
-    # in <1s with no LLM cost.
-    fire_on_activation: true
-    prompt: |
-      @primitive: MirrorSignalState(
-        source="operation/trading/signals/*.yaml",
-        write_to="operation/trading/_signals_summary.md",
-        diff_aware=true
-      )
-    display_name: "Signals Summary Mirror"
-
   # ADR-296 v2 D3: trade-proposal recurrence DELETED. Its emission logic
   # inlined into signal-evaluation's prompt (above). The reactive
   # `schedule: null` + FireInvocation chain pattern dissolves when the
@@ -229,13 +110,12 @@ recurrences:
   # reconcile_user) that pulls fills from Alpaca, recovers signal attribution
   # via the client_order_id round-trip (P&L unification 2026-05-12), and
   # folds into _money_truth.md with by_signal bucketing. The recurrence
-  # prompt is the wake-vehicle that triggers the reconciler through
-  # invocation_dispatcher.
+  # prompt is the wake-vehicle that triggers the reconciler through the
+  # wake dispatch (the mechanical pre-fold runs before envelope assembly).
   - slug: outcome-reconciliation
     # ADR-268: 1h after RTH close — fills + clearing settled. Previously
     # "0 5 UTC" = 00:00 ET (midnight, multiple hours after close).
     schedule: "@market_close + 1h"   # 17:00 ET
-    mode: judgment
     # ADR-269: deterministic reconciler pulls fills + orders from Alpaca;
     # specialist consultation requires market-data access for fill
     # verification.

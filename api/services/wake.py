@@ -103,7 +103,7 @@ WakeSource = Literal[
 ]
 
 # ADR-393: `mechanical` removed — the wake funnel serves judgment only. The
-# capture lane records its own execution_events with funnel_decision="capture"
+# capture lane records its own execution_events with a capture-class decision
 # (a distinct pipeline; that value never flows through this Literal).
 FunnelDecision = Literal[
     "skip",
