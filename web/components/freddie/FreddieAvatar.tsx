@@ -1,78 +1,71 @@
 'use client';
 
 /**
- * FreddieAvatar — the mascot for Freddie, the system agent (v2, 2026-07-01).
+ * FreddieAvatar — the mascot for Freddie, the system agent (v3, 2026-07-01).
  *
  * THE DESIGN LANGUAGE (the operator's "Freddie Design System" framing):
  *   - ONE iconic mascot: Freddie = FRANKENSTEIN's monster (flat-top head, brow
- *     scar, neck bolts), rendered in the CRYPTOPUNKS idiom — a literal 24×24
- *     pixel grid of hard-edged blocks. The v1 curved-vector attempt read as a
- *     "shield clown"; this is the retrofit: a pixel-punk Frankie.
- *   - MODULAR PIXEL CONSTRUCTION (the CryptoPunks insight, literally). A base
- *     24×24 grid + per-STATE trait overlays that swap specific pixels (eyes,
- *     mouth, brow). Traits express STATE, not cosmetic identity — the modular
- *     stack drives a FUNCTIONAL signal, not random variety. A future v2 trait
- *     library (hat/glasses/accessory rows) drops onto the same grid.
- *   - STATE-EXPRESSIVE. `liveness` swaps the eye + mouth pixel rows so the
- *     mascot visually communicates what the system agent is doing.
+ *     scar, temple bolts), rendered in the CRYPTOPUNKS idiom — a literal 24×24
+ *     pixel grid of hard-edged blocks.
+ *   - ONE APPEARANCE, LIKE A BRAND LOGO. Freddie is ALWAYS the full-color Frankie
+ *     (green skin · dark flat-top · steel bolts). No monochrome variant.
+ *   - MOTION IS THE STATE (v3, the operator call). The earlier version encoded
+ *     "what Freddie is doing" as five FIXED poses — a static lookup table that
+ *     read as mechanical. Replaced by the loader model (think Claude Code's
+ *     streaming shimmer): Freddie is a STILL mark at rest, and ANIMATES only
+ *     while working. Motion = the activity signal; stillness = nothing running.
+ *     The working motion is a continuous idle-loop (pupils scan + temple bolts
+ *     pulse) — it reads as "alive and computing," not a discrete labeled mood.
  *   - SEAT, NOT PERSONA. The face is Freddie-the-seat (the system agent /
- *     substrate steward, ADR-381/383). An operator persona (IDENTITY.md →
- *     "Simons") changes the NAME, never the face (the ADR-315 seat≠occupant
- *     split). So one mascot is correct.
- *   - ONE APPEARANCE, LIKE A BRAND LOGO (operator call, 2026-07-01). Freddie is
- *     ALWAYS the full-color Frankie — green skin, dark flat-top, steel bolts.
- *     There is no monochrome/tinted variant: a mono `currentColor` glyph was
- *     the earlier drop-in-for-lucide contract, but it read as a washed-out
- *     "reddish" thing detached from the mascot. A recognizable mark beats a
- *     context-tinted glyph. `className` controls SIZE only (not color).
+ *     substrate steward, ADR-381/383). An operator persona (IDENTITY.md) changes
+ *     the NAME, never the face (the ADR-315 seat≠occupant split).
  *
- * GRID: 24×24, viewBox 0 0 24 24, one pixel = one unit. Rendering maps each
- * non-empty grid cell to a `<rect width=1 height=1>`. Adjacent same-color
- * pixels are NOT merged (24×24 is small; the DOM cost is trivial and the code
- * stays a legible pixel map).
+ * ANIMATION: pure CSS keyframes SCOPED inside the SVG (an inline <style> with a
+ * per-instance id) — GPU-cheap, no JS tick, no global-CSS dependency (the
+ * component stays a single portable file). `animate=false` renders the still
+ * logo (pupils centered, bolts steady).
+ *
+ * GRID: 24×24, viewBox 0 0 24 24, one pixel = one unit. Each non-empty cell →
+ * one <rect width=1 height=1>. Pixels are NOT merged (24×24 is tiny; the DOM
+ * cost is trivial and the code stays a legible pixel map).
  */
 
+import { useId } from 'react';
 import { cn } from '@/lib/utils';
 
-/** What Freddie is doing — the axis the mascot expresses (operator call). */
-export type FreddieLiveness =
-  | 'idle' //     calm, at rest — nothing to do
-  | 'thinking' // eyes up, focused — a wake is being evaluated
-  | 'acting' //   alert, eyes forward — executing / writing substrate
-  | 'waiting' //  looking at you — something queued for your decision
-  | 'paused'; //  asleep — autonomy paused or dormant
-
 export interface FreddieAvatarProps {
-  /** What Freddie is doing. Default 'idle'. */
-  state?: FreddieLiveness;
-  /** Sizing only (Freddie is always the full-color mark). Mirrors a glyph's
-   *  className contract for size. Default 'w-4 h-4'. */
+  /**
+   * Whether Freddie is WORKING. true → the loader motion (scanning pupils +
+   * pulsing bolts). false → the still full-color mark. Default true for now —
+   * v3 ships the motion always-on to prove it reads well; a follow-up wires it
+   * to real activity signals (a response streaming, a wake running).
+   */
+  animate?: boolean;
+  /** Sizing (Freddie is always the full-color mark). Default 'w-4 h-4'. */
   className?: string;
-  /** Accessible label. Default derives from state. */
+  /** Accessible label. */
   title?: string;
 }
 
 // ── Palette ──────────────────────────────────────────────────────────────
-// Single-letter keys keep the grid map readable. Freddie is always full-color
-// (one appearance, like a brand logo — the 2026-07-01 operator call).
 const PALETTE: Record<string, string> = {
   K: '#1f2937', //  hair / flat-top + outline (near-black slate)
-  G: '#5bbf57', //  skin (Frankenstein green — matches the reference)
-  D: '#3f9a45', //  skin shadow (jaw / cheek / brow underside)
+  G: '#5bbf57', //  skin (Frankenstein green)
+  D: '#3f9a45', //  skin shadow (jaw / cheek)
   B: '#9ca3af', //  bolt metal (steel)
-  H: '#e5e7eb', //  bolt highlight (the shiny cap)
+  H: '#e5e7eb', //  bolt highlight (shiny cap)
   M: '#4b5563', //  bolt shadow / dark rim
-  E: '#111827', //  eyes / mouth ink
-  S: '#3f9a45', //  forehead stitch scar (skin shadow tone)
+  E: '#111827', //  eye whites / mouth ink
+  P: '#111827', //  pupil (its own key so it can animate independently)
+  S: '#3f9a45', //  forehead stitch scar
 };
 
 // ── Base grid (24×24) ─────────────────────────────────────────────────────
-// '.' = empty. Frankenstein anatomy (per the reference): a blocky flat-top HAIR
-// crown with a small fringe, a TALL square FOREHEAD (the signature), cylindrical
-// BOLTS at the TEMPLES (ear-level, sticking out the sides), low-set dot eyes, a
-// long flat mouth, and a squared jaw. Eyes + mouth are '.' here — the per-state
-// overlay stamps them (the modular trait layer).
-//   bolt = M B B H  (dark rim · steel · steel · shiny cap) out each temple.
+// Frankenstein anatomy: flat-top HAIR crown + fringe, TALL square FOREHEAD,
+// temple BOLTS (M B B H out each side), deep-set EYES, long flat MOUTH, jaw.
+// The eye SOCKETS are the two 3-wide gaps at row 11 (cols 7-9 and 14-16); the
+// eye whites (E) fill them and the animated pupil (P) sits inside — so the
+// pupil has room to scan left↔right within the white.
 // prettier-ignore
 const BASE: string[] = [
   '........................',  // 0
@@ -80,20 +73,20 @@ const BASE: string[] = [
   '......KKKKKKKKKKKK......',  // 2  hair crown
   '.....KKKKKKKKKKKKKK.....',  // 3
   '.....KKKKKKKKKKKKKK.....',  // 4  flat-top block
-  '.....KKK.KKKK.KKKKK.....',  // 5  hair fringe (little gaps)
-  '.....KGGGGGGGGGGGGK.....',  // 6  forehead begins
+  '.....KKK.KKKK.KKKKK.....',  // 5  hair fringe
+  '.....KGGGGGGGGGGGGK.....',  // 6  forehead
   '.....KGGGGGGGGGGGGK.....',  // 7  TALL forehead
-  '.....KGGGSSSSSSGGGK.....',  // 8  forehead stitch scar
-  '.MBBHKGGGGGGGGGGGGKHBBM.',  // 9  ← TEMPLE BOLTS attach flush to the head
-  '.MBBHKGGGGGGGGGGGGKHBBM.',  // 10 bolt is 2px tall (H = cap next to head)
-  '.....KGG.GGGGGG.GGK.....',  // 11 eye row (overlay fills the sockets @ c8, c15)
+  '.....KGGGSSSSSSGGGK.....',  // 8  stitch scar
+  '.MBBHKGGGGGGGGGGGGKHBBM.',  // 9  temple bolts
+  '.MBBHKGGGGGGGGGGGGKHBBM.',  // 10
+  '.....KGEEEGGGGEEEGK.....',  // 11 eye whites: L=7-9 R=14-16 (pupils centered 8/15)
   '.....KGGGGGGGGGGGGK.....',  // 12
   '.....KGGGGGGGGGGGGK.....',  // 13
-  '.....KGGGGGGGGGGGGK.....',  // 14 mouth region (overlay fills)
+  '.....KGEEEEEEEEEEGK.....',  // 14 mouth
   '.....KGGGGGGGGGGGGK.....',  // 15
   '.....KDGGGGGGGGGGDK.....',  // 16 cheek/jaw shadow
   '.....KKDDDDDDDDDDKK.....',  // 17 jaw
-  '......KKKKKKKKKKKK......',  // 18 chin/neck line
+  '......KKKKKKKKKKKK......',  // 18 chin/neck
   '......KKKKKKKKKKKK......',  // 19
   '........................',  // 20
   '........................',  // 21
@@ -101,94 +94,85 @@ const BASE: string[] = [
   '........................',  // 23
 ];
 
-// ── Per-state overlays ─────────────────────────────────────────────────────
-// Stamp pixels at [row, col] = key. Only eyes + mouth change — the modular trait
-// swap. New anatomy (matches the reference): deep-set dot EYES at the sockets
-// (cols 8 & 15), 2px tall; a long flat MOUTH low on the face (row 14). Rows:
-// eyes 11-12, mouth 14 (band 13-14).
-type Stamp = { r: number; c: number; k: string };
+// Eye whites live at row 11: left socket cols 7-9, right socket cols 14-16.
+// The pupil is a 1px block that starts CENTERED in each white (col 8 / col 15)
+// and scans ±1 col while animating. We render the pupils as separate <rect>s
+// (not baked into the grid) so CSS can translate them.
+const PUPIL_ROW = 11;
+const PUPIL_L_CENTER = 8;
+const PUPIL_R_CENTER = 15;
 
-function overlayFor(state: FreddieLiveness): Stamp[] {
-  const eyeColsL = [8];
-  const eyeColsR = [15];
-  const eyeCols = [...eyeColsL, ...eyeColsR];
-  // A pair of eyes at row r (each a single dot; `tall` adds the row below).
-  const eyes = (r: number, tall = true): Stamp[] => {
-    const s = eyeCols.map((c) => ({ r, c, k: 'E' }));
-    return tall ? [...s, ...eyeCols.map((c) => ({ r: r + 1, c, k: 'E' }))] : s;
-  };
-  // A flat mouth row across cols [a..b] at row r.
-  const mouth = (r: number, a: number, b: number): Stamp[] => {
-    const out: Stamp[] = [];
-    for (let c = a; c <= b; c++) out.push({ r, c, k: 'E' });
-    return out;
-  };
+// The temple bolt CAPS (the H highlight pixels) — pulsed while working.
+// Rows 9-10; left cap col 4, right cap col 19.
+const BOLT_CAPS: Array<{ r: number; c: number }> = [
+  { r: 9, c: 4 }, { r: 10, c: 4 },
+  { r: 9, c: 19 }, { r: 10, c: 19 },
+];
 
-  switch (state) {
-    case 'paused': // eyes shut (thin single row) + flat mouth
-      return [...eyes(12, false), ...mouth(14, 9, 14)];
-    case 'thinking': // eyes up (row 10-11) + short neutral mouth
-      return [...eyes(10), ...mouth(14, 10, 13)];
-    case 'acting': // steady eyes + open grin (two mouth rows)
-      return [...eyes(11), ...mouth(14, 9, 14), { r: 13, c: 10, k: 'E' }, { r: 13, c: 13, k: 'E' }];
-    case 'waiting': // steady eyes + frown-ish upcurl corners (attentive)
-      return [...eyes(11), ...mouth(13, 10, 13), { r: 14, c: 9, k: 'E' }, { r: 14, c: 14, k: 'E' }];
-    default: // idle — steady eyes (row 11-12) + long flat mouth
-      return [...eyes(11), ...mouth(14, 9, 14)];
-  }
-}
-
-function labelFor(state: FreddieLiveness): string {
-  switch (state) {
-    case 'thinking':
-      return 'Freddie is thinking';
-    case 'acting':
-      return 'Freddie is acting';
-    case 'waiting':
-      return 'Freddie is waiting for you';
-    case 'paused':
-      return 'Freddie is paused';
-    default:
-      return 'Freddie';
-  }
-}
-
-export function FreddieAvatar({
-  state = 'idle',
-  className,
-  title,
-}: FreddieAvatarProps) {
-  // Build the final grid: base + state overlay (overlay wins per cell).
-  const grid = BASE.map((row) => row.split(''));
-  for (const { r, c, k } of overlayFor(state)) {
-    if (grid[r] && grid[r][c] !== undefined) grid[r][c] = k;
-  }
-
-  // Paused softens the whole punk (dormant).
-  const groupOpacity = state === 'paused' ? 0.55 : 1;
+export function FreddieAvatar({ animate = true, className, title }: FreddieAvatarProps) {
+  const uid = useId().replace(/:/g, ''); // scope the keyframes per instance
+  const scanKf = `freddie-scan-${uid}`;
+  const pulseKf = `freddie-pulse-${uid}`;
 
   const rects: React.ReactNode[] = [];
-  for (let r = 0; r < grid.length; r++) {
-    for (let c = 0; c < grid[r].length; c++) {
-      const key = grid[r][c];
+  for (let r = 0; r < BASE.length; r++) {
+    for (let c = 0; c < BASE[r].length; c++) {
+      const key = BASE[r][c];
       if (key === '.') continue;
+      const isBoltCap = key === 'H';
       rects.push(
-        <rect key={`${r}-${c}`} x={c} y={r} width={1} height={1} fill={PALETTE[key] ?? '#000'} />
+        <rect
+          key={`${r}-${c}`}
+          x={c}
+          y={r}
+          width={1}
+          height={1}
+          fill={PALETTE[key] ?? '#000'}
+          // bolt caps pulse while working
+          style={animate && isBoltCap ? { animation: `${pulseKf} 1.4s ease-in-out infinite` } : undefined}
+        />
       );
     }
   }
+
+  // Pupils — rendered separately so they can scan. Still (centered) when not
+  // animating; sweep ±1px on a loop when working.
+  const pupils = [PUPIL_L_CENTER, PUPIL_R_CENTER].map((cx) => (
+    <rect
+      key={`pupil-${cx}`}
+      x={cx}
+      y={PUPIL_ROW}
+      width={1}
+      height={1}
+      fill={PALETTE.P}
+      style={animate ? { animation: `${scanKf} 2.4s ease-in-out infinite` } : undefined}
+    />
+  ));
 
   return (
     <svg
       viewBox="0 0 24 24"
       className={cn('shrink-0', className ?? 'w-4 h-4')}
       role="img"
-      aria-label={title ?? labelFor(state)}
+      aria-label={title ?? (animate ? 'Freddie is working' : 'Freddie')}
       shapeRendering="crispEdges"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <title>{title ?? labelFor(state)}</title>
-      <g opacity={groupOpacity}>{rects}</g>
+      <title>{title ?? (animate ? 'Freddie is working' : 'Freddie')}</title>
+      {animate && (
+        <style>{`
+          @keyframes ${scanKf} {
+            0%, 100% { transform: translateX(-1px); }
+            50%      { transform: translateX(1px); }
+          }
+          @keyframes ${pulseKf} {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.35; }
+          }
+        `}</style>
+      )}
+      {rects}
+      {pupils}
     </svg>
   );
 }

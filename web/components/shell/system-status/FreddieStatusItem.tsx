@@ -18,10 +18,10 @@
  * so foregroundSurface delivers agents.pane=autonomy → Freddie's Grant group).
  *
  * Visual: the FreddieAvatar mascot (2026-07-01) — the full-color Frankie —
- * now has a FACE in the top bar, not the shield-check glyph. The mascot wears
- * the LIVENESS its posture implies (livenessFor): manual→waiting, autonomous→
- * acting, bounded/not-set→idle, paused→paused. This is the first mount point of
- * the Freddie Design System (one mascot, layered SVG, state-expressive).
+ * now has a FACE in the top bar, not the shield-check glyph. Motion is the state
+ * (v3): the mascot ANIMATES (scanning pupils + pulsing bolts) while alive and
+ * goes STILL when paused. This is the first mount point of the Freddie Design
+ * System (one mascot, pixel-art, motion-as-activity-signal).
  *
  * NOTE: Budget (the adjacent MONEY chip) is being reframed separately with the
  * pricing-model work — it is deliberately untouched here (operator, 2026-07-01).
@@ -29,28 +29,13 @@
 
 import { useAutonomy, type AutonomyDelegation } from '@/lib/content-shapes/autonomy';
 import { StatusItemPopover, type StatusTone } from './StatusItemPopover';
-import { FreddieAvatar, type FreddieLiveness } from '@/components/freddie/FreddieAvatar';
+import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 
 function delegationLabel(d: AutonomyDelegation | null): string {
   if (d === 'autonomous') return 'Full auto';
   if (d === 'bounded') return 'Bounded';
   if (d === 'manual') return 'Manual';
   return 'Not set';
-}
-
-// Disposition → the liveness the mascot wears in the chip. The chip reads a
-// resting POSTURE (not real-time activity), so we map each posture to the
-// liveness that reads honestly at rest:
-//   paused     → paused  (asleep)
-//   manual     → waiting (defers every decision to you — always looking at you)
-//   autonomous → acting  (acts on its own)
-//   bounded    → idle    (steady; acts within the ceiling, calm at rest)
-//   not set    → idle    (nothing configured — calm/dormant)
-function livenessFor(d: AutonomyDelegation | null, paused: boolean): FreddieLiveness {
-  if (paused) return 'paused';
-  if (d === 'manual') return 'waiting';
-  if (d === 'autonomous') return 'acting';
-  return 'idle';
 }
 
 // Freddie-framed disposition copy — "how much the system agent acts on its own."
@@ -92,14 +77,15 @@ export function FreddieStatusItem() {
         ? 'ok'
         : 'muted';
 
-  // The chip is a HERO placement of Freddie — the mascot, wearing the
-  // liveness its current posture implies (the 2026-07-01 avatar). It replaces
-  // the shield-check glyph: Freddie now literally has a FACE in the top bar.
-  const liveness = livenessFor(effectiveDelegation, !!isPaused);
+  // The chip is a HERO placement of Freddie — the mascot (2026-07-01). Motion
+  // IS the state (v3): Freddie ANIMATES (scanning pupils + pulsing bolts) while
+  // alive, and goes STILL when paused/dormant. For now animate = "not paused"
+  // (the always-on demo); a follow-up wires it to real activity (a wake running).
+  const animate = !isPaused;
   // Bound trigger icon — StatusItemPopover renders `<Icon className=... />`, so
-  // we hand it a component with the state pre-bound.
+  // we hand it a component with `animate` pre-bound.
   const TriggerIcon = ({ className }: { className?: string }) => (
-    <FreddieAvatar state={liveness} className={className} />
+    <FreddieAvatar animate={animate} className={className} />
   );
   const label = delegationLabel(effectiveDelegation);
   const ceilingCents = meta?.default_ceiling_cents;
@@ -115,7 +101,7 @@ export function FreddieStatusItem() {
 
   const popoverHeader = (
     <div className="flex items-center gap-2">
-      <FreddieAvatar state={liveness} className="w-4 h-4 shrink-0" />
+      <FreddieAvatar animate={animate} className="w-4 h-4 shrink-0" />
       <span className="text-sm font-medium">
         Freddie
         <span className="text-muted-foreground">
