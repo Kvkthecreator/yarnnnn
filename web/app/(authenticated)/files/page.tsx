@@ -238,6 +238,21 @@ export default function ContextPage() {
   const domainParam = fp.get('domain');
   const pathParam = fp.get('path');
 
+  // 2026-07-01 (operator-observed KVK): these params are COLD-LOAD SEEDS, but
+  // the surface never CLEARED them after seeding. So a stale `?files.path=` (a
+  // dead deep-link from a prior session) kept re-applying to `selectedPath` on
+  // every 30s tree refresh / window-focus refetch — snapping the operator's
+  // "Uploads" click back to the ghost file and leaving the explorer with no
+  // highlighted node (the ghost path has no matching tree node). Fix: capture
+  // the seed ONCE on first render, then drain the params from the URL after the
+  // first load. The live selection is `selectedPath` state; the URL is not the
+  // source of truth once mounted. `seedConsumedRef` guards the one-shot re-sync.
+  const seedRef = useRef<{ path: string | null; domain: string | null }>({
+    path: pathParam,
+    domain: domainParam,
+  });
+  const seedConsumedRef = useRef(false);
+
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
@@ -333,21 +348,35 @@ export default function ContextPage() {
 
       const root: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: nodes };
 
-      // ?path= deep-link — always honour it; syntheticNodeForPath handles paths
-      // not present in the virtual tree (e.g. entity subfolders).
-      if (pathParam) {
-        setSelectedPath(pathParam);
-        return;
-      }
+      // Cold-load seed — consumed ONCE on the first load (seedRef captured on
+      // first render), then the params are drained from the URL so subsequent
+      // refetches never re-apply a stale path. After consumption, `selectedPath`
+      // state is the sole source of truth. seedConsumedRef flips true after the
+      // first load whether or not a seed existed — it marks "mount seeding done"
+      // so the cross-surface effect can take over for post-mount jumps.
+      const seed = seedRef.current;
+      const firstLoad = !seedConsumedRef.current;
+      if (firstLoad) {
+        seedConsumedRef.current = true;
+        if (seed.path || seed.domain) {
+          // Drain the seed params from the URL (they've done their one job).
+          fp.set({ path: null, domain: null });
 
-      // ?domain= deep-link — select the domain folder under the operation root
-      // (ADR-388 D1: domains now nest under the literal operation/ root, not a
-      // synthetic "Context" group). Resolve directly by its real path.
-      if (domainParam) {
-        const domainPath = `/workspace/operation/${domainParam}`;
-        if (resolveNodeByPath(root, domainPath)) {
-          setSelectedPath(domainPath);
-          return;
+          // ?files.path= — always honour it; syntheticNodeForPath handles paths
+          // not present in the virtual tree (e.g. entity subfolders).
+          if (seed.path) {
+            setSelectedPath(seed.path);
+            return;
+          }
+          // ?files.domain= — select the domain folder under the operation root
+          // (ADR-388 D1: domains nest under the literal operation/ root).
+          if (seed.domain) {
+            const domainPath = `/workspace/operation/${seed.domain}`;
+            if (resolveNodeByPath(root, domainPath)) {
+              setSelectedPath(domainPath);
+              return;
+            }
+          }
         }
       }
 
@@ -361,7 +390,11 @@ export default function ContextPage() {
     } finally {
       setFileTreeLoading(false);
     }
-  }, [domainParam, pathParam]);
+    // fp.set is stable (from useSurfaceParam); seedRef/seedConsumedRef are refs.
+    // Deps intentionally empty — loadExplorer must not re-identify on param
+    // changes (that would retrigger the mount effect's interval wiring).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // selectedNode: prefer tree-resolved node (has children populated), fall back to
   // synthetic node for direct workspace paths that aren't in the virtual tree
@@ -407,24 +440,34 @@ export default function ContextPage() {
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus); };
   }, [loadExplorer]);
 
-  // When URL params change while tree is already loaded (user navigates
-  // entity-to-entity from Work without a full remount), sync selection
-  // without re-fetching the tree.
+  // Cross-surface re-seed: a live-mounted Files window can receive a NEW
+  // deep-link param without remounting (e.g. Work → Files entity-to-entity via
+  // navigateToSurface). When a fresh non-empty param appears, apply it to the
+  // selection, then DRAIN it — same one-shot discipline as the mount seed, so
+  // it can never re-clobber on a later tree refresh. Keyed on the param VALUE
+  // (not on `treeNodes`), so tree-identity churn never retriggers it. The
+  // MOUNT-time param is owned by the seed path in loadExplorer; this effect
+  // waits for the seed to be consumed so it only handles POST-mount jumps.
   useEffect(() => {
-    if (treeNodes.length === 0) return; // wait for loadExplorer
-
+    if (!seedConsumedRef.current) return; // mount param belongs to the seed
+    if (!pathParam && !domainParam) return;
+    // Ignore a value equal to the initial mount seed. fp.set drains the URL via
+    // history.replaceState, which does NOT re-fire useSearchParams — so the
+    // stale mount value can linger in this closure. Only a REAL post-mount
+    // navigation (router push, which does re-render) brings a value != the
+    // seed. This is the belt to the seedConsumedRef braces: even a stray
+    // re-render can't re-apply the ghost path.
+    if (pathParam === seedRef.current.path && domainParam === seedRef.current.domain) return;
     if (pathParam) {
       setSelectedPath(pathParam);
-      return;
+    } else if (domainParam) {
+      // ADR-388 D1: domains nest under the literal operation/ root.
+      setSelectedPath(`/workspace/operation/${domainParam}`);
     }
-    if (domainParam) {
-      const contextFolder = treeNodes.find(n => n.name === 'Context');
-      const domainNode = contextFolder?.children?.find(
-        n => n.path === `/workspace/context/${domainParam}` || n.path.endsWith(`/${domainParam}`)
-      );
-      if (domainNode) setSelectedPath(domainNode.path);
-    }
-  }, [pathParam, domainParam, treeNodes]);
+    fp.set({ path: null, domain: null });
+    // fp.set stable; keyed on the param values so a new jump re-fires but a
+    // tree refetch does not. eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathParam, domainParam]);
 
   // ADR-297 D19.2: in-surface selection is component state, NOT a URL write.
   // The Files surface runs as a window on the Desktop (pathname `/desktop`);
@@ -455,6 +498,19 @@ export default function ContextPage() {
     setDetailsOpen(true);
   }, []);
 
+  // Upload success (2026-07-01): after files land in Uploads/, refresh the tree
+  // AND take the operator to the new file — select the uploaded workspace path
+  // (`/workspace/uploads/{slug}.md`). The tree auto-expands the Uploads root
+  // (WorkspaceTree's nodeContainsPath effect) and highlights the new node; the
+  // viewer opens it. The operator SEES the result of the add, instead of the
+  // modal closing silently onto an unchanged-looking tree. reload → then select
+  // so the fresh node exists in the tree when selection resolves.
+  const handleUploaded = useCallback(async (workspacePath: string) => {
+    await loadExplorer();
+    setSelectedPath(workspacePath);
+    activateBodyRef.current(); // narrow: drill into the viewer
+  }, [loadExplorer]);
+
   // D19 (2026-05-22): the prior plusMenuActions + chat empty-state
   // block were ThreePanelLayout-side affordances. Chat affordances
   // now live in the universal ChatDrawer FAB (singular summon path).
@@ -478,8 +534,9 @@ export default function ContextPage() {
           <p className="text-sm font-medium text-foreground">Explorer</p>
           <p className="text-[11px] text-muted-foreground">Workspace context and settings</p>
         </div>
-        {/* ADR-329: 'add' is an operator verb, homed on Files. */}
-        <UploadButton onUploaded={() => loadExplorer()} />
+        {/* ADR-329: 'add' is an operator verb, homed on Files. On success the
+            surface jumps to the new file in Uploads/ (handleUploaded). */}
+        <UploadButton onUploaded={handleUploaded} />
       </div>
       <div className="flex-1 overflow-y-auto">
         {fileTreeLoading && treeNodes.length === 0 ? (
