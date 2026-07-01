@@ -438,6 +438,100 @@ def _test_gc_gather(results):
         cited_boom == set(), f"got {cited_boom}"))
 
 
+def _test_derive_inherits_seat_act(results):
+    """ADR-394 D3 — VALIDATION, not construction. Connector raw inherits the
+    seat's EXISTING derive-and-cite act (ADR-376, built for MCP). This asserts
+    the trace machinery walks a connector-lane (inbound/slack/) raw path
+    identically to an mcp raw path — proving Phase C builds NO derive step and
+    NO connector-specific derive code. If these pass, gap 4 is closed by
+    inheritance."""
+    from services.mcp_composition import (
+        _extract_derived_from_list, _find_derived_from_raw,
+    )
+    import asyncio as _aio
+
+    # A derived operation/ object citing a CONNECTOR raw (not mcp). The seat
+    # authored it by its own judgment (name unrelated to the raw) — the only
+    # link is derived_from. This is the exact shape MCP derive-and-cite produces.
+    derived_content = (
+        "---\n"
+        "derived_from: /workspace/inbound/slack/eng/2026-07-01T10:00:00Z.md\n"
+        "---\n"
+        "# Engineering channel summary\nThe team shipped the connector reader.\n"
+    )
+
+    # 18 — the citation parser reads a connector-raw derived_from (not mcp-scoped)
+    cites = _extract_derived_from_list(derived_content)
+    results.append(_check(
+        "18 derive-and-cite parser reads a CONNECTOR raw derived_from (inbound/slack/)",
+        cites == ["/workspace/inbound/slack/eng/2026-07-01T10:00:00Z.md"],
+        f"got {cites}"))
+
+    # 19 — reverse walk: from the connector raw path → the deriving operation/ file
+    class _Exec:
+        def __init__(self, data):
+            self.data = data
+
+    class _Q:
+        def __init__(self, data):
+            self._d = data
+
+        def select(self, *a, **k):
+            return self
+
+        def eq(self, *a, **k):
+            return self
+
+        def like(self, *a, **k):
+            return self
+
+        def ilike(self, *a, **k):
+            return self
+
+        def order(self, *a, **k):
+            return self
+
+        def limit(self, *a, **k):
+            return self
+
+        def execute(self):
+            return _Exec(self._d)
+
+    class _Client:
+        def table(self, name):
+            return _Q([{
+                "path": "/workspace/operation/summaries/eng-2026-07-01.md",
+                "content": derived_content,
+                "updated_at": "2026-07-01T11:00:00Z",
+            }])
+
+    class _Auth:
+        user_id = "u1"
+        client = _Client()
+
+    raw_path = "/workspace/inbound/slack/eng/2026-07-01T10:00:00Z.md"
+    derived_path = _aio.run(_find_derived_from_raw(_Auth(), raw_path))
+    results.append(_check(
+        "19 seat reverse-walk finds the deriving operation/ file FROM a connector raw",
+        derived_path == "/workspace/operation/summaries/eng-2026-07-01.md",
+        f"got {derived_path}"))
+
+    # 20 — un-derived connector raw → no derivation yet (the legible "not
+    # distilled yet" state; raw simply sits in inbound/, ADR-376 line 77).
+    class _EmptyClient:
+        def table(self, name):
+            return _Q([])
+
+    class _EmptyAuth:
+        user_id = "u1"
+        client = _EmptyClient()
+
+    none_path = _aio.run(_find_derived_from_raw(_EmptyAuth(), raw_path))
+    results.append(_check(
+        "20 un-derived connector raw → None (legible 'not distilled yet'; no new code)",
+        none_path is None, f"got {none_path}"))
+
+
 _SELECTED: list[str] = []
 
 
@@ -449,6 +543,7 @@ def main():
     _test_fanout(results)
     _test_seed_at_select(results)
     _test_gc_gather(results)
+    _test_derive_inherits_seat_act(results)
 
     passed = sum(1 for r in results if r)
     total = len(results)
