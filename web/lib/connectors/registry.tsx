@@ -37,6 +37,11 @@ export interface ConnectorMeta {
   brand: {
     /** Tailwind class(es) for the brand chip background. */
     chipClass: string;
+    /** Foreground class for the brand-colored Connect button label. Per-connector
+     *  because brand backgrounds differ in luminance (Slack purple → white text
+     *  both modes; Trading yellow → black; Notion/GitHub flip with the mode).
+     *  Defaults to "text-white dark:text-black" when omitted. */
+    connectTextClass?: string;
     icon: ReactNode;
   };
 }
@@ -90,7 +95,7 @@ export const CONNECTOR_REGISTRY: ConnectorMeta[] = [
     authKind: "oauth",
     resourceNoun: "channels",
     supportsSelection: true,
-    brand: { chipClass: "bg-[#4A154B]", icon: SlackIcon },
+    brand: { chipClass: "bg-[#4A154B]", connectTextClass: "text-white", icon: SlackIcon },
   },
   {
     provider: "notion",

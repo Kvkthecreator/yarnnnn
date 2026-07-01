@@ -125,7 +125,7 @@ export function ConnectorCard({
               <button
                 onClick={() => onConnect(meta.provider)}
                 disabled={connecting}
-                className={`px-4 py-2 ${meta.brand.chipClass} text-white dark:text-black rounded-md text-sm font-medium flex items-center gap-2`}
+                className={`px-4 py-2 ${meta.brand.chipClass} ${meta.brand.connectTextClass ?? "text-white dark:text-black"} rounded-md text-sm font-medium flex items-center gap-2`}
               >
                 {connecting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
