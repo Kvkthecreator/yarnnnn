@@ -41,6 +41,19 @@ def _surviving_topups(old_allowance, old_topups, spend):
     return round(min(old_topups, max(0.0, effective)), 4)
 
 
+def _grant_is_duplicate(granted_period, current_allowance, period_anchor, allowance_usd):
+    """Reference impl of the grant idempotency guard (mirrors grant_allowance).
+    A grant is a duplicate (no-op, no re-anchor) iff the period was already granted
+    AND the allowance amount is unchanged. A moved period or changed amount re-grants.
+    When period_anchor is None (top-ups / legacy) the guard is inert (never duplicate)."""
+    return (
+        period_anchor is not None
+        and granted_period is not None
+        and granted_period == period_anchor
+        and round(current_allowance, 4) == round(allowance_usd, 4)
+    )
+
+
 def main():
     results = []
 
@@ -192,6 +205,54 @@ def main():
     results.append(_check(
         "GC clamps declared window to the tier ceiling",
         "retention_max_days_for_user(" in cr and "tier_max_days=tier_max" in cr,
+    ))
+
+    # ── 8. Grant idempotency (multi-event webhook storm) ───────────────────────
+    # LS fires created + updated + payment_success for one purchase; only the first
+    # may re-anchor. THE INVARIANT: a duplicate event (same period, same amount) is
+    # a no-op; a new period or a tier change re-grants.
+    P1, P2 = "2026-08-02T00:00:00+00:00", "2026-09-02T00:00:00+00:00"
+    results.append(_check(
+        "duplicate event (same period + amount) is a no-op",
+        _grant_is_duplicate(granted_period=P1, current_allowance=15.0, period_anchor=P1, allowance_usd=15.0) is True,
+    ))
+    results.append(_check(
+        "new billing period re-grants (renews_at moved)",
+        _grant_is_duplicate(granted_period=P1, current_allowance=15.0, period_anchor=P2, allowance_usd=15.0) is False,
+    ))
+    results.append(_check(
+        "tier change re-grants (allowance amount differs)",
+        _grant_is_duplicate(granted_period=P1, current_allowance=15.0, period_anchor=P1, allowance_usd=45.0) is False,
+    ))
+    results.append(_check(
+        "first grant of an ungranted period re-grants (allowance_period NULL)",
+        _grant_is_duplicate(granted_period=None, current_allowance=0.0, period_anchor=P1, allowance_usd=15.0) is False,
+    ))
+    results.append(_check(
+        "top-up path is inert (period_anchor None → never a duplicate)",
+        _grant_is_duplicate(granted_period=P1, current_allowance=15.0, period_anchor=None, allowance_usd=15.0) is False,
+    ))
+    # Source wiring: the guard exists, keys off allowance_period (NOT expires_at),
+    # migration 195 adds the column, and both webhook callers pass period_anchor.
+    results.append(_check(
+        "grant_allowance takes period_anchor + guards on allowance_period",
+        "period_anchor" in pl and "allowance_period" in pl
+        and 'granted_period == period_anchor' in pl,
+    ))
+    results.append(_check(
+        "guard keys off allowance_period, NOT subscription_expires_at",
+        "allowance_period" in pl
+        and ".select(\"balance_usd, allowance_usd, allowance_period\")" in pl,
+    ))
+    mig195_path = os.path.join(_ROOT, "supabase", "migrations", "195_adr396_allowance_period_idempotency.sql")
+    mig195 = open(mig195_path).read() if os.path.exists(mig195_path) else ""
+    results.append(_check(
+        "migration 195 adds workspaces.allowance_period",
+        "allowance_period" in mig195 and "ADD COLUMN" in mig195,
+    ))
+    results.append(_check(
+        "both webhook grant calls pass period_anchor=renews_at",
+        sub.count("period_anchor=renews_at") >= 2,
     ))
 
     # ── Summary ────────────────────────────────────────────────────────────────

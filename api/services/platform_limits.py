@@ -180,7 +180,8 @@ def check_balance(client, user_id: str) -> tuple[bool, float]:
 
 
 def grant_allowance(client, workspace_id: str, user_id: str, allowance_usd: float,
-                    lemon_subscription_id: str = None, metadata: dict = None) -> None:
+                    lemon_subscription_id: str = None, metadata: dict = None,
+                    period_anchor: str = None) -> bool:
     """Grant a monthly included allowance (ADR-396 — the billing-cycle event).
 
     Type-B rule (confirmed 2026-07-01): allowance EXPIRES each cycle, paid top-ups
@@ -199,26 +200,67 @@ def grant_allowance(client, workspace_id: str, user_id: str, allowance_usd: floa
     Sets allowance_usd = the fresh allowance, banks surviving top-ups into
     balance_usd, and moves allowance_granted_at (the new spend anchor) so the
     spend counter restarts for the cycle.
+
+    IDEMPOTENCY (2026-07-02): a single Lemon Squeezy subscription emits SEVERAL
+    events for one billing action (subscription_created + subscription_updated +
+    subscription_payment_success all fire on the first payment), and each would
+    otherwise re-anchor allowance_granted_at — resetting the spend-since-anchor
+    window and silently handing back any allowance already consumed this cycle (a
+    revenue leak on a renewal with mid-cycle spend). The guard: re-anchor ONLY when
+    this is genuinely a new cycle. `period_anchor` is the LS `renews_at` for the
+    billing period being granted; it is compared against `workspaces.allowance_period`
+    (the period the CURRENT allowance was last granted for — migration 195). A repeat
+    call carrying the SAME period_anchor with an UNCHANGED allowance amount is a
+    duplicate event and is a no-op. A tier change (allowance amount differs) always
+    re-grants; a new period (period_anchor moved) always re-grants. When period_anchor
+    is None (legacy callers / top-ups) the guard is inert and behavior is unchanged.
+
+    NOTE: the guard keys off `allowance_period`, NOT `subscription_expires_at` — the
+    webhook updates subscription_expires_at to the new renews_at BEFORE calling this,
+    so it can't distinguish a fresh cycle from a duplicate. allowance_period is
+    written only here, when a grant actually applies.
+
+    Returns True if the grant was applied, False if skipped as a duplicate.
     """
     try:
-        effective = get_effective_balance(client, user_id)
         ws = (
             client.table("workspaces")
-            .select("balance_usd")
+            .select("balance_usd, allowance_usd, allowance_period")
             .eq("id", workspace_id)
             .limit(1)
             .execute()
         )
         if not ws.data:
             logger.warning(f"[BALANCE] Workspace {workspace_id} not found for allowance grant")
-            return
-        old_balance = float(ws.data[0].get("balance_usd", 0) or 0)
+            return False
+
+        row = ws.data[0]
+        current_allowance = round(float(row.get("allowance_usd", 0) or 0), 4)
+        granted_period = row.get("allowance_period")
+
+        # Idempotency guard: same billing period ALREADY GRANTED + same allowance
+        # amount = a duplicate LS event → no-op (do NOT re-anchor the spend window).
+        if (
+            period_anchor is not None
+            and granted_period is not None
+            and granted_period == period_anchor
+            and current_allowance == round(allowance_usd, 4)
+        ):
+            logger.info(
+                f"[BALANCE] Skipping duplicate allowance grant for workspace {workspace_id} "
+                f"(period {period_anchor} already granted at ${current_allowance})"
+            )
+            return False
+
+        effective = get_effective_balance(client, user_id)
+        old_balance = float(row.get("balance_usd", 0) or 0)
         surviving_topups = round(min(old_balance, max(0.0, effective)), 4)
 
         client.table("workspaces").update({
             "allowance_usd": round(allowance_usd, 4),
             "balance_usd": surviving_topups,
             "allowance_granted_at": datetime.utcnow().isoformat(),
+            "allowance_period": period_anchor,
         }).eq("id", workspace_id).execute()
 
         tx = {
@@ -230,9 +272,11 @@ def grant_allowance(client, workspace_id: str, user_id: str, allowance_usd: floa
             tx["lemon_subscription_id"] = lemon_subscription_id
         tx["metadata"] = {**(metadata or {}), "banked_topups_usd": surviving_topups}
         client.table("balance_transactions").insert(tx).execute()
+        return True
 
     except Exception as e:
         logger.warning(f"[BALANCE] Failed to grant allowance ${allowance_usd} to workspace {workspace_id}: {e}")
+        return False
 
 
 def grant_balance(client, workspace_id: str, amount_usd: float, kind: str,

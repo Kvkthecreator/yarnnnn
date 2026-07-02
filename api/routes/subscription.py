@@ -451,6 +451,7 @@ async def handle_lemonsqueezy_webhook(request: Request):
                 allowance_usd=tier_allowance_usd(tier),
                 lemon_subscription_id=subscription_id,
                 metadata={"event": event_name, "tier": tier},
+                period_anchor=renews_at,
             )
             log.info(f"Allowance grant: ${tier_allowance_usd(tier)} ({tier}) for workspace {workspace_id}")
 
@@ -487,6 +488,7 @@ async def handle_lemonsqueezy_webhook(request: Request):
                 allowance_usd=tier_allowance_usd(tier),
                 lemon_subscription_id=subscription_id,
                 metadata={"event": "subscription_payment_success", "tier": tier},
+                period_anchor=renews_at,
             )
             log.info(f"Cycle allowance: ${tier_allowance_usd(tier)} ({tier}) for workspace {workspace_id}")
 
