@@ -318,6 +318,26 @@ export const api = {
         { method: "DELETE" }
       ),
 
+    // ADR-400: the Trash surface — list operator-owned archived files.
+    trash: () =>
+      request<{ items: Array<{ path: string; filename: string; archived_at: string; authored_by: string | null }> }>(
+        "/api/documents/trash"
+      ),
+
+    // ADR-400 D8: restore a file from Trash (un-archive → active).
+    restore: (path: string) =>
+      request<{ success: boolean; message: string; path: string }>(
+        "/api/documents/restore",
+        { method: "POST", body: JSON.stringify({ path }) }
+      ),
+
+    // ADR-400 D2: move or rename an operator-owned file (both roots scoped).
+    move: (path: string, newPath: string) =>
+      request<{ success: boolean; path: string }>(
+        "/api/documents/move",
+        { method: "POST", body: JSON.stringify({ path, new_path: newPath }) }
+      ),
+
     // ADR-127: Share file to global user_shared/ staging area
     shareFile: (filename: string, content: string) =>
       request<{ success: boolean; path: string; filename: string; message: string }>(

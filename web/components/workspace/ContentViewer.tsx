@@ -33,6 +33,7 @@ import {
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel, authorAccent } from '@/lib/workspace/attribution';
 import { parseUploadFrontmatter, uploadSourceCaption } from '@/lib/workspace/upload-frontmatter';
+import { isOperatorOwned, ownerClass } from '@/lib/workspace/ownership';
 import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
 
 // ADR-162 Sub-phase D / ADR-215: IDENTITY and BRAND files carry an
@@ -305,13 +306,10 @@ interface HeadRevision {
   created_at: string;
 }
 
-// ADR-329: the operator 'delete' verb is scoped to operator-owned uploads
-// (ADR-320 topology). System-authored substrate is not deletable from the UI.
-// ADR-395: uploads now land in the inbound/uploads/ raw lane (the N=human case
-// of inbound/); the legacy uploads/ root stays deletable for pre-ADR-395 files.
-const OPERATOR_DELETABLE_PREFIXES = ['/workspace/uploads/', '/workspace/inbound/uploads/'];
-const isOperatorDeletable = (p: string) =>
-  OPERATOR_DELETABLE_PREFIXES.some((prefix) => p.startsWith(prefix));
+// ADR-400: operator-owned = movable/deletable, from the ONE shared topology
+// source (was a local OPERATOR_DELETABLE_PREFIXES copy — deleted, Singular
+// Implementation). The predicate mirrors the backend gate; keep them in lockstep.
+const isOperatorDeletable = isOperatorOwned;
 
 function FileView({
   path,
@@ -371,10 +369,10 @@ function FileView({
       });
   }, [path, reloadKey]);
 
-  // ADR-329 'delete' verb — trash-semantics (the backend archives via
-  // lifecycle; ADR-209-retained, reversible). Operator-owned uploads only;
-  // the button itself is gated below on OPERATOR_DELETABLE_PREFIX, and the
-  // backend enforces the same scope (403 otherwise).
+  // ADR-329/ADR-400 'delete' verb — trash-semantics (the backend archives via
+  // lifecycle; ADR-209-retained, reversible; restorable from Trash). Operator-
+  // owned only; the button is gated below on isOperatorDeletable (the shared
+  // ownership topology), and the backend enforces the same scope (403 otherwise).
   const handleDelete = async () => {
     if (deleting) return;
     if (!window.confirm('Move this file to trash? It leaves your active workspace but can be recovered.')) return;
@@ -453,6 +451,22 @@ function FileView({
                 <h2 className="text-lg font-medium truncate">{filename}</h2>
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                {/* ADR-400 D6: two-principal ownership legibility. "Yours" =
+                    operator-owned (you may move/rename/trash it); "Managed by
+                    Freddie" = agent-owned (edit through chat). The GitHub
+                    write-access cue, made a quiet chip. */}
+                {ownerClass(file.path) === 'you' ? (
+                  <span className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                    Yours
+                  </span>
+                ) : (
+                  <span
+                    className="rounded-full border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                    title="System-owned — edit through chat with Freddie"
+                  >
+                    Managed by Freddie
+                  </span>
+                )}
                 <span>{describeViewerApplication(file.path, file.content_type)}</span>
                 {file.updated_at && <span>{formatTimestamp(file.updated_at, true)}</span>}
                 {file.content_type && <span>{file.content_type}</span>}
@@ -504,7 +518,7 @@ function FileView({
                   ) : (
                     <Trash2 className="w-3.5 h-3.5" />
                   )}
-                  Delete
+                  Move to Trash
                 </button>
               )}
             </div>
