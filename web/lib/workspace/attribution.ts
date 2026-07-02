@@ -134,8 +134,11 @@ export function authorAccent(authored_by: string | null | undefined): string {
   switch (authorClass(authored_by)) {
     case 'you':
       return 'bg-primary';
+    // Freddie (reviewer) is the TRUSTED management agent — an indigo accent reads
+    // as authoritative/steady, not the alarm-red the prior rose implied (an
+    // operator read rose + a warning-triangle as "error"). ADR-381 relabel.
     case 'reviewer':
-      return 'bg-rose-400';
+      return 'bg-indigo-400';
     case 'yarnnn':
       return 'bg-sky-400';
     case 'mcp':

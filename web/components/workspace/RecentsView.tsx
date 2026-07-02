@@ -90,6 +90,12 @@ interface RecentsViewProps {
    * Home mount: omit → RecentsView deep-links to the Files surface itself.
    */
   onSelectPath?: (path: string) => void;
+  /**
+   * The currently-open file path (Files mount) — its tile/row gets a
+   * Windows-Explorer selection highlight. Omitted on the Home mount (nothing is
+   * "selected" there; every row is a deep-link).
+   */
+  selectedPath?: string | null;
   /** Hide the header (caller renders its own title chrome). */
   hideHeader?: boolean;
   /** Header label (default "Recents"). */
@@ -107,6 +113,7 @@ interface RecentsViewProps {
 export function RecentsView({
   limit = 30,
   onSelectPath,
+  selectedPath = null,
   hideHeader = false,
   title = 'Recents',
   hideWhenEmpty = false,
@@ -189,9 +196,9 @@ export function RecentsView({
       )}
 
       {mode === 'icon' ? (
-        <IconGrid revisions={revisions} onSelectPath={onSelectPath} />
+        <IconGrid revisions={revisions} onSelectPath={onSelectPath} selectedPath={selectedPath} />
       ) : (
-        <ListTable revisions={revisions} onSelectPath={onSelectPath} />
+        <ListTable revisions={revisions} onSelectPath={onSelectPath} selectedPath={selectedPath} />
       )}
     </div>
   );
@@ -269,11 +276,17 @@ function RowShell({
 // Icon view — Finder small-icon grid
 // ---------------------------------------------------------------------------
 
-function IconGrid({ revisions, onSelectPath }: { revisions: Revision[]; onSelectPath?: (path: string) => void }) {
+function IconGrid({
+  revisions, onSelectPath, selectedPath,
+}: { revisions: Revision[]; onSelectPath?: (path: string) => void; selectedPath?: string | null }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+    // Windows-Explorer-style icon grid: roomier tiles, a distinct icon zone,
+    // clear hover + selection states. Denser column count than the old grid so
+    // it reads as a file explorer, not a card wall.
+    <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:grid-cols-6">
       {revisions.map((rev, i) => {
         const sys = isSystemFile(rev.path);
+        const selected = !!selectedPath && rev.path === selectedPath;
         return (
           <RowShell
             key={`${rev.path}-${rev.created_at}-${i}`}
@@ -281,16 +294,33 @@ function IconGrid({ revisions, onSelectPath }: { revisions: Revision[]; onSelect
             onSelectPath={onSelectPath}
             title={rev.path}
             className={cn(
-              'group flex flex-col items-center gap-1.5 rounded-lg border border-border/60 bg-card/50 px-3 py-3 text-center transition-colors hover:border-border hover:bg-card',
-              sys && 'opacity-70',
+              'group flex flex-col items-center gap-1 rounded-md border px-2 py-2.5 text-center transition-colors',
+              selected
+                // Explorer selection: filled highlight + ring, the primary accent.
+                ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/40'
+                : 'border-transparent hover:border-border/70 hover:bg-muted/50',
+              sys && !selected && 'opacity-70',
             )}
           >
-            <span className="relative">
+            {/* Icon zone — a larger, subtly-inset tile so the glyph reads like an
+                Explorer thumbnail (a real per-format thumbnail can drop in here
+                later without changing the tile geometry). */}
+            <span className={cn(
+              'relative flex h-14 w-full items-center justify-center rounded bg-muted/40 transition-colors group-hover:bg-muted/60',
+              selected && 'bg-primary/10',
+            )}>
               <FileIcon filename={fileName(rev.path)} size="xl" />
-              {/* author accent — who last touched it, at a glance */}
-              <span className={cn('absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full ring-2 ring-card', authorAccent(rev.authored_by))} />
+              {/* author accent — who last touched it, small + quiet */}
+              <span
+                className={cn('absolute right-1 top-1 h-1.5 w-1.5 rounded-full ring-2 ring-card', authorAccent(rev.authored_by))}
+                title={formatAuthorLabelOrSystem(rev.authored_by)}
+              />
             </span>
-            <span className={cn('w-full truncate text-xs font-medium text-foreground', sys && 'text-muted-foreground')}>
+            <span className={cn(
+              'mt-0.5 w-full truncate text-xs font-medium',
+              selected ? 'text-foreground' : 'text-foreground',
+              sys && !selected && 'text-muted-foreground',
+            )}>
               {fileName(rev.path)}
             </span>
             <span className="w-full truncate text-[10px] text-muted-foreground/70">
@@ -307,7 +337,9 @@ function IconGrid({ revisions, onSelectPath }: { revisions: Revision[]; onSelect
 // List view — macOS list / Windows-Explorer details table
 // ---------------------------------------------------------------------------
 
-function ListTable({ revisions, onSelectPath }: { revisions: Revision[]; onSelectPath?: (path: string) => void }) {
+function ListTable({
+  revisions, onSelectPath, selectedPath,
+}: { revisions: Revision[]; onSelectPath?: (path: string) => void; selectedPath?: string | null }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border/60">
       <table className="w-full text-sm">
@@ -322,12 +354,14 @@ function ListTable({ revisions, onSelectPath }: { revisions: Revision[]; onSelec
         <tbody>
           {revisions.map((rev, i) => {
             const sys = isSystemFile(rev.path);
+            const selected = !!selectedPath && rev.path === selectedPath;
             return (
               <tr
                 key={`${rev.path}-${rev.created_at}-${i}`}
                 className={cn(
-                  'border-b border-border/40 transition-colors last:border-b-0 hover:bg-muted/40',
-                  sys && 'opacity-70',
+                  'border-b border-border/40 transition-colors last:border-b-0',
+                  selected ? 'bg-primary/10 hover:bg-primary/15' : 'hover:bg-muted/40',
+                  sys && !selected && 'opacity-70',
                 )}
               >
                 <td className="px-4 py-2">

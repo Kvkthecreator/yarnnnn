@@ -32,7 +32,7 @@ import {
 } from '@/lib/file-types';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel, authorAccent } from '@/lib/workspace/attribution';
-import { parseUploadFrontmatter, uploadSourceCaption, resolveContentUrl } from '@/lib/workspace/upload-frontmatter';
+import { parseUploadFrontmatter, uploadSourceCaption } from '@/lib/workspace/upload-frontmatter';
 import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
 
 // ADR-162 Sub-phase D / ADR-215: IDENTITY and BRAND files carry an
@@ -41,6 +41,39 @@ import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
 // caption + gap banner) above the markdown body via InferenceContentView.
 const IDENTITY_PATH = '/workspace/persona/IDENTITY.md';
 const BRAND_PATH = '/workspace/operation/BRAND.md';
+
+/**
+ * Resolve a file's content_url to a directly-renderable URL (ADR-395).
+ *
+ * A raw upload's content_url is a relative `/api/documents/blob?storage_path=…`
+ * reference that requires AUTH to resolve — a browser `<img>/<iframe>` src can't
+ * send the Bearer header, so we resolve the signed URL here via an authenticated
+ * fetch and hand the DIRECT (Supabase) signed URL to the element. Absolute URLs
+ * (output-gateway S3/render outputs) pass through unchanged — no fetch. Returns
+ * {url, loading, error}; url is '' until resolved.
+ */
+function useSignedBlobUrl(contentUrl: string | null | undefined): { url: string; loading: boolean; error: boolean } {
+  const [state, setState] = useState<{ url: string; loading: boolean; error: boolean }>(
+    { url: '', loading: false, error: false }
+  );
+  useEffect(() => {
+    if (!contentUrl) { setState({ url: '', loading: false, error: false }); return; }
+    // Absolute URL (output gateway) — render directly, no auth resolve needed.
+    if (/^(https?:|data:|blob:)/i.test(contentUrl)) {
+      setState({ url: contentUrl, loading: false, error: false });
+      return;
+    }
+    let cancelled = false;
+    setState({ url: '', loading: true, error: false });
+    api.documents
+      .blobUrl(contentUrl)
+      .then((r) => { if (!cancelled) setState({ url: r.url, loading: false, error: false }); })
+      .catch(() => { if (!cancelled) setState({ url: '', loading: false, error: true }); });
+    return () => { cancelled = true; };
+  }, [contentUrl]);
+  return state;
+}
+
 function inferenceTarget(path: string): 'identity' | 'brand' | null {
   if (path === IDENTITY_PATH) return 'identity';
   if (path === BRAND_PATH) return 'brand';
@@ -527,7 +560,7 @@ function FileView({
         {kind === 'image' && (
           <div className="rounded-xl border border-border bg-muted/10 p-4">
             {file.content_url ? (
-              <img src={resolveContentUrl(file.content_url)} alt={filename} className="max-w-full h-auto mx-auto rounded-lg" />
+              <ImagePreview contentUrl={file.content_url} alt={filename} />
             ) : (
               <div
                 className="mx-auto max-w-full [&_svg]:h-auto [&_svg]:max-w-full"
@@ -538,11 +571,7 @@ function FileView({
         )}
 
         {kind === 'pdf' && file.content_url && (
-          <iframe
-            title={filename}
-            src={resolveContentUrl(file.content_url)}
-            className="w-full min-h-[800px] rounded-xl border border-border bg-white"
-          />
+          <PdfPreview contentUrl={file.content_url} title={filename} />
         )}
 
         {kind === 'csv' && file.content && <CsvPreview content={file.content} />}
@@ -576,26 +605,76 @@ function FileView({
   );
 }
 
+// ADR-395 image preview — resolves the authed signed URL then renders the
+// direct image (a browser <img> src can't carry the Bearer header).
+function ImagePreview({ contentUrl, alt }: { contentUrl: string; alt: string }) {
+  const { url, loading, error } = useSignedBlobUrl(contentUrl);
+  if (loading) return <BlobLoading label="Loading image…" />;
+  if (error || !url) return <BlobError />;
+  return <img src={url} alt={alt} className="max-w-full h-auto mx-auto rounded-lg" />;
+}
+
+// ADR-395 PDF preview — same signed-URL resolution, rendered in an iframe.
+function PdfPreview({ contentUrl, title }: { contentUrl: string; title: string }) {
+  const { url, loading, error } = useSignedBlobUrl(contentUrl);
+  if (loading) return <BlobLoading label="Loading PDF…" />;
+  if (error || !url) return <BlobError />;
+  return (
+    <iframe
+      title={title}
+      src={url}
+      className="w-full min-h-[800px] rounded-xl border border-border bg-white"
+    />
+  );
+}
+
+function BlobLoading({ label }: { label: string }) {
+  return (
+    <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/10 py-16 text-sm text-muted-foreground">
+      <Loader2 className="h-4 w-4 animate-spin" />
+      {label}
+    </div>
+  );
+}
+
+function BlobError() {
+  return (
+    <div className="rounded-xl border border-dashed border-border bg-muted/10 p-6 text-center text-sm text-muted-foreground">
+      <FileQuestion className="mx-auto mb-2 h-6 w-6 text-muted-foreground/50" />
+      Couldn’t load this file. Try Download to open it in a native viewer.
+    </div>
+  );
+}
+
 function FileActions({ contentUrl }: { contentUrl: string }) {
-  // ADR-395: a raw upload's content_url is a relative /api endpoint; resolve to
-  // absolute so Open/Download reach the API origin (existing absolute URLs pass
-  // through unchanged).
-  const href = resolveContentUrl(contentUrl);
+  // ADR-395: a raw upload's content_url needs an authed resolve to a signed URL
+  // (a download-anchor can't send the Bearer header either). Resolve once, then
+  // the Open/Download anchors point at the direct signed URL.
+  const { url, loading } = useSignedBlobUrl(contentUrl);
+  const disabled = loading || !url;
   return (
     <div className="flex items-center gap-2 shrink-0">
       <a
-        href={href}
+        href={disabled ? undefined : url}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+        aria-disabled={disabled}
+        className={cn(
+          'inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground',
+          disabled && 'pointer-events-none opacity-50'
+        )}
       >
         <ExternalLink className="w-3.5 h-3.5" />
         Open
       </a>
       <a
-        href={href}
+        href={disabled ? undefined : url}
         download
-        className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+        aria-disabled={disabled}
+        className={cn(
+          'inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground',
+          disabled && 'pointer-events-none opacity-50'
+        )}
       >
         <Download className="w-3.5 h-3.5" />
         Download

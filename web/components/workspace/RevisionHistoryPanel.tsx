@@ -30,7 +30,7 @@ import {
   Bot,
   Cpu,
   Wrench,
-  AlertTriangle,
+  ShieldCheck,
   Undo2,
   GitCompare,
   X,
@@ -85,8 +85,10 @@ function authorChipColor(cls: AuthorClass): string {
       return 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30';
     case 'specialist':
       return 'bg-cyan-500/10 text-cyan-700 border-cyan-500/30';
+    // Freddie (reviewer) — the trusted management agent. Indigo reads as
+    // authoritative/steady; the prior rose + AlertTriangle read as "error".
     case 'reviewer':
-      return 'bg-rose-500/10 text-rose-700 border-rose-500/30';
+      return 'bg-indigo-500/10 text-indigo-700 border-indigo-500/30';
     case 'platform':
       return 'bg-sky-500/10 text-sky-700 border-sky-500/30';
     case 'system':
@@ -106,7 +108,7 @@ function AuthorIcon({ cls }: { cls: AuthorClass }) {
     case 'agent':
       return <Cpu className={c} />;
     case 'reviewer':
-      return <AlertTriangle className={c} />;
+      return <ShieldCheck className={c} />;
     case 'specialist':
     case 'platform':
     case 'system':

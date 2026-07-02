@@ -228,19 +228,10 @@ export function TopBarSurface() {
         >
           <Icon className="h-4 w-4" />
         </button>
-        {/* D13 open-state indicator dot (macOS Dock convention). */}
-        {surfaceIsOpen && (
-          <div
-            aria-hidden
-            className={cn(
-              'absolute -bottom-0.5 h-1 w-1 rounded-full',
-              isForegrounded ? 'bg-background' : 'bg-foreground/70'
-            )}
-          />
-        )}
-        {/* Subtle visual differentiation for kept-not-open vs the kept-
-            and-open: dot below only when open; no badge needed for
-            kept-not-open beyond the muted color. */}
+        {/* Open/foreground state is carried by the icon button's own fill
+            (foregrounded → solid; kept-not-open → muted) — the prior tiny
+            open-state dot below the icon was redundant + read as visual noise,
+            removed per operator direction. */}
       </div>
     );
   };
@@ -291,15 +282,7 @@ export function TopBarSurface() {
         >
           <Icon className="h-4 w-4" />
         </button>
-        {surfaceIsOpen && (
-          <div
-            aria-hidden
-            className={cn(
-              'absolute -bottom-0.5 h-1 w-1 rounded-full',
-              isForegrounded ? 'bg-background' : 'bg-foreground/70'
-            )}
-          />
-        )}
+        {/* Open-state dot removed — the icon fill already carries the state. */}
       </div>
     );
   };

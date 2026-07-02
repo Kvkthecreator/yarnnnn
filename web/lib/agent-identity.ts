@@ -172,9 +172,11 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
     displayName: 'Freddie',
     shortLabel: 'Freddie',
     tagline: 'The system agent — stewards your substrate; judges proposed actions when an operation runs',
-    avatarHex: '#e11d48',
-    badgeClass: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
-    authorClass: 'text-rose-600 dark:text-rose-400',
+    // Indigo: the trusted management agent reads as authoritative/steady. The
+    // prior rose (#e11d48 red) mis-signaled "error/danger" for a trusted role.
+    avatarHex: '#6366f1',
+    badgeClass: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+    authorClass: 'text-indigo-600 dark:text-indigo-400',
     iconName: 'ShieldCheck',
   },
 };

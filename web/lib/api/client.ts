@@ -298,6 +298,17 @@ export const api = {
     download: (documentPath: string) =>
       request<DocumentDownloadResponse>(`/api/documents${documentPath}/download`),
 
+    // ADR-395: resolve a raw upload's content_url (/api/documents/blob?storage_path=…)
+    // to a fresh signed URL via an AUTHENTICATED fetch (the Bearer header rides on
+    // `request`). The FE then points img/iframe/download `src` at the returned
+    // signed URL directly — a browser-native element request can't send the header,
+    // so it must resolve the URL here first. `contentUrl` is the stored relative
+    // reference; we forward its storage_path query verbatim.
+    blobUrl: (contentUrl: string) => {
+      const qs = contentUrl.includes("?") ? contentUrl.slice(contentUrl.indexOf("?")) : "";
+      return request<{ url: string; expires_in: number }>(`/api/documents/blob${qs}`);
+    },
+
     // Delete an uploaded file (operator-facing 'Delete'). Trash-semantics,
     // not erasure: the backend archives via lifecycle (ADR-209 retention,
     // reversible) and scopes to operator-owned uploads/ (ADR-320 topology).
