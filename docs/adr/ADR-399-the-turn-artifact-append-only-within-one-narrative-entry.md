@@ -33,6 +33,11 @@ Claude Code's append-only *transcript* is the right **invariant** with the wrong
 - **D3 — Settle happens in place.** On `reviewer_response`, the FE swaps the trailing live text for the authoritative final text (the same words) and keeps everything else. The `fetchAndSetHistory()` settle-reload — the visible delete-rewrite — is **deleted** (both sites: the in-stream handler and the post-stream `reviewerFired` tail). The DB row, persisted with the identical trail, reconciles on the next natural history load, pixel-equivalent.
 - **D4 — Settled cards replay the same artifact.** History reconstruction maps the trail *in order* (reasoning → collapsible dim disclosure, tool_call → compact row) so a turn reads identically live, on reload, and six months later — the trace property demonstrated in every message.
 
+## Post-ship corrections (same day, operator live-test)
+
+- **Trailing reasoning was still over-written.** The first cut treated text after the LAST tool call as "the report streaming in" and replaced it at settle — but the report arrives from the verdict call; trailing narration ("Good. The autonomy mode is `manual`…") is reasoning too. Corrected on both sides: the route flushes the trailing buffer as a `reasoning` entry and the FE re-types trailing text blocks to `thinking` — each guarded by a containment dedup against the final text (when the model streams the same words it speaks in the verdict, no duplicate).
+- **The Stop (■) button was structurally broken by the old model.** It aborted the local SSE stream first — killing the route consumer before anything persisted (frozen client-only bubble, vanished on reload) while the server ran on to its flag check. Re-designed cooperative-FIRST: first press sets the server flag and keeps the stream open — the loop honors it between rounds, returns an operator-interrupted stand_down, and the turn settles honestly with its partial trail persisted (the ADR-399 property applied to interruption). Second press hard-aborts (escape hatch for a hung server) and marks pending tool rows `interrupted`.
+
 ## Consequences
 
 - The narrative grammar is untouched: one Freddie turn = one row, every mount (Flow, Activity) unchanged; the row simply got richer (~a few KB of process metadata).

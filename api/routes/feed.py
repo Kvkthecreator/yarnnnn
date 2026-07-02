@@ -1139,6 +1139,20 @@ async def global_chat(
                 elif etype == "reviewer_response":
                     response_text = event.get("text", "")
                     captured_output = event.get("output")
+                    # ADR-399 (settle fix, 2026-07-02): text streamed AFTER the
+                    # last tool call is ALSO interim reasoning — the report
+                    # arrives from the verdict, not the delta stream. Persist
+                    # it unless it IS the report (dedup guard: containment).
+                    trailing = "".join(reasoning_buf).strip()
+                    reasoning_buf.clear()
+                    if trailing:
+                        _norm_t = " ".join(trailing.split())
+                        _norm_r = " ".join((response_text or "").split())
+                        if not (_norm_t and _norm_r and (_norm_t in _norm_r or _norm_r in _norm_t)):
+                            freddie_tool_history.append({
+                                "type": "reasoning",
+                                "text": trailing[:2000],
+                            })
                     await write_freddie_message(
                         auth.client, auth.user_id,
                         content=response_text,

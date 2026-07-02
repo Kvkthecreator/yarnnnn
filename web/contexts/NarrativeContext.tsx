@@ -74,6 +74,31 @@ function tpReducer(state: TPState, action: TPAction): TPState {
       return { ...state, messages };
     }
 
+    // ADR-399 stop fix: hard-abort settle — mark the last streaming
+    // message's pending tool rows as failed('interrupted') so nothing
+    // spins forever. Append-only: nothing is removed.
+    case 'ABORT_STREAMING_MESSAGE': {
+      const messages = [...state.messages];
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i];
+        if (m.role !== 'freddie' && m.role !== 'assistant') continue;
+        const hasPending = (m.blocks ?? []).some(
+          (b) => b.type === 'tool_call' && b.status === 'pending'
+        );
+        if (!hasPending) break;
+        messages[i] = {
+          ...m,
+          blocks: (m.blocks ?? []).map((b) =>
+            b.type === 'tool_call' && b.status === 'pending'
+              ? { ...b, status: 'failed' as const, result: { toolName: b.tool, success: false, data: { message: 'interrupted' } } }
+              : b
+          ),
+        };
+        break;
+      }
+      return { ...state, messages };
+    }
+
     case 'SET_LOADING':
       return { ...state, isLoading: action.isLoading };
 
@@ -206,6 +231,9 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
   });
   const [tokenUsage, setTokenUsage] = useState<TokenUsage | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  // ADR-399 stop fix: first Stop press = cooperative (server flag, stream
+  // stays open); second press = hard abort. Tracks the first press.
+  const stoppingRef = useRef(false);
   // Track if we've loaded history
   const historyLoadedRef = useRef(false);
   // Timeout ref for stuck status safety
@@ -500,26 +528,40 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
     return () => clearTimeout(timer);
   }, [lastRealtimeActivity]);
 
+  // ADR-399 stop fix (2026-07-02): cooperative-FIRST. The prior behavior
+  // aborted the local SSE stream immediately, which killed the route
+  // consumer BEFORE it could persist the turn — the operator saw a frozen
+  // bubble that vanished on reload ("stop doesn't work"), while the server
+  // ran on until its own flag check. Now:
+  //   First press  → set the server flag and KEEP the stream open. The
+  //     loop honors the flag between rounds, returns an operator-
+  //     interrupted stand_down, and the route persists the partial trail
+  //     per ADR-399 — the turn settles honestly as "stopped".
+  //   Second press → hard-abort the local stream (escape hatch for a hung
+  //     server); pending tool rows are marked interrupted, nothing spins.
   const stopActiveLoop = useCallback(async () => {
-    // (1) Abort the operator's own sendMessage stream if mid-flight.
-    if (abortControllerRef.current) {
-      try {
-        abortControllerRef.current.abort();
-      } catch {/* best-effort */}
-      abortControllerRef.current = null;
+    if (stoppingRef.current) {
+      if (abortControllerRef.current) {
+        try {
+          abortControllerRef.current.abort();
+        } catch {/* best-effort */}
+        abortControllerRef.current = null;
+      }
+      stoppingRef.current = false;
+      dispatch({ type: 'ABORT_STREAMING_MESSAGE' });
+      setStatus({ type: 'idle' });
+      dispatch({ type: 'SET_LOADING', isLoading: false });
+      setLastRealtimeActivity(null);
+      return;
     }
-    // (2) POST the server-side cancel for autonomous Loop wakes (and as
-    // a belt-and-suspenders signal even on operator-stream cancels).
+    stoppingRef.current = true;
+    // Immediate feedback; the turn settles through the normal stream path.
+    setStatus({ type: 'streaming', content: 'Stopping — wrapping up…' });
     try {
       await api.chat.cancel();
     } catch (err) {
       console.warn('[NarrativeContext] /api/feed/cancel failed:', err);
     }
-    // (3) Reset local UI state so the composer returns to send mode.
-    setStatus({ type: 'idle' });
-    dispatch({ type: 'SET_LOADING', isLoading: false });
-    // Clear realtime-recent so the Stop affordance disappears.
-    setLastRealtimeActivity(null);
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -541,6 +583,7 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
         abortControllerRef.current.abort();
       }
       abortControllerRef.current = new AbortController();
+      stoppingRef.current = false;
 
       // Clear previous workflow state - todos will be recreated if TP starts a new workflow
       // This prevents stale todos from lingering when user switches topics
@@ -979,8 +1022,22 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                 // (The pre-ADR-399 fetchAndSetHistory() replace here WAS the
                 // operator-visible delete-rewrite. Deleted.)
                 const finalText = event.reviewer_response as string;
-                while (blocks.length && blocks[blocks.length - 1].type === 'text') {
-                  blocks.pop();
+                // Trailing streamed text is interim reasoning too (the report
+                // arrives from the verdict, not the delta stream) — re-type it
+                // to 'thinking', don't discard it. Dedup guard: if it IS the
+                // report (model streamed the same words), drop the duplicate.
+                const normFinal = finalText.replace(/\s+/g, ' ').trim();
+                for (let i = blocks.length - 1; i >= 0; i--) {
+                  const b = blocks[i];
+                  if (b.type !== 'text') break;
+                  const normText = b.content.replace(/\s+/g, ' ').trim();
+                  if (normText && (normFinal.includes(normText) || normText.includes(normFinal))) {
+                    blocks.splice(i, 1);
+                  } else if (normText) {
+                    blocks[i] = { type: 'thinking', content: b.content };
+                  } else {
+                    blocks.splice(i, 1);
+                  }
                 }
                 assistantContent = finalText;
                 if (streamingMessageId) {
@@ -1064,6 +1121,7 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
           });
         }
         dispatch({ type: 'SET_LOADING', isLoading: false });
+        stoppingRef.current = false;
 
         // Set complete status, then fade to idle (unless clarify is pending)
         // Use clarifyWasCalled (local) instead of pendingClarification (stale closure)
@@ -1083,6 +1141,7 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
         }
         return toolResults.length > 0 ? toolResults : null;
       } catch (err) {
+        stoppingRef.current = false;
         if ((err as Error).name === 'AbortError') {
           // Request was cancelled
           dispatch({ type: 'SET_LOADING', isLoading: false });
