@@ -118,14 +118,18 @@ def test_alpha_author_bundle_declares_the_watch():
         "flows_na.perception must be removed once the watch is declared"
     )
 
-    rec = yaml.safe_load(
-        (AUTHOR_BUNDLE / "reference-workspace" / "_recurrences.yaml").read_text()
+    # ADR-393: the standing watch is a CAPTURE (deterministic intake, run by
+    # the capture lane outside the wake funnel) — it moved from
+    # _recurrences.yaml to _captures.yaml verbatim; the `mode` field is
+    # retired (being in _captures.yaml IS the class).
+    cap = yaml.safe_load(
+        (AUTHOR_BUNDLE / "reference-workspace" / "_captures.yaml").read_text()
     )
-    entry = next((r for r in rec["recurrences"] if r["slug"] == "track-sources"), None)
-    assert entry, "track-sources recurrence missing from bundle"
-    assert entry["mode"] == "mechanical"
-    assert "TrackWebSources(" in entry["prompt"]
-    assert 'declaration="operation/authored/_sources.yaml"' in entry["prompt"]
+    entry = next((c for c in cap["captures"] if c["slug"] == "track-sources"), None)
+    assert entry, "track-sources capture missing from bundle"
+    assert "mode" not in entry, "mode field is retired (ADR-393)"
+    assert "TrackWebSources(" in entry["primitive"]
+    assert 'declaration="operation/authored/_sources.yaml"' in entry["primitive"]
 
     env_keys = {d.get("key") for d in abi.get("reviewer_wake_envelope", [])}
     assert "watch_signal" in env_keys, "watch_signal missing from wake envelope"

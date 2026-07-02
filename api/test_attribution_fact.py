@@ -95,7 +95,16 @@ def _run(coro):
 
 # Recent revisions: an honest operator write, an honestly-attributed foreign-LLM
 # dump, and the eval's mis-attribution (AI-voiced content stamped operator).
-_RECENT = "2026-06-30T06:00:00+00:00"
+# Timestamps are relative to now — _attribution_fact applies a rolling
+# _ATTRIBUTION_FACT_WINDOW_HOURS cutoff, so fixed dates rot out of the window.
+from datetime import datetime, timedelta, timezone
+
+
+def _ts(minutes_ago: int) -> str:
+    return (datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)).isoformat()
+
+
+_RECENT = _ts(60)
 _VERSIONS = [
     {"user_id": "u", "path": "/workspace/operation/memory/q3-pricing-note.md",
      "authored_by": "yarnnn:mcp:claude-desktop", "message": "intake: raw remember dump (unplaced)",
@@ -132,13 +141,13 @@ def test_dedupes_to_current_head_per_path():
     # live re-run's seed/restore churn that buried the signal.
     churn = [
         {"user_id": "u", "path": "/workspace/operation/memory/competitor-scan.md",
-         "authored_by": "operator", "message": "competitor scan", "created_at": "2026-06-30T06:05:00+00:00"},
+         "authored_by": "operator", "message": "competitor scan", "created_at": _ts(55)},
         {"user_id": "u", "path": "/workspace/operation/memory/competitor-scan.md",
-         "authored_by": "operator", "message": "restore: remove seed", "created_at": "2026-06-30T06:03:00+00:00"},
+         "authored_by": "operator", "message": "restore: remove seed", "created_at": _ts(57)},
         {"user_id": "u", "path": "/workspace/operation/memory/competitor-scan.md",
-         "authored_by": "operator", "message": "competitor scan", "created_at": "2026-06-30T06:01:00+00:00"},
+         "authored_by": "operator", "message": "competitor scan", "created_at": _ts(59)},
         {"user_id": "u", "path": "/workspace/operation/memory/q3-pricing-note.md",
-         "authored_by": "yarnnn:mcp:claude-desktop", "message": "dump", "created_at": "2026-06-30T06:04:00+00:00"},
+         "authored_by": "yarnnn:mcp:claude-desktop", "message": "dump", "created_at": _ts(56)},
     ]
     fact = _run(_attribution_fact(_Client(churn), "u"))
     lines = fact.splitlines()
