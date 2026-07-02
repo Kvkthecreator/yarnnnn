@@ -1,5 +1,7 @@
 # Design: The Connection Manager
 
+> **Scoped by [ADR-401 — The Connection Lifecycle](../adr/ADR-401-the-connection-lifecycle.md) (2026-07-02).** This document survives as the **Phase-1 UI spec** of that ADR: the 4-section Manage drill-in (ADR-401 D7), the connector-grain decision (§2), and the no-fabrication discipline (§5) are ratified as-is. The macro concerns this document deliberately did not carry — ontology (peripheral, not principal), disconnect teardown, retention polarity, derive attention-routing — are ADR-401 D1/D3/D4/D5. The build order in §7 maps onto ADR-401 §8 phases 1/2/4.
+
 **Status:** Draft for review (2026-07-02)
 **Author:** KVK + Claude (Hat A — System Editor)
 **Anchors:** [ADR-338 Management Plane](../adr/ADR-338-management-plane.md) (DP28, the consent line) · [ADR-392 The Connector Lane](../adr/ADR-392-the-connector-lane.md) · [ADR-393 Capture Pipeline](../adr/ADR-393-the-perception-capture-pipeline.md) · [ADR-394 Connector Capture — the Reader](../adr/ADR-394-connector-capture-the-reader.md) · [ADR-335 Perception Field](../adr/ADR-335-perception-field.md)
