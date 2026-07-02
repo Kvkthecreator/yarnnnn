@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.02.1] - ADR-383 Rung 1: _TRIGGER_FRAMING re-carve — steward-first, program-neutral
+
+**Completes ADR-383's named downstream work ("the persona-frame re-carve"): the 2026-05-29 collapse + ADR-383 rewrote `_compute_minimal_frame`, but `_TRIGGER_FRAMING` still carried alpha-trader vocabulary hardcoded in the kernel (`_money_truth`, `signal_files`, `_risk`, "ProposeAction with sizing math", the mirror-wait choreography) — an ADR-222 violation and the exact dilution shape ADR-390 proved against. Baseline evidence: `docs/evaluations/2026-07-02-freddie-envelope-baseline/`.**
+
+- `agents/freddie_agent.py::_TRIGGER_FRAMING` — both blocks re-carved, PURE REMOVAL (all deleted content verified present in both bundles' `persona/principles.md`):
+  - `addressed` (~4.6k → ~1.5k chars): deleted the program-noun envelope inventory, the trading action menu, the mirror-wait + ground-truth-attestation paragraphs, the stand-down litany. Kept: delegated→act-then-report; envelope-is-pre-loaded/don't-re-read; default-is-action routed through the agent's OWN principles.md + MANDATE; no-option-enumeration (ADR-352); ReturnVerdict close.
+  - `reactive` (~2.9k → ~1.1k chars): deleted the "Common shapes for recurrence fires" menu (the recurrence prompt IS the instruction) and the scar-tissue choreography. Kept, compressed: proposal→verdict-early (round-budget interface rule); recurrence→prompt-is-the-instruction; the one-WriteFile/one-ReturnVerdict rule for long documents.
+- **Expected behavior**: bare-steward and non-trading workspaces stop receiving trading instructions on chat turns; addressed turns act from their own principles.md instead of a kernel menu; reactive proposal wakes unchanged (verdict-early preserved). Net ~-1,200 tokens per addressed turn.
+- Gate: `api/test_adr383_trigger_framing_recarved.py` (program-noun ban + size ratchet + no-decision-tree + points-at-principles).
+- Plan: `docs/analysis/freddie-envelope-refactor-plan-2026-07-02.md` (Rung 1 of 4).
+
 ## [2026.07.01.3] - CaptureConnector: connector fan-out capture over the watch declaration (ADR-394 D1)
 
 **ADR-394 closes the connector reader gap. `SyncPlatformState` iterates ONE tool result as a list (a state mirror); Slack's `get_channel_history` takes a single `channel_id`, so capturing N selected channels means looping N tool calls over the operator's `_watch.yaml` selection — which `SyncPlatformState` structurally can't do. `CaptureConnector` is the new sibling primitive that does that fan-out; `SyncPlatformState` stays free of the connector-watch dependency (Singular Implementation: one honest job per primitive).**
