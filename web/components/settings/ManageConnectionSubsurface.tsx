@@ -66,10 +66,14 @@ export function ManageConnectionSubsurface({
 
   const [resources, setResources] = useState<Resource[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  // observed freshness keyed by selector id (best-effort — the capture signal
-  // is keyed by capture slug; we surface the workspace capture health and match
-  // by selector where the lane records it). Empty until a capture runs.
-  const [observed, setObserved] = useState<Record<string, Observed>>({});
+  // Connector-level capture freshness (ADR-393 grain). The capture health signal
+  // (_capture_signal.yaml) is keyed by CAPTURE SLUG (`capture-{platform}`) — ONE
+  // block per connector, not per selector: {status, observed_at, items, target}.
+  // The connector is the unit of perception; the selected channels are its
+  // aperture (ADR-335). Per-channel freshness is deliberately not modelled —
+  // Freddie reads this same one-line-per-capture peripheral field. So we surface
+  // exactly one freshness line, not a fabricated per-row timestamp.
+  const [connectorFreshness, setConnectorFreshness] = useState<Observed | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,18 +95,11 @@ export function ManageConnectionSubsurface({
         setSelected(
           new Set<string>((current.sources || []).map((s) => s.id).filter(Boolean)),
         );
-        // Map the observed signal by selector id. The capture signal is keyed by
-        // capture slug; when the lane records per-selector we match here, else
-        // the whole map stays coarse (workspace capture health).
-        if (signal?.observed) {
-          const byId: Record<string, Observed> = {};
-          for (const [slug, block] of Object.entries(signal.observed)) {
-            byId[slug] = block as Observed;
-          }
-          setObserved(byId);
-        } else {
-          setObserved({});
-        }
+        // The observed signal is keyed by capture slug (`capture-{platform}`),
+        // one block for the whole connector. Read the connector's block directly
+        // — there is no per-selector freshness in substrate to match against.
+        const block = signal?.observed?.[`capture-${provider}`] ?? null;
+        setConnectorFreshness(block as Observed | null);
       } catch (e) {
         setError(
           e instanceof Error ? e.message : `Could not load ${provider} ${resourceNoun}.`,
@@ -141,8 +138,20 @@ export function ManageConnectionSubsurface({
     }
   };
 
-  // Observed freshness for a given selector, if the capture lane has recorded it.
-  const freshnessFor = (id: string): Observed | undefined => observed[id];
+  // The honest connector-level freshness line. A capture writes this when it
+  // runs; before the first run it is null ("not reading yet"). Item count is the
+  // number of selectors captured, not message count (ADR-393 signal is thin).
+  const freshnessLabel = (): string => {
+    if (!connectorFreshness?.observed_at) return "not reading yet";
+    const when = relativeTime(connectorFreshness.observed_at);
+    const status = connectorFreshness.status;
+    const items =
+      typeof connectorFreshness.items === "number"
+        ? ` · ${connectorFreshness.items} ${resourceNoun} read`
+        : "";
+    const errored = status && status !== "ok" ? ` · ${status}` : "";
+    return `Last read ${when}${items}${errored}`;
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -194,11 +203,19 @@ export function ManageConnectionSubsurface({
             No {resourceNoun} discovered. Try Refresh.
           </p>
         ) : (
-          <div className="space-y-1 rounded-md border border-border/60 p-1">
-            {resources.map((r) => {
-              const on = selected.has(r.id);
-              const obs = freshnessFor(r.id);
-              return (
+          <>
+            {/* Connector-level capture freshness (ADR-393 grain — one line for
+                the whole connector, not per channel). "not reading yet" until
+                the first capture runs; captured raw becomes searchable once the
+                agent derives it into the operation. */}
+            <div className="mb-3 flex items-center gap-2 rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              <span>{freshnessLabel()}</span>
+            </div>
+            <div className="space-y-1 rounded-md border border-border/60 p-1">
+              {resources.map((r) => {
+                const on = selected.has(r.id);
+                return (
                 <button
                   key={r.id}
                   type="button"
@@ -217,25 +234,11 @@ export function ManageConnectionSubsurface({
                     {on && <Check className="h-3 w-3" />}
                   </span>
                   <span className="truncate">{r.name}</span>
-                  {/* Observed freshness (declared × observed). Only meaningful
-                      for in-scope selectors; a capture writes this when it runs. */}
-                  {on && (
-                    <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      {obs?.observed_at ? (
-                        <>
-                          {relativeTime(obs.observed_at)}
-                          {typeof obs.items === "number" ? ` · ${obs.items}` : ""}
-                        </>
-                      ) : (
-                        "not reading yet"
-                      )}
-                    </span>
-                  )}
                 </button>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 
