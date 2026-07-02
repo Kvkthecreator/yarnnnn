@@ -84,11 +84,13 @@ def test_action_grammar_survives_in_frame():
     frame = _compute_minimal_frame()
     # The interface contract the frame MUST carry (DP22).
     assert "A tool call IS your action" in frame
-    # ADR-397: the verdict-close liturgy moved to the reactive trigger
-    # framing (the unattended cycle); the close contract itself is uniform —
-    # each trigger framing carries its own ReturnVerdict close line.
+    # ADR-397 + Rung-3 finding (2026-07-02): the close CONTRACT is DP22
+    # interface material and lives in the FRAME (the Arm-B probe proved a
+    # framing-only close silently exits when the framing is stripped); the
+    # verdict-close LITURGY (stand_down semantics etc.) stays on the
+    # reactive trigger framing.
+    assert "ReturnVerdict" in frame
     assert "Close every cycle with ReturnVerdict" in _TRIGGER_FRAMING["reactive"]
-    assert "ReturnVerdict" in _TRIGGER_FRAMING["addressed"]
     # Anti-confabulation.
     assert "Describe only what your tool" in frame
     # The migrated write boundary (ADR-323 — up from the deleted filesystem block).

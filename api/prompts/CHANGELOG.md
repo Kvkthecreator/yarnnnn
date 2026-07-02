@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.02.4] - Rung 3: the ReturnVerdict close contract moves to the minimal frame (DP22)
+
+**The Arm-B lazy-envelope probe (Rung 3) found 2/6 addressed turns doing their work then silently exiting — because post-ADR-397 the close instruction lived ONLY in `_TRIGGER_FRAMING`, which Arm B strips. The close CONTRACT is agent↔runtime interface material (DP22), not per-trigger coaching.**
+
+- `agents/freddie_agent.py::_compute_minimal_frame`: new one-paragraph section — "Close the turn by calling ReturnVerdict — its reasoning is your report… (This is the interface contract; what a verdict means per trigger is your envelope's business.)"
+- `_TRIGGER_FRAMING["addressed"]`: its now-duplicate close line REMOVED (net addressed prompt unchanged). The reactive framing keeps the verdict LITURGY (stand_down semantics, standing_intent, reflection) per ADR-397.
+- Expected behavior: every arm/trigger inherits the close contract from the frame; Arm-B re-run went 4/6 → 6/6 closed. Gate: `test_close_contract_lives_in_the_frame` (Arm-B silent-exit regression guard).
+- Measurement: `docs/evaluations/2026-07-02-freddie-envelope-rung3-armB-v2/` — lazy envelope = behavior parity on Haiku; landing checklist recorded there.
+
 ## [2026.07.02.3] - ADR-398 D2: the operator locator — one situational line in the addressed ask
 
 - `agents/freddie_agent.py::_ask_for_trigger` (addressed branch): when the FE supplies a locator (the shell-composed foregrounded-window string, e.g. `files · path=/operation/pricing/q3.md`), the ask block gains one line: `_The operator is writing from: …_`. Absent → nothing added. ~20 tokens max (route truncates at 200 chars).

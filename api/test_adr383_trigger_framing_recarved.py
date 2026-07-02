@@ -132,15 +132,27 @@ LITURGY_MARKERS = [
 
 
 def test_addressed_carries_no_wake_liturgy():
-    """ADR-397 D3: the addressed framing keeps a one-line ReturnVerdict
-    close and NO unattended-cycle liturgy — the operator is present."""
+    """ADR-397 D3: the addressed framing carries NO unattended-cycle
+    liturgy — the operator is present."""
     low = _TRIGGER_FRAMING["addressed"].lower()
     hits = [m for m in LITURGY_MARKERS if m.lower() in low]
     assert not hits, (
         f"addressed framing carries wake liturgy {hits} — that is the "
         f"reactive (unattended) trigger's content per ADR-397"
     )
-    assert "returnverdict" in low, "addressed must keep the one-line close"
+
+
+def test_close_contract_lives_in_the_frame():
+    """Rung-3 finding (2026-07-02): the ReturnVerdict close is the
+    agent↔runtime INTERFACE CONTRACT (DP22) and must live in the minimal
+    frame — the Arm-B probe proved that when it lived only in the
+    strippable trigger framing, Haiku silently exited (2/6 unanswered).
+    The per-trigger MEANING of a verdict stays in the reactive framing."""
+    frame = _compute_minimal_frame().lower()
+    assert "returnverdict" in frame, (
+        "the minimal frame must carry the ReturnVerdict close contract "
+        "(DP22 interface — Arm-B silent-exit regression otherwise)"
+    )
 
 
 def test_frame_carries_no_wake_liturgy():

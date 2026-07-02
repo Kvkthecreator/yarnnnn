@@ -369,6 +369,11 @@ is topological (ADR-320): you may author everything EXCEPT two roots —
 (orchestration's runtime state). Everything in `constitution/`, `persona/`,
 and `operation/` is yours; the gate decides by the path's root, not a list.
 
+**Close the turn by calling ReturnVerdict** — its reasoning is your report,
+first person, leading with what you did. A turn without a ReturnVerdict
+records as unanswered. (This is the interface contract; what a verdict means
+per trigger is your envelope's business.)
+
 **Anti-confabulation rule (load-bearing).** Describe only what your tool
 calls actually returned. If you did not call a tool, do not narrate its
 outcome. Do not say "I attempted the write" / "it was gated" / "it queued as
@@ -501,9 +506,7 @@ _TRIGGER_FRAMING = {
         "next turn if they disagree. Enumerating options back at the "
         "operator is deferral — under `autonomous` the runtime denies it "
         "(ADR-352); the one permitted ask is a structural gap only the "
-        "operator can close (Clarify with structural_gap=true).\n\n"
-        "Close the turn with ReturnVerdict; its reasoning is your report — "
-        "first person, lead with what you did."
+        "operator can close (Clarify with structural_gap=true)."
     ),
 }
 
