@@ -470,19 +470,19 @@ async def download_document(auth: UserClient, document_path: str):
 # DELETE
 # =============================================================================
 
-# Operator-owned root for the archive (delete) verb. The operator may
-# archive what the operator authored — uploads. System-authored substrate
-# (Reviewer principles, agent context, the constitution) is NOT archivable
-# from the UI: that's ADR-320 topology-as-permission. Operator-authored
-# constitution files are EDITED via chat, never deleted from a browser.
-# ADR-395: uploads now land in the inbound/uploads/ raw lane (the N=human case
-# of inbound/); the legacy uploads/ root stays archivable for pre-ADR-395 files.
-_OPERATOR_ARCHIVABLE_PREFIXES = ("/workspace/uploads/", "/workspace/inbound/uploads/")
+# ADR-400 Amendment 1: the operator organizes (move/rename/trash) their WHOLE
+# workspace except system/ (runtime state) + _*.yaml/_*.json machine-config (read
+# by exact path). This is the SINGULAR source — `operator_can_organize` in
+# workspace_paths — shared by every route below + mirrored by the FE. The prior
+# `uploads/`-only scope was a misread of ADR-320's foreign-principal lock as an
+# operator lock (Amendment 1 corrects it). Content EDIT still routes through chat
+# (that boundary holds); this is ORGANIZE, which is the operator's.
+from services.workspace_paths import operator_can_organize
 
 
 @router.delete("/documents/{document_path:path}")
 async def delete_document(auth: UserClient, document_path: str):
-    """Archive a workspace upload (the operator-facing 'Delete' verb).
+    """Move a workspace file to Trash (the operator-facing 'Delete' verb).
 
     Trash-semantics, NOT erasure. Per ADR-209 (every mutation attributed +
     retained) this does NOT remove the row — it writes a new revision with
@@ -490,20 +490,20 @@ async def delete_document(auth: UserClient, document_path: str):
     active workspace (filtered from the tree, dropped from context) but the
     revision chain keeps the record and the storage binary stays. Reversible.
 
-    Scope (ADR-320 topology): operator may archive only operator-authored
-    material under /workspace/uploads/. Anything else returns 403 — the
-    operator does not delete what the system authored on their behalf.
+    Scope (ADR-400 Amendment 1): the operator may trash their WHOLE workspace
+    except system/ (runtime state) + _*.yaml/_*.json machine-config (read by
+    exact path). It's their filesystem; delete is reversible, so it's safe.
+    Anything outside that reach returns 403 — surfaced honestly by the FE.
     """
     from services.authored_substrate import write_revision
 
     if not document_path.startswith("/"):
         document_path = "/" + document_path
 
-    # ADR-320 scope guard: operator-archivable roots only.
-    if not document_path.startswith(_OPERATOR_ARCHIVABLE_PREFIXES):
+    if not operator_can_organize(document_path):
         raise HTTPException(
             status_code=403,
-            detail="Only uploaded files can be deleted. System-authored substrate is managed through chat.",
+            detail="This file is managed by the system and can't be moved to trash.",
         )
 
     result = auth.client.table("workspace_files") \
@@ -557,12 +557,12 @@ class TrashListResponse(BaseModel):
 
 @router.get("/documents/trash", response_model=TrashListResponse)
 async def list_trash(auth: UserClient):
-    """List operator-owned files currently in the Trash (lifecycle='archived').
+    """List files the operator has moved to Trash (lifecycle='archived').
 
-    ADR-400 D4: the Trash surface. Scoped to operator-owned roots (the same
-    _OPERATOR_ARCHIVABLE_PREFIXES the delete verb writes to) — the operator sees
-    only their own trashed material, never system-archived substrate. Newest
-    first. Reversible via POST /documents/restore.
+    ADR-400 D4 + Amendment 1: the Trash surface. Shows any archived file within
+    the operator's organize reach (operator_can_organize) — i.e. what the
+    operator could have trashed and can now restore. Newest first. Reversible
+    via POST /documents/restore.
     """
     result = (
         auth.client.table("workspace_files")
@@ -577,8 +577,8 @@ async def list_trash(auth: UserClient):
     items: List[TrashItem] = []
     for row in (result.data or []):
         path = row["path"]
-        if not path.startswith(_OPERATOR_ARCHIVABLE_PREFIXES):
-            continue  # operator sees only their own trashed material
+        if not operator_can_organize(path):
+            continue  # only files the operator could have trashed
         embed = row.get("workspace_file_versions") or {}
         leaf = path.rsplit("/", 1)[-1]
         filename = leaf.removesuffix(".md") if path.endswith(".md") else leaf
@@ -601,18 +601,18 @@ async def restore_document(body: RestoreRequest, auth: UserClient):
 
     The inverse of delete: writes a new lifecycle='active' revision carrying the
     archived content verbatim, attributed operator ("restored from trash"). The
-    file re-enters the active tree. Scoped to operator-owned roots (an operator
-    restores only what an operator could trash). Reversible again by re-deleting.
+    file re-enters the active tree. Scoped to the operator's organize reach (an
+    operator restores only what an operator could trash). Reversible by re-deleting.
     """
     from services.authored_substrate import write_revision
 
     path = body.path
     if not path.startswith("/"):
         path = "/" + path
-    if not path.startswith(_OPERATOR_ARCHIVABLE_PREFIXES):
+    if not operator_can_organize(path):
         raise HTTPException(
             status_code=403,
-            detail="Only your own files can be restored. System substrate is managed through chat.",
+            detail="This file is managed by the system and can't be restored from here.",
         )
 
     result = auth.client.table("workspace_files") \
@@ -657,26 +657,29 @@ class MoveRequest(BaseModel):
 
 @router.post("/documents/move")
 async def move_document(body: MoveRequest, auth: UserClient):
-    """Move or rename an operator-owned file (ADR-400 D2 / Q1).
+    """Move or rename a file (ADR-400 D2 / Q1 / Amendment 1).
 
-    Move  = a new_path under a different operator-owned folder.
+    Move  = a new_path under a different folder.
     Rename = a new_path with the same parent, a new leaf.
-    Both source and destination are scoped to operator-owned roots (the operator
-    reorganizes only their own material — ADR-320 topology). Delegates to the
-    MoveFile primitive (attributed, gated, overwrite-safe).
+    BOTH source and destination must be within the operator's organize reach
+    (operator_can_organize): you can't move a system/ or machine-config file, and
+    you can't move a file INTO system/ or turn it into a _*.yaml the machine reads
+    by path. Everything else — constitution/persona/operation/uploads prose — is
+    the operator's to reorganize. Delegates to the MoveFile primitive (attributed,
+    gated, overwrite-safe).
     """
     src = body.path if body.path.startswith("/") else "/" + body.path
     dst = body.new_path if body.new_path.startswith("/") else "/" + body.new_path
 
-    if not src.startswith(_OPERATOR_ARCHIVABLE_PREFIXES):
+    if not operator_can_organize(src):
         raise HTTPException(
             status_code=403,
-            detail="Only your own files can be moved. System substrate is managed through chat.",
+            detail="This file is managed by the system and can't be moved or renamed.",
         )
-    if not dst.startswith(_OPERATOR_ARCHIVABLE_PREFIXES):
+    if not operator_can_organize(dst):
         raise HTTPException(
             status_code=403,
-            detail="Files can only be moved within your own folders.",
+            detail="Files can't be moved into a system location or renamed to a machine-config name.",
         )
     if src == dst:
         raise HTTPException(status_code=400, detail="Source and destination are the same.")

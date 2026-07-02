@@ -1,42 +1,53 @@
 /**
- * File ownership — the two-principal topology, made a single FE source of truth
- * (ADR-400).
+ * File organize-reach — the operator's move/rename/trash authority, mirrored
+ * from the backend (ADR-400 Amendment 1).
  *
- * The filesystem has two actor-classes (ADR-373 multi-principal commons): the
- * OPERATOR (the human — owns their uploaded material) and the AGENTS (Freddie +
- * program agents — author, edit, and own everything they write). ADR-320 makes
- * this a pure prefix topology; ADR-400 surfaces it: the operator may move/rename/
- * trash ONLY operator-owned files, and system-owned files show their affordances
- * disabled WITH A REASON (never hidden — legibility over concealment, the GitHub
- * "you don't have write access to this path" model).
+ * It's the operator's filesystem. The human may move/rename/trash their WHOLE
+ * workspace EXCEPT two carves — the SAME two the backend `operator_can_organize`
+ * (api/services/workspace_paths.py) enforces:
  *
- * These prefixes mirror the backend `_OPERATOR_ARCHIVABLE_PREFIXES`
- * (api/routes/documents.py). Keep them in lockstep — the backend is the gate,
- * this is the surface that must not offer a verb the gate will 403.
+ *   1. system/ — runtime orchestration state, not hand-organized (the declared
+ *      operator write-lock).
+ *   2. _*.yaml / _*.json machine-config — code reads these at an EXACT path
+ *      (the scheduler reads _budget.yaml, the gate reads _principles.yaml);
+ *      renaming or moving one breaks the reader. A FILESYSTEM-INTEGRITY rule,
+ *      NOT a permission hierarchy — the operator "owns" it, the machine depends
+ *      on its location.
+ *
+ * Everything else — constitution/, persona/, operation/, uploads/, all prose —
+ * is the operator's to reorganize (delete is reversible, so it's safe).
+ *
+ * The backend is authoritative (it 403s what it forbids). This mirror exists so
+ * the FE can be OPTIMISTIC without being wrong: it does not defensively grey the
+ * verbs — it lets the operator try, and surfaces the backend's honest error if
+ * a rare carve is hit (the Windows-Explorer model). Keep this in lockstep with
+ * `operator_can_organize`; drift only risks a stale label, never a wrong write.
  */
 
-/** Roots the OPERATOR owns — movable, renamable, trashable, restorable. */
-export const OPERATOR_OWNED_PREFIXES = [
-  '/workspace/uploads/',          // legacy pre-ADR-395 uploads
-  '/workspace/inbound/uploads/',  // ADR-395 upload raw lane
-] as const;
-
-/** True iff the human owns this file (may move/rename/trash/restore it). */
-export function isOperatorOwned(path: string): boolean {
-  return OPERATOR_OWNED_PREFIXES.some((prefix) => path.startsWith(prefix));
-}
-
-/** The reason an operator verb is unavailable on a system-owned file — shown as
- * a disabled tooltip / caption (the two-principal division made legible). */
-export const SYSTEM_OWNED_REASON = 'Managed by Freddie — edit through chat';
+const MACHINE_CONFIG_EXTS = ['.yaml', '.yml', '.json'];
 
 /**
- * The file's owning principal class, for the ownership badge (ADR-400 D6).
- * 'you' = operator-owned material; 'agent' = system/agent-authored substrate.
- * (The finer WHO-authored-it attribution — Freddie / ChatGPT-via-MCP / … — comes
- * from the ADR-388 attribution module keyed on authored_by; this is the coarser
- * WHO-OWNS-THE-VERBS class the topology defines.)
+ * True iff the operator may move/rename/trash `path` — mirrors the backend
+ * `operator_can_organize`. False only for system/ + _*.yaml/_*.json.
  */
-export function ownerClass(path: string): 'you' | 'agent' {
-  return isOperatorOwned(path) ? 'you' : 'agent';
+export function operatorCanOrganize(path: string): boolean {
+  let rel = path.replace(/^\/+/, '');
+  if (rel.startsWith('workspace/')) rel = rel.slice('workspace/'.length);
+  if (rel.startsWith('system/')) return false;
+  const leaf = rel.split('/').pop() || '';
+  if (leaf.startsWith('_') && MACHINE_CONFIG_EXTS.some((e) => leaf.toLowerCase().endsWith(e))) {
+    return false;
+  }
+  return true;
+}
+
+/** The reason a file can't be organized — surfaced when the operator hits a
+ * carve (system/ or machine-config). Honest, specific, Explorer-style. */
+export function organizeBlockedReason(path: string): string {
+  let rel = path.replace(/^\/+/, '');
+  if (rel.startsWith('workspace/')) rel = rel.slice('workspace/'.length);
+  if (rel.startsWith('system/')) {
+    return 'This is system runtime state and can’t be moved, renamed, or trashed.';
+  }
+  return 'This is a machine-config file the system reads by name — renaming or moving it would break the reader.';
 }

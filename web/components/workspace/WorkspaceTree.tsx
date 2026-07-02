@@ -8,37 +8,33 @@
  */
 
 import { useEffect, useState } from 'react';
-import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, Boxes, Info, Pencil, FolderInput, Trash2, Lock } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, Boxes } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WorkspaceTreeNode } from '@/types';
 import { FileIcon } from '@/components/workspace/FileIcon';
-import { isOperatorOwned, SYSTEM_OWNED_REASON } from '@/lib/workspace/ownership';
+import { FileContextMenu, type FileMenuTarget } from '@/components/workspace/FileContextMenu';
 
 interface WorkspaceTreeProps {
   nodes: WorkspaceTreeNode[];
   selectedPath?: string;
   onSelect: (node: WorkspaceTreeNode) => void;
   /**
-   * ADR-329 (amended): right-click "Get Info" → open the node Details panel.
-   * The OS Get-Info convention — provenance is a property of the node, opened
-   * on demand, not a standing rail.
+   * Right-click "Properties" → open the node Details panel (ADR-400).
    */
   onGetInfo?: (node: WorkspaceTreeNode) => void;
   /**
-   * ADR-400 operator verbs — the human reorganizes their OWN material.
-   * Enabled only on operator-owned files (isOperatorOwned); the parent Files
-   * page owns the dialogs + API calls. On system-owned files these are shown
-   * disabled with a reason (two-principal legibility), not hidden.
+   * ADR-400 operator verbs — the human reorganizes their workspace. The menu is
+   * OPTIMISTIC (Amendment 1): it offers the verb; the parent's handler + the
+   * backend decide + surface an honest error on the rare carve. No defensive
+   * greying.
    */
   onRename?: (node: WorkspaceTreeNode) => void;
   onMove?: (node: WorkspaceTreeNode) => void;
   onDelete?: (node: WorkspaceTreeNode) => void;
 }
 
-// Custom fixed-position context menu (the project has no radix/shadcn menu
-// primitive — same pattern as shell/chrome/TopBarSurface). Dismiss on
-// click-out + Escape.
 interface ContextMenuState {
+  target: FileMenuTarget;
   node: WorkspaceTreeNode;
   x: number;
   y: number;
@@ -47,24 +43,14 @@ interface ContextMenuState {
 export function WorkspaceTree({ nodes, selectedPath, onSelect, onGetInfo, onRename, onMove, onDelete }: WorkspaceTreeProps) {
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
 
-  useEffect(() => {
-    if (!menu) return;
-    const close = () => setMenu(null);
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
-    window.addEventListener('click', close);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('click', close);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [menu]);
-
-  // The menu opens if ANY of its actions is wired (Get Info is the floor).
   const hasMenu = !!(onGetInfo || onRename || onMove || onDelete);
   const openMenu = hasMenu
     ? (node: WorkspaceTreeNode, e: React.MouseEvent) => {
         e.preventDefault();
-        setMenu({ node, x: e.clientX, y: e.clientY });
+        setMenu({
+          target: { path: node.path, name: node.name, isFile: node.type === 'file' },
+          node, x: e.clientX, y: e.clientY,
+        });
       }
     : undefined;
 
@@ -81,120 +67,20 @@ export function WorkspaceTree({ nodes, selectedPath, onSelect, onGetInfo, onRena
         />
       ))}
 
-      {menu && hasMenu && (
-        <ContextMenu
-          node={menu.node}
+      {menu && (
+        <FileContextMenu
+          target={menu.target}
           x={menu.x}
           y={menu.y}
-          onGetInfo={onGetInfo}
-          onRename={onRename}
-          onMove={onMove}
-          onDelete={onDelete}
-          close={() => setMenu(null)}
+          onClose={() => setMenu(null)}
+          onOpen={() => onSelect(menu.node)}
+          onProperties={onGetInfo ? () => onGetInfo(menu.node) : undefined}
+          onRename={onRename ? () => onRename(menu.node) : undefined}
+          onMove={onMove ? () => onMove(menu.node) : undefined}
+          onDelete={onDelete ? () => onDelete(menu.node) : undefined}
         />
       )}
     </div>
-  );
-}
-
-// ADR-400: the file context menu — Explorer/Finder muscle-memory. Operator verbs
-// (Rename / Move to… / Move to Trash) are enabled only on operator-owned files;
-// on system-owned files they render DISABLED with a reason (two-principal
-// legibility — the GitHub "you don't have write access" model, made friendly).
-function ContextMenu({
-  node, x, y, onGetInfo, onRename, onMove, onDelete, close,
-}: {
-  node: WorkspaceTreeNode;
-  x: number;
-  y: number;
-  onGetInfo?: (n: WorkspaceTreeNode) => void;
-  onRename?: (n: WorkspaceTreeNode) => void;
-  onMove?: (n: WorkspaceTreeNode) => void;
-  onDelete?: (n: WorkspaceTreeNode) => void;
-  close: () => void;
-}) {
-  const isFile = node.type === 'file';
-  const owned = isFile && isOperatorOwned(node.path);
-  const run = (fn?: (n: WorkspaceTreeNode) => void) => { fn?.(node); close(); };
-
-  return (
-    <div
-      className="fixed z-50 min-w-[184px] rounded-md border border-border bg-popover py-1 shadow-md"
-      style={{ left: x, top: y }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {onGetInfo && (
-        <MenuButton icon={<Info className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onGetInfo)}>
-          Properties
-        </MenuButton>
-      )}
-      {isFile && (onRename || onMove || onDelete) && <div className="my-1 h-px bg-border/60" />}
-      {isFile && onRename && (
-        <MenuButton
-          icon={<Pencil className="w-3.5 h-3.5 text-muted-foreground" />}
-          onClick={() => run(onRename)}
-          disabled={!owned}
-          disabledReason={SYSTEM_OWNED_REASON}
-        >
-          Rename…
-        </MenuButton>
-      )}
-      {isFile && onMove && (
-        <MenuButton
-          icon={<FolderInput className="w-3.5 h-3.5 text-muted-foreground" />}
-          onClick={() => run(onMove)}
-          disabled={!owned}
-          disabledReason={SYSTEM_OWNED_REASON}
-        >
-          Move to…
-        </MenuButton>
-      )}
-      {isFile && onDelete && (
-        <MenuButton
-          icon={owned
-            ? <Trash2 className="w-3.5 h-3.5 text-destructive" />
-            : <Lock className="w-3.5 h-3.5 text-muted-foreground/60" />}
-          onClick={() => run(onDelete)}
-          disabled={!owned}
-          disabledReason={SYSTEM_OWNED_REASON}
-          danger={owned}
-        >
-          Move to Trash
-        </MenuButton>
-      )}
-    </div>
-  );
-}
-
-function MenuButton({
-  icon, children, onClick, disabled, disabledReason, danger,
-}: {
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-  disabledReason?: string;
-  danger?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={disabled ? undefined : onClick}
-      disabled={disabled}
-      title={disabled ? disabledReason : undefined}
-      className={cn(
-        'w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors',
-        disabled
-          ? 'cursor-not-allowed text-muted-foreground/40'
-          : danger
-          ? 'text-destructive hover:bg-destructive/10'
-          : 'hover:bg-accent/60',
-      )}
-    >
-      {icon}
-      <span className="flex-1">{children}</span>
-      {disabled && <Lock className="w-3 h-3 text-muted-foreground/40" />}
-    </button>
   );
 }
 

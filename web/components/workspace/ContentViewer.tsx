@@ -33,7 +33,8 @@ import {
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel, authorAccent } from '@/lib/workspace/attribution';
 import { parseUploadFrontmatter, uploadSourceCaption } from '@/lib/workspace/upload-frontmatter';
-import { isOperatorOwned, ownerClass } from '@/lib/workspace/ownership';
+import { operatorCanOrganize } from '@/lib/workspace/ownership';
+import { useFileContextMenu, type FileVerbs } from '@/components/workspace/FileContextMenu';
 import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
 
 // ADR-162 Sub-phase D / ADR-215: IDENTITY and BRAND files carry an
@@ -99,8 +100,15 @@ interface ContentViewerProps {
   onDeleted?: () => void;
   /** ADR-388 D4: the Files-surface view mode (icon grid / details list). */
   viewMode?: 'icon' | 'list';
-  /** ADR-388 D5: right-click "Get Info" on a folder-listing row. */
+  /** ADR-388 D5: right-click "Properties" on a folder-listing row. */
   onGetInfo?: (node: WorkspaceTreeNode) => void;
+  /**
+   * ADR-400 Amendment 1: the operator's file verbs → right-click menu on the
+   * folder-listing rows (the main-panel right-click). When present it supersedes
+   * onGetInfo (the menu carries Properties). Optimistic — the handler + backend
+   * decide.
+   */
+  verbs?: FileVerbs;
 }
 
 export function ContentViewer({
@@ -111,6 +119,7 @@ export function ContentViewer({
   onDeleted,
   viewMode = 'list',
   onGetInfo,
+  verbs,
 }: ContentViewerProps) {
   if (!selectedNode) {
     return (
@@ -129,6 +138,7 @@ export function ContentViewer({
         onOpenChatDraft={onOpenChatDraft}
         viewMode={viewMode}
         onGetInfo={onGetInfo}
+        verbs={verbs}
       />
     );
   }
@@ -150,6 +160,7 @@ function DirectoryView({
   onOpenChatDraft,
   viewMode = 'list',
   onGetInfo,
+  verbs,
 }: {
   node: WorkspaceTreeNode;
   onNavigate: (node: WorkspaceTreeNode) => void;
@@ -157,7 +168,19 @@ function DirectoryView({
   onOpenChatDraft?: (prompt: string) => void;
   viewMode?: 'icon' | 'list';
   onGetInfo?: (node: WorkspaceTreeNode) => void;
+  verbs?: FileVerbs;
 }) {
+  // ADR-400: right-click a folder-listing row → the shared file context menu.
+  // Falls back to onGetInfo-only when verbs aren't wired (Home/other mounts).
+  const { openMenu, menu } = useFileContextMenu(verbs);
+  const rowContext = (child: WorkspaceTreeNode) => (e: React.MouseEvent) => {
+    if (verbs) {
+      openMenu({ path: child.path, name: child.name, isFile: child.type === 'file' }, e);
+    } else if (onGetInfo) {
+      e.preventDefault();
+      onGetInfo(child);
+    }
+  };
   // For synthetic nodes (entity subfolders with no pre-populated children),
   // fetch children on demand via the tree API.
   const [fetchedChildren, setFetchedChildren] = useState<WorkspaceTreeNode[] | null>(null);
@@ -205,6 +228,7 @@ function DirectoryView({
   }
 
   return (
+    <>
     <div className="h-full overflow-auto">
       {showHeader && (
         <div className="border-b border-border bg-muted/20 px-4 py-3">
@@ -234,7 +258,7 @@ function DirectoryView({
             <button
               key={child.path}
               onClick={() => onNavigate(child)}
-              onContextMenu={onGetInfo ? (e) => { e.preventDefault(); onGetInfo(child); } : undefined}
+              onContextMenu={rowContext(child)}
               className="flex flex-col items-center gap-1.5 rounded-lg border border-transparent p-3 text-center hover:border-border hover:bg-muted/40 transition-colors"
             >
               {child.type === 'folder' ? (
@@ -262,7 +286,7 @@ function DirectoryView({
               <button
                 key={child.path}
                 onClick={() => onNavigate(child)}
-                onContextMenu={onGetInfo ? (e) => { e.preventDefault(); onGetInfo(child); } : undefined}
+                onContextMenu={rowContext(child)}
                 className="grid w-full grid-cols-[minmax(0,1fr)_140px_120px] gap-3 px-3 py-3 text-left hover:bg-muted/40 transition-colors"
               >
                 <div className="flex items-center gap-2 min-w-0">
@@ -293,6 +317,8 @@ function DirectoryView({
         </div>
       )}
     </div>
+    {menu}
+    </>
   );
 }
 
@@ -306,10 +332,11 @@ interface HeadRevision {
   created_at: string;
 }
 
-// ADR-400: operator-owned = movable/deletable, from the ONE shared topology
-// source (was a local OPERATOR_DELETABLE_PREFIXES copy — deleted, Singular
-// Implementation). The predicate mirrors the backend gate; keep them in lockstep.
-const isOperatorDeletable = isOperatorOwned;
+// ADR-400 Amendment 1: the file-header Trash button shows for anything the
+// operator can organize (the shared mirror of the backend gate). Optimistic:
+// the backend is authoritative; the button just doesn't offer a verb that will
+// always 403 (system/ + machine-config).
+const isOperatorDeletable = operatorCanOrganize;
 
 function FileView({
   path,
@@ -451,22 +478,13 @@ function FileView({
                 <h2 className="text-lg font-medium truncate">{filename}</h2>
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                {/* ADR-400 D6: two-principal ownership legibility. "Yours" =
-                    operator-owned (you may move/rename/trash it); "Managed by
-                    Freddie" = agent-owned (edit through chat). The GitHub
-                    write-access cue, made a quiet chip. */}
-                {ownerClass(file.path) === 'you' ? (
-                  <span className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                    Yours
-                  </span>
-                ) : (
-                  <span
-                    className="rounded-full border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
-                    title="System-owned — edit through chat with Freddie"
-                  >
-                    Managed by Freddie
-                  </span>
-                )}
+                {/* ADR-400 Amendment 1: the binary "Yours / Managed by Freddie"
+                    ownership chip was removed. Under the corrected model almost
+                    everything is the operator's to organize, so the binary
+                    misled (a governance prose file is "yours" to move but
+                    agent-authored). Who-authored lives in "Last edited by" +
+                    the Properties Contributors row; content-edit-through-chat is
+                    the universal rule, not a per-file badge. */}
                 <span>{describeViewerApplication(file.path, file.content_type)}</span>
                 {file.updated_at && <span>{formatTimestamp(file.updated_at, true)}</span>}
                 {file.content_type && <span>{file.content_type}</span>}

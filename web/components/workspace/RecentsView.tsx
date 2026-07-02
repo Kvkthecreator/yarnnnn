@@ -35,6 +35,7 @@ import { formatRelativeTime } from '@/lib/formatting';
 import { formatAuthorLabelOrSystem, authorAccent } from '@/lib/workspace/attribution';
 import { FileIcon } from './FileIcon';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
+import { useFileContextMenu, type FileVerbs, type FileMenuTarget } from './FileContextMenu';
 
 interface Revision {
   path: string;
@@ -112,6 +113,13 @@ interface RecentsViewProps {
   hideWhenEmpty?: boolean;
   /** Header description shown after the title (Home: "recent changes…"). */
   subtitle?: string;
+  /**
+   * ADR-400 Amendment 1: the operator's file verbs (Properties/Rename/Move/
+   * Trash). When wired (Files mount), right-clicking a tile/row opens the shared
+   * context menu — the main-panel right-click the macOS/Explorer reference has.
+   * Omitted on the Home mount (glance-only, no organize verbs).
+   */
+  verbs?: FileVerbs;
 }
 
 export function RecentsView({
@@ -121,11 +129,14 @@ export function RecentsView({
   hideHeader = false,
   title = 'Recents',
   hideWhenEmpty = false,
+  verbs,
   subtitle,
 }: RecentsViewProps) {
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<RecentsViewMode>(DEFAULT_MODE);
+  // ADR-400: right-click a tile/row → the shared file context menu (main-panel).
+  const { openMenu, menu } = useFileContextMenu(verbs);
 
   // SSR-safe: start at the default, apply the stored choice post-mount.
   useEffect(() => { setMode(loadViewMode()); }, []);
@@ -200,10 +211,11 @@ export function RecentsView({
       )}
 
       {mode === 'icon' ? (
-        <IconGrid revisions={revisions} onSelectPath={onSelectPath} selectedPath={selectedPath} />
+        <IconGrid revisions={revisions} onSelectPath={onSelectPath} selectedPath={selectedPath} onContextMenu={openMenu} />
       ) : (
-        <ListTable revisions={revisions} onSelectPath={onSelectPath} selectedPath={selectedPath} />
+        <ListTable revisions={revisions} onSelectPath={onSelectPath} selectedPath={selectedPath} onContextMenu={openMenu} />
       )}
+      {menu}
     </div>
   );
 }
@@ -252,19 +264,28 @@ function ViewToggle({ mode, onChange }: { mode: RecentsViewMode; onChange: (m: R
 function RowShell({
   path,
   onSelectPath,
+  onContextMenu,
   className,
   title,
   children,
 }: {
   path: string;
   onSelectPath?: (path: string) => void;
+  onContextMenu?: (target: FileMenuTarget, e: React.MouseEvent) => void;
   className?: string;
   title?: string;
   children: React.ReactNode;
 }) {
+  // Every Recents row is a FILE (the feed is workspace_file_versions), so the
+  // menu target is always isFile: true.
+  const ctx = onContextMenu
+    ? (e: React.MouseEvent) => onContextMenu(
+        { path, name: path.split('/').filter(Boolean).pop() || path, isFile: true }, e,
+      )
+    : undefined;
   if (onSelectPath) {
     return (
-      <button type="button" onClick={() => onSelectPath(path)} className={className} title={title}>
+      <button type="button" onClick={() => onSelectPath(path)} onContextMenu={ctx} className={className} title={title}>
         {children}
       </button>
     );
@@ -329,8 +350,13 @@ function Thumbnail({ rev }: { rev: Revision }) {
 }
 
 function IconGrid({
-  revisions, onSelectPath, selectedPath,
-}: { revisions: Revision[]; onSelectPath?: (path: string) => void; selectedPath?: string | null }) {
+  revisions, onSelectPath, selectedPath, onContextMenu,
+}: {
+  revisions: Revision[];
+  onSelectPath?: (path: string) => void;
+  selectedPath?: string | null;
+  onContextMenu?: (target: FileMenuTarget, e: React.MouseEvent) => void;
+}) {
   return (
     // Windows-Explorer icon grid: roomy tiles, real per-format thumbnails, clear
     // hover + selection. No metadata dots — just the preview + name + time.
@@ -343,6 +369,7 @@ function IconGrid({
             key={`${rev.path}-${rev.created_at}-${i}`}
             path={rev.path}
             onSelectPath={onSelectPath}
+            onContextMenu={onContextMenu}
             title={rev.path}
             className={cn(
               'group flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center transition-colors',
@@ -380,8 +407,13 @@ function IconGrid({
 // ---------------------------------------------------------------------------
 
 function ListTable({
-  revisions, onSelectPath, selectedPath,
-}: { revisions: Revision[]; onSelectPath?: (path: string) => void; selectedPath?: string | null }) {
+  revisions, onSelectPath, selectedPath, onContextMenu,
+}: {
+  revisions: Revision[];
+  onSelectPath?: (path: string) => void;
+  selectedPath?: string | null;
+  onContextMenu?: (target: FileMenuTarget, e: React.MouseEvent) => void;
+}) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border/60">
       <table className="w-full text-sm">
@@ -410,6 +442,7 @@ function ListTable({
                   <RowShell
                     path={rev.path}
                     onSelectPath={onSelectPath}
+                    onContextMenu={onContextMenu}
                     title={rev.path}
                     className="flex w-full min-w-0 items-center gap-2.5 text-left"
                   >

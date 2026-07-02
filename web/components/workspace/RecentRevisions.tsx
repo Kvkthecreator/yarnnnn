@@ -16,16 +16,19 @@
  */
 
 import { RecentsView } from './RecentsView';
+import type { FileVerbs } from './FileContextMenu';
 
 interface RecentRevisionsProps {
   /** Navigate to a file path (the page owns selection + URL sync). */
   onSelectPath: (path: string) => void;
+  /** ADR-400: the operator's file verbs → right-click menu on the main panel. */
+  verbs?: FileVerbs;
 }
 
-export function RecentRevisions({ onSelectPath }: RecentRevisionsProps) {
+export function RecentRevisions({ onSelectPath, verbs }: RecentRevisionsProps) {
   return (
     <div className="h-full overflow-y-auto px-6 py-4">
-      <RecentsView limit={30} onSelectPath={onSelectPath} />
+      <RecentsView limit={30} onSelectPath={onSelectPath} verbs={verbs} />
     </div>
   );
 }

@@ -38,7 +38,7 @@ import {
   formatAuthorLabelOrSystem as formatAuthorLabel,
   authorAccent,
 } from '@/lib/workspace/attribution';
-import { isOperatorOwned } from '@/lib/workspace/ownership';
+import { operatorCanOrganize, organizeBlockedReason } from '@/lib/workspace/ownership';
 import type { WorkspaceTreeNode } from '@/types';
 
 // ADR-388 D3: author label + accent come from the ONE shared attribution
@@ -198,7 +198,7 @@ function FileProperties({ node }: { node: WorkspaceTreeNode }) {
     return () => { cancelled = true; };
   }, [node.path]);
 
-  const owned = isOperatorOwned(node.path);
+  const canOrganize = operatorCanOrganize(node.path);
   const kind = describeKind(node.path);
   const location = node.path.replace(/\/[^/]*$/, '') || '/';
 
@@ -208,16 +208,18 @@ function FileProperties({ node }: { node: WorkspaceTreeNode }) {
       <PropRow label="Location">
         <span className="break-all font-mono text-[11px] text-muted-foreground">{location}</span>
       </PropRow>
-      <PropRow label="Ownership">
-        {owned ? (
-          <span className="inline-flex items-center gap-1.5">
-            <span className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">Yours</span>
-            <span className="text-[11px] text-muted-foreground">you can move, rename, or trash it</span>
-          </span>
+      {/* ADR-400 Amendment 1: what the operator can DO here (organize). Content
+          editing routes through chat for every file (that boundary holds); this
+          row is about move/rename/trash. Almost everything is organizable — the
+          only carves are system/ runtime + machine-config the system reads by
+          name (renaming would break the reader). */}
+      <PropRow label="You can">
+        {canOrganize ? (
+          <span className="text-[11px] text-foreground/80">move · rename · trash it · edit via chat</span>
         ) : (
-          <span className="inline-flex items-center gap-1.5">
-            <span className="rounded-full border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Managed by Freddie</span>
-            <span className="text-[11px] text-muted-foreground">edit through chat</span>
+          <span className="inline-flex flex-col gap-0.5">
+            <span className="text-[11px] text-foreground/80">read it · edit via chat</span>
+            <span className="text-[10px] text-muted-foreground">{organizeBlockedReason(node.path)}</span>
           </span>
         )}
       </PropRow>
