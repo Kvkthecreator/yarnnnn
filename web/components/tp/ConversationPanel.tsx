@@ -396,7 +396,7 @@ export function ConversationPanel({
                 title="Stop the Reviewer's in-flight Loop"
                 className="shrink-0 p-1.5 rounded text-foreground hover:bg-muted transition-colors"
               >
-                <Square className="w-4 h-4 fill-current" />
+                <Square className="w-5 h-5 fill-current" />
               </button>
             ) : (
               <button
@@ -405,7 +405,7 @@ export function ConversationPanel({
                 className="shrink-0 p-1.5 text-primary disabled:text-muted-foreground disabled:opacity-50 transition-colors"
                 aria-label="Send message"
               >
-                <Send className="w-4 h-4" />
+                <Send className="w-5 h-5" />
               </button>
             )}
           </div>

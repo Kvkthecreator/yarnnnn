@@ -81,7 +81,7 @@ export function PlusMenu({ actions, disabled }: PlusMenuProps) {
         onClick={() => setOpen((prev) => !prev)}
         disabled={disabled}
         className={cn(
-          'shrink-0 p-3 transition-colors',
+          'shrink-0 p-1.5 rounded transition-colors',
           open
             ? 'text-primary'
             : 'text-muted-foreground hover:text-foreground',
