@@ -487,6 +487,15 @@ async def get_workspace_tree(
         )
         rows = result.data or []
 
+        # ADR-395: hide the upload text PROJECTION from the tree — it's plumbing
+        # (a searchable derivation read by recall, not a user file). The operator
+        # sees ONE file (their PDF), not a confusing raw + `.extracted.md` pair.
+        # Narrow + symmetric (is_upload_projection): only the co-located
+        # inbound/uploads/**.extracted.md is hidden; a pure-text upload (no raw
+        # container, no projection) and any user `.md` show normally.
+        from services.documents import is_upload_projection
+        rows = [r for r in rows if not is_upload_projection(r.get("path", ""))]
+
         # Normalize: lift authored_by + revision created_at from nested embed.
         # PostgREST returns the embed as a dict (single FK row) or None.
         for row in rows:
@@ -1003,12 +1012,18 @@ async def get_recent_revisions(
 
         # Dedup by path (keep first = latest, since ordered created_at desc) +
         # apply the authored-substrate hide rule.
+        # ADR-395: the upload text projection is plumbing (recall reads it, the
+        # operator doesn't) — keep it out of Recents too, so a raw + `.extracted.md`
+        # pair never shows as two recent changes.
+        from services.documents import is_upload_projection
         latest_by_path: dict[str, dict] = {}
         for row in result.data or []:
             path = row.get("path") or ""
             if not path or path in latest_by_path:
                 continue
             if not _is_authored_substrate_path(path):
+                continue
+            if is_upload_projection(path):
                 continue
             latest_by_path[path] = row
 

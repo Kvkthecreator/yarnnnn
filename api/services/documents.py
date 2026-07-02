@@ -347,3 +347,27 @@ def upload_projection_path(raw_path: str) -> str:
     # Strip the raw extension, append `.extracted.md`.
     base = raw_path.rsplit(".", 1)[0] if "." in raw_path.rsplit("/", 1)[-1] else raw_path
     return f"{base}.extracted.md"
+
+
+def is_upload_projection(path: str) -> bool:
+    """True iff `path` is an upload's DERIVED text projection (ADR-395 Piece B).
+
+    The projection is plumbing — a searchable text derivation of a raw upload,
+    consumed by recall/QueryKnowledge, NOT a user file. The Files surface hides
+    it so the operator sees ONE file (their PDF), not a confusing raw+extracted
+    pair. The predicate is intentionally NARROW + SYMMETRIC: it matches ONLY the
+    co-located projection under the upload raw lane —
+
+        inbound/uploads/{principal}/{slug}.extracted.md
+
+    so a user's own prose `.md` (under uploads/, operation/, anywhere) is NEVER
+    hidden, and a PURE-TEXT upload — which has no separate raw container and
+    produces no projection to hide — shows normally. Anchoring on BOTH the
+    `.extracted.md` suffix AND the `inbound/uploads/` lane (not the suffix alone)
+    is what makes the rule seamless + reversible: remove the derive and nothing
+    is hidden; the raw is always visible either way.
+    """
+    norm = path.lstrip("/")
+    if norm.startswith("workspace/"):
+        norm = norm[len("workspace/"):]
+    return norm.startswith("inbound/uploads/") and norm.endswith(".extracted.md")

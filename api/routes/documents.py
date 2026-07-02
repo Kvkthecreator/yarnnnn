@@ -17,7 +17,6 @@ Endpoints:
 import logging
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
-from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -319,11 +318,13 @@ async def list_documents(
         .range(offset, offset + limit - 1) \
         .execute()
 
+    from services.documents import is_upload_projection
     items = []
     for row in (result.data or []):
         path = row["path"]
-        # Skip the derived text projection — it's the derivation, not the upload.
-        if path.endswith(".extracted.md"):
+        # Skip the derived text projection — it's the derivation, not the upload
+        # (shared predicate, ADR-395: narrow to inbound/uploads/**.extracted.md).
+        if is_upload_projection(path):
             continue
         raw = row.get("content", "") or ""
         # Filename from the path leaf (raw lane preserves the real name+ext);
@@ -350,18 +351,34 @@ async def list_documents(
 
 
 # =============================================================================
-# BLOB (ADR-395 Piece A — stable content_url → fresh signed URL redirect)
+# BLOB (ADR-395 Piece A — stable content_url → fresh signed URL)
 # =============================================================================
+# A raw upload's `content_url` is `/api/documents/blob?storage_path=<key>` — a
+# stable reference on the immutable raw revision. The FE resolves it to a fresh
+# signed URL via an AUTHENTICATED fetch (Bearer header), then points the
+# img/iframe/download `src` at the DIRECT Supabase signed URL.
+#
+# Why not a header-auth redirect the img/iframe hits directly: a browser-native
+# `<img src>` / `<iframe src>` / download-anchor request carries NO Authorization
+# header (only a `fetch()` can), so a header-auth route is unreachable from those
+# elements — it 401s and the iframe renders the error JSON as the "file" (the
+# operator-observed viewer bug). The signed URL is itself time-boxed + scoped, so
+# putting IT (not a JWT) in the element src is safe; the JWT never leaves the
+# authed fetch. This also avoids a JWT-in-URL anti-pattern (history/referrer/log
+# leakage) that a `?token=` redirect would introduce.
 
-@router.get("/documents/blob")
-async def get_blob(auth: UserClient, storage_path: str):
-    """Resolve a raw-upload blob's STABLE content_url to a fresh signed URL.
 
-    A raw upload's `content_url` is `/api/documents/blob?storage_path=<key>`
-    (ADR-395 Piece A) — a stable reference stored on the immutable raw revision.
-    This route mints a fresh (1h) signed URL for the private-bucket blob and
-    302-redirects, so the FE (img/iframe/download `src`) always reaches live
-    bytes without a persisted URL going stale.
+class BlobUrlResponse(BaseModel):
+    url: str
+    expires_in: int  # seconds
+
+
+@router.get("/documents/blob", response_model=BlobUrlResponse)
+async def get_blob_url(auth: UserClient, storage_path: str):
+    """Resolve a raw-upload blob's stable content_url key to a fresh signed URL.
+
+    Authenticated (Bearer) JSON endpoint — the FE fetches this with the session
+    token, then renders the returned signed URL directly (img/iframe/download).
 
     Ownership: the `documents`-bucket key is `{user_id}/{document_id}/…`, so a
     caller may only resolve blobs under their OWN user_id prefix — this prevents
@@ -375,7 +392,7 @@ async def get_blob(auth: UserClient, storage_path: str):
     signed = create_signed_url_for_storage_path(service, storage_path, expires_in=3600)
     if not signed:
         raise HTTPException(status_code=404, detail="Blob not found")
-    return RedirectResponse(url=signed, status_code=302)
+    return BlobUrlResponse(url=signed, expires_in=3600)
 
 
 # =============================================================================

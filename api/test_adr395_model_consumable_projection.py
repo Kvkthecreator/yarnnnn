@@ -274,3 +274,32 @@ def test_download_resolves_storage_path_from_content_url():
     assert _storage_path_from_content_url("https://cdn.example.com/report.pdf") is None
     assert _storage_path_from_content_url("") is None
     assert _storage_path_from_content_url(None) is None
+
+
+# ── Projection hiding (Files UX): narrow + symmetric (2026-07-02) ───────────
+
+
+import pytest as _pytest
+
+
+@_pytest.mark.parametrize("path,hidden", [
+    # The co-located upload projection → hidden (plumbing).
+    ("/workspace/inbound/uploads/operator/acme.extracted.md", True),
+    ("workspace/inbound/uploads/operator/acme.extracted.md", True),  # no leading slash
+    # The raw upload → shown (the user's file).
+    ("/workspace/inbound/uploads/operator/acme.pdf", False),
+    # A user's own prose .md → shown (never hidden).
+    ("/workspace/uploads/legacy.md", False),
+    ("/workspace/operation/report.md", False),
+    # An .extracted.md OUTSIDE the upload lane → shown (symmetry: not our plumbing).
+    ("/workspace/operation/notes.extracted.md", False),
+    # MCP raw lane → shown (different lane, not an upload projection).
+    ("/workspace/inbound/mcp/chatgpt/x.md", False),
+])
+def test_is_upload_projection_is_narrow_and_symmetric(path, hidden):
+    """The hide predicate must match ONLY inbound/uploads/**.extracted.md — so a
+    pure-text upload (no projection) and any user file are NEVER hidden. This is
+    the seamless/reversible guard: a bug here would hide user files or leak
+    plumbing into the tree."""
+    from services.documents import is_upload_projection
+    assert is_upload_projection(path) is hidden
