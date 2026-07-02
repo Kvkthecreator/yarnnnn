@@ -7,10 +7,12 @@ that GC as an operator DIAL:
 
   - a substrate-read `retention_days` policy (NOT a hard-coded enum) at a
     governance path; the 7/14/30 the UI offers are PRESETS over a dynamic value;
-  - DERIVE-THEN-PRUNE: a raw observation is prunable only if (a) it is older than
-    the window AND (b) a derived act already cites it (its understanding is
-    captured). Never GC a raw no derived act has consumed — that would drop
-    un-distilled evidence.
+  - EVIDENCE-BOUNDED RETENTION (ADR-394 D4 / ADR-401 D4): a raw observation is
+    prunable only if (a) it is older than the window AND (b) NO derived act
+    cites it. A cited raw is EVIDENCE in a provenance chain (derived_from /
+    trace) and is never pruned; un-cited raw past the window is presumed noise
+    (connector raw is mostly un-context chatter) and ages out mechanically.
+    Unknown citation state (the gather failed) prunes NOTHING — fail-safe.
 
 ⭐ PRICING SEAM (ADR-391, wired in a LATER session — mechanic only here).
 `resolve_retention_days` reads ONE value, so the pricing layer can gate the
@@ -163,24 +165,28 @@ async def prune_raw_lane(
     cited_paths: Optional[set] = None,
     dry_run: bool = False,
 ) -> dict:
-    """Derive-then-prune GC over the connector raw lane (ADR-392 D8).
+    """Evidence-bounded GC over the connector raw lane (ADR-392 D8, polarity per
+    ADR-394 D4 / ADR-401 D4).
 
     A raw file under inbound/{platform}/ is pruned iff:
       1. it is older than the retention window (age from the {observed_at}
          filename segment vs `now_iso` — no clock read), AND
-      2. some derived act cites it (its path ∈ `cited_paths`) — its understanding
-         is already captured, so the raw is safe to drop (DP32 evidence-bounded
-         retention: keep raw only until distilled).
+      2. NO derived act cites it (its path ∉ `cited_paths`) — nothing engaged it
+         within the window, so it is presumed noise and ages out. A CITED raw is
+         evidence in a provenance chain (derived_from / trace) and is NEVER
+         pruned, regardless of age.
 
     `cited_paths` is the set of /workspace-absolute raw paths that appear in any
     derived file's `derived_from` — the caller supplies it (a GROUP BY over the
-    revision/derivation metadata; see the walker note below). When None, NOTHING
-    is pruned (fail-safe: without knowing what's cited, never drop).
+    revision/derivation metadata; see the walker note below). When None (unknown
+    — e.g. the gather failed), NOTHING is pruned: without knowing what's cited,
+    a prune could destroy evidence. An empty set is a valid answer ("nothing is
+    cited") and makes all past-window raw prunable.
 
     Only the connector lane is swept — inbound/mcp/ + inbound/web/ have their own
     retention governance (they are not connector context). Never raises.
 
-    Returns {scanned, pruned, kept_uncited, kept_fresh, retention_days, dry_run}.
+    Returns {scanned, pruned, kept_cited, kept_fresh, retention_days, dry_run}.
     """
     from services.workspace import UserMemory
 
@@ -190,7 +196,7 @@ async def prune_raw_lane(
             now = now.replace(tzinfo=timezone.utc)
     except ValueError:
         logger.warning("[CONNECTOR_RETENTION] bad now_iso=%r; aborting prune", now_iso)
-        return {"scanned": 0, "pruned": 0, "kept_uncited": 0, "kept_fresh": 0,
+        return {"scanned": 0, "pruned": 0, "kept_cited": 0, "kept_fresh": 0,
                 "retention_days": 0, "dry_run": dry_run, "error": "bad_now_iso"}
 
     # ADR-396: clamp the declared window to the subscription tier's ceiling (gate 1).
@@ -207,13 +213,13 @@ async def prune_raw_lane(
         all_inbound = await um.list(INBOUND_ROOT, recursive=True)
     except Exception as exc:  # noqa: BLE001
         logger.warning("[CONNECTOR_RETENTION] list inbound/ failed user=%s: %s", user_id[:8], exc)
-        return {"scanned": 0, "pruned": 0, "kept_uncited": 0, "kept_fresh": 0,
+        return {"scanned": 0, "pruned": 0, "kept_cited": 0, "kept_fresh": 0,
                 "retention_days": window, "dry_run": dry_run}
 
     NON_CONNECTOR = ("mcp/", "web/")
     cited = cited_paths if cited_paths is not None else None
 
-    scanned = pruned = kept_uncited = kept_fresh = 0
+    scanned = pruned = kept_cited = kept_fresh = 0
     for rel in all_inbound:
         # rel is relative to INBOUND_ROOT (e.g. "slack/daily-work/2026-07-01T...md")
         if rel.startswith(NON_CONNECTOR):
@@ -228,49 +234,55 @@ async def prune_raw_lane(
             kept_fresh += 1
             continue
 
-        # Derive-then-prune: only drop if a derived act cites it.
-        if cited is None or abs_path not in cited:
-            kept_uncited += 1
+        # ADR-394 D4 / ADR-401 D4: a cited raw is evidence — never pruned.
+        # cited=None means the citation state is UNKNOWN — fail-safe, keep.
+        if cited is None or abs_path in cited:
+            kept_cited += 1
             continue
 
+        # Un-cited + past the window → presumed noise; ages out.
         if not dry_run:
             try:
                 await um.delete(full_rel)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("[CONNECTOR_RETENTION] delete failed %s: %s", full_rel, exc)
-                kept_uncited += 1
+                kept_cited += 1  # not pruned — bucketed with the keeps
                 continue
         pruned += 1
 
     logger.info(
-        "[CONNECTOR_RETENTION] user=%s window=%dd scanned=%d pruned=%d kept_fresh=%d kept_uncited=%d dry=%s",
-        user_id[:8], window, scanned, pruned, kept_fresh, kept_uncited, dry_run,
+        "[CONNECTOR_RETENTION] user=%s window=%dd scanned=%d pruned=%d kept_fresh=%d kept_cited=%d dry=%s",
+        user_id[:8], window, scanned, pruned, kept_fresh, kept_cited, dry_run,
     )
     return {
         "scanned": scanned,
         "pruned": pruned,
-        "kept_uncited": kept_uncited,
+        "kept_cited": kept_cited,
         "kept_fresh": kept_fresh,
         "retention_days": window,
         "dry_run": dry_run,
     }
 
 
-async def gather_cited_raw_paths(client: Any, user_id: str) -> set:
+async def gather_cited_raw_paths(client: Any, user_id: str) -> Optional[set]:
     """The set of /workspace-absolute raw paths cited by any derived object.
 
-    Derive-then-prune (ADR-394 D4) needs to know which raw observations a
-    derived act already cites, so `prune_raw_lane` keeps only un-distilled
-    evidence. A derived object carries `derived_from: <raw path(s)>` (ADR-376
-    D3). This walks the derived homes (operation/) for content mentioning
-    `derived_from` and collects every cited path — the "GROUP BY over
-    derived_from" the prune step consumes.
+    The GC (ADR-394 D4 / ADR-401 D4) keeps cited raw as evidence and prunes
+    un-cited raw past the window, so it must know which raw observations a
+    derived act cites. A derived object carries `derived_from: <raw path(s)>`
+    (ADR-376 D3). This walks the derived homes (operation/) for content
+    mentioning `derived_from` and collects every cited path — the "GROUP BY
+    over derived_from" the prune step consumes.
 
     Reuses `mcp_composition._extract_derived_from_list` (the single on-wire
-    parser for the three citation shapes — bare/inline/block). Returns an empty
-    set on any error (fail-safe: an empty cited-set means prune_raw_lane drops
-    nothing UNCITED, and with cited=set() it drops nothing at all — never a
-    false prune). Best-effort; never raises.
+    parser for the three citation shapes — bare/inline/block).
+
+    Returns None on any error — NOT an empty set. Under the prune-uncited
+    polarity, a failed query masquerading as "nothing is cited" would make
+    every past-window raw prunable (a mass false prune); None tells
+    `prune_raw_lane` the citation state is unknown, and it prunes nothing.
+    An empty set is reserved for the true answer "nothing is cited."
+    Best-effort; never raises.
     """
     from services.mcp_composition import _extract_derived_from_list
 
@@ -290,7 +302,7 @@ async def gather_cited_raw_paths(client: Any, user_id: str) -> set:
             "[CONNECTOR_RETENTION] gather_cited_raw_paths query failed user=%s: %s",
             user_id[:8], exc,
         )
-        return cited
+        return None
 
     for h in hits:
         for ref in _extract_derived_from_list(h.get("content")):

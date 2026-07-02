@@ -314,50 +314,49 @@ def _test_retention():
             "14 pricing-seam clamp: declared 90 clamped to tier_max 30",
             d_clamped == 30, f"got {d_clamped}"))
 
-        # --- derive-then-prune GC ---
+        # --- evidence-bounded GC (ADR-394 D4 / ADR-401 D4 polarity) ---
         store.clear()
         # now = 2026-07-01; window 30d. Build the raw lane.
         NOW = "2026-07-01T00:00:00Z"
-        # stale (60d old) + cited → SHOULD prune
+        # stale (60d old) + CITED → KEEP forever (evidence in a provenance chain)
         stale_cited = "inbound/slack/daily-work/2026-05-02T00:00:00Z.md"
-        # stale (60d) + UNcited → keep (derive-then-prune: no derived act yet)
+        # stale (60d) + UN-cited → PRUNE (nothing engaged it — presumed noise)
         stale_uncited = "inbound/slack/random/2026-05-02T00:00:00Z.md"
-        # fresh (5d) + cited → keep (within window)
-        fresh_cited = "inbound/slack/eng/2026-06-26T00:00:00Z.md"
-        # an mcp sibling, stale + cited → MUST NOT be touched (not connector lane)
+        # fresh (5d) + un-cited → keep (within window)
+        fresh_uncited = "inbound/slack/eng/2026-06-26T00:00:00Z.md"
+        # an mcp sibling, stale + un-cited → MUST NOT be touched (not connector lane)
         mcp_sibling = "inbound/mcp/claude.ai/2026-05-02T00:00:00Z.md"
-        for p in (stale_cited, stale_uncited, fresh_cited, mcp_sibling):
+        for p in (stale_cited, stale_uncited, fresh_uncited, mcp_sibling):
             store[p] = "raw"
 
         cited = {
             f"/workspace/{stale_cited}",
-            f"/workspace/{fresh_cited}",
-            f"/workspace/{mcp_sibling}",
         }
         res = asyncio.run(cr.prune_raw_lane(
             None, "u1", NOW, retention_days=30, cited_paths=cited,
         ))
 
         out.append(_check(
-            "15 derive-then-prune: only stale+cited connector raw pruned (1)",
-            res["pruned"] == 1 and stale_cited not in store,
+            "15 evidence-bounded GC: only stale+UN-cited connector raw pruned (1)",
+            res["pruned"] == 1 and stale_uncited not in store,
+            f"res={res} stale_uncited_present={stale_uncited in store}"))
+        out.append(_check(
+            "16 stale-but-CITED raw KEPT (evidence — derived_from/trace chain intact)",
+            stale_cited in store and res["kept_cited"] == 1,
             f"res={res} stale_cited_present={stale_cited in store}"))
         out.append(_check(
-            "16 stale-but-uncited raw KEPT (no derived act cites it yet)",
-            stale_uncited in store and res["kept_uncited"] == 1))
-        out.append(_check(
             "17 fresh raw KEPT (within window) + mcp/web siblings untouched",
-            fresh_cited in store and mcp_sibling in store and res["scanned"] == 3,
+            fresh_uncited in store and mcp_sibling in store and res["scanned"] == 3,
             f"scanned={res['scanned']} (should exclude the mcp sibling)"))
 
-        # 18 — fail-safe: cited_paths=None prunes NOTHING
-        store[stale_cited] = "raw"  # restore
+        # 18 — fail-safe: cited_paths=None (unknown citation state) prunes NOTHING
+        store[stale_uncited] = "raw"  # restore
         res_none = asyncio.run(cr.prune_raw_lane(
             None, "u1", NOW, retention_days=30, cited_paths=None,
         ))
         out.append(_check(
-            "18 fail-safe: cited_paths=None prunes nothing (never drop unknown)",
-            res_none["pruned"] == 0 and stale_cited in store))
+            "18 fail-safe: cited_paths=None prunes nothing (unknown ≠ un-cited)",
+            res_none["pruned"] == 0 and stale_uncited in store))
     finally:
         ws.UserMemory = original
 

@@ -427,15 +427,17 @@ def _test_gc_gather(results):
         "16 gather_cited_raw_paths collects+dedupes all derived_from cites (bare + block)",
         cited == expected, f"got {sorted(cited)}"))
 
-    # Fail-safe: a query error → empty set (never a false prune input).
+    # Fail-safe (ADR-401 D4): a query error → None (UNKNOWN), never an empty
+    # set — under the prune-uncited polarity an empty set means "nothing is
+    # cited" and would make every past-window raw prunable (mass false prune).
     class _BoomClient:
         def table(self, name):
             raise RuntimeError("db down")
 
     cited_boom = _aio.run(cr.gather_cited_raw_paths(_BoomClient(), "u1"))
     results.append(_check(
-        "17 gather fail-safe: query error → empty set (never a false prune)",
-        cited_boom == set(), f"got {cited_boom}"))
+        "17 gather fail-safe: query error → None (unknown ≠ nothing-cited)",
+        cited_boom is None, f"got {cited_boom!r}"))
 
 
 def _test_derive_inherits_seat_act(results):

@@ -362,14 +362,15 @@ async def run_unified_scheduler():
             logger.warning("[SCHED] capture lane raised: %s", exc)
 
         # ---------------------------------------------------------------------
-        # ADR-394 D4: connector raw-lane GC — derive-then-prune. A sibling
-        # maintenance step to the capture drain. For each active user, gather
-        # the raw paths a derived act already cites (GROUP BY over derived_from),
-        # then prune connector raw (inbound/{platform}/) that is BOTH older than
-        # the workspace's retention window AND already cited (its understanding
-        # is captured, so the raw is safe to drop — DP32 evidence-bounded
-        # retention). Un-cited raw is NEVER pruned (fail-safe). inbound/mcp/ +
-        # inbound/web/ are not touched (own governance). Best-effort per user.
+        # ADR-394 D4 / ADR-401 D4: connector raw-lane GC — evidence-bounded
+        # retention. A sibling maintenance step to the capture drain. For each
+        # active user, gather the raw paths a derived act cites (GROUP BY over
+        # derived_from), then prune connector raw (inbound/{platform}/) that is
+        # older than the workspace's retention window AND un-cited (nothing
+        # engaged it — presumed noise, ages out at the dial). A CITED raw is
+        # evidence in a provenance chain and is never pruned. Unknown citation
+        # state (gather returned None) prunes nothing — fail-safe. inbound/mcp/
+        # + inbound/web/ are not touched (own governance). Best-effort per user.
         # ---------------------------------------------------------------------
         try:
             from services.connector_retention import (
@@ -391,7 +392,7 @@ async def run_unified_scheduler():
                     )
             if gc_pruned_total > 0:
                 logger.info(
-                    "[SCHED] connector raw-lane GC pruned %d cited-and-stale raw file(s)",
+                    "[SCHED] connector raw-lane GC pruned %d stale un-cited raw file(s)",
                     gc_pruned_total,
                 )
         except Exception as exc:
