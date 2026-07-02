@@ -287,7 +287,8 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
             let blocks: MessageBlock[] | undefined;
 
             if (m.metadata?.tool_history) {
-              const toolItems = m.metadata.tool_history.filter(
+              const items = m.metadata.tool_history;
+              const toolItems = items.filter(
                 (item) => item.type === 'tool_call' && item.name
               );
 
@@ -299,18 +300,31 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                 },
               }));
 
-              blocks = toolItems.map((item, idx) => ({
-                type: 'tool_call' as const,
-                id: `hist_${m.id}_${idx}`,
-                tool: item.name!,
-                input: item.input_summary ? { summary: item.input_summary } : {},
-                status: 'success' as const,
-                result: {
-                  toolName: item.name!,
-                  success: true,
-                  data: { message: item.result_summary || 'Action completed' },
-                },
-              }));
+              // ADR-399: the turn artifact — reasoning + tool entries
+              // reconstructed IN ORDER, so the settled card shows the same
+              // process the operator watched stream.
+              blocks = items
+                .map((item, idx): MessageBlock | null => {
+                  if (item.type === 'reasoning' && item.text) {
+                    return { type: 'thinking', content: item.text };
+                  }
+                  if (item.type === 'tool_call' && item.name) {
+                    return {
+                      type: 'tool_call',
+                      id: `hist_${m.id}_${idx}`,
+                      tool: item.name,
+                      input: item.input_summary ? { summary: item.input_summary } : {},
+                      status: 'success',
+                      result: {
+                        toolName: item.name,
+                        success: true,
+                        data: { message: item.result_summary || 'Action completed' },
+                      },
+                    };
+                  }
+                  return null;
+                })
+                .filter((b): b is MessageBlock => b !== null);
             }
 
             const messageBlocks: MessageBlock[] = [];
@@ -634,7 +648,6 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
         let pendingSurface: DeskSurface | null = null;
         let pendingHandoff: string | null = null;
         let clarifyWasCalled = false;
-        let reviewerFired = false; // tracks whether reviewer_response SSE was received
         // Track pending tool calls by ID for updating status
         const pendingToolCalls: Map<string, number> = new Map(); // tool_use_id -> block index
         // ADR-124: Author attribution from stream_start event
@@ -917,6 +930,15 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                       };
                       dispatch({ type: 'ADD_MESSAGE', message: reviewerPlaceholder });
                     }
+                    // ADR-399: text streamed before a tool call is interim
+                    // reasoning — re-type the open text block to 'thinking'
+                    // (persisted server-side as the trail's reasoning entry);
+                    // only the text trailing the LAST call is the report.
+                    const lastBlock = blocks[blocks.length - 1];
+                    if (lastBlock?.type === 'text' && lastBlock.content.trim()) {
+                      blocks[blocks.length - 1] = { type: 'thinking', content: lastBlock.content };
+                      assistantContent = '';
+                    }
                     const inputSummary: string = event.input_summary ?? '';
                     blocks.push({
                       type: 'tool_call',
@@ -948,12 +970,37 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                   }
                 }
               } else if (event.reviewer_response) {
-                // Reviewer spoke — reload history immediately so FreddieCard renders.
-                // CRITICAL: use fetchAndSetHistory() (unguarded), not loadScopedHistory()
-                // which has a once-per-page-load guard for initial mount. Without this,
-                // every Reviewer turn after the first looked silent until hard refresh.
-                reviewerFired = true;
-                await fetchAndSetHistory();
+                // ADR-399: settle IN PLACE — nothing the operator watched is
+                // removed or replaced. The trailing live text block was the
+                // report streaming in; the settled body is the authoritative
+                // reviewer_response text (the same words). The DB row —
+                // persisted by the route with the identical trail — takes
+                // over on the next natural history load, pixel-equivalent.
+                // (The pre-ADR-399 fetchAndSetHistory() replace here WAS the
+                // operator-visible delete-rewrite. Deleted.)
+                const finalText = event.reviewer_response as string;
+                while (blocks.length && blocks[blocks.length - 1].type === 'text') {
+                  blocks.pop();
+                }
+                assistantContent = finalText;
+                if (streamingMessageId) {
+                  updateStreamingMessage();
+                } else {
+                  // No streaming bubble existed (no deltas/tools reached us):
+                  // create the settled message directly.
+                  streamingMessageId = crypto.randomUUID();
+                  dispatch({
+                    type: 'ADD_MESSAGE',
+                    message: {
+                      id: streamingMessageId,
+                      role: 'freddie',
+                      content: finalText,
+                      blocks: [...blocks],
+                      timestamp: new Date(),
+                      narrative: { pulse: 'addressed', weight: 'material' },
+                    },
+                  });
+                }
               } else if (event.balance_exhausted) {
                 throw new Error('__balance_exhausted__');
               } else if (event.error) {
@@ -1034,12 +1081,6 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
         if (hasProposeAction) {
           setTimeout(() => fetchAndSetHistory(), 1500);
         }
-        if (reviewerFired) {
-          // Same fix as in-stream handler — fetchAndSetHistory is unguarded;
-          // loadScopedHistory's once-per-page-load guard would no-op here.
-          await fetchAndSetHistory();
-        }
-
         return toolResults.length > 0 ? toolResults : null;
       } catch (err) {
         if ((err as Error).name === 'AbortError') {

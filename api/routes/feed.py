@@ -1035,7 +1035,15 @@ async def global_chat(
             # detail and (b) persistence on the settled Freddie row — the
             # exact metadata.tool_history contract the FE already
             # reconstructs into tool_call blocks (ADR-042).
+            #
+            # ADR-399: the trail is the TURN ARTIFACT — one ordered list of
+            # {type:'reasoning'} + {type:'tool_call'} entries. Interim
+            # reasoning (text that precedes a tool call) persists alongside
+            # the calls; the trailing text is the report (the row's content),
+            # never duplicated into the trail. Legacy consumers filter on
+            # type=='tool_call' and are unaffected.
             freddie_tool_history: list[dict] = []
+            reasoning_buf: list[str] = []
             async for event in wake_addressed_stream(
                 wake_client, auth.user_id,
                 session_id=session_id,
@@ -1052,6 +1060,15 @@ async def global_chat(
                     phase = ev.get("phase")
                     tool_name = ev.get("tool", "?")
                     if phase == "tool_start":
+                        # ADR-399: text emitted before a tool call is interim
+                        # reasoning — flush it into the trail, in order.
+                        pending_reasoning = "".join(reasoning_buf).strip()
+                        reasoning_buf.clear()
+                        if pending_reasoning:
+                            freddie_tool_history.append({
+                                "type": "reasoning",
+                                "text": pending_reasoning[:2000],
+                            })
                         input_summary = _compact_tool_input(ev.get("input"))
                         freddie_tool_history.append({
                             "type": "tool_call",
@@ -1079,6 +1096,11 @@ async def global_chat(
                     # remains the persist+finalize point; this carries the live
                     # text so Phase 2's FE can append it to a streaming bubble
                     # instead of waiting for the whole block at cycle-end.
+                    # ADR-399: also buffer — if a tool call follows, this text
+                    # is interim reasoning and persists in the trail; the
+                    # trailing buffer at reviewer_response is the report
+                    # itself (the row's content) and is NOT duplicated.
+                    reasoning_buf.append(event.get("text", ""))
                     yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'text_delta', 'text': event.get('text', ''), 'round': event.get('round')})}\n\n"
 
                 elif etype == "agent_narration":

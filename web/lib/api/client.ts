@@ -387,6 +387,8 @@ export const api = {
                 input_summary?: string;
                 result_summary?: string;
                 content?: string;
+                /** ADR-399: interim reasoning segments (type='reasoning') */
+                text?: string;
               }>;
               tools_used?: string[];
               // ADR-124: Author attribution for meeting room messages

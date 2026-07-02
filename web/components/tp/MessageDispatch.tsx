@@ -135,13 +135,17 @@ function renderAgentBubble({ msg }: RendererProps): JSX.Element {
  */
 function ReviewerBubbleRenderer({ msg }: RendererProps): JSX.Element {
   const personaName = useFreddiePersona();
-  // ADR-398 D1: the actual-call trail — tool_call blocks arrive live (SSE
-  // reviewer_progress) and settled (reconstructed from metadata.tool_history).
-  const tools = (msg.blocks ?? [])
-    .filter((b) => b.type === 'tool_call')
-    .map((b) => {
+  // ADR-399: the turn artifact — reasoning + tool entries in the order they
+  // happened, live (SSE) and settled (reconstructed from tool_history).
+  const process = (msg.blocks ?? [])
+    .filter((b) => b.type === 'tool_call' || b.type === 'thinking')
+    .map((b): import('./FreddieCard').FreddieProcessItem => {
+      if (b.type === 'thinking') {
+        return { kind: 'thinking', text: b.content };
+      }
       const tb = b as Extract<MessageBlock, { type: 'tool_call' }>;
       return {
+        kind: 'tool',
         name: tb.tool,
         detail: typeof tb.input?.summary === 'string' ? (tb.input.summary as string) : '',
         status: tb.status,
@@ -155,7 +159,7 @@ function ReviewerBubbleRenderer({ msg }: RendererProps): JSX.Element {
       data={msg.reviewer ?? {}}
       content={msg.content}
       personaName={personaName}
-      tools={tools.length > 0 ? tools : undefined}
+      process={process.length > 0 ? process : undefined}
     />
   );
 }

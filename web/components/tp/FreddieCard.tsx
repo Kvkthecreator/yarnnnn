@@ -29,42 +29,57 @@ interface FreddieCardProps {
   confidence?: string | null;
   /** Directive dispatched by System Agent after Reviewer assessment, if any */
   directiveDispatched?: string | null;
-  /** ADR-398 D1: the actual-call trail — what ran, on what, what came back. */
-  tools?: FreddieToolRow[];
+  /** ADR-399: the turn artifact — reasoning + calls, in order, persistent. */
+  process?: FreddieProcessItem[];
 }
 
-export interface FreddieToolRow {
-  name: string;
-  detail: string;
-  status: 'pending' | 'success' | 'failed';
-  result: string;
-}
+export type FreddieProcessItem =
+  | { kind: 'thinking'; text: string }
+  | {
+      kind: 'tool';
+      name: string;
+      detail: string;
+      status: 'pending' | 'success' | 'failed';
+      result: string;
+    };
 
-/** Compact dim rows — the Claude Code-style work trail, collapsed weight.
- *  Renders what the runtime REPORTED (server-composed summaries), never an
- *  FE-invented label (the ADR-351 D4 line, kept). */
-function ToolTrail({ tools }: { tools: FreddieToolRow[] }) {
+/** The turn's process, rendered the way the market's chat grammar taught
+ *  everyone to read it: reasoning as dim collapsible disclosures, tool calls
+ *  as compact rows — in the order they happened, never removed (ADR-399:
+ *  append-only within one narrative entry). Content is what the runtime
+ *  REPORTED, never an FE-invented label (the ADR-351 D4 line, kept). */
+function ProcessTrail({ items }: { items: FreddieProcessItem[] }) {
   return (
     <div className="mt-1.5 mb-1 space-y-0.5">
-      {tools.map((t, i) => (
-        <div
-          key={i}
-          className="flex items-baseline gap-1.5 text-[10px] font-mono text-muted-foreground/50 leading-tight"
-        >
-          {t.status === 'pending' ? (
-            <Loader2 className="w-2.5 h-2.5 animate-spin shrink-0 self-center" />
-          ) : t.status === 'failed' ? (
-            <XCircle className="w-2.5 h-2.5 shrink-0 self-center text-red-500/60" />
-          ) : (
-            <CheckCircle2 className="w-2.5 h-2.5 shrink-0 self-center text-muted-foreground/40" />
-          )}
-          <span className="shrink-0">{t.name}</span>
-          {t.detail && <span className="truncate text-muted-foreground/40">{t.detail}</span>}
-          {t.result && t.status !== 'pending' && (
-            <span className="truncate text-muted-foreground/35">→ {t.result}</span>
-          )}
-        </div>
-      ))}
+      {items.map((item, i) =>
+        item.kind === 'thinking' ? (
+          <details key={i} className="group text-[10px] text-muted-foreground/45">
+            <summary className="cursor-pointer list-none select-none italic hover:text-muted-foreground/70">
+              <span className="group-open:hidden">▸ reasoning…</span>
+              <span className="hidden group-open:inline">▾ reasoning</span>
+            </summary>
+            <p className="mt-0.5 pl-3 whitespace-pre-wrap italic leading-snug">{item.text}</p>
+          </details>
+        ) : (
+          <div
+            key={i}
+            className="flex items-baseline gap-1.5 text-[10px] font-mono text-muted-foreground/50 leading-tight"
+          >
+            {item.status === 'pending' ? (
+              <Loader2 className="w-2.5 h-2.5 animate-spin shrink-0 self-center" />
+            ) : item.status === 'failed' ? (
+              <XCircle className="w-2.5 h-2.5 shrink-0 self-center text-red-500/60" />
+            ) : (
+              <CheckCircle2 className="w-2.5 h-2.5 shrink-0 self-center text-muted-foreground/40" />
+            )}
+            <span className="shrink-0">{item.name}</span>
+            {item.detail && <span className="truncate text-muted-foreground/40">{item.detail}</span>}
+            {item.result && item.status !== 'pending' && (
+              <span className="truncate text-muted-foreground/35">→ {item.result}</span>
+            )}
+          </div>
+        )
+      )}
     </div>
   );
 }
@@ -105,7 +120,7 @@ function VerdictChip({ verdict }: { verdict: string }) {
   return null;
 }
 
-export function FreddieCard({ data, content, personaName, confidence, directiveDispatched, tools }: FreddieCardProps) {
+export function FreddieCard({ data, content, personaName, confidence, directiveDispatched, process }: FreddieCardProps) {
   const { verdict, occupant, actionType, proposalId } = data;
   const persona = occupantLabel(occupant, personaName);
 
@@ -143,8 +158,8 @@ export function FreddieCard({ data, content, personaName, confidence, directiveD
         )}
       </div>
 
-      {/* ADR-398 D1: the actual-call trail (live + settled) */}
-      {tools && tools.length > 0 && <ToolTrail tools={tools} />}
+      {/* ADR-399: the turn artifact — process trail (live + settled) */}
+      {process && process.length > 0 && <ProcessTrail items={process} />}
 
       {/* Content — ADR-398 D3: substrate paths + proposal ids render as
           SurfaceLinks (OS-owned linkification; the model never authors URLs) */}
