@@ -21,6 +21,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Zap, ArrowUpCircle } from "lucide-react";
 import type { SubscriptionTier } from "@/types";
+import {
+  deriveUsageMeter,
+  type UsageLimits,
+  type UsageMeter,
+  TOPUP_PRESETS,
+  TOPUP_DEFAULT,
+  TOPUP_MIN_USD,
+  TOPUP_MAX_USD,
+} from "@/lib/subscription/usage";
 
 const TIER_LABEL: Record<SubscriptionTier, string> = {
   free: "Free",
@@ -31,18 +40,10 @@ const TIER_LABEL: Record<SubscriptionTier, string> = {
 // The upgrade ladder — the next tier(s) above the current one.
 const TIER_ORDER: SubscriptionTier[] = ["free", "starter", "pro"];
 
-const TOP_UP_SUGGESTIONS = [10, 25, 50];
-
-interface UsageState {
-  spend_usd: number;
-  raw_balance_usd: number;
-  tier: SubscriptionTier;
-}
-
 export function SubscriptionCard() {
   const { tier, isLoading, error, topup, subscribe, manageSubscription } = useSubscription();
-  const [usage, setUsage] = useState<UsageState | null>(null);
-  const [topupAmount, setTopupAmount] = useState<string>("25");
+  const [usage, setUsage] = useState<UsageLimits | null>(null);
+  const [topupAmount, setTopupAmount] = useState<string>(String(TOPUP_DEFAULT));
   const [topupLoading, setTopupLoading] = useState(false);
   const [subscribeLoading, setSubscribeLoading] = useState<SubscriptionTier | null>(null);
 
@@ -51,7 +52,14 @@ export function SubscriptionCard() {
     api.integrations
       .getLimits()
       .then((d) => {
-        if (!cancelled) setUsage({ spend_usd: d.spend_usd, raw_balance_usd: d.raw_balance_usd, tier: d.tier });
+        if (!cancelled)
+          setUsage({
+            spend_usd: d.spend_usd,
+            raw_balance_usd: d.raw_balance_usd,
+            allowance_usd: d.allowance_usd,
+            topup_balance_usd: d.topup_balance_usd,
+            tier: d.tier,
+          });
       })
       .catch(() => {});
     return () => {
@@ -59,9 +67,7 @@ export function SubscriptionCard() {
     };
   }, []);
 
-  const usagePct = usage && usage.raw_balance_usd > 0
-    ? Math.min(100, Math.round((usage.spend_usd / usage.raw_balance_usd) * 100))
-    : 0;
+  const meter: UsageMeter | null = deriveUsageMeter(usage);
 
   const handleTopup = async () => {
     const amount = parseInt(topupAmount, 10);
@@ -113,17 +119,15 @@ export function SubscriptionCard() {
               </button>
             )}
           </div>
-          {usage && (
+          {meter && (
             <div className="space-y-1.5">
               <div className="h-1.5 w-full rounded-full bg-muted/50 overflow-hidden">
                 <div
-                  className={usagePct >= 90 ? "h-full rounded-full bg-destructive" : usagePct >= 70 ? "h-full rounded-full bg-amber-500" : "h-full rounded-full bg-primary"}
-                  style={{ width: `${usagePct}%` }}
+                  className={meter.isCritical ? "h-full rounded-full bg-destructive" : meter.isWarn ? "h-full rounded-full bg-amber-500" : "h-full rounded-full bg-primary"}
+                  style={{ width: `${meter.percent}%` }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                {usagePct}% of this cycle&rsquo;s included usage used.
-              </p>
+              <p className="text-xs text-muted-foreground">{meter.primaryLabel}.</p>
             </div>
           )}
         </section>
@@ -169,7 +173,7 @@ export function SubscriptionCard() {
             A one-time top-up gives your operation extra headroom beyond the monthly allowance. It never expires.
           </p>
           <div className="flex gap-2">
-            {TOP_UP_SUGGESTIONS.map((amt) => (
+            {TOPUP_PRESETS.map((amt) => (
               <Button
                 key={amt}
                 type="button"
@@ -187,8 +191,8 @@ export function SubscriptionCard() {
               <span className="text-muted-foreground text-sm">$</span>
               <input
                 type="number"
-                min={5}
-                max={500}
+                min={TOPUP_MIN_USD}
+                max={TOPUP_MAX_USD}
                 value={topupAmount}
                 onChange={(e) => setTopupAmount(e.target.value)}
                 className="w-full bg-transparent text-sm outline-none"

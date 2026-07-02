@@ -32,6 +32,7 @@ import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
+import { deriveUsageMeter } from '@/lib/subscription/usage';
 import { StatusItemPopover, type StatusTone } from './StatusItemPopover';
 
 interface BudgetState {
@@ -117,11 +118,11 @@ export function BudgetStatusItem() {
   const balanceLow = balance != null && balance.balance_usd <= LOW_BALANCE_THRESHOLD_USD;
   const balanceCritical = balance != null && balance.balance_usd <= CRITICAL_BALANCE_THRESHOLD_USD;
   // ADR-396 transparency contract: on this customer glance we express funds as
-  // USAGE (allowance consumed this cycle), not raw dollars. The pool = allowance
-  // + top-ups; consumed = spend to date this cycle.
-  const usagePct = balance && balance.raw_balance_usd > 0
-    ? Math.min(100, Math.round((balance.spend_usd / balance.raw_balance_usd) * 100))
-    : 0;
+  // USAGE, not raw dollars. The shared meter derives the honest allowance-consumed
+  // percentage (allowance-first draw order), with a matching label — see
+  // lib/subscription/usage.ts (Singular Implementation across billing surfaces).
+  const meter = deriveUsageMeter(balance);
+  const usagePct = meter?.percent ?? 0;
   const tierLabel = balance ? TIER_LABEL[balance.tier] : null;
   // Tone: balance trouble dominates (funds gate everything); then the
   // envelope filling; ok/muted otherwise.
@@ -143,8 +144,8 @@ export function BudgetStatusItem() {
       `Budget: $${budget.window_spend_usd.toFixed(0)} / $${budget.amount_usd.toFixed(0)} ${WINDOW_LABEL[budget.window]}`,
     );
   }
-  if (tierLabel) {
-    tooltipParts.push(`${tierLabel} · ${usagePct}% of allowance used`);
+  if (tierLabel && meter) {
+    tooltipParts.push(`${tierLabel} · ${meter.primaryLabel}`);
   }
   const tooltip = tooltipParts.length > 0 ? tooltipParts.join(' · ') : 'Budget not set';
 
@@ -205,10 +206,12 @@ export function BudgetStatusItem() {
             <span>Plan</span>
             <span className="font-mono">{tierLabel}</span>
           </div>
-          <div className="flex justify-between">
-            <span>Allowance used this cycle</span>
-            <span className="font-mono">{usagePct}%</span>
-          </div>
+          {meter && (
+            <div className="flex justify-between">
+              <span>{meter.mode === "overage" ? "Top-up balance used" : meter.mode === "balance" ? "Balance used" : "Allowance used this cycle"}</span>
+              <span className="font-mono">{meter.percent}%</span>
+            </div>
+          )}
           {balance.next_refill && (
             <div className="flex justify-between">
               <span>Renews</span>

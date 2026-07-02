@@ -24,6 +24,7 @@ import { api } from "@/lib/api/client";
 import { humanizeSlug } from "@/lib/schedule";
 import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
+import { deriveUsageMeter } from "@/lib/subscription/usage";
 import { createClient } from "@/lib/supabase/client";
 import { useNarrative } from "@/contexts/NarrativeContext";
 // ADR-347 (2026-06-19) — the two-door split is reversed. This `settings`
@@ -398,29 +399,30 @@ export default function SettingsPage() {
             </div>
           ) : limits ? (
             <>
-              {/* Included usage — activity, not dollars (ADR-396 transparency) */}
+              {/* Included usage — activity, not dollars (ADR-396 transparency).
+                  Meter derived by the shared model so the label always matches
+                  the math (allowance-first draw order) — lib/subscription/usage.ts. */}
               <div className="p-4 border border-border rounded-lg space-y-3">
                 {(() => {
-                  const total = limits.raw_balance_usd;
-                  const percent = total > 0 ? Math.min(100, Math.round((limits.spend_usd / total) * 100)) : 0;
+                  const meter = deriveUsageMeter(limits);
+                  if (!meter) return null;
+                  const heading =
+                    meter.mode === "allowance" ? "Included usage"
+                    : meter.mode === "overage" ? "Top-up balance"
+                    : "Balance";
                   return (
                     <>
                       <div className="flex items-center justify-between">
-                        <h3 className="font-medium">Included usage</h3>
-                        <span className="text-sm font-medium">{percent}% used</span>
+                        <h3 className="font-medium">{heading}</h3>
+                        <span className="text-sm font-medium">{meter.percent}% used</span>
                       </div>
                       <div className="h-2 rounded-full bg-muted overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all ${percent >= 90 ? "bg-destructive" : percent >= 70 ? "bg-yellow-500" : "bg-primary"}`}
-                          style={{ width: `${percent}%` }}
+                          className={`h-full rounded-full transition-all ${meter.isCritical ? "bg-destructive" : meter.isWarn ? "bg-yellow-500" : "bg-primary"}`}
+                          style={{ width: `${meter.percent}%` }}
                         />
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Covers chat, recurrences, and web search this cycle.
-                        {limits.tier === "free"
-                          ? " Top up or upgrade for more headroom."
-                          : " Your plan's allowance renews each cycle."}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{meter.detail}</p>
                     </>
                   );
                 })()}
