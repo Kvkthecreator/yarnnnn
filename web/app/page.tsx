@@ -173,14 +173,22 @@ export default function LandingPage() {
               In beta
             </div>
             <h2 className="text-2xl md:text-3xl font-medium mb-6 text-[#1a1a1a]">
-              Soon, a second set of eyes.
+              Meet Freddie, a second set of eyes.
             </h2>
 
-            <p className="text-[#1a1a1a]/50 leading-relaxed max-w-2xl mb-10">
-              Today, yarnnn is your memory. Next, an assistant that checks important work before
-              it goes out — against rules you set — and keeps a record of every call it makes. It
-              only ever does as much as you allow.
+            <p className="text-[#1a1a1a]/50 leading-relaxed max-w-2xl mb-6">
+              Freddie is the agent that tends your memory: today he reads what you connect, keeps
+              it in order, and records every change so you can trace it. Next, he checks important
+              work before it goes out — against rules you set. He only ever does as much as you
+              allow.
             </p>
+
+            <Link
+              href="/freddie"
+              className="inline-block text-sm font-medium text-[#de5a2b] hover:text-[#de5a2b]/80 transition-colors mb-10"
+            >
+              Meet Freddie →
+            </Link>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="p-6 rounded-2xl bg-[#1a1a1a]/[0.02] border border-[#1a1a1a]/[0.06]">
@@ -204,7 +212,7 @@ export default function LandingPage() {
             </div>
 
             <p className="text-[#1a1a1a]/50 leading-relaxed max-w-2xl">
-              You set the rules. It earns your trust on the record — and you&apos;re always in charge.
+              You set the rules. He earns your trust on the record — and you&apos;re always in charge.
             </p>
           </ScrollReveal>
         </section>

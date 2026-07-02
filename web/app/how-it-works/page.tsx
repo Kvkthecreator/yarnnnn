@@ -49,8 +49,8 @@ const STEPS = [
   },
   {
     number: "05",
-    title: "Beta: add a second set of eyes",
-    body: "When you're ready, turn on an assistant that reviews important work before it goes out — against rules you write — and records every call it makes. It does only as much as you allow.",
+    title: "Beta: meet Freddie, a second set of eyes",
+    body: "When you're ready, turn up Freddie — the agent that reviews important work before it goes out, against rules you write, and records every call he makes. He does only as much as you allow.",
   },
 ];
 
@@ -129,17 +129,25 @@ export default function HowItWorksPage() {
                 ...step,
                 extra:
                   step.number === "05" ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
-                      {VERDICTS.map((v) => (
-                        <SpotlightCard key={v.label} variant="dark" spotlightSize={250}>
-                          <div className="p-5">
-                            <div className="text-xs text-white/30 uppercase tracking-wider mb-2">
-                              {v.label}
+                    <div className="mt-8">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {VERDICTS.map((v) => (
+                          <SpotlightCard key={v.label} variant="dark" spotlightSize={250}>
+                            <div className="p-5">
+                              <div className="text-xs text-white/30 uppercase tracking-wider mb-2">
+                                {v.label}
+                              </div>
+                              <p className="text-white/60 text-sm leading-relaxed">{v.desc}</p>
                             </div>
-                            <p className="text-white/60 text-sm leading-relaxed">{v.desc}</p>
-                          </div>
-                        </SpotlightCard>
-                      ))}
+                          </SpotlightCard>
+                        ))}
+                      </div>
+                      <Link
+                        href="/freddie"
+                        className="inline-block mt-6 text-sm font-medium text-white/70 hover:text-white transition-colors"
+                      >
+                        Meet Freddie →
+                      </Link>
                     </div>
                   ) : undefined,
               }))}
