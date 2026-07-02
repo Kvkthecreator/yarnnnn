@@ -155,3 +155,19 @@ export function tierPriceLabel(tier: SubscriptionTier): string {
   const price = TIER_PRICE_USD[tier];
   return price > 0 ? `$${price}/mo` : "Free";
 }
+
+/**
+ * One-line descriptor of what a tier gives you — shown under the plan name on the
+ * billing header so the operator sees WHAT they're on, not just the label.
+ * Mirrors billing_tiers.py TIER_CONFIG (allowance + connector ceilings).
+ */
+export function tierDescriptor(tier: SubscriptionTier): string {
+  switch (tier) {
+    case "pro":
+      return "$45 monthly usage · 90-day connector history · unlimited connectors";
+    case "starter":
+      return "$15 monthly usage · 30-day connector history · up to 3 connectors";
+    default:
+      return "Workspace + memory, free forever · usage drawn from your balance";
+  }
+}

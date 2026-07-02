@@ -24,6 +24,7 @@ import type { SubscriptionTier } from "@/types";
 import {
   deriveUsageMeter,
   tierPriceLabel,
+  tierDescriptor,
   type UsageLimits,
   type UsageMeter,
   TOPUP_PRESETS,
@@ -44,6 +45,7 @@ const TIER_ORDER: SubscriptionTier[] = ["free", "starter", "pro"];
 export function SubscriptionCard() {
   const { tier, isLoading, error, topup, subscribe, manageSubscription } = useSubscription();
   const [usage, setUsage] = useState<UsageLimits | null>(null);
+  const [nextRefill, setNextRefill] = useState<string | null>(null);
   const [topupAmount, setTopupAmount] = useState<string>(String(TOPUP_DEFAULT));
   const [topupLoading, setTopupLoading] = useState(false);
   const [subscribeLoading, setSubscribeLoading] = useState<SubscriptionTier | null>(null);
@@ -53,7 +55,7 @@ export function SubscriptionCard() {
     api.integrations
       .getLimits()
       .then((d) => {
-        if (!cancelled)
+        if (!cancelled) {
           setUsage({
             spend_usd: d.spend_usd,
             raw_balance_usd: d.raw_balance_usd,
@@ -61,6 +63,8 @@ export function SubscriptionCard() {
             topup_balance_usd: d.topup_balance_usd,
             tier: d.tier,
           });
+          setNextRefill(d.next_refill);
+        }
       })
       .catch(() => {});
     return () => {
@@ -104,20 +108,28 @@ export function SubscriptionCard() {
           </div>
         )}
 
-        {/* Current plan + allowance usage (activity, not dollars) */}
+        {/* Current plan — a prominent header: what plan you're on, what it gives
+            you, and when it renews (the reference "Max plan" pattern). */}
         <section className="p-4 border border-border rounded-lg space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Plan</span>
-            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
-              {TIER_LABEL[tier]}
-            </span>
-            {tier !== "free" && (
-              <span className="text-xs text-muted-foreground">{tierPriceLabel(tier)}</span>
-            )}
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-semibold">{TIER_LABEL[tier]} plan</span>
+                <span className="text-sm text-muted-foreground">{tierPriceLabel(tier)}</span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {tierDescriptor(tier)}
+              </p>
+              {tier !== "free" && nextRefill && (
+                <p className="text-xs text-muted-foreground">
+                  Renews {new Date(nextRefill).toLocaleDateString([], { month: "long", day: "numeric", year: "numeric" })}
+                </p>
+              )}
+            </div>
             {tier !== "free" && (
               <button
                 onClick={manageSubscription}
-                className="ml-auto text-xs text-muted-foreground hover:text-foreground underline"
+                className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border border-border hover:bg-muted/40 transition-colors"
               >
                 Manage
               </button>
