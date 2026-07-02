@@ -535,6 +535,165 @@ async def delete_document(auth: UserClient, document_path: str):
 
 
 # =============================================================================
+# TRASH — ADR-400: the visible, reversible home of the delete verb
+# =============================================================================
+# Delete is already trash-not-erase (archive, ADR-329/ADR-209): a deleted file
+# becomes a lifecycle='archived' revision — retained, attributed, recoverable.
+# ADR-400 makes that state a first-class SURFACE: a Trash view lists archived
+# operator-owned files; Restore un-archives (a new 'active' revision). No
+# hard-delete (Q3 — ADR-209 retain-everything; Trash is a view, not an eraser).
+
+
+class TrashItem(BaseModel):
+    path: str
+    filename: str
+    archived_at: str
+    authored_by: Optional[str] = None  # who last authored before archiving
+
+
+class TrashListResponse(BaseModel):
+    items: List[TrashItem]
+
+
+@router.get("/documents/trash", response_model=TrashListResponse)
+async def list_trash(auth: UserClient):
+    """List operator-owned files currently in the Trash (lifecycle='archived').
+
+    ADR-400 D4: the Trash surface. Scoped to operator-owned roots (the same
+    _OPERATOR_ARCHIVABLE_PREFIXES the delete verb writes to) — the operator sees
+    only their own trashed material, never system-archived substrate. Newest
+    first. Reversible via POST /documents/restore.
+    """
+    result = (
+        auth.client.table("workspace_files")
+        .select("path, updated_at, "
+                "workspace_file_versions!head_version_id(authored_by)")
+        .eq("user_id", auth.user_id)
+        .eq("lifecycle", "archived")
+        .order("updated_at", desc=True)
+        .limit(200)
+        .execute()
+    )
+    items: List[TrashItem] = []
+    for row in (result.data or []):
+        path = row["path"]
+        if not path.startswith(_OPERATOR_ARCHIVABLE_PREFIXES):
+            continue  # operator sees only their own trashed material
+        embed = row.get("workspace_file_versions") or {}
+        leaf = path.rsplit("/", 1)[-1]
+        filename = leaf.removesuffix(".md") if path.endswith(".md") else leaf
+        items.append(TrashItem(
+            path=path,
+            filename=filename,
+            archived_at=(row.get("updated_at") or "")[:19],
+            authored_by=(embed.get("authored_by") if isinstance(embed, dict) else None),
+        ))
+    return TrashListResponse(items=items)
+
+
+class RestoreRequest(BaseModel):
+    path: str
+
+
+@router.post("/documents/restore")
+async def restore_document(body: RestoreRequest, auth: UserClient):
+    """Restore a file from Trash — un-archive (ADR-400 D8).
+
+    The inverse of delete: writes a new lifecycle='active' revision carrying the
+    archived content verbatim, attributed operator ("restored from trash"). The
+    file re-enters the active tree. Scoped to operator-owned roots (an operator
+    restores only what an operator could trash). Reversible again by re-deleting.
+    """
+    from services.authored_substrate import write_revision
+
+    path = body.path
+    if not path.startswith("/"):
+        path = "/" + path
+    if not path.startswith(_OPERATOR_ARCHIVABLE_PREFIXES):
+        raise HTTPException(
+            status_code=403,
+            detail="Only your own files can be restored. System substrate is managed through chat.",
+        )
+
+    result = auth.client.table("workspace_files") \
+        .select("content, lifecycle") \
+        .eq("user_id", auth.user_id) \
+        .eq("path", path) \
+        .execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="File not found")
+    row = result.data[0]
+    if row.get("lifecycle") != "archived":
+        raise HTTPException(status_code=409, detail="File is not in the trash")
+
+    service = get_service_client()
+    write_revision(
+        db_client=service,
+        user_id=auth.user_id,
+        path=path,
+        content=row.get("content", "") or "",
+        authored_by="operator",
+        message="Restored from trash",
+        lifecycle="active",
+    )
+    return {"success": True, "message": "Restored", "path": path}
+
+
+# =============================================================================
+# MOVE / RENAME — ADR-400 D2: relocate + rename as operator verbs
+# =============================================================================
+# The human reorganizes their OWN material (GitHub: you move files you have write
+# access to). Both source AND destination must be operator-owned roots — you can
+# reorganize your uploads, you cannot move a file INTO governance/ (that's an
+# agent's job, through the gate). Delegates to the existing MoveFile primitive so
+# the mechanics (attributed revision at new path + tombstone at old, overwrite
+# refusal) + the ADR-307 gate are reused — no parallel move implementation.
+
+
+class MoveRequest(BaseModel):
+    path: str       # current path (operator-owned)
+    new_path: str   # destination path (operator-owned); rename = same parent, new leaf
+
+
+@router.post("/documents/move")
+async def move_document(body: MoveRequest, auth: UserClient):
+    """Move or rename an operator-owned file (ADR-400 D2 / Q1).
+
+    Move  = a new_path under a different operator-owned folder.
+    Rename = a new_path with the same parent, a new leaf.
+    Both source and destination are scoped to operator-owned roots (the operator
+    reorganizes only their own material — ADR-320 topology). Delegates to the
+    MoveFile primitive (attributed, gated, overwrite-safe).
+    """
+    src = body.path if body.path.startswith("/") else "/" + body.path
+    dst = body.new_path if body.new_path.startswith("/") else "/" + body.new_path
+
+    if not src.startswith(_OPERATOR_ARCHIVABLE_PREFIXES):
+        raise HTTPException(
+            status_code=403,
+            detail="Only your own files can be moved. System substrate is managed through chat.",
+        )
+    if not dst.startswith(_OPERATOR_ARCHIVABLE_PREFIXES):
+        raise HTTPException(
+            status_code=403,
+            detail="Files can only be moved within your own folders.",
+        )
+    if src == dst:
+        raise HTTPException(status_code=400, detail="Source and destination are the same.")
+
+    from services.primitives.registry import execute_primitive
+    result = await execute_primitive(auth, "MoveFile", {
+        "path": src, "new_path": dst, "scope": "workspace",
+    })
+    if not (isinstance(result, dict) and result.get("success")):
+        err = (result or {}).get("error", "move_failed")
+        detail = (result or {}).get("message", "Move failed")
+        # destination_exists → 409; everything else → 400.
+        raise HTTPException(status_code=409 if err == "destination_exists" else 400, detail=detail)
+    return {"success": True, "path": dst}
+
+
+# =============================================================================
 # SHARE FILE — ADR-127: TP-Level User-Shared File Staging
 # =============================================================================
 

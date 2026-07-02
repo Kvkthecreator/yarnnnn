@@ -45,17 +45,19 @@ import {
   History,
   LayoutGrid,
   List as ListIcon,
+  Trash2,
 } from 'lucide-react';
 import { SettingsPaneShell } from '@/components/settings/SettingsPaneShell';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import type { DeskSurface } from '@/types/desk';
-import { api } from '@/lib/api/client';
+import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { RecentRevisions } from '@/components/workspace/RecentRevisions';
+import { TrashView } from '@/components/workspace/TrashView';
 import { UploadButton } from '@/components/workspace/UploadButton';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { GetInfoModal } from '@/components/workspace/GetInfoModal';
@@ -255,6 +257,8 @@ export default function ContextPage() {
 
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  // ADR-400 D4: the Trash nav item toggles the center pane to the Trash view.
+  const [showTrash, setShowTrash] = useState(false);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
   const [phase, setPhase] = useState<'setup' | 'ready' | 'active' | null>(null);
 
@@ -477,6 +481,7 @@ export default function ContextPage() {
   // KVK 2026-06-12). `?path=` survives only as a COLD-LOAD deep-link (read on
   // entry to seed selectedPath) — it is never written from intra-surface clicks.
   const handleExplorerSelect = useCallback((node: TreeNode) => {
+    setShowTrash(false);
     setSelectedPath(node.path);
     activateBodyRef.current(); // narrow: drill into the viewer
   }, []);
@@ -487,6 +492,7 @@ export default function ContextPage() {
   // the viewer. Selecting via a folder-Details row also drops Details back to
   // the (newly-selected) node's own scope.
   const handleExplorerSelect_byPath = useCallback((path: string) => {
+    setShowTrash(false);
     setSelectedPath(path);
     activateBodyRef.current(); // narrow: drill into the viewer
   }, []);
@@ -497,6 +503,56 @@ export default function ContextPage() {
     setSelectedPath(node.path);
     setDetailsOpen(true);
   }, []);
+
+  // ADR-400 operator verbs — the human reorganizes their OWN material. The
+  // backend gate (ADR-307 + ADR-320 topology) is authoritative; these handlers
+  // only reach it for operator-owned files (the menu disables them otherwise).
+  // Menu-first MVP (ADR-400 Q2): a prompt captures the new name/destination;
+  // drag-and-drop is a ratified fast-follow.
+  const handleRename = useCallback(async (node: TreeNode) => {
+    const parent = node.path.slice(0, node.path.lastIndexOf('/'));
+    const current = node.path.slice(node.path.lastIndexOf('/') + 1);
+    const next = window.prompt(`Rename "${current}" to:`, current);
+    if (!next || next === current) return;
+    if (next.includes('/')) { window.alert('A filename cannot contain "/". Use "Move to…" to relocate.'); return; }
+    try {
+      const r = await api.documents.move(node.path, `${parent}/${next}`);
+      await loadExplorer();
+      if (r?.path) setSelectedPath(r.path);
+    } catch (e) {
+      window.alert(e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Rename failed' : 'Rename failed');
+    }
+  }, [loadExplorer]);
+
+  const handleMove = useCallback(async (node: TreeNode) => {
+    const current = node.path;
+    const dest = window.prompt(
+      'Move to folder (an /workspace/uploads/… path you own):',
+      current.slice(0, current.lastIndexOf('/') + 1),
+    );
+    if (!dest) return;
+    const leaf = current.slice(current.lastIndexOf('/') + 1);
+    const newPath = dest.endsWith('/') ? `${dest}${leaf}` : `${dest}/${leaf}`;
+    if (newPath === current) return;
+    try {
+      const r = await api.documents.move(current, newPath);
+      await loadExplorer();
+      if (r?.path) setSelectedPath(r.path);
+    } catch (e) {
+      window.alert(e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Move failed' : 'Move failed');
+    }
+  }, [loadExplorer]);
+
+  const handleTreeDelete = useCallback(async (node: TreeNode) => {
+    if (!window.confirm(`Move "${node.name}" to Trash? It stays recoverable in Trash.`)) return;
+    try {
+      await api.documents.delete(node.path);
+      await loadExplorer();
+      setSelectedPath((prev) => (prev === node.path ? null : prev));
+    } catch (e) {
+      window.alert(e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Delete failed' : 'Delete failed');
+    }
+  }, [loadExplorer]);
 
   // Upload success (2026-07-01): after files land in the Intake raw lane
   // (inbound/uploads/{principal}/{slug}.{ext}, ADR-395), refresh the tree AND
@@ -547,11 +603,11 @@ export default function ContextPage() {
         ) : treeNodes.length > 0 ? (
           <div className="p-2">
             <button
-              onClick={() => { setSelectedPath(null); activateBodyRef.current(); }}
-              aria-current={selectedPath === null ? 'page' : undefined}
+              onClick={() => { setShowTrash(false); setSelectedPath(null); activateBodyRef.current(); }}
+              aria-current={selectedPath === null && !showTrash ? 'page' : undefined}
               className={cn(
                 'w-full flex items-center gap-2 px-2 py-1.5 mb-1 rounded-md text-left text-sm transition-colors',
-                selectedPath === null
+                selectedPath === null && !showTrash
                   ? 'bg-primary/10 text-foreground font-medium'
                   : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
               )}
@@ -560,11 +616,29 @@ export default function ContextPage() {
               <History className="w-4 h-4 shrink-0" />
               <span>Recents</span>
             </button>
+            {/* ADR-400 D4: Trash — the reversible home of the delete verb. */}
+            <button
+              onClick={() => { setShowTrash(true); setSelectedPath(null); activateBodyRef.current(); }}
+              aria-current={showTrash ? 'page' : undefined}
+              className={cn(
+                'w-full flex items-center gap-2 px-2 py-1.5 mb-1 rounded-md text-left text-sm transition-colors',
+                showTrash
+                  ? 'bg-primary/10 text-foreground font-medium'
+                  : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
+              )}
+              title="Deleted files — recoverable"
+            >
+              <Trash2 className="w-4 h-4 shrink-0" />
+              <span>Trash</span>
+            </button>
             <WorkspaceTree
               nodes={treeNodes}
               selectedPath={selectedPath || undefined}
               onSelect={handleExplorerSelect}
               onGetInfo={handleGetInfo}
+              onRename={handleRename}
+              onMove={handleMove}
+              onDelete={handleTreeDelete}
             />
           </div>
         ) : (
@@ -574,9 +648,13 @@ export default function ContextPage() {
     </div>
   );
 
-  // The viewer body — selected node (its header + content) or the Recents
-  // empty-state. This is the shell's `children` (the detail pane).
-  const bodyContent = selectedNode ? (
+  // The viewer body — Trash view · selected node · or the Recents empty-state.
+  // This is the shell's `children` (the detail pane).
+  const bodyContent = showTrash ? (
+    <div className="flex-1 min-h-0">
+      <TrashView />
+    </div>
+  ) : selectedNode ? (
     <div className="flex-1 overflow-auto bg-background flex flex-col min-h-0">
       <SurfaceIdentityHeader
         title={selectedNode.name}
