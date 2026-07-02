@@ -533,6 +533,66 @@ async def get_export_history(
 
 
 # =============================================================================
+# Retention window (ADR-392 D8)
+#
+# MUST be registered BEFORE `/integrations/{provider}` below: FastAPI resolves
+# routes in registration order, and the single-segment `{provider}` catch-all
+# would otherwise swallow the literal `/integrations/retention` (binding
+# provider="retention" → 404 "No retention integration found"). The `retention`
+# path has no provider segment, so it belongs above the catch-all.
+# =============================================================================
+
+class RetentionRequest(BaseModel):
+    retention_days: int
+
+
+@router.get("/integrations/retention")
+async def get_retention(auth: UserClient) -> dict[str, Any]:
+    """The workspace-level raw-capture retention window (ADR-392 D8).
+
+    Reads governance/_retention.yaml `retention_days`. Workspace-scoped (one
+    window for all connectors' raw lanes) — the mechanic the FE dial edits. NOT
+    provider-scoped; ADR-392 D8's per-connection retention is the deferred
+    'eventually'. Returns the declared value + the kernel default + the UI presets.
+    """
+    from services.connector_retention import read_retention_days, DEFAULT_RETENTION_DAYS
+    from services.billing_tiers import get_tier, tier_retention_max_days
+
+    days = await read_retention_days(auth.client, auth.user_id)
+    tier = get_tier(auth.client, auth.user_id)
+    tier_max = tier_retention_max_days(tier)
+    return {
+        # The DECLARED window (what the dial edits), and the effective window the
+        # GC honors — the declared value clamped to the tier ceiling (ADR-396 gate 1).
+        "retention_days": days,
+        "effective_days": min(days, tier_max),
+        "default_days": DEFAULT_RETENTION_DAYS,
+        "tier": tier,
+        "tier_max_days": tier_max,
+        "presets": [p for p in (7, 14, 30, 90) if p <= tier_max],
+    }
+
+
+@router.put("/integrations/retention")
+async def update_retention(request: RetentionRequest, auth: UserClient) -> dict[str, Any]:
+    """Author the workspace-level raw-capture retention window (ADR-392 D8).
+
+    Writes governance/_retention.yaml. Clamps to a 1-day floor AND to the
+    subscription tier ceiling (ADR-396 gate 1) — a free-tier operator can declare
+    at most the free ceiling; the declared value is stored clamped so the dial and
+    the GC agree. governance/ is operator-authored, so authored_by='operator'.
+    """
+    from services.connector_retention import write_retention_days
+    from services.billing_tiers import retention_max_days_for_user
+
+    tier_max = retention_max_days_for_user(auth.client, auth.user_id)
+    requested = min(request.retention_days, tier_max)
+    written = await write_retention_days(auth.client, auth.user_id, requested)
+    clamped = written < request.retention_days
+    return {"retention_days": written, "success": True, "clamped": clamped, "tier_max_days": tier_max}
+
+
+# =============================================================================
 # Get Specific Integration
 # =============================================================================
 
@@ -2017,19 +2077,14 @@ async def get_selected_sources(
     landscape = integration_data.get("landscape", {}) or {}
     selected = landscape.get("selected_sources", [])
 
-    # ADR-043: Tier limits for source count
-    from services.platform_limits import get_usage_summary
-    summary = get_usage_summary(auth.client, user_id)
-    limit_field = {
-        "slack": "slack_channels",
-        "notion": "notion_pages",
-    }.get(provider, "slack_channels")
-    limit = summary["limits"].get(limit_field, 1)
-
+    # ADR-172: source-count tiering removed — balance_usd is the single gate, so
+    # there is no per-source limit. Selection is a declaration, not a quota. The FE
+    # consumes only `sources`; `limit`/`can_add_more` are retained (unbounded) for
+    # response-shape compatibility.
     return {
         "sources": selected,
-        "limit": limit,
-        "can_add_more": len(selected) < limit,
+        "limit": None,
+        "can_add_more": True,
     }
 
 
@@ -2089,56 +2144,6 @@ async def get_capture_signal(
         "observed": observed,
         "workspace_capture_count": len(observed),
     }
-
-
-class RetentionRequest(BaseModel):
-    retention_days: int
-
-
-@router.get("/integrations/retention")
-async def get_retention(auth: UserClient) -> dict[str, Any]:
-    """The workspace-level raw-capture retention window (ADR-392 D8).
-
-    Reads governance/_retention.yaml `retention_days`. Workspace-scoped (one
-    window for all connectors' raw lanes) — the mechanic the FE dial edits. NOT
-    provider-scoped; ADR-392 D8's per-connection retention is the deferred
-    'eventually'. Returns the declared value + the kernel default + the UI presets.
-    """
-    from services.connector_retention import read_retention_days, DEFAULT_RETENTION_DAYS
-    from services.billing_tiers import get_tier, tier_retention_max_days
-
-    days = await read_retention_days(auth.client, auth.user_id)
-    tier = get_tier(auth.client, auth.user_id)
-    tier_max = tier_retention_max_days(tier)
-    return {
-        # The DECLARED window (what the dial edits), and the effective window the
-        # GC honors — the declared value clamped to the tier ceiling (ADR-396 gate 1).
-        "retention_days": days,
-        "effective_days": min(days, tier_max),
-        "default_days": DEFAULT_RETENTION_DAYS,
-        "tier": tier,
-        "tier_max_days": tier_max,
-        "presets": [p for p in (7, 14, 30, 90) if p <= tier_max],
-    }
-
-
-@router.put("/integrations/retention")
-async def update_retention(request: RetentionRequest, auth: UserClient) -> dict[str, Any]:
-    """Author the workspace-level raw-capture retention window (ADR-392 D8).
-
-    Writes governance/_retention.yaml. Clamps to a 1-day floor AND to the
-    subscription tier ceiling (ADR-396 gate 1) — a free-tier operator can declare
-    at most the free ceiling; the declared value is stored clamped so the dial and
-    the GC agree. governance/ is operator-authored, so authored_by='operator'.
-    """
-    from services.connector_retention import write_retention_days
-    from services.billing_tiers import retention_max_days_for_user
-
-    tier_max = retention_max_days_for_user(auth.client, auth.user_id)
-    requested = min(request.retention_days, tier_max)
-    written = await write_retention_days(auth.client, auth.user_id, requested)
-    clamped = written < request.retention_days
-    return {"retention_days": written, "success": True, "clamped": clamped, "tier_max_days": tier_max}
 
 
 @router.post("/integrations/{provider}/sync")
