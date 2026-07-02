@@ -283,6 +283,15 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
         )
         if response.status_code != 201:
             log.error(f"LS checkout error: {response.status_code} - {response.text}")
+            # An upstream auth failure (expired/invalid LEMONSQUEEZY_API_KEY) is OUR
+            # config problem, not a gateway fault — surface it as a clean, honest
+            # 503 the FE can show as "billing temporarily unavailable" rather than a
+            # scary 502. Any other LS failure stays a 502 (genuine upstream error).
+            if response.status_code in (401, 403):
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Billing is temporarily unavailable. Please try again shortly.",
+                )
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to create checkout session")
 
         checkout_url = response.json()["data"]["attributes"]["url"]
