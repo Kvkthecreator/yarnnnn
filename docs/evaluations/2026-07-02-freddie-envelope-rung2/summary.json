@@ -1,0 +1,127 @@
+{
+  "user_id": "4c106786-c9b4-41cb-982d-0f5a8cc35923",
+  "n_turns": 6,
+  "closed": 6,
+  "errors": 0,
+  "mean_wall_s": 22.4,
+  "mean_rounds": 4.3,
+  "mean_tool_calls": 7.2,
+  "mean_response_chars": 491,
+  "turns": [
+    {
+      "idx": 1,
+      "ask": "What's in my workspace right now?",
+      "wall_s": 21.1,
+      "rounds": 3,
+      "n_tool_calls": 7,
+      "tool_calls": [
+        "ListFiles",
+        "ReadFile",
+        "ReadFile",
+        "ReadFile",
+        "ReadFile",
+        "WriteFile",
+        "DeleteFile"
+      ],
+      "response_chars": 399,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 2,
+      "ask": "I want to keep a note: our Q3 pricing decision is to hold the $19 tier until August. Make sure that's recorded somewhere sensible.",
+      "wall_s": 16.3,
+      "rounds": 3,
+      "n_tool_calls": 3,
+      "tool_calls": [
+        "ReadFile",
+        "ListFiles",
+        "EditFile"
+      ],
+      "response_chars": 317,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 3,
+      "ask": "Summarize what you've been doing in this workspace lately.",
+      "wall_s": 28.0,
+      "rounds": 5,
+      "n_tool_calls": 10,
+      "tool_calls": [
+        "ListRevisions",
+        "ListRevisions",
+        "ReadFile",
+        "ReadFile",
+        "GetSystemState",
+        "ListFiles",
+        "ReadFile",
+        "ReadFile",
+        "ReadFile",
+        "WriteFile"
+      ],
+      "response_chars": 564,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 4,
+      "ask": "Is anything in the workspace out of place or needing cleanup?",
+      "wall_s": 25.6,
+      "rounds": 4,
+      "n_tool_calls": 8,
+      "tool_calls": [
+        "ReadFile",
+        "ReadFile",
+        "ListRevisions",
+        "ListFiles",
+        "EditFile",
+        "ReadFile",
+        "ListFiles",
+        "GetSystemState"
+      ],
+      "response_chars": 426,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 5,
+      "ask": "What connections and sources are currently feeding this workspace?",
+      "wall_s": 18.0,
+      "rounds": 6,
+      "n_tool_calls": 8,
+      "tool_calls": [
+        "list_integrations",
+        "ListFiles",
+        "ListFiles",
+        "SearchFiles",
+        "GetSystemState",
+        "ListFiles",
+        "ReadFile",
+        "ReadFile"
+      ],
+      "response_chars": 839,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 6,
+      "ask": "What should I look at first when I come back tomorrow?",
+      "wall_s": 25.3,
+      "rounds": 5,
+      "n_tool_calls": 7,
+      "tool_calls": [
+        "ReadFile",
+        "ListRevisions",
+        "ListRevisions",
+        "GetSystemState",
+        "ReadFile",
+        "ListFiles",
+        "WriteFile"
+      ],
+      "response_chars": 399,
+      "verdict_reached": true,
+      "error": null
+    }
+  ]
+}

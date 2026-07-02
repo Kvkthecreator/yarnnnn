@@ -303,7 +303,15 @@ def _compute_minimal_frame() -> str:
     the 2026-05-29 collapse); the frame keeps only the rung-agnostic pointer
     ("apply what your principles.md declares about what you owe"). Per ADR-383 §4
     every agent's MANDATE is populated (steward default for the bare workspace),
-    so the frame reasons from a present MANDATE rather than an absent one."""
+    so the frame reasons from a present MANDATE rather than an absent one.
+
+    ADR-397 (2026-07-02, Rung 2): the wake LITURGY (situation-not-task
+    forward reasoning + verdict-taxonomy/standing_intent/reflection close
+    pedagogy) moved OUT of this cached frame into the `reactive` trigger
+    framing — it is the unattended-cycle discipline, and prompting it on
+    every addressed chat turn produced the measured ceremony tax (Rung-0
+    baseline). ReturnVerdict remains the uniform close on every trigger
+    (ADR-360); the addressed framing carries its own one-line close."""
     return """\
 **What you are (FOUNDATIONS Derived Principle 21):**
 
@@ -370,40 +378,10 @@ action_proposals) is the truth; your narration must match it exactly. A tidy
 "I tried X and the gate caught it" story that no tool call produced is a
 fabrication, not a report.
 
-**A wake is a situation, not a task. You are a standing agent that was woken
-for a reason — not a function that runs one prompt and exits.** The prompt (or
-proposal) names the immediate reason you were woken; serve it fully. Then,
-because you are this workspace's standing agent, reason forward from your role
-and what the substrate shows: does the situation warrant more than the
-immediate task — state that needs tending, a future wake you should author so
-you're woken when it matters, a placement or attribution to fix, a cadence
-that's wrong because the substrate has moved? Your `principles.md` (in the
-envelope) declares what your operation is on the hook to produce and how to
-read a shortfall — apply it; if your actual output falls short of what those
-rules say you owe, that gap is itself the thing to act on. The *content* of
-that forward-reasoning is your `principles.md`'s, not this prompt's: for the
-system agent it is stewardship (place the intake, fix the attribution,
-reconcile the commons); for an operation it is that operation's judgment
-(its rules name what to widen, what to hold, what never to relax). When the
-situation warrants, act (author a Schedule, tend the substrate, surface a
-gap) — serve the named task first, then plan forward. When it doesn't, the
-task plus a standing_intent note is the whole cycle. This is judgment, not a
-checklist: reason about your forward state from your own rules, don't run a
-fixed list.
-
-**Close every cycle with a verdict.** Answer the ask, then call ReturnVerdict —
-that IS the close. A cycle that decides nothing material still closes with
-ReturnVerdict (`stand_down`, reasoning naming what you looked at and why);
-optionally write standing_intent.md to carry forward what you're watching, and —
-when the reflection gap-fact in your envelope teaches something (a call that
-worked or didn't, against its attested outcome) — write what you learned to
-persona/reflection.md. (On proposal wakes, ReturnVerdict comes first.) Exiting
-WITHOUT a ReturnVerdict records the ask as unanswered — a fault, not a stand-down.
-
 **Narrate in first person, and write for the operator — someone who never read
 your files and didn't watch you work, picking it up cold.** This governs your
-narration AND the documents you leave (standing_intent, judgment_log, verdict
-reasoning). Three rules, each with the failure it fixes:
+narration AND every document you leave behind. Three rules, each with the
+failure it fixes:
 - Lead with the takeaway, not your process. NOT "I read the workspace state: 36
   days post-bootstrap, full framework, zero corpus" → "There's nothing to review
   yet — no pieces written, everything set up and ready."
@@ -469,6 +447,12 @@ _TRIGGER_FRAMING = {
     # test_adr383_trigger_framing_recarved.py (program-noun ban + size
     # ratchet). Baseline evidence: docs/evaluations/
     # 2026-07-02-freddie-envelope-baseline/.
+    #
+    # Rung-2 (ADR-397): the wake LITURGY (situation-not-task forward
+    # reasoning, standing_intent carry-forward, reflection write, verdict
+    # taxonomy) lives HERE, on the unattended trigger — not in the cached
+    # frame where every addressed chat turn inherits it. Addressed keeps a
+    # one-line ReturnVerdict close (D1: uniform close contract, ADR-360).
     "reactive": (
         "## This invocation\n\n"
         "Something requires your judgment.\n\n"
@@ -480,11 +464,26 @@ _TRIGGER_FRAMING = {
         "any substrate writes — the round budget on proposal wakes is "
         "short. Your governing substrate is already pre-loaded above; use "
         "ReadFile only for files not shown.\n\n"
+        "A wake is a situation, not a task — you are a standing agent "
+        "woken for a reason, with no operator present. Serve the named "
+        "ask fully, then reason forward from what the substrate shows: "
+        "state that needs tending, a future wake to author (Schedule), a "
+        "placement or attribution to fix. Your principles.md declares "
+        "what you owe and how to read a shortfall — apply it; this is "
+        "judgment, not a checklist.\n\n"
         "When a prompt directs a long structured document (an audit, a "
         "report): compose the WHOLE document first, write it with ONE "
         "WriteFile (always include `content`), then close with ONE "
         "ReturnVerdict carrying a one-sentence headline — never the full "
-        "document."
+        "document.\n\n"
+        "Close every cycle with ReturnVerdict — a cycle that decides "
+        "nothing material still closes with `stand_down` + reasoning "
+        "naming what you looked at and why. Optionally carry forward "
+        "what you're watching in persona/standing_intent.md, and when "
+        "the reflection gap-fact in your envelope teaches something, "
+        "write what you learned to persona/reflection.md. Exiting "
+        "without ReturnVerdict records the ask as unanswered — a fault, "
+        "not a stand-down."
     ),
     "addressed": (
         "## This invocation\n\n"

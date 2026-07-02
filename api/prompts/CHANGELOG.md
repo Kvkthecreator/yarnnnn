@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.02.2] - ADR-397 Rung 2: the wake liturgy is reactive-scoped
+
+**The cached persona frame prompted the full unattended-cycle liturgy (situation-not-task forward reasoning, standing_intent carry-forward, reflection write, verdict taxonomy) on EVERY trigger — including addressed chat turns where the operator is present and witnessing. Rung-0 baseline measured the ceremony tax: liturgy writes on 3 of 5 read-shaped asks.**
+
+- `agents/freddie_agent.py::_compute_minimal_frame` — the two liturgy paragraphs DELETED from the frame (~1.6k chars); the frame keeps only trigger-universal content (principal-shift, action-grammar, anti-confabulation, fresh-substrate, narration register, citation discipline).
+- `agents/freddie_agent.py::_TRIGGER_FRAMING["reactive"]` — receives the liturgy, compressed (forward-reasoning + verdict-close/standing_intent/reflection block). Reactive wakes carry the same discipline as before; ReturnVerdict stays the uniform close on every trigger (ADR-397 D1, ADR-360 preserved).
+- Expected behavior: addressed turns stop performing unattended-cycle ceremony (fewer liturgy writes on read-shaped asks, shorter turns); reactive wakes unchanged. Every trigger's prompt shrinks (the frame is smaller); reactive envelope net-flat.
+- Gate: `test_adr383_trigger_framing_recarved.py` extended (addressed-carries-no-liturgy + frame-carries-no-liturgy + reactive-keeps-liturgy; ceilings re-derived per ADR-397 D4).
+- ADR: `docs/adr/ADR-397-addressed-turn-ceremony-right-sizing.md`.
+
 ## [2026.07.02.1] - ADR-383 Rung 1: _TRIGGER_FRAMING re-carve — steward-first, program-neutral
 
 **Completes ADR-383's named downstream work ("the persona-frame re-carve"): the 2026-05-29 collapse + ADR-383 rewrote `_compute_minimal_frame`, but `_TRIGGER_FRAMING` still carried alpha-trader vocabulary hardcoded in the kernel (`_money_truth`, `signal_files`, `_risk`, "ProposeAction with sizing math", the mirror-wait choreography) — an ADR-222 violation and the exact dilution shape ADR-390 proved against. Baseline evidence: `docs/evaluations/2026-07-02-freddie-envelope-baseline/`.**

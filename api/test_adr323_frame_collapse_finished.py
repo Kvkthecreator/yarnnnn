@@ -80,11 +80,15 @@ def test_no_substrate_pedagogy_in_system_prompt():
 
 
 def test_action_grammar_survives_in_frame():
-    from agents.freddie_agent import _compute_minimal_frame
+    from agents.freddie_agent import _compute_minimal_frame, _TRIGGER_FRAMING
     frame = _compute_minimal_frame()
     # The interface contract the frame MUST carry (DP22).
     assert "A tool call IS your action" in frame
-    assert "Close every cycle with a verdict" in frame
+    # ADR-397: the verdict-close liturgy moved to the reactive trigger
+    # framing (the unattended cycle); the close contract itself is uniform —
+    # each trigger framing carries its own ReturnVerdict close line.
+    assert "Close every cycle with ReturnVerdict" in _TRIGGER_FRAMING["reactive"]
+    assert "ReturnVerdict" in _TRIGGER_FRAMING["addressed"]
     # Anti-confabulation.
     assert "Describe only what your tool" in frame
     # The migrated write boundary (ADR-323 — up from the deleted filesystem block).
