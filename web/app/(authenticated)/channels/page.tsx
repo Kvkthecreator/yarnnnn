@@ -22,23 +22,31 @@
  *       principals. A FILTERED VIEW of WorkspaceMembersCard (role ∈ {foreign-llm,
  *       a2a, platform}) reading principal_grants (ADR-373). One substrate, two
  *       views — NOT a parallel data source (ADR-385 D3, DP29).
- *   ACTIVITY — the running record of crossings
- *     Flow (pane `flow`, DEFAULT) — the complete NARRATIVE (FeedSurface,
- *       ADR-289 typed-row grammar). The operator lands here on entry.
- *     In (pane `in`) — inbound crossings: the narrative FILTERED to writes
- *       that landed in substrate (direction inferred from the `writtenTo`
- *       envelope signal). One FeedSurface, filtered (Singular Impl).
+ *   ACTIVITY — the boundary crossing-ledger, scoped to the channels above.
+ *     This is NOT the global workspace narrative (operator↔Freddie chat +
+ *     reviewer cycles + agent runs) — that lives at Notifications → Activity.
+ *     A Channels surface tracks only what crossed its edge:
+ *     In (pane `in`, DEFAULT) — inbound crossings: the narrative FILTERED to
+ *       writes that landed in substrate via a channel (connector sync, upload,
+ *       MCP `remember` — direction inferred from the `writtenTo` envelope
+ *       signal). One FeedSurface, filtered (Singular Impl).
  *     Out (pane `out`) — the emissions / dispatch ledger (EmissionsView over
  *       GET /api/emissions; ADR-299/304 — sends stay system infrastructure,
  *       this is read-only legibility).
+ *
+ * The `flow` pane was RETIRED (2026-07-02): it mounted the workspace-global
+ * narrative — a fossil from when this surface WAS the Feed (ADR-259/370). On a
+ * Channels surface that stream is dominated by internal cycles + operator chat,
+ * none of which is boundary activity; it was pure redundancy with Notifications
+ * → Activity (the narrative's real home). ACTIVITY is now In + Out only.
  *
  * Two orthogonal planes co-locate in CHANNELS without overlap (ADR-385 §2):
  * Connections = WHAT feeds the operation (platform_connections); External
  * Agents = WHO can write the commons (principal_grants).
  *
- * Honest data note (ADR-377 §2): "per-platform flow" is a deep-link from a
- * connection into the Flow narrative + the in-card coverage/freshness — NOT a
- * per-event inbound ledger (platform_content was sunset by ADR-153).
+ * Honest data note (ADR-377 §2): "per-platform activity" is a deep-link from a
+ * connection into the In crossing-ledger + the in-card coverage/freshness — NOT
+ * a per-event inbound ledger (platform_content was sunset by ADR-153).
  *
  * `/context` and `/feed` redirect onto this surface — as of the ADR-385
  * follow-on (2026-06-30) via next.config.js `redirects()` (the legacy `context`
@@ -49,7 +57,7 @@
  * the pane region.
  */
 
-import { Link2, Rss, Cpu, ScrollText, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { Link2, Rss, Cpu, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
 import { SourcesCard } from "@/components/workspace-concepts/SourcesCard";
@@ -81,12 +89,12 @@ const PANE_GROUPS: PaneGroup[] = [
     ],
   },
   {
-    // The boundary's activity (was FEED) — three views over the crossings.
-    // Flow = the complete narrative (default); In = inbound crossings
-    // (filtered narrative); Out = the emissions ledger (a different source).
+    // The boundary's crossing-ledger, scoped to the channels above (was FEED).
+    // In = inbound crossings (the narrative filtered to writes that landed via
+    // a channel); Out = the emissions ledger (a different source). The global
+    // workspace narrative lives at Notifications → Activity, not here.
     label: "Activity",
     panes: [
-      { key: "flow", label: "Flow", icon: ScrollText },
       { key: "in", label: "In", icon: ArrowDownToLine },
       { key: "out", label: "Out", icon: ArrowUpFromLine },
     ],
@@ -94,7 +102,7 @@ const PANE_GROUPS: PaneGroup[] = [
 ];
 
 // PaneHeader is the shared shell component (Singular Implementation, 2026-07-01).
-// Flow/In own their own header (FeedSurface), so they skip it.
+// In owns its own header (FeedSurface), so it skips it.
 
 export default function ChannelsPage() {
   // Pane-switch within the Channels window (the "View flow →" link).
@@ -123,7 +131,7 @@ export default function ChannelsPage() {
               <ConnectedIntegrationsSection
                 redirectTo="/channels?channels.pane=connectors"
                 showFreshness
-                onViewFlow={() => surfaceParam.set({ pane: "flow" })}
+                onViewFlow={() => surfaceParam.set({ pane: "in" })}
                 activeConnector={activeConnector}
                 onManageConnection={(provider) => surfaceParam.set({ connector: provider })}
                 onBackFromManage={() => surfaceParam.set({ connector: null })}
@@ -170,21 +178,13 @@ export default function ChannelsPage() {
             </div>
           </div>
         );
-      case "flow":
-        // The complete narrative — FeedSurface intact (ADR-289 row grammar).
-        // The DEFAULT landing pane. Fills the pane region; its own header
-        // carries filter + substrate overlay + chat-summon.
-        return (
-          <div className="flex h-full flex-col min-h-0">
-            <FeedSurface />
-          </div>
-        );
       case "in":
-        // In — the inbound crossings: the complete narrative FILTERED to writes
-        // that landed in substrate (direction inferred from the `writtenTo`
-        // envelope signal — MCP `remember`, connector sync, upload). Reads
-        // (recall/trace) and internal cycles are excluded; see the full picture
-        // in Flow. One FeedSurface, filtered (Singular Impl).
+        // In (DEFAULT) — the inbound crossings: the complete narrative FILTERED
+        // to writes that landed in substrate via a channel (direction inferred
+        // from the `writtenTo` envelope signal — MCP `remember`, connector sync,
+        // upload). Reads (recall/trace), internal cycles, and operator chat are
+        // excluded; the full workspace narrative lives at Notifications →
+        // Activity. One FeedSurface, filtered (Singular Impl).
         return (
           <div className="flex h-full flex-col min-h-0">
             <FeedSurface
@@ -222,7 +222,7 @@ export default function ChannelsPage() {
     <SettingsPaneShell
       windowSlug="channels"
       paneGroups={PANE_GROUPS}
-      defaultPane="flow"
+      defaultPane="in"
       renderPane={renderPane}
       fullBleed
       navLabel="Channels sections"

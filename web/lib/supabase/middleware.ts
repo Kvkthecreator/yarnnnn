@@ -17,7 +17,8 @@ import { HOME_ROUTE } from "@/lib/routes";
 // transport — cold-load opens that surface in a window. (/home renamed from
 // /cockpit per ADR-312 D1; /recurrence renamed from /cadence 2026-06-03.)
 // /delegation is a redirect stub → /autonomy (2026-05-24 surface rename).
-// /chat is a redirect stub → /feed (ADR-259 — preserves bookmarks).
+// /chat is a redirect stub → /notifications?notifications.pane=understand
+// (the narrative's home; 2026-07-02 ACTIVITY re-scope — preserves bookmarks).
 // /overview was absorbed into the Home composition; ADR-225 Phase 3 +
 // ADR-312 made the Home's slots compositor-resolved.
 // /team redirects to /agents per ADR-214 (reverses ADR-201). /review is
@@ -27,12 +28,12 @@ import { HOME_ROUTE } from "@/lib/routes";
 const PROTECTED_PREFIXES = [
   "/desktop", // ADR-297 §D17 — authenticated boot route
   "/setup", // ADR-331 — guided first-boot sequence surface (first-run redirect target)
-  "/feed", // ADR-370 — redirect stub → /context?context.pane=flow (Feed folded into Context's Flow lens)
+  "/feed", // redirect stub → /notifications?notifications.pane=understand (the narrative's home; 2026-07-02 ACTIVITY re-scope)
   "/recurrence", // ADR-297 — absorbed /work (recurrence list + task detail); renamed from /cadence 2026-06-03
   "/cadence", // redirect stub → /recurrence (2026-06-03 — surface rename)
   "/agents",
   "/files",
-  "/context", // ADR-370 — the boundary composition (In · Out · Flow). Was a /files redirect stub (2026-06-01); reclaimed.
+  "/context", // redirect stub → /channels (ADR-385). Was a /files redirect stub (2026-06-01); reclaimed by ADR-370, renamed by ADR-385.
   "/activity",
   "/connectors",
   "/sources", // ADR-338 D4.1 — standing-watch drivers surface

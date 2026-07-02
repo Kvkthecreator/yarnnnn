@@ -17,13 +17,15 @@ const nextConfig = {
   // (full alias deletion), so the prior `/feed` + `/context` page-component
   // redirect stubs are removed. These server redirects preserve external
   // bookmarks. Next.js carries the original query string through by default,
-  // so `?prompt=…` deep-links survive; `/feed` lands on the Flow pane.
-  //   (The legacy `?context.pane=…` param is no longer remapped — the `context`
-  //    slug no longer exists, so its namespaced pane param has no consumer; the
-  //    redirect just lands the operator on Channels, default Flow pane.)
+  // so `?prompt=…` deep-links survive.
+  //   `/feed` was always the NARRATIVE alias. The 2026-07-02 ACTIVITY re-scope
+  //   retired the Channels Flow pane (a Channels surface tracks only boundary
+  //   crossings, not the global narrative), so `/feed` now lands on the
+  //   narrative's real home — Notifications → Activity (`understand` pane).
+  //   `/context` lands on Channels (default: the In crossing-ledger).
   async redirects() {
     return [
-      { source: '/feed', destination: '/channels?channels.pane=flow', permanent: false },
+      { source: '/feed', destination: '/notifications?notifications.pane=understand', permanent: false },
       { source: '/context', destination: '/channels', permanent: false },
     ];
   },

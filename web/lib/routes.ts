@@ -42,14 +42,14 @@
 //      external links to the route are known. Until both hold, the stub
 //      stays.
 //
-// Active stubs (verified 2026-06-25):
-//   /chat          → /feed → /context?context.pane=flow (ADR-259 → ADR-370; double-hop, each intent legible)
-//   /orchestrator  → /feed → /context?context.pane=flow (ADR-163, ADR-205 F1 → ADR-370)
-//   /feed          → /context?context.pane=flow         (ADR-370 — Feed folded into Context's Flow lens)
+// Active stubs (verified 2026-07-02):
+//   /chat          → /notifications?notifications.pane=understand (narrative home; 2026-07-02 ACTIVITY re-scope retired Channels Flow)
+//   /orchestrator  → /notifications?notifications.pane=understand (ADR-163, ADR-205 F1 → narrative home)
+//   /feed          → /notifications?notifications.pane=understand (the /feed alias was always the NARRATIVE; lands at its real home)
 //   /team          → /agents                           (ADR-214 — reverses ADR-201)
 //   /overview      → /recurrence                       (ADR-205 F2; ADR-297 dissolved /work → Cadence; renamed → Recurrence 2026-06-03)
 //   /cadence       → /recurrence                       (2026-06-03 — surface rename; substrate already spoke "recurrence")
-//   /workfloor     → /feed → /context?context.pane=flow (ADR-163 → ADR-370)
+//   /workfloor     → /notifications?notifications.pane=understand (ADR-163 → narrative home)
 //   /memory        → /files?path=...IDENTITY.md        (ADR-215 R3)
 //   (/context is NO LONGER a stub — ADR-370 reclaimed it as the boundary composition surface; the prior /context → /files stub is deleted.)
 //   /system        → /settings                         (system tab removed 2026-05-02)
@@ -65,16 +65,18 @@
 export const HOME_ROUTE = "/desktop";
 export const HOME_LABEL = "Desktop";
 export const DESKTOP_ROUTE = "/desktop";
-// ADR-370: the Context boundary composition (In · Out · Flow) — the canonical
-// home of the narrative (Flow lens). Reclaims the `context` slug (the prior
-// /context → /files stub is deleted; the context/ substrate root was retired
-// by ADR-320, so the route slug is free + unrelated to any filesystem path).
-export const CONTEXT_ROUTE = "/context";
-// ADR-370: FEED_ROUTE stays "/feed" as the redirect-stub URL → it forwards to
-// /context?context.pane=flow, MERGING query params (so `${FEED_ROUTE}?prompt=…`
-// chat-summon deep-links keep working). Consumers that want the live surface
-// directly should prefer CONTEXT_ROUTE; the `?prompt=` deep-link path keeps
-// FEED_ROUTE so the stub's param-merge handles the chat-summon contract.
+// ADR-385: the Channels boundary surface (Connections · Sources · AI
+// Connections · In · Out). Reclaims the `context` slug (the prior /context →
+// /files stub is deleted; the context/ substrate root was retired by ADR-320,
+// so the route slug is free + unrelated to any filesystem path). NOTE: the
+// 2026-07-02 ACTIVITY re-scope retired the Flow pane — Channels no longer hosts
+// the global narrative (that lives at Notifications → Activity).
+export const CONTEXT_ROUTE = "/channels";
+// FEED_ROUTE stays "/feed" as the redirect-stub URL. The /feed alias was always
+// the NARRATIVE; after the 2026-07-02 ACTIVITY re-scope it forwards to the
+// narrative's real home — /notifications?notifications.pane=understand (see
+// next.config.js redirects()). Next.js carries the query string through, so
+// deep-link params survive.
 export const FEED_ROUTE = "/feed";
 // ADR-297: /work dissolved — recurrence list + task detail folded into
 // the Recurrence surface (renamed from Cadence 2026-06-03). WORK_ROUTE

@@ -8,13 +8,15 @@ surface). Asserts:
      + `feed` survive only as search-only legacy alias entries.
   2. /context + /feed are ADR-308 redirect stubs → /channels (pure server
      transport, no 'use client').
-  3. The Channels page has two groups (CHANNELS · ACTIVITY), six panes
-     (connectors · sources · external-agents · flow · in · out), defaults to
-     Flow.
+  3. The Channels page has two groups (CHANNELS · ACTIVITY), five panes
+     (connectors · sources · external-agents · in · out), defaults to In.
+     (The `flow` pane — the global narrative — was RETIRED 2026-07-02; a
+     Channels surface tracks only boundary crossings, and the narrative lives
+     at Notifications → Activity.)
   4. External Agents is a FILTERED VIEW of WorkspaceMembersCard
      (roleFilter=foreign-llm/a2a/platform) — NOT a new data source.
-  5. In/Out/Flow preserved: In = filtered FeedSurface (isInbound), Flow =
-     unfiltered, Out = EmissionsView (a distinct source).
+  5. In/Out are the boundary crossing-ledger: In = filtered FeedSurface
+     (isInbound), Out = EmissionsView (a distinct source).
   6. Singular Implementation: ConnectedIntegrationsSection mounts ONLY on the
      Channels page (never Workspace-Settings).
   7. D4: Workspace-Settings has no Perception group.
@@ -86,19 +88,24 @@ def test_context_and_feed_redirects_in_next_config():
     src = _read_web("next.config.js")
     # Bookmark safety for the old URLs lives in next.config.js redirects().
     assert "redirects()" in src
-    assert "'/feed'" in src and "/channels?channels.pane=flow" in src
-    assert "'/context'" in src
+    # 2026-07-02 ACTIVITY re-scope: `/feed` was always the NARRATIVE alias; it
+    # now lands at the narrative's real home (Notifications → Activity), not the
+    # retired Channels Flow pane.
+    assert "'/feed'" in src and "/notifications?notifications.pane=understand" in src
+    assert "'/context'" in src and "'/channels'" in src
 
 
 # ---- 3. Channels page shape ----------------------------------------------
 
-def test_channels_two_groups_six_panes_default_flow():
+def test_channels_two_groups_five_panes_default_in():
     src = _read_web(_CHANNELS)
     assert 'label: "Channels"' in src
     assert 'label: "Activity"' in src
-    for key in ("connectors", "sources", "external-agents", "flow", "in", "out"):
+    for key in ("connectors", "sources", "external-agents", "in", "out"):
         assert f'key: "{key}"' in src, f"missing pane key {key}"
-    assert 'defaultPane="flow"' in src
+    # 2026-07-02 ACTIVITY re-scope: the `flow` pane (global narrative) is retired.
+    assert 'key: "flow"' not in src, "flow pane should be retired from Channels"
+    assert 'defaultPane="in"' in src
     assert 'windowSlug="channels"' in src
 
 
@@ -119,10 +126,13 @@ def test_members_card_supports_role_filter():
     assert "getMembers" in src
 
 
-# ---- 5. In/Out/Flow preserved as distinct views --------------------------
+# ---- 5. In/Out — the boundary crossing-ledger (distinct sources) ----------
 
-def test_in_out_flow_distinct():
+def test_in_out_distinct():
     src = _read_web(_CHANNELS)
+    # In = FeedSurface filtered to inbound crossings; Out = EmissionsView (a
+    # genuinely different source, the emissions ledger). Flow (global narrative)
+    # is retired — that stream lives at Notifications → Activity.
     assert "isInbound" in src and "messageFilter" in src
     assert "FeedSurface" in src
     assert "EmissionsView" in src

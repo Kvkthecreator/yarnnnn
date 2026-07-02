@@ -208,8 +208,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # `context` from before the renames) rendered a SECOND dock icon — for
     # `context`, an identical `arrow-left-right` glyph next to the live
     # `channels` icon — whose click bounced through the `/context`→`/channels`
-    # (resp. `/feed`→/channels?channels.pane=flow) redirect. That duplicate
-    # icon + confusing-redirect was the operator-observed symptom.
+    # (resp. `/feed`→ the narrative) redirect. That duplicate icon +
+    # confusing-redirect was the operator-observed symptom.
     #
     # The slugs are now retired from the registry entirely. Bookmark safety for
     # the OLD external `/feed` + `/context` URLs moves to next.config.js
@@ -266,17 +266,15 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         #     External Agents — MCP / external-LLM principals (ADR-373
         #                       foreign-llm/a2a/platform grants; a filtered
         #                       view of WorkspaceMembersCard, NOT a new source)
-        #   ACTIVITY — the running record of crossings:
-        #     Flow — the complete narrative (FeedSurface, default landing pane)
-        #     In   — inbound crossings (FeedSurface, isInbound filter)
+        #   ACTIVITY — the boundary crossing-ledger (scoped to the channels
+        #   above — NOT the global workspace narrative, which lives at
+        #   Notifications → Activity; the `flow` pane was retired 2026-07-02):
+        #     In   — inbound crossings (FeedSurface, isInbound filter; default)
         #     Out  — the emissions/dispatch ledger (GET /api/emissions, read-only)
         #
-        # Intended redundancy with Notifications → Activity (both mount the
-        # narrative): the macOS tiered-access principle (ADR-367 D3) — same
-        # substrate, two compositions, distinct primary jobs. Connections +
-        # Sources + Flow + In + Out are compositions over existing substrate;
-        # External Agents is a second view of the principal_grants roster
-        # (ADR-385 D3, DP29 "mirror once, compose few").
+        # Connections + Sources + In + Out are compositions over existing
+        # substrate; External Agents is a second view of the principal_grants
+        # roster (ADR-385 D3, DP29 "mirror once, compose few").
         #
         # `/context` survives as an ADR-308 redirect stub → /channels.
         "slug": "channels",
@@ -288,7 +286,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "arrow-left-right",  # the boundary: context flowing in + out (operator-preferred glyph, preserved)
         "default_pinned": True,
         "route": "/channels",
-        "summary": "The operation's edge — what feeds it (Connections, Sources), who can write it (External Agents), and the running record of every crossing (Flow, In, Out).",
+        "summary": "The operation's edge — what feeds it (Connections, Sources), who can write it (External Agents), and the record of every crossing in and out (In, Out).",
     },
     {
         # ADR-346 (2026-06-19) — the Operation surface, the SECOND composition

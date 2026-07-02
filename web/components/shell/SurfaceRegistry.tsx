@@ -24,8 +24,10 @@ import type { KernelSurfaceSlug } from '@/types/desk';
 // ADR-385 — the Channels perception+principal surface (was `context`).
 // Window-grade like Home / Notifications; its panes re-mount existing mirror
 // bodies (ConnectedIntegrations → Connections, SourcesCard → Sources,
-// WorkspaceMembersCard → AI Connections, FeedSurface → Flow/In, EmissionsView
-// → Out).
+// WorkspaceMembersCard → AI Connections, FeedSurface [filtered to inbound
+// crossings] → In, EmissionsView → Out). The 2026-07-02 ACTIVITY re-scope
+// retired the Flow pane (the global narrative lives at Notifications → Activity,
+// not on a boundary surface).
 //
 // ADR-385 follow-on (2026-06-30): the legacy `feed` + `context` alias slugs
 // are RETIRED from this registry (full alias deletion). They produced a

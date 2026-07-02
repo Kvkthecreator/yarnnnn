@@ -1,9 +1,10 @@
 /**
- * Legacy /chat route — redirects to the Channels surface's Flow pane (the
- * narrative). ADR-259 originally pointed it at /feed; ADR-385 folded the Feed
- * into Channels as the Flow pane, and the ADR-385 follow-on (2026-06-30) DELETED
- * the `/feed` page stub (full alias deletion). So `/chat` now redirects DIRECTLY
- * to /channels?channels.pane=flow — no double-hop through the retired /feed.
+ * Legacy /chat route — redirects to the workspace narrative (the operator↔Freddie
+ * conversation + every invocation). ADR-259 pointed it at /feed; ADR-385 folded
+ * the Feed into Channels as the Flow pane. The 2026-07-02 ACTIVITY re-scope
+ * RETIRED the Channels Flow pane — a Channels surface tracks only boundary
+ * crossings (In/Out), not the global narrative. The narrative's real home is
+ * Notifications → Activity (the `understand` pane), so /chat now lands there.
  *
  * Preserves query params so deep-linked operator bookmarks survive the
  * vocabulary migration.
@@ -20,6 +21,6 @@ export default function ChatRedirect({
   searchParams: Record<string, string | string[] | undefined>;
 }) {
   const params = new URLSearchParams(searchParams as Record<string, string>);
-  if (!params.has('channels.pane')) params.set('channels.pane', 'flow');
-  redirect(`/channels?${params.toString()}`);
+  if (!params.has('notifications.pane')) params.set('notifications.pane', 'understand');
+  redirect(`/notifications?${params.toString()}`);
 }
