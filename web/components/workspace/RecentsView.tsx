@@ -41,6 +41,10 @@ interface Revision {
   authored_by: string | null;
   message: string | null;
   created_at: string | null;
+  // Explorer thumbnails (2026-07-02): per-format preview material from the feed.
+  content_url?: string | null;   // image blob → real thumbnail (resolved to signed URL)
+  content_type?: string | null;  // format hint
+  preview?: string | null;       // short text snippet for md/text tiles
 }
 
 export type RecentsViewMode = 'icon' | 'list';
@@ -276,14 +280,61 @@ function RowShell({
 // Icon view — Finder small-icon grid
 // ---------------------------------------------------------------------------
 
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg']);
+function fileExt(path: string): string {
+  return (fileName(path).split('.').pop() || '').toLowerCase();
+}
+
+/** Resolve an image blob's content_url → signed URL, then render a cover
+ * thumbnail. Absolute URLs (output gateway) render directly. Falls back to the
+ * format glyph while loading or on error. (ADR-395 authed blob resolution.) */
+function ThumbImage({ contentUrl, filename }: { contentUrl: string; filename: string }) {
+  const [url, setUrl] = useState<string>('');
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (/^(https?:|data:|blob:)/i.test(contentUrl)) { setUrl(contentUrl); return; }
+    let cancelled = false;
+    api.documents.blobUrl(contentUrl)
+      .then((r) => { if (!cancelled) setUrl(r.url); })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, [contentUrl]);
+  if (failed || (!url && !/^(https?:|data:|blob:)/i.test(contentUrl))) {
+    // still resolving or failed → keep the glyph so the tile never looks broken
+    return <FileIcon filename={filename} size="2xl" />;
+  }
+  if (!url) return <FileIcon filename={filename} size="2xl" />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt={filename} className="h-full w-full rounded object-cover" onError={() => setFailed(true)} />;
+}
+
+/** The per-format tile preview (Explorer-style): real image thumbnail · text
+ * snippet card for md/text · branded format glyph otherwise. */
+function Thumbnail({ rev }: { rev: Revision }) {
+  const ext = fileExt(rev.path);
+  if (IMAGE_EXTS.has(ext) && rev.content_url) {
+    return <ThumbImage contentUrl={rev.content_url} filename={fileName(rev.path)} />;
+  }
+  if (rev.preview && (ext === 'md' || ext === 'txt')) {
+    // A content-snippet card — the first real line of the doc, like a mini page.
+    return (
+      <span className="flex h-full w-full flex-col gap-0.5 overflow-hidden rounded bg-background/70 px-2 py-1.5 text-left">
+        <span className="line-clamp-4 text-[9px] leading-[1.35] text-muted-foreground">
+          {rev.preview}
+        </span>
+      </span>
+    );
+  }
+  return <FileIcon filename={fileName(rev.path)} size="2xl" />;
+}
+
 function IconGrid({
   revisions, onSelectPath, selectedPath,
 }: { revisions: Revision[]; onSelectPath?: (path: string) => void; selectedPath?: string | null }) {
   return (
-    // Windows-Explorer-style icon grid: roomier tiles, a distinct icon zone,
-    // clear hover + selection states. Denser column count than the old grid so
-    // it reads as a file explorer, not a card wall.
-    <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:grid-cols-6">
+    // Windows-Explorer icon grid: roomy tiles, real per-format thumbnails, clear
+    // hover + selection. No metadata dots — just the preview + name + time.
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       {revisions.map((rev, i) => {
         const sys = isSystemFile(rev.path);
         const selected = !!selectedPath && rev.path === selectedPath;
@@ -294,31 +345,22 @@ function IconGrid({
             onSelectPath={onSelectPath}
             title={rev.path}
             className={cn(
-              'group flex flex-col items-center gap-1 rounded-md border px-2 py-2.5 text-center transition-colors',
+              'group flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center transition-colors',
               selected
-                // Explorer selection: filled highlight + ring, the primary accent.
                 ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/40'
-                : 'border-transparent hover:border-border/70 hover:bg-muted/50',
+                : 'border-transparent hover:border-border/70 hover:bg-muted/40',
               sys && !selected && 'opacity-70',
             )}
           >
-            {/* Icon zone — a larger, subtly-inset tile so the glyph reads like an
-                Explorer thumbnail (a real per-format thumbnail can drop in here
-                later without changing the tile geometry). */}
+            {/* Preview zone — a real Explorer-style thumbnail area. */}
             <span className={cn(
-              'relative flex h-14 w-full items-center justify-center rounded bg-muted/40 transition-colors group-hover:bg-muted/60',
+              'flex h-24 w-full items-center justify-center overflow-hidden rounded-md bg-muted/40 transition-colors group-hover:bg-muted/60',
               selected && 'bg-primary/10',
             )}>
-              <FileIcon filename={fileName(rev.path)} size="xl" />
-              {/* author accent — who last touched it, small + quiet */}
-              <span
-                className={cn('absolute right-1 top-1 h-1.5 w-1.5 rounded-full ring-2 ring-card', authorAccent(rev.authored_by))}
-                title={formatAuthorLabelOrSystem(rev.authored_by)}
-              />
+              <Thumbnail rev={rev} />
             </span>
             <span className={cn(
-              'mt-0.5 w-full truncate text-xs font-medium',
-              selected ? 'text-foreground' : 'text-foreground',
+              'mt-0.5 w-full truncate text-xs font-medium text-foreground',
               sys && !selected && 'text-muted-foreground',
             )}>
               {fileName(rev.path)}

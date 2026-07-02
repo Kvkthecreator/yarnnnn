@@ -62,7 +62,7 @@ const ICON_MAP: Record<string, { icon: typeof FileText; color: string }> = {
 interface FileIconProps {
   filename: string;
   className?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 }
 
 export function FileIcon({ filename, className, size = 'sm' }: FileIconProps) {
@@ -76,6 +76,8 @@ export function FileIcon({ filename, className, size = 'sm' }: FileIconProps) {
     lg: 'w-5 h-5',
     // xl — the Finder-style icon-view glyph (RecentsView icon mode).
     xl: 'w-8 h-8',
+    // 2xl — the roomier Explorer icon-view tile (h-24 preview zone).
+    '2xl': 'w-10 h-10',
   }[size];
 
   return <Icon className={cn(sizeClass, match.color, 'flex-shrink-0', className)} />;

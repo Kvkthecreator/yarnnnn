@@ -11,6 +11,7 @@ All paths are relative to the user's workspace scope in workspace_files table.
 """
 
 import logging
+import re
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -110,6 +111,13 @@ class RecentRevision(BaseModel):
     authored_by: Optional[str] = None      # ADR-209 attribution taxonomy
     message: Optional[str] = None          # authorship trailer
     created_at: Optional[str] = None       # revision timestamp
+    # Explorer icon-view thumbnails (2026-07-02): per-format preview material so
+    # the tile shows real content, not a generic glyph. content_url → real image
+    # thumbnail (resolved to a signed URL FE-side); preview → a short text
+    # snippet for md/text tiles; content_type → format hint the FE dispatches on.
+    content_url: Optional[str] = None      # image blob reference (→ signed URL)
+    content_type: Optional[str] = None     # MIME/type hint
+    preview: Optional[str] = None          # short text snippet (md/text tiles)
 
 
 class RecentRevisionsResponse(BaseModel):
@@ -980,6 +988,46 @@ def _is_authored_substrate_path(path: str) -> bool:
     return True
 
 
+def _thumb_preview(path: str, summary: Optional[str], content: Optional[str]) -> Optional[str]:
+    """A short text snippet for an Explorer icon-view text tile (2026-07-02).
+
+    Returns a clean ~140-char preview for markdown/text files (the common case
+    in a substrate workspace), so a `.md` tile shows its first real line instead
+    of a generic glyph — better than Explorer, which only shows a doc icon.
+    Returns None for non-text files (images render a real thumbnail; binaries
+    keep a branded glyph). Prefers the curated `summary`; else derives from
+    `content`, stripping frontmatter, a `derived_from:` citation line, markdown
+    heading/list markers, and blank lines.
+    """
+    lower = path.lower()
+    if not (lower.endswith(".md") or lower.endswith(".txt")):
+        return None
+    if summary and summary.strip():
+        return summary.strip()[:140]
+    body = content or ""
+    if not body.strip():
+        return None
+    # Strip a leading YAML frontmatter block if present.
+    m = re.match(r"^---\s*\n.*?\n---\s*\n", body, re.DOTALL)
+    if m:
+        body = body[m.end():]
+    lines = []
+    for raw in body.splitlines():
+        s = raw.strip()
+        if not s:
+            continue
+        if s.startswith("derived_from:") or s.startswith("<!--"):
+            continue
+        # Drop leading markdown markers (#, -, *, >) for a cleaner snippet.
+        s = re.sub(r"^[#>\-\*\s]+", "", s)
+        if s:
+            lines.append(s)
+        if len(" ".join(lines)) >= 140:
+            break
+    snippet = " ".join(lines).strip()
+    return snippet[:140] if snippet else None
+
+
 @router.get("/workspace/recent-revisions", response_model=RecentRevisionsResponse)
 async def get_recent_revisions(
     auth: UserClient,
@@ -1027,24 +1075,27 @@ async def get_recent_revisions(
                 continue
             latest_by_path[path] = row
 
-        # One round-trip to find which of those paths still have a live file.
+        # One round-trip to find live files AND pull per-format preview material
+        # (content_url for image thumbnails, content/summary for text snippets) —
+        # the Explorer icon view renders real content, not a generic glyph.
         candidate_paths = list(latest_by_path.keys())
-        live_paths: set[str] = set()
+        live: dict[str, dict] = {}
         if candidate_paths:
             existing = (
                 auth.client.table("workspace_files")
-                .select("path")
+                .select("path, content_url, content_type, summary, content")
                 .eq("user_id", auth.user_id)
                 .in_("path", candidate_paths)
                 .execute()
             )
-            live_paths = {r["path"] for r in (existing.data or [])}
+            live = {r["path"]: r for r in (existing.data or [])}
 
         # Emit in recency order (dict preserves insertion = created_at desc),
         # live files only, trimmed to limit.
         revisions: list[RecentRevision] = []
         for path, row in latest_by_path.items():
-            if path not in live_paths:
+            f = live.get(path)
+            if f is None:  # revision outlived its file → not browsable
                 continue
             revisions.append(
                 RecentRevision(
@@ -1052,6 +1103,9 @@ async def get_recent_revisions(
                     authored_by=row.get("authored_by"),
                     message=row.get("message"),
                     created_at=row.get("created_at"),
+                    content_url=f.get("content_url"),
+                    content_type=f.get("content_type"),
+                    preview=_thumb_preview(path, f.get("summary"), f.get("content")),
                 )
             )
             if len(revisions) >= limit:
