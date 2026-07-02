@@ -55,13 +55,12 @@ const CAPABILITIES = [
     tag: "Records",
     title: "He signs and dates every change.",
     body:
-      "Everything Freddie does lands with his name on it and a timestamp. You can trace any fact back through every version — who changed it, when, and what changed. Nothing happens in the dark.",
+      "Everything Freddie does lands with his name on it and a timestamp — nothing happens in the dark.",
   },
 ];
 
 // The autonomy dial — the SAME three-tile pattern as landing §4 (AUTONOMY
-// substrate, not ADR-334 seat entitlements). "It only ever does as much as
-// you allow."
+// substrate, not ADR-334 seat entitlements).
 const DIAL = [
   {
     label: "Goes ahead",
@@ -103,9 +102,8 @@ export default function FreddiePage() {
             </h1>
 
             <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-10 max-w-2xl mx-auto font-light">
-              Your memory is yours. Freddie is who keeps it working — reading what you
-              connect, keeping it in order, and recording every change so you can trace it.
-              He only ever does as much as you allow.
+              Your memory is yours. Freddie is who keeps it working — and he only ever
+              does as much as you allow.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -168,14 +166,11 @@ export default function FreddiePage() {
                 <h2 className="text-2xl md:text-3xl font-medium mb-6 text-[#1a1a1a] leading-tight">
                   You can always see what Freddie did.
                 </h2>
-                <p className="text-[#1a1a1a]/60 leading-relaxed text-lg font-light mb-4">
+                <p className="text-[#1a1a1a]/60 leading-relaxed text-lg font-light">
                   Every version of every fact carries an author and a date — you, an AI, or
-                  Freddie himself. Nothing gets quietly overwritten. If something changed, you
-                  can trace exactly how it got there and roll it back if you disagree.
-                </p>
-                <p className="text-sm text-[#1a1a1a]/40 leading-relaxed">
-                  This is the part a plain storage connector can&apos;t show — and it&apos;s why
-                  handing work to Freddie stays safe.
+                  Freddie himself. Nothing gets quietly overwritten: trace exactly how anything
+                  got there, and roll it back if you disagree. It&apos;s why handing work to
+                  Freddie stays safe.
                 </p>
               </div>
               <div>
@@ -192,11 +187,10 @@ export default function FreddiePage() {
               You&apos;re always in charge
             </div>
             <h2 className="text-2xl md:text-3xl font-medium mb-6 text-[#1a1a1a]">
-              He only ever does as much as you allow.
+              You set the line. Freddie stays on your side of it.
             </h2>
             <p className="text-[#1a1a1a]/50 leading-relaxed max-w-2xl mb-10">
-              You set the line. Freddie stays on your side of it — and every call he makes is on
-              the record, so trust is something he earns, not something you have to assume.
+              How far Freddie goes on his own is a dial you turn:
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -228,11 +222,9 @@ export default function FreddiePage() {
             </h2>
             <div className="space-y-6 text-[#1a1a1a]/60 leading-relaxed text-lg font-light">
               <p>
-                <span className="text-[#1a1a1a]/90 font-normal">Today,</span> Freddie tends your
-                memory: he reads what you connect, keeps it in order, checks work against your
-                rules, and keeps a full record of everything he touches. Every bit of that is
-                live — reversible, attributed, yours to trace. You can verify it the day you sign
-                up.
+                <span className="text-[#1a1a1a]/90 font-normal">Today,</span> everything above is
+                live — reversible, attributed, yours to verify the day you sign up. Tending your
+                memory is real work, and it&apos;s the work Freddie does now.
               </p>
               <p>
                 <span className="text-[#1a1a1a]/90 font-normal">Next,</span> Freddie takes action
