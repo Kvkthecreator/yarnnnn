@@ -81,13 +81,16 @@ def test_workspace_init_does_not_scaffold_bundle_owned_paths() -> None:
 
     # Find the workspace_files dict literal in workspace_init.py — pre-ADR-286
     # it included MANDATE/IDENTITY/BRAND/AUTONOMY etc. as keys. Post-ADR-286
-    # only kernel-universal paths are keys. ADR-383 carves the three steward
-    # paths back in (conditionally) — they are NOT in this ban list (the
-    # conditional-seeding discipline is asserted separately below).
+    # only kernel-universal paths are keys. ADR-383 carves the steward paths
+    # back in (conditionally) — they are NOT in this ban list (the conditional-
+    # seeding discipline is asserted separately below).
+    #
+    # ADR-383 amendment (2026-07-02): GOVERNANCE_AUTONOMY_YAML_PATH moved OUT of
+    # this ban list — it is now a steward-seed (like MANDATE/IDENTITY/principles).
+    # The prose GOVERNANCE_AUTONOMY_PATH (AUTONOMY.md) stays bundle-owned/banned.
     bundle_owned_constants = {
         "OPERATION_BRAND_PATH",
         "GOVERNANCE_AUTONOMY_PATH",
-        "GOVERNANCE_AUTONOMY_YAML_PATH",
         "SYSTEM_AWARENESS_PATH",
     }
 
@@ -113,16 +116,21 @@ def test_workspace_init_does_not_scaffold_bundle_owned_paths() -> None:
 
 
 def test_steward_defaults_seeded_only_when_no_program() -> None:
-    """ADR-383 steward-default carve: the three agent-universal steward paths
-    (MANDATE / persona-IDENTITY / persona-principles) ARE seeded by the kernel,
-    but ONLY inside the `if not program_slug:` conditional — so a program-fork
-    is still the single writer for a program workspace (no dual-write). This is
-    the conditional discipline that REPLACES ADR-286's flat ban on these paths."""
+    """ADR-383 steward-default carve: the agent-universal steward paths
+    (MANDATE / persona-IDENTITY / persona-principles / governance-autonomy) ARE
+    seeded by the kernel, but ONLY inside the `if not program_slug:` conditional
+    — so a program-fork is still the single writer for a program workspace (no
+    dual-write). This is the conditional discipline that REPLACES ADR-286's flat
+    ban on these paths.
+
+    ADR-383 amendment (2026-07-02): GOVERNANCE_AUTONOMY_YAML_PATH joins the set —
+    the fourth agent-universal governance file, seeded as `delegation: manual`."""
     src = _read_api("services/workspace_init.py")
     steward_path_constants = (
         "CONSTITUTION_MANDATE_PATH",
         "PERSONA_IDENTITY_PATH",
         "PERSONA_PRINCIPLES_PATH",
+        "GOVERNANCE_AUTONOMY_YAML_PATH",
     )
     # Each steward path must appear, and must appear AFTER the `if not
     # program_slug:` guard (i.e. inside the conditional no-program block),

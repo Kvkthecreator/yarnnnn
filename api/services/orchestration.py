@@ -982,6 +982,51 @@ external action; that limb belongs to a program's persona agent (ADR-382).
 """
 
 
+# ADR-383 amendment (2026-07-02): _autonomy.yaml joins the agent-universal
+# steward-seed set. Autonomy was pulled OUT of the kernel seed by ADR-286 D3
+# (a kernel-written _autonomy.yaml blocked bundle-fork overwrite — the pre-marker
+# dual-write bug). ADR-383's STEWARD_DEFAULT_MARKER mechanism resolves that exact
+# objection: a marked default is overwrite-eligible, so the kernel can seed it on
+# a bare-Freddie workspace AND a later program-fork cleanly replaces it. ADR-383
+# §table already classifies governance/AUTONOMY + _autonomy.yaml as "agent-universal
+# · kernel default ceiling" — this finishes that classification for the one file
+# left behind, so a bare workspace declares its delegation posture (manual = the
+# fail-closed default) as substrate rather than only as a code fallback.
+#
+# MARKER FORM: this is a MACHINE-PARSED yaml (review_policy.load_workspace_yaml →
+# yaml.safe_load), unlike the three prose steward siblings (.md, never parsed). An
+# HTML-comment marker as line 1 would break safe_load. So the marker is the
+# YAML-comment form `# yarnnn:steward-default` — load_workspace_yaml strips every
+# `#`-prefixed line before parsing (review_policy.py), so `delegation: manual`
+# parses cleanly; is_skeleton_content recognizes this YAML-comment marker form in
+# addition to the HTML form (workspace_utils.py).
+STEWARD_DEFAULT_MARKER_YAML = "# yarnnn:steward-default"
+
+DEFAULT_AUTONOMY_YAML = """\
+# yarnnn:steward-default
+# _autonomy.yaml — delegation declaration (ADR-254 machine-parsed governance).
+# Read by review_policy + working_memory. See AUTONOMY.md for the prose docs.
+#
+# This is the kernel-default (steward) delegation posture for a bare-Freddie
+# workspace: `manual` — every consequential action queues for the operator. It
+# is the fail-closed default (the same posture the gate applies when this file
+# is absent), now declared as substrate. Activating a program overwrites this
+# with the operation's tuned delegation; until then you approve every binding
+# decision, which is the safe place to start.
+#
+# Schema:
+#   default:
+#     delegation: manual | bounded | autonomous   (canonical 3-value enum)
+#     ceiling_cents: <int>  (required when delegation=bounded)
+#     never_auto: [<action_type>, ...]  (always route to operator)
+#   paused_until: <ISO timestamp>  (set by operator, ADR-248 D3)
+default:
+  delegation: manual
+  # ceiling_cents: 0       # uncomment + set when promoting to bounded
+  # never_auto: []         # action types that always require operator click
+"""
+
+
 DEFAULT_PRECEDENT_MD = """\
 # Precedent
 

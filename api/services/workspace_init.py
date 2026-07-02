@@ -183,10 +183,14 @@ async def initialize_workspace(
             DEFAULT_STEWARD_MANDATE_MD,
             DEFAULT_STEWARD_IDENTITY_MD,
             DEFAULT_STEWARD_PRINCIPLES_MD,
+            # ADR-383 amendment (2026-07-02): _autonomy.yaml joins the steward
+            # seed set — the agent-universal delegation posture for bare-Freddie.
+            DEFAULT_AUTONOMY_YAML,
         )
         from services.workspace_paths import (
             CONSTITUTION_PRECEDENT_PATH,
             CONSTITUTION_MANDATE_PATH,  # ADR-383: steward-mandate seed (no-program)
+            GOVERNANCE_AUTONOMY_YAML_PATH,  # ADR-383 amend: steward autonomy seed (no-program)
             GOVERNANCE_BUDGET_PATH,  # ADR-327 spend-envelope governance file
             SYSTEM_PLAYBOOK_PATH,
             SYSTEM_STYLE_PATH, SYSTEM_NOTES_PATH,
@@ -285,6 +289,17 @@ async def initialize_workspace(
             workspace_files[PERSONA_PRINCIPLES_PATH] = (
                 DEFAULT_STEWARD_PRINCIPLES_MD,
                 "Steward principles — the system agent's stewardship rules (ADR-383, no-program default)",
+            )
+            # ADR-383 amendment (2026-07-02): the delegation posture — agent-
+            # universal, kernel default `manual` (fail-closed). Seeded as a
+            # steward default (STEWARD_DEFAULT_MARKER_YAML) so a later program-fork
+            # OVERWRITES it with the bundle's tuned autonomy (is_skeleton_content
+            # classifies the marked default overwrite-eligible). Was bundle-owned-
+            # absent (ADR-286 D3); the marker mechanism (ADR-383) resolves the
+            # dual-write objection that pulled it out at ADR-269 iter-4.
+            workspace_files[GOVERNANCE_AUTONOMY_YAML_PATH] = (
+                DEFAULT_AUTONOMY_YAML,
+                "Steward autonomy — the system agent's delegation posture (ADR-383 amend, no-program default)",
             )
 
         # Note: PERSONA_PRINCIPLES_YAML_PATH is in the kernel-universal set

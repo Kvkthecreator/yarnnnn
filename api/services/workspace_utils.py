@@ -61,7 +61,16 @@ def is_skeleton_content(content: Optional[str], bundle_body: Optional[str] = Non
     # "operator-authored prose". This re-introduces ONE deterministic kernel-
     # default discriminator (an exact-marker check, not the fuzzy rescue the
     # ADR-286 simplification removed). A steward default is overwrite-eligible.
-    if "<!-- yarnnn:steward-default -->" in stripped.split("\n", 1)[0]:
+    # ADR-383 amendment (autonomy join): the marker has two forms — the HTML
+    # comment for prose steward defaults (MANDATE/IDENTITY/principles .md) and
+    # the YAML-comment form `# yarnnn:steward-default` for machine-parsed steward
+    # defaults (governance/_autonomy.yaml — an HTML comment would break
+    # yaml.safe_load). Both signify an overwrite-eligible kernel default.
+    first_marker_line = stripped.split("\n", 1)[0]
+    if (
+        "<!-- yarnnn:steward-default -->" in first_marker_line
+        or first_marker_line.strip() == "# yarnnn:steward-default"
+    ):
         return True
 
     lower = stripped.lower()
