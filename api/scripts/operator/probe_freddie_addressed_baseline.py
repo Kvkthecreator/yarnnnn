@@ -77,6 +77,7 @@ async def _fire_one(client, ask: str, idx: int) -> dict:
     invocation_id = str(uuid.uuid4())
     events: list[dict] = []
     tools: list[str] = []
+    rounds = 0
     response_text = ""
     verdict_reached = False
     error = None
@@ -95,10 +96,11 @@ async def _fire_one(client, ask: str, idx: int) -> dict:
             events.append(event)
             if etype == "progress":
                 ev = event.get("event") or {}
-                if ev.get("phase") == "tool_start" or ev.get("tool"):
-                    tname = ev.get("tool")
-                    if tname:
-                        tools.append(tname)
+                phase = ev.get("phase")
+                if phase == "tool_start" and ev.get("tool"):
+                    tools.append(ev.get("tool"))
+                elif phase == "round_start":
+                    rounds += 1
             elif etype == "reviewer_response":
                 response_text = event.get("text", "")
             elif etype == "error":
@@ -112,6 +114,7 @@ async def _fire_one(client, ask: str, idx: int) -> dict:
         "idx": idx,
         "ask": ask,
         "wall_s": wall_s,
+        "rounds": rounds,
         "tool_calls": tools,
         "n_tool_calls": len(tools),
         "response_chars": len(response_text),
@@ -155,11 +158,13 @@ async def main() -> int:
         "closed": sum(1 for r in results if r["verdict_reached"]),
         "errors": sum(1 for r in results if r["error"]),
         "mean_wall_s": round(sum(r["wall_s"] for r in results) / max(len(results), 1), 1),
+        "mean_rounds": round(sum(r["rounds"] for r in results) / max(len(results), 1), 1),
         "mean_tool_calls": round(sum(r["n_tool_calls"] for r in results) / max(len(results), 1), 1),
         "mean_response_chars": round(sum(r["response_chars"] for r in results) / max(len(results), 1)),
-        "turns": [{k: r[k] for k in ("idx", "ask", "wall_s", "n_tool_calls",
-                                     "tool_calls", "response_chars",
-                                     "verdict_reached", "error")} for r in results],
+        "turns": [{k: r[k] for k in ("idx", "ask", "wall_s", "rounds",
+                                     "n_tool_calls", "tool_calls",
+                                     "response_chars", "verdict_reached",
+                                     "error")} for r in results],
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2))
     print("\n=== SUMMARY ===")

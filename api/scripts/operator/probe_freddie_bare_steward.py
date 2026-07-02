@@ -253,9 +253,11 @@ async def _fire(client) -> dict:
     from services.recurrence import Recurrence
 
     slug = f"bare-steward-sweep-{int(_t.time())}"
+    # ADR-393: the `mode` field is deleted — a recurrence is always a
+    # judgment prompt; deterministic intake moved to the capture lane.
     rec = Recurrence(
         slug=slug, schedule="0 9 * * *", prompt=SWEEP_PROMPT,
-        mode="judgment", required_capabilities=[], options={},
+        required_capabilities=[], options={},
     )
     out = await _invoke_recurrence_wake(
         client, USER_ID, recurrence=rec, wake_source="cron_tick", context="",
