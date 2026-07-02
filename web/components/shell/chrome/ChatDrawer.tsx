@@ -47,6 +47,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { ConversationPanel } from '@/components/tp/ConversationPanel';
 import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import { useFreddiePersona } from '@/lib/freddie-persona';
@@ -144,6 +145,19 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   const surfaceOverride = foregrounded
     ? { type: 'atomic' as const, slug: foregrounded }
     : undefined;
+  // ADR-398 D2: the operator locator — the foregrounded surface + its
+  // scoped window params (ADR-358 grammar), composed as one short line the
+  // agent receives in the ask block ("The operator is writing from: …").
+  const searchParams = useSearchParams();
+  const locator = (() => {
+    if (!foregrounded) return undefined;
+    const parts: string[] = [foregrounded];
+    const prefix = `${foregrounded}.`;
+    searchParams.forEach((v, k) => {
+      if (k.startsWith(prefix) && v) parts.push(`${k.slice(prefix.length)}=${v}`);
+    });
+    return parts.join(' · ');
+  })();
   // `explicitWidth` is the operator's dragged width (null until they drag).
   // The RESOLVED width is explicitWidth ?? posturalDefaultWidth(foregrounded)
   // — so an un-dragged rail widens on authoring surfaces and narrows on
@@ -269,6 +283,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
           <div className="flex-1 min-h-0">
             <ConversationPanel
               surfaceOverride={surfaceOverride}
+              locator={locator}
               plusMenuActions={[]}
               placeholder={`Ask ${personaName ?? 'Freddie'}…`}
               showCommandPicker={true}

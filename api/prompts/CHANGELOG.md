@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.02.3] - ADR-398 D2: the operator locator — one situational line in the addressed ask
+
+- `agents/freddie_agent.py::_ask_for_trigger` (addressed branch): when the FE supplies a locator (the shell-composed foregrounded-window string, e.g. `files · path=/operation/pricing/q3.md`), the ask block gains one line: `_The operator is writing from: …_`. Absent → nothing added. ~20 tokens max (route truncates at 200 chars).
+- Carrier chain: `ChatRequest.locator` (routes/feed.py — replaces the DELETED `SurfaceContext` fossil, which the backend had ignored since the bare-kernel floor) → `wake_sources/addressed.stream(operator_locator=)` → `wake.stream_addressed_wake` → context bag `operator_locator`.
+- Expected behavior: "this file", "what's this?", placement/cleanup asks resolve against where the operator is actually standing, without a search.
+- ADR: `docs/adr/ADR-398-chat-legibility-tool-detail-locator-linkification.md` (D1 tool-detail + D3 linkification are FE/SSE-layer, no prompt change).
+
 ## [2026.07.02.2] - ADR-397 Rung 2: the wake liturgy is reactive-scoped
 
 **The cached persona frame prompted the full unattended-cycle liturgy (situation-not-task forward reasoning, standing_intent carry-forward, reflection write, verdict taxonomy) on EVERY trigger — including addressed chat turns where the operator is present and witnessing. Rung-0 baseline measured the ceremony tax: liturgy writes on 3 of 5 read-shaped asks.**

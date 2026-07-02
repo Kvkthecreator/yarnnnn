@@ -15,7 +15,7 @@
  */
 
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
-import { CheckCircle2, XCircle, PauseCircle, Eye, Zap } from 'lucide-react';
+import { CheckCircle2, XCircle, PauseCircle, Eye, Zap, Loader2 } from 'lucide-react';
 import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import type { FreddieCardData } from '@/types/desk';
@@ -29,6 +29,44 @@ interface FreddieCardProps {
   confidence?: string | null;
   /** Directive dispatched by System Agent after Reviewer assessment, if any */
   directiveDispatched?: string | null;
+  /** ADR-398 D1: the actual-call trail — what ran, on what, what came back. */
+  tools?: FreddieToolRow[];
+}
+
+export interface FreddieToolRow {
+  name: string;
+  detail: string;
+  status: 'pending' | 'success' | 'failed';
+  result: string;
+}
+
+/** Compact dim rows — the Claude Code-style work trail, collapsed weight.
+ *  Renders what the runtime REPORTED (server-composed summaries), never an
+ *  FE-invented label (the ADR-351 D4 line, kept). */
+function ToolTrail({ tools }: { tools: FreddieToolRow[] }) {
+  return (
+    <div className="mt-1.5 mb-1 space-y-0.5">
+      {tools.map((t, i) => (
+        <div
+          key={i}
+          className="flex items-baseline gap-1.5 text-[10px] font-mono text-muted-foreground/50 leading-tight"
+        >
+          {t.status === 'pending' ? (
+            <Loader2 className="w-2.5 h-2.5 animate-spin shrink-0 self-center" />
+          ) : t.status === 'failed' ? (
+            <XCircle className="w-2.5 h-2.5 shrink-0 self-center text-red-500/60" />
+          ) : (
+            <CheckCircle2 className="w-2.5 h-2.5 shrink-0 self-center text-muted-foreground/40" />
+          )}
+          <span className="shrink-0">{t.name}</span>
+          {t.detail && <span className="truncate text-muted-foreground/40">{t.detail}</span>}
+          {t.result && t.status !== 'pending' && (
+            <span className="truncate text-muted-foreground/35">→ {t.result}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function occupantLabel(occupant: string | undefined, personaName?: string | null): string {
@@ -67,7 +105,7 @@ function VerdictChip({ verdict }: { verdict: string }) {
   return null;
 }
 
-export function FreddieCard({ data, content, personaName, confidence, directiveDispatched }: FreddieCardProps) {
+export function FreddieCard({ data, content, personaName, confidence, directiveDispatched, tools }: FreddieCardProps) {
   const { verdict, occupant, actionType, proposalId } = data;
   const persona = occupantLabel(occupant, personaName);
 
@@ -105,8 +143,12 @@ export function FreddieCard({ data, content, personaName, confidence, directiveD
         )}
       </div>
 
-      {/* Content */}
-      {content && <MarkdownRenderer content={content} compact />}
+      {/* ADR-398 D1: the actual-call trail (live + settled) */}
+      {tools && tools.length > 0 && <ToolTrail tools={tools} />}
+
+      {/* Content — ADR-398 D3: substrate paths + proposal ids render as
+          SurfaceLinks (OS-owned linkification; the model never authors URLs) */}
+      {content && <MarkdownRenderer content={content} compact linkifySubstrate />}
 
       {/* Status chrome — directive dispatched + confidence (addressed mode) */}
       {(directiveDispatched || (isAddressed && confidence && confidence !== 'high')) && (

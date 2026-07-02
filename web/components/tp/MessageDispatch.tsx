@@ -41,7 +41,7 @@
  */
 
 import { Loader2 } from 'lucide-react';
-import type { TPMessage } from '@/types/desk';
+import type { TPMessage, MessageBlock } from '@/types/desk';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { FreddieCard } from './FreddieCard';
 import { MessageBlocks } from './InlineToolCall';
@@ -135,11 +135,27 @@ function renderAgentBubble({ msg }: RendererProps): JSX.Element {
  */
 function ReviewerBubbleRenderer({ msg }: RendererProps): JSX.Element {
   const personaName = useFreddiePersona();
+  // ADR-398 D1: the actual-call trail — tool_call blocks arrive live (SSE
+  // reviewer_progress) and settled (reconstructed from metadata.tool_history).
+  const tools = (msg.blocks ?? [])
+    .filter((b) => b.type === 'tool_call')
+    .map((b) => {
+      const tb = b as Extract<MessageBlock, { type: 'tool_call' }>;
+      return {
+        name: tb.tool,
+        detail: typeof tb.input?.summary === 'string' ? (tb.input.summary as string) : '',
+        status: tb.status,
+        result: tb.result?.data && typeof (tb.result.data as Record<string, unknown>).message === 'string'
+          ? String((tb.result.data as Record<string, unknown>).message)
+          : '',
+      };
+    });
   return (
     <FreddieCard
       data={msg.reviewer ?? {}}
       content={msg.content}
       personaName={personaName}
+      tools={tools.length > 0 ? tools : undefined}
     />
   );
 }

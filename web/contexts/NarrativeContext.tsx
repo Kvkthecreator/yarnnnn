@@ -167,6 +167,8 @@ interface NarrativeContextValue {
     content: string,
     context?: {
       surface?: DeskSurface;
+      /** ADR-398 D2: shell-composed foregrounded-window locator string. */
+      locator?: string;
       images?: TPImageAttachment[];
       targetAgentId?: string;
       fileAttachments?: Array<{ file_id: string; filename: string; mime_type: string }>;
@@ -514,6 +516,7 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
       content: string,
       context?: {
         surface?: DeskSurface;
+        locator?: string;
         images?: TPImageAttachment[];
         targetAgentId?: string;
         fileAttachments?: Array<{ file_id: string; filename: string; mime_type: string }>;
@@ -557,9 +560,11 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
           include_context: true,
         };
 
-        // Add surface context for TP to understand what user is looking at
-        if (context?.surface) {
-          body.surface_context = context.surface;
+        // ADR-398 D2: the operator locator — where the operator is writing
+        // from (foregrounded window + params). Replaces the deleted
+        // surface_context fossil; the backend treats it as an opaque line.
+        if (context?.locator) {
+          body.locator = context.locator;
         }
 
         // ADR-124: Add target agent ID for meeting room @-mentions
@@ -892,21 +897,54 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                     updateStreamingMessage();
                   }
                 } else {
-                  // ADR-351 D4: the per-tool label map ("Reviewer is reading
-                  // substrate…" et al.) is DELETED. It was a frontend guess at
-                  // what a primitive name meant, standing in for narration that
-                  // now arrives as the persona's own streamed reasoning above.
-                  // The transient tool status carries ONLY a judgment-shaped,
-                  // tool-agnostic line (ADR-338 DP28 consent line — never the
-                  // primitive name, never the mechanism). It is secondary to
-                  // the streaming reasoning; it just signals "still working."
+                  // ADR-398 D1 (amends ADR-351 D4's scope): the FE never
+                  // INVENTS meaning from a primitive name (D4's deletion
+                  // stands) — but it DOES render what the runtime REPORTS:
+                  // the actual call (tool name + server-composed input
+                  // summary) as a tool_call block in the streaming Freddie
+                  // bubble, the same ADR-042 block shape the settled card
+                  // reconstructs from metadata.tool_history.
                   if (phase === 'tool_start') {
-                    // Persona-aware: the operator's authored persona name if
-                    // set, else "Freddie" — the same `?? 'Freddie'` resolution
-                    // the bubble + chat header use (ADR-381/251 relabel; the
-                    // internal `reviewer` slug stays, the operator sees Freddie).
+                    if (!streamingMessageId) {
+                      streamingMessageId = crypto.randomUUID();
+                      const reviewerPlaceholder: TPMessage = {
+                        id: streamingMessageId,
+                        role: 'freddie',
+                        content: '',
+                        blocks: [],
+                        timestamp: new Date(),
+                        narrative: { pulse: 'addressed', weight: 'material' },
+                      };
+                      dispatch({ type: 'ADD_MESSAGE', message: reviewerPlaceholder });
+                    }
+                    const inputSummary: string = event.input_summary ?? '';
+                    blocks.push({
+                      type: 'tool_call',
+                      id: `live_${blocks.length}`,
+                      tool: event.tool as string,
+                      input: inputSummary ? { summary: inputSummary } : {},
+                      status: 'pending',
+                    });
+                    updateStreamingMessage();
+                    // Persona-aware transient status line (ADR-338 DP28
+                    // consent line) — persona name if authored, else Freddie.
                     const speaker = getFreddiePersonaName() ?? 'Freddie';
                     setStatus({ type: 'streaming', content: `${speaker} is working through it…` });
+                  } else if (phase === 'tool_end') {
+                    // Close the most recent open tool_call block for this tool.
+                    for (let i = blocks.length - 1; i >= 0; i--) {
+                      const b = blocks[i];
+                      if (b.type === 'tool_call' && b.tool === event.tool && b.status === 'pending') {
+                        b.status = event.success === false ? 'failed' : 'success';
+                        b.result = {
+                          toolName: event.tool as string,
+                          success: event.success !== false,
+                          data: { message: (event.summary as string) || 'done' },
+                        };
+                        break;
+                      }
+                    }
+                    updateStreamingMessage();
                   }
                 }
               } else if (event.reviewer_response) {

@@ -59,31 +59,6 @@ class ChatHistoryMessage(BaseModel):
     content: str
 
 
-class SurfaceContext(BaseModel):
-    """Surface context for TP - what the user is currently viewing.
-
-    Workspace Explorer (ADR-152): path + navigation_type provide filesystem
-    navigation context. TP uses this to scope suggestions and primitives.
-    """
-    type: str  # e.g., "agent-review", "work-output", "idle", "task-detail", "workspace-explorer"
-    # Workspace Explorer navigation (ADR-152)
-    path: Optional[str] = None  # Full filesystem path: /workspace/context/competitors/acme-corp/profile.md
-    navigation_type: Optional[str] = None  # file | directory | task | agent | workspace
-    domain: Optional[str] = None  # Context domain if within /workspace/context/{domain}/
-    entity: Optional[str] = None  # Entity slug if viewing entity file
-    # Legacy fields (still used by existing surfaces)
-    agentId: Optional[str] = None
-    agentSlug: Optional[str] = None
-    projectSlug: Optional[str] = None  # Deprecated (projects dissolved)
-    taskSlug: Optional[str] = None  # Task-scoped chat sessions
-    versionId: Optional[str] = None
-    workId: Optional[str] = None
-    outputId: Optional[str] = None
-    memoryId: Optional[str] = None
-    documentId: Optional[str] = None
-    domainId: Optional[str] = None
-
-
 # =============================================================================
 # ADR-186 prompt-profile resolution DELETED (bare-kernel product floor, 2026-06-01).
 # The chat-profile concept (workspace/entity) died with the YarnnnAgent chat
@@ -118,7 +93,10 @@ class ChatRequest(BaseModel):
     content: str
     include_context: bool = True
     session_id: Optional[str] = None  # Optional: continue existing session
-    surface_context: Optional[SurfaceContext] = None  # ADR-023: What user is viewing
+    # ADR-398 D2: the operator locator — a short human-readable string the
+    # shell composes from the foregrounded window + its params (replaces the
+    # deleted ADR-023 SurfaceContext fossil, which the backend ignored).
+    locator: Optional[str] = None
     images: Optional[list[ImageAttachment]] = None  # Images attached to message (ephemeral)
     file_attachments: Optional[list[FileAttachment]] = None  # Ephemeral doc attachments (ADR-249)
     target_agent_id: Optional[str] = None  # ADR-124: route message to specific agent in meeting room
@@ -707,129 +685,26 @@ def _parse_input_summary(input_summary: str) -> dict:
 # is the singular compaction substrate.
 
 
-# =============================================================================
-# Surface Context Loading (ADR-023)
-# =============================================================================
+def _compact_tool_input(tool_input: object) -> str:
+    """ADR-398 D1: one-line essence of a tool call's input for the operator.
 
-async def load_surface_content(
-    client,
-    user_id: str,
-    surface: SurfaceContext
-) -> Optional[str]:
+    Never full content — the load-bearing locator fields only (path, query,
+    slug, action). Server-composed truth, not an FE guess (the ADR-351 D4
+    distinction): we show what the runtime received, compacted.
     """
-    Load the actual content of the surface the user is viewing.
-
-    Returns a formatted string describing what the user is looking at,
-    suitable for injection into the TP system prompt.
-    """
-    try:
-        surface_type = surface.type
-
-        if surface_type == "agent-review" and surface.agentId and surface.versionId:
-            # User is reviewing an agent version - fetch the content
-            agent_result = client.table("agents")\
-                .select("title, scope, role")\
-                .eq("id", surface.agentId)\
-                .eq("user_id", user_id)\
-                .single()\
-                .execute()
-
-            version_result = client.table("agent_runs")\
-                .select("content, version_number, status")\
-                .eq("id", surface.versionId)\
-                .single()\
-                .execute()
-
-            if agent_result.data and version_result.data:
-                d = agent_result.data
-                v = version_result.data
-                content = v.get("content", "")
-                # Truncate if too long
-                if len(content) > 8000:
-                    content = content[:8000] + "\n\n[Content truncated...]"
-
-                return f"""## Currently Viewing: {d['title']} (Run {v['version_number']})
-Type: {d.get('role', 'custom').replace('_', ' ').title()}
-Status: {v['status']}
-
-### Content:
-{content}
-"""
-
-        elif surface_type == "agent-detail" and surface.agentId:
-            # User is viewing agent details (not content)
-            result = client.table("agents")\
-                .select("title, scope, role, status, type_config")\
-                .eq("id", surface.agentId)\
-                .eq("user_id", user_id)\
-                .single()\
-                .execute()
-
-            if result.data:
-                d = result.data
-                return f"""## Currently Viewing: {d['title']} (Agent Detail)
-Type: {d.get('role', 'custom').replace('_', ' ').title()}
-Status: {d['status']}
-Config: {d.get('type_config', {})}
-"""
-
-        elif surface_type == "task-detail" and surface.taskSlug:
-            # User is viewing a task — load task context for TP
-            return await _load_task_context(client, user_id, surface.taskSlug)
-
-        elif surface_type == "context-browser":
-            # User is browsing their context/memories - just note it
-            return "## Currently Viewing: Context Browser\nUser is browsing their stored memories and context."
-
-        elif surface_type == "workspace-explorer" and surface.path:
-            # ADR-152: User is navigating the workspace explorer
-            path = surface.path
-            nav_type = surface.navigation_type or "file"
-            domain = surface.domain or ""
-            entity = surface.entity or ""
-
-            context_parts = [f"## Currently Viewing: {path}"]
-            context_parts.append(f"Navigation: {nav_type}")
-
-            if domain:
-                context_parts.append(f"Context domain: {domain}")
-            if entity:
-                context_parts.append(f"Entity: {entity}")
-            if surface.taskSlug:
-                context_parts.append(f"Task: {surface.taskSlug}")
-            if surface.agentSlug:
-                context_parts.append(f"Agent: {surface.agentSlug}")
-
-            # Load file content preview if viewing a file
-            if nav_type == "file":
-                try:
-                    result = (
-                        client.table("workspace_files")
-                        .select("content, updated_at")
-                        .eq("user_id", user_id)
-                        .eq("path", path)
-                        .limit(1)
-                        .execute()
-                    )
-                    if result.data:
-                        content = result.data[0].get("content", "")
-                        updated = result.data[0].get("updated_at", "")[:16]
-                        if content:
-                            preview = content[:3000]
-                            context_parts.append(f"Last updated: {updated}")
-                            context_parts.append(f"\n### File Content\n{preview}")
-                except Exception:
-                    pass
-
-            context_parts.append("\nScope your responses to what the user is viewing. Suggest relevant actions.")
-            return "\n".join(context_parts)
-
-        # For list views and idle, no specific content needed
-        return None
-
-    except Exception as e:
-        logger.warning(f"Failed to load surface content: {e}")
-        return None
+    if not isinstance(tool_input, dict):
+        return ""
+    for key in ("path", "query", "slug", "pattern", "domain", "action", "platform"):
+        val = tool_input.get(key)
+        if isinstance(val, str) and val.strip():
+            return f"{key}={val.strip()[:120]}"
+    # Fallback: first short scalar value, key-labeled.
+    for key, val in tool_input.items():
+        if key == "content":
+            continue
+        if isinstance(val, (str, int, float, bool)) and str(val).strip():
+            return f"{key}={str(val).strip()[:120]}"
+    return ""
 
 
 async def _load_task_context(
@@ -1031,16 +906,6 @@ async def global_chat(
     """
     # ADR-172: No message limit gate — balance is the only gate
 
-    # Extract surface context for working memory injection (not session routing).
-    # Unified session model: one session per workspace, surface context on messages.
-    request_agent_id = None
-    request_task_slug = None
-    if request.surface_context:
-        if request.surface_context.agentId:
-            request_agent_id = request.surface_context.agentId
-        if request.surface_context.taskSlug:
-            request_task_slug = request.surface_context.taskSlug
-
     # Unified session: always global — one conversation per workspace.
     # Surface context (agent/task being viewed) is metadata on messages,
     # not a session boundary. TP adapts working memory based on surface.
@@ -1091,15 +956,6 @@ async def global_chat(
     logger.info(
         f"[YARNNN] Loaded {len(existing_messages)} messages, built {len(history)} history entries"
     )
-
-    # ADR-023: Load surface content for compact index injection into Reviewer context
-    surface_content = None
-    if request.surface_context:
-        surface_content = await load_surface_content(
-            auth.client,
-            auth.user_id,
-            request.surface_context
-        )
 
     # ── ADR-255 D3: Three clean dispatch functions ───────────────────────────
     # No optimistic placeholder. No nested control flow.
@@ -1175,6 +1031,11 @@ async def global_chat(
         # narration text via narrate_reviewer_action.
         try:
             captured_output: dict | None = None
+            # ADR-398 D1: accumulate the actual-call trail for (a) live SSE
+            # detail and (b) persistence on the settled Freddie row — the
+            # exact metadata.tool_history contract the FE already
+            # reconstructs into tool_call blocks (ADR-042).
+            freddie_tool_history: list[dict] = []
             async for event in wake_addressed_stream(
                 wake_client, auth.user_id,
                 session_id=session_id,
@@ -1182,6 +1043,7 @@ async def global_chat(
                 user_message=request.content,
                 conversation_window="\n".join(conv_lines) if conv_lines else "",
                 workspace_state_text=workspace_state_text or "",
+                operator_locator=(request.locator or "").strip()[:200],
             ):
                 etype = event.get("type")
 
@@ -1190,10 +1052,25 @@ async def global_chat(
                     phase = ev.get("phase")
                     tool_name = ev.get("tool", "?")
                     if phase == "tool_start":
-                        yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'tool_start', 'tool': tool_name})}\n\n"
+                        input_summary = _compact_tool_input(ev.get("input"))
+                        freddie_tool_history.append({
+                            "type": "tool_call",
+                            "name": tool_name,
+                            "input_summary": input_summary,
+                            "result_summary": "",
+                        })
+                        yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'tool_start', 'tool': tool_name, 'input_summary': input_summary})}\n\n"
                     elif phase == "tool_end":
                         summary = ev.get("summary", "")
                         success = ev.get("success", True)
+                        # Attach the result to the most recent open entry for
+                        # this tool (calls are sequential within a wake).
+                        for item in reversed(freddie_tool_history):
+                            if item["name"] == tool_name and not item["result_summary"]:
+                                item["result_summary"] = str(summary)[:200]
+                                if not success:
+                                    item["result_summary"] = f"failed: {item['result_summary']}" if summary else "failed"
+                                break
                         yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'tool_end', 'tool': tool_name, 'summary': summary, 'success': success})}\n\n"
 
                 elif etype == "text_delta":
@@ -1247,6 +1124,7 @@ async def global_chat(
                         occupant=FREDDIE_MODEL_IDENTITY,
                         invocation_id=invocation_id,
                         pulse="addressed",
+                        tool_history=freddie_tool_history or None,
                     )
                     yield f"data: {json.dumps({'reviewer_response': response_text})}\n\n"
 

@@ -606,6 +606,11 @@ def _ask_for_trigger(trigger: str, ctx: FreddieContext) -> str:
             parts += ["## Recent conversation", "", ctx["conversation_window"], ""]
         msg = (ctx.get("user_message") or "").strip()
         parts += ["## The ask (operator message)", "", msg, ""]
+        # ADR-398 D2: the operator locator — where they are writing from.
+        # One situational line; shell-composed, opaque here.
+        locator = (ctx.get("operator_locator") or "").strip()
+        if locator:
+            parts += [f"_The operator is writing from: {locator}_", ""]
     return "\n".join(parts)
 
 

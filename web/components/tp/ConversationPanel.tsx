@@ -64,6 +64,8 @@ export interface NarrativeFilter {
 export interface ConversationPanelProps {
   /** Surface override — when set, used instead of DeskContext surface */
   surfaceOverride?: any;
+  /** ADR-398 D2: shell-composed foregrounded-window locator string. */
+  locator?: string;
   /** Prefill the input from a parent surface without auto-sending */
   draftSeed?: { id: string; text: string } | null;
   /** Plus menu actions for the input bar */
@@ -117,6 +119,7 @@ export interface ConversationEmptyStateHelpers {
 
 export function ConversationPanel({
   surfaceOverride,
+  locator,
   draftSeed,
   plusMenuActions,
   pendingActionConfig,
@@ -175,7 +178,7 @@ export function ConversationPanel({
       setActionCard(null);
       textareaRef.current?.focus();
     } else {
-      sendMessage(message, { surface });
+      sendMessage(message, { surface, locator });
       setActionCard(null);
     }
   };
@@ -237,6 +240,7 @@ export function ConversationPanel({
       : input;
     sendMessage(messageContent, {
       surface,
+      locator,
       images: images.length > 0 ? images : undefined,
       fileAttachments: fileAttachments.length > 0 ? fileAttachments : undefined,
     });

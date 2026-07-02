@@ -76,6 +76,7 @@ async def write_freddie_message(
     task_slug: Optional[str] = None,
     invocation_id: Optional[str] = None,
     pulse: Optional[str] = None,
+    tool_history: Optional[list] = None,
 ) -> Optional[dict]:
     """Surface a reviewer verdict to the operator's active chat session.
 
@@ -114,6 +115,12 @@ async def write_freddie_message(
         metadata["action_type"] = action_type
     if task_slug:
         metadata["task_slug"] = task_slug
+    if tool_history:
+        # ADR-398 D1: the actual-call trail — the FE reconstructs these into
+        # tool_call blocks on the settled Freddie card (ADR-042 contract:
+        # {type:'tool_call', name, input_summary, result_summary}).
+        metadata["tool_history"] = tool_history
+        metadata["tools_used"] = [t.get("name") for t in tool_history if t.get("name")]
 
     # 3. Emit one narrative entry. Per ADR-219 Commit 2 the single write
     #    path is services.narrative.write_narrative_entry; that helper
