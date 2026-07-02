@@ -1731,6 +1731,9 @@ export const api = {
     // capture lane. `declared` = the watch declaration (which selectors are in
     // scope); `observed` = the capture lane's per-declaration health blocks
     // (freshness). The "observed" half of the enriched selection surface.
+    // ADR-401 Phase 1: also carries the Manage drill-in's ACCESS + CADENCE
+    // facts — granted OAuth scopes, connection header facts, the connector's
+    // capture entry (schedule/paused), and the deploy-level agent gate.
     getCaptureSignal: (provider: "slack" | "notion" | "github") =>
       request<{
         provider: string;
@@ -1746,7 +1749,29 @@ export const api = {
           }
         >;
         workspace_capture_count: number;
+        granted_scopes: string[];
+        connection: {
+          workspace_name: string | null;
+          connected_at: string | null;
+        } | null;
+        capture: { schedule: string | null; paused: boolean } | null;
+        agent_enabled: boolean;
       }>(`/api/integrations/${provider}/capture-signal`),
+
+    // ADR-401 D6: health is DERIVED, never stored — this runs the real
+    // validate probe (for Slack it actually reads the platform). The stored
+    // `status` column is a connect-time fact only and is not liveness.
+    getHealth: (provider: string, validate = false) =>
+      request<{
+        provider: string;
+        status: "healthy" | "degraded" | "unhealthy" | "unknown";
+        validated_at?: string | null;
+        capabilities?: Record<string, unknown>;
+        errors?: string[];
+        recommendations?: string[];
+      }>(
+        `/api/integrations/${provider}/health${validate ? "?validate=true" : ""}`,
+      ),
 
     // ADR-392 D8: the workspace-level raw-capture retention window
     // (governance/_retention.yaml). One window for all connectors.

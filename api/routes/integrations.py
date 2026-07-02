@@ -2109,16 +2109,32 @@ async def get_capture_signal(
     selecting makes a platform AVAILABLE; a capture recurrence makes it READ
     (ADR-392 D5).
 
+    ADR-401 Phase 1 — the drill-in's one round-trip also carries the ACCESS +
+    CADENCE facts the Manage screen renders:
+      - `granted_scopes` — the OAuth consent fact (metadata.scope, comma-joined
+        at exchange for Slack/GitHub; Notion grants app-level access → []).
+      - `connection` — {workspace_name, connected_at} for the header line.
+      - `capture` — the connector's `_captures.yaml` entry {schedule, paused}
+        (seeded at select-time, ADR-394 D2); null until a selection is saved.
+      - `agent_enabled` — the deploy-level gate (ADR-375 D4): when False,
+        captures never run regardless of cadence; the FE must say so rather
+        than imply reads are happening.
+
     Returns:
       {
         "provider": str,
         "declared": [{id, name, selected}],   # the full watch declaration
         "observed": {slug: {status, observed_at, items, last_error, target}},
         "workspace_capture_count": int,        # captures with any observed block
+        "granted_scopes": [str],
+        "connection": {workspace_name, connected_at} | None,
+        "capture": {schedule, paused} | None,
+        "agent_enabled": bool,
       }
     """
+    from services.agent_gating import is_agent_enabled
+    from services.capture.declarations import read_capture_signal, walk_workspace_captures
     from services.connector_watch import read_selection
-    from services.capture.declarations import read_capture_signal
 
     db_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
 
@@ -2138,11 +2154,52 @@ async def get_capture_signal(
         logger.warning("[INTEGRATIONS] capture-signal: signal read failed for %s: %s", provider, exc)
         observed = {}
 
+    # ACCESS — the connection row's consent facts. `metadata.scope` is written
+    # at OAuth exchange (Slack oauth.py:345, GitHub :436); Notion stores none.
+    granted_scopes: list[str] = []
+    connection: Optional[dict[str, Any]] = None
+    try:
+        row = (
+            auth.client.table("platform_connections")
+            .select("metadata, created_at")
+            .eq("user_id", auth.user_id)
+            .eq("platform", db_platform)
+            .limit(1)
+            .execute()
+        )
+        if row.data:
+            md = row.data[0].get("metadata") or {}
+            scope_str = md.get("scope") or ""
+            granted_scopes = [s.strip() for s in scope_str.split(",") if s.strip()]
+            connection = {
+                "workspace_name": md.get("workspace_name"),
+                "connected_at": row.data[0].get("created_at"),
+            }
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[INTEGRATIONS] capture-signal: connection read failed for %s: %s", provider, exc)
+
+    # CADENCE — the connector's capture entry (seed-at-select, ADR-394 D2).
+    capture: Optional[dict[str, Any]] = None
+    try:
+        for decl in walk_workspace_captures(auth.client, auth.user_id):
+            if decl.slug == f"capture-{db_platform}":
+                sched = decl.schedule  # str | list[str] | None (recurrence-shape)
+                if isinstance(sched, list):
+                    sched = sched[0] if sched else None
+                capture = {"schedule": sched, "paused": decl.paused}
+                break
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[INTEGRATIONS] capture-signal: captures read failed for %s: %s", provider, exc)
+
     return {
         "provider": provider,
         "declared": declared,
         "observed": observed,
         "workspace_capture_count": len(observed),
+        "granted_scopes": granted_scopes,
+        "connection": connection,
+        "capture": capture,
+        "agent_enabled": is_agent_enabled(),
     }
 
 
