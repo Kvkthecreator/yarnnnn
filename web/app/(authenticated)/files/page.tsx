@@ -38,7 +38,7 @@
  * /desktop and disrupted the launcher/topbar (operator-observed KVK 2026-06-12).
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Loader2,
   Info,
@@ -53,6 +53,7 @@ import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import type { DeskSurface } from '@/types/desk';
 import { api, APIError } from '@/lib/api/client';
+import { operatorCanOrganize, organizeBlockedReason } from '@/lib/workspace/ownership';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
@@ -504,19 +505,30 @@ export default function ContextPage() {
     setDetailsOpen(true);
   }, []);
 
-  // ADR-400 operator verbs — the human reorganizes their OWN material. The
-  // backend gate (ADR-307 + ADR-320 topology) is authoritative; these handlers
-  // only reach it for operator-owned files (the menu disables them otherwise).
-  // Menu-first MVP (ADR-400 Q2): a prompt captures the new name/destination;
-  // drag-and-drop is a ratified fast-follow.
-  const handleRename = useCallback(async (node: TreeNode) => {
-    const parent = node.path.slice(0, node.path.lastIndexOf('/'));
-    const current = node.path.slice(node.path.lastIndexOf('/') + 1);
+  // ADR-400 Amendment 1 operator verbs — the human reorganizes their whole
+  // workspace (all of it except system/ + machine-config). The backend is
+  // authoritative; the FE is OPTIMISTIC — it offers the verb, pre-empts the
+  // obvious carve with a nice message, and surfaces the backend's honest 403 on
+  // the rest (the Windows-Explorer model). No defensive greying.
+  //
+  // The handlers take a minimal {path, name} so every surface — tree, RecentsView
+  // grid, ContentViewer folder listing — shares one implementation. Menu-first
+  // (ADR-400 Q2); drag-and-drop is a ratified fast-follow.
+  const carveMessage = (path: string): string | null => {
+    if (!operatorCanOrganize(path)) return organizeBlockedReason(path);
+    return null;
+  };
+
+  const handleRename = useCallback(async (t: { path: string; name: string }) => {
+    const blocked = carveMessage(t.path);
+    if (blocked) { window.alert(blocked); return; }
+    const parent = t.path.slice(0, t.path.lastIndexOf('/'));
+    const current = t.path.slice(t.path.lastIndexOf('/') + 1);
     const next = window.prompt(`Rename "${current}" to:`, current);
     if (!next || next === current) return;
     if (next.includes('/')) { window.alert('A filename cannot contain "/". Use "Move to…" to relocate.'); return; }
     try {
-      const r = await api.documents.move(node.path, `${parent}/${next}`);
+      const r = await api.documents.move(t.path, `${parent}/${next}`);
       await loadExplorer();
       if (r?.path) setSelectedPath(r.path);
     } catch (e) {
@@ -524,10 +536,12 @@ export default function ContextPage() {
     }
   }, [loadExplorer]);
 
-  const handleMove = useCallback(async (node: TreeNode) => {
-    const current = node.path;
+  const handleMove = useCallback(async (t: { path: string; name: string }) => {
+    const blocked = carveMessage(t.path);
+    if (blocked) { window.alert(blocked); return; }
+    const current = t.path;
     const dest = window.prompt(
-      'Move to folder (an /workspace/uploads/… path you own):',
+      'Move to folder (a /workspace/… path):',
       current.slice(0, current.lastIndexOf('/') + 1),
     );
     if (!dest) return;
@@ -543,16 +557,30 @@ export default function ContextPage() {
     }
   }, [loadExplorer]);
 
-  const handleTreeDelete = useCallback(async (node: TreeNode) => {
-    if (!window.confirm(`Move "${node.name}" to Trash? It stays recoverable in Trash.`)) return;
+  const handleTreeDelete = useCallback(async (t: { path: string; name: string }) => {
+    const blocked = carveMessage(t.path);
+    if (blocked) { window.alert(blocked); return; }
+    if (!window.confirm(`Move "${t.name}" to Trash? It stays recoverable in Trash.`)) return;
     try {
-      await api.documents.delete(node.path);
+      await api.documents.delete(t.path);
       await loadExplorer();
-      setSelectedPath((prev) => (prev === node.path ? null : prev));
+      setSelectedPath((prev) => (prev === t.path ? null : prev));
     } catch (e) {
       window.alert(e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Delete failed' : 'Delete failed');
     }
   }, [loadExplorer]);
+
+  // ADR-400: the operator's file verbs as one bundle, threaded to every file
+  // surface (tree + RecentsView grid + ContentViewer folder listing) so the
+  // right-click menu works on the MAIN PANEL, not only the left tree. Properties
+  // + Open are the reads; rename/move/delete the organize verbs.
+  const fileVerbs = useMemo(() => ({
+    onOpen: (t: { path: string }) => handleExplorerSelect_byPath(t.path),
+    onProperties: (t: { path: string }) => { setShowTrash(false); setSelectedPath(t.path); setDetailsOpen(true); },
+    onRename: handleRename,
+    onMove: handleMove,
+    onDelete: handleTreeDelete,
+  }), [handleExplorerSelect_byPath, handleRename, handleMove, handleTreeDelete]);
 
   // Upload success (2026-07-01): after files land in the Intake raw lane
   // (inbound/uploads/{principal}/{slug}.{ext}, ADR-395), refresh the tree AND
@@ -715,6 +743,7 @@ export default function ContextPage() {
             showHeader={false}
             viewMode={viewMode}
             onGetInfo={handleGetInfo}
+            verbs={fileVerbs}
             onOpenChatDraft={(prompt) => sendMessage(prompt, { surface: effectiveSurface })}
             onDeleted={() => {
               // ADR-329: file archived — clear selection + refresh the
@@ -732,7 +761,7 @@ export default function ContextPage() {
     // "Recents" view — a columnar glance of recent authored changes across the
     // workspace. Selecting a row swaps to the node view.
     <div className="flex-1 min-h-0">
-      <RecentRevisions onSelectPath={handleExplorerSelect_byPath} />
+      <RecentRevisions onSelectPath={handleExplorerSelect_byPath} verbs={fileVerbs} />
     </div>
   );
 

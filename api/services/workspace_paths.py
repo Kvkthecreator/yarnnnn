@@ -373,3 +373,40 @@ CALLER_WRITE_POLICY: dict[str, tuple[str, ...]] = {
     # system: governed by named-path discipline at each writer, not a prefix lock.
     "system": (),
 }
+
+
+# ADR-400 Amendment 1 (2026-07-02): the operator's ORGANIZE reach (move/rename/
+# trash), the SINGULAR source both the Files routes and the FE mirror. The
+# operator organizes their whole workspace EXCEPT two carves:
+#
+#   1. system/  — runtime orchestration state, not hand-organized. This IS the
+#      declared operator write-lock (CALLER_WRITE_POLICY['operator'] = SYSTEM_ROOT).
+#   2. _*.yaml / _*.json machine-config — code reads these at an EXACT path (the
+#      scheduler reads _budget.yaml, the gate reads _principles.yaml); renaming or
+#      moving one breaks the reader. This is a FILESYSTEM-INTEGRITY rule (don't
+#      rename a file another program finds by path), NOT a permission hierarchy —
+#      the operator "owns" it, but the machine depends on its exact location.
+#
+# Everything else — constitution/, persona/, operation/, uploads/, all prose — is
+# the operator's to reorganize. Delete is trash-not-erase (reversible), so this is
+# safe. NOT a topology lock against the human: it's their filesystem.
+_MACHINE_CONFIG_EXTS = (".yaml", ".yml", ".json")
+
+
+def operator_can_organize(path: str) -> bool:
+    """True iff the operator may move/rename/trash `path` (ADR-400 Amendment 1).
+
+    The one carve on top of the operator's near-total workspace reach:
+      - under system/ → False (runtime state, the declared operator lock)
+      - a _*.yaml/_*.json machine-config file → False (read by exact path)
+      - everything else → True (constitution/persona/operation/uploads/... prose)
+    """
+    rel = path.strip().lstrip("/")
+    if rel.startswith("workspace/"):
+        rel = rel[len("workspace/"):]
+    if rel.startswith(SYSTEM_ROOT):
+        return False
+    leaf = rel.rsplit("/", 1)[-1]
+    if leaf.startswith("_") and leaf.lower().endswith(_MACHINE_CONFIG_EXTS):
+        return False
+    return True
