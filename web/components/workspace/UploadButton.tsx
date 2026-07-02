@@ -11,7 +11,7 @@
  *
  * 2026-07-01 (operator-observed KVK): the bare inline button opened the OS
  * file picker directly and never told the operator WHERE the files land. It is
- * now a MODAL (matches the GetInfoModal / SetupConfirmModal shell — the project
+ * now a MODAL (matches the PropertiesModal / SetupConfirmModal shell — the project
  * has no shared Dialog primitive) that states the destination up front: every
  * upload lands in the Intake raw lane (inbound/uploads/), the operator's raw
  * source-material home (the N=human case of the ADR-376 intake lane, DP32). The
