@@ -23,6 +23,7 @@ import { Loader2, Zap, ArrowUpCircle } from "lucide-react";
 import type { SubscriptionTier } from "@/types";
 import {
   deriveUsageMeter,
+  tierPriceLabel,
   type UsageLimits,
   type UsageMeter,
   TOPUP_PRESETS,
@@ -111,6 +112,9 @@ export function SubscriptionCard() {
               {TIER_LABEL[tier]}
             </span>
             {tier !== "free" && (
+              <span className="text-xs text-muted-foreground">{tierPriceLabel(tier)}</span>
+            )}
+            {tier !== "free" && (
               <button
                 onClick={manageSubscription}
                 className="ml-auto text-xs text-muted-foreground hover:text-foreground underline"
@@ -155,7 +159,7 @@ export function SubscriptionCard() {
                   {subscribeLoading === t ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    `Go ${TIER_LABEL[t]}`
+                    `${TIER_LABEL[t]} · ${tierPriceLabel(t)}`
                   )}
                 </Button>
               ))}

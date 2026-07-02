@@ -134,3 +134,24 @@ export const TOPUP_MIN_USD = 5;
 export const TOPUP_MAX_USD = 500;
 export const TOPUP_PRESETS = [5, 10, 25, 50] as const;
 export const TOPUP_DEFAULT = 25;
+
+/**
+ * Monthly plan price per tier (USD) — the CATALOG price shown on upgrade CTAs.
+ * This is a plan price, NOT a usage bill, so it's shown to the operator (the
+ * hide-$ contract governs ACTIVITY surfaces, not the price of a plan).
+ *
+ * Mirror of api/services/billing_tiers.py::TIER_CONFIG.price_usd — the backend is
+ * the source of truth for what LS charges; this is the display copy. Keep in sync
+ * (both are launch-test numbers per ADR-396 §7, relaxed).
+ */
+export const TIER_PRICE_USD: Record<SubscriptionTier, number> = {
+  free: 0,
+  starter: 19,
+  pro: 49,
+};
+
+/** "$19" / "$49" / "Free" — the price label for an upgrade CTA. */
+export function tierPriceLabel(tier: SubscriptionTier): string {
+  const price = TIER_PRICE_USD[tier];
+  return price > 0 ? `$${price}/mo` : "Free";
+}
