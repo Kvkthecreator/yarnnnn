@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from fastapi import BackgroundTasks
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -280,26 +282,27 @@ def test_phase3_single_upload_rejects_oversize_and_unsupported_without_db():
     UploadResultItem and never touches storage/DB (the error paths are pure)."""
     from routes.documents import _process_single_upload, MAX_FILE_SIZE
 
+    # ADR-395 deferral: _process_single_upload now returns (item, projection_to_embed).
     # Unsupported type — rejected before any storage call.
-    r1 = asyncio.run(_process_single_upload(
+    r1, e1 = asyncio.run(_process_single_upload(
         content=b"x" * 100, content_type="", filename="img.png",
         user_id="u", service=None,  # service untouched on this path
     ))
-    assert r1.success is False and "Unsupported" in (r1.error or "")
+    assert r1.success is False and "Unsupported" in (r1.error or "") and e1 is None
 
     # Oversize — rejected before storage.
-    r2 = asyncio.run(_process_single_upload(
+    r2, e2 = asyncio.run(_process_single_upload(
         content=b"x" * (MAX_FILE_SIZE + 1), content_type="text/plain", filename="big.txt",
         user_id="u", service=None,
     ))
-    assert r2.success is False and "too large" in (r2.error or "")
+    assert r2.success is False and "too large" in (r2.error or "") and e2 is None
 
     # Empty — rejected before storage.
-    r3 = asyncio.run(_process_single_upload(
+    r3, e3 = asyncio.run(_process_single_upload(
         content=b"x", content_type="text/plain", filename="tiny.txt",
         user_id="u", service=None,
     ))
-    assert r3.success is False and "empty" in (r3.error or "").lower()
+    assert r3.success is False and "empty" in (r3.error or "").lower() and e3 is None
 
 
 # ── Behavior test fixtures ────────────────────────────────────────────────
@@ -382,7 +385,7 @@ def test_phase3_behavior_n_files_one_call_writes_n_rows():
 
     with patch.object(documents, "process_document", _fake_process_document_factory(written)), \
          patch.object(documents, "get_service_client", lambda: _FakeService()):
-        resp = asyncio.run(documents.upload_documents(auth, files=files, project_id=None))
+        resp = asyncio.run(documents.upload_documents(auth, BackgroundTasks(), files=files, project_id=None))
 
     assert resp.succeeded == 3, resp
     assert resp.failed == 0
@@ -405,7 +408,7 @@ def test_phase3_behavior_zip_expands_to_n_rows():
     written: list = []
     with patch.object(documents, "process_document", _fake_process_document_factory(written)), \
          patch.object(documents, "get_service_client", lambda: _FakeService()):
-        resp = asyncio.run(documents.upload_documents(_FakeAuth(), files=[zip_file], project_id=None))
+        resp = asyncio.run(documents.upload_documents(_FakeAuth(), BackgroundTasks(), files=[zip_file], project_id=None))
 
     assert resp.succeeded == 2, f"zip should expand to 2 supported entries, got {resp.succeeded}"
     assert len(written) == 2
@@ -424,7 +427,7 @@ def test_phase3_behavior_partial_success_non_transactional():
     written: list = []
     with patch.object(documents, "process_document", _fake_process_document_factory(written)), \
          patch.object(documents, "get_service_client", lambda: _FakeService()):
-        resp = asyncio.run(documents.upload_documents(_FakeAuth(), files=files, project_id=None))
+        resp = asyncio.run(documents.upload_documents(_FakeAuth(), BackgroundTasks(), files=files, project_id=None))
 
     assert resp.succeeded == 2, resp
     assert resp.failed == 1
@@ -553,7 +556,7 @@ def test_phase3_real_write_path_lands_attributed_upload_rows():
     # at its source module.
     with patch.object(documents, "get_service_client", lambda: db), \
          patch("services.primitives.workspace._embed_workspace_file", _noop_embed):
-        resp = asyncio.run(documents.upload_documents(_FakeAuth(), files=files, project_id=None))
+        resp = asyncio.run(documents.upload_documents(_FakeAuth(), BackgroundTasks(), files=files, project_id=None))
 
     assert resp.succeeded == 2, resp
     assert resp.failed == 0
@@ -600,7 +603,7 @@ def test_phase3_behavior_empty_batch_rejected():
 
     with patch.object(documents, "get_service_client", lambda: _FakeService()):
         try:
-            asyncio.run(documents.upload_documents(_FakeAuth(), files=[zf_file], project_id=None))
+            asyncio.run(documents.upload_documents(_FakeAuth(), BackgroundTasks(), files=[zf_file], project_id=None))
             assert False, "expected HTTPException for no supported files"
         except HTTPException as e:
             assert e.status_code == 400

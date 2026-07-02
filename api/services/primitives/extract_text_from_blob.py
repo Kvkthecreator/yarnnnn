@@ -116,6 +116,10 @@ passing the already-extracted text so the blob is not re-parsed:
                 "type": "string",
                 "description": "Original filename, for the projection's human header.",
             },
+            "embed": {
+                "type": "boolean",
+                "description": "Embed the projection inline (default true). The upload path passes false to defer the paid embed off the request; the projection is BM25-searchable regardless.",
+            },
         },
         "required": ["raw_path", "write_to"],
     },
@@ -140,6 +144,12 @@ async def handle_extract_text_from_blob(auth: Any, input: dict) -> dict:
     storage_path = input.get("storage_path")
     file_type = input.get("file_type")
     source_filename = input.get("source_filename") or (raw_path or "").rsplit("/", 1)[-1]
+    # embed (default True): whether to embed the projection INLINE. The upload
+    # path passes False so the paid OpenAI call is DEFERRED off the synchronous
+    # request (scheduled as a background task by the route) — the projection is
+    # already BM25-searchable the instant it's written; the embedding is the
+    # enrichment that catches up (ADR-325: embedding is enrichment, not the floor).
+    embed = input.get("embed", True)
 
     if not raw_path or not write_to:
         return {"success": False, "error": "missing_raw_path_or_write_to"}
@@ -194,17 +204,29 @@ async def handle_extract_text_from_blob(auth: Any, input: dict) -> dict:
 
     # Embed the projection — the text is what fuzzy recall ranks (DP34: the
     # projection is the model-consumable object). Same one embed path (ADR-325).
-    try:
+    # DEFERRABLE: when embed=False the caller (the upload route) schedules the
+    # embed off the synchronous request; we report embed_pending so it can. The
+    # projection is BM25-searchable regardless — the embed is enrichment.
+    embed_pending = False
+    if embed:
+        try:
+            from services.primitives.embed import is_embed_eligible
+            from services.primitives.workspace import _embed_workspace_file
+            rel = write_to.lstrip("/")
+            if rel.startswith("workspace/"):
+                rel = rel[len("workspace/"):]
+            eligible, _reason = is_embed_eligible(rel, text)
+            if eligible:
+                await _embed_workspace_file(db_client, user_id, write_to, text[:2000])
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[EXTRACT] embed failed for %s: %s", write_to, e)
+    else:
+        # Deferred: eligibility decides whether an embed is even owed downstream.
         from services.primitives.embed import is_embed_eligible
-        from services.primitives.workspace import _embed_workspace_file
         rel = write_to.lstrip("/")
         if rel.startswith("workspace/"):
             rel = rel[len("workspace/"):]
-        eligible, _reason = is_embed_eligible(rel, text)
-        if eligible:
-            await _embed_workspace_file(db_client, user_id, write_to, text[:2000])
-    except Exception as e:  # noqa: BLE001
-        logger.warning("[EXTRACT] embed failed for %s: %s", write_to, e)
+        embed_pending, _reason = is_embed_eligible(rel, text)
 
     word_count = len(text.split())
     return {
@@ -212,6 +234,7 @@ async def handle_extract_text_from_blob(auth: Any, input: dict) -> dict:
         "projection_path": write_to,
         "word_count": word_count,
         "strategy": "text",
+        "embed_pending": embed_pending,
     }
 
 

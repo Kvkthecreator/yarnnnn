@@ -16,7 +16,7 @@ Endpoints:
 
 import logging
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from typing import List, Optional
@@ -86,30 +86,63 @@ def _resolve_file_type(content_type: str, filename: str) -> Optional[str]:
     return ext if ext in _ALLOWED_EXTS else None
 
 
+async def _embed_projection_deferred(user_id: str, projection_path: str) -> None:
+    """Embed an upload's text projection OFF the request (ADR-395 / ADR-325).
+
+    Scheduled by the upload route as a FastAPI BackgroundTask so the paid,
+    rate-limitable OpenAI call never blocks (or breaks) the upload response. The
+    projection is already BM25-searchable when the response returns; this is the
+    enrichment that catches up. Reads the projection content fresh from the DB
+    (the row is already written) and runs the same mechanical embed as inline —
+    attributed system:extract, not operator-gated (ADR-325 D6: upload embed is
+    operator-initiated, not Reviewer-gated). Never raises."""
+    try:
+        from services.supabase import get_service_client
+        from services.primitives.embed import is_embed_eligible
+        from services.primitives.workspace import _embed_workspace_file
+
+        service = get_service_client()
+        row = service.table("workspace_files").select("content").eq(
+            "user_id", user_id).eq("path", projection_path).limit(1).execute()
+        if not row.data:
+            logger.warning(f"[DOCUMENTS] deferred embed: projection gone {projection_path}")
+            return
+        content = row.data[0].get("content") or ""
+        rel = projection_path.lstrip("/")
+        if rel.startswith("workspace/"):
+            rel = rel[len("workspace/"):]
+        eligible, reason = is_embed_eligible(rel, content)
+        if not eligible:
+            logger.info(f"[DOCUMENTS] deferred embed skipped ({reason}): {projection_path}")
+            return
+        await _embed_workspace_file(service, user_id, projection_path, content[:2000])
+        logger.info(f"[DOCUMENTS] deferred embed done: {projection_path}")
+    except Exception as e:  # noqa: BLE001 — background, never surfaces to the user
+        logger.warning(f"[DOCUMENTS] deferred embed failed for {projection_path}: {e}")
+
+
 async def _process_single_upload(
     *, content: bytes, content_type: str, filename: str, user_id: str, service,
-) -> UploadResultItem:
+) -> tuple[UploadResultItem, Optional[str]]:
     """The single-file pipeline, callable N times (ADR-331 D5 + ADR-395).
 
     Storage upload → land the RAW blob at inbound/uploads/{principal}/{slug}.{ext}
-    (content_url, immutable) → derive the text projection inline (ADR-395 Piece
-    A+B). Never raises — returns a per-file UploadResultItem so a batch can report
-    partial success. process_document's _unique_raw_path guarantees N files → N
-    distinct rows.
+    (content_url, immutable) → derive the text projection (ADR-395 Piece A+B), with
+    the embed DEFERRED off the request. Never raises — returns a per-file
+    UploadResultItem plus the projection path to embed in the background (or None
+    when nothing is owed). process_document's _unique_raw_path guarantees N files
+    → N distinct rows.
     """
+    def _fail(error: str) -> tuple[UploadResultItem, Optional[str]]:
+        return UploadResultItem(filename=filename, success=False, error=error), None
+
     file_type = _resolve_file_type(content_type, filename)
     if file_type is None:
-        return UploadResultItem(
-            filename=filename, success=False,
-            error=f"Unsupported file type. Allowed: {', '.join(t.upper() for t in _ALLOWED_EXTS)}",
-        )
+        return _fail(f"Unsupported file type. Allowed: {', '.join(t.upper() for t in _ALLOWED_EXTS)}")
     if len(content) > MAX_FILE_SIZE:
-        return UploadResultItem(
-            filename=filename, success=False,
-            error=f"File too large. Max {MAX_FILE_SIZE // (1024*1024)}MB",
-        )
+        return _fail(f"File too large. Max {MAX_FILE_SIZE // (1024*1024)}MB")
     if len(content) < 10:
-        return UploadResultItem(filename=filename, success=False, error="File is empty or too small")
+        return _fail("File is empty or too small")
 
     import uuid
     document_id = str(uuid.uuid4())
@@ -123,10 +156,10 @@ async def _process_single_upload(
             file_options={"content-type": content_type or f"application/{file_type}"},
         )
         if hasattr(storage_result, "error") and storage_result.error:
-            return UploadResultItem(filename=filename, success=False, error=f"Storage error: {storage_result.error}")
+            return _fail(f"Storage error: {storage_result.error}")
     except Exception as e:  # noqa: BLE001 — per-file isolation, batch must not abort
         logger.error(f"[DOCUMENTS] Storage upload error for {filename}: {e}", exc_info=True)
-        return UploadResultItem(filename=filename, success=False, error=f"Failed to upload file: {e}")
+        return _fail(f"Failed to upload file: {e}")
 
     # Retain the raw blob + derive the text projection (ADR-395)
     result = await process_document(
@@ -145,13 +178,16 @@ async def _process_single_upload(
             service.storage.from_("documents").remove([storage_path])
         except Exception:
             pass
-        return UploadResultItem(filename=filename, success=False, error=result.get("error", "Processing failed"))
+        return _fail(result.get("error", "Processing failed"))
 
+    # Deferred embed: hand the projection path up to the route to schedule as a
+    # BackgroundTask (only when an embed is owed — embed_pending).
+    to_embed = result.get("projection_path") if result.get("embed_pending") else None
     return UploadResultItem(
         filename=filename, success=True,
         workspace_path=result["workspace_path"],
         word_count=result.get("word_count", 0),
-    )
+    ), to_embed
 
 
 def _expand_zip(content: bytes) -> List[tuple]:
@@ -195,6 +231,7 @@ def _expand_zip(content: bytes) -> List[tuple]:
 @router.post("/documents/upload", response_model=BatchUploadResponse)
 async def upload_documents(
     auth: UserClient,
+    background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     project_id: Optional[str] = Form(None),  # accepted for compat, ignored
 ):
@@ -232,11 +269,16 @@ async def upload_documents(
 
     results: List[UploadResultItem] = []
     for fname, ctype, content in work:
-        item = await _process_single_upload(
+        item, to_embed = await _process_single_upload(
             content=content, content_type=ctype, filename=fname,
             user_id=auth.user_id, service=service,
         )
         results.append(item)
+        # Defer the paid embed off the response (ADR-395 / ADR-325): the upload
+        # returns as soon as the raw + BM25-searchable projection are written;
+        # the embedding enrichment runs as a BackgroundTask after the response.
+        if to_embed:
+            background_tasks.add_task(_embed_projection_deferred, auth.user_id, to_embed)
 
     succeeded = sum(1 for r in results if r.success)
     return BatchUploadResponse(

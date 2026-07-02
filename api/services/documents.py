@@ -228,18 +228,27 @@ async def process_document(
         auth = AuthenticatedClient(
             client=db_client, user_id=user_id, caller_identity="system:extract",
         )
+        # embed=False: DEFER the paid embed off this synchronous request. The
+        # projection is written + BM25-searchable the instant this returns; the
+        # embedding (enrichment) is scheduled by the route as a background task
+        # (ADR-325: embedding is enrichment; the mechanical floor is the promise).
         derive = await execute_primitive(auth, "ExtractTextFromBlob", {
             "raw_path": raw_path,
             "write_to": projection_path,
             "text": text,          # reuse the fast-fail extraction (no re-parse)
             "source_filename": filename,
             "file_type": file_type,
+            "embed": False,
         })
-        if not (isinstance(derive, dict) and derive.get("success")):
+        if isinstance(derive, dict) and derive.get("success"):
+            embed_pending = bool(derive.get("embed_pending"))
+        else:
             # Non-fatal: the raw is retained; the projection just isn't there
             # yet (retained-but-not-yet-consumable, DP34). Surface in the log.
+            embed_pending = False
             logger.warning(f"[DOCUMENTS] Projection derive failed for {raw_path}: {derive}")
     except Exception as e:
+        embed_pending = False
         logger.warning(f"[DOCUMENTS] Projection derive raised for {raw_path}: {e}")
 
     word_count = len(text.split())
@@ -251,6 +260,8 @@ async def process_document(
         "raw_path": raw_path,
         "projection_path": projection_path,
         "word_count": word_count,
+        # The route reads this to schedule the deferred embed as a background task.
+        "embed_pending": embed_pending,
     }
 
 

@@ -159,8 +159,56 @@ def test_projection_is_embed_eligible_and_recall_reachable():
     eligible, reason = is_embed_eligible(proj_path, store[proj_path]["content"])
     assert eligible, f"projection must be embed-eligible, got: {reason}"
     assert is_searchable_root(proj_path), "projection must be in the QueryKnowledge search surface"
-    # And it was actually embedded (the derive step embeds inline).
-    assert proj_path in embeds, f"projection should have been embedded; embeds={embeds}"
+
+
+def test_upload_defers_the_embed_off_the_request():
+    """The embed is DEFERRED (ADR-395/ADR-325): process_document does NOT embed
+    inline (no paid OpenAI call on the request path), but reports embed_pending so
+    the route schedules it as a BackgroundTask. This is the over-reach correction —
+    the projection is BM25-searchable immediately; the embed enrichment catches up."""
+    store, embeds = {}, []
+    body = "Acme quarterly brief.\n" + ("Revenue grew. " * 40)
+    result = _run_upload(store, embeds, filename="acme-brief.pdf", file_type="pdf", text_body=body)
+
+    # No inline embed happened on the request path (the whole point of deferral).
+    assert embeds == [], f"embed must be deferred, not inline; embeds={embeds}"
+    # But an embed IS owed — the route will schedule it (text projection is eligible).
+    assert result.get("embed_pending") is True, "process_document must flag embed_pending for the route to defer"
+
+
+def test_deferred_embed_helper_embeds_the_projection():
+    """The route's BackgroundTask helper reads the projection back and embeds it —
+    proving the deferred path actually completes the enrichment (just off-request)."""
+    from unittest.mock import patch
+    from routes import documents as route_docs
+
+    proj_path = "/workspace/inbound/uploads/operator/acme-brief.extracted.md"
+    proj_content = "derived_from: /x\n\n# acme\n" + ("Revenue grew. " * 40)
+    embedded = []
+
+    class _Svc:
+        def table(self, _n):
+            self._sel = None
+            return self
+        def select(self, *_a, **_k):
+            return self
+        def eq(self, *_a, **_k):
+            return self
+        def limit(self, _n):
+            return self
+        def execute(self):
+            return type("R", (), {"data": [{"content": proj_content}]})()
+
+    async def _fake_embed(_c, uid, path, _content):
+        embedded.append((uid, path))
+
+    # _embed_projection_deferred imports get_service_client from services.supabase
+    # inside the function body, so patch it at the source module.
+    with patch("services.supabase.get_service_client", lambda: _Svc()), \
+         patch("services.primitives.workspace._embed_workspace_file", _fake_embed):
+        asyncio.run(route_docs._embed_projection_deferred("user-1234", proj_path))
+
+    assert embedded == [("user-1234", proj_path)], f"deferred helper must embed the projection; got {embedded}"
 
 
 def test_second_upload_same_name_does_not_clobber():

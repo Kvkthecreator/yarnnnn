@@ -1291,39 +1291,50 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
     search_method = "none"
 
     if query:
-        # --- Primary: semantic search via vector embedding ---
-        semantic_ok = False
+        # Mechanical-first retrieval (ADR-325 discipline: embedding is ENRICHMENT,
+        # the mechanical floor is load-bearing). BM25 full-text is free + always
+        # available; it answers keyword-overlapping queries without an OpenAI call.
+        # The paid semantic embed is an ESCALATION — invoked only when BM25 comes
+        # up weak/empty (a query whose intent has no lexical overlap with the
+        # substrate, which is exactly what vector similarity rescues). This keeps
+        # the recall hot path off the external rate-limited API for the common
+        # case, and confines the un-metered embedding COGS (the pricing carve's
+        # B′ line) to the genuinely-fuzzy queries that need it.
+        bm25_ok = False
         try:
-            from services.embeddings import get_embedding
-            query_embedding = await get_embedding(query)
-            result = auth.client.rpc("search_workspace_semantic", {
+            result = auth.client.rpc("search_workspace", {
                 "p_user_id": auth.user_id,
-                "p_query_embedding": query_embedding,
+                "p_query": query,
                 "p_path_prefix": prefix,
                 "p_limit": limit,
             }).execute()
-            sem_rows = result.data or []
-            # Only use semantic results if we got meaningful similarity scores
-            if sem_rows and sem_rows[0].get("similarity", 0) > 0.3:
-                rows = sem_rows
-                search_method = "semantic"
-                semantic_ok = True
+            rows = result.data or []
+            if rows:
+                search_method = "bm25"
+                bm25_ok = True
         except Exception as e:
-            logger.warning(f"[QUERY_KNOWLEDGE] Semantic search failed, falling back to BM25: {e}")
+            logger.warning(f"[QUERY_KNOWLEDGE] BM25 search failed, escalating to semantic: {e}")
 
-        # --- Fallback: BM25 full-text search ---
-        if not semantic_ok:
+        # --- Escalation: semantic search via vector embedding (paid) ---
+        # Only when BM25 found nothing — the free path could not answer, so pay
+        # for similarity. Also the resilience path if BM25 itself errored.
+        if not bm25_ok:
             try:
-                result = auth.client.rpc("search_workspace", {
+                from services.embeddings import get_embedding
+                query_embedding = await get_embedding(query)
+                result = auth.client.rpc("search_workspace_semantic", {
                     "p_user_id": auth.user_id,
-                    "p_query": query,
+                    "p_query_embedding": query_embedding,
                     "p_path_prefix": prefix,
                     "p_limit": limit,
                 }).execute()
-                rows = result.data or []
-                search_method = "bm25"
+                sem_rows = result.data or []
+                # Only use semantic results if we got meaningful similarity scores
+                if sem_rows and sem_rows[0].get("similarity", 0) > 0.3:
+                    rows = sem_rows
+                    search_method = "semantic"
             except Exception as e:
-                logger.warning(f"[QUERY_KNOWLEDGE] BM25 fallback also failed: {e}")
+                logger.warning(f"[QUERY_KNOWLEDGE] Semantic escalation failed: {e}")
 
     else:
         # No query — list recent files. Domain-scoped: filter by its prefix.
