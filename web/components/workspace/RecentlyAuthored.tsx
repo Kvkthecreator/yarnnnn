@@ -25,38 +25,20 @@
 import { useEffect, useState, useCallback } from 'react';
 import { History, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
+// Singular Implementation (ADR-388): the authored_by → label/accent taxonomy
+// lives once in lib/workspace/attribution.ts. The old local copy here mapped
+// `freddie:` → "Reviewer" (the pre-ADR-381 label); deleted in favor of the
+// canonical labeler, which now returns "Freddie".
+import {
+  formatAuthorLabelOrSystem,
+  authorAccent,
+} from '@/lib/workspace/attribution';
 
 interface Revision {
   path: string;
   authored_by: string | null;
   message: string | null;
   created_at: string | null;
-}
-
-// Same authored_by taxonomy mapping the Files tree + ContentViewer use
-// (ADR-209). Kept local-and-identical rather than imported to avoid a
-// circular dep with the page; the mapping is small and stable.
-function formatAuthorLabel(authored_by: string | null | undefined): string {
-  if (!authored_by) return 'System';
-  if (authored_by === 'operator') return 'You';
-  if (authored_by.startsWith('yarnnn:')) return 'YARNNN';
-  if (authored_by.startsWith('agent:')) return `Agent (${authored_by.slice('agent:'.length)})`;
-  if (authored_by.startsWith('specialist:')) return 'Specialist';
-  if (authored_by.startsWith('freddie:')) return 'Reviewer';
-  if (authored_by.startsWith('system:')) return 'System';
-  return 'System';
-}
-
-// Author-class accent — a quiet dot, not a loud badge. Keeps the feed
-// glanceable (who, at a glance) without competing with the file name.
-function authorAccent(authored_by: string | null | undefined): string {
-  const label = formatAuthorLabel(authored_by);
-  switch (label) {
-    case 'You': return 'bg-primary';
-    case 'Reviewer': return 'bg-rose-400';
-    case 'YARNNN': return 'bg-sky-400';
-    default: return 'bg-muted-foreground/40';
-  }
 }
 
 function fileName(path: string): string {
@@ -152,7 +134,7 @@ export function RecentlyAuthored({ onSelectPath, selectedPath }: RecentlyAuthore
                   {fileName(rev.path)}
                 </span>
                 <span className="text-[11px] text-muted-foreground shrink-0">
-                  {formatAuthorLabel(rev.authored_by)}
+                  {formatAuthorLabelOrSystem(rev.authored_by)}
                 </span>
                 <span className="text-[11px] text-muted-foreground/70 shrink-0 w-16 text-right">
                   {relativeTime(rev.created_at)}

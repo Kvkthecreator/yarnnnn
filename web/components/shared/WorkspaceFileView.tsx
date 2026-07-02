@@ -24,6 +24,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, type LucideIcon } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
+import { formatAuthorLabel } from '@/lib/workspace/attribution';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
@@ -103,14 +104,11 @@ export function WorkspaceFileView({
         try {
           const revs = await api.workspace.listRevisions({ path }, 1);
           if (!cancelled && revs?.revisions?.[0]?.authored_by) {
-            const raw = revs.revisions[0].authored_by;
-            const label =
-              raw === 'operator' ? 'You' :
-              raw.startsWith('yarnnn:') ? 'YARNNN' :
-              raw.startsWith('agent:') ? `Agent (${raw.slice(6)})` :
-              raw.startsWith('specialist:') ? 'Specialist' :
-              raw.startsWith('freddie:') ? 'Reviewer' :
-              raw.startsWith('system:') ? 'System' : null;
+            // Singular Implementation (ADR-388): route through the canonical
+            // labeler (lib/workspace/attribution.ts) instead of an inline
+            // ternary. It returns "Freddie" for the `freddie:` slug per the
+            // ADR-381/251 relabel; the old ternary said "Reviewer".
+            const label = formatAuthorLabel(revs.revisions[0].authored_by);
             if (!cancelled) setAuthoredBy(label);
           }
         } catch { /* non-fatal */ }

@@ -122,12 +122,15 @@ function capitalize(s: string): string {
   return s.length > 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
+// ADR-381/251 relabel-keep-slug: the occupant slugs (ai:/reviewer-layer:) stay
+// internal; the operator-facing label is "Freddie" (the "AI Reviewer" prefix is
+// redundant now that the seat occupant IS Freddie).
 export function identityLabel(identity: string | null | undefined): string {
-  if (!identity) return 'Reviewer';
+  if (!identity) return 'Freddie';
   if (identity.startsWith('human:')) return 'You';
-  if (identity.startsWith('ai:')) return 'AI Reviewer';
+  if (identity.startsWith('ai:')) return 'Freddie';
   if (identity.startsWith('impersonated:')) return 'Admin (impersonated)';
-  if (identity === 'reviewer-layer:observed') return 'Reviewer (observing)';
+  if (identity === 'reviewer-layer:observed') return 'Freddie (observing)';
   return identity;
 }
 

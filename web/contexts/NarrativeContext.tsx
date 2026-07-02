@@ -14,6 +14,7 @@ import { SetupConfirmData } from '@/components/modals/SetupConfirmModal';
 import { api } from '@/lib/api/client';
 import { postChatWithFallback } from '@/lib/api/chatTransport';
 import { getToolDisplayMessage } from '@/lib/utils';
+import { getFreddiePersonaName } from '@/lib/freddie-persona';
 import { useSessionMessagesRealtime } from '@/lib/realtime/use-session-messages-realtime';
 
 // =============================================================================
@@ -900,7 +901,12 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                   // primitive name, never the mechanism). It is secondary to
                   // the streaming reasoning; it just signals "still working."
                   if (phase === 'tool_start') {
-                    setStatus({ type: 'streaming', content: 'Reviewer is working through it…' });
+                    // Persona-aware: the operator's authored persona name if
+                    // set, else "Freddie" — the same `?? 'Freddie'` resolution
+                    // the bubble + chat header use (ADR-381/251 relabel; the
+                    // internal `reviewer` slug stays, the operator sees Freddie).
+                    const speaker = getFreddiePersonaName() ?? 'Freddie';
+                    setStatus({ type: 'streaming', content: `${speaker} is working through it…` });
                   }
                 }
               } else if (event.reviewer_response) {

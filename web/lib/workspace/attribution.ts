@@ -95,8 +95,13 @@ export function formatAuthorLabel(authored_by: string | null | undefined): strin
       return `${mcpHostName(authored_by.slice('yarnnn:mcp:'.length))} (via MCP)`;
     case 'yarnnn':
       return 'YARNNN';
+    // ADR-381/251 relabel-keep-slug: the `reviewer`/`freddie:` slug is internal;
+    // the operator-facing label is "Freddie". (Persona-aware surfaces — chat
+    // header, bubble, streaming status — resolve the authored persona name via
+    // useFreddiePersona/getFreddiePersonaName; this sync labeler is the generic
+    // fallback for glance contexts (Recents, revision panels, routine rows).)
     case 'reviewer':
-      return 'Reviewer';
+      return 'Freddie';
     case 'agent': {
       const slug = authored_by.startsWith('agent:')
         ? authored_by.slice('agent:'.length)

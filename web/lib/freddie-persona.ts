@@ -112,6 +112,20 @@ async function fetchPersonaOnce(): Promise<string | null> {
 }
 
 /**
+ * Synchronous getter for the resolved persona name — for callers that run
+ * OUTSIDE React render (SSE stream callbacks, event handlers) where the
+ * `useFreddiePersona` hook is illegal. Returns the module-cached value
+ * (`null` until the first fetch resolves). By the time any streamed turn
+ * arrives, the chat header's `useFreddiePersona` has already primed the
+ * cache, so the transient status line resolves the same name the bubble
+ * shows. Callers fall back to 'Freddie' on null — same `?? 'Freddie'`
+ * pattern as the hook consumers.
+ */
+export function getFreddiePersonaName(): string | null {
+  return cachedPersonaName;
+}
+
+/**
  * Hook that resolves the operator-authored Reviewer persona name.
  * Returns null if the persona hasn't been authored yet (skeleton state).
  *
