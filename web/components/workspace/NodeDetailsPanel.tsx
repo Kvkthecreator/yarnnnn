@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * NodeDetailsPanel — the Files "Get Info" / Details panel (ADR-329 D2, amended).
+ * NodeDetailsPanel — the Files "Properties" panel body (ADR-329 D2, amended;
+ * ADR-400 redesign — flat properties block + ownership + revision history).
  *
  * Provenance is a *property of the selected node*, not a standing workspace
  * feed. This is the OS "Get Info" / "Properties" convention: select a node,
@@ -28,7 +29,7 @@
  * is selected).
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2, FileText, Folder } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,7 @@ import {
   formatAuthorLabelOrSystem as formatAuthorLabel,
   authorAccent,
 } from '@/lib/workspace/attribution';
+import { isOperatorOwned } from '@/lib/workspace/ownership';
 import type { WorkspaceTreeNode } from '@/types';
 
 // ADR-388 D3: author label + accent come from the ONE shared attribution
@@ -151,73 +153,106 @@ function FolderDetails({
   );
 }
 
-// ADR-388 follow-up: a compact attribution SYNTHESIS for a file, derived from
-// its revision chain — the interop-wedge story in one line (who started it, who
-// last touched it, how many principals have contributed). Heads the Get-Info
-// modal's file branch, above the full chain.
-function FileAttributionSummary({ path }: { path: string }) {
-  const [summary, setSummary] = useState<{
-    count: number;
-    distinct: number;
-    first: string | null;
-    last: string | null;
-  } | null>(null);
+// A single labeled row of the Properties block (Windows-Explorer Properties
+// idiom): a muted label on the left, the value on the right.
+function PropRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-3 py-1">
+      <span className="w-24 shrink-0 text-[11px] text-muted-foreground">{label}</span>
+      <span className="min-w-0 flex-1 text-[12px] text-foreground">{children}</span>
+    </div>
+  );
+}
+
+// The file's Properties — the flat "what is this" block (ADR-400).
+//
+// Answers the two Properties questions cleanly, without the box-in-box clutter
+// the old three-way attribution stack had: Kind · Location · Ownership · Modified
+// · Contributors. The redundant "Last edited by · N revisions" summary card was
+// DELETED — "last edited by" is already in the modal header + the r1 chain row;
+// its one unique fact (contributor count) folds into the Contributors row here.
+// Ownership is the ADR-400 two-principal story: "Yours" (you may move/rename/
+// trash it) vs "Managed by Freddie" (an agent authored it — edit through chat).
+function FileProperties({ node }: { node: WorkspaceTreeNode }) {
+  const [contributors, setContributors] = useState<string[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     api.workspace
-      .listRevisions({ path }, 50)
+      .listRevisions({ path: node.path }, 50)
       .then((res) => {
         if (cancelled) return;
         const revs = res.revisions || [];
-        if (revs.length === 0) {
-          setSummary(null);
-          return;
+        // Distinct authors, most-recent first, deduped in encounter order.
+        const seen = new Set<string>();
+        const ordered: string[] = [];
+        for (const r of revs) {
+          if (r.authored_by && !seen.has(r.authored_by)) {
+            seen.add(r.authored_by);
+            ordered.push(r.authored_by);
+          }
         }
-        // revisions come newest-first; first authored = the oldest.
-        const authors = revs.map((r) => r.authored_by);
-        const distinct = new Set(authors).size;
-        setSummary({
-          count: revs.length,
-          distinct,
-          last: authors[0] ?? null,
-          first: authors[authors.length - 1] ?? null,
-        });
+        setContributors(ordered);
       })
-      .catch(() => {
-        if (!cancelled) setSummary(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [path]);
+      .catch(() => { if (!cancelled) setContributors([]); });
+    return () => { cancelled = true; };
+  }, [node.path]);
 
-  if (!summary) return null;
+  const owned = isOperatorOwned(node.path);
+  const kind = describeKind(node.path);
+  const location = node.path.replace(/\/[^/]*$/, '') || '/';
 
-  const firstLabel = formatAuthorLabel(summary.first);
-  const lastLabel = formatAuthorLabel(summary.last);
   return (
-    <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground space-y-1">
-      <div className="flex items-center gap-1.5">
-        <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', authorAccent(summary.last))} />
-        <span>
-          Last edited by <span className="font-medium text-foreground/80">{lastLabel}</span>
-        </span>
-      </div>
-      {summary.first !== summary.last && (
-        <div className="flex items-center gap-1.5">
-          <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', authorAccent(summary.first))} />
-          <span>
-            First authored by <span className="font-medium text-foreground/80">{firstLabel}</span>
+    <div className="rounded-md border border-border/60 bg-muted/10 px-3 py-2">
+      <PropRow label="Kind">{kind}</PropRow>
+      <PropRow label="Location">
+        <span className="break-all font-mono text-[11px] text-muted-foreground">{location}</span>
+      </PropRow>
+      <PropRow label="Ownership">
+        {owned ? (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">Yours</span>
+            <span className="text-[11px] text-muted-foreground">you can move, rename, or trash it</span>
           </span>
-        </div>
+        ) : (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="rounded-full border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Managed by Freddie</span>
+            <span className="text-[11px] text-muted-foreground">edit through chat</span>
+          </span>
+        )}
+      </PropRow>
+      {node.updated_at && <PropRow label="Modified">{relativeTime(node.updated_at)}</PropRow>}
+      {contributors && contributors.length > 0 && (
+        <PropRow label="Contributors">
+          <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+            {contributors.map((a, i) => (
+              <span key={`${a}-${i}`} className="inline-flex items-center gap-1">
+                <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', authorAccent(a))} />
+                <span className="text-[11px] text-foreground/80">{formatAuthorLabel(a)}</span>
+                {i < contributors.length - 1 && <span className="text-muted-foreground/40">·</span>}
+              </span>
+            ))}
+          </span>
+        </PropRow>
       )}
-      <div className="text-muted-foreground/70">
-        {summary.count} {summary.count === 1 ? 'revision' : 'revisions'}
-        {summary.distinct > 1 ? ` · ${summary.distinct} contributors` : ''}
-      </div>
     </div>
   );
+}
+
+// Human-readable "Kind" from the filename extension (Properties-dialog style).
+function describeKind(path: string): string {
+  const ext = (path.split('.').pop() || '').toLowerCase();
+  const map: Record<string, string> = {
+    md: 'Markdown document', txt: 'Text document', pdf: 'PDF document',
+    docx: 'Word document', doc: 'Word document',
+    xlsx: 'Spreadsheet', xls: 'Spreadsheet', csv: 'CSV data',
+    pptx: 'Presentation', ppt: 'Presentation',
+    png: 'PNG image', jpg: 'JPEG image', jpeg: 'JPEG image', gif: 'GIF image',
+    webp: 'WebP image', svg: 'SVG image',
+    yaml: 'Config (YAML)', yml: 'Config (YAML)', json: 'Data (JSON)',
+    html: 'HTML document',
+  };
+  return map[ext] || (ext ? `${ext.toUpperCase()} file` : 'File');
 }
 
 interface NodeDetailsPanelProps {
@@ -231,20 +266,11 @@ interface NodeDetailsPanelProps {
 export function NodeDetailsPanel({ node, onSelectPath, onRevert }: NodeDetailsPanelProps) {
   const isFolder = node.type === 'folder';
 
-  // Node summary line — type · child count (folders) · last-touched · author.
-  const summary = useCallback((): string => {
-    const parts: string[] = [isFolder ? 'Folder' : 'File'];
-    if (isFolder && typeof node.children?.length === 'number') {
-      const c = node.children.length;
-      parts.push(`${c} ${c === 1 ? 'item' : 'items'}`);
-    }
-    if (node.updated_at) parts.push(`Updated ${relativeTime(node.updated_at)}`);
-    if (node.authored_by) parts.push(`Last touched by ${formatAuthorLabel(node.authored_by)}`);
-    return parts.join(' · ');
-  }, [isFolder, node.children, node.updated_at, node.authored_by]);
-
   return (
-    <div className="border-b border-border bg-muted/10 px-4 py-3 space-y-3">
+    <div className="space-y-3">
+      {/* Identity line — icon + name + a one-line kind/count summary. The modal
+          header already shows the name, so this is a compact restatement with
+          the type + child-count for folders. */}
       <div className="flex items-center gap-2 min-w-0">
         {isFolder ? (
           <Folder className="w-4 h-4 text-sky-600 shrink-0" />
@@ -253,19 +279,23 @@ export function NodeDetailsPanel({ node, onSelectPath, onRevert }: NodeDetailsPa
         )}
         <div className="min-w-0">
           <p className="text-sm font-medium truncate">{node.name}</p>
-          <p className="text-[11px] text-muted-foreground">{summary()}</p>
+          {isFolder && typeof node.children?.length === 'number' && (
+            <p className="text-[11px] text-muted-foreground">
+              {node.children.length} {node.children.length === 1 ? 'item' : 'items'}
+            </p>
+          )}
         </div>
       </div>
 
       {isFolder ? (
         <FolderDetails node={node} onSelectPath={onSelectPath} />
       ) : (
-        // File Details — the attribution synthesis (who started/last-touched,
-        // how many contributors) heading the full revision chain with
-        // revert/diff (ADR-209). Now the SINGLE home for provenance (the
-        // inline FileView panel was removed — ADR-388 follow-up).
+        // File Properties — the flat "what is this" block (Kind · Location ·
+        // Ownership · Modified · Contributors), then the revision history (the
+        // "how it came to be" — the moat a plain Finder can't show). The panel
+        // renders its own "Revision history" header. ADR-400.
         <div className="space-y-3">
-          <FileAttributionSummary path={node.path} />
+          <FileProperties node={node} />
           <RevisionHistoryPanel path={node.path} onRevert={onRevert} />
         </div>
       )}

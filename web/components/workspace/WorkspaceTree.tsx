@@ -125,7 +125,7 @@ function ContextMenu({
     >
       {onGetInfo && (
         <MenuButton icon={<Info className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onGetInfo)}>
-          Get Info
+          Properties
         </MenuButton>
       )}
       {isFile && (onRename || onMove || onDelete) && <div className="my-1 h-px bg-border/60" />}

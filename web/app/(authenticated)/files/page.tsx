@@ -60,7 +60,7 @@ import { RecentRevisions } from '@/components/workspace/RecentRevisions';
 import { TrashView } from '@/components/workspace/TrashView';
 import { UploadButton } from '@/components/workspace/UploadButton';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
-import { GetInfoModal } from '@/components/workspace/GetInfoModal';
+import { PropertiesModal } from '@/components/workspace/PropertiesModal';
 import { useFilesViewMode } from '@/lib/workspace/useFilesViewMode';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { DeliverableMiddle } from '@/components/work/details/DeliverableMiddle';
@@ -688,15 +688,15 @@ export default function ContextPage() {
                 </button>
               </div>
             )}
-            {/* ADR-388 D5: Get Info → modal (was an inline collapsible panel).
-                Also reachable by right-click on any tree/row node. */}
+            {/* ADR-388 D5 / ADR-400: Properties → modal. Also reachable by
+                right-click on any tree/row node. */}
             <button
               onClick={() => setDetailsOpen(true)}
-              title="Get Info"
+              title="Properties"
               className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
             >
               <Info className="w-3.5 h-3.5" />
-              Get Info
+              Properties
             </button>
           </div>
         }
@@ -764,10 +764,10 @@ export default function ContextPage() {
         </div>
       </SettingsPaneShell>
 
-      {/* ADR-388 D5: Get Info modal — path/type/when + the ADR-209 revision
-          chain (who wrote each version). Opened by the header button or a
-          right-click on any tree/folder-listing node. */}
-      <GetInfoModal
+      {/* ADR-400: Properties modal — the flat Kind/Location/Ownership/Modified/
+          Contributors block + the ADR-209 revision history. Opened by the header
+          button or a right-click on any tree/folder-listing node. */}
+      <PropertiesModal
         node={detailsOpen ? selectedNode : null}
         onClose={() => setDetailsOpen(false)}
         onSelectPath={handleExplorerSelect_byPath}
