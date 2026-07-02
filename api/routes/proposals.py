@@ -81,7 +81,7 @@ async def _current_occupant_for_user(client: Any, user_id: str) -> dict:
     try:
         from services.workspace import UserMemory
         from services.review_rotation import read_current_occupant
-        um = UserMemory(client=client, user_id=user_id)
+        um = UserMemory(db_client=client, user_id=user_id)
         current = await read_current_occupant(um)
     except Exception as exc:  # noqa: BLE001
         logger.warning("[PROPOSALS] current_occupant read failed: %s", exc)

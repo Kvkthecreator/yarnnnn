@@ -1,8 +1,8 @@
 # Memory & Client Lifecycle — Canonical Reference
 
-**Version**: 1.0
-**Created**: 2026-06-05
-**Status**: Canonical — single authoritative reference for Supabase/httpx client lifecycle and process memory discipline on the always-on services.
+**Version**: 1.1
+**Created**: 2026-06-05 · **Updated**: 2026-07-02 (Anthropic client — third occurrence)
+**Status**: Canonical — single authoritative reference for Supabase/httpx **and Anthropic**/httpx client lifecycle and process memory discipline on the always-on services.
 
 ---
 
@@ -15,11 +15,14 @@ memory cap, single uvicorn worker**. It has OOM-restarted at least twice from sl
   (disable gotrue auto-refresh timer + close the postgrest pool in `finally`).
 - **2026-06-04 21:40 UTC** — **recurred.** The partial fix was incomplete and missed the
   largest offender. This doc records the full diagnosis and the complete fix.
+- **2026-07-01** — **recurred a third time, on the un-audited Anthropic client.** Same bug
+  class, different SDK: `AsyncAnthropic()` was constructed per-call in all 7
+  `services/anthropic.py` wrappers and never closed. See "The 2026-07-01 OOM" below.
 
-The class of bug is **per-request Supabase client construction without teardown**. Every
-`create_client()` eagerly builds **two** httpx connection pools (postgrest **and** the gotrue
-auth client). On a 512 MiB box under threaded request churn, abandoning those pools inflates
-the process plateau until it crosses the ceiling.
+The class of bug is **per-call construction of an httpx-pool-owning client without teardown**.
+Every Supabase `create_client()` eagerly builds **two** httpx pools (postgrest + gotrue auth);
+every `AsyncAnthropic()` eagerly builds **one** httpx pool (`max_connections=1000`). On a 512
+MiB box, abandoning those pools inflates the process plateau until it crosses the ceiling.
 
 ---
 
@@ -122,15 +125,77 @@ the cure — Fixes 1 + 2 are the cure.
 
 ---
 
+## The 2026-07-01 OOM — the Anthropic client (third occurrence)
+
+The Supabase fixes above held. The next OOM came from the **Anthropic** client, which nobody had
+audited for the same discipline.
+
+### Receipts
+
+Render `memory_usage` for instance `jf54d`, 2026-07-01 (UTC) — a clean monotonic ramp on
+**flat/declining traffic** (591 → ~190 req/30min) and **trivial CPU** (~0.01–0.02 core):
+
+| Time | RSS | % of 512 MiB |
+|------|-----|--------------|
+| 07:30 | 203 MB | 40% |
+| 09:00 | 369 MB | 69% |
+| 10:30 | 452 MB | 84% |
+| 11:00 | 495 MB | 92% |
+| **11:30** | **537 MB** | **100% → OOM** |
+| 12:00 | 234 MB (restarted) | 44% — with 11× HTTP 502 (the restart window) |
+
+Memory rising while load falls, no CPU correlation — the leak signature. Frequent deploys had
+been *masking* it (each redeploy recycled the process before it reached the cap); a quiet no-deploy
+window let it breach. The kill left no app-log death message (Render OOM-kills at the cgroup level
+with SIGKILL); the 502s are the only externally-visible symptom.
+
+### Root cause
+
+`services/anthropic.py::get_anthropic_client()` returns `AsyncAnthropic(...)`, which **eagerly**
+builds an `httpx.AsyncClient` pool (`DEFAULT_CONNECTION_LIMITS = max_connections=1000`) in
+`__init__`. All **7** wrappers (`chat_completion`, `chat_completion_with_usage`,
+`chat_completion_with_tools`, `chat_completion_with_tools_stream`, `chat_completion_stream`,
+`chat_completion_stream_with_tools`, + the max-rounds summary call) did `client =
+get_anthropic_client()`, used it, and **never closed it**. The SDK's only cleanup is a best-effort
+`__del__` finalizer that schedules `close()` on the running loop and swallows all errors — it does
+**not** release the pool synchronously at drop time.
+
+Amplifier: the Reviewer/Freddie loop calls the tool wrappers **once per tool round** inside a
+`for _round in range(max_rounds)` loop, so a single multi-round wake abandoned **N** pools. And on
+an SSE **client disconnect mid-stream** (the 502s), an orphaned streaming generator would leak the
+full remainder of that wake's per-round clients.
+
+### The fix
+
+Every wrapper now uses `async with get_anthropic_client() as client:` (the SDK's `__aexit__` calls
+async `close()`, releasing the pool). The one long-lived generator
+(`chat_completion_stream_with_tools`) holds the client and releases it in a `try/finally: await
+client.close()` around its body — so the pool is freed on normal return, on exception, **and on
+`GeneratorExit`** (the disconnect case). Note the installed SDK (anthropic 0.86.0) exposes async
+`close()`, **not** `aclose()`.
+
+> The Anthropic client has no reused-singleton path today; per-call-with-teardown is the sanctioned
+> pattern (a process-wide shared client is also valid — the SDK is coroutine-safe — but per-call is
+> the lower-risk change and matches the Supabase discipline).
+
+---
+
 ## Discipline rule (going forward)
 
-**Never construct a Supabase client per-request without teardown.** Two sanctioned patterns:
+**Never construct an httpx-pool-owning client per-call without teardown.** This covers Supabase
+`create_client()` **and** `AsyncAnthropic()` (and any future SDK that builds a pool in `__init__`).
+Sanctioned patterns:
 
-1. **Reused singleton** — `get_service_client()` for service-key reads. Default choice.
+1. **Reused singleton** — `get_service_client()` for service-key reads. Default choice for Supabase.
 2. **Per-request / per-thread, closed in `finally`** — when RLS requires the operator JWT
    (`get_user_client`) or when thread-safety forces a fresh client (`build_working_memory`).
    The teardown is `services.supabase.close_supabase_client(client)`, never a hand-rolled
    `.session.close()`.
+3. **`async with` (or `try/finally: await client.close()`)** — for every `AsyncAnthropic()` in
+   `services/anthropic.py`. For long-lived streaming generators, the `finally` must run on
+   `GeneratorExit` so a client disconnect releases the pool.
 
-A regression test (`api/test_client_lifecycle.py`) asserts `build_working_memory` closes every
-client it opens and that `close_supabase_client` releases both sub-clients.
+A regression test (`api/test_client_lifecycle.py`) asserts: `build_working_memory` closes every
+Supabase client it opens; `close_supabase_client` releases both sub-clients; **and every
+`services/anthropic.py` wrapper closes the Anthropic client it opens, including on mid-stream
+disconnect.**

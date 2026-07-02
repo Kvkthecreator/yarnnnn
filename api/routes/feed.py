@@ -993,10 +993,12 @@ async def chat_attach(
     # PDF / TXT / MD: upload to Anthropic Files API
     try:
         import os
-        client = _anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-        response = client.beta.files.upload(
-            file=(filename, file_bytes, content_type or f"application/{file_type}"),
-        )
+        # Memory discipline: close the httpx pool Anthropic() opens
+        # (see docs/infrastructure/memory-and-client-lifecycle.md).
+        with _anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"]) as client:
+            response = client.beta.files.upload(
+                file=(filename, file_bytes, content_type or f"application/{file_type}"),
+            )
         file_id = response.id
         logger.info(f"[CHAT-ATTACH] Uploaded {filename} → file_id={file_id} for user={auth.user_id}")
     except Exception as e:

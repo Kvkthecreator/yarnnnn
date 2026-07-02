@@ -101,6 +101,21 @@ class _FakeMessages:
 class _FakeClient:
     def __init__(self, messages):
         self.messages = messages
+        self.closed = False
+
+    # get_anthropic_client() is contracted for `async with ... as client:` use
+    # (memory discipline — the client owns an httpx pool that must be released;
+    # see services/anthropic.py::get_anthropic_client). The fake mirrors the
+    # real AsyncAnthropic context-manager protocol so the wrappers close it.
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        await self.close()
+        return False
+
+    async def close(self):
+        self.closed = True
 
 
 @pytest.fixture

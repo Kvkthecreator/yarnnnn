@@ -1,6 +1,6 @@
-"""Regression gate — Supabase/httpx client lifecycle (2026-06-05).
+"""Regression gate — Supabase + Anthropic httpx client lifecycle (2026-06-05, +2026-07-01).
 
-THE BUG (recurring — OOM-killed yarnnn-api 2026-06-01 AND 2026-06-04):
+THE BUG (recurring — OOM-killed yarnnn-api 2026-06-01, 2026-06-04, AND 2026-07-01):
   Every `create_client()` eagerly opens TWO httpx connection pools (postgrest +
   gotrue auth) and exposes NO unified close(). Per-request / per-thread callers
   that abandoned those pools accumulated RSS until the 512 MiB starter-plan cap
@@ -184,6 +184,113 @@ check(
     "yield AuthenticatedClient" in sb_src
     and sb_src.count("client.postgrest.session.close()") == 1,  # only inside the helper now
 )
+
+# ── 4. Anthropic client lifecycle (the THIRD occurrence — OOM 2026-07-01) ────
+# Same bug class as the Supabase pools above, on the un-audited Anthropic path:
+# AsyncAnthropic() eagerly builds an httpx pool (max_connections=1000) and was
+# constructed per-call in all 7 services/anthropic.py wrappers, never closed.
+# The Reviewer/Freddie loop calls the tool wrappers once per tool ROUND, so one
+# multi-round wake abandoned N pools → ~50 MB/hr RSS creep on flat traffic.
+# Fix: every wrapper uses `async with get_anthropic_client()` (or try/finally
+# close() for the long generator), releasing the pool on return / exception /
+# GeneratorExit (client disconnect mid-stream — the runaway amplifier).
+import os as _os
+
+_os.environ.setdefault("ANTHROPIC_API_KEY", "test-key")
+
+_ANTH_OPENED: list[int] = []
+_ANTH_CLOSED: list[int] = []
+
+
+class _FakeAnthMessages:
+    async def create(self, **kw):
+        return types.SimpleNamespace(
+            content=[types.SimpleNamespace(type="text", text="ok")],
+            stop_reason="end_turn",
+            usage=types.SimpleNamespace(
+                input_tokens=1, output_tokens=1,
+                cache_creation_input_tokens=0, cache_read_input_tokens=0,
+            ),
+        )
+
+    def stream(self, **kw):
+        return _FakeAnthStream()
+
+
+class _FakeAnthStream:
+    async def __aenter__(self): return self
+    async def __aexit__(self, *a): return False
+    @property
+    def text_stream(self):
+        async def _g():
+            for t in ("a", "b"):
+                yield t
+        return _g()
+    async def get_final_message(self):
+        return await _FakeAnthMessages().create()
+
+
+class _FakeAnthClient:
+    def __init__(self, **kw):
+        self._id = len(_ANTH_OPENED)
+        _ANTH_OPENED.append(self._id)
+        self.messages = _FakeAnthMessages()
+        self.beta = types.SimpleNamespace(messages=_FakeAnthMessages())
+    async def __aenter__(self): return self
+    async def __aexit__(self, *a):
+        await self.close(); return False
+    async def close(self):
+        _ANTH_CLOSED.append(self._id)
+
+
+with mock.patch("anthropic.AsyncAnthropic", _FakeAnthClient):
+    import importlib
+    import services.anthropic as _A
+    importlib.reload(_A)
+
+    async def _drive_anthropic():
+        await _A.chat_completion([{"role": "user", "content": "hi"}], "sys")
+        await _A.chat_completion_with_usage([{"role": "user", "content": "hi"}], "sys")
+        await _A.chat_completion_with_tools([{"role": "user", "content": "hi"}], "sys", [])
+        await _A.chat_completion_with_tools([{"role": "user", "content": "hi"}], "sys", [], context_management={"edits": []})
+        await _A.chat_completion_with_tools_stream([{"role": "user", "content": "hi"}], "sys", [])
+        async for _ in _A.chat_completion_stream([{"role": "user", "content": "hi"}], "sys"):
+            pass
+        # Disconnect mid-stream (the runaway amplifier — must still close).
+        _gen = _A.chat_completion_stream([{"role": "user", "content": "hi"}], "sys")
+        await _gen.__anext__()
+        await _gen.aclose()
+
+        async def _noop(n, i): return {"success": True}
+        async for _ in _A.chat_completion_stream_with_tools([{"role": "user", "content": "hi"}], "sys", [], _noop):
+            pass
+        _gen2 = _A.chat_completion_stream_with_tools([{"role": "user", "content": "hi"}], "sys", [], _noop)
+        await _gen2.__anext__()
+        await _gen2.aclose()
+
+    asyncio.run(_drive_anthropic())
+    # Reload with the real SDK restored so later imports are unaffected.
+    importlib.reload(_A)
+
+_anth_leaked = set(_ANTH_OPENED) - set(_ANTH_CLOSED)
+check(
+    "anthropic: every wrapper opens a client (7 wrappers + 2 disconnect drives)",
+    len(_ANTH_OPENED) >= 7,
+)
+check(
+    f"anthropic: closes EVERY client it opens ({len(_ANTH_CLOSED)}/{len(_ANTH_OPENED)}) incl. mid-stream disconnect",
+    len(_ANTH_OPENED) > 0 and not _anth_leaked,
+)
+
+anth_src = (Path(__file__).resolve().parent / "services" / "anthropic.py").read_text()
+check(
+    "anthropic: no bare `client = get_anthropic_client()` without a guarding context/finally",
+    # the only remaining bare assignment is the long-generator, immediately
+    # followed by try: ... finally: await client.close()
+    anth_src.count("client = get_anthropic_client()") == 1
+    and "await client.close()" in anth_src,
+)
+
 
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

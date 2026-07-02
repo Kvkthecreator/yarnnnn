@@ -197,15 +197,17 @@ CONVERSATION:
 """
 
         try:
-            client = anthropic.Anthropic()
-            response = client.messages.create(
-                model=EXTRACTION_MODEL,
-                max_tokens=1024,
-                extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
-                messages=[
-                    {"role": "user", "content": prompt + conversation_text}
-                ],
-            )
+            # Memory discipline: close the httpx pool Anthropic() opens
+            # (see docs/infrastructure/memory-and-client-lifecycle.md).
+            with anthropic.Anthropic() as client:
+                response = client.messages.create(
+                    model=EXTRACTION_MODEL,
+                    max_tokens=1024,
+                    extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+                    messages=[
+                        {"role": "user", "content": prompt + conversation_text}
+                    ],
+                )
 
             text = response.content[0].text
             import json

@@ -124,15 +124,17 @@ CONVERSATION:
 """
 
     try:
-        client = anthropic.Anthropic()
-        response = client.messages.create(
-            model=SUMMARY_MODEL,
-            max_tokens=256,
-            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
-            messages=[
-                {"role": "user", "content": prompt + conversation_text}
-            ],
-        )
+        # Memory discipline: Anthropic() eagerly builds an httpx pool; close it
+        # (see docs/infrastructure/memory-and-client-lifecycle.md).
+        with anthropic.Anthropic() as client:
+            response = client.messages.create(
+                model=SUMMARY_MODEL,
+                max_tokens=256,
+                extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+                messages=[
+                    {"role": "user", "content": prompt + conversation_text}
+                ],
+            )
         summary_text = response.content[0].text.strip()
         if not summary_text:
             return None
@@ -216,15 +218,17 @@ CONVERSATION:
 """
 
     try:
-        client = anthropic.Anthropic()
-        response = client.messages.create(
-            model=SUMMARY_MODEL,
-            max_tokens=256,
-            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
-            messages=[
-                {"role": "user", "content": prompt + conversation_text}
-            ],
-        )
+        # Memory discipline: close the httpx pool Anthropic() opens
+        # (see docs/infrastructure/memory-and-client-lifecycle.md).
+        with anthropic.Anthropic() as client:
+            response = client.messages.create(
+                model=SUMMARY_MODEL,
+                max_tokens=256,
+                extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+                messages=[
+                    {"role": "user", "content": prompt + conversation_text}
+                ],
+            )
         summary_text = response.content[0].text.strip()
         if not summary_text:
             return None

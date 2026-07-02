@@ -36,7 +36,25 @@ class ChatResponse:
 
 
 def get_anthropic_client() -> AsyncAnthropic:
-    """Get Anthropic client with API key from environment."""
+    """Get Anthropic client with API key from environment.
+
+    Memory discipline (see ``docs/infrastructure/memory-and-client-lifecycle.md``):
+    ``AsyncAnthropic()`` EAGERLY builds an ``httpx.AsyncClient`` connection pool
+    (``max_connections=1000``) in ``__init__`` and exposes NO synchronous cleanup —
+    only a best-effort ``__del__`` finalizer that schedules ``aclose()`` on the
+    running loop and swallows all errors. Constructed-per-call and abandoned, the
+    pools (TLS connections + buffers + HTTP/2 hpack state) accumulate over the
+    process lifetime — the same RSS creep that OOM-killed yarnnn-api on 2026-06-01
+    and 2026-06-04 (then via Supabase clients; the Anthropic path was the
+    un-audited third occurrence, 2026-07-01). The Reviewer/Freddie loop calls the
+    tool wrappers ONCE PER TOOL ROUND, so a single multi-round wake abandoned N
+    pools.
+
+    Callers MUST use this via ``async with get_anthropic_client() as client:`` so
+    ``client.__aexit__`` -> ``aclose()`` releases the pool synchronously when the
+    call (or streaming generator) finishes — including on ``GeneratorExit`` from a
+    client disconnect. Every call site in this module does exactly that.
+    """
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise ValueError("ANTHROPIC_API_KEY must be set")
@@ -195,15 +213,14 @@ async def chat_completion(
     Returns:
         Assistant response text
     """
-    client = get_anthropic_client()
-
-    response = await client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        system=_prepare_system(system),
-        messages=messages,
-        extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
-    )
+    async with get_anthropic_client() as client:
+        response = await client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=_prepare_system(system),
+            messages=messages,
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+        )
 
     return response.content[0].text
 
@@ -221,15 +238,14 @@ async def chat_completion_with_usage(
     input_tokens + output_tokens (+ cache_read_input_tokens, cache_creation_input_tokens
     when applicable).
     """
-    client = get_anthropic_client()
-
-    response = await client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        system=_prepare_system(system),
-        messages=messages,
-        extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
-    )
+    async with get_anthropic_client() as client:
+        response = await client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=_prepare_system(system),
+            messages=messages,
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+        )
 
     usage = {}
     if response.usage:
@@ -284,8 +300,6 @@ async def chat_completion_with_tools(
     Returns:
         ChatResponse with text, stop_reason, and tool_uses
     """
-    client = get_anthropic_client()
-
     kwargs: dict[str, Any] = {
         "model": model,
         "max_tokens": max_tokens,
@@ -298,13 +312,14 @@ async def chat_completion_with_tools(
     if tool_choice:
         kwargs["tool_choice"] = tool_choice
 
-    if context_management:
-        # context_management is a beta-only request param — route through
-        # client.beta.messages so the SDK accepts it.
-        kwargs["context_management"] = context_management
-        response = await client.beta.messages.create(**kwargs)
-    else:
-        response = await client.messages.create(**kwargs)
+    async with get_anthropic_client() as client:
+        if context_management:
+            # context_management is a beta-only request param — route through
+            # client.beta.messages so the SDK accepts it.
+            kwargs["context_management"] = context_management
+            response = await client.beta.messages.create(**kwargs)
+        else:
+            response = await client.messages.create(**kwargs)
     return _parse_response(response)
 
 
@@ -350,8 +365,6 @@ async def chat_completion_with_tools_stream(
     Returns:
         ChatResponse identical in shape to chat_completion_with_tools().
     """
-    client = get_anthropic_client()
-
     kwargs: dict[str, Any] = {
         "model": model,
         "max_tokens": max_tokens,
@@ -363,28 +376,29 @@ async def chat_completion_with_tools_stream(
     if tool_choice:
         kwargs["tool_choice"] = tool_choice
 
-    # ADR-363 D3: context-editing routes the stream through the beta namespace.
-    if context_management:
-        kwargs["context_management"] = context_management
-        stream_cm = client.beta.messages.stream(**kwargs)
-    else:
-        stream_cm = client.messages.stream(**kwargs)
-
-    async with stream_cm as stream:
-        if on_text_delta is not None:
-            async for text in stream.text_stream:
-                try:
-                    await on_text_delta(text)
-                except Exception as cb_exc:  # noqa: BLE001 — relay must never break the cycle
-                    logger.debug("[STREAM] on_text_delta raised: %s", cb_exc)
+    async with get_anthropic_client() as client:
+        # ADR-363 D3: context-editing routes the stream through the beta namespace.
+        if context_management:
+            kwargs["context_management"] = context_management
+            stream_cm = client.beta.messages.stream(**kwargs)
         else:
-            # No relay subscriber — still must drain the stream so the
-            # final message assembles. Iterating text_stream is the SDK's
-            # supported drain path.
-            async for _ in stream.text_stream:
-                pass
+            stream_cm = client.messages.stream(**kwargs)
 
-        final = await stream.get_final_message()
+        async with stream_cm as stream:
+            if on_text_delta is not None:
+                async for text in stream.text_stream:
+                    try:
+                        await on_text_delta(text)
+                    except Exception as cb_exc:  # noqa: BLE001 — relay must never break the cycle
+                        logger.debug("[STREAM] on_text_delta raised: %s", cb_exc)
+            else:
+                # No relay subscriber — still must drain the stream so the
+                # final message assembles. Iterating text_stream is the SDK's
+                # supported drain path.
+                async for _ in stream.text_stream:
+                    pass
+
+            final = await stream.get_final_message()
 
     # get_final_message() returns the same Message shape messages.create()
     # returns — content blocks (text + tool_use, with partial-JSON salvage
@@ -412,17 +426,16 @@ async def chat_completion_stream(
     Yields:
         Text chunks as they arrive
     """
-    client = get_anthropic_client()
-
-    async with client.messages.stream(
-        model=model,
-        max_tokens=max_tokens,
-        system=_prepare_system(system),
-        messages=messages,
-        extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
-    ) as stream:
-        async for text in stream.text_stream:
-            yield text
+    async with get_anthropic_client() as client:
+        async with client.messages.stream(
+            model=model,
+            max_tokens=max_tokens,
+            system=_prepare_system(system),
+            messages=messages,
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+        ) as stream:
+            async for text in stream.text_stream:
+                yield text
 
 
 _PRUNED_STUB = (
@@ -500,7 +513,42 @@ async def chat_completion_stream_with_tools(
     Yields:
         StreamEvent objects
     """
+    # This is a long-lived generator (one client across every tool round + the
+    # final summary call). Rather than re-indent the whole body, hold the client
+    # and release its httpx pool in a finally that runs on normal return, on
+    # exception, AND on GeneratorExit (client disconnect mid-stream). See
+    # get_anthropic_client() for why this teardown is load-bearing.
     client = get_anthropic_client()
+    try:
+        async for event in _stream_with_tools_body(
+            client, messages, system, tools, tool_executor,
+            model, max_tokens, max_tool_rounds, tool_choice,
+        ):
+            yield event
+    finally:
+        # AsyncAnthropic exposes async close() (what __aexit__ calls); there is
+        # no aclose() alias in the installed SDK. Best-effort — teardown must
+        # never mask a response or the GeneratorExit unwind.
+        try:
+            await client.close()
+        except Exception:  # pragma: no cover - teardown best-effort
+            pass
+
+
+async def _stream_with_tools_body(
+    client: AsyncAnthropic,
+    messages: list[dict],
+    system: str | list[dict],
+    tools: list[dict],
+    tool_executor: Any,
+    model: str,
+    max_tokens: int,
+    max_tool_rounds: int,
+    tool_choice: Optional[dict],
+) -> AsyncGenerator[StreamEvent, None]:
+    """Body of chat_completion_stream_with_tools, split out so the caller can
+    guarantee client teardown in a finally without re-indenting the whole loop.
+    The caller owns the client lifecycle; this body never closes it."""
     working_messages = list(messages)
 
     # Track cumulative token usage across all rounds
