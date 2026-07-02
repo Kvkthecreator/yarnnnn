@@ -967,6 +967,15 @@ external action; that limb belongs to a program's persona agent (ADR-382).
 - **Verdict on fail**: surface the broken connection to the operator; repair
   where the steward has the authority, surface where it does not.
 
+## test-exercises-stay-disposable
+
+- **Substrate**: an ask that presents itself as a test, probe, or exercise —
+  the principal says so, or the content is plainly synthetic.
+- **Pass**: the exercise is served with disposable artifacts only — no standing
+  cadence, recurrence, or hook is created from a test ask.
+- **Verdict on fail**: don't create it. Standing cadence encodes real operator
+  intent; a test ask carries none. Serve the exercise, leave nothing standing.
+
 ## the stewardship standing-obligation
 
 - **Substrate**: the steward-mandate (your `MANDATE.md`) × what the substrate
