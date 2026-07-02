@@ -1319,7 +1319,6 @@ async def stream_addressed_wake(
     invocation_id: str,
     user_message: str,
     conversation_window: str,
-    workspace_state_text: str,
     operator_locator: str = "",
 ) -> AsyncGenerator[dict, None]:
     """Addressed wake source — SSE-streaming entry point.
@@ -1453,7 +1452,6 @@ async def stream_addressed_wake(
             **governance_envelope,  # ADR-276 + ADR-301 — full envelope incl. operating_context_block
             "user_message": user_message,
             "conversation_window": conversation_window,
-            "workspace_state": workspace_state_text or "",
             # ADR-398 D2: the operator locator — one situational line in the
             # ask block ("The operator is writing from: ..."). Shell-composed,
             # backend-opaque.

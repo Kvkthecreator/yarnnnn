@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.02.5] - ADR-400: the envelope collapse lands — one thin shape, legacy deleted
+
+**The Rung-3-measured thin CC-shape becomes THE envelope for every trigger. Singular implementation: the fat partitioned envelope, the Arm A/B toggle, and the per-trigger framing are DELETED.**
+
+- `agents/freddie_agent.py`: `_governance_prefix` (cache-marked block — IDENTITY/principles/PRECEDENT/MANDATE/AUTONOMY/contract files/OCCUPANT/domain constants) + `_volatile_suffix` (clock + wake-context + standing-intent + substrate snapshot + kernel perception facts [ADR-390 commons, verbatim leads; ADR-364 reflection gap; specs inventory — all empty-graceful] + program-DECLARED envelope keys rendered generically [ADR-281 D2/ADR-336 bundle ABI] + THE ASK). DELETED: `_TRIGGER_FRAMING`, `_partition_envelope`, `_build_user_message_stripped`, the `YARNNN_ENVELOPE_ARM` toggle.
+- `_ask_for_trigger`: proposal asks carry the verdict-early round-budget rule; recurrence asks carry the one-WriteFile long-document rule (interface constraints, not coaching).
+- `services/substrate_snapshot.py`: NEW pending-proposals section — decided-and-queued work is named so the agent does not re-derive it (the rung-2 residual).
+- DELETED end-to-end: the `workspace_state` compact-index injection (wake.py bag + addressed stream param + the feed route's `build_working_memory` call — one query per turn saved; the snapshot is the scoping organ).
+- Expected behavior: every wake pays the governance prefix at ~10% cached rate + a short volatile suffix; behavior parity proven on Haiku (6/6 addressed, reactive success — `docs/evaluations/2026-07-02-freddie-envelope-rung3-armB-v2/`). Watch item: first live alpha-trader proposal wake post-deploy (dogfood lane, off-critical-path per ADR-380).
+- Gates re-anchored: `test_adr383_*` (rewritten for the no-framing world: program-noun ban + frame/ask ratchets + interface-contract placement), `test_adr323` (close contract in frame), `test_adr284` (3 stale-since-ADR-390/397 anchors corrected + persona/ header). Pre-existing failures NOT mine, left alone: `test_attribution_fact::test_dedupes_to_current_head_per_path`, `test_adr336::test_alpha_author_bundle_declares_the_watch`.
+
 ## [2026.07.02.4] - Rung 3: the ReturnVerdict close contract moves to the minimal frame (DP22)
 
 **The Arm-B lazy-envelope probe (Rung 3) found 2/6 addressed turns doing their work then silently exiting — because post-ADR-397 the close instruction lived ONLY in `_TRIGGER_FRAMING`, which Arm B strips. The close CONTRACT is agent↔runtime interface material (DP22), not per-trigger coaching.**

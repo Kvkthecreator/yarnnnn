@@ -114,11 +114,16 @@ def test_envelope_universal_decls_count() -> None:
     """
     from services.freddie_envelope import _UNIVERSAL_ENVELOPE_DECLS
 
-    assert len(_UNIVERSAL_ENVELOPE_DECLS) == 12, (
-        f"Expected 12 kernel-universal envelope entries "
-        f"(6 pre-284 + ADR-284 occupant/standing_intent + ADR-327 budget "
-        f"(was ADR-298 pace) + ADR-301 schedule_index/recent_execution + "
-        f"ADR-327 D6 calibration), found {len(_UNIVERSAL_ENVELOPE_DECLS)}"
+    # ADR-390 removal pass (re-anchored 2026-07-02 during ADR-400): the
+    # pulse/calibration entries (schedule_index_md, recent_execution_md,
+    # calibration_md) moved OUT of universal to the program_active-gated
+    # block — operation machinery a bare steward doesn't run. 12 → 9.
+    # (This gate had been stale since ADR-390; caught in the ADR-400 sweep.)
+    assert len(_UNIVERSAL_ENVELOPE_DECLS) == 9, (
+        f"Expected 9 kernel-universal envelope entries "
+        f"(6 pre-284 + ADR-284 occupant/standing_intent + ADR-327 budget; "
+        f"pulse/calibration are program-gated per ADR-390), "
+        f"found {len(_UNIVERSAL_ENVELOPE_DECLS)}"
     )
     keys = {entry[0] for entry in _UNIVERSAL_ENVELOPE_DECLS}
     expected = {
@@ -126,8 +131,6 @@ def test_envelope_universal_decls_count() -> None:
         "mandate_md", "autonomy_md", "preferences_yaml",
         "occupant_md", "standing_intent_md",  # ADR-284
         "budget_yaml",                         # ADR-327 (was pace_yaml, ADR-298 D11)
-        "schedule_index_md", "recent_execution_md",  # ADR-301 pulse
-        "calibration_md",                      # ADR-327 D6 self-improving loop
     }
     assert keys == expected, (
         f"Envelope keys mismatch. Expected {expected}, got {keys}"
@@ -158,14 +161,14 @@ def test_persona_frame_includes_standing_intent_section() -> None:
     ADR-284 D5 ("standing intent has a substrate home") is preserved and
     sharpened: the home is the file + the guide teaches its purpose.
     """
-    # Frame still names the file (action-grammar close-cycle channel) + cites ADR-284.
+    # Re-anchored (ADR-400, 2026-07-02): the envelope renders the file every
+    # wake (the volatile suffix's standing-intent section) + cites ADR-284.
     src = _read_api("agents/freddie_agent.py")
     assert "standing_intent.md" in src, (
-        "Minimal frame must still name standing_intent.md as the close-cycle "
-        "channel (action-grammar residue per ADR-306 D2)"
+        "The envelope must render standing_intent.md (ADR-284 substrate home)"
     )
     assert "ADR-284" in src, (
-        "Minimal frame must still cite ADR-284 (standing_intent substrate home)"
+        "freddie_agent.py must cite ADR-284 (standing_intent substrate home)"
     )
     # The substrate-home pedagogy lives in the workspace guides (both bundles).
     for bundle in ("alpha-trader", "alpha-author"):
@@ -187,11 +190,13 @@ def test_persona_frame_enforces_every_cycle_write_contract() -> None:
     to `_workspace_guide.md` (substrate pedagogy). The frame keeps only the
     compressed action-grammar line. Single-instance preserved.
     """
-    # Frame keeps the compressed action-grammar close-cycle line.
+    # Re-anchored (ADR-397 → ADR-400, 2026-07-02): the close contract is the
+    # frame's ReturnVerdict paragraph (DP22 interface — the Rung-3 Arm-B
+    # silent-exit finding); the standing-intent WRITE habit is principles.md
+    # content per agent-composition.md §3.2.1, no longer kernel prompt text.
     src = _read_api("agents/freddie_agent.py")
-    assert "Close every cycle with a verdict or a standing_intent write" in src, (
-        "Minimal frame must retain the compressed close-cycle action-grammar "
-        "line (ADR-306 D2)"
+    assert "Close the turn by calling ReturnVerdict" in src, (
+        "Minimal frame must carry the ReturnVerdict close contract (ADR-400)"
     )
     # The verbose every-cycle commitment lives in the workspace guides.
     for bundle in ("alpha-trader", "alpha-author"):
@@ -221,7 +226,7 @@ def test_build_user_message_renders_standing_intent_with_empty_hint() -> None:
     assert 'ctx.get("standing_intent_md")' in src, (
         "_build_user_message must read standing_intent_md from context"
     )
-    assert "## standing_intent.md — What you were watching for last cycle" in src, (
+    assert "## persona/standing_intent.md — What you were watching for last cycle" in src, (
         "_build_user_message must render standing_intent.md with section heading"
     )
     # Empty-state hint when no prior cycle has written

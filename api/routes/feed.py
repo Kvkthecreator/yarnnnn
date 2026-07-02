@@ -1017,14 +1017,6 @@ async def global_chat(
             if msg_content and isinstance(msg_content, str):
                 conv_lines.append(f"{role_label}: {msg_content[:300]}")
 
-        workspace_state_text: str | None = None
-        try:
-            from services.working_memory import build_working_memory, format_compact_index
-            wm = await build_working_memory(auth.user_id, auth.client)
-            workspace_state_text = format_compact_index(wm)
-        except Exception:
-            pass
-
         # Consume the wake-source's typed event stream + map to SSE frames.
         # System Agent narration writes happen here (route owns the
         # session_id + append_message); the wake source produces the
@@ -1050,7 +1042,6 @@ async def global_chat(
                 invocation_id=invocation_id,
                 user_message=request.content,
                 conversation_window="\n".join(conv_lines) if conv_lines else "",
-                workspace_state_text=workspace_state_text or "",
                 operator_locator=(request.locator or "").strip()[:200],
             ):
                 etype = event.get("type")

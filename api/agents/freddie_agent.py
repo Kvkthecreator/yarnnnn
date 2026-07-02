@@ -437,78 +437,10 @@ _PERSONA_FRAME_SECTIONS: list[PersonaFrameSection] = [
 ]
 
 
-_TRIGGER_FRAMING = {
-    # ADR-260 D2 amended by ADR-263: two triggers — addressed | reactive.
-    # `reactive` covers both proposal arrival and recurrence fires (a
-    # recurrence is always a judgment prompt per ADR-393; the mechanical
-    # mode moved to the capture lane); `_build_user_message` differentiates
-    # by context-bag inspection.
-    #
-    # Rung-1 re-carve (2026-07-02, ADR-383's named downstream work): both
-    # blocks are STEWARD-FIRST and PROGRAM-NEUTRAL. Rules of judgment —
-    # what to propose, when to stand down, what to widen or hold — are
-    # principles.md content per agent-composition.md §3.2.1; the kernel
-    # names the interface, never an operation's decision tree. Gate:
-    # test_adr383_trigger_framing_recarved.py (program-noun ban + size
-    # ratchet). Baseline evidence: docs/evaluations/
-    # 2026-07-02-freddie-envelope-baseline/.
-    #
-    # Rung-2 (ADR-397): the wake LITURGY (situation-not-task forward
-    # reasoning, standing_intent carry-forward, reflection write, verdict
-    # taxonomy) lives HERE, on the unattended trigger — not in the cached
-    # frame where every addressed chat turn inherits it. Addressed keeps a
-    # one-line ReturnVerdict close (D1: uniform close contract, ADR-360).
-    "reactive": (
-        "## This invocation\n\n"
-        "Something requires your judgment.\n\n"
-        "If a Recurrence prompt is shown above, that prompt is the "
-        "operator's instruction: read it, read the substrate it cites, "
-        "apply your principles.md, take the action it directs.\n\n"
-        "If a Proposed action is shown above, call ReturnVerdict with "
-        "approve | reject | defer + reasoning EARLY in the loop, before "
-        "any substrate writes — the round budget on proposal wakes is "
-        "short. Your governing substrate is already pre-loaded above; use "
-        "ReadFile only for files not shown.\n\n"
-        "A wake is a situation, not a task — you are a standing agent "
-        "woken for a reason, with no operator present. Serve the named "
-        "ask fully, then reason forward from what the substrate shows: "
-        "state that needs tending, a future wake to author (Schedule), a "
-        "placement or attribution to fix. Your principles.md declares "
-        "what you owe and how to read a shortfall — apply it; this is "
-        "judgment, not a checklist.\n\n"
-        "When a prompt directs a long structured document (an audit, a "
-        "report): compose the WHOLE document first, write it with ONE "
-        "WriteFile (always include `content`), then close with ONE "
-        "ReturnVerdict carrying a one-sentence headline — never the full "
-        "document.\n\n"
-        "Close every cycle with ReturnVerdict — a cycle that decides "
-        "nothing material still closes with `stand_down` + reasoning "
-        "naming what you looked at and why. Optionally carry forward "
-        "what you're watching in persona/standing_intent.md, and when "
-        "the reflection gap-fact in your envelope teaches something, "
-        "write what you learned to persona/reflection.md. Exiting "
-        "without ReturnVerdict records the ask as unanswered — a fault, "
-        "not a stand-down."
-    ),
-    "addressed": (
-        "## This invocation\n\n"
-        "The operator checked in. They delegated the work to you — they "
-        "are not asking what to do; they want to see it handled. Act, then "
-        "tell them what you did and why.\n\n"
-        "Your governing substrate (IDENTITY, principles, MANDATE, "
-        "governance, workspace state) is ALREADY PRE-LOADED in the message "
-        "above — read it there; do NOT ReadFile what is already shown. Use "
-        "ReadFile only for files not in the envelope.\n\n"
-        "The default is action: decide what your principles.md and MANDATE "
-        "call for in this situation and do it — a write, a placement, a "
-        "Schedule, a proposal, or a direct answer when the ask is a "
-        "question. Pick one course and execute it; the operator overrides "
-        "next turn if they disagree. Enumerating options back at the "
-        "operator is deferral — under `autonomous` the runtime denies it "
-        "(ADR-352); the one permitted ask is a structural gap only the "
-        "operator can close (Clarify with structural_gap=true)."
-    ),
-}
+# _TRIGGER_FRAMING DELETED (ADR-400): per-trigger coaching retired. The
+# close CONTRACT lives in the minimal frame (DP22, Rung-3 finding); the
+# per-trigger INTERFACE rules (verdict-early on proposals, one-WriteFile
+# for long documents) live in the ask branches of _ask_for_trigger.
 
 
 # Composed once at module import; refreshes on deploy when canonical sources change.
@@ -586,6 +518,14 @@ def _ask_for_trigger(trigger: str, ctx: FreddieContext) -> str:
                     f"_Required specialist capabilities if you dispatch: "
                     f"`{', '.join(rrc)}`._", "",
                 ]
+            # ADR-400: round-budget interface rule for document-producing
+            # recurrences (audits, reports).
+            parts += [
+                "_If this prompt directs a long structured document: compose "
+                "it whole, write it with ONE WriteFile (always include "
+                "`content`), then close with ONE ReturnVerdict carrying a "
+                "one-line headline — never the full document._", "",
+            ]
         else:
             row = ctx.get("proposal_row") or {}
             if row:
@@ -603,6 +543,11 @@ def _ask_for_trigger(trigger: str, ctx: FreddieContext) -> str:
                 parts += [
                     "**inputs:**", "```json",
                     _json.dumps(inputs, indent=2, default=str), "```", "",
+                    # ADR-400: round-budget interface rule (proposal wakes run
+                    # a short budget — the ADR-294 mid-write truncation class).
+                    "_Call ReturnVerdict with approve | reject | defer + "
+                    "reasoning EARLY — before any substrate writes; the round "
+                    "budget on proposal wakes is short._", "",
                 ]
     elif trigger == "addressed":
         if ctx.get("conversation_window"):
@@ -617,39 +562,14 @@ def _ask_for_trigger(trigger: str, ctx: FreddieContext) -> str:
     return "\n".join(parts)
 
 
-def _build_user_message_stripped(trigger: str, ctx: FreddieContext) -> str:
-    """Arm B — the full CC-shape envelope (the-envelope-collapse-2026-06-24.md).
+def _governance_prefix(ctx: FreddieContext) -> str:
+    """The cacheable governance block — the CLAUDE.md-analogue (ADR-400).
 
-    governance-block (CLAUDE.md-analogue) + substrate-snapshot (gitStatus-
-    analogue) + operating-context (clock) + THE ASK — everything else read on
-    demand from authored substrate. NO _TRIGGER_FRAMING coaching; NO per-wake
-    mirror dumps (their HEADS fold into the snapshot; the agent ReadFiles the
-    bodies when judgment needs them).
-
-    This is the probe arm. It shares ctx with Arm A so A/B differs by exactly
-    the strip. Removed once the collapse lands (singular implementation).
+    The authored governing files, verbatim under labeled headers. Stable
+    across wakes; its bytes change only when a governing file is revised,
+    which is exactly what lets the prompt cache key on it.
     """
-    from services.substrate_snapshot import build_substrate_snapshot
-
-    parts: list[str] = []
-
-    # --- operating-context (the clock-analogue — currentDate + market) ---
-    op_ctx = ctx.get("operating_context_block")
-    if op_ctx:
-        parts += [op_ctx, ""]
-
-    # --- wake-context (part of the ask: WHY you were woken) ---
-    wake_source = ctx.get("wake_source")
-    if wake_source:
-        wl = ["## Wake context", "", f"- wake_source: {wake_source}"]
-        if ctx.get("triggering_path"):
-            wl.append(f"- triggering_path: {ctx['triggering_path']}")
-        if ctx.get("triggering_revision_id"):
-            wl.append(f"- triggering_revision_id: {ctx['triggering_revision_id']}")
-        parts += wl + [""]
-
-    # --- governance-block (the CLAUDE.md-analogue — authored governing files) ---
-    parts += [
+    parts: list[str] = [
         "## IDENTITY.md — Your persona", "",
         ctx.get("identity_md") or "_(empty — reason as a neutral skeptical judgment seat)_", "",
         "## principles.md — Your framework (your rulebook; apply every rule)", "",
@@ -674,15 +594,36 @@ def _build_user_message_stripped(trigger: str, ctx: FreddieContext) -> str:
         parts += ["## _operator_profile.md — Declared strategy", "", ctx["operator_profile_md"], ""]
     if ctx.get("risk_md"):
         parts += ["## _risk.md — Hard floors", "", ctx["risk_md"], ""]
+    return "\n".join(parts)
 
-    # --- standing intent (your own forward working state) ---
+
+def _volatile_suffix(trigger: str, ctx: FreddieContext) -> str:
+    """The per-wake suffix (ADR-400): operating-context (clock) + wake-context
+    + standing-intent + substrate snapshot (heads, never bodies) + THE ASK.
+    Changes every wake — sits AFTER the governance cache breakpoint by
+    construction. Everything else is read on demand from authored substrate.
+    """
+    from services.substrate_snapshot import build_substrate_snapshot
+
+    parts: list[str] = []
+    op_ctx = ctx.get("operating_context_block")
+    if op_ctx:
+        parts += [op_ctx, ""]
+    wake_source = ctx.get("wake_source")
+    if wake_source:
+        wl = ["## Wake context", "", f"- wake_source: {wake_source}"]
+        if ctx.get("triggering_path"):
+            wl.append(f"- triggering_path: {ctx['triggering_path']}")
+        if ctx.get("triggering_revision_id"):
+            wl.append(f"- triggering_revision_id: {ctx['triggering_revision_id']}")
+        parts += wl + [""]
+    # ADR-284: standing intent has a substrate home; the envelope renders it
+    # every wake (the agent's own forward working state).
     si = ctx.get("standing_intent_md")
     if si:
         parts += ["## persona/standing_intent.md — What you were watching for last cycle", "", si, ""]
     else:
         parts += ["## persona/standing_intent.md — (empty — first cycle, author it as part of this judgment)", ""]
-
-    # --- substrate-snapshot (the gitStatus-analogue — scoping organ) ---
     snapshot = build_substrate_snapshot(
         ctx.get("_snapshot_client"),
         ctx.get("_snapshot_user_id") or "",
@@ -694,277 +635,11 @@ def _build_user_message_stripped(trigger: str, ctx: FreddieContext) -> str:
     ) if ctx.get("_snapshot_client") else ""
     if snapshot:
         parts += [snapshot, ""]
-
-    # --- THE ASK (the user-message-analogue — bare, no coaching) ---
-    parts += [_ask_for_trigger(trigger, ctx)]
-
-    return "\n".join(parts)
-
-
-def _build_user_message_content(trigger: str, ctx: FreddieContext) -> list[dict]:
-    """Compose the user message as cache-marked content blocks (governance-caching,
-    the-envelope-collapse-2026-06-24.md / probe FINDING 2026-06-24).
-
-    The envelope splits into two blocks:
-      [0] **governance prefix** — the CLAUDE.md-analogue: the authored governing
-          files (IDENTITY + principles + PRECEDENT + MANDATE + AUTONOMY + budget +
-          expected_output + preferences + occupant + domain constants). Stable
-          across wakes; changes only when a governing file is revised. Marked
-          `cache_control: ephemeral` so rounds 2..N of every wake AND subsequent
-          wakes within the cache TTL pay ~10% of base input rate on the ~16k
-          governance tokens instead of full rate. This is the real cost lever the
-          envelope-collapse probe surfaced (the strip was only +8%; the per-wake
-          UNCACHED re-send of stable governance was the inefficiency — CC caches
-          claudeMd, we did not).
-      [1] **volatile suffix** — operating-context (the clock; changes every wake),
-          wake-context, per-wake mirror heads, substrate-snapshot, standing-intent,
-          and THE ASK. Uncached by construction — these change every wake, so they
-          MUST sit AFTER the governance breakpoint (a prefix-match cache invalidates
-          everything after the first byte that changes; the operating-context
-          timestamp would otherwise bust the governance cache every single wake).
-
-    Cache-key discipline (Anthropic prompt cache = prefix match, max 4 breakpoints,
-    min 4096 tok for Sonnet/Haiku-tier — the governance block clears it): the
-    governance prefix's bytes change only on a governing-file revision, which is
-    exactly the head_version_id the kernel tracks. No explicit key field is needed —
-    the cache keys on the rendered bytes, which are stable until a revision lands.
-
-    The string builder `_build_user_message` is retained for the Arm-B stripped
-    probe path and as a structural fallback; this is the production path.
-    """
-    governance, volatile = _partition_envelope(trigger, ctx)
-    blocks: list[dict] = []
-    if governance.strip():
-        blocks.append({
-            "type": "text",
-            "text": governance,
-            "cache_control": {"type": "ephemeral"},
-        })
-    blocks.append({"type": "text", "text": volatile})
-    return blocks
-
-
-def _build_user_message(trigger: str, ctx: FreddieContext) -> str:
-    """Compose the user message envelope for an invocation.
-    Pre-loads governance + persona + framework + domain substrate based on
-    what the caller provided. Trigger-specific framing is appended last."""
-    # ENVELOPE COLLAPSE probe (the-envelope-collapse-2026-06-24.md): Arm B =
-    # full CC-shape. Gated by env so A/B differs by exactly the strip; the
-    # toggle is removed once the collapse lands (singular implementation).
-    import os as _os
-    if _os.environ.get("YARNNN_ENVELOPE_ARM", "").strip().upper() == "B":
-        return _build_user_message_stripped(trigger, ctx)
-    governance, volatile = _partition_envelope(trigger, ctx)
-    # String form: governance prefix + volatile suffix concatenated. Same content
-    # the blocks form carries; used by the Arm-B path and as a fallback.
-    if governance.strip():
-        return f"{governance}\n{volatile}"
-    return volatile
-
-
-def _partition_envelope(trigger: str, ctx: FreddieContext) -> tuple[str, str]:
-    """Build the envelope partitioned into (governance_prefix, volatile_suffix).
-
-    governance_prefix = stable authored governing files (the cacheable bulk).
-    volatile_suffix   = operating-context + wake-context + per-wake mirror heads +
-                        snapshot + standing-intent + the ask (changes every wake).
-
-    Singular source of the envelope content — both the cached-blocks builder and
-    the string builder consume this. The ONLY structural change from the
-    pre-caching flat envelope is that operating-context + wake-context move from
-    the head of the message to the volatile suffix (they were always volatile;
-    they just sat before the governance the cache wants to retain — moving them
-    after the breakpoint is what makes governance cacheable)."""
-    import json as _json
-    gov: list[str] = []
-    vol: list[str] = []
-
-    # --- VOLATILE HEAD (changes every wake → must precede nothing cacheable) ---
-    # ADR-274 / FOUNDATIONS v8.5 Axiom 4 amendment: Operating Context block.
-    # Time is an envelope-on-wake concern, not workspace substrate (mirrors
-    # Claude Code's runtime model). The Reviewer perceives `now`, timezone,
-    # and market state at every wake — these inputs are load-bearing for
-    # Trigger-authoring decisions (Schedule discipline per Derived Principle 18).
-    # CACHING (2026-06-24): operating-context carries the wake timestamp — it is
-    # the per-wake invalidator. It lands in the VOLATILE suffix, after the
-    # governance breakpoint, so it never busts the governance cache.
-    op_ctx = ctx.get("operating_context_block")
-    if op_ctx:
-        vol += [op_ctx, ""]
-
-    # Wake context (ADR-296 v2 + 2026-05-27 Hat-A parity fix). Pre-loaded
-    # so the Reviewer perceives WHY it was woken, not just that it was
-    # woken. The fine-grained wake_source disambiguates within the
-    # coarse trigger param (reactive vs addressed). For substrate_event
-    # wakes, the triggering revision_id + path give the Reviewer concrete
-    # anchor to "the operator just changed THIS file" — closing the
-    # implicit-context gap where pre-this-block the Reviewer had to infer
-    # the triggering action from substrate reads. Volatile (per-wake) → suffix.
-    wake_source = ctx.get("wake_source")
-    if wake_source:
-        wake_lines = [
-            "## Wake context",
-            "",
-            f"- wake_source: {wake_source}",
-        ]
-        if ctx.get("triggering_path"):
-            wake_lines.append(f"- triggering_path: {ctx['triggering_path']}")
-        if ctx.get("triggering_revision_id"):
-            wake_lines.append(f"- triggering_revision_id: {ctx['triggering_revision_id']}")
-        wake_lines.append("")
-        vol += wake_lines
-
-    # --- GOVERNANCE PREFIX (stable authored governing files → cacheable bulk) ---
-    parts = gov  # governance parts accumulate here
-
-    # Persona — always first
-    parts += [
-        "## IDENTITY.md — Your persona",
-        "",
-        ctx.get("identity_md") or "_(empty — reason as a neutral skeptical judgment seat)_",
-        "",
-    ]
-    parts += [
-        "## principles.md — Your framework",
-        "",
-        ctx.get("principles_md") or "_(empty — no declared framework)_",
-        "",
-    ]
-    if ctx.get("precedent_md"):
-        parts += [
-            "## PRECEDENT.md — Operator's durable interpretations (overrides principles)",
-            "",
-            ctx["precedent_md"],
-            "",
-        ]
-    if ctx.get("mandate_md"):
-        parts += ["## MANDATE.md — Operation's primary intent", "", ctx["mandate_md"], ""]
-    if ctx.get("autonomy_md"):
-        parts += ["## AUTONOMY.md — Delegation ceiling", "", ctx["autonomy_md"], ""]
-    # ADR-275 refinement: operator deliverable cadence preferences are
-    # load-bearing for Trigger-authoring (Axiom 4 v8.5 + Derived Principle 18).
-    # Pre-loaded here so the Reviewer perceives operator cadence preferences
-    # at every wake without a tool call — same shape as MANDATE/AUTONOMY.
-    if ctx.get("preferences_yaml"):
-        parts += [
-            "## _preferences.yaml — Operator's deliverable cadence preferences",
-            "",
-            ctx["preferences_yaml"],
-            "",
-        ]
-    # ADR-327 (Budget + Autonomy + Identity trifecta) — operator's spend
-    # envelope. The Reviewer reasons about wake allocation within this
-    # dollar budget over a timeframe (the self-improving loop, D6): every
-    # judgment wake draws from it; the Reviewer allocates wakes where
-    # ground truth says the work is, within the declared envelope.
-    if ctx.get("budget_yaml"):
-        parts += [
-            "## _budget.yaml — Operator's spend envelope (Rhythm: allocate wakes within it)",
-            "",
-            ctx["budget_yaml"],
-            "",
-        ]
-    # ADR-345: the output contract — what this operation OWES (kind +
-    # delivery-cadence + bar). Orthogonal to budget (Rhythm = how often you
-    # work; Expected Output = what you owe when you do). Read it as the
-    # declared referent for the standing-obligation check (DP30): is actual
-    # output keeping the declared contract? When absent, derive owed-output
-    # per ADR-344. A delivery-cadence is floor-gated — never a quota to hit.
-    if ctx.get("expected_output_yaml"):
-        parts += [
-            "## _expected_output.yaml — Operator's output contract (what you owe; a floor-gated cadence, NOT a quota)",
-            "",
-            ctx["expected_output_yaml"],
-            "",
-        ]
-    # ADR-284 (2026-05-17): seat-occupant declaration + standing intent are
-    # kernel-universal envelope additions. OCCUPANT.md is runtime-truth-aligned
-    # (populated by services.programs.fork_reference_workspace based on actual
-    # seat occupant). standing_intent.md is the Reviewer's own forward-looking
-    # working state — what it was watching for last cycle. Read both at every
-    # wake. Update standing_intent.md before standing down; the substrate
-    # counterpart to a no-fire judgment is an updated standing_intent.md.
-    if ctx.get("occupant_md"):
-        parts += [
-            "## OCCUPANT.md — Your current seat",
-            "",
-            ctx["occupant_md"],
-            "",
-        ]
-
-    # --- END GOVERNANCE PREFIX / BEGIN VOLATILE SUFFIX (caching boundary) ---
-    # Everything below changes per-wake (standing_intent rewritten each cycle;
-    # the mirror heads re-mirrored each scheduler tick; the snapshot + ask are
-    # per-wake) so it lands in the VOLATILE suffix, after the governance cache
-    # breakpoint. The governance prefix above (IDENTITY..OCCUPANT) is the stable
-    # cacheable bulk; rebinding `parts` to `vol` here is the singular caching cut.
-    parts = vol
-
-    if ctx.get("standing_intent_md"):
-        parts += [
-            "## /workspace/persona/standing_intent.md — What you were watching for last cycle",
-            "",
-            ctx["standing_intent_md"],
-            "",
-        ]
-    else:
-        # Empty-state hint: first cycle, never been written. Persona prompt
-        # directs the Reviewer to author the first standing_intent.md on this cycle.
-        # Full path in the header (ADR-320) so the Reviewer writes to persona/,
-        # not the pre-ADR-320 review/ path it would otherwise reproduce.
-        parts += [
-            "## /workspace/persona/standing_intent.md — (empty — first cycle, author it as part of this judgment)",
-            "",
-        ]
-
-    # ADR-364 D2: the reflection gap-fact — the closed intent→outcome loop,
-    # PRESENTED not judged. Each line is a recent verdict joined to its
-    # ground-truth outcome (value + attestation) by proposal_id. The header
-    # points the Reviewer at persona/reflection.md: read the gap, judge whether
-    # your calls worked, write what you learned. Only renders when joinable
-    # pairs exist (the keystone FK overlap) — silent until the loop has data.
-    if ctx.get("reflection_gap_fact"):
-        parts += [
-            "## Reflection gap-fact — your recent verdicts vs their ground-truth outcomes",
-            "",
-            "Each line: a decision you made → the attested outcome it produced. "
-            "This is presented, not judged — YOU judge whether the call worked and "
-            "write what you learned to /workspace/persona/reflection.md (the loop "
-            "your standing_intent opened and your judgment_log recorded, now closed "
-            "by ground truth). Reflect only when the gap teaches something.",
-            "",
-            # The gap is presented, not pre-judged (DP19). But when the occupant's
-            # read of the pattern is that it falsifies a RULE it authored on a path
-            # it owns, the reflection does not stop at a note — it routes into the
-            # action-grammar (revise the rule), not a Clarify. Connecting
-            # perception → action is the wake's job, not the operator's. The header
-            # carries the routing; the gap-fact stays raw (no per-pair judgment).
-            "**When your read of this pattern is that it falsifies a rule you "
-            "authored on a path you can write** (your operator-canon — see "
-            "principles.md `amend-operator-canon-only-on-evidence`), reflecting is "
-            "only the first half: the disciplined response is to **revise that rule "
-            "yourself**, not to surface the gap for the operator to diagnose. A "
-            "falsified rule on a writable path is not a structural gap — the organ "
-            "(the file) exists and is yours. Asking the operator what your own "
-            "outcomes already told you is the articulate-inaction failure (DP30). "
-            "Reserve `Clarify(structural_gap=true)` for a gap whose fix you "
-            "genuinely cannot author (a missing organ, a floor or mandate change).",
-            "",
-            ctx["reflection_gap_fact"],
-            "",
-        ]
-
-    # ADR-390 — THE COMMONS: the steward's single perception surface. One header,
-    # one owner (the removal pass folded the three perception facts —
-    # principal-commons + attribution + peripheral — into ONE surface; mutual-
-    # exclusivity, not three competing headers diluting the steward's attention).
-    # It is the steward's whole job over any workspace, in reading order: WHO may
-    # write + who did (the roster — the referent) → each recent write's
-    # attribution (the integrity detail) → the perimeter's health (peripherals).
-    # PRESENTED not judged (DP19): the kernel lays out the commons; the steward's
-    # principles.md rules (attribution-integrity, intake-placement, connection-
-    # hygiene) decide. Each part empty-graceful; the whole surface is silent on a
-    # quiet single-owner bare workspace with no perimeter (no noise).
+    # Kernel perception facts — RETAINED per ADR-400 §correction: the ADR-390
+    # commons surface (the validated attribution catch-fix, leads verbatim) +
+    # the ADR-364 reflection gap are ratified, gate-covered arcs. Each is
+    # empty-graceful (silent on a quiet workspace), so the bare-steward
+    # envelope matches the measured Arm-B shape.
     _commons_parts = [
         ("principal_commons_fact",
          "**Principals — who may write, the referent for every attribution.** A "
@@ -992,175 +667,57 @@ def _partition_envelope(trigger: str, ctx: FreddieContext) -> tuple[str, str]:
         parts += ["## The commons — who writes here, is it honest, is the perimeter sound", ""]
         for key, lead in _present:
             parts += [lead, "", ctx[key], ""]
+    if ctx.get("reflection_gap_fact"):
+        parts += ["## Reflection gap-fact (a closed intent→outcome loop to learn from)", "", ctx["reflection_gap_fact"], ""]
+    if ctx.get("specs_inventory"):
+        parts += ["## Specs inventory (discovery surface — read spec bodies on demand)", "", ctx["specs_inventory"], ""]
+    # ADR-281 D2 / ADR-336: program-DECLARED wake-envelope substrate renders
+    # generically — the bundle ABI is the program's ratified prerogative; the
+    # kernel is thin, a program may declare what its judgment needs.
+    for key in ctx.get("_program_envelope_keys") or []:
+        if key in ("operator_profile_md", "risk_md", "ground_truth_md"):
+            continue  # bespoke homes: governance prefix / snapshot head
+        val = ctx.get(key)
+        if val and isinstance(val, str) and val.strip():
+            parts += [f"## {key} (program-declared substrate)", "", val, ""]
+    parts += [_ask_for_trigger(trigger, ctx)]
+    return "\n".join(parts)
 
-    # ADR-301 Pulse envelope — the Reviewer's perception of its own cadence +
-    # recent fires. Kernel-mirrored from `tasks` + `execution_events` per
-    # scheduler tick. ADR-390 removal pass: this is OPERATION machinery —
-    # populated ONLY when a program is active (the envelope gates it). A bare
-    # steward has no cadence of its own to perceive, so it renders nothing (the
-    # pre-ADR-390 unconditional empty-state header was scaffolding for an
-    # operation a bare steward doesn't run).
-    schedule_index = ctx.get("schedule_index_md") or ""
-    if schedule_index.strip():
-        parts += [
-            "## _schedule_index.md — Your declared cadence + actual fire times",
-            "",
-            schedule_index,
-            "",
-        ]
-    # ADR-390 removal pass: pulse + calibration are OPERATION machinery, populated
-    # ONLY when a program is active (the envelope gates them on program_active).
-    # A bare steward has no cadence to calibrate — so these are empty and render
-    # NOTHING (no "(empty — mirror hasn't run)" scaffolding diluting the steward's
-    # attention). When a program runs, the kernel mirror fills them and they
-    # render. The empty-state header is gone because empty now means "not this
-    # agent's concern," not "a program whose mirror is pending."
-    recent_execution = ctx.get("recent_execution_md") or ""
-    if recent_execution.strip():
-        parts += [
-            "## _recent_execution.md — What has actually fired (last 24h)",
-            "",
-            recent_execution,
-            "",
-        ]
 
-    # ADR-327 D6 — calibration evidence (the self-improving loop). Operation
-    # machinery (ADR-390): correlates cadence-authoring vs ground-truth outcome
-    # quality — only meaningful when a program runs. Empty (bare steward) → silent.
-    calibration = ctx.get("calibration_md") or ""
-    if calibration.strip():
-        parts += [
-            "## _calibration.md — Cadence vs. ground truth (your self-improving loop)",
-            "",
-            calibration,
-            "",
-        ]
+def _build_user_message_content(trigger: str, ctx: FreddieContext) -> list[dict]:
+    """THE envelope builder (ADR-400) — the thin CC-shape as cache-marked blocks.
 
-    # Specs inventory — bundle-shipped capability library at /workspace/operation/specs/.
-    # Name + title only (bodies on demand via ReadFile). Empty string when
-    # no specs exist (kernel-only workspace, pre-activation, etc.).
-    specs = ctx.get("specs_inventory") or ""
-    if specs.strip():
-        parts += [
-            "## Capability specs available (read bodies on demand via ReadFile)",
-            "",
-            specs,
-            "",
-        ]
+      [0] governance prefix — cache_control: ephemeral. Bytes change only on a
+          governing-file revision; rounds 2..N of every wake AND subsequent
+          wakes within the TTL pay ~10% of base input rate on it.
+      [1] volatile suffix — clock + wake-context + standing-intent + snapshot
+          + the ask. Changes every wake; sits after the breakpoint.
 
-    # Domain substrate
-    if ctx.get("operator_profile_md"):
-        parts += ["## _operator_profile.md — Declared strategy", "", ctx["operator_profile_md"], ""]
-    if ctx.get("risk_md"):
-        parts += ["## _risk.md — Hard floors", "", ctx["risk_md"], ""]
-    if ctx.get("ground_truth_md"):
-        # ADR-288 D5: the slot name is kernel-universal (`ground_truth_md`);
-        # the rendered heading is bundle-instance-aware. Today the only active
-        # bundle that fills this slot is alpha-trader (writes `_money_truth.md`
-        # via reconciler), so the heading names the alpha-trader instance file.
-        # Future bundles' Reviewers render their own instance heading via the
-        # bundle's `_workspace_guide.md` directing where to read.
-        parts += ["## _money_truth.md — Track record (with by_signal frontmatter)", "", ctx["ground_truth_md"], ""]
+    The fat partitioned envelope, the Arm A/B probe toggle, the per-trigger
+    framing, and the fact sections are DELETED (ADR-400 deletion inventory).
+    Evidence the thin shape holds on the weak model:
+    docs/evaluations/2026-07-02-freddie-envelope-rung3-armB-v2/.
+    """
+    governance = _governance_prefix(ctx)
+    volatile = _volatile_suffix(trigger, ctx)
+    blocks: list[dict] = []
+    if governance.strip():
+        blocks.append({
+            "type": "text",
+            "text": governance,
+            "cache_control": {"type": "ephemeral"},
+        })
+    blocks.append({"type": "text", "text": volatile})
+    return blocks
 
-    # Generic program-envelope renderer (ADR-281 D2 — bundle declares its
-    # envelope; the kernel renders without a per-key site). Any key the active
-    # bundle declared in substrate_abi.reviewer_wake_envelope that has NO bespoke
-    # render site above is emitted here under its own header, so the agent
-    # perceives it. This closes the pre-ADR-336 gap where watch_signal /
-    # repo_signal landed in the context dict but never reached the wake message.
-    # Bespoke-rendered program keys (operator_profile_md, risk_md, ground_truth_md,
-    # signal_files) are skipped — they already have richer, instance-aware headers.
-    _BESPOKE_PROGRAM_KEYS = {
-        "operator_profile_md", "risk_md", "ground_truth_md", "signal_files",
-    }
-    _ENVELOPE_KEY_HEADERS = {
-        "watch_signal": "## _watch_signal.yaml — Standing web/RSS watch (distilled observations)",
-        "repo_signal": "## _repo_signal.yaml — Standing repository watch (distilled file excerpts; cite each source_ref)",
-    }
-    for pkey in (ctx.get("_program_envelope_keys") or []):
-        if pkey in _BESPOKE_PROGRAM_KEYS:
-            continue
-        value = ctx.get(pkey)
-        if not value or not str(value).strip():
-            continue
-        header = _ENVELOPE_KEY_HEADERS.get(pkey, f"## {pkey} (program substrate)")
-        parts += [header, "", str(value), ""]
 
-    # Trigger-specific (ADR-260 D2 amended by ADR-263: addressed | reactive)
-    # `reactive` covers two sub-shapes — proposal arrival (specialized
-    # reactive handler per ADR-247) and judgment-mode recurrence fire
-    # (cron-driven per ADR-263). The sub-shape is detected by which keys
-    # are present in the context bag, not by a separate trigger value.
-    if trigger == "reactive":
-        # Sub-shape detection: recurrence_prompt key present → judgment-mode
-        # recurrence fire; otherwise → proposal arrival.
-        if ctx.get("recurrence_prompt") or ctx.get("recurrence_slug"):
-            # Judgment-recurrence fire: the recurrence's prompt is the
-            # operator's instruction handed to the Reviewer at scheduled time
-            # (ADR-261 D1). It is the addressed-equivalent message — narrate
-            # intent, then act.
-            # Canonical shape: recurrence_prompt + recurrence_slug. The legacy
-            # `trigger_slug`/`user_message` fallbacks were removed 2026-05-13
-            # — the contract validator at the top of invoke_freddie rejects
-            # any recurrence-fire context bag without both canonical fields.
-            prompt_text = ctx.get("recurrence_prompt") or ""
-            slug = ctx.get("recurrence_slug")
-            if slug:
-                parts += [f"## Recurrence: `{slug}`", ""]
-            if prompt_text:
-                parts += ["## Recurrence prompt (operator's instruction)", "", prompt_text.strip(), ""]
-            # ADR-269: surface recurrence's declared required_capabilities so
-            # the Reviewer can pass them through when calling DispatchSpecialist.
-            rrc = ctx.get("recurrence_required_capabilities") or []
-            if rrc and isinstance(rrc, list):
-                parts += [
-                    "## Required capabilities for dispatched specialists",
-                    "",
-                    f"This recurrence declares: `{', '.join(rrc)}`.",
-                    "",
-                    "When you call `DispatchSpecialist`, include these in the "
-                    "`required_capabilities` array at minimum so the specialist's "
-                    "tool surface includes the program-specific tools "
-                    "(`platform_trading_*`, etc.). You may extend the list if a "
-                    "specific brief needs additional capabilities (e.g., add "
-                    "`web_search` for a brief that needs web research on top).",
-                    "",
-                ]
-            if ctx.get("signal_files"):
-                parts += ["## Current signal state (pre-loaded)", "", ctx["signal_files"], ""]
-            if ctx.get("workspace_state"):
-                parts += ["## Workspace state", "", ctx["workspace_state"], ""]
-            if ctx.get("recent_decisions_md"):
-                parts += ["## Recent decisions", "", ctx["recent_decisions_md"], ""]
-        else:
-            # Proposal arrival: the proposal row is the event being judged.
-            row = ctx.get("proposal_row") or {}
-            if row:
-                parts += [
-                    "## Proposed action",
-                    "",
-                    f"**action_type:** `{row.get('action_type', '?')}`",
-                    f"**reversibility:** {row.get('reversibility', '?')}",
-                ]
-                if row.get("rationale"):
-                    parts.append(f"**rationale:** {row['rationale']}")
-                if row.get("expected_effect"):
-                    parts.append(f"**expected_effect:** {row['expected_effect']}")
-                inputs = row.get("inputs") or {}
-                parts += ["**inputs:**", "```json", _json.dumps(inputs, indent=2, default=str), "```", ""]
-
-    elif trigger == "addressed":
-        if ctx.get("signal_files"):
-            parts += ["## Current signal state (pre-loaded)", "", ctx["signal_files"], ""]
-        if ctx.get("workspace_state"):
-            parts += ["## Workspace state", "", ctx["workspace_state"], ""]
-        if ctx.get("conversation_window"):
-            parts += ["## Recent conversation", "", ctx["conversation_window"], ""]
-        msg = ctx.get("user_message", "")
-        parts += ["## Operator message", "", msg.strip(), ""]
-
-    parts.append(_TRIGGER_FRAMING.get(trigger, ""))
-    return "\n".join(gov), "\n".join(vol)
+def _build_user_message(trigger: str, ctx: FreddieContext) -> str:
+    """String form of the same envelope (probe harnesses + logging)."""
+    governance = _governance_prefix(ctx)
+    volatile = _volatile_suffix(trigger, ctx)
+    if governance.strip():
+        return f"{governance}\n{volatile}"
+    return volatile
 
 
 # ---------------------------------------------------------------------------
@@ -1374,27 +931,12 @@ async def invoke_freddie(
             logger.debug("[REVIEWER] event_callback raised: %s", cb_exc)
 
     try:
-        # ENVELOPE COLLAPSE probe (the-envelope-collapse-2026-06-24.md): when
-        # Arm B is active, thread the snapshot inputs into the context bag so
-        # _build_user_message_stripped can build the gitStatus-analogue. Gated
-        # by env so Arm A is byte-identical (zero production impact). Removed
-        # when the collapse lands (the snapshot becomes a first-class envelope
-        # input in freddie_envelope.py).
-        import os as _os_probe
-        _arm_b = (
-            _os_probe.environ.get("YARNNN_ENVELOPE_ARM", "").strip().upper() == "B"
-        )
-        if _arm_b and isinstance(context, dict):
+        # ADR-400: the substrate snapshot is a first-class envelope input —
+        # the collapse landed; the Arm A/B toggle is deleted.
+        if isinstance(context, dict):
             context.setdefault("_snapshot_client", client)
             context.setdefault("_snapshot_user_id", user_id)
-        # Governance-caching (2026-06-24): the production path builds the user
-        # message as cache-marked content blocks (governance prefix cached,
-        # volatile suffix uncached). The Arm-B stripped probe path stays on the
-        # string builder (its own shape, env-gated). See _build_user_message_content.
-        if _arm_b:
-            user_message: str | list[dict] = _build_user_message(trigger, context)
-        else:
-            user_message = _build_user_message_content(trigger, context)
+        user_message: str | list[dict] = _build_user_message_content(trigger, context)
         messages: list[dict] = [{"role": "user", "content": user_message}]
         actions_taken: list[dict] = []
         verdict_raw: dict | None = None
@@ -1436,6 +978,8 @@ async def invoke_freddie(
         #     file contents the verdict still rests on; 6 is the conservative start.
         # Pure within-call prune — the durable record is the substrate the agent
         # already wrote (ADR-209), untouched. Moat-neutral by construction.
+        # (import was owned by the deleted Arm-B toggle block — ADR-400)
+        import os as _os_probe
         _ctx_edit: dict | None = None
         if _os_probe.environ.get("YARNNN_CONTEXT_EDIT", "").strip().lower() in ("1", "true", "on"):
             try:

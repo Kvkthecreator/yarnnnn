@@ -87,6 +87,27 @@ def _head(content: str, n: int = _HEAD_LINES) -> str:
     return "\n".join(out)
 
 
+def _pending_proposals(client: Any, user_id: str, limit: int = 8) -> list[dict]:
+    """Pending action_proposals — one indexed query, bounded (ADR-400).
+
+    The duplicate-work signal: a decided-and-queued proposal means the agent
+    must not re-derive the same act while the operator's witness is pending.
+    """
+    try:
+        res = (
+            client.table("action_proposals")
+            .select("primitive, inputs")
+            .eq("user_id", user_id)
+            .eq("status", "pending")
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return res.data or []
+    except Exception:  # noqa: BLE001 — snapshot is best-effort, never raises
+        return []
+
+
 def _changed_since(
     client: Any, user_id: str, since_iso: Optional[str]
 ) -> list[dict]:
@@ -169,6 +190,25 @@ def build_substrate_snapshot(
         parts.append(
             "**What changed since your last wake**: nothing recorded "
             "(new workspace, or quiet since last wake).")
+        parts.append("")
+
+    # 1b. Pending proposals (ADR-400 / the rung-2 residual): work already
+    # decided and waiting for the operator's witness — so the agent does NOT
+    # re-derive a placement whose proposal already sits in the queue.
+    pending = _pending_proposals(client, user_id)
+    if pending:
+        parts.append("**Pending proposals** (decided, awaiting operator approval "
+                     "— do NOT re-do this work):")
+        for row in pending:
+            prim = row.get("primitive") or "?"
+            path = ""
+            inputs = row.get("inputs") or {}
+            if isinstance(inputs, dict):
+                path = inputs.get("path") or inputs.get("slug") or ""
+            line = f"- {prim}"
+            if path:
+                line += f" → `{path}`"
+            parts.append(line)
         parts.append("")
 
     # 2. Pulse head (declared cadence + last fires).

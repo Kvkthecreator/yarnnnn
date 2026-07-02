@@ -5,6 +5,8 @@
 **Deciders**: KVK + Claude
 **Ratifies**: the envelope-collapse direction (`docs/analysis/the-envelope-collapse-2026-06-24.md`, Arm-B probe) on the strength of the Rung-3 measurements (`docs/evaluations/2026-07-02-freddie-envelope-rung3-armB-v2/`)
 **Supersedes**: the Arm-A partitioned envelope (`_partition_envelope`), the `YARNNN_ENVELOPE_ARM` probe toggle, `_TRIGGER_FRAMING` (already re-carved by Rung 1 / ADR-397 — now deleted outright), the envelope fact sections (`principal_commons_fact`, `attribution_fact`, `peripheral_field_fact`, `reflection_gap_fact`, `specs_inventory`) and the per-wake `workspace_state` compact-index injection
+**Correction (same day, pre-implementation-commit)**: the original deletion inventory listed the envelope fact sections for deletion; scoping the implementation surfaced that they carry the ratified ADR-364 (reflection loop) + ADR-389/390 (commons/attribution) arcs with standing gates — deleting their loaders exceeded the measured evidence. They are retained as empty-graceful compact sections (see inventory). The framing/partition/toggle/workspace_state deletions stand.
+
 **Amends**: ADR-397 (the reactive liturgy prose is deleted with the framing; the close CONTRACT already moved to the frame — Rung-3 commit `6edaf6e`; the liturgy's residual value [standing-intent habit, reflection] is principles.md content per agent-composition.md §3.2.1, seedable there if evals demand it), ADR-390 (its curated fact sections retire — their catch is preserved, see Evidence), ADR-315 (ReviewerContext ABI sheds the deleted fields)
 **Preserves**: ADR-276 (full governance at every wake — the governance block is intact and cache-marked), ADR-301 (operating-context block), ADR-284 (standing-intent in envelope), ADR-360 (close contract, now frame-carried), ADR-398 (locator rides the ask), the substrate-snapshot (heads-not-bodies, now with a pending-proposals line)
 
@@ -37,8 +39,8 @@ Everything else is read on demand from authored substrate. The governance prefix
 | `_build_user_message_stripped` | folded into the one builder |
 | `YARNNN_ENVELOPE_ARM` toggle (both sites) | probe scaffolding |
 | `_TRIGGER_FRAMING` | per-trigger coaching (Rung-1 re-carved, now deleted) |
-| `_principal_commons_fact`, `_attribution_fact`, `_peripheral_field_fact`, `_reflection_gap_fact`, `_inventory_specs` + loads | envelope fact sections |
-| `signal_files` load + render | Arm-A mirror dump (bodies on demand) |
+| — (correction, same day) | the fact sections are **RETAINED, demoted**: the ADR-390 commons surface + the ADR-364 reflection gap-fact + the specs inventory are ratified, gate-covered arcs; they render as EMPTY-GRACEFUL compact sections in the volatile suffix (silent on a quiet workspace — the measured Arm-B bare-steward shape is unchanged) |
+| — | program-DECLARED envelope keys (`signal_files`, watch signals — the ADR-281 D2 / ADR-336 bundle ABI) render via a generic block in the volatile suffix: the kernel is thin; a program's declared wake substrate is its ratified prerogative |
 | `workspace_state` injection (+ `build_working_memory` call on the addressed route) | duplicated the snapshot's job |
 | ReviewerContext fields for all of the above | ABI surface (ADR-315 doc updated) |
 

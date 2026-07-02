@@ -1,0 +1,26 @@
+{
+  "idx": 1,
+  "ask": "What's in my workspace right now?",
+  "wall_s": 422.9,
+  "rounds": 0,
+  "tool_calls": [],
+  "n_tool_calls": 0,
+  "response_chars": 0,
+  "response_text": "",
+  "verdict_reached": false,
+  "error": "lock_wait_timeout",
+  "events": [
+    {
+      "type": "progress",
+      "event": {
+        "phase": "queued",
+        "summary": "Reviewer is mid-flight on another wake; your turn will start as soon as it completes."
+      }
+    },
+    {
+      "type": "error",
+      "error": "lock_wait_timeout",
+      "message": "Waited 300s for in-flight wake to complete; aborting addressed turn."
+    }
+  ]
+}

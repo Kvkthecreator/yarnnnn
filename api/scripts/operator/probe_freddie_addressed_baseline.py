@@ -64,14 +64,6 @@ ASKS = [
 
 async def _fire_one(client, ask: str, idx: int) -> dict:
     from services.wake_sources.addressed import stream as wake_addressed_stream
-    from services.working_memory import build_working_memory, format_compact_index
-
-    workspace_state_text = ""
-    try:
-        wm = await build_working_memory(USER_ID, client)
-        workspace_state_text = format_compact_index(wm) or ""
-    except Exception:
-        pass
 
     session_id = f"probe-baseline-{uuid.uuid4()}"
     invocation_id = str(uuid.uuid4())
@@ -90,7 +82,6 @@ async def _fire_one(client, ask: str, idx: int) -> dict:
             invocation_id=invocation_id,
             user_message=ask,
             conversation_window="",
-            workspace_state_text=workspace_state_text,
         ):
             etype = event.get("type")
             events.append(event)

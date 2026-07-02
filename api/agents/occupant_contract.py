@@ -216,7 +216,6 @@ class FreddieContext(TypedDict, total=False):
     # Shared across shapes (optional pre-loads the caller can include)
     recent_decisions_md: str
     signal_files: str
-    workspace_state: str
     # Spec inventory — bundle-shipped capability specs under /workspace/operation/specs/.
     # Format: one line per spec, "- {path} — {title}". Bodies read on demand
     # via ReadFile. Closes the discovery gap that produced the operator-

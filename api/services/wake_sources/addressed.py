@@ -30,7 +30,6 @@ async def stream(
     invocation_id: str,
     user_message: str,
     conversation_window: str,
-    workspace_state_text: str,
     operator_locator: str = "",
 ) -> AsyncGenerator[dict, None]:
     """Stream the addressed Reviewer cycle as a sequence of SSE-shaped events.
@@ -46,7 +45,6 @@ async def stream(
         invocation_id: pre-generated execution_events.id for the cycle
         user_message: operator's input
         conversation_window: rolling N-message context window
-        workspace_state_text: compact workspace state summary
         operator_locator: ADR-398 D2 — where the operator is writing from
             (the shell-composed foregrounded-window locator; opaque string)
 
@@ -60,7 +58,6 @@ async def stream(
         invocation_id=invocation_id,
         user_message=user_message,
         conversation_window=conversation_window,
-        workspace_state_text=workspace_state_text,
         operator_locator=operator_locator,
     ):
         yield event

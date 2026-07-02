@@ -1,0 +1,121 @@
+{
+  "user_id": "4c106786-c9b4-41cb-982d-0f5a8cc35923",
+  "n_turns": 6,
+  "closed": 4,
+  "errors": 2,
+  "mean_wall_s": 91.9,
+  "mean_rounds": 2.7,
+  "mean_tool_calls": 6.3,
+  "mean_response_chars": 317,
+  "turns": [
+    {
+      "idx": 1,
+      "ask": "What's in my workspace right now?",
+      "wall_s": 422.9,
+      "rounds": 0,
+      "n_tool_calls": 0,
+      "tool_calls": [],
+      "response_chars": 0,
+      "verdict_reached": false,
+      "error": "lock_wait_timeout"
+    },
+    {
+      "idx": 2,
+      "ask": "I want to keep a note: our Q3 pricing decision is to hold the $19 tier until August. Make sure that's recorded somewhere sensible.",
+      "wall_s": 23.5,
+      "rounds": 3,
+      "n_tool_calls": 5,
+      "tool_calls": [
+        "ReadFile",
+        "ReadFile",
+        "ReadFile",
+        "ListFiles",
+        "WriteFile"
+      ],
+      "response_chars": 556,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 3,
+      "ask": "Summarize what you've been doing in this workspace lately.",
+      "wall_s": 19.6,
+      "rounds": 2,
+      "n_tool_calls": 6,
+      "tool_calls": [
+        "ListFiles",
+        "GetSystemState",
+        "ReadFile",
+        "ReadFile",
+        "ListRevisions",
+        "ListRevisions"
+      ],
+      "response_chars": 306,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 4,
+      "ask": "Is anything in the workspace out of place or needing cleanup?",
+      "wall_s": 33.9,
+      "rounds": 3,
+      "n_tool_calls": 7,
+      "tool_calls": [
+        "ReadFile",
+        "ReadFile",
+        "ReadFile",
+        "ListFiles",
+        "ListRevisions",
+        "WriteFile",
+        "WriteFile"
+      ],
+      "response_chars": 622,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 5,
+      "ask": "What connections and sources are currently feeding this workspace?",
+      "wall_s": 16.0,
+      "rounds": 3,
+      "n_tool_calls": 7,
+      "tool_calls": [
+        "list_integrations",
+        "GetSystemState",
+        "ListFiles",
+        "ReadFile",
+        "ReadFile",
+        "SearchFiles",
+        "ListFiles"
+      ],
+      "response_chars": 0,
+      "verdict_reached": false,
+      "error": "Reviewer returned no response"
+    },
+    {
+      "idx": 6,
+      "ask": "What should I look at first when I come back tomorrow?",
+      "wall_s": 35.5,
+      "rounds": 5,
+      "n_tool_calls": 13,
+      "tool_calls": [
+        "ReadFile",
+        "ReadFile",
+        "ListFiles",
+        "ListFiles",
+        "ListFiles",
+        "SearchEntities",
+        "ListEntities",
+        "GetSystemState",
+        "ReadFile",
+        "ReadFile",
+        "ListRevisions",
+        "ListRevisions",
+        "WriteFile"
+      ],
+      "response_chars": 418,
+      "verdict_reached": true,
+      "error": null
+    }
+  ]
+}
