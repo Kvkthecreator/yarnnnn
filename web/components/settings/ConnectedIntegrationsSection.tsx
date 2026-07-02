@@ -35,16 +35,19 @@ interface SummaryPlatform {
   status: string;
 }
 
-// ADR-377: per-platform freshness summary (Context Connections pane). Derived
-// from GET /api/integrations/{provider}/sync-status — coverage + recency, the
-// real inbound signal that survives ADR-153 (platform_content sunset). NOT a
-// per-event ingestion log; that data no longer exists.
+// ADR-401 D6: per-platform freshness derived from the CAPTURE SIGNAL
+// (_capture_signal.yaml via GET /integrations/{provider}/capture-signal) —
+// the same single source of truth as the Manage drill-in. The previous
+// source (sync-status over `sync_registry`) was a DEAD signal for
+// capture-lane connectors: the capture lane never writes sync_registry, so
+// the strip showed "not reading yet" even while captures ran. One block per
+// connector (the connector is the unit of perception; channels are its
+// aperture) — never per-channel.
 interface PlatformFreshness {
-  resourceCount: number;
-  itemsSynced: number;
-  lastSynced: string | null; // most-recent last_synced across resources
-  staleCount: number;
-  errorCount: number;
+  status?: string;
+  observedAt: string | null;
+  items?: number;
+  lastError?: string;
 }
 
 function relativeTime(iso: string | null): string {
@@ -129,27 +132,24 @@ export function ConnectedIntegrationsSection({
 
       setPlatformStatuses(statuses);
 
-      // ADR-377: fan out sync-status for connected freshness-capable
-      // providers (Slack/Notion/GitHub). Each call is independently
-      // guarded so one platform's failure doesn't blank the others.
+      // ADR-401 D6: fan out the capture signal for connected freshness-capable
+      // providers (Slack/Notion/GitHub) — health is DERIVED (capture signal),
+      // never the stored status column. Each call is independently guarded so
+      // one platform's failure doesn't blank the others.
       if (showFreshness) {
-        const connected = FRESHNESS_PROVIDERS.filter((p) => statuses[p] === "active");
+        const connected = FRESHNESS_PROVIDERS.filter(
+          (p): p is "slack" | "notion" | "github" => statuses[p] === "active",
+        );
         const results = await Promise.all(
           connected.map(async (provider) => {
             try {
-              const s = await api.integrations.getSyncStatus(provider);
-              const resources = s.synced_resources || [];
-              const lastSynced = resources
-                .map((r) => r.last_synced)
-                .filter((t): t is string => !!t)
-                .sort()
-                .pop() ?? null;
+              const s = await api.integrations.getCaptureSignal(provider);
+              const block = s.observed?.[`capture-${provider}`];
               const fresh: PlatformFreshness = {
-                resourceCount: resources.length,
-                itemsSynced: resources.reduce((sum, r) => sum + (r.items_synced || 0), 0),
-                lastSynced,
-                staleCount: s.stale_count || 0,
-                errorCount: s.error_count || 0,
+                status: block?.status,
+                observedAt: block?.observed_at ?? null,
+                items: block?.items,
+                lastError: block?.last_error,
               };
               return [provider, fresh] as const;
             } catch {
@@ -201,29 +201,31 @@ export function ConnectedIntegrationsSection({
     }
   };
 
-  // ADR-377: the per-platform freshness strip + "View flow →" link, rendered
-  // inside each connected freshness-capable card when showFreshness is set.
-  // Returns null in the legacy (Workspace-Settings) mode so behavior is
-  // unchanged there.
+  // ADR-401 D6: the per-platform freshness strip + "View flow →" link,
+  // rendered inside each connected freshness-capable card when showFreshness
+  // is set. Connector-grain, from the capture signal — one honest line per
+  // connector. Returns null in the legacy (Workspace-Settings) mode so
+  // behavior is unchanged there.
   const renderFreshness = (provider: string) => {
     if (!showFreshness) return null;
     const f = freshness[provider];
     return (
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border/60 pt-2 text-xs text-muted-foreground">
-        {f ? (
+        {f?.observedAt ? (
           <>
             <span className="inline-flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              {relativeTime(f.lastSynced)}
+              Last read {relativeTime(f.observedAt)}
             </span>
-            <span>
-              {f.resourceCount} {f.resourceCount === 1 ? "source" : "sources"}
-              {f.itemsSynced > 0 ? ` · ${f.itemsSynced} items` : ""}
-            </span>
-            {f.errorCount > 0 && (
+            {typeof f.items === "number" && (
+              <span>
+                {f.items} {f.items === 1 ? "source" : "sources"} read
+              </span>
+            )}
+            {f.status && f.status !== "ok" && (
               <span className="inline-flex items-center gap-1 text-destructive">
                 <AlertTriangle className="h-3 w-3" />
-                {f.errorCount} {f.errorCount === 1 ? "error" : "errors"}
+                {f.lastError || f.status}
               </span>
             )}
           </>
@@ -538,8 +540,8 @@ export function ConnectedIntegrationsSection({
 // ---------------------------------------------------------------------------
 // ConnectedConnectorRow — a compact drill-in row for a connected, selection-
 // capable connector. Clicking the row (or "Manage") opens the deep Manage
-// subsurface (ADR-392 Phase B). The footer carries the ADR-377 freshness +
-// "View flow →" (unchanged data source).
+// subsurface (ADR-392 Phase B). The footer carries the connector-grain
+// capture-signal freshness (ADR-401 D6) + "View flow →".
 // ---------------------------------------------------------------------------
 
 function ConnectedConnectorRow({
@@ -574,20 +576,21 @@ function ConnectedConnectorRow({
             </span>
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-            {freshness ? (
+            {freshness?.observedAt ? (
               <>
                 <span className="inline-flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  {relativeTime(freshness.lastSynced)}
+                  Last read {relativeTime(freshness.observedAt)}
                 </span>
-                <span>
-                  {freshness.resourceCount}{" "}
-                  {freshness.resourceCount === 1 ? "source" : "sources"}
-                </span>
-                {freshness.errorCount > 0 && (
+                {typeof freshness.items === "number" && (
+                  <span>
+                    {freshness.items} {freshness.items === 1 ? "source" : "sources"} read
+                  </span>
+                )}
+                {freshness.status && freshness.status !== "ok" && (
                   <span className="inline-flex items-center gap-1 text-destructive">
                     <AlertTriangle className="h-3 w-3" />
-                    {freshness.errorCount}
+                    {freshness.lastError || freshness.status}
                   </span>
                 )}
               </>

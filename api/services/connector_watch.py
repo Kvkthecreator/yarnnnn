@@ -330,6 +330,94 @@ async def seed_connector_capture(
     return slug
 
 
+async def remove_connector_capture(
+    client: Any,
+    user_id: str,
+    platform: str,
+) -> Optional[str]:
+    """Remove the connector's capture declaration on disconnect (ADR-401 D3).
+
+    The teardown counterpart of `seed_connector_capture` — the same single
+    writer of `capture-{platform}` slugs (ADR-286). Disconnect deletes the
+    connection row (credentials); the capture entry is MACHINE state and is
+    removed with it (a permanently-skipping entry is an orphan, not a pause;
+    seed-at-select recreates it on reconnect+select). The operator-authored
+    `_watch.yaml` declaration and the `inbound/` raw are deliberately KEPT —
+    the declaration makes reconnect restore perception without re-declaring,
+    and raw ages out mechanically under the retention GC (D4).
+
+    Not gated on CONNECTOR_CAPTURE_BINDINGS — the entry is removed by slug
+    regardless, so a platform whose binding was later retired still tears
+    down cleanly. Returns the slug removed, or None when there was nothing
+    to remove (missing file / absent entry / unparseable file — all no-ops;
+    unparseable is left untouched, same refusal as the seed). Best-effort:
+    the caller wraps this so a teardown failure never fails the disconnect.
+    """
+    from services.workspace import UserMemory
+    from services.conventions import CAPTURES_PATH
+    from services.capture.scheduling import materialize_capture_index
+
+    plat = (platform or "").strip().lower()
+    slug = connector_capture_slug(plat)
+    rel = CAPTURES_PATH.lstrip("/").removeprefix("workspace/")
+    um = UserMemory(client, user_id)
+
+    try:
+        body = await um.read(rel)
+    except Exception:
+        body = None
+    if not body or not body.strip():
+        return None
+
+    try:
+        parsed = yaml.safe_load(body) or {}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[CONNECTOR_CAPTURE] _captures.yaml parse failed for %s: %s — "
+            "refusing teardown (would clobber unparseable operator file)",
+            user_id[:8], exc,
+        )
+        return None
+
+    if isinstance(parsed, dict):
+        existing = parsed.get("captures") or parsed.get("entries") or []
+    elif isinstance(parsed, list):
+        existing = parsed
+    else:
+        existing = []
+    entries = [e for e in existing if isinstance(e, dict)]
+
+    remaining = [e for e in entries if e.get("slug") != slug]
+    if len(remaining) == len(entries):
+        return None  # nothing to remove
+
+    content = yaml.safe_dump(
+        {"captures": remaining},
+        sort_keys=False,
+        default_flow_style=False,
+        allow_unicode=True,
+    )
+    await um.write(
+        rel,
+        content,
+        summary=f"connector-capture:{plat}",
+        authored_by="system:connector-teardown",
+        message=f"remove {slug} on {plat} disconnect",
+    )
+
+    # Materialize so the index drops the row (declaration no longer exists).
+    try:
+        await materialize_capture_index(client, user_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[CONNECTOR_CAPTURE] materialize_capture_index failed for %s/%s: %s",
+            user_id[:8], slug, exc,
+        )
+
+    logger.info("[CONNECTOR_CAPTURE] removed %s for %s", slug, user_id[:8])
+    return slug
+
+
 __all__ = [
     "CONNECTOR_WATCH_ROOT",
     "watch_declaration_path",
@@ -339,4 +427,5 @@ __all__ = [
     "CONNECTOR_CAPTURE_BINDINGS",
     "connector_capture_slug",
     "seed_connector_capture",
+    "remove_connector_capture",
 ]

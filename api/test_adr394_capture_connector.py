@@ -356,6 +356,54 @@ def _test_seed_at_select(results):
             "15 unparseable _captures.yaml → refuse to seed (no clobber)",
             slug_bad is None and store[rel] == before_bad,
             f"slug={slug_bad}"))
+
+        # --- 15b–15e: disconnect teardown (ADR-401 D3) ---
+        # 15b: remove drops OUR entry, keeps bundle entries, rematerializes.
+        store.clear()
+        materialize_calls.clear()
+        store[rel] = (
+            "captures:\n"
+            "  - slug: track-positions\n"
+            "    schedule: \"@every 1min\"\n"
+            "    primitive: |\n"
+            "      @primitive: SyncPlatformState(tool=\"platform_trading_get_positions\", write_to=\"operation/x.yaml\")\n"
+            "  - slug: capture-slack\n"
+            "    schedule: \"@every 15min\"\n"
+            "    primitive: |\n"
+            "      @primitive: CaptureConnector(platform=\"slack\", read_tool=\"platform_slack_get_channel_history\", selector_arg=\"channel_id\")\n"
+        )
+        removed = asyncio.run(cw.remove_connector_capture(None, "u1", "slack"))
+        decls_t = parse_captures_yaml(store.get(rel) or "")
+        slugs_t = [d.slug for d in decls_t]
+        results.append(_check(
+            "15b teardown: remove_connector_capture drops capture-slack, bundle entry survives, index rematerialized",
+            removed == "capture-slack" and slugs_t == ["track-positions"]
+            and materialize_calls == ["u1"],
+            f"removed={removed} slugs={slugs_t} mat={materialize_calls}"))
+
+        # 15c: absent entry → no-op (None), file untouched.
+        before_t = store[rel]
+        removed_none = asyncio.run(cw.remove_connector_capture(None, "u1", "slack"))
+        results.append(_check(
+            "15c teardown: absent entry → no-op, file untouched",
+            removed_none is None and store[rel] == before_t,
+            f"removed={removed_none}"))
+
+        # 15d: missing file → no-op (None).
+        store.clear()
+        removed_missing = asyncio.run(cw.remove_connector_capture(None, "u1", "slack"))
+        results.append(_check(
+            "15d teardown: missing _captures.yaml → no-op",
+            removed_missing is None and rel not in store))
+
+        # 15e: unparseable file → refuse (never clobber).
+        store[rel] = "captures: [ this is: not valid yaml : :\n"
+        before_bad_t = store[rel]
+        removed_bad = asyncio.run(cw.remove_connector_capture(None, "u1", "slack"))
+        results.append(_check(
+            "15e teardown: unparseable _captures.yaml → refuse (no clobber)",
+            removed_bad is None and store[rel] == before_bad_t,
+            f"removed={removed_bad}"))
     finally:
         ws.UserMemory = orig_um
         csched.materialize_capture_index = orig_mat

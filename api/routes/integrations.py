@@ -745,8 +745,14 @@ async def disconnect_integration(
     auth: UserClient
 ) -> dict:
     """
-    Disconnect an integration.
-    Deletes stored tokens and export preferences.
+    Disconnect an integration (teardown contract per ADR-401 D3).
+
+    Deletes the connection row (credentials) and removes the connector's
+    capture entry from _captures.yaml (machine state; seed-at-select
+    recreates it on reconnect+select). Deliberately KEEPS the
+    operator-authored _watch.yaml declaration (reconnect restores perception
+    without re-declaring) and the inbound/ raw (it ages out mechanically
+    under the retention GC; cited raw stays as evidence).
     """
     user_id = auth.user_id
     providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
@@ -764,6 +770,19 @@ async def disconnect_integration(
 
         if not result_data:
             raise HTTPException(status_code=404, detail=f"Integration not found: {provider}")
+
+        # ADR-401 D3: tear down the capture entry (machine state) with the
+        # connection. Best-effort — a teardown failure never fails the
+        # disconnect (the capture would skip via the capability gate anyway).
+        try:
+            from services.connector_watch import remove_connector_capture
+            db_platform = providers_to_try[0]
+            await remove_connector_capture(auth.client, user_id, db_platform)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "[INTEGRATIONS] capture teardown failed for %s/%s: %s",
+                user_id[:8], provider, exc,
+            )
 
         # ADR-207 P4a: Platform Bots dissolved. OAuth disconnect no longer
         # deletes a bot agent row — the row doesn't exist. The platform
