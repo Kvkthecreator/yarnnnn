@@ -1,0 +1,145 @@
+{
+  "user_id": "4c106786-c9b4-41cb-982d-0f5a8cc35923",
+  "n_turns": 6,
+  "closed": 5,
+  "errors": 1,
+  "mean_wall_s": 32.6,
+  "mean_rounds": 6.2,
+  "mean_tool_calls": 10.2,
+  "mean_response_chars": 421,
+  "turns": [
+    {
+      "idx": 1,
+      "ask": "What's in my workspace right now?",
+      "wall_s": 19.8,
+      "rounds": 2,
+      "n_tool_calls": 4,
+      "tool_calls": [
+        "ListFiles",
+        "ReadFile",
+        "ReadFile",
+        "GetSystemState"
+      ],
+      "response_chars": 602,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 2,
+      "ask": "I want to keep a note: our Q3 pricing decision is to hold the $19 tier until August. Make sure that's recorded somewhere sensible.",
+      "wall_s": 18.3,
+      "rounds": 3,
+      "n_tool_calls": 4,
+      "tool_calls": [
+        "ReadFile",
+        "ReadFile",
+        "ListFiles",
+        "WriteFile"
+      ],
+      "response_chars": 319,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 3,
+      "ask": "Summarize what you've been doing in this workspace lately.",
+      "wall_s": 28.8,
+      "rounds": 5,
+      "n_tool_calls": 10,
+      "tool_calls": [
+        "ReadFile",
+        "ReadFile",
+        "ListFiles",
+        "ListRevisions",
+        "SearchEntities",
+        "ListFiles",
+        "ReadFile",
+        "ReadFile",
+        "WriteFile",
+        "WriteFile"
+      ],
+      "response_chars": 682,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 4,
+      "ask": "Is anything in the workspace out of place or needing cleanup?",
+      "wall_s": 66.9,
+      "rounds": 16,
+      "n_tool_calls": 24,
+      "tool_calls": [
+        "ReadFile",
+        "ReadFile",
+        "ListFiles",
+        "ListFiles",
+        "ListFiles",
+        "ListFiles",
+        "ListRevisions",
+        "ListRevisions",
+        "SearchEntities",
+        "GetSystemState",
+        "ReadFile",
+        "WriteFile",
+        "ProposeAction",
+        "WriteFile",
+        "SearchFiles",
+        "SearchFiles",
+        "SearchFiles",
+        "ListFiles",
+        "ReadFile",
+        "ReadFile",
+        "ReadFile",
+        "ReadFile",
+        "ReadFile",
+        "ReadFile"
+      ],
+      "response_chars": 417,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 5,
+      "ask": "What connections and sources are currently feeding this workspace?",
+      "wall_s": 23.3,
+      "rounds": 6,
+      "n_tool_calls": 11,
+      "tool_calls": [
+        "list_integrations",
+        "GetSystemState",
+        "ListFiles",
+        "ReadFile",
+        "SearchFiles",
+        "ListFiles",
+        "ReadFile",
+        "ReadFile",
+        "ListFiles",
+        "ListFiles",
+        "ReadFile"
+      ],
+      "response_chars": 0,
+      "verdict_reached": false,
+      "error": "Reviewer returned no response"
+    },
+    {
+      "idx": 6,
+      "ask": "What should I look at first when I come back tomorrow?",
+      "wall_s": 38.3,
+      "rounds": 5,
+      "n_tool_calls": 8,
+      "tool_calls": [
+        "ListFiles",
+        "ReadFile",
+        "ReadFile",
+        "GetSystemState",
+        "ListEntities",
+        "SearchEntities",
+        "WriteFile",
+        "WriteFile"
+      ],
+      "response_chars": 504,
+      "verdict_reached": true,
+      "error": null
+    }
+  ]
+}

@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.03.2] - ADR-402 Part A: model routing as kernel data (pure refactor)
+
+- `services/model_routing.py` (NEW): the single model-selection site for the Freddie occupant — routing table `{addressed|proposal|recurrence: (model, max_rounds)}`, env-overridable per shape (`YARNNN_MODEL_{SHAPE}` / `YARNNN_ROUNDS_{SHAPE}`, read at resolve time).
+- `agents/freddie_agent.py`: `_SONNET`/`_HAIKU` constants + the `use_sonnet` branch + the dead `_CALLER_SONNET`/`_CALLER_HAIKU` pair DELETED; the loop consumes `resolve_route()`. No model ids or tier branches remain in the occupant module.
+- Expected behavior: byte-identical — table values mirror the pre-table branch exactly (addressed+recurrence Haiku/20, proposal Sonnet/3). Which model reads which envelope is unchanged until the ADR-402 Part-B tier decision lands as a data change.
+- Gate: `test_adr402_model_routing.py` (9). Probe: 6-ask addressed baseline re-run on the refactored path.
+
 ## [2026.07.03.1] - Steward principles seed: test exercises stay disposable
 
 - `services/orchestration.py::DEFAULT_STEWARD_PRINCIPLES_MD`: new four-field rule `test-exercises-stay-disposable` — an ask that presents itself as a test/probe/exercise is served with disposable artifacts only; no standing cadence, recurrence, or hook is created from it.

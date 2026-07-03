@@ -36,10 +36,9 @@ Per FOUNDATIONS v8.4:
   v2, P&L unification 2026-05-12) with rolling 7d/30d/90d windows + by_signal
   block. Alpha-author's instance is multi-signal corpus-coherence (ADR-283).
 
-Model selection by trigger sub-shape (cost-conscious):
-- Sonnet: proposal-arrival reactive (capital decisions, discrete)
-- Haiku:  addressed + recurrence-fire reactive (conversation +
-          framework reasoning, real-time loop)
+Model selection by trigger sub-shape is kernel DATA (ADR-402): the routing
+table in `services/model_routing.py` is the single model-selection site —
+no model ids or tier branches live in this module.
 """
 
 from __future__ import annotations
@@ -50,6 +49,7 @@ import re
 from typing import Any, Literal, Optional, TypedDict
 
 from services.anthropic import chat_completion_with_tools, chat_completion_with_tools_stream
+from services.model_routing import resolve_route
 # ADR-291: token_usage substrate sunset — cost ledger writes flow through
 # `record_execution_event()` in the dispatcher, fed by FreddieOutput fields.
 
@@ -71,16 +71,11 @@ logger = logging.getLogger(__name__)
 #: ADR-315: FREDDIE_MODEL_IDENTITY is defined in agents/occupant_contract.py
 #: and imported + re-exported above. The occupant self-identity belongs with
 #: the published contract, not buried in the impl.
-
-#: Sonnet — capital decisions (proposal + heartbeat triggers)
-_SONNET = "claude-sonnet-4-6"
-#: Haiku — framework reasoning (reflection + addressed triggers)
-_HAIKU = "claude-haiku-4-5-20251001"
-
-#: Token caller for Sonnet invocations
-_CALLER_SONNET = "freddie"
-#: Token caller for Haiku invocations
-_CALLER_HAIKU = "freddie-reflection"
+#:
+#: ADR-402: model ids live in services/model_routing.py (the single
+#: model-selection site) — NOT here. The former per-tier model constants and
+#: the dead token-caller pair (assigned, never consumed — attribution flows
+#: through caller_identity, ADR-288 D1) are deleted.
 
 
 # ---------------------------------------------------------------------------
@@ -867,23 +862,18 @@ async def invoke_freddie(
     from services.primitives.registry import FREDDIE_PRIMITIVES, execute_primitive
     from types import SimpleNamespace
 
-    # ADR-260 D2 + D8 + ADR-263 D2: model + round-bound selection.
-    #
-    # `reactive` covers two sub-shapes (per `_build_user_message` differentiation):
-    #   - proposal arrival → Sonnet (capital judgment, discrete decision call)
-    #   - judgment-recurrence fire → Haiku (longer real-time loop, similar
-    #     to the previous `scheduled` trigger that ADR-263 D2 collapsed in)
-    # `addressed` always uses Haiku (operator chat turn).
-    #
-    # Sub-shape detection mirrors the pattern in `_build_user_message`:
-    # presence of `recurrence_prompt`/`recurrence_slug` keys = recurrence fire.
+    # ADR-402: model + round-ceiling selection is kernel data — the routing
+    # table in services/model_routing.py (single model-selection site,
+    # env-overridable per deployment). Shape key: addressed | proposal |
+    # recurrence. Sub-shape detection mirrors the pattern in
+    # `_build_user_message`: presence of `recurrence_prompt`/`recurrence_slug`
+    # keys = recurrence fire.
     is_recurrence_fire = bool(
         context.get("recurrence_prompt") or context.get("recurrence_slug")
     ) if isinstance(context, dict) else False
 
-    use_sonnet = (trigger == "reactive") and not is_recurrence_fire
-    model = _SONNET if use_sonnet else _HAIKU
-    caller = _CALLER_SONNET if use_sonnet else _CALLER_HAIKU
+    route = resolve_route(trigger, is_recurrence_fire)
+    model = route.model
 
     # Build auth namespace with freddie_caller flag — handlers consult this
     # for ADR-258 D9 lock enforcement on operator-shared substrate.
@@ -945,22 +935,14 @@ async def invoke_freddie(
         # terminal (return None → caller records `failed`); `verdict_raw` is only
         # ever set by a real model-authored ReturnVerdict now.
 
-        # ADR-260 D8 + ADR-263 + 2026-05-21 population audit
-        # (docs/evaluations/2026-05-21-014009-reviewer-round-budget-population-
-        # audit/): round bound varies by sub-shape.
-        # - Proposal-arrival reactive (Sonnet) is a discrete decision call → 3 rounds.
-        # - Recurrence-fire reactive (Haiku) needs room for read-heavy hook
-        #   prompts (e.g. pre-ship-audit reads 8+ files before writing) → 20
-        #   rounds (raised from 12 after population audit showed 70% silent
-        #   rate at round 6 due to a mid-loop nudge that has since been deleted).
-        # - Addressed (Haiku) is a chat turn with full tool budget → 20 rounds.
-        #
-        # Trust-the-model philosophy (Claude Code-aligned): set the budget as
-        # a COST CEILING, not a behavioral constraint. The model decides when
-        # it's done via ReturnVerdict; the budget caps cost-per-wake. The
-        # fallback at line ~1530 (verdict_raw is None) is the safety net for
-        # the rare case the model truly can't synthesize within budget.
-        max_rounds = 3 if use_sonnet else 20
+        # ADR-402: the round ceiling comes from the routing table alongside the
+        # model — a COST CEILING, not a behavioral constraint (trust-the-model:
+        # the model decides when it's done via ReturnVerdict; the budget caps
+        # cost-per-wake). Per-shape values + their population-audit history
+        # live with the table in services/model_routing.py. The fallback below
+        # (verdict_raw is None) is the safety net for the rare case the model
+        # truly can't synthesize within budget.
+        max_rounds = route.max_rounds
 
         # ADR-363 D3 (PROBE-GATED): context-editing for the within-wake tool-loop.
         # Off by default — gated on YARNNN_CONTEXT_EDIT so the cross-wake floor is

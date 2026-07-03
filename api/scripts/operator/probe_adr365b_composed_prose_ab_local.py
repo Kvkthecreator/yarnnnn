@@ -110,7 +110,8 @@ ReturnVerdict to close.
 async def _compose(arm: str, system_text: str) -> dict:
     """One model call → the composed standing_intent text."""
     from services.anthropic import chat_completion_with_tools
-    from agents.freddie_agent import RETURN_VERDICT_TOOL, _HAIKU
+    from agents.freddie_agent import RETURN_VERDICT_TOOL
+    from services.model_routing import DEFAULT_ROUTES, SHAPE_ADDRESSED, SHAPE_PROPOSAL
 
     write_tool = {
         "name": "WriteFile",
@@ -122,7 +123,7 @@ async def _compose(arm: str, system_text: str) -> dict:
         },
     }
     resp = await chat_completion_with_tools(
-        model=_HAIKU,
+        model=DEFAULT_ROUTES[SHAPE_ADDRESSED].model,
         system=[{"type": "text", "text": system_text}],
         messages=[{"role": "user", "content": _envelope()}],
         tools=[RETURN_VERDICT_TOOL, write_tool],
@@ -165,10 +166,10 @@ Document to score:
 
 async def _judge(text: str) -> dict:
     from services.anthropic import chat_completion_with_tools
-    from agents.freddie_agent import _SONNET  # stronger model judges
+    from services.model_routing import DEFAULT_ROUTES, SHAPE_PROPOSAL
 
     resp = await chat_completion_with_tools(
-        model=_SONNET,
+        model=DEFAULT_ROUTES[SHAPE_PROPOSAL].model,  # stronger model judges
         system="You are a precise document-readability judge. Output only JSON.",
         messages=[{"role": "user", "content": JUDGE_PROMPT % (text[:2500] or "(empty)")}],
         tools=[],

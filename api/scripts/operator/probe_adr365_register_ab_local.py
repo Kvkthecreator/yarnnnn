@@ -150,7 +150,8 @@ Do NOT call ReadFile/ListFiles; act on what is present here. This cycle:
 async def _run_arm(arm: str, system_prompt_blocks: list, user_msg: str) -> dict:
     """One model call. Returns the agent's text + tool calls (the prose to judge)."""
     from services.anthropic import chat_completion_with_tools
-    from agents.freddie_agent import RETURN_VERDICT_TOOL, _HAIKU
+    from agents.freddie_agent import RETURN_VERDICT_TOOL
+    from services.model_routing import DEFAULT_ROUTES, SHAPE_ADDRESSED, SHAPE_PROPOSAL
 
     # Minimal tool surface for the probe: just ReturnVerdict + WriteFile, so the
     # agent can close with a verdict and optionally write standing_intent — the
@@ -174,7 +175,7 @@ async def _run_arm(arm: str, system_prompt_blocks: list, user_msg: str) -> dict:
     # agent directly on its operator-facing output (ReturnVerdict +
     # standing_intent), which is the prose ADR-365 governs.
     response = await chat_completion_with_tools(
-        model=_HAIKU,
+        model=DEFAULT_ROUTES[SHAPE_ADDRESSED].model,
         system=system_prompt_blocks,
         messages=[{"role": "user", "content": user_msg}],
         tools=[RETURN_VERDICT_TOOL, write_file_tool],
