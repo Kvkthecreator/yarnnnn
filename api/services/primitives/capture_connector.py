@@ -235,6 +235,17 @@ async def handle_capture_connector(auth: Any, input: dict) -> dict:
         # inbound/{platform}/{selector}/{observed_at}.{ext}
         path = resolve_capture_path(platform, str(sel_id), observed_at, ext)
         new_content = _serialize_for_substrate(path, result)
+        # Diff baseline = the sub-lane's LATEST snapshot, not the same path
+        # (each run's path carries a fresh observed_at stamp, so a same-path
+        # compare would never match and every run would rewrite every
+        # selector — snapshot bloat + a derive wake per run on an unchanged
+        # world). An unchanged selector writes nothing.
+        if diff_aware:
+            prev = await _latest_snapshot_content(um, path.rsplit("/", 1)[0])
+            if prev is not None and prev == new_content:
+                paths_skipped.append(_full_path_for_logging(path))
+                items_processed += 1
+                continue
         wrote = await _write_if_changed(
             um, path, new_content, diff_aware=diff_aware, tool=read_tool,
         )
@@ -256,6 +267,33 @@ async def handle_capture_connector(auth: Any, input: dict) -> dict:
         "items_processed": items_processed,
         "error": ("; ".join(errors[:5]) if all_errored else None),
     }
+
+
+async def _latest_snapshot_content(um: Any, sublane_rel: str) -> Optional[str]:
+    """The selector sub-lane's most recent snapshot content — the diff baseline.
+
+    Lists inbound/{platform}/{selector}/ and reads the newest snapshot,
+    preferring timestamp-stamped filenames (ISO stamps sort chronologically);
+    legacy un-stamped residue (`unknown.md`, which sorts AFTER digits and
+    would otherwise shadow every stamped snapshot forever) is used only when
+    no stamped snapshot exists. Returns None when the sub-lane is empty or
+    unreadable (caller then writes unconditionally — fail-open, never a
+    lost capture).
+    """
+    sub = sublane_rel.rstrip("/") + "/"
+    try:
+        names = await um.list(sub)
+    except Exception:
+        return None
+    files = [n for n in (names or []) if n and "/" not in n.strip("/")]
+    if not files:
+        return None
+    stamped = [n for n in files if n[:4].isdigit()]
+    pick = max(stamped) if stamped else max(files)
+    try:
+        return await um.read(f"{sub}{pick}")
+    except Exception:
+        return None
 
 
 __all__ = ["CAPTURE_CONNECTOR_TOOL", "handle_capture_connector"]

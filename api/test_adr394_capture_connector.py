@@ -109,16 +109,26 @@ def _test_fanout(results):
         async def write(self, filename, content, **kw):
             store[filename] = content
 
+        async def list(self, relative_path="", recursive=False):
+            prefix = relative_path if relative_path.endswith("/") else relative_path + "/"
+            return [
+                k[len(prefix):] for k in store
+                if k.startswith(prefix) and k != prefix
+            ]
+
     # Fake platform tool: return a per-channel message list; one channel errors.
+    # _PAYLOAD_SUFFIX lets a test vary the payload (simulating new content).
     calls: list[dict] = []
+    _PAYLOAD_SUFFIX: list[str] = []
 
     async def _fake_handle_platform_tool(auth, tool_name, tool_input):
         calls.append({"tool": tool_name, "input": dict(tool_input)})
         cid = tool_input.get("channel_id")
         if cid == "C_DEAD":
             return {"success": False, "error": "channel_not_found"}
+        suffix = f" {_PAYLOAD_SUFFIX[-1]}" if _PAYLOAD_SUFFIX else ""
         return {"success": True, "result": {"messages": [
-            {"user": "u", "text": f"hello from {cid}", "ts": "1"}]}}
+            {"user": "u", "text": f"hello from {cid}{suffix}", "ts": "1"}]}}
 
     async def _fake_read_selected_ids(client, user_id, platform):
         return _SELECTED[:]
@@ -184,6 +194,45 @@ def _test_fanout(results):
             "6 diff-aware: byte-identical re-run writes nothing (2 skipped)",
             len(res2["paths_written"]) == 0 and len(res2["paths_skipped"]) == 2,
             f"written={res2['paths_written']} skipped={res2['paths_skipped']}"))
+
+        # --- 6b: STAMPED re-run (new observed_at, same content) also skips ---
+        # (live-eval fix 2026-07-03: each run's path carries a fresh stamp, so
+        # the diff baseline must be the sub-lane's LATEST snapshot, not the
+        # same path — otherwise every run rewrites every selector and wakes
+        # the seat on an unchanged world.)
+        calls.clear()
+        res6b = asyncio.run(cc.handle_capture_connector(_Auth(), {
+            "platform": "slack",
+            "read_tool": "platform_slack_get_channel_history",
+            "selector_arg": "channel_id",
+            "tool_args": {"limit": 50},
+            "observed_at": "2026-07-01T10:15:00Z",
+        }))
+        no_new_files = not any("10:15:00" in k for k in store)
+        results.append(_check(
+            "6b stamped re-run (new observed_at, same content) skips via latest-snapshot baseline",
+            len(res6b["paths_written"]) == 0 and len(res6b["paths_skipped"]) == 2
+            and no_new_files,
+            f"written={res6b['paths_written']} store={sorted(store)}"))
+
+        # --- 6c: changed content DOES write a new stamped snapshot; legacy
+        # `unknown.md` residue never shadows stamped baselines ---
+        store["inbound/slack/c-eng/unknown.md"] = "legacy-residue"
+        calls.clear()
+        _PAYLOAD_SUFFIX.append("v2")  # change the fake tool's payload
+        res6c = asyncio.run(cc.handle_capture_connector(_Auth(), {
+            "platform": "slack",
+            "read_tool": "platform_slack_get_channel_history",
+            "selector_arg": "channel_id",
+            "tool_args": {"limit": 50},
+            "observed_at": "2026-07-01T10:30:00Z",
+        }))
+        wrote_new = any("10:30:00" in k for k in store)
+        results.append(_check(
+            "6c changed content writes a new stamped snapshot (unknown.md never shadows)",
+            len(res6c["paths_written"]) == 2 and wrote_new,
+            f"written={res6c['paths_written']}"))
+        _PAYLOAD_SUFFIX.clear()
 
         # --- 7: empty selection → success, zero items, not an error ---
         _SELECTED = []
