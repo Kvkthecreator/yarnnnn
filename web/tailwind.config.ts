@@ -20,6 +20,31 @@ const config: Config = {
         border: "hsl(var(--border))",
         primary: "hsl(var(--primary))",
         "primary-foreground": "hsl(var(--primary-foreground))",
+        // Overlay + interactive surface tokens (shadcn-standard, added
+        // 2026-07-03 / ADR-400 polish). These map the CSS vars defined in
+        // globals.css so `bg-popover`, `hover:bg-accent`, `text-destructive`,
+        // `bg-card`, `text-success` resolve app-wide. Nested `.DEFAULT`/
+        // `.foreground` lets `bg-popover` + `text-popover-foreground` both work.
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
       },
     },
   },

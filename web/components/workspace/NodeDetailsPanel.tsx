@@ -219,7 +219,7 @@ function FileProperties({ node }: { node: WorkspaceTreeNode }) {
         ) : (
           <span className="inline-flex flex-col gap-0.5">
             <span className="text-[11px] text-foreground/80">read it · edit via chat</span>
-            <span className="text-[10px] text-muted-foreground">{organizeBlockedReason(node.path)}</span>
+            <span className="text-[10px] text-muted-foreground">{organizeBlockedReason(node.path).body}</span>
           </span>
         )}
       </PropRow>

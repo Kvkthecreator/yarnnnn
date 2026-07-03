@@ -31,6 +31,15 @@ interface WorkspaceTreeProps {
   onRename?: (node: WorkspaceTreeNode) => void;
   onMove?: (node: WorkspaceTreeNode) => void;
   onDelete?: (node: WorkspaceTreeNode) => void;
+  /**
+   * ADR-400 Wave B (2026-07-03) — drag-and-drop move. A file dragged onto a
+   * folder calls this with (fromPath, destFolderPath). The native muscle-memory
+   * gesture; the menu "Move to…" folder-picker is the deliberate/accessible
+   * path. Enabled only when both this + `canOrganize` are provided.
+   */
+  onMoveByDrag?: (fromPath: string, destFolder: string) => void | Promise<void>;
+  /** True iff the operator may organize `path` — gates draggable + droppable. */
+  canOrganize?: (path: string) => boolean;
 }
 
 interface ContextMenuState {
@@ -40,8 +49,11 @@ interface ContextMenuState {
   y: number;
 }
 
-export function WorkspaceTree({ nodes, selectedPath, onSelect, onGetInfo, onRename, onMove, onDelete }: WorkspaceTreeProps) {
+export function WorkspaceTree({ nodes, selectedPath, onSelect, onGetInfo, onRename, onMove, onDelete, onMoveByDrag, canOrganize }: WorkspaceTreeProps) {
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
+  // ADR-400 Wave B: which folder path is the current drag-over drop target
+  // (for the highlight). Lifted here so only one row highlights at a time.
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
 
   const hasMenu = !!(onGetInfo || onRename || onMove || onDelete);
   const openMenu = hasMenu
@@ -51,6 +63,25 @@ export function WorkspaceTree({ nodes, selectedPath, onSelect, onGetInfo, onRena
           target: { path: node.path, name: node.name, isFile: node.type === 'file' },
           node, x: e.clientX, y: e.clientY,
         });
+      }
+    : undefined;
+
+  // Drag-and-drop is enabled only when both the callback + the ownership
+  // predicate are wired. A file is draggable iff the operator can organize it;
+  // a folder is a drop target iff the operator can organize into it.
+  const dnd = onMoveByDrag && canOrganize
+    ? {
+        canOrganize,
+        dropTarget,
+        setDropTarget,
+        onDrop: (fromPath: string, destFolder: string) => {
+          setDropTarget(null);
+          if (fromPath === destFolder) return;
+          // No-op if already the direct parent.
+          const parent = fromPath.slice(0, fromPath.lastIndexOf('/'));
+          if (parent === destFolder) return;
+          onMoveByDrag(fromPath, destFolder);
+        },
       }
     : undefined;
 
@@ -64,6 +95,7 @@ export function WorkspaceTree({ nodes, selectedPath, onSelect, onGetInfo, onRena
           selectedPath={selectedPath}
           onSelect={onSelect}
           onContextMenu={openMenu}
+          dnd={dnd}
         />
       ))}
 
@@ -84,13 +116,24 @@ export function WorkspaceTree({ nodes, selectedPath, onSelect, onGetInfo, onRena
   );
 }
 
+interface DndBundle {
+  canOrganize: (path: string) => boolean;
+  dropTarget: string | null;
+  setDropTarget: (path: string | null) => void;
+  onDrop: (fromPath: string, destFolder: string) => void;
+}
+
 interface TreeItemProps {
   node: WorkspaceTreeNode;
   depth: number;
   selectedPath?: string;
   onSelect: (node: WorkspaceTreeNode) => void;
   onContextMenu?: (node: WorkspaceTreeNode, e: React.MouseEvent) => void;
+  dnd?: DndBundle;
 }
+
+// The dataTransfer key for a dragged workspace file path (ADR-400 Wave B).
+const DRAG_MIME = 'application/x-yarnnn-path';
 
 // A `_`-prefixed file is machine-config / accumulated system state (per the
 // File Format Discipline: _autonomy.yaml, _principles.yaml, _tracker.md,
@@ -105,11 +148,57 @@ function isSystemFile(node: WorkspaceTreeNode): boolean {
   return filename.startsWith('_');
 }
 
-function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu }: TreeItemProps) {
+function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu, dnd }: TreeItemProps) {
   const [expanded, setExpanded] = useState(depth < 1); // Auto-expand first level
   const isFolder = node.type === 'folder';
   const isSelected = selectedPath === node.path;
   const isSystem = isSystemFile(node);
+
+  // ADR-400 Wave B drag-and-drop.
+  // A FILE is draggable iff the operator can organize it (system/ + machine-
+  // config are not draggable). A FOLDER is a drop target iff the operator can
+  // organize into it — probed with a synthetic child path.
+  const draggable = !!dnd && !isFolder && dnd.canOrganize(node.path);
+  const isDropTarget = !!dnd && isFolder && dnd.canOrganize(`${node.path}/x`);
+  const isDropHover = !!dnd && dnd.dropTarget === node.path;
+
+  const dragProps = draggable
+    ? {
+        draggable: true as const,
+        onDragStart: (e: React.DragEvent) => {
+          e.dataTransfer.setData(DRAG_MIME, node.path);
+          e.dataTransfer.effectAllowed = 'move';
+        },
+        // dragend fires on the SOURCE when the drag ends however it ends
+        // (dropped, or aborted via Esc / released over a non-target). Clear the
+        // highlight so an aborted drag never leaves a folder stuck highlighted.
+        onDragEnd: () => dnd?.setDropTarget(null),
+      }
+    : {};
+
+  const dropProps = isDropTarget && dnd
+    ? {
+        onDragOver: (e: React.DragEvent) => {
+          if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (dnd.dropTarget !== node.path) dnd.setDropTarget(node.path);
+        },
+        onDragLeave: (e: React.DragEvent) => {
+          // Only clear if we're actually leaving this row (not entering a child).
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            if (dnd.dropTarget === node.path) dnd.setDropTarget(null);
+          }
+        },
+        onDrop: (e: React.DragEvent) => {
+          const from = e.dataTransfer.getData(DRAG_MIME);
+          if (from) {
+            e.preventDefault();
+            dnd.onDrop(from, node.path);
+          }
+        },
+      }
+    : {};
 
   useEffect(() => {
     if (isFolder && selectedPath && nodeContainsPath(node, selectedPath)) {
@@ -136,12 +225,17 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu }: TreeIt
       <button
         onClick={handleClick}
         onContextMenu={onContextMenu ? (e) => onContextMenu(node, e) : undefined}
+        {...dragProps}
+        {...dropProps}
         className={cn(
           "w-full flex items-center gap-1.5 py-1 px-2 rounded-sm text-left hover:bg-accent/50 transition-colors",
           isSelected && "bg-primary/10 text-primary font-medium",
           // ADR-320 correction: machine-config files render de-emphasized
           // (dimmer text) rather than hidden — present but visibly secondary.
           isSystem && !isSelected && "text-muted-foreground/55",
+          // ADR-400 Wave B: drop-target highlight while a file drags over.
+          isDropHover && "ring-2 ring-inset ring-primary/60 bg-primary/5",
+          draggable && "cursor-grab active:cursor-grabbing",
         )}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >
@@ -172,6 +266,7 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu }: TreeIt
               selectedPath={selectedPath}
               onSelect={onSelect}
               onContextMenu={onContextMenu}
+              dnd={dnd}
             />
           ))}
         </div>

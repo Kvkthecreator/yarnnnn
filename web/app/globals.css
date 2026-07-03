@@ -20,6 +20,22 @@
   --border: 240 5.9% 90%;
   --primary: 240 5.9% 10%;
   --primary-foreground: 0 0% 98%;
+  /* Overlay + interactive surface tokens (shadcn-standard). Added 2026-07-03
+     (ADR-400 polish) because components already referenced bg-popover /
+     hover:bg-accent / text-destructive with no defining var — the Files
+     right-click menu rendered transparent. Defined once here, mapped in
+     tailwind.config.ts, so any surface (popover, menu, card, toast, danger
+     verb) uses the same design-system tokens. */
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 3.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 3.9%;
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 5.9% 10%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 98%;
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 98%;
 }
 
 .dark {
@@ -30,6 +46,16 @@
   --border: 240 3.7% 15.9%;
   --primary: 0 0% 98%;
   --primary-foreground: 240 5.9% 10%;
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --card: 240 10% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --accent: 240 3.7% 15.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 63% 45%;
+  --destructive-foreground: 0 0% 98%;
+  --success: 142 63% 42%;
+  --success-foreground: 0 0% 98%;
 }
 
 body {
@@ -142,6 +168,26 @@ body {
   0%, 100% { opacity: 0.7; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.05); }
 }
+
+/* Universal feedback-layer entrances (ADR-400 polish, 2026-07-03). Defined as
+   real keyframes because tailwindcss-animate is NOT installed — `animate-in`
+   utilities are dead classes in this project. The FeedbackContext toast +
+   confirm dialog use these. */
+@keyframes feedback-toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes feedback-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes feedback-dialog-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-toast-in { animation: feedback-toast-in 0.2s ease-out; }
+.animate-fade-in { animation: feedback-fade-in 0.15s ease-out; }
+.animate-dialog-in { animation: feedback-dialog-in 0.15s ease-out; }
 
 /* Agent state utility classes */
 .agent-working {

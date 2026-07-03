@@ -42,12 +42,21 @@ export function operatorCanOrganize(path: string): boolean {
 }
 
 /** The reason a file can't be organized — surfaced when the operator hits a
- * carve (system/ or machine-config). Honest, specific, Explorer-style. */
-export function organizeBlockedReason(path: string): string {
+ * carve (system/ or machine-config). macOS-plain: object-focused, no mechanism
+ * jargon ("used by the system", not "read by name / would break the reader").
+ * Returns a { title, body } pair for the styled confirm/alert dialog. */
+export function organizeBlockedReason(path: string): { title: string; body: string } {
   let rel = path.replace(/^\/+/, '');
   if (rel.startsWith('workspace/')) rel = rel.slice('workspace/'.length);
+  const leaf = rel.split('/').pop() || 'This item';
   if (rel.startsWith('system/')) {
-    return 'This is system runtime state and can’t be moved, renamed, or trashed.';
+    return {
+      title: `“${leaf}” can’t be changed`,
+      body: 'It’s used by the system to keep your workspace running. Moving, renaming, or deleting it isn’t allowed.',
+    };
   }
-  return 'This is a machine-config file the system reads by name — renaming or moving it would break the reader.';
+  return {
+    title: `“${leaf}” can’t be changed`,
+    body: 'It’s a settings file the system needs in this exact place. Moving, renaming, or deleting it isn’t allowed.',
+  };
 }
