@@ -30,7 +30,7 @@ by its two context sub-shapes exactly as `invoke_freddie` differentiates them):
 Claude Code-aligned): the model decides when it's done via ReturnVerdict; the
 budget caps cost-per-wake. History: 20 was raised from 12 after the 2026-05-21
 round-budget population audit (70% silent rate at round 6 under a since-deleted
-mid-loop nudge); 3 on proposals predates ADR-400's thin envelope and is
+mid-loop nudge); 3 on proposals predates ADR-403's thin envelope and is
 re-examined by the ADR-402 Part-B tier experiment.
 
 Env overrides (read at resolve time, per deployment):
@@ -80,7 +80,7 @@ SHAPE_RECURRENCE = "recurrence"
 #: split was retired: proposal_arrival has zero live fires ever, and the
 #: 3-round cap was a behavioral constraint contradicting trust-the-model —
 #: the ceiling is now uniform (the verdict-early ask rule is the proposal
-#: behavior control, ADR-400).
+#: behavior control, ADR-403).
 DEFAULT_ROUTES: dict[str, ModelRoute] = {
     SHAPE_ADDRESSED: ModelRoute(model="claude-sonnet-4-6", max_rounds=20),
     SHAPE_PROPOSAL: ModelRoute(model="claude-sonnet-4-6", max_rounds=20),

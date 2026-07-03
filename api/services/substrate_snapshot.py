@@ -88,7 +88,7 @@ def _head(content: str, n: int = _HEAD_LINES) -> str:
 
 
 def _pending_proposals(client: Any, user_id: str, limit: int = 8) -> list[dict]:
-    """Pending action_proposals — one indexed query, bounded (ADR-400).
+    """Pending action_proposals — one indexed query, bounded (ADR-403).
 
     The duplicate-work signal: a decided-and-queued proposal means the agent
     must not re-derive the same act while the operator's witness is pending.
@@ -192,7 +192,7 @@ def build_substrate_snapshot(
             "(new workspace, or quiet since last wake).")
         parts.append("")
 
-    # 1b. Pending proposals (ADR-400 / the rung-2 residual): work already
+    # 1b. Pending proposals (ADR-403 / the rung-2 residual): work already
     # decided and waiting for the operator's witness — so the agent does NOT
     # re-derive a placement whose proposal already sits in the queue.
     pending = _pending_proposals(client, user_id)

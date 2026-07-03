@@ -84,7 +84,7 @@ def test_action_grammar_survives_in_frame():
     frame = _compute_minimal_frame()
     # The interface contract the frame MUST carry (DP22).
     assert "A tool call IS your action" in frame
-    # Rung-3 finding + ADR-400: the close CONTRACT is DP22 interface material
+    # Rung-3 finding + ADR-403: the close CONTRACT is DP22 interface material
     # and lives in the FRAME (the Arm-B probe proved a framing-only close
     # silently exits); the framing layer itself is DELETED — per-trigger
     # interface rules live in _ask_for_trigger's branches.

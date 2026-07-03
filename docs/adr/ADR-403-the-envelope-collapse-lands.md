@@ -1,4 +1,10 @@
-# ADR-400: The Envelope Collapse Lands — One Thin Shape, Legacy Deleted
+# ADR-403: The Envelope Collapse Lands — One Thin Shape, Legacy Deleted
+
+> **Renumbered from ADR-400 (2026-07-03).** Two concurrent lanes claimed ADR-400
+> on 2026-07-02; the Files-surface ADR (`ADR-400-the-two-principal-files-surface.md`)
+> committed first and keeps the number. Git history, the `[2026.07.02.5]` prompts-
+> CHANGELOG entry, and the dated eval receipts under `docs/evaluations/2026-07-02-*`
+> refer to this document by its original number.
 
 **Status**: Implemented (2026-07-02)
 **Date**: 2026-07-02

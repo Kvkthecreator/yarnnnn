@@ -25,7 +25,7 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 - Why: recurring probe-round judgment lapse — the steward occasionally graduated byte-stable test asks into standing cadence (Schedule create). Rule content per `agent-composition.md` §3.2.1: this is a rule of judgment (principles.md), NOT kernel frame prose — the ADR-383 ratchet gates block it there anyway.
 - Expected behavior: on a bare-Freddie workspace (kernel-default seed), test-shaped asks produce scoped disposable files and no Schedule calls. Program activations overwrite the seed as before (marked default, overwrite-eligible).
 
-## [2026.07.02.5] - ADR-400: the envelope collapse lands — one thin shape, legacy deleted
+## [2026.07.02.5] - ADR-403: the envelope collapse lands — one thin shape, legacy deleted (renumbered from ADR-400, 2026-07-03 — number collision with the Files-surface ADR)
 
 **The Rung-3-measured thin CC-shape becomes THE envelope for every trigger. Singular implementation: the fat partitioned envelope, the Arm A/B toggle, and the per-trigger framing are DELETED.**
 

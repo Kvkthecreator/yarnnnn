@@ -4,7 +4,7 @@
 **Date**: 2026-07-03
 **Dimension**: Mechanism (primary, Axiom 5) + Identity (occupant attribution, Axiom 2)
 **Supersedes**: the ADR-260 D2/D8 + ADR-263 D2 inline model/round selection in `agents/freddie_agent.py`
-**Relates to**: ADR-315 (occupant contract — the provider seam), ADR-380 (name-the-seam discipline), ADR-382/383 (persona agents — the deferred per-agent override), ADR-396 (metering basis), ADR-400 (the envelope the tiers are measured on)
+**Relates to**: ADR-315 (occupant contract — the provider seam), ADR-380 (name-the-seam discipline), ADR-382/383 (persona agents — the deferred per-agent override), ADR-396 (metering basis), ADR-403 (the envelope the tiers are measured on)
 
 ---
 
@@ -13,7 +13,7 @@
 Rung 4 — deliberately last, per the operator's directive: posture first, model
 question last — of the Freddie envelope/agent optimization program (Rungs 0–3:
 ADR-383 trigger-framing re-carve, ADR-397 liturgy→reactive, ADR-398 chat
-legibility, ADR-399 turn artifact, ADR-400 envelope collapse).
+legibility, ADR-399 turn artifact, ADR-403 envelope collapse).
 
 Before this ADR, model selection for the Freddie occupant lived as two
 hardcoded constants + an inline branch in `agents/freddie_agent.py`:
@@ -34,7 +34,7 @@ Three problems:
    (the shape with the *least* open-ended judgment — a discrete verdict call)
    get the stronger model with a 3-round behavioral cap; the operator-facing
    chat (addressed) and the read-heavy recurrence loop run Haiku. The split
-   predates the ADR-400 thin envelope; nothing re-examined it. Known Haiku
+   predates the ADR-403 thin envelope; nothing re-examined it. Known Haiku
    signatures on the chat shape: stochastic silent exits (~1/12), count fuzz
    in reports, standing-cadence-from-test-asks judgment lapses.
 2. **Policy is buried in code.** Changing which model serves which shape — or
@@ -171,7 +171,7 @@ The decision rule resolves cleanly:
 `max_rounds=20` cost ceiling.** The legacy Sonnet/3 proposal split retires —
 `wake_source='proposal_arrival'` has zero rows ever (the lane has never
 fired live), so no evidence supports any split there; the 3-round cap was a
-behavioral constraint contradicting D4 (the ADR-400 verdict-early ask rule
+behavioral constraint contradicting D4 (the ADR-403 verdict-early ask rule
 is the proposal behavior control).
 
 **Cost delta vs the ADR-396 metering basis**: the per-judgment-invocation

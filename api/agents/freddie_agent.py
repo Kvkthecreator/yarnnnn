@@ -432,7 +432,7 @@ _PERSONA_FRAME_SECTIONS: list[PersonaFrameSection] = [
 ]
 
 
-# _TRIGGER_FRAMING DELETED (ADR-400): per-trigger coaching retired. The
+# _TRIGGER_FRAMING DELETED (ADR-403): per-trigger coaching retired. The
 # close CONTRACT lives in the minimal frame (DP22, Rung-3 finding); the
 # per-trigger INTERFACE rules (verdict-early on proposals, one-WriteFile
 # for long documents) live in the ask branches of _ask_for_trigger.
@@ -513,7 +513,7 @@ def _ask_for_trigger(trigger: str, ctx: FreddieContext) -> str:
                     f"_Required specialist capabilities if you dispatch: "
                     f"`{', '.join(rrc)}`._", "",
                 ]
-            # ADR-400: round-budget interface rule for document-producing
+            # ADR-403: round-budget interface rule for document-producing
             # recurrences (audits, reports).
             parts += [
                 "_If this prompt directs a long structured document: compose "
@@ -538,7 +538,7 @@ def _ask_for_trigger(trigger: str, ctx: FreddieContext) -> str:
                 parts += [
                     "**inputs:**", "```json",
                     _json.dumps(inputs, indent=2, default=str), "```", "",
-                    # ADR-400: round-budget interface rule (proposal wakes run
+                    # ADR-403: round-budget interface rule (proposal wakes run
                     # a short budget — the ADR-294 mid-write truncation class).
                     "_Call ReturnVerdict with approve | reject | defer + "
                     "reasoning EARLY — before any substrate writes; the round "
@@ -558,7 +558,7 @@ def _ask_for_trigger(trigger: str, ctx: FreddieContext) -> str:
 
 
 def _governance_prefix(ctx: FreddieContext) -> str:
-    """The cacheable governance block — the CLAUDE.md-analogue (ADR-400).
+    """The cacheable governance block — the CLAUDE.md-analogue (ADR-403).
 
     The authored governing files, verbatim under labeled headers. Stable
     across wakes; its bytes change only when a governing file is revised,
@@ -593,7 +593,7 @@ def _governance_prefix(ctx: FreddieContext) -> str:
 
 
 def _volatile_suffix(trigger: str, ctx: FreddieContext) -> str:
-    """The per-wake suffix (ADR-400): operating-context (clock) + wake-context
+    """The per-wake suffix (ADR-403): operating-context (clock) + wake-context
     + standing-intent + substrate snapshot (heads, never bodies) + THE ASK.
     Changes every wake — sits AFTER the governance cache breakpoint by
     construction. Everything else is read on demand from authored substrate.
@@ -630,7 +630,7 @@ def _volatile_suffix(trigger: str, ctx: FreddieContext) -> str:
     ) if ctx.get("_snapshot_client") else ""
     if snapshot:
         parts += [snapshot, ""]
-    # Kernel perception facts — RETAINED per ADR-400 §correction: the ADR-390
+    # Kernel perception facts — RETAINED per ADR-403 §correction: the ADR-390
     # commons surface (the validated attribution catch-fix, leads verbatim) +
     # the ADR-364 reflection gap are ratified, gate-covered arcs. Each is
     # empty-graceful (silent on a quiet workspace), so the bare-steward
@@ -680,7 +680,7 @@ def _volatile_suffix(trigger: str, ctx: FreddieContext) -> str:
 
 
 def _build_user_message_content(trigger: str, ctx: FreddieContext) -> list[dict]:
-    """THE envelope builder (ADR-400) — the thin CC-shape as cache-marked blocks.
+    """THE envelope builder (ADR-403) — the thin CC-shape as cache-marked blocks.
 
       [0] governance prefix — cache_control: ephemeral. Bytes change only on a
           governing-file revision; rounds 2..N of every wake AND subsequent
@@ -689,7 +689,7 @@ def _build_user_message_content(trigger: str, ctx: FreddieContext) -> list[dict]
           + the ask. Changes every wake; sits after the breakpoint.
 
     The fat partitioned envelope, the Arm A/B probe toggle, the per-trigger
-    framing, and the fact sections are DELETED (ADR-400 deletion inventory).
+    framing, and the fact sections are DELETED (ADR-403 deletion inventory).
     Evidence the thin shape holds on the weak model:
     docs/evaluations/2026-07-02-freddie-envelope-rung3-armB-v2/.
     """
@@ -921,7 +921,7 @@ async def invoke_freddie(
             logger.debug("[REVIEWER] event_callback raised: %s", cb_exc)
 
     try:
-        # ADR-400: the substrate snapshot is a first-class envelope input —
+        # ADR-403: the substrate snapshot is a first-class envelope input —
         # the collapse landed; the Arm A/B toggle is deleted.
         if isinstance(context, dict):
             context.setdefault("_snapshot_client", client)
@@ -960,7 +960,7 @@ async def invoke_freddie(
         #     file contents the verdict still rests on; 6 is the conservative start.
         # Pure within-call prune — the durable record is the substrate the agent
         # already wrote (ADR-209), untouched. Moat-neutral by construction.
-        # (import was owned by the deleted Arm-B toggle block — ADR-400)
+        # (import was owned by the deleted Arm-B toggle block — ADR-403)
         import os as _os_probe
         _ctx_edit: dict | None = None
         if _os_probe.environ.get("YARNNN_CONTEXT_EDIT", "").strip().lower() in ("1", "true", "on"):

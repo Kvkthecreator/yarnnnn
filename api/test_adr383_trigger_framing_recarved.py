@@ -1,9 +1,9 @@
-"""ADR-383 Rung-1 → ADR-400 gate — the kernel prompt surface is steward-first,
+"""ADR-383 Rung-1 → ADR-403 gate — the kernel prompt surface is steward-first,
 program-neutral, thin, and carries the interface contracts.
 
 History: Rung 1 (2026-07-02) re-carved `_TRIGGER_FRAMING` (program nouns out);
 ADR-397 scoped the liturgy to reactive; the Rung-3 Arm-B probe proved the close
-CONTRACT belongs in the frame (DP22); ADR-400 landed the collapse — the framing
+CONTRACT belongs in the frame (DP22); ADR-403 landed the collapse — the framing
 layer is DELETED, per-trigger INTERFACE rules live in the ask branches of
 `_ask_for_trigger`, and the envelope is governance-prefix + volatile-suffix.
 
@@ -16,7 +16,7 @@ This gate keeps that permanent:
   3. INTERFACE CONTRACTS in the right layer: ReturnVerdict close in the FRAME
      (Arm-B silent-exit regression); verdict-early on proposal asks;
      one-WriteFile on recurrence asks.
-  4. NO WAKE LITURGY anywhere in kernel prompt text (ADR-400 deleted it; its
+  4. NO WAKE LITURGY anywhere in kernel prompt text (ADR-403 deleted it; its
      residual value is principles.md content per agent-composition.md §3.2.1).
 
 Run: cd api && python -m pytest test_adr383_trigger_framing_recarved.py -q
@@ -123,7 +123,7 @@ LITURGY_MARKERS = ["standing_intent", "reflection.md", "judgment_log", "situatio
 
 
 def test_no_wake_liturgy_in_kernel_prompt_text():
-    """ADR-400: the liturgy is deleted from kernel prompt text — its residual
+    """ADR-403: the liturgy is deleted from kernel prompt text — its residual
     value (standing-intent habit, reflection) is principles.md content."""
     failures = []
     for name, text in _kernel_texts().items():
