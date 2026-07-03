@@ -169,25 +169,6 @@ body {
   50% { opacity: 1; transform: scale(1.05); }
 }
 
-/* Universal feedback-layer entrances (ADR-400 polish, 2026-07-03). Defined as
-   real keyframes because tailwindcss-animate is NOT installed — `animate-in`
-   utilities are dead classes in this project. The FeedbackContext toast +
-   confirm dialog use these. */
-@keyframes feedback-toast-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes feedback-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes feedback-dialog-in {
-  from { opacity: 0; transform: scale(0.96); }
-  to   { opacity: 1; transform: scale(1); }
-}
-.animate-toast-in { animation: feedback-toast-in 0.2s ease-out; }
-.animate-fade-in { animation: feedback-fade-in 0.15s ease-out; }
-.animate-dialog-in { animation: feedback-dialog-in 0.15s ease-out; }
 
 /* Agent state utility classes */
 .agent-working {

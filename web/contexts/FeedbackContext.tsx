@@ -315,7 +315,7 @@ function ToastCard({ toast, onDismiss }: { toast: ToastRecord; onDismiss: () => 
       className={cn(
         'pointer-events-auto flex items-start gap-2.5 min-w-[240px] max-w-[360px]',
         'rounded-lg border border-border bg-popover px-3.5 py-2.5 shadow-lg',
-        'animate-toast-in',
+        'animate-in fade-in slide-in-from-bottom-2 duration-200',
       )}
     >
       <div className="mt-0.5 shrink-0">{TOAST_ICON[toast.kind]}</div>
@@ -377,7 +377,7 @@ function ConfirmDialog({
   return createPortal(
     <>
       <div
-        className="fixed inset-0 bg-black/50 animate-fade-in"
+        className="fixed inset-0 bg-black/50 animate-in fade-in duration-150"
         style={{ zIndex: Z_CONFIRM_BACKDROP }}
         onClick={onCancel}
       />
@@ -386,7 +386,7 @@ function ConfirmDialog({
         style={{ zIndex: Z_CONFIRM_DIALOG }}
       >
         <div
-          className="pointer-events-auto w-full max-w-sm rounded-lg border border-border bg-card p-5 shadow-xl animate-dialog-in"
+          className="pointer-events-auto w-full max-w-sm rounded-lg border border-border bg-card p-5 shadow-xl animate-in fade-in zoom-in-95 duration-150"
           role="alertdialog"
           aria-modal="true"
         >

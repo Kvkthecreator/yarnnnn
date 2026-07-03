@@ -89,7 +89,7 @@ await runAction(
 
 The layer uses `bg-popover`, `bg-card`, `text-destructive`, `text-success`, `hover:bg-accent`, and their `-foreground` pairs. These are **shadcn-standard tokens** added in the same pass to [`globals.css`](../../web/app/globals.css) + [`tailwind.config.ts`](../../web/tailwind.config.ts). Before this pass the theme defined only 7 tokens, so `bg-popover` resolved to nothing — which is why the Files right-click menu rendered **transparent**. The full overlay/interactive set (`popover`, `card`, `accent`, `destructive`, `success` + foregrounds) is now defined in both light and dark. Use these tokens for any new overlay/menu/danger UI rather than hardcoding hex.
 
-Entrance animations use real keyframes (`.animate-toast-in`, `.animate-fade-in`, `.animate-dialog-in`) defined in `globals.css`, because `tailwindcss-animate` is **not installed** in this project — the `animate-in` / `slide-in-from-*` utilities are dead classes here. Do not reach for them.
+Entrance animations use **`tailwindcss-animate`** — the shadcn-ecosystem companion to the token set (`animate-in fade-in slide-in-from-bottom-2 zoom-in-95 duration-150`). It was installed 2026-07-03 (same pass); before that it was missing, and 5 components under `components/tp/` had silently-dead `animate-in` classes. It is now wired in `tailwind.config.ts` — use these utilities for entrances/exits rather than hand-rolling `@keyframes` (a second animation system for the same job). Any shadcn component copied in animates correctly by default.
 
 ---
 
