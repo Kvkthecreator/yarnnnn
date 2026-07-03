@@ -262,6 +262,14 @@ async def run_capture_declaration(
         caller_identity=f"system:{slug}",
     )
 
+    # The lane stamps the run's observed_at into the capture primitive's args
+    # (Axiom 1 — the primitive never reads the clock; the raw-lane filename is
+    # {observed_at}.{ext}). Observed live 2026-07-03: without this, raw landed
+    # as `unknown.md` — un-ageable by the retention GC (the window reads the
+    # filename stamp) and one-file-per-selector instead of a snapshot series.
+    if primitive_name == "CaptureConnector":
+        primitive_args = {**primitive_args, "observed_at": observed_at}
+
     try:
         result = await handler(auth, primitive_args)
     except Exception as e:

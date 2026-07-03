@@ -703,6 +703,14 @@ def _test_derive_wake_proposal(results):
         "24 lane gates the proposal on CaptureConnector + new paths (state-mirrors never propose)",
         ok24))
 
+    # 25 — the lane stamps observed_at into CaptureConnector's args (live-eval
+    # fix 2026-07-03: without it raw landed as `unknown.md` — un-ageable by the
+    # retention GC and one-file-per-selector instead of a snapshot series).
+    ok25 = '{**primitive_args, "observed_at": observed_at}' in lane_src
+    results.append(_check(
+        "25 lane stamps observed_at into CaptureConnector args (raw filename = run stamp)",
+        ok25))
+
 
 _SELECTED: list[str] = []
 
