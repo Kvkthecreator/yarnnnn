@@ -1757,6 +1757,9 @@ export const api = {
         capture: { schedule: string | null; paused: boolean } | null;
         cadence_choices: string[];
         agent_enabled: boolean;
+        // ADR-404 D2: false while the capture lane is dormant — the FE hides
+        // CADENCE + YIELD + the retention dial.
+        connector_capture_enabled?: boolean;
       }>(`/api/integrations/${provider}/capture-signal`),
 
     // ADR-401 Phase 4: the CADENCE dial — set the connector's read interval

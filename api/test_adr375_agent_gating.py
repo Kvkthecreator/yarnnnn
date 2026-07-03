@@ -133,7 +133,9 @@ def test_surface_filter() -> None:
     )
 
     keepers = {
-        "files", "context", "connectors", "sources",
+        # "context" renamed → "channels" (ADR-385; the legacy slug row was
+        # deleted outright in the 2026-06-30 alias-deletion follow-on).
+        "files", "channels", "connectors", "sources",
         "settings", "workspace-settings",
         "identity", "mandate", "principles", "home", "budget",
         "top-bar", "launcher", "chat-drawer", "setup",

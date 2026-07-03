@@ -92,7 +92,7 @@ becomes primary.
 ## 5. Implementation sequence (each its own commit)
 
 1. ✅ This ADR + ADR-405 (witness dial) + ADR-406 (stale-parent rejection) — doc-first.
-2. ☐ Capture-lane flag-off (`CONNECTOR_CAPTURE_ENABLED`, D2 cut list) + one-shot duplicate-proposal cleanup.
+2. ✅ Capture-lane flag-off (`CONNECTOR_CAPTURE_ENABLED`, D2 cut list; gate `api/test_adr404_capture_dormancy.py` 28/28) + duplicate-proposal cleanup (37 rejected, newest-per-group kept pending; receipt 2026-07-03).
 3. ☐ ADR-406 implementation (CAS + linearity guard + 409 contract).
 4. ☐ ADR-373 substrate read sweep (core: `workspace.py`, `authored_substrate.py`, `primitives/workspace.py`) + grant-based workspace resolution.
 5. ☐ Member invites (grant provisioning UX — `member` role live; ADR-386 D6 unblocked by step 4).

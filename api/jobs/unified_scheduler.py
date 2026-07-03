@@ -350,16 +350,25 @@ async def run_unified_scheduler():
         # Runs BEFORE the wake drain so a capture makes substrate fresh for the
         # same tick's judgment wakes (a signal-evaluation wake reads the
         # positions/regime the capture just mirrored).
+        #
+        # ADR-404 D2: the capture lane is DORMANT for the commons-first launch —
+        # the drain (and the GC below, which is meaningless without intake) run
+        # only when CONNECTOR_CAPTURE_ENABLED is explicitly on. Inner guard, not
+        # part of the AGENT_ENABLED gate: captures cut independently of the
+        # steward.
         # ---------------------------------------------------------------------
-        try:
-            from services.capture.drainer import drain_due_captures
-            c_found, c_succeeded, c_failed = await drain_due_captures(supabase)
-            if c_found > 0:
-                logger.info(
-                    f"[SCHED] captures: {c_succeeded}/{c_found} succeeded, {c_failed} failed"
-                )
-        except Exception as exc:
-            logger.warning("[SCHED] capture lane raised: %s", exc)
+        from services.connector_capture_gating import is_connector_capture_enabled
+        capture_lane_on = is_connector_capture_enabled()
+        if capture_lane_on:
+            try:
+                from services.capture.drainer import drain_due_captures
+                c_found, c_succeeded, c_failed = await drain_due_captures(supabase)
+                if c_found > 0:
+                    logger.info(
+                        f"[SCHED] captures: {c_succeeded}/{c_found} succeeded, {c_failed} failed"
+                    )
+            except Exception as exc:
+                logger.warning("[SCHED] capture lane raised: %s", exc)
 
         # ---------------------------------------------------------------------
         # ADR-394 D4 / ADR-401 D4: connector raw-lane GC — evidence-bounded
@@ -371,32 +380,34 @@ async def run_unified_scheduler():
         # evidence in a provenance chain and is never pruned. Unknown citation
         # state (gather returned None) prunes nothing — fail-safe. inbound/mcp/
         # + inbound/web/ are not touched (own governance). Best-effort per user.
+        # ADR-404 D2: gated with the capture drain above (same flag).
         # ---------------------------------------------------------------------
-        try:
-            from services.connector_retention import (
-                gather_cited_raw_paths, prune_raw_lane,
-            )
-            now_iso = now.isoformat()
-            gc_pruned_total = 0
-            for gc_user_id in active_user_ids:
-                try:
-                    cited = await gather_cited_raw_paths(supabase, gc_user_id)
-                    res = await prune_raw_lane(
-                        supabase, gc_user_id, now_iso, cited_paths=cited,
-                    )
-                    gc_pruned_total += int(res.get("pruned", 0))
-                except Exception as exc:  # noqa: BLE001 — per-user GC is best-effort
-                    logger.warning(
-                        "[SCHED] connector raw-lane GC failed for %s: %s",
-                        gc_user_id[:8], exc,
-                    )
-            if gc_pruned_total > 0:
-                logger.info(
-                    "[SCHED] connector raw-lane GC pruned %d stale un-cited raw file(s)",
-                    gc_pruned_total,
+        if capture_lane_on:
+            try:
+                from services.connector_retention import (
+                    gather_cited_raw_paths, prune_raw_lane,
                 )
-        except Exception as exc:
-            logger.warning("[SCHED] connector raw-lane GC raised: %s", exc)
+                now_iso = now.isoformat()
+                gc_pruned_total = 0
+                for gc_user_id in active_user_ids:
+                    try:
+                        cited = await gather_cited_raw_paths(supabase, gc_user_id)
+                        res = await prune_raw_lane(
+                            supabase, gc_user_id, now_iso, cited_paths=cited,
+                        )
+                        gc_pruned_total += int(res.get("pruned", 0))
+                    except Exception as exc:  # noqa: BLE001 — per-user GC is best-effort
+                        logger.warning(
+                            "[SCHED] connector raw-lane GC failed for %s: %s",
+                            gc_user_id[:8], exc,
+                        )
+                if gc_pruned_total > 0:
+                    logger.info(
+                        "[SCHED] connector raw-lane GC pruned %d stale un-cited raw file(s)",
+                        gc_pruned_total,
+                    )
+            except Exception as exc:
+                logger.warning("[SCHED] connector raw-lane GC raised: %s", exc)
 
         # ---------------------------------------------------------------------
         # ADR-296 v2 D1 + D2: substrate-event wake source walker.

@@ -2090,12 +2090,16 @@ async def update_selected_sources(
     # has no judgment in it, so the declaration is seeded here deterministically:
     # ≥1 selected → an active capture-{platform} entry; 0 selected → paused.
     # Best-effort: a seed failure never fails the selection save.
+    # ADR-404 D2: seed only while the capture lane is live — selection stays a
+    # pure scope declaration while the lane is dormant.
     try:
-        from services.connector_watch import seed_connector_capture
-        await seed_connector_capture(
-            auth.client, user_id, providers_to_try[0],
-            selected_count=len(allowed_ids),
-        )
+        from services.connector_capture_gating import is_connector_capture_enabled
+        if is_connector_capture_enabled():
+            from services.connector_watch import seed_connector_capture
+            await seed_connector_capture(
+                auth.client, user_id, providers_to_try[0],
+                selected_count=len(allowed_ids),
+            )
     except Exception as exc:  # noqa: BLE001 — capture seed is best-effort
         logger.warning(
             "[INTEGRATIONS] ADR-394: connector capture seed failed for %s: %s",
@@ -2197,6 +2201,7 @@ async def get_capture_signal(
     """
     from services.agent_gating import is_agent_enabled
     from services.capture.declarations import read_capture_signal, walk_workspace_captures
+    from services.connector_capture_gating import is_connector_capture_enabled
     from services.connector_watch import CONNECTOR_CADENCE_CHOICES, read_selection
 
     db_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
@@ -2264,6 +2269,9 @@ async def get_capture_signal(
         "capture": capture,
         "cadence_choices": list(CONNECTOR_CADENCE_CHOICES),
         "agent_enabled": is_agent_enabled(),
+        # ADR-404 D2: the FE hides CADENCE + YIELD + the retention dial while
+        # the capture lane is dormant (ACCESS + SCOPE stay unconditional).
+        "connector_capture_enabled": is_connector_capture_enabled(),
     }
 
 

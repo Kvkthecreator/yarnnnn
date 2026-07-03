@@ -103,6 +103,9 @@ export function ConnectedIntegrationsSection({
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [platformStatuses, setPlatformStatuses] = useState<Record<string, string>>({});
   const [freshness, setFreshness] = useState<Record<string, PlatformFreshness>>({});
+  // ADR-404 D2: the capture lane is dormant for the commons-first launch —
+  // the freshness strip + retention dial render only when the lane runs.
+  const [captureEnabled, setCaptureEnabled] = useState(false);
   const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
@@ -144,6 +147,7 @@ export function ConnectedIntegrationsSection({
           connected.map(async (provider) => {
             try {
               const s = await api.integrations.getCaptureSignal(provider);
+              if (s.connector_capture_enabled) setCaptureEnabled(true);
               const block = s.observed?.[`capture-${provider}`];
               const fresh: PlatformFreshness = {
                 status: block?.status,
@@ -207,7 +211,7 @@ export function ConnectedIntegrationsSection({
   // connector. Returns null in the legacy (Workspace-Settings) mode so
   // behavior is unchanged there.
   const renderFreshness = (provider: string) => {
-    if (!showFreshness) return null;
+    if (!showFreshness || !captureEnabled) return null;
     const f = freshness[provider];
     return (
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border/60 pt-2 text-xs text-muted-foreground">
@@ -454,7 +458,7 @@ export function ConnectedIntegrationsSection({
         <div className="space-y-6">
           {/* Retention dial — workspace-level (ADR-392 D8). One window for all
               connectors' raw lanes. Rendered on the freshness-bearing pane only. */}
-          {showFreshness && <RetentionDial />}
+          {showFreshness && captureEnabled && <RetentionDial />}
 
           {/* Connected connectors. OAuth+selection ones are drill-in ROWS (click
               → the deep Manage subsurface); api-key ones (no selection) keep the

@@ -147,6 +147,9 @@ export function ManageConnectionSubsurface({
   const [cadenceChoices, setCadenceChoices] = useState<string[]>([]);
   const [cadenceSaving, setCadenceSaving] = useState(false);
   const [agentEnabled, setAgentEnabled] = useState(true);
+  // ADR-404 D2: the capture lane is dormant for the commons-first launch —
+  // CADENCE + YIELD render only when the deployment runs the lane.
+  const [captureEnabled, setCaptureEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -178,6 +181,7 @@ export function ManageConnectionSubsurface({
         setCapture(signal?.capture ?? null);
         setCadenceChoices(signal?.cadence_choices ?? []);
         setAgentEnabled(signal?.agent_enabled ?? true);
+        setCaptureEnabled(signal?.connector_capture_enabled ?? false);
       } catch (e) {
         setError(
           e instanceof Error ? e.message : `Could not load ${provider} ${resourceNoun}.`,
@@ -457,7 +461,9 @@ export function ManageConnectionSubsurface({
 
             {/* CADENCE — the read interval, operator-tunable within the
                 bounded enum (ADR-401 Phase 4). The select only renders once
-                a capture entry exists (seeded at first save-with-selection). */}
+                a capture entry exists (seeded at first save-with-selection).
+                ADR-404 D2: hidden while the capture lane is dormant. */}
+            {captureEnabled && (
             <SectionShell title="Cadence">
               <div className="flex flex-wrap items-center gap-3">
                 <p className="text-sm text-muted-foreground">{cadenceLine()}</p>
@@ -490,8 +496,11 @@ export function ManageConnectionSubsurface({
                 )}
               </div>
             </SectionShell>
+            )}
 
-            {/* YIELD — the read-back (connector grain). */}
+            {/* YIELD — the read-back (connector grain).
+                ADR-404 D2: hidden while the capture lane is dormant. */}
+            {captureEnabled && (
             <SectionShell title="Yield">
               <div className="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                 <Clock className="h-3.5 w-3.5 shrink-0" />
@@ -513,6 +522,7 @@ export function ManageConnectionSubsurface({
                 </SurfaceLink>
               )}
             </SectionShell>
+            )}
           </>
         )}
       </div>
