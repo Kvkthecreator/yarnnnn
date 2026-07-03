@@ -60,15 +60,21 @@ def test_authenticated_client_has_caller_identity_default():
 
 
 def test_mcp_auth_sets_caller_identity_yarnnn_mcp():
-    """ADR-288 D1: MCP boundary sets caller_identity='yarnnn:mcp'.
+    """ADR-288 D1: MCP boundary sets the yarnnn:mcp caller class.
 
-    Replaces the three explicit per-call authored_by='yarnnn:mcp' passes at
-    services/mcp_composition.py:677/683/687.
+    ADR-373 D2.a: the identity is room-qualified when the OAuth session
+    carries a client name — ``yarnnn:mcp:<client>`` — with bare
+    ``yarnnn:mcp`` as the fallback. Both forms keep the ``yarnnn:mcp``
+    caller-class prefix the topology lock matches on (startswith, not ==).
     """
     src = _read_text(_file("mcp_server", "auth.py"))
-    assert 'caller_identity="yarnnn:mcp"' in src, (
-        "mcp_server/auth.py must construct AuthenticatedClient with "
-        "caller_identity='yarnnn:mcp' per ADR-288 D1."
+    assert 'f"yarnnn:mcp:{client_name}"' in src, (
+        "mcp_server/auth.py must room-qualify caller_identity as "
+        "yarnnn:mcp:<client> per ADR-373 D2.a."
+    )
+    assert '"yarnnn:mcp"' in src, (
+        "mcp_server/auth.py must keep the bare yarnnn:mcp fallback "
+        "per ADR-288 D1."
     )
 
 
@@ -90,17 +96,19 @@ def test_reviewer_auth_sets_caller_identity():
 
 
 def test_mechanical_auth_sets_caller_identity():
-    """ADR-288 D1: _MechanicalAuth carries caller_identity=f'system:{slug}'.
+    """ADR-288 D1: mechanical intake carries caller_identity=f'system:{slug}'.
 
-    2026-06-04 (ADR-315 carry-over): _MechanicalAuth moved from the deleted
-    services/invocation_dispatcher.py into services/wake.py (ADR-296 v2 →
-    ADR-298 wake-architecture migration). The caller_identity contract is
-    unchanged; only the file moved.
+    History: _MechanicalAuth lived in the deleted invocation_dispatcher.py,
+    moved to services/wake.py (ADR-296 v2 → ADR-298), then ADR-393 carved
+    mechanical intake OUT of the wake funnel entirely — the capture lane
+    (services/capture/lane.py) is its successor and carries the same
+    caller_identity contract (the peripheral is the mechanism, not a
+    contributor; attribution is system:<slug>).
     """
-    src = _read_text(_file("services", "wake.py"))
-    assert 'caller_identity=f"system:{recurrence.slug}"' in src, (
-        "_MechanicalAuth must set caller_identity=f'system:{recurrence.slug}' "
-        "per ADR-288 D1."
+    src = _read_text(_file("services", "capture", "lane.py"))
+    assert 'caller_identity=f"system:{slug}"' in src, (
+        "the capture lane must set caller_identity=f'system:{slug}' "
+        "per ADR-288 D1 (carried through the ADR-393 carve)."
     )
 
 
