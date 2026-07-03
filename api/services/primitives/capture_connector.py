@@ -283,16 +283,30 @@ async def _latest_snapshot_content(um: Any, sublane_rel: str) -> Optional[str]:
     sub = sublane_rel.rstrip("/") + "/"
     try:
         names = await um.list(sub)
-    except Exception:
+    except Exception as e:
+        # LOUD fail-open (2026-07-03): a silent swallow here hid a phantom
+        # um.list() (UserMemory had no such method) for a full deploy cycle —
+        # the baseline never resolved and every run rewrote unchanged raw.
+        # Fail-open stands (a capture must never be lost to a baseline
+        # error), but the failure must be visible.
+        logger.warning(
+            "[CAPTURE_CONNECTOR] diff baseline unresolvable for %s "
+            "(writing unconditionally): %s", sub, e,
+        )
         return None
-    files = [n for n in (names or []) if n and "/" not in n.strip("/")]
+    # Files only — um.list marks directories with a trailing "/".
+    files = [n for n in (names or []) if n and not n.endswith("/") and "/" not in n]
     if not files:
         return None
     stamped = [n for n in files if n[:4].isdigit()]
     pick = max(stamped) if stamped else max(files)
     try:
         return await um.read(f"{sub}{pick}")
-    except Exception:
+    except Exception as e:
+        logger.warning(
+            "[CAPTURE_CONNECTOR] diff baseline read failed for %s%s "
+            "(writing unconditionally): %s", sub, pick, e,
+        )
         return None
 
 

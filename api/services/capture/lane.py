@@ -173,10 +173,11 @@ async def run_capture_declaration(
     Parses the ``@primitive:`` directive, gates on platform connection where
     applicable, runs the registered handler, writes the per-declaration health
     signal, and records one ``execution_events`` row (funnel_decision=capture,
-    wake_source=None — there was no wake). Zero LLM. Never wakes the Reviewer
-    directly — a connector capture that landed new raw CONTRIBUTES one derive
-    PROPOSAL to the wake funnel (ADR-401 D5, `_propose_derive_wake`); the
-    funnel + pace decide whether the seat actually wakes.
+    wake_source=None — there was no wake). Zero LLM. **Never wakes anyone**
+    (ADR-393 D1, restored 2026-07-03 — the ADR-401 D5 per-run derive-wake
+    proposal is retired; capture volume has zero correlation with wake count.
+    The seat perceives accumulated inbound at its own wake cadence via the
+    envelope's peripheral field and derives then).
 
     Returns ``{success, slug, primitive?, items?, error_reason?, duration_ms}``.
     Best-effort on the health signal + telemetry — a capture's substrate write
@@ -327,24 +328,19 @@ async def run_capture_declaration(
         last_error=None if success else (str(inner_error)[:500] if inner_error else "failed"),
     )
 
-    # ADR-401 D5 — derive attention-routing. A connector capture that landed
-    # NEW raw proposes ONE derive wake for the whole run (the run is the
-    # natural batch: one fan-out over the aperture). The capture itself stays
-    # mechanical — this contributes a PROPOSAL to the funnel (which still
-    # decides), exactly as the MCP `remember` path does for its raw lane
-    # (mcp_composition's wake adapter — the derive route connector raw was
-    # missing). Diff-aware skips mean paths_written is only ACTUAL new
-    # content: an unchanged world proposes nothing.
-    if success and primitive_name == "CaptureConnector" and isinstance(result, dict):
-        paths_written = result.get("paths_written")
-        if isinstance(paths_written, list) and paths_written:
-            await _propose_derive_wake(
-                client, user_id,
-                slug=slug,
-                primitive_args=primitive_args,
-                paths_written=[str(p) for p in paths_written],
-                observed_at=observed_at,
-            )
+    # ADR-401 D5 derive attention-routing RETIRED (2026-07-03, operator
+    # decision amending D5): the per-run derive-wake proposal is deleted.
+    # Capture accumulation must have ZERO correlation with wake / LLM
+    # invocation count — this restores the module's own D1 invariant ("a
+    # capture runs on cadence and wakes no one"). Derive remains the seat's
+    # judgment act (ADR-394 D3 / ADR-376): it happens when the agent wakes on
+    # its OWN cadence (declared recurrences, addressed turns) and perceives
+    # the accumulated un-derived inbound via the envelope's peripheral field
+    # (freddie_envelope._peripheral_field_fact). The empirical trigger: the
+    # suppression bug (phantom um.list) made every 15-min capture fire a
+    # ~$0.60 judgment wake on an unchanged world (~$60/day), and even
+    # post-fix the coupling ties spend to connector chatter, not judgment
+    # cadence. See ADR-401 §D5 amendment.
 
     logger.info(
         "[CAPTURE] %s/%s done (status=%s duration_ms=%d primitive=%s items=%s)",
@@ -359,84 +355,6 @@ async def run_capture_declaration(
         "duration_ms": duration_ms,
         "error_reason": inner_error,
     }
-
-
-async def _propose_derive_wake(
-    client,
-    user_id: str,
-    *,
-    slug: str,
-    primitive_args: dict,
-    paths_written: list,
-    observed_at: str,
-) -> None:
-    """Propose the seat derive freshly-captured connector raw (ADR-401 D5).
-
-    The SINGLE site in the capture lane that touches the wake contract
-    (services.wake.submit_wake_proposal) — deliberately isolated in one
-    best-effort adapter, mirroring mcp_composition's foreign-write adapter
-    (the same derive-and-cite seam, ADR-376/DP32). Everything else in the
-    lane stays wake-agnostic.
-
-    One proposal per capture RUN (not per file): dedup key is the run stamp
-    (`{slug}:{observed_at}`), so a re-enqueue of the same run dedups at the
-    queue's UNIQUE constraint (ADR-298 D6). The funnel + pace still decide
-    whether/when the seat actually wakes; derive stays a judgment act
-    (ADR-394 D3) — deriving nothing is a valid outcome for a noisy batch.
-    A proposal failure never fails the capture.
-    """
-    platform = str(primitive_args.get("platform") or "").strip().lower() or "connector"
-    n = len(paths_written)
-    shown = paths_written[:20]
-    listing = "\n".join(f"- {p}" for p in shown)
-    if n > len(shown):
-        listing += f"\n… and {n - len(shown)} more"
-
-    prompt = (
-        f"The {platform} capture just landed {n} new raw file(s) in the inbound lane "
-        f"(attributed system:{slug} — the peripheral is the mechanism, not a contributor). "
-        f"This raw is retained but is not yet part of the workspace's understanding, and "
-        f"recall cannot see it until you derive it.\n\n"
-        f"As the seat, engage the new raw and derive what is worth keeping: distill the "
-        f"operation-relevant understanding into the operation's substrate as a SEPARATE "
-        f"citing act — the derived file carries `derived_from:` naming the raw path(s) it "
-        f"distills — and never rewrite or move the raw itself (it is the source of record). "
-        f"Connector raw is a firehose, mostly noise: deriving nothing is a valid judgment; "
-        f"say so briefly if the batch carries nothing the mandate cares about. Un-cited raw "
-        f"ages out mechanically under the retention window; whatever you cite is kept as "
-        f"evidence.\n\n"
-        f"New raw files:\n{listing}"
-    )
-
-    try:
-        from services.wake import submit_wake_proposal
-
-        outcome = await submit_wake_proposal(
-            client, user_id,
-            source="substrate_event",
-            payload={
-                "hook": {
-                    "slug": f"derive-{slug}",
-                    "event": "substrate_change",
-                    "prompt": prompt,
-                },
-                "path": str(paths_written[0]),
-                "field_change": {"source": "connector-capture", "platform": platform},
-                # Run-stable dedup stamp (consumed as the queue dedup key;
-                # telemetry-only downstream — never dereferenced as a
-                # workspace_file_versions id).
-                "revision_id": f"{slug}:{observed_at}",
-            },
-        )
-        logger.info(
-            "[CAPTURE] %s/%s derive wake proposed (%d new file(s), dedup=%s)",
-            user_id[:8], slug, n, bool(outcome.get("dedup")) if isinstance(outcome, dict) else "?",
-        )
-    except Exception as exc:  # noqa: BLE001 — the capture's substrate write is the work
-        logger.warning(
-            "[CAPTURE] %s/%s derive-wake proposal failed (capture unaffected): %s",
-            user_id[:8], slug, exc,
-        )
 
 
 __all__ = ["run_capture_declaration", "parse_primitive_directive"]

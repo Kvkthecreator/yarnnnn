@@ -762,6 +762,44 @@ class UserMemory:
             logger.error(f"[USER_MEMORY] Write failed: {path}: {e}")
             return False
 
+    async def list(self, relative_path: str = "") -> list[str]:
+        """List direct children under a workspace-relative directory —
+        basenames for files, dir-names with a trailing "/" (the same
+        non-recursive contract as AgentWorkspace.list).
+
+        Added 2026-07-03: the capture diff baseline
+        (capture_connector._latest_snapshot_content) called a PHANTOM
+        um.list() that never existed on this class — the AttributeError was
+        swallowed fail-open, so the sub-lane baseline never resolved, every
+        capture run rewrote byte-identical raw, and (pre-decoupling) each
+        rewrite fired a judgment wake (~$60/day). The test fake modeled the
+        method the real class lacked; the gate stayed green (mock drift).
+        """
+        prefix = self._full_path(relative_path)
+        if not prefix.endswith("/"):
+            prefix += "/"
+        try:
+            result = (
+                self._db.table("workspace_files")
+                .select("path")
+                .eq("user_id", self._user_id)
+                .like("path", f"{prefix}%")
+                .in_("lifecycle", ["active", "delivered"])
+                .order("path")
+                .execute()
+            )
+            direct: set[str] = set()
+            for r in result.data or []:
+                remainder = r["path"][len(prefix):]
+                if "/" in remainder:
+                    direct.add(remainder.split("/")[0] + "/")
+                elif remainder:
+                    direct.add(remainder)
+            return sorted(direct)
+        except Exception as e:
+            logger.warning(f"[USER_MEMORY] List failed: {prefix}: {e}")
+            return []
+
     async def read_all(self) -> dict[str, str]:
         """Read workspace context files. Returns {basename: content}.
 
