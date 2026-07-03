@@ -993,8 +993,17 @@ async def handle_edit_file(auth: Any, input: dict) -> dict:
         return {"success": False, "error": "missing_path", "message": "path is required"}
 
     if scope == "workspace":
+        from services.authored_substrate import StaleWriteError, read_head_revision_id
+
         path = _normalize_workspace_rel(path)
         um = UserMemory(auth.client, auth.user_id)
+        # ADR-406 D4: EditFile reads before editing — thread the head it
+        # read so a concurrent writer surfaces as a conflict, not a clobber.
+        # Head first, content second: a write landing between the two reads
+        # fails the CAS (false conflict at worst — the safe direction).
+        base_head = read_head_revision_id(
+            auth.client, user_id=auth.user_id, path=f"/workspace/{path}"
+        )
         existing = await um.read(path)
         if existing is None:
             return {"success": False, "error": "file_not_found",
@@ -1010,11 +1019,22 @@ async def handle_edit_file(auth: Any, input: dict) -> dict:
         resolved_author, resolved_message = _resolved_author_and_message(
             auth, input, f"EditFile workspace {path}"
         )
-        ok = await um.write(
-            path, new_content,
-            summary=f"Workspace edit: {path}",
-            authored_by=resolved_author, message=resolved_message,
-        )
+        try:
+            ok = await um.write(
+                path, new_content,
+                summary=f"Workspace edit: {path}",
+                authored_by=resolved_author, message=resolved_message,
+                expected_parent_version_id=base_head,
+            )
+        except StaleWriteError as e:
+            who = (e.current_head or {}).get("authored_by", "another writer")
+            when = (e.current_head or {}).get("created_at", "just now")
+            return {"success": False, "error": "stale_write",
+                    "message": (
+                        f"/workspace/{path} changed while you were editing — "
+                        f"{who} wrote a revision at {when}. Re-read the file "
+                        f"and re-apply your edit against the current content."
+                    )}
         if not ok:
             return {"success": False, "error": "write_failed", "message": f"Failed to write: /workspace/{path}"}
         await _emit_workspace_activity(auth, path, new_content)

@@ -112,6 +112,78 @@ def is_valid_author(authored_by: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Optimistic concurrency (ADR-406)
+# ---------------------------------------------------------------------------
+
+# Sentinel distinguishing "caller stated no precondition" (legacy append
+# semantics — mechanical appenders MUST stay here per ADR-406 D4) from
+# "caller asserts the file is new" (expected_parent_version_id=None).
+_UNSET: Any = object()
+
+
+class StaleWriteError(Exception):
+    """The write was based on a revision that is no longer the head (ADR-406).
+
+    Raised when a caller passes ``expected_parent_version_id`` and the chain
+    has moved past it — either detected up-front (read mismatch) or by the
+    DB linearity guard (unique violation on parent_version_id, migration
+    197) when two writers race the same head. Carries the intervening
+    head's attribution so the conflict surface can say WHO moved past the
+    caller, WHEN, and WHY (ADR-405: a conflict is a witness moment).
+
+    Resolution is revert-as-write (ADR-209 D7): reload, reapply, save —
+    never a hidden merge (ADR-286/378).
+    """
+
+    def __init__(
+        self,
+        *,
+        path: str,
+        expected_parent_version_id: Optional[str],
+        current_head: Optional[dict] = None,
+    ) -> None:
+        self.path = path
+        self.expected_parent_version_id = expected_parent_version_id
+        self.current_head = current_head or {}
+        who = self.current_head.get("authored_by", "another writer")
+        super().__init__(
+            f"Stale write to {path}: expected head "
+            f"{expected_parent_version_id or '<none>'} but {who} has written "
+            f"revision {self.current_head.get('id', '<unknown>')} since"
+        )
+
+
+def _read_head_revision_summary(
+    db_client: Any, user_id: str, path: str
+) -> Optional[dict]:
+    """Return the current head's attribution summary, or None (no revisions).
+
+    Used to populate StaleWriteError.current_head — the conflict surface's
+    "who moved past you" line.
+    """
+    result = (
+        db_client.table("workspace_file_versions")
+        .select("id, authored_by, message, created_at")
+        .eq("user_id", user_id)
+        .eq("path", path)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        return None
+    return dict(result.data[0])
+
+
+def _is_parent_unique_violation(exc: Exception) -> bool:
+    """True when an insert failed on the ADR-406 D3 linearity guard index."""
+    text = str(exc)
+    return "uq_workspace_file_versions_parent" in text or (
+        "23505" in text and "parent_version_id" in text
+    )
+
+
+# ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
 
@@ -156,6 +228,16 @@ def _upsert_blob(db_client: Any, sha: str, content: str) -> None:
         {"sha256": sha, "content": content},
         on_conflict="sha256",
     ).execute()
+
+
+def read_head_revision_id(db_client: Any, *, user_id: str, path: str) -> Optional[str]:
+    """Public read of the current head revision id for (user_id, path).
+
+    ADR-406: callers that intend a conditional write read their base here
+    (or take it from a surface that already carries head_version_id) and
+    pass it back as ``expected_parent_version_id``.
+    """
+    return _read_head_revision_id(db_client, user_id, path)
 
 
 def _read_head_revision_id(db_client: Any, user_id: str, path: str) -> Optional[str]:
@@ -297,8 +379,17 @@ def write_revision(
     content_url: Optional[str] = None,
     metadata: Optional[dict] = None,
     workspace_id: Optional[str] = None,
+    expected_parent_version_id: Any = _UNSET,
 ) -> str:
     """The single write path for every substrate mutation.
+
+    ADR-406 (optimistic concurrency): callers that read the file before
+    editing MAY pass ``expected_parent_version_id`` — the head revision id
+    they based the edit on (None asserts "the path has no revisions yet").
+    If the chain has moved past it, the write raises StaleWriteError with
+    the intervening head's attribution instead of silently clobbering.
+    Omitted → today's append semantics, unchanged; mechanical appenders
+    (capture lane, ledgers, logs) MUST NOT pass it (ADR-406 D4).
 
     Semantics (Phase 2 — complete):
       1. Compute sha256 of content; upsert workspace_blobs.
@@ -368,17 +459,53 @@ def write_revision(
 
     parent_version_id = _read_head_revision_id(db_client, user_id, path)
 
-    new_revision_id = _insert_revision(
-        db_client,
-        user_id=user_id,
-        path=path,
-        blob_sha=sha,
-        parent_version_id=parent_version_id,
-        authored_by=authored_by,
-        author_identity_uuid=author_identity_uuid,
-        message=message,
-        workspace_id=workspace_id,
-    )
+    # ADR-406 D1: the up-front CAS check. Catches every human-scale race
+    # (the base moved seconds-to-minutes ago); the DB linearity guard below
+    # closes the remaining read-then-insert window.
+    if expected_parent_version_id is not _UNSET and (
+        expected_parent_version_id != parent_version_id
+    ):
+        raise StaleWriteError(
+            path=path,
+            expected_parent_version_id=expected_parent_version_id,
+            current_head=_read_head_revision_summary(db_client, user_id, path),
+        )
+
+    # ADR-406 D3: the insert can lose a true race on the linearity guard
+    # index (migration 197) — two writers both read head H, one child of H
+    # wins. A caller WITH a precondition gets StaleWriteError (its base is
+    # gone). A caller WITHOUT one (append semantics) retries on a fresh
+    # head — appends interleave by design and must not start failing just
+    # because the chain is now structurally linear.
+    _RACE_RETRIES = 3
+    new_revision_id: Optional[str] = None
+    for attempt in range(_RACE_RETRIES + 1):
+        try:
+            new_revision_id = _insert_revision(
+                db_client,
+                user_id=user_id,
+                path=path,
+                blob_sha=sha,
+                parent_version_id=parent_version_id,
+                authored_by=authored_by,
+                author_identity_uuid=author_identity_uuid,
+                message=message,
+                workspace_id=workspace_id,
+            )
+            break
+        except Exception as exc:
+            if not _is_parent_unique_violation(exc):
+                raise
+            if expected_parent_version_id is not _UNSET:
+                raise StaleWriteError(
+                    path=path,
+                    expected_parent_version_id=expected_parent_version_id,
+                    current_head=_read_head_revision_summary(db_client, user_id, path),
+                ) from exc
+            if attempt == _RACE_RETRIES:
+                raise
+            parent_version_id = _read_head_revision_id(db_client, user_id, path)
+    assert new_revision_id is not None  # loop either breaks or raises
 
     _upsert_workspace_file(
         db_client,

@@ -642,6 +642,9 @@ export interface WorkspaceFile {
   content_type?: string;
   content_url?: string;
   metadata?: Record<string, any>;
+  /** ADR-406 D2: the head revision this content reflects — hold it as the
+   *  editing base and send it back via editFile's expectedHeadVersionId. */
+  head_version_id?: string | null;
 }
 
 /** ADR-209 Phase 4 + ADR-266 D7: minimal revision metadata surfaced in

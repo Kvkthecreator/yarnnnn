@@ -44,6 +44,9 @@ class FileResponse(BaseModel):
     content_type: Optional[str] = None
     content_url: Optional[str] = None
     metadata: Optional[dict] = None
+    # ADR-406 D2: the head revision this content reflects — the editor holds
+    # it as the base and sends it back on save (optimistic concurrency).
+    head_version_id: Optional[str] = None
 
 
 class FileEditRequest(BaseModel):
@@ -55,6 +58,11 @@ class FileEditRequest(BaseModel):
     # edits can send any short description. Always attributed to "operator"
     # via this route.
     message: Optional[str] = None
+    # ADR-406 D2: the head_version_id the editor loaded. When present, the
+    # write is conditional — a moved head returns 409 with the intervening
+    # revision's attribution instead of silently clobbering. Absent →
+    # unconditional (legacy callers, bulk tools).
+    expected_head_version_id: Optional[str] = None
 
 
 class RecentArtifact(BaseModel):
@@ -652,7 +660,7 @@ async def get_workspace_file(
     try:
         result = (
             auth.client.table("workspace_files")
-            .select("path, content, summary, updated_at, content_type, content_url, metadata")
+            .select("path, content, summary, updated_at, content_type, content_url, metadata, head_version_id")
             .eq("user_id", auth.user_id)
             .eq("path", normalized_path)
             .limit(1)
@@ -680,6 +688,7 @@ async def get_workspace_file(
             content_type=row.get("content_type"),
             content_url=row.get("content_url"),
             metadata=row.get("metadata"),
+            head_version_id=row.get("head_version_id"),
         )
 
     except HTTPException:
@@ -1171,7 +1180,7 @@ async def edit_workspace_file(
 
     try:
         from datetime import datetime, timezone
-        from services.authored_substrate import write_revision
+        from services.authored_substrate import StaleWriteError, write_revision
 
         now = datetime.now(timezone.utc).isoformat()
 
@@ -1179,6 +1188,12 @@ async def edit_workspace_file(
         # Substrate. authored_by="operator" because this is a user-initiated
         # edit via the Context surface. Phase 4: message accepts an explicit
         # short description from UI (revert action sends "revert to r{N}").
+        # ADR-406 D2: when the editor states its base, the write is
+        # conditional (StaleWriteError → 409 below).
+        write_kwargs: dict = {}
+        if body.expected_head_version_id is not None:
+            write_kwargs["expected_parent_version_id"] = body.expected_head_version_id
+
         write_revision(
             auth.client,
             user_id=auth.user_id,
@@ -1187,6 +1202,7 @@ async def edit_workspace_file(
             authored_by="operator",
             message=body.message or f"edit file {path}",
             summary=body.summary,
+            **write_kwargs,
         )
 
         logger.info(f"[WORKSPACE_API] File edited: {path}")
@@ -1197,6 +1213,22 @@ async def edit_workspace_file(
             "updated_at": now,
         }
 
+    except StaleWriteError as e:
+        # ADR-406 D2: the conflict is a witness moment (ADR-405) — return
+        # WHO moved past the caller so the surface can say it. Resolution
+        # is reload + reapply (revert-as-write), never a hidden merge.
+        logger.info(f"[WORKSPACE_API] Stale write rejected: {path}")
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "stale_write",
+                "path": path,
+                "expected_head_version_id": e.expected_parent_version_id,
+                "current_head": e.current_head,
+            },
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[WORKSPACE_API] File edit failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

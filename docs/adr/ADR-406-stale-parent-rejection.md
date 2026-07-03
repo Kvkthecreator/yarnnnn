@@ -1,6 +1,6 @@
 # ADR-406: Stale-Parent Rejection — optimistic concurrency at the singular write path
 
-**Status**: Accepted (2026-07-03) — implementation is ADR-404 sequence step 3
+**Status**: Implemented (2026-07-03) — migration 197 applied to prod (guard probe: duplicate-parent insert rejected live); gate `api/test_adr406_stale_parent.py` 22/22
 **Date**: 2026-07-03
 **Dimension**: Substrate (primary, Axiom 1) — integrity of the revision chain under concurrent principals
 **Relates to**: ADR-209 (authored substrate — the parent-pointer chain this hardens), ADR-286 (single-writer-per-path — the semantic layer above), ADR-373 (multi-principal workspace — the condition that makes races real), ADR-405 (the witness dial — the conflict surface is a witness moment), ADR-400 (operator direct manipulation — the second live writer)

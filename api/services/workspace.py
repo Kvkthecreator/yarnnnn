@@ -718,6 +718,7 @@ class UserMemory:
         *,
         authored_by: str = None,
         message: str = None,
+        expected_parent_version_id: str = None,
     ) -> bool:
         """Write a memory file through the Authored Substrate (ADR-209).
 
@@ -737,12 +738,20 @@ class UserMemory:
         write, but with weaker attribution than possible).
 
         ADR-157: Supports content_url for binary asset references.
+
+        ADR-406: pass ``expected_parent_version_id`` (the head the caller
+        read) to make the write conditional — StaleWriteError PROPAGATES
+        (it is a conflict to surface, not a write failure to swallow).
         """
-        from services.authored_substrate import write_revision
+        from services.authored_substrate import StaleWriteError, write_revision
 
         path = self._full_path(filename)
         resolved_author = authored_by or "system:user-memory"
         resolved_message = message or f"write {filename}"
+
+        extra: dict = {}
+        if expected_parent_version_id is not None:
+            extra["expected_parent_version_id"] = expected_parent_version_id
 
         try:
             write_revision(
@@ -756,8 +765,11 @@ class UserMemory:
                 content_type=content_type,
                 content_url=content_url,
                 metadata=metadata,
+                **extra,
             )
             return True
+        except StaleWriteError:
+            raise
         except Exception as e:
             logger.error(f"[USER_MEMORY] Write failed: {path}: {e}")
             return False

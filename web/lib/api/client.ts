@@ -1289,10 +1289,31 @@ export const api = {
         { method: "POST" },
       ),
 
-    editFile: (path: string, content: string, summary?: string, message?: string) =>
+    // ADR-406 D2: pass expectedHeadVersionId (the head_version_id the file
+    // was loaded with) to make the save conditional — the API returns 409
+    // with the intervening revision's attribution when the base has moved.
+    // Omitted → unconditional (config dials, revert-as-write).
+    editFile: (
+      path: string,
+      content: string,
+      summary?: string,
+      message?: string,
+      expectedHeadVersionId?: string | null,
+    ) =>
       request<{ success: boolean; path: string; updated_at: string }>(
         `/api/workspace/file`,
-        { method: "PATCH", body: JSON.stringify({ path, content, summary, message }) }
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            path,
+            content,
+            summary,
+            message,
+            ...(expectedHeadVersionId != null
+              ? { expected_head_version_id: expectedHeadVersionId }
+              : {}),
+          }),
+        }
       ),
 
     // ADR-209 Phase 4 + ADR-329 (amended): the revision chain for a node.
