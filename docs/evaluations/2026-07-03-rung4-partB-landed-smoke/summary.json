@@ -1,0 +1,30 @@
+{
+  "user_id": "4c106786-c9b4-41cb-982d-0f5a8cc35923",
+  "n_turns": 1,
+  "closed": 1,
+  "errors": 0,
+  "mean_wall_s": 26.2,
+  "mean_rounds": 4.0,
+  "mean_tool_calls": 6.0,
+  "mean_response_chars": 318,
+  "turns": [
+    {
+      "idx": 5,
+      "ask": "What connections and sources are currently feeding this workspace?",
+      "wall_s": 26.2,
+      "rounds": 4,
+      "n_tool_calls": 6,
+      "tool_calls": [
+        "list_integrations",
+        "GetSystemState",
+        "ListFiles",
+        "ReadFile",
+        "ReadFile",
+        "ReadFile"
+      ],
+      "response_chars": 318,
+      "verdict_reached": true,
+      "error": null
+    }
+  ]
+}

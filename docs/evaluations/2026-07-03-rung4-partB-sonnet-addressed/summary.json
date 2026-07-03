@@ -1,0 +1,109 @@
+{
+  "user_id": "4c106786-c9b4-41cb-982d-0f5a8cc35923",
+  "n_turns": 6,
+  "closed": 6,
+  "errors": 0,
+  "mean_wall_s": 34.8,
+  "mean_rounds": 3.3,
+  "mean_tool_calls": 4.2,
+  "mean_response_chars": 546,
+  "turns": [
+    {
+      "idx": 1,
+      "ask": "What's in my workspace right now?",
+      "wall_s": 28.4,
+      "rounds": 2,
+      "n_tool_calls": 3,
+      "tool_calls": [
+        "ReadFile",
+        "ReadFile",
+        "ListFiles"
+      ],
+      "response_chars": 523,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 2,
+      "ask": "I want to keep a note: our Q3 pricing decision is to hold the $19 tier until August. Make sure that's recorded somewhere sensible.",
+      "wall_s": 45.3,
+      "rounds": 5,
+      "n_tool_calls": 5,
+      "tool_calls": [
+        "ReadFile",
+        "ReadFile",
+        "ListFiles",
+        "ListFiles",
+        "WriteFile"
+      ],
+      "response_chars": 679,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 3,
+      "ask": "Summarize what you've been doing in this workspace lately.",
+      "wall_s": 23.7,
+      "rounds": 2,
+      "n_tool_calls": 2,
+      "tool_calls": [
+        "ReadFile",
+        "ReadFile"
+      ],
+      "response_chars": 575,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 4,
+      "ask": "Is anything in the workspace out of place or needing cleanup?",
+      "wall_s": 60.2,
+      "rounds": 5,
+      "n_tool_calls": 7,
+      "tool_calls": [
+        "ReadFile",
+        "ReadFile",
+        "ListFiles",
+        "ListEntities",
+        "SearchFiles",
+        "ListFiles",
+        "WriteFile"
+      ],
+      "response_chars": 591,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 5,
+      "ask": "What connections and sources are currently feeding this workspace?",
+      "wall_s": 26.7,
+      "rounds": 4,
+      "n_tool_calls": 6,
+      "tool_calls": [
+        "list_integrations",
+        "GetSystemState",
+        "ListFiles",
+        "ReadFile",
+        "ReadFile",
+        "ReadFile"
+      ],
+      "response_chars": 397,
+      "verdict_reached": true,
+      "error": null
+    },
+    {
+      "idx": 6,
+      "ask": "What should I look at first when I come back tomorrow?",
+      "wall_s": 24.3,
+      "rounds": 2,
+      "n_tool_calls": 2,
+      "tool_calls": [
+        "ReadFile",
+        "ReadFile"
+      ],
+      "response_chars": 514,
+      "verdict_reached": true,
+      "error": null
+    }
+  ]
+}

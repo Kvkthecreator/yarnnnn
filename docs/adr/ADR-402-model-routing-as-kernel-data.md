@@ -1,6 +1,6 @@
 # ADR-402: Model Routing as Kernel Data — the single model-selection site
 
-**Status**: Part A Implemented (2026-07-03) · Part B (tier experiment → routing decision) pending
+**Status**: Implemented (2026-07-03) — Part A (table) + Part B (tier decision: one model, `claude-sonnet-4-6`, all shapes)
 **Date**: 2026-07-03
 **Dimension**: Mechanism (primary, Axiom 5) + Identity (occupant attribution, Axiom 2)
 **Supersedes**: the ADR-260 D2/D8 + ADR-263 D2 inline model/round selection in `agents/freddie_agent.py`
@@ -97,9 +97,9 @@ names the occupant VERSION (seat-rotation protocol, ADR-315), not the model
 tier; the model actually used on an invocation is recorded honestly in
 `execution_events.model` (ADR-291). It is NOT derived per-wake from the table
 — one identity, one ledger, no attribution fragmentation. The "sonnet" in the
-current value is a naming fossil: the v9 bump to a model-neutral name lands
-with the Part-B routing decision (a behavior change), not with Part A (byte
--identical).
+current value was a naming fossil while Haiku served most wakes; the Part-B
+outcome (Sonnet everywhere) makes it accurate again, so the model-neutral v9
+rename is deferred as cosmetic (see Part B results).
 
 **Deleted**: `_SONNET`, `_HAIKU`, `use_sonnet`, and the dead
 `_CALLER_SONNET`/`_CALLER_HAIKU` pair. The two Hat-B probe scripts that
@@ -120,9 +120,11 @@ bare-kernel workspace, local code):
 2. **Addressed on Sonnet** (`YARNNN_MODEL_ADDRESSED=claude-sonnet-4-6`), same
    asks — diff wall/tools/close-rate/response quality; watch for the Haiku
    signatures disappearing (silent exits, count fuzz, cadence lapses).
-3. **Inversion check**: proposal shape on Haiku (the discrete verdict call may
-   be the shape that *least* needs the stronger tier) via the bare-steward
-   reactive probe.
+3. **Proposal-shape assessment**: structural, not empirical — the lane has
+   zero live fires ever (see Part B results), so the inversion hypothesis
+   (proposals fine on the cheaper tier) is untestable on real traffic and
+   the shape follows the stabilization default. The recurrence shape is
+   validated on the ratified model via the bare-steward live wake instead.
 
 ### The decision rule — stabilization prior
 
@@ -139,10 +141,60 @@ ADR-396 metering basis (model choice changes cost-per-judgment-invocation:
 addressed Haiku→Sonnet ≈ 3× the per-call meter; a Starter allowance buys
 roughly ⅓ the calls).
 
-### Part B results
+### Part B results (2026-07-03)
 
-*(recorded when the runs land — routing decision + diff receipts +
-`execution_events` cost deltas + the v9 identity bump if routing changes)*
+Both arms: the 6 byte-stable asks, bare-kernel workspace, local code on the
+Part-A table, identical envelope. Receipts:
+`docs/evaluations/2026-07-03-rung4-partA-haiku/` (+`-recheck5`) and
+`docs/evaluations/2026-07-03-rung4-partB-sonnet-addressed/`.
+
+| metric | Haiku 4.5 (baseline) | Sonnet 4.6 (`YARNNN_MODEL_ADDRESSED`) |
+|---|---|---|
+| closed | 5/6 + 1 recheck (stochastic silent exit, turn 5 — the known ~1/12 signature) | **6/6 first pass, 0 errors** |
+| mean wall | ~32.6s | 34.8s |
+| mean rounds / tools | 6.2 / 10.2 | **3.3 / 4.2** |
+| attribution-mismatch catch (seeded) | **MISSED** — turn 4 reported "well-attributed" (a false claim); turn 3 silent on it | **CAUGHT** in turns 3 AND 4, with the correct rule verdict (flag, don't re-attribute another principal's write) |
+| proposal dedup | re-proposed placements already pending | recognized the pending queue, declined to duplicate |
+| observed cost/turn | $0.050 (understated: silent-exit tokens unrecorded + recheck) | $0.071 — **1.4×, not the 3× sticker** (half the rounds) |
+
+The decision rule resolves cleanly:
+
+- **(a) cheaper-indistinguishable — FALSE.** Haiku is distinguishably worse
+  on the steward duties themselves: it missed the seeded attribution
+  mismatch and reported a falsely-clean workspace (exactly the bare-Freddie
+  eval Finding-1 class), re-proposed duplicate work, and carries the
+  stochastic silent exit.
+- **(b) stronger-necessary-but-unaffordable — FALSE.** Sonnet's efficiency
+  (half the rounds) absorbs most of the tier premium: 1.4× observed.
+
+**Ratified routing: `claude-sonnet-4-6` for all three shapes, uniform
+`max_rounds=20` cost ceiling.** The legacy Sonnet/3 proposal split retires —
+`wake_source='proposal_arrival'` has zero rows ever (the lane has never
+fired live), so no evidence supports any split there; the 3-round cap was a
+behavioral constraint contradicting D4 (the ADR-400 verdict-early ask rule
+is the proposal behavior control).
+
+**Cost delta vs the ADR-396 metering basis**: the per-judgment-invocation
+meter moves from ~$0.05 to ~$0.07 observed on addressed turns (worst case
+~3× on equal-round wakes; observed 1.4× because rounds halve). A Starter
+$15 allowance buys roughly 210 wakes instead of ~300 at observed rates.
+
+**Sample-size honesty**: one 6-ask run per arm. The Haiku failure evidence is
+cumulative (the silent-exit signature reproduces across many prior runs; the
+attribution miss is against seeded substrate, near-deterministic); the Sonnet
+6/6 does not prove a zero silent-exit rate — the routing stays a data change
+if live telemetry contradicts it.
+
+**Identity**: `FREDDIE_MODEL_IDENTITY = "ai:freddie-sonnet-v8"` is now
+*accurate again* (every wake runs Sonnet), so the model-neutral v9 rename is
+DEFERRED as cosmetic — 17 files pin the string; `execution_events.model` is
+the honest per-wake record either way (D5).
+
+**Future candidate**: `claude-sonnet-5` (same $3/$15 sticker, $2/$10 intro
+through 2026-08-31) is a data-change candidate but NOT a drop-in: adaptive
+thinking on by default (the occupant loop would need thinking-block echo
+handling), non-default sampling params rejected (the call path is clean —
+verified), and a ~30% tokenizer shift. Its own probe run before any switch.
 
 ## 4. The deferred seam — per-agent model declaration
 

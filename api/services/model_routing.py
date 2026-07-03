@@ -68,13 +68,23 @@ SHAPE_PROPOSAL = "proposal"
 SHAPE_RECURRENCE = "recurrence"
 
 #: The production routing table — the ONLY place model ids appear on the
-#: Freddie occupant path (gate: test_adr402_model_routing.py). Values at
-#: ADR-402 Part A are byte-identical to the pre-table branch; the Part-B
-#: tier experiment revises them as a data change.
+#: Freddie occupant path (gate: test_adr402_model_routing.py).
+#:
+#: ADR-402 Part B decision (2026-07-03, stabilization prior): ONE model for
+#: all shapes. Evidence (docs/evaluations/2026-07-03-rung4-part{A,B}-*):
+#: Sonnet 6/6 first-pass vs Haiku's stochastic silent exit; Sonnet caught the
+#: seeded attribution mismatch Haiku missed (Haiku claimed "well-attributed"
+#: — a false report); Sonnet deduped against the pending proposal queue where
+#: Haiku re-proposed; HALF the tool rounds (mean 3.3 vs 6.2), so observed
+#: cost/turn was 1.4x, not the 3x sticker. The pre-table Sonnet/3 proposal
+#: split was retired: proposal_arrival has zero live fires ever, and the
+#: 3-round cap was a behavioral constraint contradicting trust-the-model —
+#: the ceiling is now uniform (the verdict-early ask rule is the proposal
+#: behavior control, ADR-400).
 DEFAULT_ROUTES: dict[str, ModelRoute] = {
-    SHAPE_ADDRESSED: ModelRoute(model="claude-haiku-4-5-20251001", max_rounds=20),
-    SHAPE_PROPOSAL: ModelRoute(model="claude-sonnet-4-6", max_rounds=3),
-    SHAPE_RECURRENCE: ModelRoute(model="claude-haiku-4-5-20251001", max_rounds=20),
+    SHAPE_ADDRESSED: ModelRoute(model="claude-sonnet-4-6", max_rounds=20),
+    SHAPE_PROPOSAL: ModelRoute(model="claude-sonnet-4-6", max_rounds=20),
+    SHAPE_RECURRENCE: ModelRoute(model="claude-sonnet-4-6", max_rounds=20),
 }
 
 

@@ -6,6 +6,12 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.03.3] - ADR-402 Part B: Freddie stabilizes on ONE model — Sonnet 4.6, all shapes
+
+- `services/model_routing.py::DEFAULT_ROUTES`: all three shapes (addressed | proposal | recurrence) → `claude-sonnet-4-6`, uniform `max_rounds=20` cost ceiling. The legacy Sonnet/3 proposal split retired (lane never fired live; 3-round cap was a behavioral constraint contradicting trust-the-model).
+- Evidence (6 byte-stable asks, bare-kernel workspace, same envelope): Sonnet 6/6 first-pass vs Haiku 5/6+recheck (stochastic silent exit); Sonnet CAUGHT the seeded attribution mismatch Haiku missed (Haiku falsely reported "well-attributed"); Sonnet deduped vs the pending proposal queue where Haiku re-proposed; HALF the tool rounds (3.3 vs 6.2) → observed cost 1.4× not the 3× sticker. Receipts: `docs/evaluations/2026-07-03-rung4-part{A,B}-*`.
+- Expected behavior: every Freddie wake (chat, recurrence fires, proposal verdicts, substrate-event reviews) reasons on Sonnet 4.6. Silent-exit + count-fuzz + false-clean-report Haiku signatures expected to disappear; per-invocation meter ~$0.05→~$0.07 observed. FREDDIE_MODEL_IDENTITY unchanged (now accurate again; v9 model-neutral rename deferred as cosmetic).
+
 ## [2026.07.03.2] - ADR-402 Part A: model routing as kernel data (pure refactor)
 
 - `services/model_routing.py` (NEW): the single model-selection site for the Freddie occupant — routing table `{addressed|proposal|recurrence: (model, max_rounds)}`, env-overridable per shape (`YARNNN_MODEL_{SHAPE}` / `YARNNN_ROUNDS_{SHAPE}`, read at resolve time).

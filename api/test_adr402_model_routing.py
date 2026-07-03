@@ -104,19 +104,20 @@ def test_classification_mirrors_the_legacy_branch():
     assert classify_shape("anything-else", False) == SHAPE_ADDRESSED
 
 
-def test_part_a_routing_is_byte_identical_to_pre_table_branch():
-    """Pin: addressed+recurrence share one route; proposal gets its own with
-    a 3-round ceiling — exactly `3 if use_sonnet else 20`. UPDATE THIS TEST in
-    the same commit as any ratified (Part-B) routing change."""
+def test_part_b_routing_is_one_model_all_shapes():
+    """Pin the ADR-402 Part-B decision (stabilization prior, 2026-07-03):
+    ONE model for all three shapes, uniform 20-round COST ceiling (the
+    3-round proposal behavioral cap retired — trust-the-model; the
+    verdict-early ask rule is the proposal behavior control). Evidence in
+    docs/evaluations/2026-07-03-rung4-part{A,B}-*. UPDATE THIS TEST in the
+    same commit as any future ratified routing change."""
     _clear_env()
     addressed = resolve_route("addressed", False)
     proposal = resolve_route("reactive", False)
     recurrence = resolve_route("reactive", True)
-    assert addressed == recurrence
+    assert addressed == proposal == recurrence
     assert addressed.max_rounds == 20
-    assert proposal.max_rounds == 3
-    assert "haiku" in addressed.model
-    assert "sonnet" in proposal.model
+    assert "sonnet" in addressed.model
 
 
 # ---------------------------------------------------------------------------
