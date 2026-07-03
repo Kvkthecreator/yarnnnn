@@ -582,6 +582,93 @@ def _test_derive_inherits_seat_act(results):
         none_path is None, f"got {none_path}"))
 
 
+def _test_derive_wake_proposal(results):
+    """ADR-401 D5 — derive attention-routing. The capture lane proposes ONE
+    substrate_event wake per connector-capture run that landed new raw,
+    mirroring mcp_composition's foreign-write adapter. Monkeypatches
+    services.wake.submit_wake_proposal (the adapter resolves it at call time
+    via a local import)."""
+    import asyncio as _aio
+    import inspect as _inspect
+    import services.wake as _wake
+    from services.capture import lane as _lane
+
+    calls: list[dict] = []
+
+    async def _fake_submit(client, user_id, *, source, payload):
+        calls.append({"user_id": user_id, "source": source, "payload": payload})
+        return {"success": True, "queue_id": "q1"}
+
+    orig = _wake.submit_wake_proposal
+    _wake.submit_wake_proposal = _fake_submit
+    try:
+        # 21 — one proposal per run, correct shape (hook prompt = the ask).
+        paths = [f"/workspace/inbound/slack/ch{i}/2026-07-03T00:00:00Z.md" for i in range(3)]
+        _aio.run(_lane._propose_derive_wake(
+            None, "u1",
+            slug="capture-slack",
+            primitive_args={"platform": "slack"},
+            paths_written=paths,
+            observed_at="2026-07-03T00:00:00Z",
+        ))
+        ok21 = (
+            len(calls) == 1
+            and calls[0]["source"] == "substrate_event"
+            and calls[0]["payload"]["hook"]["slug"] == "derive-capture-slack"
+            and "derived_from" in calls[0]["payload"]["hook"]["prompt"]
+            and calls[0]["payload"]["path"] == paths[0]
+            and calls[0]["payload"]["revision_id"] == "capture-slack:2026-07-03T00:00:00Z"
+        )
+        results.append(_check(
+            "21 derive-wake adapter: ONE substrate_event proposal per run, run-stamp dedup key",
+            ok21, f"calls={calls}"))
+
+        # 22 — listing caps at 20 paths (+ overflow line); prompt stays bounded.
+        calls.clear()
+        many = [f"/workspace/inbound/slack/c{i}/t.md" for i in range(30)]
+        _aio.run(_lane._propose_derive_wake(
+            None, "u1", slug="capture-slack",
+            primitive_args={"platform": "slack"},
+            paths_written=many, observed_at="2026-07-03T01:00:00Z",
+        ))
+        prompt22 = calls[0]["payload"]["hook"]["prompt"]
+        results.append(_check(
+            "22 batch listing caps at 20 + overflow line",
+            prompt22.count("/workspace/inbound/") == 20 and "and 10 more" in prompt22))
+
+        # 23 — a proposal failure never raises (the capture's write is the work).
+        async def _boom(client, user_id, *, source, payload):
+            raise RuntimeError("funnel down")
+
+        _wake.submit_wake_proposal = _boom
+        try:
+            _aio.run(_lane._propose_derive_wake(
+                None, "u1", slug="capture-slack",
+                primitive_args={"platform": "slack"},
+                paths_written=["/workspace/inbound/slack/x/t.md"],
+                observed_at="2026-07-03T02:00:00Z",
+            ))
+            ok23 = True
+        except Exception:
+            ok23 = False
+        results.append(_check(
+            "23 proposal failure swallowed — capture unaffected", ok23))
+    finally:
+        _wake.submit_wake_proposal = orig
+
+    # 24 — lane gating (source-level): only a successful CaptureConnector run
+    # with non-empty paths_written proposes; state-mirrors never do.
+    lane_src = _inspect.getsource(_lane.run_capture_declaration)
+    ok24 = (
+        'primitive_name == "CaptureConnector"' in lane_src
+        and "paths_written" in lane_src
+        and "_propose_derive_wake" in lane_src
+    )
+    results.append(_check(
+        "24 lane gates the proposal on CaptureConnector + new paths (state-mirrors never propose)",
+        ok24))
+
+
 _SELECTED: list[str] = []
 
 
@@ -594,6 +681,7 @@ def main():
     _test_seed_at_select(results)
     _test_gc_gather(results)
     _test_derive_inherits_seat_act(results)
+    _test_derive_wake_proposal(results)
 
     passed = sum(1 for r in results if r)
     total = len(results)
