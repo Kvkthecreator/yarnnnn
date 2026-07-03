@@ -54,6 +54,9 @@ import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import type { DeskSurface } from '@/types/desk';
 import { api, APIError } from '@/lib/api/client';
 import { operatorCanOrganize, organizeBlockedReason } from '@/lib/workspace/ownership';
+import { useFeedback } from '@/contexts/FeedbackContext';
+import { MoveToFolderModal } from '@/components/workspace/MoveToFolderModal';
+import { RenameModal } from '@/components/workspace/RenameModal';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
@@ -230,6 +233,10 @@ function formatNodeTimestamp(value: string): string {
 
 export default function ContextPage() {
   const { loadScopedHistory, sendMessage } = useNarrative();
+  // ADR-400 polish (2026-07-03): the universal action-feedback layer replaces
+  // window.alert/confirm/prompt for the operator's file verbs. See
+  // docs/design/ACTION-FEEDBACK.md.
+  const { confirm, runAction } = useFeedback();
 
   // ADR-358 D6 (2026-06-25): read this window's OWN deep-link params under
   // the `files.` namespace (`?files.domain=`, `?files.path=`) so they never
@@ -260,6 +267,10 @@ export default function ContextPage() {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   // ADR-400 D4: the Trash nav item toggles the center pane to the Trash view.
   const [showTrash, setShowTrash] = useState(false);
+  // ADR-400 Q2 / polish: the "Move to…" folder-picker modal target (a file to
+  // relocate). Replaces the old window.prompt('a /workspace/… path') — the
+  // operator picks a destination folder in a tree, never types a raw path.
+  const [moveTarget, setMoveTarget] = useState<{ path: string; name: string } | null>(null);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
   const [phase, setPhase] = useState<'setup' | 'ready' | 'active' | null>(null);
 
@@ -512,63 +523,86 @@ export default function ContextPage() {
   // the rest (the Windows-Explorer model). No defensive greying.
   //
   // The handlers take a minimal {path, name} so every surface — tree, RecentsView
-  // grid, ContentViewer folder listing — shares one implementation. Menu-first
-  // (ADR-400 Q2); drag-and-drop is a ratified fast-follow.
-  const carveMessage = (path: string): string | null => {
-    if (!operatorCanOrganize(path)) return organizeBlockedReason(path);
-    return null;
-  };
+  // grid, ContentViewer folder listing — shares one implementation.
+  //
+  // ADR-400 polish (2026-07-03): no more window.alert/confirm/prompt. Feedback
+  // comes through the universal action layer (useFeedback): a styled confirm
+  // for the carve + the trash gate, a runAction pending→outcome toast for the
+  // API call. Move + Rename use a folder-picker / rename modal (no raw-path
+  // typing). See docs/design/ACTION-FEEDBACK.md.
 
-  const handleRename = useCallback(async (t: { path: string; name: string }) => {
-    const blocked = carveMessage(t.path);
-    if (blocked) { window.alert(blocked); return; }
+  // Pre-empt the obvious carve (system/ + machine-config) with a plain,
+  // macOS-style modal before we even call the backend. Returns true if blocked.
+  const carveGuard = useCallback(async (path: string): Promise<boolean> => {
+    if (operatorCanOrganize(path)) return false;
+    const { title, body } = organizeBlockedReason(path);
+    await confirm({ title, body, confirmLabel: 'OK', cancelLabel: '' });
+    return true;
+  }, [confirm]);
+
+  // Rename — opens the RenameModal (single field, no prompt). The modal's
+  // onSubmit calls this with the chosen new leaf name.
+  const [renameTarget, setRenameTarget] = useState<{ path: string; name: string } | null>(null);
+  const openRename = useCallback(async (t: { path: string; name: string }) => {
+    if (await carveGuard(t.path)) return;
+    setRenameTarget(t);
+  }, [carveGuard]);
+
+  const commitRename = useCallback(async (t: { path: string; name: string }, nextLeaf: string) => {
     const parent = t.path.slice(0, t.path.lastIndexOf('/'));
-    const current = t.path.slice(t.path.lastIndexOf('/') + 1);
-    const next = window.prompt(`Rename "${current}" to:`, current);
-    if (!next || next === current) return;
-    if (next.includes('/')) { window.alert('A filename cannot contain "/". Use "Move to…" to relocate.'); return; }
+    const newPath = `${parent}/${nextLeaf}`;
+    if (newPath === t.path) return;
     try {
-      const r = await api.documents.move(t.path, `${parent}/${next}`);
+      const r = await runAction(() => api.documents.move(t.path, newPath), {
+        pending: 'Renaming…',
+        success: 'Renamed',
+        error: (e) => (e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Rename failed' : 'Rename failed'),
+      });
       await loadExplorer();
       if (r?.path) setSelectedPath(r.path);
-    } catch (e) {
-      window.alert(e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Rename failed' : 'Rename failed');
-    }
-  }, [loadExplorer]);
+    } catch { /* error toast already surfaced; stop (don't refresh on failure) */ }
+  }, [runAction, loadExplorer]);
 
-  const handleMove = useCallback(async (t: { path: string; name: string }) => {
-    const blocked = carveMessage(t.path);
-    if (blocked) { window.alert(blocked); return; }
-    const current = t.path;
-    const dest = window.prompt(
-      'Move to folder (a /workspace/… path):',
-      current.slice(0, current.lastIndexOf('/') + 1),
-    );
-    if (!dest) return;
-    const leaf = current.slice(current.lastIndexOf('/') + 1);
-    const newPath = dest.endsWith('/') ? `${dest}${leaf}` : `${dest}/${leaf}`;
-    if (newPath === current) return;
+  // Move — opens the MoveToFolderModal (folder-picker tree, no raw-path typing).
+  const openMove = useCallback(async (t: { path: string; name: string }) => {
+    if (await carveGuard(t.path)) return;
+    setMoveTarget(t);
+  }, [carveGuard]);
+
+  const commitMove = useCallback(async (fromPath: string, destFolder: string) => {
+    const leaf = fromPath.slice(fromPath.lastIndexOf('/') + 1);
+    const newPath = destFolder.endsWith('/') ? `${destFolder}${leaf}` : `${destFolder}/${leaf}`;
+    if (newPath === fromPath) return;
     try {
-      const r = await api.documents.move(current, newPath);
+      const r = await runAction(() => api.documents.move(fromPath, newPath), {
+        pending: 'Moving…',
+        success: 'Moved',
+        error: (e) => (e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Move failed' : 'Move failed'),
+      });
       await loadExplorer();
       if (r?.path) setSelectedPath(r.path);
-    } catch (e) {
-      window.alert(e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Move failed' : 'Move failed');
-    }
-  }, [loadExplorer]);
+    } catch { /* error toast already surfaced; stop */ }
+  }, [runAction, loadExplorer]);
 
   const handleTreeDelete = useCallback(async (t: { path: string; name: string }) => {
-    const blocked = carveMessage(t.path);
-    if (blocked) { window.alert(blocked); return; }
-    if (!window.confirm(`Move "${t.name}" to Trash? It stays recoverable in Trash.`)) return;
+    if (await carveGuard(t.path)) return;
+    const ok = await confirm({
+      title: `Move “${t.name}” to Trash?`,
+      body: 'It stays recoverable — you can restore it from Trash any time.',
+      confirmLabel: 'Move to Trash',
+      danger: true,
+    });
+    if (!ok) return;
     try {
-      await api.documents.delete(t.path);
+      await runAction(() => api.documents.delete(t.path), {
+        pending: 'Moving to Trash…',
+        success: 'Moved to Trash',
+        error: (e) => (e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Delete failed' : 'Delete failed'),
+      });
       await loadExplorer();
       setSelectedPath((prev) => (prev === t.path ? null : prev));
-    } catch (e) {
-      window.alert(e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Delete failed' : 'Delete failed');
-    }
-  }, [loadExplorer]);
+    } catch { /* error toast already surfaced; stop */ }
+  }, [carveGuard, confirm, runAction, loadExplorer]);
 
   // ADR-400: the operator's file verbs as one bundle, threaded to every file
   // surface (tree + RecentsView grid + ContentViewer folder listing) so the
@@ -577,10 +611,10 @@ export default function ContextPage() {
   const fileVerbs = useMemo(() => ({
     onOpen: (t: { path: string }) => handleExplorerSelect_byPath(t.path),
     onProperties: (t: { path: string }) => { setShowTrash(false); setSelectedPath(t.path); setDetailsOpen(true); },
-    onRename: handleRename,
-    onMove: handleMove,
+    onRename: openRename,
+    onMove: openMove,
     onDelete: handleTreeDelete,
-  }), [handleExplorerSelect_byPath, handleRename, handleMove, handleTreeDelete]);
+  }), [handleExplorerSelect_byPath, openRename, openMove, handleTreeDelete]);
 
   // Upload success (2026-07-01): after files land in the Intake raw lane
   // (inbound/uploads/{principal}/{slug}.{ext}, ADR-395), refresh the tree AND
@@ -664,9 +698,11 @@ export default function ContextPage() {
               selectedPath={selectedPath || undefined}
               onSelect={handleExplorerSelect}
               onGetInfo={handleGetInfo}
-              onRename={handleRename}
-              onMove={handleMove}
+              onRename={openRename}
+              onMove={openMove}
               onDelete={handleTreeDelete}
+              onMoveByDrag={commitMove}
+              canOrganize={operatorCanOrganize}
             />
           </div>
         ) : (
@@ -801,6 +837,32 @@ export default function ContextPage() {
         onClose={() => setDetailsOpen(false)}
         onSelectPath={handleExplorerSelect_byPath}
         onRevert={loadExplorer}
+      />
+
+      {/* ADR-400 Q2 / polish: Move — the folder-picker modal (a destination
+          tree, never a raw-path text field). Also the keyboard/accessibility
+          path for the drag-and-drop the tree offers. */}
+      <MoveToFolderModal
+        target={moveTarget}
+        roots={treeNodes}
+        canOrganize={operatorCanOrganize}
+        onClose={() => setMoveTarget(null)}
+        onMove={async (destFolder) => {
+          const t = moveTarget;
+          setMoveTarget(null);
+          if (t) await commitMove(t.path, destFolder);
+        }}
+      />
+
+      {/* ADR-400 polish: Rename — a single-field modal (no window.prompt). */}
+      <RenameModal
+        target={renameTarget}
+        onClose={() => setRenameTarget(null)}
+        onSubmit={async (nextLeaf) => {
+          const t = renameTarget;
+          setRenameTarget(null);
+          if (t) await commitRename(t, nextLeaf);
+        }}
       />
     </>
   );

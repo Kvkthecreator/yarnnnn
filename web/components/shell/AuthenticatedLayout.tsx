@@ -35,6 +35,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { NarrativeProvider, useNarrative } from '@/contexts/NarrativeContext';
 import { BreadcrumbProvider } from '@/contexts/BreadcrumbContext';
+import { FeedbackProvider } from '@/contexts/FeedbackContext';
 import type { DeskSurface } from '@/types/desk';
 import { ShellCompositor } from './ShellCompositor';
 import { ShellChromeProvider } from './ShellChromeContext';
@@ -78,13 +79,15 @@ export default function AuthenticatedLayout({ children, userEmail }: Authenticat
   }, [router, supabase.auth]);
 
   return (
-    <BreadcrumbProvider>
-      <SurfacePreferencesProvider>
-        <ShellChromeProvider userEmail={userEmail}>
-          <AuthenticatedLayoutInner>{children}</AuthenticatedLayoutInner>
-        </ShellChromeProvider>
-      </SurfacePreferencesProvider>
-    </BreadcrumbProvider>
+    <FeedbackProvider>
+      <BreadcrumbProvider>
+        <SurfacePreferencesProvider>
+          <ShellChromeProvider userEmail={userEmail}>
+            <AuthenticatedLayoutInner>{children}</AuthenticatedLayoutInner>
+          </ShellChromeProvider>
+        </SurfacePreferencesProvider>
+      </BreadcrumbProvider>
+    </FeedbackProvider>
   );
 }
 

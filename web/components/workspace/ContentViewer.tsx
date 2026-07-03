@@ -35,6 +35,7 @@ import { formatAuthorLabel, authorAccent } from '@/lib/workspace/attribution';
 import { parseUploadFrontmatter, uploadSourceCaption } from '@/lib/workspace/upload-frontmatter';
 import { operatorCanOrganize } from '@/lib/workspace/ownership';
 import { useFileContextMenu, type FileVerbs } from '@/components/workspace/FileContextMenu';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
 
 // ADR-162 Sub-phase D / ADR-215: IDENTITY and BRAND files carry an
@@ -349,6 +350,7 @@ function FileView({
   onOpenChatDraft?: (prompt: string) => void;
   onDeleted?: () => void;
 }) {
+  const { confirm, runAction } = useFeedback();
   const [file, setFile] = useState<WorkspaceFile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -402,13 +404,23 @@ function FileView({
   // ownership topology), and the backend enforces the same scope (403 otherwise).
   const handleDelete = async () => {
     if (deleting) return;
-    if (!window.confirm('Move this file to trash? It leaves your active workspace but can be recovered.')) return;
+    const ok = await confirm({
+      title: 'Move to Trash?',
+      body: 'It leaves your active workspace but stays recoverable — you can restore it from Trash any time.',
+      confirmLabel: 'Move to Trash',
+      danger: true,
+    });
+    if (!ok) return;
     setDeleting(true);
     try {
-      await api.documents.delete(path);
+      await runAction(() => api.documents.delete(path), {
+        pending: 'Moving to Trash…',
+        success: 'Moved to Trash',
+        error: (e) => (e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Delete failed' : 'Delete failed'),
+      });
       onDeleted?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delete failed');
+    } catch {
+      // error toast already surfaced by runAction
     } finally {
       setDeleting(false);
     }

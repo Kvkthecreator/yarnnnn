@@ -16,6 +16,7 @@ import { Loader2, Trash2, Undo2, FileText } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { FileIcon } from './FileIcon';
 import { formatAuthorLabelOrSystem } from '@/lib/workspace/attribution';
+import { useFeedback } from '@/contexts/FeedbackContext';
 
 interface TrashItem {
   path: string;
@@ -25,6 +26,7 @@ interface TrashItem {
 }
 
 export function TrashView() {
+  const { runAction } = useFeedback();
   const [items, setItems] = useState<TrashItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState<string | null>(null);
@@ -45,14 +47,18 @@ export function TrashView() {
   const restore = useCallback(async (path: string) => {
     setRestoring(path);
     try {
-      await api.documents.restore(path);
+      await runAction(() => api.documents.restore(path), {
+        pending: 'Restoring…',
+        success: 'Restored',
+        error: (e) => (e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Restore failed' : 'Restore failed'),
+      });
       setItems((prev) => prev.filter((it) => it.path !== path));
-    } catch (e) {
-      window.alert(e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Restore failed' : 'Restore failed');
+    } catch {
+      // error toast already surfaced by runAction; keep the row so the operator can retry
     } finally {
       setRestoring(null);
     }
-  }, []);
+  }, [runAction]);
 
   return (
     <div className="h-full overflow-y-auto px-6 py-4">

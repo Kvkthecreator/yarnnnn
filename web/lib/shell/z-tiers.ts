@@ -59,3 +59,12 @@ export const Z_POPOVER = 200;
 
 // Topmost shell overlay — operator-summoned, must win.
 export const Z_LAUNCHER_OVERLAY = 400;
+
+// Universal feedback layer (ADR-400 polish, 2026-07-03). Toasts + the
+// blocking confirm dialog float above EVERYTHING — including the launcher —
+// because they report the outcome of / gate an action the operator just took,
+// and must never be occluded by the surface they were triggered from. The
+// confirm dialog sits one tier above its own backdrop.
+export const Z_CONFIRM_BACKDROP = 500;
+export const Z_CONFIRM_DIALOG = 501;
+export const Z_TOAST = 550;

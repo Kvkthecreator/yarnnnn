@@ -10,6 +10,28 @@
 
 ---
 
+## Amendment 2 (2026-07-03) — the interaction layer: universal action-feedback + native Move (Q2 fast-follow landed)
+
+**The gap.** Amendment 1 got the *reach* right, but the verbs shipped with browser-native interaction: `window.alert` / `window.confirm` / `window.prompt`. The operator flagged five things on the live surface: (1) the right-click menu rendered **transparent**; (2) event handling was **blind** — no toast, no loading state, no success feedback; (3) "Move to…" was a **raw `/workspace/…` path text input** ("users will find that discussing"); (4) Trash worked but needed the same polish; (5) the machine-config carve warning was **too technical**. The operator's directive: fix it **universally, not Files-only, so it expands elsewhere.**
+
+**The correction:**
+
+1. **The transparent menu was a design-token bug, not a Files bug.** The theme defined only 7 color tokens; `FileContextMenu` used `bg-popover` / `hover:bg-accent` / `text-destructive` — all undefined → transparent. Fixed by adding the shadcn-standard overlay/interactive token set (`popover`, `card`, `accent`, `destructive`, `success` + foregrounds, light+dark) to `globals.css` + `tailwind.config.ts`. This is an app-wide fix — any overlay/menu/danger UI now has real tokens.
+
+2. **A universal action-feedback layer replaces the browser dialogs** — `web/contexts/FeedbackContext.tsx` (`useFeedback()` → `toast` / `confirm` / `runAction`), mounted once at the authenticated-shell root. `runAction` is the "not blind" primitive: a pending→success/error toast around any async op. Canon: **`docs/design/ACTION-FEEDBACK.md`** — the singular design doc, so future dev doesn't hand-roll a second toast system or reach for `window.confirm`. **This is the reusable payoff** — connectors, settings, agent grants adopt the same layer next.
+
+3. **Move + Rename become modals, not prompts (Q2 RESOLVED — menu-first AND drag-and-drop shipped together).** "Move to…" opens a **folder-picker modal** (`MoveToFolderModal` — a destination tree, folders only, disabled where the operator can't organize) — the operator never types a path. Rename opens a **single-field modal** (`RenameModal`). And the ratified Q2 fast-follow — **drag-and-drop** — landed in the same pass: a file dragged onto a folder in the left tree moves it (`WorkspaceTree` `onMoveByDrag`, drop-highlight, ownership-gated on both ends). Drag is the fast gesture; the folder-picker is the deliberate/accessible path. **Grid drag-drop remains a later fast-follow** (tree is the primary folder-structure target).
+
+4. **The carve message is macOS-plain** — `organizeBlockedReason` returns `{ title, body }` object-focused, no mechanism jargon ("It's used by the system to keep your workspace running" / "It's a settings file the system needs in this exact place" — not "read by name / would break the reader").
+
+5. **Trash + the ContentViewer inline delete route through the same layer** — Restore and delete now use `runAction` + the styled `confirm` (danger treatment), not `window.confirm` / `window.alert`.
+
+**What Amendment 2 does NOT change:** the operator-reach policy (Amendment 1's `operator_can_organize` is untouched — backend-authoritative), the no-inline-content-edit boundary (edit is still agents-through-chat), trash-not-erase, full attribution. This is purely the **interaction layer** — how the already-correct verbs feel.
+
+**Canon touched:** new `docs/design/ACTION-FEEDBACK.md` (the singular feedback-layer doc). Amendment 2's law: *the operator's file verbs feel native — a styled menu, a folder-picker (or a drag), a pending/outcome toast, a plain-language block — all through ONE app-wide action-feedback layer, never a browser dialog.*
+
+---
+
 ## Amendment 1 (2026-07-02) — operator reach is the BACKEND policy, not `uploads/`-only. D3 corrected.
 
 **The error.** The original D3 scoped the operator's move/delete/rename to operator-*authored* material only (`uploads/` + `inbound/uploads/`), showing every other file as "Managed by Freddie — edit through chat" with disabled/greyed verbs. That was **wrong on first principles**, and the operator caught it: *"why can't the user move and delete — these should be possible. Back to first principles and service philosophy."*
