@@ -62,7 +62,7 @@ export function MoveToFolderModal({ target, roots, canOrganize, onClose, onMove 
   return createPortal(
     <>
       <div
-        className="fixed inset-0 bg-black/50 animate-fade-in"
+        className="fixed inset-0 bg-black/50 animate-in fade-in duration-150"
         style={{ zIndex: Z_CONFIRM_BACKDROP }}
         onClick={onClose}
       />
@@ -71,7 +71,7 @@ export function MoveToFolderModal({ target, roots, canOrganize, onClose, onMove 
         style={{ zIndex: Z_CONFIRM_DIALOG }}
       >
         <div
-          className="pointer-events-auto flex w-full max-w-md flex-col rounded-lg border border-border bg-card shadow-xl animate-dialog-in"
+          className="pointer-events-auto flex w-full max-w-md flex-col rounded-lg border border-border bg-card shadow-xl animate-in fade-in zoom-in-95 duration-150"
           role="dialog"
           aria-modal="true"
           style={{ maxHeight: '70vh' }}

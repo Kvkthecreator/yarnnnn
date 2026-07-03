@@ -48,7 +48,14 @@ const config: Config = {
       },
     },
   },
-  plugins: [require("@tailwindcss/typography")],
+  // tailwindcss-animate (2026-07-03): the shadcn-ecosystem companion to the
+  // token set above. 5 components under components/tp/ already assumed its
+  // `animate-in fade-in slide-in-from-*` classes but the plugin was never
+  // installed — the entrances were silently dead. Installing it is the singular
+  // path: it revives those, backs the feedback-layer entrances (replacing the
+  // three hand-rolled keyframes in globals.css), and means any shadcn component
+  // copied in animates correctly by default. ~3KB, purge-friendly, zero runtime.
+  plugins: [require("@tailwindcss/typography"), require("tailwindcss-animate")],
 };
 
 export default config;

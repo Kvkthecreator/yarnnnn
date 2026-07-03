@@ -56,7 +56,7 @@ export function RenameModal({ target, onClose, onSubmit }: RenameModalProps) {
   return createPortal(
     <>
       <div
-        className="fixed inset-0 bg-black/50 animate-fade-in"
+        className="fixed inset-0 bg-black/50 animate-in fade-in duration-150"
         style={{ zIndex: Z_CONFIRM_BACKDROP }}
         onClick={onClose}
       />
@@ -65,7 +65,7 @@ export function RenameModal({ target, onClose, onSubmit }: RenameModalProps) {
         style={{ zIndex: Z_CONFIRM_DIALOG }}
       >
         <div
-          className="pointer-events-auto w-full max-w-sm rounded-lg border border-border bg-card p-5 shadow-xl animate-dialog-in"
+          className="pointer-events-auto w-full max-w-sm rounded-lg border border-border bg-card p-5 shadow-xl animate-in fade-in zoom-in-95 duration-150"
           role="dialog"
           aria-modal="true"
         >
