@@ -1,0 +1,48 @@
+{
+  "user_id": "4c106786-c9b4-41cb-982d-0f5a8cc35923",
+  "n_turns": 1,
+  "closed": 1,
+  "errors": 0,
+  "mean_wall_s": 35.0,
+  "mean_rounds": 2.0,
+  "mean_tool_calls": 3.0,
+  "mean_response_chars": 728,
+  "models": [
+    "claude-sonnet-4-6"
+  ],
+  "total_est_cost_usd": 0.1202,
+  "mean_est_cost_usd": 0.1202,
+  "sentinels": {
+    "silent_exits": 0,
+    "schedule_calls": 0
+  },
+  "turns": [
+    {
+      "idx": 1,
+      "ask": "What's in my workspace right now?",
+      "wall_s": 35.0,
+      "rounds": 2,
+      "n_tool_calls": 3,
+      "tool_calls": [
+        "ListFiles",
+        "ReadFile",
+        "ReadFile"
+      ],
+      "response_chars": 728,
+      "verdict_reached": true,
+      "error": null,
+      "usage": {
+        "input_tokens": 3649,
+        "output_tokens": 1121,
+        "cache_read_tokens": 17140,
+        "cache_create_tokens": 23270,
+        "model": "claude-sonnet-4-6",
+        "tool_rounds": 2,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.1202
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
+    }
+  ]
+}

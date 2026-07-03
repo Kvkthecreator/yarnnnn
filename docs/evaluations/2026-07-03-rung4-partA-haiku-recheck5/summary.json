@@ -7,6 +7,16 @@
   "mean_rounds": 5.0,
   "mean_tool_calls": 8.0,
   "mean_response_chars": 595,
+  "models": [
+    "claude-haiku-4-5-20251001"
+  ],
+  "total_est_cost_usd": 0.0285,
+  "mean_est_cost_usd": 0.0285,
+  "sentinels": {
+    "silent_exits": 0,
+    "schedule_calls": 0
+  },
+  "reextracted": true,
   "turns": [
     {
       "idx": 5,
@@ -26,7 +36,19 @@
       ],
       "response_chars": 595,
       "verdict_reached": true,
-      "error": null
+      "error": null,
+      "usage": {
+        "input_tokens": 14615,
+        "output_tokens": 707,
+        "cache_read_tokens": 103086,
+        "cache_create_tokens": 0,
+        "model": "claude-haiku-4-5-20251001",
+        "tool_rounds": 5,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.0285
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
     }
   ]
 }

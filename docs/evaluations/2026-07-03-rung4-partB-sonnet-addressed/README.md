@@ -1,5 +1,14 @@
 # Rung 4 Part B — addressed on Sonnet 4.6 (the tier experiment arm)
 
+> **CANONICAL BASELINE (rotated 2026-07-03).** This run is the current diff
+> target for the 6-ask addressed probe — declared in code as
+> `CURRENT_BASELINE` in `api/scripts/operator/probe_freddie_addressed_baseline.py`
+> (the probe auto-diffs every other run against it). Regression sentinels +
+> alarm thresholds: [`../2026-07-03-rung4-model-stabilization-FINDING.md`](../2026-07-03-rung4-model-stabilization-FINDING.md)
+> §Watchlist. `summary.json` re-emitted 2026-07-03 with the usage/cost/sentinel
+> block (`--reextract` — extracted from the unmodified turn JSONs; no run data
+> changed).
+
 **Instrument**: same 6 byte-stable asks, bare-kernel workspace `4c106786…`,
 LOCAL code on the ADR-402 Part-A table, `YARNNN_MODEL_ADDRESSED=claude-sonnet-4-6`
 env override (nothing else changed). Baseline arm: `../2026-07-03-rung4-partA-haiku/`.

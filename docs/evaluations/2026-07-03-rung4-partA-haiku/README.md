@@ -1,5 +1,12 @@
 # Rung 4 Part A — routing-table refactor validation + Part-B Haiku baseline
 
+> **HISTORICAL ARM (baseline rotated 2026-07-03).** No longer the diff target —
+> the canonical baseline is `2026-07-03-rung4-partB-sonnet-addressed/` (declared
+> as `CURRENT_BASELINE` in `probe_freddie_addressed_baseline.py`) per the
+> ADR-402 Part-B one-model decision. `summary.json` re-emitted 2026-07-03 with
+> the usage/cost/sentinel block (`--reextract`; raw turn JSONs unmodified).
+
+
 **Instrument**: `api/scripts/operator/probe_freddie_addressed_baseline.py` — the
 6 byte-stable steward asks, bare-kernel workspace `4c106786…`, LOCAL code with
 the ADR-402 routing table in place (values byte-identical to the pre-table

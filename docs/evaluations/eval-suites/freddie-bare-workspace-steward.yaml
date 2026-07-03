@@ -80,6 +80,14 @@ description: |
   dedicated Hat-B session with the eval harness; record the capture as a dated
   SESSION.md + a criterion-first FINDING per EVAL-SUITE-DISCIPLINE.md.
 
+  FIRING INSTRUMENT: api/scripts/operator/probe_freddie_bare_steward.py
+  (free structural pre-flight; --live seeds the situation + fires + captures
+  the three-halves read; --restore removes the seed AND expires pending-
+  proposal residue — reset-to-clean covers the proposal layer too, the
+  2026-07-03 55-residue finding). Latest run + read:
+  ../2026-07-03-freddie-bare-steward-sonnet-rerun/FINDING.md (all three
+  halves hold on the landed ADR-402/403 Sonnet world; sentinel clean).
+
 persona: bare-workspace-steward    # a no-program workspace seeded with the ADR-383 steward defaults
 
 budget:

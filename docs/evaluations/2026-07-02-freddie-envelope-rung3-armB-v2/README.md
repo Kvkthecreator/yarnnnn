@@ -1,5 +1,12 @@
 # Freddie envelope refactor — Rung-3 measurement (lazy CC-shape envelope, Arm B)
 
+> **HISTORICAL ARM (baseline rotated 2026-07-03).** No longer the diff target —
+> the canonical baseline is `2026-07-03-rung4-partB-sonnet-addressed/` (declared
+> as `CURRENT_BASELINE` in `probe_freddie_addressed_baseline.py`) per the
+> ADR-402 Part-B one-model decision. `summary.json` re-emitted 2026-07-03 with
+> the usage/cost/sentinel block (`--reextract`; raw turn JSONs unmodified).
+
+
 **Date**: 2026-07-02 · **Hat**: B
 **Plan**: [freddie-envelope-refactor-plan-2026-07-02.md](../../analysis/freddie-envelope-refactor-plan-2026-07-02.md), Rung 3 · **Scaffolding**: the envelope-collapse Arm B (`YARNNN_ENVELOPE_ARM=B` → `_build_user_message_stripped`: governance block + substrate snapshot [heads, not bodies] + bare ask; NO trigger framing, NO fact sections, NO mirror dumps)
 **Model**: Haiku 4.5 throughout — deliberately (the model-agnostic validation rule: if posture holds on the weak model, it holds anywhere).

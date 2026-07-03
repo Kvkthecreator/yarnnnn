@@ -1,5 +1,12 @@
 # Freddie envelope refactor — Rung-1 validation (re-carved _TRIGGER_FRAMING)
 
+> **HISTORICAL ARM (baseline rotated 2026-07-03).** No longer the diff target —
+> the canonical baseline is `2026-07-03-rung4-partB-sonnet-addressed/` (declared
+> as `CURRENT_BASELINE` in `probe_freddie_addressed_baseline.py`) per the
+> ADR-402 Part-B one-model decision. `summary.json` re-emitted 2026-07-03 with
+> the usage/cost/sentinel block (`--reextract`; raw turn JSONs unmodified).
+
+
 **Date**: 2026-07-02
 **Hat**: B (evaluation — expected vs observed)
 **Plan**: [docs/analysis/freddie-envelope-refactor-plan-2026-07-02.md](../../analysis/freddie-envelope-refactor-plan-2026-07-02.md), Rung 1

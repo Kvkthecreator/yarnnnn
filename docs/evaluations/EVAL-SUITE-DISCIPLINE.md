@@ -6,6 +6,8 @@
 >
 > What **survives unchanged**: the two-axis MACHINE/MIND model (§0 — now the *within-Suite-B* discipline), the pre-flight `requires:`/`setup:` mechanics (§3), the `prior:`-as-orienting-hypothesis principle (§4), the SESSION.md prose-read shape (§6), and the harness (§8). Read EVAL-ARCHITECTURE first; read this for the Suite-B firing + pre-flight + read mechanics.
 
+> **Currency note (2026-07-03, the Freddie / Rung-1 era).** The evaluation subject moved with the activation ladder (ADR-380/381/383): the launch-path agent is **Freddie, the Rung-1 substrate steward**; "Reviewer" below is the internal seat slug (relabel-keep-slug, ADR-381 D1). Suite status is registered in [`eval-suites/README.md`](eval-suites/README.md) — `freddie-bare-workspace-steward.yaml` is CURRENT; the trader/author program suites are dormant Rung-2 arms (their examples below stay as written — the discipline they teach is unchanged). The trader-specific worked examples (§0.3) are Suite-B-mechanical references, not live gates. Canonical addressed-probe baseline: declared in code as `CURRENT_BASELINE` in `api/scripts/operator/probe_freddie_addressed_baseline.py`; regression sentinels + thresholds in [`2026-07-03-rung4-model-stabilization-FINDING.md`](2026-07-03-rung4-model-stabilization-FINDING.md) §Watchlist.
+
 **The eval-suite shape for measuring the Reviewer — a substrate-driven, persona-bearing judgment seat — where the measurement object (reasoning quality, posture, mandate-coherence) is fundamentally qualitative.**
 
 > **Status: Implemented (v3 first-principles rework, 2026-06-07; prior full rewrite 2026-05-29).** The reasoning for the original rewrite is in [`../analysis/eval-suite-redesign-from-first-principles-2026-05-29.md`](../analysis/eval-suite-redesign-from-first-principles-2026-05-29.md); the 2026-06-07 two-suite rework that governs it is [`EVAL-ARCHITECTURE.md`](EVAL-ARCHITECTURE.md). The migration from the old suite shape is in §7.
@@ -396,4 +398,4 @@ These extend `README.md` §"Discipline rules" with eval-suite specifics. They re
 
 ## Last updated
 
-2026-05-30 — harness built (C1–C7) + ADR-307 prior-fix. Prior version (2026-05-29, Proposed) superseded by the as-built state.
+2026-07-03 — Freddie / Rung-1 currency note + suite-status registry pointer (eval-suites/README.md); baseline declaration moved into probe code (`CURRENT_BASELINE`). Prior: 2026-05-30 — harness built (C1–C7) + ADR-307 prior-fix.

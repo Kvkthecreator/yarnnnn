@@ -6,6 +6,14 @@ This directory holds version-controlled captures of operator-proxy sessions and 
 
 This is the qualitative companion to `api/test_adr*.py` regression gates. Together they form the YARNNN evaluation discipline: regression gates assert structural invariants; evaluations capture behavioral shape across multi-turn interactions, measured against declared expected behavior.
 
+## Current instruments + baselines (Freddie / Rung-1 era, 2026-07-03)
+
+The current evaluation subject is **Freddie, the Rung-1 substrate steward** (ADR-380/381/383) — the trader/author program suites are Rung-2 dogfood, dormant on the launch path (see `eval-suites/`). The live instruments:
+
+- **6-ask addressed probe** — `api/scripts/operator/probe_freddie_addressed_baseline.py`. Asks are byte-stable (never reword). **The canonical diff baseline is declared IN CODE as `CURRENT_BASELINE`** (currently `2026-07-03-rung4-partB-sonnet-addressed/` — the ADR-402 Sonnet decision arm); every non-baseline run auto-diffs against it, and `--reextract` recomputes a capture's `summary.json` (usage/cost/sentinels) from its turn JSONs without firing. Rotating the baseline = changing the constant in the same commit as the run that earns it — the declaration is no longer tribal.
+- **Bare-steward wake probe** — `api/scripts/operator/probe_freddie_bare_steward.py` (the `eval-suites/freddie-bare-workspace-steward.yaml` firing instrument; free pre-flight, funded `--live`, `--restore` resets substrate AND expires pending-proposal residue).
+- **Regression sentinels** (the inverted Haiku signature watchlist): silent exits, standing-cadence-from-test-asks — machine-checked in both probes; thresholds in [`2026-07-03-rung4-model-stabilization-FINDING.md`](2026-07-03-rung4-model-stabilization-FINDING.md) §Watchlist.
+
 ## Why "evaluations" and not "observations"
 
 Renamed 2026-05-26 to address a class of drift the prior "observation" framing permitted.

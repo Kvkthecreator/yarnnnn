@@ -1,12 +1,22 @@
 {
   "user_id": "4c106786-c9b4-41cb-982d-0f5a8cc35923",
-  "n_turns": 6,
-  "closed": 4,
+  "n_turns": 8,
+  "closed": 6,
   "errors": 2,
-  "mean_wall_s": 91.9,
-  "mean_rounds": 2.7,
-  "mean_tool_calls": 6.3,
-  "mean_response_chars": 317,
+  "mean_wall_s": 73.7,
+  "mean_rounds": 2.9,
+  "mean_tool_calls": 6.2,
+  "mean_response_chars": 335,
+  "models": [
+    "claude-haiku-4-5-20251001"
+  ],
+  "total_est_cost_usd": 0.1735,
+  "mean_est_cost_usd": 0.0289,
+  "sentinels": {
+    "silent_exits": 1,
+    "schedule_calls": 0
+  },
+  "reextracted": true,
   "turns": [
     {
       "idx": 1,
@@ -17,7 +27,39 @@
       "tool_calls": [],
       "response_chars": 0,
       "verdict_reached": false,
-      "error": "lock_wait_timeout"
+      "error": "lock_wait_timeout",
+      "usage": {},
+      "schedule_calls": 0,
+      "silent_exit": false
+    },
+    {
+      "idx": 1,
+      "ask": "What's in my workspace right now?",
+      "wall_s": 18.2,
+      "rounds": 3,
+      "n_tool_calls": 5,
+      "tool_calls": [
+        "ListFiles",
+        "ReadFile",
+        "ReadFile",
+        "ReadFile",
+        "GetSystemState"
+      ],
+      "response_chars": 391,
+      "verdict_reached": true,
+      "error": null,
+      "usage": {
+        "input_tokens": 6468,
+        "output_tokens": 921,
+        "cache_read_tokens": 61882,
+        "cache_create_tokens": 0,
+        "model": "claude-haiku-4-5-20251001",
+        "tool_rounds": 3,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.0173
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
     },
     {
       "idx": 2,
@@ -34,7 +76,19 @@
       ],
       "response_chars": 556,
       "verdict_reached": true,
-      "error": null
+      "error": null,
+      "usage": {
+        "input_tokens": 6057,
+        "output_tokens": 1211,
+        "cache_read_tokens": 38177,
+        "cache_create_tokens": 23705,
+        "model": "claude-haiku-4-5-20251001",
+        "tool_rounds": 3,
+        "verdict": "defer",
+        "est_cost_usd": 0.0456
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
     },
     {
       "idx": 3,
@@ -52,7 +106,19 @@
       ],
       "response_chars": 306,
       "verdict_reached": true,
-      "error": null
+      "error": null,
+      "usage": {
+        "input_tokens": 7891,
+        "output_tokens": 1017,
+        "cache_read_tokens": 41280,
+        "cache_create_tokens": 0,
+        "model": "claude-haiku-4-5-20251001",
+        "tool_rounds": 2,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.0171
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
     },
     {
       "idx": 4,
@@ -71,7 +137,50 @@
       ],
       "response_chars": 622,
       "verdict_reached": true,
-      "error": null
+      "error": null,
+      "usage": {
+        "input_tokens": 10208,
+        "output_tokens": 2076,
+        "cache_read_tokens": 61882,
+        "cache_create_tokens": 0,
+        "model": "claude-haiku-4-5-20251001",
+        "tool_rounds": 3,
+        "verdict": "no_change",
+        "est_cost_usd": 0.0268
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
+    },
+    {
+      "idx": 5,
+      "ask": "What connections and sources are currently feeding this workspace?",
+      "wall_s": 19.8,
+      "rounds": 4,
+      "n_tool_calls": 7,
+      "tool_calls": [
+        "list_integrations",
+        "GetSystemState",
+        "ListFiles",
+        "SearchFiles",
+        "ListFiles",
+        "ListFiles",
+        "ReadFile"
+      ],
+      "response_chars": 386,
+      "verdict_reached": true,
+      "error": null,
+      "usage": {
+        "input_tokens": 9790,
+        "output_tokens": 1066,
+        "cache_read_tokens": 82484,
+        "cache_create_tokens": 0,
+        "model": "claude-haiku-4-5-20251001",
+        "tool_rounds": 4,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.0234
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
     },
     {
       "idx": 5,
@@ -90,7 +199,10 @@
       ],
       "response_chars": 0,
       "verdict_reached": false,
-      "error": "Reviewer returned no response"
+      "error": "Reviewer returned no response",
+      "usage": {},
+      "schedule_calls": 0,
+      "silent_exit": true
     },
     {
       "idx": 6,
@@ -115,7 +227,19 @@
       ],
       "response_chars": 418,
       "verdict_reached": true,
-      "error": null
+      "error": null,
+      "usage": {
+        "input_tokens": 21370,
+        "output_tokens": 2328,
+        "cache_read_tokens": 103086,
+        "cache_create_tokens": 0,
+        "model": "claude-haiku-4-5-20251001",
+        "tool_rounds": 5,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.0433
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
     }
   ]
 }

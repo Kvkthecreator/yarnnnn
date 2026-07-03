@@ -1,3 +1,5 @@
+# STATUS: dormant (Rung-2 program suite — see README.md in this directory, 2026-07-03).
+# The launch-path CURRENT suite is freddie-bare-workspace-steward.yaml (ADR-380/381).
 eval_suite_schema_version: 3
 eval_suite: author-unified-agent-composes
 suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B

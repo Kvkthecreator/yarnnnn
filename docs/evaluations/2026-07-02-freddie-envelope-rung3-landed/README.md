@@ -1,6 +1,20 @@
 # ADR-400 landing validation — the thin envelope as production
 
-**Date**: 2026-07-02 · **Hat**: B · **ADR**: [ADR-400](../../adr/ADR-400-the-envelope-collapse-lands.md)
+> **HISTORICAL ARM (baseline rotated 2026-07-03).** No longer the diff target —
+> the canonical baseline is `2026-07-03-rung4-partB-sonnet-addressed/` (declared
+> as `CURRENT_BASELINE` in `probe_freddie_addressed_baseline.py`) per the
+> ADR-402 Part-B one-model decision. `summary.json` re-emitted 2026-07-03 with
+> the usage/cost/sentinel block (`--reextract`; raw turn JSONs unmodified).
+>
+> **Renumber note (2026-07-03)**: the envelope-collapse ADR was renumbered
+> **ADR-400 → ADR-403** (number collision with the Files-surface ADR-400;
+> commit `34bc995`). This dated receipt keeps its original "ADR-400" prose as
+> historical artifact; the live file is
+> [ADR-403-the-envelope-collapse-lands.md](../../adr/ADR-403-the-envelope-collapse-lands.md),
+> whose banner explains.
+
+
+**Date**: 2026-07-02 · **Hat**: B · **ADR**: [ADR-403 (né 400)](../../adr/ADR-403-the-envelope-collapse-lands.md)
 **Path under test**: the LANDED production builder (`_governance_prefix` [cache-marked] + `_volatile_suffix`), no env toggle — the fat envelope, framing, and Arm toggle are deleted. Same 6 byte-stable asks + the bare-steward reactive wake, Haiku.
 
 ## Results

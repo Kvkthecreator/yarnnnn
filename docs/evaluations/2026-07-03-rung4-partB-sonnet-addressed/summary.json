@@ -7,6 +7,16 @@
   "mean_rounds": 3.3,
   "mean_tool_calls": 4.2,
   "mean_response_chars": 546,
+  "models": [
+    "claude-sonnet-4-6"
+  ],
+  "total_est_cost_usd": 0.4265,
+  "mean_est_cost_usd": 0.0711,
+  "sentinels": {
+    "silent_exits": 0,
+    "schedule_calls": 0
+  },
+  "reextracted": true,
   "turns": [
     {
       "idx": 1,
@@ -21,7 +31,19 @@
       ],
       "response_chars": 523,
       "verdict_reached": true,
-      "error": null
+      "error": null,
+      "usage": {
+        "input_tokens": 4009,
+        "output_tokens": 883,
+        "cache_read_tokens": 17140,
+        "cache_create_tokens": 23270,
+        "model": "claude-sonnet-4-6",
+        "tool_rounds": 2,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.1177
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
     },
     {
       "idx": 2,
@@ -38,7 +60,19 @@
       ],
       "response_chars": 679,
       "verdict_reached": true,
-      "error": null
+      "error": null,
+      "usage": {
+        "input_tokens": 9813,
+        "output_tokens": 1659,
+        "cache_read_tokens": 100911,
+        "cache_create_tokens": 0,
+        "model": "claude-sonnet-4-6",
+        "tool_rounds": 5,
+        "verdict": "approve",
+        "est_cost_usd": 0.0846
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
     },
     {
       "idx": 3,
@@ -52,7 +86,19 @@
       ],
       "response_chars": 575,
       "verdict_reached": true,
-      "error": null
+      "error": null,
+      "usage": {
+        "input_tokens": 3027,
+        "output_tokens": 845,
+        "cache_read_tokens": 40410,
+        "cache_create_tokens": 0,
+        "model": "claude-sonnet-4-6",
+        "tool_rounds": 2,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.0339
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
     },
     {
       "idx": 4,
@@ -71,7 +117,19 @@
       ],
       "response_chars": 591,
       "verdict_reached": true,
-      "error": null
+      "error": null,
+      "usage": {
+        "input_tokens": 13662,
+        "output_tokens": 1966,
+        "cache_read_tokens": 100911,
+        "cache_create_tokens": 0,
+        "model": "claude-sonnet-4-6",
+        "tool_rounds": 5,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.1007
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
     },
     {
       "idx": 5,
@@ -89,7 +147,19 @@
       ],
       "response_chars": 397,
       "verdict_reached": true,
-      "error": null
+      "error": null,
+      "usage": {
+        "input_tokens": 6385,
+        "output_tokens": 859,
+        "cache_read_tokens": 80744,
+        "cache_create_tokens": 0,
+        "model": "claude-sonnet-4-6",
+        "tool_rounds": 4,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.0563
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
     },
     {
       "idx": 6,
@@ -103,7 +173,19 @@
       ],
       "response_chars": 514,
       "verdict_reached": true,
-      "error": null
+      "error": null,
+      "usage": {
+        "input_tokens": 3015,
+        "output_tokens": 812,
+        "cache_read_tokens": 40410,
+        "cache_create_tokens": 0,
+        "model": "claude-sonnet-4-6",
+        "tool_rounds": 2,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.0333
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
     }
   ]
 }
