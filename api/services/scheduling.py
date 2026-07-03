@@ -88,6 +88,10 @@ logger = logging.getLogger(__name__)
 #
 #   @<session>_<edge> [+|-] <N> <unit>     anchored fire (single)
 #   @every <N> <unit> during <session>     interval within session
+#   @every <N> <unit>                      bare interval (session-less;
+#                                          NO market context needed —
+#                                          ADR-401, the connector-capture
+#                                          cadence shape)
 #
 # Examples handled:
 #   @market_open                  → next regular_hours open
@@ -97,6 +101,7 @@ logger = logging.getLogger(__name__)
 #   @after_hours_close - 10min    → 10 min before next after_hours close
 #   @every 1min during regular_hours
 #   @every 5min during pre_market
+#   @every 15min                  → last_run + 15 minutes, any workspace
 
 # Map shorthand "market_open" → "regular_hours_open" so the common case is
 # pleasant to author. ADR-268 §D2: "`@market_open` is an alias for
@@ -117,6 +122,33 @@ _INTERVAL_RE = re.compile(
     r"^@every\s+(?P<n>\d+)\s*(?P<unit>min|h)"
     r"\s+during\s+(?P<session>regular_hours|pre_market|after_hours)$"
 )
+
+
+# Bare session-less interval — `@every 15min`, `@every 1h`, `@every 24h`.
+# Resolved as last_run + interval with NO market context (ADR-401): this is
+# the connector-capture cadence shape, valid on any workspace. Pre-fix, the
+# seeded `@every 15min` was classified semantic and unresolvable everywhere
+# (bare workspaces raised on missing market_context; program workspaces
+# failed the `during <session>` grammar) — so connector captures NEVER
+# became due. The bare form is checked BEFORE the semantic branch.
+_BARE_INTERVAL_RE = re.compile(
+    r"^@every\s+(?P<n>\d+)\s*(?P<unit>min(?:ute)?s?|h(?:(?:ou)?rs?)?|d(?:ay)?s?)$",
+    re.IGNORECASE,
+)
+
+
+def _parse_bare_interval(member: str) -> Optional[timedelta]:
+    """`@every N unit` (no session) → timedelta, else None."""
+    m = _BARE_INTERVAL_RE.match((member or "").strip())
+    if not m:
+        return None
+    n = int(m.group("n"))
+    unit = m.group("unit").lower()
+    if unit.startswith("min"):
+        return timedelta(minutes=n)
+    if unit.startswith("h"):
+        return timedelta(hours=n)
+    return timedelta(days=n)
 
 
 def _resolve_session_key(raw: str) -> str:
@@ -333,6 +365,13 @@ def compute_next_run_at(
     candidates: list[datetime] = []
     for member in schedules:
         if not isinstance(member, str) or not member.strip():
+            continue
+        # Bare session-less interval (`@every 15min`) — resolved as
+        # base + interval, market-context-free. Checked BEFORE the semantic
+        # branch so connector-capture cadences work on any workspace.
+        bare = _parse_bare_interval(member)
+        if bare is not None:
+            candidates.append(base + bare)
             continue
         if _is_semantic(member):
             if market_context is None:

@@ -135,6 +135,24 @@ captures:
         f"nr={nr} nr2={nr2}",
     ))
 
+    # 5b — ADR-401 regression: the seeded connector cadence `@every 15min` is a
+    # BARE session-less interval and MUST resolve with NO market context (any
+    # workspace). Pre-fix it was classified semantic and unresolvable
+    # everywhere → next_run_at stayed NULL → connector captures NEVER fired.
+    from datetime import timedelta
+    bare = CaptureDeclaration(
+        slug="capture-slack", schedule="@every 15min",
+        primitive="@primitive: CaptureConnector()",
+    )
+    nr5b = compute_next_run_at(bare, last_run_at=None, now=now, market_context=None)
+    last = now - timedelta(minutes=5)
+    nr5b2 = compute_next_run_at(bare, last_run_at=last, now=now, market_context=None)
+    results.append(_check(
+        "5b. bare `@every 15min` resolves market-context-free (the never-fired regression)",
+        nr5b == now + timedelta(minutes=15) and nr5b2 == last + timedelta(minutes=15),
+        f"nr5b={nr5b} nr5b2={nr5b2}",
+    ))
+
     # 6 — wake.py has no mechanical machinery
     import services.wake as wake
     ok6 = (

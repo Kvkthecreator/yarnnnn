@@ -340,13 +340,48 @@ def _test_seed_at_select(results):
             f"slugs={slugs3}"))
 
         # --- 14: no-binding platform → no-op (None), file untouched ---
+        # (ADR-401 Phase 4 bound notion+github, so the unbound case uses a
+        # platform genuinely absent from CONNECTOR_CAPTURE_BINDINGS.)
         store[rel] = "captures: []\n"
         before = store[rel]
-        slug_n = asyncio.run(cw.seed_connector_capture(None, "u1", "notion", selected_count=2))
+        slug_n = asyncio.run(cw.seed_connector_capture(None, "u1", "linear", selected_count=2))
         results.append(_check(
-            "14 no-binding platform (notion) → no-op, _captures.yaml untouched",
+            "14 no-binding platform (linear) → no-op, _captures.yaml untouched",
             slug_n is None and store[rel] == before,
             f"slug={slug_n}"))
+
+        # --- 14b: all three head platforms carry a seedable binding (ADR-401 P4) ---
+        results.append(_check(
+            "14b slack+notion+github all bound (ADR-394 §6 deferral closed)",
+            {"slack", "notion", "github"} <= set(cw.CONNECTOR_CAPTURE_BINDINGS),
+            f"bound={sorted(cw.CONNECTOR_CAPTURE_BINDINGS)}"))
+
+        # --- 14c: cadence dial — valid choice edits ONLY the schedule field ---
+        store.clear()
+        materialize_calls.clear()
+        asyncio.run(cw.seed_connector_capture(None, "u1", "slack", selected_count=2))
+        touched = asyncio.run(cw.set_connector_capture_schedule(None, "u1", "slack", "@every 6h"))
+        decls_c = parse_captures_yaml(store.get(rel) or "")
+        cap_c = {d.slug: d for d in decls_c}.get("capture-slack")
+        results.append(_check(
+            "14c cadence dial: schedule edited, directive intact, index rematerialized",
+            touched == "capture-slack" and cap_c is not None
+            and cap_c.schedule == "@every 6h"
+            and "CaptureConnector" in cap_c.primitive
+            and len(materialize_calls) == 2,
+            f"touched={touched} sched={cap_c.schedule if cap_c else None}"))
+
+        # --- 14d: invalid cadence → ValueError; absent entry → None ---
+        try:
+            asyncio.run(cw.set_connector_capture_schedule(None, "u1", "slack", "@every 1min"))
+            ok_invalid = False
+        except ValueError:
+            ok_invalid = True
+        none_touch = asyncio.run(cw.set_connector_capture_schedule(None, "u1", "github", "@every 6h"))
+        results.append(_check(
+            "14d cadence dial: out-of-enum rejected (floor 15min); un-seeded entry → None",
+            ok_invalid and none_touch is None,
+            f"invalid_ok={ok_invalid} none={none_touch}"))
 
         # --- 15: unparseable existing file → refuse (never clobber) ---
         store[rel] = "captures: [ this is: not valid yaml : :\n"

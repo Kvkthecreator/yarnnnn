@@ -102,6 +102,14 @@ function scheduleLabel(schedule: string | null): string {
   return s.startsWith("@every ") ? `every ${s.slice("@every ".length)}` : `on ${s}`;
 }
 
+/** Friendly labels for the bounded cadence enum (ADR-401 Phase 4). */
+const CADENCE_LABELS: Record<string, string> = {
+  "@every 15min": "Every 15 minutes",
+  "@every 1h": "Hourly",
+  "@every 6h": "Every 6 hours",
+  "@every 24h": "Daily",
+};
+
 function SectionShell({
   title,
   children,
@@ -136,6 +144,8 @@ export function ManageConnectionSubsurface({
   const [grantedScopes, setGrantedScopes] = useState<string[]>([]);
   const [connection, setConnection] = useState<ConnectionFacts | null>(null);
   const [capture, setCapture] = useState<CaptureEntry | null>(null);
+  const [cadenceChoices, setCadenceChoices] = useState<string[]>([]);
+  const [cadenceSaving, setCadenceSaving] = useState(false);
   const [agentEnabled, setAgentEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -166,6 +176,7 @@ export function ManageConnectionSubsurface({
         setGrantedScopes(signal?.granted_scopes ?? []);
         setConnection(signal?.connection ?? null);
         setCapture(signal?.capture ?? null);
+        setCadenceChoices(signal?.cadence_choices ?? []);
         setAgentEnabled(signal?.agent_enabled ?? true);
       } catch (e) {
         setError(
@@ -257,7 +268,26 @@ export function ManageConnectionSubsurface({
       return "Not reading yet — save a selection to start reads.";
     if (capture.paused)
       return `Not reading — select at least one ${resourceNoun.replace(/s$/, "")}.`;
-    return `Reads ${scheduleLabel(capture.schedule)}.`;
+    // With the dial rendered the sentence completes as "Reads [select]";
+    // without choices it stays a full sentence.
+    return cadenceChoices.length > 0 ? "Reads" : `Reads ${scheduleLabel(capture.schedule)}.`;
+  };
+
+  // The CADENCE dial (ADR-401 Phase 4) — bounded enum, floor 15min. The
+  // write edits only the capture entry's schedule; the index rematerializes
+  // server-side so next_run recomputes.
+  const changeCadence = async (schedule: string) => {
+    if (!schedule) return;
+    setCadenceSaving(true);
+    setError(null);
+    try {
+      await api.integrations.updateCadence(provider, schedule);
+      setCapture((prev) => (prev ? { ...prev, schedule } : prev));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not change the read cadence.");
+    } finally {
+      setCadenceSaving(false);
+    }
   };
 
   const since = sinceLabel(connection?.connected_at);
@@ -425,9 +455,40 @@ export function ManageConnectionSubsurface({
               </div>
             </SectionShell>
 
-            {/* CADENCE — the read interval (above the line; edit is a follow-on). */}
+            {/* CADENCE — the read interval, operator-tunable within the
+                bounded enum (ADR-401 Phase 4). The select only renders once
+                a capture entry exists (seeded at first save-with-selection). */}
             <SectionShell title="Cadence">
-              <p className="text-sm text-muted-foreground">{cadenceLine()}</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-sm text-muted-foreground">{cadenceLine()}</p>
+                {capture && !capture.paused && agentEnabled && cadenceChoices.length > 0 && (
+                  <select
+                    value={
+                      capture.schedule && cadenceChoices.includes(capture.schedule)
+                        ? capture.schedule
+                        : ""
+                    }
+                    disabled={cadenceSaving}
+                    onChange={(e) => void changeCadence(e.target.value)}
+                    className="rounded-md border border-border/60 bg-background px-2 py-1 text-xs disabled:opacity-60"
+                    aria-label="Read cadence"
+                  >
+                    {capture.schedule && !cadenceChoices.includes(capture.schedule) && (
+                      <option value="" disabled>
+                        {scheduleLabel(capture.schedule)}
+                      </option>
+                    )}
+                    {cadenceChoices.map((c) => (
+                      <option key={c} value={c}>
+                        {CADENCE_LABELS[c] ?? scheduleLabel(c)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {cadenceSaving && (
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                )}
+              </div>
             </SectionShell>
 
             {/* YIELD — the read-back (connector grain). */}

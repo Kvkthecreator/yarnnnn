@@ -592,6 +592,50 @@ async def update_retention(request: RetentionRequest, auth: UserClient) -> dict[
     return {"retention_days": written, "success": True, "clamped": clamped, "tier_max_days": tier_max}
 
 
+class CadenceRequest(BaseModel):
+    schedule: str
+
+
+@router.put("/integrations/{provider}/cadence")
+async def update_connector_cadence(
+    provider: str,
+    request: CadenceRequest,
+    auth: UserClient,
+) -> dict[str, Any]:
+    """Set the connector's read cadence (ADR-401 Phase 4 — the CADENCE dial).
+
+    Edits the `capture-{platform}` entry's schedule in _captures.yaml via
+    `set_connector_capture_schedule` (bounded choices, floor 15min) and
+    rematerializes the capture index. 400 on an out-of-enum schedule; 404
+    when the connector has no capture entry yet (save a selection first).
+    No ADR-298 pace gate: the capture lane is mechanical; the judgment side
+    (the ADR-401 D5 derive proposal) is already funnel- and pace-bounded.
+    """
+    from services.connector_watch import (
+        CONNECTOR_CADENCE_CHOICES,
+        set_connector_capture_schedule,
+    )
+
+    db_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
+    try:
+        touched = await set_connector_capture_schedule(
+            auth.client, auth.user_id, db_platform, request.schedule,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if touched is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No capture entry for {provider} — save a channel selection first.",
+        )
+    return {
+        "success": True,
+        "provider": provider,
+        "schedule": request.schedule,
+        "choices": list(CONNECTOR_CADENCE_CHOICES),
+    }
+
+
 # =============================================================================
 # Get Specific Integration
 # =============================================================================
@@ -2153,7 +2197,7 @@ async def get_capture_signal(
     """
     from services.agent_gating import is_agent_enabled
     from services.capture.declarations import read_capture_signal, walk_workspace_captures
-    from services.connector_watch import read_selection
+    from services.connector_watch import CONNECTOR_CADENCE_CHOICES, read_selection
 
     db_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
 
@@ -2218,6 +2262,7 @@ async def get_capture_signal(
         "granted_scopes": granted_scopes,
         "connection": connection,
         "capture": capture,
+        "cadence_choices": list(CONNECTOR_CADENCE_CHOICES),
         "agent_enabled": is_agent_enabled(),
     }
 

@@ -167,19 +167,37 @@ async def read_selected_ids(
 
 # Per-platform read-tool binding: how CaptureConnector reads each platform's
 # selected slices. Kernel-universal (beside orchestration.py::CAPABILITIES'
-# read_slack/read_notion/read_github), NOT bundle-scoped. Slack is the first
-# connector with a selection UI; Notion/GitHub bindings land with their UIs
-# (ADR-394 §6). A platform absent from this table has no seedable capture yet.
+# read_slack/read_notion/read_github), NOT bundle-scoped. All three head
+# platforms are bound (ADR-401 Phase 4 closed the ADR-394 §6 deferral).
+# Kernel default cadences follow each platform's change velocity (chat is
+# fast, documents/repos are slow); operator-tunable via the CADENCE dial
+# (set_connector_capture_schedule) within CONNECTOR_CADENCE_CHOICES.
 CONNECTOR_CAPTURE_BINDINGS: dict[str, dict] = {
     "slack": {
         "read_tool": "platform_slack_get_channel_history",
         "selector_arg": "channel_id",
         "tool_args": {"limit": 50},
-        # Kernel default cadence for chat-channel freshness; operator-tunable
-        # later by editing _captures.yaml directly. 15 min balances freshness
-        # against per-channel API volume.
+        # 15 min balances chat freshness against per-channel API volume.
         "schedule": "@every 15min",
         "display_name": "Slack Channel Capture",
+    },
+    "notion": {
+        # Landscape selection ids are page UUIDs (landscape.py) — exactly
+        # platform_notion_get_page's selector.
+        "read_tool": "platform_notion_get_page",
+        "selector_arg": "page_id",
+        "schedule": "@every 1h",
+        "display_name": "Notion Page Capture",
+    },
+    "github": {
+        # Landscape selection ids are owner/repo full names (landscape.py) —
+        # exactly platform_github_get_issues' selector. state=all captures
+        # the full recent activity picture (opens, closes, merges).
+        "read_tool": "platform_github_get_issues",
+        "selector_arg": "repo",
+        "tool_args": {"state": "all", "limit": 50},
+        "schedule": "@every 1h",
+        "display_name": "GitHub Repo Capture",
     },
 }
 
@@ -330,6 +348,115 @@ async def seed_connector_capture(
     return slug
 
 
+# ADR-401 Phase 4 — the operator-tunable read cadence. Bounded choices (floor
+# 15min) rather than free cron: the capture lane is mechanical + unmetered
+# (ADR-396 carve), but each run with new content proposes ONE derive wake
+# (ADR-401 D5) — the funnel + pace bound the judgment side, so no ADR-298
+# pace gate applies here; the enum floor is the guardrail on API volume.
+# All values are BARE session-less intervals (resolvable on any workspace).
+CONNECTOR_CADENCE_CHOICES: tuple = (
+    "@every 15min",
+    "@every 1h",
+    "@every 6h",
+    "@every 24h",
+)
+
+
+async def set_connector_capture_schedule(
+    client: Any,
+    user_id: str,
+    platform: str,
+    schedule: str,
+) -> Optional[str]:
+    """Set the connector capture's read cadence (ADR-401 Phase 4).
+
+    The CADENCE dial's single write path — edits ONLY the `schedule` field of
+    the `capture-{platform}` entry in _captures.yaml (all other fields + all
+    other entries round-trip untouched), then rematerializes the capture
+    index so next_run_at recomputes. Authored `operator` — changing the read
+    cadence is a consent-line act (ADR-338), unlike the machine seed.
+
+    Raises ValueError for a schedule outside CONNECTOR_CADENCE_CHOICES.
+    Returns the slug touched, or None when the connector has no capture
+    entry yet (nothing seeded — save a selection first) or the file is
+    unparseable (refuse, never clobber).
+    """
+    from services.workspace import UserMemory
+    from services.conventions import CAPTURES_PATH
+    from services.capture.scheduling import materialize_capture_index
+
+    if schedule not in CONNECTOR_CADENCE_CHOICES:
+        raise ValueError(
+            f"invalid cadence {schedule!r}; choices: {', '.join(CONNECTOR_CADENCE_CHOICES)}"
+        )
+
+    plat = (platform or "").strip().lower()
+    slug = connector_capture_slug(plat)
+    rel = CAPTURES_PATH.lstrip("/").removeprefix("workspace/")
+    um = UserMemory(client, user_id)
+
+    try:
+        body = await um.read(rel)
+    except Exception:
+        body = None
+    if not body or not body.strip():
+        return None
+
+    try:
+        parsed = yaml.safe_load(body) or {}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[CONNECTOR_CAPTURE] _captures.yaml parse failed for %s: %s — "
+            "refusing cadence edit (would clobber unparseable operator file)",
+            user_id[:8], exc,
+        )
+        return None
+
+    if isinstance(parsed, dict):
+        existing = parsed.get("captures") or parsed.get("entries") or []
+    elif isinstance(parsed, list):
+        existing = parsed
+    else:
+        existing = []
+    entries = [e for e in existing if isinstance(e, dict)]
+
+    touched = False
+    for e in entries:
+        if e.get("slug") == slug:
+            e["schedule"] = schedule
+            touched = True
+            break
+    if not touched:
+        return None
+
+    content = yaml.safe_dump(
+        {"captures": entries},
+        sort_keys=False,
+        default_flow_style=False,
+        allow_unicode=True,
+    )
+    await um.write(
+        rel,
+        content,
+        summary=f"connector-capture:{plat}",
+        authored_by="operator",
+        message=f"set {slug} read cadence to {schedule}",
+    )
+
+    try:
+        await materialize_capture_index(client, user_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[CONNECTOR_CAPTURE] materialize_capture_index failed for %s/%s: %s",
+            user_id[:8], slug, exc,
+        )
+
+    logger.info(
+        "[CONNECTOR_CAPTURE] cadence %s → %s for %s", slug, schedule, user_id[:8]
+    )
+    return slug
+
+
 async def remove_connector_capture(
     client: Any,
     user_id: str,
@@ -425,7 +552,9 @@ __all__ = [
     "read_selection",
     "read_selected_ids",
     "CONNECTOR_CAPTURE_BINDINGS",
+    "CONNECTOR_CADENCE_CHOICES",
     "connector_capture_slug",
     "seed_connector_capture",
+    "set_connector_capture_schedule",
     "remove_connector_capture",
 ]
