@@ -246,6 +246,32 @@ export function setForegroundedSurface(userId: string, slug: string | null): voi
   }
 }
 
+/**
+ * ADR-404 step 5 — reset this user's persisted shell state (kept dock, open
+ * windows, foreground, window geometry) so the next boot is the default
+ * composition. Used when the user's WORKSPACE BINDING changes (invite
+ * accept): window state is currently keyed per user, not per workspace, so
+ * carrying window state from one workspace into another is stale by
+ * construction (operator-observed: a new member booted into their old
+ * foregrounded window instead of Home). Per-(user, workspace) window state
+ * is the durable follow-on.
+ */
+export function clearShellState(userId: string): void {
+  if (!isBrowser() || !userId) return;
+  for (const prefix of [
+    KEPT_KEY_PREFIX,
+    OPEN_KEY_PREFIX,
+    FOREGROUND_KEY_PREFIX,
+    WINDOW_STATE_KEY_PREFIX,
+  ]) {
+    try {
+      localStorage.removeItem(key(prefix, userId));
+    } catch {
+      // ignore — private-browsing etc.
+    }
+  }
+}
+
 // ----------------------------------------------------------------------------
 // Window state (D15 — window manager)
 // ----------------------------------------------------------------------------

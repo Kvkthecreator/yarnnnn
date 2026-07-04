@@ -860,6 +860,25 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
             except Exception as exc:  # best-effort humanization
                 logger.debug("[WORKSPACE_API] legacy member client-name lookup failed: %s", exc)
 
+        # ADR-404 step 5 follow-on (operator-observed 2026-07-04): humanize
+        # HUMAN principals for every viewer, not just the owner viewing
+        # themself. A member's roster showed raw UUIDs for the owner row and
+        # their own row. principal_id for owner/member IS auth.users.id —
+        # resolve emails via the auth admin API (service key), best-effort.
+        human_emails: dict[str, str] = {}
+        for r in rows:
+            if r.get("role") in ("owner", "member"):
+                pid = r["principal_id"]
+                if pid == auth.user_id and auth.email:
+                    human_emails[pid] = auth.email
+                    continue
+                try:
+                    u = svc.auth.admin.get_user_by_id(pid)
+                    if u and getattr(u, "user", None) and u.user.email:
+                        human_emails[pid] = u.user.email
+                except Exception as exc:  # noqa: BLE001 — humanization is best-effort
+                    logger.debug("[WORKSPACE_API] member email lookup failed for %s: %s", pid[:8], exc)
+
         members: list[WorkspaceMember] = []
         for r in rows:
             role = r.get("role") or "member"
@@ -869,8 +888,10 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
             write_regions = list(scopes) if explicit else _class_default_write_regions(role)
 
             label: Optional[str] = None
-            if role == "owner" and principal_id == auth.user_id:
-                label = auth.email or "You (owner)"
+            if role in ("owner", "member"):
+                label = human_emails.get(principal_id)
+                if label and principal_id == auth.user_id:
+                    label = f"{label} (you)"
             elif role in ("foreign-llm", "platform", "a2a"):
                 # Provider host-id → friendly label; legacy client_id → name lookup.
                 label = (
