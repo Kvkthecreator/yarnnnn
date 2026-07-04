@@ -6,6 +6,11 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.04.1] - ADR-406: EditFile gains the stale_write conflict surface
+
+- `services/primitives/workspace.py::handle_edit_file` (workspace scope): reads the head revision before the content read, threads it as `expected_parent_version_id`, and on a concurrent write returns a NEW structured error `{error: "stale_write", message: "... {who} wrote a revision at {when}. Re-read the file and re-apply ..."}` instead of silently clobbering (or a generic `write_failed`).
+- Expected behavior: when two writers race the same path (member + owner, agent + operator), the losing EditFile call now teaches the model to re-read and re-apply. No prompt text changed; the tool schema is unchanged — the new surface is the error contract. Mechanical appenders (capture lane, ledgers) deliberately do NOT adopt the precondition (ADR-406 D4).
+
 ## [2026.07.03.3] - ADR-402 Part B: Freddie stabilizes on ONE model — Sonnet 4.6, all shapes
 
 - `services/model_routing.py::DEFAULT_ROUTES`: all three shapes (addressed | proposal | recurrence) → `claude-sonnet-4-6`, uniform `max_rounds=20` cost ceiling. The legacy Sonnet/3 proposal split retired (lane never fired live; 3-round cap was a behavioral constraint contradicting trust-the-model).
