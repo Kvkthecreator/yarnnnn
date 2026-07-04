@@ -129,16 +129,17 @@ export default function LandingPage() {
               {/* Card 1 — Traceable: the live demonstration (the moat's uncopyable property) */}
               <TraceCard />
 
-              {/* Card 2 — Cross-LLM */}
+              {/* Card 2 — Cross-LLM + team (ADR-404: the shared commons is the launch) */}
               <SpotlightCard spotlightColor="rgba(99,102,241,0.06)">
                 <div className="p-8 h-full">
                   <div className="text-xs font-mono text-[#1a1a1a]/30 uppercase tracking-wider mb-4">
                     Works everywhere
                   </div>
-                  <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Same memory, every AI.</h3>
+                  <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Same memory — every AI, every teammate.</h3>
                   <p className="text-sm text-[#1a1a1a]/50 leading-relaxed">
-                    Write it in one app, use it in the next. ChatGPT, Claude, your tools — all
-                    working from the same memory, no copy-paste.
+                    Write it in one app, use it in the next. ChatGPT, Claude, your tools — and the
+                    teammates you invite — all working from the same memory, everyone&apos;s changes
+                    signed with their own name.
                   </p>
                 </div>
               </SpotlightCard>

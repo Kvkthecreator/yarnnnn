@@ -29,8 +29,8 @@ export const metadata: Metadata = getMarketingMetadata({
 const STEPS = [
   {
     number: "01",
-    title: "Connect your tools",
-    body: "Link Slack, Notion, your files and notes. Whatever they know flows into one place — and it doesn't disappear when you close the tab.",
+    title: "Bring your memory in",
+    body: "Tell any connected AI to remember something, drop in your files and notes, or link the tools you already use. It all lands in one place — and it doesn't disappear when you close the tab.",
   },
   {
     number: "02",
@@ -39,8 +39,8 @@ const STEPS = [
   },
   {
     number: "03",
-    title: "Reach it from any AI",
-    body: "The same memory is available to ChatGPT, Claude, and your other tools. Write it in one, pick up in the next — no copy-paste, no starting over.",
+    title: "Reach it from any AI — and any teammate",
+    body: "The same memory is available to ChatGPT, Claude, and your other tools. Invite a teammate and they work in the same workspace — everyone's changes signed with their own name.",
   },
   {
     number: "04",
@@ -115,9 +115,10 @@ export default function HowItWorksPage() {
               <span className="text-white/50">It&apos;s everywhere after.</span>
             </h1>
             <p className="max-w-2xl text-white/50 text-lg">
-              yarnnn turns the scattered memory across your AI tools into one place you own — fed
-              by your apps, reachable from every model. Here&apos;s how it goes, from an empty
-              workspace to a memory that follows you everywhere.
+              yarnnn turns the scattered memory across your AI tools into one place you own —
+              written by you, your teammates, and your AIs, reachable from every model.
+              Here&apos;s how it goes, from an empty workspace to a memory that follows you
+              everywhere.
             </p>
           </section>
 

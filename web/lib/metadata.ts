@@ -14,7 +14,7 @@ export const BRAND = {
   name: "yarnnn",
   tagline: "Shared memory for AI + human work",
   description:
-    "Memory, context, and files that stay with you. Tell ChatGPT today, and Claude knows it tomorrow — everything your AI learns about you lives in one place you own, and every change is yours to trace.",
+    "One shared workspace for your team's humans and AIs. Tell ChatGPT today, and Claude knows it tomorrow — everything lives in one place you own, every change carries its author's name, and the full history is yours to trace.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://yarnnn.com",
   ogImage: "/assets/logos/og-card.png",
 };

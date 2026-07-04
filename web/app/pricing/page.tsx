@@ -114,7 +114,8 @@ export default function PricingPage() {
                 Free to keep.<br />A plan for the work.
               </h1>
               <p className="text-white/50 text-lg max-w-2xl mx-auto">
-                The workspace and your memory are free forever. Pick a plan for the
+                The workspace and your memory are free forever — and you can invite
+                your team into the same shared workspace. Pick a plan for the
                 operation that runs on them — each includes a monthly usage
                 allowance. See every action it takes; never a surprise bill.
               </p>

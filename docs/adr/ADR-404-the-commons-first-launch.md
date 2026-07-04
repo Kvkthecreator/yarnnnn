@@ -96,6 +96,6 @@ becomes primary.
 3. ✅ ADR-406 implementation (CAS + linearity guard [migration 197, live-probed] + 409 contract + EditFile threading; gate 22/22).
 4. ✅ ADR-373 sweep spine (grant-aware resolution + contextvar binding + workspace-keyed substrate core + migration 198; gate 26/26; named remainders: route filters + RPCs with step 5).
 5. ✅ Member invites (workspace_invites transport + accept→ensure_principal_grant + owner-only manage verbs + accept page + X-Workspace-Id FE binding; migration 199 retires UNIQUE(user_id,path) post-deploy; gate `api/test_adr404_member_invites.py` 22/22).
-6. ☐ GTM copy re-center on the shared commons.
+6. ✅ GTM copy re-center (landing card, How-It-Works step 01 + hero, FAQ team+intake entries, pricing hero clause, About belief + not-a-notes-app, BRAND.description, llms.txt; SITE-COPY-SPEC-v1 staleness note). Route sweep rider: 13 substrate filters in routes/workspace.py moved to workspace scoping (member reach on Files/revisions/recents).
 
 (Statuses flip in the implementing commits.)

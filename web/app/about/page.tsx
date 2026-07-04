@@ -42,7 +42,7 @@ const BELIEFS = [
   },
   {
     title: "Built for more than one of you",
-    body: "You, your teammates, your tools, and even your own AI assistants can all add to the same memory — and you can always see who added what. On your own is just the simplest case.",
+    body: "Invite your teammates and they work in the same shared workspace — you, your people, your tools, and even your own AI assistants all add to the same memory, and you can always see who added what. On your own is just the simplest case.",
     sub: "One memory, many contributors.",
   },
   {
@@ -152,7 +152,7 @@ export default function AboutPage() {
                   },
                   {
                     title: "Not a notes app",
-                    desc: "Notes just sit there. This flows in from your tools, stays organized on its own, and feeds straight into every AI you use.",
+                    desc: "Notes just sit there. This is memory you and your AIs author together — organized, attributed, and feeding straight into every AI you use.",
                   },
                   {
                     title: "Not an AI that grades its own homework (beta)",

@@ -39,7 +39,7 @@ const faqSections: FaqSection[] = [
       {
         question: "Does it work across my team, not just me?",
         answer:
-          "Yes — the same memory can be written to by you, your teammates, your tools, and even your own AI agents, and you can always see who added what. Working solo is just the simplest case.",
+          "Yes — invite teammates by email and they join the same shared workspace. You, your people, and your AIs all write the same memory, every change signed with its author's name, and you can narrow or revoke anyone's access at any time. Working solo is just the simplest case.",
       },
     ],
   },
@@ -49,7 +49,7 @@ const faqSections: FaqSection[] = [
       {
         question: "How do I put things in, and get them out?",
         answer:
-          "Connect your tools (Slack, Notion, your files), or just tell any connected AI to remember something. Any other AI can then recall it on the next session — no copy-paste, no re-explaining who you are.",
+          "Tell any connected AI to remember something, upload your files and notes, or connect the tools you already use (Slack, Notion). Any other AI — or teammate — can then recall it on the next session — no copy-paste, no re-explaining who you are.",
       },
       {
         question: "Which AI models does it work with?",

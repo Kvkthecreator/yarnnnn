@@ -1,5 +1,7 @@
 # Site Copy Spec v1 — Full-Site Refactor to Canon (2026-06-10)
 
+> **STALENESS NOTE (2026-07-04, ADR-404)**: the live pages have moved past this spec twice — first to the "Shared memory for AI + human work" framing, then the **ADR-404 commons-first re-center** (team invites first-class; automatic connector capture de-emphasized — the capture lane is dormant behind `CONNECTOR_CAPTURE_ENABLED`; no outbound multi-model orchestration promised). Do not implement against this spec without reconciling; a v2 spec is the right vehicle for the next full pass.
+
 > **Status**: Ratified spec — ready for FE implementation. **Discourse pass 2026-06-10** (operator-ratified) hardened seven decisions; see §-9 (Discourse outcomes) for the diffs from the original draft.
 > **Scope**: Full site in one push (operator-ratified): `/` · `/pricing` · `/how-it-works` · `/faq` · `/about` · `/invest` · `/blog` (framing only)
 > **Inputs (all ratified)**: ESSENCE v14.1 · NARRATIVE v5 (beat structure + surface adaptations) · GTM_POSITIONING v4 (incl. the verb-frame hero, noun-pass doc) · ADR-334 (pricing — **Ratified-direction; checkout P1–P3 UNBUILT**) · Path-A decision: **judgment trail, not returns** (no P&L claims anywhere on the site)

@@ -65,6 +65,20 @@ class FileEditRequest(BaseModel):
     expected_head_version_id: Optional[str] = None
 
 
+def _substrate_scope_filter(auth) -> tuple:
+    """ADR-373 route sweep: the (column, value) substrate scope for this auth.
+
+    Workspace-keyed when the auth carries the acting workspace (owner default
+    or a validated X-Workspace-Id member binding) — this is what lets a
+    member's route reads reach rows other principals created. Falls back to
+    legacy user_id scoping when unresolved (byte-identical in N=1). ONLY for
+    workspace_files / workspace_file_versions queries — other tables have no
+    workspace_id column.
+    """
+    ws = getattr(auth, "workspace_id", None)
+    return ("workspace_id", ws) if ws else ("user_id", auth.user_id)
+
+
 class RecentArtifact(BaseModel):
     """One delivered output across the workspace (ADR-312 kernel slot #5)."""
     slug: str            # recurrence slug the output belongs to
@@ -204,7 +218,7 @@ async def get_workspace_nav(auth: UserClient) -> dict:
                     tracker_result = (
                         auth.client.table("workspace_files")
                         .select("content")
-                        .eq("user_id", auth.user_id)
+                        .eq(*_substrate_scope_filter(auth))
                         .eq("path", f"/workspace/{tracker_path}")
                         .limit(1)
                         .execute()
@@ -235,7 +249,7 @@ async def get_workspace_nav(auth: UserClient) -> dict:
             uploads_result = (
                 auth.client.table("workspace_files")
                 .select("path, updated_at, summary")
-                .eq("user_id", auth.user_id)
+                .eq(*_substrate_scope_filter(auth))
                 .like("path", "/workspace/uploads/%")
                 .order("updated_at", desc=True)
                 .limit(20)
@@ -272,7 +286,7 @@ async def get_workspace_nav(auth: UserClient) -> dict:
                 check = (
                     auth.client.table("workspace_files")
                     .select("path, updated_at")
-                    .eq("user_id", auth.user_id)
+                    .eq(*_substrate_scope_filter(auth))
                     .eq("path", path)
                     .limit(1)
                     .execute()
@@ -296,7 +310,7 @@ async def get_workspace_nav(auth: UserClient) -> dict:
                 id_content = (
                     auth.client.table("workspace_files")
                     .select("content")
-                    .eq("user_id", auth.user_id)
+                    .eq(*_substrate_scope_filter(auth))
                     .eq("path", f"/workspace/{PERSONA_IDENTITY_PATH}")
                     .limit(1)
                     .execute()
@@ -363,7 +377,7 @@ async def get_domain_entities(
         result = (
             auth.client.table("workspace_files")
             .select("path, content, updated_at, summary")
-            .eq("user_id", auth.user_id)
+            .eq(*_substrate_scope_filter(auth))
             .like("path", f"{prefix}%")
             .order("path")
             .limit(200)
@@ -490,7 +504,7 @@ async def get_workspace_tree(
                 "path, updated_at, summary, "
                 "workspace_file_versions!head_version_id(authored_by, created_at)"
             )
-            .eq("user_id", auth.user_id)
+            .eq(*_substrate_scope_filter(auth))
             .like("path", f"{root}/%")
             # ADR-329: archived files (operator 'Delete' = trash-semantics
             # via lifecycle, ADR-209-retained) leave the active tree. NULL
@@ -563,7 +577,7 @@ async def get_workspace_roots(auth: UserClient) -> list[dict]:
         result = (
             auth.client.table("workspace_files")
             .select("path")
-            .eq("user_id", auth.user_id)
+            .eq(*_substrate_scope_filter(auth))
             .like("path", "/workspace/%")
             .or_("lifecycle.is.null,lifecycle.neq.archived")
             .limit(5000)
@@ -661,7 +675,7 @@ async def get_workspace_file(
         result = (
             auth.client.table("workspace_files")
             .select("path, content, summary, updated_at, content_type, content_url, metadata, head_version_id")
-            .eq("user_id", auth.user_id)
+            .eq(*_substrate_scope_filter(auth))
             .eq("path", normalized_path)
             .limit(1)
             .execute()
@@ -737,7 +751,7 @@ async def get_recent_artifacts(
         result = (
             auth.client.table("workspace_files")
             .select("path, summary, updated_at")
-            .eq("user_id", auth.user_id)
+            .eq(*_substrate_scope_filter(auth))
             .like("path", "/workspace/operation/reports/%/output.md")
             .order("updated_at", desc=True)
             .limit(limit)
@@ -1204,7 +1218,7 @@ async def get_recent_revisions(
         result = (
             auth.client.table("workspace_file_versions")
             .select("path, authored_by, message, created_at")
-            .eq("user_id", auth.user_id)
+            .eq(*_substrate_scope_filter(auth))
             .order("created_at", desc=True)
             .limit(limit * 10)
             .execute()
@@ -1236,7 +1250,7 @@ async def get_recent_revisions(
             existing = (
                 auth.client.table("workspace_files")
                 .select("path, content_url, content_type, summary, content")
-                .eq("user_id", auth.user_id)
+                .eq(*_substrate_scope_filter(auth))
                 .in_("path", candidate_paths)
                 .execute()
             )
@@ -1474,7 +1488,7 @@ async def list_revisions_route(
         result = (
             auth.client.table("workspace_file_versions")
             .select("id, path, authored_by, author_identity_uuid, message, created_at, parent_version_id")
-            .eq("user_id", auth.user_id)
+            .eq(*_substrate_scope_filter(auth))
             .like("path", f"{path_prefix}%")
             .order("created_at", desc=True)
             .limit(limit)
@@ -1965,7 +1979,7 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
         rows = (
             auth.client.table("workspace_files")
             .select("path, updated_at")
-            .eq("user_id", auth.user_id)
+            .eq(*_substrate_scope_filter(auth))
             .in_("path", paths)
             .execute()
         )
