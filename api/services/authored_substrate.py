@@ -386,28 +386,28 @@ def _upsert_workspace_file(
     if metadata is not None:
         data["metadata"] = metadata
 
-    if workspace_id is None:
-        db_client.table("workspace_files").upsert(
-            data,
-            on_conflict="user_id,path",
-        ).execute()
-        return
-
-    # Workspace-keyed path: manual update-or-insert on (workspace_id, path).
-    # PostgREST upsert updates every supplied column on conflict — which
-    # would flip user_id to the acting principal; hence the explicit split.
+    # Manual update-or-insert in BOTH scopes (no PostgREST on_conflict):
+    #   - workspace-keyed: upsert-on-conflict would update every supplied
+    #     column, flipping user_id to the acting principal and colliding a
+    #     member's write; the split keeps the row creator.
+    #   - legacy user_id-keyed: migration 199 retires UNIQUE(user_id, path),
+    #     so an on_conflict upsert has no constraint to target.
+    key_col, key_val = (
+        ("workspace_id", workspace_id) if workspace_id is not None
+        else ("user_id", user_id)
+    )
     update_data = {k: v for k, v in data.items() if k not in ("user_id", "workspace_id", "path")}
     existing = (
         db_client.table("workspace_files")
         .select("id")
-        .eq("workspace_id", workspace_id)
+        .eq(key_col, key_val)
         .eq("path", path)
         .limit(1)
         .execute()
     )
     if existing.data:
         db_client.table("workspace_files").update(update_data).eq(
-            "workspace_id", workspace_id
+            key_col, key_val
         ).eq("path", path).execute()
         return
     try:
@@ -418,7 +418,7 @@ def _upsert_workspace_file(
         # semantics as losing an upsert race.
         if "uq_ws_files_wsid_path" in str(exc) or "23505" in str(exc):
             db_client.table("workspace_files").update(update_data).eq(
-                "workspace_id", workspace_id
+                key_col, key_val
             ).eq("path", path).execute()
         else:
             raise

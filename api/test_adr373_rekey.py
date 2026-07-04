@@ -234,10 +234,14 @@ def test_upsert_conflict_target_by_phase() -> None:
     finally:
         s.resolve_owner_workspace_id = orig
     target = fc.recorded.get("on_conflict", {}).get("workspace_files")
+    rows = fc.recorded.get("workspace_files", [])
+    ok = target is None and rows and rows[0]["op"] == "insert" \
+        and rows[0]["payload"].get("user_id") == "u1" \
+        and "workspace_id" not in rows[0]["payload"]
     record(
-        "workspace unresolvable → legacy (user_id,path) upsert preserved",
-        target == "user_id,path",
-        f"got on_conflict={target!r}",
+        "workspace unresolvable → manual (user_id,path)-keyed write, no on_conflict (199-ready)",
+        bool(ok),
+        f"got on_conflict={target!r}, rows={[r['op'] for r in rows]}",
     )
 
 

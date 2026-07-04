@@ -95,7 +95,7 @@ becomes primary.
 2. ✅ Capture-lane flag-off (`CONNECTOR_CAPTURE_ENABLED`, D2 cut list; gate `api/test_adr404_capture_dormancy.py` 28/28) + duplicate-proposal cleanup (37 rejected, newest-per-group kept pending; receipt 2026-07-03).
 3. ✅ ADR-406 implementation (CAS + linearity guard [migration 197, live-probed] + 409 contract + EditFile threading; gate 22/22).
 4. ✅ ADR-373 sweep spine (grant-aware resolution + contextvar binding + workspace-keyed substrate core + migration 198; gate 26/26; named remainders: route filters + RPCs with step 5).
-5. ☐ Member invites (grant provisioning UX — `member` role live; ADR-386 D6 unblocked by step 4).
+5. ✅ Member invites (workspace_invites transport + accept→ensure_principal_grant + owner-only manage verbs + accept page + X-Workspace-Id FE binding; migration 199 retires UNIQUE(user_id,path) post-deploy; gate `api/test_adr404_member_invites.py` 22/22).
 6. ☐ GTM copy re-center on the shared commons.
 
 (Statuses flip in the implementing commits.)

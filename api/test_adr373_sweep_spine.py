@@ -298,12 +298,13 @@ def test_workspace_keyed_upsert() -> None:
         head_version_id="rev-1", workspace_id=None,
     )
     upserts = [x for x in c.calls if x[1] == "upsert" and x[3].get("on_conflict")]
+    inserts = _ws_calls(c, "workspace_files", "insert")
     _assert(
-        len(upserts) == 1
-        and upserts[0][3].get("on_conflict") == "user_id,path"
-        and not _ws_calls(c, "workspace_files", "insert")
-        and not _ws_calls(c, "workspace_files", "update"),
-        "no workspace → legacy (user_id, path) upsert, byte-identical",
+        not upserts
+        and len(inserts) == 1
+        and inserts[0][2].get("user_id") == "u1"
+        and "workspace_id" not in inserts[0][2],
+        "no workspace → manual (user_id, path)-keyed write, no on_conflict (199-ready)",
     )
 
 

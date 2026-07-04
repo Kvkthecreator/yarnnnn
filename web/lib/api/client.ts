@@ -110,7 +110,30 @@ async function getAuthHeaders(): Promise<HeadersInit> {
     // Non-fatal — server falls back to UTC
   }
 
+  // ADR-373 sweep spine: a member operating a workspace they don't own
+  // binds it explicitly. Absent → the API uses the owner workspace
+  // (byte-identical for owners). Set on invite-accept; validated
+  // fail-closed server-side (403 when no active grant).
+  try {
+    const ws = window.localStorage.getItem(ACTIVE_WORKSPACE_KEY);
+    if (ws) (headers as Record<string, string>)["X-Workspace-Id"] = ws;
+  } catch {
+    // SSR / storage unavailable — owner default applies
+  }
+
   return headers;
+}
+
+/** localStorage key holding the explicitly-bound workspace id (member mode). */
+export const ACTIVE_WORKSPACE_KEY = "yarnnn.active-workspace";
+
+export function setActiveWorkspace(workspaceId: string | null): void {
+  try {
+    if (workspaceId) window.localStorage.setItem(ACTIVE_WORKSPACE_KEY, workspaceId);
+    else window.localStorage.removeItem(ACTIVE_WORKSPACE_KEY);
+  } catch {
+    // storage unavailable — non-fatal
+  }
 }
 
 async function request<T>(
@@ -1288,6 +1311,39 @@ export const api = {
         `/api/workspace/members/${encodeURIComponent(principalId)}/revoke`,
         { method: "POST" },
       ),
+
+    // ADR-404 step 5 — member invites (the ADR-373 D4 provisioning UX).
+    inviteMember: (email: string) =>
+      request<{
+        id: string; email: string; role: string; status: string;
+        created_at?: string; expires_at?: string; invite_link?: string;
+      }>(`/api/workspace/members/invite`, {
+        method: "POST", body: JSON.stringify({ email }),
+      }),
+
+    listInvites: () =>
+      request<{ invites: Array<{
+        id: string; email: string; role: string; status: string;
+        created_at?: string; expires_at?: string;
+      }> }>(`/api/workspace/invites`),
+
+    revokeInvite: (inviteId: string) =>
+      request<{ success: boolean; id: string }>(
+        `/api/workspace/invites/${encodeURIComponent(inviteId)}/revoke`,
+        { method: "POST" },
+      ),
+
+    previewInvite: (token: string) =>
+      request<{
+        workspace_name: string | null; email: string; role: string;
+        status: string; expires_at?: string;
+      }>(`/api/invites/${encodeURIComponent(token)}`),
+
+    acceptInvite: (token: string) =>
+      request<{
+        success: boolean; workspace_id: string;
+        workspace_name: string | null; role: string;
+      }>(`/api/invites/${encodeURIComponent(token)}/accept`, { method: "POST" }),
 
     // ADR-406 D2: pass expectedHeadVersionId (the head_version_id the file
     // was loaded with) to make the save conditional — the API returns 409

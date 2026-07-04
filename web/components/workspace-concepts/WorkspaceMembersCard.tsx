@@ -96,6 +96,58 @@ export function WorkspaceMembersCard({
   const [revokeTarget, setRevokeTarget] = useState<Member | null>(null);
   const [narrowTarget, setNarrowTarget] = useState<Member | null>(null);
   const [busy, setBusy] = useState(false);
+  // ADR-404 step 5 — human-member invites (owner-only; API 403s otherwise).
+  type Invite = Awaited<ReturnType<typeof api.workspace.listInvites>>['invites'][number];
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
+  const [canInvite, setCanInvite] = useState(true); // false when the API 403s (non-owner)
+
+  const refreshInvites = async () => {
+    try {
+      const res = await api.workspace.listInvites();
+      setInvites(res.invites);
+      setCanInvite(true);
+    } catch {
+      // 403 (member viewing) or transport failure — hide the invite affordance.
+      setInvites([]);
+      setCanInvite(false);
+    }
+  };
+
+  const onInvite = async () => {
+    const email = inviteEmail.trim();
+    if (!email) return;
+    setInviting(true);
+    setInviteError(null);
+    setLastInviteLink(null);
+    try {
+      const created = await api.workspace.inviteMember(email);
+      setInviteEmail('');
+      setLastInviteLink(created.invite_link ?? null);
+      await refreshInvites();
+    } catch (e) {
+      const detail =
+        e && typeof e === 'object' && 'data' in e &&
+        typeof (e as { data?: { detail?: unknown } }).data?.detail === 'string'
+          ? String((e as { data?: { detail?: unknown } }).data?.detail)
+          : 'Could not send the invite.';
+      setInviteError(detail);
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const onRevokeInvite = async (id: string) => {
+    try {
+      await api.workspace.revokeInvite(id);
+      await refreshInvites();
+    } catch {
+      // best-effort; list refresh shows truth
+    }
+  };
 
   const refresh = async () => {
     try {
@@ -119,10 +171,14 @@ export function WorkspaceMembersCard({
       } finally {
         if (!cancelled) setLoading(false);
       }
+      // Invite roster is owner-only; loaded separately so a member's 403
+      // never blanks the members list. Only on the full (Access) roster.
+      if (!cancelled && !roleFilter) void refreshInvites();
     })();
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onRevoke = async (m: Member) => {
@@ -187,9 +243,62 @@ export function WorkspaceMembersCard({
             Everyone — and everything — that can write to this workspace. In this model an MCP
             connection from an external LLM is a <span className="font-medium text-foreground/80">member</span>:
             it attributes its writes as itself and is authorized to a specific region of the substrate.
-            You can narrow a member&rsquo;s access or revoke it. Inviting other people is coming soon.
+            You can narrow a member&rsquo;s access or revoke it.
           </p>
         )
+      )}
+
+      {/* ADR-404 step 5 — invite a human member (owner-only; hidden on 403). */}
+      {variant === 'full' && !roleFilter && canInvite && (
+        <div className="rounded-lg border border-border p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void onInvite(); }}
+              placeholder="teammate@company.com"
+              className="min-w-0 flex-1 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-sm"
+              aria-label="Invite email"
+            />
+            <button
+              onClick={() => void onInvite()}
+              disabled={inviting || !inviteEmail.trim()}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+            >
+              {inviting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Invite member
+            </button>
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Members join this workspace with write access to Operation and Agents —
+            every change they make is attributed to them. Narrow or revoke any time.
+          </p>
+          {inviteError && <p className="mt-1.5 text-xs text-destructive">{inviteError}</p>}
+          {lastInviteLink && (
+            <p className="mt-1.5 break-all text-xs text-muted-foreground">
+              Invite sent. Link (share directly if the email doesn&rsquo;t arrive):{' '}
+              <span className="font-mono text-foreground/80">{lastInviteLink}</span>
+            </p>
+          )}
+          {invites.length > 0 && (
+            <ul className="mt-3 space-y-1.5 border-t border-border/60 pt-2">
+              {invites.map((inv) => (
+                <li key={inv.id} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="truncate text-muted-foreground">
+                    {inv.email} <span className="text-muted-foreground/60">· pending</span>
+                  </span>
+                  <button
+                    onClick={() => void onRevokeInvite(inv.id)}
+                    className="shrink-0 text-muted-foreground/70 underline-offset-2 hover:text-destructive hover:underline"
+                  >
+                    Revoke
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       <ul className="divide-y divide-border rounded-lg border border-border">

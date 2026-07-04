@@ -958,6 +958,149 @@ async def revoke_member(principal_id: str, auth: UserClient) -> MemberLifecycleR
 
 
 # =============================================================================
+# Workspace member invites — ADR-404 step 5 (ADR-373 D4 provisioning UX)
+# =============================================================================
+# The owner invites a human by email; accepting converts the invite into an
+# active member grant (ADR-386 lifecycle). Owner-only on the manage verbs;
+# the accept verb authenticates the acceptor and matches the invited email.
+
+class InviteCreateRequest(BaseModel):
+    email: str
+
+
+class InviteSummary(BaseModel):
+    id: str
+    email: str
+    role: str
+    status: str
+    created_at: Optional[str] = None
+    expires_at: Optional[str] = None
+    invite_link: Optional[str] = None
+
+
+class InviteListResponse(BaseModel):
+    invites: list[InviteSummary]
+
+
+class InviteAcceptResponse(BaseModel):
+    success: bool
+    workspace_id: str
+    workspace_name: Optional[str] = None
+    role: str
+
+
+def _require_owner_workspace(auth: UserClient) -> str:
+    """The invite-manage verbs are owner-only (members can't invite members)."""
+    from services.workspace_invites import workspace_owner_id
+    workspace_id = _resolve_caller_workspace(auth)
+    if not workspace_id:
+        raise HTTPException(status_code=404, detail="No workspace")
+    if workspace_owner_id(workspace_id) != auth.user_id:
+        raise HTTPException(status_code=403, detail="Only the workspace owner can manage invites")
+    return workspace_id
+
+
+@router.post("/workspace/members/invite", response_model=InviteSummary)
+async def invite_member(body: InviteCreateRequest, auth: UserClient) -> InviteSummary:
+    """Invite a human by email as a member (class-default write regions,
+    ADR-373 D3). Re-inviting the same address refreshes the token/expiry."""
+    from services.deep_links import app_url
+    from services.workspace_invites import InviteError, create_invite, send_invite_email
+
+    workspace_id = _require_owner_workspace(auth)
+    try:
+        invite = create_invite(
+            workspace_id=workspace_id, email=body.email, invited_by=auth.user_id,
+        )
+    except InviteError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Best-effort email (never blocks — the returned link is the fallback).
+    ws_name = None
+    try:
+        from services.workspace_invites import _svc
+        rows = (_svc().table("workspaces").select("name")
+                .eq("id", workspace_id).limit(1).execute()).data or []
+        ws_name = rows[0].get("name") if rows else None
+    except Exception:  # noqa: BLE001
+        pass
+    await send_invite_email(
+        email=invite["email"], token=invite["token"],
+        workspace_name=ws_name, inviter_email=auth.email,
+    )
+
+    return InviteSummary(
+        id=invite["id"], email=invite["email"], role=invite["role"],
+        status=invite["status"], created_at=str(invite.get("created_at") or ""),
+        expires_at=str(invite.get("expires_at") or ""),
+        invite_link=f"{app_url()}/invite/{invite['token']}",
+    )
+
+
+@router.get("/workspace/invites", response_model=InviteListResponse)
+async def get_workspace_invites(auth: UserClient) -> InviteListResponse:
+    from services.workspace_invites import list_invites
+    workspace_id = _require_owner_workspace(auth)
+    return InviteListResponse(invites=[
+        InviteSummary(
+            id=r["id"], email=r["email"], role=r["role"], status=r["status"],
+            created_at=str(r.get("created_at") or ""),
+            expires_at=str(r.get("expires_at") or ""),
+        )
+        for r in list_invites(workspace_id)
+    ])
+
+
+@router.post("/workspace/invites/{invite_id}/revoke")
+async def revoke_workspace_invite(invite_id: str, auth: UserClient) -> dict:
+    from services.workspace_invites import revoke_invite
+    workspace_id = _require_owner_workspace(auth)
+    if not revoke_invite(workspace_id, invite_id):
+        raise HTTPException(status_code=404, detail="No pending invite with that id")
+    return {"success": True, "id": invite_id}
+
+
+@router.get("/invites/{token}")
+async def preview_invite(token: str, auth: UserClient) -> dict:
+    """Accept-page preview: workspace name + invited address + state."""
+    from services.workspace_invites import get_invite_by_token
+    invite = get_invite_by_token(token)
+    if invite is None:
+        raise HTTPException(status_code=404, detail="Invite not found")
+    return {
+        "workspace_name": invite.get("workspace_name"),
+        "email": invite["email"],
+        "role": invite["role"],
+        "status": invite["status"],
+        "expires_at": invite.get("expires_at"),
+    }
+
+
+@router.post("/invites/{token}/accept", response_model=InviteAcceptResponse)
+async def accept_workspace_invite(token: str, auth: UserClient) -> InviteAcceptResponse:
+    """Convert a pending invite into an active member grant (ADR-386 D1).
+
+    The acceptor's JWT email must match the invited address. On success the
+    FE binds the commons via the X-Workspace-Id header (ADR-373 sweep spine).
+    """
+    from services.workspace_invites import InviteError, accept_invite
+    try:
+        result = accept_invite(token=token, user_id=auth.user_id, user_email=auth.email)
+    except InviteError as e:
+        status = {
+            "not_found": 404, "expired": 410, "not_pending": 409,
+            "email_mismatch": 403, "already_owner": 409,
+        }.get(e.code, 400)
+        raise HTTPException(status_code=status, detail=str(e))
+    return InviteAcceptResponse(
+        success=True,
+        workspace_id=result["workspace_id"],
+        workspace_name=result.get("workspace_name"),
+        role=result["role"],
+    )
+
+
+# =============================================================================
 # GET /workspace/recent-revisions — Recently authored substrate (ADR-329 D2)
 # =============================================================================
 # The Files "Recently authored" feed. Reads authored substrate changes across

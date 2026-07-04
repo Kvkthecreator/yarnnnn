@@ -43,6 +43,7 @@ const PROTECTED_PREFIXES = [
   "/settings",
   "/workspace-settings", // ADR-341 — the second Settings door (the operation)
   "/integrations",
+  "/invite", // ADR-404 step 5 — invite-accept page (login-bounce preserves ?next)
   "/docs",
   // Legacy routes still protected for redirect stubs
   "/chat",       // ADR-259 — redirect stub → /feed
