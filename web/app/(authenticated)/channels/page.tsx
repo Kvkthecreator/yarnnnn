@@ -55,51 +55,111 @@
  * Mounts the shared SettingsPaneShell (Singular Implementation — same shell
  * behind System/Workspace Settings) in fullBleed mode so the Flow pane fills
  * the pane region.
+ *
+ * ADR-404 D2 + ADR-385 amendments (2026-07-04): while the connector capture
+ * lane is dormant (CONNECTOR_CAPTURE_ENABLED off — the ratified launch state),
+ * the Connections + Sources panes are HIDDEN (not deleted) — both manage
+ * capture-lane machinery (connector captures AND web/RSS perception watches
+ * ride the same `_captures.yaml` drain). CHANNELS then holds AI Connections
+ * alone, which is the honest commons-first shape: this surface is the
+ * AI-principal roster + the In/Out boundary ledger. AI Connections itself is
+ * role-GROUPED (AI Chats / AI Agents) — see AI_CONNECTION_GROUPS.
  */
 
-import { Link2, Rss, Cpu, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link2, Rss, Cpu, ArrowDownToLine, ArrowUpFromLine, Loader2 } from "lucide-react";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
 import { SourcesCard } from "@/components/workspace-concepts/SourcesCard";
-import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
+import { WorkspaceMembersCard, type MemberRoleGroup } from "@/components/workspace-concepts/WorkspaceMembersCard";
 import { EmissionsView } from "@/components/context/EmissionsView";
 import { FeedSurface } from "@/components/feed-surface/FeedSurface";
 import { useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 import { isInbound } from "@/lib/feed-direction";
+import { api } from "@/lib/api/client";
 
-// ADR-385 D3 — the external/automation principal classes shown on the
-// AI Connections pane (slug `external-agents`): MCP LLMs, agent-to-agent
-// callers, platform writers. Human owner/member and internal own-agent live on
-// Workspace-Settings → Access (the full roster).
-const EXTERNAL_PRINCIPAL_ROLES = ["foreign-llm", "a2a", "platform"];
-
-const PANE_GROUPS: PaneGroup[] = [
+// ADR-385 amendment (2026-07-04) — the AI Connections pane groups the roster
+// by the principal's RELATIONSHIP to the workspace (the grant `role`), never
+// by wire transport: MCP is a transport BOTH classes can arrive over (an a2a
+// agent will likely connect over MCP too), so "MCP vs API" as the taxonomy
+// would break on first contact. Transport belongs on the row as metadata.
+//
+//   AI Chats  (`foreign-llm`) — a human driving an LLM host (ChatGPT,
+//     Claude.ai, …) that reaches into the commons. A future "Local AI"
+//     (self-hosted model connecting in) is a PROVIDER VARIANT of this same
+//     role via the ADR-379 host registry — a row/sub-group here, not a new
+//     role or pane.
+//   AI Agents (`a2a`) — software acting autonomously as a caller, no human at
+//     the wheel per-request. Name-only today (zero grants); hidden until its
+//     first grant exists. Promote to its own pane only when it earns verbs of
+//     its own (provisioning / key issuance).
+//
+// Deliberately NOT here:
+//   `platform`  — platform-as-principal is DEFERRED (ADR-401 D1 names the
+//     ADR-378 §7 seam but doesn't take it; the role is name-only). When that
+//     seam is taken, platforms get their own group here or live with the
+//     Connections peripherals — decided then, not pre-wired now.
+//   `own-agent` — internal persona agents don't cross the workspace's edge;
+//     Channels is the BOUNDARY surface. They surface on /agents under
+//     Freddie's governance (ADR-381 D5) at Rung 2.
+// Human owner/member live on Workspace-Settings → Access (the full roster).
+const AI_CONNECTION_GROUPS: MemberRoleGroup[] = [
   {
-    // What crosses the operation's edge (was PERCEPTION).
-    label: "Channels",
-    panes: [
-      // pane key `connectors` matches the kernel pane-grade slug so
-      // foregroundSurface('connectors') → channels?channels.pane=connectors
-      // resolves here (the generic pane_of mechanism delivers `pane: slug`).
-      { key: "connectors", label: "Connections", icon: Link2 },
-      { key: "sources", label: "Sources", icon: Rss },
-      // Label "AI Connections" (display) — slug stays `external-agents` for
-      // deep-link/URL stability (relabel-keep-slug, ADR-251 precedent).
-      { key: "external-agents", label: "AI Connections", icon: Cpu },
-    ],
+    label: "AI Chats",
+    roles: ["foreign-llm"],
+    emptyTitle: "No AI chat connected yet",
+    emptyHint:
+      "When an external LLM (ChatGPT, Claude, …) connects to this workspace over MCP, it appears here as a connection — attributing its writes as itself.",
   },
   {
-    // The boundary's crossing-ledger, scoped to the channels above (was FEED).
-    // In = inbound crossings (the narrative filtered to writes that landed via
-    // a channel); Out = the emissions ledger (a different source). The global
-    // workspace narrative lives at Notifications → Activity, not here.
-    label: "Activity",
-    panes: [
-      { key: "in", label: "In", icon: ArrowDownToLine },
-      { key: "out", label: "Out", icon: ArrowUpFromLine },
-    ],
+    label: "AI Agents",
+    roles: ["a2a"],
+    // Reserved class — invisible until the first agent-to-agent grant exists.
+    hideWhenEmpty: true,
   },
 ];
+
+// ADR-404 D2 (2026-07-04 amendment) — the CHANNELS pane list is derived from
+// the deploy-level capture-lane flag: while the connector capture lane is
+// dormant, the Connections + Sources panes (both manage `_captures.yaml`-lane
+// machinery — connector captures AND perception watches ride the same drain,
+// unified_scheduler ADR-393 block) are HIDDEN, not deleted. Flipping
+// CONNECTOR_CAPTURE_ENABLED re-lights them with zero FE work. Deep-links to a
+// hidden pane fall back to the default pane (SettingsPaneShell resolves
+// unknown pane keys to defaultPane).
+function buildPaneGroups(captureLaneOn: boolean): PaneGroup[] {
+  return [
+    {
+      // What crosses the operation's edge (was PERCEPTION).
+      label: "Channels",
+      panes: [
+        ...(captureLaneOn
+          ? [
+              // pane key `connectors` matches the kernel pane-grade slug so
+              // foregroundSurface('connectors') → channels?channels.pane=connectors
+              // resolves here (the generic pane_of mechanism delivers `pane: slug`).
+              { key: "connectors", label: "Connections", icon: Link2 },
+              { key: "sources", label: "Sources", icon: Rss },
+            ]
+          : []),
+        // Label "AI Connections" (display) — slug stays `external-agents` for
+        // deep-link/URL stability (relabel-keep-slug, ADR-251 precedent).
+        { key: "external-agents", label: "AI Connections", icon: Cpu },
+      ],
+    },
+    {
+      // The boundary's crossing-ledger, scoped to the channels above (was FEED).
+      // In = inbound crossings (the narrative filtered to writes that landed via
+      // a channel); Out = the emissions ledger (a different source). The global
+      // workspace narrative lives at Notifications → Activity, not here.
+      label: "Activity",
+      panes: [
+        { key: "in", label: "In", icon: ArrowDownToLine },
+        { key: "out", label: "Out", icon: ArrowUpFromLine },
+      ],
+    },
+  ];
+}
 
 // PaneHeader is the shared shell component (Singular Implementation, 2026-07-01).
 // In owns its own header (FeedSurface), so it skips it.
@@ -108,7 +168,31 @@ export default function ChannelsPage() {
   // Pane-switch within the Channels window (the "View flow →" link).
   const surfaceParam = useSurfaceParam("channels");
 
+  // ADR-404 D2 amendment — resolve the capture-lane flag BEFORE mounting the
+  // shell, so pane resolution (incl. deep-link fallback for hidden panes) is
+  // computed once against the correct pane list. `null` = not yet known.
+  // Failure-mode default is FALSE: dormant is the ratified launch state.
+  const [captureLaneOn, setCaptureLaneOn] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.integrations
+      .getCaptureLane()
+      .then((r) => {
+        if (!cancelled) setCaptureLaneOn(r.connector_capture_enabled);
+      })
+      .catch(() => {
+        if (!cancelled) setCaptureLaneOn(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const renderPane = (pane: string) => {
+    // Defensive guard mirroring the pane-list gate: while the capture lane is
+    // dormant these panes don't exist (the shell's defaultPane fallback should
+    // already prevent reaching them).
+    if (!captureLaneOn && (pane === "connectors" || pane === "sources")) return null;
     switch (pane) {
       case "connectors": {
         // The OWNED rich connector UI — the perception home (ADR-377/392).
@@ -156,25 +240,19 @@ export default function ChannelsPage() {
           </div>
         );
       case "external-agents":
-        // ADR-385 D3 — MCP / external-LLM principals. A filtered view of the
-        // workspace member roster (principal_grants) — NOT a new data source.
-        // Reads GET /api/workspace/members; renders only the external classes.
-        // Empty at N=1 until a foreign-llm grant is written (read-only;
-        // granting/scoping is the ADR-373 provisioning follow-on).
+        // ADR-385 D3 + 2026-07-04 amendment — the AI principals, role-grouped
+        // by relationship (AI Chats / AI Agents; see AI_CONNECTION_GROUPS). A
+        // grouped view of the workspace member roster (principal_grants) — NOT
+        // a new data source. Reads GET /api/workspace/members.
         return (
           <div className="flex h-full flex-col">
             <PaneHeader
               icon={Cpu}
               title="AI Connections"
-              subtitle="The AI that connects to this workspace — ChatGPT, Claude, and other LLMs reaching in over MCP. Each writes as itself, to a specific region."
+              subtitle="The AI that connects to this workspace — chats you drive (ChatGPT, Claude) and, later, agents acting on their own. Each writes as itself, to a specific region."
             />
             <div className="flex-1 overflow-y-auto p-6">
-              <WorkspaceMembersCard
-                variant="full"
-                roleFilter={EXTERNAL_PRINCIPAL_ROLES}
-                emptyTitle="No AI connected yet"
-                emptyHint="When an external LLM (ChatGPT, Claude, …) connects to this workspace over MCP, it appears here as a connection — attributing its writes as itself."
-              />
+              <WorkspaceMembersCard variant="full" roleGroups={AI_CONNECTION_GROUPS} />
             </div>
           </div>
         );
@@ -218,10 +296,21 @@ export default function ChannelsPage() {
     }
   };
 
+  // Hold the shell until the flag resolves — the pane list (and the deep-link
+  // fallback computed from it) must be built against the correct pane set.
+  if (captureLaneOn === null) {
+    return (
+      <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading channels…
+      </div>
+    );
+  }
+
   return (
     <SettingsPaneShell
       windowSlug="channels"
-      paneGroups={PANE_GROUPS}
+      paneGroups={buildPaneGroups(captureLaneOn)}
       defaultPane="in"
       renderPane={renderPane}
       fullBleed

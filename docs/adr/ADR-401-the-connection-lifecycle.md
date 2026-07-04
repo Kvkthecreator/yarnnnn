@@ -140,3 +140,42 @@ Health follows the DP29/DP28 derivation discipline (attention-routing is derived
 **Deferred, named**: platform-as-principal (D1(4) — the seam); per-channel health (connection-manager.md §2 — a consumer-less second grain); token-expiry sweep (D6).
 
 **Verification**: Phase 0 — gates green post-flip + a live `prune_raw_lane(dry_run=True)` reporting `pruned>0` with cited kept. Phase 3 — eval under `docs/evaluations/`: wake with fresh inbound raw present → assert a derived `operation/` file whose `derived_from` cites the raw → assert `recall` *finds* the derived content (not merely "returns a bundle").
+
+---
+
+## Amendment note (2026-07-04) — the principal-binding of connections: ratified direction, deferred implementation
+
+Operator-ratified direction, recorded so downstream work doesn't re-derive or
+half-build it. **No code changes now.**
+
+**The question**: is a connection wired to the *workspace* or to a
+*principal*? Today `platform_connections` is keyed by `user_id` — a vestige
+of the 1:1 world, neither answer.
+
+**The ratified direction — both bindings are real, and they are different
+facts**:
+
+- **Authorized-by-principal.** An OAuth grant is inherently a specific
+  principal's consent. In the multi-principal workspace (ADR-373) two members
+  each connect *their own* Slack; evicting a member (ADR-386 revoke) should
+  tear down *their* peripherals. The connection row gains a
+  `connected_by` principal reference when this lands.
+- **Feeds-the-workspace.** The capture destination is the shared commons —
+  workspace-scoped, unchanged. The peripheral ontology (D1: connection =
+  mechanical peripheral, NOT a principal) is unaffected: `connected_by` is
+  provenance on the peripheral, not personhood.
+
+This also sharpens the D1 attribution gloss: capture writes stay
+`system:capture-*` (the mechanism), with the DP32 provenance able to carry
+*via which principal's grant* the peripheral was authorized.
+
+**Why deferred, explicitly**: the binding is only expressible after the
+ADR-373 re-key completes (`user_id → workspace_id` + grants) AND multi-user
+is validated in its truest form (ADR-404 launch). Designing the
+principal-binding against the `user_id` world being re-keyed out from under
+it would be building on sand. The capture lane is dormant anyway (ADR-404
+D2); **when the lane re-enters, it re-enters principal-authorized** — the
+re-entry commit implements this note.
+
+**Trigger to implement**: capture-lane re-entry (`CONNECTOR_CAPTURE_ENABLED`
+back on) or the first second-member connector request, whichever comes first.

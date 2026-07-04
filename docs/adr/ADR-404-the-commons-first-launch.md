@@ -99,3 +99,39 @@ becomes primary.
 6. ✅ GTM copy re-center (landing card, How-It-Works step 01 + hero, FAQ team+intake entries, pricing hero clause, About belief + not-a-notes-app, BRAND.description, llms.txt; SITE-COPY-SPEC-v1 staleness note). Route sweep rider: 13 substrate filters in routes/workspace.py moved to workspace scoping (member reach on Files/revisions/recents).
 
 (Statuses flip in the implementing commits.)
+
+---
+
+## Amendment (2026-07-04) — D2 extended: pane-level hide on the Channels surface
+
+Operator-ratified follow-on to the D2 cut. The original D2 FE cut hid the
+CADENCE + YIELD sections and the retention dial *inside* the connector Manage
+drill-in, keeping ACCESS + SCOPE visible. The commons-first ruling goes
+further at the surface level: while the capture lane is dormant, the
+**Connections and Sources panes on the Channels surface are hidden entirely**
+(hide, not delete — the D2 discipline unchanged).
+
+Rationale: both panes manage `_captures.yaml`-lane machinery. Connector
+captures AND web/RSS perception watches (ADR-336) ride the **same dormant
+drain** (`drain_due_captures` runs every capture-shape declaration —
+unified_scheduler's ADR-393 block), so a visible Sources pane at launch is a
+management UI over declarations that never fire — legibility theatre. With
+both hidden, CHANNELS holds **AI Connections alone**, which is the honest
+commons-first shape: the Channels surface is the AI-principal roster + the
+In/Out boundary ledger.
+
+Mechanics (Singular Implementation — one flag, one derivation):
+
+- New zero-DB endpoint `GET /api/integrations/capture-lane` returns
+  `{connector_capture_enabled}` (pure env read of the D2 flag). The existing
+  per-provider mount on `/capture-signal` requires a connected provider —
+  exactly what won't exist at launch — so the workspace-level mount is the
+  pane-gating source.
+- `channels/page.tsx` builds its pane list from the flag
+  (`buildPaneGroups(captureLaneOn)`); the shell resolves deep-links to hidden
+  panes onto the default pane (`SettingsPaneShell` falls back on unknown pane
+  keys). Flipping `CONNECTOR_CAPTURE_ENABLED` re-lights both panes with zero
+  FE work.
+- The `connectors`/`sources` pane-grade slugs stay in the kernel surface
+  registry (search deep-links degrade to the Channels default pane while
+  dormant) — no registry surgery, consistent with hide-not-delete.

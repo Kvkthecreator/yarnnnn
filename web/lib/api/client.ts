@@ -1804,6 +1804,16 @@ export const api = {
         error_count: number;
       }>(`/api/integrations/${provider}/sync-status`),
 
+    // ADR-404 D2 (2026-07-04 amendment): the deploy-level capture-lane flag,
+    // workspace-level (no provider needed). The Channels surface derives
+    // whether the Connections + Sources panes render from this — hide-not-
+    // delete while the lane is dormant; flipping the env flag re-lights them
+    // with zero FE work.
+    getCaptureLane: () =>
+      request<{ connector_capture_enabled: boolean }>(
+        "/api/integrations/capture-lane"
+      ),
+
     // ADR-393 D3 / ADR-392 Phase B: declared × observed for a connector's
     // capture lane. `declared` = the watch declaration (which selectors are in
     // scope); `observed` = the capture lane's per-declaration health blocks

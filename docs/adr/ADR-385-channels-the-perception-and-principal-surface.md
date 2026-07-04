@@ -120,3 +120,45 @@ Slack-the-data-feed (Connections) and Claude-the-writing-principal (External Age
 3. The External Agents pane (D3) — the one new view (a prop + a mount).
 4. Delete the Settings Perception group (D4).
 5. Canon cascade + gate + `tsc --noEmit`.
+
+---
+
+## Amendment (2026-07-04) — AI Connections regrouped by relationship; the dormant-lane pane gate
+
+Operator-ratified follow-on (the commons-first launch band, ADR-404).
+
+**1. The AI Connections pane groups by RELATIONSHIP, never by transport.**
+The D3 flat roster (`roleFilter = [foreign-llm, a2a, platform]`) becomes
+role-grouped sections over the same single fetch (DP29 — one substrate,
+N views; new `roleGroups` prop on `WorkspaceMembersCard`):
+
+- **AI Chats** (`foreign-llm`) — a human driving an LLM host (ChatGPT,
+  Claude.ai, …) that reaches into the commons. Always rendered (it is the
+  launch substance); empty state teaches the MCP connect.
+- **AI Agents** (`a2a`) — software acting autonomously as a caller.
+  `hideWhenEmpty` — invisible until the first agent-to-agent grant exists.
+  Promoted to its own pane only when it earns verbs of its own
+  (provisioning / key issuance), not before.
+- **Future "Local AI"** (a self-hosted model connecting in) is a **provider
+  variant of `foreign-llm`** via the ADR-379 host registry — a row or
+  sub-group, NOT a new role, pane, or schema motion.
+
+The grouping axis is deliberately the grant `role` (the principal's
+relationship to the workspace), never the wire protocol: MCP is a transport
+both classes can arrive over (an a2a agent will likely connect over MCP), so
+an "MCP vs API" taxonomy breaks on first contact. Transport belongs on the
+row as metadata (host-profile badge, deferred with the ADR-379 enrichment).
+
+Deliberately excluded from the pane:
+- **`platform`** — platform-as-principal stays deferred (ADR-401 D1 names the
+  ADR-378 §7 seam, doesn't take it; the role is name-only with zero grants).
+  When that seam is taken, platforms get their own group here or live with
+  the Connections peripherals — decided then, not pre-wired now. (This drops
+  `platform` from the D3 filter set; it was unreachable anyway.)
+- **`own-agent`** — internal persona agents don't cross the workspace's edge;
+  Channels is the boundary surface. They surface on `/agents` under Freddie's
+  governance (ADR-381 D5) at Rung 2.
+
+**2. Connections + Sources panes are flag-gated while the capture lane is
+dormant** — see the ADR-404 2026-07-04 amendment (the authoritative home for
+that cut). Net launch IA: CHANNELS = AI Connections; ACTIVITY = In · Out.

@@ -38,6 +38,25 @@ const NARROWABLE_REGIONS = ['operation/', 'agents/'] as const;
 
 export type WorkspaceMembersVariant = 'full' | 'compact';
 
+/**
+ * ADR-385 amendment (2026-07-04) — a role-grouped section of the roster. The
+ * grouping axis is the principal's RELATIONSHIP to the workspace (encoded in
+ * the grant `role`), never the wire transport: MCP is a transport both an
+ * AI chat and an autonomous agent can arrive over, so "MCP vs API" would
+ * break the first time an a2a caller connects over MCP. Transport belongs on
+ * the row as metadata (host-profile badge), not as the grouping key.
+ */
+export interface MemberRoleGroup {
+  /** Section heading rendered above the group's roster. */
+  label: string;
+  /** Grant roles included in this group. */
+  roles: string[];
+  /** Skip the section entirely while it has no members (reserved classes). */
+  hideWhenEmpty?: boolean;
+  emptyTitle?: string;
+  emptyHint?: string;
+}
+
 interface WorkspaceMembersCardProps {
   variant?: WorkspaceMembersVariant;
   className?: string;
@@ -50,6 +69,13 @@ interface WorkspaceMembersCardProps {
    * VIEW of the one principal_grants substrate, not a parallel source (DP29).
    */
   roleFilter?: string[];
+  /**
+   * ADR-385 amendment (2026-07-04) — render the roster as labeled role-grouped
+   * sections (one fetch, N views; DP29). Used by the Channels → AI Connections
+   * pane: AI Chats (`foreign-llm`) / AI Agents (`a2a`). Takes precedence over
+   * `roleFilter` when both are provided.
+   */
+  roleGroups?: MemberRoleGroup[];
   /** Optional override for the empty state (shown when the filtered roster is empty). */
   emptyTitle?: string;
   emptyHint?: string;
@@ -86,6 +112,7 @@ export function WorkspaceMembersCard({
   variant = 'full',
   className,
   roleFilter,
+  roleGroups,
   emptyTitle,
   emptyHint,
 }: WorkspaceMembersCardProps) {
@@ -173,7 +200,7 @@ export function WorkspaceMembersCard({
       }
       // Invite roster is owner-only; loaded separately so a member's 403
       // never blanks the members list. Only on the full (Access) roster.
-      if (!cancelled && !roleFilter) void refreshInvites();
+      if (!cancelled && !roleFilter && !roleGroups) void refreshInvites();
     })();
     return () => {
       cancelled = true;
@@ -216,22 +243,113 @@ export function WorkspaceMembersCard({
     );
   }
 
-  if (visible.length === 0) {
-    return (
-      <div className={cn('rounded-lg border border-dashed border-border/60 px-4 py-6 text-center', className)}>
-        <Users className="mx-auto h-5 w-5 text-muted-foreground/50" />
-        <p className="mt-2 text-sm font-medium text-foreground/80">{emptyTitle ?? 'No members yet'}</p>
-        <p className="mt-1 text-xs text-muted-foreground/70 max-w-sm mx-auto">
-          {emptyHint ?? 'This workspace has no principal grants. Once you author substrate, you become its owner.'}
-        </p>
-      </div>
-    );
+  const renderEmptyState = (title?: string, hint?: string) => (
+    <div className="rounded-lg border border-dashed border-border/60 px-4 py-6 text-center">
+      <Users className="mx-auto h-5 w-5 text-muted-foreground/50" />
+      <p className="mt-2 text-sm font-medium text-foreground/80">{title ?? 'No members yet'}</p>
+      <p className="mt-1 text-xs text-muted-foreground/70 max-w-sm mx-auto">
+        {hint ?? 'This workspace has no principal grants. Once you author substrate, you become its owner.'}
+      </p>
+    </div>
+  );
+
+  // One row renderer for both the flat roster and the role-grouped sections —
+  // the governance verbs (narrow / revoke) ride along unchanged.
+  const renderMemberList = (list: Member[]) => (
+    <ul className="divide-y divide-border rounded-lg border border-border">
+      {list.map((m) => {
+        const meta = ROLE_META[m.role] ?? { label: m.role, icon: Users, tone: 'text-muted-foreground' };
+        const Icon = meta.icon;
+        const name = m.label ?? m.principal_id;
+        // ADR-386 D4 — the owner grant is immutable from this surface: no verbs.
+        const governable = m.role !== 'owner';
+        return (
+          <li key={`${m.principal_id}-${m.role}`} className="flex items-start gap-3 px-4 py-3">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+              <Icon className={cn('h-4 w-4', meta.tone)} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-sm font-medium text-foreground">{name}</span>
+                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  {meta.label}
+                </span>
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-muted-foreground/70">
+                  {m.scopes_explicit ? 'Can write' : 'Can write (default)'}:
+                </span>
+                {m.write_regions.length === 0 ? (
+                  <span className="text-[11px] text-muted-foreground/60 italic">nothing</span>
+                ) : (
+                  m.write_regions.map((region) => (
+                    <span
+                      key={region}
+                      className="rounded border border-border/60 px-1.5 py-0.5 text-[11px] text-foreground/70"
+                    >
+                      {regionLabel(region)}
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+            {governable && (
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  aria-label={`Manage ${name}`}
+                  onClick={() => setMenuFor(menuFor === m.principal_id ? null : m.principal_id)}
+                  className="rounded p-1 text-muted-foreground/60 hover:bg-muted hover:text-foreground"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+                {menuFor === m.principal_id && (
+                  <>
+                    {/* click-away */}
+                    <div className="fixed inset-0 z-10" onClick={() => setMenuFor(null)} />
+                    <div className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-md border border-border bg-popover shadow-md">
+                      <button
+                        type="button"
+                        onClick={() => { setMenuFor(null); setNarrowTarget(m); }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+                      >
+                        <ShieldMinus className="h-3.5 w-3.5 text-muted-foreground" />
+                        Narrow access
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setMenuFor(null); setRevokeTarget(m); }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Revoke…
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  if (!roleGroups && visible.length === 0) {
+    return <div className={className}>{renderEmptyState(emptyTitle, emptyHint)}</div>;
   }
 
   return (
     <div className={cn('space-y-4', className)}>
       {variant === 'full' && (
-        roleFilter ? (
+        roleGroups ? (
+          <p className="text-sm text-muted-foreground">
+            The AI that reaches into this workspace — each connects as a{' '}
+            <span className="font-medium text-foreground/80">principal</span>, attributes its
+            writes as itself, and is authorized to a specific region of the substrate. You can
+            narrow a connection&rsquo;s access or revoke it.
+          </p>
+        ) : roleFilter ? (
           <p className="text-sm text-muted-foreground">
             External LLMs, agent-to-agent callers, and platforms that reach into this workspace —
             each connects as a <span className="font-medium text-foreground/80">principal</span>,
@@ -249,7 +367,7 @@ export function WorkspaceMembersCard({
       )}
 
       {/* ADR-404 step 5 — invite a human member (owner-only; hidden on 403). */}
-      {variant === 'full' && !roleFilter && canInvite && (
+      {variant === 'full' && !roleFilter && !roleGroups && canInvite && (
         <div className="rounded-lg border border-border p-3">
           <div className="flex flex-wrap items-center gap-2">
             <input
@@ -301,83 +419,27 @@ export function WorkspaceMembersCard({
         </div>
       )}
 
-      <ul className="divide-y divide-border rounded-lg border border-border">
-        {visible.map((m) => {
-          const meta = ROLE_META[m.role] ?? { label: m.role, icon: Users, tone: 'text-muted-foreground' };
-          const Icon = meta.icon;
-          const name = m.label ?? m.principal_id;
-          // ADR-386 D4 — the owner grant is immutable from this surface: no verbs.
-          const governable = m.role !== 'owner';
+      {roleGroups ? (
+        // ADR-385 amendment (2026-07-04) — role-grouped sections over the ONE
+        // roster fetch. A group with `hideWhenEmpty` (reserved classes like
+        // `a2a`) stays invisible until its first grant exists.
+        roleGroups.map((group) => {
+          const groupMembers = members.filter((m) => group.roles.includes(m.role));
+          if (groupMembers.length === 0 && group.hideWhenEmpty) return null;
           return (
-            <li key={`${m.principal_id}-${m.role}`} className="flex items-start gap-3 px-4 py-3">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-                <Icon className={cn('h-4 w-4', meta.tone)} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-medium text-foreground">{name}</span>
-                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                    {meta.label}
-                  </span>
-                </div>
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-muted-foreground/70">
-                    {m.scopes_explicit ? 'Can write' : 'Can write (default)'}:
-                  </span>
-                  {m.write_regions.length === 0 ? (
-                    <span className="text-[11px] text-muted-foreground/60 italic">nothing</span>
-                  ) : (
-                    m.write_regions.map((region) => (
-                      <span
-                        key={region}
-                        className="rounded border border-border/60 px-1.5 py-0.5 text-[11px] text-foreground/70"
-                      >
-                        {regionLabel(region)}
-                      </span>
-                    ))
-                  )}
-                </div>
-              </div>
-              {governable && (
-                <div className="relative shrink-0">
-                  <button
-                    type="button"
-                    aria-label={`Manage ${name}`}
-                    onClick={() => setMenuFor(menuFor === m.principal_id ? null : m.principal_id)}
-                    className="rounded p-1 text-muted-foreground/60 hover:bg-muted hover:text-foreground"
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </button>
-                  {menuFor === m.principal_id && (
-                    <>
-                      {/* click-away */}
-                      <div className="fixed inset-0 z-10" onClick={() => setMenuFor(null)} />
-                      <div className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-md border border-border bg-popover shadow-md">
-                        <button
-                          type="button"
-                          onClick={() => { setMenuFor(null); setNarrowTarget(m); }}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
-                        >
-                          <ShieldMinus className="h-3.5 w-3.5 text-muted-foreground" />
-                          Narrow access
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setMenuFor(null); setRevokeTarget(m); }}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Revoke…
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </li>
+            <section key={group.label} className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {group.label}
+              </h3>
+              {groupMembers.length === 0
+                ? renderEmptyState(group.emptyTitle, group.emptyHint)
+                : renderMemberList(groupMembers)}
+            </section>
           );
-        })}
-      </ul>
+        })
+      ) : (
+        renderMemberList(visible)
+      )}
 
       {/* ADR-386 D2/D3 — REVOKE = full eviction. The modal emphasizes the weight:
           irreversible-feeling, names the consequence BEFORE the click. */}

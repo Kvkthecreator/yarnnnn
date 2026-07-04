@@ -13,8 +13,14 @@ surface). Asserts:
      (The `flow` pane — the global narrative — was RETIRED 2026-07-02; a
      Channels surface tracks only boundary crossings, and the narrative lives
      at Notifications → Activity.)
-  4. External Agents is a FILTERED VIEW of WorkspaceMembersCard
-     (roleFilter=foreign-llm/a2a/platform) — NOT a new data source.
+     3b. ADR-404 D2 amendment (2026-07-04): connectors + sources are
+     FLAG-GATED — hidden while the capture lane is dormant, derived from the
+     workspace-level GET /api/integrations/capture-lane mount of
+     CONNECTOR_CAPTURE_ENABLED. Hide-not-delete: the pane code stays.
+  4. AI Connections is a role-GROUPED view of WorkspaceMembersCard
+     (ADR-385 amendment 2026-07-04: roleGroups — AI Chats=foreign-llm /
+     AI Agents=a2a hidden-when-empty; `platform` withheld per ADR-401 D1;
+     `own-agent` internal, lives on /agents) — NOT a new data source.
   5. In/Out are the boundary crossing-ledger: In = filtered FeedSurface
      (isInbound), Out = EmissionsView (a distinct source).
   6. Singular Implementation: ConnectedIntegrationsSection mounts ONLY on the
@@ -109,19 +115,50 @@ def test_channels_two_groups_five_panes_default_in():
     assert 'windowSlug="channels"' in src
 
 
-# ---- 4. External Agents = filtered WorkspaceMembersCard -------------------
+# ---- 3b. ADR-404 D2 amendment: dormant-lane pane gating --------------------
 
-def test_external_agents_is_filtered_members_view():
+def test_connectors_sources_flag_gated():
+    # The pane list derives from the deploy-level capture-lane flag: hidden
+    # while dormant, re-lit by flipping CONNECTOR_CAPTURE_ENABLED (zero FE
+    # work). Hide-not-delete — the pane render code stays present.
+    src = _read_web(_CHANNELS)
+    assert "buildPaneGroups(captureLaneOn)" in src
+    assert "getCaptureLane" in src
+    assert "captureLaneOn" in src
+
+    client = _read_web("lib/api/client.ts")
+    assert "getCaptureLane" in client
+    assert "/api/integrations/capture-lane" in client
+
+    routes = _read_api("routes/integrations.py")
+    assert '"/integrations/capture-lane"' in routes
+    assert "is_connector_capture_enabled" in routes
+
+
+# ---- 4. AI Connections = role-GROUPED WorkspaceMembersCard -----------------
+
+def test_ai_connections_is_grouped_members_view():
+    # ADR-385 amendment (2026-07-04): grouped by the principal's RELATIONSHIP
+    # (grant role), never by wire transport. AI Chats=foreign-llm (always
+    # rendered) / AI Agents=a2a (hidden until its first grant). `platform` is
+    # withheld (ADR-401 D1 — platform-as-principal deferred); `own-agent` is
+    # internal and lives on /agents, not the boundary surface.
     src = _read_web(_CHANNELS)
     assert "WorkspaceMembersCard" in src
-    assert "roleFilter" in src
-    for role in ("foreign-llm", "a2a", "platform"):
-        assert role in src, f"missing external role {role}"
+    assert "AI_CONNECTION_GROUPS" in src
+    assert 'roles: ["foreign-llm"]' in src
+    assert 'roles: ["a2a"]' in src
+    assert 'roles: ["platform"]' not in src, (
+        "platform-as-principal is deferred (ADR-401 D1) — no rendered group"
+    )
+    assert "hideWhenEmpty" in src
 
 
-def test_members_card_supports_role_filter():
+def test_members_card_supports_role_filter_and_groups():
     src = _read_web("components/workspace-concepts/WorkspaceMembersCard.tsx")
     assert "roleFilter" in src
+    assert "roleGroups" in src
+    assert "MemberRoleGroup" in src
     assert "members.filter" in src
     assert "getMembers" in src
 

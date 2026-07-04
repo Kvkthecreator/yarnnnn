@@ -467,6 +467,27 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
 
 
 # =============================================================================
+# Capture Lane State (must be before /{provider} to avoid route collision)
+# =============================================================================
+
+@router.get("/integrations/capture-lane")
+async def get_capture_lane_state(auth: UserClient) -> dict[str, Any]:
+    """
+    Workspace-level capture-lane state — ADR-404 D2 (2026-07-04 amendment).
+
+    The deploy-level `CONNECTOR_CAPTURE_ENABLED` flag, surfaced without
+    requiring a connected provider. The per-provider mount on
+    `/integrations/{provider}/capture-signal` needs a connection to be useful;
+    the Channels surface needs the flag BEFORE any connection exists, because
+    it derives whether the Connections + Sources panes render at all while the
+    capture lane is dormant. Zero-DB — a pure env read.
+    """
+    from services.connector_capture_gating import is_connector_capture_enabled
+
+    return {"connector_capture_enabled": is_connector_capture_enabled()}
+
+
+# =============================================================================
 # Import Jobs - List (must be before /{provider} to avoid route collision)
 # =============================================================================
 
