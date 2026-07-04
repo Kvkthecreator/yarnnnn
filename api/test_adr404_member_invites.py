@@ -206,6 +206,23 @@ def test_accept_invite() -> None:
         "invite marked accepted with the accepting principal",
     )
 
+    # idempotent re-accept: same person re-clicking → success, no error
+    c = client_with(_pending_invite(status="accepted", accepted_principal_id="u9"))
+    with patch.object(wi, "_svc", return_value=c):
+        again = wi.accept_invite(token="t", user_id="u9", user_email="kim@team.com")
+    _assert(
+        again["workspace_id"] == "ws1",
+        "idempotent re-accept by the same principal succeeds",
+    )
+    # a DIFFERENT user hitting an accepted invite still gets not_pending
+    c = client_with(_pending_invite(status="accepted", accepted_principal_id="u9"))
+    with patch.object(wi, "_svc", return_value=c):
+        try:
+            wi.accept_invite(token="t", user_id="u-other", user_email="kim@team.com")
+            _assert(False, "accepted invite rejected for a different principal")
+        except wi.InviteError as e:
+            _assert(e.code == "not_pending", "accepted invite rejected for a different principal")
+
 
 def test_route_wiring() -> None:
     print("\n[3] route + FE wiring (source inspection)")
@@ -232,9 +249,16 @@ def test_route_wiring() -> None:
         "FE binds the commons via X-Workspace-Id (sweep spine)",
     )
     accept_page = (
-        _API_ROOT.parent / "web" / "app" / "(authenticated)" / "invite" / "[token]" / "page.tsx"
+        _API_ROOT.parent / "web" / "app" / "invite" / "[token]" / "page.tsx"
     )
-    _assert(accept_page.exists(), "invite-accept page exists")
+    _assert(accept_page.exists(), "invite-accept page exists (STANDALONE — outside the shell group)")
+    shell_page = (
+        _API_ROOT.parent / "web" / "app" / "(authenticated)" / "invite"
+    )
+    _assert(
+        not shell_page.exists(),
+        "no invite page inside the (authenticated) shell group (SurfaceViewport swallows non-surface routes when windows are open)",
+    )
 
 
 def test_migration_199() -> None:

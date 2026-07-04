@@ -3,8 +3,16 @@
 /**
  * Invite-accept page — ADR-404 step 5 (member provisioning).
  *
- * The link an invited email receives. Authenticated route: an anonymous
- * visitor bounces through login first (middleware), then lands back here.
+ * The link an invited email receives. Auth-gated by middleware (/invite is
+ * a protected prefix — an anonymous visitor bounces through login with
+ * ?next preserved), but deliberately OUTSIDE the (authenticated) shell
+ * group: it is a threshold/transport page, not a workspace surface.
+ * Inside the shell, SurfaceViewport renders page children for non-surface
+ * routes ONLY when no windows are mounted — any operator with persisted
+ * dock state got their Desktop instead of this page and the accept never
+ * ran (operator-observed 2026-07-04: invited member landed on Mandate,
+ * invite stayed pending). Standalone route = no shell, no window sync.
+ *
  * Accepting mints the member grant server-side and binds the commons
  * client-side (X-Workspace-Id via setActiveWorkspace) before entering.
  */
@@ -66,7 +74,8 @@ export default function InviteAcceptPage() {
   const wsName = preview?.workspace_name || "a shared workspace";
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
+      <p className="mb-6 font-brand text-2xl">yarnnn</p>
       <div className="w-full max-w-md rounded-xl border border-border/60 bg-card p-8 text-center shadow-sm">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
           <Users className="h-6 w-6 text-muted-foreground" />

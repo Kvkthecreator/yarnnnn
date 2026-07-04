@@ -118,7 +118,7 @@ def get_invite_by_token(token: str) -> Optional[dict[str, Any]]:
     """The invite + workspace name, for the accept page preview."""
     rows = (
         _svc().table("workspace_invites")
-        .select("id, workspace_id, email, role, status, expires_at, invited_by")
+        .select("id, workspace_id, email, role, status, expires_at, invited_by, accepted_principal_id")
         .eq("token", token)
         .limit(1)
         .execute()
@@ -146,6 +146,15 @@ def accept_invite(*, token: str, user_id: str, user_email: Optional[str]) -> dic
     invite = get_invite_by_token(token)
     if invite is None:
         raise InviteError("not_found", "Invite not found")
+    if invite["status"] == "accepted" and invite.get("accepted_principal_id") == user_id:
+        # Idempotent re-accept: the same person re-clicking the link just
+        # re-binds and enters — never an error.
+        return {
+            "workspace_id": invite["workspace_id"],
+            "workspace_name": invite.get("workspace_name"),
+            "role": invite["role"],
+            "grant_id": None,
+        }
     if invite["status"] != "pending":
         raise InviteError("not_pending", f"Invite is {invite['status']}")
     expires = invite.get("expires_at")
