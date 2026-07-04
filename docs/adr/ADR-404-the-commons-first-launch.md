@@ -94,7 +94,7 @@ becomes primary.
 1. ✅ This ADR + ADR-405 (witness dial) + ADR-406 (stale-parent rejection) — doc-first.
 2. ✅ Capture-lane flag-off (`CONNECTOR_CAPTURE_ENABLED`, D2 cut list; gate `api/test_adr404_capture_dormancy.py` 28/28) + duplicate-proposal cleanup (37 rejected, newest-per-group kept pending; receipt 2026-07-03).
 3. ✅ ADR-406 implementation (CAS + linearity guard [migration 197, live-probed] + 409 contract + EditFile threading; gate 22/22).
-4. ☐ ADR-373 substrate read sweep (core: `workspace.py`, `authored_substrate.py`, `primitives/workspace.py`) + grant-based workspace resolution.
+4. ✅ ADR-373 sweep spine (grant-aware resolution + contextvar binding + workspace-keyed substrate core + migration 198; gate 26/26; named remainders: route filters + RPCs with step 5).
 5. ☐ Member invites (grant provisioning UX — `member` role live; ADR-386 D6 unblocked by step 4).
 6. ☐ GTM copy re-center on the shared commons.
 

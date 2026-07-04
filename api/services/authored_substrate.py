@@ -154,17 +154,22 @@ class StaleWriteError(Exception):
 
 
 def _read_head_revision_summary(
-    db_client: Any, user_id: str, path: str
+    db_client: Any, user_id: str, path: str, workspace_id: Optional[str] = None
 ) -> Optional[dict]:
     """Return the current head's attribution summary, or None (no revisions).
 
     Used to populate StaleWriteError.current_head — the conflict surface's
     "who moved past you" line.
     """
+    ws = _effective_ws(user_id, workspace_id)
     result = (
-        db_client.table("workspace_file_versions")
-        .select("id, authored_by, message, created_at")
-        .eq("user_id", user_id)
+        _substrate_scope(
+            db_client.table("workspace_file_versions").select(
+                "id, authored_by, message, created_at"
+            ),
+            user_id,
+            ws,
+        )
         .eq("path", path)
         .order("created_at", desc=True)
         .limit(1)
@@ -230,8 +235,27 @@ def _upsert_blob(db_client: Any, sha: str, content: str) -> None:
     ).execute()
 
 
+def _substrate_scope(query: Any, user_id: str, workspace_id: Optional[str]) -> Any:
+    """Apply the ADR-373 substrate scope to a query.
+
+    The workspace is the binding unit: when a workspace_id is resolvable
+    (explicit / request contextvar / owner-resolution — see
+    services.workspace_context.effective_workspace_id), key on it — this is
+    what makes a member's read reach owner-created rows. Unresolvable →
+    legacy user_id scoping, byte-identical in N=1.
+    """
+    if workspace_id:
+        return query.eq("workspace_id", workspace_id)
+    return query.eq("user_id", user_id)
+
+
+def _effective_ws(user_id: str, explicit: Optional[str]) -> Optional[str]:
+    from services.workspace_context import effective_workspace_id
+    return effective_workspace_id(user_id, explicit)
+
+
 def read_head_revision_id(db_client: Any, *, user_id: str, path: str) -> Optional[str]:
-    """Public read of the current head revision id for (user_id, path).
+    """Public read of the current head revision id for the acting scope.
 
     ADR-406: callers that intend a conditional write read their base here
     (or take it from a surface that already carries head_version_id) and
@@ -240,8 +264,10 @@ def read_head_revision_id(db_client: Any, *, user_id: str, path: str) -> Optiona
     return _read_head_revision_id(db_client, user_id, path)
 
 
-def _read_head_revision_id(db_client: Any, user_id: str, path: str) -> Optional[str]:
-    """Return the current (newest) revision id for (user_id, path), or None.
+def _read_head_revision_id(
+    db_client: Any, user_id: str, path: str, workspace_id: Optional[str] = None
+) -> Optional[str]:
+    """Return the current (newest) revision id for the scope + path, or None.
 
     Authoritative source: workspace_file_versions ordered by created_at DESC.
     The denormalized workspace_files.head_version_id pointer is a Phase 2
@@ -249,10 +275,11 @@ def _read_head_revision_id(db_client: Any, user_id: str, path: str) -> Optional[
     revision chain itself is the source of truth for "what is the most
     recent revision" and therefore for "what is the next write's parent."
     """
+    ws = _effective_ws(user_id, workspace_id)
     result = (
-        db_client.table("workspace_file_versions")
-        .select("id")
-        .eq("user_id", user_id)
+        _substrate_scope(
+            db_client.table("workspace_file_versions").select("id"), user_id, ws
+        )
         .eq("path", path)
         .order("created_at", desc=True)
         .limit(1)
@@ -326,12 +353,14 @@ def _upsert_workspace_file(
     Carries the denormalized content + head pointer + optional metadata
     columns. Idempotent via ON CONFLICT (user_id, path).
 
-    ADR-373: ``workspace_id`` is dual-written when supplied (see
-    ``_insert_revision``). The ON CONFLICT target stays ``(user_id, path)``
-    during Phase 1 — the existing UNIQUE constraint is unchanged; in N=1
-    ``(workspace_id, path)`` is 1:1 with it, so conflict semantics are
-    identical. (A later phase moves the conflict target once code is fully off
-    ``user_id``.)
+    ADR-373 (sweep spine, ADR-404 step 4): when ``workspace_id`` is known the
+    live-row identity is ``(workspace_id, path)`` — a member's write UPDATES
+    the workspace's existing row instead of forking a second row under their
+    own ``user_id``. The update deliberately does NOT touch ``user_id`` (it
+    stays the row creator; who wrote what lives in the revision chain, and
+    flipping it would collide with the legacy UNIQUE(user_id, path) that
+    survives until migration 199). Unresolvable workspace → the legacy
+    ``(user_id, path)`` upsert, byte-identical.
     """
     from datetime import datetime, timezone
 
@@ -357,10 +386,42 @@ def _upsert_workspace_file(
     if metadata is not None:
         data["metadata"] = metadata
 
-    db_client.table("workspace_files").upsert(
-        data,
-        on_conflict="user_id,path",
-    ).execute()
+    if workspace_id is None:
+        db_client.table("workspace_files").upsert(
+            data,
+            on_conflict="user_id,path",
+        ).execute()
+        return
+
+    # Workspace-keyed path: manual update-or-insert on (workspace_id, path).
+    # PostgREST upsert updates every supplied column on conflict — which
+    # would flip user_id to the acting principal; hence the explicit split.
+    update_data = {k: v for k, v in data.items() if k not in ("user_id", "workspace_id", "path")}
+    existing = (
+        db_client.table("workspace_files")
+        .select("id")
+        .eq("workspace_id", workspace_id)
+        .eq("path", path)
+        .limit(1)
+        .execute()
+    )
+    if existing.data:
+        db_client.table("workspace_files").update(update_data).eq(
+            "workspace_id", workspace_id
+        ).eq("path", path).execute()
+        return
+    try:
+        db_client.table("workspace_files").insert(data).execute()
+    except Exception as exc:
+        # Concurrent creator won the (workspace_id, path) unique race
+        # (migration 198). Converge on update — same row, same content
+        # semantics as losing an upsert race.
+        if "uq_ws_files_wsid_path" in str(exc) or "23505" in str(exc):
+            db_client.table("workspace_files").update(update_data).eq(
+                "workspace_id", workspace_id
+            ).eq("path", path).execute()
+        else:
+            raise
 
 
 def write_revision(
@@ -437,17 +498,16 @@ def write_revision(
 
     # ADR-373: key the write to the workspace. The caller may pass workspace_id
     # explicitly (e.g. resolved once on AuthenticatedClient); if not, resolve it
-    # lazily from user_id via the cached owner-workspace resolver. This is the
-    # write-path chokepoint that keys ALL ~41 call sites without per-site edits —
-    # the user-JWT routes and the service-key callers (scheduler, MCP, wake,
-    # mirrors) all reach here with a user_id, and the resolver is lru-cached so
-    # the lookup is ~free after the first hit per user. Best-effort: a None
-    # result leaves workspace_id NULL on this write, which a later write or the
-    # migration backfill fills — never blocks the write (byte-identical N=1).
+    # via the sweep-spine rule (request contextvar → owner workspace). This is
+    # the write-path chokepoint that keys ALL ~41 call sites without per-site
+    # edits — the user-JWT routes publish the acting workspace as a contextvar
+    # at auth time (member-aware), and the service-key callers (scheduler, MCP,
+    # wake, mirrors) owner-resolve from user_id. Best-effort: a None result
+    # leaves workspace_id NULL on this write and the query scope on user_id —
+    # never blocks the write (byte-identical N=1).
     if workspace_id is None:
         try:
-            from services.supabase import resolve_owner_workspace_id
-            workspace_id = resolve_owner_workspace_id(user_id)
+            workspace_id = _effective_ws(user_id, None)
         except Exception as exc:  # pragma: no cover - resolution is best-effort
             logger.debug(
                 "[AUTHORED_SUBSTRATE] workspace_id resolve failed for %s: %s",
@@ -457,7 +517,7 @@ def write_revision(
     sha = _sha256(content)
     _upsert_blob(db_client, sha, content)
 
-    parent_version_id = _read_head_revision_id(db_client, user_id, path)
+    parent_version_id = _read_head_revision_id(db_client, user_id, path, workspace_id)
 
     # ADR-406 D1: the up-front CAS check. Catches every human-scale race
     # (the base moved seconds-to-minutes ago); the DB linearity guard below
@@ -468,7 +528,7 @@ def write_revision(
         raise StaleWriteError(
             path=path,
             expected_parent_version_id=expected_parent_version_id,
-            current_head=_read_head_revision_summary(db_client, user_id, path),
+            current_head=_read_head_revision_summary(db_client, user_id, path, workspace_id),
         )
 
     # ADR-406 D3: the insert can lose a true race on the linearity guard
@@ -500,11 +560,11 @@ def write_revision(
                 raise StaleWriteError(
                     path=path,
                     expected_parent_version_id=expected_parent_version_id,
-                    current_head=_read_head_revision_summary(db_client, user_id, path),
+                    current_head=_read_head_revision_summary(db_client, user_id, path, workspace_id),
                 ) from exc
             if attempt == _RACE_RETRIES:
                 raise
-            parent_version_id = _read_head_revision_id(db_client, user_id, path)
+            parent_version_id = _read_head_revision_id(db_client, user_id, path, workspace_id)
     assert new_revision_id is not None  # loop either breaks or raises
 
     _upsert_workspace_file(
@@ -565,8 +625,7 @@ def delete_live_file(
     # ADR-373: key the tombstone revision to the workspace (see write_revision).
     if workspace_id is None:
         try:
-            from services.supabase import resolve_owner_workspace_id
-            workspace_id = resolve_owner_workspace_id(user_id)
+            workspace_id = _effective_ws(user_id, None)
         except Exception as exc:  # pragma: no cover - best-effort
             logger.debug(
                 "[AUTHORED_SUBSTRATE] workspace_id resolve failed for %s: %s",
@@ -574,9 +633,11 @@ def delete_live_file(
             )
 
     live = (
-        db_client.table("workspace_files")
-        .select("id, content")
-        .eq("user_id", user_id)
+        _substrate_scope(
+            db_client.table("workspace_files").select("id, content"),
+            user_id,
+            workspace_id,
+        )
         .eq("path", path)
         .limit(1)
         .execute()
@@ -589,7 +650,7 @@ def delete_live_file(
     # The blob almost certainly exists (it backs the head revision), but
     # upsert is idempotent and covers legacy rows that predate the chain.
     _upsert_blob(db_client, sha, current_content)
-    parent_version_id = _read_head_revision_id(db_client, user_id, path)
+    parent_version_id = _read_head_revision_id(db_client, user_id, path, workspace_id)
 
     tombstone_id = _insert_revision(
         db_client,
@@ -603,8 +664,8 @@ def delete_live_file(
         workspace_id=workspace_id,
     )
 
-    db_client.table("workspace_files").delete().eq(
-        "user_id", user_id
+    _substrate_scope(
+        db_client.table("workspace_files").delete(), user_id, workspace_id
     ).eq("path", path).execute()
 
     logger.info(
@@ -633,10 +694,15 @@ def list_revisions(
     Phase 3 wraps this in a ListRevisions primitive exposed to chat +
     headless + MCP.
     """
+    ws = _effective_ws(user_id, None)
     result = (
-        db_client.table("workspace_file_versions")
-        .select("id, authored_by, author_identity_uuid, message, created_at, parent_version_id")
-        .eq("user_id", user_id)
+        _substrate_scope(
+            db_client.table("workspace_file_versions").select(
+                "id, authored_by, author_identity_uuid, message, created_at, parent_version_id"
+            ),
+            user_id,
+            ws,
+        )
         .eq("path", path)
         .order("created_at", desc=True)
         .limit(limit)
@@ -685,18 +751,24 @@ def read_revision(
         target_id = revisions[walk_back]["id"]
 
     # Fetch the full revision with content joined from workspace_blobs.
-    # Defense-in-depth (ADR-310 follow-on): filter by user_id even though
-    # target_id is a PK. A caller-supplied revision_id (now reachable via the
-    # MCP-exposed ReadRevision/DiffRevisions primitives) must not be able to
-    # read another workspace's revision content by UUID. Same-workspace reads
-    # are unaffected; a foreign revision_id returns None (not found).
+    # Defense-in-depth (ADR-310 follow-on, re-keyed by ADR-373): filter by
+    # the acting workspace even though target_id is a PK. A caller-supplied
+    # revision_id (reachable via the MCP-exposed ReadRevision/DiffRevisions
+    # primitives) must not read another workspace's revision content by
+    # UUID. Workspace-scoping (not user-scoping) is the correct boundary in
+    # the commons: a member may read revisions other principals authored.
+    ws = _effective_ws(user_id, None)
     result = (
-        db_client.table("workspace_file_versions")
-        .select("id, user_id, path, blob_sha, parent_version_id, "
+        _substrate_scope(
+            db_client.table("workspace_file_versions").select(
+                "id, user_id, path, blob_sha, parent_version_id, "
                 "authored_by, author_identity_uuid, message, created_at, "
-                "workspace_blobs(content)")
+                "workspace_blobs(content)"
+            ),
+            user_id,
+            ws,
+        )
         .eq("id", target_id)
-        .eq("user_id", user_id)
         .limit(1)
         .execute()
     )
@@ -722,11 +794,14 @@ def read_revision(
 
 
 def count_revisions(db_client: Any, *, user_id: str, path: str) -> int:
-    """Return the total number of revisions for (user_id, path)."""
+    """Return the total number of revisions for the acting scope + path."""
+    ws = _effective_ws(user_id, None)
     result = (
-        db_client.table("workspace_file_versions")
-        .select("id", count="exact")
-        .eq("user_id", user_id)
+        _substrate_scope(
+            db_client.table("workspace_file_versions").select("id", count="exact"),
+            user_id,
+            ws,
+        )
         .eq("path", path)
         .execute()
     )

@@ -129,6 +129,77 @@ def _resolve_owner_workspace_id_cached(user_id: str) -> Optional[str]:
     return None
 
 
+def principal_reaches_workspace(user_id: str, workspace_id: str) -> bool:
+    """Whether a human principal may bind a request to a workspace (ADR-373).
+
+    True iff they own it OR hold an active grant into it. Consulted when a
+    request carries ``X-Workspace-Id``. NOT cached: a revoked member must
+    lose reach on their next request, not at cache eviction.
+    """
+    try:
+        if resolve_owner_workspace_id(user_id) == workspace_id:
+            return True
+        client = get_service_client()
+        result = (
+            client.table("principal_grants")
+            .select("id")
+            .eq("principal_id", user_id)
+            .eq("workspace_id", workspace_id)
+            .eq("status", "active")
+            .limit(1)
+            .execute()
+        )
+        return bool(result.data)
+    except Exception as exc:  # pragma: no cover — validation is fail-closed
+        logger.warning(
+            "[ADR-373] workspace reach check failed for %s→%s: %s",
+            user_id, workspace_id, exc,
+        )
+        return False
+
+
+def resolve_workspace_for_principal(
+    user_id: str, requested_workspace_id: Optional[str] = None
+) -> Optional[str]:
+    """Resolve the workspace a request binds to (ADR-373 Phase 1, member-aware).
+
+    - ``requested_workspace_id`` (the ``X-Workspace-Id`` header): honored iff
+      the principal reaches it (owner or active grant); unreachable → None,
+      and the auth layer rejects with 403 (fail-closed — never silently fall
+      back to a different workspace than the one the client addressed).
+    - No request: the owner workspace (today's behavior, byte-identical
+      N=1). A principal with NO owner workspace (a fresh invitee before
+      their own workspace exists) falls back to their newest active grant's
+      workspace — the invited-member landing case.
+    """
+    if requested_workspace_id:
+        return (
+            requested_workspace_id
+            if principal_reaches_workspace(user_id, requested_workspace_id)
+            else None
+        )
+    owned = resolve_owner_workspace_id(user_id)
+    if owned:
+        return owned
+    # Fresh-invitee fallback: no owned workspace → the newest active grant.
+    try:
+        client = get_service_client()
+        result = (
+            client.table("principal_grants")
+            .select("workspace_id")
+            .eq("principal_id", user_id)
+            .eq("status", "active")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            return result.data[0]["workspace_id"]
+    except Exception as exc:  # pragma: no cover — best-effort
+        logger.debug("[ADR-373] grant-workspace resolve failed for %s: %s", user_id, exc)
+    return None
+
+
 def resolve_principal_id(auth: "AuthenticatedClient") -> Optional[str]:
     """Resolve the caller's STABLE principal identity for the grant-consult (ADR-373 D2).
 
@@ -237,6 +308,7 @@ def get_service_client() -> Client:
 
 def get_user_client(
     authorization: Optional[str] = Header(None),
+    x_workspace_id: Optional[str] = Header(None, alias="X-Workspace-Id"),
 ) -> Iterator[AuthenticatedClient]:
     """
     Get Supabase client with user's JWT for RLS enforcement.
@@ -287,12 +359,26 @@ def get_user_client(
     # Set the auth token for RLS
     client.postgrest.auth(token)
 
-    # ADR-373 D1: resolve the binding workspace once, here, so every substrate
-    # access through this auth keys on it without re-resolving. Cached + best-
-    # effort — None pre-migration, where callers fall back to user_id scoping
-    # (byte-identical in N=1). This adds no per-request DB round-trip after the
-    # first resolution for a given user (lru_cache on the stable owner mapping).
-    workspace_id = resolve_owner_workspace_id(user_id)
+    # ADR-373 D1 (member-aware, ADR-404 step 4): resolve the binding workspace
+    # once, here. Default = the owner workspace (byte-identical N=1). An
+    # ``X-Workspace-Id`` header selects a granted workspace instead —
+    # validated fail-closed (an unreachable workspace is 403, never a silent
+    # fallback to a different workspace than the client addressed). A fresh
+    # invitee with no owned workspace lands on their newest grant's workspace.
+    workspace_id = resolve_workspace_for_principal(user_id, x_workspace_id)
+    if x_workspace_id and workspace_id is None:
+        close_supabase_client(client)
+        raise HTTPException(
+            status_code=403,
+            detail=f"No active grant into workspace {x_workspace_id}",
+        )
+
+    # Publish the binding for the data layer (contextvar — the sweep spine;
+    # see services/workspace_context.py). Reset on teardown.
+    from services.workspace_context import (
+        reset_request_workspace, set_request_workspace,
+    )
+    _ws_token = set_request_workspace(workspace_id)
 
     try:
         yield AuthenticatedClient(
@@ -307,6 +393,7 @@ def get_user_client(
             principal_id=user_id,
         )
     finally:
+        reset_request_workspace(_ws_token)
         # Release BOTH request-scoped httpx pools (postgrest + gotrue auth).
         close_supabase_client(client)
 

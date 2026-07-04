@@ -192,18 +192,50 @@ def test_write_revision_adds_workspace_id_when_supplied() -> None:
     )
 
 
-def test_upsert_conflict_target_unchanged() -> None:
-    """ON CONFLICT stays (user_id, path) in Phase 1 — the UNIQUE is unchanged."""
+def test_upsert_conflict_target_by_phase() -> None:
+    """The live-row identity follows the resolved binding (sweep spine).
+
+    ADR-373 anticipated: "a later phase moves the conflict target once code
+    is fully off user_id." That phase is the ADR-404 step-4 sweep spine
+    (migration 198): workspace resolvable → the manual (workspace_id, path)
+    update-or-insert (NO on_conflict upsert — PostgREST upsert would flip
+    user_id, forking a member's write); unresolvable → the legacy
+    (user_id, path) upsert, byte-identical.
+    """
     from services.authored_substrate import write_revision
 
+    # workspace-keyed: no on_conflict upsert; the write lands as insert
+    # (fake select returns no existing row) carrying both keys.
     fc = _FakeClient()
     write_revision(
         fc, user_id="u1", path="operation/x.md", content="c",
         authored_by="operator", message="m", workspace_id="ws-1",
     )
     target = fc.recorded.get("on_conflict", {}).get("workspace_files")
+    rows = fc.recorded.get("workspace_files", [])
+    ok = target is None and rows and rows[0]["op"] == "insert"
     record(
-        "workspace_files upsert conflict target stays (user_id,path)",
+        "workspace resolvable → (workspace_id,path)-keyed write, no legacy upsert",
+        bool(ok),
+        f"got on_conflict={target!r}, rows={[r['op'] for r in rows]}",
+    )
+
+    # unresolvable: legacy upsert on (user_id, path).
+    from services import authored_substrate as a
+    import services.supabase as s
+    orig = s.resolve_owner_workspace_id
+    s.resolve_owner_workspace_id = lambda _uid: None
+    try:
+        fc = _FakeClient()
+        a.write_revision(
+            fc, user_id="u1", path="operation/x.md", content="c",
+            authored_by="operator", message="m",
+        )
+    finally:
+        s.resolve_owner_workspace_id = orig
+    target = fc.recorded.get("on_conflict", {}).get("workspace_files")
+    record(
+        "workspace unresolvable → legacy (user_id,path) upsert preserved",
         target == "user_id,path",
         f"got on_conflict={target!r}",
     )
@@ -342,7 +374,7 @@ def main() -> int:
     test_write_revision_omits_workspace_id_when_unresolvable()
     test_write_revision_lazily_resolves_workspace_id()
     test_write_revision_adds_workspace_id_when_supplied()
-    test_upsert_conflict_target_unchanged()
+    test_upsert_conflict_target_by_phase()
     test_delete_live_file_accepts_workspace_id()
     test_all_write_helpers_accept_workspace_id_optionally()
     test_authenticated_client_has_workspace_id()

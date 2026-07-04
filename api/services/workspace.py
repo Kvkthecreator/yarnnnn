@@ -52,6 +52,23 @@ class SearchResult:
     metadata: Optional[dict] = None  # ADR-116: knowledge provenance (agent_id, role, scope)
 
 
+def _scoped(query, user_id: str):
+    """ADR-373 sweep spine: key substrate queries on the acting workspace.
+
+    The workspace (explicit request binding via contextvar, else the
+    principal's owner workspace) is the substrate's binding unit — this is
+    what lets a member's reads/writes reach rows other principals created.
+    Unresolvable → legacy user_id scoping, byte-identical in N=1. RPC-backed
+    paths (search_workspace / match_workspace_files, keyed p_user_id) are
+    the named lag — they re-key when the SQL functions do.
+    """
+    from services.workspace_context import effective_workspace_id
+    ws = effective_workspace_id(user_id)
+    if ws:
+        return query.eq("workspace_id", ws)
+    return query.eq("user_id", user_id)
+
+
 class AgentWorkspace:
     """
     Workspace scoped to a single agent: /agents/{slug}/
@@ -77,9 +94,10 @@ class AgentWorkspace:
         path = self._full_path(relative_path)
         try:
             result = (
-                self._db.table("workspace_files")
-                .select("content")
-                .eq("user_id", self._user_id)
+                _scoped(
+                    self._db.table("workspace_files").select("content"),
+                    self._user_id,
+                )
                 .eq("path", path)
                 .limit(1)
                 .execute()
@@ -97,9 +115,11 @@ class AgentWorkspace:
         path = self._full_path(relative_path)
         try:
             result = (
-                self._db.table("workspace_files")
-                .select("path, content, summary, content_type, metadata, tags, content_url, updated_at")
-                .eq("user_id", self._user_id)
+                _scoped(
+                    self._db.table("workspace_files")
+                    .select("path, content, summary, content_type, metadata, tags, content_url, updated_at"),
+                    self._user_id,
+                )
                 .eq("path", path)
                 .limit(1)
                 .execute()
@@ -218,9 +238,10 @@ class AgentWorkspace:
             prefix += "/"
         try:
             q = (
-                self._db.table("workspace_files")
-                .select("path")
-                .eq("user_id", self._user_id)
+                _scoped(
+                    self._db.table("workspace_files").select("path"),
+                    self._user_id,
+                )
                 .like("path", f"{prefix}%")
             )
             # ADR-119: Lifecycle filter — default excludes ephemeral/archived
@@ -278,8 +299,8 @@ class AgentWorkspace:
         """Delete a file."""
         path = self._full_path(relative_path)
         try:
-            self._db.table("workspace_files").delete().eq(
-                "user_id", self._user_id
+            _scoped(
+                self._db.table("workspace_files").delete(), self._user_id
             ).eq("path", path).execute()
             return True
         except Exception as e:
@@ -291,9 +312,10 @@ class AgentWorkspace:
         path = self._full_path(relative_path)
         try:
             result = (
-                self._db.table("workspace_files")
-                .select("id")
-                .eq("user_id", self._user_id)
+                _scoped(
+                    self._db.table("workspace_files").select("id"),
+                    self._user_id,
+                )
                 .eq("path", path)
                 .limit(1)
                 .execute()
@@ -676,9 +698,10 @@ class UserMemory:
         path = self._full_path(filename)
         try:
             result = (
-                self._db.table("workspace_files")
-                .select("content")
-                .eq("user_id", self._user_id)
+                _scoped(
+                    self._db.table("workspace_files").select("content"),
+                    self._user_id,
+                )
                 .eq("path", path)
                 .limit(1)
                 .execute()
@@ -694,9 +717,10 @@ class UserMemory:
         path = self._full_path(filename)
         try:
             result = (
-                self._db.table("workspace_files")
-                .select("content")
-                .eq("user_id", self._user_id)
+                _scoped(
+                    self._db.table("workspace_files").select("content"),
+                    self._user_id,
+                )
                 .eq("path", path)
                 .limit(1)
                 .execute()
@@ -792,9 +816,10 @@ class UserMemory:
             prefix += "/"
         try:
             result = (
-                self._db.table("workspace_files")
-                .select("path")
-                .eq("user_id", self._user_id)
+                _scoped(
+                    self._db.table("workspace_files").select("path"),
+                    self._user_id,
+                )
                 .like("path", f"{prefix}%")
                 .in_("lifecycle", ["active", "delivered"])
                 .order("path")
