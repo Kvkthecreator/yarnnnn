@@ -22,8 +22,6 @@ import { useParams } from "next/navigation";
 import { Loader2, Users } from "lucide-react";
 
 import { api, APIError, setActiveWorkspace } from "@/lib/api/client";
-import { clearShellState } from "@/lib/shell/surface-preferences";
-import { createClient } from "@/lib/supabase/client";
 
 type Preview = {
   workspace_name: string | null;
@@ -61,18 +59,10 @@ export default function InviteAcceptPage() {
     setError(null);
     try {
       const result = await api.workspace.acceptInvite(token);
-      // Bind the commons for every subsequent API call.
+      // Bind the commons for every subsequent API call. Shell state is
+      // keyed per (workspace, user) — ADR-407 Phase 3 — so the new binding
+      // reads fresh keys by construction; no wipe needed on accept.
       setActiveWorkspace(result.workspace_id);
-      // The workspace binding just changed — persisted window state (kept
-      // dock / open windows / foreground) is from the OLD binding and would
-      // boot the member into a stale window (operator-observed: Mandate
-      // instead of Home). Reset to the default composition, then enter.
-      try {
-        const { data } = await createClient().auth.getUser();
-        if (data.user?.id) clearShellState(data.user.id);
-      } catch {
-        // best-effort — a stale foreground is cosmetic, never block entry
-      }
       window.location.assign("/home");
     } catch (e) {
       const data = e instanceof APIError ? (e.data as { detail?: unknown } | undefined) : undefined;

@@ -68,7 +68,7 @@ _validate_environment()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, alpha_trader, budget, mcp, authored, harvest, sources, emissions
+from routes import memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, alpha_trader, budget, mcp, authored, harvest, sources, emissions, member_state
 
 app = FastAPI(
     title="YARNNN API",
@@ -130,6 +130,8 @@ app.include_router(authored.router, prefix="/api/authored", tags=["authored"])  
 app.include_router(workspace.router, prefix="/api", tags=["workspace"])
 # ADR-193: approval loop — proposal list + approve/reject endpoints
 app.include_router(proposals.router, prefix="/api", tags=["proposals"])
+# ADR-407 Phase 3: member-experience home (shell state, read cursor, prefs)
+app.include_router(member_state.router, prefix="/api", tags=["member-state"])
 
 # ADR-219 Commit 4: narrative filter-over-substrate for /work list view
 app.include_router(narrative.router, prefix="/api/narrative", tags=["narrative"])

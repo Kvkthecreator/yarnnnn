@@ -15,10 +15,13 @@
  * D13 (2026-05-21) introduced openSurfaces + foregroundedSurface,
  * replacing the prior single `lastActiveSurface` slot.
  *
- * Persisted to localStorage (keyed by user id). Backend persistence
- * deferred — localStorage gives single-device continuity which covers
- * the dominant operator usage pattern. Cross-device sync becomes a
- * future ADR if pressure surfaces.
+ * Persisted to localStorage keyed by (workspace, user) — ADR-407 Phase 3:
+ * one desktop per workspace binding per user, so switching workspaces never
+ * carries stale window state across. localStorage is the LOCAL CACHE; the
+ * server-backed member-state store (`PUT /api/member-state/shell`) is the
+ * cross-device copy — useSurfacePreferences write-through-debounces the full
+ * shell state there and hydrates a fresh device from it on mount. Backend
+ * persistence is no longer deferred.
  *
  * Defaults:
  *   - keptSurfaces:        ['channels'] (ADR-370/377 → ADR-385 — Feed dissolved
@@ -29,6 +32,8 @@
  *   - openSurfaces:        [] (first-time operators boot to desktop — D13)
  *   - foregroundedSurface: null (no surface foregrounded on first boot)
  */
+
+import { ACTIVE_WORKSPACE_KEY } from '@/lib/api/client';
 
 const KEPT_KEY_PREFIX = 'yarnnn:shell:kept-surfaces:';
 const OPEN_KEY_PREFIX = 'yarnnn:shell:open-surfaces:';
@@ -72,8 +77,28 @@ function isBrowser(): boolean {
   return typeof window !== 'undefined' && typeof localStorage !== 'undefined';
 }
 
+/**
+ * ADR-407 Phase 3 — per-(workspace, user) key suffix. The active-workspace
+ * binding (set on invite-accept; absent for owners) scopes shell state to the
+ * workspace being operated, so switching workspaces never carries stale
+ * window state across. `'owner'` is the literal for the unbound (owner-
+ * default) case. The ONE place the suffix is formed — every localStorage key
+ * in this file (and the attention read cursor) uses it.
+ */
+export function shellStateSuffix(userId: string): string {
+  let workspaceKey = 'owner';
+  if (isBrowser()) {
+    try {
+      workspaceKey = localStorage.getItem(ACTIVE_WORKSPACE_KEY) || 'owner';
+    } catch {
+      // storage unavailable — owner default applies
+    }
+  }
+  return `${workspaceKey}:${userId}`;
+}
+
 function key(prefix: string, userId: string): string {
-  return `${prefix}${userId}`;
+  return `${prefix}${shellStateSuffix(userId)}`;
 }
 
 // ----------------------------------------------------------------------------
@@ -246,18 +271,29 @@ export function setForegroundedSurface(userId: string, slug: string | null): voi
   }
 }
 
+// ADR-404 step 5's `clearShellState` (wipe-on-invite-accept) was DELETED by
+// ADR-407 Phase 3: shell state is now keyed per (workspace, user), so a new
+// workspace binding reads fresh keys by construction — nothing stale to wipe.
+
 /**
- * ADR-404 step 5 — reset this user's persisted shell state (kept dock, open
- * windows, foreground, window geometry) so the next boot is the default
- * composition. Used when the user's WORKSPACE BINDING changes (invite
- * accept): window state is currently keyed per user, not per workspace, so
- * carrying window state from one workspace into another is stale by
- * construction (operator-observed: a new member booted into their old
- * foregrounded window instead of Home). Per-(user, workspace) window state
- * is the durable follow-on.
+ * ADR-407 Phase 3 — the full shell state as one serializable snapshot: the
+ * shape written through to `api.memberState.put('shell', …)` and hydrated
+ * back on a fresh device.
  */
-export function clearShellState(userId: string): void {
-  if (!isBrowser() || !userId) return;
+export interface ShellStateSnapshot {
+  kept: string[];
+  open: string[];
+  foregrounded: string | null;
+  windowState: WindowStateMap;
+}
+
+/**
+ * ADR-407 Phase 3 — does ANY local shell state exist for the current
+ * (workspace, user) suffix? Server hydration only fills a fresh device;
+ * when local state exists, local wins (no merge).
+ */
+export function hasLocalShellState(userId: string): boolean {
+  if (!isBrowser() || !userId) return false;
   for (const prefix of [
     KEPT_KEY_PREFIX,
     OPEN_KEY_PREFIX,
@@ -265,11 +301,22 @@ export function clearShellState(userId: string): void {
     WINDOW_STATE_KEY_PREFIX,
   ]) {
     try {
-      localStorage.removeItem(key(prefix, userId));
+      if (localStorage.getItem(key(prefix, userId)) != null) return true;
     } catch {
       // ignore — private-browsing etc.
     }
   }
+  return false;
+}
+
+/** ADR-407 Phase 3 — write a server snapshot into localStorage (fresh-device
+ *  hydration). Callers re-read via the getters so slug normalization applies. */
+export function hydrateShellState(userId: string, snapshot: ShellStateSnapshot): void {
+  if (!isBrowser() || !userId) return;
+  setKeptSurfaces(userId, snapshot.kept);
+  setOpenSurfaces(userId, snapshot.open);
+  setForegroundedSurface(userId, snapshot.foregrounded);
+  setWindowStates(userId, snapshot.windowState);
 }
 
 // ----------------------------------------------------------------------------

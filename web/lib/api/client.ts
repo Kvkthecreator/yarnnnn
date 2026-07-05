@@ -2185,6 +2185,26 @@ export const api = {
       }),
   },
 
+  // ADR-407 Phase 3: per-(workspace, user) member-experience state. Arbitrary
+  // JSON under a short key ('shell', 'attention', ...), scoped server-side to
+  // (acting workspace, authenticated user). GET returns value=null when unset;
+  // PUT body is the raw JSON value. Presentation state only — never authored
+  // substrate; localStorage stays the local cache in front of this store.
+  memberState: {
+    get: (key: string) =>
+      request<{ key: string; value: any; updated_at: string | null }>(
+        `/api/member-state/${encodeURIComponent(key)}`
+      ),
+    put: (key: string, value: any): Promise<void> =>
+      request<{ key: string; saved: boolean }>(
+        `/api/member-state/${encodeURIComponent(key)}`,
+        {
+          method: "PUT",
+          body: JSON.stringify(value),
+        }
+      ).then(() => undefined),
+  },
+
   // ADR-310 D4: MCP OAuth login handoff. The web /mcp/authorize page calls
   // this with the operator's JWT to bind the real user to the pending auth
   // code, then navigates the browser to the returned redirect_url (back to

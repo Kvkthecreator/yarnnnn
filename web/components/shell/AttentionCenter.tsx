@@ -32,8 +32,10 @@
  * row is a live derivation over already-ratified substrate (proposals,
  * ADR-219 material narrative, recurrence next_run_at, balance). The "Coming
  * up" limb adds NO state — next_run_at already rides on every recurrence
- * (api.recurrences.list). The "last looked" cursor is client-side
- * presentation state in localStorage (a read cursor, not workspace state).
+ * (api.recurrences.list). The "last looked" cursor is presentation state —
+ * localStorage keyed per (workspace, user) as the local cache, write-through
+ * to the member-state store ('attention') for cross-device continuity
+ * (ADR-407 Phase 3; a read cursor, not workspace state).
  *
  * Consequence (ADR-340 D3): mirror surfaces stop being attention
  * destinations — the operator arrives at the Queue by routing, not by
@@ -46,6 +48,7 @@ import { api } from '@/lib/api/client';
 import { proposalActionLabel } from '@/lib/proposal-labels';
 import { formatRelativeTime } from '@/lib/formatting';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { shellStateSuffix } from '@/lib/shell/surface-preferences';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
 import { cn } from '@/lib/utils';
@@ -53,7 +56,12 @@ import { PrincipalBadge } from '@/lib/workspace/principal-badge';
 
 const REFRESH_INTERVAL_MS = 60_000;
 const LOW_BALANCE_THRESHOLD_USD = 1.0;
-const LAST_SEEN_KEY = 'yarnnn:attention:last-seen';
+// ADR-407 Phase 3 — re-keyed per (workspace, user) via shellStateSuffix (the
+// same suffix the shell/window keys use); the bare key was browser-global, so
+// one user's "I looked" advanced every user's/workspace's cursor on a shared
+// browser. Also write-through to the server-backed member-state store
+// ('attention'); on mount the NEWER of server vs local wins.
+const LAST_SEEN_KEY_PREFIX = 'yarnnn:attention:last-seen:';
 const MAX_ROWS_PER_SECTION = 5;
 
 interface PendingProposal {
@@ -86,19 +94,23 @@ interface UpcomingFire {
   next_run_at: string;
 }
 
-function readLastSeen(): string | null {
+function lastSeenKey(userId: string): string {
+  return `${LAST_SEEN_KEY_PREFIX}${shellStateSuffix(userId)}`;
+}
+
+function readLastSeen(userId: string): string | null {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return null;
   try {
-    return localStorage.getItem(LAST_SEEN_KEY);
+    return localStorage.getItem(lastSeenKey(userId));
   } catch {
     return null;
   }
 }
 
-function writeLastSeen(iso: string) {
+function writeLastSeen(userId: string, iso: string) {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
   try {
-    localStorage.setItem(LAST_SEEN_KEY, iso);
+    localStorage.setItem(lastSeenKey(userId), iso);
   } catch {
     // Quota/private-mode failures are non-fatal — the cursor simply
     // doesn't persist and every material event reads as unseen.
@@ -111,11 +123,41 @@ export function AttentionCenter() {
   const [materialEvents, setMaterialEvents] = useState<MaterialEvent[]>([]);
   const [upcoming, setUpcoming] = useState<UpcomingFire[]>([]);
   const [lowBalance, setLowBalance] = useState<number | null>(null);
-  const [lastSeen, setLastSeen] = useState<string | null>(() => readLastSeen());
+  const [lastSeen, setLastSeen] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // ADR-346: navigateToSurface (not foregroundSurface) — it writes the
-  // ?pane= param so the bell lands on the right Operation act.
-  const { navigateToSurface } = useSurfacePreferences();
+  // ?pane= param so the bell lands on the right Operation act. userId is the
+  // same resolution useSurfacePreferences performs (its provider resolves it
+  // once via supabase.auth.getUser()) — reused here for the per-(workspace,
+  // user) cursor key.
+  const { navigateToSurface, userId } = useSurfacePreferences();
+
+  // ADR-407 Phase 3 — resolve the read cursor once userId is known: read the
+  // local (workspace, user)-keyed cursor, then reconcile with the server copy
+  // ('attention' member-state) — the NEWER of the two wins (ISO strings
+  // compare lexicographically). Failures are non-fatal (local-only).
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    const local = readLastSeen(userId);
+    if (local) setLastSeen(local);
+    api.memberState
+      .get('attention')
+      .then((res) => {
+        if (cancelled) return;
+        const serverSeen = (res.value as { lastSeen?: unknown } | null)?.lastSeen;
+        if (typeof serverSeen === 'string' && (!local || serverSeen > local)) {
+          setLastSeen(serverSeen);
+          writeLastSeen(userId, serverSeen);
+        }
+      })
+      .catch((e) => {
+        console.warn('[attention] member-state read failed (local-only):', e);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -209,12 +251,17 @@ export function AttentionCenter() {
         // cursor so the unseen-material count resets. The events stay
         // listed (recent context), only the count derivation moves.
         const now = new Date().toISOString();
-        writeLastSeen(now);
+        if (userId) writeLastSeen(userId, now);
         setLastSeen(now);
+        // ADR-407 Phase 3 — fire-and-forget write-through to the server
+        // copy so the cursor follows the member across devices.
+        api.memberState.put('attention', { lastSeen: now }).catch((e) => {
+          console.warn('[attention] member-state write failed (local-only):', e);
+        });
       }
       return next;
     });
-  }, []);
+  }, [userId]);
 
   // ADR-346: the bell lands on the Operation composition (the surface that
   // carries controls) — "To do" rows → the resolve pane, "Activity" rows →

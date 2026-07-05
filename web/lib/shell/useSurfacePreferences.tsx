@@ -38,6 +38,7 @@ import {
 } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { api } from '@/lib/api/client';
 import { useComposition } from '@/lib/compositor/useComposition';
 import {
   DEFAULT_FOREGROUNDED_SURFACE,
@@ -52,12 +53,15 @@ import {
   getKeptSurfaces,
   getOpenSurfaces,
   getWindowStates,
+  hasLocalShellState,
+  hydrateShellState,
   keepSurface as keepSurfaceWrite,
   openSurface as openSurfaceWrite,
   releaseSurface as releaseSurfaceWrite,
   setForegroundedSurface as setForegroundedWrite,
   setKeptSurfaces as setKeptWrite,
   setWindowStates,
+  type ShellStateSnapshot,
   type WindowState,
   type WindowStateMap,
 } from './surface-preferences';
@@ -246,6 +250,11 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
   // without prior state. Used to compute cascade x/y offset.
   const cascadeCounter = useRef(0);
 
+  // ADR-407 Phase 3 — gate for the server write-through below: false until
+  // the one-time mount hydration has settled, so the initial state load (or
+  // the just-hydrated server value) isn't immediately echoed back.
+  const serverSyncReady = useRef(false);
+
   useEffect(() => {
     let mounted = true;
     const supabase = createClient();
@@ -253,17 +262,68 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       if (!mounted) return;
       const uid = data.user?.id ?? null;
       setUserId(uid);
-      if (uid) {
-        setKept(getKeptSurfaces(uid));
-        setOpen(getOpenSurfaces(uid));
-        setForegrounded(getForegroundedSurface(uid));
-        setWindowStatesState(getWindowStates(uid));
-      }
+      if (!uid) return;
+      const hadLocal = hasLocalShellState(uid);
+      setKept(getKeptSurfaces(uid));
+      setOpen(getOpenSurfaces(uid));
+      setForegrounded(getForegroundedSurface(uid));
+      setWindowStatesState(getWindowStates(uid));
+
+      // ADR-407 Phase 3 — one-time server read. The server value fills a
+      // FRESH device only (no local state for the current (workspace, user)
+      // suffix); when local state exists, local wins — no merge. Failures
+      // are non-fatal: log + continue local-only.
+      api.memberState
+        .get('shell')
+        .then((res) => {
+          if (!mounted) return;
+          const v = res.value as Partial<ShellStateSnapshot> | null;
+          if (!hadLocal && v && typeof v === 'object') {
+            hydrateShellState(uid, {
+              kept: Array.isArray(v.kept) ? v.kept : DEFAULT_KEPT_SURFACES,
+              open: Array.isArray(v.open) ? v.open : DEFAULT_OPEN_SURFACES,
+              foregrounded:
+                typeof v.foregrounded === 'string' ? v.foregrounded : null,
+              windowState:
+                v.windowState && typeof v.windowState === 'object'
+                  ? v.windowState
+                  : {},
+            });
+            // Re-read through the getters so legacy-slug normalization applies.
+            setKept(getKeptSurfaces(uid));
+            setOpen(getOpenSurfaces(uid));
+            setForegrounded(getForegroundedSurface(uid));
+            setWindowStatesState(getWindowStates(uid));
+          }
+        })
+        .catch((e) => {
+          console.warn('[shell] member-state hydration failed (local-only):', e);
+        })
+        .finally(() => {
+          serverSyncReady.current = true;
+        });
     });
     return () => {
       mounted = false;
     };
   }, []);
+
+  // ADR-407 Phase 3 — write-through persistence. Debounce the full shell
+  // state to the server-backed member-state store on every change (window
+  // drags/z-bumps batch under the debounce). localStorage stays the
+  // synchronous cache; this is the cross-device copy. Failures are
+  // non-fatal (log + continue local-only).
+  useEffect(() => {
+    if (!userId || !serverSyncReady.current) return;
+    const timer = setTimeout(() => {
+      api.memberState
+        .put('shell', { kept, open, foregrounded, windowState: windowStates })
+        .catch((e) => {
+          console.warn('[shell] member-state write-through failed (local-only):', e);
+        });
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [userId, kept, open, foregrounded, windowStates]);
 
   // Persist window-state changes to localStorage.
   const persistWindowStates = useCallback(
