@@ -66,17 +66,10 @@ class FileEditRequest(BaseModel):
 
 
 def _substrate_scope_filter(auth) -> tuple:
-    """ADR-373 route sweep: the (column, value) substrate scope for this auth.
-
-    Workspace-keyed when the auth carries the acting workspace (owner default
-    or a validated X-Workspace-Id member binding) — this is what lets a
-    member's route reads reach rows other principals created. Falls back to
-    legacy user_id scoping when unresolved (byte-identical in N=1). ONLY for
-    workspace_files / workspace_file_versions queries — other tables have no
-    workspace_id column.
-    """
-    ws = getattr(auth, "workspace_id", None)
-    return ("workspace_id", ws) if ws else ("user_id", auth.user_id)
+    """ADR-373 route sweep: substrate scope for this auth — delegates to the
+    ONE shared helper (services.workspace_context.substrate_scope_filter)."""
+    from services.workspace_context import substrate_scope_filter
+    return substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None))
 
 
 class RecentArtifact(BaseModel):

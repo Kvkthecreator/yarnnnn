@@ -23,6 +23,7 @@ from typing import List, Optional
 logger = logging.getLogger(__name__)
 
 from services.supabase import UserClient, get_service_client
+from services.workspace_context import substrate_scope_filter
 from services.documents import process_document, create_signed_url_for_storage_path
 
 router = APIRouter()
@@ -308,7 +309,7 @@ async def list_documents(
     """
     result = auth.client.table("workspace_files") \
         .select("path, content, updated_at") \
-        .eq("user_id", auth.user_id) \
+        .eq(*substrate_scope_filter(auth.user_id)) \
         .or_(
             "path.like./workspace/inbound/uploads/%,"
             "path.like./workspace/uploads/%.md"
@@ -434,7 +435,7 @@ async def download_document(auth: UserClient, document_path: str):
 
     result = auth.client.table("workspace_files") \
         .select("content, content_url") \
-        .eq("user_id", auth.user_id) \
+        .eq(*substrate_scope_filter(auth.user_id)) \
         .eq("path", document_path) \
         .execute()
 
@@ -508,7 +509,7 @@ async def delete_document(auth: UserClient, document_path: str):
 
     result = auth.client.table("workspace_files") \
         .select("content") \
-        .eq("user_id", auth.user_id) \
+        .eq(*substrate_scope_filter(auth.user_id)) \
         .eq("path", document_path) \
         .execute()
 
@@ -568,7 +569,7 @@ async def list_trash(auth: UserClient):
         auth.client.table("workspace_files")
         .select("path, updated_at, "
                 "workspace_file_versions!head_version_id(authored_by)")
-        .eq("user_id", auth.user_id)
+        .eq(*substrate_scope_filter(auth.user_id))
         .eq("lifecycle", "archived")
         .order("updated_at", desc=True)
         .limit(200)
@@ -617,7 +618,7 @@ async def restore_document(body: RestoreRequest, auth: UserClient):
 
     result = auth.client.table("workspace_files") \
         .select("content, lifecycle") \
-        .eq("user_id", auth.user_id) \
+        .eq(*substrate_scope_filter(auth.user_id)) \
         .eq("path", path) \
         .execute()
     if not result.data:

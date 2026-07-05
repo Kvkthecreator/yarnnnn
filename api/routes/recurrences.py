@@ -46,6 +46,7 @@ from services.conventions import (
     report_run_log_path,
 )
 from services.recurrence import Recurrence, walk_workspace_recurrences
+from services.workspace_context import substrate_scope_filter
 from services.supabase import UserClient
 from services.workspace import UserMemory
 
@@ -527,7 +528,7 @@ def _list_date_folders(auth: UserClient, substrate_root: str) -> list[str]:
     rows = (
         auth.client.table("workspace_files")
         .select("path")
-        .eq("user_id", auth.user_id)
+        .eq(*substrate_scope_filter(auth.user_id))
         .like("path", f"{substrate_root}/%")
         .execute()
     ).data or []

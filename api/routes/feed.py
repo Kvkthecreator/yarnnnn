@@ -44,6 +44,7 @@ from uuid import UUID
 from datetime import datetime
 
 from services.supabase import UserClient
+from services.workspace_context import substrate_scope_filter
 # ADR-261 + ADR-262: slug-rooted task I/O reads are slug-templated through
 # services.conventions; recurrence parsing through services.recurrence.
 
@@ -760,7 +761,7 @@ async def _load_task_context(
         recent = (
             client.table("workspace_files")
             .select("path,content")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .like("path", f"{report_root(task_slug)}/%/output.md")
             .order("updated_at", desc=True)
             .limit(1)

@@ -33,6 +33,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from services.supabase import UserClient
+from services.workspace_context import substrate_scope_filter
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +110,7 @@ def _read_workspace_file(client: Any, user_id: str, rel_path: str) -> str:
         res = (
             client.table("workspace_files")
             .select("content")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .eq("path", path)
             .limit(1)
             .execute()

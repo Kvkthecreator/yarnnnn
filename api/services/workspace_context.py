@@ -69,9 +69,25 @@ def effective_workspace_id(
     return None
 
 
+def substrate_scope_filter(
+    user_id: str, workspace_id: Optional[str] = None
+) -> tuple:
+    """The (column, value) scope for a workspace_files / workspace_file_versions
+    query (ADR-373 route sweep — the ONE helper every route uses).
+
+    Workspace-keyed when the acting workspace resolves (explicit auth value,
+    request binding, or owner resolution); legacy user_id fallback otherwise
+    (byte-identical in N=1). ONLY for the two substrate tables — other
+    tables have no workspace_id column.
+    """
+    ws = effective_workspace_id(user_id, workspace_id)
+    return ("workspace_id", ws) if ws else ("user_id", user_id)
+
+
 __all__ = [
     "set_request_workspace",
     "reset_request_workspace",
     "get_request_workspace",
     "effective_workspace_id",
+    "substrate_scope_filter",
 ]

@@ -24,6 +24,7 @@ from uuid import UUID
 from datetime import datetime, timezone
 
 from services.supabase import UserClient
+from services.workspace_context import substrate_scope_filter
 from services.orchestration import get_agent_class_and_domain
 
 logger = logging.getLogger(__name__)
@@ -646,7 +647,7 @@ async def get_freddie_activity(auth: UserClient) -> dict:
         yaml_result = (
             auth.client.table("workspace_files")
             .select("content")
-            .eq("user_id", auth.user_id)
+            .eq(*substrate_scope_filter(auth.user_id))
             .eq("path", RECURRENCES_PATH)
             .limit(1)
             .execute()
@@ -797,7 +798,7 @@ async def get_freddie_capabilities(auth: UserClient) -> dict:
         result = (
             auth.client.table("workspace_files")
             .select("path, content, updated_at")
-            .eq("user_id", auth.user_id)
+            .eq(*substrate_scope_filter(auth.user_id))
             .like("path", f"{SPECS_PREFIX}%.md")
             .order("path")
             .execute()
@@ -816,7 +817,7 @@ async def get_freddie_capabilities(auth: UserClient) -> dict:
         rec_result = (
             auth.client.table("workspace_files")
             .select("content")
-            .eq("user_id", auth.user_id)
+            .eq(*substrate_scope_filter(auth.user_id))
             .eq("path", RECURRENCES_PATH)
             .limit(1)
             .execute()
@@ -990,7 +991,7 @@ async def get_agent(
         ro_result = (
             auth.client.table("workspace_files")
             .select("path, content_url, content_type, metadata, updated_at")
-            .eq("user_id", auth.user_id)
+            .eq(*substrate_scope_filter(auth.user_id))
             .like("path", f"/agents/{slug}/outputs/%")
             .not_.is_("content_url", "null")
             .order("updated_at", desc=True)

@@ -35,6 +35,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from services.conventions import authored_content_path, authored_root
+from services.workspace_context import substrate_scope_filter
 from services.supabase import UserClient
 from services.workspace import UserMemory
 
@@ -60,7 +61,7 @@ def _latest_composition_date(client, user_id: str, slug: str) -> Optional[str]:
     rows = (
         client.table("workspace_files")
         .select("path, updated_at")
-        .eq("user_id", user_id)
+        .eq(*substrate_scope_filter(user_id))
         .like("path", f"{root}/%/sys_manifest.json")
         .order("updated_at", desc=True)
         .limit(1)

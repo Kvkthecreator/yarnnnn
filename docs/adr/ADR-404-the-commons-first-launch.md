@@ -100,6 +100,12 @@ becomes primary.
 
 (Statuses flip in the implementing commits.)
 
+**Session close-out (2026-07-05)**: the sequence is complete; the substrate
+read sweep finished (all route-level substrate reads scope via
+`services.workspace_context.substrate_scope_filter`). Deferred items + the
+user-vs-workspace data-architecture audit handoff:
+[`docs/analysis/commons-first-close-out-and-audit-handoff-2026-07-05.md`](../analysis/commons-first-close-out-and-audit-handoff-2026-07-05.md).
+
 ---
 
 ## Amendment (2026-07-04) — D2 extended: pane-level hide on the Channels surface

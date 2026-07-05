@@ -30,6 +30,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from services.supabase import UserClient
+from services.workspace_context import substrate_scope_filter
 
 logger = logging.getLogger(__name__)
 
@@ -367,7 +368,7 @@ async def get_regime(auth: UserClient) -> Dict:
         result = (
             auth.client.table("workspace_files")
             .select("content, updated_at")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .eq("path", _REGIME_PATH)
             .limit(1)
             .execute()
@@ -423,7 +424,7 @@ async def get_indicators(
         result = (
             auth.client.table("workspace_files")
             .select("content")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .eq("path", path)
             .limit(1)
             .execute()
@@ -499,7 +500,7 @@ async def get_signals(auth: UserClient, limit: int = 10) -> Dict:
         result = (
             auth.client.table("workspace_files")
             .select("path, content, updated_at")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .like("path", f"{_SIGNALS_PREFIX}%.yaml")
             .order("updated_at", desc=True)
             .limit(limit)
@@ -529,7 +530,7 @@ async def get_signals(auth: UserClient, limit: int = 10) -> Dict:
         dec_result = (
             auth.client.table("workspace_files")
             .select("content")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .eq("path", _JUDGMENT_LOG_PATH)
             .limit(1)
             .execute()
