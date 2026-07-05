@@ -256,6 +256,25 @@ async def enqueue_gated_action(
         f"primitive={primitive} (expires {ttl_hours}h, "
         f"id={proposal_id[:8] if proposal_id else '?'}, source={source or 'none'})"
     )
+    # After-witness emission (ADR-405 D3 / ADR-407 Phase 2): a proposal
+    # awaiting witness is told to the workspace's OTHER human principals —
+    # derived from the grant roster at emission time, never a subscription
+    # matrix. N=1: witnesses-minus-actor is empty → no-op.
+    if proposal_id:
+        try:
+            from services.witness import emit_after_witness
+            await emit_after_witness(
+                auth.client,
+                workspace_id=acting_ws,
+                actor_user_id=auth.user_id,
+                message=f"Proposal awaiting witness: {primitive} ({family})",
+                context={"proposal_id": proposal_id, "family": family},
+                source_type="system",
+                source_id=proposal_id,
+            )
+        except Exception as witness_exc:  # noqa: BLE001 — never fails the act
+            logger.warning("[QUEUE] after-witness emission failed: %s", witness_exc)
+
     # Reactive Reviewer wake on proposal arrival (ADR-296 v2 D1). The
     # dispatcher's source-skip (ADR-252 D5) prevents self-judgment when
     # source startswith "freddie:".

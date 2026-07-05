@@ -240,6 +240,7 @@ async def approve_proposal(
             raise HTTPException(status_code=410, detail=result)
         # Execution failures return 200 with success=false so frontend can surface details
         return result
+    await _emit_decision_witness(auth, proposal_id, "approved")
     return result
 
 
@@ -271,4 +272,25 @@ async def reject_proposal(
         if error == "proposal_not_pending_or_not_found":
             raise HTTPException(status_code=404, detail=result.get("message") or "Proposal not found or not pending")
         raise HTTPException(status_code=400, detail=result)
+    await _emit_decision_witness(auth, proposal_id, "rejected")
     return result
+
+
+async def _emit_decision_witness(auth: UserClient, proposal_id: str, decision: str) -> None:
+    """After-witness emission for a proposal decision (ADR-405 D3 / ADR-407
+    Phase 2): the workspace's OTHER human principals are told a decision
+    bound. Best-effort — never fails the decision. N=1: no-op."""
+    try:
+        from services.witness import emit_after_witness
+        from services.workspace_context import effective_workspace_id
+        await emit_after_witness(
+            auth.client,
+            workspace_id=effective_workspace_id(auth.user_id),
+            actor_user_id=auth.user_id,
+            message=f"Proposal {decision} by a workspace principal",
+            context={"proposal_id": proposal_id, "decision": decision},
+            source_type="system",
+            source_id=proposal_id,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[PROPOSALS] after-witness emission failed: %s", exc)
