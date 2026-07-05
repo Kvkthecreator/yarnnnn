@@ -310,17 +310,14 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # window is the full surface. Pane keys (resolve/understand/tune) +
         # the ADR-340 D2 act identities (Decide/Read/Tune) are unchanged.
         "slug": "notifications",
-        # 2026-07-01 — operator re-sort: Notifications leaves the primary
-        # (Workspace) loop for its OWN launcher group at the very bottom, under
-        # both Settings doors. Rationale: it is the operating-work composition
-        # fronting Feed/Queue/Recurrence, AND it is always reachable as the
-        # top-bar bell (ADR-349 D2 "one name, two zooms") — so the at-rest
-        # launcher tile is redundant with the bell for the primary loop; demoting
-        # it declutters the Workspace group (Home · Channels · Files · Agents)
-        # without hiding it (own tier, still browsable). A new `notifications`
-        # tier rather than search-only: the operator asked for it visible-but-
-        # below, not hidden.
-        "launcher_tier": "notifications",  # own bottom group (was `primary`)
+        # 2026-07-04 — operator re-sort, step 2: Notifications leaves the
+        # at-rest launcher ENTIRELY (was demoted to its own bottom group
+        # 2026-07-01). The top-bar bell (ADR-349 D2 "one name, two zooms") is
+        # the always-present door to this window on every screen size, so ANY
+        # at-rest launcher tile is redundant chrome — the operator observed the
+        # duplication on mobile and ruled it applies to all sizes. Still
+        # summonable by name via flat search, still dockable while open.
+        "launcher_tier": "search-only",  # fronted by the top-bar bell (was own bottom group)
         "register": "application",  # a windowed composition like home / workspace-settings
         "title": "Notifications",
         "archetype": "dashboard",  # composition over multiple substrates

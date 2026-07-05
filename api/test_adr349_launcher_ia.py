@@ -60,9 +60,12 @@ def test_at_rest_launcher() -> None:
         {s for s, t in tiers.items() if t == "primary"} == {"home", "channels", "files", "agents"},
         str(sorted(s for s, t in tiers.items() if t == "primary")),
     )
+    # 2026-07-04 (operator re-sort, step 2): Notifications leaves the at-rest
+    # launcher entirely — the top-bar bell is the always-present door, so any
+    # launcher tile was redundant chrome. Search-only; summon by name.
     check(
-        "notifications == its own bottom tier (2026-07-01 re-sort)",
-        tiers.get("notifications") == "notifications",
+        "notifications == search-only (2026-07-04 re-sort)",
+        tiers.get("notifications") == "search-only",
         str(tiers.get("notifications")),
     )
     # D4 — two settings doors.
@@ -109,9 +112,9 @@ def test_notifications_rename() -> None:
     n = by_slug.get("notifications", {})
     check("notifications route == /notifications", n.get("route") == "/notifications")
     check("notifications title == 'Notifications'", n.get("title") == "Notifications")
-    # 2026-07-01 re-sort: Notifications moved to its own bottom launcher group
-    # (was primary). Still browsable, still the top-bar bell.
-    check("notifications is its own bottom tier", n.get("launcher_tier") == "notifications")
+    # 2026-07-04 re-sort: Notifications is off the at-rest launcher entirely
+    # (search-only) — the top-bar bell is the one always-present door.
+    check("notifications is search-only", n.get("launcher_tier") == "search-only")
     # FE wiring renamed.
     desk = _read("types/desk.ts")
     check("desk.ts slug union renamed to 'notifications'", "'notifications'" in desk and "| 'operation'" not in desk)
@@ -148,8 +151,9 @@ def test_launcher_groups() -> None:
     check("Workspace group", "label: 'Workspace'" in src and "tier: 'primary'" in src)
     check("Workspace Settings group", "label: 'Workspace Settings'" in src and "tier: 'workspace-config'" in src)
     check("System Settings group", "label: 'System Settings'" in src and "tier: 'system-config'" in src)
-    # 2026-07-01 re-sort: Notifications is its own bottom group.
-    check("Notifications group (bottom)", "label: 'Notifications'" in src and "tier: 'notifications'" in src)
+    # 2026-07-04 re-sort: the Notifications launcher group is deleted — the
+    # top-bar bell is the door; the surface is search-only.
+    check("Notifications group deleted", "tier: 'notifications'" not in src)
     check("Utilities group removed", "label: 'Utilities'" not in src)
     check("un-tiered fallback hides at rest (no dead-group tile)", "?? null" in src)
 

@@ -24,90 +24,32 @@
  *   3. Connections  — the SUBSTRATE's reach: what feeds the service (Wi-Fi
  *                     analog). Not Freddie — the inputs the operation perceives.
  *
- * Responsive collapse:
- *   md+   → all three chips inline
- *   <md   → single rollup chip (Cpu icon) → popover with all three
- *           items stacked vertically. Mirrors macOS Control Center.
+ * Responsive collapse (2026-07-04, operator ruling): the cluster is a
+ * DESKTOP-CLASS affordance — md+ only. The prior <md rollup (a Cpu chip
+ * opening a popover of all three items) was two-levels-nested chrome on
+ * a phone for standing state the surfaces already carry (Workspace
+ * Settings → Autonomy/Budget panes; Channels → Connections). On mobile
+ * the top bar keeps only the load-bearing items: Dock, bell, UserMenu.
  *
  * Read-only popovers per D20 §D2 — every mutation routes to the
  * corresponding atomic surface via the popover footer link.
  */
 
-import { useState, useRef } from 'react';
-import { Cpu } from 'lucide-react';
-import { Z_POPOVER } from '@/lib/shell/z-tiers';
-import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
-import { cn } from '@/lib/utils';
 import { FreddieStatusItem } from './FreddieStatusItem';
 import { BudgetStatusItem } from './BudgetStatusItem';
 import { ConnectionsStatusItem } from './ConnectionsStatusItem';
 
 export function SystemStatusCluster() {
   return (
-    <>
-      {/* md+ — all three chips inline */}
-      <div
-        className="hidden md:flex items-center gap-0.5 shrink-0"
-        role="group"
-        aria-label="System status"
-      >
-        <FreddieStatusItem />
-        <BudgetStatusItem />
-        <ConnectionsStatusItem />
-      </div>
-
-      {/* <md — collapsed rollup. Single Cpu chip opens a popover that
-          stacks all three items in a row. Each item keeps its own
-          popover trigger; operator can drill into any one for detail.
-          Mirrors macOS Control Center on smaller displays. */}
-      <div
-        className="flex md:hidden items-center shrink-0"
-        role="group"
-        aria-label="System status (compact)"
-      >
-        <MobileRollup />
-      </div>
-    </>
-  );
-}
-
-function MobileRollup() {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Click-outside + Escape close (shared dismissal contract, 2026-07-01).
-  usePopoverDismissal(containerRef, isOpen, () => setIsOpen(false));
-
-  return (
-    <div className="relative" ref={containerRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        className={cn(
-          'w-8 h-8 rounded-md flex items-center justify-center transition-colors',
-          'text-muted-foreground hover:bg-muted hover:text-foreground',
-          isOpen && 'bg-muted',
-        )}
-        title="System status"
-        aria-label="System status"
-        aria-expanded={isOpen}
-      >
-        <Cpu className="w-4 h-4 shrink-0" />
-      </button>
-
-      {isOpen && (
-        <div
-          style={{ zIndex: Z_POPOVER }}
-          className="absolute top-full right-0 mt-1 w-auto bg-background border border-border rounded-lg shadow-lg p-2"
-          role="dialog"
-        >
-          <div className="flex items-center gap-1">
-            <FreddieStatusItem />
-            <BudgetStatusItem />
-            <ConnectionsStatusItem />
-          </div>
-        </div>
-      )}
+    // md+ only — hidden entirely on phones (see header comment).
+    <div
+      className="hidden md:flex items-center gap-0.5 shrink-0"
+      role="group"
+      aria-label="System status"
+    >
+      <FreddieStatusItem />
+      <BudgetStatusItem />
+      <ConnectionsStatusItem />
     </div>
   );
 }

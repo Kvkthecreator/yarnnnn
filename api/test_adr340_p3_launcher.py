@@ -78,10 +78,12 @@ def test_registry_tiers() -> None:
         # (2026-06-30): `feed` (and `context`) deleted — the narrative is the
         # Channels Flow pane; `/feed` is a next.config redirect, not a surface.
         "search-only == mirrors + Setup + panes (the at-rest-hidden set)",
+        # 2026-07-04: notifications joins the set — the top-bar bell is its
+        # always-present door, so its at-rest launcher tile was deleted.
         {s for s, t in tiers.items() if t == "search-only"}
         == {"mandate", "principles", "identity", "budget", "autonomy", "expected-output",
             "program", "connectors", "sources", "activity",
-            "queue", "recurrence", "setup"},
+            "queue", "recurrence", "setup", "notifications"},
     )
     chrome = [e for e in KERNEL_SURFACES if not e.get("route")]
     check("chrome entries carry no tier", all(not e.get("launcher_tier") for e in chrome))

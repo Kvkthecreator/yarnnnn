@@ -258,7 +258,7 @@ export function SettingsPaneShell({
   // (`{windowSlug}.pane`). `useSurfaceParam` handles the prefix; `?tab=`
   // stays a flat legacy alias read directly.
   const surfaceParam = useSurfaceParam(windowSlug);
-  const { setSurfaceParams } = useSurfacePreferences();
+  const { setSurfaceParams, foregrounded } = useSurfacePreferences();
   const searchParams = useSearchParams();
   // Legacy aliases for `pane`: the flat `?tab=` (account door's General tabs)
   // AND this window's namespaced `{windowSlug}.tab=` (e.g. an in-flight
@@ -281,6 +281,24 @@ export function SettingsPaneShell({
   // from whether the operator has tapped a pane this session; in navContent
   // mode the custom nav requests it via onActivate.
   const [drilledIn, setDrilledIn] = useState(false);
+
+  // 2026-07-04 (operator-observed KVK, mobile): windows stay MOUNTED while
+  // backgrounded, so on narrow screens the drill-in state survived a
+  // background→foreground round-trip — tapping Files in the Dock landed the
+  // operator back INSIDE the last-viewed file, not on the explorer list.
+  // Rule: RE-foregrounding a window on narrow returns to its nav/group list
+  // (the iOS-Settings "back at the top" convention). This effect is defined
+  // BEFORE the deep-link pane sync below, so a jump that both foregrounds AND
+  // names a pane (foregroundSurface('budget')) still lands drilled-in — the
+  // later effect wins within the same commit.
+  const wasForegroundedRef = useRef(foregrounded === windowSlug);
+  useEffect(() => {
+    const isForegrounded = foregrounded === windowSlug;
+    if (isForegrounded && !wasForegroundedRef.current && isNarrow) {
+      setDrilledIn(false);
+    }
+    wasForegroundedRef.current = isForegrounded;
+  }, [foregrounded, windowSlug, isNarrow]);
 
   // Sync active pane when a deep-link arrives while the window is already
   // mounted (foregroundSurface('budget') sets workspace-settings.pane=budget).
