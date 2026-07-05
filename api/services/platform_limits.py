@@ -154,14 +154,28 @@ def get_sync_frequency_for_user(client, user_id: str) -> SyncFrequency:
 # Balance — ADR-172: single enforcement gate
 # =============================================================================
 
-def get_effective_balance(client, user_id: str) -> float:
-    """Effective balance = workspace.balance_usd − spend since last refill.
+def _acting_workspace_id(user_id: str, workspace_id: Optional[str] = None) -> Optional[str]:
+    """The workspace whose pool the caller draws (ADR-407 Phase 0). Resolution
+    mirrors the ADR-373 sweep spine: explicit → request contextvar → owner
+    resolution. A member acting in a granted workspace resolves THAT workspace
+    (contextvar), so their spend gates against — and debits — the shared pool."""
+    from services.workspace_context import effective_workspace_id
+    return effective_workspace_id(user_id, workspace_id)
 
-    Uses get_effective_balance() RPC (migration 144).
-    Returns 0.0 on error (fail-safe: block if unknown).
+
+def get_effective_balance(client, user_id: str, workspace_id: Optional[str] = None) -> float:
+    """Effective balance = (allowance + balance) − spend since the anchor, for
+    the ACTING WORKSPACE (ADR-407 Phase 0; get_effective_balance RPC re-keyed
+    to p_workspace_id in migration 200).
+
+    Returns 0.0 on error or when no workspace resolves (fail-safe: block if unknown).
     """
     try:
-        result = client.rpc("get_effective_balance", {"p_user_id": user_id}).execute()
+        ws = _acting_workspace_id(user_id, workspace_id)
+        if not ws:
+            logger.warning(f"[BALANCE] No workspace resolves for {user_id}; gating closed")
+            return 0.0
+        result = client.rpc("get_effective_balance", {"p_workspace_id": ws}).execute()
         val = result.data
         return float(val) if val is not None else 0.0
     except Exception as e:
@@ -252,7 +266,7 @@ def grant_allowance(client, workspace_id: str, user_id: str, allowance_usd: floa
             )
             return False
 
-        effective = get_effective_balance(client, user_id)
+        effective = get_effective_balance(client, user_id, workspace_id=workspace_id)
         old_balance = float(row.get("balance_usd", 0) or 0)
         surviving_topups = round(min(old_balance, max(0.0, effective)), 4)
 
@@ -355,10 +369,13 @@ def get_lifetime_spend_usd(client, user_id: str) -> float:
     cost ledger.
     """
     try:
+        ws_id = _acting_workspace_id(user_id)
+        if not ws_id:
+            return 0.0
         ws = (
             client.table("workspaces")
             .select("allowance_granted_at, subscription_refill_at, created_at")
-            .eq("owner_id", user_id)
+            .eq("id", ws_id)
             .limit(1)
             .execute()
         )
@@ -368,7 +385,7 @@ def get_lifetime_spend_usd(client, user_id: str) -> float:
         result = (
             client.table("execution_events")
             .select("cost_usd")
-            .eq("user_id", user_id)
+            .eq("workspace_id", ws_id)
             .gt("created_at", anchor)
             .execute()
         )
@@ -410,11 +427,14 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
     allowance = 0.0
     topup_balance = 0.0
     try:
+        ws_id = _acting_workspace_id(user_id)
         ws = client.table("workspaces")\
             .select("subscription_expires_at, balance_usd, allowance_usd")\
-            .eq("owner_id", user_id)\
+            .eq("id", ws_id)\
             .limit(1)\
-            .execute()
+            .execute() if ws_id else None
+        if ws is None:
+            raise ValueError("no acting workspace")
         if ws.data:
             next_refill = ws.data[0].get("subscription_expires_at")
             allowance = round(float(ws.data[0].get("allowance_usd") or 0), 4)
@@ -466,10 +486,13 @@ def get_usage_detail(client, user_id: str) -> dict:
         "activity": {"runs": 0, "success_rate": None, "avg_cost_usd": 0.0, "failed": 0},
     }
     try:
+        ws_id = _acting_workspace_id(user_id)
+        if not ws_id:
+            return empty
         ws = (
             client.table("workspaces")
             .select("allowance_granted_at, subscription_refill_at, created_at")
-            .eq("owner_id", user_id)
+            .eq("id", ws_id)
             .limit(1)
             .execute()
         )
@@ -480,7 +503,7 @@ def get_usage_detail(client, user_id: str) -> dict:
         rows = (
             client.table("execution_events")
             .select("slug, cost_usd, status, created_at")
-            .eq("user_id", user_id)
+            .eq("workspace_id", ws_id)
             .gt("created_at", anchor)
             .execute()
         ).data or []

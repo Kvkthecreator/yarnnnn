@@ -262,9 +262,10 @@ def test_get_effective_balance_reads_execution_events() -> None:
         # against a known user_id and verify it succeeds (regression: prior
         # broken state would 500 because the RPC still references token_usage
         # which is dropped). Returning 0 is fine — just needs to not error.
+        # ADR-407 Phase 0 (migration 200): the RPC is keyed p_workspace_id.
         result = client.rpc(
             "get_effective_balance",
-            {"p_user_id": "00000000-0000-0000-0000-000000000000"},
+            {"p_workspace_id": "00000000-0000-0000-0000-000000000000"},
         ).execute()
         # If we got here without exception, the RPC executed cleanly
         val = result.data

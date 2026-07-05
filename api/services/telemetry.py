@@ -81,20 +81,21 @@ def compute_cost_usd_inclusive(
 # ---------------------------------------------------------------------------
 
 def get_daily_spend(client, user_id: str) -> float:
-    """Return today's total cost_usd for user from execution_events (UTC day).
+    """Return today's total cost_usd from execution_events (UTC day),
+    scoped to the acting WORKSPACE (ADR-407 Phase 0 — the spend guard draws
+    the shared pool, so every principal's spend counts). Falls back to the
+    legacy user_id scope only when no workspace resolves (byte-identical N=1).
 
     Used by the spend guard before dispatching generative invocations.
     Returns 0.0 on any error (fail-open: prefer running over blocking on DB error).
     """
     try:
+        from services.workspace_context import effective_workspace_id
+        ws = effective_workspace_id(user_id)
         today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT00:00:00+00:00")
-        result = (
-            client.table("execution_events")
-            .select("cost_usd")
-            .eq("user_id", user_id)
-            .gte("created_at", today_utc)
-            .execute()
-        )
+        query = client.table("execution_events").select("cost_usd")
+        query = query.eq("workspace_id", ws) if ws else query.eq("user_id", user_id)
+        result = query.gte("created_at", today_utc).execute()
         rows = result.data or []
         return round(sum(float(r.get("cost_usd") or 0) for r in rows), 6)
     except Exception as e:
@@ -129,6 +130,7 @@ def record_execution_event(
     funnel_decision: Optional[str] = None,
     agent_run_id: Optional[str] = None,
     principal_id: Optional[str] = None,
+    workspace_id: Optional[str] = None,
 ) -> Optional[str]:
     """Write one row to execution_events. Never raises. Returns the row id on
     success, None on insert failure.
@@ -179,6 +181,14 @@ def record_execution_event(
                             the cost so the Cost & Activity Surface can answer
                             "who spent what" per principal. N=1 safe: owner rows
                             carry the owner user_id, byte-identical rollup.
+        workspace_id:       the workspace this invocation ran FOR — the ledger's
+                            SCOPE key (ADR-407 Phase 0; migration 200). Spend
+                            rolls up by workspace; user_id/principal_id stay as
+                            attribution. Omit and it resolves via
+                            effective_workspace_id(user_id) (explicit → request
+                            contextvar → owner resolution), so no legacy call
+                            site changes. NULL only if resolution fails
+                            (fail-open — the row still lands, unscoped).
 
         ADR-298 Phase 5 cleanup (2026-05-22): the `wake_dedup_key` kwarg
         was DELETED. Cross-source dedup migrated to wake_queue.dedup_key
@@ -248,6 +258,19 @@ def record_execution_event(
         # New rows are therefore always attributed; only rows written before this
         # migration stay NULL.
         row["principal_id"] = principal_id if principal_id is not None else user_id
+
+        # ADR-407 Phase 0 (migration 200): scope the ledger row to the acting
+        # WORKSPACE — the pool spend draws from. Resolution mirrors the ADR-373
+        # sweep spine (explicit → request contextvar → owner resolution) so the
+        # ~15 legacy call sites need no change; a member's or agent's spend in
+        # a granted workspace lands on that workspace, not their own singleton.
+        try:
+            from services.workspace_context import effective_workspace_id
+            ws = effective_workspace_id(user_id, workspace_id)
+            if ws:
+                row["workspace_id"] = ws
+        except Exception:  # fail-open: never lose the ledger row over scoping
+            pass
 
         result = client.table("execution_events").insert(row).execute()
         # Supabase returns the inserted row(s) in result.data when the client

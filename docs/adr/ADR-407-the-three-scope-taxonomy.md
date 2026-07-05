@@ -1,6 +1,6 @@
 # ADR-407: The Three-Scope Taxonomy — workspace content, member experience, account
 
-**Status**: Proposed (2026-07-05) — doc-first; implementation phased (§8), each phase its own commit + gate
+**Status**: Accepted (2026-07-05, operator-ratified) — implementation phased (§8), each phase its own commit + gate. The adjacent multi-agent/LLM-handling direction (working-agent tool surface, MCP-vs-API lane, BYOK-vs-brokered keys) is explicitly **left undecided** — noted constraint: the MCP lane is bounded by host capabilities (e.g. Gemini web offers no connectors), so the vendor-agnostic thesis likely needs the API lane long-term; that discourse follows after this ADR's phases land and does not gate them.
 **Date**: 2026-07-05
 **Dimension**: Substrate (Axiom 1, what persists and under which key) + Identity (Axiom 2, whose state it is) + Channel (Axiom 6, whose surface renders it)
 **Relates to**: ADR-373 (multi-principal re-key — this ADR completes its read/enforcement half), ADR-378 (workspace as outermost unit), ADR-391 (three-layer cost model — D1's workspace balance gets its enforcement here), ADR-396 (pricing over the metered balance), ADR-404 (commons-first launch — the remainder list this ADR structures), ADR-405 (witness dial — D5's "presentation layer" gets a home), ADR-406 (stale-parent rejection — the FE wiring lands here), ADR-222 (OS framing — one shell becomes N shells)

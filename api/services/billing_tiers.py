@@ -95,17 +95,17 @@ def normalize_tier(raw: Optional[str]) -> str:
 def get_tier(client: Any, user_id: str) -> str:
     """The workspace's active subscription tier ('free'|'starter'|'pro').
 
-    Reads workspaces.subscription_tier (migration 194). Fail-safe to free on any
-    error — free never grants an allowance or widens a ceiling, so an unknown
-    state can't over-provision."""
+    Reads workspaces.subscription_tier (migration 194) for the ACTING workspace
+    (ADR-407 Phase 0 — a member's ceilings follow the granted workspace's tier,
+    not their own singleton; owner-resolution fallback is byte-identical N=1).
+    Fail-safe to free on any error — free never grants an allowance or widens a
+    ceiling, so an unknown state can't over-provision."""
     try:
-        result = (
-            client.table("workspaces")
-            .select("subscription_tier")
-            .eq("owner_id", user_id)
-            .limit(1)
-            .execute()
-        )
+        from services.workspace_context import effective_workspace_id
+        ws = effective_workspace_id(user_id)
+        query = client.table("workspaces").select("subscription_tier")
+        query = query.eq("id", ws) if ws else query.eq("owner_id", user_id)
+        result = query.limit(1).execute()
         rows = result.data or []
         if rows:
             return normalize_tier(rows[0].get("subscription_tier"))
