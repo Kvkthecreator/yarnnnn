@@ -136,6 +136,13 @@ export function setActiveWorkspace(workspaceId: string | null): void {
   }
 }
 
+/** ADR-407 Phase 5 — "switch to my own workspace" CLEARS the binding rather
+ *  than pinning the owner workspace id: absent header → server resolves the
+ *  caller's owner workspace (the N=1 default, byte-identical for owners). */
+export function clearActiveWorkspace(): void {
+  setActiveWorkspace(null);
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -1281,6 +1288,19 @@ export const api = {
     // grant-consult (the gate) authorizes per-principal, this surfaces the same
     // facts. An MCP connector from an external LLM is a *member* (a foreign-llm
     // principal), so this lists humans AND foreign-LLM/3rd-party principals.
+    // ADR-407 Phase 5 — every workspace the CALLER can act in (their owner
+    // workspace + any member grants). Powers the UserMenu workspace switcher;
+    // N=1 users get exactly one membership (the switcher stays hidden).
+    memberships: () =>
+      request<{
+        memberships: Array<{
+          workspace_id: string;
+          role: 'owner' | 'member';
+          label: string;
+          is_active: boolean;
+        }>;
+      }>("/api/workspace/memberships"),
+
     getMembers: () =>
       request<{
         members: Array<{
@@ -1348,7 +1368,7 @@ export const api = {
     // ADR-406 D2: pass expectedHeadVersionId (the head_version_id the file
     // was loaded with) to make the save conditional — the API returns 409
     // with the intervening revision's attribution when the base has moved.
-    // Omitted → unconditional (config dials, revert-as-write).
+    // Omitted → unconditional (appenders, config-dial writes).
     editFile: (
       path: string,
       content: string,

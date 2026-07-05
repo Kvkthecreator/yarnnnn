@@ -37,11 +37,25 @@ import {
 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import {
   authorClass,
   formatAuthorLabelOrSystem,
   type AuthorClass,
 } from '@/lib/workspace/attribution';
+
+/** ADR-406 D2 — extract the 409 stale-write payload's intervening-head
+ *  attribution from an APIError, or null when the error is anything else.
+ *  Server shape: { detail: { error: 'stale_write', current_head:
+ *  { id, authored_by, message, created_at } | null, ... } }. */
+function staleWriteHead(
+  e: unknown,
+): { authored_by?: string; created_at?: string; message?: string } | null {
+  if (!(e instanceof APIError) || e.status !== 409) return null;
+  const detail = (e.data as { detail?: Record<string, unknown> } | null)?.detail;
+  if (!detail || detail.error !== 'stale_write') return null;
+  return (detail.current_head as { authored_by?: string } | null) ?? {};
+}
 
 interface RevisionSummary {
   id: string;
@@ -150,6 +164,7 @@ export function RevisionHistoryPanel({
   const [diffIdentical, setDiffIdentical] = useState(false);
   const [revertBusy, setRevertBusy] = useState(false);
   const [revertError, setRevertError] = useState<string | null>(null);
+  const { toast } = useFeedback();
 
   const fetchRevisions = useCallback(async () => {
     setLoading(true);
@@ -205,11 +220,16 @@ export function RevisionHistoryPanel({
           throw new Error('Revision has no content to restore');
         }
         const shortId = rev.id.slice(0, 8);
+        // ADR-406 D2 — conditional write: headId is the head this panel
+        // loaded (revisions[0]). If another writer moved the file past it
+        // while the operator was reading history, the server rejects with
+        // 409 instead of silently clobbering the newer revision.
         await api.workspace.editFile(
           path,
           detail.content,
           undefined,
-          `revert to revision ${shortId}`
+          `revert to revision ${shortId}`,
+          headId
         );
         // Close diff view + refetch
         setSelectedId(null);
@@ -217,12 +237,30 @@ export function RevisionHistoryPanel({
         await fetchRevisions();
         onRevert?.();
       } catch (e) {
-        setRevertError(e instanceof APIError ? e.message : String(e));
+        const conflict = staleWriteHead(e);
+        if (conflict) {
+          // ADR-406/405 — the conflict is a witness moment: say WHO moved
+          // past the operator, refresh the chain (and parent content via
+          // onRevert) so they can redo the revert against the new head.
+          const who = formatAuthorLabelOrSystem(conflict.authored_by ?? null);
+          toast({
+            kind: 'error',
+            message: 'File changed since you opened it',
+            description: `${who} saved a newer revision. History refreshed — redo the revert if you still want it.`,
+            durationMs: 6000,
+          });
+          setSelectedId(null);
+          setDiffText(null);
+          await fetchRevisions();
+          onRevert?.();
+        } else {
+          setRevertError(e instanceof APIError ? e.message : String(e));
+        }
       } finally {
         setRevertBusy(false);
       }
     },
-    [path, fetchRevisions, onRevert]
+    [path, headId, fetchRevisions, onRevert, toast]
   );
 
   const totalCount = revisions.length;

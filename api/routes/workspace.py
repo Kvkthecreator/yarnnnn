@@ -112,6 +112,18 @@ class WorkspaceMembersResponse(BaseModel):
     grant_consult_active: bool = True
 
 
+class WorkspaceMembership(BaseModel):
+    """One workspace the CALLER can act in (ADR-407 Phase 5 — the switcher)."""
+    workspace_id: str
+    role: str                              # owner | member
+    label: str                             # humanized (owner email / 'My workspace')
+    is_active: bool                        # True if this is the acting workspace
+
+
+class WorkspaceMembershipsResponse(BaseModel):
+    memberships: list[WorkspaceMembership]
+
+
 class RecentRevision(BaseModel):
     """One authored substrate change across the workspace (ADR-329 D2).
 
@@ -794,6 +806,70 @@ async def get_recent_artifacts(
 # roster logic this route does — Singular Implementation. Re-exported under the
 # route's prior private name to keep call sites below unchanged.
 from services.principals import class_default_write_regions as _class_default_write_regions
+
+
+@router.get("/workspace/memberships", response_model=WorkspaceMembershipsResponse)
+async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsResponse:
+    """The workspaces the CALLER can act in (ADR-407 Phase 5 — the switcher).
+
+    Owner workspace + every workspace where the caller holds an active human
+    grant. Labels: the caller's own workspace is 'My workspace'; a granted
+    commons is labeled by its owner's email. `is_active` marks the workspace
+    the current request resolved to (X-Workspace-Id → owner fallback), so the
+    switcher can render the current binding without re-deriving it.
+    """
+    from services.supabase import get_service_client, resolve_owner_workspace_id
+
+    svc = get_service_client()
+    acting = auth.workspace_id or resolve_owner_workspace_id(auth.user_id)
+    memberships: list[WorkspaceMembership] = []
+    seen: set[str] = set()
+
+    try:
+        own_ws = resolve_owner_workspace_id(auth.user_id)
+        if own_ws:
+            memberships.append(WorkspaceMembership(
+                workspace_id=own_ws, role="owner", label="My workspace",
+                is_active=(own_ws == acting),
+            ))
+            seen.add(own_ws)
+    except Exception as e:
+        logger.warning("[MEMBERSHIPS] owner resolution failed: %s", e)
+
+    try:
+        rows = (
+            svc.table("principal_grants")
+            .select("workspace_id, role")
+            .eq("principal_id", auth.user_id)
+            .eq("status", "active")
+            .in_("role", ["member"])
+            .execute()
+        ).data or []
+        for r in rows:
+            ws_id = r.get("workspace_id")
+            if not ws_id or ws_id in seen:
+                continue
+            seen.add(ws_id)
+            label = "Shared workspace"
+            try:
+                owner_row = (
+                    svc.table("workspaces").select("owner_id").eq("id", ws_id).limit(1).execute()
+                ).data or []
+                if owner_row:
+                    from jobs.unified_scheduler import get_user_email
+                    email = await get_user_email(svc, owner_row[0]["owner_id"])
+                    if email:
+                        label = f"{email}'s workspace"
+            except Exception:
+                pass
+            memberships.append(WorkspaceMembership(
+                workspace_id=ws_id, role="member", label=label,
+                is_active=(ws_id == acting),
+            ))
+    except Exception as e:
+        logger.warning("[MEMBERSHIPS] grant lookup failed: %s", e)
+
+    return WorkspaceMembershipsResponse(memberships=memberships)
 
 
 @router.get("/workspace/members", response_model=WorkspaceMembersResponse)

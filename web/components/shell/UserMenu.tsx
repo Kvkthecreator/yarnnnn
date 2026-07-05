@@ -28,11 +28,12 @@
  * below the breakpoint.
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { Settings, LogOut, Sun, Moon, Monitor, User, Columns2, LayoutGrid } from 'lucide-react';
+import { Settings, LogOut, Sun, Moon, Monitor, User, Columns2, LayoutGrid, Check, Briefcase } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { api, setActiveWorkspace, clearActiveWorkspace } from '@/lib/api/client';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -42,6 +43,14 @@ import { cn } from '@/lib/utils';
 
 interface UserMenuProps {
   email?: string;
+}
+
+/** ADR-407 Phase 5 — one workspace the caller can act in (the switcher row). */
+interface WorkspaceMembership {
+  workspace_id: string;
+  role: 'owner' | 'member';
+  label: string;
+  is_active: boolean;
 }
 
 export function UserMenu({ email }: UserMenuProps) {
@@ -60,6 +69,40 @@ export function UserMenu({ email }: UserMenuProps) {
 
   // Click-outside + Escape close (shared dismissal contract, 2026-07-01).
   usePopoverDismissal(dropdownRef, isOpen, () => setIsOpen(false));
+
+  // ADR-407 Phase 5 — workspace switcher. Memberships fetched on menu open;
+  // the section renders ONLY when the caller can act in more than one
+  // workspace (N=1 users see nothing new).
+  const [memberships, setMemberships] = useState<WorkspaceMembership[]>([]);
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    api.workspace
+      .memberships()
+      .then((res) => {
+        if (!cancelled) setMemberships(res.memberships ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setMemberships([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  const handleSwitchWorkspace = (m: WorkspaceMembership) => {
+    if (m.is_active) {
+      setIsOpen(false);
+      return;
+    }
+    // Owner → CLEAR the binding (absent header = server resolves the owner
+    // workspace); member → pin the workspace id. Then hard-navigate: a full
+    // reload is required so every fetched surface rebinds to the new
+    // workspace — no client-side route.
+    if (m.role === 'owner') clearActiveWorkspace();
+    else setActiveWorkspace(m.workspace_id);
+    window.location.assign('/home');
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -193,6 +236,35 @@ export function UserMenu({ email }: UserMenuProps) {
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ADR-407 Phase 5 — workspace switcher. Rendered only when the
+              caller holds more than one membership (owner workspace + member
+              grants). Selecting a workspace rebinds X-Workspace-Id (owner =
+              clear, member = pin) and hard-reloads to /home so all fetched
+              state rebinds. */}
+          {memberships.length > 1 && (
+            <div className="border-b border-border py-1">
+              <div className="px-3 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+                Workspace
+              </div>
+              {memberships.map((m) => (
+                <button
+                  key={m.workspace_id}
+                  onClick={() => handleSwitchWorkspace(m)}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                >
+                  <Briefcase className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span className="flex-1 min-w-0">
+                    <span className="block truncate">{m.label}</span>
+                    <span className="block text-[11px] text-muted-foreground capitalize">
+                      {m.role}
+                    </span>
+                  </span>
+                  {m.is_active && <Check className="w-4 h-4 text-primary shrink-0" />}
+                </button>
+              ))}
             </div>
           )}
 
