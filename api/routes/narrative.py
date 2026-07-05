@@ -129,14 +129,19 @@ async def by_task(
     user_id = auth.user_id
     window_cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
 
-    # 1. Resolve this user's session ids. session_messages doesn't carry
-    # user_id; the join lives in chat_sessions.
-    sessions_result = (
+    # 1. Resolve this principal's session ids WITHIN the acting workspace
+    # (ADR-407 Phase 4 — member-experience scope is (workspace, principal)).
+    # session_messages doesn't carry user_id; the join lives in chat_sessions.
+    from services.workspace_context import effective_workspace_id
+    sessions_query = (
         auth.client.table("chat_sessions")
         .select("id")
         .eq("user_id", user_id)
-        .execute()
     )
+    _ws = effective_workspace_id(user_id)
+    if _ws:
+        sessions_query = sessions_query.eq("workspace_id", _ws)
+    sessions_result = sessions_query.execute()
     session_ids = [row["id"] for row in (sessions_result.data or [])]
     if not session_ids:
         return NarrativeByTaskResponse(window_hours=window_hours, tasks=[])

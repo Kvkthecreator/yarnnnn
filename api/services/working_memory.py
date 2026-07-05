@@ -36,7 +36,7 @@ from typing import Any, Optional
 
 from supabase import create_client as _create_supabase_client
 from services.supabase import close_supabase_client
-from services.workspace_context import substrate_scope_filter
+from services.workspace_context import substrate_scope_filter, effective_workspace_id
 
 logger = logging.getLogger(__name__)
 
@@ -574,12 +574,19 @@ def _get_unacknowledged_loop_events_sync(user_id: str, client: Any) -> list[dict
     Empty list = no loop events since last user turn (silent in compact index).
     """
     try:
-        # Find the active session for this workspace
-        session_result = (
+        # Find this principal's active session within the acting workspace
+        # (ADR-407 Phase 4: sessions are (workspace, principal)-scoped).
+        session_query = (
             client.table("chat_sessions")
             .select("id")
             .eq("user_id", user_id)
             .is_("agent_id", "null")  # workspace-scope session (not agent-scoped)
+        )
+        _sess_ws = effective_workspace_id(user_id)
+        if _sess_ws:
+            session_query = session_query.eq("workspace_id", _sess_ws)
+        session_result = (
+            session_query
             .order("updated_at", desc=True)
             .limit(1)
             .execute()
@@ -1082,11 +1089,15 @@ def _get_recent_sessions_sync(user_id: str, client: Any) -> list:
     try:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=SESSION_LOOKBACK_DAYS)).isoformat()
 
-        result = client.table("chat_sessions").select(
+        summaries_query = client.table("chat_sessions").select(
             "id, created_at, summary"
         ).eq("user_id", user_id).not_.is_(
             "summary", "null"
-        ).gte("created_at", cutoff).order(
+        ).gte("created_at", cutoff)
+        _sum_ws = effective_workspace_id(user_id)
+        if _sum_ws:
+            summaries_query = summaries_query.eq("workspace_id", _sum_ws)
+        result = summaries_query.order(
             "created_at", desc=True
         ).limit(MAX_RECENT_SESSIONS).execute()
 

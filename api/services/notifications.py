@@ -182,14 +182,17 @@ async def _insert_chat_notification(
     Uses the daily session scope so the message appears in their current/recent session.
     """
     try:
-        # Get or create user's daily session
+        # Get or create the recipient's daily session in the acting workspace
+        # (ADR-407 Phase 4 — owner fallback keeps N=1 byte-identical).
+        from services.workspace_context import effective_workspace_id
         session_result = db_client.rpc(
             "get_or_create_chat_session",
             {
                 "p_user_id": user_id,
                 "p_project_id": None,
                 "p_session_type": "thinking_partner",
-                "p_scope": "daily"
+                "p_scope": "daily",
+                "p_workspace_id": effective_workspace_id(user_id),
             }
         ).execute()
 

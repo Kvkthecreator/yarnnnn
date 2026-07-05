@@ -130,6 +130,11 @@ async def get_or_create_session(
         Session dict with 'id', 'is_new' (bool), and optionally
         'previous_session_id' (str) when a new session replaces an old one.
     """
+    # ADR-407 Phase 4 (D6): sessions are member-experience state, keyed
+    # (workspace, principal). Pass the ACTING workspace so a member's thread
+    # lives in the commons; the RPC's owner fallback keeps N=1 byte-identical.
+    from services.workspace_context import effective_workspace_id
+    acting_ws = effective_workspace_id(user_id)
     try:
         result = client.rpc(
             "get_or_create_chat_session",
@@ -139,6 +144,7 @@ async def get_or_create_session(
                 "p_session_type": session_type,
                 "p_scope": scope,
                 "p_agent_id": agent_id,
+                "p_workspace_id": acting_ws,
             }
         ).execute()
 
@@ -161,6 +167,8 @@ async def get_or_create_session(
                 .eq("session_type", session_type)\
                 .gte("updated_at", inactivity_cutoff)\
                 .eq("status", "active")
+            if acting_ws:
+                q = q.eq("workspace_id", acting_ws)
             # ADR-087 Phase 3: scope by agent_id
             if agent_id:
                 q = q.eq("agent_id", agent_id)
@@ -188,12 +196,15 @@ async def get_or_create_session(
         except Exception as e:
             logger.debug(f"[SESSION] Failed to find previous session: {e}")
 
-        # Create new session
+        # Create new session — stamped with the acting workspace (D6);
+        # trigger fills the owner default if unresolvable.
         data = {
             "user_id": user_id,
             "session_type": session_type,
             "status": "active",
         }
+        if acting_ws:
+            data["workspace_id"] = acting_ws
         if agent_id:
             data["agent_id"] = agent_id
 
@@ -1322,13 +1333,18 @@ async def get_global_chat_history(
 
     ADR-138: project_slug and thread_agent_id removed (columns dropped).
     """
-    # Fetch recent sessions — task-scoped, agent-scoped, or global TP
+    # Fetch recent sessions — task-scoped, agent-scoped, or global TP,
+    # within the acting workspace (ADR-407 Phase 4: (workspace, principal)).
+    from services.workspace_context import effective_workspace_id
     q = (
         auth.client.table("chat_sessions")
         .select("*")
         .eq("user_id", auth.user_id)
         .eq("session_type", "thinking_partner")
     )
+    _hist_ws = effective_workspace_id(auth.user_id)
+    if _hist_ws:
+        q = q.eq("workspace_id", _hist_ws)
     if task_slug:
         q = q.eq("task_slug", task_slug)
     elif agent_id:
@@ -1365,12 +1381,19 @@ async def list_global_sessions(
     mirroring the agent-scoped GET /api/agents/{id}/sessions endpoint.
     Used by the dashboard Sessions panel.
     """
-    result = (
+    from services.workspace_context import effective_workspace_id
+    _list_q = (
         auth.client.table("chat_sessions")
         .select("id, created_at, summary")
         .eq("user_id", auth.user_id)
         .is_("agent_id", "null")
         .eq("session_type", "thinking_partner")
+    )
+    _list_ws = effective_workspace_id(auth.user_id)
+    if _list_ws:
+        _list_q = _list_q.eq("workspace_id", _list_ws)
+    result = (
+        _list_q
         .order("created_at", desc=True)
         .limit(limit)
         .execute()
