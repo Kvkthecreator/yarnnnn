@@ -36,6 +36,7 @@ from typing import Any, Optional
 
 from supabase import create_client as _create_supabase_client
 from services.supabase import close_supabase_client
+from services.workspace_context import substrate_scope_filter
 
 logger = logging.getLogger(__name__)
 
@@ -290,7 +291,7 @@ def _get_workspace_file_sync(user_id: str, filename: str, client: Any) -> Option
         result = (
             client.table("workspace_files")
             .select("content")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .eq("path", f"/workspace/{filename}")
             .limit(1)
             .execute()
@@ -482,7 +483,7 @@ def _count_tasks_sync(user_id: str, client: Any) -> int:
         result = (
             client.table("tasks")
             .select("id", count="exact")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .neq("status", "archived")
             .execute()
         )
@@ -497,7 +498,7 @@ def _count_documents_sync(user_id: str, client: Any) -> int:
         result = (
             client.table("workspace_files")
             .select("id", count="exact")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .like("path", "/workspace/uploads/%.md")
             .execute()
         )
@@ -530,7 +531,7 @@ def _get_recent_authorship_sync(user_id: str, client: Any) -> dict:
         result = (
             client.table("workspace_file_versions")
             .select("authored_by")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .gte("created_at", cutoff)
             .limit(500)  # cap the window — one line of output, don't need more
             .execute()
@@ -641,7 +642,7 @@ def _get_workspace_uploads_sync(user_id: str, client: Any) -> list[dict]:
         result = (
             client.table("workspace_files")
             .select("path, content, updated_at")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .like("path", "/workspace/uploads/%.md")
             .order("updated_at", desc=True)
             .limit(10)
@@ -695,7 +696,7 @@ def _get_active_tasks_sync(user_id: str, client: Any) -> list[dict]:
         index_result = (
             client.table("tasks")
             .select("slug, next_run_at, last_run_at, paused")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .execute()
         )
         index_by_slug = {
@@ -776,7 +777,7 @@ def _get_context_domain_health_sync(user_id: str, client: Any) -> list[dict]:
         result = (
             client.table("workspace_files")
             .select("path, updated_at")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .like("path", "/workspace/operation/%")
             .in_("lifecycle", ["active", "delivered"])
             .execute()
@@ -994,13 +995,13 @@ def _get_active_agents_sync(user_id: str, client: Any) -> list:
     try:
         count_result = client.table("agents").select(
             "id", count="exact"
-        ).eq("user_id", user_id).eq("status", "active").execute()
+        ).eq(*substrate_scope_filter(user_id)).eq("status", "active").execute()
 
         total_count = count_result.count or 0
 
         result = client.table("agents").select(
             "id, title, status, role, updated_at"
-        ).eq("user_id", user_id).eq("status", "active").order(
+        ).eq(*substrate_scope_filter(user_id)).eq("status", "active").order(
             "updated_at", desc=True
         ).limit(MAX_AGENTS).execute()
 
@@ -1033,7 +1034,7 @@ def _get_connected_platforms_sync(user_id: str, client: Any) -> list:
         # Get connections for status
         conn_result = client.table("platform_connections").select(
             "platform, status, landscape"
-        ).eq("user_id", user_id).order("platform").limit(MAX_PLATFORMS).execute()
+        ).eq(*substrate_scope_filter(user_id)).order("platform").limit(MAX_PLATFORMS).execute()
 
         if not conn_result.data:
             return platforms
@@ -1041,7 +1042,7 @@ def _get_connected_platforms_sync(user_id: str, client: Any) -> list:
         # Get max last_synced_at per platform from sync_registry (single query)
         registry_result = client.table("sync_registry").select(
             "platform, last_synced_at"
-        ).eq("user_id", user_id).execute()
+        ).eq(*substrate_scope_filter(user_id)).execute()
 
         # Build max last_synced_at per platform
         max_synced: dict[str, str] = {}
@@ -1110,7 +1111,7 @@ def _get_user_shared_files_sync(user_id: str, client: Any) -> list[dict]:
         result = (
             client.table("workspace_files")
             .select("path, summary, updated_at")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .like("path", "/user_shared/%")
             .eq("lifecycle", "ephemeral")
             .order("updated_at", desc=True)
@@ -1158,7 +1159,7 @@ def _get_system_summary_sync(user_id: str, client: Any) -> dict:
             agents_result = (
                 client.table("agents")
                 .select("id")
-                .eq("user_id", user_id)
+                .eq(*substrate_scope_filter(user_id))
                 .execute()
             )
             agent_ids = [d["id"] for d in (agents_result.data or [])]
@@ -1200,7 +1201,7 @@ def _get_agent_health_sync(user_id: str, client: Any) -> list:
     try:
         agents_result = client.table("agents").select(
             "id, title, slug, role"
-        ).eq("user_id", user_id).eq("status", "active").execute()
+        ).eq(*substrate_scope_filter(user_id)).eq("status", "active").execute()
         agents = agents_result.data or []
         if not agents:
             return []

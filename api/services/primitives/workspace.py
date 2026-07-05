@@ -1226,13 +1226,15 @@ async def handle_search_files(auth: Any, input: dict) -> dict:
             prefix = normalized
 
         try:
+            from services.workspace_context import effective_workspace_id
+            ws = effective_workspace_id(auth.user_id)
             result = auth.client.rpc("search_workspace", {
-                "p_user_id": auth.user_id,
+                "p_workspace_id": ws,
                 "p_query": query,
                 "p_path_prefix": prefix,
                 "p_limit": 20,
-            }).execute()
-            rows = result.data or []
+            }).execute() if ws else None
+            rows = (result.data or []) if result else []
         except Exception as e:
             logger.warning(f"[SEARCH_FILES] workspace search failed: {e}")
             rows = []
@@ -1321,9 +1323,13 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
         # case, and confines the un-metered embedding COGS (the pricing carve's
         # B′ line) to the genuinely-fuzzy queries that need it.
         bm25_ok = False
+        from services.workspace_context import effective_workspace_id
+        _ws = effective_workspace_id(auth.user_id)
         try:
+            if not _ws:
+                raise ValueError("no acting workspace resolves")
             result = auth.client.rpc("search_workspace", {
-                "p_user_id": auth.user_id,
+                "p_workspace_id": _ws,
                 "p_query": query,
                 "p_path_prefix": prefix,
                 "p_limit": limit,
@@ -1340,10 +1346,12 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
         # for similarity. Also the resilience path if BM25 itself errored.
         if not bm25_ok:
             try:
+                if not _ws:
+                    raise ValueError("no acting workspace resolves")
                 from services.embeddings import get_embedding
                 query_embedding = await get_embedding(query)
                 result = auth.client.rpc("search_workspace_semantic", {
-                    "p_user_id": auth.user_id,
+                    "p_workspace_id": _ws,
                     "p_query_embedding": query_embedding,
                     "p_path_prefix": prefix,
                     "p_limit": limit,

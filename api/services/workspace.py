@@ -58,9 +58,9 @@ def _scoped(query, user_id: str):
     The workspace (explicit request binding via contextvar, else the
     principal's owner workspace) is the substrate's binding unit — this is
     what lets a member's reads/writes reach rows other principals created.
-    Unresolvable → legacy user_id scoping, byte-identical in N=1. RPC-backed
-    paths (search_workspace / match_workspace_files, keyed p_user_id) are
-    the named lag — they re-key when the SQL functions do.
+    Unresolvable → legacy user_id scoping, byte-identical in N=1. The
+    RPC-backed search paths re-keyed to p_workspace_id in migration 201
+    (ADR-407 Phase 1) — the named lag is closed.
     """
     from services.workspace_context import effective_workspace_id
     ws = effective_workspace_id(user_id)
@@ -274,8 +274,13 @@ class AgentWorkspace:
         """Full-text search within this agent's workspace."""
         full_prefix = self._full_path(path_prefix) if path_prefix else self._base
         try:
+            from services.workspace_context import effective_workspace_id
+            ws = effective_workspace_id(self._user_id)
+            if not ws:
+                logger.warning(f"[WORKSPACE] search: no workspace resolves for {self._user_id}")
+                return []
             result = self._db.rpc("search_workspace", {
-                "p_user_id": self._user_id,
+                "p_workspace_id": ws,
                 "p_query": query,
                 "p_path_prefix": full_prefix,
                 "p_limit": limit,

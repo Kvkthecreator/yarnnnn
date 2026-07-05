@@ -33,6 +33,7 @@ from datetime import datetime
 
 from services.supabase import UserClient
 from services.workspace import UserMemory
+from services.workspace_context import substrate_scope_filter
 
 logger = logging.getLogger(__name__)
 
@@ -464,7 +465,7 @@ async def list_activity(
         client = get_service_client()
         query = client.table("activity_log")\
             .select("*", count="exact")\
-            .eq("user_id", auth.user_id)\
+            .eq(*substrate_scope_filter(auth.user_id))\
             .gte("created_at", since)\
             .order("created_at", desc=True)\
             .limit(limit)

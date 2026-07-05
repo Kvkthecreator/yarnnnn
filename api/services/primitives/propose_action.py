@@ -21,6 +21,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+from services.workspace_context import effective_workspace_id, substrate_scope_filter
+
 logger = logging.getLogger(__name__)
 
 
@@ -239,6 +241,11 @@ async def enqueue_gated_action(
         "status": "pending",
         "source": source or None,
     }
+    # ADR-407: stamp the acting workspace explicitly when it resolves;
+    # otherwise omit and let the migration-201 trigger fill it.
+    acting_ws = effective_workspace_id(auth.user_id)
+    if acting_ws:
+        row["workspace_id"] = acting_ws
     result = auth.client.table("action_proposals").insert(row).execute()
     if not result.data:
         return {"success": False, "error": "insert_failed"}
@@ -447,7 +454,7 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
             auth.client.table("action_proposals")
             .select("*")
             .eq("id", proposal_id)
-            .eq("user_id", auth.user_id)  # RLS enforces but be explicit
+            .eq(*substrate_scope_filter(auth.user_id))  # RLS enforces but be explicit
             .limit(1)
             .execute()
         )
@@ -725,7 +732,7 @@ async def handle_reject_proposal(auth: Any, input: dict) -> dict:
                 "reviewer_reasoning": reviewer_reasoning or None,
             })
             .eq("id", proposal_id)
-            .eq("user_id", auth.user_id)
+            .eq(*substrate_scope_filter(auth.user_id))
             .eq("status", "pending")
             .execute()
         )

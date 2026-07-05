@@ -24,6 +24,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from services.workspace_context import effective_workspace_id, substrate_scope_filter
+
 logger = logging.getLogger(__name__)
 
 
@@ -109,6 +111,11 @@ async def write_activity(
         "event_type": event_type,
         "summary": summary,
     }
+    # ADR-407: stamp the acting workspace explicitly when it resolves;
+    # otherwise omit and let the migration-201 trigger fill it.
+    acting_ws = effective_workspace_id(user_id)
+    if acting_ws:
+        row["workspace_id"] = acting_ws
     if event_ref is not None:
         row["event_ref"] = str(event_ref)
     if metadata is not None:
@@ -148,7 +155,7 @@ async def get_recent_activity(
         result = (
             client.table("activity_log")
             .select("event_type, event_ref, summary, metadata, created_at")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .gte("created_at", since)
             .order("created_at", desc=True)
             .limit(limit)

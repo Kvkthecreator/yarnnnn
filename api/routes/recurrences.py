@@ -259,7 +259,7 @@ async def list_recurrences(
             "id, slug, status, schedule, next_run_at, last_run_at, "
             "created_at, updated_at, declaration_path, paused"
         )
-        .eq("user_id", auth.user_id)
+        .eq(*substrate_scope_filter(auth.user_id))
         .order("created_at", desc=True)
         .limit(limit)
     )
@@ -283,7 +283,7 @@ async def get_recurrence(slug: str, auth: UserClient) -> TaskResponse:
             "id, slug, status, schedule, next_run_at, last_run_at, "
             "created_at, updated_at, declaration_path, paused"
         )
-        .eq("user_id", auth.user_id)
+        .eq(*substrate_scope_filter(auth.user_id))
         .eq("slug", slug)
         .limit(1)
         .execute()
@@ -322,7 +322,7 @@ async def update_recurrence(
     rows = (
         auth.client.table("tasks")
         .select("id, slug, status, declaration_path, paused")
-        .eq("user_id", auth.user_id)
+        .eq(*substrate_scope_filter(auth.user_id))
         .eq("slug", slug)
         .limit(1)
         .execute()
@@ -344,7 +344,7 @@ async def update_recurrence(
     if request.schedule is not None:
         db_updates["schedule"] = request.schedule
 
-    auth.client.table("tasks").update(db_updates).eq("user_id", auth.user_id).eq(
+    auth.client.table("tasks").update(db_updates).eq(*substrate_scope_filter(auth.user_id)).eq(
         "slug", slug
     ).execute()
 
@@ -397,7 +397,7 @@ async def archive_recurrence(slug: str, auth: UserClient) -> dict:
     rows = (
         auth.client.table("tasks")
         .select("id, slug, declaration_path")
-        .eq("user_id", auth.user_id)
+        .eq(*substrate_scope_filter(auth.user_id))
         .eq("slug", slug)
         .limit(1)
         .execute()
@@ -408,7 +408,7 @@ async def archive_recurrence(slug: str, auth: UserClient) -> dict:
     auth.client.table("tasks").update({
         "status": "archived",
         "updated_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("user_id", auth.user_id).eq("slug", slug).execute()
+    }).eq(*substrate_scope_filter(auth.user_id)).eq("slug", slug).execute()
 
     from services.primitives.schedule import handle_schedule
     await handle_schedule(auth, {"action": "archive", "slug": slug, "authored_by": "operator"})
@@ -427,7 +427,7 @@ async def trigger_recurrence_run(slug: str, auth: UserClient) -> TaskRunTriggere
     rows = (
         auth.client.table("tasks")
         .select("id, slug, status")
-        .eq("user_id", auth.user_id)
+        .eq(*substrate_scope_filter(auth.user_id))
         .eq("slug", slug)
         .limit(1)
         .execute()
@@ -479,7 +479,7 @@ async def get_run_status(slug: str, auth: UserClient) -> RunStatusResponse:
     rows = (
         auth.client.table("tasks")
         .select("status, last_run_at, next_run_at")
-        .eq("user_id", auth.user_id)
+        .eq(*substrate_scope_filter(auth.user_id))
         .eq("slug", slug)
         .limit(1)
         .execute()

@@ -50,6 +50,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Any, Awaitable
 
+from services.workspace_context import substrate_scope_filter
 from services.workspace_paths import (
     PERSONA_IDENTITY_PATH,
     PERSONA_PRINCIPLES_PATH,
@@ -264,7 +265,7 @@ async def load_freddie_governance_envelope(
             res = (
                 client.table("workspace_files")
                 .select("content")
-                .eq("user_id", user_id)
+                .eq(*substrate_scope_filter(user_id))
                 .eq("path", full)
                 .limit(1)
                 .execute()
@@ -407,7 +408,7 @@ async def _inventory_specs(client: Any, user_id: str) -> str:
         res = (
             client.table("workspace_files")
             .select("path, content")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .like("path", f"{SPECS_PREFIX}%.md")
             .order("path")
             .execute()
@@ -495,7 +496,7 @@ def _decisions_from_action_proposals(client: Any, user_id: str) -> dict[str, dic
             client.table("action_proposals")
             .select("id,status,family,primitive,reviewer_identity,reviewer_reasoning,"
                     "approved_at,executed_at,created_at")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .in_("status", list(_DECIDED_PROPOSAL_STATUSES))
             .order("created_at", desc=True)
             # bound the read generously above the gap-limit; the join + cap below
@@ -567,7 +568,7 @@ async def _reflection_gap_fact(client: Any, user_id: str) -> str:
         res = (
             client.table("workspace_files")
             .select("content")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .eq("path", _full(gt_path))
             .limit(1)
             .execute()
@@ -650,7 +651,7 @@ async def _attribution_fact(client: Any, user_id: str) -> str:
         res = (
             client.table("workspace_file_versions")
             .select("path, authored_by, message, created_at")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .gte("created_at", cutoff)
             .order("created_at", desc=True)
             # Fetch a wider raw window than the line cap: the rows dedupe to one
@@ -746,7 +747,7 @@ async def _principal_commons_fact(client: Any, user_id: str) -> str:
         res = (
             client.table("workspace_file_versions")
             .select("authored_by")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .gte("created_at", cutoff)
             .order("created_at", desc=True)
             .limit(_ATTRIBUTION_FACT_LIMIT * 12)  # over-fetch; collapses to a few authors
@@ -830,7 +831,7 @@ async def _peripheral_field_fact(client: Any, user_id: str) -> str:
         res = (
             client.table("platform_connections")
             .select("platform, status")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .execute()
         )
         conns = res.data or []

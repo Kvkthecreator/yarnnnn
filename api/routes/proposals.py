@@ -22,6 +22,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from services.supabase import UserClient
+from services.workspace_context import substrate_scope_filter
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +147,7 @@ async def list_proposals(
         query = (
             auth.client.table("action_proposals")
             .select("*")
-            .eq("user_id", auth.user_id)
+            .eq(*substrate_scope_filter(auth.user_id))
             .order("created_at", desc=True)
             .limit(min(limit, 200))
         )
@@ -183,7 +184,7 @@ async def get_proposal(proposal_id: str, auth: UserClient):
             auth.client.table("action_proposals")
             .select("*")
             .eq("id", proposal_id)
-            .eq("user_id", auth.user_id)
+            .eq(*substrate_scope_filter(auth.user_id))
             .limit(1)
             .execute()
         )

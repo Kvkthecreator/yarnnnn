@@ -25,6 +25,7 @@ import logging
 from datetime import datetime, timezone
 from dateutil.parser import isoparse as _isoparse
 from typing import Any, Optional
+from services.workspace_context import effective_workspace_id, substrate_scope_filter
 from uuid import UUID
 
 logger = logging.getLogger(__name__)
@@ -76,7 +77,7 @@ async def get_platform_freshness_from_registry(
     try:
         result = client.table("sync_registry").select(
             "last_synced_at"
-        ).eq("user_id", user_id).eq("platform", platform).order(
+        ).eq(*substrate_scope_filter(user_id)).eq("platform", platform).order(
             "last_synced_at", desc=True
         ).limit(1).execute()
 
@@ -210,7 +211,7 @@ async def get_sync_state(
     try:
         result = client.table("sync_registry").select(
             "last_synced_at, platform_cursor, item_count, source_latest_at, resource_name"
-        ).eq("user_id", user_id).eq("platform", platform).eq("resource_id", resource_id).execute()
+        ).eq(*substrate_scope_filter(user_id)).eq("platform", platform).eq("resource_id", resource_id).execute()
 
         if result.data and len(result.data) > 0:
             return result.data[0]
@@ -279,6 +280,9 @@ async def update_sync_registry(
             if source_latest_at:
                 data["source_latest_at"] = source_latest_at.isoformat()
 
+        ws = effective_workspace_id(user_id)
+        if ws:
+            data["workspace_id"] = ws
         result = client.table("sync_registry").upsert(
             data,
             on_conflict="user_id,platform,resource_id"

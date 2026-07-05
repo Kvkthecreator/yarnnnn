@@ -39,6 +39,18 @@ from typing import Any, Optional
 
 from services.workspace_paths import INBOUND_ROOT  # the raw intake lane (ADR-376/DP32)
 
+
+def _substrate_scope(auth) -> tuple:
+    """(column, value) scope for substrate reads — ADR-407 Phase 1.
+
+    The workspace-keyed mirror of the write path: recall/trace reads reach the
+    COMMONS (whatever workspace the caller's grant binds), not the caller's own
+    row set. Closes the audit's 'recall reads still user-scoped' remainder —
+    a foreign LLM or member reading under a grant now sees the shared rows.
+    """
+    from services.workspace_context import substrate_scope_filter
+    return substrate_scope_filter(auth.user_id)
+
 logger = logging.getLogger(__name__)
 
 
@@ -491,7 +503,7 @@ async def _find_derived_from_raw(auth: Any, raw_abs_path: str) -> Optional[str]:
         hits = (
             auth.client.table("workspace_files")
             .select("path, content, updated_at")
-            .eq("user_id", auth.user_id)
+            .eq(*_substrate_scope(auth))
             .like("path", "/workspace/operation/%")
             .ilike("content", "%derived_from%")
             .order("updated_at", desc=True)
@@ -561,7 +573,7 @@ async def resolve_memory_path(auth: Any, subject: str) -> Optional[str]:
         derived = (
             auth.client.table("workspace_files")
             .select("path, updated_at")
-            .eq("user_id", auth.user_id)
+            .eq(*_substrate_scope(auth))
             .like("path", f"%/{slug}.md")
             .not_.like("path", f"%/{INBOUND_ROOT}%")
             .in_("lifecycle", ["active", "delivered"])
@@ -576,7 +588,7 @@ async def resolve_memory_path(auth: Any, subject: str) -> Optional[str]:
         raw = (
             auth.client.table("workspace_files")
             .select("path, updated_at")
-            .eq("user_id", auth.user_id)
+            .eq(*_substrate_scope(auth))
             .like("path", f"%/{INBOUND_ROOT}%/{slug}.md")
             .in_("lifecycle", ["active", "delivered"])
             .order("updated_at", desc=True)
@@ -641,7 +653,7 @@ async def resolve_trace_path(auth: Any, subject: str) -> tuple[Optional[str], st
             r = (
                 auth.client.table("workspace_file_versions")
                 .select("id", count="exact")
-                .eq("user_id", auth.user_id)
+                .eq(*_substrate_scope(auth))
                 .eq("path", path)
                 .execute()
             )
@@ -657,7 +669,7 @@ async def resolve_trace_path(auth: Any, subject: str) -> tuple[Optional[str], st
             res = (
                 auth.client.table("workspace_files")
                 .select("path")
-                .eq("user_id", auth.user_id)
+                .eq(*_substrate_scope(auth))
                 .in_("lifecycle", ["active", "delivered"])
                 .ilike("path", f"%/{stem}.%")
                 .limit(20)
@@ -797,7 +809,7 @@ async def compose_recall(
             row = (
                 auth.client.table("workspace_files")
                 .select("path, content, summary, updated_at")
-                .eq("user_id", auth.user_id)
+                .eq(*_substrate_scope(auth))
                 .eq("path", det_path)
                 .limit(1)
                 .execute()
@@ -1002,7 +1014,7 @@ async def compose_trace(
         head = (
             auth.client.table("workspace_files")
             .select("content")
-            .eq("user_id", auth.user_id)
+            .eq(*_substrate_scope(auth))
             .eq("path", abs_path)
             .limit(1)
             .execute()
@@ -1154,15 +1166,13 @@ async def submit_foreign_write_wake(
     attributed object that cites its source). Never raises — a wake failure must
     not affect the `remember` result (the raw already committed and is attributed).
 
-    Shared-workspace seam (Phase 3, deferred): the Reviewer is a WORKSPACE-level
-    seat (one per workspace), not per-user. The wake must fire for the WORKSPACE
-    that owns this substrate, independent of which member's LLM wrote it. Today
-    user_id == workspace owner (1:1), so `wake_scope` below equals auth.user_id
-    and is accidentally correct. When workspaces become shared (user_id →
-    workspace_id re-key), `wake_scope` becomes the resolved workspace_id — a
-    one-line change confined to this function, which is the sole MCP→wake seam.
-    The writing human's identity is preserved separately via authored_by on the
-    revision (ADR-288), so multi-author attribution survives the re-key.
+    Shared-workspace seam (CLOSED — ADR-407 Phase 1): the Reviewer is a
+    WORKSPACE-level seat (one per workspace), not per-user. The wake fires for
+    the workspace that owns this substrate, independent of which member's LLM
+    wrote it — `wake_scope` resolves acting-workspace → owner user id (the
+    wake pipeline's key), owner-fallback byte-identical in N=1. The writing
+    principal's identity is preserved separately via authored_by on the
+    revision (ADR-288) + principal_id on the wake payload.
     """
     try:
         # workspace-relative path → absolute workspace path for revision lookup.
@@ -1170,9 +1180,28 @@ async def submit_foreign_write_wake(
         if abs_path and not abs_path.startswith("/workspace/"):
             abs_path = "/workspace/" + abs_path.lstrip("/")
 
-        # TODO(shared-workspace / Phase 3): resolve workspace_id here instead of
-        # reusing the writing user's id. Today 1:1, so this is correct.
+        # ADR-407 Phase 1: the wake fires for the WORKSPACE that owns this
+        # substrate, independent of which member's LLM wrote it. The wake
+        # pipeline is keyed by the workspace's OWNER user id (wake.py's unit),
+        # so resolve acting-workspace → owner. Owner fallback == auth.user_id,
+        # byte-identical N=1; a member's MCP write now wakes the commons' seat
+        # instead of the member's own singleton. (Closes the Phase-3 TODO.)
         wake_scope = auth.user_id
+        try:
+            from services.workspace_context import effective_workspace_id
+            _ws = effective_workspace_id(auth.user_id)
+            if _ws:
+                _row = (
+                    auth.client.table("workspaces")
+                    .select("owner_id")
+                    .eq("id", _ws)
+                    .limit(1)
+                    .execute()
+                )
+                if _row.data and _row.data[0].get("owner_id"):
+                    wake_scope = _row.data[0]["owner_id"]
+        except Exception:  # best-effort — fall back to the writer's own lane
+            pass
 
         from services.authored_substrate import _read_head_revision_id
 

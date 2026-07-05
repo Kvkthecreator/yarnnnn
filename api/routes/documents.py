@@ -103,7 +103,7 @@ async def _embed_projection_deferred(user_id: str, projection_path: str) -> None
 
         service = get_service_client()
         row = service.table("workspace_files").select("content").eq(
-            "user_id", user_id).eq("path", projection_path).limit(1).execute()
+            *substrate_scope_filter(user_id)).eq("path", projection_path).limit(1).execute()
         if not row.data:
             logger.warning(f"[DOCUMENTS] deferred embed: projection gone {projection_path}")
             return

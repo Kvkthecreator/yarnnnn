@@ -122,9 +122,13 @@ def enqueue(
 
     Per ADR-298 D6: dedup_key is per-source (revision_id for substrate_event,
     '<slug>:<minute>' for cron_tick, message_id for addressed, etc.). The
-    UNIQUE (user_id, wake_source, dedup_key) constraint enforces single-
-    fire at insert time. NULL dedup_key (manual_fire only) bypasses
-    dedup by design.
+    UNIQUE (workspace_id, wake_source, dedup_key) constraint (re-keyed from
+    user_id by ADR-407 Phase 1, migration 201 — one queue per commons; the
+    BEFORE INSERT trigger fills workspace_id from the owner mapping, so the
+    constraint sees the filled value) enforces single-fire at insert time.
+    NULL dedup_key (manual_fire only) bypasses dedup by design. Callers pass
+    the workspace OWNER's user_id (the wake pipeline's unit); the sole seam
+    where writer ≠ owner (MCP foreign write) resolves owner before submitting.
 
     The caller (each wake source's submit path) derives the dedup_key
     from its source-of-truth (revision_id from workspace_file_versions,

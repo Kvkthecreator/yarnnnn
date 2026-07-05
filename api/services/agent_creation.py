@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import uuid4
 
+from services.workspace_context import effective_workspace_id, substrate_scope_filter
+
 logger = logging.getLogger(__name__)
 
 
@@ -82,6 +84,7 @@ AGENT_COLUMNS = {
     "agent_instructions", "agent_memory",
     "scope", "role",
     "avatar_url",
+    "workspace_id",
 }
 
 
@@ -159,6 +162,12 @@ async def create_agent_record(
 
     if avatar_url:
         agent_data["avatar_url"] = avatar_url
+
+    # ADR-407: stamp the acting workspace explicitly when it resolves;
+    # otherwise omit and let the migration-201 trigger fill it.
+    acting_ws = effective_workspace_id(user_id)
+    if acting_ws:
+        agent_data["workspace_id"] = acting_ws
 
     # Strip to valid columns only
     agent_data = {k: v for k, v in agent_data.items() if k in AGENT_COLUMNS}
@@ -321,7 +330,7 @@ async def ensure_infrastructure_agent(
     existing = (
         client.table("agents")
         .select("*")
-        .eq("user_id", user_id)
+        .eq(*substrate_scope_filter(user_id))
         .eq("role", role)
         .eq("origin", "system_bootstrap")
         .limit(1)
