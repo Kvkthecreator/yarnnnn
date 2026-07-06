@@ -17,8 +17,9 @@ FE source-guards (the web/ package has no JS runner — ADR-350/367 gate shape):
       redirect stubs + page mount follow).
   (e) ADR-411 lane MECHANICS untouched is asserted by test_adr411_lanes.py
       staying green — run both.
-  (f) D6 ambient context — the which-workspace indicator (top bar, renders
-      only at >1 bindings) + the who's-here roster read (membership, never
+  (f) D6 ambient context — the which-workspace indicator (top bar, always
+      rendered once resolved — N=1 shows "My workspace"; operator ruling
+      2026-07-06) + the who's-here roster read (membership, never
       presence), both off the module-cached viewer-layer fetches.
   (g) D6 grant-derived affordances — authoring/consequential affordances
       render per the viewer's WRITE-REGION coverage (useViewerGrant +
@@ -238,8 +239,10 @@ def test_system_agent_rehome() -> None:
 def test_ambient_context() -> None:
     print("\n[f] D6 ambient context — which-workspace + who's-here")
     ind = _read("web/components/shell/WorkspaceIndicator.tsx")
-    _assert("memberships.length <= 1" in ind,
-            "the indicator renders only at >1 bindings (N=1 byte-identical)")
+    _assert("memberships.length <= 1" not in ind,
+            "no >1-bindings condition — the chip is consistent chrome (operator ruling 2026-07-06)")
+    _assert("!loaded || memberships.length === 0" in ind,
+            "hidden only while unresolved/empty — every resolved caller sees their binding")
     _assert("useWorkspaceMemberships" in ind and "useWorkspaceMembers" in ind,
             "both reads ride the module-cached viewer layer")
     _assert("presence" in ind and "not presence" in ind.lower(),

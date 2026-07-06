@@ -4,13 +4,14 @@
  * WorkspaceIndicator — the ambient which-workspace + who's-here read
  * (ADR-412 D6, the "ambient context" clause).
  *
- * In a multi-workspace life the binding must be GLANCEABLE — before this,
- * the only place the active workspace showed was inside the UserMenu
- * switcher (ADR-407 Phase 5), so a member acting in a peer's commons had
- * no standing signal of where their acts would land. This chip names the
- * acting workspace in the top bar whenever the caller holds MORE THAN ONE
- * binding (N=1 users see nothing — the ADR-407 Phase 5 hidden-switcher
- * discipline, applied to chrome).
+ * The binding must be GLANCEABLE — before this, the only place the active
+ * workspace showed was inside the UserMenu switcher (ADR-407 Phase 5), so
+ * a member acting in a peer's commons had no standing signal of where
+ * their acts would land. The chip renders for EVERY caller, N=1 included
+ * ("My workspace") — operator ruling 2026-07-06 amending the initial
+ * >1-bindings condition: a chrome element that appears only for some
+ * accounts reads as inconsistency, not economy. (The UserMenu SWITCHER
+ * stays >1-gated — switching needs alternatives; naming doesn't.)
  *
  * The popover is a compact WHO'S-HERE read: the workspace's principal
  * roster — humans and AI principals — from the SAME cached members fetch
@@ -39,15 +40,16 @@ const HUMAN_ROLES = new Set(['owner', 'member']);
 export function WorkspaceIndicator() {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { memberships } = useWorkspaceMemberships();
+  const { memberships, loaded } = useWorkspaceMemberships();
   const { members, loaded: membersLoaded } = useWorkspaceMembers();
   const { navigateToSurface } = useSurfacePreferences();
 
   usePopoverDismissal(containerRef, isOpen, () => setIsOpen(false));
 
-  // Glanceable only when there is something to disambiguate: one binding →
-  // no chip (the N=1 world stays byte-identical).
-  if (memberships.length <= 1) return null;
+  // Always rendered once resolved — N=1 shows "My workspace" (consistency
+  // over conditional chrome; operator ruling 2026-07-06). Hidden only while
+  // the membership read is unresolved or empty (pre-substrate).
+  if (!loaded || memberships.length === 0) return null;
 
   const active = memberships.find((m) => m.is_active) ?? memberships[0];
 
