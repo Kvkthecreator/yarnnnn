@@ -19,6 +19,8 @@
  *   kernel    → known-primitive verb phrase ("Run a task now", …)
  */
 
+import { formatAuthorLabelOrSystem } from '@/lib/workspace/attribution';
+
 export interface ProposalLike {
   primitive: string;
   family?: 'capital' | 'external-write' | 'substrate' | string;
@@ -74,4 +76,27 @@ export function proposalActionLabel(p: ProposalLike): string {
     ? p.primitive.replace(/_/g, ' ')
     : p.primitive.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
   return cap(base);
+}
+
+/**
+ * ADR-408 D5.2 — act-vs-agent disambiguation. A pending proposal queued by an
+ * agent is queued by that agent's WITNESS DIAL (ADR-405: autonomy = witness
+ * timing), not by a permission failure. This line attributes the queuing to
+ * the dial so the operator reads "decided, awaiting my witness" rather than
+ * "blocked". Returns null when the proposal's `source` is not an agent act
+ * (operator/system-sourced rows carry no dial story). The agent label routes
+ * through the shared attribution module — never a parallel actor-label map.
+ */
+export function proposalQueuedByDialLine(
+  source: string | null | undefined,
+): string | null {
+  if (!source) return null;
+  if (
+    source.startsWith('freddie:') ||
+    source.startsWith('reviewer:') ||
+    source.startsWith('agent:')
+  ) {
+    return `Queued by ${formatAuthorLabelOrSystem(source)}'s autonomy setting — awaiting a witness`;
+  }
+  return null;
 }

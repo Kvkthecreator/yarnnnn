@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api/client';
 import { cn } from '@/lib/utils';
-import { proposalActionLabel } from '@/lib/proposal-labels';
+import { proposalActionLabel, proposalQueuedByDialLine } from '@/lib/proposal-labels';
 import { useFreddiePersona } from '@/lib/freddie-persona';
 import { InteractiveModal } from './InteractiveModal';
 
@@ -50,6 +50,12 @@ export interface ProposalData {
   /** Structured inputs — the actual payload replayed on approve. Shape varies
    * by primitive. Rendered by `ProposalInputs` (family-dispatched). */
   inputs?: Record<string, unknown>;
+  /** ADR-307 D6 / ADR-408 D5.2: who queued this — an authored_by-taxonomy
+   * string (e.g. "reviewer:signal-evaluation"). When agent-sourced, the modal
+   * attributes the queuing to the agent's witness dial (ADR-405), not a
+   * permission failure. Optional — entry points that lack the field (chat
+   * tool-result chips, fetch-by-id) simply omit the line. */
+  source?: string | null;
 }
 
 /** ADR-307: normalize a proposal's family-shaped decision_context into the
@@ -504,8 +510,16 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
 
   const norm = normalizeProposal(liveProposal);
 
+  // ADR-408 D5.2: an agent-queued pending proposal is queued by the agent's
+  // WITNESS DIAL (ADR-405), not a permission failure — say so, subdued.
+  const dialLine =
+    liveProposal.status === 'pending' ? proposalQueuedByDialLine(liveProposal.source) : null;
+
   return (
     <div className="space-y-3">
+      {dialLine && (
+        <p className="text-[11px] text-muted-foreground/60">{dialLine}</p>
+      )}
       {/* Rationale */}
       {norm.rationale && (
         <p className="text-sm">{norm.rationale}</p>

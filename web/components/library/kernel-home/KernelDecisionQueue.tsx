@@ -29,7 +29,7 @@ import { api } from '@/lib/api/client';
 // inline label map + actionLabel() consolidated into the shared module
 // (Singular Implementation; ProposalCard + AttentionCenter use the
 // same import).
-import { proposalActionLabel } from '@/lib/proposal-labels';
+import { proposalActionLabel, proposalQueuedByDialLine } from '@/lib/proposal-labels';
 
 const COMPACT_LIMIT = 4;
 
@@ -46,6 +46,9 @@ interface PendingProposal {
   expires_at?: string;
   status?: string;
   inputs?: Record<string, unknown>;
+  // ADR-408 D5.2: who queued this (authored_by-taxonomy string). Agent-sourced
+  // rows attribute the queuing to the agent's witness dial (ADR-405).
+  source?: string | null;
 }
 
 interface KernelDecisionQueueProps {
@@ -69,6 +72,7 @@ function toProposalData(p: PendingProposal): ProposalData {
     expires_at: p.expires_at ?? '',
     status: p.status ?? 'pending',
     inputs: p.inputs,
+    source: p.source,
   };
 }
 
@@ -149,8 +153,18 @@ export function KernelDecisionQueue({ initialProposals }: KernelDecisionQueuePro
                   }
                   aria-hidden
                 />
-                <span className="flex-1 min-w-0 text-sm text-foreground truncate">
-                  {proposalActionLabel(p)}
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm text-foreground truncate">
+                    {proposalActionLabel(p)}
+                  </span>
+                  {/* ADR-408 D5.2: attribute the queuing to the agent's
+                      witness dial (ADR-405) — decided, awaiting a witness;
+                      not a permission failure. */}
+                  {proposalQueuedByDialLine(p.source) && (
+                    <span className="block text-[11px] text-muted-foreground/50 truncate">
+                      {proposalQueuedByDialLine(p.source)}
+                    </span>
+                  )}
                 </span>
               </button>
             </li>

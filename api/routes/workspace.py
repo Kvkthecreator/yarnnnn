@@ -112,6 +112,27 @@ class WorkspaceMembersResponse(BaseModel):
     grant_consult_active: bool = True
 
 
+class TimelineEntry(BaseModel):
+    """One attributed act in the workspace timeline (ADR-408 D5.1 / ADR-407
+    Phase 4b). Derived from the ledgers at read time — never stored."""
+    kind: str                              # revision | invocation | proposal
+    at: str                                # ISO timestamp (sort key)
+    actor: Optional[str] = None            # authored_by | principal_id | source — FE attribution module maps the label
+    title: str                             # one-line human summary
+    detail: Optional[str] = None           # message / status detail
+    path: Optional[str] = None             # revision target (deep-link)
+    slug: Optional[str] = None             # invocation slug
+    proposal_id: Optional[str] = None
+    status: Optional[str] = None           # invocation/proposal status
+    decided_by: Optional[str] = None       # proposal approved_by (witness)
+
+
+class WorkspaceTimelineResponse(BaseModel):
+    entries: list[TimelineEntry]
+    # True when any source query returned a full page — more history exists.
+    has_more: bool = False
+
+
 class WorkspaceMembership(BaseModel):
     """One workspace the CALLER can act in (ADR-407 Phase 5 — the switcher)."""
     workspace_id: str
@@ -806,6 +827,106 @@ async def get_recent_artifacts(
 # roster logic this route does — Singular Implementation. Re-exported under the
 # route's prior private name to keep call sites below unchanged.
 from services.principals import class_default_write_regions as _class_default_write_regions
+
+
+@router.get("/workspace/timeline", response_model=WorkspaceTimelineResponse)
+async def get_workspace_timeline(
+    auth: UserClient, limit: int = 40, before: Optional[str] = None
+) -> WorkspaceTimelineResponse:
+    """The workspace's shared timeline — what happened, by whom (ADR-408 D5.1,
+    ADR-407 Phase 4b).
+
+    DERIVED at read time from the three attributed ledgers (DP29 — never
+    stored, never a chat table): substrate revisions
+    (workspace_file_versions), invocations (execution_events, no dollar
+    figures — ADR-396 display discipline), and proposal lifecycle
+    (action_proposals, including who witnessed the decision). Workspace-scoped
+    — every member reads the same timeline; each entry carries its actor for
+    the FE attribution module. This is the member-visible home of autonomous
+    and peer work that private chat threads can't show.
+    """
+    from services.workspace_context import substrate_scope_filter
+
+    limit = max(1, min(limit, 100))
+    col, val = substrate_scope_filter(auth.user_id)
+    entries: list[TimelineEntry] = []
+    page_full = False
+
+    # 1. Substrate revisions — who wrote what.
+    try:
+        q = (
+            auth.client.table("workspace_file_versions")
+            .select("path, authored_by, message, created_at")
+            .eq(col, val)
+        )
+        if before:
+            q = q.lt("created_at", before)
+        rows = q.order("created_at", desc=True).limit(limit).execute().data or []
+        page_full = page_full or len(rows) >= limit
+        for r in rows:
+            entries.append(TimelineEntry(
+                kind="revision",
+                at=r.get("created_at") or "",
+                actor=r.get("authored_by"),
+                title=r.get("path") or "substrate change",
+                detail=r.get("message"),
+                path=r.get("path"),
+            ))
+    except Exception as e:
+        logger.warning("[TIMELINE] revisions read failed: %s", e)
+
+    # 2. Invocations — who ran what. No cost fields (dollars stay internal).
+    try:
+        q = (
+            auth.client.table("execution_events")
+            .select("slug, mode, status, trigger_type, principal_id, created_at")
+            .eq(col, val)
+        )
+        if before:
+            q = q.lt("created_at", before)
+        rows = q.order("created_at", desc=True).limit(limit).execute().data or []
+        page_full = page_full or len(rows) >= limit
+        for r in rows:
+            entries.append(TimelineEntry(
+                kind="invocation",
+                at=r.get("created_at") or "",
+                actor=r.get("principal_id"),
+                title=r.get("slug") or "invocation",
+                detail=f"{r.get('mode') or ''} · {r.get('trigger_type') or ''}".strip(" ·"),
+                slug=r.get("slug"),
+                status=r.get("status"),
+            ))
+    except Exception as e:
+        logger.warning("[TIMELINE] invocations read failed: %s", e)
+
+    # 3. Proposal lifecycle — what awaited witness + who decided. Timeline
+    # position = the decision when one exists, else the arrival.
+    try:
+        q = (
+            auth.client.table("action_proposals")
+            .select("id, primitive, family, status, source, approved_by, created_at, approved_at")
+            .eq(col, val)
+        )
+        if before:
+            q = q.lt("created_at", before)
+        rows = q.order("created_at", desc=True).limit(limit).execute().data or []
+        page_full = page_full or len(rows) >= limit
+        for r in rows:
+            at = r.get("approved_at") or r.get("created_at") or ""
+            entries.append(TimelineEntry(
+                kind="proposal",
+                at=at,
+                actor=r.get("source"),
+                title=f"{r.get('primitive') or 'action'} ({r.get('family') or 'proposal'})",
+                proposal_id=r.get("id"),
+                status=r.get("status"),
+                decided_by=r.get("approved_by"),
+            ))
+    except Exception as e:
+        logger.warning("[TIMELINE] proposals read failed: %s", e)
+
+    entries.sort(key=lambda e: e.at or "", reverse=True)
+    return WorkspaceTimelineResponse(entries=entries[:limit], has_more=page_full)
 
 
 @router.get("/workspace/memberships", response_model=WorkspaceMembershipsResponse)

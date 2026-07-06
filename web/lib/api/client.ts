@@ -1283,6 +1283,30 @@ export const api = {
         }>;
       }>(`/api/workspace/recent-revisions?limit=${limit}`),
 
+    // ADR-408 D5.1: the workspace timeline — ONE chronological, attributed
+    // stream across the three act ledgers (revisions + invocations +
+    // proposals). Distinct from recentRevisions (substrate-only): this is
+    // "what happened across the workspace, by whom" — every actor, every
+    // kind of act. Powers the Home Timeline slot.
+    timeline: (limit: number = 40) =>
+      request<{
+        entries: Array<{
+          kind: 'revision' | 'invocation' | 'proposal';
+          at: string | null;
+          // authored_by-taxonomy string / principal id — render via the
+          // shared attribution module (lib/workspace/attribution.ts).
+          actor: string | null;
+          title: string | null;
+          detail: string | null;
+          path: string | null;
+          slug: string | null;
+          proposal_id: string | null;
+          status: string | null;
+          decided_by: string | null;
+        }>;
+        has_more: boolean;
+      }>(`/api/workspace/timeline?limit=${limit}`),
+
     // ADR-373 D2: the workspace's principals — WHO can write here, and WHAT
     // write-regions they hold. Read-only legibility over principal_grants; the
     // grant-consult (the gate) authorizes per-principal, this surfaces the same

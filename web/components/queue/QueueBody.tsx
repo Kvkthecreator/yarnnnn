@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Inbox, ShieldCheck } from 'lucide-react';
 import { useProposalModal, type ProposalData } from '@/components/tp/ProposalCard';
 import { api } from '@/lib/api/client';
+import { proposalQueuedByDialLine } from '@/lib/proposal-labels';
 import { cn } from '@/lib/utils';
 
 interface QueueProposal extends ProposalData {
@@ -142,7 +143,17 @@ export function QueueBody() {
                         className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
                       >
                         <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', meta.dot)} aria-hidden />
-                        <span className="flex-1 min-w-0 text-sm text-foreground truncate">{rowLabel(p)}</span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm text-foreground truncate">{rowLabel(p)}</span>
+                          {/* ADR-408 D5.2: agent-queued rows attribute the
+                              queuing to the agent's witness dial (ADR-405),
+                              not a permission failure. */}
+                          {proposalQueuedByDialLine(p.source) && (
+                            <span className="block text-[11px] text-muted-foreground/50 truncate">
+                              {proposalQueuedByDialLine(p.source)}
+                            </span>
+                          )}
+                        </span>
                         {p.reviewer_identity?.startsWith('ai:') && (
                           <span className="shrink-0 text-[10px] rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-400">
                             Reviewer approved

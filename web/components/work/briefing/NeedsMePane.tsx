@@ -17,6 +17,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Loader2, AlertCircle, Clock, ShieldAlert } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { useProposalModal } from '@/components/tp/ProposalCard';
+import { proposalQueuedByDialLine } from '@/lib/proposal-labels';
 
 type Proposal = Awaited<ReturnType<typeof api.proposals.list>>['proposals'][number];
 
@@ -180,6 +181,9 @@ function adaptProposalForModal(p: Proposal): import('@/components/tp/ProposalCar
     expires_at: p.expires_at,
     status: p.status,
     inputs: p.inputs,
+    // ADR-408 D5.2: the modal attributes agent-queued proposals to the
+    // agent's witness dial (ADR-405).
+    source: p.source,
   };
 }
 
@@ -247,6 +251,13 @@ function InlineProposalRow({
       {summary && (
         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
           {summary}
+        </p>
+      )}
+      {/* ADR-408 D5.2: agent-queued rows attribute the queuing to the agent's
+          witness dial (ADR-405), not a permission failure. */}
+      {proposalQueuedByDialLine(proposal.source) && (
+        <p className="mt-1 text-[11px] text-muted-foreground/50">
+          {proposalQueuedByDialLine(proposal.source)}
         </p>
       )}
       <p className="mt-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">

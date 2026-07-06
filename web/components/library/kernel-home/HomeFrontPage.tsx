@@ -22,13 +22,18 @@
  *                           Acts in place via the shared proposal modal
  *                           (ADR-367, preserved) — the first substantive
  *                           section: what needs your OK.
- *   #3 Recents (visual)   — HomeRecents (kernel; ADR-369 §D4/§D6). A card glance
+ *   #3 Timeline           — WorkspaceTimeline (kernel-universal; ADR-408 D5.1).
+ *                           ONE chronological, attributed stream across the
+ *                           three act ledgers (revisions + invocations +
+ *                           proposals) — the commons made legible: every
+ *                           actor, attributed.
+ *   #4 Recents (visual)   — HomeRecents (kernel; ADR-369 §D4/§D6). A card glance
  *                           of recent attributed substrate changes — the
  *                           Files-recents data source, visualized. Distinct from
  *                           recent artifacts (§D6).
- *   #4 Recent artifacts   — KernelRecentArtifacts (kernel-universal). Delivered
+ *   #5 Recent artifacts   — KernelRecentArtifacts (kernel-universal). Delivered
  *                           outputs ("the dividends").
- *   #5 Judgment trail     — KernelJudgmentTrail (kernel-universal). The
+ *   #6 Judgment trail     — KernelJudgmentTrail (kernel-universal). The
  *                           Reviewer's recent calls.
  *
  * Each kernel slot self-hides when its substrate is empty, so the cold-start
@@ -43,6 +48,7 @@ import { ArrowRight } from 'lucide-react';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { HomeHeader } from '../HomeHeader';
 import { KernelDecisionQueue } from './KernelDecisionQueue';
+import { WorkspaceTimeline } from './WorkspaceTimeline';
 import { KernelRecentArtifacts } from './KernelRecentArtifacts';
 import { KernelJudgmentTrail } from './KernelJudgmentTrail';
 import { HomeRecents } from './HomeRecents';
@@ -77,14 +83,19 @@ export function HomeFrontPage({
             the ADR-307 gate) without leaving Home. */}
         <KernelDecisionQueue initialProposals={bundle?.proposals} />
 
-        {/* #3 — Recents (visual): recent attributed substrate changes, the
+        {/* #3 — Timeline: the workspace's one chronological attributed act
+            stream (revisions + invocations + proposals; ADR-408 D5.1).
+            Self-hides. */}
+        <WorkspaceTimeline />
+
+        {/* #4 — Recents (visual): recent attributed substrate changes, the
             Files-recents data visualized (ADR-369 §D4/§D6). Self-hides. */}
         <HomeRecents />
 
-        {/* #4 — Recent artifacts (kernel-universal; self-hides) */}
+        {/* #5 — Recent artifacts (kernel-universal; self-hides) */}
         <KernelRecentArtifacts initialArtifacts={bundle?.recent_artifacts} />
 
-        {/* #5 — Judgment trail (kernel-universal; self-hides) */}
+        {/* #6 — Judgment trail (kernel-universal; self-hides) */}
         <KernelJudgmentTrail initialContent={bundle?.judgment_log} />
 
         {/* Cold-start CTA — only when there is nothing else to show */}
