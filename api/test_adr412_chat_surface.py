@@ -17,6 +17,13 @@ FE source-guards (the web/ package has no JS runner — ADR-350/367 gate shape):
       redirect stubs + page mount follow).
   (e) ADR-411 lane MECHANICS untouched is asserted by test_adr411_lanes.py
       staying green — run both.
+  (f) D6 ambient context — the which-workspace indicator (top bar, renders
+      only at >1 bindings) + the who's-here roster read (membership, never
+      presence), both off the module-cached viewer-layer fetches.
+  (g) D6 grant-derived affordances — authoring/consequential affordances
+      render per the viewer's WRITE-REGION coverage (useViewerGrant +
+      GrantGate), NEVER a role enum: constitution-band drafts, the
+      activation CTA, the Workspace Settings constitutional panes.
 
 Run: .venv/bin/python api/test_adr412_chat_surface.py
 """
@@ -223,6 +230,77 @@ def test_system_agent_rehome() -> None:
         )
 
 
+# =============================================================================
+# (f) D6 — ambient commons context (which-workspace + who's-here)
+# =============================================================================
+
+
+def test_ambient_context() -> None:
+    print("\n[f] D6 ambient context — which-workspace + who's-here")
+    ind = _read("web/components/shell/WorkspaceIndicator.tsx")
+    _assert("memberships.length <= 1" in ind,
+            "the indicator renders only at >1 bindings (N=1 byte-identical)")
+    _assert("useWorkspaceMemberships" in ind and "useWorkspaceMembers" in ind,
+            "both reads ride the module-cached viewer layer")
+    _assert("presence" in ind and "not presence" in ind.lower(),
+            "membership-not-presence is stated in-source (ADR-373 rejection stands)")
+    _assert("WebSocket" not in ind and "setInterval" not in ind,
+            "no realtime/polling — membership is a slow fact")
+    _assert('pane: \'members\'' in ind or 'pane: "members"' in ind,
+            "depth deep-links to Workspace Settings → Members (glance vs mirror)")
+    top = _read("web/components/shell/chrome/TopBarSurface.tsx")
+    _assert("WorkspaceIndicator" in top, "the indicator mounts in the top bar")
+    menu = _read("web/components/shell/UserMenu.tsx")
+    _assert("useWorkspaceMemberships" in menu,
+            "the UserMenu switcher rides the same cached fetch (one read)")
+
+    viewer = _read("web/lib/workspace/viewer.ts")
+    _assert("membershipsPromise" in viewer and "membersPromise" in viewer,
+            "module-level caches — one fetch per page life")
+
+
+# =============================================================================
+# (g) D6 — grant-derived affordances (never a role enum)
+# =============================================================================
+
+
+def test_grant_derived_affordances() -> None:
+    print("\n[g] D6 grant-derived affordances")
+    viewer = _read("web/lib/workspace/viewer.ts")
+    _assert("useViewerGrant" in viewer and "write_regions" in viewer,
+            "the viewer's grant coverage derives from write_regions")
+    _assert("covers" in viewer, "coverage check is region-based")
+
+    gate = _read("web/components/workspace-concepts/GrantGate.tsx")
+    _assert("useViewerGrant" in gate, "GrantGate rides the viewer grant")
+    _assert("fieldset disabled" in gate or "<fieldset disabled" in gate,
+            "read-only panes disable controls natively")
+    _assert("Read-only" in gate, "the gap is EXPLICIT (banner names the region)")
+
+    # The no-species-law twin: no affordance keys on the role enum.
+    for rel in (
+        "web/components/workspace-concepts/GrantGate.tsx",
+        "web/components/library/HomeHeader.tsx",
+        "web/components/library/kernel-home/HomeFrontPage.tsx",
+    ):
+        src = _read(rel)
+        _assert("role ===" not in src and "role !==" not in src,
+                f"{rel.split('/')[-1]} never keys on a role enum")
+
+    home = _read("web/components/library/HomeHeader.tsx")
+    _assert("useViewerGrant" in home and "constitution/" in home,
+            "constitution-band drafts gate on constitution/ coverage")
+    front = _read("web/components/library/kernel-home/HomeFrontPage.tsx")
+    _assert("useViewerGrant" in front and "canActivate" in front,
+            "the activation CTA gates on constitution/ coverage")
+    ws = _read("web/app/(authenticated)/workspace-settings/page.tsx")
+    _assert('GrantGate region="constitution/"' in ws,
+            "the Mandate pane is grant-gated")
+    sap = _read("web/components/agents/SystemAgentPanes.tsx")
+    _assert("PANE_REGIONS" in sap and "governance/" in sap and "persona/" in sap,
+            "System Agent panes gate per their region root")
+
+
 if __name__ == "__main__":
     test_drawer_steward_only()
     test_kernel_registry_row()
@@ -230,6 +308,8 @@ if __name__ == "__main__":
     test_surface_work_first()
     test_roster_purified()
     test_system_agent_rehome()
+    test_ambient_context()
+    test_grant_derived_affordances()
     print("\n" + "=" * 60)
     print(f"ADR-412 gate: {_passed} passed, {_failed} failed")
     print("=" * 60)

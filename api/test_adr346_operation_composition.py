@@ -106,10 +106,17 @@ def test_one_body_two_mounts() -> None:
     # ADR-349 D2: the composition page renamed operation → notifications.
     op = _read("app/(authenticated)/notifications/page.tsx")
     check("Resolve pane mounts QueueBody", "QueueBody" in op)
-    check("Understand pane mounts FeedSurface", "FeedSurface" in op)
+    # ADR-410 D5 (2026-07-06): the Understand pane re-mounted from the
+    # chat-narrative FeedSurface to the workspace-timeline workbench
+    # (ActivityLedger) — same one-body discipline, new (correct) body.
+    check("Understand pane mounts the timeline workbench (ADR-410 D5)",
+          "ActivityLedger" in op)
     check("Tune pane mounts RecurrenceList", "RecurrenceList" in op)
+    # Label pass renamed "Open full Recurrence" → "Open full Schedule"
+    # (operator words); the assert was stale on baseline — re-pointed
+    # 2026-07-06 while re-pointing the Understand pane above.
     check("each pane offers an escape hatch into the full mirror",
-          "Open full Queue" in op and "Open full Recurrence" in op)
+          "Open full Queue" in op and "Open full Schedule" in op)
     check("mounts the shared SettingsPaneShell (Singular Implementation)",
           "SettingsPaneShell" in op and "fullBleed" in op)
     check("three panes: resolve/understand/tune (keys unchanged through rename)",

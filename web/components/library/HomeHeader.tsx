@@ -42,6 +42,7 @@ import { useAutonomy } from '@/lib/content-shapes/autonomy';
 import type { AutonomyDelegation } from '@/lib/content-shapes/autonomy';
 import { parse as parseMandate } from '@/lib/content-shapes/mandate';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { useViewerGrant } from '@/lib/workspace/viewer';
 import { useHome } from './HomeContext';
 import { cn } from '@/lib/utils';
 
@@ -139,6 +140,12 @@ interface HomeHeaderProps {
 
 export function HomeHeader({ initialMandate, initialAutonomy }: HomeHeaderProps = {}) {
   const { onOpenChatDraft } = useHome();
+  // ADR-412 D3 — the author/edit chat-drafts are CONSTITUTIONAL affordances
+  // (they draft writes to constitution/MANDATE.md): they render per the
+  // viewer's grant coverage, never a role enum. Reads stay universal —
+  // the band itself renders for every member.
+  const { userId } = useSurfacePreferences();
+  const canAmendConstitution = useViewerGrant(userId).covers('constitution/');
   const primed = initialMandate !== undefined;
   const { effectiveLevel, summary: autonomySummary, loading: autonomyLoading } = useAutonomy(
     // useAutonomy already supports a pre-primed path via initialContent.
@@ -186,14 +193,16 @@ export function HomeHeader({ initialMandate, initialAutonomy }: HomeHeaderProps 
           <div className="flex-1 min-w-0">
             <div className="rounded-md border border-dashed border-amber-300 bg-amber-50/50 px-4 py-3 text-sm text-amber-900">
               <span className="font-medium">Mandate not yet declared.</span>{' '}
-              Your mandate is the Primary Action and guardrails YARNNN operates within.{' '}
-              <button
-                type="button"
-                onClick={() => onOpenChatDraft('Help me author my mandate — the Primary Action this workspace is running, success criteria, and boundary conditions.')}
-                className="font-medium underline underline-offset-4 hover:no-underline"
-              >
-                Author in chat
-              </button>
+              The mandate is the Primary Action and guardrails YARNNN operates within.{' '}
+              {canAmendConstitution && (
+                <button
+                  type="button"
+                  onClick={() => onOpenChatDraft('Help me author my mandate — the Primary Action this workspace is running, success criteria, and boundary conditions.')}
+                  className="font-medium underline underline-offset-4 hover:no-underline"
+                >
+                  Author in chat
+                </button>
+              )}
             </div>
             <ConstitutionLinks />
           </div>
@@ -234,15 +243,17 @@ export function HomeHeader({ initialMandate, initialAutonomy }: HomeHeaderProps 
             level={effectiveLevel as AutonomyDelegation | null}
             summary={autonomySummary}
           />
-          {/* Edit mandate shortcut */}
-          <button
-            type="button"
-            onClick={() => onOpenChatDraft('I want to revise my mandate — show me the current declaration and help me sharpen it.')}
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-            title="Edit mandate in chat"
-          >
-            <MessageSquare className="h-3 w-3" />
-          </button>
+          {/* Edit mandate shortcut — constitutional affordance (ADR-412 D3) */}
+          {canAmendConstitution && (
+            <button
+              type="button"
+              onClick={() => onOpenChatDraft('I want to revise my mandate — show me the current declaration and help me sharpen it.')}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+              title="Edit mandate in chat"
+            >
+              <MessageSquare className="h-3 w-3" />
+            </button>
+          )}
         </div>
       </div>
     </header>

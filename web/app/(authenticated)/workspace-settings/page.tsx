@@ -44,6 +44,7 @@ import { api, APIError } from "@/lib/api/client";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { MandateCard } from "@/components/workspace-concepts/MandateCard";
+import { GrantGate } from "@/components/workspace-concepts/GrantGate";
 import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
 import { WorkspaceFileView } from "@/components/shared/WorkspaceFileView";
 import { ProgramLifecycleDrawer } from "@/components/library/ProgramLifecycleDrawer";
@@ -103,9 +104,14 @@ export default function WorkspaceSettingsPage() {
     }
     switch (pane) {
       case "mandate":
+        // ADR-412 D3 — constitutional pane: reads stay universal; write
+        // affordances render per the viewer's grant coverage (explicit
+        // read-only banner when constitution/ is outside it).
         return (
           <section className="mb-8">
-            <MandateCard variant="full" />
+            <GrantGate region="constitution/">
+              <MandateCard variant="full" />
+            </GrantGate>
           </section>
         );
       // ADR-387 D3 — Brand stays here (interim). Rendered via the universal
@@ -114,25 +120,32 @@ export default function WorkspaceSettingsPage() {
       case "brand":
         return (
           <section className="mb-8">
-            <WorkspaceFileView
-              title="Brand voice"
-              path="/workspace/operation/BRAND.md"
-              tagline="How produced output should sound — the brand voice writing-agents apply. Operator-authored. (Its permanent home is a follow-on ADR — ADR-387 D3.)"
-              editPrompt="Help me define my brand voice — the tone, style, and conventions all produced content should follow."
-              onEdit={(prompt) => navigateToSurface("chat", { prompt })}
-              emptyBody={
-                <p className="text-center text-xs">
-                  No brand voice declared yet. Author it to shape how produced
-                  content sounds.
-                </p>
-              }
-            />
+            <GrantGate region="operation/">
+              <WorkspaceFileView
+                title="Brand voice"
+                path="/workspace/operation/BRAND.md"
+                tagline="How produced output should sound — the brand voice writing-agents apply. Operator-authored. (Its permanent home is a follow-on ADR — ADR-387 D3.)"
+                editPrompt="Help me define my brand voice — the tone, style, and conventions all produced content should follow."
+                onEdit={(prompt) => navigateToSurface("chat", { prompt })}
+                emptyBody={
+                  <p className="text-center text-xs">
+                    No brand voice declared yet. Author it to shape how produced
+                    content sounds.
+                  </p>
+                }
+              />
+            </GrantGate>
           </section>
         );
       case "program":
+        // ADR-412 D3 — activation/deactivation amends the constitution (the
+        // bundle fork writes MANDATE/persona/governance seeds); same gate as
+        // the Home activation CTA.
         return (
           <section className="mb-8">
-            <ProgramPaneBody onRerunSetup={() => navigateToSurface("setup")} />
+            <GrantGate region="constitution/">
+              <ProgramPaneBody onRerunSetup={() => navigateToSurface("setup")} />
+            </GrantGate>
           </section>
         );
       // ADR-385 D4 — connectors/sources moved to Channels.

@@ -29,6 +29,7 @@ import {
   Activity as ActivityIcon,
 } from 'lucide-react';
 import type { PaneGroup } from '@/components/settings/SettingsPaneShell';
+import { GrantGate } from '@/components/workspace-concepts/GrantGate';
 import { SubstrateTab } from './SubstrateTab';
 import { FreddieActivityPanel } from './FreddieActivityPanel';
 import { FreddieCapabilitiesPanel } from './FreddieCapabilitiesPanel';
@@ -62,9 +63,28 @@ export const SYSTEM_AGENT_PANE_GROUP: PaneGroup = {
 
 export const SYSTEM_AGENT_PANE_KEYS = SYSTEM_AGENT_PANE_GROUP.panes.map((p) => p.key);
 
+/** ADR-412 D3 — each pane's write affordances land in one ADR-320 region
+ *  root; the pane renders per the viewer's grant coverage (GrantGate:
+ *  explicit read-only when outside it, never a role-enum check).
+ *  capabilities/activity are pure reads — no gate. */
+const PANE_REGIONS: Record<string, string> = {
+  identity: 'persona/',
+  principles: 'persona/',
+  autonomy: 'governance/',
+  budget: 'governance/',
+  'expected-output': 'contract/',
+};
+
 /** Render one System Agent pane body — the same components the roster mount
  *  rendered (Singular Implementation). */
 export function renderSystemAgentPane(pane: string) {
+  const body = renderPaneBody(pane);
+  if (!body) return null;
+  const region = PANE_REGIONS[pane];
+  return region ? <GrantGate region={region}>{body}</GrantGate> : body;
+}
+
+function renderPaneBody(pane: string) {
   switch (pane) {
     case 'identity':
       return (

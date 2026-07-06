@@ -13,6 +13,10 @@ ADR-412 D6 viewer-resolution layer both ride on.
   D3 — the `notifications` table returns to outbound transport: witness.py
        writes NO in_app rows; the recipient derivation survives as the seam.
   D4 — vocabulary: actor-first lines, no internal enums in bell rows.
+  D5 — the Notifications surface re-mounts the same two derivations as the
+       breadth workbench (witness queue stays QueueBody; ACTIVITY = the
+       timeline with actor/kind/date filters + `before`-cursor paging,
+       replacing the chat-narrative FeedSurface body).
   D6 — timeline entries carry stable ids + actor_id; human-write routes
        thread author_identity_uuid (operator-class acts stop being
        ambiguous between humans).
@@ -91,6 +95,41 @@ def test_d4_vocabulary() -> None:
     _assert("ADDRESSED" not in bell, "no wake_source vocabulary")
 
 
+def test_d5_notifications_workbench() -> None:
+    print("\n[D5] the Notifications surface re-mounts the two derivations")
+    page = _read("web/app/(authenticated)/notifications/page.tsx")
+    _assert("<FeedSurface" not in page and "feed-surface/FeedSurface" not in page,
+            "the chat-narrative FeedSurface body is gone from the panes")
+    _assert("ActivityLedger" in page, "ACTIVITY mounts the timeline workbench")
+    _assert("QueueBody" in page, "TO DO stays the witness-queue mount (QueueBody)")
+
+    ledger = _read("web/components/notifications/ActivityLedger.tsx")
+    _assert("api.workspace.timeline" in ledger, "the workbench reads the ONE 'what happened' source")
+    _assert("resolveActorForViewer" in ledger, "rows are viewer-resolved (ADR-412 D6)")
+    _assert("loadMore" in ledger and "before" in ledger.lower(),
+            "full history via the before-cursor paging")
+    _assert("kindFilter" in ledger and "actorFilter" in ledger and 'type="date"' in ledger,
+            "actor/kind/date filters exist")
+    _assert("chat.globalHistory" not in ledger, "no chat-derived narrative (the D1 obsolescence)")
+
+    client = _read("web/lib/api/client.ts")
+    _assert("before?: string" in client, "the FE timeline client exposes the before cursor")
+
+    # One render grammar, N mounts (ADR-340 D8): the Home slot, the bell, and
+    # the workbench share the timeline-row primitives.
+    rows = _read("web/lib/workspace/timeline-rows.tsx")
+    _assert("actorLine" in rows and "secondaryLine" in rows and "KindGlyph" in rows,
+            "shared timeline-row grammar module exists")
+    home_slot = _read("web/components/library/kernel-home/WorkspaceTimeline.tsx")
+    _assert("timeline-rows" in home_slot, "the Home slot rides the shared grammar")
+    bell = _read("web/components/shell/AttentionCenter.tsx")
+    _assert("timeline-rows" in bell, "the bell rides the shared grammar")
+    _assert("cron_tick" in rows and "scheduled" in rows,
+            "engine enum words map to operator words at the shared layer (D4)")
+    _assert("proposalActionLabel" in rows,
+            "proposal titles route through the shared labeler (no primitive slugs)")
+
+
 def test_d6_timeline_ids_and_identity() -> None:
     print("\n[D6] stable timeline ids + acting-principal identity")
     ws = _read("api/routes/workspace.py")
@@ -130,6 +169,7 @@ if __name__ == "__main__":
     test_d2_witness_queue_honest()
     test_d3_notifications_outbound_only()
     test_d4_vocabulary()
+    test_d5_notifications_workbench()
     test_viewer_layer()
     test_d6_timeline_ids_and_identity()
     print("\n" + "=" * 60)

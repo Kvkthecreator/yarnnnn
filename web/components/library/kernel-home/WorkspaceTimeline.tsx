@@ -20,76 +20,24 @@
  */
 
 import { useEffect, useState } from 'react';
-import { History, FilePenLine, Zap, Hexagon } from 'lucide-react';
+import { History } from 'lucide-react';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { api } from '@/lib/api/client';
 import { PrincipalBadge } from '@/lib/workspace/principal-badge';
 import { formatAuthorLabelOrSystem } from '@/lib/workspace/attribution';
 import { formatRelativeTimestamp } from '@/lib/content-shapes/decisions';
+// Shared row grammar (ADR-340 D8 one body — the Notifications workbench and
+// this slot render the same primitives at different depths, ADR-410 D5).
+import {
+  KindGlyph,
+  rowTitle,
+  secondaryLine,
+  type TimelineEntry,
+} from '@/lib/workspace/timeline-rows';
 import { cn } from '@/lib/utils';
-
-type TimelineEntry = Awaited<
-  ReturnType<typeof api.workspace.timeline>
->['entries'][number];
 
 const FETCH_LIMIT = 40;
 const COMPACT_LIMIT = 15;
-
-/** Kind glyph — the act's class at a glance (mirrors sibling icon grammar:
- * revisions = the Files pen, invocations = a run, proposals = the ProposalCard
- * hexagon). */
-function KindGlyph({ entry }: { entry: TimelineEntry }) {
-  if (entry.kind === 'revision') {
-    return <FilePenLine className="h-3 w-3 text-muted-foreground/60 shrink-0" />;
-  }
-  if (entry.kind === 'invocation') {
-    return (
-      <Zap
-        className={cn(
-          'h-3 w-3 shrink-0',
-          entry.status === 'failed' ? 'text-destructive/70' : 'text-muted-foreground/60',
-        )}
-      />
-    );
-  }
-  return <Hexagon className="h-3 w-3 text-muted-foreground/60 shrink-0" />;
-}
-
-/** The path's basename — revision rows title on the file, path as secondary. */
-function basename(path: string): string {
-  const parts = path.split('/').filter(Boolean);
-  return parts[parts.length - 1] ?? path;
-}
-
-/** The row's secondary line: revision → path; proposal → status (+ witness);
- * invocation → detail with a subtle status. */
-function secondaryLine(entry: TimelineEntry): { text: string; destructive: boolean } | null {
-  if (entry.kind === 'revision') {
-    return entry.path ? { text: entry.path, destructive: false } : null;
-  }
-  if (entry.kind === 'proposal') {
-    const parts: string[] = [];
-    if (entry.status) parts.push(entry.status);
-    if (entry.decided_by) {
-      // ADR-405: the after-the-fact witness, attributed via the shared module.
-      parts.push(`witnessed by ${formatAuthorLabelOrSystem(entry.decided_by)}`);
-    }
-    if (entry.detail) parts.push(entry.detail);
-    return parts.length > 0 ? { text: parts.join(' · '), destructive: false } : null;
-  }
-  // invocation — status subtly, failed reads destructive.
-  const parts: string[] = [];
-  if (entry.status) parts.push(entry.status);
-  if (entry.detail) parts.push(entry.detail);
-  return parts.length > 0
-    ? { text: parts.join(' · '), destructive: entry.status === 'failed' }
-    : null;
-}
-
-function rowTitle(entry: TimelineEntry): string {
-  if (entry.kind === 'revision' && entry.path) return basename(entry.path);
-  return entry.title ?? entry.slug ?? entry.kind;
-}
 
 export function WorkspaceTimeline() {
   const [entries, setEntries] = useState<TimelineEntry[] | null>(null);
@@ -131,7 +79,9 @@ export function WorkspaceTimeline() {
       </header>
       <ul className="divide-y divide-border/30">
         {shown.map((entry, i) => {
-          const secondary = secondaryLine(entry);
+          const secondary = secondaryLine(entry, {
+            witnessLabel: formatAuthorLabelOrSystem,
+          });
           const title = rowTitle(entry);
           return (
             <li

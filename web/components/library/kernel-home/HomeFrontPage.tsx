@@ -46,6 +46,8 @@
 
 import { ArrowRight } from 'lucide-react';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { useViewerGrant } from '@/lib/workspace/viewer';
 import { HomeHeader } from '../HomeHeader';
 import { KernelDecisionQueue } from './KernelDecisionQueue';
 import { WorkspaceTimeline } from './WorkspaceTimeline';
@@ -120,6 +122,11 @@ function UnactivatedHomeCTA({ activeProgramSlug }: { activeProgramSlug: string |
   // Defensive: this component only mounts when activeProgramSlug is null. The
   // prop is retained for type clarity at the call site.
   void activeProgramSlug;
+  // ADR-412 D3 — activation amends the constitution (the bundle fork writes
+  // MANDATE/persona/governance seeds), so the CTA renders per the viewer's
+  // grant coverage, never a role enum. The explanatory card stays universal.
+  const { userId } = useSurfacePreferences();
+  const canActivate = useViewerGrant(userId).covers('constitution/');
   return (
     <div className="rounded-lg border border-dashed border-border/60 bg-card/50 px-6 py-8">
       <div className="max-w-xl">
@@ -135,13 +142,20 @@ function UnactivatedHomeCTA({ activeProgramSlug }: { activeProgramSlug: string |
             sequence (activate · author · connect · bring in reality), not the
             /program reference drawer. Home only POINTS to setup; it never grows
             setup chrome. */}
-        <SurfaceLink
-          to="setup"
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
-        >
-          Get set up
-          <ArrowRight className="h-3.5 w-3.5" />
-        </SurfaceLink>
+        {canActivate ? (
+          <SurfaceLink
+            to="setup"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+          >
+            Get set up
+            <ArrowRight className="h-3.5 w-3.5" />
+          </SurfaceLink>
+        ) : (
+          <p className="text-xs text-muted-foreground/70">
+            Setup amends the workspace&apos;s constitution — your access here
+            is read-only for that region.
+          </p>
+        )}
       </div>
     </div>
   );

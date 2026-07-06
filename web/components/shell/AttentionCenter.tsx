@@ -60,6 +60,7 @@ import { cn } from '@/lib/utils';
 import { PrincipalBadge } from '@/lib/workspace/principal-badge';
 import { proposalQueuedByDialLine } from '@/lib/proposal-labels';
 import { resolveActorForViewer, useWorkspaceRoster } from '@/lib/workspace/viewer';
+import { actorLine } from '@/lib/workspace/timeline-rows';
 
 const REFRESH_INTERVAL_MS = 60_000;
 const LOW_BALANCE_THRESHOLD_USD = 1.0;
@@ -325,16 +326,10 @@ export function AttentionCenter() {
   // ADR-410 D4 — actor-first activity lines, no internal enums: a revision
   // reads "‹actor› updated ‹file›"; an invocation "‹actor› ran ‹Title›"
   // (mode/trigger enum words never render; the FE label layer owns this).
-  const activityLine = (e: PeerActivity, who: string) => {
-    if (e.kind === 'revision') {
-      const base = (e.title || '').split('/').filter(Boolean).pop() || 'a file';
-      return `${who} updated ${base}`;
-    }
-    const title = (e.title || 'work')
-      .replace(/[-_]/g, ' ')
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-    return `${who} ran ${title}`;
-  };
+  // Shared grammar with the Notifications workbench (timeline-rows —
+  // ADR-410 D5 one-grammar discipline).
+  const activityLine = (e: PeerActivity, who: string) =>
+    actorLine({ kind: e.kind, title: e.title }, who);
 
   return (
     <div className="relative" ref={containerRef}>

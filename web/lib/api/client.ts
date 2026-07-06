@@ -1330,8 +1330,10 @@ export const api = {
     // stream across the three act ledgers (revisions + invocations +
     // proposals). Distinct from recentRevisions (substrate-only): this is
     // "what happened across the workspace, by whom" — every actor, every
-    // kind of act. Powers the Home Timeline slot.
-    timeline: (limit: number = 40) =>
+    // kind of act. Powers the Home Timeline slot, the bell's ACTIVITY
+    // (ADR-410 D1), and the Notifications workbench (ADR-410 D5 — `before`
+    // is the full-history paging cursor the endpoint already supports).
+    timeline: (limit: number = 40, before?: string) =>
       request<{
         entries: Array<{
           kind: 'revision' | 'invocation' | 'proposal';
@@ -1354,7 +1356,9 @@ export const api = {
           decided_by: string | null;
         }>;
         has_more: boolean;
-      }>(`/api/workspace/timeline?limit=${limit}`),
+      }>(
+        `/api/workspace/timeline?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ''}`,
+      ),
 
     // ADR-373 D2: the workspace's principals — WHO can write here, and WHAT
     // write-regions they hold. Read-only legibility over principal_grants; the

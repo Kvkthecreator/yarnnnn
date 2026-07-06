@@ -7,8 +7,19 @@
  * ADR-340 D2 named but never built a composition for:
  *
  *   "To do"    (Decide, pane key `resolve`)    → the Queue body over action_proposals
- *   "Activity" (Read, pane key `understand`)   → the Feed narrative + run ledger (escape hatch)
+ *   "Activity" (Read, pane key `understand`)   → the workspace-timeline workbench
+ *                                                 (ADR-410 D5; run ledger stays the escape hatch)
  *   "Schedule" (Tune, pane key `tune`)         → the recurring-work list (escape hatch → full Recurrence)
+ *
+ * ADR-410 D5 (2026-07-06): the Activity pane re-mounts the SAME "what
+ * happened" derivation the bell and the Home slot read — the workspace
+ * timeline (the three attributed ledgers) — as the breadth workbench
+ * (actor/kind/date filters, full history via the `before` cursor),
+ * replacing the chat-narrative FeedSurface body (post-ADR-407-Phase-4 the
+ * chat thread is the viewer's PRIVATE session — self-echo, peers
+ * invisible). Bell = glance, THIS = workbench, Home slot = ambient: three
+ * depths, one source. The To-do pane was already the witness-queue mount
+ * (QueueBody, D5.2-labeled).
  *
  * One object, two zooms: the topbar bell ("Notifications") is the glance;
  * this window is the full surface. They share one name + one vocabulary (To
@@ -34,7 +45,7 @@ import { useAgentsAndRecurrences } from "@/hooks/useAgentsAndRecurrences";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { QueueBody } from "@/components/queue/QueueBody";
 import { StandingBand } from "@/components/queue/StandingBand";
-import { FeedSurface } from "@/components/feed-surface/FeedSurface";
+import { ActivityLedger } from "@/components/notifications/ActivityLedger";
 import { RecurrenceList } from "@/components/work/RecurrenceList";
 
 // ADR-346 label pass (2026-06-19): the act labels are plain operator words
@@ -97,19 +108,19 @@ export default function OperationPage() {
           </div>
         );
       case "understand":
-        // Read — the Feed narrative. FeedSurface fills the pane region; its
-        // own header carries filter + chat-summon. The run ledger is one hop
-        // away via the Recurrence Runs lens.
+        // Read — the workspace timeline as a workbench (ADR-410 D5): every
+        // attributed act, every actor, filters + full history. The run
+        // ledger stays one hop away via the Recurrence Runs lens.
         return (
           <div className="flex h-full flex-col">
             <PaneHeader
               icon={ScrollText}
               title="Activity"
-              subtitle="What just happened — the narrative of every invocation."
+              subtitle="What happened across the workspace — every actor, attributed."
               action={<MirrorLink label="Open run ledger" onClick={() => navigateToSurface("recurrence", { pane: "activity" })} />}
             />
             <div className="flex-1 min-h-0">
-              <FeedSurface />
+              <ActivityLedger />
             </div>
           </div>
         );
