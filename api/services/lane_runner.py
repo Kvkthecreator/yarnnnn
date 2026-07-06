@@ -1,0 +1,370 @@
+"""Lane runner — ADR-411 (implements ADR-408 D6 chat lanes).
+
+A lane is a member's model-pinned helper thread: an isolated conversation
+whose model works the SHARED workspace through the file-verb tool surface.
+The contract (ADR-408 D6): lanes are isolated conversations; the workspace
+is the shared memory — a lane's model never reads another lane's (or the
+steward's) transcript; it reads what others wrote to the commons, with
+attribution.
+
+This module owns:
+- ``LANE_MODELS`` — the creation-time model whitelist (ADR-411 D5: a model
+  enters only WITH a ``_BILLING_RATES`` row; no silent default pricing).
+- The lane tool surface (ADR-411 D3): the five file verbs, converted
+  mechanically from the registry's Anthropic-format definitions to the
+  OpenAI format LiteLLM translates per provider. Executed through
+  ``execute_primitive`` under the member's auth with the member-embodiment
+  attribution (``member:{user_id} via {model}`` — ADR-411 D4), so grants,
+  gates, revision attribution, and the timeline apply for free.
+- The conventions projection (ADR-411 D6): an AGENTS.md-shaped system
+  prompt composed at turn time from kernel constants + the workspace's
+  MANDATE head — derived, never stored.
+- ``run_lane_turn`` — the bounded non-streaming tool loop over
+  ``route_completion`` (ADR-408 D4 router). Every round records into
+  ``execution_events`` (slug ``lane``, the member as principal) — the one
+  meter (ADR-396).
+
+Altitude discipline: this is Altitude-2 machinery (ADR-408 D2). The
+steward's loop (freddie_agent) never touches it; lanes never touch the
+steward's wake drain.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import json
+import logging
+from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Lane model registry (ADR-411 D5)
+# ---------------------------------------------------------------------------
+
+#: Models a lane may pin. Keys are LiteLLM provider/model strings; every
+#: entry's ledger_model MUST have a telemetry _BILLING_RATES row (gate-
+#: tested) — the D4 spike's rule: an unpriced model never routes in prod.
+#: This is DATA (ADR-402 pattern): adding a provider = a row here + a rate
+#: row + the provider key in env.
+LANE_MODELS: dict[str, dict[str, str]] = {
+    "anthropic/claude-sonnet-4-6": {"label": "Claude Sonnet"},
+    "anthropic/claude-haiku-4-5-20251001": {"label": "Claude Haiku"},
+    "openai/gpt-4o-mini": {"label": "GPT-4o mini"},
+}
+
+_LANE_MAX_ROUNDS = 8       # cost ceiling, not behavior (ADR-402 posture)
+_LANE_MAX_TOKENS = 2048
+_LANE_TIMEOUT_S = 120.0
+
+# ---------------------------------------------------------------------------
+# Tool surface (ADR-411 D3) — five file verbs, registry definitions converted
+# ---------------------------------------------------------------------------
+
+#: The lane tool allowlist. A helper is hands on the filesystem — no entity
+#: verbs, no Schedule, no DispatchSpecialist, no platform tools.
+LANE_TOOL_NAMES = ("ReadFile", "WriteFile", "EditFile", "SearchFiles", "ListFiles")
+
+
+def _anthropic_to_openai_tool(tool: dict) -> dict:
+    """Mechanical format conversion — the registry's Anthropic-shape tool
+    definition becomes the OpenAI function-tool shape LiteLLM expects."""
+    return {
+        "type": "function",
+        "function": {
+            "name": tool["name"],
+            "description": tool.get("description", ""),
+            "parameters": tool.get("input_schema", {"type": "object"}),
+        },
+    }
+
+
+def lane_tools_openai() -> list[dict]:
+    """The lane tool surface in OpenAI format, derived from the registry's
+    own definitions (no parallel schemas — Singular Implementation)."""
+    from services.primitives.workspace import (
+        EDIT_FILE_TOOL,
+        LIST_FILES_TOOL,
+        READ_FILE_TOOL,
+        SEARCH_FILES_TOOL,
+        WRITE_FILE_TOOL,
+    )
+
+    by_name = {
+        t["name"]: t
+        for t in (READ_FILE_TOOL, WRITE_FILE_TOOL, EDIT_FILE_TOOL,
+                  SEARCH_FILES_TOOL, LIST_FILES_TOOL)
+    }
+    return [_anthropic_to_openai_tool(by_name[n]) for n in LANE_TOOL_NAMES]
+
+
+# ---------------------------------------------------------------------------
+# Attribution (ADR-411 D4)
+# ---------------------------------------------------------------------------
+
+def lane_caller_identity(user_id: str, model: str) -> str:
+    """The member-embodiment attribution string (ADR-408 D2 ratified shape).
+    ``member:`` is a VALID_AUTHOR_PREFIXES entry; ``_caller_class`` maps it
+    to the operator class so the member's own grant is the boundary."""
+    return f"member:{user_id} via {model}"
+
+
+def _lane_auth(auth: Any, model: str) -> Any:
+    """The member's auth with the embodiment attribution stamped. Grants
+    resolve by principal_id (unchanged — the member), so a lane write the
+    member could not make is denied, and one they could binds immediately."""
+    try:
+        return dataclasses.replace(
+            auth, caller_identity=lane_caller_identity(auth.user_id, model)
+        )
+    except TypeError:
+        # Non-dataclass auth namespaces (tests): shallow attribute copy.
+        import types
+        clone = types.SimpleNamespace(**vars(auth))
+        clone.caller_identity = lane_caller_identity(auth.user_id, model)
+        return clone
+
+
+# ---------------------------------------------------------------------------
+# Conventions projection (ADR-411 D6) — composed, never stored
+# ---------------------------------------------------------------------------
+
+_CONVENTIONS_FRAME = """You are {model_label}, working inside a YARNNN workspace as {member}'s hands.
+
+## The commons contract
+This workspace is a SHARED, versioned filesystem (the commons) that several
+humans and AIs work through. Your conversation here is private to this lane,
+but everything you write to files is shared, attributed, and visible to
+every member on the workspace timeline. The durable output of your work
+belongs in FILES — the transcript is not shared memory.
+
+- Read before writing: check what already exists (SearchFiles / ListFiles /
+  ReadFile) before creating or overwriting.
+- Every write attributes as "{member} via {model}" and is versioned with
+  full history — writes are revertible, never silently destructive.
+- Other members and other AI lanes collaborate with you THROUGH these files,
+  never through your transcript. Leave files other actors can pick up.
+
+## The filesystem
+Paths are workspace-relative. The working regions:
+- operation/ — the operation's working substrate (context domains, reports,
+  entities). Most of your work lands here.
+- memory/ — accumulated notes and facts.
+- uploads/ — operator-provided documents (read-mostly).
+The constitutional regions (governance/, constitution/, persona/, system/)
+are owner-and-steward territory — do NOT author there unless the member
+explicitly directs it; read them to understand intent. Your reach is
+exactly the member's grant: anything they could not write, you cannot.
+
+## Your tools
+ReadFile · WriteFile · EditFile · SearchFiles · ListFiles — the complete
+surface. You cannot schedule work, dispatch agents, or reach external
+platforms; you are hands on the filesystem for this member.
+
+## Format discipline
+Prose documents are .md. Machine config is _*.yaml (don't author these
+unless asked). Never invent new top-level directories.
+{mandate_section}"""
+
+
+def _read_workspace_file(client: Any, user_id: str, path: str) -> str:
+    """Best-effort substrate read (mirrors the envelope reader's shape)."""
+    from services.workspace_context import substrate_scope_filter
+    full = path if path.startswith("/workspace/") else f"/workspace/{path}"
+    try:
+        res = (
+            client.table("workspace_files")
+            .select("content")
+            .eq(*substrate_scope_filter(user_id))
+            .eq("path", full)
+            .limit(1)
+            .execute()
+        )
+        return (res.data or [{}])[0].get("content") or ""
+    except Exception as exc:
+        logger.warning("[LANE] mandate read failed for %s: %s", path, exc)
+        return ""
+
+
+def build_lane_conventions(
+    client: Any,
+    user_id: str,
+    *,
+    model: str,
+    member_label: Optional[str] = None,
+) -> str:
+    """Compose the AGENTS.md-shaped system prompt for one lane turn.
+
+    Kernel constants + the workspace's MANDATE head, composed at turn time
+    (DP29 derived-never-stored — a stored copy would drift against
+    _workspace_guide.md). Program-bundle deepening is a later, additive
+    section (the kernel block stays program-neutral, ADR-222).
+    """
+    from services.workspace_paths import CONSTITUTION_MANDATE_PATH
+
+    label = LANE_MODELS.get(model, {}).get("label", model)
+    member = member_label or "the member"
+
+    mandate = _read_workspace_file(client, user_id, CONSTITUTION_MANDATE_PATH)
+    mandate_head = "\n".join(mandate.strip().splitlines()[:40]).strip()
+    mandate_section = (
+        f"\n## The workspace's mandate (read-only orientation)\n{mandate_head}\n"
+        if mandate_head else ""
+    )
+
+    return _CONVENTIONS_FRAME.format(
+        model_label=label,
+        member=member,
+        model=label,
+        mandate_section=mandate_section,
+    )
+
+
+# ---------------------------------------------------------------------------
+# The turn loop (ADR-411 D2)
+# ---------------------------------------------------------------------------
+
+def _stringify_tool_result(result: Any) -> str:
+    if isinstance(result, str):
+        return result
+    try:
+        return json.dumps(result, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        return str(result)
+
+
+async def run_lane_turn(
+    auth: Any,
+    *,
+    model: str,
+    history: list[dict],
+    user_message: str,
+    member_label: Optional[str] = None,
+) -> dict:
+    """Run one lane turn: bounded tool loop over the router.
+
+    Args:
+        auth: the member's AuthenticatedClient (JWT path — carries
+              principal_id + workspace_id).
+        model: the lane's pinned LiteLLM model string (LANE_MODELS key).
+        history: prior conversation as OpenAI-shape messages (user/assistant
+              text only — tool traffic is per-turn, not persisted).
+        user_message: this turn's member message.
+
+    Returns:
+        {"success": True, "text": ..., "rounds": n, "tools_called": [...],
+         "tokens_in": n, "tokens_out": n}
+        or {"success": False, "error": ..., "message": ...}
+    """
+    if model not in LANE_MODELS:
+        return {"success": False, "error": "unknown_model",
+                "message": f"model must be one of {sorted(LANE_MODELS)}"}
+
+    from services.model_router import model_router_enabled, route_completion
+    if not model_router_enabled():
+        return {"success": False, "error": "router_disabled",
+                "message": "MODEL_ROUTER_ENABLED is off — lanes need the router"}
+
+    from services.primitives.registry import execute_primitive
+
+    tool_auth = _lane_auth(auth, model)
+    tools = lane_tools_openai()
+    system = build_lane_conventions(
+        auth.client, auth.user_id, model=model, member_label=member_label,
+    )
+
+    messages: list[dict] = list(history) + [{"role": "user", "content": user_message}]
+    tools_called: list[str] = []
+    total_in = 0
+    total_out = 0
+    final_text = ""
+    rounds = 0
+    ledger_model = model.split("/", 1)[1] if "/" in model else model
+
+    for round_idx in range(_LANE_MAX_ROUNDS):
+        rounds = round_idx + 1
+        routed = await route_completion(
+            model,
+            messages,
+            system=system,
+            max_tokens=_LANE_MAX_TOKENS,
+            timeout=_LANE_TIMEOUT_S,
+            tools=tools,
+        )
+        total_in += routed.usage.get("input_tokens", 0)
+        total_out += routed.usage.get("output_tokens", 0)
+
+        # ADR-411 D5: every round is a metered judgment invocation on the
+        # ONE ledger, attributed to the member (their embodiment acting).
+        try:
+            from services.supabase import get_service_client
+            from services.telemetry import record_execution_event
+            record_execution_event(
+                get_service_client(),
+                user_id=auth.user_id,
+                slug="lane",
+                mode="judgment",
+                trigger_type="addressed",
+                status="success",
+                tool_rounds=rounds,
+                model=routed.ledger_model,
+                principal_id=getattr(auth, "principal_id", None) or auth.user_id,
+                workspace_id=getattr(auth, "workspace_id", None),
+                **routed.usage,
+            )
+        except Exception as exc:
+            logger.warning("[LANE] cost ledger record failed: %s", exc)
+
+        if not routed.tool_calls:
+            final_text = routed.text
+            break
+
+        # Continue the loop: provider-exact assistant message + tool results.
+        messages.append(
+            routed.raw_assistant_message
+            or {"role": "assistant", "content": routed.text or ""}
+        )
+        for tc in routed.tool_calls:
+            name = tc["name"]
+            tools_called.append(name)
+            if name not in LANE_TOOL_NAMES:
+                result: Any = {
+                    "success": False, "error": "tool_not_on_lane_surface",
+                    "message": f"lane tools: {', '.join(LANE_TOOL_NAMES)}",
+                }
+            else:
+                try:
+                    result = await execute_primitive(tool_auth, name, tc["arguments"])
+                except Exception as exc:
+                    result = {"success": False, "error": "tool_raised", "message": str(exc)}
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tc["id"],
+                "content": _stringify_tool_result(result),
+            })
+    else:
+        final_text = final_text or "[lane turn exhausted its round budget without a final reply]"
+
+    logger.info(
+        "[LANE] model=%s rounds=%d tokens=%d/%d tools=%d",
+        model, rounds, total_in, total_out, len(tools_called),
+    )
+    return {
+        "success": True,
+        "text": final_text,
+        "rounds": rounds,
+        "tools_called": tools_called,
+        "tokens_in": total_in,
+        "tokens_out": total_out,
+        "ledger_model": ledger_model,
+    }
+
+
+__all__ = [
+    "LANE_MODELS",
+    "LANE_TOOL_NAMES",
+    "lane_tools_openai",
+    "lane_caller_identity",
+    "build_lane_conventions",
+    "run_lane_turn",
+]

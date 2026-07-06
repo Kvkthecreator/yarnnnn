@@ -1841,6 +1841,13 @@ def _caller_class(auth: Any) -> str:
         return "freddie"
     if caller_identity == "operator" or caller_identity.startswith("operator"):
         return "operator"
+    if caller_identity.startswith("member:"):
+        # ADR-411 D4: a lane helper is the MEMBER's embodiment (ADR-408 D2)
+        # — it writes under the member's grant, so the class default is the
+        # human default. The ADR-373 grant consult still narrows by the
+        # member's principal_id, so a member-role grant bounds their lanes
+        # exactly as it bounds them.
+        return "operator"
     if caller_identity.startswith("agent:") or caller_identity.startswith("specialist:"):
         return "agent"
     if caller_identity.startswith("system:"):

@@ -82,6 +82,17 @@ class RoutedCompletion:
     router_cost_usd: Optional[float] = None
     # ^ LiteLLM's provider-list-price report. LOG-ONLY mirror check —
     #   never recorded (ADR-396: one ledger).
+    tool_calls: list = field(default_factory=list)
+    # ^ ADR-411: OpenAI-shape tool calls from the model, normalized to
+    #   [{"id": str, "name": str, "arguments": dict}]. Empty when the
+    #   model replied with text. The caller runs the tools and continues
+    #   the conversation with role="tool" messages.
+    finish_reason: Optional[str] = None
+    # ^ "tool_calls" | "stop" | provider-specific. The loop condition.
+    raw_assistant_message: Optional[dict] = None
+    # ^ the assistant message dict to append verbatim when continuing a
+    #   tool loop (carries the provider's tool_call ids in their exact
+    #   shape — round-tripping our normalized form would drop fields).
 
 
 def ledger_model_name(model: str) -> str:
@@ -144,6 +155,7 @@ async def route_completion(
     max_tokens: int = 1024,
     temperature: Optional[float] = None,
     timeout: float = 60.0,
+    tools: Optional[list[dict]] = None,
 ) -> RoutedCompletion:
     """One provider-blind completion call via LiteLLM (lib-mode, no proxy).
 
@@ -152,9 +164,13 @@ async def route_completion(
                      (e.g. ``anthropic/claude-haiku-4-5-20251001``,
                      ``openai/gpt-4o-mini``). Bare names rely on LiteLLM's
                      inference map — pass the prefix.
-        messages:    OpenAI-shape message dicts (role/content).
+        messages:    OpenAI-shape message dicts (role/content; role="tool"
+                     results when continuing a tool loop).
         system:      Optional system prompt (prepended as a system message —
                      the OpenAI convention LiteLLM translates per provider).
+        tools:       ADR-411 — OpenAI-format tool definitions
+                     (``{"type": "function", "function": {...}}``); LiteLLM
+                     translates per provider. Omit for plain completions.
         max_tokens / temperature / timeout: standard knobs.
 
     Returns:
@@ -177,12 +193,40 @@ async def route_completion(
     }
     if temperature is not None:
         kwargs["temperature"] = temperature
+    if tools:
+        kwargs["tools"] = tools
 
     response = await litellm.acompletion(**kwargs)
 
     text = ""
+    finish_reason = None
+    tool_calls: list[dict] = []
+    raw_assistant_message: Optional[dict] = None
     try:
-        text = (response.choices[0].message.content or "").strip()
+        choice = response.choices[0]
+        finish_reason = getattr(choice, "finish_reason", None)
+        msg = choice.message
+        text = (msg.content or "").strip()
+        for tc in (getattr(msg, "tool_calls", None) or []):
+            fn = getattr(tc, "function", None)
+            args_raw = getattr(fn, "arguments", None) or "{}"
+            try:
+                import json
+                args = json.loads(args_raw) if isinstance(args_raw, str) else dict(args_raw)
+            except (ValueError, TypeError):
+                args = {}
+            tool_calls.append({
+                "id": getattr(tc, "id", "") or "",
+                "name": getattr(fn, "name", "") or "",
+                "arguments": args,
+            })
+        if tool_calls:
+            # Preserve the provider-exact assistant message for the loop
+            # continuation (LiteLLM messages support .model_dump()).
+            try:
+                raw_assistant_message = msg.model_dump()
+            except AttributeError:
+                raw_assistant_message = dict(msg)
     except (AttributeError, IndexError):
         pass
 
@@ -208,10 +252,11 @@ async def route_completion(
         pass
 
     logger.info(
-        "[MODEL-ROUTER] model=%s tokens=%d/%d cache=%d/%d router_cost=%s",
+        "[MODEL-ROUTER] model=%s tokens=%d/%d cache=%d/%d tool_calls=%d router_cost=%s",
         model,
         usage["input_tokens"], usage["output_tokens"],
         usage["cache_read_tokens"], usage["cache_create_tokens"],
+        len(tool_calls),
         f"${router_cost:.6f}" if router_cost is not None else "n/a",
     )
 
@@ -221,6 +266,9 @@ async def route_completion(
         ledger_model=lm,
         usage=usage,
         router_cost_usd=router_cost,
+        tool_calls=tool_calls,
+        finish_reason=finish_reason,
+        raw_assistant_message=raw_assistant_message,
     )
 
 

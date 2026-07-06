@@ -94,6 +94,12 @@ VALID_AUTHOR_PREFIXES = (
     # substrate from dispatcher-slot-filled substrate at the attribution
     # layer — the distinction the reverted hotfix 9e7c1c7 conflated.
     "dispatcher:",
+    # ADR-411 D4 (2026-07-06): the member-embodiment form for lane helper
+    # writes — "member:{user_id} via {model}" (ADR-408 D2 ratified shape).
+    # An Altitude-2 helper is the member's hands, not a principal: it acts
+    # under the member's grant, and the string names both the member and
+    # the transport model so the timeline reads "member … via GPT-4o mini".
+    "member:",
 )
 
 
