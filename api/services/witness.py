@@ -1,20 +1,24 @@
-"""After-witness emission — ADR-405 D3/D5, operationalized (ADR-407 Phase 2).
+"""After-witness emission — ADR-405 D3/D5 (ADR-407 Phase 2, re-cut by ADR-410 D3).
 
 A notification is the witness dial's "after" setting: when a consequential act
 binds (or a proposal awaits/receives a decision), the workspace's accountable
 principals are TOLD. Who is told is DERIVED at emission time from the grant
 roster — the workspace's active HUMAN principals (owner + members), minus the
 actor (self-witness is trivially satisfied, ADR-405 D4). Never stored as a
-subscription matrix (DP29); the `notifications` table stays the transport
-record only.
+subscription matrix (DP29).
 
-Scope honesty (ADR-405 §3): the in-app transport lands here; per-member
-email/push fan-out is the deferred transport-scaling follow-on. Foreign-LLM /
-agent principals are not notification recipients — their witness surface is
-the substrate itself (they read ledgers on their next call).
+ADR-410 D3 (2026-07-06): the Phase-2 in_app `notifications` rows are RETIRED.
+They were the bridge before the workspace timeline existed (ADR-408 D5.1);
+keeping them made a SECOND store of what the attributed ledgers already say —
+the DP29 shape of mistake. In-app attention is now pure derivation (the bell +
+Notifications mount the timeline + witness queue). This module survives as the
+OUTBOUND transport seam: `workspace_witnesses` is the recipient derivation,
+and `emit_after_witness` is where email/push fan-out lands when those
+transports build (ADR-405 §3) — today it derives recipients and stops.
 
-N=1 byte-identity: with one human in the workspace, witnesses-minus-actor is
-empty and emission is a no-op — nothing changes for the existing population.
+Foreign-LLM / agent principals are never notification recipients — their
+witness surface is the substrate itself (they read ledgers on their next
+call).
 """
 
 from __future__ import annotations
@@ -78,12 +82,19 @@ async def emit_after_witness(
     source_id: Optional[str] = None,
     urgency: str = "normal",
 ) -> int:
-    """Tell the workspace's witnesses (minus the actor) that an act happened.
+    """The outbound after-witness seam (ADR-410 D3).
 
-    In-app transport per recipient (one notifications row each — the ADR-405
-    D3 pointer, not a second source of truth). Best-effort: emission failure
-    never fails the act. Returns the number of recipients reached.
+    Derives who would be told (the roster minus the actor) and returns the
+    recipient count. The in_app rows this used to write are RETIRED — in-app
+    attention derives from the timeline + witness queue (ADR-410 D1/D5), and
+    a stored copy of what the ledgers already say violates DP29. When an
+    outbound transport ships (email/push, ADR-405 §3), its per-recipient send
+    loop lands HERE, reading each recipient's delivery preferences from
+    member_state (ADR-407 D7). Best-effort: never fails the act.
     """
+    # Unused until an outbound transport lands — kept in the signature so
+    # call sites don't churn when it does.
+    _ = (message, context, source_type, source_id, urgency)
     if not workspace_id:
         return 0
     try:
@@ -94,25 +105,6 @@ async def emit_after_witness(
         logger.warning("[WITNESS] roster derivation failed: %s", e)
         return 0
 
-    if not witnesses:
-        return 0
-
-    from services.notifications import send_notification
-
-    reached = 0
-    for uid in witnesses:
-        try:
-            await send_notification(
-                client,
-                uid,
-                message,
-                channel="in_app",
-                urgency=urgency,  # type: ignore[arg-type]
-                context=context,
-                source_type=source_type,  # type: ignore[arg-type]
-                source_id=source_id,
-            )
-            reached += 1
-        except Exception as e:
-            logger.warning("[WITNESS] emission to %s failed: %s", uid[:8], e)
-    return reached
+    # ADR-410 D3: no in_app writes. The outbound send loop will iterate
+    # `witnesses` here when email/push transports build.
+    return len(witnesses)

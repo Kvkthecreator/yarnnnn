@@ -193,6 +193,7 @@ async def save_identity(body: IdentitySaveRequest, auth: UserClient):
             body.content,
             summary="User identity",
             authored_by="operator",
+            author_identity_uuid=auth.user_id,  # ADR-410/412 viewer pass — which human
             message="edit IDENTITY.md (settings surface)",
         )
         if not success:
@@ -238,6 +239,7 @@ async def save_brand(body: BrandSaveRequest, auth: UserClient):
             body.content,
             summary="Brand identity",
             authored_by="operator",
+            author_identity_uuid=auth.user_id,  # ADR-410/412 viewer pass — which human
             message="edit BRAND.md (settings surface)",
         )
         if not success:

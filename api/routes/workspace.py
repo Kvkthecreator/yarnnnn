@@ -116,8 +116,17 @@ class TimelineEntry(BaseModel):
     """One attributed act in the workspace timeline (ADR-408 D5.1 / ADR-407
     Phase 4b). Derived from the ledgers at read time — never stored."""
     kind: str                              # revision | invocation | proposal
+    # ADR-410 D6 — stable derived id ("kind:natural-key:at") for cursoring +
+    # per-row keys. Derived, never stored (DP29).
+    id: str = ""
     at: str                                # ISO timestamp (sort key)
     actor: Optional[str] = None            # authored_by | principal_id | source — FE attribution module maps the label
+    # ADR-410/412 viewer pass — the ACTING PRINCIPAL's uuid where the ledger
+    # records one (revisions: author_identity_uuid; invocations:
+    # principal_id). Lets a viewer-aware surface resolve "You" vs a peer name
+    # even for operator-class acts, which the authored_by string alone cannot
+    # distinguish in a multi-member commons.
+    actor_id: Optional[str] = None
     title: str                             # one-line human summary
     detail: Optional[str] = None           # message / status detail
     path: Optional[str] = None             # revision target (deep-link)
@@ -856,7 +865,7 @@ async def get_workspace_timeline(
     try:
         q = (
             auth.client.table("workspace_file_versions")
-            .select("path, authored_by, message, created_at")
+            .select("path, authored_by, author_identity_uuid, message, created_at")
             .eq(col, val)
         )
         if before:
@@ -864,10 +873,13 @@ async def get_workspace_timeline(
         rows = q.order("created_at", desc=True).limit(limit).execute().data or []
         page_full = page_full or len(rows) >= limit
         for r in rows:
+            at = r.get("created_at") or ""
             entries.append(TimelineEntry(
                 kind="revision",
-                at=r.get("created_at") or "",
+                id=f"revision:{r.get('path') or ''}:{at}",
+                at=at,
                 actor=r.get("authored_by"),
+                actor_id=r.get("author_identity_uuid"),
                 title=r.get("path") or "substrate change",
                 detail=r.get("message"),
                 path=r.get("path"),
@@ -887,10 +899,15 @@ async def get_workspace_timeline(
         rows = q.order("created_at", desc=True).limit(limit).execute().data or []
         page_full = page_full or len(rows) >= limit
         for r in rows:
+            at = r.get("created_at") or ""
             entries.append(TimelineEntry(
                 kind="invocation",
-                at=r.get("created_at") or "",
+                id=f"invocation:{r.get('slug') or ''}:{at}",
+                at=at,
                 actor=r.get("principal_id"),
+                # A human principal_id IS the acting uuid; non-uuid principals
+                # (freddie, provider hosts) resolve via the string labeler.
+                actor_id=r.get("principal_id"),
                 title=r.get("slug") or "invocation",
                 detail=f"{r.get('mode') or ''} · {r.get('trigger_type') or ''}".strip(" ·"),
                 slug=r.get("slug"),
@@ -915,6 +932,7 @@ async def get_workspace_timeline(
             at = r.get("approved_at") or r.get("created_at") or ""
             entries.append(TimelineEntry(
                 kind="proposal",
+                id=f"proposal:{r.get('id') or ''}:{at}",
                 at=at,
                 actor=r.get("source"),
                 title=f"{r.get('primitive') or 'action'} ({r.get('family') or 'proposal'})",
@@ -1568,6 +1586,9 @@ async def edit_workspace_file(
             path=path,
             content=content,
             authored_by="operator",
+            # ADR-410/412 viewer pass — record WHICH human acted; the
+            # authored_by string alone is ambiguous in a multi-member commons.
+            author_identity_uuid=auth.user_id,
             message=body.message or f"edit file {path}",
             summary=body.summary,
             **write_kwargs,

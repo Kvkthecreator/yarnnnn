@@ -1335,7 +1335,13 @@ export const api = {
       request<{
         entries: Array<{
           kind: 'revision' | 'invocation' | 'proposal';
+          // ADR-410 D6 — stable derived id (kind:natural-key:at) for row
+          // keys + read-state derivation.
+          id: string;
           at: string | null;
+          // ADR-410/412 viewer pass — the acting principal's uuid where the
+          // ledger records one; lets surfaces resolve "You" vs a peer name.
+          actor_id: string | null;
           // authored_by-taxonomy string / principal id — render via the
           // shared attribution module (lib/workspace/attribution.ts).
           actor: string | null;

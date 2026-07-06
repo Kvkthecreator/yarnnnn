@@ -154,6 +154,7 @@ class AgentWorkspace:
         *,
         authored_by: str = None,
         message: str = None,
+        author_identity_uuid: str = None,
     ) -> bool:
         """Write a file through the Authored Substrate (ADR-209).
 
@@ -191,6 +192,10 @@ class AgentWorkspace:
                 content=content,
                 authored_by=resolved_author,
                 message=resolved_message,
+                # ADR-410/412 viewer pass — the acting human's uuid when the
+                # route knows it (operator-class strings alone are ambiguous
+                # in a multi-member commons).
+                author_identity_uuid=author_identity_uuid,
                 summary=summary,
                 tags=tags,
                 lifecycle=resolved_lifecycle,

@@ -133,6 +133,10 @@ def test_roster() -> None:
 # ---------------------------------------------------------------------------
 
 def test_emission() -> None:
+    # ADR-410 D3 (2026-07-06): the in_app writes are RETIRED — in-app
+    # attention derives from the timeline + witness queue; this function is
+    # the OUTBOUND seam. It must still derive recipients (actor excluded)
+    # and must write NO notifications rows.
     from services.witness import emit_after_witness
 
     grants = [
@@ -150,12 +154,11 @@ def test_emission() -> None:
         )
     )
     notif_inserts = [r for t, r in client.sink.get("inserts", []) if t == "notifications"]
-    recipients = {r["user_id"] for r in notif_inserts}
-    if reached == 1 and recipients == {OWNER} and all(r["channel"] == "in_app" for r in notif_inserts):
-        _ok("emission: member act → owner notified in_app, actor not")
+    if reached == 1 and not notif_inserts:
+        _ok("emission (ADR-410 D3): recipients derived (owner, not actor); NO in_app rows written")
     else:
-        _bad("emission: member act → owner notified in_app, actor not",
-             f"reached={reached} recipients={recipients}")
+        _bad("emission (ADR-410 D3): recipients derived; NO in_app rows written",
+             f"reached={reached} notif_inserts={len(notif_inserts)}")
 
     # No workspace → no-op
     client = _FakeClient(grants=grants)

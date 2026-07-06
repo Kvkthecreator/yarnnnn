@@ -103,11 +103,14 @@ def test_attention_center() -> None:
     src = _read("components/shell/AttentionCenter.tsx")
     check("AttentionCenter.tsx exists", bool(src))
     check("derives Decide from api.proposals.list", "api.proposals.list" in src)
-    check("derives Read from feed history", "globalHistory" in src)
-    check(
-        "Read derivation uses the ADR-219 weight taxonomy (material)",
-        "weight !== 'material'" in src or "weight === 'material'" in src,
-    )
+    # ADR-410 D1 (2026-07-06): the Read derivation re-sourced — the chat
+    # history was the viewer's PRIVATE thread post-ADR-407-Phase-4 (self-echo
+    # in, peers invisible). The bell now derives from the workspace timeline,
+    # peer-first (actor != viewer via the ADR-412 D6 viewer layer).
+    check("derives Read from the workspace timeline (ADR-410 D1)",
+          "api.workspace.timeline" in src and "api.chat.globalHistory(" not in src)
+    check("Read is peer-first — self excluded via the viewer layer",
+          "resolveActorForViewer" in src and "isSelf" in src)
     check("derives warnings from api.integrations.getLimits", "api.integrations.getLimits" in src)
     check(
         "last-seen cursor is client-side localStorage (presentation state, not substrate)",
@@ -138,7 +141,7 @@ def test_attention_center() -> None:
     check("section headers match the Operation pane labels (To do / Activity / Coming up)",
           "To do" in src and "Activity" in src and "Coming up" in src)
     check("badge stays demand-only — Coming up does NOT inflate it",
-          "proposals.length + unseenMaterial.length" in src)
+          "proposals.length + unseenPeer.length" in src)
 
 
 def test_topbar_mounts_attention() -> None:

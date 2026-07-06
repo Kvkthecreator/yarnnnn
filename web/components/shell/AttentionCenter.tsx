@@ -14,10 +14,15 @@
  * not merely "what needs you," and it speaks the SAME operator words as the
  * Operation panes so the bell and the surface it lands on read as one thing:
  *
- *   - "To do"     (present — what wants my decision)  → pending action_proposals
- *                  → Operation ?pane=resolve (the Queue body, where you approve)
- *   - "Activity"  (past — what just happened)          → material-weight narrative
- *                  since last looked → Operation ?pane=understand (the Feed)
+ *   - "To do"     (present — what wants my decision)  → pending action_proposals,
+ *                  honestly labeled (ADR-410 D2: action + proposer + the
+ *                  dial line) → Operation ?pane=resolve
+ *   - "Activity"  (past — what just happened)          → the WORKSPACE TIMELINE
+ *                  (ADR-410 D1: peer + agent acts only — actor ≠ viewer —
+ *                  since last looked; self-acts excluded by construction,
+ *                  ADR-405 D4). Re-sourced from chat.globalHistory, which
+ *                  post-ADR-407-Phase-4 was the viewer's PRIVATE thread —
+ *                  self-echo in, peers invisible. → ?pane=understand
  *   - "Coming up" (future — what's scheduled next)     → recurrence next_run_at
  *                  → Operation ?pane=tune (the Schedule list)
  *   - runway warning (low balance)                     → settings ?pane=billing
@@ -53,6 +58,8 @@ import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
 import { cn } from '@/lib/utils';
 import { PrincipalBadge } from '@/lib/workspace/principal-badge';
+import { proposalQueuedByDialLine } from '@/lib/proposal-labels';
+import { resolveActorForViewer, useWorkspaceRoster } from '@/lib/workspace/viewer';
 
 const REFRESH_INTERVAL_MS = 60_000;
 const LOW_BALANCE_THRESHOLD_USD = 1.0;
@@ -71,17 +78,19 @@ interface PendingProposal {
   task_slug: string | null;
   agent_slug: string | null;
   created_at: string;
+  /** ADR-410 D2 — the proposer (drives the dial line + attribution). */
+  source: string | null;
 }
 
-interface MaterialEvent {
+/** ADR-410 D1 — one peer/agent act from the workspace timeline. */
+interface PeerActivity {
   id: string;
-  role: string;
-  headline: string;
+  actor: string | null;
+  actorId: string | null;
+  kind: 'revision' | 'invocation';
+  title: string;
+  detail: string | null;
   created_at: string;
-  /** Actor identity (2026-06-30): the authored_by taxonomy → the shared
-   *  PrincipalBadge, so an Activity row shows the actor's icon + canonical
-   *  label (fixing the "Claude" vs "chatgpt" casing drift in the raw headline). */
-  authoredBy?: string;
 }
 
 // "Coming up" — a derived view over each recurrence's next_run_at. No new
@@ -120,7 +129,7 @@ function writeLastSeen(userId: string, iso: string) {
 export function AttentionCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [proposals, setProposals] = useState<PendingProposal[]>([]);
-  const [materialEvents, setMaterialEvents] = useState<MaterialEvent[]>([]);
+  const [activity, setActivity] = useState<PeerActivity[]>([]);
   const [upcoming, setUpcoming] = useState<UpcomingFire[]>([]);
   const [lowBalance, setLowBalance] = useState<number | null>(null);
   const [lastSeen, setLastSeen] = useState<string | null>(null);
@@ -163,10 +172,13 @@ export function AttentionCenter() {
     let cancelled = false;
 
     const derive = async () => {
-      const [proposalsResult, historyResult, limitsResult, recurrencesResult] =
+      const [proposalsResult, timelineResult, limitsResult, recurrencesResult] =
         await Promise.allSettled([
           api.proposals.list('pending', 20),
-          api.chat.globalHistory(1),
+          // ADR-410 D1 — the ONE "what happened" source (the attributed
+          // ledgers). chat.globalHistory is gone: post-ADR-407-Phase-4 it
+          // read the viewer's PRIVATE thread — self-echo, peers invisible.
+          api.workspace.timeline(60),
           api.integrations.getLimits(),
           api.recurrences.list({ status: 'active' }),
         ]);
@@ -181,29 +193,37 @@ export function AttentionCenter() {
             task_slug: p.task_slug,
             agent_slug: p.agent_slug,
             created_at: p.created_at,
+            source: (p as { source?: string | null }).source ?? null,
           })),
         );
       }
 
-      if (historyResult.status === 'fulfilled') {
-        // ADR-219 weight taxonomy is the classification — surface
-        // material-weight, non-operator narrative entries only.
-        const events: MaterialEvent[] = [];
-        for (const session of historyResult.value.sessions || []) {
-          for (const msg of session.messages || []) {
-            if (msg.role === 'user') continue;
-            if (msg.metadata?.weight !== 'material') continue;
-            events.push({
-              id: msg.id,
-              role: msg.role,
-              headline: msg.metadata?.summary || msg.content?.slice(0, 120) || '(event)',
-              created_at: msg.created_at,
-              authoredBy: msg.metadata?.authored_by,
-            });
+      if (timelineResult.status === 'fulfilled') {
+        // Revision + invocation acts (proposal lifecycle renders in TO DO /
+        // the Notifications workbench, not twice here). Self-filtering
+        // happens at render time (viewer + roster); D6's sub-minute
+        // invocation dedupe happens here.
+        const seen = new Set<string>();
+        const rows: PeerActivity[] = [];
+        for (const e of timelineResult.value.entries || []) {
+          if (e.kind !== 'revision' && e.kind !== 'invocation') continue;
+          if (!e.at) continue;
+          if (e.kind === 'invocation') {
+            const minuteKey = `${e.slug}:${e.at.slice(0, 16)}`;
+            if (seen.has(minuteKey)) continue;
+            seen.add(minuteKey);
           }
+          rows.push({
+            id: e.id,
+            actor: e.actor,
+            actorId: e.actor_id,
+            kind: e.kind,
+            title: e.title || '',
+            detail: e.detail,
+            created_at: e.at,
+          });
         }
-        events.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-        setMaterialEvents(events);
+        setActivity(rows);
       }
 
       if (limitsResult.status === 'fulfilled') {
@@ -236,11 +256,19 @@ export function AttentionCenter() {
   // Click-outside + Escape close (shared dismissal contract, 2026-07-01).
   usePopoverDismissal(containerRef, isOpen, () => setIsOpen(false));
 
-  const unseenMaterial = materialEvents.filter(
-    (e) => !lastSeen || e.created_at > lastSeen,
+  // ADR-410 D1 — peer-first: the viewer's own acts are excluded by
+  // construction (ADR-405 D4 — you don't need to be told what you just
+  // did). Resolution via the ADR-412 D6 viewer layer (roster + viewer id).
+  const roster = useWorkspaceRoster();
+  const peerActivity = activity
+    .map((e) => ({ e, who: resolveActorForViewer(e.actor, e.actorId, userId, roster) }))
+    .filter(({ who }) => !who.isSelf);
+
+  const unseenPeer = peerActivity.filter(
+    ({ e }) => !lastSeen || e.created_at > lastSeen,
   );
 
-  const badgeCount = proposals.length + unseenMaterial.length;
+  const badgeCount = proposals.length + unseenPeer.length;
   const hasWarning = lowBalance != null;
 
   const toggleOpen = useCallback(() => {
@@ -292,6 +320,20 @@ export function AttentionCenter() {
   const proposalLabel = (p: PendingProposal) => {
     const scope = p.task_slug || p.agent_slug;
     return `${proposalActionLabel(p)}${scope ? ` · ${scope}` : ''}`;
+  };
+
+  // ADR-410 D4 — actor-first activity lines, no internal enums: a revision
+  // reads "‹actor› updated ‹file›"; an invocation "‹actor› ran ‹Title›"
+  // (mode/trigger enum words never render; the FE label layer owns this).
+  const activityLine = (e: PeerActivity, who: string) => {
+    if (e.kind === 'revision') {
+      const base = (e.title || '').split('/').filter(Boolean).pop() || 'a file';
+      return `${who} updated ${base}`;
+    }
+    const title = (e.title || 'work')
+      .replace(/[-_]/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+    return `${who} ran ${title}`;
   };
 
   return (
@@ -357,7 +399,16 @@ export function AttentionCenter() {
                     onClick={() => goTo('resolve')}
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
                   >
-                    <span className="text-foreground">{proposalLabel(p)}</span>
+                    <span className="block text-foreground">{proposalLabel(p)}</span>
+                    {/* ADR-410 D2 — honest labels: the proposer (icon) + the
+                        dial line, so a queue entry reads as the AGENT's dial
+                        product, never "your work awaits a superior". */}
+                    <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      {p.source && (
+                        <PrincipalBadge authoredBy={p.source} showLabel={false} size={11} />
+                      )}
+                      {proposalQueuedByDialLine(p.source) ?? formatRelativeTime(p.created_at)}
+                    </span>
                   </button>
                 ))}
                 {proposals.length > MAX_ROWS_PER_SECTION && (
@@ -372,26 +423,24 @@ export function AttentionCenter() {
               </div>
             )}
 
-            {materialEvents.length > 0 && (
+            {peerActivity.length > 0 && (
               <div className={upcoming.length > 0 ? 'border-b border-border/60' : undefined}>
                 <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                   Activity
                 </div>
-                {materialEvents.slice(0, MAX_ROWS_PER_SECTION).map((e) => (
+                {peerActivity.slice(0, MAX_ROWS_PER_SECTION).map(({ e, who }) => (
                   <button
                     key={e.id}
                     type="button"
                     onClick={() => goTo('understand')}
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
                   >
-                    <span className="block text-foreground truncate">{e.headline}</span>
+                    <span className="block text-foreground truncate">
+                      {activityLine(e, who.label)}
+                    </span>
                     <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                      {/* Actor identity (2026-06-30): icon-only badge before
-                          the timestamp — the headline already names the actor;
-                          the icon makes Claude vs ChatGPT vs system legible at
-                          a glance. */}
-                      {e.authoredBy && (
-                        <PrincipalBadge authoredBy={e.authoredBy} showLabel={false} size={11} />
+                      {e.actor && (
+                        <PrincipalBadge authoredBy={e.actor} showLabel={false} size={11} />
                       )}
                       {new Date(e.created_at).toLocaleString([], {
                         month: 'short',
@@ -441,7 +490,7 @@ export function AttentionCenter() {
 
             {!hasWarning &&
               proposals.length === 0 &&
-              materialEvents.length === 0 &&
+              peerActivity.length === 0 &&
               upcoming.length === 0 && (
                 <p className="px-3 py-4 text-xs text-muted-foreground">
                   Nothing here yet. To-dos, activity, what&apos;s coming up, and

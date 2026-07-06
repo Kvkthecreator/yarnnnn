@@ -528,6 +528,7 @@ async def delete_document(auth: UserClient, document_path: str):
         path=document_path,
         content=content,
         authored_by="operator",
+            author_identity_uuid=auth.user_id,  # ADR-410/412 viewer pass — which human
         message="Archived by operator (removed from active workspace)",
         lifecycle="archived",
     )
@@ -634,6 +635,7 @@ async def restore_document(body: RestoreRequest, auth: UserClient):
         path=path,
         content=row.get("content", "") or "",
         authored_by="operator",
+            author_identity_uuid=auth.user_id,  # ADR-410/412 viewer pass — which human
         message="Restored from trash",
         lifecycle="active",
     )
@@ -735,6 +737,7 @@ async def share_file_global(
             path=path,
             content=content,
             authored_by="operator",
+            author_identity_uuid=auth.user_id,  # ADR-410/412 viewer pass — which human
             message=f"share user file {safe_filename}",
             summary=f"User shared: {safe_filename}",
             lifecycle="ephemeral",
