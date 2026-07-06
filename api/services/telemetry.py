@@ -36,8 +36,18 @@ _BILLING_RATES: dict[str, dict[str, float]] = {
     "claude-sonnet-4-6":          {"input_per_mtok": 6.00,  "output_per_mtok": 30.00},
     "claude-opus-4-6":            {"input_per_mtok": 30.00, "output_per_mtok": 150.00},
     "claude-haiku-4-5-20251001":  {"input_per_mtok": 1.60,  "output_per_mtok": 8.00},
+    # ADR-408 D4: routed Altitude-2 models (2x provider list, same multiplier
+    # rule). A model the router may route MUST have a row here — an unknown
+    # model silently prices at the Sonnet default (model_router warns).
+    "gpt-4o-mini":                {"input_per_mtok": 0.30,  "output_per_mtok": 1.20},
 }
 _DEFAULT_RATE = _BILLING_RATES["claude-sonnet-4-6"]
+
+
+def has_billing_rate(model: str) -> bool:
+    """True when the model has an explicit rate row (ADR-408 D4: the model
+    router warns before letting an unpriced model fall to the default)."""
+    return model in _BILLING_RATES
 
 # ADR-293 (2026-05-19): DAILY_SPEND_CEILING_USD export DELETED.
 # Compute-resource governance is now per-workspace via

@@ -9,6 +9,7 @@ supabase>=2.3.0
 # AI Providers
 anthropic>=0.18.0
 openai>=1.12.0
+litellm>=1.80.0  # ADR-408 D4: seat-level model router (lib-mode, Altitude-2 helpers only)
 
 # File Processing
 python-multipart>=0.0.9
