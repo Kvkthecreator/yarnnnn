@@ -175,6 +175,45 @@ The walk confirms the ADR-407 relocation table; ordered:
    hidden for members) — currently implicit via grant failure, should be
    explicit UI.
 
+## 6b. D6 — Chat lanes: N model-pinned threads over one shared memory (added 2026-07-06)
+
+Operator-ratified refinement of the seat-level chat shape. A model picker on
+a single pane is rejected — it reads as "switching engines over the same
+chat app." The seat-level surface is **lanes**:
+
+- **The steward thread stays singular** — one per member per workspace, the
+  OS terminal, outside the lane system. No multi-chat exists at Altitude 1.
+- **Helper lanes are N per member**, each a named conversation **pinned to a
+  model** (Gemini lane for docs, Claude lane for code, ChatGPT lane for
+  images, an on-prem endpoint lane for sensitive material — LiteLLM's
+  custom-endpoint support makes on-prem the same router config, tier-gated
+  with BYOK). Schema: `conversation`-scope `chat_sessions` rows per member
+  (already supported); the lane's model binding is session metadata; the FE
+  drawer gains a lane list. Bounds are UX, not policy (soft cap +
+  auto-archive via the existing session-summary machinery); lanes run through
+  the router in parallel and never touch the steward's single-lane drain.
+- **The contract that makes this model-agnostic co-work rather than a chat
+  app with a dropdown: lanes are isolated conversations; the workspace is
+  the shared memory.** A lane's model never reads another lane's transcript —
+  it reads what the other lane *wrote to the commons*, with attribution.
+  Cross-model collaboration happens through the filesystem (the D4 tool
+  surface + conventions doc), which is the product thesis applied to chat.
+- **Shared multi-user chatrooms are explicitly NOT built.** The shared
+  space's canonical form is the commons + the ledger-derived timeline
+  (D5.1); a chatroom would reintroduce chat-as-shared-narrative-source,
+  which ADR-407 D6 rejected. Revisit only on demonstrated demand, as
+  sessions with N participant grants — a different product muscle
+  (presence/turn-taking), deliberately deferred with ADR-373's collaboration
+  layer.
+
+Sequencing within the lane work: finish the single-thread experience first
+(session-boundary legibility, history surfacing, per-workspace drawer
+behavior — the current unresolved tail), then lanes ship WITH the D4 router
+spike (a lane is the router's natural unit of use).
+
+Pricing for seats + lanes: **ADR-409** (per-seat Type-B — this ADR carries no
+pricing).
+
 ## 7. What this ADR does NOT do
 
 - No Altitude-3 build (ADR-382 stays deferred; this ADR only assigns the
