@@ -10,6 +10,11 @@
  * non-streaming turns (POST → JSON reply), no command picker, no surface
  * override — a lane is a working thread, not the OS terminal.
  *
+ * ADR-412 D2/D3 (2026-07-06): relocated from the chat-drawer chrome
+ * (shell/chrome/) to the Chat surface body — the drawer purified to the
+ * steward (Altitude 1); lanes live in their windowed workbench
+ * (Altitude 2). Mechanics unchanged.
+ *
  * The contract rendered here: the transcript is private to the lane; the
  * work lands in files. When a turn used tools, the reply footer names them
  * so the member sees the lane touched the commons.

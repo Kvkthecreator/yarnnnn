@@ -254,6 +254,30 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "The operation, rendered — constitution, ground-truth, decision queue, live entities, recent artifacts, judgment trail. Composition over the workspace's present constituents.",
     },
     {
+        # ADR-412 D3 (2026-07-06) — Chat: the lanes surface, Altitude 2's
+        # chrome home. The member's model-pinned helper threads (ADR-411)
+        # get a windowed workbench: work-first recents (the model is a CHIP
+        # on the row, never the namespace — D4), the conversation panel,
+        # inline creation. Member-experience scope: the surface lists the
+        # VIEWER's lanes in the acting workspace (ADR-407 D6) — it composes
+        # chat_sessions lanes, not authored substrate, so substrate_paths
+        # is honestly empty. The steward is NOT here (Altitude 1 lives in
+        # the chat-drawer rail — D2); the slug's redirect-stub lineage
+        # (ADR-259 → /feed, ADR-385 → notifications) ends — third life as
+        # a real surface. Second in the Workspace tier (Home · Chat · …),
+        # a NEW capability's home, not a launcher re-sort (ADR-412 D7).
+        "slug": "chat",
+        "launcher_tier": "primary",  # ADR-412 D3
+        "register": "application",
+        "title": "Chat",
+        "archetype": "stream",
+        "substrate_paths": [],  # member-experience scope (chat_sessions lanes)
+        "icon_key": "message-circle",
+        "default_pinned": False,
+        "route": "/chat",
+        "summary": "Your model-pinned helper conversations — isolated lanes over the shared workspace. The transcript stays private to each lane; the work lands in files, attributed to you via the lane's model.",
+    },
+    {
         # ADR-370 (2026-06-25) → ADR-377 (2026-06-26) → ADR-385 (2026-06-29):
         # Channels — the operation's perception + principal surface (was
         # `context`; renamed because "context" is ambiguous with the

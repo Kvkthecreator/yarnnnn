@@ -33,6 +33,7 @@ export type KernelSurfaceSlug =
   // comment free of quoted-slug literals AND semicolons — the ADR-297 parity
   // gate parses the union up to the first semicolon and reads quoted names.)
   | 'home'
+  | 'chat'  // ADR-412 D3 — the lanes surface (Altitude 2's chrome home; the redirect-stub lineage ends)
   | 'recurrence'
   | 'budget'
   | 'autonomy'
@@ -75,7 +76,7 @@ export type DeskSurface =
   | { type: 'idle' };
 
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
-  'channels', 'home', 'recurrence', 'budget', 'autonomy', 'expected-output', 'mandate', 'principles',
+  'channels', 'home', 'chat', 'recurrence', 'budget', 'autonomy', 'expected-output', 'mandate', 'principles',
   'identity', 'files', 'agents', 'setup', 'program', 'queue', 'notifications', 'activity',
   'settings', 'workspace-settings', 'connectors', 'sources',
 ] as const;

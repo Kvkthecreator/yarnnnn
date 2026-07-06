@@ -56,8 +56,11 @@ def test_registry_tiers() -> None:
         # 2026-07-01 operator re-sort: Notifications LEAVES the primary loop for
         # its own bottom launcher group (it's the always-present top-bar bell).
         # The Workspace loop is now Home · Channels · Files · Agents.
-        "primary == the standing loop (home/channels/files/agents)",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "channels", "files", "agents"},
+        # ADR-412 D3 (2026-07-06): Chat joins the primary tier — the lanes
+        # surface (Altitude 2's chrome home), a NEW capability's home, not a
+        # re-sort. Home · Chat · Channels · Files · Agents.
+        "primary == the standing loop (home/chat/channels/files/agents)",
+        {s for s, t in tiers.items() if t == "primary"} == {"home", "chat", "channels", "files", "agents"},
     )
     # ADR-349 D4: two settings doors re-split — Workspace Settings (operation)
     # + System Settings (account). The `configure` lump (ADR-347) is retired.

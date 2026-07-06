@@ -37,6 +37,10 @@ import type { KernelSurfaceSlug } from '@/types/desk';
 // next.config.js server redirects. So nothing foregrounds `feed`/`context`
 // anymore — they need no registry entry.
 import ChannelsPage from '@/app/(authenticated)/channels/page';
+// ADR-412 D3 — Chat: the lanes surface (Altitude 2's chrome home). The /chat
+// slug's redirect-stub lineage (ADR-259 → /feed, ADR-385 → notifications)
+// ends here — third life as a real windowed surface.
+import ChatPage from '@/app/(authenticated)/chat/page';
 import HomePage from '@/app/(authenticated)/home/page';
 import RecurrencePage from '@/app/(authenticated)/recurrence/page';
 // ADR-327: /pace retired from the surface registry — it is now a route-level
@@ -87,6 +91,7 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   // slugs no longer exist in the union, persisted dock state is normalized →
   // `channels`, and the old URLs are next.config redirects.)
   channels: ChannelsPage,
+  chat: ChatPage,  // ADR-412 D3 — the lanes workbench
   home: HomePage,
   recurrence: RecurrencePage,
   // ADR-309 (2026-06-01): `brand` slug DELETED. Brand is not a standalone

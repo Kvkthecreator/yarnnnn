@@ -1,26 +1,19 @@
+'use client';
+
 /**
- * Legacy /chat route — redirects to the workspace narrative (the operator↔Freddie
- * conversation + every invocation). ADR-259 pointed it at /feed; ADR-385 folded
- * the Feed into Channels as the Flow pane. The 2026-07-02 ACTIVITY re-scope
- * RETIRED the Channels Flow pane — a Channels surface tracks only boundary
- * crossings (In/Out), not the global narrative. The narrative's real home is
- * Notifications → Activity (the `understand` pane), so /chat now lands there.
+ * /chat — the lanes workbench (ADR-412 D3). The slug's THIRD life:
+ * ADR-259 pointed it at /feed; ADR-385's follow-ons bounced it through
+ * /channels to /notifications (the narrative's home). ADR-412 reclaims it
+ * as a real windowed surface — Altitude 2's chrome home (the member's
+ * model-pinned helper lanes, ADR-411), distinct from the steward rail
+ * (Altitude 1, chat drawer) and the Agents roster (Altitude 3).
  *
- * Preserves query params so deep-linked operator bookmarks survive the
- * vocabulary migration.
- *
- * ADR-308 (2026-06-01): pure transport — server redirect(), never renders
- * inside the OS shell. searchParams arrive as a server-component prop.
+ * Old narrative bookmarks now land here instead of Notifications →
+ * Activity — the accepted minor break recorded in ADR-412 D3.
  */
 
-import { redirect } from 'next/navigation';
+import { ChatSurface } from '@/components/chat-surface/ChatSurface';
 
-export default function ChatRedirect({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>;
-}) {
-  const params = new URLSearchParams(searchParams as Record<string, string>);
-  if (!params.has('notifications.pane')) params.set('notifications.pane', 'understand');
-  redirect(`/notifications?${params.toString()}`);
+export default function ChatPage() {
+  return <ChatSurface />;
 }

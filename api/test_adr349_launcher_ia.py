@@ -56,8 +56,11 @@ def test_at_rest_launcher() -> None:
     # top-bar bell, so its at-rest primary tile was redundant. The Workspace
     # loop is now Home · Channels · Files · Agents.
     check(
-        "primary == {home, channels, files, agents}",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "channels", "files", "agents"},
+        # ADR-412 D3 (2026-07-06): Chat joins the primary tier — the lanes
+        # surface (Altitude 2's chrome home), a new capability's home, not a
+        # re-sort of the ADR-349 set.
+        "primary == {home, chat, channels, files, agents}",
+        {s for s, t in tiers.items() if t == "primary"} == {"home", "chat", "channels", "files", "agents"},
         str(sorted(s for s, t in tiers.items() if t == "primary")),
     )
     # 2026-07-04 (operator re-sort, step 2): Notifications leaves the at-rest

@@ -1,6 +1,7 @@
 # ADR-412: Three Altitudes, Three Chromes — the AI-interaction IA
 
 **Status**: Accepted (2026-07-06, operator-ratified in discourse — "this fully matches, let's proceed"). Rewritten in place: this file's first commit (`08e75f0`) carried the viewer-parameter draft, which over-weighted the multi-viewer correctness pass; the discourse re-centered on the single user's mental model over the new AI landscape. The viewer-parameter material survives, demoted, as D6.
+**§10 step 1 Implemented (2026-07-06)** — D3 + D2 core: the `chat` kernel surface (primary tier, second after Home; registry + `desk.ts` union + array + SurfaceRegistry; the redirect stub replaced by `ChatSurface`), work-first recents (updated_at-desc, model chip + filter facet, `chat.lane` window-namespaced param), `LanePanel` relocated `shell/chrome/` → `components/chat-surface/`, the drawer purified to steward-only (lane strip/state/create-form deleted). Gate `api/test_adr412_chat_surface.py` 25/25; ADR-411 mechanics gate PASS untouched; ADR-297 phase-1 gate 168/0 (two stale `feed`-era assertions fixed in the same commit); launcher gates (ADR-349 35/0, ADR-340 P3 20/0) updated to the new primary set; `tsc --noEmit` clean. The D2 steward-thread TAIL (session-boundary legibility, history surfacing, per-workspace drawer behavior) remains open within step 1.
 **Date**: 2026-07-06
 **Dimension**: Channel (Axiom 6 — where each kind of AI lives in the shell) + Identity (Axiom 2 — the three altitudes made legible by placement)
 **Relates to**: ADR-408 D2 (the three altitudes — this ADR is their chrome), ADR-411 (lanes — their windowed home lands here), ADR-410 (attention rework — stands as-is; D6 rides its build session), ADR-340/349 (launcher IA — one primary tile added for a new capability, not a re-sort), ADR-316 (chat as dockable rail — the rail is confirmed and purified), ADR-381 (Freddie — D5 governor framing carried onto the roster)
@@ -72,8 +73,9 @@ threads, the commons is where their work lands).
   commons (files a lane touched), never inward to other transcripts.
 - **Launcher note**: adding one primary tile for a *new capability's home*
   is not the evidence-gated recomposition of D7 — no existing surface moves.
-  At-rest Workspace tier becomes Home · Chat · Channels · Notifications ·
-  Files · Agents.
+  At-rest Workspace tier becomes **Home · Chat · Channels · Files · Agents**
+  (Notifications stays bell-fronted `search-only` per ADR-349 — corrected
+  from this ADR's first print, which mislisted it in the tier).
 
 ## 5. D4 — Lanes organize by work, never by model
 

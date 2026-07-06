@@ -46,11 +46,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Archive, Plus, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { ConversationPanel } from '@/components/tp/ConversationPanel';
-import { LanePanel } from './LanePanel';
-import { api } from '@/lib/api/client';
 import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import { useFreddiePersona } from '@/lib/freddie-persona';
 import { useViewport } from '@/lib/shell/useViewport';
@@ -120,18 +118,6 @@ interface ChatDrawerProps {
   onClose: () => void;
 }
 
-// ADR-411 (ADR-408 D6): lane list shape from GET /api/lanes.
-interface LaneInfo {
-  id: string;
-  name: string;
-  model: string;
-}
-interface LaneData {
-  enabled: boolean;
-  models: Array<{ id: string; label: string }>;
-  lanes: LaneInfo[];
-}
-
 export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   const { isMobile } = useViewport();
   const { layoutMode } = useShellChrome();
@@ -180,59 +166,12 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   const dragging = useRef(false);
   const width = explicitWidth ?? posturalDefaultWidth(foregrounded);
 
-  // ADR-411 lanes — the steward thread is NOT a lane (activeLane=null); the
-  // strip renders only when the router is live server-side (laneData.enabled).
-  const [laneData, setLaneData] = useState<LaneData | null>(null);
-  const [activeLane, setActiveLane] = useState<LaneInfo | null>(null);
-  const [creatingLane, setCreatingLane] = useState(false);
-  const [newLaneName, setNewLaneName] = useState('');
-  const [newLaneModel, setNewLaneModel] = useState('');
-
-  useEffect(() => {
-    if (!open) return;
-    api.lanes
-      .list()
-      .then((res) => {
-        setLaneData(res);
-        if (res.models.length > 0) setNewLaneModel((m) => m || res.models[0].id);
-        // The active lane may have been archived elsewhere — fall back home.
-        setActiveLane((cur) =>
-          cur ? res.lanes.find((l) => l.id === cur.id) ?? null : null,
-        );
-      })
-      .catch(() => setLaneData(null));
-  }, [open]);
-
-  const createLane = useCallback(async () => {
-    const name = newLaneName.trim();
-    if (!name || !newLaneModel) return;
-    try {
-      const lane = await api.lanes.create({ name, model: newLaneModel });
-      const info: LaneInfo = { id: lane.id, name: lane.name, model: lane.model };
-      setLaneData((d) => (d ? { ...d, lanes: [...d.lanes, info] } : d));
-      setActiveLane(info);
-      setCreatingLane(false);
-      setNewLaneName('');
-    } catch {
-      // Creation failure (limit, router off) — keep the form open.
-    }
-  }, [newLaneName, newLaneModel]);
-
-  const archiveLane = useCallback(async (laneId: string) => {
-    try {
-      await api.lanes.archive(laneId);
-      setLaneData((d) =>
-        d ? { ...d, lanes: d.lanes.filter((l) => l.id !== laneId) } : d,
-      );
-      setActiveLane((cur) => (cur?.id === laneId ? null : cur));
-    } catch {}
-  }, []);
-
-  const modelLabel = useCallback(
-    (modelId: string) =>
-      laneData?.models.find((m) => m.id === modelId)?.label ?? modelId,
-    [laneData],
-  );
+  // ADR-412 D2 (2026-07-06): the drawer purified to the STEWARD. The
+  // ADR-411 lane strip (steward chip + lane chips + create form + LanePanel
+  // dispatch) relocated to the windowed Chat surface
+  // (components/chat-surface/ChatSurface.tsx) — the rail is Altitude 1's
+  // chrome home and only that; lanes are Altitude 2's and live in their
+  // workbench. Same chrome must not imply same kind.
 
   // Hydrate the operator's explicit width from localStorage on mount.
   useEffect(() => {
@@ -314,7 +253,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   // once, wrap it per mode.
   const body = (
     <div className="flex-1 min-w-0 flex flex-col">
-          {/* Header — the steward's identity, or the active lane's. */}
+          {/* Header — the steward's identity. ADR-412 D2: steward-only. */}
           <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background shrink-0">
             <div className="flex items-center gap-2">
               {/* Freddie's face (2026-07-01) — was the yarnnn circle logo, which
@@ -322,145 +261,39 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
                   always-on for now (matches the chip); a follow-up plumbs the
                   streaming signal from ConversationPanel to animate only while
                   Freddie is actually replying. */}
-              {!activeLane && <FreddieAvatar animate className="w-5 h-5" />}
+              <FreddieAvatar animate className="w-5 h-5" />
               <div className="flex flex-col">
                 <span className="text-sm font-medium">
-                  {activeLane ? activeLane.name : personaName ?? 'Freddie'}
+                  {personaName ?? 'Freddie'}
                 </span>
                 <span className="text-[10px] text-muted-foreground/60 -mt-0.5">
-                  {activeLane
-                    ? modelLabel(activeLane.model)
-                    : viewingTitle
-                      ? `Viewing: ${viewingTitle}`
-                      : 'Desktop'}
+                  {viewingTitle ? `Viewing: ${viewingTitle}` : 'Desktop'}
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-1">
-              {activeLane && (
-                <button
-                  onClick={() => void archiveLane(activeLane.id)}
-                  className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
-                  aria-label="Archive lane"
-                  title="Archive lane"
-                >
-                  <Archive className="w-3.5 h-3.5" />
-                </button>
-              )}
-              <button
-                onClick={onClose}
-                className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
-                aria-label="Close conversation"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
+              aria-label="Close conversation"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
-          {/* ADR-411 lane strip — renders only when the router is live.
-              The steward chip is first and default (Altitude 1, singular);
-              lanes are the member's model-pinned helper threads (Altitude 2).
-              Lanes are isolated conversations; the workspace is the shared
-              memory — switching lanes never carries transcript context. */}
-          {laneData?.enabled && (
-            <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border bg-background shrink-0 overflow-x-auto">
-              <button
-                onClick={() => setActiveLane(null)}
-                className={cn(
-                  'px-2 py-0.5 rounded-full text-[11px] whitespace-nowrap transition-colors',
-                  !activeLane
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {personaName ?? 'Freddie'}
-              </button>
-              {laneData.lanes.map((lane) => (
-                <button
-                  key={lane.id}
-                  onClick={() => setActiveLane(lane)}
-                  className={cn(
-                    'px-2 py-0.5 rounded-full text-[11px] whitespace-nowrap transition-colors',
-                    activeLane?.id === lane.id
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:text-foreground',
-                  )}
-                  title={modelLabel(lane.model)}
-                >
-                  {lane.name}
-                </button>
-              ))}
-              <button
-                onClick={() => setCreatingLane((v) => !v)}
-                className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
-                aria-label="New lane"
-                title="New lane"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          {/* Inline create-lane form. */}
-          {laneData?.enabled && creatingLane && (
-            <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border bg-muted/30 shrink-0">
-              <input
-                value={newLaneName}
-                onChange={(e) => setNewLaneName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void createLane();
-                  if (e.key === 'Escape') setCreatingLane(false);
-                }}
-                placeholder="Lane name (e.g. Docs)"
-                className="flex-1 min-w-0 rounded border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                autoFocus
-              />
-              <select
-                value={newLaneModel}
-                onChange={(e) => setNewLaneModel(e.target.value)}
-                className="rounded border border-input bg-background px-1.5 py-1 text-xs max-w-[130px]"
-              >
-                {laneData.models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={() => void createLane()}
-                disabled={!newLaneName.trim()}
-                className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs disabled:opacity-40"
-              >
-                Create
-              </button>
-            </div>
-          )}
-
-          {/* Conversation body — the steward's addressed timeline, or the
-              active lane's panel. surfaceOverride flows from the window
-              manager's foregrounded surface per D16 §5 + navigation
-              enactment, so YARNNN knows the operator is "asking about
-              {current surface}" when they summon chat from any window.
-              Lanes get no surface override — a lane is a working thread,
-              not the OS terminal. */}
+          {/* Conversation body — the steward's addressed timeline.
+              surfaceOverride flows from the window manager's foregrounded
+              surface per D16 §5 + navigation enactment, so YARNNN knows the
+              operator is "asking about {current surface}" when they summon
+              chat from any window. */}
           <div className="flex-1 min-h-0 flex flex-col">
-            {activeLane ? (
-              <LanePanel
-                key={activeLane.id}
-                laneId={activeLane.id}
-                laneName={activeLane.name}
-                modelLabel={modelLabel(activeLane.model)}
-              />
-            ) : (
-              <ConversationPanel
-                surfaceOverride={surfaceOverride}
-                locator={locator}
-                plusMenuActions={[]}
-                placeholder={`Ask ${personaName ?? 'Freddie'}…`}
-                showCommandPicker={true}
-                showInputDivider={true}
-              />
-            )}
+            <ConversationPanel
+              surfaceOverride={surfaceOverride}
+              locator={locator}
+              plusMenuActions={[]}
+              placeholder={`Ask ${personaName ?? 'Freddie'}…`}
+              showCommandPicker={true}
+              showInputDivider={true}
+            />
           </div>
     </div>
   );

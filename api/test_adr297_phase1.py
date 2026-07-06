@@ -116,8 +116,13 @@ def test_kernel_surfaces_module() -> None:
 
     # Spot-check critical surfaces exist
     expected_slugs = {
-        "feed",
+        # ADR-385 follow-on (2026-06-30): the `feed` row was DELETED from the
+        # registry (full alias deletion — the Feed folded into Channels per
+        # ADR-370/385; the slug produced a duplicate dock icon from stale
+        # persisted state). Assertion updated 2026-07-06 (was stale-red).
+        "channels",
         "home",  # ADR-312 D1 — renamed from `cockpit` (was ADR-297 D1)
+        "chat",  # ADR-412 D3 — the lanes surface (Altitude 2's chrome home)
         "recurrence",  # 2026-06-03 — renamed from `cadence` (substrate already spoke "recurrence")
         "budget",  # ADR-327 (2026-06-08) — repurposed from /pace; pace retired
         "autonomy",  # 2026-05-24 design polish — renamed from "delegation"
@@ -194,13 +199,13 @@ def test_kernel_surfaces_module() -> None:
         )
 
     # Single default pin (ADR-297 D5). ADR-370 (2026-06-25): the Feed folded
-    # into the Context boundary surface as its Flow lens and handed off its pin
-    # — `context` is now the single default-pinned surface; `feed.default_pinned`
-    # flipped False.
+    # into the Context boundary surface as its Flow lens and handed off its pin.
+    # ADR-385 (2026-06-29): `context` renamed → `channels`, which inherited the
+    # pin. Assertion updated 2026-07-06 (was stale-red on the old slug).
     pinned_by_default = [s["slug"] for s in KERNEL_SURFACES if s["default_pinned"]]
     _assert(
-        pinned_by_default == ["context"],
-        f"Only Context is default_pinned (found: {pinned_by_default})",
+        pinned_by_default == ["channels"],
+        f"Only Channels is default_pinned (found: {pinned_by_default})",
     )
 
     # Two-register coherence (ADR-309; cleaved by ADR-312 D5). Every
