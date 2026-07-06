@@ -185,7 +185,11 @@ def test_mcp_seam() -> None:
         _ok("mcp: reads route through the scope helper")
     else:
         _bad("mcp: reads route through the scope helper", "helper not wired")
-    if "TODO(shared-workspace / Phase 3)" not in text and 'select("owner_id")' in text:
+    # ADR-408 D2 refactored the inline owner lookup into the shared
+    # acting_workspace_owner seam helper — accept either form, reject the TODO.
+    if "TODO(shared-workspace / Phase 3)" not in text and (
+        "acting_workspace_owner(" in text or 'select("owner_id")' in text
+    ):
         _ok("mcp: wake seam resolves acting-workspace → owner (TODO closed)")
     else:
         _bad("mcp: wake seam resolves acting-workspace → owner (TODO closed)", "TODO remains or owner lookup missing")

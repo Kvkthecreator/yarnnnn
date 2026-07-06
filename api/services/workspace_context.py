@@ -89,10 +89,41 @@ def substrate_scope_filter(
     return ("workspace_id", ws) if ws else ("user_id", user_id)
 
 
+def acting_workspace_owner(client, user_id: str) -> str:
+    """Resolve the OWNER user id of the acting workspace (ADR-408 D2).
+
+    The Freddie/wake stack is keyed by the workspace owner's user_id (its
+    documented contract: "user_id: Workspace owner UUID"). When a MEMBER
+    addresses the steward (chat, FireInvocation, MCP write), the wake must
+    run FOR THE COMMONS — so the request-layer seams resolve
+    acting-workspace → owner before entering the stack, while the member
+    stays the attributed principal. Owner fallback == the caller themselves,
+    byte-identical in N=1. Best-effort: any failure returns the caller
+    (their own lane — never a block).
+    """
+    try:
+        ws = effective_workspace_id(user_id)
+        if not ws:
+            return user_id
+        row = (
+            client.table("workspaces")
+            .select("owner_id")
+            .eq("id", ws)
+            .limit(1)
+            .execute()
+        )
+        rows = getattr(row, "data", None) or []
+        owner = rows[0].get("owner_id") if rows else None
+        return owner or user_id
+    except Exception:
+        return user_id
+
+
 __all__ = [
     "set_request_workspace",
     "reset_request_workspace",
     "get_request_workspace",
     "effective_workspace_id",
     "substrate_scope_filter",
+    "acting_workspace_owner",
 ]

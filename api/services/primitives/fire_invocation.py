@@ -82,6 +82,12 @@ async def handle_fire_invocation(auth: Any, input: dict) -> dict:
     if not user_id:
         return {"success": False, "error": "auth_required", "message": "user_id required"}
 
+    # ADR-408 D2: the wake/recurrence stack is keyed by the workspace OWNER —
+    # a member's manual fire must run the COMMONS' recurrence, not resolve
+    # against their own singleton. Owner fallback == the caller, N=1 identical.
+    from services.workspace_context import acting_workspace_owner
+    user_id = acting_workspace_owner(db_client, user_id)
+
     input = input or {}
     slug = input.get("slug") or ""
     context = input.get("context")

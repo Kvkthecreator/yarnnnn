@@ -1180,28 +1180,13 @@ async def submit_foreign_write_wake(
         if abs_path and not abs_path.startswith("/workspace/"):
             abs_path = "/workspace/" + abs_path.lstrip("/")
 
-        # ADR-407 Phase 1: the wake fires for the WORKSPACE that owns this
-        # substrate, independent of which member's LLM wrote it. The wake
-        # pipeline is keyed by the workspace's OWNER user id (wake.py's unit),
-        # so resolve acting-workspace → owner. Owner fallback == auth.user_id,
-        # byte-identical N=1; a member's MCP write now wakes the commons' seat
-        # instead of the member's own singleton. (Closes the Phase-3 TODO.)
-        wake_scope = auth.user_id
-        try:
-            from services.workspace_context import effective_workspace_id
-            _ws = effective_workspace_id(auth.user_id)
-            if _ws:
-                _row = (
-                    auth.client.table("workspaces")
-                    .select("owner_id")
-                    .eq("id", _ws)
-                    .limit(1)
-                    .execute()
-                )
-                if _row.data and _row.data[0].get("owner_id"):
-                    wake_scope = _row.data[0]["owner_id"]
-        except Exception:  # best-effort — fall back to the writer's own lane
-            pass
+        # ADR-407 Phase 1 / ADR-408 D2: the wake fires for the WORKSPACE that
+        # owns this substrate, independent of which member's LLM wrote it.
+        # The wake pipeline is keyed by the workspace's OWNER user id
+        # (wake.py's unit) — the shared seam helper resolves it (owner
+        # fallback == auth.user_id, byte-identical N=1).
+        from services.workspace_context import acting_workspace_owner
+        wake_scope = acting_workspace_owner(auth.client, auth.user_id)
 
         from services.authored_substrate import _read_head_revision_id
 
