@@ -190,6 +190,49 @@ export interface HarvestSource {
 }
 
 export const api = {
+  // ADR-411 (ADR-408 D6): chat lanes — model-pinned helper threads per
+  // member over the shared workspace. `enabled` reflects MODEL_ROUTER_ENABLED
+  // server-side; the drawer shows the lane strip only when true.
+  lanes: {
+    list: () =>
+      request<{
+        enabled: boolean;
+        models: Array<{ id: string; label: string }>;
+        lanes: Array<{
+          id: string;
+          name: string;
+          model: string;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        }>;
+      }>("/api/lanes"),
+    create: (data: { name: string; model: string }) =>
+      request<{ id: string; name: string; model: string; status: string }>(
+        "/api/lanes",
+        { method: "POST", body: JSON.stringify(data) },
+      ),
+    messages: (laneId: string) =>
+      request<{
+        messages: Array<{
+          id: string;
+          role: "user" | "assistant";
+          content: string;
+          created_at: string;
+          metadata: Record<string, unknown>;
+        }>;
+      }>(`/api/lanes/${laneId}/messages`),
+    send: (laneId: string, content: string) =>
+      request<{ reply: string; rounds: number; tools_called: string[] }>(
+        `/api/lanes/${laneId}/messages`,
+        { method: "POST", body: JSON.stringify({ content }) },
+      ),
+    archive: (laneId: string) =>
+      request<{ success: boolean }>(`/api/lanes/${laneId}/archive`, {
+        method: "POST",
+      }),
+  },
+
   // ADR-108: User context entries (user-scoped, stored in /system/notes.md)
   userMemories: {
     list: () => request<Array<{
