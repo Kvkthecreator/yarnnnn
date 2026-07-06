@@ -395,12 +395,12 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # operation-settings door (workspace-settings), as the "Contract"
         # group (Rhythm · Witness · Expected Output — the operating contract).
         # Budget (Rhythm) is per-operation config, not machine config.
-        # ADR-387 §6.4 (2026-06-30): the agent-scoped governance panes move to
-        # Freddie's pane (the agents window). Budget is a governance/ GRANT —
-        # the spend ceiling the agent runs under (ADR-366). pane_of: agents +
-        # pane_group: Grant so foregroundSurface('budget') lands on Freddie.
-        "pane_of": "agents",
-        "pane_group": "Grant",
+        # ADR-387 §6.4 (2026-06-30) moved the agent-scoped governance panes to
+        # Freddie's roster pane. ADR-412 D5 (2026-07-06): re-homed pane_of agents → workspace-settings
+        # (System Agent group) — Freddie left the roster; the steward's dials
+        # live on the system layer. Still the agent's GRANT (ADR-366).
+        "pane_of": "workspace-settings",
+        "pane_group": "System Agent",
         "title": "Budget",
         "archetype": "document",
         "substrate_paths": [
@@ -426,9 +426,9 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # ADR-347 (2026-06-19): Governance → the one operation-settings door's
         # Contract group (Witness dial = per-operation config, not machine).
         # ADR-387 §6.4 — Autonomy is a governance/ GRANT (the delegation ceiling
-        # the agent runs under, ADR-366). Moves to Freddie's pane, Grant group.
-        "pane_of": "agents",
-        "pane_group": "Grant",
+        # the agent runs under, ADR-366). ADR-412 D5 (2026-07-06): re-homed pane_of agents → workspace-settings (System Agent group).
+        "pane_of": "workspace-settings",
+        "pane_group": "System Agent",
         "title": "Autonomy",
         "archetype": "document",
         "substrate_paths": [
@@ -451,10 +451,10 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "launcher_tier": "search-only",  # ADR-340 P3 — pane-grade
         "register": "os-config",  # governance-region machine config (like budget/autonomy)
         # ADR-387 §6.4 — Expected Output is the contract/ CONTRACT (what the
-        # operator declares the agent owes, ADR-345/366). Moves to Freddie's
-        # pane, Contract group.
-        "pane_of": "agents",
-        "pane_group": "Contract",
+        # operator declares the agent owes, ADR-345/366).
+        # ADR-412 D5 (2026-07-06): re-homed pane_of agents → workspace-settings (System Agent group).
+        "pane_of": "workspace-settings",
+        "pane_group": "System Agent",
         "title": "Expected Output",
         "archetype": "document",
         "substrate_paths": [
@@ -486,9 +486,9 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "intent",  # ADR-312 D5 — constitution band (was `settings`)
         # ADR-387 §6.4 — Principles is the agent's persona/ judgment framework.
-        # Moves to Freddie's pane, Persona group.
-        "pane_of": "agents",
-        "pane_group": "Persona",
+        # ADR-412 D5 (2026-07-06): re-homed pane_of agents → workspace-settings (System Agent group).
+        "pane_of": "workspace-settings",
+        "pane_group": "System Agent",
         "title": "Principles",
         "archetype": "document",
         "substrate_paths": [
@@ -505,10 +505,11 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "intent",  # ADR-312 D5 — constitution band (was `settings`)
         # ADR-387 §6.4 — Identity is the agent's persona/ reasoning-character.
-        # Moves to Freddie's pane, Persona group. (ADR-320 D2b already collapsed
-        # the legacy operator-identity into persona/IDENTITY.md — the agent's.)
-        "pane_of": "agents",
-        "pane_group": "Persona",
+        # (ADR-320 D2b collapsed the legacy operator-identity into
+        # persona/IDENTITY.md — the agent's.)
+        # ADR-412 D5 (2026-07-06): re-homed pane_of agents → workspace-settings (System Agent group).
+        "pane_of": "workspace-settings",
+        "pane_group": "System Agent",
         "title": "Identity",
         "archetype": "document",
         "substrate_paths": [

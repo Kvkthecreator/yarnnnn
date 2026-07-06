@@ -9,5 +9,5 @@
 import { redirect } from 'next/navigation';
 
 export default function BudgetRedirect() {
-  redirect('/agents?agents.agent=freddie&agents.pane=budget');
+  redirect('/workspace-settings?workspace-settings.pane=budget');
 }

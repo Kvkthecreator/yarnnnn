@@ -9,24 +9,24 @@
  * pre-ADR-297 page paradigm. The WindowFrame is now the chrome.
  *
  * What this surface renders: content-only. List mode (no `?agent=`)
- * shows the roster (Reviewer + Domain Agents). Detail mode
- * (`?agent={slug}`) shows AgentContentView for the selected agent.
- * `?agent=X` is window-internal deep-link state — Figma-shaped, like
- * `?node-id=X` — not a separate page navigation.
+ * shows the roster (user-authored Domain Agents; persona agents when
+ * ADR-382 builds). Detail mode (`?agent={slug}`) shows AgentContentView
+ * for the selected agent. `?agent=X` is window-internal deep-link state —
+ * Figma-shaped, like `?node-id=X` — not a separate page navigation.
  *
- * Post-ADR-272: System Agent dissolved as a cockpit entity. Roster
- * shows Reviewer (systemic) + user-authored Domain Agents only.
- *
- * Legacy URL handling:
- *   ?agent=yarnnn / ?agent=thinking-partner / ?agent=system → 404-clean
- *   ?agent=freddie → renders ReviewerDetail (unchanged from ADR-214)
+ * ADR-412 D5 (2026-07-06): the Freddie card LEFT the roster — the Agents
+ * surface is Altitude 3 only; the system agent's panes re-homed to
+ * Workspace Settings (System Agent group). The roster keeps the governor
+ * FRAME (ADR-381 D5: agents are created and governed by Freddie) as a
+ * line, not a seat. Stale ?agent=freddie deep-links fall through to list
+ * mode (the roster filters the freddie class out).
  */
 
 import { useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 import { getAgentSlug, agentDisplayName } from '@/lib/agent-identity';
-import { AgentContentView, FREDDIE_PANE_KEYS } from '@/components/agents/AgentContentView';
+import { AgentContentView } from '@/components/agents/AgentContentView';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 
@@ -37,24 +37,21 @@ export default function AgentsPage() {
   const { agents, tasks, loading } = useAgentsAndRecurrences();
 
   const agentFromUrl = p.get('agent');
-  // ADR-387 §6.4 — the agent-scoped governance panes are pane_of: agents. The
-  // generic mechanism delivers `agents.pane=autonomy` (etc.) but NOT
-  // `agents.agent=freddie`, so when the pane param names a Freddie pane we
-  // infer the Freddie selection — foregroundSurface('autonomy') lands on
-  // Freddie's pane. (Mirrors the channels precedent: the pane param drives the
-  // view.)
-  const paneFromUrl = p.get('pane');
-  const freddiePaneActive = !!paneFromUrl && FREDDIE_PANE_KEYS.includes(paneFromUrl);
+  // ADR-412 D5 — the roster is Altitude 3 only: the freddie class is
+  // filtered out here, so a stale ?agent=freddie deep-link (or the old
+  // ADR-387 agents.pane= form) gracefully falls through to list mode. The
+  // governance panes are pane_of: workspace-settings again.
+  const roster = useMemo(
+    () => agents.filter(a => a.agent_class !== 'freddie'),
+    [agents],
+  );
 
   // Detail mode is URL-driven. Intra-surface state — D19.4: ?agent=X is
   // window-internal deep-link, not cross-surface navigation.
   const selectedAgent = useMemo(() => {
-    if (agentFromUrl === 'freddie' || (!agentFromUrl && freddiePaneActive)) {
-      return agents.find(a => a.agent_class === 'freddie') ?? null;
-    }
     if (!agentFromUrl) return null;
-    return agents.find(a => a.id === agentFromUrl || getAgentSlug(a) === agentFromUrl) ?? null;
-  }, [agentFromUrl, freddiePaneActive, agents]);
+    return roster.find(a => a.id === agentFromUrl || getAgentSlug(a) === agentFromUrl) ?? null;
+  }, [agentFromUrl, roster]);
 
   const agentTasks = selectedAgent
     ? tasks.filter(t => t.agent_slugs?.includes(getAgentSlug(selectedAgent)))
@@ -69,10 +66,7 @@ export default function AgentsPage() {
     selectedAgent
       ? [
           {
-            label:
-              selectedAgent.agent_class === 'freddie'
-                ? 'Reviewer'
-                : agentDisplayName(selectedAgent.title ?? undefined, getAgentSlug(selectedAgent)),
+            label: agentDisplayName(selectedAgent.title ?? undefined, getAgentSlug(selectedAgent)),
             kind: 'agent',
             onClick: () => p.set({ agent: null }),
           },
@@ -97,28 +91,20 @@ export default function AgentsPage() {
     );
   }
 
-  // List mode — roster (Reviewer + Domain Agents). D19.4 + D19.6: clicking
-  // a card updates intra-surface URL state (?agent=X) via setSurfaceParams —
-  // no pathname flip, no cross-window opening; same surface, different
-  // deep-link.
-  const reviewer = agents.find(a => a.agent_class === 'freddie');
-  const domainAgents = agents.filter(a => a.agent_class !== 'freddie');
+  // List mode — the Altitude-3 roster. D19.4 + D19.6: clicking a card
+  // updates intra-surface URL state (?agent=X) via setSurfaceParams — no
+  // pathname flip, no cross-window opening; same surface, different
+  // deep-link. ADR-412 D5: no Freddie card — the governor frame below is a
+  // line, not a seat (ADR-381 D5 legibility; manager in the letterhead).
+  const domainAgents = roster;
 
   return (
     <div className="h-full overflow-auto p-6">
       <div className="max-w-3xl space-y-6">
-        {reviewer && (
-          <div>
-            <p className="text-sm font-medium text-muted-foreground mb-3">Systemic</p>
-            <button
-              onClick={() => p.set({ agent: 'freddie' })}
-              className="w-full text-left rounded-lg border border-border/60 bg-card px-4 py-3 hover:bg-muted/30 transition-colors"
-            >
-              <p className="text-sm font-medium">Freddie</p>
-              <p className="text-xs text-muted-foreground mt-0.5">The system agent — stewards your substrate; judges proposed actions when an operation runs.</p>
-            </button>
-          </div>
-        )}
+        <p className="text-xs text-muted-foreground/70">
+          Agents are created and governed by Freddie, the system agent —
+          its dials live in Workspace Settings → System Agent.
+        </p>
         {domainAgents.length > 0 && (
           <div>
             <p className="text-sm font-medium text-muted-foreground mb-3">Your agents</p>

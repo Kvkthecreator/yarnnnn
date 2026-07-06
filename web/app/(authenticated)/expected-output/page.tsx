@@ -10,5 +10,5 @@
 import { redirect } from 'next/navigation';
 
 export default function ExpectedOutputRedirect() {
-  redirect('/agents?agents.agent=freddie&agents.pane=expected-output');
+  redirect('/workspace-settings?workspace-settings.pane=expected-output');
 }

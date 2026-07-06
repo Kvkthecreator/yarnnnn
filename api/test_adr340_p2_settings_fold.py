@@ -30,18 +30,20 @@ FAILED = 0
 # *mechanism* is unchanged — only which door each pane folds into.
 # ACCOUNT_PANES (billing/usage/account) are page-local tabs on the account
 # window, NOT registry pane-grade surfaces, so they are not in the registry.
-# ADR-387 §6.4 (2026-06-30): the agent-scoped governance panes LEFT Workspace
-# Settings for Freddie's pane (the agents window). Only Mandate (constitution/)
-# + Program (operation/) remain Workspace-Settings panes.
+# ADR-387 §6.4 (2026-06-30) moved the agent-scoped governance panes to
+# Freddie's roster pane; ADR-412 D5 (2026-07-06) REVERSED it — Freddie left
+# the /agents roster, and the panes re-homed to Workspace Settings as the
+# System Agent group.
 WORKSPACE_SETTINGS_PANES = {
     "mandate",   # Constitution
     "program",   # Operation
 }
-# ADR-387 §6.4: the agent's settings live on the agent's pane (pane_of: agents).
+# ADR-412 D5: the system agent's panes live in Workspace Settings (System
+# Agent group) — pane_of: workspace-settings.
 FREDDIE_PANES = {
-    "identity", "principles",          # Persona (the agent's own)
-    "autonomy", "budget",              # Grant (governance/ ceilings)
-    "expected-output",                 # Contract (what it owes)
+    "identity", "principles",          # the agent's persona/
+    "autonomy", "budget",              # governance/ ceilings
+    "expected-output",                 # contract/ (what it owes)
 }
 # ADR-385: connectors + sources are still pane-grade, but pane_of: channels.
 CHANNELS_PANES = {"connectors", "sources"}
@@ -79,9 +81,9 @@ def test_registry_pane_model() -> None:
     for slug in sorted(WORKSPACE_SETTINGS_PANES):
         check(f"{slug}: pane_of == 'workspace-settings'", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
-    # ADR-387 §6.4: the agent-scoped governance panes fold into Freddie's pane.
+    # ADR-412 D5: the system agent's panes fold into Workspace Settings.
     for slug in sorted(FREDDIE_PANES):
-        check(f"{slug}: pane_of == 'agents' (ADR-387 §6.4)", by_slug[slug].get("pane_of") == "agents")
+        check(f"{slug}: pane_of == 'workspace-settings' (ADR-412 D5)", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
     # ADR-385: connectors + sources re-home onto the Channels surface.
     for slug in sorted(CHANNELS_PANES):
@@ -102,13 +104,10 @@ def test_registry_pane_model() -> None:
         "setup stays window-grade (Sequence surface, ADR-331)",
         not by_slug["setup"].get("pane_of"),
     )
-    # ADR-387 §6.4 grouping on Freddie's pane — by substrate root-ownership:
-    # Persona (the agent's own), Grant (governance/ ceilings), Contract (owed).
-    for slug in ("identity", "principles"):
-        check(f"{slug} grouped Persona (ADR-387)", by_slug[slug]["pane_group"] == "Persona")
-    for slug in ("autonomy", "budget"):
-        check(f"{slug} grouped Grant (ADR-387)", by_slug[slug]["pane_group"] == "Grant")
-    check("expected-output grouped Contract (ADR-387)", by_slug["expected-output"]["pane_group"] == "Contract")
+    # ADR-412 D5 grouping — one System Agent group (the ADR-387 five-group
+    # pedagogy flattened; pane bodies carry root-ownership taglines).
+    for slug in sorted(FREDDIE_PANES):
+        check(f"{slug} grouped System Agent (ADR-412 D5)", by_slug[slug]["pane_group"] == "System Agent")
     # ADR-385 (2026-06-29): Perception left Workspace Settings — connectors +
     # sources re-home onto the Channels surface (group Channels).
     check("connectors grouped Channels (ADR-385)", by_slug["connectors"]["pane_group"] == "Channels")
@@ -151,17 +150,21 @@ def test_settings_container() -> None:
     ]:
         check(f"Settings door: {label}", needle in ws_src)
     check("Settings door Program pane carries re-run-setup door", "Re-run setup" in ws_src)
-    # ADR-387 §6.4: the moved cards are GONE from the Settings door (a MOVE not a
-    # copy — Singular Implementation, no two-surfaces-one-substrate).
+    # ADR-412 D5: the agent-scoped cards render on the Settings door again —
+    # via the shared SystemAgentPanes module (a MOVE back, not a copy; the
+    # AgentContentView mount is deleted — Singular Implementation).
+    check(
+        "Settings door mounts the System Agent group (ADR-412 D5)",
+        "SYSTEM_AGENT_PANE_GROUP" in ws_src and "renderSystemAgentPane" in ws_src,
+    )
+    panes_src = _read("components/agents/SystemAgentPanes.tsx")
     for needle, label in [
         ("PrinciplesCard", "Principles"),
         ("BudgetCard", "Budget"),
         ("AutonomyCard", "Autonomy"),
         ("ExpectedOutputCard", "Expected Output"),
-        ("IdentityBrandCard", "Identity (merged card)"),
     ]:
-        check(f"Settings door no longer renders {label} (moved to Freddie)", needle not in ws_src)
-    # ADR-387 §6.4: the moved cards render on Freddie's pane instead.
+        check(f"SystemAgentPanes renders {label} (ADR-412 D5)", needle in panes_src)
     agent_src = _read("components/agents/AgentContentView.tsx")
     for needle, label in [
         ("PrinciplesCard", "Principles"),
@@ -169,7 +172,7 @@ def test_settings_container() -> None:
         ("AutonomyCard", "Autonomy"),
         ("ExpectedOutputCard", "Expected Output"),
     ]:
-        check(f"Freddie's pane renders {label} (ADR-387 §6.4)", needle in agent_src)
+        check(f"AgentContentView no longer renders {label} (ADR-412 D5)", needle not in agent_src)
 
 
 def test_redirect_stubs() -> None:
@@ -183,14 +186,15 @@ def test_redirect_stubs() -> None:
         target = f"/workspace-settings?workspace-settings.pane={slug}"
         check(f"/{slug} → {target}", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
-    # ADR-387 §6.4: the agent-scoped governance route stubs redirect to Freddie's
-    # pane (the agents window) — agents.agent selects Freddie, agents.pane the pane.
+    # ADR-412 D5: the agent-scoped governance route stubs redirect into the
+    # Settings door's System Agent group (the ADR-387 Freddie-pane targets
+    # reversed).
     for slug in sorted(FREDDIE_PANES):
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
         if not stub:
             continue
-        target = f"/agents?agents.agent=freddie&agents.pane={slug}"
-        check(f"/{slug} → {target} (ADR-387 §6.4)", f"redirect('{target}')" in stub)
+        target = f"/workspace-settings?workspace-settings.pane={slug}"
+        check(f"/{slug} → {target} (ADR-412 D5)", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
     # ADR-385: the re-homed Perception routes redirect to the Channels surface.
     for slug in sorted(CHANNELS_PANES):

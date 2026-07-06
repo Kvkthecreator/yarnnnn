@@ -40,7 +40,7 @@
  * (substrate writes via primitives, not bespoke modals).
  *
  * Reused on:
- *   - /agents?agent=freddie&tab=activity (canonical home)
+ *   - Workspace Settings → System Agent → Activity (canonical home, ADR-412 D5)
  *   - Chat WorkspaceContextOverlay Review section
  */
 

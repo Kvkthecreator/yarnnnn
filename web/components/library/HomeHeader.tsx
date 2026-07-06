@@ -30,9 +30,9 @@
  * as skeleton (any "Author here:" prompt in a sub-section triggered the
  * whole-file skeleton banner even when Primary Action was authored).
  *
- * Autonomy posture links to /autonomy (atomic Autonomy surface;
- * renamed from /delegation 2026-05-24; formerly
- * /agents?agent=freddie&tab=autonomy per ADR-251).
+ * Autonomy posture links to the Autonomy pane (Workspace Settings →
+ * System Agent per ADR-412 D5; the registry pane_of re-point carries the
+ * foregroundSurface call — this component stays pane-blind).
  */
 
 import { useEffect, useState } from 'react';
@@ -91,11 +91,9 @@ function AutonomyBadge({ level, summary }: { level: AutonomyDelegation | null; s
   // (which resolves the pane to its parent window + ?pane= WITHOUT flipping
   // the pathname), NOT a <Link>. The <Link> did a full Next.js navigation
   // that left the /desktop SPA and reset the chat rail — breaking the Canvas
-  // two-pane continuity. ADR-387 §6.4 (2026-06-30): autonomy is now
-  // pane_of: agents, so this resolves to agents.pane=autonomy → Freddie's
-  // pane (where the agent's governance lives). This call is unchanged — the
-  // registry re-point makes it land in the right place; it had been DANGLING
-  // since ADR-297 deleted the autonomy tab (the bug this whole arc fixes).
+  // two-pane continuity. ADR-412 D5 (2026-07-06): autonomy is
+  // pane_of: workspace-settings (System Agent group) — the registry re-point
+  // carries this call; the component stays pane-blind.
   const { foregroundSurface } = useSurfacePreferences();
   const Icon =
     level === 'autonomous' ? ShieldCheck :

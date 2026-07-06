@@ -1,4 +1,4 @@
-"""ADR-412 step-1 regression gate — three altitudes, three chromes (D2 + D3 + D4).
+"""ADR-412 regression gate — three altitudes, three chromes (steps 1+2: D2–D5).
 
 FE source-guards (the web/ package has no JS runner — ADR-350/367 gate shape):
 
@@ -10,6 +10,11 @@ FE source-guards (the web/ package has no JS runner — ADR-350/367 gate shape):
       work-first recents (updated_at sort, model as CHIP + filter facet,
       never model-first folders) and lists lanes via GET /api/lanes (the
       viewer's lanes in the acting workspace).
+  (c) /agents renders no Freddie card and carries the governor frame line
+      (step 2 — D5 roster purification).
+  (d) The System Agent panes resolve into Workspace Settings (step 2 — the
+      five registry rows re-homed pane_of agents → workspace-settings;
+      redirect stubs + page mount follow).
   (e) ADR-411 lane MECHANICS untouched is asserted by test_adr411_lanes.py
       staying green — run both.
 
@@ -136,12 +141,96 @@ def test_surface_work_first() -> None:
     )
 
 
+# =============================================================================
+# (c) The Agents roster purified (D5)
+# =============================================================================
+
+
+def test_roster_purified() -> None:
+    print("\n[c] /agents roster is Altitude 3 only (ADR-412 D5)")
+    page = _read("web/app/(authenticated)/agents/page.tsx")
+
+    _assert("Systemic" not in page, "No Systemic section on the roster")
+    _assert(
+        "agent: 'freddie'" not in page and 'agent: "freddie"' not in page,
+        "No Freddie card selection on the roster",
+    )
+    _assert("FREDDIE_PANE_KEYS" not in page, "The ADR-387 pane inference is gone")
+    _assert(
+        "governed by Freddie" in page,
+        "The governor frame line renders (ADR-381 D5 — a line, not a seat)",
+    )
+    _assert(
+        "!== 'freddie'" in page,
+        "The freddie class is filtered from the roster (stale deep-links fall to list mode)",
+    )
+
+    view = _read("web/components/agents/AgentContentView.tsx")
+    _assert(
+        "function ReviewerDetail" not in view and "<ReviewerDetail" not in view,
+        "ReviewerDetail deleted from AgentContentView (comment mentions allowed)",
+    )
+    _assert(
+        "FREDDIE_PANE_GROUPS: PaneGroup" not in view and "renderFreddiePane" not in view,
+        "The grouped Freddie pane shell left the view (comment mentions allowed)",
+    )
+
+
+# =============================================================================
+# (d) The System Agent panes resolve into Workspace Settings (D5)
+# =============================================================================
+
+
+def test_system_agent_rehome() -> None:
+    print("\n[d] System Agent panes live in Workspace Settings (ADR-412 D5)")
+    from services.kernel_surfaces import KERNEL_SURFACES
+
+    rehomed = {"identity", "principles", "autonomy", "budget", "expected-output"}
+    for slug in sorted(rehomed):
+        row = next((r for r in KERNEL_SURFACES if r["slug"] == slug), None)
+        _assert(
+            row is not None and row.get("pane_of") == "workspace-settings",
+            f"`{slug}` is pane_of workspace-settings (was agents, ADR-387 §6.4 reversed)",
+        )
+        if row is not None:
+            _assert(
+                row.get("pane_group") == "System Agent",
+                f"`{slug}` sits in the System Agent group",
+            )
+    _assert(
+        not any(r.get("pane_of") == "agents" for r in KERNEL_SURFACES),
+        "No registry pane is homed on the agents window anymore",
+    )
+
+    ws = _read("web/app/(authenticated)/workspace-settings/page.tsx")
+    _assert("SYSTEM_AGENT_PANE_GROUP" in ws, "Workspace Settings mounts the System Agent group")
+    _assert("renderSystemAgentPane" in ws, "Pane bodies render via the shared module")
+    _assert(
+        "const MOVED_TO_FREDDIE" not in ws,
+        "The ADR-387 stale-bookmark net is deleted (comment mentions allowed)",
+    )
+
+    _assert(
+        os.path.exists(os.path.join(REPO, "web/components/agents/SystemAgentPanes.tsx")),
+        "SystemAgentPanes module exists (the extracted Singular Implementation)",
+    )
+
+    for route in ["autonomy", "budget", "principles", "identity", "expected-output"]:
+        stub = _read(f"web/app/(authenticated)/{route}/page.tsx")
+        _assert(
+            f"workspace-settings.pane={route}" in stub and "agents.agent=freddie" not in stub,
+            f"/{route} stub redirects into Workspace Settings",
+        )
+
+
 if __name__ == "__main__":
     test_drawer_steward_only()
     test_kernel_registry_row()
     test_fe_registration()
     test_surface_work_first()
+    test_roster_purified()
+    test_system_agent_rehome()
     print("\n" + "=" * 60)
-    print(f"ADR-412 step-1 gate: {_passed} passed, {_failed} failed")
+    print(f"ADR-412 gate: {_passed} passed, {_failed} failed")
     print("=" * 60)
     sys.exit(1 if _failed else 0)

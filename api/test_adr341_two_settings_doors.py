@@ -87,21 +87,14 @@ def test_pane_homing() -> None:
     from services.kernel_surfaces import KERNEL_SURFACES
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
-    # ADR-387 §6.4 (2026-06-30): the agent-scoped governance panes LEFT
-    # Workspace Settings for Freddie's pane (the agents window), grouped by
-    # substrate root-ownership. Identity + Principles (persona/) = Persona;
-    # Autonomy + Budget (governance/ GRANT) = Grant; Expected Output (contract/
-    # CONTRACT) = Contract. These are the agent's settings — they live on the
-    # agent's pane (re-affirming ADR-251 on the ADR-381/383 Freddie foundation).
-    for slug in ("identity", "principles"):
-        check(f"{slug} → Freddie's pane (ADR-387)", by_slug[slug].get("pane_of") == "agents")
-        check(f"{slug} grouped Persona", by_slug[slug].get("pane_group") == "Persona")
-    for slug in ("autonomy", "budget"):
-        check(f"{slug} → Freddie's pane (ADR-387)", by_slug[slug].get("pane_of") == "agents")
-        check(f"{slug} grouped Grant", by_slug[slug].get("pane_group") == "Grant")
-    for slug in ("expected-output",):
-        check(f"{slug} → Freddie's pane (ADR-387)", by_slug[slug].get("pane_of") == "agents")
-        check(f"{slug} grouped Contract", by_slug[slug].get("pane_group") == "Contract")
+    # ADR-387 §6.4 (2026-06-30) moved the agent-scoped governance panes to
+    # Freddie's roster pane; ADR-412 D5 (2026-07-06) REVERSED it — Freddie
+    # left the /agents roster, and the panes live on the Settings door as
+    # the System Agent group (the steward's inspection surface is system
+    # layer, not staff roster).
+    for slug in ("identity", "principles", "autonomy", "budget", "expected-output"):
+        check(f"{slug} → the Settings door (ADR-412 D5)", by_slug[slug].get("pane_of") == "workspace-settings")
+        check(f"{slug} grouped System Agent", by_slug[slug].get("pane_group") == "System Agent")
     # Workspace Settings keeps the genuinely workspace-level residue: Mandate
     # (constitution/ — operator intent) + Program (operation/). ADR-387 D1.
     for slug in ("mandate",):
@@ -153,18 +146,18 @@ def test_constitution_band_preserved() -> None:
     print("\n[band] constitution stays first-class on Home (D2, ADR-312 D5)")
     home = _read("components/library/HomeHeader.tsx")
     check("HomeHeader still renders the constitution band", "ConstitutionLinks" in home)
-    # Mandate (constitution/ — operator intent) stays a Workspace-Settings pane
-    # stub. ADR-387 §6.4: Identity + Principles (persona/ — the agent's) moved to
-    # Freddie's pane, so THEIR stubs now redirect to the agents window. The band
-    # consumes the cards directly, independent of these routes.
+    # All three constitution-trio stubs redirect into the Settings door —
+    # Mandate to its Constitution pane; Identity + Principles to the System
+    # Agent group (ADR-412 D5 reversed their ADR-387 Freddie-pane targets).
+    # The band consumes the cards directly, independent of these routes.
     mandate_stub = _read("app/(authenticated)/mandate/page.tsx")
     check("/mandate → Workspace Settings pane stub",
           "redirect('/workspace-settings?workspace-settings.pane=mandate')" in mandate_stub)
     check("/mandate stub is server-side (no 'use client')", "'use client'" not in mandate_stub)
     for slug in ("identity", "principles"):
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
-        check(f"/{slug} → Freddie's pane stub (ADR-387 §6.4)",
-              f"redirect('/agents?agents.agent=freddie&agents.pane={slug}')" in stub)
+        check(f"/{slug} → Settings-door System Agent stub (ADR-412 D5)",
+              f"redirect('/workspace-settings?workspace-settings.pane={slug}')" in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
 
 

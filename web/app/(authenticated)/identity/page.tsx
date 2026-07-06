@@ -13,5 +13,5 @@
 import { redirect } from 'next/navigation';
 
 export default function IdentityRedirect() {
-  redirect('/agents?agents.agent=freddie&agents.pane=identity');
+  redirect('/workspace-settings?workspace-settings.pane=identity');
 }

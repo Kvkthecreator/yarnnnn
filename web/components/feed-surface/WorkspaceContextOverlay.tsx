@@ -25,7 +25,7 @@
  * Out-of-scope on this surface (lives elsewhere by design):
  *   - Full upcoming-wakes schedule → /work?tab=schedule
  *   - Full execution history → /activity
- *   - Reviewer-loop supervision → /agents?agent=freddie&tab=activity
+ *   - Reviewer-loop supervision → Workspace Settings → System Agent → Activity (ADR-412 D5)
  *   - awareness.md free-form notes (vestigial — never updated past
  *     activation skeleton; substrate continuity is decisions.md +
  *     _performance.md + domain _run_log.md per ADR-261)
@@ -347,8 +347,8 @@ function PulseSection({ onAskTP }: { onAskTP: (prompt: string) => void }) {
       {/* Deep-links to canonical surfaces */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[11px] text-muted-foreground/60">
         <SurfaceLink
-          to="agents"
-          params={{ agent: 'freddie', tab: 'activity' }}
+          to="workspace-settings"
+          params={{ pane: 'activity' }}
           className="inline-flex items-center gap-0.5 hover:text-foreground hover:underline underline-offset-4"
         >
           Freddie activity <ArrowRight className="h-3 w-3" />

@@ -26,36 +26,49 @@
  * ADR-385 D4 (2026-06-29): the Perception group (Connectors · Sources) is
  * removed — perception is wholly owned by the Channels surface now; the
  * connectors/sources slugs are pane_of: channels.
+ *
+ * ADR-412 D5 (2026-07-06): the SYSTEM AGENT group lands — Freddie's panes
+ * (Identity · Principles · Autonomy · Budget · Expected Output ·
+ * Capabilities · Activity) re-home HERE from the /agents roster, reversing
+ * ADR-387 §6.4's placement: the Agents surface is Altitude 3 (domain +
+ * persona agents); the system agent's inspection surface belongs on the
+ * system layer. Bodies render via SystemAgentPanes (Singular
+ * Implementation — the roster mount is deleted). The ADR-387
+ * MOVED_TO_FREDDIE redirect net is deleted with it: the old
+ * workspace-settings.pane= URLs simply resolve here again.
  */
 
 import { useEffect, useState } from "react";
 import { Target, UserCircle, Package, AlertCircle, Rocket, Loader2, Users } from "lucide-react";
 import { api, APIError } from "@/lib/api/client";
-import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
+import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { MandateCard } from "@/components/workspace-concepts/MandateCard";
 import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
 import { WorkspaceFileView } from "@/components/shared/WorkspaceFileView";
 import { ProgramLifecycleDrawer } from "@/components/library/ProgramLifecycleDrawer";
+// ADR-412 D5 — the System Agent group (Freddie's panes, re-homed from the
+// /agents roster; reverses ADR-387 §6.4).
+import {
+  SYSTEM_AGENT_PANE_GROUP,
+  SYSTEM_AGENT_PANE_KEYS,
+  renderSystemAgentPane,
+} from "@/components/agents/SystemAgentPanes";
 
 // ADR-341/347: pane keys match the kernel registry slugs for pane-grade
-// surfaces (mandate/identity/principles/budget/autonomy/expected-output/
-// program), so foregroundSurface(slug) → workspace-settings + ?pane=slug
+// surfaces, so foregroundSurface(slug) → workspace-settings + ?pane=slug
 // resolves here. ADR-385: connectors/sources moved to pane_of: channels.
-// ADR-387 D1 (2026-06-29): the agent-scoped panes — Identity + Principles
-// (persona/), Autonomy + Budget (governance/ grant), Expected Output
-// (contract/) — MOVED OUT to Freddie's pane (?agent=freddie), where the
-// agent's settings belong post-ADR-381/383. A MOVE not a copy (Singular
-// Implementation, the ADR-297 invariant): they are gone from here. Deep-links
-// to the old pane slugs redirect (ADR-308 stub, see redirectToFreddie below).
-// Workspace Settings keeps Mandate (constitution/ — operator intent), Brand
-// (operation/ — D3 interim home pending its own rethink), Program (operation/
-// — D4, its own scoped ADR), Members (access).
+// ADR-412 D5 (2026-07-06): the ADR-387 §6.4 move is REVERSED — the
+// agent-scoped panes (identity/principles/autonomy/budget/expected-output +
+// capabilities/activity) return as the System Agent group, since Freddie
+// left the /agents roster. Registry rows carry pane_of: workspace-settings
+// again; capabilities/activity stay local pane keys (no registry row).
 const PANE_GROUPS: PaneGroup[] = [
   {
     label: "Constitution",
     panes: [{ key: "mandate", label: "Mandate", icon: Target }],
   },
+  SYSTEM_AGENT_PANE_GROUP,
   {
     // ADR-387 D3 — Brand stays here (interim). It is operation/-rooted output
     // styling consumed by writing-agents, NOT Freddie's reasoning-character —
@@ -80,36 +93,14 @@ const PANE_GROUPS: PaneGroup[] = [
   },
 ];
 
-// ADR-387 D1 — ADR-308 pure-transport redirect: the moved pane slugs land on
-// Freddie's pane. A deep-link to workspace-settings.pane=identity (etc.) now
-// foregrounds the agents window on Freddie with the matching tab.
-const MOVED_TO_FREDDIE: Record<string, string> = {
-  identity: "identity",
-  principles: "principles",
-  autonomy: "autonomy",
-  budget: "budget",
-  "expected-output": "expected-output",
-};
-
 export default function WorkspaceSettingsPage() {
   const { navigateToSurface } = useSurfacePreferences();
-  const surfaceParam = useSurfaceParam("workspace-settings");
-  const requestedPane = surfaceParam.get("pane");
-
-  // ADR-387 §6.4 — STALE-BOOKMARK safety net. Post-§6.4 the five panes are
-  // pane_of: agents, so nothing in-app generates a workspace-settings.pane=
-  // moved-slug URL anymore (foregroundSurface lands them on Freddie directly).
-  // This effect only catches an OLD external bookmark of the pre-§6.4 URL and
-  // forwards it to Freddie's pane (ADR-308 pure transport; param is now `pane`
-  // to match the unified Freddie param model).
-  useEffect(() => {
-    if (requestedPane && MOVED_TO_FREDDIE[requestedPane]) {
-      navigateToSurface("agents", { agent: "freddie", pane: MOVED_TO_FREDDIE[requestedPane] });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestedPane]);
 
   const renderPane = (pane: string) => {
+    // ADR-412 D5 — the System Agent panes render via the shared module.
+    if (SYSTEM_AGENT_PANE_KEYS.includes(pane)) {
+      return <section className="mb-8">{renderSystemAgentPane(pane)}</section>;
+    }
     switch (pane) {
       case "mandate":
         return (
@@ -145,8 +136,6 @@ export default function WorkspaceSettingsPage() {
           </section>
         );
       // ADR-385 D4 — connectors/sources moved to Channels.
-      // ADR-387 D1 — identity/principles/autonomy/budget/expected-output MOVED
-      // to Freddie's pane (redirected above); their render cases are gone here.
       case "members":
         // ADR-373 D2 — read-only Workspace Members legibility.
         return (

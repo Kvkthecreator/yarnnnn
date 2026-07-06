@@ -9,5 +9,5 @@
 import { redirect } from 'next/navigation';
 
 export default function PrinciplesRedirect() {
-  redirect('/agents?agents.agent=freddie&agents.pane=principles');
+  redirect('/workspace-settings?workspace-settings.pane=principles');
 }

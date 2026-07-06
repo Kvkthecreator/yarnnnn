@@ -21,14 +21,6 @@ import {
   FolderKanban,
   Sparkles,
   Loader2,
-  // ADR-387 — Freddie grouped-nav pane icons
-  User,
-  Scale,
-  ShieldCheck,
-  Wallet,
-  Crosshair,
-  FileCode,
-  Activity as ActivityIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
@@ -38,17 +30,6 @@ import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader'
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { formatRelativeTime } from '@/lib/formatting';
 import { humanizeSchedule, scheduleDisplay } from '@/lib/schedule';
-import { SubstrateTab } from './SubstrateTab';
-import { FreddieActivityPanel } from './FreddieActivityPanel';
-import { FreddieCapabilitiesPanel } from './FreddieCapabilitiesPanel';
-import { SettingsPaneShell, type PaneGroup } from '@/components/settings/SettingsPaneShell';
-// ADR-387 (2026-06-29): Freddie's pane absorbs the agent-scoped governance
-// panes out of Workspace Settings. The same *Card full variants render here
-// (a MOVE, not a copy — Workspace Settings loses them; Singular Implementation).
-import { PrinciplesCard } from '@/components/workspace-concepts/PrinciplesCard';
-import { AutonomyCard } from '@/components/workspace-concepts/AutonomyCard';
-import { BudgetCard } from '@/components/workspace-concepts/BudgetCard';
-import { ExpectedOutputCard } from '@/components/workspace-concepts/ExpectedOutputCard';
 import {
   agentClassDescription,
   agentClassLabel,
@@ -681,9 +662,9 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 // Shared tab bar
 // ---------------------------------------------------------------------------
 
-// ADR-387: AgentTabBar (the flat Freddie tab bar) + TabDef DELETED — Freddie's
-// surface now uses the grouped sidebar (FREDDIE_PANE_GROUPS) below. No other
-// consumer existed (Singular Implementation — no dead code left behind).
+// ADR-387: AgentTabBar (the flat Freddie tab bar) + TabDef DELETED — replaced
+// by the grouped sidebar, which itself left this file per ADR-412 D5 (now
+// components/agents/SystemAgentPanes.tsx, mounted by Workspace Settings).
 
 // ---------------------------------------------------------------------------
 // ADR-272 (2026-05-14): YarnnnDetail function DELETED. System Agent surface
@@ -695,176 +676,20 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Reviewer detail (ADR-251 D4, expanded 2026-05-14): Identity · Principles ·
-// Capabilities · Autonomy · Activity
-//
-// Five-tab structure reads top-to-bottom as operator orienting themselves
-// to their Reviewer: who (Identity) → frame (Principles) → what it can
-// produce (Capabilities) → how much delegation (Autonomy) → what it did
-// (Activity).
-//
-// Capabilities tab added 2026-05-14: surfaces /workspace/operation/specs/*.md as
-// first-class operator content (the Claude Code skills.md analog). Specs
-// were entirely backend-internal before — Reviewer read them; operator
-// had to manually browse /files to know they existed.
-//
-// Activity tab also added 2026-05-14 after audit found FreddieActivityPanel
-// was rendering significantly stale data inside the Autonomy tab. Splitting
-// supervision (Activity) from delegation config (Autonomy) per the
-// lens-sharpening discipline canonized in WORKSPACE.md.
-//
-// Track Record + Decisions link-outs deleted in earlier passes —
-// calibration headline already surfaces on cockpit PerformanceFace
-// (ADR-228); raw files remain accessible via /files.
+// ADR-412 D5 (2026-07-06): the Freddie detail (ReviewerDetail + the ADR-387
+// §6.4 grouped pane shell) LEFT this surface. Freddie is not a roster card —
+// the Agents surface is Altitude 3 (domain + persona agents); the system
+// agent's panes re-homed to Workspace Settings as the System Agent group
+// (components/agents/SystemAgentPanes.tsx — a MOVE, not a copy). The
+// ADR-251/387 lineage lives on there.
 // ---------------------------------------------------------------------------
-
-// ADR-387 (2026-06-29): Freddie's pane absorbs the agent-scoped governance
-// out of Workspace Settings. ADR-297 had DELETED Autonomy + Principles tabs
-// (moving them to atomic surfaces, later consolidated into Workspace
-// Settings); ADR-387 RE-AFFIRMS ADR-251's thesis — these are the AGENT's
-// settings — now that ADR-381/383 makes "the agent" (Freddie) a concrete
-// identity-backed entity. The flat tab bar becomes a grouped sidebar
-// (SettingsPaneShell grammar) grouped by SUBSTRATE ROOT-OWNERSHIP so the
-// surface teaches the lock model (ADR-341): PERSONA (persona/ — the agent's
-// own) · GRANT (governance/ — the ceiling the operator sets, the agent runs
-// under) · CONTRACT (contract/ — what the operator declares it owes) ·
-// OPERATION (specs) · SUPERVISION (activity).
-//
-// A MOVE not a copy: these panes are simultaneously removed from
-// workspace-settings PANE_GROUPS (Singular Implementation, the ADR-297
-// invariant). The param stays `agents.tab` (ADR-358 D6) so every existing
-// deep-link (?agent=freddie&agents.tab=identity|activity, and the dangling
-// HomeHeader autonomy deep-link ADR-297 had broken) keeps working — the
-// autonomy/principles keys now RESOLVE instead of falling through.
-// Freddie's grouped pane list — the shared PaneGroup shape (Singular
-// Implementation: the same shell behind the Settings doors renders this).
-const FREDDIE_PANE_GROUPS: PaneGroup[] = [
-  {
-    label: 'Persona',
-    panes: [
-      { key: 'identity', label: 'Identity', icon: User },
-      { key: 'principles', label: 'Principles', icon: Scale },
-    ],
-  },
-  {
-    label: 'Grant',
-    panes: [
-      { key: 'autonomy', label: 'Autonomy', icon: ShieldCheck },
-      { key: 'budget', label: 'Budget', icon: Wallet },
-    ],
-  },
-  {
-    label: 'Contract',
-    panes: [{ key: 'expected-output', label: 'Expected Output', icon: Crosshair }],
-  },
-  {
-    label: 'Operation',
-    panes: [{ key: 'capabilities', label: 'Capabilities', icon: FileCode }],
-  },
-  {
-    label: 'Supervision',
-    panes: [{ key: 'activity', label: 'Activity', icon: ActivityIcon }],
-  },
-];
-// Exported (ADR-387 §6.4) so the agents page can auto-select Freddie when a
-// pane_of-delivered `agents.pane` is one of these — the generic mechanism sets
-// the pane param but not `agents.agent=freddie`, so the page infers it.
-export const FREDDIE_PANE_KEYS = FREDDIE_PANE_GROUPS.flatMap((g) => g.panes.map((p) => p.key));
-
-/** ADR-387 — render one Freddie pane body. The *Card full variants are the
- *  SAME components Workspace Settings used (they leave there; Singular
- *  Implementation). Identity + Capabilities + Activity keep their existing
- *  Freddie-surface renderers. */
-function renderFreddiePane(pane: string) {
-  switch (pane) {
-    case 'identity':
-      return (
-        <SubstrateTab
-          title="Identity"
-          path="/workspace/persona/IDENTITY.md"
-          tagline="Freddie's persona — who occupies the seat. Operator-authored; shapes how it reasons (stewardship, and judgment when an operation runs)."
-          editPrompt="I want to evolve Freddie's identity and persona. Walk me through the current declaration."
-          emptyBody={
-            <p className="text-center text-xs">
-              No identity declared yet. Author Freddie's persona to shape
-              how it reasons — Simons, Buffett, or your own original.
-            </p>
-          }
-        />
-      );
-    case 'principles':
-      return <PrinciplesCard variant="full" />;
-    case 'autonomy':
-      return <AutonomyCard variant="full" />;
-    case 'budget':
-      return <BudgetCard variant="full" />;
-    case 'expected-output':
-      return <ExpectedOutputCard variant="full" />;
-    case 'capabilities':
-      return <FreddieCapabilitiesPanel />;
-    case 'activity':
-      return <FreddieActivityPanel />;
-    default:
-      return null;
-  }
-}
-
-function ReviewerDetail({ agent }: { agent: Agent }) {
-  // ADR-358 D6: the Reviewer's sub-pane is THIS window's own deep-link state,
-  // read/written via useSurfaceParam (no pathname flip). ADR-387 §6.4
-  // (2026-06-30): the param is `agents.pane` — the name the generic pane_of
-  // mechanism delivers (the 5 governance panes are now pane_of: agents, so
-  // foregroundSurface('autonomy') reconciles agents.pane=autonomy here). This
-  // mirrors the channels surface precedent exactly (windowSlug.pane). The
-  // legacy `agents.tab` form is read as a fallback (the shell resolves
-  // `{windowSlug}.pane ?? {windowSlug}.tab`), so the autonomy/principles
-  // deep-links still RESOLVE — fixing the dangling HomeHeader autonomy link.
-  //
-  // ADR-387 grouped sidebar — now mounts the shared SettingsPaneShell
-  // (Singular Implementation, the 2026-06-30 unification: Freddie's forked
-  // sidebar copy is deleted). The shell owns the responsive drill-in + the
-  // `agents.pane=` URL sync; Freddie passes its identity bar as `header`.
-  // contentWidth="reading" (2026-06-30): Freddie's panes are prose (IDENTITY.md
-  // via WorkspaceFileView) + governance cards — a doc surface, not a config
-  // form. The shell pins them to a readable column LEFT-aligned next to the nav
-  // instead of the prior `mx-auto` centering, which floated the column
-  // dead-center in a maximized window (the awkward left gap). The former inner
-  // `max-w-3xl px-6 py-5` wrapper is dropped — the shell owns width + padding
-  // now (Singular Implementation; the cards are already width-unconstrained).
-  return (
-    <SettingsPaneShell
-      windowSlug="agents"
-      paneGroups={FREDDIE_PANE_GROUPS}
-      defaultPane="identity"
-      navLabel="Freddie panes"
-      contentWidth="reading"
-      header={
-        <SurfaceIdentityHeader
-          title="Freddie"
-          metadata={
-            <span className="text-xs text-muted-foreground">
-              The system agent — stewards your substrate; judges proposed actions when an operation runs
-            </span>
-          }
-        />
-      }
-      renderPane={(pane) => renderFreddiePane(pane)}
-    />
-  );
-}
 
 export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, 'onCreateTask'>) {
   const cls = agent.agent_class || 'specialist';
 
-  // ADR-272: meta-cognitive branch deleted. The orchestration LLM identity
-  // is no longer cockpit-visible; filtered out at /api/agents (routes/agents.py).
-  // reviewer = Reviewer first-class surface (ADR-251 D4): Identity · Principles · Autonomy.
-  if (cls === 'freddie') {
-    return <ReviewerDetail agent={agent} />;
-  }
-
-  // After the reviewer early return, cls is narrowed to RegistryAgentClass
-  // (specialist | domain-steward | synthesizer | platform-bot).
+  // ADR-272: meta-cognitive branch deleted. ADR-412 D5: the freddie branch
+  // deleted too — the roster filters Freddie out (agents/page.tsx), so this
+  // view only ever receives Altitude-3 agents.
   const isPlatformBot = cls === 'platform-bot';
 
   return (

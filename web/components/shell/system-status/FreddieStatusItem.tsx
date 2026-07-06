@@ -14,8 +14,9 @@
  * `autonomy` pane resolves to Freddie's pane, Grant group — ADR-387 §6.4).
  *
  * Consumes useAutonomy() (ADR-238 D2). Read-only popover; mutations happen on
- * Freddie's Autonomy pane (footer link; the `autonomy` slug is pane_of: agents,
- * so foregroundSurface delivers agents.pane=autonomy → Freddie's Grant group).
+ * the Autonomy pane (footer link; the `autonomy` slug is
+ * pane_of: workspace-settings per ADR-412 D5 — foregroundSurface lands on
+ * Workspace Settings → System Agent → Autonomy).
  *
  * Visual: the FreddieAvatar mascot (2026-07-01) — the full-color Frankie —
  * now has a FACE in the top bar, not the shield-check glyph. Motion is the state
