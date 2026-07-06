@@ -82,6 +82,7 @@ async def generate_session_summary(
     messages: list[dict],
     session_date: str,
     user_id: Optional[str] = None,
+    principal_id: Optional[str] = None,
 ) -> Optional[str]:
     """
     Generate a prose summary of a completed session for cross-session continuity.
@@ -90,15 +91,23 @@ async def generate_session_summary(
     Called by nightly cron after user_memory extraction for each session.
     Written to chat_sessions.summary; read by working_memory._get_recent_sessions().
 
+    ADR-408 D4 spike: the FIRST routed call site. Behind MODEL_ROUTER_ENABLED
+    the LLM call goes through services/model_router (LiteLLM lib-mode) —
+    a non-tool-loop Altitude-2 helper call. Flag off → the legacy Anthropic
+    path, byte-identical. Either way the cost lands in execution_events via
+    record_execution_event (the one ledger, ADR-396), and the call attributes
+    to the member whose session it summarizes (principal_id — ADR-408 D2:
+    helper calls are the member's embodiment, not a principal of their own).
+
     Args:
         messages: Conversation messages (role, content)
         session_date: ISO date string (YYYY-MM-DD) for prefix in summary
+        user_id: owner user for the ledger row (legacy scoping key)
+        principal_id: the member whose session this is (ledger attribution)
 
     Returns:
         Prose summary string, or None if session too short/empty
     """
-    import anthropic
-
     user_messages = [m for m in messages if m.get("role") == "user"]
     if len(user_messages) < MIN_MESSAGES_FOR_SUMMARY:
         return None
@@ -123,24 +132,55 @@ Write in past tense, third-person neutral. Be specific and concrete — prefer "
 CONVERSATION:
 """
 
+    from services.model_router import model_router_enabled
+
     try:
-        # Memory discipline: Anthropic() eagerly builds an httpx pool; close it
-        # (see docs/infrastructure/memory-and-client-lifecycle.md).
-        with anthropic.Anthropic() as client:
-            response = client.messages.create(
-                model=SUMMARY_MODEL,
-                max_tokens=256,
-                extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
-                messages=[
-                    {"role": "user", "content": prompt + conversation_text}
-                ],
+        if model_router_enabled():
+            # ADR-408 D4: routed path. Provider-prefixed model string; the
+            # router returns ledger-shaped usage + a log-only cost report.
+            from services.model_router import route_completion
+            routed_model = (
+                SUMMARY_MODEL if "/" in SUMMARY_MODEL
+                else f"anthropic/{SUMMARY_MODEL}"
             )
-        summary_text = response.content[0].text.strip()
+            routed = await route_completion(
+                routed_model,
+                [{"role": "user", "content": prompt + conversation_text}],
+                max_tokens=256,
+            )
+            summary_text = routed.text
+            ledger_model = routed.ledger_model
+            usage_tokens = routed.usage
+        else:
+            # Legacy path — direct Anthropic SDK, unchanged.
+            # Memory discipline: Anthropic() eagerly builds an httpx pool;
+            # close it (see docs/infrastructure/memory-and-client-lifecycle.md).
+            import anthropic
+            with anthropic.Anthropic() as client:
+                response = client.messages.create(
+                    model=SUMMARY_MODEL,
+                    max_tokens=256,
+                    extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+                    messages=[
+                        {"role": "user", "content": prompt + conversation_text}
+                    ],
+                )
+            summary_text = response.content[0].text.strip()
+            ledger_model = SUMMARY_MODEL
+            usage_tokens = {
+                "input_tokens": getattr(response.usage, "input_tokens", 0),
+                "output_tokens": getattr(response.usage, "output_tokens", 0),
+                "cache_read_tokens": getattr(response.usage, "cache_read_input_tokens", 0) or 0,
+                "cache_create_tokens": getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
+            }
+
         if not summary_text:
             return None
 
         # ADR-291: unified cost ledger — write directly to execution_events.
-        # (Was: record_token_usage(caller="session_summary"). Haiku, ~$0.003/call.)
+        # Same record shape for both paths: the router reports, the ledger
+        # records; cost is computed by compute_cost_usd_inclusive from these
+        # tokens + model, never taken from the router (ADR-396 one-ledger).
         if user_id:
             try:
                 from services.telemetry import record_execution_event
@@ -152,11 +192,9 @@ CONVERSATION:
                     mode="judgment",
                     trigger_type="back_office",
                     status="success",
-                    input_tokens=getattr(response.usage, "input_tokens", 0),
-                    output_tokens=getattr(response.usage, "output_tokens", 0),
-                    cache_read_tokens=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
-                    cache_create_tokens=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
-                    model=SUMMARY_MODEL,
+                    model=ledger_model,
+                    principal_id=principal_id,
+                    **usage_tokens,
                 )
             except Exception:
                 pass

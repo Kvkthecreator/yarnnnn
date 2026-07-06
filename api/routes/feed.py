@@ -394,7 +394,12 @@ async def _write_conversation_summary(auth, messages: list[dict]) -> None:
         logger.warning(f"[ADR-159] Failed to write conversation.md: {e}")
 
 
-async def _summarize_previous_session(previous_session_id: str, client) -> None:
+async def _summarize_previous_session(
+    previous_session_id: str,
+    client,
+    user_id: Optional[str] = None,
+    principal_id: Optional[str] = None,
+) -> None:
     """
     Generate summary for a closed session (runs as BackgroundTask).
 
@@ -403,6 +408,13 @@ async def _summarize_previous_session(previous_session_id: str, client) -> None:
 
     ADR-125: Project sessions get author-aware summaries that attribute
     decisions to specific agent participants.
+
+    ADR-408 D4: user_id/principal_id are threaded as plain values — the
+    prior shape read user_id off a route-scope object this function never
+    received, so every call raised NameError (swallowed by the outer
+    except) and inline summaries silently never generated. principal_id
+    attributes the ledger row to the member whose session closed (D2:
+    helper = the member's embodiment).
     """
     try:
         # Check if already summarized
@@ -430,7 +442,10 @@ async def _summarize_previous_session(previous_session_id: str, client) -> None:
 
         # ADR-138: Project sessions removed. Always use standard summary.
         from services.session_continuity import generate_session_summary
-        summary = await generate_session_summary(messages.data, session_date, user_id=auth.user_id)
+        summary = await generate_session_summary(
+            messages.data, session_date,
+            user_id=user_id, principal_id=principal_id,
+        )
 
         if summary:
             client.table("chat_sessions")\
@@ -935,6 +950,8 @@ async def global_chat(
         asyncio.create_task(_summarize_previous_session(
             session["previous_session_id"],
             get_service_client(),
+            user_id=auth.user_id,
+            principal_id=getattr(auth, "principal_id", None),
         ))
         # ADR-159 Phase 2: Write final conversation.md on session close
         prev_messages = await get_session_messages(auth.client, session["previous_session_id"])
@@ -1014,6 +1031,18 @@ async def global_chat(
         # Per addressed.stream() docstring §"Args: client: Supabase service client".
         wake_client = get_service_client()
 
+        # ADR-408 D2 (two-account-walk finding): the wake stack's contract is
+        # "user_id = Workspace owner UUID" — Freddie acts FOR the workspace.
+        # A MEMBER's addressed turn must run against the COMMONS (its files,
+        # governance, recurrences), not the member's own singleton (the walk
+        # observed Freddie listing an empty directory from the member's seat).
+        # Resolve acting-workspace → owner here; the member remains the
+        # attributed principal (addressed_principal) and the reply still lands
+        # in the member's own thread (session_id). Owner fallback ==
+        # auth.user_id — byte-identical in N=1.
+        from services.workspace_context import acting_workspace_owner
+        wake_user_id = acting_workspace_owner(wake_client, auth.user_id)
+
         # Assemble route-layer inputs: conversation_window + workspace_state.
         # The wake source assembles the rest (governance envelope, operating
         # context, Reviewer invocation).
@@ -1049,7 +1078,7 @@ async def global_chat(
             freddie_tool_history: list[dict] = []
             reasoning_buf: list[str] = []
             async for event in wake_addressed_stream(
-                wake_client, auth.user_id,
+                wake_client, wake_user_id,
                 session_id=session_id,
                 invocation_id=invocation_id,
                 user_message=request.content,
