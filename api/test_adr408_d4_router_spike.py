@@ -130,7 +130,9 @@ def test_normalize_usage_reads_openai_details_shape_and_clamps():
 
 def test_ledger_prices_routed_tokens_with_the_one_cost_function():
     """The mirror: router tokens → compute_cost_usd_inclusive, hand-checked
-    against the haiku rate rows (2x Anthropic, cache read 10% / create 125%)."""
+    against the haiku rate row (TRUE provider list — $1/$5 per MTok; the
+    legacy 2x markup retired by operator ruling 2026-07-06, cache read 10% /
+    create 125% unchanged)."""
     usage = _normalize_usage({
         "prompt_tokens": 1_000_000, "completion_tokens": 100_000,
         "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0,
@@ -140,7 +142,7 @@ def test_ledger_prices_routed_tokens_with_the_one_cost_function():
         usage["input_tokens"], usage["output_tokens"],
         usage["cache_read_tokens"], usage["cache_create_tokens"],
     )
-    assert cost == round(1.60 + 0.1 * 8.00, 6)  # $1.60 input + $0.80 output
+    assert cost == round(1.00 + 0.1 * 5.00, 6)  # $1.00 input + $0.50 output
 
 
 def test_routed_models_have_rate_rows():

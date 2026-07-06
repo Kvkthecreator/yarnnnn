@@ -1,6 +1,7 @@
 # ADR-291: Unified Cost Ledger — `execution_events` as the Single Substrate for LLM Spend
 
 **Status**: Implemented (Phase 1 + Phase 2 — 2026-05-18)
+**Amendment (2026-07-06, operator ruling — surfaced by the ADR-408 D4 router's cost mirror)**: (1) **The 2x platform markup is RETIRED.** `_BILLING_RATES` now carries TRUE provider list prices (sonnet 3/15 · opus 5/25 · haiku 1/5 · gpt-4o-mini 0.15/0.60 per MTok) — `cost_usd` records what the invocation actually costs; margin lives in the ADR-396 subscription tier, never in a hidden per-token multiplier. The prior table had drifted twice over (2x of STALE list prices — opus at 2x the pre-4.5 $15/$75, haiku at 2x $0.80/$4.00 vs the actual $1/$5). Cache multipliers (read 10%, write 125%) are provider-correct and unchanged. (2) **`execution_events.model` is now a real column** (migration 204, nullable, no backfill): the `model` kwarg previously fed only the rate lookup and was discarded — with seat-level routing (ADR-408 D4) and per-lane model pinning (ADR-411), per-model spend legibility is load-bearing. D2 (cost math in exactly one place) unchanged.
 **Date**: 2026-05-18
 **Authors**: KVK, Claude
 

@@ -44,8 +44,9 @@ Sonnet without touching code.
 The occupant's static self-identity (`FREDDIE_MODEL_IDENTITY`, ADR-315) is NOT
 derived per-wake from this table: identity names the occupant VERSION (seat
 rotation protocol); the model actually used on an invocation is recorded
-honestly in `execution_events.model`. One identity, one ledger — no
-per-wake attribution fragmentation.
+honestly in `execution_events.model` (a real column since migration 204,
+2026-07-06 — before that the kwarg fed only the rate lookup). One identity,
+one ledger — no per-wake attribution fragmentation.
 """
 
 from __future__ import annotations

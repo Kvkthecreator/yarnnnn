@@ -25,21 +25,29 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Billing rates — ADR-291 single source of truth (2x Anthropic markup).
-# Any future Anthropic-cost optimization (cache discount changes, prompt
-# compression, model tier changes) flows through this table only; the
-# multiplier rule is durable. Per ADR-291 D2: cost math lives here, in
-# exactly one place, in compute_cost_usd_inclusive().
+# Billing rates — ADR-291 single source of truth, at TRUE PROVIDER LIST
+# PRICES (operator ruling 2026-07-06, recorded as an ADR-291 amendment).
+# The legacy 2x platform markup is RETIRED: cost_usd now records what the
+# invocation actually costs at the provider, and the ADR-396 allowance pool
+# draws at cost. Margin, if any, lives in the subscription tier — never in
+# a hidden per-token multiplier. Any provider price change flows through
+# this table only; per ADR-291 D2 cost math lives here, in exactly one
+# place, in compute_cost_usd_inclusive().
+#
+# The prior table was drifted twice over: it carried 2x of STALE list
+# prices (opus at 2x $15/$75 — the pre-4.5 Opus price; haiku at 2x
+# $0.80/$4.00 — haiku 4.5 lists $1/$5). The D4 router's cost mirror
+# surfaced the drift.
 # ---------------------------------------------------------------------------
 
 _BILLING_RATES: dict[str, dict[str, float]] = {
-    "claude-sonnet-4-6":          {"input_per_mtok": 6.00,  "output_per_mtok": 30.00},
-    "claude-opus-4-6":            {"input_per_mtok": 30.00, "output_per_mtok": 150.00},
-    "claude-haiku-4-5-20251001":  {"input_per_mtok": 1.60,  "output_per_mtok": 8.00},
-    # ADR-408 D4: routed Altitude-2 models (2x provider list, same multiplier
-    # rule). A model the router may route MUST have a row here — an unknown
-    # model silently prices at the Sonnet default (model_router warns).
-    "gpt-4o-mini":                {"input_per_mtok": 0.30,  "output_per_mtok": 1.20},
+    "claude-sonnet-4-6":          {"input_per_mtok": 3.00, "output_per_mtok": 15.00},
+    "claude-opus-4-6":            {"input_per_mtok": 5.00, "output_per_mtok": 25.00},
+    "claude-haiku-4-5-20251001":  {"input_per_mtok": 1.00, "output_per_mtok": 5.00},
+    # ADR-408 D4 / ADR-411 D5: routed Altitude-2 models. A model the router
+    # may route MUST have a row here — an unknown model silently prices at
+    # the Sonnet default (model_router warns).
+    "gpt-4o-mini":                {"input_per_mtok": 0.15, "output_per_mtok": 0.60},
 }
 _DEFAULT_RATE = _BILLING_RATES["claude-sonnet-4-6"]
 
@@ -68,11 +76,13 @@ def compute_cost_usd_inclusive(
     cache_read_tokens: int = 0,
     cache_create_tokens: int = 0,
 ) -> float:
-    """Cache-inclusive cost at user-facing 2× Anthropic billing rates.
+    """Cache-inclusive cost at true provider list rates.
 
     ADR-291: this is the sole canonical cost function. Accounts for
     cache_read (10% of input rate) and cache_creation (125% of input rate),
-    matching Anthropic's actual invoice shape with 2x platform multiplier.
+    matching Anthropic's actual invoice shape (5-minute-TTL write premium).
+    The legacy 2x platform multiplier is retired (2026-07-06 operator
+    ruling) — cost_usd records actual provider cost.
     """
     rate = _BILLING_RATES.get(model, _DEFAULT_RATE)
     ir = rate["input_per_mtok"]
@@ -250,6 +260,11 @@ def record_execution_event(
             row["cache_create_tokens"] = cache_create_tokens
         if cost_usd is not None:
             row["cost_usd"] = cost_usd
+        # Migration 204 (2026-07-06): the ledger records WHICH model ran —
+        # previously `model` fed only the rate lookup and was discarded.
+        # Per-model spend legibility for routed lanes (ADR-408 D4 / ADR-411).
+        if model is not None:
+            row["model"] = model
         if duration_ms is not None:
             row["duration_ms"] = duration_ms
         if envelope_load_ms is not None:
