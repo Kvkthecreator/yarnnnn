@@ -5,6 +5,7 @@
 **Dimension**: Channel (Axiom 6 — where the member meets their helpers) + Identity (Axiom 2 — the member's embodiment acting) + Mechanism (Axiom 5 — which model runs the lane)
 **Relates to**: ADR-408 (D2 altitudes, D4 router, D6 lanes — the ratified shape this implements), ADR-405 (witness dial — lane writes bind after-witness), ADR-407 (Phase 4 (workspace, principal) sessions — the lane's scope), ADR-373/386 (grants — the lane's boundary), ADR-209 (attribution — the lane's author string), ADR-396 (one meter — lane rounds are LLM judgment invocations)
 **Amends**: ADR-209 (author taxonomy gains the `member:` prefix), ADR-320 (caller-class table gains the member-embodiment mapping)
+**Amended by ADR-412 (2026-07-06)**: the lane strip leaves the chat drawer — the Chat surface (ADR-412 D3) is the lanes' chrome home; lane MECHANICS here are unchanged. **Amended by ADR-413 (2026-07-06)**: the D6 conventions doc is canonized as the MOUNT (environment declaration, composed never stored; runtime/behavior separation — behavior packs never ride it).
 
 ---
 

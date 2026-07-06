@@ -1,6 +1,6 @@
 # ADR-410: Attention Derives From the Timeline — one derivation, peer-first
 
-**Status**: Proposed (2026-07-06) — drafted as the closing audit of the ADR-407/408 execution session; implementation is the next session's work. Evidence: the operator's live bell screenshot (2026-07-06) + code audit below.
+**Status**: Accepted (2026-07-06 — ratified alongside ADR-412 per its D5 clause; ADR-412 D6's viewer-resolution layer is this build's prerequisite and rides the same session). Evidence: the operator's live bell screenshot (2026-07-06) + code audit below.
 **Date**: 2026-07-06
 **Dimension**: Channel (Axiom 6 — where attention routes) + Identity (Axiom 2 — whose acts a principal is shown)
 **Relates to**: ADR-405 (witness dial — D3/D4 finally get their true rendering), ADR-408 (D5.1 timeline — the source this ADR makes singular; D1 coworking contract), ADR-407 (member_state cursor — Phase 3), ADR-340 (DP29 derived-never-stored — restored where Phase 2 bent it), ADR-367 (Home/Notifications tiering — preserved, re-sourced)
