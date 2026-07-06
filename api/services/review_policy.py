@@ -217,6 +217,12 @@ def load_autonomy(client: Any, user_id: str) -> dict:
     if isinstance(default_block, dict):
         out["default"] = _validate_autonomy_block(default_block, "default")
 
+    # ADR-408 D3: optional per-class override for the SUBSTRATE family
+    # (reversible workspace writes). Resolution: substrate → default → {}.
+    substrate_block = parsed.get("substrate")
+    if isinstance(substrate_block, dict):
+        out["substrate"] = _validate_autonomy_block(substrate_block, "substrate")
+
     raw_domains = parsed.get("domains") or {}
     if isinstance(raw_domains, dict):
         for k, v in raw_domains.items():
@@ -241,6 +247,25 @@ def autonomy_for_domain(autonomy: dict, context_domain: str) -> dict:
     else:
         block = dict(autonomy.get("default") or {})
     # Mix in workspace-wide pause fields so should_auto_apply sees them.
+    if autonomy.get("paused_until") is not None:
+        block.setdefault("paused_until", autonomy.get("paused_until"))
+    if autonomy.get("pause_reason") is not None:
+        block.setdefault("pause_reason", autonomy.get("pause_reason"))
+    return block
+
+
+def autonomy_for_substrate(autonomy: dict) -> dict:
+    """Return the delegation policy for the SUBSTRATE action class
+    (ADR-408 D3 — the per-class override that lets reversible file work run
+    autonomous while capital stays fail-closed).
+
+    Resolution order: `substrate` block → `default` → `{}`. Workspace-wide
+    pause fields mix in exactly as autonomy_for_domain — a pause always
+    queues everything, both classes.
+    """
+    if not autonomy:
+        return {}
+    block = dict(autonomy.get("substrate") or autonomy.get("default") or {})
     if autonomy.get("paused_until") is not None:
         block.setdefault("paused_until", autonomy.get("paused_until"))
     if autonomy.get("pause_reason") is not None:

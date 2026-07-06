@@ -1016,23 +1016,30 @@ DEFAULT_AUTONOMY_YAML = """\
 # _autonomy.yaml — delegation declaration (ADR-254 machine-parsed governance).
 # Read by review_policy + working_memory. See AUTONOMY.md for the prose docs.
 #
-# This is the kernel-default (steward) delegation posture for a bare-Freddie
-# workspace: `manual` — every consequential action queues for the operator. It
-# is the fail-closed default (the same posture the gate applies when this file
-# is absent), now declared as substrate. Activating a program overwrites this
-# with the operation's tuned delegation; until then you approve every binding
-# decision, which is the safe place to start.
+# Kernel-default (steward) posture, ADR-408 D3: the system agent is HANDS,
+# not a gatekeeper. `substrate` (reversible workspace writes — revision chain
+# + revert-as-write make every one of them undoable) runs AUTONOMOUS: the
+# steward's file work applies immediately, attributed and after-witness
+# emitted, like any member's act. `default` (which governs capital / external
+# consequential actions) stays MANUAL — fail-closed, every binding decision
+# queues for the operator. Activating a program overwrites this file with the
+# operation's tuned delegation.
 #
 # Schema:
 #   default:
 #     delegation: manual | bounded | autonomous   (canonical 3-value enum)
 #     ceiling_cents: <int>  (required when delegation=bounded)
 #     never_auto: [<action_type>, ...]  (always route to operator)
+#   substrate:                          (ADR-408 D3 per-class override)
+#     delegation: manual | bounded | autonomous
+#     never_auto: ["path:<prefix>", ...]  (paths that always queue)
 #   paused_until: <ISO timestamp>  (set by operator, ADR-248 D3)
 default:
   delegation: manual
   # ceiling_cents: 0       # uncomment + set when promoting to bounded
   # never_auto: []         # action types that always require operator click
+substrate:
+  delegation: autonomous   # ADR-408 D3 — reversible file work is the steward's hands
 """
 
 

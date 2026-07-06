@@ -1,6 +1,6 @@
 # ADR-409: Per-Seat Type-B Pricing — fixed sub outside, meter inside, BYOK as the tier lever
 
-**Status**: Proposed (2026-07-06) — doc-first; shape operator-aligned in the ADR-408 discourse. Implementation is demand-gated to the seat lane going GA (member invites are live; billing re-cut lands when a second paid seat is real). Numbers remain launch-test hypotheses per the ADR-396 discipline.
+**Status**: Accepted (2026-07-06, operator-ratified). Implementation is demand-gated to the seat lane going GA (member invites are live; billing re-cut lands when a second paid seat is real). Numbers remain launch-test hypotheses per the ADR-396 discipline.
 **Date**: 2026-07-06
 **Dimension**: Purpose (Axiom 3 — what the operation pays for) over the ADR-391 cost architecture
 **Relates to**: ADR-408 (three altitudes + lanes — the consumption model this prices), ADR-391 (balance/allocation/ledger architecture — preserved), ADR-404 (commons-scale named the candidate successor gate — this ADR is that successor)

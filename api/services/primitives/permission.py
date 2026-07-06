@@ -343,7 +343,7 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
     # autonomy decision (+ governance lock for path-addressed primitives).
     try:
         from services.review_policy import (
-            load_autonomy, autonomy_for_domain, should_auto_apply,
+            load_autonomy, autonomy_for_substrate, should_auto_apply,
         )
 
         substrate_path = ""
@@ -370,8 +370,11 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
         # Delegation decision (manual/bounded → queue; autonomous → apply).
         # For non-path-addressed primitives substrate_path="" — never_auto
         # path-matching simply doesn't match; the delegation gate still fires.
+        # ADR-408 D3: the SUBSTRATE class resolves its own per-class block
+        # (substrate → default), so reversible file work can run autonomous
+        # while the capital default stays manual.
         autonomy = load_autonomy(auth.client, auth.user_id)
-        autonomy_policy = autonomy_for_domain(autonomy, "")
+        autonomy_policy = autonomy_for_substrate(autonomy)
         allowed, gate_reason = should_auto_apply(
             autonomy_policy=autonomy_policy,
             action_class="substrate",
