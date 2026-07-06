@@ -20,6 +20,7 @@
  *   system:{actor}            → System
  *   a2a:{...}                 → Agent (A2A)
  *   platform:{...}            → Platform
+ *   member:{id} via {model}   → Member (via {Model})  ← ADR-411 lane embodiment
  */
 
 export type AuthorClass =
@@ -31,6 +32,7 @@ export type AuthorClass =
   | 'specialist'
   | 'system'
   | 'platform'
+  | 'member'
   | 'unknown';
 
 // Known MCP host id → display name (mirrors api/mcp_server/presentation/hosts.py;
@@ -65,6 +67,36 @@ export function mcpHostId(authored_by: string | null | undefined): string | null
   return authored_by.slice('yarnnn:mcp:'.length) || null;
 }
 
+// Lane-model id → display label (mirrors LANE_MODELS in api/services/lane_runner.py).
+// Unknown models strip the provider prefix and pass through.
+const LANE_MODEL_NAMES: Record<string, string> = {
+  'anthropic/claude-sonnet-4-6': 'Claude Sonnet',
+  'anthropic/claude-haiku-4-5-20251001': 'Claude Haiku',
+  'openai/gpt-4o-mini': 'GPT-4o mini',
+};
+
+function laneModelName(raw: string): string {
+  if (LANE_MODEL_NAMES[raw]) return LANE_MODEL_NAMES[raw];
+  return raw.includes('/') ? raw.split('/').slice(1).join('/') : raw;
+}
+
+/**
+ * Parse the ADR-411 member-embodiment form: "member:{user_id} via {model}".
+ * Returns {memberId, model} or null when this is not a lane write. Lets a
+ * viewer-aware surface render "You via GPT-4o mini" / "‹member› via GPT-4o
+ * mini" without re-parsing the string; the sync label below is the generic
+ * fallback.
+ */
+export function memberEmbodiment(
+  authored_by: string | null | undefined,
+): { memberId: string; model: string } | null {
+  if (!authored_by || !authored_by.startsWith('member:')) return null;
+  const rest = authored_by.slice('member:'.length);
+  const sep = rest.indexOf(' via ');
+  if (sep === -1) return { memberId: rest, model: '' };
+  return { memberId: rest.slice(0, sep), model: rest.slice(sep + ' via '.length) };
+}
+
 /** Classify an `authored_by` string into a stable author class. */
 export function authorClass(authored_by: string | null | undefined): AuthorClass {
   if (!authored_by) return 'system';
@@ -72,6 +104,7 @@ export function authorClass(authored_by: string | null | undefined): AuthorClass
   if (authored_by.startsWith('yarnnn:mcp:')) return 'mcp';
   if (authored_by.startsWith('yarnnn:')) return 'yarnnn';
   if (authored_by.startsWith('freddie:') || authored_by.startsWith('reviewer:')) return 'reviewer';
+  if (authored_by.startsWith('member:')) return 'member';
   if (authored_by.startsWith('agent:')) return 'agent';
   if (authored_by.startsWith('a2a:')) return 'agent';
   if (authored_by.startsWith('specialist:')) return 'specialist';
@@ -108,6 +141,14 @@ export function formatAuthorLabel(authored_by: string | null | undefined): strin
         : null;
       return slug ? `Agent (${slug})` : 'Agent (A2A)';
     }
+    // ADR-411 lane embodiment — the member's hands, transport named (ADR-408
+    // D2). The sync fallback can't resolve the member id to a name; viewer-
+    // aware surfaces use memberEmbodiment() + the roster to render
+    // "You via GPT-4o mini" / "seulkim88 via GPT-4o mini".
+    case 'member': {
+      const emb = memberEmbodiment(authored_by);
+      return emb?.model ? `Member (via ${laneModelName(emb.model)})` : 'Member';
+    }
     case 'specialist':
       return 'Specialist';
     case 'platform':
@@ -143,6 +184,11 @@ export function authorAccent(authored_by: string | null | undefined): string {
       return 'bg-sky-400';
     case 'mcp':
       return 'bg-amber-400';
+    // Lane embodiment (ADR-411) — a member's hands: teal sits between the
+    // member's own primary and the external-LLM amber, which is the honest
+    // reading (the member's act, through a model transport).
+    case 'member':
+      return 'bg-teal-400';
     case 'agent':
       return 'bg-violet-400';
     case 'platform':
