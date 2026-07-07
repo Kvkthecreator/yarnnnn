@@ -17,10 +17,11 @@ FE source-guards (the web/ package has no JS runner — ADR-350/367 gate shape):
       redirect stubs + page mount follow).
   (e) ADR-411 lane MECHANICS untouched is asserted by test_adr411_lanes.py
       staying green — run both.
-  (f) D6 ambient context — the which-workspace indicator (top bar, always
-      rendered once resolved — N=1 shows "My workspace"; operator ruling
-      2026-07-06) + the who's-here roster read (membership, never
-      presence), both off the module-cached viewer-layer fetches.
+  (f) D6 ambient context — homed in the USERMENU (operator ruling
+      2026-07-07: the menu, not fixed top-bar chrome): the Workspace
+      section always renders once resolved (N=1 shows the single binding)
+      with the who's-here roster read (membership, never presence) +
+      Manage-access door, all off the module-cached viewer-layer fetches.
   (g) D6 grant-derived affordances — authoring/consequential affordances
       render per the viewer's WRITE-REGION coverage (useViewerGrant +
       GrantGate), NEVER a role enum: constitution-band drafts, the
@@ -237,25 +238,26 @@ def test_system_agent_rehome() -> None:
 
 
 def test_ambient_context() -> None:
-    print("\n[f] D6 ambient context — which-workspace + who's-here")
-    ind = _read("web/components/shell/WorkspaceIndicator.tsx")
-    _assert("memberships.length <= 1" not in ind,
-            "no >1-bindings condition — the chip is consistent chrome (operator ruling 2026-07-06)")
-    _assert("!loaded || memberships.length === 0" in ind,
-            "hidden only while unresolved/empty — every resolved caller sees their binding")
-    _assert("useWorkspaceMemberships" in ind and "useWorkspaceMembers" in ind,
-            "both reads ride the module-cached viewer layer")
-    _assert("presence" in ind and "not presence" in ind.lower(),
-            "membership-not-presence is stated in-source (ADR-373 rejection stands)")
-    _assert("WebSocket" not in ind and "setInterval" not in ind,
-            "no realtime/polling — membership is a slow fact")
-    _assert('pane: \'members\'' in ind or 'pane: "members"' in ind,
-            "depth deep-links to Workspace Settings → Members (glance vs mirror)")
+    print("\n[f] D6 ambient context — which-workspace + who's-here, in the UserMenu")
+    _assert(
+        not os.path.exists(os.path.join(REPO, "web/components/shell/WorkspaceIndicator.tsx")),
+        "the top-bar chip is deleted (operator ruling 2026-07-07 — menu, not fixed chrome)",
+    )
     top = _read("web/components/shell/chrome/TopBarSurface.tsx")
-    _assert("WorkspaceIndicator" in top, "the indicator mounts in the top bar")
+    _assert("WorkspaceIndicator" not in top or "<WorkspaceIndicator" not in top,
+            "no ambient chip mounts in the top bar")
+
     menu = _read("web/components/shell/UserMenu.tsx")
-    _assert("useWorkspaceMemberships" in menu,
-            "the UserMenu switcher rides the same cached fetch (one read)")
+    _assert("memberships.length > 0" in menu and "memberships.length > 1" not in menu,
+            "the Workspace section always renders once resolved (N=1 shows the single binding)")
+    _assert("useWorkspaceMemberships" in menu and "useWorkspaceMembers" in menu,
+            "both reads ride the module-cached viewer layer")
+    _assert("whoIsHere" in menu, "the compact who's-here roster read exists")
+    _assert("never presence" in menu, "membership-not-presence is stated in-source (ADR-373 rejection stands)")
+    _assert("WebSocket" not in menu and "setInterval" not in menu,
+            "no realtime/polling — membership is a slow fact")
+    _assert("pane: 'members'" in menu or 'pane: "members"' in menu,
+            "depth deep-links to Workspace Settings → Members (glance vs mirror)")
 
     viewer = _read("web/lib/workspace/viewer.ts")
     _assert("membershipsPromise" in viewer and "membersPromise" in viewer,

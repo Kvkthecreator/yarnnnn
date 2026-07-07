@@ -34,7 +34,11 @@ import { useTheme } from 'next-themes';
 import { Settings, LogOut, Sun, Moon, Monitor, User, Columns2, LayoutGrid, Check, Briefcase } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { setActiveWorkspace, clearActiveWorkspace } from '@/lib/api/client';
-import { useWorkspaceMemberships, type WorkspaceMembershipRow } from '@/lib/workspace/viewer';
+import {
+  useWorkspaceMembers,
+  useWorkspaceMemberships,
+  type WorkspaceMembershipRow,
+} from '@/lib/workspace/viewer';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -50,7 +54,7 @@ export function UserMenu({ email }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const { foregroundSurface } = useSurfacePreferences();
+  const { foregroundSurface, navigateToSurface } = useSurfacePreferences();
   const { layoutMode, setLayoutMode } = useShellChrome();
   const { isMobile } = useViewport();
   const supabase = createClient();
@@ -63,12 +67,28 @@ export function UserMenu({ email }: UserMenuProps) {
   // Click-outside + Escape close (shared dismissal contract, 2026-07-01).
   usePopoverDismissal(dropdownRef, isOpen, () => setIsOpen(false));
 
-  // ADR-407 Phase 5 — workspace switcher. Memberships come from the shared
-  // module-cached fetch (lib/workspace/viewer — ADR-412 D6: the same read the
-  // ambient WorkspaceIndicator rides; membership is a slow fact, one fetch per
-  // page life). The section renders ONLY when the caller can act in more than
-  // one workspace (N=1 users see nothing new).
+  // ADR-407 Phase 5 + ADR-412 D6 — the ambient workspace context, homed HERE
+  // (operator ruling 2026-07-07: the menu, not fixed top-bar chrome). Both
+  // reads come from the module-cached viewer-layer fetches (membership is a
+  // slow fact, one fetch per page life — never presence, never realtime).
+  // The Workspace section ALWAYS renders once resolved (N=1 shows the single
+  // binding — consistent chrome); rows are switchable only when there is an
+  // alternative to switch to.
   const { memberships } = useWorkspaceMemberships();
+  const { members } = useWorkspaceMembers();
+
+  // Who's-here — a compact MEMBERSHIP read (who can act here), humans first,
+  // then AI principals; capped with an overflow count.
+  const whoIsHere = (() => {
+    const humans = members.filter((m) => m.role === 'owner' || m.role === 'member');
+    const ais = members.filter((m) => m.role !== 'owner' && m.role !== 'member');
+    const labels = [...humans, ...ais].map((m) => m.label || m.principal_id);
+    const shown = labels.slice(0, 4);
+    const overflow = labels.length - shown.length;
+    return labels.length > 0
+      ? shown.join(' · ') + (overflow > 0 ? ` · +${overflow} more` : '')
+      : null;
+  })();
 
   const handleSwitchWorkspace = (m: WorkspaceMembershipRow) => {
     if (m.is_active) {
@@ -219,12 +239,16 @@ export function UserMenu({ email }: UserMenuProps) {
             </div>
           )}
 
-          {/* ADR-407 Phase 5 — workspace switcher. Rendered only when the
-              caller holds more than one membership (owner workspace + member
-              grants). Selecting a workspace rebinds X-Workspace-Id (owner =
-              clear, member = pin) and hard-reloads to /home so all fetched
-              state rebinds. */}
-          {memberships.length > 1 && (
+          {/* ADR-407 Phase 5 + ADR-412 D6 — the Workspace section: ALWAYS
+              rendered once resolved (N=1 shows the single binding — operator
+              ruling 2026-07-07: consistent chrome, homed in the menu). Rows
+              double as the switcher when the caller holds more than one
+              membership: selecting a workspace rebinds X-Workspace-Id
+              (owner = clear, member = pin) and hard-reloads to /home so all
+              fetched state rebinds. Below the rows: the compact who's-here
+              roster read (MEMBERSHIP, never presence — ADR-373 rejection
+              stands) + the Manage-access door into the Members pane. */}
+          {memberships.length > 0 && (
             <div className="border-b border-border py-1">
               <div className="px-3 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">
                 Workspace
@@ -245,6 +269,25 @@ export function UserMenu({ email }: UserMenuProps) {
                   {m.is_active && <Check className="w-4 h-4 text-primary shrink-0" />}
                 </button>
               ))}
+              {whoIsHere && (
+                <div className="px-3 pt-1 pb-1.5">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                    Who&apos;s here
+                  </p>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    {whoIsHere}
+                  </p>
+                </div>
+              )}
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  navigateToSurface('workspace-settings', { pane: 'members' });
+                }}
+                className="w-full px-3 py-1.5 text-left text-[11px] text-primary hover:bg-muted transition-colors"
+              >
+                Manage access →
+              </button>
             </div>
           )}
 

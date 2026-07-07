@@ -68,7 +68,6 @@ import { HOME_ROUTE } from '@/lib/routes';
 import { UserMenu } from '../UserMenu';
 import { AttentionCenter } from '../AttentionCenter';
 import { SystemStatusCluster } from '../system-status/SystemStatusCluster';
-import { WorkspaceIndicator } from '../WorkspaceIndicator';
 import { useShellChrome } from '../ShellChromeContext';
 import type { Surface } from '@/lib/compositor/types';
 import { cn } from '@/lib/utils';
@@ -436,9 +435,8 @@ export function TopBarSurface() {
           from the cluster's standing STATE) + UserMenu (D19.4).
           shrink-0 + fixed width pinned to viewport right edge. */}
       <div className="flex shrink-0 items-center gap-2">
-        {/* ADR-412 D6 — ambient which-workspace chip + who's-here popover.
-            Renders only when the caller holds >1 workspace bindings. */}
-        <WorkspaceIndicator />
+        {/* ADR-412 D6 ambient workspace context lives INSIDE the UserMenu
+            (operator ruling 2026-07-07 — the menu, not fixed top-bar chrome). */}
         <SystemStatusCluster />
         <AttentionCenter />
         <UserMenu email={userEmail} />
