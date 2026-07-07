@@ -1,7 +1,7 @@
 # YARNNN Thesis
 
 > **Status**: Canonical (internal)
-> **Date**: 2026-04-24 (amended 2026-05-04 — ADR-249 operator loop + autonomy reframe)
+> **Date**: 2026-04-24 (amended 2026-05-04 — ADR-249 operator loop + autonomy reframe; **amended 2026-07-07 — ADR-414 two-order re-derivation**: the four commitments survive verbatim; *where they attach* moves — declared intent, independent judgment, and ground-truth evaluation are properties of a **hired Altitude-3 persona agent's operation** (ADR-408 D2 / ADR-382 §3), authored accumulation is the property of the **workspace commons** every actor settles into; the singular-operator/Reviewer runtime prose below carries per-section banners rather than a rewrite — the four-commitment claim is unchanged, its runtime instantiation is the altitudes model)
 > **Authors**: KVK, Claude
 > **Scope**: The philosophical thesis from which YARNNN's architecture derives.
 > **Audience**: Internal. Not external messaging. External framing lives in `docs/NARRATIVE.md` and `docs/ESSENCE.md`.
@@ -23,7 +23,11 @@ THESIS is not a marketing document. It is the founder-level statement of what th
 
 Autonomy is not a capability of agents; it is a **structural property** of a system that combines four architectural commitments: *declared intent* (mandate), *independent judgment* (reviewer), *ground-truth evaluation* (per FOUNDATIONS Axiom 8 — instantiated as money-truth in alpha-trader, as multi-signal coherence in alpha-author, etc.), and *authored accumulation* (substrate). Take any one of the four away and what remains is automation, assistance, or chat — not autonomy. YARNNN exists to prove that an operation built on these four commitments produces outcomes that any simpler composition cannot, and that the resulting operation compounds in value over time in a way that inferred-context, human-in-the-loop, or pure-autonomy systems demonstrably do not.
 
+**The two-order re-derivation (2026-07-07, ADR-414 — per ADR-408 D2 + ADR-382 §3).** The four commitments hold; their attachment points are now precise. **Authored accumulation is the workspace's** — the multi-principal commons every human, helper, and agent settles work into through one invocation contract (ADR-413); it is the floor, valuable before any operation exists, and it is the moat (ESSENCE v15: the system of record where human and AI work settles). **Declared intent, independent judgment, and ground-truth evaluation are a hired agent's** — the Altitude-3 persona agent that runs an operation carries the mandate, renders the judgment, and answers to the outcome signal; one workspace can hire zero, one, or many. The **system agent (Freddie)** carries none of the four in the operational sense — it is the management substrate-steward the commitments' machinery runs *over*, not the entity they attach to (ADR-380 D3 harness honesty). This resolves the apparent tension between the thesis and the ADR-380 §5 vision re-cut ("Rung-2 judgment scoped out of the vision"): the thesis is not abandoned — it is **per-hire**, proven on the dogfood operation's clock (alpha-trader, the first hired agent), while the product leads with the floor. A workspace with no hires is a complete product (the commons); a workspace with a hire is the thesis running.
+
 ## The Runtime Model (ADR-249 amendment)
+
+> **⚠ Amendment banner (2026-07-07, ADR-414):** this section is the **single-operator, one-judgment-seat** runtime model — historically correct, superseded in three ways by the multi-principal + altitudes canon: (1) DP17 v9.15 — the workspace has **N accountable human principals**, each with two embodiments; "the operator" reads as "the acting principal"; (2) "the Reviewer is the operator's judgment function" now names the **Altitude-3 persona agent** occupying a judgment seat — the system agent (Freddie) is management infrastructure, not a judgment embodiment (ADR-408 D2); (3) autonomy = the **witness dial** (ADR-405/345 — which beats surface before they bind, per-agent, per-family), and approval queues belong to agents, never to human members (ADR-408 D1). The Manual/Bounded/Autonomous mode taxonomy and "the human can always cut in" survive verbatim, applied per-agent.
 
 The thesis above describes what the system is built from. This section describes how it runs.
 
@@ -124,6 +128,8 @@ This is the single sharpest technical differentiator YARNNN has. Inferred contex
 ---
 
 ## Vocabulary: Agents and Orchestration
+
+> **⚠ Amendment banner (2026-07-07, ADR-414):** the sharp two-class split below (Agents = judgment-bearing / Orchestration = machinery) **survives as the philosophical claim** and is now instantiated as the **three AI altitudes** (ADR-408 D2): Altitude 1 — the system agent (Freddie), management infrastructure with a voice, NOT a judgment Agent; Altitude 2 — lane helpers, the member's hands, not principals and not Agents; Altitude 3 — persona agents + user-authored domain Agents, the judgment-bearing class where the sharp word "Agent" lands. The ADR-216 "YARNNN is the orchestration feed surface" seam is **collapsed by ADR-414 D3**: there is one system agent and the rail is its voice; the orchestration/judgment split is now the Altitude-1/Altitude-3 split. [LAYER-MAPPING.md](LAYER-MAPPING.md) (rewritten same date) is the authoritative taxonomy.
 
 The four commitments above describe the architecture. This section names the two-class taxonomy that falls out of them: **YARNNN has persona-bearing Agents and Orchestration. YARNNN itself is the orchestration feed surface, not an Agent.** The word "Agent" belongs to judgment-bearing entities in the sharp sense; production machinery, capabilities, and feed surfaces do not inherit it by proximity. The full authoritative taxonomy lives in [LAYER-MAPPING.md](LAYER-MAPPING.md); this section states the philosophical claim.
 

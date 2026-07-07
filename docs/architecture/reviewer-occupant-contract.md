@@ -4,8 +4,10 @@
 > **Date**: 2026-06-04 (published per ADR-315 D5)
 > **Authors**: KVK, Claude
 > **Scope**: The **published ABI** between the Reviewer seat (substrate, kernel-owned) and the Reviewer occupant (a swappable module). This is the named seam — the data contract every kernel/harness caller depends on, and every occupant implements.
-> **Definition home**: `api/agents/occupant_contract.py` (the symbols) + `api/services/reviewer_envelope.py` (the kernel-side assembler) + `api/agents/reviewer_agent.py::invoke_reviewer` (the occupant-side entry).
+> **Definition home**: `api/agents/occupant_contract.py` (the symbols) + `api/services/freddie_envelope.py` (the kernel-side assembler) + `api/agents/freddie_agent.py::invoke_freddie` (the occupant-side entry).
 > **Upstream**: [ADR-315](../adr/ADR-315-reviewer-occupant-contract.md) (the carve). [reviewer-seat-substrate.md](reviewer-seat-substrate.md) (the seat). [reviewer-occupant.md](reviewer-occupant.md) (the occupant).
+
+> **⚠ ADR-414 banner (2026-07-07):** the ABI symbols are live as `FreddieContext` / `FreddieOutput` / `FREDDIE_MODEL_IDENTITY` / `invoke_freddie` (the 2026-06-29 full rename). Per [ADR-414](../adr/ADR-414-the-pure-workspace-genesis-system-agent-program-as-hire.md) D2, the context re-carves **per altitude**: steward wakes carry the steward subset (dials + commons state + the ask); the judgment fields (ground-truth, risk, operator-profile, expected-output, persona files) load only for a hired Altitude-3 agent's wakes (D5) — the "carried-not-exercised" Rung-1 annotation resolves by removal, not annotation.
 
 ---
 
@@ -23,11 +25,11 @@ The contract is a **data contract over substrate** — TypedDicts that flow acro
 
 | Symbol | Kind | Meaning |
 |---|---|---|
-| `ReviewerContext` | `TypedDict` | The substrate → occupant **input** bag. Each trigger pre-loads what it has; the occupant fetches anything else via the `ReadFile` tool. |
-| `ReviewerOutput` | `TypedDict` | The occupant → substrate **return** shape. One shape across all triggers; `verdict`/`reasoning`/`confidence` always present on success. |
-| `REVIEWER_MODEL_IDENTITY` | `str` | The current AI occupant's identity string (today: `ai:reviewer-sonnet-v8`). Used in `authored_by="reviewer:{...}"` attribution per ADR-209 + ADR-288. |
+| `FreddieContext` | `TypedDict` | The substrate → occupant **input** bag. Each trigger pre-loads what it has; the occupant fetches anything else via the `ReadFile` tool. |
+| `FreddieOutput` | `TypedDict` | The occupant → substrate **return** shape. One shape across all triggers; `verdict`/`reasoning`/`confidence` always present on success. |
+| `FREDDIE_MODEL_IDENTITY` | `str` | The current AI occupant's identity string (today: `ai:freddie-sonnet-v8`). Used in `authored_by="reviewer:{...}"` attribution per ADR-209 + ADR-288. |
 
-`reviewer_agent.py` imports these three from the contract and **re-exports** them in its namespace, so existing `from agents.reviewer_agent import ReviewerContext` callers keep resolving (one definition, re-exported — not a dual definition). New code should import from `occupant_contract.py` directly.
+`freddie_agent.py` imports these three from the contract and **re-exports** them in its namespace, so existing `from agents.reviewer_agent import FreddieContext` callers keep resolving (one definition, re-exported — not a dual definition). New code should import from `occupant_contract.py` directly.
 
 ---
 
@@ -35,40 +37,40 @@ The contract is a **data contract over substrate** — TypedDicts that flow acro
 
 ```
 load_reviewer_governance_envelope(client, user_id)  →  (envelope_dict, elapsed_ms)   [kernel side]
-    envelope_dict keyed by ReviewerContext field names
-        →  invoke_reviewer(trigger, context: ReviewerContext)  →  ReviewerOutput | None   [occupant side]
+    envelope_dict keyed by FreddieContext field names
+        →  invoke_freddie(trigger, context: FreddieContext)  →  FreddieOutput | None   [occupant side]
             →  reviewer_audit / dispatcher write back to substrate                         [kernel side]
 ```
 
 ### Kernel side — the envelope assembler
 
-`api/services/reviewer_envelope.py::load_reviewer_governance_envelope(client, user_id) -> tuple[dict, int]`
+`api/services/freddie_envelope.py::load_reviewer_governance_envelope(client, user_id) -> tuple[dict, int]`
 
 Reads substrate (governance + domain paths) in parallel via `asyncio.gather` and returns:
-- `envelope_dict` — keyed by `ReviewerContext` field names; drops directly into the context bag passed to `invoke_reviewer`.
+- `envelope_dict` — keyed by `FreddieContext` field names; drops directly into the context bag passed to `invoke_freddie`.
 - `elapsed_ms` — wall-clock ms, routed to `execution_events.envelope_load_ms` (reactive path) or the structured logger (addressed path) per ADR-276.
 
 The kernel-universal envelope (`_UNIVERSAL_ENVELOPE_DECLS`, always present) is the set of governance + identity files every wake carries. Its growth is ADR-attributed (6 pre-ADR-284 → +occupant_md/standing_intent_md ADR-284 → +pace_yaml ADR-298 D11 → +schedule_index_md/recent_execution_md ADR-301). Per-trigger sub-shapes add `proposal_row` (proposal-arrival), `recurrence_prompt`+`recurrence_slug` (recurrence-fire), or `user_message` (addressed).
 
 ### Occupant side — the entry point
 
-`api/agents/reviewer_agent.py::invoke_reviewer(trigger, context: ReviewerContext) -> ReviewerOutput | None`
+`api/agents/freddie_agent.py::invoke_freddie(trigger, context: FreddieContext) -> FreddieOutput | None`
 
 - `trigger` ∈ `{addressed, reactive}` (ADR-256 unified entry; four-mode taxonomy collapsed to two by ADR-263 D2).
-- `context` — the `ReviewerContext` bag. The first thing `invoke_reviewer` does is `_validate_context_shape`: a bag that satisfies no valid sub-shape fails loud (log error + return `None`), replacing the prior silent fallback where mismatched context names caused the Reviewer to wake with an empty user message and produce an inert `stand_down`.
-- returns one `ReviewerOutput` (or `None` on shape violation).
+- `context` — the `FreddieContext` bag. The first thing `invoke_freddie` does is `_validate_context_shape`: a bag that satisfies no valid sub-shape fails loud (log error + return `None`), replacing the prior silent fallback where mismatched context names caused the Reviewer to wake with an empty user message and produce an inert `stand_down`.
+- returns one `FreddieOutput` (or `None` on shape violation).
 
 ### Kernel side — write-back
 
-`reviewer_audit.py` + the dispatcher write the verdict back to substrate (`judgment_log.md`, `standing_intent.md`) with `authored_by="reviewer:{REVIEWER_MODEL_IDENTITY}"`.
+`reviewer_audit.py` + the dispatcher write the verdict back to substrate (`judgment_log.md`, `standing_intent.md`) with `authored_by="reviewer:{FREDDIE_MODEL_IDENTITY}"`.
 
 ---
 
 ## The Rung-1 harness split (ADR-381 D3 — the carried-not-exercised honesty)
 
-> **Canonical prose home for ADR-381 D3 + ADR-380 D3.** The `ReviewerContext` carries governance fields uniformly across both activation rungs; whether they are *exercised* depends on the occupant filling the seat.
+> **Canonical prose home for ADR-381 D3 + ADR-380 D3.** The `FreddieContext` carries governance fields uniformly across both activation rungs; whether they are *exercised* depends on the occupant filling the seat.
 
-The contract is **one shape across both rungs** (ADR-256 unified entry; the kernel never forks `ReviewerContext` by occupant). The envelope pre-loads `mandate_md`, `autonomy_md`, `budget_yaml`, etc. on **every** wake, regardless of which rung's occupant is filling the seat. But the activation ladder (ADR-380) means not every carried field *bites*:
+The contract is **one shape across both rungs** (ADR-256 unified entry; the kernel never forks `FreddieContext` by occupant). The envelope pre-loads `mandate_md`, `autonomy_md`, `budget_yaml`, etc. on **every** wake, regardless of which rung's occupant is filling the seat. But the activation ladder (ADR-380) means not every carried field *bites*:
 
 - **Rung 1 — Freddie (the substrate steward).** Freddie's actions are reversible substrate-internal mutations (a wrong placement is re-placed; the revision chain holds both). Over reversible substrate there is **no consequential external write for the AUTONOMY ceiling to gate**, and a MANDATE with no value-moving action to hard-gate is a config string. So `mandate_md` + `autonomy_md` are **carried, not exercised** at Rung 1 — they are pre-loaded for cross-rung contract uniformity, but they are *degenerate* over a Rung-1 steward. **`budget_yaml` + pace, by contrast, ARE exercised** at Rung 1 — Freddie burns tokens and has a cadence; the spend envelope bites on real spend.
 - **Rung 2 — persona agents (consequential judgment).** When a 2nd-order persona agent (ADR-382) fills a judgment seat and takes consequential external action under an autonomy grant, `mandate_md` + `autonomy_md` **are exercised** — the AUTONOMY ceiling gates the consequential write, the MANDATE hard-gates task creation. The *same* carried fields, now load-bearing.
@@ -81,9 +83,9 @@ The contract is **one shape across both rungs** (ADR-256 unified entry; the kern
 
 > **The kernel/harness depends on the contract, never on the occupant implementation.**
 
-The four kernel/harness call sites that previously imported these symbols from `agents.reviewer_agent` import them from `agents.occupant_contract`: `services/programs.py`, `routes/feed.py`, `services/wake.py`, `services/review_proposal_dispatch.py`. Only the harness (`wake.py` / `review_proposal_dispatch.py` / `feed.py`) imports the occupant's *behavior* (`invoke_reviewer`); everyone else imports only the *contract*. This closes the one reverse leak — the kernel no longer depends on the occupant's implementation file.
+The four kernel/harness call sites that previously imported these symbols from `agents.reviewer_agent` import them from `agents.occupant_contract`: `services/programs.py`, `routes/feed.py`, `services/wake.py`, `services/review_proposal_dispatch.py`. Only the harness (`wake.py` / `review_proposal_dispatch.py` / `feed.py`) imports the occupant's *behavior* (`invoke_freddie`); everyone else imports only the *contract*. This closes the one reverse leak — the kernel no longer depends on the occupant's implementation file.
 
-The standing regression proof: any CI gate that grep-asserts the contract symbols' definitions reads `occupant_contract.py`; usage-site assertions stay on `reviewer_agent.py` (ADR-315 D4).
+The standing regression proof: any CI gate that grep-asserts the contract symbols' definitions reads `occupant_contract.py`; usage-site assertions stay on `freddie_agent.py` (ADR-315 D4).
 
 ---
 
@@ -102,5 +104,5 @@ The literal package carve (`api/agents/reviewer/`) that would house an external 
 - [reviewer-seat-substrate.md](reviewer-seat-substrate.md) — the seat (substrate) on the kernel side of this contract.
 - [reviewer-occupant.md](reviewer-occupant.md) — the occupant (module) on the implementation side of this contract.
 - [ADR-315](../adr/ADR-315-reviewer-occupant-contract.md) — the carve that produced this contract.
-- [ADR-256](../adr/ADR-256-unified-reviewer-invocation.md) — the `invoke_reviewer` unified entry point.
+- [ADR-256](../adr/ADR-256-unified-reviewer-invocation.md) — the `invoke_freddie` unified entry point.
 - [ADR-276](../adr/ADR-276-reactive-trigger-envelope-governance-preload.md) — the envelope helper (`load_reviewer_governance_envelope`) that assembles the kernel side.
