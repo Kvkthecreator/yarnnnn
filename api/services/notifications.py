@@ -326,37 +326,6 @@ Manage notifications: {app_url}/settings
     )
 
 
-async def get_user_notifications(
-    db_client,
-    user_id: str,
-    status: Optional[str] = None,
-    limit: int = 20,
-) -> list[dict]:
-    """
-    Get notifications for a user.
-
-    Args:
-        db_client: Supabase client
-        user_id: User ID
-        status: Filter by status (optional)
-        limit: Max notifications to return
-
-    Returns:
-        List of notification records
-    """
-    query = db_client.table("notifications")\
-        .select("*")\
-        .eq("user_id", user_id)\
-        .order("created_at", desc=True)\
-        .limit(limit)
-
-    if status:
-        query = query.eq("status", status)
-
-    result = query.execute()
-    return result.data or []
-
-
 # =============================================================================
 # Convenience functions for common notification scenarios
 # =============================================================================
@@ -434,23 +403,3 @@ async def notify_agent_failed(
         preference_type="agent_failed",
     )
 
-
-async def notify_event_triggered(
-    db_client,
-    user_id: str,
-    agent_id: str,
-    agent_title: str,
-    event_type: str,
-    platform: str,
-) -> NotificationResult:
-    """Send notification when an event triggers an agent."""
-    return await send_notification(
-        db_client=db_client,
-        user_id=user_id,
-        message=f'"{agent_title}" was triggered by a {platform} {event_type}.',
-        channel="email",
-        urgency="low",
-        context={"agent_id": agent_id, "platform": platform, "event_type": event_type},
-        source_type="event_trigger",
-        source_id=agent_id,
-    )

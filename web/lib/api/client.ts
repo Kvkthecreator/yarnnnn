@@ -2066,33 +2066,6 @@ export const api = {
 
   },
 
-  // ADR-063: Activity Log (what YARNNN has done)
-  activity: {
-    // List recent activity from activity_log table
-    list: (options?: {
-      limit?: number;
-      days?: number;
-      eventType?: string;
-    }) => {
-      const params = new URLSearchParams();
-      if (options?.limit) params.append("limit", options.limit.toString());
-      if (options?.days) params.append("days", options.days.toString());
-      if (options?.eventType) params.append("event_type", options.eventType);
-      const query = params.toString();
-      return request<{
-        activities: Array<{
-          id: string;
-          event_type: string;
-          event_ref: string | null;
-          summary: string;
-          metadata: Record<string, unknown> | null;
-          created_at: string;
-        }>;
-        total: number;
-      }>(`/api/memory/activity${query ? `?${query}` : ""}`);
-    },
-  },
-
   // ADR-034: Context Domains (Context v2)
   domains: {
     // List user's domains with summary stats
