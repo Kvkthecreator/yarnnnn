@@ -172,6 +172,11 @@ class FreddieContext(TypedDict, total=False):
     # realignment).
     occupant_md: str
     standing_intent_md: str
+    # ADR-414 D5/§9a: the hired agent's home prefix ("agents/{slug}/") or ""
+    # on a steward-only workspace. Set by the envelope helper; the renderer
+    # uses it to label per-agent paths (standing_intent, judgment_log)
+    # honestly so the agent's own writes land where the next wake reads.
+    judgment_home: str
     # ADR-364 D2: the reflection gap-fact — recent verdicts joined to their
     # ground-truth outcomes by proposal_id (the closed intent→outcome loop),
     # presented (not judged). The Reviewer authors persona/reflection.md from

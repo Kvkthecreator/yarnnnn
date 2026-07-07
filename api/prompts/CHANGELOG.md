@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.08.1] - ADR-414 Phase D+E-2: the wake envelope re-points to the hired agent's home
+
+- `services/freddie_envelope.py::load_freddie_governance_envelope`: resolves `resolve_judgment_home(user_id)` once at the top (the hire grant is the branch point — never `program_active`; a platform connection alone does not install judgment). When a hire exists, the judgment load-out keys (`identity_md`, `principles_md`, `mandate_md`, `autonomy_md`, `preferences_yaml`, `standing_intent_md`, `expected_output_yaml`) read from `agents/{slug}/…`; `precedent_md` + `budget_yaml` stay workspace reads; `occupant_md` is not read for a hired agent (the occupant fact is kernel data, ADR-414 D2). The steward kernel-constant substitution (B2) now applies ONLY to no-hire (steward) wakes — a hired agent's absent files are reasoned about honestly (ADR-314 index-not-assert), never papered with steward defaults.
+- `agents/freddie_agent.py`: the standing-intent envelope header names the REAL path (`agents/{slug}/standing_intent.md` when hired, `persona/standing_intent.md` for the steward) via `ctx["judgment_home"]`, so the agent's own WriteFile lands where the next wake reads; the ReturnVerdict.reasoning description goes path-neutral ("your judgment log … at the path your wake envelope / recurrence prompt names") — the runtime + bundle prompts own the concrete path (DP22).
+- Expected behavior: for the live bare-kernel steward workspace (no hire), byte-identical — `judgment_home` is None, every read + the header + the substitution take the steward branch. A hired-agent wake (none live today — the backfill proved zero program workspaces) loads its judgment files from `agents/{slug}/` instead of the workspace root; the wake funnel/queue/drain are unchanged (only WHICH files the envelope loads). Bundle prompts + `_workspace_guide.md` carry the concrete agent-home paths (restructured in the same commit).
+- Gate: `test_adr414_phase_e.py`. Post-deploy Hat-B re-run owed (byte-similar expected; sentinels must hold — the steward path is unchanged).
+
 ## [2026.07.07.1] - ADR-414 Phase B2: the steward's constitution becomes a kernel constant riding the envelope
 
 - `services/freddie_envelope.py::load_freddie_governance_envelope`: after the universal reads, the three constitution keys (`mandate_md`, `identity_md`, `principles_md`) substitute the kernel constants (`DEFAULT_STEWARD_{MANDATE,IDENTITY,PRINCIPLES}_MD`) whenever the workspace file is absent OR still carries `STEWARD_DEFAULT_MARKER`. Operator- or program-authored content (no marker) always wins and is untouched.

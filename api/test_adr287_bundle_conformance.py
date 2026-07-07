@@ -103,44 +103,49 @@ def _load_captures(bundle_dir: Path) -> list[dict]:
 # expected.occupant_attribution + include persona/OCCUPANT.md in core_files.
 
 
+def _agent_home(bundle: Path) -> Path:
+    """ADR-414 §9a: the hired agent's home in a bundle's reference-workspace
+    (`agents/{slug}/`). The slug is the bundle directory name."""
+    return bundle / "reference-workspace" / "agents" / bundle.name
+
+
 def test_adr284_d8_bundle_identity_references_standing_intent():
-    """ADR-284 D8: every active/deferred bundle's persona/IDENTITY.md must
-    reference standing_intent.md. Without it the Reviewer persona prompt
-    references a substrate file the bundle never tells operators about."""
+    """ADR-284 D8 (re-homed by ADR-414 §9a): every active/deferred bundle's
+    agents/{slug}/IDENTITY.md must reference standing_intent.md. Without it
+    the persona-frame references a substrate file the bundle never tells the
+    agent about."""
     bundles = list(_all_active_or_deferred_bundles())
     assert bundles, "no active/deferred bundles found in docs/programs/"
 
     for bundle in bundles:
-        identity_md = bundle / "reference-workspace" / "review" / "IDENTITY.md"
+        identity_md = _agent_home(bundle) / "IDENTITY.md"
         if not identity_md.exists():
-            continue  # bundle doesn't ship persona/IDENTITY.md at all; out of ADR-284 scope
+            continue  # bundle doesn't ship an agent-home IDENTITY.md; out of ADR-284 scope
         content = identity_md.read_text()
         assert "standing_intent" in content, (
-            f"bundle '{bundle.name}' persona/IDENTITY.md does not reference "
-            f"standing_intent.md. ADR-284 D8 requires every bundle's "
+            f"bundle '{bundle.name}' agents/{bundle.name}/IDENTITY.md does not "
+            f"reference standing_intent.md. ADR-284 D8 requires every bundle's "
             f"IDENTITY.md to name the standing-intent substrate so the "
-            f"Reviewer persona prompt aligns with bundle-shipped substrate. "
-            f"Add a section like '## Standing intent — my forward-looking "
-            f"substrate (ADR-284)' citing /workspace/persona/standing_intent.md."
+            f"persona-frame aligns with bundle-shipped substrate. Add a "
+            f"section citing agents/{bundle.name}/standing_intent.md."
         )
 
 
 def test_adr284_d8_bundle_principles_references_standing_intent():
-    """ADR-284 D8: every active/deferred bundle's persona/principles.md must
-    reference standing_intent.md, typically under the 'default posture'
-    framing where the no-fire / no-findings cycle's standing-intent update
-    is the substrate counterpart to action."""
+    """ADR-284 D8 (re-homed by ADR-414 §9a): every active/deferred bundle's
+    agents/{slug}/principles.md must reference standing_intent.md, typically
+    under the 'default posture' framing where the no-fire / no-findings
+    cycle's standing-intent update is the substrate counterpart to action."""
     for bundle in _all_active_or_deferred_bundles():
-        principles_md = bundle / "reference-workspace" / "review" / "principles.md"
+        principles_md = _agent_home(bundle) / "principles.md"
         if not principles_md.exists():
             continue
         content = principles_md.read_text()
         assert "standing_intent" in content, (
-            f"bundle '{bundle.name}' persona/principles.md does not reference "
-            f"standing_intent.md. ADR-284 D8 requires every bundle's "
-            f"principles.md to name standing-intent as the substrate "
-            f"counterpart to default-posture-action. Add a paragraph under "
-            f"the default-posture section."
+            f"bundle '{bundle.name}' agents/{bundle.name}/principles.md does "
+            f"not reference standing_intent.md. ADR-284 D8 requires every "
+            f"bundle's principles.md to name standing-intent as the substrate "
+            f"counterpart to default-posture-action."
         )
 
 
@@ -185,52 +190,14 @@ def test_adr354_judgment_recurrences_do_not_rescript_the_close():
             )
 
 
-def test_adr284_d3_persona_rows_have_occupant_attribution():
-    """ADR-284 D3: every persona row whose bundle is active/deferred must
-    declare expected.occupant_attribution with expected_occupant_class +
-    expected_occupant_prefix fields. Without these, verify.py cannot
-    detect substrate-runtime drift where OCCUPANT.md's declared occupant
-    disagrees with the runtime occupant."""
-    personas = list(_personas_for_active_or_deferred_bundles())
-    assert personas, "no personas found whose program is active/deferred"
-
-    for p in personas:
-        slug = p.get("slug", "<unknown>")
-        expected = p.get("expected", {}) or {}
-        occ_attr = expected.get("occupant_attribution")
-        assert occ_attr, (
-            f"persona '{slug}' missing expected.occupant_attribution block. "
-            f"ADR-284 D3 requires every persona row whose bundle is "
-            f"active/deferred to declare expected_occupant_class + "
-            f"expected_occupant_prefix so verify.py can detect "
-            f"substrate-runtime drift."
-        )
-        assert "expected_occupant_class" in occ_attr, (
-            f"persona '{slug}' expected.occupant_attribution missing "
-            f"expected_occupant_class field."
-        )
-        assert "expected_occupant_prefix" in occ_attr, (
-            f"persona '{slug}' expected.occupant_attribution missing "
-            f"expected_occupant_prefix field."
-        )
-
-
-def test_adr284_d3_persona_core_files_includes_occupant_md():
-    """ADR-284 D3: every persona row whose bundle is active/deferred must
-    list /workspace/persona/OCCUPANT.md in expected.core_files. OCCUPANT.md
-    is kernel-scaffolded (workspace_init Phase 5) and bundle-fork-populated
-    with the runtime occupant identity; verify.py asserts presence at
-    activation time."""
-    for p in _personas_for_active_or_deferred_bundles():
-        slug = p.get("slug", "<unknown>")
-        core_files = (p.get("expected", {}) or {}).get("core_files", []) or []
-        assert "/workspace/persona/OCCUPANT.md" in core_files, (
-            f"persona '{slug}' expected.core_files does not include "
-            f"/workspace/persona/OCCUPANT.md. ADR-284 D3 requires every "
-            f"persona row whose bundle is active/deferred to declare "
-            f"OCCUPANT.md as a core file so verify.py asserts presence "
-            f"after activation."
-        )
+# ADR-284 D3 OCCUPANT-attribution conformance RETIRED (ADR-414 §9a #9).
+# The occupant fact became kernel data (ADR-414 D2 — FREDDIE_MODEL_IDENTITY);
+# `_populate_occupant_for_runtime` is deleted, no per-agent OCCUPANT.md exists,
+# and `personas.yaml` no longer carries occupant_attribution / OCCUPANT.md
+# core_files. Two tests removed here:
+#   - test_adr284_d3_persona_rows_have_occupant_attribution
+#   - test_adr284_d3_persona_core_files_includes_occupant_md
+# A bundle asserting a per-agent OCCUPANT.md would be testing a retired concept.
 
 
 # =============================================================================
@@ -283,19 +250,24 @@ def test_adr285_d2_envelope_role_tags_are_valid_when_present():
 # reference-workspace.
 
 
-# The 13 paths declared bundle-owned by ADR-286 D3.
-_ADR286_D3_BUNDLE_OWNED_PATHS = [
-    "constitution/MANDATE.md",
-    "persona/IDENTITY.md",
+# The paths declared bundle-owned by ADR-286 D3, RE-HOMED by ADR-414 §9a.
+# The seat-class files (persona/constitution/contract/governance-dial) now
+# ship into the hired agent's home `agents/{slug}/` (program-as-hire); the
+# workspace-level files (BRAND, CONVENTIONS, awareness, the workspace YAMLs)
+# stay at the root. `{slug}` is substituted per-bundle at check time.
+_ADR414_AGENT_HOME_OWNED_LEAVES = [
+    "IDENTITY.md",
+    "MANDATE.md",
+    "principles.md",
+    "_principles.yaml",
+    "AUTONOMY.md",
+    "_autonomy.yaml",
+    "_preferences.yaml",
+]
+_ADR286_D3_WORKSPACE_OWNED_PATHS = [
     "operation/BRAND.md",
     "operation/CONVENTIONS.md",
-    "governance/AUTONOMY.md",
-    "governance/_autonomy.yaml",
-    "governance/_preferences.yaml",
     "system/awareness.md",
-    "persona/IDENTITY.md",
-    "persona/principles.md",
-    "persona/_principles.yaml",
     "_recurrences.yaml",
     "_workspace_guide.md",
 ]
@@ -312,27 +284,32 @@ def _active_bundles() -> Iterator[Path]:
 
 
 def test_adr286_d3_active_bundle_ships_all_program_owned_paths():
-    """ADR-286 D3: every active bundle must ship the 13 program-owned
-    substrate files in its reference-workspace/. The kernel stops
-    scaffolding these (the kernel only writes for no-program workspaces);
-    bundle-fork is the singular writer for active-program workspaces.
+    """ADR-286 D3 (re-homed by ADR-414 §9a): every active bundle must ship
+    its program-owned substrate — the seat-class files into the hired agent's
+    home `agents/{slug}/`, the workspace-level files at the root. The kernel
+    stops scaffolding these (it only seeds the two dials at genesis, ADR-414
+    D4); bundle-fork installs the hire.
 
     Scoped to active bundles only per the ADR-286 D3 letter ("every active
-    bundle"). Deferred bundles (e.g., alpha-commerce parking lot per
-    ADR-224) are exempt until they graduate to active; activation-time
-    conformance is the gate then. alpha-author is deferred today but the
-    paths are already shipped — when it graduates this assertion will
-    pass without backfill."""
+    bundle"). Deferred bundles are exempt until they graduate to active."""
     for bundle in _active_bundles():
         ref_root = bundle / "reference-workspace"
-        for path in _ADR286_D3_BUNDLE_OWNED_PATHS:
+        home = ref_root / "agents" / bundle.name
+        for leaf in _ADR414_AGENT_HOME_OWNED_LEAVES:
+            full = home / leaf
+            assert full.exists(), (
+                f"bundle '{bundle.name}' (status: active) missing agent-home "
+                f"substrate file 'agents/{bundle.name}/{leaf}'. ADR-414 §9a "
+                f"homes the seat-class files in the hired agent's home; the "
+                f"kernel no longer scaffolds them. Missing file means the "
+                f"hire installs an incomplete judgment load-out."
+            )
+        for path in _ADR286_D3_WORKSPACE_OWNED_PATHS:
             full = ref_root / path
             assert full.exists(), (
-                f"bundle '{bundle.name}' (status: active) missing program-"
-                f"owned substrate file '{path}'. ADR-286 D3 lists 13 paths "
-                f"every active bundle must ship; the kernel no longer "
-                f"scaffolds these. Missing file means activation will "
-                f"produce a workspace with an incomplete substrate."
+                f"bundle '{bundle.name}' (status: active) missing workspace-"
+                f"owned substrate file '{path}'. ADR-286 D3 (as re-homed by "
+                f"ADR-414 §9a) requires every active bundle to ship it."
             )
 
 
@@ -467,17 +444,25 @@ def test_adr286_d3_deferred_bundle_path_readiness():
     ]
     for bundle in deferred_bundles:
         ref_root = bundle / "reference-workspace"
-        present = [p for p in _ADR286_D3_BUNDLE_OWNED_PATHS if (ref_root / p).exists()]
+        home = ref_root / "agents" / bundle.name
+        # ADR-414 §9a: the seat-class files count from the agent home; the
+        # workspace-level ones from the root.
+        present = [
+            leaf for leaf in _ADR414_AGENT_HOME_OWNED_LEAVES if (home / leaf).exists()
+        ] + [
+            p for p in _ADR286_D3_WORKSPACE_OWNED_PATHS if (ref_root / p).exists()
+        ]
+        total = len(_ADR414_AGENT_HOME_OWNED_LEAVES) + len(_ADR286_D3_WORKSPACE_OWNED_PATHS)
         # No assertion on count — this test always passes for deferred
         # bundles. Its job is to be a present-but-passing test so a future
         # operator running pytest -v sees the readiness state at a glance.
-        # When a deferred bundle's count reaches 13 it's ready to graduate;
-        # the activation step would flip status to active and the assertion
-        # in test_adr286_d3_active_bundle_ships_all_program_owned_paths
-        # would then enforce.
+        # When a deferred bundle's count reaches `total` it's ready to
+        # graduate; the activation step flips status to active and the
+        # assertion in test_adr286_d3_active_bundle_ships_all_program_owned_paths
+        # then enforces.
         print(
             f"\nADR-286 D3 readiness for deferred bundle '{bundle.name}': "
-            f"{len(present)}/13 program-owned paths shipped"
+            f"{len(present)}/{total} program-owned paths shipped"
         )
 
 

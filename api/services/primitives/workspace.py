@@ -1875,11 +1875,21 @@ def _is_path_locked(caller_class: str, path: str) -> bool:
     gap-fact), not system-written. So the prefix rule is exact for persona/:
     only the reviewer (+ operator) writes it; no named-path hole remains.
     """
-    from services.workspace_paths import CALLER_WRITE_POLICY
+    from services.workspace_paths import CALLER_WRITE_POLICY, is_agent_grant_sidecar
 
     candidate = path.strip().lstrip("/")
     if candidate.startswith("workspace/"):
         candidate = candidate[len("workspace/"):]
+
+    # ADR-414 D6 (per-agent homes): the per-agent grant sidecars
+    # (agents/{slug}/_autonomy.yaml + _budget.yaml) are ADR-366's lock applied
+    # per-agent — the witness dial + allocation an agent runs under but can
+    # never author. Locked for freddie/mcp/agent; the operator sets them and
+    # system:bundle-fork installs them. The ONE leaf-shaped rule on top of the
+    # root-prefix topology (an agent home is a principal-home, not a semantic
+    # root — the root table cannot express it).
+    if caller_class in ("freddie", "mcp", "agent") and is_agent_grant_sidecar(candidate):
+        return True
 
     locked_prefixes = CALLER_WRITE_POLICY.get(caller_class, ())
     return any(candidate.startswith(prefix) for prefix in locked_prefixes)

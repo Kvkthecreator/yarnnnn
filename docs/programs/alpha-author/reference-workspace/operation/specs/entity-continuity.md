@@ -89,7 +89,7 @@ The Reviewer:
 
 When the Reviewer detects entity-continuity issues, findings land:
 
-1. **`/workspace/persona/judgment_log.md`** — append-only, per the standard audit-finding shape. Each entry includes:
+1. **`/workspace/agents/alpha-author/judgment_log.md`** — append-only, per the standard audit-finding shape. Each entry includes:
    ```yaml
    piece_slug: <slug>
    audit_timestamp: <ISO-8601>

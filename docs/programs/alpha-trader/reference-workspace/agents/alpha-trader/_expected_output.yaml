@@ -5,7 +5,7 @@
 # it against ground truth (ADR-319 stewardship) — a revision QUEUES for the
 # operator's witness under bounded/supervised, APPLIES under autonomous. It is
 # never revised to dodge the bar (the floor gates that). The prose companion is
-# constitution/MANDATE.md ## Expected Output — keep the two in agreement.
+# agents/alpha-trader/MANDATE.md ## Expected Output — keep the two in agreement.
 #
 # Orthogonal to _budget.yaml (Rhythm: how often the agent works) and
 # _autonomy.yaml (Witness dial: which orders you witness). This file is
@@ -26,7 +26,7 @@ expected_output:
   delivery_cadence: per-signal-when-fires
 
   # BAR — pointer to where the quality floor lives (NOT duplicated here).
-  # The floor is persona/principles.md (hard rejection rules + capital-EV) +
+  # The floor is agents/alpha-trader/principles.md (hard rejection rules + capital-EV) +
   # operation/trading/_risk.md (sizing/stops/var/caps). Never relaxed to
   # produce a trade.
   bar: "principles.md hard rejection rules + capital-EV thresholds + _risk.md envelope"

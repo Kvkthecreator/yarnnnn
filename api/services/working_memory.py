@@ -137,16 +137,25 @@ async def build_working_memory(
     # ADR-144 + ADR-206: Read identity + awareness + conversation summary + compute context readiness
     # ADR-226: also read MANDATE.md (used by activation-state detection — skeleton-or-empty
     # MANDATE.md combined with one-or-more-active-bundles signals post-fork-pre-author state).
+    # ADR-414 §9a: when a hire grant exists, the judgment files (identity /
+    # mandate / principles / dial) live in the hired agent's home
+    # (agents/{slug}/…); the workspace-root paths are the steward-era layout.
+    from services.programs import resolve_judgment_home
+    _judgment_home = await asyncio.to_thread(resolve_judgment_home, user_id)
+    _identity_path = f"{_judgment_home}IDENTITY.md" if _judgment_home else PERSONA_IDENTITY_PATH
+    _mandate_path = f"{_judgment_home}MANDATE.md" if _judgment_home else "constitution/MANDATE.md"
+    _autonomy_path = f"{_judgment_home}_autonomy.yaml" if _judgment_home else "governance/_autonomy.yaml"
+    _principles_path = f"{_judgment_home}principles.md" if _judgment_home else "persona/principles.md"
     identity_content, awareness_content, conversation_summary, mandate_content, autonomy_content, principles_content = await asyncio.gather(
-        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, PERSONA_IDENTITY_PATH),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, _identity_path),
         asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, SYSTEM_AWARENESS_PATH),
         asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "system/conversation.md"),
-        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "constitution/MANDATE.md"),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, _mandate_path),
         # ADR-246 + ADR-254: reads _autonomy.yaml (machine-parsed, ADR-254) for
         # workspace_state autonomy signals. AUTONOMY.md is prose-only now.
         # principles.md remains prose (LLM reads it); _principles.yaml has thresholds.
-        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "governance/_autonomy.yaml"),
-        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "persona/principles.md"),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, _autonomy_path),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, _principles_path),
     )
     task_count, doc_count, recent_uploads, recent_authorship, loop_events = await asyncio.gather(
         asyncio.to_thread(_run_sync_with_client, _count_tasks_sync, user_id),

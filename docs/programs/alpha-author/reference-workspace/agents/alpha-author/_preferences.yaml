@@ -1,6 +1,6 @@
 ---
 tier: canon
-note: "Operator-authored cadence preferences (ADR-275). Forked to /workspace/contract/_preferences.yaml at activation. The Reviewer reads this every wake and authors Schedule(action='create'|'update'|'archive') for declared preferences."
+note: "Operator-authored cadence preferences (ADR-275). Forked to /workspace/agents/alpha-author/_preferences.yaml at activation. The Reviewer reads this every wake and authors Schedule(action='create'|'update'|'archive') for declared preferences."
 ---
 # _preferences.yaml — operator cadence preferences (ADR-275)
 #
@@ -92,7 +92,7 @@ deliverable_preferences:
 
 operator_notifications:
   - slug: daily_corpus_state_update
-    description: "Daily morning email summarizing yesterday's audit verdicts, drafts pending review, voice-drift signals from the last 24h, and pieces awaiting publication. Reviewer composes from /workspace/persona/judgment_log.md + /workspace/persona/standing_intent.md."
+    description: "Daily morning email summarizing yesterday's audit verdicts, drafts pending review, voice-drift signals from the last 24h, and pieces awaiting publication. Reviewer composes from /workspace/agents/alpha-author/judgment_log.md + /workspace/agents/alpha-author/standing_intent.md."
     cadence_hint: "Daily at 07:00 UTC (operator-tunable)"
     active: false
 

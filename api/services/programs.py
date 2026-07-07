@@ -19,7 +19,6 @@ directly. Single implementation.
 from __future__ import annotations
 
 import logging
-import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -86,6 +85,21 @@ def resolve_hired_program_slug(user_id: str) -> Optional[str]:
     except Exception:  # pragma: no cover — defensive; never block the read
         pass
     return None
+
+
+def resolve_judgment_home(user_id: str) -> Optional[str]:
+    """The hired agent's home prefix (`agents/{slug}/`), or None when the
+    workspace is steward-only (ADR-414 §9a).
+
+    THE branch point for every judgment-home read/write re-point (envelope,
+    witness dial, judgment-log writer, activation surfaces). Keys on the HIRE
+    GRANT — never on `program_active`, which a platform connection alone can
+    raise (chrome/capabilities are a different signal than installed judgment).
+    """
+    from services.workspace_paths import agent_home
+
+    slug = resolve_hired_program_slug(user_id)
+    return agent_home(slug) if slug else None
 
 
 def mint_hire_grant(user_id: str, slug: str) -> Optional[dict]:
@@ -249,12 +263,14 @@ async def _seed_recurrences_from_preferences(
 
     from services.conventions import RECURRENCES_PATH
     from services.workspace import UserMemory
-    from services.workspace_paths import CONTRACT_PREFERENCES_PATH
+    from services.workspace_paths import agent_home
 
     um = UserMemory(client, user_id)
 
-    # Read post-fork preferences + current recurrences.
-    preferences_yaml = await um.read(CONTRACT_PREFERENCES_PATH)
+    # Read post-fork preferences + current recurrences. ADR-414 §9a: the
+    # bundle ships its contract into the agent home (agents/{slug}/), so the
+    # fork-time seed reads the just-installed per-agent _preferences.yaml.
+    preferences_yaml = await um.read(f"{agent_home(program_slug)}_preferences.yaml")
     if not preferences_yaml:
         logger.info(
             f"[FORK:D9] no _preferences.yaml for {user_id[:8]}/{program_slug}; "
@@ -338,9 +354,9 @@ async def _seed_recurrences_from_preferences(
                 f"{spec_path_abs}. Read the spec for output schema, sections, "
                 f"and quality criteria. Write the composed output to the "
                 f"slug-templated path per CONVENTIONS.md. Update "
-                f"/workspace/persona/standing_intent.md with what you're "
-                f"watching for in the next cycle per ADR-284 + principles.md "
-                f'"Default posture".\n\n'
+                f"/workspace/agents/{program_slug}/standing_intent.md with what "
+                f"you're watching for in the next cycle per ADR-284 + "
+                f'principles.md "Default posture".\n\n'
                 f"This recurrence was seeded at activation from operator "
                 f"`_preferences.yaml` declaration per ADR-275 D9. Operator "
                 f"can edit the cadence or active flag in `_preferences.yaml`; "
@@ -424,88 +440,6 @@ def _format_recurrence_entry_yaml(
         f"{prompt_indented}"
     )
     return entry
-
-
-async def _populate_occupant_for_runtime(um: Any, program_slug: str) -> None:
-    """ADR-284 D3: write OCCUPANT.md with runtime-truth-aligned occupant identity.
-
-    Pre-ADR-284 the bundle template shipped `occupant_class: human` as a
-    hardcoded default. This produced substrate-runtime drift in alpha
-    workspaces where AI ran the seat — OCCUPANT.md said "human" but every
-    judgment-mode fire was attributed `reviewer:ai:freddie-sonnet-v8`.
-
-    Current alpha state: AI is the runtime occupant on every workspace. The
-    fork populates OCCUPANT.md with the AI occupant identity, including a
-    `delegation_charter` block that mirrors AUTONOMY.md's delegation level at
-    the seat level (so the Reviewer can perceive at every wake what it's
-    authorized to do without operator presence).
-
-    Future shape (deferred per ADR-284 D10): when explicit human-occupant
-    activation lands as an operator-UX option, this function branches on the
-    activation-time signal. For now, AI is the structural default.
-
-    Written through UserMemory.write with authored_by="system:occupant-fork"
-    per ADR-209 attribution.
-    """
-    from datetime import datetime, timezone
-
-    # ADR-315: import the occupant identity from the published contract
-    # (pure data, no circular risk) rather than the occupant implementation.
-    from agents.occupant_contract import FREDDIE_MODEL_IDENTITY
-
-    activated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    # FREDDIE_MODEL_IDENTITY is "ai:freddie-sonnet-v8" (prefix included);
-    # the occupant field uses the same string for symmetry with the
-    # authored_by attribution surfaced in workspace_file_versions.
-    occupant_body = f"""---
-occupant: {FREDDIE_MODEL_IDENTITY}
-occupant_class: ai
-activated_at: {activated_at}
-activated_by: system:bundle-fork
-delegation_charter:
-  source: /workspace/governance/AUTONOMY.md
-  posture: read AUTONOMY.md at every wake; render verdicts within declared ceiling
-config: {{}}
----
-
-# Review Seat — Current Occupant (ADR-284 runtime-truth-aligned)
-
-This file declares who currently fills the Reviewer seat. The seat is the
-architectural role (see `IDENTITY.md`); the **occupant** is who fills it
-right now. Per FOUNDATIONS Derived Principle 14, the seat persists and the
-occupant rotates.
-
-The current occupant is **AI** (`{FREDDIE_MODEL_IDENTITY}`), populated by
-`services.programs.fork_reference_workspace` at bundle-activation time per
-ADR-284 D3. This was the structural default for every alpha-{program_slug}
-workspace at activation — the operator delegated the seat to the AI to run
-in their absence per FOUNDATIONS Axiom 2 v8.4 ("operator-as-Reviewer is the
-personified AI agent rendering the operator's judgment function in the
-human's absence").
-
-The `delegation_charter` block above names what this AI occupant is
-authorized to do: read AUTONOMY.md at every wake, render verdicts within
-the operator's declared ceiling. The operator can always override via the
-Queue. Rotation is a substrate write (edit the `occupant:` field via chat
-with YARNNN, or by direct edit through the cockpit); each rotation appends
-to `handoffs.md`.
-
-Occupant-class taxonomy:
-- `human:<user_id>` — the operator via approval UX (future activation shape)
-- `ai:<model>-<version>` — current alpha state
-- `external:<service>-<identifier>` — an external AI service via adapter
-- `impersonated:<admin>-as-<persona>` — admin alpha-stress-testing
-"""
-    await um.write(
-        "persona/OCCUPANT.md",
-        occupant_body,
-        summary=f"OCCUPANT runtime-population for {program_slug} (ADR-284)",
-        authored_by="system:occupant-fork",
-        message=(
-            f"populated OCCUPANT.md with runtime occupant identity "
-            f"({FREDDIE_MODEL_IDENTITY}) per ADR-284 D3"
-        ),
-    )
 
 
 async def fork_reference_workspace(
@@ -714,20 +648,10 @@ async def fork_reference_workspace(
             files_skipped.append(target_path)
             logger.info(f"[FORK] {target_path} — skipped (operator-authored prose)")
 
-    # ADR-284 (2026-05-17): Reviewer seat-occupant runtime-truth alignment.
-    # Pre-ADR-284 the kernel scaffold (workspace_init Phase 5) wrote OCCUPANT.md
-    # with `occupant_class: human` as the default — produced substrate-runtime
-    # drift in alpha workspaces where AI actually runs the seat. Post-ADR-284
-    # bundle-fork unconditionally overwrites OCCUPANT.md with the runtime
-    # occupant identity for the current alpha state (AI). The bundle does NOT
-    # ship its own OCCUPANT.md template (the kernel owns the scaffold; the
-    # bundle owns the runtime-occupant overwrite via this helper).
-    # Future-shape (deferred): explicit human-occupant declaration honored
-    # at activation time via operator UX; the kernel branches here.
-    occupant_path = "persona/OCCUPANT.md"
-    await _populate_occupant_for_runtime(um, program_slug)
-    if occupant_path not in files_written:
-        files_written.append(occupant_path)
+    # ADR-414 D5/§9a: the ADR-284 occupant-fork (`_populate_occupant_for_runtime`)
+    # is DELETED per the deletion ledger — the occupant fact is kernel data
+    # (FREDDIE_MODEL_IDENTITY, ADR-414 D2); a hired agent has no OCCUPANT.md.
+    # The fork installs the bundle's agent home (agents/{slug}/…) verbatim.
 
     # ADR-275 D9 (2026-05-21 amendment): seed deliverable-cadence recurrences
     # from operator's _preferences.yaml at activation. Restores contract-

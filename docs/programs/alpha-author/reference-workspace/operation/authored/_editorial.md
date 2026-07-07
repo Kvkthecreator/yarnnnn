@@ -47,8 +47,8 @@ Example:
 ## What this file is NOT
 
 - Not the voice fingerprint. Voice lives in `_voice.md`.
-- Not Reviewer's principles. Those live in `/workspace/persona/principles.md` (operator-authored framework the Reviewer applies).
-- Not cadence preferences. Those live in `/workspace/contract/_preferences.yaml`.
+- Not Reviewer's principles. Those live in `/workspace/agents/alpha-author/principles.md` (operator-authored framework the Reviewer applies).
+- Not cadence preferences. Those live in `/workspace/agents/alpha-author/_preferences.yaml`.
 - Not author identity. That lives in `IDENTITY.md`.
 
 ## How this file evolves

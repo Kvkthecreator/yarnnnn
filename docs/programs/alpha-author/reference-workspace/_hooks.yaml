@@ -75,7 +75,7 @@ hooks:
         - ReturnVerdict(verdict="defer", reasoning="<persona-voice
           summary including specific defect path:line>",
           confidence="medium") — some checks pass, some need operator
-          iteration. Also: WriteFile to /workspace/persona/judgment_log.md
+          iteration. Also: WriteFile to /workspace/agents/alpha-author/judgment_log.md
           with structured defect (e.g., "para 3 sentence 2: hedge stack
           'I think it's worth considering'"). Operator iterates and
           resubmits.
@@ -87,7 +87,7 @@ hooks:
 
       Silent stand-down without writing audit reasoning is forbidden.
 
-      AND update /workspace/persona/standing_intent.md with what you'll
+      AND update /workspace/agents/alpha-author/standing_intent.md with what you'll
       be watching for in the next pre-ship cycle per ADR-284 + principles.md
       "Default posture: audit, then act". Cite specific anti-patterns
       surfaced in this audit or, on a clean approve, what you'll be

@@ -17,7 +17,7 @@ Detect drift between the operator's declared voice fingerprint (`_voice.md`) and
 
 ## Output structure
 
-The Reviewer writes audit results to `/workspace/persona/judgment_log.md` per ADR-281, plus structured findings to `/workspace/operation/authored/_signal.md` per ADR-282/283 instance.
+The Reviewer writes audit results to `/workspace/agents/alpha-author/judgment_log.md` per ADR-281, plus structured findings to `/workspace/operation/authored/_signal.md` per ADR-282/283 instance.
 
 Each audit result includes:
 

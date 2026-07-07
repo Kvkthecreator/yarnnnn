@@ -200,8 +200,26 @@ def load_autonomy(client: Any, user_id: str) -> dict:
         }
 
     Empty dict on missing file or parse failure. Never raises.
+
+    ADR-414 §9a (per-agent witness dial): when the workspace carries a hire
+    grant, the hired agent's `agents/{slug}/_autonomy.yaml` is the dial the
+    gate honors (at N≤1 every judgment action is the hired agent's — this
+    preserves the pre-414 behavior where the bundle's dial governed the
+    workspace). Falls back to the workspace dial when the agent home has no
+    dial (or on a steward-only workspace). Per-seat gate ROUTING beyond N=1
+    stays ADR-382-deferred.
     """
-    content = _read_file(client, user_id, AUTONOMY_YAML_PATH)
+    content = None
+    try:
+        from services.programs import resolve_judgment_home
+
+        home = resolve_judgment_home(user_id)
+        if home:
+            content = _read_file(client, user_id, f"/workspace/{home}_autonomy.yaml")
+    except Exception:  # noqa: BLE001 — defensive; dial resolution never raises
+        content = None
+    if not content:
+        content = _read_file(client, user_id, AUTONOMY_YAML_PATH)
     if not content:
         return {}
     parsed = load_workspace_yaml(content)

@@ -314,7 +314,7 @@ current_phase: observation
 references:
   - docs/alpha/ALPHA-1-PLAYBOOK.md
   # MANDATE template lives in this bundle's reference-workspace per ADR-230 D2:
-  - docs/programs/alpha-trader/reference-workspace/constitution/MANDATE.md
+  - docs/programs/alpha-trader/reference-workspace/agents/alpha-trader/MANDATE.md
   - docs/analysis/external-oracle-thesis-2026-04-26.md
   - docs/adr/ADR-187-trading-integration.md
   - docs/adr/ADR-194-reviewer-layer.md

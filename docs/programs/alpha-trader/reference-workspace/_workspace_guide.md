@@ -15,31 +15,25 @@ path_zones:
   - path: uploads
     role: operator-canon
     purpose: operator-contributed reference material
-  - path: persona/IDENTITY.md
+  - path: agents/alpha-trader/IDENTITY.md
     role: operator-canon
     purpose: Reviewer seat persona declaration
-  - path: persona/principles.md
+  - path: agents/alpha-trader/principles.md
     role: operator-canon
     purpose: Reviewer's declared judgment framework
-  - path: persona/_principles.yaml
+  - path: agents/alpha-trader/_principles.yaml
     role: operator-canon
     purpose: machine-parsed Reviewer thresholds
-  - path: persona/OCCUPANT.md
+  - path: agents/alpha-trader/reflection.md
     role: system-ledger
-    purpose: current Reviewer seat occupant (rotation primitive writes)
-  - path: persona/handoffs.md
-    role: system-ledger
-    purpose: append-only seat-occupant rotation log
-  - path: persona/calibration.md
-    role: system-ledger
-    purpose: per-occupant judgment-vs-outcome rolling windows
-  - path: persona/judgment_log.md
+    purpose: interpreted learning from the closed intent→outcome loop (ADR-364)
+  - path: agents/alpha-trader/judgment_log.md
     role: system-ledger
     purpose: Reviewer's judgment lineage (proposal verdicts, operation-shaping decisions)
   - path: system/recent.md
     role: system-ledger
     purpose: back-office narrative digest (24h rollup)
-  - path: persona/notes.md
+  - path: agents/alpha-trader/notes.md
     role: reviewer-workbench
     purpose: Reviewer's working scratch across wakes
   - path: working
@@ -79,22 +73,22 @@ path_zones:
 reviewer_wake_envelope:
   # --- Kernel-universal envelope ---
   - key: identity_md
-    path: persona/IDENTITY.md
+    path: agents/alpha-trader/IDENTITY.md
     optional: false
   - key: principles_md
-    path: persona/principles.md
+    path: agents/alpha-trader/principles.md
     optional: false
   - key: precedent_md
     path: constitution/PRECEDENT.md
     optional: true
   - key: mandate_md
-    path: constitution/MANDATE.md
+    path: agents/alpha-trader/MANDATE.md
     optional: false
   - key: autonomy_md
-    path: governance/AUTONOMY.md
+    path: agents/alpha-trader/AUTONOMY.md
     optional: false
   - key: preferences_yaml
-    path: contract/_preferences.yaml
+    path: agents/alpha-trader/_preferences.yaml
     optional: true
 
   # --- alpha-trader program-specific envelope ---
@@ -350,7 +344,7 @@ kernel-only workspace or a bundle that ships no specs.
 
 ### Your workbench — standing_intent.md (ADR-284, the every-cycle commitment)
 
-`/workspace/persona/standing_intent.md` is where your forward-looking
+`/workspace/agents/alpha-trader/standing_intent.md` is where your forward-looking
 judgment lives between invocations: what you're watching for, what would
 change your next move, what open questions you'd surface. It is
 `reviewer-workbench` role — you are the single writer
@@ -432,8 +426,11 @@ This workspace runs the **alpha-trader** program — equities + options
 operator workflow with a continuous-price oracle (Alpaca + Polygon).
 Self-funding by design.
 
-The kernel-universal substrate is here from signup: operator-authored
-library at the constitution/ + governance/ + operation/ roots, Reviewer seat at `persona/`, working
+The kernel-universal substrate is here from signup: the workspace-level
+operator-authored library at the `operation/` root, your hired agent's
+judgment home at `agents/alpha-trader/` (IDENTITY, MANDATE, principles,
+AUTONOMY, the dials + your working trail), the workspace spend envelope at
+`governance/`, working
 memory at `memory/`, agent substrate roots at `agents/`, deliverable +
 action recurrence roots at `reports/` and `operations/`, ephemeral
 scratch at `working/`, kernel scheduling index at `_recurrences.yaml`.
@@ -453,8 +450,8 @@ The alpha-trader program adds two operator-canon domains:
 
 Operational substrate emerges through Reviewer judgment + work over
 tenure: investigation work surfaces a `research/` directory the Reviewer
-populates; pattern-tracking lands in `persona/notes.md`; operation-shaping
-judgment moments accumulate in `persona/judgment_log.md` (rendered by
+populates; pattern-tracking lands in `agents/alpha-trader/notes.md`; operation-shaping
+judgment moments accumulate in `agents/alpha-trader/judgment_log.md` (rendered by
 infrastructure from the Reviewer's structured outputs). The bundle ships
 the empty house; the workspace develops as the operation actually runs.
 
@@ -500,6 +497,6 @@ Specifically:
   framework appears to need recalibration. Surface via `ProposeAction`.
 
 The right home for the Reviewer's evolving understanding is its
-`reviewer-workbench` substrate (`persona/notes.md`). The right channel for
+`reviewer-workbench` substrate (`agents/alpha-trader/notes.md`). The right channel for
 proposed changes to operator canon is the operator's approval surface
 (`Clarify` or `ProposeAction`).

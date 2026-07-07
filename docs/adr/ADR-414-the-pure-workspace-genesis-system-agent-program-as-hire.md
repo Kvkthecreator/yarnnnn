@@ -286,6 +286,98 @@ steward-file seeding; (2) no prose activation markers; (3) no
 new persistent store declares its DP35 scope in a manifest the gate
 parses.
 
+### 9a. D+E-2 design notes (2026-07-08, recorded before implementation)
+
+Receipts that shaped the cut: prod carries **zero program substrate**
+(no `operation/trading/`, no `operation/specs/`, no own-agent grants on
+any of the 13 workspaces; the alpha-trader-2 workspace is empty) — so the
+"alpha-trader migration one-shot" (D5.4) has **nothing to migrate**; the
+re-homing is forward-only, at its cheapest possible moment. Whether the
+trader operation is re-hired afterward is an operator decision, not a
+data migration.
+
+1. **The bundle trees restructure; the fork stays verbatim.** The
+   alternative (a fork-time path remap, bundles untouched) was rejected
+   once it was established that bundle *content* must change anyway —
+   recurrence prompts and guides name write-targets
+   (`/workspace/persona/standing_intent.md`, `persona/judgment_log.md`)
+   that must become agent-home paths. Half a world in the tree plus a
+   hidden translation in the kernel violates Singular Implementation;
+   the tree becomes the truth. `docs/programs/{slug}/reference-workspace/`
+   now ships `agents/{slug}/…` directly for the persona-class set:
+   IDENTITY.md · MANDATE.md · principles.md · _principles.yaml ·
+   AUTONOMY.md · _autonomy.yaml · _preferences.yaml ·
+   _expected_output.yaml. `operation/` + `system/` + workspace-level
+   YAML (`_recurrences`, `_captures`, `_hooks`) + `_workspace_guide.md`
+   stay workspace-level, verbatim.
+2. **Two activation signals stay distinct.** A platform connection makes
+   a bundle *active-for-workspace* (chrome + capabilities + substrate
+   ABI — `bundles_active_for_workspace`); only the **hire grant**
+   installs judgment. The envelope's judgment-home re-point keys on
+   `resolve_hired_program_slug` (the grant), never on `program_active`
+   (which a connection alone can raise).
+3. **Envelope re-point (read side).** When a hire exists, the judgment
+   load-out (identity/principles/mandate/autonomy/preferences/
+   standing-intent + the program-active `expected_output`) reads from
+   `agents/{slug}/…`; the steward kernel-constant substitution applies
+   only to steward (no-hire) wakes. `precedent_md` (workspace
+   constitution) and `budget_yaml` (the workspace spend envelope) stay
+   workspace reads. `occupant_md` is not read for a hired agent — the
+   occupant fact is kernel data (D2); no per-agent OCCUPANT.md exists
+   (`_populate_occupant_for_runtime` deleted per the ledger).
+4. **Write side.** `freddie_audit.render_lineage_entry_if_material`
+   (the single judgment-log writer) writes to
+   `agents/{slug}/judgment_log.md` when hired; bundle prompts carry the
+   concrete agent-home write-targets (updated in the restructure); the
+   persona-frame's ReturnVerdict description goes path-neutral ("your
+   judgment log") — the runtime and the bundle prompts own the concrete
+   paths (DP22).
+5. **Witness dial.** `review_policy.load_autonomy` resolves the hired
+   agent's `agents/{slug}/_autonomy.yaml` first, falling back to the
+   workspace dial — behavior-preserving vs the pre-414 world where the
+   bundle overwrote the workspace dial (at N≤1 every judgment action is
+   the hired agent's). The write gate locks the per-agent grant sidecars
+   (`agents/*/_autonomy.yaml`, `agents/*/_budget.yaml`) for
+   freddie/mcp/agent callers — ADR-366's grant logic, per-agent. Per-seat
+   gate *routing* beyond N=1 stays ADR-382-deferred (§11).
+6. **Budget stays workspace-level this phase.** The trader bundle keeps
+   shipping `governance/_budget.yaml` (the workspace spend envelope, D2's
+   "workspace-variable dial"). ADR-391 per-principal allocations
+   (per-agent `_budget.yaml` + `execution_events.principal_id` metering)
+   are named follow-on — landing the file without the metering would be
+   a dead declaration. The sidecar lock above already reserves the leaf.
+7. **Steward working set stays at `persona/` interim.** The steward's
+   standing_intent/judgment_log on a no-hire workspace keep their
+   current paths; their re-homing (persona/ → system/ or kernel data)
+   belongs to the re-founding's own sequenced plan (§11 "no flag-day").
+8. **Per-agent MANDATE gate is satisfied by construction**: the bundle
+   ships a populated MANDATE into the agent home at fork; no
+   dispatch-time skeleton gate is reinstated (consistent with Phase C
+   retiring the workspace-level gate).
+9. **Bundle-conformance gate re-point (amends ADR-284/286 D3 letter).**
+   `test_adr287_bundle_conformance.py` encoded the seat-era layout: it
+   required each active bundle to ship `constitution/MANDATE.md`,
+   `persona/IDENTITY.md`, `governance/AUTONOMY.md`, etc. at the workspace
+   root, and each persona row to list `/workspace/persona/OCCUPANT.md` in
+   `core_files`. Re-homing (§9a #1) moves the seat-class files to
+   `agents/{slug}/`, so the `_ADR286_D3_*` path list splits into an
+   agent-home leaf set + a workspace-level set; the ADR-284 D8
+   IDENTITY/principles → standing_intent references re-point to the agent
+   home. The **OCCUPANT.md conformance retires**: the occupant fact is
+   kernel data (D2), `_populate_occupant_for_runtime` is deleted (§9a),
+   and no per-agent OCCUPANT.md exists — a bundle asserting one would be
+   testing a retired concept. `test_adr284_d3_persona_core_files_includes_
+   occupant_md` + the `occupant_attribution` requirement are removed;
+   `personas.yaml` drops the `OCCUPANT.md` `core_files` entry + the
+   `occupant_attribution` blocks. This is the ADR-284 tail of the D2
+   occupant-fact-becomes-kernel-data decision, executed where D+E-2
+   touches the same files.
+10. **Named out of scope**: FE per-agent surface re-pointing
+    (intent-register panes, StandingBand/JudgmentTrail per-agent — Phase
+    F2); Rung-2 probe-script path updates (dormant suites, updated at
+    re-hire); the steward-marker cleanup one-shot (D2 ledger tail);
+    ADR-391 allocation metering.
+
 ## 10. Canon cascade (Phase 0, this commit)
 
 ESSENCE → v15 (D1 verbatim); FOUNDATIONS → v9.16 (DP24/DP30 two-order

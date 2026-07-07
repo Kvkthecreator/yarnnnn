@@ -2070,31 +2070,37 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
         PERSONA_IDENTITY_PATH,
         OPERATION_BRAND_PATH,
         GOVERNANCE_AUTONOMY_PATH,
+        GOVERNANCE_BUDGET_PATH,
         PERSONA_PRINCIPLES_PATH,
     )
     from services.working_memory import _classify_activation_state
     from services.bundle_reader import _all_slugs, _load_manifest
-    from services.programs import resolve_hired_program_slug, compute_capability_gaps
+    from services.programs import (
+        resolve_hired_program_slug,
+        resolve_judgment_home,
+        compute_capability_gaps,
+    )
 
-    # ─── Step 1: lazy roster scaffolding ────────────────────────────────
+    um = UserMemory(auth.client, auth.user_id)
+
+    # ─── Step 1: lazy genesis ───────────────────────────────────────────
+    # ADR-414 D4 follow-on: the trigger predicate re-keys to the budget dial
+    # — the SAME key `initialize_workspace` uses for idempotency. The prior
+    # probe ("zero non-archived agents rows") became permanently true on
+    # every bare workspace after migration 205 retired the thinking_partner
+    # row, re-entering init (4 redundant reads + a log line) on every state
+    # call. `has_agents` stays in the response as a vestige (no FE reader —
+    # the auth-callback gate keys on activation_state); it reports the
+    # post-init value the legacy shape always carried.
+    has_agents = True
     try:
-        result = (
-            auth.client.table("agents")
-            .select("id")
-            .eq("user_id", auth.user_id)
-            .neq("status", "archived")
-            .limit(1)
-            .execute()
-        )
-        has_agents = len(result.data or []) > 0
-
-        if not has_agents:
+        existing_budget = await um.read(GOVERNANCE_BUDGET_PATH)
+        if not existing_budget:
             # ADR-286: `browser_tz` no longer threaded through workspace_init —
             # IDENTITY.md is bundle-owned, not kernel-scaffolded. Operator
             # declares timezone via chat or bundle authoring after activation.
             from services.workspace_init import initialize_workspace
             init_result = await initialize_workspace(auth.client, auth.user_id)
-            has_agents = True
 
             # ADR-179: Write workspace_init_complete system card as persisted
             # session_messages row. Zero LLM cost. TP reads as conversation
@@ -2132,9 +2138,6 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
         raise HTTPException(status_code=500, detail=str(e))
 
     # ─── Step 2: activation state + active program slug ─────────────────
-    um = UserMemory(auth.client, auth.user_id)
-    mandate_content = await um.read(CONSTITUTION_MANDATE_PATH)
-
     # Active-program derivation and activation-state classification are
     # independent reads; keep them in separate try-blocks so a failure in
     # one never silently nulls the other. (Regression: 7e777bf dropped the
@@ -2144,6 +2147,14 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
     # shared services.programs helpers — same derivation working_memory uses.
     # ADR-414 D5: the activation record is the hire grant row, not a prose marker.
     active_program_slug: Optional[str] = resolve_hired_program_slug(auth.user_id)
+    # ADR-414 §9a: the judgment files live in the hired agent's home; the
+    # workspace-root paths are the steward-era layout (no-hire workspaces).
+    judgment_home = resolve_judgment_home(auth.user_id)
+    mandate_path = f"{judgment_home}MANDATE.md" if judgment_home else CONSTITUTION_MANDATE_PATH
+    identity_path = f"{judgment_home}IDENTITY.md" if judgment_home else PERSONA_IDENTITY_PATH
+    principles_path = f"{judgment_home}principles.md" if judgment_home else PERSONA_PRINCIPLES_PATH
+    autonomy_path = f"{judgment_home}AUTONOMY.md" if judgment_home else GOVERNANCE_AUTONOMY_PATH
+    mandate_content = await um.read(mandate_path)
     activation_state = "none"
     try:
         activation_state = _classify_activation_state(
@@ -2202,32 +2213,35 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
             return SubstrateFileStatus(path=path, state="missing")
 
     substrate_status = SubstrateStatus(
-        mandate=await _read_file_status(CONSTITUTION_MANDATE_PATH),
-        identity=await _read_file_status(PERSONA_IDENTITY_PATH),
+        mandate=await _read_file_status(mandate_path),
+        identity=await _read_file_status(identity_path),
         brand=await _read_file_status(OPERATION_BRAND_PATH),
-        autonomy=await _read_file_status(GOVERNANCE_AUTONOMY_PATH),
-        principles=await _read_file_status(PERSONA_PRINCIPLES_PATH),
+        autonomy=await _read_file_status(autonomy_path),
+        principles=await _read_file_status(principles_path),
     )
 
     # last_revised_at via batched workspace_files lookup (singular round-trip)
     try:
         paths = [
-            CONSTITUTION_MANDATE_PATH, PERSONA_IDENTITY_PATH, OPERATION_BRAND_PATH,
-            GOVERNANCE_AUTONOMY_PATH, PERSONA_PRINCIPLES_PATH,
+            mandate_path, identity_path, OPERATION_BRAND_PATH,
+            autonomy_path, principles_path,
         ]
         rows = (
             auth.client.table("workspace_files")
             .select("path, updated_at")
             .eq(*_substrate_scope_filter(auth))
-            .in_("path", paths)
+            .in_("path", [f"/workspace/{p}" for p in paths])
             .execute()
         )
-        timestamps = {r["path"]: r.get("updated_at") for r in (rows.data or [])}
-        substrate_status.mandate.last_revised_at = timestamps.get(CONSTITUTION_MANDATE_PATH)
-        substrate_status.identity.last_revised_at = timestamps.get(PERSONA_IDENTITY_PATH)
+        timestamps = {
+            (r["path"] or "").replace("/workspace/", "", 1): r.get("updated_at")
+            for r in (rows.data or [])
+        }
+        substrate_status.mandate.last_revised_at = timestamps.get(mandate_path)
+        substrate_status.identity.last_revised_at = timestamps.get(identity_path)
         substrate_status.brand.last_revised_at = timestamps.get(OPERATION_BRAND_PATH)
-        substrate_status.autonomy.last_revised_at = timestamps.get(GOVERNANCE_AUTONOMY_PATH)
-        substrate_status.principles.last_revised_at = timestamps.get(PERSONA_PRINCIPLES_PATH)
+        substrate_status.autonomy.last_revised_at = timestamps.get(autonomy_path)
+        substrate_status.principles.last_revised_at = timestamps.get(principles_path)
     except Exception as exc:
         logger.warning(f"[WORKSPACE_STATE] timestamp lookup failed: {exc}")
 

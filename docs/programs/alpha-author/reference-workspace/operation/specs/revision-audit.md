@@ -52,7 +52,7 @@ Per ADR-209 revision chain — every workspace_files mutation produces a revisio
 
 The Reviewer's findings land:
 
-1. **`/workspace/persona/judgment_log.md`** — append-only audit entry per `pre-ship-audit` shape, with `audit_type: revision-audit`:
+1. **`/workspace/agents/alpha-author/judgment_log.md`** — append-only audit entry per `pre-ship-audit` shape, with `audit_type: revision-audit`:
    ```yaml
    piece_slug: <slug>
    audit_timestamp: <ISO-8601>

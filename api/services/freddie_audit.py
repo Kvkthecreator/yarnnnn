@@ -69,11 +69,29 @@ from services.workspace_paths import PERSONA_JUDGMENT_LOG_PATH
 logger = logging.getLogger(__name__)
 
 
-#: Canonical filesystem home for the Reviewer's judgment lineage (ADR-281 §5).
-#: The constant `JUDGMENT_LOG_PATH` is the full /workspace/-prefixed path used
-#: by the DB read/write helpers below. Callers that need the workspace-relative
-#: path should import PERSONA_JUDGMENT_LOG_PATH from services.workspace_paths.
+#: STEWARD-ERA filesystem home for the judgment lineage (ADR-281 §5) — the
+#: no-hire default. Callers that need the workspace-relative path should
+#: import PERSONA_JUDGMENT_LOG_PATH from services.workspace_paths.
 JUDGMENT_LOG_PATH = f"/workspace/{PERSONA_JUDGMENT_LOG_PATH}"
+
+
+def _judgment_log_path(user_id: str) -> str:
+    """The workspace's live judgment-log path (ADR-414 §9a).
+
+    A hired agent's lineage lives in its home (`agents/{slug}/judgment_log.md`
+    — the hire grant is the branch point); a steward-only workspace keeps the
+    steward-era persona/ path. Tolerant: any resolution failure falls back to
+    the steward path (never blocks a lineage write).
+    """
+    try:
+        from services.programs import resolve_judgment_home
+
+        home = resolve_judgment_home(user_id)
+        if home:
+            return f"/workspace/{home}judgment_log.md"
+    except Exception:  # noqa: BLE001 — defensive; lineage writes must not break
+        pass
+    return JUDGMENT_LOG_PATH
 
 
 Decision = Literal["approve", "reject", "defer"]
@@ -436,7 +454,7 @@ def _read_sync(client: Any, user_id: str) -> str | None:
             client.table("workspace_files")
             .select("content")
             .eq("user_id", user_id)
-            .eq("path", JUDGMENT_LOG_PATH)
+            .eq("path", _judgment_log_path(user_id))
             .limit(1)
             .execute()
         )
@@ -467,7 +485,7 @@ def _write_decision_sync(
         write_revision(
             client,
             user_id=user_id,
-            path=JUDGMENT_LOG_PATH,
+            path=_judgment_log_path(user_id),
             content=content,
             authored_by=f"freddie:{reviewer_identity}",
             message=f"{decision} proposal {proposal_id[:8] if proposal_id else '?'}",
@@ -501,7 +519,7 @@ def _write_material_outcome_sync(
         write_revision(
             client,
             user_id=user_id,
-            path=JUDGMENT_LOG_PATH,
+            path=_judgment_log_path(user_id),
             content=content,
             authored_by=f"freddie:{reviewer_identity}",
             message=f"material-outcome {slug} ({outcome_kind})",

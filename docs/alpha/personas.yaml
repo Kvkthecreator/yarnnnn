@@ -114,28 +114,20 @@ personas:
       platform_connections: 1
       core_files:
         - /workspace/_recurrences.yaml   # ADR-261 D2: single canonical recurrence declaration substrate
-        - /workspace/persona/IDENTITY.md
-        - /workspace/constitution/MANDATE.md
-        - /workspace/governance/AUTONOMY.md
+        - /workspace/agents/alpha-trader/IDENTITY.md
+        - /workspace/agents/alpha-trader/MANDATE.md
+        - /workspace/agents/alpha-trader/AUTONOMY.md
         - /workspace/operation/BRAND.md
         - /workspace/operation/CONVENTIONS.md
-        - /workspace/governance/_preferences.yaml    # ADR-275 operator deliverable cadence prefs
+        - /workspace/agents/alpha-trader/_preferences.yaml    # ADR-275 operator deliverable cadence prefs
         - /workspace/operation/trading/_operator_profile.md
         - /workspace/operation/trading/_risk.md
-        - /workspace/persona/principles.md
-        - /workspace/persona/OCCUPANT.md   # ADR-284: runtime-truth-aligned seat occupant declaration (kernel-scaffolded by workspace_init Phase 5; bundle-fork overwrites via _populate_occupant_for_runtime with ai:reviewer-sonnet-v8 for current alpha state)
+        - /workspace/agents/alpha-trader/principles.md
       # ADR-284: standing_intent.md is NOT a signup-invariant core_file — it
       # materializes only after the Reviewer's first judgment-mode cycle
       # writes it (Reviewer is the single writer per the reviewer-workbench
       # role / ADR-281 §3). Post-first-Reviewer-cycle invariant lives in
       # observation discipline, not in verify.py's signup-time checks.
-      occupant_attribution:                # ADR-284 D3: substrate-runtime alignment check
-        # OCCUPANT.md frontmatter must declare AI occupant post-bundle-fork
-        # (current alpha state — AI runs the seat per FOUNDATIONS Axiom 2
-        # v8.4). Detects substrate-runtime drift where the bundle scaffold's
-        # `human` default leaks past bundle-fork overwrite.
-        expected_occupant_class: ai
-        expected_occupant_prefix: "ai:reviewer-sonnet-"
       risk_md_path: /workspace/operation/trading/_risk.md
 
   - slug: alpha-trader-2
@@ -182,28 +174,20 @@ personas:
       platform_connections: 1
       core_files:
         - /workspace/_recurrences.yaml   # ADR-261 D2: single canonical recurrence declaration substrate
-        - /workspace/persona/IDENTITY.md
-        - /workspace/constitution/MANDATE.md
-        - /workspace/governance/AUTONOMY.md
+        - /workspace/agents/alpha-trader/IDENTITY.md
+        - /workspace/agents/alpha-trader/MANDATE.md
+        - /workspace/agents/alpha-trader/AUTONOMY.md
         - /workspace/operation/BRAND.md
         - /workspace/operation/CONVENTIONS.md
-        - /workspace/governance/_preferences.yaml    # ADR-275 operator deliverable cadence prefs
+        - /workspace/agents/alpha-trader/_preferences.yaml    # ADR-275 operator deliverable cadence prefs
         - /workspace/operation/trading/_operator_profile.md
         - /workspace/operation/trading/_risk.md
-        - /workspace/persona/principles.md
-        - /workspace/persona/OCCUPANT.md   # ADR-284: runtime-truth-aligned seat occupant declaration (kernel-scaffolded by workspace_init Phase 5; bundle-fork overwrites via _populate_occupant_for_runtime with ai:reviewer-sonnet-v8 for current alpha state)
+        - /workspace/agents/alpha-trader/principles.md
       # ADR-284: standing_intent.md is NOT a signup-invariant core_file — it
       # materializes only after the Reviewer's first judgment-mode cycle
       # writes it (Reviewer is the single writer per the reviewer-workbench
       # role / ADR-281 §3). Post-first-Reviewer-cycle invariant lives in
       # observation discipline, not in verify.py's signup-time checks.
-      occupant_attribution:                # ADR-284 D3: substrate-runtime alignment check
-        # OCCUPANT.md frontmatter must declare AI occupant post-bundle-fork
-        # (current alpha state — AI runs the seat per FOUNDATIONS Axiom 2
-        # v8.4). Detects substrate-runtime drift where the bundle scaffold's
-        # `human` default leaks past bundle-fork overwrite.
-        expected_occupant_class: ai
-        expected_occupant_prefix: "ai:reviewer-sonnet-"
       risk_md_path: /workspace/operation/trading/_risk.md
 
   # ─────────────────────────────────────────────────────────────────────
@@ -275,26 +259,16 @@ personas:
       platform_connections: 0   # ADR-283 D7: zero external writes by design
       core_files:
         - /workspace/_recurrences.yaml
-        - /workspace/persona/IDENTITY.md
-        - /workspace/constitution/MANDATE.md
-        - /workspace/governance/AUTONOMY.md
+        - /workspace/agents/alpha-author/IDENTITY.md
+        - /workspace/agents/alpha-author/MANDATE.md
+        - /workspace/agents/alpha-author/AUTONOMY.md
         - /workspace/operation/BRAND.md
         - /workspace/operation/CONVENTIONS.md
-        - /workspace/governance/_preferences.yaml
+        - /workspace/agents/alpha-author/_preferences.yaml
         - /workspace/operation/authored/_voice.md
         - /workspace/operation/authored/_editorial.md
         - /workspace/operation/authored/_entities.md
-        - /workspace/persona/principles.md
-        - /workspace/persona/OCCUPANT.md   # ADR-284 D3: runtime-truth-aligned seat occupant declaration
-      occupant_attribution:                # ADR-284 D3: substrate-runtime alignment check
-        # AI occupant expected post-bundle-fork — alpha-author runs the
-        # editor-shaped Reviewer seat under the same AI-occupant default
-        # as alpha-trader (current alpha state per FOUNDATIONS Axiom 2
-        # v8.4 hardening — operator-as-Reviewer two-embodiments framing).
-        # Operator may swap to human occupant by editing OCCUPANT.md.
-        expected_occupant_class: ai
-        expected_occupant_prefix: "ai:reviewer-sonnet-"
-
+        - /workspace/agents/alpha-author/principles.md
   - slug: netflix-script-author
     label: "Long-arc screenplay-in-development authorship (no audience until shipped)"
     program: alpha-author   # ADR-230 D1: same program as yarnnn-author, different operator
@@ -325,26 +299,16 @@ personas:
       platform_connections: 0
       core_files:
         - /workspace/_recurrences.yaml
-        - /workspace/persona/IDENTITY.md
-        - /workspace/constitution/MANDATE.md
-        - /workspace/governance/AUTONOMY.md
+        - /workspace/agents/alpha-author/IDENTITY.md
+        - /workspace/agents/alpha-author/MANDATE.md
+        - /workspace/agents/alpha-author/AUTONOMY.md
         - /workspace/operation/BRAND.md
         - /workspace/operation/CONVENTIONS.md
-        - /workspace/governance/_preferences.yaml
+        - /workspace/agents/alpha-author/_preferences.yaml
         - /workspace/operation/authored/_voice.md
         - /workspace/operation/authored/_editorial.md
         - /workspace/operation/authored/_entities.md
-        - /workspace/persona/principles.md
-        - /workspace/persona/OCCUPANT.md   # ADR-284 D3: runtime-truth-aligned seat occupant declaration
-      occupant_attribution:                # ADR-284 D3: substrate-runtime alignment check
-        # AI occupant expected post-bundle-fork — alpha-author runs the
-        # editor-shaped Reviewer seat under the same AI-occupant default
-        # as alpha-trader (current alpha state per FOUNDATIONS Axiom 2
-        # v8.4 hardening — operator-as-Reviewer two-embodiments framing).
-        # Operator may swap to human occupant by editing OCCUPANT.md.
-        expected_occupant_class: ai
-        expected_occupant_prefix: "ai:reviewer-sonnet-"
-
+        - /workspace/agents/alpha-author/principles.md
   # korea-thriller-shorts — third alpha-author dogfood instance (2026-05-18,
   # ADR-283 step 6 follow-up). Shares character canon with netflix-script-author
   # (same modern-Korea Thomas-Crown-Joker universe, Jaewon entity mirrored
@@ -384,23 +348,16 @@ personas:
       platform_connections: 0
       core_files:
         - /workspace/_recurrences.yaml
-        - /workspace/persona/IDENTITY.md
-        - /workspace/constitution/MANDATE.md
-        - /workspace/governance/AUTONOMY.md
+        - /workspace/agents/alpha-author/IDENTITY.md
+        - /workspace/agents/alpha-author/MANDATE.md
+        - /workspace/agents/alpha-author/AUTONOMY.md
         - /workspace/operation/BRAND.md
         - /workspace/operation/CONVENTIONS.md
-        - /workspace/governance/_preferences.yaml
+        - /workspace/agents/alpha-author/_preferences.yaml
         - /workspace/operation/authored/_voice.md
         - /workspace/operation/authored/_editorial.md
         - /workspace/operation/authored/_entities.md
-        - /workspace/persona/principles.md
-        - /workspace/persona/OCCUPANT.md   # ADR-284 D3: runtime-truth-aligned seat occupant declaration
-      occupant_attribution:                # ADR-284 D3: substrate-runtime alignment check
-        # Same AI-occupant default as the other two alpha-author personas.
-        # Operator may swap to human occupant by editing OCCUPANT.md.
-        expected_occupant_class: ai
-        expected_occupant_prefix: "ai:reviewer-sonnet-"
-
+        - /workspace/agents/alpha-author/principles.md
   - slug: kvk
     label: "KVK personal alpha-trader workspace (kvkthecreator@gmail.com)"
     program: alpha-trader
@@ -443,28 +400,20 @@ personas:
       platform_connections: 1
       core_files:
         - /workspace/_recurrences.yaml   # ADR-261 D2: single canonical recurrence declaration substrate
-        - /workspace/persona/IDENTITY.md
-        - /workspace/constitution/MANDATE.md
-        - /workspace/governance/AUTONOMY.md
+        - /workspace/agents/alpha-trader/IDENTITY.md
+        - /workspace/agents/alpha-trader/MANDATE.md
+        - /workspace/agents/alpha-trader/AUTONOMY.md
         - /workspace/operation/BRAND.md
         - /workspace/operation/CONVENTIONS.md
-        - /workspace/governance/_preferences.yaml    # ADR-275 operator deliverable cadence prefs
+        - /workspace/agents/alpha-trader/_preferences.yaml    # ADR-275 operator deliverable cadence prefs
         - /workspace/operation/trading/_operator_profile.md
         - /workspace/operation/trading/_risk.md
-        - /workspace/persona/principles.md
-        - /workspace/persona/OCCUPANT.md   # ADR-284: runtime-truth-aligned seat occupant declaration (kernel-scaffolded by workspace_init Phase 5; bundle-fork overwrites via _populate_occupant_for_runtime with ai:reviewer-sonnet-v8 for current alpha state)
+        - /workspace/agents/alpha-trader/principles.md
       # ADR-284: standing_intent.md is NOT a signup-invariant core_file — it
       # materializes only after the Reviewer's first judgment-mode cycle
       # writes it (Reviewer is the single writer per the reviewer-workbench
       # role / ADR-281 §3). Post-first-Reviewer-cycle invariant lives in
       # observation discipline, not in verify.py's signup-time checks.
-      occupant_attribution:                # ADR-284 D3: substrate-runtime alignment check
-        # OCCUPANT.md frontmatter must declare AI occupant post-bundle-fork
-        # (current alpha state — AI runs the seat per FOUNDATIONS Axiom 2
-        # v8.4). Detects substrate-runtime drift where the bundle scaffold's
-        # `human` default leaks past bundle-fork overwrite.
-        expected_occupant_class: ai
-        expected_occupant_prefix: "ai:reviewer-sonnet-"
       risk_md_path: /workspace/operation/trading/_risk.md
 
   # ─────────────────────────────────────────────────────────────────────
@@ -518,7 +467,6 @@ personas:
         - /workspace/persona/_principles.yaml
         - /workspace/persona/calibration.md
         - /workspace/persona/handoffs.md
-        - /workspace/persona/OCCUPANT.md
         - /workspace/system/_playbook.md
         - /workspace/system/style.md
         - /workspace/system/notes.md
@@ -531,10 +479,6 @@ personas:
       # question, see 2026-06-11-013544 findings observation 1). The
       # expectation below records what the substrate WILL say, not what
       # the runtime is.
-      occupant_attribution:
-        expected_occupant_class: human
-        expected_occupant_prefix: "human"
-
   - slug: anr-scout
     label: "A&R scout at an indie music company (lifecycle-journey subject; scouting-brief corpus)"
     # Journey persona: provisioned BARE (Stage 0), graduates by explicit
@@ -580,17 +524,13 @@ personas:
       platform_connections: 0
       core_files:
         - /workspace/_recurrences.yaml
-        - /workspace/persona/IDENTITY.md
-        - /workspace/constitution/MANDATE.md
-        - /workspace/governance/AUTONOMY.md
+        - /workspace/agents/alpha-author/IDENTITY.md
+        - /workspace/agents/alpha-author/MANDATE.md
+        - /workspace/agents/alpha-author/AUTONOMY.md
         - /workspace/operation/BRAND.md
         - /workspace/operation/CONVENTIONS.md
-        - /workspace/governance/_preferences.yaml
+        - /workspace/agents/alpha-author/_preferences.yaml
         - /workspace/operation/authored/_voice.md
         - /workspace/operation/authored/_editorial.md
         - /workspace/operation/authored/_entities.md
-        - /workspace/persona/principles.md
-        - /workspace/persona/OCCUPANT.md
-      occupant_attribution:
-        expected_occupant_class: ai
-        expected_occupant_prefix: "ai:reviewer-sonnet-"
+        - /workspace/agents/alpha-author/principles.md

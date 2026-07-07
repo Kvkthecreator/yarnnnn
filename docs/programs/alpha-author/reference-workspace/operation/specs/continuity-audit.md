@@ -29,7 +29,7 @@ Continuity break is **structural**, not stylistic. The operator's voice may evol
 
 ## Output structure
 
-The Reviewer writes findings to `/workspace/persona/judgment_log.md` plus structured continuity-state to the draft's profile.md `Continuity Threads` section.
+The Reviewer writes findings to `/workspace/agents/alpha-author/judgment_log.md` plus structured continuity-state to the draft's profile.md `Continuity Threads` section.
 
 Each audit result includes:
 

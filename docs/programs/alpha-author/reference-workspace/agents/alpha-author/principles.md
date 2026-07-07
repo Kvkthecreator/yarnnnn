@@ -107,7 +107,7 @@ These rules fire on `corpus-coherence-check`, `revision-audit`, `outcome-reconci
 
 ### Rule: cadence-on-pace
 
-- **Substrate read**: `/workspace/contract/_preferences.yaml::deliverable_preferences` (operator-declared cadences with `active: true`) AND `_signal.md` (last-ship-date per declared deliverable).
+- **Substrate read**: `/workspace/agents/alpha-author/_preferences.yaml::deliverable_preferences` (operator-declared cadences with `active: true`) AND `_signal.md` (last-ship-date per declared deliverable).
 - **Pass condition**: every `active: true` deliverable has a last-ship-date within its declared cadence window.
 - **Verdict on fail**: `propose` action_proposal of type `Clarify` to operator. Proposal body names the cadence + last-ship-date + intervals missed. Per `IDENTITY.md::Lifecycle posture`: "When cadence drift is detected (operator's declared cadence missed by 2+ intervals): proposing a Clarify is mandatory."
 
@@ -146,7 +146,7 @@ Per ADR-275, the Reviewer authors `Schedule()` calls for declared deliverable pr
 
 ### Rule: preference-to-recurrence
 
-- **Substrate read**: `/workspace/contract/_preferences.yaml::deliverable_preferences` (entries with `active: true`) AND `/workspace/_recurrences.yaml` (currently scheduled recurrences).
+- **Substrate read**: `/workspace/agents/alpha-author/_preferences.yaml::deliverable_preferences` (entries with `active: true`) AND `/workspace/_recurrences.yaml` (currently scheduled recurrences).
 - **Pass condition**: every `active: true` deliverable preference has a corresponding recurrence in `_recurrences.yaml` with `slug` matching the preference's `slug` and `schedule` matching the preference's `cadence`.
 - **Verdict on fail**: under `AUTONOMY.delegation: autonomous`, Reviewer authors `Schedule(action="create")` directly. Under `bounded` or `manual`, Reviewer authors `action_proposals` row (ProposeAction) for operator click. Either path closes the gap; AUTONOMY determines the shape.
 

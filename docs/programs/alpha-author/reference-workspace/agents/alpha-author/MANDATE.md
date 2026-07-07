@@ -21,11 +21,11 @@ Author and ship pieces that compound into a recognizable body of work, attribute
 
 ## Expected Output
 
-> The measurable half of this mandate (ADR-345) — what this operation is on the hook to **produce**. This is distinct from Rhythm (`_budget.yaml`: how often the agent works) and from Autonomy (`_autonomy.yaml`: which ships you witness). The machine companion is `contract/_expected_output.yaml`; keep the two in agreement. **A delivery-cadence the floor gates — not a quota.** If nothing clears the voice/anti-slop/continuity bar in a period, the slot slips; you never ship marginal work to hit a number.
+> The measurable half of this mandate (ADR-345) — what this operation is on the hook to **produce**. This is distinct from Rhythm (`_budget.yaml`: how often the agent works) and from Autonomy (`_autonomy.yaml`: which ships you witness). The machine companion is `agents/alpha-author/_expected_output.yaml`; keep the two in agreement. **A delivery-cadence the floor gates — not a quota.** If nothing clears the voice/anti-slop/continuity bar in a period, the slot slips; you never ship marginal work to hit a number.
 
 - **Kind**: authored pieces (the artifact the corpus is built from — essays, editions, scenes, per your operation).
 - **Delivery cadence**: *declare it* — e.g. "a biweekly essay," "a weekly edition." Until you declare one, the Reviewer treats the operation as event-driven (you author on your pace; it audits + ships when a draft clears the bar) and derives its owed-output rather than measuring against a declared rhythm. Declaring a cadence is what lets the operation produce on its own under `autonomous` (the Reviewer authors its own compose organ at that cadence; see `_workspace_guide.md`).
-- **Bar**: every piece clears the full pre-ship audit (voice fingerprint + anti-slop + text/entity continuity + editorial) per `persona/principles.md`. The bar is never relaxed to meet the cadence.
+- **Bar**: every piece clears the full pre-ship audit (voice fingerprint + anti-slop + text/entity continuity + editorial) per `agents/alpha-author/principles.md`. The bar is never relaxed to meet the cadence.
 
 ## Boundary Conditions
 

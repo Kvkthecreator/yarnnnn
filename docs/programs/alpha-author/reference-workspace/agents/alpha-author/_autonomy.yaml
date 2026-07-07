@@ -1,6 +1,6 @@
 ---
 tier: canon
-note: "Machine-parsed delegation declaration (ADR-254). Forked to /workspace/governance/_autonomy.yaml at activation. See AUTONOMY.md for documentation."
+note: "Machine-parsed delegation declaration (ADR-254). Forked to /workspace/agents/alpha-author/_autonomy.yaml at activation. See AUTONOMY.md for documentation."
 ---
 # _autonomy.yaml — delegation ceiling (ADR-254)
 # Machine-parsed by review_policy.load_autonomy() and working_memory.

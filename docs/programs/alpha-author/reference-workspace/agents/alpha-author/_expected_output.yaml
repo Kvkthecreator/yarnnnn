@@ -5,7 +5,7 @@
 # it against ground truth (ADR-319 stewardship) — a revision QUEUES for the
 # operator's witness under bounded/supervised, APPLIES under autonomous. It is
 # never revised to dodge the bar (the floor gates that). The prose companion is
-# constitution/MANDATE.md ## Expected Output — keep the two in agreement.
+# agents/alpha-author/MANDATE.md ## Expected Output — keep the two in agreement.
 #
 # Orthogonal to _budget.yaml (Rhythm: how often the agent works) and
 # _autonomy.yaml (Witness dial: which ships you witness). This file is
@@ -30,7 +30,7 @@ expected_output:
   delivery_cadence: event-driven
 
   # BAR — pointer to where the quality floor lives (NOT duplicated here).
-  # The floor itself is persona/principles.md + operation/authored/_voice.md +
+  # The floor itself is agents/alpha-author/principles.md + operation/authored/_voice.md +
   # _editorial.md. The bar is never relaxed to meet the cadence.
   bar: "principles.md pre-ship audit — voice fingerprint + anti-slop + text/entity continuity + editorial"
 

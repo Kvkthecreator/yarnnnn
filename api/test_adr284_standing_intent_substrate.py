@@ -226,8 +226,21 @@ def test_build_user_message_renders_standing_intent_with_empty_hint() -> None:
     assert 'ctx.get("standing_intent_md")' in src, (
         "_build_user_message must read standing_intent_md from context"
     )
-    assert "## persona/standing_intent.md — What you were watching for last cycle" in src, (
-        "_build_user_message must render standing_intent.md with section heading"
+    # ADR-414 §9a: the section header names the REAL path — per-agent when a
+    # hire exists (agents/{slug}/standing_intent.md), the steward-era persona/
+    # path otherwise — via ctx["judgment_home"]. So the header is dynamic; the
+    # invariant is that it renders standing_intent.md with the "What you were
+    # watching for last cycle" framing.
+    assert "— What you were watching for last cycle" in src, (
+        "_build_user_message must render standing_intent.md with the "
+        "'What you were watching for last cycle' section framing"
+    )
+    assert "standing_intent.md" in src, (
+        "_build_user_message must name the standing_intent.md substrate file"
+    )
+    assert "judgment_home" in src, (
+        "the standing-intent header must resolve the per-agent judgment home "
+        "(ADR-414 §9a) so the agent's own WriteFile lands where the next wake reads"
     )
     # Empty-state hint when no prior cycle has written
     assert "empty — first cycle, author it as part of this judgment" in src, (
@@ -236,53 +249,33 @@ def test_build_user_message_renders_standing_intent_with_empty_hint() -> None:
 
 
 # -----------------------------------------------------------------------------
-# 4. programs.py — _populate_occupant_for_runtime + fork integration
+# 4. programs.py — the occupant-fork is RETIRED (ADR-414 §9a / D2)
 # -----------------------------------------------------------------------------
+# The ADR-284 occupant-fork (`_populate_occupant_for_runtime`) is DELETED: the
+# occupant fact is kernel data (ADR-414 D2 — FREDDIE_MODEL_IDENTITY), no
+# per-agent OCCUPANT.md exists, and the fork installs the bundle's agent home
+# verbatim. These three tests invert to assert the retirement (the phase_e gate
+# `test_occupant_fork_is_deleted` is the primary ratchet; this keeps the ADR-284
+# suite coherent with the ADR-414 world rather than testing a deleted symbol).
 
-def test_populate_occupant_for_runtime_exists() -> None:
+def test_populate_occupant_for_runtime_is_retired() -> None:
     src = _read_api("services/programs.py")
     tree = ast.parse(src)
-    found = False
     for node in ast.walk(tree):
-        if (
+        assert not (
             isinstance(node, ast.AsyncFunctionDef)
             and node.name == "_populate_occupant_for_runtime"
-        ):
-            found = True
-            break
-    assert found, (
-        "_populate_occupant_for_runtime async helper must be defined in "
-        "services/programs.py per ADR-284 D8"
-    )
+        ), (
+            "_populate_occupant_for_runtime must be DELETED — the occupant fact "
+            "is kernel data (ADR-414 D2 / §9a); a hired agent has no OCCUPANT.md"
+        )
 
 
-def test_populate_occupant_uses_reviewer_model_identity() -> None:
+def test_fork_reference_workspace_does_not_stamp_occupant() -> None:
     src = _read_api("services/programs.py")
-    assert "FREDDIE_MODEL_IDENTITY" in src, (
-        "_populate_occupant_for_runtime must import FREDDIE_MODEL_IDENTITY "
-        "from agents.freddie_agent to align occupant identity with the "
-        "runtime model the Reviewer's loop self-attributes as"
-    )
-    assert "occupant_class: ai" in src, (
-        "_populate_occupant_for_runtime must declare occupant_class: ai for "
-        "the current alpha state (AI runtime occupant)"
-    )
-    assert "delegation_charter" in src, (
-        "_populate_occupant_for_runtime must include delegation_charter block "
-        "per ADR-284 D3"
-    )
-    assert 'authored_by="system:occupant-fork"' in src, (
-        "OCCUPANT runtime-population must attribute writes as "
-        "system:occupant-fork per ADR-209 attribution"
-    )
-
-
-def test_fork_reference_workspace_calls_populate_occupant() -> None:
-    src = _read_api("services/programs.py")
-    # The fork function must invoke the occupant-population helper.
-    assert "_populate_occupant_for_runtime(um, program_slug)" in src, (
-        "fork_reference_workspace must call _populate_occupant_for_runtime "
-        "after copying bundle files per ADR-284 D3"
+    assert "_populate_occupant_for_runtime(um" not in src, (
+        "fork_reference_workspace must NOT stamp the seat's OCCUPANT — the "
+        "conflation ADR-284 papered over no longer exists (ADR-414 §9a)"
     )
 
 
@@ -378,9 +371,8 @@ if __name__ == "__main__":
     test_persona_frame_enforces_every_cycle_write_contract()
     test_build_user_message_renders_occupant_envelope_key()
     test_build_user_message_renders_standing_intent_with_empty_hint()
-    test_populate_occupant_for_runtime_exists()
-    test_populate_occupant_uses_reviewer_model_identity()
-    test_fork_reference_workspace_calls_populate_occupant()
+    test_populate_occupant_for_runtime_is_retired()
+    test_fork_reference_workspace_does_not_stamp_occupant()
     test_foundations_axiom_2_declares_standing_intent_substrate()
     test_foundations_reviewer_identity_inventory_updated()
     test_glossary_standing_intent_entry_exists()

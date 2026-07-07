@@ -111,6 +111,22 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     # ONE place, gated on program_active. See ADR-390 D3.
 ]
 
+# ADR-414 D5/§9a — the judgment-home override. The paths above are the
+# STEWARD-ERA workspace-root layout (still valid on no-hire workspaces); when
+# a hire grant exists, each of these envelope keys reads the hired agent's
+# home (`agents/{slug}/{file}`) instead. Workspace-level keys (precedent,
+# budget) are absent from this map — they stay workspace reads regardless.
+_JUDGMENT_HOME_FILES: dict[str, str] = {
+    "identity_md": "IDENTITY.md",
+    "principles_md": "principles.md",
+    "mandate_md": "MANDATE.md",
+    "autonomy_md": "AUTONOMY.md",
+    "preferences_yaml": "_preferences.yaml",
+    "standing_intent_md": "standing_intent.md",
+    # program-active branch (not in _UNIVERSAL_ENVELOPE_DECLS):
+    "expected_output_yaml": "_expected_output.yaml",
+}
+
 
 # ---------------------------------------------------------------------------
 # Envelope assembly — substrate-only, no kernel-side computation
@@ -278,14 +294,41 @@ async def load_freddie_governance_envelope(
             )
             return ""
 
+    # --- ADR-414 D5/§9a: resolve the judgment home ONCE ---
+    # A hired agent's judgment load-out lives in agents/{slug}/ (the hire
+    # grant is the activation record); a steward-only workspace has no
+    # judgment home and rides the kernel constants. Keys on the GRANT, never
+    # on program_active (a platform connection alone raises the latter —
+    # chrome/capabilities, not installed judgment).
+    from services.programs import resolve_judgment_home
+
+    judgment_home = resolve_judgment_home(user_id)  # "agents/{slug}/" | None
+
+    universal_decls: list[tuple[str, str]] = []
+    for key, steward_path in _UNIVERSAL_ENVELOPE_DECLS:
+        if judgment_home and key in _JUDGMENT_HOME_FILES:
+            universal_decls.append((key, f"{judgment_home}{_JUDGMENT_HOME_FILES[key]}"))
+        elif judgment_home and key == "occupant_md":
+            # The occupant fact is kernel data for a hired agent (ADR-414 D2
+            # — no per-agent OCCUPANT.md); the legacy steward-era file is
+            # read only on no-hire workspaces where it may still exist.
+            continue
+        else:
+            universal_decls.append((key, steward_path))
+
     # --- Universal reads (kernel-shipped, parallel) ---
     universal_results = await _asyncio.gather(
-        *[_read(path) for _, path in _UNIVERSAL_ENVELOPE_DECLS]
+        *[_read(path) for _, path in universal_decls]
     )
     envelope: dict[str, str] = {
         key: value
-        for (key, _path), value in zip(_UNIVERSAL_ENVELOPE_DECLS, universal_results)
+        for (key, _path), value in zip(universal_decls, universal_results)
     }
+    if judgment_home:
+        envelope["occupant_md"] = ""  # keep the FreddieContext key shape stable
+    # The renderer uses this to label the standing-intent/judgment paths
+    # honestly (agents/{slug}/… when hired, persona/… for the steward).
+    envelope["judgment_home"] = judgment_home or ""
 
     # --- ADR-414 D2: the steward's constitution is a KERNEL CONSTANT ---
     # A bare workspace's persona/mandate files were seeded copies of the
@@ -298,21 +341,25 @@ async def load_freddie_governance_envelope(
     # content drift-proof: a kernel-side improvement reaches every bare
     # workspace at the next wake, no reapply pass. Phase C stops seeding
     # these files at genesis; this substitution is what makes that safe.
-    from services.orchestration import (
-        DEFAULT_STEWARD_IDENTITY_MD,
-        DEFAULT_STEWARD_MANDATE_MD,
-        DEFAULT_STEWARD_PRINCIPLES_MD,
-        STEWARD_DEFAULT_MARKER,
-    )
+    # STEWARD wakes only (ADR-414 §9a) — a hired agent's home content is the
+    # program's/operator's; absence there is reasoned about honestly (ADR-314
+    # index-not-assert), never papered over with steward defaults.
+    if not judgment_home:
+        from services.orchestration import (
+            DEFAULT_STEWARD_IDENTITY_MD,
+            DEFAULT_STEWARD_MANDATE_MD,
+            DEFAULT_STEWARD_PRINCIPLES_MD,
+            STEWARD_DEFAULT_MARKER,
+        )
 
-    for _key, _const in (
-        ("mandate_md", DEFAULT_STEWARD_MANDATE_MD),
-        ("identity_md", DEFAULT_STEWARD_IDENTITY_MD),
-        ("principles_md", DEFAULT_STEWARD_PRINCIPLES_MD),
-    ):
-        _val = envelope.get(_key) or ""
-        if not _val.strip() or STEWARD_DEFAULT_MARKER in _val:
-            envelope[_key] = _const
+        for _key, _const in (
+            ("mandate_md", DEFAULT_STEWARD_MANDATE_MD),
+            ("identity_md", DEFAULT_STEWARD_IDENTITY_MD),
+            ("principles_md", DEFAULT_STEWARD_PRINCIPLES_MD),
+        ):
+            _val = envelope.get(_key) or ""
+            if not _val.strip() or STEWARD_DEFAULT_MARKER in _val:
+                envelope[_key] = _const
 
     # --- Program-shaped reads (from active bundle's substrate_abi) ---
     # Per ADR-281 D1: one declaration shape per envelope entry: {key, path, optional}.
@@ -406,7 +453,11 @@ async def load_freddie_governance_envelope(
         envelope["schedule_index_md"] = await _read(SYSTEM_SCHEDULE_INDEX_PATH)
         envelope["recent_execution_md"] = await _read(SYSTEM_RECENT_EXECUTION_PATH)
         envelope["calibration_md"] = await _read(SYSTEM_CALIBRATION_PATH)
-        envelope["expected_output_yaml"] = await _read(CONTRACT_EXPECTED_OUTPUT_PATH)
+        envelope["expected_output_yaml"] = await _read(
+            f"{judgment_home}{_JUDGMENT_HOME_FILES['expected_output_yaml']}"
+            if judgment_home
+            else CONTRACT_EXPECTED_OUTPUT_PATH
+        )
     else:
         # Bare steward — operation machinery is not its concern. Empty keys keep
         # the contract shape stable; the render layer omits empties (ADR-390 D3).

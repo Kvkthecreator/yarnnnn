@@ -80,6 +80,56 @@ SYSTEM_ROOT = "system/"
 AGENTS_ROOT = "agents/"
 WORKING_ROOT = "working/"
 UPLOADS_ROOT = "uploads/"
+
+
+# =============================================================================
+# Per-agent homes (ADR-414 D5/D6 — program-as-hire, the Altitude-3 substrate)
+# =============================================================================
+# A hired agent's file set lives in agents/{slug}/ — its persona, purpose,
+# rules, dials, contract, and working trail. The workspace-root seat paths
+# (persona/, constitution/, contract/) are the LEGACY steward-era layout: they
+# survive as the steward's interim working set (standing_intent/judgment_log
+# on a no-hire workspace) and on pre-ADR-414 workspaces; a hire never writes
+# them. Layout (ADR-414 §9a):
+#
+#   agents/{slug}/
+#     IDENTITY.md          — the persona
+#     MANDATE.md           — the agent's purpose (ADR-207 gate, per-agent)
+#     principles.md        — rules of judgment (prose)
+#     _principles.yaml     — machine thresholds
+#     AUTONOMY.md          — witness-dial prose
+#     _autonomy.yaml       — witness dial (GRANT SIDECAR — locked, ADR-366 per-agent)
+#     _budget.yaml         — ADR-391 allocation (GRANT SIDECAR — reserved, not yet shipped)
+#     _preferences.yaml    — deliverable-cadence preferences
+#     _expected_output.yaml— output contract (ADR-345)
+#     standing_intent.md   — forward working state
+#     judgment_log.md      — judgment lineage
+#     reflection.md        — interpreted learning
+#
+# No OCCUPANT.md: the occupant fact is kernel data (ADR-414 D2).
+
+#: Grant-sidecar leaves within an agent home — the per-agent dials the agent
+#: itself must never author (a grant the grantee can rewrite is not a grant —
+#: ADR-366's logic applied per-agent). `_is_path_locked` in
+#: services/primitives/workspace.py enforces this for freddie/mcp/agent callers.
+AGENT_GRANT_SIDECAR_LEAVES = ("_autonomy.yaml", "_budget.yaml")
+
+
+def agent_home(slug: str) -> str:
+    """The hired agent's substrate home prefix (workspace-relative)."""
+    return f"{AGENTS_ROOT}{slug}/"
+
+
+def is_agent_grant_sidecar(path: str) -> bool:
+    """True iff `path` is a per-agent grant sidecar (agents/{slug}/_autonomy.yaml
+    or agents/{slug}/_budget.yaml) — locked for every non-operator caller."""
+    rel = path.strip().lstrip("/")
+    if rel.startswith("workspace/"):
+        rel = rel[len("workspace/"):]
+    if not rel.startswith(AGENTS_ROOT):
+        return False
+    leaf = rel.rsplit("/", 1)[-1]
+    return leaf in AGENT_GRANT_SIDECAR_LEAVES
 # The RAW intake lane (ADR-376 / FOUNDATIONS DP32 — the ledger-intake axiom).
 # Machine/external contributions land here as IMMUTABLE attributed raw
 # observations: inbound/{transport}/{principal}/{slug}.md. Sibling to uploads/

@@ -122,10 +122,11 @@ RETURN_VERDICT_TOOL = {
                 "description": (
                     "The HEADLINE — 2-5 sentences in your persona's voice. "
                     "First sentence is the verdict; second is why. Written "
-                    "verbatim to /workspace/persona/judgment_log.md. "
+                    "verbatim to your judgment log by the runtime. "
                     "For a long, structured, rule-by-rule audit (pre-ship / "
                     "corpus-coherence), do NOT put the full audit here — write "
-                    "the COMPLETE audit document to /workspace/persona/judgment_log.md "
+                    "the COMPLETE audit document to your judgment_log.md (at "
+                    "the path your wake envelope / recurrence prompt names) "
                     "in ONE WriteFile call (with the content parameter) FIRST, "
                     "then call ReturnVerdict with just the headline. This field "
                     "is sized for the headline; the long document is the single "
@@ -613,12 +614,16 @@ def _volatile_suffix(trigger: str, ctx: FreddieContext) -> str:
             wl.append(f"- triggering_revision_id: {ctx['triggering_revision_id']}")
         parts += wl + [""]
     # ADR-284: standing intent has a substrate home; the envelope renders it
-    # every wake (the agent's own forward working state).
+    # every wake (the agent's own forward working state). ADR-414 §9a: the
+    # home is per-agent when a hire exists (agents/{slug}/), the steward-era
+    # persona/ path otherwise — the header names the REAL path so the agent's
+    # own WriteFile updates land where the next wake reads.
+    si_path = f"{ctx.get('judgment_home') or 'persona/'}standing_intent.md"
     si = ctx.get("standing_intent_md")
     if si:
-        parts += ["## persona/standing_intent.md — What you were watching for last cycle", "", si, ""]
+        parts += [f"## {si_path} — What you were watching for last cycle", "", si, ""]
     else:
-        parts += ["## persona/standing_intent.md — (empty — first cycle, author it as part of this judgment)", ""]
+        parts += [f"## {si_path} — (empty — first cycle, author it as part of this judgment)", ""]
     snapshot = build_substrate_snapshot(
         ctx.get("_snapshot_client"),
         ctx.get("_snapshot_user_id") or "",

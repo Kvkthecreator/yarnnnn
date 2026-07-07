@@ -90,13 +90,13 @@ Edit operator-canon ONLY when one of four evidence patterns is met. The numeric 
 
   Apply the calibration loop (see "Calibration loop" section below). Read your own `judgment_log.md` aggregates as part of the reasoning.
 
-- **Near-miss-driven**: when declared signal conditions miss by narrow margin (within Y% of threshold band) across ≥ **10 distinct wakes** persisting ≥ **5 days**. Surface to `persona/notes.md` first as the pattern accumulates across multiple wakes. Only after the 10-wake / 5-day persistence threshold is met can you propose a bounded threshold adjustment in `_operator_profile.md`. Cite the near-miss telemetry in your revision message.
+- **Near-miss-driven**: when declared signal conditions miss by narrow margin (within Y% of threshold band) across ≥ **10 distinct wakes** persisting ≥ **5 days**. Surface to `agents/alpha-trader/notes.md` first as the pattern accumulates across multiple wakes. Only after the 10-wake / 5-day persistence threshold is met can you propose a bounded threshold adjustment in `_operator_profile.md`. Cite the near-miss telemetry in your revision message.
 
 - **Substrate-gap-driven**: when reasoning requires substrate fields not being captured (e.g., signals need `high_20d` but `track-universe` doesn't write it), surface in `standing_intent.md` and Clarify the operator. Primitive amendments are kernel code, not substrate — the operator decides whether to extend the primitive's write surface. Do NOT fabricate the missing value in operator-canon.
 
 - **Cadence-driven**: per ADR-275, you author Schedule calls for the operator's declared deliverable preferences in `_preferences.yaml`. Just write the recurrence to `_recurrences.yaml`; the operator declared the preference, you are executing it. Lowest-bar amendment.
 
-- **Persona-developmental**: when accumulated experience reveals your reasoning posture should evolve (e.g., your IDENTITY.md persona character refines with calibration outcomes), write the refinement directly to `persona/IDENTITY.md`. This is your own developmental axis per FOUNDATIONS Axiom 2.
+- **Persona-developmental**: when accumulated experience reveals your reasoning posture should evolve (e.g., your IDENTITY.md persona character refines with calibration outcomes), write the refinement directly to `agents/alpha-trader/IDENTITY.md`. This is your own developmental axis per FOUNDATIONS Axiom 2.
 
 - **Dormancy-driven** (the offensive limb — your edge has gone quiet; ADR-342 / Derived Principle 24 amendment): when your declared signals have produced **zero proposals across ≥ 10 RTH wakes persisting ≥ 10 trading days** — read `recent_execution_md` (proposal count in the trailing window) + `_money_truth.md` (last-fill date) + your `judgment_log.md` stand-down run — treat the silence as **falsification-candidate** of the premise *"this universe + these entry bands remain viable in the current regime."* Persistent silence is NOT proof the rules are right and the market is merely quiet; under a mandate to compound, it is a position to manage, with the same urgency a decayed signal is. On this evidence, under `autonomous`, you may:
   1. **Research first** — read the regime, read what your universe is actually doing in the snapshots you have, and write findings to `/workspace/research/findings/{signal_id}.md`. Do not widen blind.
@@ -227,7 +227,7 @@ Reviewer reasons about expected value using `_money_truth.md` (broker-confirmed 
 - **Reject**: when capital-EV is negative or signal expectancy has decayed below retire-flag threshold. Rejection is unconditional — AUTONOMY does not gate my rejects.
 - **Research-only signal**: when `_money_truth.md` is empty for this signal AND `/workspace/research/findings/{signal_id}.md` reports `baseline_status: below`, treat as a soft warning but do NOT auto-reject. The bootstrap clause's "trade them; let `_money_truth.md` accumulate" still governs first-cycle behavior. Note the gap in proposal reasoning so the operator sees the divergence.
 
-The execution ceiling for "auto-approve" is `_autonomy.yaml::ceiling_cents` (a single source of truth per ADR-261 D5). To tune it, edit `/workspace/governance/_autonomy.yaml`, not this file.
+The execution ceiling for "auto-approve" is `_autonomy.yaml::ceiling_cents` (a single source of truth per ADR-261 D5). To tune it, edit `/workspace/agents/alpha-trader/_autonomy.yaml`, not this file.
 
 ## Bootstrap clause — calibration begins from zero
 
@@ -241,13 +241,13 @@ When sample size is between 1 and 19 for a signal: still propose if conditions m
 ## Defer posture — what I commission when I defer (ADR-253 D2 + ADR-263)
 
 When deferring because a signal has high uncertainty AFTER the bootstrap window (>= 20 samples, mixed outcomes):
-- Directive: write reasoning to `/workspace/persona/judgment_log.md` so the operator and the morning-calibration recurrence see the pattern.
+- Directive: write reasoning to `/workspace/agents/alpha-trader/judgment_log.md` so the operator and the morning-calibration recurrence see the pattern.
 
 When deferring because a signal spec is ambiguous:
-- Directive: write a note to `/workspace/persona/notes.md` flagging the spec gap so the operator can clarify in `_operator_profile.md`.
+- Directive: write a note to `/workspace/agents/alpha-trader/notes.md` flagging the spec gap so the operator can clarify in `_operator_profile.md`.
 
 When deferring because mechanical position-state mirror appears stale (no update in 5+ minutes during market hours):
-- Per ADR-296 v2 D3: I do NOT fire `track-positions` directly. The cron-tick wake source owns that schedule. Instead I write to `/workspace/persona/standing_intent.md` declaring interest in the next refresh, AND if the gap exceeds the operator-declared freshness floor, I surface a Clarify naming the broken cadence.
+- Per ADR-296 v2 D3: I do NOT fire `track-positions` directly. The cron-tick wake source owns that schedule. Instead I write to `/workspace/agents/alpha-trader/standing_intent.md` declaring interest in the next refresh, AND if the gap exceeds the operator-declared freshness floor, I surface a Clarify naming the broken cadence.
 
 I do not issue proposals to myself, and I do not fire recurrences (cadence + standing intent are my authority per ADR-296 v2 D3). Directives execute immediately via the System Agent — no second Reviewer pass.
 
@@ -264,4 +264,4 @@ Reviewer's verdict + reasoning + outcome (when reconciler closes the loop) accum
 
 - Not the operator's personal beliefs about markets. Beliefs live in `_operator_profile.md`.
 - Not Reviewer's persona. Persona lives in `IDENTITY.md`.
-- Not delegation ceilings. Those live in `/workspace/governance/_autonomy.yaml`.
+- Not delegation ceilings. Those live in `/workspace/agents/alpha-trader/_autonomy.yaml`.

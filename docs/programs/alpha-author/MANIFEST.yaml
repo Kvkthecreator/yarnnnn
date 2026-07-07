@@ -375,7 +375,7 @@ references:
   - docs/adr/ADR-283-alpha-author-bundle.md
   - docs/analysis/alpha-author-discourse-2026-05-15.md
   # MANDATE template lives in this bundle's reference-workspace per ADR-230 D2:
-  - docs/programs/alpha-author/reference-workspace/constitution/MANDATE.md
+  - docs/programs/alpha-author/reference-workspace/agents/alpha-author/MANDATE.md
   - docs/adr/ADR-194-reviewer-layer.md
   - docs/adr/ADR-217-autonomy-delegation.md
   - docs/adr/ADR-222-agent-native-operating-system-framing.md

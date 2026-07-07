@@ -25,14 +25,14 @@ Reactive (`schedule: null` in `_recurrences.yaml`). Fires when:
 - Voice fingerprint: `/workspace/operation/authored/_voice.md`.
 - Editorial principles: `/workspace/operation/authored/_editorial.md`.
 - Recent corpus: pieces in `/workspace/operation/authored/` where status is `published`, sorted by `published_at` desc, top 5-10.
-- Cadence preferences: `/workspace/contract/_preferences.yaml`.
+- Cadence preferences: `/workspace/agents/alpha-author/_preferences.yaml`.
 - Calibration state: `/workspace/operation/authored/_signal.md` rolling-window state (for audit-EV reasoning).
 
 ## Output target
 
 **Two-channel verdict (ADR-303 P6 — channel-shape discipline).** A pre-ship audit produces a long, structured, rule-by-rule document. That document does NOT fit a short verdict-signal field — so it has its own channel:
 
-1. **The full rule-by-rule audit → `/workspace/persona/judgment_log.md` via ONE `WriteFile` call (append-only, per ADR-281).** This is the verdict-of-record: the `## Pre-Ship Audit / ### Rule 1.../### Rule 2.../### Rule 8...` document covering EVERY rule, with specific evidence (paragraph locations, excerpts, prior-piece references). **Read all needed substrate first, compose the COMPLETE audit, write it ONCE** — do not write rule-by-rule across many WriteFile calls (that fragments the document and exhausts the round budget before the audit finishes — observed 2026-06-01, the audit budget-exhausted at round 20/20 mid-write). Always include the `content` parameter. Write this single call FIRST.
+1. **The full rule-by-rule audit → `/workspace/agents/alpha-author/judgment_log.md` via ONE `WriteFile` call (append-only, per ADR-281).** This is the verdict-of-record: the `## Pre-Ship Audit / ### Rule 1.../### Rule 2.../### Rule 8...` document covering EVERY rule, with specific evidence (paragraph locations, excerpts, prior-piece references). **Read all needed substrate first, compose the COMPLETE audit, write it ONCE** — do not write rule-by-rule across many WriteFile calls (that fragments the document and exhausts the round budget before the audit finishes — observed 2026-06-01, the audit budget-exhausted at round 20/20 mid-write). Always include the `content` parameter. Write this single call FIRST.
 2. **The headline → `ReturnVerdict`.** After the single judgment_log write, close the turn with `ReturnVerdict(verdict=approve|defer|reject, reasoning='[one-sentence headline]', confidence=...)`. `reasoning` is the headline ONLY — do not restate the full audit there; the full audit is the judgment_log document. A verdict emitted as prose without a tool call does NOT close the turn.
 3. The draft's `profile.md` updated with `pre_ship_audit_state: approved | deferred | rejected` and the latest audit timestamp.
 4. When deferred: the structured defect description lives in the judgment_log document; surface a `Clarify` message to the operator with the specific operator-actionable defect.
@@ -54,7 +54,7 @@ Reactive (`schedule: null` in `_recurrences.yaml`). Fires when:
 - Unverifiable load-bearing external references (ADR/file/URL claims the Reviewer cannot confirm from workspace substrate) — operator confirms each resolves to a real source matching the claim, or revises.
 - Cadence behind but operator hasn't declared if this piece is on-thesis or off-cadence.
 
-**REJECT** when one or more hard rejection rules fire (per `/workspace/persona/principles.md` "Hard rejection rules" section):
+**REJECT** when one or more hard rejection rules fire (per `/workspace/agents/alpha-author/principles.md` "Hard rejection rules" section):
 - Voice fingerprint drift beyond declared tolerance.
 - ≥2 anti-slop signature hits without operator override.
 - Unacknowledged continuity break with no clear bridge.
