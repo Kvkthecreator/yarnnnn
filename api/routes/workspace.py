@@ -134,6 +134,10 @@ class TimelineEntry(BaseModel):
     proposal_id: Optional[str] = None
     status: Optional[str] = None           # invocation/proposal status
     decided_by: Optional[str] = None       # proposal approved_by (witness)
+    # Proposal rows only — structured, so the FE labeler consumes them
+    # directly instead of regex-unpacking the "primitive (family)" title.
+    primitive: Optional[str] = None
+    family: Optional[str] = None
 
 
 class WorkspaceTimelineResponse(BaseModel):
@@ -939,6 +943,8 @@ async def get_workspace_timeline(
                 proposal_id=r.get("id"),
                 status=r.get("status"),
                 decided_by=r.get("approved_by"),
+                primitive=r.get("primitive"),
+                family=r.get("family"),
             ))
     except Exception as e:
         logger.warning("[TIMELINE] proposals read failed: %s", e)

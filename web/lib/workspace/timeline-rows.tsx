@@ -104,20 +104,22 @@ export function secondaryLine(
     : null;
 }
 
-/** The timeline's proposal title arrives as "primitive (family)" — map it to
- * operator words via the shared labeler (ADR-410 D4: primitive slugs never
- * render). */
-export function proposalTitleFromTimeline(title: string | null | undefined): string {
-  if (!title) return 'an action';
-  const m = title.match(/^(.*?)\s*\(([\w-]+)\)\s*$/);
-  const primitive = m ? m[1] : title;
-  const family = m ? m[2] : undefined;
-  return proposalActionLabel({ primitive, family });
+/** Proposal rows carry structured `primitive`/`family` — map them to operator
+ * words via the shared labeler (ADR-410 D4: primitive slugs never render). */
+function proposalLabel(entry: {
+  primitive?: string | null;
+  family?: string | null;
+}): string {
+  if (!entry.primitive) return 'an action';
+  return proposalActionLabel({
+    primitive: entry.primitive,
+    family: entry.family ?? undefined,
+  });
 }
 
 export function rowTitle(entry: TimelineEntry): string {
   if (entry.kind === 'revision' && entry.path) return basename(entry.path);
-  if (entry.kind === 'proposal') return proposalTitleFromTimeline(entry.title);
+  if (entry.kind === 'proposal') return proposalLabel(entry);
   return entry.title ?? entry.slug ?? entry.kind;
 }
 
@@ -131,6 +133,8 @@ export function actorLine(
     title?: string | null;
     path?: string | null;
     slug?: string | null;
+    primitive?: string | null;
+    family?: string | null;
   },
   who: string,
 ): string {
@@ -139,7 +143,7 @@ export function actorLine(
     return `${who} updated ${base}`;
   }
   if (entry.kind === 'proposal') {
-    return `${who} proposed: ${proposalTitleFromTimeline(entry.title)}`;
+    return `${who} proposed: ${proposalLabel(entry)}`;
   }
   const title = (entry.title || entry.slug || 'work')
     .replace(/[-_]/g, ' ')

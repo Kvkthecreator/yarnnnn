@@ -1354,6 +1354,10 @@ export const api = {
           proposal_id: string | null;
           status: string | null;
           decided_by: string | null;
+          // Proposal rows only — structured primitive/family for the shared
+          // labeler (proposalActionLabel); no title parsing.
+          primitive: string | null;
+          family: string | null;
         }>;
         has_more: boolean;
       }>(
