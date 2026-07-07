@@ -124,7 +124,14 @@ def test_files_off_url() -> None:
     # was redundant, not source-of-truth. Cold-load ?path= read survives.
     check("does NOT use setSurfaceParams (its param was redundant)",
           "setSurfaceParams" not in src)
-    check("cold-load pathParam read preserved", "searchParams.get('path')" in src)
+    # Repointed 2026-07-07: the cold-load seed read moved to the namespaced
+    # surface-param hook (useSurfaceParam('files').get('path')) — the D6
+    # namespacing this gate's sibling requires; the raw searchParams read
+    # is gone by design.
+    check(
+        "cold-load pathParam read preserved",
+        "useSurfaceParam('files')" in src and ".get('path')" in src,
+    )
 
 
 def main() -> int:

@@ -80,14 +80,18 @@ def test_card() -> None:
 
 
 def test_mounted_in_contract_group() -> None:
-    # ADR-387 §6.4 (2026-06-30): Expected Output (the contract/ CONTRACT — what
-    # the agent owes) moved to FREDDIE'S pane, Contract group. It is the agent's
-    # output contract; it lives on the agent's pane.
-    print("\n[mount] ExpectedOutputCard in Freddie's pane Contract group (ADR-387 §6.4)")
-    agent_src = _read("components/agents/AgentContentView.tsx")
-    check("Freddie's pane imports ExpectedOutputCard", "ExpectedOutputCard" in agent_src)
-    check("Contract group declared on Freddie's pane", "'Contract'" in agent_src or '"Contract"' in agent_src)
-    check("expected-output pane key present", "'expected-output'" in agent_src or '"expected-output"' in agent_src)
+    # ADR-412 D5 (2026-07-06): Freddie's panes re-homed from the /agents
+    # roster to Workspace Settings' System Agent group (SystemAgentPanes.tsx);
+    # the ADR-387 'Contract' group label became 'Expected Output'. Repointed
+    # 2026-07-07 from the stale AgentContentView read.
+    print("\n[mount] ExpectedOutputCard in Workspace Settings' System Agent group (ADR-412 D5)")
+    panes_src = _read("components/agents/SystemAgentPanes.tsx")
+    check("System Agent panes import ExpectedOutputCard", "ExpectedOutputCard" in panes_src)
+    check(
+        "Expected Output pane declared in the System Agent group",
+        "'Expected Output'" in panes_src or '"Expected Output"' in panes_src,
+    )
+    check("expected-output pane key present", "'expected-output'" in panes_src or '"expected-output"' in panes_src)
 
 
 def test_bundle_instances() -> None:

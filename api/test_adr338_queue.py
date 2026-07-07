@@ -72,7 +72,10 @@ def test_substrate_diff_null_visibility() -> None:
 
 def test_queue_de_stubbed() -> None:
     print("\n[de-stub] /queue is a real browse surface")
-    src = _read("app/(authenticated)/queue/page.tsx")
+    # Repointed 2026-07-07: ADR-346 extracted the proposal body to the
+    # reusable QueueBody (one body, two mounts) — queue/page.tsx is a thin
+    # SurfacePage wrapper; the guarded behavior lives in QueueBody.
+    src = _read("components/queue/QueueBody.tsx")
     check("queue fetches pending proposals", "api.proposals.list('pending'" in src)
     check(
         "queue uses the SINGULAR modal path (useProposalModal)",
@@ -80,7 +83,11 @@ def test_queue_de_stubbed() -> None:
     )
     check("rows open the proposal detail modal", "openProposal(p)" in src)
     check("modalElement rendered", "{modalElement}" in src)
-    check("grouped by family (capital / substrate)", "'capital', 'substrate'" in src)
+    # ADR-307: external-write joined the family taxonomy — three groups now.
+    check(
+        "grouped by family (capital / external-write / substrate)",
+        "'capital', 'external-write', 'substrate'" in src,
+    )
     check(
         "refresh on resolve (resolved row drops)",
         "onResolved" in src and "void load()" in src,

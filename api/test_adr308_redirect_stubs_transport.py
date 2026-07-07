@@ -163,8 +163,11 @@ def test_known_stubs_are_server_transport() -> None:
     # page-component stub was deleted (full alias deletion of the context/feed
     # surface slugs); `/context` is now a next.config.js server redirect, not an
     # in-app page stub. Asserted by test_adr385_channels_surface.py instead.
+    # ADR-412 D3 (2026-07-06): `chat` removed — the slug was reclaimed for the
+    # Chat surface (a real page, not a stub). Asserted by
+    # test_adr412_chat_surface.py instead.
     converted = [
-        "backend", "brand", "chat", "docs", "memory",
+        "backend", "brand", "docs", "memory",
         "operation", "orchestrator", "system", "team", "workfloor",
     ]
     for slug in converted:

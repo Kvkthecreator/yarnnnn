@@ -199,8 +199,12 @@ def test_navigation_primitive_exists() -> None:
         "export function useSurfaceParam(slug: string)" in hook,
         "useSurfaceParam(slug) is the surface-scoped reader/writer hook (D6)",
     )
+    # Repointed 2026-07-07: navigateToSurface is a thin pass-through to
+    # foregroundSurface, where the D6 namespacing now lives (variable renamed
+    # slug → foregroundSlug in the refactor; behavior unchanged — still the
+    # one scopeParamKey helper).
     _assert(
-        "url.searchParams.set(scopeParamKey(slug, k), v)" in hook,
+        "url.searchParams.set(scopeParamKey(foregroundSlug, k), v)" in hook,
         "navigateToSurface namespaces params under the target slug (D6)",
     )
 

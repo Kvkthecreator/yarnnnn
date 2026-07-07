@@ -73,7 +73,10 @@ def test_balance_chip_absorbed() -> None:
 def test_cluster_is_three_chips() -> None:
     print("\n[cluster] SystemStatusCluster renders three chips, no Balance import")
     src = _read("components/shell/system-status/SystemStatusCluster.tsx")
-    check("imports AutonomyStatusItem", "import { AutonomyStatusItem }" in src)
+    # ADR-412-era rename: the autonomy chip became FreddieStatusItem (the
+    # steward's rail chip). Repointed 2026-07-07 — the assert grepped for
+    # the deleted AutonomyStatusItem.
+    check("imports FreddieStatusItem", "import { FreddieStatusItem }" in src)
     check("imports BudgetStatusItem", "import { BudgetStatusItem }" in src)
     check("imports ConnectionsStatusItem", "import { ConnectionsStatusItem }" in src)
     check("no BalanceStatusItem import", "BalanceStatusItem" not in src)
@@ -93,9 +96,14 @@ def test_popover_secondary_footer() -> None:
     check("secondaryFooterTarget prop removed", "secondaryFooterTarget" not in src)
     check("secondaryFooterLabel prop removed", "secondaryFooterLabel" not in src)
     check("popover keeps its single footerTarget/footerLabel", "footerTarget" in src and "footerLabel" in src)
-    # The billing link now lives on the Budget pane (BudgetCard).
+    # The billing link now lives on the Budget pane (BudgetCard). Routed via
+    # the navigateToSurface verb since the SurfaceLink rework — no URL
+    # literal (repointed 2026-07-07 from the stale `pane=billing` grep).
     card = _read("components/workspace-concepts/BudgetCard.tsx")
-    check("BudgetCard carries the Balance & billing link", "pane=billing" in card and "billing" in card.lower())
+    check(
+        "BudgetCard carries the Balance & billing link",
+        "navigateToSurface('settings', { pane: 'billing' })" in card,
+    )
 
 
 def test_attention_center() -> None:

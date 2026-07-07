@@ -115,12 +115,22 @@ def test_f2_consequence_previews() -> None:
 
 def test_d6_widget_contract_pinned() -> None:
     print("\n[D6] kernel Home slots: state + deep-link into the act")
+    # Repointed 2026-07-07: the slots now deep-link via the SurfaceLink verb
+    # (window-manager navigation), not raw href URLs. The decision slot's
+    # /queue mirror was deliberately retired (ADR-367 D5) — depth lives at
+    # Notifications → resolve.
     kdq = _read("components/library/kernel-home/KernelDecisionQueue.tsx")
-    check("decision slot deep-links to Queue", 'href="/queue"' in kdq)
+    check(
+        "decision slot deep-links to the resolve workbench",
+        'to="notifications"' in kdq and "pane: 'resolve'" in kdq,
+    )
     kra = _read("components/library/kernel-home/KernelRecentArtifacts.tsx")
-    check("artifacts slot deep-links to Files", 'href="/files"' in kra)
+    check("artifacts slot deep-links to Files", 'to="files"' in kra)
     kjt = _read("components/library/kernel-home/KernelJudgmentTrail.tsx")
-    check("judgment trail deep-links to its substrate", "/files?path=" in kjt)
+    check(
+        "judgment trail deep-links to its substrate",
+        'to="files"' in kjt and "params={{ path:" in kjt,
+    )
     hh = _read("components/library/HomeHeader.tsx")
     check("constitution band carries the mirror trio (P3)", "ConstitutionLinks" in hh)
 
