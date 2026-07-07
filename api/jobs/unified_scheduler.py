@@ -161,10 +161,16 @@ async def dispatch_due_invocations(supabase_client) -> tuple[int, int, int]:
         # CAS claim — read current next_run_at, atomically bump to +2h
         # sentinel. Concurrent scheduler instances skip the bumped row.
         try:
+            # ADR-414 Phase A: the tasks index is workspace-keyed (ADR-407 D3);
+            # on this service path the owner-resolution fallback is the
+            # workspace (ADR-373 D1 — one owner, one workspace). The
+            # owner-keyed ITERATION unit is the ratified wake-stack contract
+            # (ADR-408 `acting_workspace_owner`), not a remainder.
+            from services.workspace_context import substrate_scope_filter
             row = (
                 supabase_client.table("tasks")
                 .select("next_run_at")
-                .eq("user_id", user_id)
+                .eq(*substrate_scope_filter(user_id))
                 .eq("slug", recurrence.slug)
                 .limit(1)
                 .execute()

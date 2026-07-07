@@ -22,6 +22,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from services.supabase import UserClient, get_service_client
+from services.workspace_context import substrate_scope_filter
 from integrations.core.tokens import get_token_manager
 from integrations.core.slack_client import get_slack_client
 from integrations.core.oauth import (
@@ -291,12 +292,12 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
     try:
         result = auth.client.table("platform_connections").select(
             "id, platform, status, metadata, created_at"
-        ).eq("user_id", user_id).execute()
+        ).eq(*substrate_scope_filter(user_id)).execute()
 
         # Derive last_used_at from resource bookkeeping in sync_registry
         registry_result = auth.client.table("sync_registry").select(
             "platform, last_synced_at"
-        ).eq("user_id", user_id).execute()
+        ).eq(*substrate_scope_filter(user_id)).execute()
         max_synced: dict[str, str] = {}
         for reg in (registry_result.data or []):
             p = reg.get("platform", "")
@@ -369,7 +370,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
         # Get all integrations
         integrations_result = auth.client.table("platform_connections").select(
             "id, platform, status, metadata, landscape, created_at"
-        ).eq("user_id", user_id).execute()
+        ).eq(*substrate_scope_filter(user_id)).execute()
 
         if not integrations_result.data:
             return IntegrationsSummaryResponse(platforms=[], total_agents=0)
@@ -409,7 +410,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
             # Task-level delivery config will be in TASK.md (Phase 3+).
             result = auth.client.table("agents").select(
                 "id", count="exact"
-            ).eq("user_id", user_id).neq(
+            ).eq(*substrate_scope_filter(user_id)).neq(
                 "status", "archived"
             ).execute()
             return result.count or 0
@@ -453,7 +454,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
         # Total agents count
         total_result = auth.client.table("agents").select(
             "id", count="exact"
-        ).eq("user_id", user_id).execute()
+        ).eq(*substrate_scope_filter(user_id)).execute()
         total_agents = total_result.count or 0
 
         return IntegrationsSummaryResponse(
@@ -529,7 +530,7 @@ async def get_export_history(
         query = auth.client.table("export_log").select(
             "id, provider, status, external_url, created_at, "
             "agent_run_id"
-        ).eq("user_id", user_id).order("created_at", desc=True).limit(limit)
+        ).eq(*substrate_scope_filter(user_id)).order("created_at", desc=True).limit(limit)
 
         if agent_id:
             # Filter by agent (need to join through versions)
@@ -678,7 +679,7 @@ async def get_integration(
         for p in providers_to_try:
             result = auth.client.table("platform_connections").select(
                 "id, platform, status, metadata, created_at"
-            ).eq("user_id", user_id).eq("platform", p).execute()
+            ).eq(*substrate_scope_filter(user_id)).eq("platform", p).execute()
             if result.data:
                 row = result.data[0]
                 break
@@ -754,7 +755,7 @@ async def check_integration_health(
     for p in providers_to_try:
         result = auth.client.table("platform_connections").select(
             "id, status, metadata, updated_at"
-        ).eq("user_id", user_id).eq("platform", p).limit(1).execute()
+        ).eq(*substrate_scope_filter(user_id)).eq("platform", p).limit(1).execute()
         if result.data:
             integration = result.data[0]
             break
@@ -923,7 +924,7 @@ async def export_to_provider(
             for p in providers_to_try:
                 _result = auth.client.table("platform_connections").select(
                     "id, credentials_encrypted, refresh_token_encrypted, metadata, status"
-                ).eq("user_id", user_id).eq("platform", p).limit(1).execute()
+                ).eq(*substrate_scope_filter(user_id)).eq("platform", p).limit(1).execute()
                 if _result.data:
                     integration_row = _result.data[0]
                     break
@@ -1076,7 +1077,7 @@ async def list_slack_channels(
         # Get user's Slack integration
         integration = auth.client.table("platform_connections").select(
             "id, credentials_encrypted, status"
-        ).eq("user_id", user_id).eq("platform", "slack").limit(1).execute()
+        ).eq(*substrate_scope_filter(user_id)).eq("platform", "slack").limit(1).execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1093,7 +1094,7 @@ async def list_slack_channels(
         # Get integration metadata for team_id
         integration_full = auth.client.table("platform_connections").select(
             "metadata"
-        ).eq("user_id", user_id).eq("platform", "slack").limit(1).execute()
+        ).eq(*substrate_scope_filter(user_id)).eq("platform", "slack").limit(1).execute()
 
         metadata = integration_full.data[0].get("metadata", {}) or {}
         team_id = metadata.get("team_id")
@@ -1154,7 +1155,7 @@ async def list_notion_pages(
         # Get user's Notion integration
         integration = auth.client.table("platform_connections").select(
             "id, credentials_encrypted, status"
-        ).eq("user_id", user_id).eq("platform", "notion").limit(1).execute()
+        ).eq(*substrate_scope_filter(user_id)).eq("platform", "notion").limit(1).execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1237,7 +1238,7 @@ async def get_notion_designated_page(auth: UserClient) -> DesignatedPageResponse
     try:
         integration = auth.client.table("platform_connections").select(
             "id, metadata, status"
-        ).eq("user_id", user_id).eq("platform", "notion").limit(1).execute()
+        ).eq(*substrate_scope_filter(user_id)).eq("platform", "notion").limit(1).execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1288,7 +1289,7 @@ async def set_notion_designated_page(
         # Get current integration
         integration = auth.client.table("platform_connections").select(
             "id, metadata, status"
-        ).eq("user_id", user_id).eq("platform", "notion").limit(1).execute()
+        ).eq(*substrate_scope_filter(user_id)).eq("platform", "notion").limit(1).execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1338,7 +1339,7 @@ async def clear_notion_designated_page(auth: UserClient) -> DesignatedPageRespon
     try:
         integration = auth.client.table("platform_connections").select(
             "id, metadata"
-        ).eq("user_id", user_id).eq("platform", "notion").limit(1).execute()
+        ).eq(*substrate_scope_filter(user_id)).eq("platform", "notion").limit(1).execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1609,7 +1610,7 @@ async def oauth_callback(
             # Re-read the integration row (we just upserted it)
             auto_result = service_client.table("platform_connections").select(
                 "id, credentials_encrypted, refresh_token_encrypted, metadata, landscape"
-            ).eq("user_id", user_id_for_auto).eq("platform", provider).limit(1).execute()
+            ).eq(*substrate_scope_filter(user_id_for_auto)).eq("platform", provider).limit(1).execute()
 
             if auto_result.data:
                 integration_row = auto_result.data[0]
@@ -1725,7 +1726,7 @@ async def get_landscape(
     for p in providers_to_try:
         result = auth.client.table("platform_connections").select(
             "id, credentials_encrypted, refresh_token_encrypted, metadata, landscape, landscape_discovered_at"
-        ).eq("user_id", user_id).eq("platform", p).limit(1).execute()
+        ).eq(*substrate_scope_filter(user_id)).eq("platform", p).limit(1).execute()
         if result.data:
             integration = result
             resolved_provider = p
@@ -1792,7 +1793,7 @@ async def get_landscape(
     # Get sync records for this provider (ADR-058)
     sync_result = auth.client.table("sync_registry").select(
         "resource_id, resource_name, last_synced_at, item_count, last_error, last_error_at"
-    ).eq("user_id", user_id).eq("platform", resolved_provider).execute()
+    ).eq(*substrate_scope_filter(user_id)).eq("platform", resolved_provider).execute()
 
     sync_by_id = {s["resource_id"]: s for s in (sync_result.data or [])}
 
@@ -2042,7 +2043,7 @@ async def update_selected_sources(
     for p in providers_to_try:
         result = auth.client.table("platform_connections").select(
             "id, landscape"
-        ).eq("user_id", user_id).eq("platform", p).limit(1).execute()
+        ).eq(*substrate_scope_filter(user_id)).eq("platform", p).limit(1).execute()
         if result.data:
             integration = result
             break
@@ -2154,7 +2155,7 @@ async def get_selected_sources(
     for p in providers_to_try:
         result = auth.client.table("platform_connections").select(
             "landscape"
-        ).eq("user_id", user_id).eq("platform", p).limit(1).execute()
+        ).eq(*substrate_scope_filter(user_id)).eq("platform", p).limit(1).execute()
         if result.data:
             integration_data = result.data[0]
             break
@@ -2333,7 +2334,7 @@ async def get_platform_sync_status(
     for p in providers_to_try:
         result = auth.client.table("platform_connections").select(
             "id, status"
-        ).eq("user_id", user_id).eq("platform", p).limit(1).execute()
+        ).eq(*substrate_scope_filter(user_id)).eq("platform", p).limit(1).execute()
         if result.data:
             integration = result
             break
@@ -2344,7 +2345,7 @@ async def get_platform_sync_status(
     # Get sync registry entries for this platform (ADR-086: include error fields)
     sync_result = auth.client.table("sync_registry").select(
         "resource_id, resource_name, last_synced_at, item_count, source_latest_at, last_error, last_error_at"
-    ).eq("user_id", user_id).eq("platform", provider).execute()
+    ).eq(*substrate_scope_filter(user_id)).eq("platform", provider).execute()
 
     now = datetime.now(timezone.utc)
     synced_resources = []

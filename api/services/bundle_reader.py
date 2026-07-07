@@ -25,6 +25,8 @@ from typing import Any, Optional
 
 import yaml
 
+from services.workspace_context import substrate_scope_filter
+
 logger = logging.getLogger(__name__)
 
 # Repo-relative bundle root. Resolved from this file's location so the
@@ -234,7 +236,7 @@ def bundles_active_for_workspace(user_id: str, client: Any) -> list[dict[str, An
         rows = (
             client.table("platform_connections")
             .select("platform, status, created_at")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .eq("status", "active")
             .execute()
         )
@@ -255,7 +257,7 @@ def bundles_active_for_workspace(user_id: str, client: Any) -> list[dict[str, An
         mandate = (
             client.table("workspace_files")
             .select("content")
-            .eq("user_id", user_id)
+            .eq(*substrate_scope_filter(user_id))
             .eq("path", "/workspace/constitution/MANDATE.md")
             .limit(1)
             .execute()
