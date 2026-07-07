@@ -15,9 +15,7 @@
  * D18.2 (2026-05-22 follow-up) deletes the in-header "Talk" button.
  * The universal FAB (Desktop.tsx D17) summons the drawer from any
  * surface, so a per-surface Talk button is redundant chrome —
- * Singular Implementation: one summon path, the FAB. Empty-state
- * chip clicks + OperatorEventMarker's "open conversation →"
- * affordance continue to route through useShellChrome().openDrawer().
+ * Singular Implementation: one summon path, the FAB.
  *
  * Engagement model (post-D18.2):
  *   - Operator clicks the FAB anywhere → drawer opens.
@@ -26,9 +24,8 @@
  *   - Autonomous wakes emit narrative rows; FeedTimeline picks them up.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { BookOpen, Filter } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { BookOpen } from 'lucide-react';
 import { FeedTimeline } from '@/components/feed/FeedTimeline';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import {
@@ -36,20 +33,18 @@ import {
   type SnapshotLead,
 } from '@/lib/content-shapes/snapshot';
 import { WorkspaceContextOverlay } from './WorkspaceContextOverlay';
-import { FeedEmptyState } from './FeedEmptyState';
-import { FeedFilterBar, parseChatFilterFromSearch } from './FeedFilterBar';
-import { useShellChrome } from '@/components/shell/ShellChromeContext';
-import { cn } from '@/lib/utils';
 
 // D16 (2026-05-22): FeedSurface no longer accepts external chat
 // affordance props. Chat is the universal ChatDrawerSurface; FeedSurface
 // is read-only (operations timeline). D18.2 (2026-05-22 follow-up):
 // header Talk button deleted — the FAB is the singular summon path.
 //
-// ADR-377: optional `messageFilter` + `emptyLabel` let the Context In view
-// reuse this same surface filtered to inbound crossings (Singular
-// Implementation — one timeline component, three direction-filtered mounts:
-// In = isInbound, Flow = no filter). Both omitted → the complete Flow.
+// 2026-07-07 prune: the sole remaining mount is Channels → In (ADR-385 /
+// ADR-404 — the Flow pane retired, Notifications Activity re-mounted on
+// the timeline ledger). The filter bar (weight/identity/task chips that
+// no longer filtered anything), the FeedEmptyState chat-summon path, and
+// the OperatorEventMarker open-conversation affordance were unreachable
+// under the inbound filter and are deleted.
 interface FeedSurfaceProps {
   messageFilter?: (m: import('@/types/desk').TPMessage) => boolean;
   emptyLabel?: string;
@@ -57,50 +52,11 @@ interface FeedSurfaceProps {
 
 export function FeedSurface({ messageFilter, emptyLabel }: FeedSurfaceProps = {}) {
   const { messages, sendMessage } = useNarrative();
-  const searchParams = useSearchParams();
-
-  // ADR-297 D16: universal drawer summon (replaces the pre-D16 local
-  // drawerOpen state + ConversationDrawer mount). Every "open chat"
-  // affordance on this surface now routes through ShellChromeContext.
-  const { openDrawer } = useShellChrome();
-  const handleOpenDrawer = useCallback(() => openDrawer(), [openDrawer]);
-  // OperatorEventMarker's "open conversation →" affordance + empty-
-  // state upload-chip click — same dispatch as the deleted Talk button.
-  // Scroll-to-invocation deferred.
-  const handleOpenConversation = useCallback(
-    (_invocationId: string) => openDrawer(),
-    [openDrawer],
-  );
 
   // --- Context overlay state ---
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [snapshotLead, setSnapshotLead] = useState<SnapshotLead | null>(null);
   const [snapshotReason, setSnapshotReason] = useState<string | null>(null);
-
-  // ADR-219 Commit 5: filter bar visibility (off by default — we
-  // toggle from the surface header). The filter itself is parsed from
-  // the URL each render so deep-links round-trip cleanly.
-  const [filterBarOpen, setFilterBarOpen] = useState(false);
-  const narrativeFilter = useMemo(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    return parseChatFilterFromSearch(params);
-  }, [searchParams]);
-
-  // Auto-open the bar when any filter is active so the user can see
-  // and clear them.
-  useEffect(() => {
-    if (narrativeFilter) setFilterBarOpen(true);
-  }, [narrativeFilter]);
-
-  // --- Empty-state chip seed (ADR-190 / ADR-297 D16) ---
-  // Chips on FeedEmptyState summon the universal chat drawer.
-  // Composer-prefill (the chip's `_text`) was a per-surface ad-hoc
-  // affordance that D16 §5 deliberately dropped in favor of the
-  // universal drawer — operator types their prompt from scratch.
-  const handleChipClick = useCallback(
-    (_text: string) => openDrawer(),
-    [openDrawer],
-  );
 
   // Track the last message id we processed for marker directives.
   const [lastProcessedId, setLastProcessedId] = useState<string | null>(null);
@@ -169,24 +125,6 @@ export function FeedSurface({ messageFilter, emptyLabel }: FeedSurfaceProps = {}
     </button>
   );
 
-  // ADR-219 Commit 5: filter bar toggle.
-  const filterToggleAction = (
-    <button
-      type="button"
-      onClick={() => setFilterBarOpen(v => !v)}
-      className={cn(
-        'inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded border transition-colors',
-        narrativeFilter || filterBarOpen
-          ? 'border-primary/40 bg-primary/5 text-primary'
-          : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted',
-      )}
-      title="Filter narrative"
-      aria-pressed={filterBarOpen}
-    >
-      <Filter className="w-3.5 h-3.5" />
-    </button>
-  );
-
   // ADR-297 D18.2 (2026-05-22): in-header Talk button DELETED. The
   // universal FAB summons the drawer from any surface; per-surface
   // Talk chrome is redundant. Singular Implementation: one summon path.
@@ -198,7 +136,6 @@ export function FeedSurface({ messageFilter, emptyLabel }: FeedSurfaceProps = {}
           is kernel chrome, visible on every surface — Feed header is
           no longer special. AutonomyHeaderChip + PauseAutonomyModal
           deleted; pause/resume happens on /autonomy. */}
-      {filterToggleAction}
       {snapshotAction}
     </div>
   );
@@ -223,46 +160,24 @@ export function FeedSurface({ messageFilter, emptyLabel }: FeedSurfaceProps = {}
             {headerActions}
           </div>
         </div>
-        {filterBarOpen && (
-          <div className="w-full max-w-3xl">
-            <FeedFilterBar />
-          </div>
-        )}
       </div>
       <div className="flex-1 min-h-0">
         <div className="h-full w-full max-w-3xl px-3 sm:px-4 py-3 sm:py-5">
-          {/* ADR-289 Phase 2: FeedTimeline replaces FeedPanel on /feed.
-              Renders typed-event rows (InvocationCard, OperatorEventMarker,
-              StandaloneEventRow, DaySeparator) — no chat bubbles. The
-              composer lives inside the ConversationDrawer; operator opens
-              the drawer via the "Talk" header button or by clicking an
-              existing OperatorEventMarker's "opened conversation →"
-              affordance. */}
+          {/* ADR-289 Phase 2: FeedTimeline renders typed-event rows
+              (InvocationCard, OperatorEventMarker, StandaloneEventRow,
+              DaySeparator) — no chat bubbles. */}
           <FeedTimeline
-            onOpenConversation={handleOpenConversation}
             messageFilter={messageFilter}
             emptyState={
-              emptyLabel ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <p className="text-sm font-medium text-foreground">{emptyLabel}</p>
-                </div>
-              ) : (
-                <FeedEmptyState
-                  onChipClick={handleChipClick}
-                  onUploadClick={handleOpenDrawer}
-                />
-              )
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <p className="text-sm font-medium text-foreground">
+                  {emptyLabel ?? 'Nothing here yet.'}
+                </p>
+              </div>
             }
           />
         </div>
       </div>
-
-      {/* ADR-297 D16: pre-D16 the per-/feed ConversationDrawer mounted
-          here. Now the chat affordance lives in shell chrome
-          (ChatDrawerSurface — bottom-center FAB + universal slide-over
-          drawer). The Talk button + chip clicks + open-conversation
-          marker links all summon that universal drawer via
-          useShellChrome().openDrawer(). */}
 
       {/* Context overlay — 3-section primer (Mandate · Rules · Pulse) per
           2026-05-14 refactor. The legacy `tasks` prop dropped — the Pulse

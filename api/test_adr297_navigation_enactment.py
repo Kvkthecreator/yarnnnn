@@ -239,9 +239,6 @@ ALLOWLIST_TRANSPORT = {
     # /desktop sync). This is the implementation of the contract, not a
     # violation of it.
     "lib/shell/useSurfacePreferences.tsx",
-    # FeedFilterBar.clearAll() resets the Feed surface's OWN filter params
-    # to bare /feed — intra-surface state reset, same surface.
-    "components/feed-surface/FeedFilterBar.tsx",
 }
 
 

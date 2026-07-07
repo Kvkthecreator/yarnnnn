@@ -45,21 +45,6 @@ import { MessageRow } from '@/components/tp/MessageRow';
 import type { TPMessage } from '@/types/desk';
 import { filterAddressedMessages } from '@/lib/feed-grouping';
 
-/**
- * ADR-219 Commit 5: query-param-driven filters on /feed.
- * Each filter narrows messages.map render. Empty / null filters render
- * the full narrative. Filter parsing is the parent's responsibility
- * (the surface reads the URL); ConversationPanel just consumes.
- */
-export interface NarrativeFilter {
-  /** Restrict to entries with `metadata.weight` in this set.
-   *  ADR-277: 'housekeeping' retired; the union is now 2-value. */
-  weights?: Set<'material' | 'routine'>;
-  /** Restrict to entries with `role` in this set. */
-  identities?: Set<string>;
-  /** Restrict to entries with `metadata.task_slug` equal to this slug. */
-  taskSlug?: string | null;
-}
 
 export interface ConversationPanelProps {
   /** Surface override — when set, used instead of DeskContext surface */
@@ -94,12 +79,6 @@ export interface ConversationPanelProps {
   /** Whether to render a divider above the input */
   showInputDivider?: boolean;
   /**
-   * ADR-219 Commit 5: optional filter applied before render. /chat
-   * passes a parsed-from-URL filter; other surfaces (where filters
-   * make less sense) leave it null.
-   */
-  narrativeFilter?: NarrativeFilter | null;
-  /**
    * ADR-219 Commit 5 D6: callback invoked when the operator clicks
    * "Make this recurring" on a material inline-action user message.
    * Parent typically opens RecurrenceSetupModal pre-filled with the message
@@ -127,7 +106,6 @@ export function ConversationPanel({
   emptyState,
   showCommandPicker = true,
   showInputDivider = true,
-  narrativeFilter = null,
   onMakeRecurring,
 }: ConversationPanelProps) {
   const {
@@ -273,7 +251,6 @@ export function ConversationPanel({
             Singular Implementation per ADR-289 D10: filter is intrinsic to
             this surface, not opt-in via prop. */}
         {filterAddressedMessages(messages)
-          .filter(msg => narrativeFilterMatches(msg, narrativeFilter))
           .map(msg => (
             <NarrativeMessage
               key={msg.id}
@@ -444,33 +421,6 @@ export function ConversationPanel({
 // collapsed system+system_agent duplicate-pairs) deleted 2026-05-15. It
 // was paper-cover for the mechanical-fire emission that itself got
 // deleted; the duplicate pattern no longer exists at source.
-
-function narrativeFilterMatches(
-  msg: TPMessage,
-  filter: NarrativeFilter | null,
-): boolean {
-  if (!filter) return true;
-  if (filter.weights && filter.weights.size > 0) {
-    // ADR-277: legacy 'housekeeping' rows from before the retirement
-    // are not in the typed union; widen to string at the comparison
-    // site to handle stored data, then coerce 'housekeeping' → 'routine'
-    // for filter-match purposes so pre-ADR-277 data still appears under
-    // the routine filter.
-    const raw: string = (msg.narrative?.weight as string | undefined) ?? 'material';
-    const w: 'material' | 'routine' = raw === 'housekeeping' ? 'routine'
-      : (raw as 'material' | 'routine');
-    if (!filter.weights.has(w)) {
-      return false;
-    }
-  }
-  if (filter.identities && filter.identities.size > 0) {
-    if (!filter.identities.has(msg.role)) return false;
-  }
-  if (filter.taskSlug !== undefined && filter.taskSlug !== null) {
-    if ((msg.narrative?.taskSlug ?? '') !== filter.taskSlug) return false;
-  }
-  return true;
-}
 
 /**
  * NarrativeMessage — thin wrapper over the ADR-237 row grammar.

@@ -39,13 +39,9 @@ import { StandaloneEventRow } from './StandaloneEventRow';
 export interface FeedTimelineProps {
   /** Empty-state content shown when messages.length === 0. */
   emptyState?: React.ReactNode;
-  /** Called when operator activates the "opened conversation with
-   *  Reviewer →" affordance on an addressed marker. Parent opens the
-   *  ConversationDrawer scrolled to the given invocation_id. */
-  onOpenConversation?: (invocationId: string) => void;
   /** ADR-377: optional row filter applied to the narrative before grouping.
-   *  The Context In view passes `isInbound` to show only inbound crossings;
-   *  Flow omits it (the complete narrative). Default → no filter. */
+   *  The Channels In view passes `isInbound` to show only inbound
+   *  crossings. Default → no filter. */
   messageFilter?: (m: TPMessage) => boolean;
 }
 
@@ -55,7 +51,7 @@ export interface FeedTimelineProps {
 // operator's reading position naturally lags the bottom by a few rows.
 const STICKY_BOTTOM_THRESHOLD_PX = 96;
 
-export function FeedTimeline({ emptyState, onOpenConversation, messageFilter }: FeedTimelineProps) {
+export function FeedTimeline({ emptyState, messageFilter }: FeedTimelineProps) {
   const { messages: allMessages, status } = useNarrative();
   // ADR-377: apply the optional direction filter before grouping (In view).
   const messages = useMemo(
@@ -125,7 +121,7 @@ export function FeedTimeline({ emptyState, onOpenConversation, messageFilter }: 
       onScroll={handleScroll}
       className="h-full overflow-y-auto px-3 pt-3 pb-12 space-y-1 relative"
     >
-      {rows.map((row) => renderRow(row, onOpenConversation))}
+      {rows.map((row) => renderRow(row))}
 
       {/* Status indicators — same shape as ConversationPanel for visual
           continuity when an addressed cycle is in progress. */}
@@ -164,21 +160,12 @@ export function FeedTimeline({ emptyState, onOpenConversation, messageFilter }: 
   );
 }
 
-function renderRow(
-  row: FeedRow,
-  onOpenConversation?: (invocationId: string) => void,
-): JSX.Element {
+function renderRow(row: FeedRow): JSX.Element {
   switch (row.kind) {
     case 'day-separator':
       return <DaySeparator key={row.id} date={row.date} />;
     case 'operator-event':
-      return (
-        <OperatorEventMarker
-          key={row.id}
-          unit={row}
-          onOpenConversation={onOpenConversation}
-        />
-      );
+      return <OperatorEventMarker key={row.id} unit={row} />;
     case 'invocation-card':
       return <InvocationCard key={row.id} unit={row} />;
     case 'standalone-event':
