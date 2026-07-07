@@ -245,7 +245,11 @@ export function ActivityLedger() {
                     )}
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
-                    <PrincipalBadge authoredBy={e.actor} fallbackToSystem size={12} />
+                    {/* Icon only — the actor line already names the actor
+                        viewer-resolved; the badge's generic label would
+                        contradict it on member rows ("You via …" vs
+                        "Member (via …)"). */}
+                    <PrincipalBadge authoredBy={e.actor} fallbackToSystem showLabel={false} size={12} />
                     {e.at && (
                       <span className="text-[11px] tabular-nums text-muted-foreground/50">
                         {new Date(e.at).toLocaleString([], {

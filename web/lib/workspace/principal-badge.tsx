@@ -66,6 +66,10 @@ export function principalIcon(
   switch (cls) {
     case 'you':
       return <UserCircle className={className} />;
+    // Lane embodiment (ADR-411) — the actor is the human member (acting
+    // through a model transport), so the human glyph, in the member teal.
+    case 'member':
+      return <UserCircle className={className} />;
     case 'reviewer':
       return <ShieldCheck className={className} />;
     case 'yarnnn':
@@ -92,12 +96,16 @@ function accentText(cls: AuthorClass): string {
   switch (cls) {
     case 'you':
       return 'text-primary';
+    // Indigo, mirroring authorAccent's ADR-381 relabel (the prior rose read
+    // as alarm); keep the two accent maps in lockstep.
     case 'reviewer':
-      return 'text-rose-400';
+      return 'text-indigo-400';
     case 'yarnnn':
       return 'text-sky-400';
     case 'mcp':
       return 'text-amber-500';
+    case 'member':
+      return 'text-teal-400';
     case 'agent':
       return 'text-violet-400';
     case 'platform':
