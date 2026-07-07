@@ -797,11 +797,16 @@ async def list_accounts(admin: AdminAuth):
                 max(reason_counts, key=reason_counts.get) if reason_counts else None
             )
 
-            # Tenure signal: Reviewer self-amendments (authored_by reviewer:*) in 7d.
+            # Tenure signal: system-agent self-amendments in 7d. Counts BOTH
+            # the live `freddie:` prefix AND the legacy `reviewer:` prefix
+            # (relabel-keep-slug, ADR-381 D1 / ADR-414) so a pre-rename row
+            # never undercounts — the same defensive OR the ADR-414 B1 feed
+            # fix used. (Prod today: 0 legacy rows, but the OR is cheap
+            # insurance against a restore or a missed backfill.)
             reviewer_edits = client.table("workspace_file_versions")\
                 .select("id", count="exact")\
                 .eq("user_id", user_id)\
-                .like("authored_by", "freddie:%")\
+                .or_("authored_by.like.freddie:%,authored_by.like.reviewer:%")\
                 .gte("created_at", cutoff_7d)\
                 .execute()
 
@@ -933,11 +938,12 @@ async def get_account_detail(slug: str, admin: AdminAuth):
             for r in (fail_result.data or [])
         ]
 
-        # --- Block 5: reviewer self-amendment trail -------------------------
+        # --- Block 5: system-agent self-amendment trail --------------------
+        # Same freddie:/reviewer: OR as the 7d count (relabel-keep-slug).
         trail_result = client.table("workspace_file_versions")\
             .select("created_at, path, message")\
             .eq("user_id", user_id)\
-            .like("authored_by", "freddie:%")\
+            .or_("authored_by.like.freddie:%,authored_by.like.reviewer:%")\
             .order("created_at", desc=True)\
             .limit(15)\
             .execute()

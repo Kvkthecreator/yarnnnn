@@ -922,10 +922,10 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                   if (!chunk) continue;
                   if (!streamingMessageId) {
                     streamingMessageId = crypto.randomUUID();
-                    // role:'reviewer' is what MessageDispatch keys the
-                    // reviewer-bubble on (MessageDispatch.tsx:77), matching a
-                    // real Reviewer history row.
-                    const reviewerPlaceholder: TPMessage = {
+                    // role:'freddie' is what MessageDispatch keys the
+                    // freddie-bubble on (MessageDispatch.tsx:77), matching a
+                    // real system-agent history row.
+                    const freddiePlaceholder: TPMessage = {
                       id: streamingMessageId,
                       role: 'freddie',
                       content: '',
@@ -933,7 +933,7 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                       timestamp: new Date(),
                       narrative: { pulse: 'addressed', weight: 'material' },
                     };
-                    dispatch({ type: 'ADD_MESSAGE', message: reviewerPlaceholder });
+                    dispatch({ type: 'ADD_MESSAGE', message: freddiePlaceholder });
                   }
                   assistantContent += chunk;
                   const lastBlock = blocks[blocks.length - 1];

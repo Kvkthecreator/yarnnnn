@@ -175,8 +175,8 @@ export type Role =
   | "notion_bot"
   | "github_bot"
   | "thinking_partner"
-  // ADR-214: the Reviewer is a systemic judgment seat; reviewer rows carry
-  // role='reviewer' and MessageDispatch keys the reviewer-bubble on it.
+  // The system agent's judgment rows carry role='freddie'; MessageDispatch
+  // keys the freddie-bubble on it (ADR-414 §8 — was 'reviewer-bubble').
   // (Previously absent here, forcing an `as` cast on history reads — ADR-351.)
   | "freddie"
   // Legacy roles kept for backward-compat DB reads (mapped via LEGACY_ROLE_MAP)

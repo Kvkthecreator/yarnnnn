@@ -26,7 +26,10 @@ SCAN_DIRS = ("components", "app", "lib")
 ALLOWLIST = {
     "lib/freddie-persona.ts",   # skeleton-detection literal matching legacy '# Reviewer Identity' file content
     "lib/feed-grouping.ts",     # regex matching backend narrative strings ("on Reviewer's direction")
-    "app/admin/accounts/page.tsx",  # developer-facing admin metric documenting the authored_by data prefix
+    # app/admin/accounts/page.tsx — REMOVED (ADR-414 F2): the "Reviewer 7d"
+    # label became "Agent 7d"; the doc line names the freddie:/reviewer:
+    # data prefixes inside <code> spans (identifier form, not display copy),
+    # so the standalone-word heuristic no longer fires.
 }
 
 

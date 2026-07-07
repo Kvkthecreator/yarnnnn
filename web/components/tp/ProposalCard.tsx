@@ -124,7 +124,7 @@ interface ProposalCardProps {
 }
 
 type LocalStatus = 'pending' | 'approving' | 'approved' | 'rejecting' | 'rejected' | 'error';
-type ReviewerPosture = 'approve_advisory' | 'defer' | 'rejected' | 'none';
+type AgentPosture = 'approve_advisory' | 'defer' | 'rejected' | 'none';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -157,14 +157,14 @@ function reversibilityLabel(r?: string): string {
   return r;
 }
 
-function deriveReviewerPosture(
-  reviewerIdentity?: string,
-  reviewerReasoning?: string,
+function deriveAgentPosture(
+  agentIdentity?: string,
+  agentReasoning?: string,
   proposalStatus?: string,
-): ReviewerPosture {
-  if (!reviewerIdentity || !reviewerReasoning) return 'none';
+): AgentPosture {
+  if (!agentIdentity || !agentReasoning) return 'none';
   if (proposalStatus === 'rejected') return 'rejected';
-  if (reviewerIdentity.startsWith('ai:') && proposalStatus === 'pending') return 'approve_advisory';
+  if (agentIdentity.startsWith('ai:') && proposalStatus === 'pending') return 'approve_advisory';
   if (proposalStatus === 'pending') return 'defer';
   return 'none';
 }
@@ -378,19 +378,19 @@ function cleanReasoning(reasoning: string): string {
 
 interface ProposalChipProps {
   proposal: ProposalData;
-  reviewerPosture: ReviewerPosture;
+  agentPosture: AgentPosture;
   personaName: string | null;
   terminalStatus: LocalStatus | null;
   onClick: () => void;
 }
 
-function ProposalChip({ proposal, reviewerPosture, personaName, terminalStatus, onClick }: ProposalChipProps) {
+function ProposalChip({ proposal, agentPosture, personaName, terminalStatus, onClick }: ProposalChipProps) {
   const name = personaName ?? 'Freddie';
 
   const reviewerLine =
-    reviewerPosture === 'approve_advisory' ? `${name} approved` :
-    reviewerPosture === 'defer' ? `${name} deferred` :
-    reviewerPosture === 'rejected' ? `${name} rejected` :
+    agentPosture === 'approve_advisory' ? `${name} approved` :
+    agentPosture === 'defer' ? `${name} deferred` :
+    agentPosture === 'rejected' ? `${name} rejected` :
     null;
 
   const isTerminal = terminalStatus === 'approved' || terminalStatus === 'rejected';
@@ -472,7 +472,7 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
     return () => { cancelled = true; };
   }, [proposal.id]);
 
-  const reviewerPosture = deriveReviewerPosture(
+  const agentPosture = deriveAgentPosture(
     liveProposal.reviewer_identity,
     liveProposal.reviewer_reasoning,
     liveProposal.status,
@@ -507,8 +507,8 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
   const isTerminal = status === 'approved' || status === 'rejected';
   const isLoading = status === 'approving' || status === 'rejecting';
   const approveLabel =
-    reviewerPosture === 'approve_advisory' ? 'Confirm · Execute' :
-    reviewerPosture === 'defer' ? 'Proceed anyway' :
+    agentPosture === 'approve_advisory' ? 'Confirm · Execute' :
+    agentPosture === 'defer' ? 'Proceed anyway' :
     'Approve';
 
   const norm = normalizeProposal(liveProposal);
@@ -545,19 +545,19 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
       {/* Reviewer verdict */}
       {liveProposal.reviewer_reasoning && (
         <div className="space-y-1 pt-1">
-          {reviewerPosture === 'approve_advisory' && (
+          {agentPosture === 'approve_advisory' && (
             <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
               <ShieldCheck className="w-3 h-3 shrink-0" />
               <span className="font-medium">{personaName ?? 'Freddie'} approved</span>
             </div>
           )}
-          {reviewerPosture === 'defer' && (
+          {agentPosture === 'defer' && (
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <ShieldQuestion className="w-3 h-3 shrink-0" />
               <span className="font-medium">{personaName ?? 'Freddie'} deferred — your judgment needed</span>
             </div>
           )}
-          {reviewerPosture === 'rejected' && (
+          {agentPosture === 'rejected' && (
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <ShieldX className="w-3 h-3 shrink-0" />
               <span className="font-medium">{personaName ?? 'Freddie'} rejected</span>
@@ -580,7 +580,7 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
       )}
 
       {/* Action area */}
-      {!isTerminal && reviewerPosture !== 'rejected' && (
+      {!isTerminal && agentPosture !== 'rejected' && (
         <div className="flex items-center gap-2 pt-1 border-t border-border/40">
           <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
             <Clock className="w-3 h-3" />
@@ -607,7 +607,7 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
         </div>
       )}
 
-      {reviewerPosture === 'rejected' && !isTerminal && (
+      {agentPosture === 'rejected' && !isTerminal && (
         <div className="flex items-center gap-1.5 pt-1 border-t border-border/40 text-[11px] text-muted-foreground">
           <Clock className="w-3 h-3" />
           <span>expires {formatExpiresAt(liveProposal.expires_at)} · update risk rules and re-propose to proceed</span>
@@ -647,7 +647,7 @@ export function ProposalCard({ result }: ProposalCardProps) {
   const proposal = result.proposal;
 
   // Derive posture from initial result for chip display (modal re-fetches live state)
-  const initialPosture = deriveReviewerPosture(
+  const initialPosture = deriveAgentPosture(
     proposal.reviewer_identity,
     proposal.reviewer_reasoning,
     proposal.status,
@@ -662,7 +662,7 @@ export function ProposalCard({ result }: ProposalCardProps) {
     <>
       <ProposalChip
         proposal={proposal}
-        reviewerPosture={initialPosture}
+        agentPosture={initialPosture}
         personaName={personaName}
         terminalStatus={terminalStatus}
         onClick={() => setOpen(true)}

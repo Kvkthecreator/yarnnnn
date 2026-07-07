@@ -12,7 +12,7 @@
  * Four message shapes, mapping `TPMessage.role` to one of:
  *
  *   user-bubble      — role: 'user'        label: "You"         (operator)
- *   reviewer-bubble  — role: 'freddie'    label: persona name  (judgment seat)
+ *   freddie-bubble  — role: 'freddie'    label: persona name  (judgment seat)
  *   agent-bubble     — role: 'agent'       label: agent slug    (user-authored Agent)
  *   system-activity  — role: 'system_agent' | 'assistant' | 'system' | 'external'
  *                      label: "system" — orchestration plumbing narration
@@ -57,7 +57,7 @@ import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/sna
 
 export type MessageShape =
   | 'user-bubble'
-  | 'reviewer-bubble'
+  | 'freddie-bubble'
   | 'agent-bubble'
   | 'system-activity';
 
@@ -74,7 +74,7 @@ export type MessageShape =
 export function resolveMessageShape(msg: TPMessage): MessageShape {
   const r = msg.role;
   if (r === 'user') return 'user-bubble';
-  if (r === 'freddie') return 'reviewer-bubble';
+  if (r === 'freddie') return 'freddie-bubble';
   if (r === 'agent') return 'agent-bubble';
   // All orchestration-shaped roles collapse to ambient activity post-ADR-272.
   // r ∈ {'system_agent', 'assistant', 'system', 'external'}
@@ -235,7 +235,7 @@ export function MessageRenderer({ msg, isLoading }: MessageRendererProps): JSX.E
   switch (shape) {
     case 'user-bubble':
       return renderUserBubble(props);
-    case 'reviewer-bubble':
+    case 'freddie-bubble':
       return <ReviewerBubbleRenderer {...props} />;
     case 'agent-bubble':
       return renderAgentBubble(props);

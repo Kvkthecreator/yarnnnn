@@ -1,6 +1,6 @@
 # ADR-414: The Pure Workspace — Genesis, the True System Agent, and Program-as-Hire
 
-**Status**: Accepted (2026-07-07, operator-ratified — "fully aligned with stated points from canon moat statement, to the re-allocation map details"). **Phases 0/A/B/C/D+E-1/F1 Implemented same day** (commits `c3a3e07` → `7844c88`): Phase 0 canon cascade · Phase A re-key remainders (gate `test_adr414_phase_a`) · Phase B system-agent purification — B1 live bugs, B2 envelope kernel-constants (CHANGELOG `[2026.07.07.1]`), B3 the ADR-216 collapse (migration 205 APPLIED, receipt 5→0 rows, 0 dependents; gate `test_adr414_phase_b`) · Phase C pure genesis (gate `test_adr414_phase_c`) · Phase D+E-1 grant-row activation (backfill one-shot receipt: 13 workspaces, 0 minted — zero live program markers; the five `'the'` hits were the steward-heading false-positive; gate `test_adr414_phase_d`) · Phase F1 vocabulary sweep (21 sites; ratchet `test_adr414_phase_f`). **Owed follow-ons**: **D+E-2** — file re-homing to `agents/{slug}/` + envelope re-point + per-agent dials + ADR-391 allocations + the alpha-trader migration one-shot; **F2** — Home front-page re-derivation (ADR-412 D7 evidence-gate now satisfiable), `reviewer_identity`/`reviewer_reasoning` API field rename + `reviewer-bubble` shape rename (backend+FE one commit), ratchet #5 (DP35 scope manifest); **post-deploy** — the Hat-B eval re-run (`probe_freddie_addressed_baseline` vs `CURRENT_BASELINE`) validating the B2 envelope change on prod.
+**Status**: Accepted (2026-07-07, operator-ratified — "fully aligned with stated points from canon moat statement, to the re-allocation map details"). **Phases 0/A/B/C/D+E-1/F1 Implemented same day** (commits `c3a3e07` → `7844c88`): Phase 0 canon cascade · Phase A re-key remainders (gate `test_adr414_phase_a`) · Phase B system-agent purification — B1 live bugs, B2 envelope kernel-constants (CHANGELOG `[2026.07.07.1]`), B3 the ADR-216 collapse (migration 205 APPLIED, receipt 5→0 rows, 0 dependents; gate `test_adr414_phase_b`) · Phase C pure genesis (gate `test_adr414_phase_c`) · Phase D+E-1 grant-row activation (backfill one-shot receipt: 13 workspaces, 0 minted — zero live program markers; the five `'the'` hits were the steward-heading false-positive; gate `test_adr414_phase_d`) · Phase F1 vocabulary sweep (21 sites; ratchet `test_adr414_phase_f`). **Phase D+E-2 Implemented** (2026-07-08, commit `18bf39d`): the file re-homing — a hired agent's judgment load-out lives in `agents/{slug}/`; the envelope / witness dial / judgment-log writer / surface reads branch on `resolve_judgment_home` (the hire grant); the ADR-284 occupant-fork deleted (occupant fact is kernel data); both bundle trees restructured (tree-is-truth, §9a); per-agent grant sidecars locked; gate `test_adr414_phase_e`. The **post-deploy Hat-B eval** ran and PASSED (2026-07-08, commit `b52c637`; `docs/evaluations/2026-07-08-adr414-postdeploy-addressed/` — 6/6, sentinels 0/0, cost +1%, wall −12%, baseline not rotated). **Owed follow-ons**: **F2** — Home front-page re-derivation (ADR-412 D7 evidence-gate now satisfiable), `reviewer_identity`/`reviewer_reasoning` API field rename + `reviewer-bubble` shape rename (backend+FE one commit), ratchet #5 (DP35 scope manifest); **later** — ADR-391 per-principal budget allocations (§9a #6, named its own follow-on); the alpha-trader re-hire (an operator decision — zero live program workspaces per the D+E-1 backfill).
 **Date**: 2026-07-07
 **Dimension**: Substrate (Axiom 1 — what genesis seeds, where governance lives) + Identity (Axiom 2 — the system agent purified; the two-order agent model made structural) + Purpose (Axiom 3 — MANDATE re-homed per-agent) + Channel (the FE recomposition it forces)
 **Relates to**: ADR-408 (the three AI altitudes — this ADR is their substrate/genesis completion), ADR-383 (the consistent agent framework — D2 amends it), ADR-216 (orchestration vs judgment — D3 collapses the seam it drew), ADR-207/206 (mandate gate + operation-first scaffolding — D4 retires their genesis-time force), ADR-222 (workspaces run programs — D5 finally honors it in code), ADR-373/404/407 (the multi-principal commons this ADR assumes), ADR-380/381/382 (the activation ladder / Freddie / persona-agent seats — D5/D6 build their substrate layer without building Rung-2 runtime), ADR-391 (per-principal allocations — D6 lands its deferred implementation line), the re-founding keystone (ADR-384 / FOUNDATIONS v9.13 — D4 implements it at genesis, where it is cheapest: nothing to migrate)
@@ -248,9 +248,20 @@ scaffold + the "System Agent" display collision (D3);
 `routes/agents.py` Freddie roster synthesis + the `reviewer:%` feed
 filter (D3); judgment fields from steward envelope assembly (D2). FE:
 `FREDDIE_ROUTE`; "Reviewer" operator-facing copy (QueueBody, StandingBand,
-AutonomyCard); the `reviewer-bubble` shape name; `reviewer_identity` /
-`reviewer_reasoning` API field names (renamed with their backend in one
-commit); stale `routes.ts` header comments. Docs: the pre-Freddie
+AutonomyCard); the `reviewer-bubble` shape name. **AMENDED (2026-07-08,
+operator ruling)**: `reviewer_identity` / `reviewer_reasoning` are NOT
+renamed at the DB/backend layer. The audit found they are **columns on
+`action_proposals`** carrying internal attribution slugs (`human:{uid}`,
+`ai:freddie-sonnet-v8`) — exactly the GLOSSARY-exception internal-slug
+class the whole ADR family preserves via **relabel-keep-slug** (ADR-381
+D1, ADR-251 precedent, `session_type='thinking_partner'`). A column
+rename would be a migration cascading through every writer/reader + the
+ground-truth join + tenure probes for zero operator-visible benefit
+(the columns are never rendered as strings — ADR-410 D4's ban is on
+*render* vocabulary). The **FE-facing shape** is renamed instead (the
+`reviewerPosture`→`agentPosture` derivation + the `reviewer-bubble`
+component vocabulary), mapping from the unchanged columns at the API
+boundary. `routes.ts` stale header comments; docs: the pre-Freddie
 THESIS §Vocabulary + Runtime Model, LAYER-MAPPING's superseded rows,
 FOUNDATIONS Reviewer-row paths, agent-composition §3.2.1's
 `reviewer_agent.py` pointers, occupant-contract doc's dead symbols.

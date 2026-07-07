@@ -87,7 +87,7 @@ export default function AdminAccountsPage() {
         <p className="text-sm text-muted-foreground mt-1">
           Live health for the eval personas in{" "}
           <code className="text-xs">docs/alpha/personas.yaml</code>. Wakes, cost,
-          failures, and Reviewer self-amendments — substrate-derived, no separate
+          failures, and agent self-amendments — substrate-derived, no separate
           eval table. <span className="text-foreground">Click a row</span> for the
           full forensic view.
         </p>
@@ -119,7 +119,7 @@ export default function AdminAccountsPage() {
                       <DollarSign className="w-3 h-3 inline -mt-0.5" /> 7d
                     </th>
                     <th className="py-2 pr-4 font-medium text-right">
-                      <GitCommitVertical className="w-3 h-3 inline -mt-0.5" /> Reviewer 7d
+                      <GitCommitVertical className="w-3 h-3 inline -mt-0.5" /> Agent 7d
                     </th>
                     <th className="py-2 pr-4 font-medium text-right">Last wake</th>
                   </tr>
@@ -187,10 +187,10 @@ export default function AdminAccountsPage() {
 
       <p className="text-xs text-muted-foreground">
         <strong>Failed 7d</strong> shows the most common failure reason on hover.{" "}
-        <strong>Reviewer 7d</strong> counts <code>authored_by reviewer:*</code>{" "}
-        revisions — the self-amendment tenure signal. Eval-suite run history
-        (scenarios, pass/fail) lives in <code>docs/evaluations/</code> + git, not
-        here.
+        <strong>Agent 7d</strong> counts <code>authored_by</code>{" "}
+        <code>freddie:*</code> (and legacy <code>reviewer:*</code>) revisions —
+        the self-amendment tenure signal. Eval-suite run history (scenarios,
+        pass/fail) lives in <code>docs/evaluations/</code> + git, not here.
       </p>
     </div>
   );
