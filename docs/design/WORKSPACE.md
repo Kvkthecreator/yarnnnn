@@ -219,7 +219,7 @@ The recurrence list + per-recurrence detail. ADR-297 dissolved the old `/work` t
 
 ### Surface: Feed
 
-**Route:** `/feed` · **Register:** application · **Archetype:** Stream. (`/chat` redirects to `/feed` per ADR-259; the always-available chat-drawer chrome summons this surface.)
+**Route:** `/feed` · **Register:** application · **Archetype:** Stream. (Historical: `/feed` is now itself a redirect stub → Notifications, and `/chat` is the Chat surface per ADR-412 D3 — this section is preserved as the FeedSurface contract; the component survives at Channels → In.)
 
 > **ADR-289 Phase 2 update (2026-05-18):** The Feed tab is now split into two render surfaces — the **FeedTimeline** (operations-timeline rendering of typed event rows, no chat bubbles) and a **ConversationDrawer** (chat-shaped exchange surface scoped to `pulse='addressed'`). Bubble grammar is preserved ONLY on the Conversation surface. The Feed surface groups rows by `metadata.invocation_id` (re-anchored to `execution_events.id` per ADR-289 D2) into InvocationCards. Operator engages a conversation via the header "Talk" button or by clicking an OperatorEventMarker's "opened conversation →" affordance — the drawer slides over the timeline. Autonomous wakes that fire while the drawer is open surface silently in the timeline behind; visible when the drawer closes.
 

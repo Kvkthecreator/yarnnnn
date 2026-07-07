@@ -12,11 +12,13 @@
 // aware welcome copy. Per-slug routes (/feed, /recurrence, etc.) survive as
 // deep-link transports.
 //
-// Current nav: Feed | Work | Agents | Files
+// Launcher primary tiles (ADR-412): Home | Chat | Channels | Files | Agents.
 // /schedule was a top-level tab (ADR-243) that has been folded into /work as
 // the "Schedule" inner tab. /schedule now redirects to /work.
-// /review deleted; Reviewer lives at /agents?agent=freddie.
-// /chat redirects to /feed (ADR-259 vocabulary migration; preserves bookmarks).
+// /review deleted; Freddie's panes live in Workspace Settings → System Agent
+// (ADR-412 D5 — the /agents roster is Altitude-3 only).
+// /chat is a REAL surface again (ADR-412 D3 — the Chat workbench reclaimed
+// the slug; the prior /chat → notifications redirect stub retired).
 //
 // =============================================================================
 // Redirect Stub Policy (ADR-236 Item 5, 2026-04-29)
@@ -42,8 +44,8 @@
 //      external links to the route are known. Until both hold, the stub
 //      stays.
 //
-// Active stubs (verified 2026-07-02):
-//   /chat          → /notifications?notifications.pane=understand (narrative home; 2026-07-02 ACTIVITY re-scope retired Channels Flow)
+// Active stubs (verified 2026-07-07):
+//   (/chat is NO LONGER a stub — ADR-412 D3 reclaimed it for the Chat surface.)
 //   /orchestrator  → /notifications?notifications.pane=understand (ADR-163, ADR-205 F1 → narrative home)
 //   /feed          → /notifications?notifications.pane=understand (the /feed alias was always the NARRATIVE; lands at its real home)
 //   /team          → /agents                           (ADR-214 — reverses ADR-201)
@@ -98,10 +100,9 @@ export const FILES_ROUTE = "/files";
 // Runs lens directly. (Zero consumers at repoint time.)
 export const ACTIVITY_ROUTE = "/recurrence?recurrence.pane=activity"; // Execution ledger (execution_events) — Runs lens of the Recurrence window.
 export const CONNECTORS_ROUTE = "/connectors"; // Platform connections — Slack, Notion, GitHub, Lemon Squeezy, Alpaca.
-// ADR-272: System Agent dissolved as a cockpit entity (ADR-251 reversed).
-// Only Reviewer remains as a systemic detail surface. Legacy URLs
-// (?agent=system / ?agent=yarnnn / ?agent=thinking-partner) 404-clean.
-export const FREDDIE_ROUTE = "/agents?agent=freddie";
+// FREDDIE_ROUTE deleted 2026-07-07 — zero consumers, and ADR-412 D5 moved
+// Freddie's panes off the /agents roster into Workspace Settings → System
+// Agent (a stale ?agent=freddie deep-link falls through to roster list mode).
 
 export function isHomeRoute(pathname: string): boolean {
   return pathname === HOME_ROUTE || pathname.startsWith(`${HOME_ROUTE}/`);

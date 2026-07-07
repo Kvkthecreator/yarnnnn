@@ -17,12 +17,13 @@ import { HOME_ROUTE } from "@/lib/routes";
 // transport — cold-load opens that surface in a window. (/home renamed from
 // /cockpit per ADR-312 D1; /recurrence renamed from /cadence 2026-06-03.)
 // /delegation is a redirect stub → /autonomy (2026-05-24 surface rename).
-// /chat is a redirect stub → /notifications?notifications.pane=understand
-// (the narrative's home; 2026-07-02 ACTIVITY re-scope — preserves bookmarks).
+// /chat is a REAL surface (ADR-412 D3 — the Chat workbench reclaimed the
+// slug; the prior /chat → notifications stub retired 2026-07-06).
 // /overview was absorbed into the Home composition; ADR-225 Phase 3 +
 // ADR-312 made the Home's slots compositor-resolved.
 // /team redirects to /agents per ADR-214 (reverses ADR-201). /review is
-// deleted; Reviewer lives at /agents?agent=freddie.
+// deleted; Freddie's panes live in Workspace Settings → System Agent
+// (ADR-412 D5).
 // /schedule is now a redirect stub → /work (ADR-243 folded into Work tabs).
 // /connectors is a user-menu shortcut (same pattern as /workspace).
 const PROTECTED_PREFIXES = [
@@ -45,8 +46,8 @@ const PROTECTED_PREFIXES = [
   "/integrations",
   "/invite", // ADR-404 step 5 — invite-accept page (login-bounce preserves ?next)
   "/docs",
+  "/chat", // ADR-412 D3 — the Chat surface (lanes workbench), a real authenticated surface
   // Legacy routes still protected for redirect stubs
-  "/chat",       // ADR-259 — redirect stub → /feed
   "/backend",    // ADR-265 — redirect stub → /activity
   "/schedule",
   "/overview",

@@ -2,9 +2,9 @@
  * /identity → Freddie's pane redirect stub (ADR-387 §6.4, 2026-06-30).
  *
  * Identity is the agent's persona/ reasoning-character (persona/IDENTITY.md —
- * the operator-identity already collapsed here per ADR-320 D2b). Post-ADR-387
- * it lives on Freddie's pane (the agents window), Persona group, not in
- * Workspace Settings. Pure server transport per ADR-308.
+ * the operator-identity already collapsed here per ADR-320 D2b). Post-ADR-412 D5
+ * it lives in Workspace Settings' System Agent group (Freddie left the
+ * /agents roster). Pure server transport per ADR-308.
  *
  * NOTE: /brand no longer redirects here — Brand (operation/BRAND.md) stayed in
  * Workspace Settings (ADR-387 D3), so /brand points there directly.
