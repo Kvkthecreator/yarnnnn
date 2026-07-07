@@ -708,12 +708,28 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         reinit_summary: dict = {}
         try:
             from services.workspace_init import initialize_workspace
-            reinit_summary = await initialize_workspace(
-                client, user_id, program_slug=prior_program_slug
-            )
+            # ADR-414 D4: genesis is pure — the re-fork is the caller's
+            # post-genesis act (activation is a hire, even on reinit).
+            reinit_summary = await initialize_workspace(client, user_id)
+            if prior_program_slug:
+                try:
+                    from services.programs import fork_reference_workspace
+                    fork_summary = await fork_reference_workspace(
+                        client, user_id, prior_program_slug
+                    )
+                    reinit_summary["activated_program"] = prior_program_slug
+                    reinit_summary["fork_files_written"] = fork_summary.get(
+                        "files_written", []
+                    )
+                except Exception as fork_err:
+                    logger.error(
+                        f"[ACCOUNT] Program re-fork after reset failed for "
+                        f"{user_id} (program={prior_program_slug}): {fork_err}"
+                    )
+                    reinit_summary["fork_error"] = str(fork_err)
             logger.info(
                 f"[ACCOUNT] User {user_id} reinit after reset: "
-                f"{len(reinit_summary.get('agents_created', []))} agents, "
+                f"{len(reinit_summary.get('workspace_files_seeded', []))} files, "
                 f"program={reinit_summary.get('activated_program')}"
             )
         except Exception as reinit_err:
@@ -726,8 +742,8 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         return OperationResult(
             success=True,
             message=(
-                f"Account reset complete — restored "
-                f"{len(reinit_summary.get('agents_created', []))} agents{program_msg}."
+                f"Account reset complete — workspace re-initialized"
+                f"{program_msg}."
             ),
             deleted=deleted,
         )

@@ -362,12 +362,13 @@ def test_kernel_default_guide_frontmatter_parses():
 
 
 def test_workspace_init_writes_kernel_default_guide():
-    """workspace_init.py Phase 2 writes the kernel-default guide alongside other skeletons."""
+    """INVERTED by ADR-414 D4 (2026-07-07): pure genesis seeds ONLY the two
+    governance dials — the kernel-default guide seeding is deleted (the guide
+    materializes from bundle forks or the steward's own authoring; ADR-280's
+    pedagogy discipline is unchanged, its genesis-time seeding is not)."""
     init_src = (REPO_ROOT / "api" / "services" / "workspace_init.py").read_text()
-    assert "DEFAULT_WORKSPACE_GUIDE_MD" in init_src, \
-        "workspace_init.py must import + write DEFAULT_WORKSPACE_GUIDE_MD"
-    assert "_workspace_guide.md" in init_src, \
-        "workspace_init.py must reference _workspace_guide.md path"
+    assert "DEFAULT_WORKSPACE_GUIDE_MD," not in init_src, \
+        "workspace_init.py must NOT seed the workspace guide (ADR-414 D4 pure genesis)"
 
 
 def test_workspace_init_no_genesis_machinery():

@@ -116,8 +116,7 @@ async def _run_kernel_init(persona: Persona) -> dict[str, Any]:
     return await initialize_workspace(
         client=_service_client(),
         user_id=persona.user_id,
-        program_slug=None,  # kernel-universal only; fork handled by Step 3
-    )
+    )  # ADR-414 D4: genesis is pure — the fork is Step 3's own act
 
 
 async def _run_fork(persona: Persona) -> dict[str, Any]:

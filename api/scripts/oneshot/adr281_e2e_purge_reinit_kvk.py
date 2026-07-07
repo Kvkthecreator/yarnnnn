@@ -187,10 +187,10 @@ async def main():
 
     from services.workspace_init import initialize_workspace
 
-    reinit_summary = await initialize_workspace(
-        client, KVK_USER_ID,
-        program_slug=PROGRAM_SLUG,
-    )
+    # ADR-414 D4: genesis is pure — fork separately (historical one-shot kept runnable)
+    reinit_summary = await initialize_workspace(client, KVK_USER_ID)
+    from services.programs import fork_reference_workspace
+    await fork_reference_workspace(client, KVK_USER_ID, PROGRAM_SLUG)
     logger.info(f"  reinit summary:")
     for k, v in reinit_summary.items():
         if isinstance(v, list):

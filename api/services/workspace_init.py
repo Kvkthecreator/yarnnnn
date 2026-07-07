@@ -1,64 +1,41 @@
 """
-Workspace Initialization — ADR-152 + ADR-188 + ADR-189 + ADR-190 + ADR-205 + ADR-206 + ADR-226: Workspace Bootstrap
+Workspace Initialization — PURE GENESIS (ADR-414 D4, 2026-07-07)
 
 Note: ``from __future__ import annotations`` below defers PEP 604 union evaluation
 (``str | None``) until typing is queried. Without it, Python 3.9 (the prod venv
-runtime) raises ``TypeError: unsupported operand type(s) for |: 'type' and
-'NoneType'`` at signature-evaluation time the first time an annotated function
-is referenced. Surfaced by the alpha-trader E2E proposal-cleanup materialization
-path; see docs/alpha/observations/2026-04-26-trader-e2e-paper-loop.md §A4.
+runtime) raises ``TypeError`` at signature-evaluation time. See
+docs/alpha/observations/2026-04-26-trader-e2e-paper-loop.md §A4.
 
-Sets up a workspace from the three registries (ADR-188: template libraries).
-Called once at signup. After initialization, the workspace is self-contained —
-registries are templates that were applied, the workspace filesystem is the
-sole source of truth.
+The workspace is born empty, constituted, and shared. Genesis creates exactly
+what a multi-principal OS requires at birth and NOTHING else:
 
-ADR-205 + ADR-212: Two systemic Agents are scaffolded at signup — YARNNN
-(meta-cognitive Agent) and the Reviewer seat (at /workspace/persona/).
-Production roles (orchestration capability bundles — Researcher, Analyst,
-Writer, Tracker, Designer, Reporting) are lazy-created on first dispatch
-as agents-table rows for pipeline dispatch; they are NOT Agents in the
-sharp sense. Platform integrations are connection-bound capability bundles,
-not Agents. Substrate grows from work.
+  Phase 2. The two governance dials — `governance/_budget.yaml` (spend
+           envelope, ADR-327) + `governance/_autonomy.yaml` (witness dial,
+           ADR-405/408 D3). The steward's constitution (identity / mandate /
+           principles) is a KERNEL CONSTANT riding the wake envelope
+           (ADR-414 D2 / freddie_envelope.py) — never seeded.
+  Phase 3. The workspace narrative chat_sessions row (ADR-219).
+  Phase 4. The signup balance audit trail (ADR-172).
 
-ADR-206: Further collapse — zero operational tasks at signup. `daily-update`
-and `back-office-*` are no longer scaffolded; they materialize on trigger
-conditions (proposals created, platform connected, agent threshold, etc.).
-IDENTITY/BRAND/CONVENTIONS relocated under `constitution/ + governance/ + operation/ (ADR-320 split of legacy _shared/)`;
-YARNNN working-memory files relocated under `/workspace/system/`.
-The workspace is textually present + structurally empty.
+Deleted at genesis (the ADR-414 deletion ledger):
+  - the thinking_partner agents row (D3 — migration 205; one system agent,
+    the rail is its voice)
+  - steward MANDATE/IDENTITY/principles seeding (D2 — kernel constants)
+  - PRECEDENT, system/_playbook + style + notes, persona/_principles.yaml,
+    reflection.md, _workspace_guide.md (materialize on first write — the
+    Axiom 1 corollary "substrate grows from work" honored without exception)
+  - the OCCUPANT/handoffs seat scaffold (the signup `human:{user_id}`
+    occupant was substrate-runtime drift on every bare workspace)
+  - the `program_slug` parameter + the genesis-time fork (D4/D5 — programs
+    are post-genesis hires; ADR-222's "workspaces don't have types" finally
+    honored in code)
 
-Phases:
-  1. YARNNN agent row (role=thinking_partner, origin=system_bootstrap)
-  2. Kernel-seeded workspace skeleton files:
-       Shared context: MANDATE, IDENTITY, BRAND, AUTONOMY, PRECEDENT
-       YARNNN memory: awareness, _playbook, style, notes
-       Reviewer substrate: IDENTITY, principles, OCCUPANT, handoffs, reflection
-       (CONVENTIONS.md NOT seeded — program-scoped, bundles fork it)
-  3. Workspace narrative chat_sessions row (ADR-219)
-  4. Signup balance audit trail (ADR-172)
-  5. Reference-workspace fork (ADR-226, optional, program-bound)
-     — delegates to services.programs.fork_reference_workspace
+Member genesis is the invite path (ADR-404) and never runs this function —
+a member lands on a genuinely empty workspace and everything renders.
+Structure emerges through the steward's work (ADR-381 derive-and-cite,
+placement), not through templates.
 
-After init, YARNNN customizes the workspace based on the user's work description
-(ADR-188 + ADR-190):
-  - Scaffolds domain-specific context directories on demand (ADR-188 Phase 2:
-    `_domain.md`)
-  - Creates custom tasks with domain-specific step instructions (ADR-188 Phase 1)
-  - Identity/brand inference from rich input flows through `InferContext`
-    (ADR-235 D1.a). The combined first-act-scaffold primitive `InferWorkspace`
-    was removed per ADR-314 D4 (dissolved by Direction A — for a program
-    workspace, the bundle fork drafts the constitution; there is no
-    conversational `/init`).
-
-ADR-190 deletions:
-  - WORKSPACE.md manifest (was vestigial post-ADR-159 compact index)
-  - DEFAULT_BRAND_MD filler (BRAND.md now empty skeleton; inference populates)
-  - update_workspace_manifest() helper (no longer called from ManageTask etc.)
-
-The registries are NEVER consulted at runtime — only at creation time.
-
-Version: 2.0 (2026-04-17, ADR-190)
+Version: 3.0 (2026-07-07, ADR-414 D4 — pure genesis)
 """
 
 from __future__ import annotations
@@ -75,213 +52,84 @@ logger = logging.getLogger(__name__)
 async def initialize_workspace(
     client: Any,
     user_id: str,
-    program_slug: str | None = None,
 ) -> dict:
-    """Initialize a complete workspace for a new user.
+    """Pure genesis (ADR-414 D4): the workspace is born empty, constituted,
+    and shared.
 
-    Idempotent — checks for existing workspace before creating.
-    Called from `GET /api/workspace/state` on first login (lazy roster
-    scaffolding). Also called from `routes/account.py` L2/L4 reinit paths
-    after purge, optionally with `program_slug` per ADR-244 D4 to re-fork
-    a previously-active bundle.
+    Genesis creates exactly what a multi-principal OS requires at birth:
+      1. (retired) — no agents-table row (ADR-414 D3, migration 205)
+      2. The two governance DIALS — `governance/_budget.yaml` +
+         `governance/_autonomy.yaml`. The steward's constitution
+         (identity / mandate / principles) is a KERNEL CONSTANT riding the
+         wake envelope (ADR-414 D2) — never seeded. Everything else
+         (PRECEDENT, system accumulation, _principles.yaml, reflection,
+         OCCUPANT, the workspace guide) materializes on first write —
+         Axiom 1's corollary ("substrate grows from work, not signup
+         scaffolding") finally honored without exception.
+      3. The workspace narrative session (ADR-219).
+      4. The signup balance audit trail (ADR-172).
 
-    Args:
-        program_slug: Optional program selection (ADR-226). When provided, the
-                    bundle's `reference-workspace/` is forked into the operator's
-                    `/workspace/` honoring three-tier file categorization
-                    (canon/authored/placeholder per ADR-223 §5). When None, the
-                    workspace is generic per ADR-205/206 — no bundle chrome,
-                    no program-shaped substrate.
+    Genesis NEVER forks a program (the `program_slug` parameter is deleted —
+    ADR-414 D5: activation is a post-genesis hire; the L2/L4 reinit callers
+    run the re-fork themselves after this returns). Member genesis is the
+    invite path (ADR-404) and never runs this function.
 
-    Returns dict with initialization summary.
+    Idempotent — keyed on the budget dial's presence.
     """
     result = {
-        "agents_created": [],
+        "agents_created": [],  # retained key (API compat) — always [] post-ADR-414 D3
         "directories_scaffolded": [],
         "workspace_files_seeded": [],
         "tasks_created": [],
         "already_initialized": False,
-        "activated_program": None,  # ADR-226: bundle slug forked, or None
-        "fork_files_written": [],  # ADR-226: paths written during the fork phase
+        "activated_program": None,  # set by the caller's post-init re-fork, never here
+        "fork_files_written": [],  # set by the caller's post-init re-fork, never here
         "session_bootstrapped": False,  # ADR-219: workspace narrative session created
     }
 
-    # Check if already initialized. ADR-206: idempotency gated on presence
-    # of /workspace/persona/IDENTITY.md (always scaffolded in Phase 2).
+    # Idempotency: keyed on the budget dial — the first file pure genesis
+    # seeds (present on every pre-ADR-414 workspace too, seeded since
+    # ADR-327). The prior key (persona/IDENTITY.md) is no longer seeded.
     from services.workspace import UserMemory
-    from services.workspace_paths import PERSONA_IDENTITY_PATH
+    from services.workspace_paths import GOVERNANCE_BUDGET_PATH
     um = UserMemory(client, user_id)
-    existing_identity = await um.read(PERSONA_IDENTITY_PATH)
-    if existing_identity:
+    existing_budget = await um.read(GOVERNANCE_BUDGET_PATH)
+    if existing_budget:
         result["already_initialized"] = True
         # Still run idempotent steps in case of partial init
         logger.info(f"[WORKSPACE_INIT] Workspace already initialized for {user_id[:8]}")
 
     # =========================================================================
-    # Phase 1: RETIRED — the thinking_partner agents row (ADR-414 D3)
+    # Phase 2: The two governance dials (ADR-414 D2 — all that genesis seeds)
     # =========================================================================
-    # The ADR-216 "pragmatic implementation substrate" row is gone: nothing
-    # reads it at runtime (feed/MCP key on chat_sessions.session_type; the
-    # roster filtered it out since ADR-272; back-office task ownership
-    # dissolved with ADR-260/261). There is ONE system agent — Freddie — and
-    # the rail is its voice; scaffolding a second entity labeled
-    # "System Agent" was the naming collision ADR-414 D3 resolves.
-    # Migration 205 deleted the live rows. `session_type='thinking_partner'`
-    # survives on chat_sessions as a data-compat slug (GLOSSARY exception).
-    result["directories_scaffolded"] = []
-
-    # =========================================================================
-    # Phase 2: Workspace skeleton files (ADR-206)
-    # =========================================================================
-    # Kernel-seeded files (not program-scoped):
-    #   Authored shared context: MANDATE, IDENTITY, BRAND, AUTONOMY, PRECEDENT
-    #   YARNNN working memory: awareness, _playbook, style, notes
-    #   Reviewer substrate: IDENTITY, principles, OCCUPANT, handoffs, reflection
-    # CONVENTIONS.md is NOT seeded here — program-scoped (bundles fork it).
-    # See docs/architecture/workspace-init.md for the full canonical reference.
+    # The dials are genuinely workspace-variable (operator-tunable witness
+    # timing + spend envelope) so they are files; the steward's constitution
+    # is invariant across workspaces so it is a kernel constant (DP33) served
+    # by the envelope (freddie_envelope.py). Deleted from seeding (ADR-414
+    # deletion ledger): steward MANDATE/IDENTITY/principles, PRECEDENT,
+    # system/_playbook + style + notes, persona/_principles.yaml +
+    # reflection.md, _workspace_guide.md, and the OCCUPANT/handoffs seat
+    # scaffold (the signup `human:{user_id}` occupant was substrate-runtime
+    # drift on every bare workspace — ADR-284's problem, solved by removal).
     try:
-        # ADR-286 import set: kernel-universal defaults only. Bundle-owned
-        # content (MANDATE, IDENTITY, BRAND, AUTONOMY, etc.) is written by
-        # `fork_reference_workspace` in Phase 5 — never imported here.
-        from services.orchestration import (
-            TP_ORCHESTRATION_PLAYBOOK,
-            DEFAULT_PRECEDENT_MD,
-            DEFAULT_REVIEW_REFLECTION_MD,  # ADR-364: supersedes DEFAULT_REVIEW_CALIBRATION_MD
-            DEFAULT_WORKSPACE_GUIDE_MD,  # kernel-default for no-program workspaces only (ADR-286 D2)
-            # ADR-383: steward defaults — the agent-universal MANDATE/IDENTITY/
-            # principles for the bare-Freddie workspace. Seeded ONLY when no
-            # program activates at signup (a program-fork writes its own
-            # versions in Phase 5). Amends ADR-286 D2: these three paths move
-            # from bundle-owned-absent to kernel-universal-seeded.
-            DEFAULT_STEWARD_MANDATE_MD,
-            DEFAULT_STEWARD_IDENTITY_MD,
-            DEFAULT_STEWARD_PRINCIPLES_MD,
-            # ADR-383 amendment (2026-07-02): _autonomy.yaml joins the steward
-            # seed set — the agent-universal delegation posture for bare-Freddie.
-            DEFAULT_AUTONOMY_YAML,
-        )
-        from services.workspace_paths import (
-            CONSTITUTION_PRECEDENT_PATH,
-            CONSTITUTION_MANDATE_PATH,  # ADR-383: steward-mandate seed (no-program)
-            GOVERNANCE_AUTONOMY_YAML_PATH,  # ADR-383 amend: steward autonomy seed (no-program)
-            GOVERNANCE_BUDGET_PATH,  # ADR-327 spend-envelope governance file
-            SYSTEM_PLAYBOOK_PATH,
-            SYSTEM_STYLE_PATH, SYSTEM_NOTES_PATH,
-            PERSONA_IDENTITY_PATH,  # ADR-383: steward-identity seed (no-program)
-            PERSONA_PRINCIPLES_PATH,  # ADR-383: steward-principles seed (no-program)
-            PERSONA_PRINCIPLES_YAML_PATH,  # machine-parsed thresholds — kernel default empty; bundle overrides
-            PERSONA_OCCUPANT_PATH,
-            PERSONA_HANDOFFS_PATH, PERSONA_REFLECTION_PATH,  # ADR-364
-        )
+        from services.orchestration import DEFAULT_AUTONOMY_YAML
+        from services.workspace_paths import GOVERNANCE_AUTONOMY_YAML_PATH
         from services.budget import DEFAULT_BUDGET_YAML
 
-        # ADR-286 (2026-05-17): Single-Writer Per Path. Kernel scaffolds ONLY
-        # kernel-universal paths — paths that no bundle ships, present in every
-        # workspace regardless of program activation. Bundle-owned paths
-        # (MANDATE, IDENTITY, BRAND, AUTONOMY, _autonomy.yaml, awareness.md,
-        # review/IDENTITY, review/principles, persona/_principles.yaml, etc.)
-        # are written exclusively by `fork_reference_workspace` in Phase 5.
-        # No-program workspaces have absent bundle-owned paths; the Reviewer
-        # envelope renders empty-state hints (honest semantic — a no-program
-        # workspace IS unconfigured). See ADR-286 D1 + D2.
-        #
-        # The legacy `bundle_owned_paths` skip mechanism (ADR-269 iter-4) is
-        # dissolved — no kernel write to skip. The `is_skeleton_content`
-        # kernel-default rescue patches in workspace_utils.py are dissolved
-        # for the same reason (per ADR-286 D6).
-        #
-        # `identity_content` (with optional timezone normalization above) is
-        # no longer written here — alpha-trader bundle ships its own IDENTITY.md.
-        # When the operator declares their personal identity, it lives in
-        # `persona/IDENTITY.md` either through bundle-default + edits
-        # or future explicit personal-identity path (deferred). For no-program
-        # workspaces, IDENTITY.md is absent and the operator authors via chat.
         workspace_files = {
-            # Kernel-universal paths only (no bundle ships these):
-            CONSTITUTION_PRECEDENT_PATH: (DEFAULT_PRECEDENT_MD, "Precedent substrate — durable boundary-case guidance"),
-            SYSTEM_PLAYBOOK_PATH: (TP_ORCHESTRATION_PLAYBOOK, "YARNNN orchestration playbook"),
-            SYSTEM_STYLE_PATH: ("# Style\n<!-- System-inferred from edit patterns. -->\n", "Style placeholder"),
-            SYSTEM_NOTES_PATH: ("# Notes\n<!-- YARNNN-extracted facts and instructions. -->\n", "Notes placeholder"),
-            PERSONA_PRINCIPLES_YAML_PATH: (
-                "# _principles.yaml — machine-parsed review thresholds (ADR-254)\n"
-                "# Read by review_policy.load_principles() via yaml.safe_load.\n"
-                "# For the Reviewer's full reasoning framework, see principles.md.\n\n"
-                "# Uncomment and set when you have a domain with outcome tracking:\n"
-                "# trading:\n"
-                "#   high_impact_threshold_cents: 50000  # $500 routes outcome to task feedback.md\n"
-                "#   auto_approve_below_cents: 0         # set to enable AI auto-action\n",
-                "Reviewer machine-parsed thresholds — kernel-universal default (overridden by bundle on activation)"
-            ),
-            PERSONA_REFLECTION_PATH: (DEFAULT_REVIEW_REFLECTION_MD, "Reviewer seat reflection — interpreted learning from the closed intent→outcome loop (Reviewer-authored, ADR-364)"),
-            # ADR-327: the operation's spend envelope (one dollar budget over a
-            # timeframe). Operator-only-authored; the Reviewer reads but cannot
-            # raise its own ceiling. Kernel-universal — every workspace needs
-            # cost governance regardless of program activation. Bundles MAY
-            # override with program-tuned defaults via Phase 5 fork (alpha-trader
-            # ships its own version). Collapses the retired _pace.yaml +
-            # _token_budget.yaml.
             GOVERNANCE_BUDGET_PATH: (
                 DEFAULT_BUDGET_YAML,
-                "Budget governance — the operation's spend envelope (ADR-327)",
+                "Budget governance — the workspace's spend envelope (ADR-327)",
+            ),
+            # The witness dial (ADR-405/408 D3): per-family delegation,
+            # substrate autonomous + consequential families fail-closed.
+            # Always seeded (pre-ADR-414 it was no-program-only); a program
+            # hire may overwrite with tuned values (marker-eligible).
+            GOVERNANCE_AUTONOMY_YAML_PATH: (
+                DEFAULT_AUTONOMY_YAML,
+                "Witness dial — per-family delegation posture (ADR-405/408 D3)",
             ),
         }
-
-        # `_workspace_guide.md` is dual-classifiable per ADR-286 D2: kernel-
-        # universal for no-program workspaces (the kernel default explains
-        # the workspace shape); bundle-owned for program-activated workspaces
-        # (bundles ship richer program-shaped guides). Special-case here:
-        # kernel scaffold writes the default ONLY when no program is
-        # activating at signup. Bundle-fork in Phase 5 writes the bundle
-        # version for program-activated workspaces.
-        if not program_slug:
-            workspace_files["_workspace_guide.md"] = (
-                DEFAULT_WORKSPACE_GUIDE_MD,
-                "Workspace guide — kernel default for no-program workspaces (ADR-286 D2)",
-            )
-            # ADR-383: the steward defaults — the agent-universal MANDATE +
-            # IDENTITY + principles for the bare-Freddie workspace (the system
-            # agent). A bare workspace is a CONSTITUTED steward (ADR-383 D2:
-            # coherent, not empty), not "unconfigured" — so it carries a real
-            # purpose (stewardship), and the activation hard-gate (ADR-320 D4)
-            # passes for it. These are seeded ONLY when no program activates at
-            # signup: a program-fork (Phase 5) writes the bundle's own
-            # MANDATE/IDENTITY/principles, and because each steward default
-            # carries STEWARD_DEFAULT_MARKER, `is_skeleton_content` classifies
-            # it as overwrite-eligible so a LATER program activation correctly
-            # replaces it (write_refresh_skeleton, not skip_operator_authored).
-            # Amends ADR-286 D2: these three paths move bundle-owned-absent →
-            # kernel-universal-seeded.
-            workspace_files[CONSTITUTION_MANDATE_PATH] = (
-                DEFAULT_STEWARD_MANDATE_MD,
-                "Steward mandate — the system agent's purpose (ADR-383, no-program default)",
-            )
-            workspace_files[PERSONA_IDENTITY_PATH] = (
-                DEFAULT_STEWARD_IDENTITY_MD,
-                "Steward identity — the system agent's reasoning character (ADR-383, no-program default)",
-            )
-            workspace_files[PERSONA_PRINCIPLES_PATH] = (
-                DEFAULT_STEWARD_PRINCIPLES_MD,
-                "Steward principles — the system agent's stewardship rules (ADR-383, no-program default)",
-            )
-            # ADR-383 amendment (2026-07-02): the delegation posture — agent-
-            # universal, kernel default `manual` (fail-closed). Seeded as a
-            # steward default (STEWARD_DEFAULT_MARKER_YAML) so a later program-fork
-            # OVERWRITES it with the bundle's tuned autonomy (is_skeleton_content
-            # classifies the marked default overwrite-eligible). Was bundle-owned-
-            # absent (ADR-286 D3); the marker mechanism (ADR-383) resolves the
-            # dual-write objection that pulled it out at ADR-269 iter-4.
-            workspace_files[GOVERNANCE_AUTONOMY_YAML_PATH] = (
-                DEFAULT_AUTONOMY_YAML,
-                "Steward autonomy — the system agent's delegation posture (ADR-383 amend, no-program default)",
-            )
-
-        # Note: PERSONA_PRINCIPLES_YAML_PATH is in the kernel-universal set
-        # above for backward compatibility — the alpha-trader bundle ALSO
-        # ships persona/_principles.yaml with `auto_approve_below_cents` etc.
-        # populated. The bundle's version overrides via Phase 5 fork. For
-        # no-program workspaces, the kernel default empty-template stays.
-        # If a future bundle audit confirms _principles.yaml should always
-        # be bundle-owned, move it to the bundle-owned set per ADR-286 D3.
 
         for path, (content, summary) in workspace_files.items():
             existing = await um.read(path)
@@ -289,31 +137,6 @@ async def initialize_workspace(
                 await um.write(path, content, summary=f"Workspace init: {summary}")
                 result["workspace_files_seeded"].append(path)
                 logger.info(f"[WORKSPACE_INIT] File: {path}")
-
-        # Reviewer seat signup-scaffold: single write path through the
-        # rotation primitive (ADR-211 D4). Seeds both OCCUPANT.md and
-        # handoffs.md atomically. Idempotent — rotate_occupant() short-
-        # circuits if the seat is already filled by the target occupant.
-        try:
-            from services.review_rotation import rotate_occupant, read_current_occupant
-            current = await read_current_occupant(um)
-            if not current["occupant"]:
-                rotation = await rotate_occupant(
-                    um,
-                    f"human:{user_id}",
-                    authorized_by="system",
-                    trigger="signup",
-                    reason="Workspace scaffold — operator is default Reviewer seat occupant",
-                )
-                if rotation["rotated"]:
-                    result["workspace_files_seeded"].append(PERSONA_OCCUPANT_PATH)
-                    result["workspace_files_seeded"].append(PERSONA_HANDOFFS_PATH)
-                    logger.info(
-                        f"[WORKSPACE_INIT] Reviewer seat scaffolded: "
-                        f"occupant=human:{user_id[:8]} (ADR-211 D4)"
-                    )
-        except Exception as exc:
-            logger.warning(f"[WORKSPACE_INIT] Reviewer seat scaffold failed: {exc}")
     except Exception as e:
         logger.warning(f"[WORKSPACE_INIT] Workspace files failed: {e}")
 
@@ -435,72 +258,38 @@ async def initialize_workspace(
         except Exception as e:
             logger.warning(f"[WORKSPACE_INIT] Signup balance audit failed: {e}")
 
-    # =========================================================================
-    # Phase 5: Reference-workspace fork (ADR-226) — optional, program-bound
-    # =========================================================================
-    # When the operator selected a program at signup (or activates one later),
-    # this phase forks the bundle's reference-workspace/ into /workspace/
-    # honoring three-tier file categorization (ADR-223 §5):
-    #   - canon: program-shipped opinion, copied verbatim
-    #   - authored: templates with prompts; operator MUST overwrite via YARNNN
-    #   - placeholder: empty/skeleton, accumulates from work over time
-    # Frontmatter (tier:, prompt:, note:, optional:) is bundle-only — stripped
-    # before the file is written to operator's /workspace/.
-    # Idempotent: re-running re-applies canon, preserves operator-authored.
-    if program_slug:
-        try:
-            from services.programs import fork_reference_workspace
-            fork_summary = await fork_reference_workspace(
-                client, user_id, program_slug
-            )
-            result["activated_program"] = program_slug
-            result["fork_files_written"] = fork_summary.get("files_written", [])
-            logger.info(
-                f"[WORKSPACE_INIT] Reference fork complete for {user_id[:8]}: "
-                f"program={program_slug}, files={len(result['fork_files_written'])}"
-            )
-        except Exception as exc:
-            logger.error(
-                f"[WORKSPACE_INIT] Reference fork FAILED for {user_id[:8]} "
-                f"(program={program_slug}): {exc}"
-            )
-            result["fork_error"] = str(exc)
+    # Phase 5 (the genesis-time program fork) is DELETED (ADR-414 D4/D5):
+    # genesis never forks. Program activation is a post-genesis hire —
+    # `routes/programs.py` (activate endpoint) and the L2/L4 reinit callers
+    # (`services/workspace_purge.py`, `routes/account.py`) invoke
+    # `services.programs.fork_reference_workspace` themselves.
 
     # =========================================================================
-    # Post-init validation — check critical invariants
+    # Post-init validation — check critical invariants (ADR-414 D4 rewrite)
     # =========================================================================
-    # NOTE (ADR-280 revised 2026-05-15): Phase 6 genesis-by-Reviewer wake
-    # was deleted in the same commit chain. The workspace guide is now
-    # bundle-shipped substrate, not Reviewer-authored at first wake:
-    #   - Kernel-default _workspace_guide.md is seeded in Phase 2 above
-    #     (DEFAULT_WORKSPACE_GUIDE_MD constant).
-    #   - Bundle-shipped guides at docs/programs/{slug}/reference-workspace/
-    #     _workspace_guide.md are forked by services.programs.fork_reference_workspace
-    #     in Phase 5 above (overrides the kernel default for program workspaces).
-    # The Reviewer reads the resulting guide at every wake (including first
-    # wake) like any other operator-canon file. No genesis machinery needed.
-    from services.workspace_paths import PERSONA_IDENTITY_PATH
+    # The pure-genesis invariants: the budget dial exists (seeded now or
+    # already present) and the narrative session exists (bootstrapped now or
+    # already present). The prior checks (agents_created > 0, persona
+    # IDENTITY seeded) described the retired scaffolds — the persona check
+    # also logged a spurious INCOMPLETE on every program signup (the file
+    # arrived via the fork, not the seed).
     problems = []
-    if len(result["agents_created"]) == 0 and not result["already_initialized"]:
-        problems.append("zero agents created")
-    if PERSONA_IDENTITY_PATH not in result["workspace_files_seeded"] and not result["already_initialized"]:
-        problems.append(f"{PERSONA_IDENTITY_PATH} not seeded")
-    # ADR-206: daily-update is no longer an essential signup task — removed from validation.
+    if (
+        GOVERNANCE_BUDGET_PATH not in result["workspace_files_seeded"]
+        and not result["already_initialized"]
+    ):
+        problems.append(f"{GOVERNANCE_BUDGET_PATH} not seeded")
 
     if problems:
         logger.error(
             f"[WORKSPACE_INIT] INCOMPLETE for {user_id[:8]}: {', '.join(problems)}. "
-            f"Created: {len(result['agents_created'])} agents, "
-            f"{len(result['workspace_files_seeded'])} files, "
-            f"{len(result['tasks_created'])} tasks"
+            f"Seeded: {len(result['workspace_files_seeded'])} files"
         )
     else:
         logger.info(
             f"[WORKSPACE_INIT] Complete for {user_id[:8]}: "
-            f"{len(result['agents_created'])} agents, "
-            f"{len(result['directories_scaffolded'])} directories, "
-            f"{len(result['workspace_files_seeded'])} files, "
-            f"{len(result['tasks_created'])} tasks"
+            f"{len(result['workspace_files_seeded'])} files seeded "
+            f"(pure genesis — ADR-414 D4)"
         )
 
     return result

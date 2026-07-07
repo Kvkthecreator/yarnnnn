@@ -235,12 +235,31 @@ async def clear_workspace_for_user(client: Any, user_id: str) -> dict:
     try:
         from services.workspace_init import initialize_workspace
 
-        reinit_summary = await initialize_workspace(
-            client, user_id, program_slug=prior_program_slug
-        )
+        # ADR-414 D4: genesis is pure — it never forks. The ADR-244 D4
+        # re-fork is the CALLER's post-genesis act (the same seam the
+        # activation endpoint uses), keeping "activation is a hire" true
+        # even on the reinit path.
+        reinit_summary = await initialize_workspace(client, user_id)
+        if prior_program_slug:
+            try:
+                from services.programs import fork_reference_workspace
+
+                fork_summary = await fork_reference_workspace(
+                    client, user_id, prior_program_slug
+                )
+                reinit_summary["activated_program"] = prior_program_slug
+                reinit_summary["fork_files_written"] = fork_summary.get(
+                    "files_written", []
+                )
+            except Exception as fork_err:  # noqa: BLE001
+                logger.error(
+                    f"[PURGE] Program re-fork after clear failed for "
+                    f"{user_id} (program={prior_program_slug}): {fork_err}"
+                )
+                reinit_summary["fork_error"] = str(fork_err)
         logger.info(
             f"[PURGE] User {user_id} reinit after clear: "
-            f"{len(reinit_summary.get('agents_created', []))} agents, "
+            f"{len(reinit_summary.get('workspace_files_seeded', []))} files, "
             f"program={reinit_summary.get('activated_program')}"
         )
     except Exception as reinit_err:  # noqa: BLE001
