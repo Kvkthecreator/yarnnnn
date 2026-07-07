@@ -2252,7 +2252,7 @@ async def get_capture_signal(
         row = (
             auth.client.table("platform_connections")
             .select("metadata, created_at")
-            .eq("user_id", auth.user_id)
+            .eq(*substrate_scope_filter(auth.user_id))
             .eq("platform", db_platform)
             .limit(1)
             .execute()
@@ -2931,7 +2931,7 @@ async def update_trading_connection(
 
     existing = service_client.table("platform_connections").select(
         "id, metadata"
-    ).eq("user_id", auth.user_id).eq("platform", "trading").eq(
+    ).eq(*substrate_scope_filter(auth.user_id)).eq("platform", "trading").eq(
         "status", "active"
     ).single().execute()
 
