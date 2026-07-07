@@ -107,7 +107,7 @@ export function QueueBody() {
           <Inbox className="mx-auto mb-3 h-6 w-6 text-muted-foreground/40" />
           <p className="text-sm font-medium text-foreground/80">Nothing awaiting your decision</p>
           <p className="mt-1 text-xs text-muted-foreground/70">
-            When the Reviewer proposes an action that needs your OK, it appears here.
+            When an agent proposes an action that needs your OK, it appears here.
           </p>
         </div>
       ) : (
@@ -156,7 +156,7 @@ export function QueueBody() {
                         </span>
                         {p.reviewer_identity?.startsWith('ai:') && (
                           <span className="shrink-0 text-[10px] rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-400">
-                            Reviewer approved
+                            Agent approved
                           </span>
                         )}
                         <span className="shrink-0 text-[11px] text-muted-foreground/50">{relativeAge(p.created_at)}</span>

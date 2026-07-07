@@ -55,7 +55,7 @@ const FILE_LABELS: Record<keyof WorkspaceState['substrate_status'], string> = {
   identity: 'Identity',
   brand: 'Brand',
   autonomy: 'Autonomy',
-  principles: 'Reviewer principles',
+  principles: 'Agent principles',
 };
 
 // Files page deep-links — substrate authoring routes through chat per
@@ -232,7 +232,7 @@ export function WorkspaceSection() {
           <div className="rounded-lg border border-dashed border-border bg-muted/10 px-4 py-3">
             <p className="text-sm text-muted-foreground">
               No program activated yet. Activate a program below to begin — it sets up
-              your mandate, your Reviewer, and the operation it runs. Until then the
+              your mandate, your agent, and the operation it runs. Until then the
               workspace is in standby.
             </p>
           </div>

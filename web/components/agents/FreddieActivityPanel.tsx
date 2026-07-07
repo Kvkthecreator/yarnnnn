@@ -176,7 +176,7 @@ export function FreddieActivityPanel() {
   const isHealthy = hoursSinceLastRun !== null && hoursSinceLastRun <= 36;
 
   const editPrompt =
-    "I want to change my Reviewer's schedule (when reflection, calibration, or other judgment recurrences fire). Walk me through the current cadence.";
+    "I want to change my agent's schedule (when reflection, calibration, or other judgment recurrences fire). Walk me through the current cadence.";
 
   return (
     <div className="space-y-5">
@@ -185,7 +185,7 @@ export function FreddieActivityPanel() {
         <div className="flex items-center gap-2 mb-2">
           <Activity className="h-3.5 w-3.5 text-muted-foreground" />
           <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Reviewer health
+            Agent health
           </h3>
           <span className="ml-auto text-[10px] text-muted-foreground/60">
             Last {data.window_days}d
@@ -201,14 +201,14 @@ export function FreddieActivityPanel() {
         ) : isHealthy ? (
           <p className="text-sm text-foreground">
             <CheckCircle2 className="inline h-3.5 w-3.5 text-emerald-600 mr-1.5 -mt-0.5" />
-            Last Reviewer wake {relativeTime(lastRunAt)}. {data.runs.length} run{data.runs.length === 1 ? '' : 's'} in window.
+            Last agent wake {relativeTime(lastRunAt)}. {data.runs.length} run{data.runs.length === 1 ? '' : 's'} in window.
           </p>
         ) : isStale ? (
           <div className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50/60 rounded-md px-3 py-2 border border-amber-200/60">
             <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>
               {hoursSinceLastRun === null
-                ? `No Reviewer wakes in the last ${data.window_days} days, despite ${activeSchedules.length} active schedule${activeSchedules.length === 1 ? '' : 's'}. Check the scheduler.`
+                ? `No agent wakes in the last ${data.window_days} days, despite ${activeSchedules.length} active schedule${activeSchedules.length === 1 ? '' : 's'}. Check the scheduler.`
                 : `Last wake was ${Math.floor(hoursSinceLastRun)}h ago. Expected by configured cadence below.`}
             </span>
           </div>

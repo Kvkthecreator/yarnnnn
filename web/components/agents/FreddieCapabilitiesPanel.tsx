@@ -81,7 +81,7 @@ export function FreddieCapabilitiesPanel() {
     `I want to evolve the capability spec at ${spec.path} (${spec.title}). Walk me through the current declaration and help me sharpen it.`;
 
   const newSpecPrompt =
-    'I want to author a new capability spec for my Reviewer — a recurring output it can produce (schema, sections, quality bar). Walk me through declaring it.';
+    'I want to author a new capability spec for my agent — a recurring output it can produce (schema, sections, quality bar). Walk me through declaring it.';
 
   // Empty state
   if (data.specs.length === 0) {
@@ -93,8 +93,8 @@ export function FreddieCapabilitiesPanel() {
         </p>
         <p className="text-xs text-muted-foreground/70 text-center max-w-md mx-auto mb-4">
           Capability specs live at <code className="text-[11px] bg-muted px-1 rounded">/workspace/operation/specs/*.md</code>.
-          Each spec is a quality contract describing one kind of output your Reviewer
-          can produce — schema, sections, anti-patterns. The Reviewer reads them when
+          Each spec is a quality contract describing one kind of output your agent
+          can produce — schema, sections, anti-patterns. The agent reads them when
           producing recurring work.
         </p>
         <div className="flex justify-center">

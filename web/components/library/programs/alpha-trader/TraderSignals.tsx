@@ -16,7 +16,7 @@
  * Reviewer's reasoning.
  *
  * Correlation is intentionally loose per ADR-273 D3 (backend route docs)
- * — text-match on signal slug. When no Reviewer decision matches, the
+ * — text-match on signal slug. When no Agent decision matches, the
  * row renders without a verdict badge (signals can exist without a
  * Reviewer pass; the trail surfaces if and when it correlates).
  *
@@ -178,7 +178,7 @@ export function TraderSignals() {
                     {s.reviewer_decision && (
                       <div>
                         <div className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-0.5">
-                          Reviewer decision
+                          Agent decision
                         </div>
                         <p className="text-[12px] text-muted-foreground whitespace-pre-wrap">
                           {s.reviewer_decision.excerpt}

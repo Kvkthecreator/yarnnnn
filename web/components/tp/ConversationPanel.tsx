@@ -374,7 +374,7 @@ export function ConversationPanel({
                   void stopActiveLoop();
                 }}
                 aria-label="Stop in-flight Loop"
-                title="Stop the Reviewer's in-flight Loop"
+                title="Stop the agent's in-flight Loop"
                 className="shrink-0 p-1.5 rounded text-foreground hover:bg-muted transition-colors"
               >
                 <Square className="w-5 h-5 fill-current" />

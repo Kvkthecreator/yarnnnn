@@ -226,7 +226,7 @@ export function SetupSequence() {
       key: 'first-artifact',
       title: 'See your first artifact',
       detail:
-        'When the operation produces its first output, it lands on Home — the operation, rendered. Outcomes calibrate the Reviewer from there.',
+        'When the operation produces its first output, it lands on Home — the operation, rendered. Outcomes calibrate the agent from there.',
       // No getState() signal for "first output" yet; this step points the
       // operator at Home where the operation renders. Honest Phase-1 shape:
       // not auto-completed (it completes when the operation runs, surfaced

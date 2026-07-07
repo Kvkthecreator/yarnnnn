@@ -100,7 +100,7 @@ export function StandingBand() {
             <p className="text-xs text-muted-foreground">{summary}</p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              No output contract declared — the Reviewer derives what it owes from budget + mandate.{' '}
+              No output contract declared — the agent derives what it owes from budget + mandate.{' '}
               <span className="text-foreground/70">{EXPECTED_OUTPUT_SETTINGS_HINT}</span>
             </p>
           )}
@@ -114,7 +114,7 @@ export function StandingBand() {
           <div className="mb-1.5 flex items-center gap-1.5">
             <Eye className="h-3.5 w-3.5 text-muted-foreground" />
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              What your Reviewer is watching
+              What your agent is watching
             </p>
           </div>
           <div className="prose prose-sm max-w-none text-muted-foreground dark:prose-invert">

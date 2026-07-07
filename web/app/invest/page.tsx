@@ -223,7 +223,7 @@ export default function InvestPage() {
                     <h3 className="text-xl font-medium mb-3">The cumulative workspace + the judgment seat</h3>
                     <p className="text-white/50 text-sm leading-relaxed">
                       Authored substrate with attribution enforced at the write path; agents you own
-                      that produce from it; a neutral Reviewer seat that evaluates consequential
+                      that produce from it; a neutral judgment seat that evaluates consequential
                       actions and reconciles its calls against outcomes. The operation lives in the
                       cockpit; external distribution is the derivative last mile.
                     </p>

@@ -31,7 +31,7 @@ export default function QueuePage() {
     <SurfacePage
       iconKey="inbox"
       title="Queue"
-      summary="Pending proposals awaiting your decision. Click any row to see the full diff or order ticket — and the Reviewer's reasoning — before you approve."
+      summary="Pending proposals awaiting your decision. Click any row to see the full diff or order ticket — and the agent's reasoning — before you approve."
     >
       <QueueBody />
     </SurfacePage>

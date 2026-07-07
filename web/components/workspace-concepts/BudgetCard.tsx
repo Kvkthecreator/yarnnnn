@@ -221,7 +221,7 @@ export function BudgetCard({
         <div>
           <p className="text-sm font-semibold">Operation budget</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            How much this operation may spend over the window below. The Reviewer
+            How much this operation may spend over the window below. The agent
             allocates judgment wakes within this envelope — it decides how often
             to work; you decide how much it costs (ADR-327).
           </p>

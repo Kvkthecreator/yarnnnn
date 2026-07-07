@@ -37,8 +37,8 @@ interface PrinciplesCardProps {
   className?: string;
 }
 
-const EDIT_PROMPT = "I want to evolve my Reviewer principles. Show me the current declaration and help me decide what to change — thresholds, reject conditions, domain coverage.";
-const SETUP_PROMPT = "Help me author my Reviewer principles — the rules that govern what proposals get approved, rejected, or deferred.";
+const EDIT_PROMPT = "I want to evolve my agent principles. Show me the current declaration and help me decide what to change — thresholds, reject conditions, domain coverage.";
+const SETUP_PROMPT = "Help me author my agent principles — the rules that govern what proposals get approved, rejected, or deferred.";
 
 export function PrinciplesCard({
   variant = 'full',
@@ -127,7 +127,7 @@ export function PrinciplesCard({
     <div className={cn('space-y-3', className)}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold">Reviewer principles</p>
+          <p className="text-sm font-semibold">Agent principles</p>
           <p className="text-xs text-muted-foreground mt-0.5">The judgment framework applied to every proposal.</p>
         </div>
         <RevisionFootnote revision={lastRevisionProp ?? null} className="shrink-0 pt-1" />

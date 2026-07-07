@@ -191,7 +191,7 @@ export function AuthorHero() {
             type="button"
             onClick={() =>
               onOpenChatDraft(
-                'Help me describe my writing voice — the patterns that make my prose sound like me, and the AI-slop patterns to avoid. Save it so the Reviewer can audit new pieces against it.',
+                'Help me describe my writing voice — the patterns that make my prose sound like me, and the AI-slop patterns to avoid. Save it so the agent can audit new pieces against it.',
               )
             }
             className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"

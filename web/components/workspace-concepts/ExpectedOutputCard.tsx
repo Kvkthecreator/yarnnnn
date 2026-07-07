@@ -247,7 +247,7 @@ function ExpectedOutputFull({
       </div>
 
       <p className="text-[11px] text-muted-foreground/70 border-t border-border pt-3">
-        Operator-authored governance substrate. The Reviewer reads this in its wake envelope and
+        Operator-authored governance substrate. The agent reads this in its wake envelope and
         holds itself accountable to it (it never authors it). Keep the prose companion —
         <span className="font-mono"> MANDATE ## Expected Output</span> — in agreement (edit it via chat).
       </p>

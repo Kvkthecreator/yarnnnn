@@ -66,7 +66,7 @@ const LEVELS: {
     value: 'manual',
     label: 'Manual',
     description: 'Every action waits for your approval before executing.',
-    consequence: 'Every Reviewer action will pause for your approval. You become the bottleneck on every decision.',
+    consequence: 'Every agent action will pause for your approval. You become the bottleneck on every decision.',
   },
   {
     value: 'bounded',

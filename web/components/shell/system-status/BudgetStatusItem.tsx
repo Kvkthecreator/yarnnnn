@@ -224,8 +224,8 @@ export function BudgetStatusItem() {
       )}
 
       <p className="pt-1">
-        Your plan&rsquo;s monthly allowance funds Reviewer wakes + agent execution;
-        the Reviewer allocates wakes within the declared envelope.
+        Your plan&rsquo;s monthly allowance funds agent wakes + execution;
+        each agent allocates wakes within the declared envelope.
       </p>
     </div>
   );
