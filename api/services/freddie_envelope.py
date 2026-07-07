@@ -287,6 +287,33 @@ async def load_freddie_governance_envelope(
         for (key, _path), value in zip(_UNIVERSAL_ENVELOPE_DECLS, universal_results)
     }
 
+    # --- ADR-414 D2: the steward's constitution is a KERNEL CONSTANT ---
+    # A bare workspace's persona/mandate files were seeded copies of the
+    # kernel's steward defaults (ADR-383) — a constant wearing a file costume
+    # (DP33). The envelope sources them from the kernel directly: when the
+    # file is absent or still carries the steward-default marker, the kernel
+    # constant rides the envelope (DP22-safe — constitution content lands in
+    # the envelope, never the system frame). Operator- or program-authored
+    # content always wins (no marker → untouched). This also makes the
+    # content drift-proof: a kernel-side improvement reaches every bare
+    # workspace at the next wake, no reapply pass. Phase C stops seeding
+    # these files at genesis; this substitution is what makes that safe.
+    from services.orchestration import (
+        DEFAULT_STEWARD_IDENTITY_MD,
+        DEFAULT_STEWARD_MANDATE_MD,
+        DEFAULT_STEWARD_PRINCIPLES_MD,
+        STEWARD_DEFAULT_MARKER,
+    )
+
+    for _key, _const in (
+        ("mandate_md", DEFAULT_STEWARD_MANDATE_MD),
+        ("identity_md", DEFAULT_STEWARD_IDENTITY_MD),
+        ("principles_md", DEFAULT_STEWARD_PRINCIPLES_MD),
+    ):
+        _val = envelope.get(_key) or ""
+        if not _val.strip() or STEWARD_DEFAULT_MARKER in _val:
+            envelope[_key] = _const
+
     # --- Program-shaped reads (from active bundle's substrate_abi) ---
     # Per ADR-281 D1: one declaration shape per envelope entry: {key, path, optional}.
     # No path_glob, no summarizer. The kernel reads substrate; mechanical

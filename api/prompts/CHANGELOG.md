@@ -6,6 +6,11 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.07.1] - ADR-414 Phase B2: the steward's constitution becomes a kernel constant riding the envelope
+
+- `services/freddie_envelope.py::load_freddie_governance_envelope`: after the universal reads, the three constitution keys (`mandate_md`, `identity_md`, `principles_md`) substitute the kernel constants (`DEFAULT_STEWARD_{MANDATE,IDENTITY,PRINCIPLES}_MD`) whenever the workspace file is absent OR still carries `STEWARD_DEFAULT_MARKER`. Operator- or program-authored content (no marker) always wins and is untouched.
+- Expected behavior: byte-similar today — bare workspaces' seeded marker files were copies of the same constants, so the model sees the same constitution, now kernel-sourced and drift-proof (a kernel-side improvement reaches every bare workspace at the next wake, no reapply pass). Program workspaces (alpha-trader) unchanged. This is the ADR-414 D2 "steward files are kernel constants" landing at the envelope layer (DP22-safe — constitution content rides the envelope/user message, never the system frame); Phase C deletes the genesis seeding this substitution makes redundant.
+
 ## [2026.07.04.1] - ADR-406: EditFile gains the stale_write conflict surface
 
 - `services/primitives/workspace.py::handle_edit_file` (workspace scope): reads the head revision before the content read, threads it as `expected_parent_version_id`, and on a concurrent write returns a NEW structured error `{error: "stale_write", message: "... {who} wrote a revision at {when}. Re-read the file and re-apply ..."}` instead of silently clobbering (or a generic `write_failed`).
