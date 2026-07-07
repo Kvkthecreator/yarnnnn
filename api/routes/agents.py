@@ -559,33 +559,12 @@ async def list_agents(
             context_domain=context_domain,
         ))
 
-    # ADR-214: Synthesize Reviewer as a systemic pseudo-agent. No DB row —
-    # substrate at /workspace/persona/{IDENTITY,principles,decisions}.md stays
-    # authoritative per ADR-194 v2 Axiom 1. Frontend dispatches on
-    # agent_class='freddie' to render the Freddie detail view.
-    # Status filter: Reviewer is always 'active'; skip synthesis only if
-    # caller asked to filter to a different status.
-    if not status or status == "active":
-        _now_iso = datetime.now(timezone.utc).isoformat()
-        responses.insert(0, AgentResponse(
-            id="freddie",
-            title="Freddie",
-            slug="freddie",
-            scope="workspace",
-            role="freddie",
-            type_config=None,
-            status="active",
-            created_at=_now_iso,
-            updated_at=_now_iso,
-            version_count=0,
-            origin="system_bootstrap",
-            agent_instructions=None,
-            agent_memory=None,
-            avatar_url=None,
-            agent_class="freddie",
-            context_domain=None,
-        ))
-
+    # ADR-412 D5 + ADR-414 D3: the Freddie roster card is GONE. The roster is
+    # Altitude 3 only — the system agent's chrome home is the rail + Workspace
+    # Settings → System Agent, never a roster card. The ADR-214 pseudo-agent
+    # synthesis (a Freddie row inserted at position 0) is deleted; the FE has
+    # filtered the freddie class out since ADR-412 §10 step 2, so this closes
+    # the backend/chrome mismatch rather than changing anything visible.
     return responses
 
 
@@ -723,10 +702,11 @@ async def get_freddie_activity(auth: UserClient) -> dict:
     # proposals (any status). Union covers both "Reviewer did something" cases.
     actions: list[dict] = []
     try:
-        # ADR-307: Reviewer-originated proposals (source 'reviewer:<occupant>').
-        # The dead `approved_by='auto_reversible'` query (no live writer — only
-        # 'user' is ever written) is removed. Columns: primitive + family +
-        # decision_context replace action_type + expected_effect.
+        # ADR-414 Phase B1 bug fix: the write side stamps `freddie:<occupant>`
+        # (the 2026-06-29 full rename — freddie_audit.py / propose_action.py);
+        # this feed still filtered `reviewer:%` only, so every post-rename
+        # steward-originated proposal was INVISIBLE here. Match both: freddie:
+        # (live) + reviewer: (legacy rows predating the rename).
         reviewer_result = (
             auth.client.table("action_proposals")
             .select(
@@ -734,7 +714,7 @@ async def get_freddie_activity(auth: UserClient) -> dict:
                 "approved_at, executed_at, approved_by, source, created_at"
             )
             .eq(*substrate_scope_filter(auth.user_id))
-            .like("source", "reviewer:%")
+            .or_("source.like.freddie:%,source.like.reviewer:%")
             .gte("created_at", LOOKBACK.isoformat())
             .order("created_at", desc=True)
             .limit(20)
