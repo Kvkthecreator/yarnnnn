@@ -47,7 +47,11 @@ _BILLING_RATES: dict[str, dict[str, float]] = {
     # ADR-408 D4 / ADR-411 D5: routed Altitude-2 models. A model the router
     # may route MUST have a row here — an unknown model silently prices at
     # the Sonnet default (model_router warns).
-    "gpt-4o-mini":                {"input_per_mtok": 0.15, "output_per_mtok": 0.60},
+    # OpenAI bills cached input at 50% of the input rate and has no cache
+    # write premium (automatic prompt cache) — per-model multipliers here;
+    # absent keys fall to Anthropic's shape (10% read / 125% write).
+    "gpt-4o-mini":                {"input_per_mtok": 0.15, "output_per_mtok": 0.60,
+                                   "cache_read_mult": 0.50, "cache_create_mult": 0.0},
 }
 _DEFAULT_RATE = _BILLING_RATES["claude-sonnet-4-6"]
 
@@ -78,19 +82,19 @@ def compute_cost_usd_inclusive(
 ) -> float:
     """Cache-inclusive cost at true provider list rates.
 
-    ADR-291: this is the sole canonical cost function. Accounts for
-    cache_read (10% of input rate) and cache_creation (125% of input rate),
-    matching Anthropic's actual invoice shape (5-minute-TTL write premium).
-    The legacy 2x platform multiplier is retired (2026-07-06 operator
-    ruling) — cost_usd records actual provider cost.
+    ADR-291: this is the sole canonical cost function. Cache multipliers are
+    per-model rate data: Anthropic's invoice shape (10% read / 125% write,
+    the 5-minute-TTL premium) is the default; OpenAI rows override (50% read,
+    no write premium). The legacy 2x platform multiplier is retired
+    (2026-07-06 operator ruling) — cost_usd records actual provider cost.
     """
     rate = _BILLING_RATES.get(model, _DEFAULT_RATE)
     ir = rate["input_per_mtok"]
     or_ = rate["output_per_mtok"]
     cost = (
         (input_tokens        / 1_000_000) * ir
-        + (cache_read_tokens   / 1_000_000) * ir * 0.10
-        + (cache_create_tokens / 1_000_000) * ir * 1.25
+        + (cache_read_tokens   / 1_000_000) * ir * rate.get("cache_read_mult", 0.10)
+        + (cache_create_tokens / 1_000_000) * ir * rate.get("cache_create_mult", 1.25)
         + (output_tokens       / 1_000_000) * or_
     )
     return round(cost, 6)

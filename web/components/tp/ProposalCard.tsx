@@ -463,6 +463,9 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
           reviewer_identity: res.proposal.reviewer_identity ?? undefined,
           reviewer_reasoning: res.proposal.reviewer_reasoning ?? undefined,
           status: res.proposal.status ?? prev.status,
+          // Chat tool-result chips lack `source` — the fetch supplies it so
+          // the witness-dial line renders (ADR-408 D5.2).
+          source: res.proposal.source ?? prev.source,
         }));
       }
     }).catch(() => {/* non-fatal */});

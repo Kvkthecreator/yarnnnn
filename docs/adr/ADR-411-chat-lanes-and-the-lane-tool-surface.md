@@ -93,6 +93,13 @@ row (the D4 spike's no-silent-default-pricing rule). Anthropic remains
 the steward's model (Altitude 1, ADR-402); Anthropic models in lanes are
 ordinary Altitude-2 citizens.
 
+*Amendment (2026-07-07)*: cache multipliers are per-model rate data.
+The original cost function applied Anthropic's cache shape (10% read /
+125% write) to every model; OpenAI bills cached input at 50% with no
+write premium — a slight undercharge on cached OpenAI turns. Fixed:
+`_BILLING_RATES` rows may carry `cache_read_mult` / `cache_create_mult`
+(OpenAI rows do); absent keys fall to the Anthropic default.
+
 ## 7. D6 — The conventions doc: an AGENTS.md-shaped projection, composed not stored
 
 Every lane turn's system prompt carries a kernel-composed projection of

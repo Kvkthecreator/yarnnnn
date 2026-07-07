@@ -2246,6 +2246,9 @@ export const api = {
           inputs: Record<string, unknown>;
           decision_context: Record<string, unknown> | null;
           status: string;
+          /** ADR-307 D6 / ADR-408 D5.2: who queued this (authored_by-taxonomy
+           * string) — drives the witness-dial line on pending proposals. */
+          source: string | null;
           expires_at: string;
           created_at: string;
           reviewer_identity?: string | null;
