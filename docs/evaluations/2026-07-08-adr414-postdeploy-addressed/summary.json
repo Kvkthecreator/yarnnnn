@@ -1,0 +1,191 @@
+{
+  "user_id": "4c106786-c9b4-41cb-982d-0f5a8cc35923",
+  "n_turns": 6,
+  "closed": 6,
+  "errors": 0,
+  "mean_wall_s": 30.5,
+  "mean_rounds": 3.7,
+  "mean_tool_calls": 4.3,
+  "mean_response_chars": 364,
+  "models": [
+    "claude-sonnet-4-6"
+  ],
+  "total_est_cost_usd": 0.429,
+  "mean_est_cost_usd": 0.0715,
+  "sentinels": {
+    "silent_exits": 0,
+    "schedule_calls": 0
+  },
+  "turns": [
+    {
+      "idx": 1,
+      "ask": "What's in my workspace right now?",
+      "wall_s": 45.6,
+      "rounds": 5,
+      "n_tool_calls": 9,
+      "tool_calls": [
+        "ListFiles",
+        "GetSystemState",
+        "ReadFile",
+        "ListEntities",
+        "ListEntities",
+        "ReadFile",
+        "ReadFile",
+        "ReadFile",
+        "WriteFile"
+      ],
+      "response_chars": 382,
+      "verdict_reached": true,
+      "error": null,
+      "usage": {
+        "input_tokens": 11072,
+        "output_tokens": 1592,
+        "cache_read_tokens": 78283,
+        "cache_create_tokens": 23698,
+        "model": "claude-sonnet-4-6",
+        "tool_rounds": 5,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.1694
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
+    },
+    {
+      "idx": 2,
+      "ask": "I want to keep a note: our Q3 pricing decision is to hold the $19 tier until August. Make sure that's recorded somewhere sensible.",
+      "wall_s": 24.1,
+      "rounds": 3,
+      "n_tool_calls": 2,
+      "tool_calls": [
+        "WriteFile",
+        "EditFile"
+      ],
+      "response_chars": 315,
+      "verdict_reached": true,
+      "error": null,
+      "usage": {
+        "input_tokens": 3468,
+        "output_tokens": 821,
+        "cache_read_tokens": 61219,
+        "cache_create_tokens": 0,
+        "model": "claude-sonnet-4-6",
+        "tool_rounds": 3,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.0411
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
+    },
+    {
+      "idx": 3,
+      "ask": "Summarize what you've been doing in this workspace lately.",
+      "wall_s": 20.8,
+      "rounds": 2,
+      "n_tool_calls": 2,
+      "tool_calls": [
+        "ReadFile",
+        "ListFiles"
+      ],
+      "response_chars": 352,
+      "verdict_reached": true,
+      "error": null,
+      "usage": {
+        "input_tokens": 3205,
+        "output_tokens": 643,
+        "cache_read_tokens": 40838,
+        "cache_create_tokens": 0,
+        "model": "claude-sonnet-4-6",
+        "tool_rounds": 2,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.0315
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
+    },
+    {
+      "idx": 4,
+      "ask": "Is anything in the workspace out of place or needing cleanup?",
+      "wall_s": 33.2,
+      "rounds": 5,
+      "n_tool_calls": 4,
+      "tool_calls": [
+        "ListFiles",
+        "ReadFile",
+        "EditFile",
+        "EditFile"
+      ],
+      "response_chars": 306,
+      "verdict_reached": true,
+      "error": null,
+      "usage": {
+        "input_tokens": 10987,
+        "output_tokens": 1103,
+        "cache_read_tokens": 101981,
+        "cache_create_tokens": 0,
+        "model": "claude-sonnet-4-6",
+        "tool_rounds": 5,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.0801
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
+    },
+    {
+      "idx": 5,
+      "ask": "What connections and sources are currently feeding this workspace?",
+      "wall_s": 30.7,
+      "rounds": 4,
+      "n_tool_calls": 6,
+      "tool_calls": [
+        "list_integrations",
+        "GetSystemState",
+        "ListFiles",
+        "SearchFiles",
+        "SearchFiles",
+        "SearchFiles"
+      ],
+      "response_chars": 478,
+      "verdict_reached": true,
+      "error": null,
+      "usage": {
+        "input_tokens": 6026,
+        "output_tokens": 920,
+        "cache_read_tokens": 81600,
+        "cache_create_tokens": 0,
+        "model": "claude-sonnet-4-6",
+        "tool_rounds": 4,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.0564
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
+    },
+    {
+      "idx": 6,
+      "ask": "What should I look at first when I come back tomorrow?",
+      "wall_s": 28.8,
+      "rounds": 3,
+      "n_tool_calls": 3,
+      "tool_calls": [
+        "ReadFile",
+        "ListFiles",
+        "EditFile"
+      ],
+      "response_chars": 350,
+      "verdict_reached": true,
+      "error": null,
+      "usage": {
+        "input_tokens": 6264,
+        "output_tokens": 887,
+        "cache_read_tokens": 61219,
+        "cache_create_tokens": 0,
+        "model": "claude-sonnet-4-6",
+        "tool_rounds": 3,
+        "verdict": "stand_down",
+        "est_cost_usd": 0.0505
+      },
+      "schedule_calls": 0,
+      "silent_exit": false
+    }
+  ]
+}
