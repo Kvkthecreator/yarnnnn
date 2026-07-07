@@ -86,11 +86,21 @@ def test_routes() -> None:
 
     loop = asyncio.get_event_loop()
 
+    # The table is RLS service-role-only — the route must go through the
+    # service client (prod 42501 regression, 2026-07-07). Patch it per call.
+    def _with_service(client, coro_factory):
+        orig = ms.get_service_client
+        ms.get_service_client = lambda: client  # type: ignore
+        try:
+            return loop.run_until_complete(coro_factory())
+        finally:
+            ms.get_service_client = orig  # type: ignore
+
     # GET scopes by (workspace, principal, key)
     client = _FakeClient(rows=[{"value": {"a": 1}, "updated_at": "2026-07-05T00:00:00Z"}])
     token = wc.set_request_workspace(WS)
     try:
-        out = loop.run_until_complete(ms.get_member_state("shell", _FakeAuth(client)))
+        out = _with_service(client, lambda: ms.get_member_state("shell", _FakeAuth(_FakeClient())))
     finally:
         wc.reset_request_workspace(token)
     f = client.sink.get("filters", [])
@@ -108,7 +118,7 @@ def test_routes() -> None:
     client = _FakeClient(rows=[])
     token = wc.set_request_workspace(WS)
     try:
-        out = loop.run_until_complete(ms.get_member_state("attention", _FakeAuth(client)))
+        out = _with_service(client, lambda: ms.get_member_state("attention", _FakeAuth(_FakeClient())))
     finally:
         wc.reset_request_workspace(token)
     if out == {"key": "attention", "value": None, "updated_at": None}:
@@ -120,7 +130,7 @@ def test_routes() -> None:
     client = _FakeClient()
     token = wc.set_request_workspace(WS)
     try:
-        out = loop.run_until_complete(ms.put_member_state("shell", _FakeAuth(client), {"open": []}))
+        out = _with_service(client, lambda: ms.put_member_state("shell", _FakeAuth(_FakeClient()), {"open": []}))
     finally:
         wc.reset_request_workspace(token)
     ups = client.sink.get("upserts", [])
@@ -156,6 +166,21 @@ def test_routes() -> None:
         wc.effective_workspace_id = orig  # type: ignore
 
 
+def test_service_client_access() -> None:
+    """member_state is RLS service-role-only (migration 202) — the route must
+    reach the table via the service client. Using the user-JWT client passes
+    fakes but 42501s in prod (regression observed 2026-07-07)."""
+    src = (ROOT / "routes" / "member_state.py").read_text()
+    if "auth.client" in src:
+        _bad("routes: no user-JWT table access", "auth.client found — RLS is service-role-only")
+    else:
+        _ok("routes: no user-JWT table access")
+    if "get_service_client()" in src:
+        _ok("routes: table access via service client")
+    else:
+        _bad("routes: table access via service client", "get_service_client() not found")
+
+
 def test_registered() -> None:
     text = (ROOT / "main.py").read_text()
     if "member_state" in text and 'include_router(member_state.router, prefix="/api"' in text:
@@ -169,6 +194,7 @@ def main() -> int:
     print("=" * 60)
     test_migration_shape()
     test_routes()
+    test_service_client_access()
     test_registered()
     print("=" * 60)
     print(f"{len(_PASS)} passed, {len(_FAIL)} failed")

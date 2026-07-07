@@ -20,7 +20,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException
 
-from services.supabase import UserClient
+from services.supabase import UserClient, get_service_client
 from services.workspace_context import effective_workspace_id
 
 logger = logging.getLogger(__name__)
@@ -47,8 +47,11 @@ async def get_member_state(key: str, auth: UserClient) -> dict:
         raise HTTPException(status_code=400, detail="Invalid key")
     ws, principal = _scope(auth)
     try:
+        # member_state is RLS service-role-only (migration 202): authorization
+        # is the verified JWT principal + grant-checked workspace resolution,
+        # not client-role row policies — activity_log/wake_queue precedent.
         result = (
-            auth.client.table("member_state")
+            get_service_client().table("member_state")
             .select("value, updated_at")
             .eq("workspace_id", ws)
             .eq("principal_id", principal)
@@ -76,7 +79,7 @@ async def put_member_state(key: str, auth: UserClient, value: Any = Body(...)) -
         raise HTTPException(status_code=413, detail="member_state value too large")
     ws, principal = _scope(auth)
     try:
-        auth.client.table("member_state").upsert(
+        get_service_client().table("member_state").upsert(
             {
                 "workspace_id": ws,
                 "principal_id": principal,
