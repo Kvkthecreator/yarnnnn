@@ -48,37 +48,29 @@ def assertion_1_adr_exists():
 
 
 def assertion_2_programs_service_module_exists():
-    """services/programs.py exports parse_active_program_slug + strip_program_marker_from_mandate."""
+    """INVERTED by ADR-414 D5 (2026-07-07): the prose-marker pair is DELETED;
+    the grant-row resolver is the singular activation read."""
     assert PROGRAMS_SVC.exists(), f"services/programs.py missing"
     src = PROGRAMS_SVC.read_text()
-    assert "def parse_active_program_slug" in src, "parse_active_program_slug missing"
-    assert "def strip_program_marker_from_mandate" in src, "strip_program_marker_from_mandate missing"
+    assert "def parse_active_program_slug" not in src, (
+        "parse_active_program_slug reappeared — the activation record is a "
+        "grant row (ADR-414 D5)"
+    )
+    assert "def strip_program_marker_from_mandate" not in src, (
+        "strip_program_marker_from_mandate reappeared (ADR-414 D5)"
+    )
+    assert "def resolve_hired_program_slug" in src, (
+        "resolve_hired_program_slug missing — the singular activation read"
+    )
+    assert "def mint_hire_grant" in src and "def revoke_hire_grant" in src, (
+        "hire/fire grant helpers missing (ADR-414 D5)"
+    )
 
 
 def assertion_3_parse_active_program_slug_correctness():
-    """Parser returns slug for bundle template, None for kernel default."""
-    sys.path.insert(0, str(REPO_ROOT / "api"))
-    try:
-        from services.programs import (
-            parse_active_program_slug,
-            strip_program_marker_from_mandate,
-        )
-    finally:
-        sys.path.pop(0)
-
-    # Kernel-default + edge cases → None
-    assert parse_active_program_slug(None) is None
-    assert parse_active_program_slug("") is None
-    assert parse_active_program_slug("# Mandate") is None
-    assert parse_active_program_slug("## Section\n# Mandate") is None  # H2 first, no H1 marker
-    # Bundle template marker → slug
-    assert parse_active_program_slug("# Mandate — alpha-trader (template)\n\n## Body") == "alpha-trader"
-    assert parse_active_program_slug("# Mandate — alpha-commerce (template)") == "alpha-commerce"
-    # Marker strip
-    assert strip_program_marker_from_mandate("# Mandate — alpha-trader (template)\n\nbody") == "# Mandate\n\nbody"
-    # Idempotency
-    assert strip_program_marker_from_mandate("# Mandate\n\nbody") == "# Mandate\n\nbody"
-    assert strip_program_marker_from_mandate("") == ""
+    """RETIRED with the parser (ADR-414 D5) — the hire-grant lifecycle is
+    gated by assertion_2 + test_adr414_phase_d.py."""
+    pass
 
 
 def assertion_4_workspace_state_endpoint_registered():

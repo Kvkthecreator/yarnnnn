@@ -130,12 +130,19 @@ def _bust_bundle_caches():
     _load_manifest.cache_clear()
 
 
-# A MANDATE.md carrying the alpha-author program slug marker (frontmatter
-# `activated_bundle_version` + the heading marker parse_active_program_slug reads).
+# ADR-414 D5 (2026-07-07): the activation record is the HIRE GRANT ROW —
+# the MANDATE heading marker is deleted vocabulary. Tests stub the grant
+# resolver (the activation truth); _AUTHOR_MANDATE survives as plain file
+# content only (the heading is inert prose).
 _AUTHOR_MANDATE = (
     "---\nactivated_bundle_version: 2026-06-22.2\n---\n"
     "# Mandate — alpha-author\n\nAuthor founder corpus pieces.\n"
 )
+
+
+def _stub_hire(monkeypatch, slug="alpha-author"):
+    import services.programs as programs
+    monkeypatch.setattr(programs, "resolve_hired_program_slug", lambda user_id: slug)
 
 
 # =============================================================================
@@ -144,33 +151,31 @@ _AUTHOR_MANDATE = (
 # =============================================================================
 
 
-def test_activated_bundle_resolves_without_its_gated_connection():
+def test_activated_bundle_resolves_without_its_gated_connection(monkeypatch):
     _bust_bundle_caches()
     from services.bundle_reader import (
         bundles_active_for_workspace,
         get_ground_truth_for_workspace,
     )
-    from services.programs import parse_active_program_slug
+    import services.programs as programs
 
-    # The funded-workspace shape: alpha-author activated (slug marker), NO reddit
-    # connection (only slack/notion/github — none of which alpha-author requires).
+    # The funded-workspace shape: alpha-author HIRED (grant row — stubbed),
+    # NO reddit connection (only slack/notion — neither required).
+    monkeypatch.setattr(
+        programs, "resolve_hired_program_slug", lambda user_id: "alpha-author"
+    )
     client = _Client(
         connections=[
             {"user_id": "u", "platform": "slack", "status": "active", "created_at": "2026-01-01T00:00:00Z"},
             {"user_id": "u", "platform": "notion", "status": "active", "created_at": "2026-01-02T00:00:00Z"},
         ],
-        files=[
-            {"user_id": "u", "path": "/workspace/constitution/MANDATE.md", "content": _AUTHOR_MANDATE},
-        ],
+        files=[],
     )
-
-    check(parse_active_program_slug(_AUTHOR_MANDATE) == "alpha-author",
-          "FIX1: MANDATE slug marker parses to alpha-author")
 
     bundles = bundles_active_for_workspace("u", client)
     slugs = [b.get("slug") for b in bundles]
     check("alpha-author" in slugs,
-          "FIX1: activated alpha-author resolves active WITHOUT a reddit connection "
+          "FIX1: hired alpha-author resolves active WITHOUT a reddit connection "
           f"(got {slugs})")
 
     gt = get_ground_truth_for_workspace("u", client)
@@ -243,10 +248,11 @@ _JUDGMENT_LOG_AGENT_OVERWRITE = (
 )
 
 
-def test_gap_fact_joins_from_action_proposals():
+def test_gap_fact_joins_from_action_proposals(monkeypatch):
     """D2a: the gap-fact joins a DECIDED action_proposals verdict to its ground-truth
     outcome by proposal_id, with the ground-truth read /workspace/-prefixed (FIX 2)."""
     _bust_bundle_caches()
+    _stub_hire(monkeypatch)
     from services.freddie_envelope import _reflection_gap_fact
 
     client = _Client(
@@ -271,7 +277,7 @@ def test_gap_fact_joins_from_action_proposals():
           "D2a: gap-fact carries the verdict headline from reviewer_reasoning")
 
 
-def test_gap_fact_survives_judgment_log_overwrite():
+def test_gap_fact_survives_judgment_log_overwrite(monkeypatch):
     """D2a — THE defect this fix closes: an agent WriteFile that overwrites
     judgment_log.md into the pre-ship-audit shape (destroying every
     `--- decision ---` block) must NOT darken the gap-fact. The verdict source is
@@ -299,11 +305,12 @@ def test_gap_fact_survives_judgment_log_overwrite():
           f"action_proposals, agent-tamper-proof) (got {gap!r})")
 
 
-def test_gap_fact_only_joins_decided_proposals():
+def test_gap_fact_only_joins_decided_proposals(monkeypatch):
     """D2a: a PENDING proposal carries no verdict yet → it must NOT join, even with a
     matching ground-truth event. Only decided statuses (approved/executed/rejected)
     are the verdict-of-record."""
     _bust_bundle_caches()
+    _stub_hire(monkeypatch)
     from services.freddie_envelope import _reflection_gap_fact
 
     pending = dict(_PROPOSAL, status="pending")
@@ -320,10 +327,11 @@ def test_gap_fact_only_joins_decided_proposals():
           f"D2a: a pending (undecided) proposal does not join the gap-fact (got {gap!r})")
 
 
-def test_gap_fact_empty_without_joinable_outcome():
+def test_gap_fact_empty_without_joinable_outcome(monkeypatch):
     """Negative control: a decided verdict with NO matching outcome event → gap-fact
     silent (the join keys on proposal_id overlap — the continuity-eval control case)."""
     _bust_bundle_caches()
+    _stub_hire(monkeypatch)
     from services.freddie_envelope import _reflection_gap_fact
 
     signal_no_match = (

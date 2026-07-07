@@ -246,25 +246,13 @@ def bundles_active_for_workspace(user_id: str, client: Any) -> list[dict[str, An
 
     connected_platforms = {r["platform"] for r in (rows.data if rows else [])}
 
-    # 2026-06-04: a bundle that requires NO platform connection
-    # (e.g. alpha-author — read_uploads + websearch only) cannot be
-    # resolved by the connected-platform filter. Its activation signal is
-    # the operator's activated program (the MANDATE.md slug marker written
-    # at fork time per ADR-226), not a platform connection. Read it once so
-    # connection-less bundles resolve when the operator has activated them.
+    # ADR-414 D5: the activation signal is the HIRE GRANT ROW (a bundle
+    # that requires no platform connection resolves through it; the old
+    # MANDATE.md heading marker is deleted vocabulary).
     activated_slug: Optional[str] = None
     try:
-        mandate = (
-            client.table("workspace_files")
-            .select("content")
-            .eq(*substrate_scope_filter(user_id))
-            .eq("path", "/workspace/constitution/MANDATE.md")
-            .limit(1)
-            .execute()
-        )
-        if mandate.data:
-            from services.programs import parse_active_program_slug
-            activated_slug = parse_active_program_slug(mandate.data[0].get("content"))
+        from services.programs import resolve_hired_program_slug
+        activated_slug = resolve_hired_program_slug(user_id)
     except Exception as exc:
         logger.warning(f"[BUNDLE_READER] activated-program lookup failed: {exc}")
 

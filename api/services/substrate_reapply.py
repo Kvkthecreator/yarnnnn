@@ -343,13 +343,10 @@ async def bundle_update_available(
     affordance only when this returns non-None.
     """
     from services.bundle_reader import get_bundle_version
-    from services.programs import parse_active_program_slug
-    from services.workspace import UserMemory
-    from services.workspace_paths import CONSTITUTION_MANDATE_PATH
+    from services.programs import resolve_hired_program_slug
 
-    um = UserMemory(client, user_id)
-    mandate_content = await um.read(CONSTITUTION_MANDATE_PATH)
-    program_slug = parse_active_program_slug(mandate_content)
+    # ADR-414 D5: the activation record is the hire grant row.
+    program_slug = resolve_hired_program_slug(user_id)
     if not program_slug:
         return None
 
@@ -692,7 +689,7 @@ async def apply_substrate_update(
     """
     from services.bundle_reader import get_bundle_version
     from services.orchestration import KERNEL_VERSION
-    from services.programs import parse_active_program_slug
+    from services.programs import resolve_hired_program_slug
     from services.workspace import UserMemory
     from services.workspace_paths import CONSTITUTION_MANDATE_PATH
 
@@ -700,7 +697,9 @@ async def apply_substrate_update(
 
     um = UserMemory(client, user_id)
     mandate_content = await um.read(CONSTITUTION_MANDATE_PATH)
-    program_slug = parse_active_program_slug(mandate_content)
+    # ADR-414 D5: the activation record is the hire grant row; MANDATE.md is
+    # still read for the version frontmatter below, never for activation.
+    program_slug = resolve_hired_program_slug(user_id)
     bundle_from, kernel_from = _read_workspace_versions(mandate_content)
 
     bundle_to: Optional[str] = None

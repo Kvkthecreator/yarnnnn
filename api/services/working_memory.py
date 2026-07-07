@@ -188,8 +188,9 @@ async def build_working_memory(
     # capability-gap walk below. Same derivation as the workspace-state
     # surface (routes/workspace.py via services.programs). Lazy import to
     # match the module's managed bundle_reader↔programs import cycle.
-    from services.programs import resolve_active_program_slug, compute_capability_gaps
-    _active_program_slug = resolve_active_program_slug(mandate_content)
+    from services.programs import resolve_hired_program_slug, compute_capability_gaps
+    # ADR-414 D5: the activation record is the hire grant row, not a prose marker.
+    _active_program_slug = resolve_hired_program_slug(user_id)
 
     working_memory = {
         "preferences": _extract_preferences_from_file(memory_files.get("style.md")),

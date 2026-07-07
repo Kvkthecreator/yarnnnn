@@ -159,10 +159,10 @@ def _preflight(client) -> int:
         if _file_exists(client, p):
             bare = False
             print(f"  [FAIL] program substrate present: {p}")
-    from services.programs import parse_active_program_slug
+    from services.programs import resolve_hired_program_slug
     slug = None
     try:
-        slug = parse_active_program_slug(mandate)
+        slug = resolve_hired_program_slug(USER_ID)  # ADR-414 D5: grant row, not prose marker
     except Exception:
         pass
     # 'the' is the known benign false-positive (the prose word in the steward

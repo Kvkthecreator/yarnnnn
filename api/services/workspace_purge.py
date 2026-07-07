@@ -131,23 +131,20 @@ async def capture_active_program_slug(client: Any, user_id: str) -> Optional[str
 
     ADR-244 D4: the operator's *choice* of program survives an L2/L4 purge so the
     reinit can re-fork the bundle. Their authored content does not (it's part of
-    what they chose to clear). The slug lives as a marker in the MANDATE.md first
-    heading (`# Mandate — {slug}`); `parse_active_program_slug` returns None for
-    any other heading shape, and `_all_slugs()` validates it's a real bundle.
+    what they chose to clear). ADR-414 D5: the choice is recorded as the HIRE
+    GRANT ROW (principal_grants, role='own-agent'), which survives a file purge
+    by construction; `resolve_hired_program_slug` validates against the registry.
 
     Best-effort: a failure here is non-fatal (returns None — operator can
     re-activate from the Workspace tab), never a correctness invariant.
     """
     try:
-        from services.workspace import UserMemory
-        from services.workspace_paths import CONSTITUTION_MANDATE_PATH
-        from services.programs import parse_active_program_slug
-        from services.bundle_reader import _all_slugs
+        from services.programs import resolve_hired_program_slug
 
-        um = UserMemory(client, user_id)
-        mandate_pre = await um.read(CONSTITUTION_MANDATE_PATH)
-        candidate = parse_active_program_slug(mandate_pre)
-        if candidate and candidate in _all_slugs():
+        # ADR-414 D5: the activation record is the hire grant row (which
+        # survives an L2 file purge by construction — grants are not files).
+        candidate = resolve_hired_program_slug(user_id)
+        if candidate:
             logger.info(
                 f"[PURGE] User {user_id} — captured active program for re-fork: {candidate}"
             )

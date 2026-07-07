@@ -2074,7 +2074,7 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
     )
     from services.working_memory import _classify_activation_state
     from services.bundle_reader import _all_slugs, _load_manifest
-    from services.programs import resolve_active_program_slug, compute_capability_gaps
+    from services.programs import resolve_hired_program_slug, compute_capability_gaps
 
     # ─── Step 1: lazy roster scaffolding ────────────────────────────────
     try:
@@ -2142,7 +2142,8 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
     # raising TypeError that swallowed the program slug for every workspace.)
     # Both the slug-resolve and the capability-gap walk now go through the
     # shared services.programs helpers — same derivation working_memory uses.
-    active_program_slug: Optional[str] = resolve_active_program_slug(mandate_content)
+    # ADR-414 D5: the activation record is the hire grant row, not a prose marker.
+    active_program_slug: Optional[str] = resolve_hired_program_slug(auth.user_id)
     activation_state = "none"
     try:
         activation_state = _classify_activation_state(

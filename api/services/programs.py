@@ -1,13 +1,19 @@
 """Programs service helpers — program lifecycle + bundle fork.
 
-ADR-244: parse_active_program_slug / strip_program_marker_from_mandate are shared
-between routes/workspace.py (workspace state), routes/programs.py (activate/deactivate),
-and routes/account.py (purge program preservation).
+ADR-414 D5 (2026-07-07): **the activation record is a GRANT ROW** — a
+`principal_grants` row (role='own-agent', principal_id='program:{slug}')
+minted at fork, revoked at deactivation. The prose-marker pair
+(`parse_active_program_slug` / `resolve_active_program_slug` /
+`strip_program_marker_from_mandate` + the heading regex) is DELETED.
+`resolve_hired_program_slug(user_id)` is the singular activation
+read for every consumer (workspace state, working memory, bundle_reader,
+substrate reapply, purge capture, deactivate).
 
 ADR-226: _fork_reference_workspace + helpers relocated here 2026-05-03 from
-workspace_init.py. The fork is program-bundle logic, not initialization logic.
-routes/programs.py and workspace_init.py both call fork_reference_workspace()
-from here. Single implementation.
+workspace_init.py. The fork is program-bundle logic, not initialization
+logic. Post-ADR-414 D4, workspace_init never forks — routes/programs.py
+(activate) and the L2/L4 reinit callers invoke fork_reference_workspace()
+directly. Single implementation.
 """
 
 from __future__ import annotations
@@ -20,112 +26,115 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
-# Bundle template heading shape produced by `_fork_reference_workspace`:
-#   "# Mandate — alpha-trader (template)"
-# The em-dash separator is intentional — kernel-default MANDATE.md (no
-# program) uses "# Mandate" with no em-dash, so the parser distinguishes
-# program-active workspaces from kernel-default workspaces by looking
-# for the em-dash on the first heading line.
-_TEMPLATE_HEADING_RE = re.compile(
-    r"^#\s+\S+\s+—\s+(?P<slug>[a-z0-9][a-z0-9\-]*)\b",
-    re.IGNORECASE,
-)
+# =============================================================================
+# The activation record is a GRANT ROW (ADR-414 D5 — program-as-hire)
+# =============================================================================
+# The prose marker (`# Mandate — {slug} (template)` parsed by a heading
+# regex) is DELETED VOCABULARY. Activation mints a `principal_grants` row
+# (role='own-agent', principal_id='program:{slug}'); deactivation revokes
+# it. DP33: the agent count is data. A bundle MANDATE heading that still
+# carries an em-dash is inert prose the operator may edit freely.
+# Backfill for live workspaces: scripts/oneshot/adr414_backfill_program_hire_grants.py.
+
+HIRE_GRANT_ROLE = "own-agent"
+HIRE_GRANT_PREFIX = "program:"
+HIRE_GRANTED_BY = "system:program-hire"
 
 
-def parse_active_program_slug(mandate_content: Optional[str]) -> Optional[str]:
-    """Return the active program slug parsed from MANDATE.md, or None.
-
-    The active program slug lives as a marker in the MANDATE.md first heading:
-    `# Mandate — {slug} (template)`. Bundle forks write this heading at fork
-    time per `_fork_reference_workspace` (ADR-226). The kernel-default
-    MANDATE.md heading is just `# Mandate` (no em-dash).
-
-    The parser is intentionally tolerant — it returns None for any shape it
-    doesn't recognise, including:
-      - empty / whitespace-only content
-      - kernel-default heading (`# Mandate` with no em-dash)
-      - operator-rewritten heading that no longer carries the marker
-      - heading with em-dash but slug not in the bundle registry
-        (the caller is responsible for validation against `_all_slugs()`;
-        this function only parses, doesn't validate)
-
-    Used by:
-      - `routes/workspace.py::get_workspace_state` — surface signal
-      - `routes/programs.py::deactivate_program` — read prior slug for response
-      - `routes/account.py::clear_workspace` / `reset_account` — preserve
-        program activation across L2/L4 purges per ADR-244 D4
-    """
-    if not mandate_content:
-        return None
-
-    for raw_line in mandate_content.splitlines():
-        stripped = raw_line.strip()
-        if not stripped.startswith("# "):
-            continue
-        # First H1 only; subsequent ones are section headers.
-        match = _TEMPLATE_HEADING_RE.match(stripped)
-        if match:
-            return match.group("slug")
-        # First heading found but no marker — return None (kernel default
-        # or operator rewrote the heading).
-        return None
-    return None
+def hire_grant_principal_id(slug: str) -> str:
+    """The hired agent's principal id — `program:{slug}` (ADR-414 D5)."""
+    return f"{HIRE_GRANT_PREFIX}{slug}"
 
 
-def strip_program_marker_from_mandate(mandate_content: str) -> str:
-    """Return MANDATE.md content with the program marker removed.
+def resolve_hired_program_slug(user_id: str) -> Optional[str]:
+    """Return the workspace's hired program slug from the grant row, or None.
 
-    Rewrites `# Mandate — alpha-trader (template)` → `# Mandate`. Body
-    untouched. Used by `POST /api/programs/deactivate` per ADR-244 D3 to
-    sever the bundle's idempotent re-fork relationship without touching
-    operator-authored content.
+    THE singular activation read (replaces the deleted
+    `parse_active_program_slug` / `resolve_active_program_slug` prose-marker
+    pair). Reads the active `principal_grants` row with role='own-agent'
+    and principal_id prefixed `program:`; validates the slug against the
+    bundle registry. Uses the service client — grants are RLS
+    service-role-only (ADR-373), and the activation fact is workspace
+    infrastructure, not caller-scoped data.
 
-    If no marker is present, returns content unchanged. Idempotent.
-    """
-    if not mandate_content:
-        return mandate_content
-
-    lines = mandate_content.splitlines(keepends=True)
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped.startswith("# "):
-            continue
-        if _TEMPLATE_HEADING_RE.match(stripped):
-            # Preserve the line-ending of the original line.
-            ending = ""
-            if line.endswith("\r\n"):
-                ending = "\r\n"
-            elif line.endswith("\n"):
-                ending = "\n"
-            # Extract the heading word (typically "Mandate" — preserve case).
-            word = stripped.split()[1] if len(stripped.split()) >= 2 else "Mandate"
-            lines[i] = f"# {word}{ending}"
-        # First heading processed; stop.
-        break
-
-    return "".join(lines)
-
-
-def resolve_active_program_slug(mandate_content: Optional[str]) -> Optional[str]:
-    """Parse the active program slug from MANDATE.md AND validate it against
-    the bundle registry. Returns the slug only when it's a registered bundle.
-
-    This is the validated wrapper around `parse_active_program_slug` — the
-    parse-then-membership-check pairing both the workspace-state surface
-    (`routes/workspace.py`) and working memory (`working_memory.py`) need.
-    Singular implementation: the parse/validate dance lives here once, not
-    re-inlined per caller (the divergence that let a stale call site silently
-    null the slug on one surface while the other stayed correct).
+    Tolerant: returns None on any failure (no grant, unresolvable
+    workspace, unregistered slug) — never raises, never blocks a read.
     """
     try:
         from services.bundle_reader import _all_slugs
+        from services.supabase import get_service_client
+        from services.workspace_context import effective_workspace_id
 
-        candidate = parse_active_program_slug(mandate_content)
-        if candidate and candidate in _all_slugs():
-            return candidate
+        ws = effective_workspace_id(user_id)
+        if not ws:
+            return None
+        rows = (
+            get_service_client()
+            .table("principal_grants")
+            .select("principal_id")
+            .eq("workspace_id", ws)
+            .eq("role", HIRE_GRANT_ROLE)
+            .eq("status", "active")
+            .like("principal_id", f"{HIRE_GRANT_PREFIX}%")
+            .limit(1)
+            .execute()
+        )
+        if rows.data:
+            candidate = rows.data[0]["principal_id"][len(HIRE_GRANT_PREFIX):]
+            if candidate in _all_slugs():
+                return candidate
     except Exception:  # pragma: no cover — defensive; never block the read
         pass
     return None
+
+
+def mint_hire_grant(user_id: str, slug: str) -> Optional[dict]:
+    """Record the hire — idempotent grant mint (ADR-414 D5).
+
+    Called by `fork_reference_workspace` after a successful fork. Best-effort:
+    a grant failure never breaks the fork (the resolver simply reports no
+    hire until the next fork/backfill re-mints).
+    """
+    try:
+        from services.principal_grants import ensure_principal_grant
+        from services.workspace_context import effective_workspace_id
+
+        ws = effective_workspace_id(user_id)
+        if not ws:
+            logger.warning(
+                "[PROGRAMS] hire grant skipped — workspace unresolvable for %s",
+                user_id[:8],
+            )
+            return None
+        return ensure_principal_grant(
+            principal_id=hire_grant_principal_id(slug),
+            workspace_id=ws,
+            role=HIRE_GRANT_ROLE,
+            granted_by=HIRE_GRANTED_BY,
+        )
+    except Exception as exc:  # pragma: no cover — best-effort
+        logger.warning("[PROGRAMS] hire grant mint failed for %s: %s", slug, exc)
+        return None
+
+
+def revoke_hire_grant(user_id: str, slug: str) -> bool:
+    """Record the fire — deactivation revokes the hire grant (ADR-414 D5)."""
+    try:
+        from services.supabase import get_service_client
+        from services.workspace_context import effective_workspace_id
+
+        ws = effective_workspace_id(user_id)
+        if not ws:
+            return False
+        get_service_client().table("principal_grants").update(
+            {"status": "revoked"}
+        ).eq("workspace_id", ws).eq(
+            "principal_id", hire_grant_principal_id(slug)
+        ).eq("status", "active").execute()
+        return True
+    except Exception as exc:  # pragma: no cover — best-effort
+        logger.warning("[PROGRAMS] hire grant revoke failed for %s: %s", slug, exc)
+        return False
 
 
 def compute_capability_gaps(
@@ -798,6 +807,10 @@ async def fork_reference_workspace(
                 f"[FORK] materialize_capture_index failed for {user_id[:8]}: {exc}"
             )
 
+    # ADR-414 D5: record the HIRE — the activation record is a grant row,
+    # not a prose marker. Idempotent (re-fork re-ensures the same grant).
+    hire_grant = mint_hire_grant(user_id, program_slug)
+
     return {
         "files_written": files_written,
         "files_skipped": files_skipped,
@@ -808,4 +821,5 @@ async def fork_reference_workspace(
         "capture_index_rows": capture_index_rows,  # ADR-393
         "preferences_seeded": prefs_seeded,  # ADR-275 D9 (2026-05-21)
         "preferences_skipped_already_present": prefs_skipped,  # ADR-275 D9
+        "hire_grant_minted": bool(hire_grant),  # ADR-414 D5
     }

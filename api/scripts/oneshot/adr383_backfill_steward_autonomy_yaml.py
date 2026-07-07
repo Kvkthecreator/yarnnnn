@@ -76,14 +76,14 @@ def backfill_workspace(client, user_id: str, dry_run: bool = False) -> dict:
     """Write the steward autonomy default IFF the workspace is no-program and
     is missing the file. Idempotent — never overwrites existing content."""
     from services.orchestration import DEFAULT_AUTONOMY_YAML
-    from services.programs import resolve_active_program_slug
+    from services.programs import resolve_hired_program_slug  # ADR-414 D5
     from services.authored_substrate import write_revision
 
     result = {"user_id": user_id, "action": None, "reason": None}
 
     # (b) skip program-activated workspaces — their _autonomy.yaml is bundle-owned.
     mandate = _read_content(client, user_id, MANDATE_PATH)
-    program_slug = resolve_active_program_slug(mandate)
+    program_slug = resolve_hired_program_slug(user_id)  # ADR-414 D5 (was: mandate)
     if program_slug:
         result["action"] = "skip"
         result["reason"] = f"program active ({program_slug}) — autonomy is bundle-owned"

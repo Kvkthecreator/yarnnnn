@@ -188,21 +188,12 @@ async def deactivate_program(auth: UserClient) -> dict:
     Response:
       { schema_version: 1, deactivated: bool, prior_program_slug: str | null }
     """
-    from services.workspace import UserMemory
-    from services.workspace_paths import CONSTITUTION_MANDATE_PATH
-    from services.programs import (
-        parse_active_program_slug,
-        strip_program_marker_from_mandate,
-    )
+    # ADR-414 D5: deactivation is a FIRE — revoke the hire grant. The
+    # MANDATE.md content is untouched (the old heading marker is inert
+    # prose the operator owns; the prose-strip write is deleted).
+    from services.programs import resolve_hired_program_slug, revoke_hire_grant
 
-    um = UserMemory(auth.client, auth.user_id)
-    try:
-        mandate_content = await um.read(CONSTITUTION_MANDATE_PATH)
-    except Exception as exc:
-        logger.exception(f"[DEACTIVATE] MANDATE.md read failed for {auth.user_id[:8]}")
-        raise HTTPException(status_code=500, detail=str(exc))
-
-    prior_slug = parse_active_program_slug(mandate_content)
+    prior_slug = resolve_hired_program_slug(auth.user_id)
     if not prior_slug:
         return {
             "schema_version": 1,
@@ -211,18 +202,11 @@ async def deactivate_program(auth: UserClient) -> dict:
             "reason": "no_active_program",
         }
 
-    new_content = strip_program_marker_from_mandate(mandate_content or "")
-    try:
-        await um.write(
-            CONSTITUTION_MANDATE_PATH,
-            new_content,
-            summary="Mandate (program deactivated)",
-            authored_by="system:program-deactivate",
-            message=f"deactivate program: {prior_slug}",
+    if not revoke_hire_grant(auth.user_id, prior_slug):
+        logger.exception(
+            f"[DEACTIVATE] hire-grant revoke failed for {auth.user_id[:8]}"
         )
-    except Exception as exc:
-        logger.exception(f"[DEACTIVATE] MANDATE.md write failed for {auth.user_id[:8]}")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="hire grant revoke failed")
 
     logger.info(
         f"[DEACTIVATE] User {auth.user_id[:8]} deactivated program={prior_slug}"
