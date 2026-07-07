@@ -346,10 +346,17 @@ SYSTEMIC_AGENTS: dict[str, dict[str, Any]] = {
     # persona-bearing Agent (ADR-216 D3). See ADR-216 for full reframe.
     # ADR-251: cockpit label "System Agent"; Reviewer now first-class surface.
 
+    # ADR-414 D3 (2026-07-07): RETIRED as an entity template. The agents-table
+    # row is gone (migration 205; workspace_init no longer scaffolds it) —
+    # there is ONE system agent (Freddie) and the rail is its voice. This
+    # entry survives ONLY as a data-compat classifier for legacy references
+    # (`classify_role`, historic revision attribution); display_name is no
+    # longer "System Agent" — that name belongs to Freddie alone (the
+    # Workspace Settings → System Agent panes, ADR-412 D5).
     "thinking_partner": {
-        "class": "meta-cognitive",  # data-compat enum — maps to "System Agent" at display layer (ADR-251)
+        "class": "meta-cognitive",  # data-compat enum (legacy rows/classifiers only)
         "domain": None,
-        "display_name": "System Agent",
+        "display_name": "YARNNN (retired row template — ADR-414 D3)",
         "tagline": "Executes declared work. Narrates what happened.",
         "capabilities": [
             "read_workspace", "write_workspace", "search_knowledge",

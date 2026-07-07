@@ -118,44 +118,17 @@ async def initialize_workspace(
         logger.info(f"[WORKSPACE_INIT] Workspace already initialized for {user_id[:8]}")
 
     # =========================================================================
-    # Phase 1: YARNNN agent row — sole infrastructure agent at signup (ADR-205)
+    # Phase 1: RETIRED — the thinking_partner agents row (ADR-414 D3)
     # =========================================================================
-    # Specialists + Platform Bots are lazy-created. YARNNN is scaffolded here
-    # because it is the persistent system identity that owns back-office tasks.
-    # ADR-205: no pre-created directories — substrate grows from work.
+    # The ADR-216 "pragmatic implementation substrate" row is gone: nothing
+    # reads it at runtime (feed/MCP key on chat_sessions.session_type; the
+    # roster filtered it out since ADR-272; back-office task ownership
+    # dissolved with ADR-260/261). There is ONE system agent — Freddie — and
+    # the rail is its voice; scaffolding a second entity labeled
+    # "System Agent" was the naming collision ADR-414 D3 resolves.
+    # Migration 205 deleted the live rows. `session_type='thinking_partner'`
+    # survives on chat_sessions as a data-compat slug (GLOSSARY exception).
     result["directories_scaffolded"] = []
-    # Specialists + Platform Bots are lazy-created. YARNNN is scaffolded here
-    # because it owns back-office tasks (ADR-164) which run on the workspace
-    # heartbeat from day one. Idempotent — skips if already present.
-    try:
-        from services.orchestration import ALL_ROLES
-        from services.agent_creation import create_agent_record
-
-        yarnnn_existing = (
-            client.table("agents")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("role", "thinking_partner")
-            .eq("origin", "system_bootstrap")
-            .limit(1)
-            .execute()
-        )
-        if not (yarnnn_existing.data or []):
-            yarnnn_template = ALL_ROLES.get("thinking_partner", {})
-            await create_agent_record(
-                client=client,
-                user_id=user_id,
-                title=yarnnn_template.get("display_name", "Thinking Partner"),
-                role="thinking_partner",
-                origin="system_bootstrap",
-                agent_instructions=yarnnn_template.get("default_instructions", ""),
-            )
-            result["agents_created"].append("Thinking Partner")
-            logger.info(f"[WORKSPACE_INIT] Agent: YARNNN (thinking_partner) — sole signup scaffold (ADR-205)")
-        else:
-            logger.info(f"[WORKSPACE_INIT] YARNNN already exists, skipping")
-    except Exception as e:
-        logger.error(f"[WORKSPACE_INIT] YARNNN scaffold FAILED — workspace has no heartbeat: {e}")
 
     # =========================================================================
     # Phase 2: Workspace skeleton files (ADR-206)

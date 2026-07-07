@@ -66,3 +66,21 @@ def test_roster_synthesis_is_gone():
         "the Freddie roster-card synthesis reappeared — the roster is "
         "Altitude 3 only (ADR-412 D5 / ADR-414 D3)"
     )
+
+
+def test_init_never_scaffolds_the_thinking_partner_row():
+    """B3 (ADR-414 D3): one system agent — genesis never creates a second.
+
+    Migration 205 deleted the live rows; this keeps the scaffold deleted.
+    The `session_type='thinking_partner'` chat-sessions slug is data-compat
+    and allowed; the agents-table ROW creation is not.
+    """
+    src = _src("services/workspace_init.py")
+    assert "create_agent_record" not in src, (
+        "workspace_init regressed to scaffolding an agents-table row at "
+        "genesis (ADR-414 D3: the thinking_partner row is retired; "
+        "migration 205)"
+    )
+    assert 'eq("role", "thinking_partner")' not in src, (
+        "workspace_init re-grew a thinking_partner row lookup (ADR-414 D3)"
+    )
