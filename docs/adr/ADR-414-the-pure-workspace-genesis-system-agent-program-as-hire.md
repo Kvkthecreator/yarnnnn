@@ -362,7 +362,19 @@ data migration.
    ABI — `bundles_active_for_workspace`); only the **hire grant**
    installs judgment. The envelope's judgment-home re-point keys on
    `resolve_hired_program_slug` (the grant), never on `program_active`
-   (which a connection alone can raise).
+   (which a connection alone can raise). **Cleanup amendment (2026-07-08,
+   CHANGELOG `[2026.07.08.2]`):** the D+E-2 re-point applied this rule to
+   the judgment-home *read* keys but left the operation-machinery *gate*
+   (`specs_inventory`/`reflection_gap_fact`/pulse/`calibration_md`/
+   `expected_output_yaml`) still keyed on `program_active` — so a
+   connection-only workspace (Alpaca connected, trader never hired) mounted
+   operation machinery reading steward-era workspace-root paths for an
+   operation it had never hired (the incoherent `expected_output` steward
+   fallback). The gate now keys on `judgment_home` uniformly with the read
+   re-point; the steward-path fallback is deleted (only reachable in that
+   incoherent state). Byte-identical for both a bare steward (no hire →
+   omitted, as before) and a genuine hire (mounted from the agent home, as
+   before) — only the connection-without-hire state changes, correctly.
 3. **Envelope re-point (read side).** When a hire exists, the judgment
    load-out (identity/principles/mandate/autonomy/preferences/
    standing-intent + the program-active `expected_output`) reads from

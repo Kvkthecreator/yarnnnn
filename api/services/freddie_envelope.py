@@ -106,9 +106,9 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     # capital-OPERATION machinery (the output contract, the pulse, the cadence-vs-
     # outcome calibration) — a bare steward has no operation that owes output, no
     # cadence it must calibrate. They moved OUT of the universal set into the
-    # program-active branch of load_freddie_governance_envelope so a bare steward
+    # hired-agent branch of load_freddie_governance_envelope so a bare steward
     # never reads (nor renders) them. Single-ownership: each is read in exactly
-    # ONE place, gated on program_active. See ADR-390 D3.
+    # ONE place, gated on `judgment_home` (the hire grant — ADR-414 D5). See ADR-390 D3.
 ]
 
 # ADR-414 D5/§9a — the judgment-home override. The paths above are the
@@ -123,7 +123,7 @@ _JUDGMENT_HOME_FILES: dict[str, str] = {
     "autonomy_md": "AUTONOMY.md",
     "preferences_yaml": "_preferences.yaml",
     "standing_intent_md": "standing_intent.md",
-    # program-active branch (not in _UNIVERSAL_ENVELOPE_DECLS):
+    # hired-agent branch (not in _UNIVERSAL_ENVELOPE_DECLS):
     "expected_output_yaml": "_expected_output.yaml",
 }
 
@@ -401,16 +401,13 @@ async def load_freddie_governance_envelope(
         # generic renderer skips keys already rendered with a bespoke header.
         envelope["_program_envelope_keys"] = list(program_keys)
 
-    # --- The program-active predicate (ADR-390 removal pass) ---
-    # The SINGLE predicate the envelope-by-agent-kind gate keys on. A workspace
-    # runs a program iff its active bundle declared wake-envelope substrate —
-    # exactly `program_decls` (sourced from bundle_reader.get_substrate_abi_for_
-    # workspace → bundles_active_for_workspace, the canonical connection-or-
-    # MANDATE-slug activation truth). No new concept: a bundle that ships ground-
-    # truth/risk/signals to the envelope IS an operation; a bare steward ships
-    # none. This is the ADR-383 two-order base-case/overlay boundary made
-    # structural — the steward is the base envelope; a program ADDS its machinery.
-    program_active = bool(program_decls)
+    # NOTE on activation signals (ADR-414 D5): `program_decls` above drove the
+    # program-shaped READS (ground-truth/risk/signals) — that is the CONNECTION-
+    # or-hire chrome truth (a platform connection alone raises it). The operation-
+    # machinery gate below keys on `judgment_home` (the HIRE GRANT) instead — the
+    # installed-judgment signal, which a bare connection does NOT raise. Two
+    # distinct signals, deliberately: chrome follows connection; machinery follows
+    # the hire.
 
     # --- Operating Context (ADR-274 + ADR-301 D5 consolidation) ---
     # now/tz/tenure. Steward-base — a steward reasons about time regardless of
@@ -432,22 +429,30 @@ async def load_freddie_governance_envelope(
     envelope["attribution_fact"] = await _attribution_fact(client, user_id)
     envelope["peripheral_field_fact"] = await _peripheral_field_fact(client, user_id)
 
-    # --- Operation machinery (program-active ONLY — ADR-390 D3 removal pass) ---
+    # --- Operation machinery (HIRED-AGENT ONLY — ADR-390 D3 + ADR-414 D5) ---
     # specs inventory, the reflection gap-fact, pulse (schedule/recent-execution),
     # calibration, and the expected-output contract are ALL capital-operation
     # machinery: they describe a value-moving operation's specs, its closed
     # intent→outcome loop, its cadence-vs-outcome calibration, and its output
     # contract. A BARE STEWARD has no operation — it does not run cadence it must
     # calibrate, has no ground-truth outcomes to reflect on, no specs, no owed
-    # output. Rendering empty-state scaffolding for all of it ("(empty — kernel
-    # mirror hasn't run yet)") DILUTED the steward's attention across machinery
-    # for an operation it doesn't have — the accretion the ADR-390 reassessment
-    # named (envelope had grown to 63 sections; the steward's actual judgment was
-    # one voice among many). Gated behind program_active: the steward base
-    # envelope omits them entirely (not even empty-state headers); a program
-    # MOUNTS them. The keys are still set (empty when not program-active) so the
-    # FreddieContext shape is stable and the render layer skips empties.
-    if program_active:
+    # output. Rendering empty-state scaffolding for all of it DILUTED the steward's
+    # attention across machinery for an operation it doesn't have (ADR-390).
+    #
+    # ADR-414 D5: this gate keys on `judgment_home` (the HIRE GRANT), NOT on
+    # `has_program_envelope` (which a platform connection alone raises). The two
+    # signals are DIFFERENT: a connection installs CHROME + CAPABILITIES; only a
+    # hire installs JUDGMENT. Pre-fix, a connection-only workspace (e.g. Alpaca
+    # connected, trader never hired) got `program_active=True` and mounted
+    # operation machinery reading STEWARD-ERA workspace-root paths (the incoherent
+    # `expected_output` fallback below) for an operation it had never hired. The
+    # machinery an operation owns lives in that operation's agent home — so if
+    # there is no agent home, there is no operation to describe. `expected_output`
+    # then reads unconditionally from the agent home (no steward-path fallback —
+    # that branch was only reachable in the incoherent connection-only state).
+    # The keys are still set (empty when steward-only) so the FreddieContext shape
+    # is stable and the render layer skips empties.
+    if judgment_home:
         envelope["specs_inventory"] = await _inventory_specs(client, user_id)
         envelope["reflection_gap_fact"] = await _reflection_gap_fact(client, user_id)
         envelope["schedule_index_md"] = await _read(SYSTEM_SCHEDULE_INDEX_PATH)
@@ -455,12 +460,12 @@ async def load_freddie_governance_envelope(
         envelope["calibration_md"] = await _read(SYSTEM_CALIBRATION_PATH)
         envelope["expected_output_yaml"] = await _read(
             f"{judgment_home}{_JUDGMENT_HOME_FILES['expected_output_yaml']}"
-            if judgment_home
-            else CONTRACT_EXPECTED_OUTPUT_PATH
         )
     else:
-        # Bare steward — operation machinery is not its concern. Empty keys keep
-        # the contract shape stable; the render layer omits empties (ADR-390 D3).
+        # Steward-only workspace (no hire grant) — operation machinery is not its
+        # concern, regardless of whether a bundle's chrome is connection-active.
+        # Empty keys keep the contract shape stable; the render layer omits
+        # empties (ADR-390 D3).
         envelope["specs_inventory"] = ""
         envelope["reflection_gap_fact"] = ""
         envelope["schedule_index_md"] = ""
