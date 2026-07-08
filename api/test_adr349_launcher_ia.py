@@ -59,8 +59,12 @@ def test_at_rest_launcher() -> None:
         # ADR-412 D3 (2026-07-06): Chat joins the primary tier — the lanes
         # surface (Altitude 2's chrome home), a new capability's home, not a
         # re-sort of the ADR-349 set.
-        "primary == {home, chat, channels, files, agents}",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "chat", "channels", "files", "agents"},
+        # 2026-07-08 (operator focus): Agents LEAVES the primary loop → search-only
+        # (see test_agents_deferred_from_primary). A3 "hire an agent" is the
+        # deferred horizon (ADR-380 Rung-2 launch line); the launch AI surface is
+        # the A2 chat lanes. So the primary loop is Home · Chat · Channels · Files.
+        "primary == {home, chat, channels, files}",
+        {s for s, t in tiers.items() if t == "primary"} == {"home", "chat", "channels", "files"},
         str(sorted(s for s, t in tiers.items() if t == "primary")),
     )
     # 2026-07-04 (operator re-sort, step 2): Notifications leaves the at-rest
@@ -140,12 +144,21 @@ def test_bell_one_name() -> None:
           "Open Operation" not in src and "navigateToSurface('operation'" not in src)
 
 
-def test_agents_upgraded() -> None:
-    print("\n[agents] upgraded to the Workspace tier (D3)")
+def test_agents_deferred_from_primary() -> None:
+    # ADR-349 D3 raised agents to the Workspace/primary tier. 2026-07-08 the
+    # operator deferred it back to search-only: Altitude-3 "hire an agent" is the
+    # deferred horizon (ADR-380 Rung-2 launch line; ADR-414 already removed
+    # Freddie from this roster), and a second AI door beside /chat confused the
+    # A2-hands-vs-A3-hire story. Roster stays URL-reachable + searchable; it just
+    # leaves the launcher tiles + the dock. One-word revert re-surfaces A3.
+    print("\n[agents] deferred from the primary tier → search-only (2026-07-08)")
     from services.kernel_surfaces import KERNEL_SURFACES
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
-    check("agents launcher_tier == primary", by_slug["agents"].get("launcher_tier") == "primary")
+    check("agents launcher_tier == search-only", by_slug["agents"].get("launcher_tier") == "search-only")
+    # NOT deleted — still a real windowed surface reachable by /agents.
+    check("agents keeps its route (not deleted)", bool(by_slug["agents"].get("route")))
+    check("agents stays window-grade", not by_slug["agents"].get("pane_of"))
 
 
 def test_launcher_groups() -> None:

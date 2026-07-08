@@ -122,16 +122,29 @@ const LEGACY_SLUG_ALIASES: Record<string, string> = {
   feed: 'channels',
 };
 
+// Slugs retired from the DOCK (kept/open/foregrounded) but NOT deleted as
+// surfaces — still URL-reachable + searchable. Unlike an alias (which remaps
+// to a live slug), a retired slug is DROPPED from persisted dock lists so a
+// stale pin stops rendering an icon. `agents` (2026-07-08): the A3 roster was
+// demoted to search-only (launch focus = the A2 chat lanes, the user's hands,
+// not the user's hire — ADR-380 Rung-2 deferral / ADR-414). A returning
+// operator who had "Keep in Dock"-ed agents would otherwise keep a stale icon,
+// since the dock is kept ∪ open (TopBarSurface) and search-only doesn't touch
+// it. Re-surfacing A3 later = flip the tier back AND remove it from this set.
+const DOCK_RETIRED_SLUGS = new Set<string>(['agents']);
+
 function normalizeSlug(slug: string): string {
   return LEGACY_SLUG_ALIASES[slug] ?? slug;
 }
 
-/** Normalize + dedupe a persisted slug list (order-preserving). */
+/** Normalize + dedupe a persisted slug list (order-preserving), dropping any
+ *  slug retired from the dock. */
 function normalizeSlugList(slugs: string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const s of slugs) {
     const n = normalizeSlug(s);
+    if (DOCK_RETIRED_SLUGS.has(n)) continue; // dropped, not remapped
     if (!seen.has(n)) {
       seen.add(n);
       out.push(n);
@@ -251,8 +264,14 @@ export function getForegroundedSurface(userId: string): string | null {
   if (!isBrowser() || !userId) return DEFAULT_FOREGROUNDED_SURFACE;
   try {
     const raw = localStorage.getItem(key(FOREGROUND_KEY_PREFIX, userId));
+    if (!raw) return DEFAULT_FOREGROUNDED_SURFACE;
+    const n = normalizeSlug(raw);
+    // A dock-retired slug (agents) that was the foregrounded surface falls back
+    // to the default rather than landing the operator on a de-emphasized
+    // surface at cold-load — it's still reachable by direct URL.
+    if (DOCK_RETIRED_SLUGS.has(n)) return DEFAULT_FOREGROUNDED_SURFACE;
     // Normalize a stale legacy foregrounded slug (context/feed → channels).
-    return raw ? normalizeSlug(raw) : DEFAULT_FOREGROUNDED_SURFACE;
+    return n;
   } catch {
     return DEFAULT_FOREGROUNDED_SURFACE;
   }

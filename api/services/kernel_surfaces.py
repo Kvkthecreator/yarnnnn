@@ -539,15 +539,25 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "agents",
-        "launcher_tier": "primary",  # ADR-349 D3 — the judgment seat (who acts for you) is first-class, Workspace tier
+        # ADR-349 D3 made the roster Workspace-tier first-class (A3 the judgment
+        # seat). Demoted to search-only (2026-07-08): Altitude-3 "hire an agent"
+        # is the deferred horizon (ADR-380 Rung-2 launch line; ADR-414 already
+        # removed Freddie from this roster). The launch focus is the user's
+        # HANDS — the A2 chat lanes — not the user's HIRE. The roster stays
+        # URL-reachable (/agents) + searchable; it just leaves the launcher's
+        # browse tiles + the dock so it isn't a second, confusing AI door
+        # beside /chat. One-word revert (→ "primary") re-surfaces A3 when the
+        # Rung-2 track-record clock says it's time. Freddie's own dials live at
+        # Workspace Settings → System Agent (ADR-412 D5), not here.
+        "launcher_tier": "search-only",
         "register": "application",  # ADR-309 two-register model
         "title": "Agents",
         "archetype": "roster",
         "substrate_paths": [],  # agents DB table + per-agent substrate
         "icon_key": "users",
         "default_pinned": False,
-        "route": "/agents",  # _route_status: EXISTING — Reviewer detail + roster live here
-        "summary": "Agent roster — Reviewer, specialists, platform integrations.",
+        "route": "/agents",  # _route_status: EXISTING — hired-agent detail + roster live here
+        "summary": "Agent roster — hired Altitude-3 persona agents (the deferred horizon; A2 chat lanes are the launch AI surface).",
     },
     {
         # ADR-331 D1 (2026-06-10): the guided first-boot SEQUENCE rendering

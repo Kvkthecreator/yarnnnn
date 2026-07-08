@@ -59,8 +59,12 @@ def test_registry_tiers() -> None:
         # ADR-412 D3 (2026-07-06): Chat joins the primary tier — the lanes
         # surface (Altitude 2's chrome home), a NEW capability's home, not a
         # re-sort. Home · Chat · Channels · Files · Agents.
-        "primary == the standing loop (home/chat/channels/files/agents)",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "chat", "channels", "files", "agents"},
+        # 2026-07-08 (operator focus): Agents LEAVES the primary loop → search-only.
+        # A3 "hire an agent" is the deferred horizon (ADR-380 Rung-2 launch line;
+        # ADR-414 already removed Freddie from this roster); the launch AI surface
+        # is the A2 chat lanes, not a second door. Home · Chat · Channels · Files.
+        "primary == the standing loop (home/chat/channels/files)",
+        {s for s, t in tiers.items() if t == "primary"} == {"home", "chat", "channels", "files"},
     )
     # ADR-349 D4: two settings doors re-split — Workspace Settings (operation)
     # + System Settings (account). The `configure` lump (ADR-347) is retired.
