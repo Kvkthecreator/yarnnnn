@@ -59,7 +59,7 @@ stores:
   mcp_oauth_codes: { scope: account, note: "OAuth credential" }
   mcp_oauth_access_tokens: { scope: account, note: "OAuth credential" }
   mcp_oauth_refresh_tokens: { scope: account, note: "OAuth credential" }
-  render_usage: { scope: account, note: "per-user render-call tracking (ADR-118)" }
+  # render_usage DROPPED (ADR-417, migration 207) — the render service is retired.
 
 # Tables that appear in `.table("X")` writes but are NOT persistent stores —
 # excluded from the gate's coverage requirement (test fixtures, ephemeral probes).

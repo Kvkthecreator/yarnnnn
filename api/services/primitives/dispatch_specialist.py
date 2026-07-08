@@ -40,20 +40,13 @@ _SPECIALIST_MAX_TOKENS = 4096
 _SPECIALIST_MAX_ROUNDS = 5  # specialist sub-calls are bounded; ADR-260 D8 round discipline
 
 
-# ADR-272: VALID_SPECIALIST_ROLES narrowed to a single role — `designer` — per
-# the Specialist Survival Test (ADR-272 §7). The five dissolved roles
-# (researcher, analyst, writer, tracker, reporting) failed at least one of:
-# tool-surface test (their surface is the Reviewer's surface), output-size
-# test (their outputs fit the Reviewer's window comfortably), or latency
-# test (their work completes within the Reviewer's blocking budget).
-# Designer survives all three: RuntimeDispatch is a tool surface the
-# Reviewer should NOT carry standing; rendered assets meaningfully crowd
-# the judgment window; render latency (10-60s) genuinely degrades operator
-# experience when blocking the Reviewer's loop.
-#
-# Future additions must clear all three structural tests in their proposing
-# ADR. Vibe arguments (voice, style, brand-fit) are prompt-level concerns,
-# not LLM-identity concerns, and do not satisfy any test.
+# ADR-272: VALID_SPECIALIST_ROLES narrowed to a single role — `designer`.
+# ADR-417: the designer's asset-generation half (RuntimeDispatch → the render
+# service) is retired — generation is rented, not owned. The role survives as
+# a compose-only shell (read substrate, compose HTML). DispatchSpecialist is
+# therefore now near-inert; collapsing or removing it is a NAMED FOLLOW-ON
+# (the specialist-dispatch architecture cleanup), deliberately out of ADR-417's
+# subtractive scope so the three-actor execution model is revisited on its own.
 VALID_SPECIALIST_ROLES = {
     "designer",
 }
@@ -73,10 +66,10 @@ in a specialist"; they exist for work that fails inline-execution on
 structural grounds.
 
 One specialist role (post ADR-272 Specialist Survival Test):
-  - designer: produces visual assets (charts, mermaid, images, rendered
-    PDFs). Uses RuntimeDispatch — a tool surface YOU should not carry
-    standing. Rendered assets meaningfully crowd judgment context.
-    Render latency (10-60s) would block your loop if done inline.
+  - designer: composes substrate into HTML for in-workspace consumption.
+    (ADR-417: the asset-generation half — charts/mermaid/images/video via
+    the in-house render service — is retired. Generation is rented, not
+    owned; yarnnn hosts no generation engine.)
 
 Dissolved roles (do not call — Reviewer does this inline):
   - researcher, analyst, writer, tracker, reporting → all dissolved.
@@ -84,18 +77,18 @@ Dissolved roles (do not call — Reviewer does this inline):
     roles; the Reviewer does investigation, analysis, prose drafting,
     accumulation, and cross-domain synthesis using its own tool surface.
 
-The brief tells the designer what to render, what substrate to read
-inputs from, and where to write the asset (slug-templated paths per
+The brief tells the designer what to compose, what substrate to read
+inputs from, and where to write the output (slug-templated paths per
 CONVENTIONS topology). The designer returns markdown summarizing the
-rendered artifact; the Reviewer reads the summary and the rendered
-artifact's manifest entry.
+composed output.
 
 Examples:
   DispatchSpecialist(role="designer",
-    brief="Render a 90-day equity-curve chart from
-           /workspace/operation/portfolio/_money_truth.md. Output target:
-           /workspace/operation/reports/weekly-performance-review/{date}/
-           sections/equity-curve.png. Caption: 'Account equity, last 90d.'")""",
+    brief="Compose a weekly performance HTML section from
+           /workspace/operation/portfolio/_money_truth.md — render the
+           equity series as a native HTML table with a one-line summary.
+           Output target: /workspace/operation/reports/
+           weekly-performance-review/{date}/sections/equity.md")""",
     "input_schema": {
         "type": "object",
         "properties": {

@@ -129,36 +129,12 @@ async def export_authored_piece(
     auth: UserClient,
     date_folder: Optional[str] = None,
 ):
-    """Export the composed piece as PDF/XLSX/etc. via the render service.
-
-    Mirrors the report export path (`routes/recurrences.py::export_recurrence_output`)
-    but pulls authored-kind composition. The HTML is composed lazily here,
-    then handed to the render `/export` endpoint."""
-    if not date_folder:
-        date_folder = _latest_composition_date(auth.client, auth.user_id, slug)
-        if not date_folder:
-            raise HTTPException(status_code=404, detail="No composition substrate to export")
-
-    from services.compose.task_html import compose_task_output_html
-    html_content = await compose_task_output_html(
-        auth.client, auth.user_id, slug, date_folder, artifact_kind="authored",
-    )
-    if not html_content:
-        raise HTTPException(status_code=404, detail="No composed output to export")
-
-    render_url = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
-    render_secret = os.environ.get("RENDER_SERVICE_SECRET", "")
-    headers = {"X-Render-Secret": render_secret} if render_secret else {}
-
-    async with httpx.AsyncClient(timeout=60.0) as http:
-        resp = await http.post(
-            f"{render_url}/export",
-            json={"html": html_content, "format": format, "user_id": auth.user_id},
-            headers=headers,
-        )
-    if resp.status_code != 200:
-        raise HTTPException(status_code=502, detail=f"Render export failed: {resp.status_code}")
-    return StreamingResponse(
-        iter([resp.content]),
-        media_type=resp.headers.get("content-type", "application/octet-stream"),
+    """ADR-417: file export (PDF/XLSX) is retired with the render service —
+    generation/export is rented, not owned; zero export capability at launch.
+    The composed piece is still viewable as HTML via GET /{slug}/render.
+    Sharing lives in the commons + the Slack/Notion channel exporters."""
+    raise HTTPException(
+        status_code=410,
+        detail="File export (PDF/XLSX) was retired (ADR-417). View the composed "
+               "HTML at /authored/{slug}/render, or share via Slack/Notion.",
     )

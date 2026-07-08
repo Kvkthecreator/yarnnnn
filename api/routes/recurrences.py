@@ -600,37 +600,14 @@ async def export_recurrence_output(
     auth: UserClient,
     date_folder: Optional[str] = None,
 ):
-    """Export latest output as PDF/XLSX/etc. via render service."""
-    substrate_root = report_root(slug)
-
-    if not date_folder:
-        folders = _list_date_folders(auth, substrate_root)
-        if not folders:
-            raise HTTPException(status_code=404, detail="No output found")
-        date_folder = folders[0]
-
-    from services.compose.task_html import compose_task_output_html
-    html_content = await compose_task_output_html(
-        auth.client, auth.user_id, slug, date_folder
-    )
-    if not html_content:
-        raise HTTPException(status_code=404, detail="No output to export")
-
-    render_url = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
-    render_secret = os.environ.get("RENDER_SERVICE_SECRET", "")
-    headers = {"X-Render-Secret": render_secret} if render_secret else {}
-
-    async with httpx.AsyncClient(timeout=60.0) as http:
-        resp = await http.post(
-            f"{render_url}/export",
-            json={"html": html_content, "format": format, "user_id": auth.user_id},
-            headers=headers,
-        )
-    if resp.status_code != 200:
-        raise HTTPException(status_code=502, detail=f"Render export failed: {resp.status_code}")
-    return StreamingResponse(
-        iter([resp.content]),
-        media_type=resp.headers.get("content-type", "application/octet-stream"),
+    """ADR-417: file export (PDF/XLSX) is retired with the render service —
+    generation/export is rented, not owned; zero export capability at launch.
+    The composed report is still viewable as HTML in-app; sharing lives in the
+    commons + the Slack/Notion channel exporters."""
+    raise HTTPException(
+        status_code=410,
+        detail="File export (PDF/XLSX) was retired (ADR-417). View the composed "
+               "report in-app, or share via Slack/Notion.",
     )
 
 

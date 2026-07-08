@@ -53,20 +53,9 @@ services:
         sync: false
     healthCheckPath: /health
 
-  # Render Service (ADR-118 Phase B) — agent artifact production
-  - type: web
-    name: yarnnn-output-gateway
-    runtime: docker
-    region: singapore
-    plan: starter
-    dockerfilePath: render/Dockerfile
-    dockerContext: render
-    envVars:
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SERVICE_KEY
-        sync: false
-    healthCheckPath: /health
+  # ADR-417: yarnnn-output-gateway (the render service) DELETED — generation is
+  # rented, not owned; yarnnn hosts no generation/rendering engine. Compose
+  # (section→HTML) moved in-API as a pure-Python library. Service parity 4 → 3.
 
 # Cron Jobs
 crons:

@@ -341,28 +341,28 @@ This means a brand-new operator's workspace has zero scheduled recurrences until
 
 ### How Output Gets Displayed and Delivered
 
-**Singular rendering path** (ADR-148, extended by ADR-170): every task output is an HTML output folder. Surface type determines the visual paradigm; export to file formats is derivative. No branching based on agent type, no fallback renderers.
+**Singular composition path** (ADR-148, extended by ADR-170; compose ported in-API by ADR-417): every report/email output composes section-partials + markdown into styled HTML via `api/services/compose/engine.py` (pure-Python, deterministic templating). No branching based on agent type, no fallback renderers.
 
-- **Task page**: Shows `index.html` from output folder via sandboxed iframe
-- **Email**: Sends HTML with delivery channel transform (inline CSS, 600px max, CID images)
-- **Slack**: Posts condensed summary + link to web view
-- **Notion**: Writes structured blocks via Notion API
-- **Export**: Mechanical conversion — HTML → PDF/PPTX/XLSX/DOCX/MP4 via `yarnnn-render` (on-demand)
+- **Task page**: Shows the composed HTML from the output folder
+- **Email**: Sends HTML with the digest surface transform (email-safe CSS, no JS)
+- **Slack**: Posts condensed summary + link to web view (the `slack` exporter)
+- **Notion**: Writes structured blocks via Notion API (the `notion` exporter)
 
-Agents produce structured markdown with inline data tables and mermaid diagrams. The compose substrate structures the output per surface type and section kinds. The render service produces derivative assets. Delivery transports the composed output to external destinations with channel-appropriate transforms. See [output-surfaces.md](output-surfaces.md).
+Agents produce structured markdown with inline data tables. The in-API compose engine structures the output per surface type and section kinds. Delivery transports the composed output to external destinations with channel-appropriate transforms. **ADR-417: file export (PDF/XLSX) and asset generation (chart/mermaid/image/video) are retired** — generation is rented, not owned; the two matplotlib chart section-kinds degrade to native data-tables. Sharing lives in the commons + the Slack/Notion channel exporters. See [output-surfaces.md](output-surfaces.md).
 
 ---
 
 ## Deployed Services
 
-4 services on Render.com (Singapore region). Per Axiom 0, each service is stateless — it reads the filesystem (via Supabase `workspace_files`) + the four permitted DB row kinds, acts, writes back, and terminates. No service holds in-memory state across invocations.
+3 services on Render.com (Singapore region). Per Axiom 0, each service is stateless — it reads the filesystem (via Supabase `workspace_files`) + the four permitted DB row kinds, acts, writes back, and terminates. No service holds in-memory state across invocations.
 
 | Service | Type | What It Does |
 |---------|------|-------------|
-| **yarnnn-api** | Web (FastAPI) | API endpoints, YARNNN chat, OAuth, all user-facing operations |
+| **yarnnn-api** | Web (FastAPI) | API endpoints, YARNNN chat, OAuth, all user-facing operations. Composes report/email HTML in-API (ADR-417 `compose/engine.py`). |
 | **yarnnn-unified-scheduler** | Cron (*/5 min) | Walks `/workspace/_recurrences.yaml` per ADR-261 D3; for each due entry, invokes the Reviewer with the recurrence's prompt as the addressed-equivalent envelope (per ADR-260 D1). Hourly: `scheduler_heartbeat` activity_log writes; orphan agent_run watchdog. **No more back-office task dispatch** — that work is now Reviewer-driven recurrence prompts post-ADR-261 D6. |
 | **yarnnn-mcp-server** | Web (FastAPI) | MCP protocol for Claude Desktop/Code/foreign LLMs (ADR-169) |
-| **yarnnn-render** | Web (Docker) | Output gateway — PDF, chart, mermaid, xlsx, image rendering (ADR-118) |
+
+**yarnnn-render was removed (ADR-417, 2026-07-08)** — the in-house render/output-gateway service is retired. Generation is rented, not owned; yarnnn hosts no generation/rendering engine. Asset generation (chart/mermaid/image/video) and file export (PDF/XLSX) are retired; compose (section→styled-HTML) moved in-API as a pure-Python library (`api/services/compose/engine.py`).
 
 **yarnnn-platform-sync was removed** (ADR-153, 2026-04-01) — platform_content sunset; platform data now flows through tracking tasks into `/workspace/operation/` domains during task execution. OAuth token lifecycle handled inline by the task pipeline.
 

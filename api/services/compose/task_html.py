@@ -4,8 +4,9 @@ Deliverable HTML Composition — ADR-213 + ADR-333.
 Single, root-agnostic path for composing a deliverable's output folder into
 HTML on demand. Reads substrate (section partials + sys_manifest.json +
 manifest.json) from the deliverable's dated folder — `report_root` for audit
-reports, `authored_root` for published pieces — POSTs to the render service
-`/compose`, returns HTML.
+reports, `authored_root` for published pieces — and composes HTML via the
+in-API `compose.engine` library (ADR-417 retired the render service; compose
+is a pure-Python, deterministic call now, no HTTP).
 
 The composer is a **lazy projection** (ADR-333): it is pulled when a surface
 actually consumes the artifact, never pushed eagerly. The substrate (sections
@@ -20,20 +21,18 @@ Callers:
   - api/services/primitives/repurpose.py: format conversion
   (No eager session-close caller — ADR-333 D2 retired the push.)
 
-The render service is responsible for content-addressed caching (ADR-213),
-so repeated pulls with unchanged substrate cost a storage fetch vs. a fresh
-compose with matplotlib chart rendering.
+ADR-417: content-addressed caching (ADR-213) went with the render service. The
+in-API compose is fast enough that a per-pull recompute is acceptable; a
+`workspace_blobs`-keyed memoization is a demand-gated follow-on if a hot path
+proves it necessary.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 from typing import Optional
-
-import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +49,8 @@ async def compose_task_output_html(
     """Compose a deliverable's output folder into HTML on demand.
 
     Reads section partials and manifest from the deliverable's dated folder,
-    posts to render service `/compose`, returns the composed HTML string.
+    composes via the in-API `compose.engine` library (ADR-417), returns the
+    composed HTML string.
     The root is selected by ``artifact_kind`` (ADR-333):
       - ``"report"`` (default) → `/workspace/operation/reports/{slug}/{date}/`
         (audit reports — canonical per ADR-231 D2 / ADR-262 D1)
@@ -68,11 +68,11 @@ async def compose_task_output_html(
 
     if artifact_kind == "authored":
         root = authored_root(task_slug)
-        # authored pieces render as a flowing article — which IS the render
+        # authored pieces render as a flowing article — which IS the compose
         # engine's `report` surface (vertically-stacked section-kind dispatch,
-        # render/compose.py default). We do not invent a separate render-side
-        # surface type ("article" is not in the engine's vocabulary); `report`
-        # already produces the article form. (ADR-333 — Singular Implementation.)
+        # compose/engine.py default). We do not invent a separate surface type
+        # ("article" is not in the engine's vocabulary); `report` already
+        # produces the article form. (ADR-333 — Singular Implementation.)
         default_surface = "report"
     else:
         root = report_root(task_slug)
@@ -201,34 +201,22 @@ async def compose_task_output_html(
         except (ValueError, json.JSONDecodeError):
             pass
 
-    render_url = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
-    render_secret = os.environ.get("RENDER_SERVICE_SECRET", "")
-    headers = {"X-Render-Secret": render_secret} if render_secret else {}
-
+    # ADR-417: compose is an in-API library call now (the render service is
+    # retired). Pure-Python, deterministic templating — no HTTP, no cache
+    # round-trip; ADR-333's lazy-projection contract is unchanged (pulled at
+    # consumption). SectionContent's shape is exactly the sections_payload dicts.
     try:
-        async with httpx.AsyncClient(timeout=30.0) as http:
-            resp = await http.post(
-                f"{render_url}/compose",
-                json={
-                    "sections": sections_payload,
-                    "markdown": fallback_markdown,
-                    "title": resolved_title,
-                    "surface_type": resolved_surface,
-                    "assets": assets,
-                    "user_id": user_id,
-                },
-                headers=headers,
-            )
-            if resp.status_code != 200:
-                logger.warning(
-                    f"[COMPOSE] /compose HTTP {resp.status_code} for {task_slug}/{date_folder}"
-                )
-                return None
-            data = resp.json()
-            if data.get("success"):
-                return data.get("html") or None
-            logger.warning(f"[COMPOSE] /compose returned error: {data.get('error')}")
-            return None
+        from services.compose.engine import compose_html, SectionContent
+
+        section_objs = [SectionContent(**s) for s in sections_payload] if sections_payload else None
+        html = compose_html(
+            fallback_markdown,
+            title=resolved_title,
+            surface_type=resolved_surface,
+            assets=assets,
+            sections=section_objs,
+        )
+        return html or None
     except Exception as e:
-        logger.warning(f"[COMPOSE] /compose request failed for {task_slug}/{date_folder}: {e}")
+        logger.warning(f"[COMPOSE] in-API compose failed for {task_slug}/{date_folder}: {e}")
         return None

@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.08.3] - ADR-417: retire the render service — generation is rented, not owned
+
+- `services/primitives/runtime_dispatch.py`: **DELETED** — the `RuntimeDispatch` tool definition + handler (asset generation: chart/mermaid/image/video via the render service) are removed. The tool no longer appears in `CHAT_PRIMITIVES` / `HEADLESS_PRIMITIVES` / the handler map / the ADR-307 gate-queueable set.
+- `services/orchestration.py`: the `designer` production role's prompts + capabilities are stripped of asset generation — `default_instructions` no longer instructs `RuntimeDispatch`; the `chart`/`mermaid`/`image`/`video_render` capability rows are removed; `_PLAYBOOK_RENDERING` + the visual-production methodology are deleted. `designer` collapses to a compose-only shell (`read_workspace`/`search_knowledge`/`compose_html`); `has_asset_capabilities()` returns `False` universally.
+- `services/primitives/dispatch_specialist.py`: the tool description no longer promises the designer renders assets — it composes HTML; `DispatchSpecialist(role="designer")` is now near-inert (a named follow-on for the specialist-dispatch cleanup, out of ADR-417 scope).
+- `agents/cockpit_awareness.py`: `RuntimeDispatch` removed from the Reviewer's "not in your curated tool surface" list.
+- `services/agent_creation.py`: the ADR-118 "produce rich outputs via RuntimeDispatch" capability-injection prose is removed (it was gated on `has_asset_capabilities`, now always False).
+- Expected behavior: the LLM (chat + headless + Reviewer) no longer sees or reaches `RuntimeDispatch`; it produces text substrate (tables, structure) instead of attempting asset renders against a dead service. Report/email HTML still composes — via the in-API `services/compose/engine.py` library (ported from the retired render service; the two matplotlib chart section-kinds degrade to native data-tables). No behavioral change to any surviving primitive.
+
 ## [2026.07.08.2] - ADR-414 D5 cleanup: operation-machinery gate keys on the hire grant, not the connection
 
 - `services/freddie_envelope.py::load_freddie_governance_envelope`: the operation-machinery block (`specs_inventory`, `reflection_gap_fact`, `schedule_index_md`, `recent_execution_md`, `calibration_md`, `expected_output_yaml`) now gates on `judgment_home` (the HIRE GRANT) instead of `program_active` (= `bool(program_decls)`, which a platform connection alone raises via `bundles_active_for_workspace`'s cockpit-chrome inference). The dead `program_active`/`has_program_envelope` predicate variable is removed; `expected_output_yaml` reads the agent home unconditionally (the steward-path fallback branch was only reachable in the incoherent connection-only state and is deleted).

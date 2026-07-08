@@ -1,5 +1,7 @@
 # Image Generation Skill — Implementation Plan
 
+> **⚠️ RETIRED (ADR-417, 2026-07-08).** The in-house render service is decommissioned — generation is rented, not owned; yarnnn hosts no generation/rendering engine. This document is preserved for lineage only. See [ADR-417](../adr/ADR-417-retire-the-render-service-generation-is-rented-not-owned.md).
+
 **Status:** Phase 1 Implemented, Phase 2 In Progress
 **Date:** 2026-04-03
 **Related:** ADR-157 (fetch-asset skill), ADR-118 (skills as capability layer)

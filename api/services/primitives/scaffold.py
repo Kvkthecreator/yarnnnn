@@ -10,21 +10,16 @@ Actions:
   remove: Deprecate an entity (mark inactive in tracker)
   list: List entities in a domain
 
-ADR-157: When entities have a `url` field, fetches favicon via render service.
+ADR-157 favicon fetch RETIRED by ADR-417 (asset fetching went with the render
+service). Entities scaffold normally, without favicon assets.
 """
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Any
 
-import httpx
-
 logger = logging.getLogger(__name__)
-
-RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
-RENDER_SERVICE_SECRET = os.environ.get("RENDER_SERVICE_SECRET", "")
 
 
 MANAGE_DOMAINS_TOOL = {
@@ -332,80 +327,15 @@ async def _handle_list(auth: Any, input: dict) -> dict:
 # =============================================================================
 
 async def _fetch_favicons_batch(um, user_id: str, requests: list[dict]) -> dict:
-    """ADR-157: Fetch favicons for entities via render service.
+    """ADR-157 favicon fetch — RETIRED by ADR-417.
 
-    Non-blocking: individual failures are logged but don't fail scaffolding.
-    Each favicon is stored as a workspace file with content_url.
+    Favicon fetching used the render service's `fetch-asset` skill (external
+    favicon → PNG). Asset fetching/generation is retired — yarnnn hosts no
+    generation engine. Entities scaffold normally, just without a favicon
+    asset. No-op stub retained so the ManageDomains call-site plumbing is
+    unchanged (favicon_results shape preserved).
     """
-    if not requests:
-        return {"fetched": 0, "failed": 0}
-
-    fetched = 0
-    failed = 0
-    headers = {}
-    if RENDER_SERVICE_SECRET:
-        headers["X-Render-Secret"] = RENDER_SERVICE_SECRET
-
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        for req in requests:
-            domain_path = req["domain_path"]
-            slug = req["slug"]
-            url = req["url"]
-            ws_path = f"{domain_path}/assets/{slug}-favicon.png"
-
-            # Skip if favicon already exists
-            existing = await um.read(ws_path)
-            if existing:
-                continue
-
-            try:
-                resp = await client.post(
-                    f"{RENDER_SERVICE_URL}/render",
-                    json={
-                        "type": "fetch-asset",
-                        "input": {
-                            "url": url,
-                            "asset_type": "favicon",
-                            "size": 128,
-                        },
-                        "output_format": "png",
-                        "filename": f"favicon-{slug}",
-                        "user_id": user_id,
-                    },
-                    headers=headers,
-                )
-                resp.raise_for_status()
-                result = resp.json()
-
-                if result.get("success") and result.get("output_url"):
-                    ok = await um.write(
-                        ws_path,
-                        f"Favicon for {url}",
-                        content_type="image/png",
-                        content_url=result["output_url"],
-                        metadata={
-                            "asset_type": "favicon",
-                            "source_url": url,
-                            "size_bytes": result.get("size_bytes", 0),
-                        },
-                        summary=f"Favicon: {slug}",
-                    )
-                    if ok:
-                        fetched += 1
-                    else:
-                        failed += 1
-                else:
-                    logger.warning(f"[MANAGE_DOMAINS] Favicon fetch failed for {url}: {result.get('error', 'unknown')}")
-                    failed += 1
-
-            except Exception as e:
-                logger.warning(f"[MANAGE_DOMAINS] Favicon fetch failed for {url}: {e}")
-                failed += 1
-
-    if fetched:
-        logger.info(f"[MANAGE_DOMAINS] Fetched {fetched} favicons ({failed} failed)")
-
-    return {"fetched": fetched, "failed": failed}
+    return {"fetched": 0, "failed": 0}
 
 
 async def _scan_domain_entities(um, domain_path: str, domain_key: str) -> list[dict]:

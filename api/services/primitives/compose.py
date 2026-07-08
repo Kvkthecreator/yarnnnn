@@ -2,8 +2,9 @@
 Compose Primitive — ADR-262 D4.
 
 Compose is a callable primitive that takes a task's section partials +
-manifest and produces composed HTML via the existing render engine
-(`render/compose.py`, ADR-148/170/177/213 mechanical pipeline).
+manifest and produces composed HTML via the in-API compose engine
+(`services/compose/engine.py`, ADR-148/170/177/213 mechanical pipeline;
+ported in-API from the retired render service by ADR-417).
 
 Per ADR-262 D4:
   - Compose survives as deterministic rendering; not collapsed.
@@ -16,7 +17,7 @@ Per ADR-262 D4:
     from this primitive's callable surface). Both share the same engine.
 
 This primitive wraps `services.compose.task_html.compose_task_output_html`
-which already encapsulates the substrate-read + render-service-POST flow.
+which already encapsulates the substrate-read + in-API compose flow.
 
 Available in BOTH chat and headless modes (Reviewer may direct composition
 during its real-time loop; specialists may compose interim drafts).
@@ -34,14 +35,14 @@ COMPOSE_TOOL = {
     "name": "Compose",
     "description": """Compose section partials + manifest into final HTML output (ADR-262 D4).
 
-Wraps the deterministic render-engine pipeline. Reads from the recurrence's
+Wraps the deterministic compose-engine pipeline. Reads from the recurrence's
 output folder (`/workspace/operation/reports/{task_slug}/{date_folder}/`, canonical per
 ADR-231 D2 / ADR-262 D1):
   - sys_manifest.json (composition manifest with section-kind metadata)
   - sections/*.md (section partials)
-  - assets/* (charts, images, mermaid diagrams)
+  - assets/* (referenced asset URLs)
 
-Posts to render service /compose. Returns the composed HTML.
+Composes HTML in-API (ADR-417). Returns the composed HTML.
 
 Caller responsibility: write the result to the appropriate output path
 (typically `/workspace/operation/reports/{task_slug}/{date}/output.html` per

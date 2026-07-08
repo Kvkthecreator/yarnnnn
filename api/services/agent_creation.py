@@ -185,11 +185,12 @@ async def create_agent_record(
             try:
                 from services.workspace import AgentWorkspace, get_agent_slug
                 ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
-                # ADR-118: Append capability reference for agents that may produce rich outputs
+                # ADR-417: asset-generation capability injection retired with
+                # the render service (has_asset_capabilities now returns False
+                # universally). Agents produce text substrate; generation, when
+                # it returns, is a member-attached connector (ADR-413), not an
+                # in-house agent capability.
                 agent_md = instructions_text
-                from services.orchestration import has_asset_capabilities
-                if has_asset_capabilities(role):
-                    agent_md += "\n\n## Available Capabilities\nThis agent can produce rich outputs via RuntimeDispatch: PNG/SVG charts, diagrams, and images. Use these when visual data or formatted reports would serve the recipient better than plain text."
                 # ADR-154: Coherence protocol removed from agent level — reflections
                 # are now per-task via awareness.md, not per-agent.
                 await ws.write("AGENT.md", agent_md,

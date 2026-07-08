@@ -92,7 +92,7 @@ This axiom was introduced in v5.1 (previously Axiom 0). Its content is preserved
 DB rows are not banned — they are narrowly permitted. Every table in the schema must fall into one of four categories:
 
 1. **Scheduling indexes** — what needs to run, when. Examples: `tasks` (schedule + mode + next_run_at), `agents` (identity pointer + role). These are lean pointers at files; the file is the source of truth.
-2. **Neutral audit ledgers** — what happened, for billing / debugging / forensics. Examples: `agent_runs`, `token_usage`, `activity_log`, `render_usage`. No semantic content.
+2. **Neutral audit ledgers** — what happened, for billing / debugging / forensics. Examples: `agent_runs`, `token_usage`, `activity_log`. No semantic content. (`render_usage` was dropped with the render service — ADR-417.)
 3. **Credentials / auth** — encrypted secrets the filesystem cannot hold safely. Examples: `platform_connections`, `mcp_oauth_*`. Opaque to everything except the decryption path.
 4. **Ephemeral queues / inboxes** — pending items with hard TTLs awaiting action, not accumulating. Example: `action_proposals` (proposed writes, TTL-bounded, swept by back-office cleanup). The row disappears after acceptance, rejection, or expiration.
 

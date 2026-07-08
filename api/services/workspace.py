@@ -545,7 +545,8 @@ class AgentWorkspace:
         Creates /agents/{slug}/outputs/{date}/ folder with:
         - output.md — the text output (feedback surface)
         - manifest.json — metadata about the run (files, sources, delivery status)
-        - Any rendered binary file references (from RuntimeDispatch)
+        - Any binary file references carrying a content_url (generic plumbing;
+          the RuntimeDispatch producer was retired per ADR-417)
 
         Args:
             content: The text output (markdown)
@@ -553,8 +554,9 @@ class AgentWorkspace:
             agent_id: The agent UUID
             version_number: The run version number
             role: Agent role (digest, synthesize, etc.)
-            rendered_files: Optional list of rendered file dicts from RuntimeDispatch
-                [{path, content_type, content_url, size_bytes, role}]
+            rendered_files: Optional list of binary file dicts carrying a
+                content_url [{path, content_type, content_url, size_bytes, role}].
+                Generic plumbing — the RuntimeDispatch producer was retired (ADR-417).
             sources: Optional list of source paths consumed during this run
 
         Returns:
@@ -583,7 +585,8 @@ class AgentWorkspace:
             {"path": "output.md", "type": "text/markdown", "role": "primary"},
         ]
 
-        # Add rendered files (from RuntimeDispatch)
+        # Add any binary files carrying a content_url (generic; ADR-417 retired
+        # the RuntimeDispatch producer, but the manifest plumbing stays generic)
         if rendered_files:
             for rf in rendered_files:
                 files.append({

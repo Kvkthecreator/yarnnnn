@@ -681,11 +681,11 @@ async def deliver_from_output_folder(
             error_message=f"Output content not found at {output_folder}/output.md",
         )
 
-    # 1b. ADR-213: compose HTML on demand via the shared helper. The render
-    # service caches by content hash, so repeat deliveries on unchanged
-    # substrate are ~10ms. Requires task_slug to resolve the task workspace
-    # (where section partials + sys_manifest.json live); without it, email
-    # delivery falls back to markdown-only body.
+    # 1b. ADR-213: compose HTML on demand via the shared helper. ADR-417 moved
+    # compose in-API (the render service is retired) — a pure-Python call, no
+    # HTTP. Requires task_slug to resolve the task workspace (where section
+    # partials + sys_manifest.json live); without it, email delivery falls
+    # back to markdown-only body.
     composed_html: Optional[str] = None
     if task_slug:
         try:
@@ -1038,7 +1038,7 @@ async def _deliver_email_from_manifest(
             html_body = None  # falls into the normal compose path below
 
     if html_body is None:
-        # ADR-148: Compose email-specific HTML via render service (surface_type="digest")
+        # ADR-148/417: Compose email-specific HTML in-API (surface_type="digest")
         html_body = await _compose_email_html(
             text_content,
             title,
@@ -1137,46 +1137,27 @@ async def _compose_email_html(
     title: str,
     assets: Optional[list[dict]] = None,
 ) -> Optional[str]:
-    """Call render service compose endpoint with surface_type=digest for email delivery.
+    """Compose the email body HTML via the in-API compose engine (ADR-417).
 
     ADR-170: Email delivery uses the digest surface type — scannable, mobile-first,
-    email-safe CSS (no CSS variables, no JS, inline-friendly).
+    email-safe CSS (no CSS variables, no JS, inline-friendly). ADR-417 moved
+    compose in-API (the render service is retired); this is a pure-Python call.
     """
-    import httpx
-    import os
-
-    render_url = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
-    render_secret = os.environ.get("RENDER_SERVICE_SECRET", "")
-
     try:
-        async with httpx.AsyncClient(timeout=30.0) as http:
-            headers = {}
-            if render_secret:
-                headers["X-Render-Secret"] = render_secret
+        from services.compose.engine import compose_html
 
-            resp = await http.post(
-                f"{render_url}/compose",
-                json={
-                    "markdown": markdown,
-                    "title": title,
-                    "surface_type": "digest",
-                    "assets": assets or [],
-                },
-                headers=headers,
-            )
-
-            if resp.status_code != 200:
-                logger.warning(f"[DELIVERY] Email compose HTTP {resp.status_code}")
-                return None
-
-            data = resp.json()
-            if data.get("success") and data.get("html"):
-                logger.info(f"[DELIVERY] Email composed via render service ({len(data['html'])} chars)")
-                return data["html"]
-            return None
-
+        html = compose_html(
+            markdown,
+            title=title,
+            surface_type="digest",
+            assets=assets or [],
+        )
+        if html:
+            logger.info(f"[DELIVERY] Email composed in-API ({len(html)} chars)")
+            return html
+        return None
     except Exception as e:
-        logger.warning(f"[DELIVERY] Email compose call failed: {e}")
+        logger.warning(f"[DELIVERY] Email compose failed: {e}")
         return None
 
 

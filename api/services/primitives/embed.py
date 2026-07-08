@@ -9,8 +9,8 @@ permission gate with ZERO new mechanism:
   - NOT in READ_ONLY_PRIMITIVES → consequential → passes the gate.
   - IN GATE_QUEUEABLE_PRIMITIVES → manual/bounded QUEUE, autonomous APPLY.
     The autonomy mode IS the embed policy (no separate config).
-  - Carries an orthogonal cost ceiling (embedding API calls) like RuntimeDispatch's
-    token budget — an additive check, not the autonomy gate.
+  - Carries an orthogonal cost ceiling (embedding API calls) like Schedule's
+    pace cap — an additive check, not the autonomy gate.
 
 NOT a 100%-embed principle (the operator's explicit nuance vs Claude-Code-
 selective): embed is *selective by content-kind* (D5 eligibility) AND *chosen
@@ -109,12 +109,12 @@ def is_searchable_root(path: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Cost ceiling (ADR-325 D4) — additive resource check, like RuntimeDispatch.
+# Cost ceiling (ADR-325 D4) — additive resource check, like Schedule's pace cap.
 # ---------------------------------------------------------------------------
 # Per-workspace daily embed-call cap. Embedding is cheap but an autonomous
 # workspace could run it up; the cap is a backstop, not a tight budget.
 # (Reuses the same "additive check, not the autonomy gate" shape as Schedule's
-# pace cap + RuntimeDispatch's token budget — ADR-307 permission.py:126-128.)
+# pace cap — ADR-307 permission.py:126-128.)
 _EMBED_DAILY_CAP = int(os.environ.get("EMBED_DAILY_CAP", "500"))
 
 

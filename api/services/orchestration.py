@@ -89,9 +89,8 @@ Capability split (ADR-176 Decision 4):
       web_search, read_workspace, search_knowledge, platform reads,
       investigate, produce_markdown. NO asset production.
   - Production phase (Designer only):
-      chart, mermaid, image, video_render, compose_html.
-  - TP (via RuntimeDispatch in chat mode) can invoke production capabilities
-    on behalf of any task that needs visual output.
+      compose_html. (ADR-417: chart/mermaid/image/video_render retired with
+      the render service — generation is rented, not owned.)
 
 v5 (2026-04-13): ADR-176 — Work-First Universal Specialist Model.
                  6 specialists (Researcher, Analyst, Writer, Tracker, Designer,
@@ -122,71 +121,6 @@ from typing import Any, Optional
 # are independent — see ADR-140 for the three-axis model.
 
 # =============================================================================
-# Shared Playbook Content (referenced by multiple agent types)
-# =============================================================================
-
-_PLAYBOOK_RENDERING = (
-    "# Rendering Playbook\n\n"
-    "## Purpose\n"
-    "Consistent, brand-aligned HTML output across all deliverables. "
-    "Read BRAND.md for the user's specific colors and style preferences. "
-    "This playbook provides professional defaults — BRAND.md overrides when specified.\n\n"
-    "## Color Usage\n"
-    "### Default Palette (override with BRAND.md values when available)\n"
-    "- **Headings**: near-black, not pure black — `#1a1a2e` (warm dark) or BRAND primary\n"
-    "- **Body text**: `#374151` (dark gray) — easier to read than black\n"
-    "- **Accent/highlight**: `#3b82f6` (blue) or BRAND accent color\n"
-    "- **Muted/secondary**: `#6b7280` (gray) — captions, timestamps, labels\n"
-    "- **Surface/background**: `#ffffff` (white) or `#f9fafb` (light gray for cards)\n"
-    "- **Borders**: `#e5e7eb` (light gray) — subtle, never heavy\n"
-    "- **Success/positive**: `#10b981` — green for positive changes, metrics up\n"
-    "- **Warning/negative**: `#ef4444` — red for negative changes, risks, blockers\n\n"
-    "### Color Principles\n"
-    "- Use accent color sparingly — headings, links, key metrics. Not backgrounds.\n"
-    "- Charts should use the accent color as primary, with gray/muted for secondary series\n"
-    "- Tables: alternate row backgrounds with `#f9fafb` for readability\n"
-    "- Never use more than 3 colors in a single chart\n\n"
-    "## Typography Hierarchy\n"
-    "- **H1** (report title): 28-32px, weight 700, heading color\n"
-    "- **H2** (section): 22-24px, weight 600, heading color\n"
-    "- **H3** (subsection): 18-20px, weight 600, heading color\n"
-    "- **Body**: 16px, weight 400, body text color, line-height 1.6\n"
-    "- **Caption/label**: 13-14px, weight 400, muted color\n"
-    "- **Metric value**: 36-48px, weight 700, accent color\n"
-    "- **Change badge**: 14px, weight 600, green/red with pill background\n\n"
-    "## Layout Rules\n"
-    "- Max content width: 720px for reading, 960px for dashboards\n"
-    "- Section spacing: 32-48px between major sections\n"
-    "- Card padding: 24px\n"
-    "- Use whitespace generously — dense reports are unreadable\n\n"
-    "## Chart Styling\n"
-    "- Bar/line charts: accent color primary, gray for secondary\n"
-    "- Always include axis labels and a one-sentence interpretation below\n"
-    "- Minimal gridlines — horizontal only, light gray\n"
-    "- No chart borders, no decorative elements\n"
-    "- Legend only when >1 data series\n\n"
-    "## Existing Assets\n"
-    "**Always check the domain's assets/ folder before generating new visuals.**\n"
-    "- Entity favicons (`{slug}-favicon.png`): embed as inline icons next to company names\n"
-    "  `<img src='{content_url}' width='20' height='20' style='vertical-align:middle; margin-right:6px'>`\n"
-    "- Prior generated images: re-use if still relevant. Don't regenerate.\n"
-    "- Charts from prior cycles: reference or update, don't recreate from scratch\n\n"
-    "## Do's and Don'ts\n"
-    "**Do:**\n"
-    "- Use consistent heading hierarchy (never skip levels)\n"
-    "- Include alt text on all images\n"
-    "- Use semantic color (green = good, red = bad, blue = neutral highlight)\n"
-    "- Make tables scannable: bold first column, right-align numbers\n\n"
-    "**Don't:**\n"
-    "- Use pure black (#000000) for text — too harsh\n"
-    "- Use more than 2 fonts in one document\n"
-    "- Add decorative images that don't carry information\n"
-    "- Use colored backgrounds for entire sections (use for badges/pills only)\n"
-    "- Center-align body text (left-align always, center only for headings/metrics)\n"
-)
-
-
-# =============================================================================
 # PRODUCTION_ROLES — orchestration capability bundles for production work
 # =============================================================================
 # Per LAYER-MAPPING.md (2026-04-23), these are NOT Agents. No standing
@@ -214,66 +148,30 @@ PRODUCTION_ROLES: dict[str, dict[str, Any]] = {
     # does investigation, analysis, prose drafting, accumulation, and cross-
     # domain synthesis using its own tool surface — inline, not via dispatch.
     #
-    # Designer survives because RuntimeDispatch is a tool surface the Reviewer
-    # should NOT carry standing; rendered assets meaningfully crowd judgment
-    # context; render latency (10-60s) would block the Reviewer's loop.
+    # ADR-417: the designer's asset-generation half is retired — generation is
+    # rented, not owned. What survives is the composition half: reading
+    # substrate and composing HTML for in-workspace consumption.
 
     "designer": {
         "class": "specialist",
         "domain": None,
         "display_name": "Designer",
-        "tagline": "Creates visual assets — charts, diagrams, images",
+        "tagline": "Composes substrate into HTML for in-workspace consumption",
         "capabilities": [
             "read_workspace", "search_knowledge",
-            "chart", "mermaid", "image", "video_render", "compose_html",
+            "compose_html",
         ],
-        "description": "Generates visual output: charts, mermaid diagrams, images, "
-                       "and composed HTML. The only specialist with production-phase "
-                       "capabilities. Reads context to inform visuals; does not research "
-                       "or write text deliverables.",
+        "description": "Reads substrate and composes HTML output for in-workspace "
+                       "consumption. Asset generation (charts, diagrams, images, video) "
+                       "was retired with the render service (ADR-417) — generation is "
+                       "rented, not owned.",
         "default_instructions": (
-            "You are a Designer. Your job is to produce visual assets. "
-            "Read the task context and relevant workspace files to understand what visuals "
-            "are needed. Use RuntimeDispatch to generate charts (for data), mermaid diagrams "
-            "(for relationships/flows), and images (for illustration/brand). "
-            "Always check existing assets/ folders before generating — re-use is better than "
-            "redundant generation. Every visual must serve a purpose: information, context, or "
-            "brand presence. Never generate decorative filler."
+            "You are a Designer. Your job is to compose substrate into clear HTML "
+            "output for in-workspace consumption. Read the task context and relevant "
+            "workspace files to understand what to compose. Write data as native "
+            "tables and structure as text — yarnnn hosts no asset-generation engine; "
+            "do not attempt to render charts, diagrams, images, or video."
         ),
-        "methodology": {
-            "_playbook-visual.md": (
-                "# Visual Production Playbook\n\n"
-                "## When to Use Each Visual Type\n"
-                "- **Chart** (`RuntimeDispatch type='chart'`): quantitative data — trends, comparisons, distributions\n"
-                "- **Mermaid** (`RuntimeDispatch type='mermaid'`): relationships, flows, org charts, timelines\n"
-                "- **Image** (`RuntimeDispatch type='image'`): conceptual illustration, brand assets, cover art\n"
-                "- **Video** (`RuntimeDispatch type='video'`): key findings with sequential reveal, metric recaps\n\n"
-                "## Reuse Protocol\n"
-                "Check the domain's assets/ folder before generating:\n"
-                "- Entity favicons (`{slug}-favicon.png`): embed as inline icons next to company names\n"
-                "- Prior generated images: re-use if still relevant. Don't regenerate.\n"
-                "- Charts from prior cycles: reference or update, don't recreate from scratch\n\n"
-                "## Chart Construction\n"
-                "- Always include axis labels\n"
-                "- Add a one-sentence interpretation below every chart\n"
-                "- Minimal gridlines — horizontal only, light gray\n"
-                "- Use accent color as primary, gray for secondary series\n"
-                "- Never more than 3 colors in a single chart\n\n"
-                "## Image Generation\n"
-                "Prompt construction:\n"
-                "1. Subject: what the image depicts\n"
-                "2. Composition: 'centered', 'wide shot', 'close-up'\n"
-                "3. Style preset: 'editorial', 'professional', 'minimal'\n"
-                "4. Brand color (if BRAND.md specifies): 'using [accent color] as highlight'\n"
-                "5. Close with: 'no text overlay, no watermarks'\n\n"
-                "## Quality Gate\n"
-                "- Every visual must be referenced in the text output\n"
-                "- Charts need axis labels and a one-sentence interpretation\n"
-                "- Generated images need alt text in the HTML\n"
-                "- If a visual doesn't add information the text doesn't already convey, skip it\n"
-            ),
-            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
-        },
     },
 
     # ── Synthesizer (cross-domain, no owned domain) ──
@@ -438,9 +336,9 @@ Composition criteria:
 Write team decisions into the `team:` field of the recurrence YAML declaration. Document reasoning briefly.
 
 ## Capability Discipline
-- Researcher and Analyst: text and knowledge files only. Do NOT assign charts or images.
-- Writer: text deliverables only. Do NOT assign RuntimeDispatch visual tasks.
-- Designer: visual assets only (chart, mermaid, image, video). Add when a task needs visuals.
+- Researcher and Analyst: text and knowledge files only.
+- Writer: text deliverables only.
+- Designer: composes substrate into HTML (ADR-417: asset generation retired — yarnnn hosts no generation engine).
 - Reporting: reads all domains, produces synthesis. Do NOT assign platform-specific research.
 
 ## Feedback Routing
@@ -1496,32 +1394,11 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     # any program), not program-shaped. Same classification as the slack/
     # notion/ github directories per ADR-224 §1 capability-bundle-owned rule.
 
-    # -- Asset production (compute runtimes) --
-    "chart":   {
-        "category": "asset", "runtime": "python_render",
-        "tool": "RuntimeDispatch", "skill_docs": "chart/SKILL.md",
-        "output_type": "image/png",
-        "platform_connection_requirement": None,
-    },
-    "mermaid": {
-        "category": "asset", "runtime": "python_render",
-        "tool": "RuntimeDispatch", "skill_docs": "mermaid/SKILL.md",
-        "output_type": "image/svg+xml",
-        "platform_connection_requirement": None,
-    },
-    "image":   {
-        "category": "asset", "runtime": "python_render",
-        "tool": "RuntimeDispatch", "skill_docs": "image/SKILL.md",
-        "output_type": "image/png",
-        "platform_connection_requirement": None,
-    },
-    "video_render": {
-        "category": "asset", "runtime": "python_render",
-        "tool": "RuntimeDispatch", "skill_docs": "video/SKILL.md",
-        "output_type": "video/mp4",
-        "timeout": 180,  # extended timeout for video rendering
-        "platform_connection_requirement": None,
-    },
+    # -- Asset production (RETIRED — ADR-417) --
+    # The chart/mermaid/image/video_render capabilities backed by the
+    # in-house render service are retired. Generation is rented, not owned:
+    # yarnnn hosts no generation engine. has_asset_capabilities() now
+    # returns False universally; no SKILL.md injection, no RuntimeDispatch.
 
     # -- Composition (post-generation pipeline step) --
     "compose_html": {
@@ -1550,7 +1427,7 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
 
 RUNTIMES: dict[str, dict[str, Any]] = {
     "internal":       {"description": "In-process, no HTTP call"},
-    "python_render":  {"description": "yarnnn-render service (Docker: Python + Node.js + Chromium + matplotlib + Remotion)"},
+    "python_render":  {"description": "RETIRED (ADR-417) — the yarnnn-render service is decommissioned; no asset generation"},
     "external:slack": {"description": "Slack API via user OAuth token"},
     "external:notion":{"description": "Notion API via user OAuth token"},
     "external:github":{"description": "GitHub API via user OAuth token"},
@@ -1582,9 +1459,12 @@ def has_capability(agent_type: str, capability: str) -> bool:
 
 
 def has_asset_capabilities(agent_type: str) -> bool:
-    """Check if an agent type has any asset-producing capabilities (chart, mermaid, image).
+    """ADR-417: asset generation is retired — yarnnn hosts no generation engine.
 
-    Determines whether an agent gets SKILL.md injection and RenderAsset access.
+    No capability carries category=="asset" any longer, so this returns False
+    universally. Retained as a stable predicate (consumed by working_memory,
+    agent_creation, resync_agents) so those call sites need no change; it now
+    simply reports "no agent produces assets."
     """
     caps = get_type_capabilities(agent_type)
     return any(

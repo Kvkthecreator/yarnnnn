@@ -7,7 +7,7 @@ errors inside handle_write_file — unchanged this phase).
 
 Later phases extend this file:
   - Phase 2: substrate writes QUEUE (not error); workspace.write_file action_type.
-  - Phase 3: Schedule/RuntimeDispatch/etc. pass the gate.
+  - Phase 3: Schedule/DispatchSpecialist/etc. pass the gate (ADR-417: RuntimeDispatch removed).
 """
 
 from __future__ import annotations
@@ -93,7 +93,8 @@ def test_consequential_default_is_fail_closed():
     # already covers the unknown-name-is-consequential case.
     # ADR-324: InferContext removed from this list (dissolved). The
     # __nonexistent_primitive__ entry covers the unknown-name-is-consequential case.
-    for name in ("WriteFile", "Schedule", "RuntimeDispatch", "DispatchSpecialist",
+    # ADR-417: RuntimeDispatch removed (render service retired).
+    for name in ("WriteFile", "Schedule", "DispatchSpecialist",
                  "ManageHook", "ManageAgent", "ManageDomains", "ProposeAction",
                  "ExecuteProposal", "FireInvocation",
                  "Compose", "RepurposeOutput", "EditEntity",
@@ -125,7 +126,7 @@ def test_action_class_mapping():
 
     assert action_class_for("ExecuteProposal") == "capital"
     # Everything consequential-but-not-capital is substrate.
-    for name in ("WriteFile", "Schedule", "RuntimeDispatch", "ManageHook"):
+    for name in ("WriteFile", "Schedule", "ManageHook"):  # ADR-417: RuntimeDispatch removed
         assert action_class_for(name) == "substrate", (
             f"{name} should map to substrate action_class"
         )
@@ -250,12 +251,12 @@ def test_substrate_family_resolves_to_verdict_path():
 # ---------------------------------------------------------------------------
 
 def test_gate_covers_all_consequential_primitives():
-    """ADR-307 D5: Schedule/RuntimeDispatch/DispatchSpecialist/ManageHook/
-    ManageAgent/ManageDomains pass through the uniform gate (queue under
-    bounded/manual, apply under autonomous)."""
+    """ADR-307 D5: Schedule/DispatchSpecialist/ManageHook/ManageAgent/
+    ManageDomains pass through the uniform gate (queue under bounded/manual,
+    apply under autonomous). ADR-417: RuntimeDispatch removed (render retired)."""
     from services.primitives.permission import GATE_QUEUEABLE_PRIMITIVES
     for name in ("WriteFile", "Schedule", "ManageHook", "ManageAgent",
-                 "ManageDomains", "RuntimeDispatch", "DispatchSpecialist"):
+                 "ManageDomains", "DispatchSpecialist"):
         assert name in GATE_QUEUEABLE_PRIMITIVES, (
             f"{name} must be gate-queueable per ADR-307 D5"
         )

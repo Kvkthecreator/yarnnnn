@@ -96,16 +96,16 @@ def test_manifest_does_not_declare_phantom_stores():
     no direct `.table(...)` write in the scanned dirs: `token_usage` (dropped by
     ADR-396, kept as a registry tombstone); `filesystem_documents` +
     `filesystem_chunks` (uploaded-document stores whose writes go through the
-    document-ingest path / RPC); `render_usage` (written via `get_monthly_
-    render_count` RPC, not a direct table insert). All are real persistent
-    stores that legitimately need a scope declaration — they just aren't reached
-    by the string-literal `.table("X")` scan."""
+    document-ingest path / RPC). (`render_usage` was dropped by ADR-417 with the
+    render service — migration 207 — and removed from the manifest.) All are real
+    persistent stores that legitimately need a scope declaration — they just
+    aren't reached by the string-literal `.table("X")` scan."""
     manifest = _load_manifest()
     stores = manifest.get("stores", {}) or {}
     discovered = _discover_tables()
     # Registry tombstones — declared-but-not-written-via-.table() by design.
     tombstones = {
-        "token_usage", "filesystem_documents", "filesystem_chunks", "render_usage",
+        "token_usage", "filesystem_documents", "filesystem_chunks",
     }
     phantom = sorted(set(stores) - discovered - tombstones)
     assert not phantom, (

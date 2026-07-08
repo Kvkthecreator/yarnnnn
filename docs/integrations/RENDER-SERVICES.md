@@ -1,5 +1,7 @@
 # Render Services Infrastructure
 
+> **⚠️ The yarnnn-render service was RETIRED (ADR-417, 2026-07-08)** — generation is rented, not owned; yarnnn hosts no generation/rendering engine. Service parity is now 3 (api / scheduler / mcp-server). This document is preserved for lineage only. See [ADR-417](../adr/ADR-417-retire-the-render-service-generation-is-rented-not-owned.md).
+
 > Backend infrastructure documentation for YARNNN services deployed on Render.
 > **Last updated**: 2026-03-17 (ADR-118: added output gateway)
 

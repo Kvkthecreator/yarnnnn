@@ -73,7 +73,8 @@ from .revisions import (
     READ_REVISION_TOOL, handle_read_revision,
     DIFF_REVISIONS_TOOL, handle_diff_revisions,
 )
-from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
+# ADR-417: RuntimeDispatch (render-service asset generation) retired — generation
+# is rented, not owned. yarnnn hosts no generation engine.
 # ADR-264: substrate-canonical-world primitive — mirrors external state into substrate
 # via deterministic Python (no LLM). Dispatched by mechanical-mode recurrences
 # per ADR-263 D5 + ADR-264 D2 via the @primitive: ... convention.
@@ -325,8 +326,6 @@ CHAT_PRIMITIVES = [
     DISPATCH_SPECIALIST_TOOL,
     # Repurpose (ADR-148 Phase 4)
     REPURPOSE_OUTPUT_TOOL,
-    # Asset rendering (1) — Gemini image gen, charts, mermaid diagrams
-    RUNTIME_DISPATCH_TOOL,
     # Approval loop (3) — ADR-193
     PROPOSE_ACTION_TOOL,
     EXECUTE_PROPOSAL_TOOL,
@@ -337,7 +336,7 @@ CHAT_PRIMITIVES = [
     LIST_REVISIONS_TOOL,
     READ_REVISION_TOOL,
     DIFF_REVISIONS_TOOL,
-]  # 31 tools — ADR-337 added EditFile/DeleteFile/MoveFile (working-tree verbs)
+]  # ADR-337 added EditFile/DeleteFile/MoveFile (working-tree verbs); ADR-417 removed RuntimeDispatch
 
 # Headless mode: background agent execution.
 # Base registry only. Provider-native platform tools are added dynamically per
@@ -390,8 +389,6 @@ HEADLESS_PRIMITIVES = [
     # multi-step specialist sequences may chain sub-calls.
     DISPATCH_SPECIALIST_TOOL,
     MANAGE_DOMAINS_TOOL,
-    # Asset rendering — writes to task output folder when task_slug set on auth
-    RUNTIME_DISPATCH_TOOL,
     # Approval loop (ADR-193) — headless agents must propose when action is
     # soft/irreversible; autonomous execution without approval is unsafe.
     PROPOSE_ACTION_TOOL,
@@ -422,7 +419,7 @@ PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.
 # requested via Clarify, surfaced as concern in reasoning, or escalated):
 #   - Restructure the operation: ManageDomains, ManageAgent (create/update/archive),
 #     InferContext, InferWorkspace
-#   - Run asset renders or repurpose deliverables: RuntimeDispatch, RepurposeOutput
+#   - Repurpose deliverables: RepurposeOutput
 #   - Bind execution downstream of someone else's verdict: ExecuteProposal, RejectProposal
 #     (the dispatcher executes ExecuteProposal/RejectProposal on Reviewer's verdict —
 #      Reviewer doesn't call them itself)
@@ -633,7 +630,6 @@ HANDLERS: dict[str, Callable] = {
     "Embed": handle_embed,
     "DiscoverAgents": handle_discover_agents,
     "ReadAgentFile": handle_read_agent_file,
-    "RuntimeDispatch": handle_runtime_dispatch,
     "RepurposeOutput": handle_repurpose_output,
     # ADR-193: Approval loop
     "ProposeAction": handle_propose_action,
@@ -1002,7 +998,6 @@ class HeadlessAuth:
         self.coordinator_agent_id = coordinator_agent_id
         self.agent = agent
         self.task_slug = task_slug
-        self.pending_renders: list[dict] = []
         if agent:
             from services.workspace import get_agent_slug
             self.agent_slug = get_agent_slug(agent)

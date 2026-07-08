@@ -154,12 +154,13 @@ async def handle_repurpose_output(auth: Any, input: dict) -> dict:
 
 
 async def _mechanical_repurpose(auth, task_slug, output_date, output_md, output_html, target):
-    """Mechanical repurpose — format conversion via render service or direct."""
-    import httpx
+    """Mechanical repurpose — format conversion.
 
-    RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
-    RENDER_SERVICE_SECRET = os.environ.get("RENDER_SERVICE_SECRET", "")
-
+    ADR-417: PDF/DOCX/XLSX file export retired with the render service —
+    generation/export is rented, not owned; zero export at launch. Only the
+    render-service-free `markdown` target survives; sharing lives in the
+    commons + the Slack/Notion channel exporters.
+    """
     if target == "markdown":
         return {
             "success": True,
@@ -168,70 +169,17 @@ async def _mechanical_repurpose(auth, task_slug, output_date, output_md, output_
             "message": "Markdown content ready for download.",
         }
 
-    # PDF / DOCX
-    if target in ("pdf", "docx"):
-        render_input = {"title": task_slug.replace("-", " ").title()}
-        if output_html:
-            render_input["html"] = output_html
-        else:
-            render_input["markdown"] = output_md
-
-        try:
-            headers = {"Content-Type": "application/json"}
-            if RENDER_SERVICE_SECRET:
-                headers["X-Render-Secret"] = RENDER_SERVICE_SECRET
-
-            async with httpx.AsyncClient(timeout=60.0) as http:
-                resp = await http.post(
-                    f"{RENDER_SERVICE_URL}/render",
-                    json={"type": "pdf", "input": render_input, "output_format": target, "user_id": auth.user_id},
-                    headers=headers,
-                )
-                if resp.status_code != 200:
-                    return {"success": False, "error": "render_failed", "message": f"Render service: {resp.status_code}"}
-                data = resp.json()
-                return {
-                    "success": True,
-                    "target": target,
-                    "url": data.get("output_url"),
-                    "message": f"{target.upper()} exported successfully.",
-                }
-        except Exception as e:
-            return {"success": False, "error": "render_error", "message": str(e)}
-
-    # XLSX — extract tables
-    if target == "xlsx":
-        import re
-        tables = []
-        table_pattern = re.compile(r'(\|[^\n]+\|\n\|[-:\| ]+\|\n(?:\|[^\n]+\|\n?)+)', re.MULTILINE)
-        for match in table_pattern.finditer(output_md):
-            lines = match.group(1).strip().split("\n")
-            if len(lines) < 3:
-                continue
-            headers = [h.strip() for h in lines[0].strip("|").split("|")]
-            rows = [[c.strip().strip("*") for c in line.strip("|").split("|")] for line in lines[2:]]
-            tables.append({"name": f"Table {len(tables)+1}", "headers": headers, "rows": rows})
-
-        if not tables:
-            return {"success": False, "error": "no_tables", "message": "No tables found in output to export as XLSX"}
-
-        try:
-            headers = {"Content-Type": "application/json"}
-            if RENDER_SERVICE_SECRET:
-                headers["X-Render-Secret"] = RENDER_SERVICE_SECRET
-
-            async with httpx.AsyncClient(timeout=60.0) as http:
-                resp = await http.post(
-                    f"{RENDER_SERVICE_URL}/render",
-                    json={"type": "xlsx", "input": {"title": task_slug, "sheets": tables}, "output_format": "xlsx", "user_id": auth.user_id},
-                    headers=headers,
-                )
-                if resp.status_code != 200:
-                    return {"success": False, "error": "render_failed", "message": f"Render service: {resp.status_code}"}
-                data = resp.json()
-                return {"success": True, "target": "xlsx", "url": data.get("output_url"), "message": "XLSX exported."}
-        except Exception as e:
-            return {"success": False, "error": "render_error", "message": str(e)}
+    # PDF / DOCX / XLSX — file export retired (ADR-417).
+    if target in ("pdf", "docx", "xlsx"):
+        return {
+            "success": False,
+            "error": "export_retired",
+            "message": (
+                f"{target.upper()} export was retired (ADR-417). yarnnn hosts no "
+                "generation/export engine. Use the markdown target, view the "
+                "composed HTML in-app, or share via Slack/Notion."
+            ),
+        }
 
     return {"success": False, "error": "unsupported", "message": f"Mechanical target '{target}' not implemented"}
 
@@ -300,11 +248,10 @@ async def _editorial_repurpose(auth, task_slug, output_date, output_md, target):
 
     # Compose the repurposed content
     # ADR-170: surface_type vocabulary (deck = discrete full-screen frames)
+    # ADR-417: compose is the in-API engine now (render/ is retired).
     surface = "deck" if target == "slides" else "report"
     try:
-        import sys
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'render'))
-        from compose import compose_html
+        from services.compose.engine import compose_html
         repurposed_html = compose_html(repurposed_content, title=f"{task_slug} — {target}", surface_type=surface)
     except Exception:
         repurposed_html = None
