@@ -2191,6 +2191,13 @@ export const api = {
           execution_result: Record<string, unknown> | null;
           rejection_reason: string | null;
           approved_by: string | null;
+          /** Canon attribution fields (naming-drift boundary-map — mapped from
+           * the internal `reviewer_*` columns by the serializer). Read these. */
+          agent_identity?: string | null;
+          agent_reasoning?: string | null;
+          /** @deprecated read `agent_identity`/`agent_reasoning` instead. */
+          reviewer_identity?: string | null;
+          reviewer_reasoning?: string | null;
         }>;
         /**
          * ADR-211 D7 prospective-attribution contract (Invariant I1):
@@ -2228,6 +2235,13 @@ export const api = {
           source: string | null;
           expires_at: string;
           created_at: string;
+          /** Canon attribution fields (naming-drift boundary-map — the
+           * serializer maps these from the internal `reviewer_*` columns;
+           * see docs/analysis/naming-drift-policy-2026-07-08.md). Read these. */
+          agent_identity?: string | null;
+          agent_reasoning?: string | null;
+          /** @deprecated legacy field names — retained additively during the
+           * FE migration; read `agent_identity`/`agent_reasoning` instead. */
           reviewer_identity?: string | null;
           reviewer_reasoning?: string | null;
         };

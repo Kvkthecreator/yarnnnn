@@ -30,6 +30,46 @@ router = APIRouter()
 
 
 # =============================================================================
+# Serialization boundary — the naming-drift boundary-map
+# =============================================================================
+# Per docs/analysis/naming-drift-policy-2026-07-08.md: the DB columns
+# `reviewer_identity` / `reviewer_reasoning` are KEPT (relabel-keep-slug — a
+# rename would cascade through every writer/reader + the ground-truth join +
+# tenure probes for zero data-shape benefit; they carry internal attribution
+# slugs, never rendered raw). But the API CONTRACT the FE reads (layer d) should
+# speak the current canon vocabulary ("agent", not "reviewer"). This adapter is
+# the SINGLE place the two vocabularies meet: it emits the canon aliases
+# `agent_identity` / `agent_reasoning` mapped from the unchanged columns. The DB
+# column, the primitive that writes it, and the probes all keep `reviewer_*`;
+# only the serialized field crosses the boundary as canon.
+#
+# Additive during the FE migration: the legacy `reviewer_*` keys are retained
+# alongside the canon keys so nothing breaks mid-flight; the FE reads the canon
+# names. Once no FE consumer reads the legacy keys they can drop from the map.
+_PROPOSAL_FIELD_ALIASES: dict[str, str] = {
+    "reviewer_identity": "agent_identity",
+    "reviewer_reasoning": "agent_reasoning",
+}
+
+
+def serialize_proposal(row: dict[str, Any]) -> dict[str, Any]:
+    """Map an `action_proposals` DB row to the API-contract shape.
+
+    Adds the canon `agent_identity` / `agent_reasoning` aliases from the
+    unchanged `reviewer_*` columns (the naming-drift boundary-map). Leaves the
+    row otherwise untouched; the legacy keys are retained additively during the
+    FE migration. Tolerant of a missing column (alias is simply absent).
+    """
+    if not row:
+        return row
+    out = dict(row)
+    for src, dst in _PROPOSAL_FIELD_ALIASES.items():
+        if src in out:
+            out[dst] = out[src]
+    return out
+
+
+# =============================================================================
 # Request models
 # =============================================================================
 
@@ -156,7 +196,7 @@ async def list_proposals(
         result = query.execute()
         current_occupant = await _current_occupant_for_user(auth.client, auth.user_id)
         return {
-            "proposals": result.data or [],
+            "proposals": [serialize_proposal(r) for r in (result.data or [])],
             "current_occupant": current_occupant,
         }
     except Exception as e:
@@ -192,7 +232,7 @@ async def get_proposal(proposal_id: str, auth: UserClient):
             raise HTTPException(status_code=404, detail="Proposal not found")
         current_occupant = await _current_occupant_for_user(auth.client, auth.user_id)
         return {
-            "proposal": result.data[0],
+            "proposal": serialize_proposal(result.data[0]),
             "current_occupant": current_occupant,
         }
     except HTTPException:

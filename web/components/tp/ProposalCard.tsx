@@ -45,6 +45,13 @@ export interface ProposalData {
   decision_context?: Record<string, unknown>;
   expires_at: string;
   status: string;
+  /** Canon attribution fields (naming-drift boundary-map — the proposals
+   * serializer maps these from the internal `reviewer_*` DB columns; see
+   * docs/analysis/naming-drift-policy-2026-07-08.md). Read these. */
+  agent_identity?: string;
+  agent_reasoning?: string;
+  /** @deprecated internal-slug field names retained for the component's own
+   * state shape; read `agent_identity`/`agent_reasoning` off the API contract. */
   reviewer_identity?: string;
   reviewer_reasoning?: string;
   /** Structured inputs — the actual payload replayed on approve. Shape varies
@@ -460,8 +467,10 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
       if (!cancelled && res?.proposal) {
         setLiveProposal((prev) => ({
           ...prev,
-          reviewer_identity: res.proposal.reviewer_identity ?? undefined,
-          reviewer_reasoning: res.proposal.reviewer_reasoning ?? undefined,
+          // Read the canon `agent_*` fields (naming-drift boundary-map); fall
+          // back to the deprecated `reviewer_*` alias while the migration lands.
+          reviewer_identity: res.proposal.agent_identity ?? res.proposal.reviewer_identity ?? undefined,
+          reviewer_reasoning: res.proposal.agent_reasoning ?? res.proposal.reviewer_reasoning ?? undefined,
           status: res.proposal.status ?? prev.status,
           // Chat tool-result chips lack `source` — the fetch supplies it so
           // the witness-dial line renders (ADR-408 D5.2).
@@ -751,8 +760,9 @@ export function InlineProposalChipById({ proposalId }: { proposalId: string }) {
           decision_context: res.proposal.decision_context ?? undefined,
           expires_at: res.proposal.expires_at,
           status: res.proposal.status,
-          reviewer_identity: res.proposal.reviewer_identity ?? undefined,
-          reviewer_reasoning: res.proposal.reviewer_reasoning ?? undefined,
+          // Canon `agent_*` first (naming-drift boundary-map), legacy fallback.
+          reviewer_identity: res.proposal.agent_identity ?? res.proposal.reviewer_identity ?? undefined,
+          reviewer_reasoning: res.proposal.agent_reasoning ?? res.proposal.reviewer_reasoning ?? undefined,
           inputs: res.proposal.inputs,  // structured payload replayed on approve
         });
       } else {

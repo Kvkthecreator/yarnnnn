@@ -154,7 +154,7 @@ export function QueueBody() {
                             </span>
                           )}
                         </span>
-                        {p.reviewer_identity?.startsWith('ai:') && (
+                        {(p.agent_identity ?? p.reviewer_identity)?.startsWith('ai:') && (
                           <span className="shrink-0 text-[10px] rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-400">
                             Agent approved
                           </span>
