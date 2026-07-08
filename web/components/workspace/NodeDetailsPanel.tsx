@@ -39,6 +39,7 @@ import {
   authorAccent,
 } from '@/lib/workspace/attribution';
 import { operatorCanOrganize, organizeBlockedReason } from '@/lib/workspace/ownership';
+import { fileLegibilityState, legibilityDescriptor } from '@/lib/workspace/legibility';
 import type { WorkspaceTreeNode } from '@/types';
 
 // ADR-388 D3: author label + accent come from the ONE shared attribution
@@ -202,8 +203,23 @@ function FileProperties({ node }: { node: WorkspaceTreeNode }) {
   const kind = describeKind(node.path);
   const location = node.path.replace(/\/[^/]*$/, '') || '/';
 
+  // ADR-422 D4: the plain-language "why" for a not-freely-editable file. For
+  // agent-authored, name the most-recent contributor (the head author).
+  const legibility = fileLegibilityState(node);
+  const headAuthor = node.authored_by ?? contributors?.[0] ?? null;
+  const stateDescriptor = legibilityDescriptor(
+    legibility,
+    legibility === 'agent-authored' ? formatAuthorLabel(headAuthor) : null,
+  );
+
   return (
     <div className="rounded-md border border-border/60 bg-muted/10 px-3 py-2">
+      {/* ADR-422 D4: the file's legibility state, stated in object language at
+          the top — why it's not freely editable (system-managed / a record /
+          agent-authored). Reuses the macOS-plain copy discipline (ADR-400 Am.2). */}
+      {stateDescriptor && (
+        <p className="mb-2 text-[11px] leading-snug text-muted-foreground">{stateDescriptor}</p>
+      )}
       <PropRow label="Kind">{kind}</PropRow>
       <PropRow label="Location">
         <span className="break-all font-mono text-[11px] text-muted-foreground">{location}</span>

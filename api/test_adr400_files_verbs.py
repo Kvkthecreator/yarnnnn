@@ -35,8 +35,7 @@ def _run(coro):
     ("/workspace/persona/IDENTITY.md", True),
     ("/workspace/governance/AUTONOMY.md", True),   # governance PROSE → theirs
     ("/workspace/operation/report.md", True),
-    ("/workspace/inbound/uploads/operator/a.pdf", True),
-    ("/workspace/uploads/x.md", True),
+    ("/workspace/uploads/x.md", True),  # uploads/ = the HUMAN raw lane → theirs
     # Carve 1: system/ runtime state → locked.
     ("/workspace/system/_recent_execution.md", False),
     # Carve 2: _*.yaml/_*.json machine-config (read by exact path) → locked.
@@ -45,6 +44,12 @@ def _run(coro):
     ("/workspace/operation/_universe.json", False),
     # A non-underscore .yaml is NOT machine-config by our rule → organizable.
     ("/workspace/operation/notes.yaml", True),
+    # Carve 3 (ADR-422 D2): inbound/ = the immutable machine/external raw lane
+    # (retained, never rewritten). NOT organizable — distinct from uploads/ above.
+    # (The prior `inbound/uploads/...` case was a test fiction — no such path is
+    # produced; human uploads land at uploads/, external raw at inbound/.)
+    ("/workspace/inbound/mcp/claude/inbox.md", False),
+    ("/workspace/inbound/web/example/2026.xml", False),
 ])
 def test_operator_can_organize(path, ok):
     from services.workspace_paths import operator_can_organize

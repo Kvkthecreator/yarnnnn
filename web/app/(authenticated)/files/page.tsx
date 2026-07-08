@@ -180,6 +180,7 @@ function buildRootNodes(input: {
       path: root.path, // the REAL fs path (/workspace/{name}) — clickable, resolves
       type: 'folder' as const,
       summary: root.description || (count ? `${count} items` : 'Empty'),
+      icon_name: root.icon, // ADR-422 D3: kernel-named glyph (was dropped before)
       children,
     } satisfies TreeNode;
   });

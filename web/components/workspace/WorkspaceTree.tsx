@@ -8,11 +8,13 @@
  */
 
 import { useEffect, useState } from 'react';
-import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, Boxes } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, Boxes, Lock, Archive } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WorkspaceTreeNode } from '@/types';
 import { FileIcon } from '@/components/workspace/FileIcon';
 import { FileContextMenu, type FileMenuTarget } from '@/components/workspace/FileContextMenu';
+import { fileLegibilityState, type FileLegibilityState } from '@/lib/workspace/legibility';
+import { resolveRootIcon } from '@/lib/workspace/root-icons';
 
 interface WorkspaceTreeProps {
   nodes: WorkspaceTreeNode[];
@@ -135,24 +137,27 @@ interface TreeItemProps {
 // The dataTransfer key for a dragged workspace file path (ADR-400 Wave B).
 const DRAG_MIME = 'application/x-yarnnn-path';
 
-// A `_`-prefixed file is machine-config / accumulated system state (per the
-// File Format Discipline: _autonomy.yaml, _principles.yaml, _tracker.md,
-// _account.yaml, …). ADR-320 correction (2026-06-10): these are no longer
-// HIDDEN — the tree must be able to follow a deep-link or Get-Info into them
-// (Home/cockpit link straight to _account.yaml etc.). They render
-// de-emphasized so the operator can tell system-state from authored prose at
-// a glance, without the tree lying about what exists.
-function isSystemFile(node: WorkspaceTreeNode): boolean {
-  if (node.type !== 'file') return false;
-  const filename = node.path.split('/').pop() || '';
-  return filename.startsWith('_');
+// ADR-422 D1: a file's legibility state (machine-config / raw-intake /
+// agent-authored / operator) drives its tree affordance. This REPLACES the old
+// coarse `_`-prefix `isSystemFile` heuristic, which mislabeled prose files like
+// `_notes.md` as "system". machine-config + raw-intake render de-emphasized with
+// a distinct glyph (lock / archive); agent-authored + operator render normally.
+// Derived from path + authored_by already on the node — no new backend data.
+
+// A file is de-emphasized (dimmer) iff it's system-managed config or an
+// immutable record — not the operator's freely-editable prose.
+function isDeEmphasized(state: FileLegibilityState): boolean {
+  return state === 'machine-config' || state === 'raw-intake';
 }
 
 function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu, dnd }: TreeItemProps) {
   const [expanded, setExpanded] = useState(depth < 1); // Auto-expand first level
   const isFolder = node.type === 'folder';
   const isSelected = selectedPath === node.path;
-  const isSystem = isSystemFile(node);
+  // ADR-422 D1: the file's legibility state → its affordance (folders are always
+  // 'operator' — no not-editable treatment).
+  const legibility = fileLegibilityState(node);
+  const deEmphasized = isDeEmphasized(legibility);
 
   // ADR-400 Wave B drag-and-drop.
   // A FILE is draggable iff the operator can organize it (system/ + machine-
@@ -230,9 +235,10 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu, dnd }: T
         className={cn(
           "w-full flex items-center gap-1.5 py-1 px-2 rounded-sm text-left hover:bg-accent/50 transition-colors",
           isSelected && "bg-primary/10 text-primary font-medium",
-          // ADR-320 correction: machine-config files render de-emphasized
-          // (dimmer text) rather than hidden — present but visibly secondary.
-          isSystem && !isSelected && "text-muted-foreground/55",
+          // ADR-422 D1: machine-config + raw-intake render de-emphasized (dimmer
+          // text) rather than hidden — present but visibly secondary (supersedes
+          // the ADR-320 `_`-prefix de-emphasis, which mislabeled prose).
+          deEmphasized && !isSelected && "text-muted-foreground/55",
           // ADR-400 Wave B: drop-target highlight while a file drags over.
           isDropHover && "ring-2 ring-inset ring-primary/60 bg-primary/5",
           draggable && "cursor-grab active:cursor-grabbing",
@@ -243,13 +249,17 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu, dnd }: T
         {!isFolder && <span className="w-3.5" />}
         {fileIcon}
         <span className="truncate flex-1">{node.name}</span>
-        {/* System-file tag — disambiguates machine-config from authored prose
-            at a glance (the de-emphasis + tag carry the distinction the old
-            hide-rule used to carry by omission). */}
-        {isSystem && (
-          <span className="shrink-0 text-[9px] uppercase tracking-wide text-muted-foreground/40 ml-1">
-            sys
-          </span>
+        {/* ADR-422 D1: the not-editable-state affordance — a plain glyph, not the
+            developer `sys` word (ADR-410 D4). A lock = system-managed config the
+            operator tunes in Settings; an archive = an immutable record of what
+            came in. agent-authored + operator files carry no tree glyph (their
+            authorship lives in the header + Get-Info, ADR-388 D3). The glyph is a
+            quiet trailing hint; the full "why" is stated in Get-Info (D4). */}
+        {legibility === 'machine-config' && (
+          <Lock className="shrink-0 w-3 h-3 text-muted-foreground/40 ml-1" aria-label="Managed by the system" />
+        )}
+        {legibility === 'raw-intake' && (
+          <Archive className="shrink-0 w-3 h-3 text-muted-foreground/40 ml-1" aria-label="A record of what came in" />
         )}
         {/* ADR-388 follow-up: author dots removed from the tree. An unlabeled
             color dot is a riddle — "who wrote it" now lives where it's a full
@@ -287,7 +297,16 @@ function getFileIcon(node: WorkspaceTreeNode) {
   const path = node.path.toLowerCase();
 
   if (node.type === 'folder') {
-    // Top-level group nodes (virtual /explorer/* paths + real ADR-320 roots).
+    // ADR-422 D3: a ROOT node carries the kernel-named glyph (WORKSPACE_ROOTS
+    // in workspace_paths.py) — prefer it over the path-string guesses below, so
+    // constitution/governance/contract/inbound get their real glyph (before,
+    // they all fell to the generic folder). An unmapped root → generic folder
+    // (forward-compat with re-founding roots, ADR-388 §6).
+    if (node.icon_name) {
+      const RootIcon = resolveRootIcon(node.icon_name);
+      return <RootIcon className="w-3.5 h-3.5 text-muted-foreground" />;
+    }
+    // Virtual /explorer/* group nodes (no backend root behind them).
     if (path === '/explorer/settings') return <Settings className="w-3.5 h-3.5 text-slate-500" />;
     if (path === '/explorer/context') return <Boxes className="w-3.5 h-3.5 text-sky-600" />;
     if (path === '/explorer/outputs') return <ListChecks className="w-3.5 h-3.5 text-orange-500" />;

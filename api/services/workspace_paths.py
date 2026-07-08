@@ -434,7 +434,7 @@ CALLER_WRITE_POLICY: dict[str, tuple[str, ...]] = {
 
 # ADR-400 Amendment 1 (2026-07-02): the operator's ORGANIZE reach (move/rename/
 # trash), the SINGULAR source both the Files routes and the FE mirror. The
-# operator organizes their whole workspace EXCEPT two carves:
+# operator organizes their whole workspace EXCEPT three carves:
 #
 #   1. system/  — runtime orchestration state, not hand-organized. This IS the
 #      declared operator write-lock (CALLER_WRITE_POLICY['operator'] = SYSTEM_ROOT).
@@ -443,6 +443,14 @@ CALLER_WRITE_POLICY: dict[str, tuple[str, ...]] = {
 #      moving one breaks the reader. This is a FILESYSTEM-INTEGRITY rule (don't
 #      rename a file another program finds by path), NOT a permission hierarchy —
 #      the operator "owns" it, but the machine depends on its exact location.
+#   3. inbound/  — the RAW INTAKE LANE (ADR-376 / DP32). Every file here is an
+#      immutable attributed observation of what arrived from the outside: raw is
+#      RETAINED and reasoned-against, NEVER rewritten. Moving/renaming/trashing a
+#      record of what came in is a category error — the operator reads the raw and
+#      corrects the DERIVED understanding, not the observation. Added by ADR-422
+#      D2: the FE previously believed intake was organizable (no carve), so the
+#      surface and this gate disagreed; this closes that (uploads/ is the HUMAN
+#      raw lane and stays organizable — the operator owns what they uploaded).
 #
 # Everything else — constitution/, persona/, operation/, uploads/, all prose — is
 # the operator's to reorganize. Delete is trash-not-erase (reversible), so this is
@@ -451,17 +459,22 @@ _MACHINE_CONFIG_EXTS = (".yaml", ".yml", ".json")
 
 
 def operator_can_organize(path: str) -> bool:
-    """True iff the operator may move/rename/trash `path` (ADR-400 Amendment 1).
+    """True iff the operator may move/rename/trash `path` (ADR-400 Amendment 1
+    + ADR-422 D2).
 
-    The one carve on top of the operator's near-total workspace reach:
+    The three carves on top of the operator's near-total workspace reach:
       - under system/ → False (runtime state, the declared operator lock)
       - a _*.yaml/_*.json machine-config file → False (read by exact path)
+      - under inbound/ → False (immutable raw intake, ADR-376 — retained, never
+        rewritten; uploads/ is the human raw lane and stays organizable)
       - everything else → True (constitution/persona/operation/uploads/... prose)
     """
     rel = path.strip().lstrip("/")
     if rel.startswith("workspace/"):
         rel = rel[len("workspace/"):]
     if rel.startswith(SYSTEM_ROOT):
+        return False
+    if rel.startswith(INBOUND_ROOT):
         return False
     leaf = rel.rsplit("/", 1)[-1]
     if leaf.startswith("_") and leaf.lower().endswith(_MACHINE_CONFIG_EXTS):

@@ -632,6 +632,11 @@ export interface WorkspaceTreeNode {
   // when head_version_id FK resolves (may be undefined for files that
   // predate ADR-209 Phase 2 or haven't been attributed yet).
   authored_by?: string | null;
+  // ADR-422 D3: the backend-supplied lucide icon NAME for a workspace ROOT
+  // (from WORKSPACE_ROOTS in workspace_paths.py). Set on root nodes by
+  // buildRootNodes so WorkspaceTree renders the kernel-named glyph instead of
+  // a hardcoded path-string guess. Undefined on non-root nodes.
+  icon_name?: string;
 }
 
 export interface WorkspaceFile {
