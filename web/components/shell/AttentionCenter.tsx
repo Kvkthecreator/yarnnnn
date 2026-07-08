@@ -140,7 +140,13 @@ export function AttentionCenter() {
   // same resolution useSurfacePreferences performs (its provider resolves it
   // once via supabase.auth.getUser()) — reused here for the per-(workspace,
   // user) cursor key.
-  const { navigateToSurface, userId } = useSurfacePreferences();
+  const { navigateToSurface, userId, foregrounded } = useSurfacePreferences();
+
+  // 2026-07-08 — the bell is this window's ONLY top-bar door (the Dock tile
+  // is suppressed via `chrome_fronted`), so it must carry the foregrounded
+  // highlight a Dock icon otherwise would: when the Notifications window fills
+  // the screen, the bell reads as active — "the glyph is the window you're in."
+  const windowActive = foregrounded === 'notifications';
 
   // ADR-407 Phase 3 — resolve the read cursor once userId is known: read the
   // local (workspace, user)-keyed cursor, then reconcile with the server copy
@@ -343,7 +349,9 @@ export function AttentionCenter() {
             : badgeCount > 0
               ? 'text-foreground hover:bg-muted'
               : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-          isOpen && 'bg-muted',
+          // Foregrounded window → solid fill (matches the Dock's foregrounded
+          // icon treatment); popover-open → muted. windowActive wins.
+          windowActive ? 'bg-foreground text-background' : isOpen && 'bg-muted',
         )}
         title="Notifications"
         aria-label={`Notifications${badgeCount > 0 ? ` — ${badgeCount} items` : ''}`}

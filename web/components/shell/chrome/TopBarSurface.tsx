@@ -134,12 +134,19 @@ export function TopBarSurface() {
   // icons — they're sidebar panes inside their parent's window, not
   // windows. Stale persisted kept/open entries from before the System
   // Settings fold are filtered the same way the viewport filters them.
+  // 2026-07-08: chrome-fronted surfaces (Notifications → the AttentionCenter
+  // bell) are filtered the same way — their door is dedicated top-bar chrome,
+  // so a Dock tile would be a second door for one thing. Without this, opening
+  // the window drops the slug into `open` (D14 kept ∪ open) and paints a
+  // redundant tile; the bell carries the foregrounded highlight instead.
+  const isDockable = (s: Surface | undefined): s is Surface =>
+    Boolean(s) && !s!.pane_of && !s!.chrome_fronted;
   const keptSurfaces: Surface[] = useMemo(
     () =>
       kept
         .filter((slug) => slug !== HOME_SLUG)
         .map((slug) => surfaceBySlug.get(slug))
-        .filter((s): s is Surface => Boolean(s) && !s!.pane_of),
+        .filter(isDockable),
     [kept, surfaceBySlug]
   );
 
@@ -148,7 +155,7 @@ export function TopBarSurface() {
       open
         .filter((slug) => !kept.includes(slug) && slug !== HOME_SLUG)
         .map((slug) => surfaceBySlug.get(slug))
-        .filter((s): s is Surface => Boolean(s) && !s!.pane_of),
+        .filter(isDockable),
     [open, kept, surfaceBySlug]
   );
 

@@ -281,6 +281,14 @@ export interface Surface {
   /** Sidebar section label inside the parent container (ADR-340 D4). */
   pane_group?: string;
   /**
+   * 2026-07-08 — this surface's door is a DEDICATED top-bar chrome
+   * affordance (e.g. Notifications → the AttentionCenter bell), so it must
+   * not also render a generic Dock tile. The Dock filters chrome-fronted
+   * surfaces the same way it filters pane-grade (`pane_of`) ones; the
+   * chrome affordance itself carries the foregrounded-highlight instead.
+   */
+  chrome_fronted?: boolean;
+  /**
    * ADR-340 P3 / ADR-341 / ADR-347 — the launcher's at-rest grouping,
    * derived from the operator's standing loop (NOT from the register):
    * `primary` (the loop compositions: Home/Operation + Files) · `configure`

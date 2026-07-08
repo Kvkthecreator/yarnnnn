@@ -342,6 +342,17 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # duplication on mobile and ruled it applies to all sizes. Still
         # summonable by name via flat search, still dockable while open.
         "launcher_tier": "search-only",  # fronted by the top-bar bell (was own bottom group)
+        # 2026-07-08 — the top-bar bell (AttentionCenter) is this surface's
+        # DEDICATED chrome door, so it must not ALSO render a generic Dock
+        # tile: a Dock icon appears the moment the window enters `open`
+        # (D14 kept ∪ open) — the exact "two doors for one thing" the
+        # 2026-07-04 launcher re-sort ruled out, but `search-only` only
+        # removed the LAUNCHER tile, not the Dock one. `chrome_fronted`
+        # completes that intent: the Dock filters chrome-fronted surfaces
+        # the same way it filters pane-grade ones, and the bell carries the
+        # foregrounded highlight instead. Generic field (not a magic slug)
+        # so any future status/chrome-fronted surface inherits the rule.
+        "chrome_fronted": True,
         "register": "application",  # a windowed composition like home / workspace-settings
         "title": "Notifications",
         "archetype": "dashboard",  # composition over multiple substrates
