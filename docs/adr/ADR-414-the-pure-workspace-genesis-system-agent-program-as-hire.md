@@ -1,6 +1,6 @@
 # ADR-414: The Pure Workspace — Genesis, the True System Agent, and Program-as-Hire
 
-**Status**: Accepted (2026-07-07, operator-ratified — "fully aligned with stated points from canon moat statement, to the re-allocation map details"). **Phases 0/A/B/C/D+E-1/F1 Implemented same day** (commits `c3a3e07` → `7844c88`): Phase 0 canon cascade · Phase A re-key remainders (gate `test_adr414_phase_a`) · Phase B system-agent purification — B1 live bugs, B2 envelope kernel-constants (CHANGELOG `[2026.07.07.1]`), B3 the ADR-216 collapse (migration 205 APPLIED, receipt 5→0 rows, 0 dependents; gate `test_adr414_phase_b`) · Phase C pure genesis (gate `test_adr414_phase_c`) · Phase D+E-1 grant-row activation (backfill one-shot receipt: 13 workspaces, 0 minted — zero live program markers; the five `'the'` hits were the steward-heading false-positive; gate `test_adr414_phase_d`) · Phase F1 vocabulary sweep (21 sites; ratchet `test_adr414_phase_f`). **Phase D+E-2 Implemented** (2026-07-08, commit `18bf39d`): the file re-homing — a hired agent's judgment load-out lives in `agents/{slug}/`; the envelope / witness dial / judgment-log writer / surface reads branch on `resolve_judgment_home` (the hire grant); the ADR-284 occupant-fork deleted (occupant fact is kernel data); both bundle trees restructured (tree-is-truth, §9a); per-agent grant sidecars locked; gate `test_adr414_phase_e`. The **post-deploy Hat-B eval** ran and PASSED (2026-07-08, commit `b52c637`; `docs/evaluations/2026-07-08-adr414-postdeploy-addressed/` — 6/6, sentinels 0/0, cost +1%, wall −12%, baseline not rotated). **Owed follow-ons**: **F2** — Home front-page re-derivation (ADR-412 D7 evidence-gate now satisfiable), `reviewer_identity`/`reviewer_reasoning` API field rename + `reviewer-bubble` shape rename (backend+FE one commit), ratchet #5 (DP35 scope manifest); **later** — ADR-391 per-principal budget allocations (§9a #6, named its own follow-on); the alpha-trader re-hire (an operator decision — zero live program workspaces per the D+E-1 backfill).
+**Status**: Accepted (2026-07-07, operator-ratified — "fully aligned with stated points from canon moat statement, to the re-allocation map details"). **Phases 0/A/B/C/D+E-1/F1 Implemented same day** (commits `c3a3e07` → `7844c88`): Phase 0 canon cascade · Phase A re-key remainders (gate `test_adr414_phase_a`) · Phase B system-agent purification — B1 live bugs, B2 envelope kernel-constants (CHANGELOG `[2026.07.07.1]`), B3 the ADR-216 collapse (migration 205 APPLIED, receipt 5→0 rows, 0 dependents; gate `test_adr414_phase_b`) · Phase C pure genesis (gate `test_adr414_phase_c`) · Phase D+E-1 grant-row activation (backfill one-shot receipt: 13 workspaces, 0 minted — zero live program markers; the five `'the'` hits were the steward-heading false-positive; gate `test_adr414_phase_d`) · Phase F1 vocabulary sweep (21 sites; ratchet `test_adr414_phase_f`). **Phase D+E-2 Implemented** (2026-07-08, commit `18bf39d`): the file re-homing — a hired agent's judgment load-out lives in `agents/{slug}/`; the envelope / witness dial / judgment-log writer / surface reads branch on `resolve_judgment_home` (the hire grant); the ADR-284 occupant-fork deleted (occupant fact is kernel data); both bundle trees restructured (tree-is-truth, §9a); per-agent grant sidecars locked; gate `test_adr414_phase_e`. The **post-deploy Hat-B eval** ran and PASSED (2026-07-08, commit `b52c637`; `docs/evaluations/2026-07-08-adr414-postdeploy-addressed/` — 6/6, sentinels 0/0, cost +1%, wall −12%, baseline not rotated). **Phase F2 Implemented** (2026-07-08): **F2a** (commit `abec540`) — the reviewer-vocabulary FE rename (`ReviewerPosture`→`AgentPosture`, `reviewer-bubble`→`freddie-bubble`) + the agent-tenure admin metric counting `freddie:`/`reviewer:` (the B1 undercount class); **F2c** (this commit) — ratchet #5, the DP35 scope manifest (`api/services/scope_manifest.yaml` + `test_adr414_phase_f_dp35`). **F2b Home re-derivation is DEFERRED** (operator ruling — §9b; Home is sequenced last among the FE surfaces; the concrete cause + fix are recorded there). The `reviewer_identity`/`reviewer_reasoning` DB-column rename was **descoped** (operator ruling — §8 amendment; relabel-keep-slug, FE shape renamed instead). **Owed later**: ADR-391 per-principal budget allocations (§9a #6); the Home pass (§9b); the alpha-trader re-hire (an operator decision — zero live program workspaces per the D+E-1 backfill).
 **Date**: 2026-07-07
 **Dimension**: Substrate (Axiom 1 — what genesis seeds, where governance lives) + Identity (Axiom 2 — the system agent purified; the two-order agent model made structural) + Purpose (Axiom 3 — MANDATE re-homed per-agent) + Channel (the FE recomposition it forces)
 **Relates to**: ADR-408 (the three AI altitudes — this ADR is their substrate/genesis completion), ADR-383 (the consistent agent framework — D2 amends it), ADR-216 (orchestration vs judgment — D3 collapses the seam it drew), ADR-207/206 (mandate gate + operation-first scaffolding — D4 retires their genesis-time force), ADR-222 (workspaces run programs — D5 finally honors it in code), ADR-373/404/407 (the multi-principal commons this ADR assumes), ADR-380/381/382 (the activation ladder / Freddie / persona-agent seats — D5/D6 build their substrate layer without building Rung-2 runtime), ADR-391 (per-principal allocations — D6 lands its deferred implementation line), the re-founding keystone (ADR-384 / FOUNDATIONS v9.13 — D4 implements it at genesis, where it is cheapest: nothing to migrate)
@@ -290,12 +290,48 @@ FOUNDATIONS Reviewer-row paths, agent-composition §3.2.1's
   D7's evidence gate); StandingBand/JudgmentTrail become per-agent,
   dormant until a hire exists.
 
+### 9b. Home re-derivation — DEFERRED (2026-07-08, operator ruling)
+
+**The Home front-page re-derivation is deliberately deferred, sequenced
+LAST among the FE surfaces.** Operator ruling: "Home while important needs
+to happen last" — imminent FE surface polishing + reorganizing (launcher
+IA, per-agent surfaces, the ADR-340 §9 open follow-ons) will reshape what
+Home composes over, so re-deriving it now would be re-done. The concrete
+cause is recorded here so the eventual Home pass does not re-diagnose:
+
+- **The home-bundle reads the STEWARD-ERA workspace-root paths.**
+  `GET /api/workspace/home-bundle` (`routes/workspace.py::get_home_bundle`)
+  reads `CONSTITUTION_MANDATE_PATH` + `PERSONA_JUDGMENT_LOG_PATH` +
+  `GOVERNANCE_AUTONOMY_YAML_PATH` directly — NOT through
+  `resolve_judgment_home`. So on a HIRED workspace the constitution band
+  (`HomeHeader`) + the judgment trail render blank even though the mandate
+  + lineage live at `agents/{slug}/`. The fix is the **same judgment-home
+  re-point** already applied to `freddie_envelope` + `/workspace/state`
+  (D+E-2 §9a) — mechanical, low-risk, but bundled into the Home pass so it
+  ships with the composition it belongs to.
+- **The bare-workspace cold-start CTA still points at program activation.**
+  `HomeFrontPage::UnactivatedHomeCTA` + `HomeHeader`'s "Mandate not yet
+  declared" branch frame the empty Home as "activate a program" → `/setup`.
+  Under pure genesis (D4) that is the old "workspaces have types" model;
+  the honest cold-start is the commons (members + activity + files + an
+  OPTIONAL hire). Reframing this is the design-flavored half — it belongs
+  with the broader Home recompose, not a spot edit.
+
+When the Home pass runs: apply the judgment-home re-point to the
+home-bundle reads, reframe the cold-start toward the commons, and make
+StandingBand/JudgmentTrail per-agent (dormant until a hire exists). ADR-412
+D7's evidence gate is satisfiable now; the recompose is what's deferred.
+
 **CI ratchets shipped with their phases** (the ADR-209 pattern): (1) no
 steward-file seeding; (2) no prose activation markers; (3) no
 `user_id`-keyed substrate reads outside the grant/account layer; (4) no
 "Reviewer" (or internal enums) in operator-facing FE strings; (5) every
 new persistent store declares its DP35 scope in a manifest the gate
-parses.
+parses. **All five shipped**: #1 `test_adr414_phase_c`, #2
+`test_adr414_phase_d`, #3 `test_adr414_phase_a`, #4 `test_adr414_phase_f`,
+#5 `test_adr414_phase_f_dp35` (the DP35 scope manifest
+`api/services/scope_manifest.yaml` mirroring ADR-407 §3 + the write-scan
+gate — a `.table("X")` write with no scope declaration fails CI).
 
 ### 9a. D+E-2 design notes (2026-07-08, recorded before implementation)
 

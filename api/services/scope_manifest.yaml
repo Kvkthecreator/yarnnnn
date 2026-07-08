@@ -1,0 +1,67 @@
+# DP35 scope manifest (FOUNDATIONS v9.15 / ADR-407 §3 + ADR-414 ratchet #5)
+#
+# Every persistent store declares EXACTLY ONE of three scopes. This file is the
+# machine-parseable mirror of ADR-407 §3's living registry; the ADR table is the
+# prose home, this file is what CI parses (test_adr414_phase_f_dp35.py). A new
+# `.table("X")` write in api/ whose X is absent here FAILS the gate — the store
+# must name its scope before it ships (ADR-407 D1: "a new store that cannot name
+# its scope is a design error").
+#
+# The three scopes (DP35):
+#   - content            — the commons, keyed workspace_id. What every member
+#                          reads identically: substrate + revisions, the three
+#                          act ledgers, grants, the witness queue, balance.
+#   - member-experience  — one member's private operating state, keyed
+#                          (workspace_id, principal_id). NEVER consulted for
+#                          authorization, NEVER holds authored content.
+#   - account            — the human across workspaces, keyed user_id:
+#                          credentials, billing identity, theme.
+#
+# `note` records the sub-role (authz / ledger / witness queue / peripheral /
+# transport / cache) or the re-key status where it clarifies the classification.
+# The gate checks membership + valid scope only; the notes are for humans.
+
+stores:
+  # --- content: the commons (workspace_id) ---
+  workspace_files: { scope: content, note: "substrate (ADR-373)" }
+  workspace_file_versions: { scope: content, note: "revision ledger (ADR-373/209)" }
+  workspace_blobs: { scope: content, note: "content-addressed CAS (shared)" }
+  principal_grants: { scope: content, note: "authz (ADR-373)" }
+  workspace_invites: { scope: content, note: "authz" }
+  workspaces: { scope: content, note: "billing root — balance + tier (ADR-391/396)" }
+  execution_events: { scope: content, note: "cost ledger (ADR-291)" }
+  token_usage: { scope: content, note: "legacy cost ledger (dropped by ADR-396; retained here for the write-scan tail)" }
+  action_proposals: { scope: content, note: "witness queue (ADR-307)" }
+  tasks: { scope: content, note: "scheduling index (ADR-231)" }
+  agents: { scope: content, note: "roster" }
+  agent_runs: { scope: content, note: "execution audit" }
+  activity_log: { scope: content, note: "narrative — service-client INSERT" }
+  wake_queue: { scope: content, note: "transient compute (ADR-298)" }
+  platform_connections: { scope: content, note: "peripheral (ADR-407 D5 — connected_by credential is account-scoped)" }
+  sync_registry: { scope: content, note: "peripheral observability" }
+  balance_transactions: { scope: content, note: "billing audit trail (workspace_id)" }
+  subscription_events: { scope: content, note: "billing lifecycle (workspace_id, ADR-396)" }
+  filesystem_chunks: { scope: content, note: "uploaded-document chunks" }
+  filesystem_documents: { scope: content, note: "uploaded documents (ADR-197)" }
+  destination_delivery_log: { scope: content, note: "operator-addressing dispatch ledger (ADR-299/304)" }
+  export_log: { scope: content, note: "artifact-export ledger" }
+
+  # --- member-experience: one member's private state (workspace_id, principal_id) ---
+  chat_sessions: { scope: member-experience, note: "lanes (ADR-407 D6/ADR-411)" }
+  session_messages: { scope: member-experience, note: "lane messages" }
+  notifications: { scope: member-experience, note: "after-witness transport (ADR-407 D8)" }
+  user_notification_preferences: { scope: member-experience, note: "folds into member_state (ADR-407 D7)" }
+  member_state: { scope: member-experience, note: "the member-experience home (ADR-407 D7)" }
+  email_delivery_log: { scope: member-experience, note: "keyed by recipient — per-member delivery record" }
+
+  # --- account: the human across workspaces (user_id) ---
+  mcp_oauth_clients: { scope: account, note: "OAuth credential (ADR-075)" }
+  mcp_oauth_codes: { scope: account, note: "OAuth credential" }
+  mcp_oauth_access_tokens: { scope: account, note: "OAuth credential" }
+  mcp_oauth_refresh_tokens: { scope: account, note: "OAuth credential" }
+  render_usage: { scope: account, note: "per-user render-call tracking (ADR-118)" }
+
+# Tables that appear in `.table("X")` writes but are NOT persistent stores —
+# excluded from the gate's coverage requirement (test fixtures, ephemeral probes).
+exempt:
+  - test   # test-fixture table used by probes; never a production store

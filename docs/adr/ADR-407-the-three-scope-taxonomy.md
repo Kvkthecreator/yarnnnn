@@ -153,6 +153,14 @@ and never holds authored content.* ADR-222's shell row updates per D2.
 
 ## 3. The scope registry (initial classification)
 
+> **Machine mirror (ADR-414 ratchet #5, 2026-07-08)**: the enforceable form of
+> this registry is `api/services/scope_manifest.yaml`, checked by
+> `api/test_adr414_phase_f_dp35.py` — every `.table("X")` write in production
+> code must have its X scoped there, so a new store cannot ship without a scope
+> declaration (D1: "a store that cannot name its scope is a design error"). This
+> prose table is the human home; the YAML is what CI parses. Keep them in
+> agreement when adding a store.
+
 | Store | Scope | Key (target) | Change |
 |---|---|---|---|
 | `workspace_files`, `workspace_file_versions`, `workspace_blobs` | content | workspace_id | done (ADR-373) |
