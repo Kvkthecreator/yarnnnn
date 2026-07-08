@@ -145,10 +145,40 @@ const PANE_GROUPS: PaneGroup[] = [
   },
 ];
 
+/**
+ * ADR-419 — resolve where the constitution actually lives. Post ADR-414 D6 the
+ * mandate/identity/principles are per-agent: when a program is hired they live
+ * at `agents/{slug}/`; a bare workspace has none of its own. Reads the hired
+ * slug from workspace state (which itself resolves via resolve_judgment_home
+ * server-side). Returns the agent-home prefix, or null for a bare workspace.
+ */
+function useConstitutionHome(): { home: string | null; loaded: boolean } {
+  const [home, setHome] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const state = await api.workspace.getState();
+        const slug = state.active_program_slug ?? null;
+        if (!cancelled) setHome(slug ? `/workspace/agents/${slug}` : null);
+      } catch {
+        if (!cancelled) setHome(null);
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  return { home, loaded };
+}
+
 export default function WorkspaceSettingsPage() {
   const { navigateToSurface } = useSurfacePreferences();
   // ADR-415 — the connector drill-in param (was channels.connector).
   const surfaceParam = useSurfaceParam("workspace-settings");
+  // ADR-419 — the constitution's real home (agent home when hired, else null).
+  const { home: constitutionHome } = useConstitutionHome();
 
   const renderPane = (pane: string) => {
     // ADR-412 D5 — the System Agent panes render via the shared module.
@@ -156,38 +186,37 @@ export default function WorkspaceSettingsPage() {
       return <section className="mb-8">{renderSystemAgentPane(pane)}</section>;
     }
     switch (pane) {
+      // ADR-419 — the workspace Mandate/Identity/Principles panes are
+      // judgment-home-aware mirrors. Post ADR-414 D6 the constitution is
+      // per-agent: when a program is hired, these read the agent's home
+      // (agents/{slug}/…); a bare workspace has no constitution of its own
+      // (empty states say so). The FIRST-CLASS home is the agent detail's
+      // ConstitutionBlock; these panes stay resolvable while the Home band
+      // recompose is deferred (ADR-414 §9b). GrantGate per ADR-412 D3.
       case "mandate":
-        // ADR-412 D3 — constitutional pane: reads stay universal; write
-        // affordances render per the viewer's grant coverage (explicit
-        // read-only banner when constitution/ is outside it).
         return (
           <section className="mb-8">
-            <GrantGate region="constitution/">
-              <MandateCard variant="full" />
+            <GrantGate region={constitutionHome ? "agents/" : "constitution/"}>
+              <MandateCard
+                variant="full"
+                path={constitutionHome ? `${constitutionHome}/MANDATE.md` : undefined}
+              />
             </GrantGate>
           </section>
         );
-      // ADR-418 (2026-07-08) — Identity + Principles re-home here from the
-      // System Agent group. They are constitution mirrors (persona/ region,
-      // doored from the Home band), NOT the steward's persona (which is a
-      // kernel constant post ADR-414 D2). The persona.md/IDENTITY.md files ARE
-      // the seat a HIRED agent installs into — the copy names that honestly, no
-      // longer "Freddie's persona." A hired agent's own panes are the deferred
-      // per-agent FE (ADR-382 / ADR-414 §9b). GrantGate on persona/ per ADR-412 D3.
       case "identity":
         return (
           <section className="mb-8">
-            <GrantGate region="persona/">
+            <GrantGate region={constitutionHome ? "agents/" : "persona/"}>
               <SubstrateTab
                 title="Identity"
-                path="/workspace/persona/IDENTITY.md"
-                tagline="The reasoning-character of the seat — who occupies it. Empty for a bare workspace (the system agent reasons from kernel defaults); a hired agent installs its persona here, shaping how it reasons."
-                editPrompt="I want to author the workspace persona — the reasoning character. Walk me through the current declaration."
+                path={constitutionHome ? `${constitutionHome}/IDENTITY.md` : "/workspace/persona/IDENTITY.md"}
+                tagline="The reasoning-character of the hired agent — its persona. A workspace has no persona of its own; a hired agent installs one, shaping how it reasons."
+                editPrompt="I want to author the agent's persona — its reasoning character. Walk me through the current declaration."
                 emptyBody={
                   <p className="text-center text-xs">
-                    No persona declared. A bare workspace has none — the system
-                    agent reasons from kernel defaults. Hire a program (or author
-                    a domain agent) to install a persona here.
+                    No persona yet. A workspace has none of its own — hire an
+                    agent (or author a domain agent) to install a persona here.
                   </p>
                 }
               />
@@ -197,8 +226,11 @@ export default function WorkspaceSettingsPage() {
       case "principles":
         return (
           <section className="mb-8">
-            <GrantGate region="persona/">
-              <PrinciplesCard variant="full" />
+            <GrantGate region={constitutionHome ? "agents/" : "persona/"}>
+              <PrinciplesCard
+                variant="full"
+                path={constitutionHome ? `${constitutionHome}/principles.md` : undefined}
+              />
             </GrantGate>
           </section>
         );

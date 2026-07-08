@@ -324,16 +324,20 @@ def test_grant_derived_affordances() -> None:
     _assert("useViewerGrant" in front and "canActivate" in front,
             "the activation CTA gates on constitution/ coverage")
     ws = _read("web/app/(authenticated)/workspace-settings/page.tsx")
-    _assert('GrantGate region="constitution/"' in ws,
-            "the Mandate pane is grant-gated")
+    # ADR-419: the Constitution panes are judgment-home-aware — their GrantGate
+    # region resolves to "agents/" when a program is hired (the constitution is
+    # the hired agent's), else the steward-era root ("constitution/"/"persona/").
+    _assert('"constitution/"' in ws,
+            "the Mandate pane is grant-gated (constitution/ when bare — ADR-419)")
     # ADR-418: the System Agent panes are the steward's DIALS (governance/); the
     # persona/ panes (identity/principles) moved to the workspace-settings
-    # Constitution group, where they gate on persona/ directly.
+    # Constitution group. ADR-419: they are judgment-home-aware ("agents/" when
+    # hired, "persona/" when bare).
     sap = _read("web/components/agents/SystemAgentPanes.tsx")
     _assert("PANE_REGIONS" in sap and "governance/" in sap,
             "System Agent dial panes gate on governance/ (ADR-418)")
-    _assert('GrantGate region="persona/"' in ws,
-            "the constitution Identity/Principles panes gate on persona/ (ADR-418)")
+    _assert('"persona/"' in ws and '"agents/"' in ws,
+            "the Constitution Identity/Principles panes gate home-aware (agents/ hired, persona/ bare — ADR-419)")
 
 
 if __name__ == "__main__":

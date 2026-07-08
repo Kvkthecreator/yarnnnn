@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { WorkspaceFileView } from '@/components/shared/WorkspaceFileView';
 import { AgentIcon } from './AgentIcon';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
@@ -486,6 +487,62 @@ function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Recurrence[] })
   );
 }
 
+/**
+ * AgentConstitutionBlock — the per-agent constitution (ADR-419).
+ *
+ * The FIRST-CLASS home for an Altitude-3 agent's Mandate · Identity ·
+ * Principles. Post ADR-414 D6 these are per-agent concepts (they live in the
+ * hired agent's home `agents/{slug}/`), NOT workspace-level: a workspace has
+ * grants/members/files/balance, not a constitution of its own. Renders the
+ * three agent-home files via the universal WorkspaceFileView (same pattern as
+ * the AGENT.md revision panel above). Edits flow through chat (the operator
+ * amends the agent's persona/mandate); reads are universal.
+ *
+ * Scope: real Altitude-3 agents only — platform-bots (orchestration capability
+ * bundles) have no persona/mandate, so this block is hidden for them.
+ */
+function AgentConstitutionBlock({ agent }: { agent: Agent }) {
+  const cls = agent.agent_class || 'specialist';
+  if (cls === 'platform-bot') return null;
+  const home = `/workspace/agents/${getAgentSlug(agent)}`;
+  return (
+    <div className="mt-8 border-t border-border/50 pt-6">
+      <h3 className="text-sm font-semibold text-foreground mb-1">Constitution</h3>
+      <p className="text-xs text-muted-foreground mb-4">
+        This agent&apos;s mandate, persona, and judgment framework — authored for
+        the operation it runs. (A workspace has no constitution of its own; it
+        belongs to the agent you hire — ADR-419.)
+      </p>
+      <div className="space-y-6">
+        <WorkspaceFileView
+          title="Mandate"
+          path={`${home}/MANDATE.md`}
+          tagline="The purpose this agent runs toward — its declared intent."
+          emptyBody={
+            <p className="text-center text-xs">No mandate authored for this agent yet.</p>
+          }
+        />
+        <WorkspaceFileView
+          title="Identity"
+          path={`${home}/IDENTITY.md`}
+          tagline="The reasoning-character this agent embodies — its persona."
+          emptyBody={
+            <p className="text-center text-xs">No persona authored for this agent yet.</p>
+          }
+        />
+        <WorkspaceFileView
+          title="Principles"
+          path={`${home}/principles.md`}
+          tagline="The judgment framework this agent applies — its rules of decision."
+          emptyBody={
+            <p className="text-center text-xs">No principles authored for this agent yet.</p>
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
 function SpecialistFolderBlock({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
   // Show for specialists (v5) and domain-stewards (v4 backward compat) that have a context domain
   const isSpecialist = agent.agent_class === 'specialist' || agent.agent_class === 'domain-steward';
@@ -704,6 +761,11 @@ export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, '
         {/* Tasks: lightweight "currently assigned to" list, links out to /work */}
         <TasksBlock agent={agent} tasks={tasks} />
         {!isPlatformBot && <SpecialistFolderBlock agent={agent} tasks={tasks} />}
+
+        {/* ADR-419: the per-agent constitution — Mandate · Identity · Principles
+            at the agent home. The first-class home for concepts ADR-414 D6 made
+            per-agent (they are NOT workspace-level). */}
+        <AgentConstitutionBlock agent={agent} />
 
         {/* LearnedBlock: feedback distillation (specialists/bots only).
             Reviewer returns earlier. ADR-272: meta-cognitive branch dissolved. */}

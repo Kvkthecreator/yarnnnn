@@ -31,6 +31,7 @@ const REGION_LABELS: Record<string, string> = {
   'contract/': 'the operating contract',
   'operation/': 'the operation',
   'system/': 'system state',
+  'agents/': 'the agent', // ADR-419 — hired-agent constitution (agents/{slug}/)
 };
 
 interface GrantGateProps {

@@ -19,7 +19,8 @@ import { cleanProse } from '@/lib/content-shapes/_render';
 import type { WorkspaceRevisionSummary } from '@/types';
 import { RevisionFootnote } from './RevisionFootnote';
 
-const PRINCIPLES_YAML_PATH = '/workspace/persona/_principles.yaml';
+const DEFAULT_PRINCIPLES_PROSE_PATH = '/workspace/persona/principles.md';
+const DEFAULT_PRINCIPLES_YAML_PATH = '/workspace/persona/_principles.yaml';
 import { cn } from '@/lib/utils';
 
 export type PrinciplesVariant = 'full' | 'compact' | 'headline';
@@ -34,6 +35,12 @@ interface PrinciplesCardProps {
    *  (yaml-only edits also valid; we surface whichever is more recent
    *  via the bundled endpoint). */
   lastRevision?: WorkspaceRevisionSummary | null;
+  /** ADR-419: the principles PROSE file to read on self-fetch (the sibling
+   *  `_principles.yaml` is derived from it). Post ADR-414 D6 principles are a
+   *  per-agent concept — a hired workspace passes
+   *  `/workspace/agents/{slug}/principles.md`; a bare workspace reads the
+   *  steward-era root (empty). Defaults to the root so other callers unchanged. */
+  path?: string;
   className?: string;
 }
 
@@ -45,6 +52,7 @@ export function PrinciplesCard({
   onEdit,
   data: dataProp,
   lastRevision: lastRevisionProp,
+  path = DEFAULT_PRINCIPLES_PROSE_PATH,
   className,
 }: PrinciplesCardProps) {
   const [data, setData] = useState<PrinciplesData | null>(dataProp ?? null);
@@ -57,12 +65,18 @@ export function PrinciplesCard({
       return;
     }
     let cancelled = false;
+    // ADR-419: derive the yaml sibling from the prose path — for a hired agent
+    // both live in agents/{slug}/; for the default they are the persona root.
+    const yamlPath =
+      path === DEFAULT_PRINCIPLES_PROSE_PATH
+        ? DEFAULT_PRINCIPLES_YAML_PATH
+        : path.replace(/principles\.md$/, '_principles.yaml');
     void (async () => {
       try {
         // ADR-254: thresholds in _principles.yaml, reject conditions in principles.md
         const [proseR, yamlR] = await Promise.allSettled([
-          api.workspace.getFile('/workspace/persona/principles.md'),
-          api.workspace.getFile(PRINCIPLES_YAML_PATH),
+          api.workspace.getFile(path),
+          api.workspace.getFile(yamlPath),
         ]);
         if (cancelled) return;
         const prose = parse(proseR.status === 'fulfilled' ? proseR.value?.content ?? '' : '');
@@ -75,7 +89,7 @@ export function PrinciplesCard({
       }
     })();
     return () => { cancelled = true; };
-  }, [dataProp]);
+  }, [dataProp, path]);
 
   if (variant === 'headline') {
     if (loading || !data?.hasPrinciples) return null;

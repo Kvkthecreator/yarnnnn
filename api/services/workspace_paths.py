@@ -47,11 +47,18 @@ and user uploads at `/workspace/uploads/` — unchanged by ADR-320 (not part of 
 constitution/operation/governance cut; agents/ is per-agent, working/ ephemeral,
 uploads/ user-contributed reference material).
 
-constitution/ + persona/ are the REQUIRED region (ADR-320 D4 hard-gate, generalizing
-ADR-207's MANDATE gate): the workspace cannot dispatch work until MANDATE.md +
-persona IDENTITY.md + persona principles.md are non-skeleton. governance/ defaults
-are kernel/bundle-seeded. operation/ empty is legal — it signals the bare-workspace
-"agent authored, no operation attached" state.
+constitution/ + persona/ are the semantic-class roots for a workspace-level
+constitution — BUT under ADR-414 (pure genesis) + ADR-419 they are NO LONGER
+workspace-level concepts: mandate/identity/principles are PER-AGENT (they live in
+a hired agent's home `agents/{slug}/`, ADR-414 D6), and the steward's versions are
+KERNEL CONSTANTS riding the wake envelope (ADR-414 D2), never seeded files. So the
+old ADR-320 D4 / ADR-207 "the workspace cannot dispatch until MANDATE.md +
+IDENTITY.md + principles.md are non-skeleton" hard-gate is RETIRED at the workspace
+level (ADR-414 D4) — a bare workspace is a complete commons (files/members/grants/
+balance) with no constitution of its own. These root paths persist as the
+STEWARD-ERA layout for legacy (pre-ADR-414) workspaces and as the region-lock
+prefixes; genesis writes none of them. governance/ dials (autonomy/budget) are the
+only seeded files. operation/ empty is legal — the bare-workspace state.
 """
 
 # =============================================================================

@@ -38,21 +38,23 @@ const REVIEWER_IDENTITY_PATH = '/workspace/persona/IDENTITY.md';
 
 /**
  * Markers that indicate a skeleton/template/kernel-default file with NO
- * operator-authored persona yet. The most important is the steward-default
- * marker: a bare workspace ships `persona/IDENTITY.md` seeded with the
- * kernel steward default (orchestration.py::DEFAULT_STEWARD_IDENTITY_MD),
- * whose heading is literally "# Identity — the system agent". Without this
- * guard, `extractPersonaName` reads that heading and returns "Identity — the
- * system agent" as if it were an operator-authored persona name — which then
- * OVERWRITES the "Freddie" label in the chat header (the operator-observed
- * bug: "Freddie" flashes, then gets replaced). The steward default is NOT a
- * persona; a program activation overwrites IDENTITY.md with a real persona.
+ * operator-authored persona yet.
+ *
+ * ADR-414/419 note: under PURE GENESIS a bare workspace no longer SEEDS
+ * `persona/IDENTITY.md` at all — the file is simply ABSENT, so the LIVE path
+ * for a bare workspace is the empty-content branch (returns null → the caller
+ * falls back to "Freddie"). The `yarnnn:steward-default` marker guard below is
+ * now reachable ONLY on a PRE-ADR-414 workspace that still carries a
+ * marker-bearing seeded file; it is retained so those legacy workspaces don't
+ * surface the steward-default heading ("# Identity — the system agent") as an
+ * operator persona name (the old "Freddie flashes then gets replaced" bug).
+ * A hired agent overwrites IDENTITY.md (at its own home) with a real persona.
  */
 const SKELETON_MARKERS = [
   '_(empty',
   '(template)',
   '# Reviewer Identity — (template)',
-  'yarnnn:steward-default', // the kernel steward-default IDENTITY.md (ADR-381/383)
+  'yarnnn:steward-default', // legacy pre-ADR-414 seeded steward-default (ADR-381/383)
 ];
 
 function extractPersonaName(content: string): string | null {

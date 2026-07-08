@@ -52,8 +52,16 @@ interface MandateCardProps {
   /** Raw file content — required when `data` is provided so the
    *  "View full" expand can show the source without a second fetch. */
   rawContent?: string | null;
+  /** ADR-419: the mandate file to read on self-fetch. Post ADR-414 D6 the
+   *  mandate is a per-agent concept — when a program is hired the caller passes
+   *  `/workspace/agents/{slug}/MANDATE.md`; a bare workspace reads the
+   *  steward-era root (empty — the workspace has no mandate of its own).
+   *  Defaults to the workspace-root path so existing callers are unchanged. */
+  path?: string;
   className?: string;
 }
+
+const DEFAULT_MANDATE_PATH = '/workspace/constitution/MANDATE.md';
 
 const EDIT_PROMPT = "I want to revise my mandate. Show me the current Primary Action declaration and help me sharpen it — success criteria and boundary conditions too.";
 const SETUP_PROMPT = "Help me author my mandate — the Primary Action I'm running, my success criteria, and the boundary conditions I want to enforce.";
@@ -77,6 +85,7 @@ export function MandateCard({
   data: dataProp,
   lastRevision: lastRevisionProp,
   rawContent: rawContentProp,
+  path = DEFAULT_MANDATE_PATH,
   className,
 }: MandateCardProps) {
   const [data, setData] = useState<MandateData | null>(dataProp ?? null);
@@ -96,7 +105,7 @@ export function MandateCard({
     let cancelled = false;
     void (async () => {
       try {
-        const file = await api.workspace.getFile('/workspace/constitution/MANDATE.md');
+        const file = await api.workspace.getFile(path);
         if (!cancelled) {
           setRawContent(file.content ?? '');
           setData(parse(file.content ?? ''));
@@ -111,7 +120,7 @@ export function MandateCard({
       }
     })();
     return () => { cancelled = true; };
-  }, [dataProp, rawContentProp]);
+  }, [dataProp, rawContentProp, path]);
 
   const schemaMet = useMemo(() => isSchemaMet(data), [data]);
   const cleanedPrimary = useMemo(
@@ -173,9 +182,11 @@ export function MandateCard({
         <div className="h-10 rounded-md bg-muted/30 animate-pulse" />
       ) : data?.isEmpty ? (
         <div className="rounded-lg border border-dashed border-border/60 px-4 py-4 text-center space-y-2">
-          <p className="text-sm text-muted-foreground">No mandate declared yet.</p>
+          {/* ADR-419: altitude-honest empty state. A workspace has no mandate of
+              its own — a mandate is a hired agent's declared intent. */}
+          <p className="text-sm text-muted-foreground">No mandate yet.</p>
           <p className="text-xs text-muted-foreground/60">
-            The mandate is the single goal this workspace is running toward — your Primary Action, success criteria, and guardrails.
+            A mandate is the goal a hired agent runs toward — its declared intent, success criteria, and guardrails. The workspace itself holds files and members, not a mandate; hire an agent to give it one.
           </p>
           {onEdit && (
             <button type="button" onClick={() => onEdit(SETUP_PROMPT)}
