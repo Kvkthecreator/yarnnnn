@@ -44,10 +44,14 @@
  */
 
 import { useEffect, useState } from "react";
-import { Target, UserCircle, Package, AlertCircle, Rocket, Loader2, Users, Link2, Rss, User, Scale } from "lucide-react";
+import { Target, UserCircle, Package, AlertCircle, Rocket, Loader2, Users, Link2, Rss, User, Scale, CreditCard, BarChart3 } from "lucide-react";
 import { api, APIError } from "@/lib/api/client";
 import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
+// ADR-416 follow-on — Billing + Usage re-home HERE (the workspace is the
+// billing unit; both read the acting workspace's money). Self-contained bodies.
+import { BillingPaneBody } from "@/components/subscription/BillingPaneBody";
+import { UsagePaneBody } from "@/components/subscription/UsagePaneBody";
 import { MandateCard } from "@/components/workspace-concepts/MandateCard";
 import { PrinciplesCard } from "@/components/workspace-concepts/PrinciplesCard";
 import { SubstrateTab } from "@/components/agents/SubstrateTab";
@@ -124,6 +128,20 @@ const PANE_GROUPS: PaneGroup[] = [
     // separate ADR.
     label: "Access",
     panes: [{ key: "members", label: "Workspace Members", icon: Users }],
+  },
+  {
+    // ADR-416 follow-on (2026-07-08): Billing + Usage move HERE from the account
+    // door. The workspace is the billing unit (ADR-416) — balance + tier live on
+    // `workspaces`, checkout targets the acting workspace (authorized by billing
+    // grant), and Usage sums `execution_events` by workspace_id. So the
+    // workspace's money belongs in the workspace-content door, not the human's
+    // account door. Supersedes the ADR-347 account-door placement (which
+    // predated the ADR-416 "workspace is the billing unit" ratification).
+    label: "Billing",
+    panes: [
+      { key: "billing", label: "Billing", icon: CreditCard },
+      { key: "usage", label: "Usage", icon: BarChart3 },
+    ],
   },
 ];
 
@@ -258,6 +276,35 @@ export default function WorkspaceSettingsPage() {
         return (
           <section className="mb-8">
             <WorkspaceMembersCard variant="full" />
+          </section>
+        );
+      case "billing":
+        // ADR-416 follow-on — the workspace's plan · balance · top-ups. The
+        // body names the workspace it bills (BillingPaneBody) so switching is
+        // legible, not silent.
+        return (
+          <section className="mb-8">
+            <PaneHeader
+              icon={CreditCard}
+              title="Billing"
+              subtitle="This workspace's plan, balance, and top-ups."
+              bordered={false}
+            />
+            <BillingPaneBody />
+          </section>
+        );
+      case "usage":
+        // ADR-416 follow-on — this workspace's usage this cycle (activity, not
+        // dollars — ADR-396 transparency). Workspace-scoped read.
+        return (
+          <section className="mb-8">
+            <PaneHeader
+              icon={BarChart3}
+              title="Usage"
+              subtitle="This workspace's included usage this cycle."
+              bordered={false}
+            />
+            <UsagePaneBody />
           </section>
         );
       default:

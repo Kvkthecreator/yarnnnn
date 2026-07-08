@@ -313,11 +313,11 @@ export function BudgetCard({
               link lives here on the pane, not on the top-bar money glance. */}
           <div className="border-t border-border/60 pt-3 flex items-center justify-between gap-3">
             <p className="text-[11px] text-muted-foreground/70">
-              The balance that funds this envelope lives on your account.
+              The balance that funds this envelope is this workspace&apos;s.
             </p>
             <button
               type="button"
-              onClick={() => navigateToSurface('settings', { pane: 'billing' })}
+              onClick={() => navigateToSurface('workspace-settings', { pane: 'billing' })}
               className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline shrink-0"
             >
               <CreditCard className="w-3.5 h-3.5" />

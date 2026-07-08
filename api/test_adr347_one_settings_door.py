@@ -116,18 +116,31 @@ def test_account_moved_to_usermenu() -> None:
     um = _read("components/shell/UserMenu.tsx")
     check("UserMenu has an Account affordance", "Account" in um and "handleAccount" in um)
     check("Account opens the account window (`settings` slug)", "foregroundSurface('settings')" in um)
-    check("Settings opens the one operation door (`workspace-settings`)",
-          "foregroundSurface('workspace-settings')" in um)
+    # 2026-07-08 (concurrent lane `e3837aa`): the standalone "Workspace Settings"
+    # menu ITEM was removed — the UserMenu reaches the operation door via the
+    # "Manage access →" door (navigateToSurface('workspace-settings', …)), so the
+    # window is still reachable from the menu, just not via a bare foreground call.
+    check("Workspace Settings reachable from the menu (Manage access door)",
+          "navigateToSurface('workspace-settings'" in um)
 
 
 def test_account_window_is_account_only() -> None:
-    print("\n[account] the account window holds only billing/usage/account")
+    # ADR-416 follow-on (2026-07-08): Billing + Usage MOVED to Workspace Settings
+    # — both are workspace-scoped money (the workspace is the billing unit,
+    # ADR-416), so they belong in the workspace-content door, not the human's
+    # account door. This SUPERSEDES ADR-347's account-door placement (which
+    # predated the ADR-416 billing-unit ratification). The account window now
+    # holds only Account (data & privacy, danger zone — genuinely user_id-scoped).
+    print("\n[account] the account window holds only Account (billing/usage moved — ADR-416)")
     sys_src = _read("app/(authenticated)/settings/page.tsx")
-    check("account window has no AutonomyCard (moved to the one door)", "AutonomyCard" not in sys_src)
-    check("account window has no BudgetCard (moved to the one door)", "BudgetCard" not in sys_src)
+    check("account window has no AutonomyCard (governance is the operation door)", "AutonomyCard" not in sys_src)
+    check("account window has no BudgetCard (governance is the operation door)", "BudgetCard" not in sys_src)
+    check("account window has no SubscriptionCard (billing moved to Workspace Settings)",
+          "SubscriptionCard" not in sys_src)
     check("account window keeps the Account pane group", '"Account"' in sys_src or "'Account'" in sys_src)
-    check("account window keeps billing/usage/account panes",
-          '"billing"' in sys_src and '"usage"' in sys_src and '"account"' in sys_src)
+    check("account window keeps the account pane", '"account"' in sys_src)
+    check("billing + usage panes left the account window (ADR-416)",
+          '{ key: "billing"' not in sys_src and '{ key: "usage"' not in sys_src)
 
 
 def test_redirect_stubs_point_to_one_door() -> None:

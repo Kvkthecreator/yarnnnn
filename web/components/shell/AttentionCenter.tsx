@@ -307,12 +307,10 @@ export function AttentionCenter() {
     (target: 'resolve' | 'understand' | 'tune' | 'billing') => {
       setIsOpen(false);
       if (target === 'billing') {
-        // ADR-358 (2026-06-23) — open the billing pane of the account
-        // (settings) window via navigateToSurface, which keeps the /desktop
-        // pathname (History-API param update). The prior router.push(
-        // '/settings?pane=billing') was a full-page nav that left the SPA
-        // and reset the chat rail.
-        navigateToSurface('settings', { pane: 'billing' });
+        // ADR-416 follow-on (2026-07-08) — billing re-homed to Workspace
+        // Settings (the workspace is the billing unit). navigateToSurface keeps
+        // the /desktop pathname (History-API param update).
+        navigateToSurface('workspace-settings', { pane: 'billing' });
       } else {
         navigateToSurface('notifications', { pane: target });
       }

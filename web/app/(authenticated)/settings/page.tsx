@@ -7,8 +7,6 @@ import {
   Loader2,
   Check,
   User,
-  CreditCard,
-  BarChart3,
   FileText,
   RefreshCw,
   LogOut,
@@ -21,18 +19,14 @@ import {
   History,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
-import { humanizeSlug } from "@/lib/schedule";
 import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
-import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
-import { deriveUsageMeter } from "@/lib/subscription/usage";
 import { createClient } from "@/lib/supabase/client";
 import { useNarrative } from "@/contexts/NarrativeContext";
-// ADR-347 (2026-06-19) — the two-door split is reversed. This `settings`
-// surface shrinks to the ACCOUNT window the UserMenu opens: Billing · Usage ·
-// Account (the human/principal's concern, user_id-scoped — NOT an operation
-// setting). Governance (Autonomy, Budget) moved to the one operation-settings
-// door (workspace-settings, the Contract group). The shared SettingsPaneShell
-// renders the sidebar + pane switch (Singular Implementation, ADR-341 D5).
+// ADR-347 → ADR-416 follow-on (2026-07-08): this `settings` surface is the
+// ACCOUNT window — genuinely user_id-scoped (data & privacy, danger zone).
+// Billing + Usage moved OUT to Workspace Settings (both workspace-scoped money,
+// ADR-416, superseding ADR-347's account-door placement). The shared
+// SettingsPaneShell renders the sidebar + pane switch (ADR-341 D5).
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 
 interface DangerZoneStats {
@@ -55,24 +49,19 @@ interface NotificationPreferences {
   email_agent_failed: boolean;
 }
 
-// ADR-347 (2026-06-19): the `settings` surface is the ACCOUNT window —
-// Billing · Usage · Account (user_id-scoped, the human/principal's concern,
-// reached from the UserMenu). Governance (Autonomy, Budget) moved to the one
-// operation-settings door. `?pane=` is canonical; `?tab=` accepted as legacy
-// alias for billing/usage/account (call sites predate the fold).
-type SettingsTab =
-  | "billing"
-  | "usage"
-  | "account";
+// The `settings` surface is the ACCOUNT window — genuinely user_id-scoped, the
+// human/principal's concern (data & privacy, danger zone). ADR-416 follow-on
+// (2026-07-08): Billing + Usage MOVED OUT to Workspace Settings — both are
+// WORKSPACE-scoped (the workspace is the billing unit, ADR-416; getLimits /
+// getUsageDetail key on the acting workspace_id, migration 200). This supersedes
+// ADR-347's account-door placement, which predated the ADR-416 billing-unit
+// ratification. The account door now holds only Account.
+type SettingsTab = "account";
 
 const PANE_GROUPS: PaneGroup[] = [
   {
     label: "Account",
-    panes: [
-      { key: "billing", label: "Billing", icon: CreditCard },
-      { key: "usage", label: "Usage", icon: BarChart3 },
-      { key: "account", label: "Account", icon: User },
-    ],
+    panes: [{ key: "account", label: "Account", icon: User }],
   },
 ];
 
@@ -107,8 +96,7 @@ export default function SettingsPage() {
   // URL), no duplicate selection state.
   const activeTab: SettingsTab = ALL_PANES.includes(requestedPane as SettingsTab)
     ? (requestedPane as SettingsTab)
-    : "billing";
-  const subscriptionSuccess = searchParams.get("subscription") === "success";
+    : "account";
 
   // ADR-215 R3: legacy `/settings?tab=memory` redirects to Files with
   // IDENTITY.md preselected. One edit surface for substrate (Files).
@@ -126,39 +114,15 @@ export default function SettingsPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [dangerAction, setDangerAction] = useState<DangerAction>(null);
   const [purgeSuccess, setPurgeSuccess] = useState<string | null>(null);
-  const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(subscriptionSuccess);
 
   // Notification preferences state
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences | null>(null);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
 
-  // Usage metrics state
-  const [usageMetrics, setUsageMetrics] = useState<{
-    agents: number;
-    documents: number;
-    platforms: { connected: number; total: number };
-    facts: number;
-  } | null>(null);
-  const [isLoadingUsage, setIsLoadingUsage] = useState(false);
-
-  // Usage limits state (moved from SubscriptionCard — ADR-100)
-  const [limits, setLimits] = useState<Awaited<ReturnType<typeof api.integrations.getLimits>> | null>(null);
-  const [limitsLoading, setLimitsLoading] = useState(false);
-
-  // Usage detail — spend breakdown + trend + activity (ADR-172 surface)
-  const [usageDetail, setUsageDetail] = useState<Awaited<ReturnType<typeof api.integrations.getUsageDetail>> | null>(null);
-
-  // Fetch usage metrics + limits when usage tab is active
-  useEffect(() => {
-    if (activeTab === "usage") {
-      if (!usageMetrics) loadUsageMetrics();
-      if (!limits) loadLimits();
-      if (!usageDetail) {
-        api.integrations.getUsageDetail().then(setUsageDetail).catch(() => {});
-      }
-    }
-  }, [activeTab, usageMetrics, limits, usageDetail]);
+  // Billing + Usage state/effects/loaders removed 2026-07-08 (ADR-416 follow-on)
+  // — those panes moved to Workspace Settings as self-contained components
+  // (BillingPaneBody / UsagePaneBody), which own their own fetches.
 
   // Fetch danger zone stats when account tab is active
   useEffect(() => {
@@ -173,55 +137,6 @@ export default function SettingsPage() {
       loadNotificationPreferences();
     }
   }, [activeTab, notificationPrefs]);
-
-  const loadUsageMetrics = async () => {
-    setIsLoadingUsage(true);
-    try {
-      // Fetch counts from various endpoints in parallel
-      const [agents, documents, summary, facts] = await Promise.all([
-        api.agents.list().catch(() => []),
-        api.documents.list().catch(() => ({ uploads: [], total: 0, limit: 50, offset: 0 })),
-        api.integrations.getSummary().catch(() => ({ platforms: [] })),
-        api.userMemories.list().catch(() => []),
-      ]);
-
-      const activePlatforms = new Set(
-        (summary.platforms || [])
-          .filter((p: { status: string }) => p.status === "active")
-          .map((p: { provider: string }) => p.provider)
-      );
-
-      const connectedCount = ["slack", "notion", "github"].filter((p) =>
-        activePlatforms.has(p)
-      ).length;
-
-      setUsageMetrics({
-        agents: Array.isArray(agents) ? agents.length : 0,
-        documents: documents.uploads?.length || 0,
-        platforms: {
-          connected: connectedCount,
-          total: 2, // Slack, Notion
-        },
-        facts: Array.isArray(facts) ? facts.length : 0,
-      });
-    } catch (err) {
-      console.error("Failed to fetch usage metrics:", err);
-    } finally {
-      setIsLoadingUsage(false);
-    }
-  };
-
-  const loadLimits = async () => {
-    setLimitsLoading(true);
-    try {
-      const data = await api.integrations.getLimits();
-      setLimits(data);
-    } catch (err) {
-      console.error("Failed to fetch limits:", err);
-    } finally {
-      setLimitsLoading(false);
-    }
-  };
 
   const loadNotificationPreferences = async () => {
     setIsLoadingNotifications(true);
@@ -346,13 +261,6 @@ export default function SettingsPage() {
     setShowConfirm(true);
   };
 
-  // Auto-dismiss subscription success message
-  useEffect(() => {
-    if (showSubscriptionSuccess) {
-      const timer = setTimeout(() => setShowSubscriptionSuccess(false), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [showSubscriptionSuccess]);
 
   // Auto-dismiss purge success
   useEffect(() => {
@@ -368,151 +276,8 @@ export default function SettingsPage() {
   // panes (billing/usage/account) are the heavier blocks below.
   const renderPane = (pane: string) => (
     <>
-      {/* Billing Tab */}
-      {pane === "billing" && (
-        <section className="mb-8">
-          <PaneHeader
-            icon={CreditCard}
-            title="Billing"
-            subtitle="Your balance, plan, and top-ups."
-            bordered={false}
-          />
-          <SubscriptionCard />
-        </section>
-      )}
-
-      {/* Usage Tab */}
-      {pane === "usage" && (
-        <section className="mb-8 space-y-6">
-          <PaneHeader
-            icon={BarChart3}
-            title="Usage"
-            subtitle="Your plan's included usage this cycle."
-            bordered={false}
-          />
-
-          {limitsLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Loading usage...
-            </div>
-          ) : limits ? (
-            <>
-              {/* Included usage — activity, not dollars (ADR-396 transparency).
-                  Meter derived by the shared model so the label always matches
-                  the math (allowance-first draw order) — lib/subscription/usage.ts. */}
-              <div className="p-4 border border-border rounded-lg space-y-3">
-                {(() => {
-                  const meter = deriveUsageMeter(limits);
-                  if (!meter) return null;
-                  const heading =
-                    meter.mode === "allowance" ? "Included usage"
-                    : meter.mode === "overage" ? "Top-up balance"
-                    : "Balance";
-                  return (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-medium">{heading}</h3>
-                        <span className="text-sm font-medium">{meter.percent}% used</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${meter.isCritical ? "bg-destructive" : meter.isWarn ? "bg-yellow-500" : "bg-primary"}`}
-                          style={{ width: `${meter.percent}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground">{meter.detail}</p>
-                    </>
-                  );
-                })()}
-              </div>
-
-              {/* Where it went — spend by work item (ADR-172 surface) */}
-              {usageDetail && usageDetail.by_work.length > 0 && (
-                <div className="p-4 border border-border rounded-lg space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium">Where your usage went</h3>
-                    <span className="text-xs text-muted-foreground">
-                      {usageDetail.activity.runs} runs
-                    </span>
-                  </div>
-                  <div className="space-y-2.5">
-                    {usageDetail.by_work.map((item) => (
-                      <div key={item.slug} className="space-y-1">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="truncate pr-3">{humanizeSlug(item.slug)}</span>
-                          <span className="font-mono text-xs text-muted-foreground shrink-0">
-                            {item.runs} runs · {item.pct}%
-                          </span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-primary/70"
-                            style={{ width: `${item.pct}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Activity trend — last 14 days (ADR-396: relative activity, not $) */}
-              {usageDetail && usageDetail.trend.some((d) => d.cost_usd > 0) && (
-                <div className="p-4 border border-border rounded-lg space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium flex items-center gap-2">
-                      <BarChart3 className="w-4 h-4" />
-                      Activity trend
-                    </h3>
-                    <span className="text-xs text-muted-foreground">last 14 days</span>
-                  </div>
-                  {(() => {
-                    const max = Math.max(...usageDetail.trend.map((d) => d.cost_usd), 0.0001);
-                    return (
-                      <div className="flex items-end gap-1 h-20">
-                        {usageDetail.trend.map((d) => (
-                          <div
-                            key={d.date}
-                            className="flex-1 bg-primary/15 rounded-t relative group"
-                            style={{ height: `${Math.max(2, (d.cost_usd / max) * 100)}%` }}
-                            title={new Date(d.date + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" })}
-                          >
-                            <div className="absolute inset-0 bg-primary/70 rounded-t opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                  {usageDetail.activity.success_rate !== null && (
-                    <p className="text-xs text-muted-foreground">
-                      {usageDetail.activity.success_rate}% success rate
-                      {usageDetail.activity.failed > 0 && ` · ${usageDetail.activity.failed} failed`}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Plan */}
-              <div className="p-4 border border-border rounded-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Plan</span>
-                  <span className="text-sm text-muted-foreground capitalize">
-                    {limits.tier}
-                  </span>
-                </div>
-                {limits.next_refill && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Renews: {new Date(limits.next_refill).toLocaleDateString()}
-                  </p>
-                )}
-              </div>
-            </>
-          ) : (
-              <p className="text-sm text-muted-foreground">Unable to load usage data.</p>
-          )}
-        </section>
-      )}
+      {/* Billing + Usage moved to Workspace Settings (ADR-416 follow-on,
+          2026-07-08) — workspace-scoped money. This door is Account only. */}
 
       {/* Account Tab - Data & Privacy */}
       {pane === "account" && (
@@ -758,23 +523,8 @@ export default function SettingsPage() {
       <SettingsPaneShell
         windowSlug="settings"
         paneGroups={PANE_GROUPS}
-        defaultPane="billing"
+        defaultPane="account"
         renderPane={renderPane}
-        banner={
-          showSubscriptionSuccess ? (
-            <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-3">
-              <Check className="w-5 h-5 text-green-600" />
-              <div>
-                <p className="font-medium text-green-800 dark:text-green-200">
-                  Balance updated!
-                </p>
-                <p className="text-sm text-green-700 dark:text-green-300">
-                  Your top-up has been added. Every feature is already on — your balance simply covers the usage that runs.
-                </p>
-              </div>
-            </div>
-          ) : undefined
-        }
       />
 
       {/* Success Message Toast */}
