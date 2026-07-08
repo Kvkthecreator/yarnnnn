@@ -94,6 +94,13 @@ const ROLE_META: Record<string, { label: string; icon: typeof Users; tone: strin
 
 // Write-region root → a short operator-facing name. The roots are the ADR-320
 // semantic classes; operators don't think in path prefixes.
+//
+// NOTE (ADR-423 follow-on): this is the PERMISSION-region view (which grant a
+// principal holds), NOT the Files-surface operator ZONE. The Files tree renders
+// operation/ as "Documents", inbound/ as "Downloads", and folds the residue
+// under "System files" (WORKSPACE_ROOTS.group) — a deliberately DIFFERENT axis.
+// Here we name the write-REGION, so "Operation" (the operation/ lock class) is
+// correct and must NOT be renamed to match the Files zone. Two orthogonal facts.
 const REGION_LABEL: Record<string, string> = {
   'governance/': 'Governance',
   'constitution/': 'Constitution',

@@ -164,77 +164,110 @@ INBOUND_ROOT = "inbound/"
 #
 # `icon` is a lucide-react icon NAME (resolved FE-side, mirroring the
 # surface-icons pattern) — the kernel names the glyph, the FE maps it.
+#
+# `group` (ADR-423 follow-on / the Files-model note, 2026-07-09) is the SINGULAR
+# source for the Finder-vocabulary tree reshape. It sorts each root into one of
+# three operator-facing zones — the three category-kinds from the note:
+#   "work"    → Documents (kind ①): what the operator + agents author + keep.
+#   "arrival" → Downloads (kind ①): what ARRIVED (didn't author) — the raw lanes.
+#   "system"  → System files (kind ③): kernel-bootstrap residue, collapsed + hidden.
+# This is a DISPLAY grouping only — no substrate path moves (the labels rename
+# what the operator SEES; `operation/` etc. stay the canonical paths the kernel,
+# gate, and every writer depend on). The FE renders work + arrival at the top and
+# folds every "system" root under one collapsed "System files" disclosure.
+# `semantic_class` (the ADR-320 lock class) is UNCHANGED — group is the operator
+# zone, semantic_class is the permission class; two orthogonal facts.
 WORKSPACE_ROOTS: dict[str, dict] = {
-    # The ADR-320 semantic-class roots, in constitution→operation reading order.
+    # ── work → Documents (kind ①: authored) ──────────────────────────────────
+    "operation": {
+        "display_name": "Documents",
+        "semantic_class": "work",
+        "group": "work",
+        "description": "What you and your agents author and keep — your work, context, reports.",
+        "icon": "folder-cog",
+        "order": 10,
+    },
+    # ── arrival → Downloads (kind ①: what arrived) ───────────────────────────
+    # inbound/ is the unified arrival lane (ADR-395: uploads land in inbound/uploads/
+    # too). Both render under "Downloads"; an arrival is marked by its ADR-423
+    # revision_kind='observation' badge, not by which lane-root it sits in.
+    "inbound": {
+        "display_name": "Downloads",
+        "semantic_class": "raw-lane",
+        "group": "arrival",
+        "description": "What arrived in your workspace — uploads and observations from connected apps. Kept as received.",
+        "icon": "arrow-down-to-line",
+        "order": 20,
+    },
+    "uploads": {
+        # Legacy root — only shows when it holds pre-ADR-395 files. Grouped with
+        # inbound/ under Downloads so the operator sees one "arrivals" zone.
+        "display_name": "Downloads",
+        "semantic_class": "raw-lane",
+        "group": "arrival",
+        "description": "Files you uploaded (legacy location — new uploads land under Downloads).",
+        "icon": "upload",
+        "order": 21,
+    },
+    # ── system → System files (kind ③: kernel residue, collapsed) ────────────
+    # The ADR-320 semantic-class roots + runtime + agent homes. Present, reachable,
+    # deep-linkable — but folded under one "System files" disclosure (the OS
+    # "Show system files" model), NOT peers of the operator's work.
     "constitution": {
         "display_name": "Constitution",
         "semantic_class": "operator-intent",
+        "group": "system",
         "description": "Operator intent the agent amends against ground truth — MANDATE, PRECEDENT.",
         "icon": "scroll-text",
-        "order": 10,
+        "order": 50,
     },
     "governance": {
         "display_name": "Governance",
         "semantic_class": "grant",
+        "group": "system",
         "description": "The grant — authority + spend the agent runs under. Operator-only, locked.",
         "icon": "shield",
-        "order": 20,
+        "order": 51,
     },
     "contract": {
         "display_name": "Contract",
         "semantic_class": "contract",
+        "group": "system",
         "description": "What the operator declares the agent owes and prefers — mode-governed.",
         "icon": "file-signature",
-        "order": 30,
+        "order": 52,
     },
     "persona": {
         "display_name": "Persona",
         "semantic_class": "seat",
+        "group": "system",
         "description": "How the agent reasons — IDENTITY, principles, the seat's working files.",
         "icon": "brain",
-        "order": 40,
-    },
-    "operation": {
-        "display_name": "Operation",
-        "semantic_class": "work",
-        "description": "The work the agent operates — context domains, reports, the live substrate.",
-        "icon": "folder-cog",
-        "order": 50,
-    },
-    "system": {
-        "display_name": "System",
-        "semantic_class": "runtime",
-        "description": "Orchestration runtime — awareness, notes, style, system ledger.",
-        "icon": "settings",
-        "order": 60,
+        "order": 53,
     },
     "agents": {
         "display_name": "Agents",
         "semantic_class": "agents",
+        "group": "system",
         "description": "Per-agent homes (the Rung-2 judgment seats, when present).",
         "icon": "users",
-        "order": 70,
+        "order": 54,
     },
-    "inbound": {
-        "display_name": "Intake",
-        "semantic_class": "raw-lane",
-        "description": "Raw attributed observations from external principals (MCP, connectors) — immutable, cited.",
-        "icon": "arrow-down-to-line",
-        "order": 80,
-    },
-    "uploads": {
-        "display_name": "Uploads",
-        "semantic_class": "raw-lane",
-        "description": "Raw files the operator uploaded — the human case of the intake lane.",
-        "icon": "upload",
-        "order": 90,
+    "system": {
+        "display_name": "System",
+        "semantic_class": "runtime",
+        "group": "system",
+        "description": "Orchestration runtime — awareness, notes, style, system ledger.",
+        "icon": "settings",
+        "order": 55,
     },
     "working": {
         "display_name": "Working",
         "semantic_class": "ephemeral",
+        "group": "system",
         "description": "Ephemeral scratch — transient working files.",
         "icon": "file-clock",
-        "order": 100,
+        "order": 56,
     },
 }
 
@@ -256,6 +289,10 @@ def root_metadata(root_name: str) -> dict:
         "name": root_name,
         "display_name": root_name.replace("_", " ").replace("-", " ").title(),
         "semantic_class": "unknown",
+        # An unknown/new root defaults to the operator's "work" zone (Documents),
+        # NOT hidden under System — a re-founding meaning-folder (the-acme-deal/)
+        # is the operator's work and must surface, not fold into the residue.
+        "group": "work",
         "description": "",
         "icon": "folder",
         "order": 1000,

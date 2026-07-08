@@ -657,6 +657,9 @@ async def get_workspace_roots(auth: UserClient) -> list[dict]:
                     "path": f"/workspace/{name}",
                     "display_name": meta["display_name"],
                     "semantic_class": meta["semantic_class"],
+                    # ADR-423 follow-on (Files-model note): the operator zone —
+                    # work (Documents) | arrival (Downloads) | system (collapsed).
+                    "group": meta.get("group", "work"),
                     "description": meta["description"],
                     "icon": meta["icon"],
                     "file_count": count,

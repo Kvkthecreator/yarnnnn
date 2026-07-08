@@ -150,8 +150,19 @@ function isDeEmphasized(state: FileLegibilityState): boolean {
   return state === 'machine-config' || state === 'raw-intake';
 }
 
+// ADR-423 follow-on: the collapsed "System files" disclosure (the OS
+// "Show system files" model) — kernel residue folded out of the operator's way.
+// It must start COLLAPSED even though it's a depth-0 node, so it doesn't spill
+// the residue the fold exists to hide. Mirrors SYSTEM_FILES_NODE_PATH in the
+// Files page (a virtual /explorer/ handle).
+const SYSTEM_FILES_NODE_PATH = '/explorer/system-files';
+
 function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu, dnd }: TreeItemProps) {
-  const [expanded, setExpanded] = useState(depth < 1); // Auto-expand first level
+  // Auto-expand the first level — EXCEPT the "System files" fold, which stays
+  // collapsed (it's the hidden residue; the operator opens it deliberately).
+  const [expanded, setExpanded] = useState(
+    depth < 1 && node.path !== SYSTEM_FILES_NODE_PATH,
+  );
   const isFolder = node.type === 'folder';
   const isSelected = selectedPath === node.path;
   // ADR-422 D1: the file's legibility state → its affordance (folders are always

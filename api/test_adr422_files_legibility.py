@@ -100,6 +100,62 @@ def test_sys_word_removed_from_tree():
     assert "fileLegibilityState" in src, "the tree must classify via fileLegibilityState"
 
 
+# ── ADR-423 follow-on: the Finder-vocabulary tree reshape (Documents/Downloads/
+#    System files), SINGULAR source = WORKSPACE_ROOTS in workspace_paths.py ─────
+
+def test_workspace_roots_group_field_is_singular_source():
+    """Every root declares a `group` (work | arrival | system) — the singular
+    operator-zone signal. Assert the target labels + groups so a future edit
+    can't silently diverge the Files tree from the note's model."""
+    from services.workspace_paths import WORKSPACE_ROOTS
+    # operation → Documents (work)
+    assert WORKSPACE_ROOTS["operation"]["display_name"] == "Documents"
+    assert WORKSPACE_ROOTS["operation"]["group"] == "work"
+    # inbound → Downloads (arrival)
+    assert WORKSPACE_ROOTS["inbound"]["display_name"] == "Downloads"
+    assert WORKSPACE_ROOTS["inbound"]["group"] == "arrival"
+    assert WORKSPACE_ROOTS["uploads"]["group"] == "arrival"
+    # kernel residue → system group (collapsed under "System files")
+    for r in ("governance", "system", "constitution", "persona", "contract", "agents"):
+        assert WORKSPACE_ROOTS[r]["group"] == "system", f"{r} must be system-grouped"
+
+
+def test_root_metadata_fallback_defaults_to_work():
+    """An unknown/new root (a re-founding meaning-folder) defaults to the
+    operator's work zone — it must surface as their work, never hide under
+    System files."""
+    from services.workspace_paths import root_metadata
+    meta = root_metadata("the-acme-deal")
+    assert meta["group"] == "work"
+
+
+def test_group_is_orthogonal_to_semantic_class():
+    """group (operator zone) and semantic_class (ADR-320 permission class) are
+    two different facts — the reshape must NOT have changed the lock classes."""
+    from services.workspace_paths import WORKSPACE_ROOTS
+    # governance stays the grant lock class even though it's system-GROUPED.
+    assert WORKSPACE_ROOTS["governance"]["semantic_class"] == "grant"
+    # operation stays 'work' semantic class AND 'work' group (they agree here,
+    # but the point is they're separate keys).
+    assert WORKSPACE_ROOTS["operation"]["semantic_class"] == "work"
+
+
+def test_fe_consumes_group_not_a_second_label_source():
+    """The FE renders zones from the backend `group`, not a hardcoded FE label
+    map — the singular-implementation guard. buildRootNodes must reference
+    `group`, and there must be NO FE re-declaration of the old root labels."""
+    import os
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    page = os.path.join(here, "web", "app", "(authenticated)", "files", "page.tsx")
+    with open(page, encoding="utf-8") as f:
+        src = f.read()
+    assert "group" in src and "zoneOf" in src, "buildRootNodes must partition by group"
+    assert "System files" in src and "Downloads" in src, "the two zone nodes must render"
+    # The FE must NOT hardcode operation→Documents as its OWN mapping — it reads
+    # root.display_name from the backend (the singular source).
+    assert "root.display_name" in src, "FE must render the backend display_name, not its own"
+
+
 if __name__ == "__main__":
     import sys
     # Run the __main__ path so a check()-counter gate reports real N-failed

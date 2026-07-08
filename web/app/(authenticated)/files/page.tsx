@@ -144,11 +144,24 @@ export interface WorkspaceRoot {
   path: string;
   display_name: string;
   semantic_class: string;
+  // ADR-423 follow-on (Files-model note, 2026-07-09): the operator zone —
+  // 'work' (Documents) | 'arrival' (Downloads) | 'system' (collapsed residue).
+  // The SINGULAR source is WORKSPACE_ROOTS in workspace_paths.py; the FE only
+  // renders it. Absent (older API) → treated as 'work' so nothing hides.
+  group?: 'work' | 'arrival' | 'system';
   description: string;
   icon: string;
   file_count: number;
   exists: boolean;
 }
+
+// ADR-423 follow-on: synthetic parent nodes for the two grouped zones — one
+// "Downloads" (all arrival roots merged, since inbound/ + legacy uploads/ are
+// the same "what arrived" concept) and one "System files" fold (kernel residue).
+// Their paths are virtual /explorer/ handles (never fetched); children are the
+// real roots' subtrees, each still clickable + deep-linkable.
+const DOWNLOADS_NODE_PATH = '/explorer/downloads';
+const SYSTEM_FILES_NODE_PATH = '/explorer/system-files';
 
 function buildRootNodes(input: {
   roots: WorkspaceRoot[];
@@ -160,12 +173,12 @@ function buildRootNodes(input: {
     node.path.startsWith('/workspace/operation/signals');
   const notHidden = (node: TreeNode) => !isHidden(node);
 
-  return input.roots.map((root) => {
+  // Turn one root into a tree node (children lazy-loaded, operation/ domains
+  // relabeled). Shared by both the top-level zones and the System-files fold.
+  const rootToNode = (root: WorkspaceRoot): TreeNode => {
     let children = filterNodes(input.subtrees[root.name], notHidden);
-
-    // operation/ keeps its registry display-name enrichment on domain folders
-    // (the only place we relabel a child) — the substrate stays literal, the
-    // operator just sees "Competitors" instead of the raw folder key.
+    // operation/ (now "Documents") keeps its registry display-name enrichment on
+    // domain folders — the substrate stays literal, the operator sees "Competitors".
     if (root.name === 'operation') {
       children = (children ?? []).map((n) =>
         n.type === 'folder' && !OPERATION_NON_DOMAIN.has(n.name)
@@ -173,17 +186,67 @@ function buildRootNodes(input: {
           : n
       );
     }
-
     const count = children?.length ?? 0;
     return {
       name: root.display_name, // friendly label; raw name for unmapped roots
       path: root.path, // the REAL fs path (/workspace/{name}) — clickable, resolves
       type: 'folder' as const,
       summary: root.description || (count ? `${count} items` : 'Empty'),
-      icon_name: root.icon, // ADR-422 D3: kernel-named glyph (was dropped before)
+      icon_name: root.icon, // ADR-422 D3: kernel-named glyph
       children,
     } satisfies TreeNode;
-  });
+  };
+
+  // ADR-423 follow-on (Files-model note): partition roots by operator ZONE.
+  //   work    → Documents: rendered as direct root nodes at the top (the
+  //             operator's meaning-folders live inside operation/ → "Documents").
+  //   arrival → Downloads: ALL arrival roots (inbound/ + legacy uploads/) merge
+  //             under ONE "Downloads" node — they are the same "what arrived"
+  //             concept, so two identical "Downloads" labels would confuse.
+  //   system  → System files: kernel residue folded under ONE collapsed
+  //             disclosure sorted last (the OS "Show system files" model).
+  // `group` is the singular backend signal (WORKSPACE_ROOTS); absent → 'work'.
+  const zoneOf = (r: WorkspaceRoot): 'work' | 'arrival' | 'system' => r.group ?? 'work';
+
+  const workNodes = input.roots.filter((r) => zoneOf(r) === 'work').map(rootToNode);
+  const arrivalRoots = input.roots.filter((r) => zoneOf(r) === 'arrival');
+  const systemRoots = input.roots.filter((r) => zoneOf(r) === 'system');
+
+  const out: TreeNode[] = [...workNodes];
+
+  // Merge the arrival roots under one "Downloads". If there's exactly one arrival
+  // root (the common case — inbound/ only), promote it directly (no needless
+  // wrapper). If more than one (inbound/ + legacy uploads/), merge their subtrees.
+  if (arrivalRoots.length === 1) {
+    const only = rootToNode(arrivalRoots[0]);
+    out.push({ ...only, name: 'Downloads', path: arrivalRoots[0].path });
+  } else if (arrivalRoots.length > 1) {
+    const mergedChildren = arrivalRoots.flatMap((r) => rootToNode(r).children ?? []);
+    out.push({
+      name: 'Downloads',
+      // Point the merged node at the canonical arrival root (inbound/) so a
+      // click still lands somewhere real; legacy uploads/ files show as children.
+      path: arrivalRoots.find((r) => r.name === 'inbound')?.path ?? arrivalRoots[0].path,
+      type: 'folder' as const,
+      summary: 'What arrived in your workspace — uploads and observations from connected apps. Kept as received.',
+      icon_name: 'arrow-down-to-line',
+      children: mergedChildren,
+    });
+  }
+
+  // The one collapsed "System files" disclosure — virtual node, real children.
+  if (systemRoots.length > 0) {
+    out.push({
+      name: 'System files',
+      path: SYSTEM_FILES_NODE_PATH,
+      type: 'folder' as const,
+      summary: 'Files the system uses to run your workspace — settings, agent homes, runtime state.',
+      icon_name: 'settings',
+      children: systemRoots.map(rootToNode),
+    });
+  }
+
+  return out;
 }
 
 // Map ADR-209 authored_by taxonomy to operator-readable labels.
