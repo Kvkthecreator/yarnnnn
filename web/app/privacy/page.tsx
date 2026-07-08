@@ -15,7 +15,7 @@ export default function PrivacyPage() {
     name: "Privacy Policy",
     url: `${BRAND.url}/privacy`,
     description: metadata.description,
-    dateModified: "2026-06-26",
+    dateModified: "2026-07-08",
   };
 
   return (
@@ -29,7 +29,7 @@ export default function PrivacyPage() {
       <main className="max-w-3xl mx-auto px-6 py-12 prose prose-neutral dark:prose-invert">
         <h1 className="text-3xl font-bold mb-2">Privacy Policy</h1>
         <p className="text-muted-foreground mb-8">
-          <strong>Effective Date: June 26, 2026</strong>
+          <strong>Effective Date: July 8, 2026</strong>
         </p>
 
         <p>
@@ -81,9 +81,16 @@ export default function PrivacyPage() {
 
         <h2 className="text-xl font-semibold mt-8 mb-4">3. Data Storage & Security</h2>
         <p>
-          Your data is stored securely using Supabase (PostgreSQL) with
-          row-level security. All data transmission is encrypted via HTTPS. We
-          use industry-standard security practices to protect your information.
+          Your data is stored using Supabase (PostgreSQL) with application and
+          database access controls. All data transmission is encrypted via HTTPS.
+          Connector credentials are encrypted where stored as credentials, and
+          we continue to harden credential rotation, retention, and deletion
+          coverage. For a plain-English overview of the architecture and its
+          current limits, see our {" "}
+          <Link href="/privacy-architecture" className="text-primary hover:underline">
+            Privacy Architecture
+          </Link>
+          .
         </p>
 
         <h2 className="text-xl font-semibold mt-8 mb-4">4. Third-Party Services</h2>
