@@ -467,10 +467,15 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "mandate",
-        "launcher_tier": "search-only",  # ADR-340 P3
-        "register": "intent",  # ADR-312 D5 — constitution band, slot #1 (was `settings`)
-        "pane_of": "workspace-settings",  # ADR-341 — Constitution read/manage pane (band stays first-class, ADR-312 D5)
-        "pane_group": "Constitution",
+        # ADR-421 (2026-07-08): DORMANT. A workspace has NO constitution of its
+        # own — a mandate is a hired Altitude-3 agent's declared intent (ADR-414
+        # D6), read from agents/{slug}/MANDATE.md and surfaced on the agent
+        # detail (AgentConstitutionBlock, ADR-419). The workspace-level Mandate
+        # pane + its Home-band link + its route are removed; the surface concept
+        # survives in the registry (flat search) but is non-navigable. The Home
+        # HEADER still reads MANDATE.md content directly via the home-bundle
+        # (independent of this surface) until the ADR-414 §9b Home recompose.
+        "register": "intent",
         "title": "Mandate",
         "archetype": "document",
         "substrate_paths": [
@@ -478,23 +483,18 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         ],
         "icon_key": "target",
         "default_pinned": False,
-        "route": "/mandate",  # _route_status: NEW in Phase 2
-        "summary": "Operator's standing intent — the Primary Action this workspace is built around.",
+        "route": "",  # ADR-421 — dormant: non-navigable (mandate is per-agent)
+        "summary": "A hired agent's declared intent — its Primary Action. Not a workspace-level concept (ADR-421); surfaced on the agent detail. (Dormant.)",
     },
     {
         "slug": "principles",
-        "launcher_tier": "search-only",  # ADR-340 P3
-        "register": "intent",  # ADR-312 D5 — constitution band (was `settings`)
-        # ADR-387 §6.4 — Principles is the agent's persona/ judgment framework.
-        # ADR-412 D5 (2026-07-06): re-homed pane_of agents → workspace-settings (System Agent group).
-        # ADR-418 (2026-07-08): re-homed System Agent → Constitution group. Post
-        # ADR-414 D2 the STEWARD has no persona (identity/principles are kernel
-        # constants); principles is a CONSTITUTION mirror (register intent),
-        # doored from the Home constitution band — it is not Freddie's, so it
-        # rejoins Mandate under Constitution. A hired Altitude-3 agent's own
-        # principles pane is the deferred per-agent FE (ADR-382 / ADR-414 §9b).
-        "pane_of": "workspace-settings",
-        "pane_group": "Constitution",
+        # ADR-421 (2026-07-08): DORMANT. A workspace has no principles of its
+        # own — a judgment framework belongs to whoever holds the seat: the
+        # steward (kernel constant, ADR-414 D2) or a hired agent (agents/{slug}/
+        # principles.md, surfaced on the agent detail). The workspace-level pane
+        # + Home-band link + route are removed. (ADR-419 had re-homed it to the
+        # Constitution group as an interim; ADR-421 removes the workspace surface.)
+        "register": "intent",
         "title": "Principles",
         "archetype": "document",
         "substrate_paths": [
@@ -503,24 +503,18 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         ],
         "icon_key": "scale",
         "default_pinned": False,
-        "route": "/principles",  # _route_status: NEW in Phase 2
-        "summary": "Reviewer's judgment framework and decision thresholds.",
+        "route": "",  # ADR-421 — dormant: non-navigable (principles are per-agent)
+        "summary": "A hired agent's judgment framework and decision thresholds. Not a workspace-level concept (ADR-421); surfaced on the agent detail. (Dormant.)",
     },
     {
         "slug": "identity",
-        "launcher_tier": "search-only",  # ADR-340 P3
-        "register": "intent",  # ADR-312 D5 — constitution band (was `settings`)
-        # ADR-387 §6.4 — Identity is the agent's persona/ reasoning-character.
-        # (ADR-320 D2b collapsed the legacy operator-identity into
-        # persona/IDENTITY.md — the agent's.)
-        # ADR-412 D5 (2026-07-06): re-homed pane_of agents → workspace-settings (System Agent group).
-        # ADR-418 (2026-07-08): re-homed System Agent → Constitution group. The
-        # STEWARD has no operator-authored persona post ADR-414 D2 (identity is a
-        # kernel constant); persona/IDENTITY.md is the SEAT path a hired agent
-        # installs into, not Freddie's. Identity is a CONSTITUTION mirror doored
-        # from the Home band — it rejoins Mandate under Constitution.
-        "pane_of": "workspace-settings",
-        "pane_group": "Constitution",
+        # ADR-421 (2026-07-08): DORMANT. A workspace has no persona of its own —
+        # a reasoning-character belongs to the steward (kernel constant, ADR-414
+        # D2) or a hired agent (agents/{slug}/IDENTITY.md, surfaced on the agent
+        # detail). The workspace-level pane + Home-band link + route are removed.
+        # (ADR-419 had re-homed it to the Constitution group as an interim;
+        # ADR-421 removes the workspace surface.)
+        "register": "intent",
         "title": "Identity",
         "archetype": "document",
         "substrate_paths": [
@@ -528,8 +522,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         ],
         "icon_key": "user-circle",
         "default_pinned": False,
-        "route": "/identity",  # _route_status: NEW in Phase 2
-        "summary": "Operator persona — voice, role, context the workspace reasons against.",
+        "route": "",  # ADR-421 — dormant: non-navigable (persona is per-agent)
+        "summary": "A hired agent's persona — voice, role, reasoning-character. Not a workspace-level concept (ADR-421); surfaced on the agent detail. (Dormant.)",
     },
     # ADR-309 (2026-06-01): the `brand` kernel surface is DELETED. Brand is
     # not a standalone surface — the Identity Settings pane (IdentityBrandCard)

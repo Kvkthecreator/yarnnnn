@@ -44,7 +44,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { Target, UserCircle, Package, AlertCircle, Rocket, Loader2, Users, Link2, Rss, User, Scale, CreditCard, BarChart3 } from "lucide-react";
+import { UserCircle, Package, AlertCircle, Rocket, Loader2, Users, Link2, Rss, CreditCard, BarChart3 } from "lucide-react";
 import { api, APIError } from "@/lib/api/client";
 import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
@@ -52,9 +52,9 @@ import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/sett
 // billing unit; both read the acting workspace's money). Self-contained bodies.
 import { BillingPaneBody } from "@/components/subscription/BillingPaneBody";
 import { UsagePaneBody } from "@/components/subscription/UsagePaneBody";
-import { MandateCard } from "@/components/workspace-concepts/MandateCard";
-import { PrinciplesCard } from "@/components/workspace-concepts/PrinciplesCard";
-import { SubstrateTab } from "@/components/agents/SubstrateTab";
+// ADR-421 — the Constitution-pane card imports were removed with the group (a
+// workspace has no constitution of its own; the mandate/persona/principles cards
+// render on the agent detail via AgentConstitutionBlock, ADR-419).
 import { GrantGate } from "@/components/workspace-concepts/GrantGate";
 import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
 import { WorkspaceFileView } from "@/components/shared/WorkspaceFileView";
@@ -81,20 +81,15 @@ import {
 // the Home band); expected-output went dormant. capabilities/activity stay
 // local pane keys (no registry row).
 const PANE_GROUPS: PaneGroup[] = [
-  {
-    // ADR-418 (2026-07-08): Identity + Principles rejoin Mandate here. Post
-    // ADR-414 D2 the steward has no operator-authored persona — identity/
-    // principles are constitution mirrors (register intent, doored from the
-    // Home constitution band), NOT Freddie's, so they leave the System Agent
-    // group and rejoin the constitution. A hired agent's own persona panes are
-    // the deferred per-agent FE (ADR-382 / ADR-414 §9b).
-    label: "Constitution",
-    panes: [
-      { key: "mandate", label: "Mandate", icon: Target },
-      { key: "identity", label: "Identity", icon: User },
-      { key: "principles", label: "Principles", icon: Scale },
-    ],
-  },
+  // ADR-421 (2026-07-08): the Constitution group is REMOVED. A workspace has no
+  // constitution of its own — mandate/identity/principles are per-agent concepts
+  // (ADR-414 D6): a hired agent's declared intent + persona + judgment framework,
+  // read from agents/{slug}/ and surfaced on the agent detail
+  // (AgentConstitutionBlock, ADR-419). The steward's versions are kernel
+  // constants (ADR-414 D2). Neither is a workspace-level pane. (ADR-418 moved
+  // these into a Constitution group; ADR-419 made them home-aware; ADR-421
+  // removes the workspace surface entirely — the honest endpoint.) The Home
+  // HEADER still reads MANDATE.md content until the ADR-414 §9b Home recompose.
   SYSTEM_AGENT_PANE_GROUP,
   {
     // ADR-387 D3 — Brand stays here (interim). It is operation/-rooted output
@@ -145,40 +140,10 @@ const PANE_GROUPS: PaneGroup[] = [
   },
 ];
 
-/**
- * ADR-419 — resolve where the constitution actually lives. Post ADR-414 D6 the
- * mandate/identity/principles are per-agent: when a program is hired they live
- * at `agents/{slug}/`; a bare workspace has none of its own. Reads the hired
- * slug from workspace state (which itself resolves via resolve_judgment_home
- * server-side). Returns the agent-home prefix, or null for a bare workspace.
- */
-function useConstitutionHome(): { home: string | null; loaded: boolean } {
-  const [home, setHome] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const state = await api.workspace.getState();
-        const slug = state.active_program_slug ?? null;
-        if (!cancelled) setHome(slug ? `/workspace/agents/${slug}` : null);
-      } catch {
-        if (!cancelled) setHome(null);
-      } finally {
-        if (!cancelled) setLoaded(true);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-  return { home, loaded };
-}
-
 export default function WorkspaceSettingsPage() {
   const { navigateToSurface } = useSurfacePreferences();
   // ADR-415 — the connector drill-in param (was channels.connector).
   const surfaceParam = useSurfaceParam("workspace-settings");
-  // ADR-419 — the constitution's real home (agent home when hired, else null).
-  const { home: constitutionHome } = useConstitutionHome();
 
   const renderPane = (pane: string) => {
     // ADR-412 D5 — the System Agent panes render via the shared module.
@@ -186,54 +151,10 @@ export default function WorkspaceSettingsPage() {
       return <section className="mb-8">{renderSystemAgentPane(pane)}</section>;
     }
     switch (pane) {
-      // ADR-419 — the workspace Mandate/Identity/Principles panes are
-      // judgment-home-aware mirrors. Post ADR-414 D6 the constitution is
-      // per-agent: when a program is hired, these read the agent's home
-      // (agents/{slug}/…); a bare workspace has no constitution of its own
-      // (empty states say so). The FIRST-CLASS home is the agent detail's
-      // ConstitutionBlock; these panes stay resolvable while the Home band
-      // recompose is deferred (ADR-414 §9b). GrantGate per ADR-412 D3.
-      case "mandate":
-        return (
-          <section className="mb-8">
-            <GrantGate region={constitutionHome ? "agents/" : "constitution/"}>
-              <MandateCard
-                variant="full"
-                path={constitutionHome ? `${constitutionHome}/MANDATE.md` : undefined}
-              />
-            </GrantGate>
-          </section>
-        );
-      case "identity":
-        return (
-          <section className="mb-8">
-            <GrantGate region={constitutionHome ? "agents/" : "persona/"}>
-              <SubstrateTab
-                title="Identity"
-                path={constitutionHome ? `${constitutionHome}/IDENTITY.md` : "/workspace/persona/IDENTITY.md"}
-                tagline="The reasoning-character of the hired agent — its persona. A workspace has no persona of its own; a hired agent installs one, shaping how it reasons."
-                editPrompt="I want to author the agent's persona — its reasoning character. Walk me through the current declaration."
-                emptyBody={
-                  <p className="text-center text-xs">
-                    No persona yet. A workspace has none of its own — hire an
-                    agent (or author a domain agent) to install a persona here.
-                  </p>
-                }
-              />
-            </GrantGate>
-          </section>
-        );
-      case "principles":
-        return (
-          <section className="mb-8">
-            <GrantGate region={constitutionHome ? "agents/" : "persona/"}>
-              <PrinciplesCard
-                variant="full"
-                path={constitutionHome ? `${constitutionHome}/principles.md` : undefined}
-              />
-            </GrantGate>
-          </section>
-        );
+      // ADR-421 — the Mandate/Identity/Principles cases are REMOVED. A workspace
+      // has no constitution of its own (ADR-414 D6): these are a hired agent's
+      // concerns, surfaced on the agent detail (AgentConstitutionBlock, ADR-419).
+      // The registry slugs are dormant; nothing routes here.
       // ADR-387 D3 — Brand stays here (interim). Rendered via the universal
       // WorkspaceFileView reading operation/BRAND.md directly (Identity moved
       // to Freddie, so the old merged "Identity & Brand" card no longer fits).

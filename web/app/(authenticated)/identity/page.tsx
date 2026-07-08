@@ -1,17 +1,15 @@
 /**
- * /identity → Freddie's pane redirect stub (ADR-387 §6.4, 2026-06-30).
+ * /identity → /workspace-settings redirect stub (bookmark safety only).
  *
- * Identity is the agent's persona/ reasoning-character (persona/IDENTITY.md —
- * the operator-identity already collapsed here per ADR-320 D2b). Post-ADR-412 D5
- * it lives in Workspace Settings' System Agent group (Freddie left the
- * /agents roster). Pure server transport per ADR-308.
- *
- * NOTE: /brand no longer redirects here — Brand (operation/BRAND.md) stayed in
- * Workspace Settings (ADR-387 D3), so /brand points there directly.
+ * ADR-421 (2026-07-08): a workspace has no persona of its own — the Identity
+ * pane was removed (persona is the steward's kernel constant or a hired agent's
+ * agents/{slug}/IDENTITY.md, surfaced on the agent detail via
+ * AgentConstitutionBlock, ADR-419). The old URL resolves to the Settings door's
+ * default pane, never a dead route. Pure server transport per ADR-308.
  */
 
 import { redirect } from 'next/navigation';
 
 export default function IdentityRedirect() {
-  redirect('/workspace-settings?workspace-settings.pane=identity');
+  redirect('/workspace-settings');
 }

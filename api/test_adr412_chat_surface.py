@@ -210,18 +210,15 @@ def test_system_agent_rehome() -> None:
                 row.get("pane_group") == "System Agent",
                 f"`{slug}` sits in the System Agent group (ADR-418: the steward's dials)",
             )
-    for slug in ("identity", "principles"):
+    # ADR-421: mandate/identity/principles are DORMANT — a workspace has no
+    # constitution of its own (ADR-414 D6); they are per-agent, surfaced on the
+    # agent detail. ADR-418: expected-output likewise dormant.
+    for slug in ("mandate", "identity", "principles", "expected-output"):
         row = next((r for r in KERNEL_SURFACES if r["slug"] == slug), None)
         _assert(
-            row is not None and row.get("pane_of") == "workspace-settings"
-            and row.get("pane_group") == "Constitution",
-            f"`{slug}` moved to the Constitution group (ADR-418 — constitution mirror, not the steward's persona)",
+            row is not None and row.get("pane_of") is None and not row.get("route"),
+            f"`{slug}` is dormant (no pane_of, no route — a workspace has no constitution)",
         )
-    eo = next((r for r in KERNEL_SURFACES if r["slug"] == "expected-output"), None)
-    _assert(
-        eo is not None and eo.get("pane_of") is None and not eo.get("route"),
-        "`expected-output` is dormant (no pane_of, no route — ADR-418)",
-    )
     _assert(
         not any(r.get("pane_of") == "agents" for r in KERNEL_SURFACES),
         "No registry pane is homed on the agents window anymore",
@@ -240,21 +237,22 @@ def test_system_agent_rehome() -> None:
         "SystemAgentPanes module exists (the extracted Singular Implementation)",
     )
 
-    # ADR-418: autonomy/budget/principles/identity still deep-link to their pane.
-    for route in ["autonomy", "budget", "principles", "identity"]:
+    # ADR-418: autonomy/budget still deep-link to their System Agent pane.
+    for route in ["autonomy", "budget"]:
         stub = _read(f"web/app/(authenticated)/{route}/page.tsx")
         _assert(
             f"workspace-settings.pane={route}" in stub and "agents.agent=freddie" not in stub,
             f"/{route} stub redirects into Workspace Settings",
         )
-    # ADR-418: the /expected-output stub survives for bookmark safety but its pane
-    # is gone (dormant) — it redirects to the Settings door with NO dead pane param.
-    eo_stub = _read("web/app/(authenticated)/expected-output/page.tsx")
-    _assert(
-        "redirect('/workspace-settings')" in eo_stub
-        and "workspace-settings.pane=expected-output" not in eo_stub,
-        "/expected-output stub redirects to the Settings door (no dead pane param — ADR-418)",
-    )
+    # ADR-418/420: the dormant-surface stubs survive for bookmark safety but their
+    # panes are gone — they redirect to the bare Settings door (no dead pane param).
+    for route in ["expected-output", "mandate", "identity", "principles"]:
+        stub = _read(f"web/app/(authenticated)/{route}/page.tsx")
+        _assert(
+            "redirect('/workspace-settings')" in stub
+            and f"workspace-settings.pane={route}" not in stub,
+            f"/{route} stub redirects to the bare Settings door (dormant, no dead pane param)",
+        )
 
 
 # =============================================================================
@@ -324,20 +322,20 @@ def test_grant_derived_affordances() -> None:
     _assert("useViewerGrant" in front and "canActivate" in front,
             "the activation CTA gates on constitution/ coverage")
     ws = _read("web/app/(authenticated)/workspace-settings/page.tsx")
-    # ADR-419: the Constitution panes are judgment-home-aware — their GrantGate
-    # region resolves to "agents/" when a program is hired (the constitution is
-    # the hired agent's), else the steward-era root ("constitution/"/"persona/").
-    _assert('"constitution/"' in ws,
-            "the Mandate pane is grant-gated (constitution/ when bare — ADR-419)")
-    # ADR-418: the System Agent panes are the steward's DIALS (governance/); the
-    # persona/ panes (identity/principles) moved to the workspace-settings
-    # Constitution group. ADR-419: they are judgment-home-aware ("agents/" when
-    # hired, "persona/" when bare).
+    # ADR-421: the Constitution panes are GONE from Workspace Settings — a
+    # workspace has no constitution of its own; mandate/identity/principles are
+    # per-agent, surfaced on the agent detail. Brand still gates on operation/.
+    _assert('"operation/"' in ws,
+            "the Brand pane still gates on operation/ coverage")
+    # ADR-418: the System Agent panes are the steward's DIALS (governance/).
     sap = _read("web/components/agents/SystemAgentPanes.tsx")
     _assert("PANE_REGIONS" in sap and "governance/" in sap,
             "System Agent dial panes gate on governance/ (ADR-418)")
-    _assert('"persona/"' in ws and '"agents/"' in ws,
-            "the Constitution Identity/Principles panes gate home-aware (agents/ hired, persona/ bare — ADR-419)")
+    # ADR-421/419: the per-agent constitution renders on the agent detail
+    # (AgentConstitutionBlock reads agents/{slug}/ MANDATE/IDENTITY/principles).
+    view = _read("web/components/agents/AgentContentView.tsx")
+    _assert("AgentConstitutionBlock" in view and "agents/" in view,
+            "the per-agent constitution renders on the agent detail (ADR-419/420)")
 
 
 if __name__ == "__main__":

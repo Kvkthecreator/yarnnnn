@@ -91,11 +91,12 @@ def test_registry_tiers() -> None:
         # 2026-07-08: `agents` joins (deferred from launch chrome — ADR-414 /
         # commit 6d2d216). connectors/sources stay search-only panes (ADR-415
         # re-homed them pane_of workspace-settings; panes are always search-only).
-        # ADR-418 (2026-07-08): `expected-output` LEAVES this set — it went
-        # dormant (route=""), so it is no longer navigable and drops out of the
-        # tier map entirely (the surface returns with the per-agent FE, ADR-382).
+        # ADR-418 (2026-07-08): `expected-output` LEFT (dormant, route="").
+        # ADR-421 (2026-07-08): `mandate`/`identity`/`principles` LEAVE too — a
+        # workspace has no constitution of its own; they went dormant (route=""),
+        # so they drop out of the navigable tier map (surfaced on the agent detail).
         {s for s, t in tiers.items() if t == "search-only"}
-        == {"mandate", "principles", "identity", "budget", "autonomy",
+        == {"budget", "autonomy",
             "program", "connectors", "sources", "activity", "agents",
             "queue", "recurrence", "setup", "notifications"},
     )
@@ -119,24 +120,24 @@ def test_launcher_two_modes() -> None:
     check("Surface type declares launcher_tier", "launcher_tier?:" in _read("lib/compositor/types.ts"))
 
 
-def test_constitution_band_door() -> None:
-    print("\n[band] Home constitution band routes to the three mirrors")
+def test_constitution_band_removed() -> None:
+    # ADR-421 (2026-07-08): the Home constitution band (the mandate/principles/
+    # identity mirror-link trio) is REMOVED — a workspace has no constitution of
+    # its own (ADR-414 D6); those are per-agent, surfaced on the agent detail.
+    print("\n[band] Home constitution-link trio removed (ADR-421)")
     src = _read("components/library/HomeHeader.tsx")
-    check("ConstitutionLinks component present", "ConstitutionLinks" in src)
+    check("ConstitutionLinks component deleted", "function ConstitutionLinks" not in src)
     for slug in ("mandate", "principles", "identity"):
-        check(f"band links to {slug}", f"slug: '{slug}'" in src)
-    check("links open via foregroundSurface", "foregroundSurface(item.slug)" in src)
-    # ADR-387 §6.4 (2026-06-30): the autonomy badge resolves to Freddie's pane
-    # (pane_of: agents) via the navigation-enactment verb foregroundSurface —
-    # NOT a hardcoded /workspace-settings URL. The registry re-point lands it.
-    check("autonomy badge → foregroundSurface('autonomy') (ADR-387 §6.4)", "foregroundSurface('autonomy')" in src)
+        check(f"band no longer links {slug}", f"slug: '{slug}'" not in src)
+    # The autonomy badge still resolves via the navigation-enactment verb.
+    check("autonomy badge → foregroundSurface('autonomy')", "foregroundSurface('autonomy')" in src)
 
 
 def main() -> int:
     print("ADR-340 P3 gate — launcher re-sort")
     test_registry_tiers()
     test_launcher_two_modes()
-    test_constitution_band_door()
+    test_constitution_band_removed()
     print(f"\n{PASSED} passed, {FAILED} failed")
     return 1 if FAILED else 0
 

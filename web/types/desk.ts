@@ -45,9 +45,12 @@ export type KernelSurfaceSlug =
   // survives backend-side (services/kernel_surfaces.py) so the concept persists.
   // (Slug intentionally NOT written as a quoted literal here — the parity gate
   // reads quoted names from this union up to the first semicolon.)
-  | 'mandate'
-  | 'principles'
-  | 'identity'
+  //
+  // ADR-421 (2026-07-08): the mandate / principles / identity slugs are REMOVED
+  // from the union too — a workspace has no constitution of its own (ADR-414 D6);
+  // those are per-agent concepts surfaced on the agent detail. The registry rows
+  // survive backend-side (dormant) so flat search knows them; they leave the FE
+  // navigable set. (Slugs not quoted in this comment for the same parity reason.)
   | 'files'
   | 'agents'
   | 'setup'  // ADR-331 D1 — guided first-boot Sequence surface
@@ -83,12 +86,13 @@ export type DeskSurface =
   | { type: 'idle' };
 
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
-  // ADR-418 — the Expected-Output slug is removed: dormant (routeless) until the
-  // per-agent contract FE (ADR-382). The three-way parity (navigable == allowlist
-  // == registry∪panes) holds with it out of all three. (Slug not quoted in this
-  // comment — the ADR-347 gate asserts the quoted literal is absent from desk.ts.)
-  'home', 'chat', 'recurrence', 'budget', 'autonomy', 'mandate', 'principles',
-  'identity', 'files', 'agents', 'setup', 'program', 'queue', 'notifications', 'activity',
+  // ADR-418 removed the Expected-Output slug (dormant). ADR-421 (2026-07-08)
+  // removes mandate / principles / identity too — a workspace has no
+  // constitution of its own (ADR-414 D6). All four are dormant registry rows
+  // (routeless, backend-only); the three-way parity (navigable == allowlist ==
+  // registry∪panes) holds with them out of all three.
+  'home', 'chat', 'recurrence', 'budget', 'autonomy',
+  'files', 'agents', 'setup', 'program', 'queue', 'notifications', 'activity',
   'settings', 'workspace-settings', 'connectors', 'sources',
 ] as const;
 

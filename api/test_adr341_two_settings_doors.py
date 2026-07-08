@@ -99,18 +99,13 @@ def test_pane_homing() -> None:
     for slug in ("autonomy", "budget"):
         check(f"{slug} → the Settings door (ADR-412 D5)", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug} grouped System Agent (ADR-418: the steward's dials)", by_slug[slug].get("pane_group") == "System Agent")
-    # ADR-418 — identity/principles are constitution mirrors (NOT the steward's
-    # persona, which is a kernel constant): they re-home System Agent →
-    # Constitution group, joining Mandate. They keep pane_of: workspace-settings
-    # (the Home constitution band still doors them here).
-    for slug in ("mandate", "identity", "principles"):
-        check(f"{slug} → the one Settings door", by_slug[slug].get("pane_of") == "workspace-settings")
-        check(f"{slug} grouped Constitution (ADR-418)", by_slug[slug].get("pane_group") == "Constitution")
-    # ADR-418 — expected-output went DORMANT: a hired Altitude-3 agent's output
-    # contract with no constitution-band door, so it leaves the navigable set
-    # (no route, no pane_of) until the per-agent FE (ADR-382 / ADR-414 §9b).
-    check("expected-output is dormant (no pane_of)", by_slug["expected-output"].get("pane_of") is None)
-    check("expected-output is dormant (no route)", not by_slug["expected-output"].get("route"))
+    # ADR-421 — mandate/identity/principles are DORMANT: a workspace has no
+    # constitution of its own (ADR-414 D6). They are per-agent concepts (surfaced
+    # on the agent detail), so they leave the navigable set (no route, no pane_of).
+    # ADR-418 — expected-output is likewise dormant (a hired agent's contract).
+    for slug in ("mandate", "identity", "principles", "expected-output"):
+        check(f"{slug} is dormant (no pane_of)", by_slug[slug].get("pane_of") is None)
+        check(f"{slug} is dormant (no route)", not by_slug[slug].get("route"))
     for slug in ("program",):
         check(f"{slug} → the one Settings door", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug} grouped Operation", by_slug[slug].get("pane_group") == "Operation")
@@ -153,22 +148,19 @@ def test_shared_shell_singular_impl() -> None:
     check("SurfaceRegistry maps workspace-settings", "'workspace-settings':" in reg and "WorkspaceSettingsPage" in reg)
 
 
-def test_constitution_band_preserved() -> None:
-    print("\n[band] constitution stays first-class on Home (D2, ADR-312 D5)")
+def test_constitution_band_removed() -> None:
+    # ADR-421 (2026-07-08): the Home constitution-link trio is REMOVED — a
+    # workspace has no constitution of its own (ADR-414 D6); mandate/identity/
+    # principles are per-agent, surfaced on the agent detail. The stubs survive
+    # for bookmark safety but redirect to the bare Settings door (no dead pane).
+    print("\n[band] constitution-link trio removed from Home (ADR-421)")
     home = _read("components/library/HomeHeader.tsx")
-    check("HomeHeader still renders the constitution band", "ConstitutionLinks" in home)
-    # All three constitution-trio stubs redirect into the Settings door —
-    # Mandate to its Constitution pane; Identity + Principles to the System
-    # Agent group (ADR-412 D5 reversed their ADR-387 Freddie-pane targets).
-    # The band consumes the cards directly, independent of these routes.
-    mandate_stub = _read("app/(authenticated)/mandate/page.tsx")
-    check("/mandate → Workspace Settings pane stub",
-          "redirect('/workspace-settings?workspace-settings.pane=mandate')" in mandate_stub)
-    check("/mandate stub is server-side (no 'use client')", "'use client'" not in mandate_stub)
-    for slug in ("identity", "principles"):
+    check("HomeHeader no longer renders the ConstitutionLinks trio", "function ConstitutionLinks" not in home)
+    for slug in ("mandate", "identity", "principles"):
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
-        check(f"/{slug} → Settings-door System Agent stub (ADR-412 D5)",
-              f"redirect('/workspace-settings?workspace-settings.pane={slug}')" in stub)
+        check(f"/{slug} → bare Settings door (no dead pane param, ADR-421)",
+              "redirect('/workspace-settings')" in stub
+              and f"pane={slug}" not in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
 
 
@@ -178,7 +170,7 @@ if __name__ == "__main__":
     test_pane_homing()
     test_registers_unchanged()
     test_shared_shell_singular_impl()
-    test_constitution_band_preserved()
+    test_constitution_band_removed()
     print(f"\n{'=' * 60}")
     print(f"  {PASSED} passed, {FAILED} failed")
     print(f"{'=' * 60}")

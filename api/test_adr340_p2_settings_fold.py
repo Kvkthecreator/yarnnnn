@@ -34,25 +34,24 @@ FAILED = 0
 # Freddie's roster pane; ADR-412 D5 (2026-07-06) REVERSED it — Freddie left
 # the /agents roster, and the panes re-homed to Workspace Settings as the
 # System Agent group.
+# ADR-421 (2026-07-08): the Constitution group is REMOVED — a workspace has no
+# constitution of its own (ADR-414 D6). mandate/identity/principles are dormant
+# (per-agent concepts, surfaced on the agent detail). Only Program remains a
+# workspace-content pane here.
 WORKSPACE_SETTINGS_PANES = {
-    "mandate",   # Constitution
     "program",   # Operation
 }
-# ADR-412 D5: the system agent's panes live in Workspace Settings (System
-# Agent group). ADR-418 (2026-07-08) PURIFIED the group to the STEWARD's actual
-# surface (ADR-414 D2): the two dials only. identity/principles left for the
-# Constitution group; expected-output went dormant (no longer pane-grade).
+# ADR-418 (2026-07-08) PURIFIED the System Agent group to the STEWARD's dials
+# (ADR-414 D2): autonomy + budget only.
 FREDDIE_PANES = {
     "autonomy", "budget",              # governance/ dials — the steward's own
 }
-# ADR-418: identity + principles are constitution mirrors (persona/ region,
-# doored from the Home band), grouped Constitution alongside Mandate — still
-# pane_of: workspace-settings. (mandate itself is in WORKSPACE_SETTINGS_PANES.)
-CONSTITUTION_PANES = {"identity", "principles"}
+# ADR-421: the Constitution pane set is EMPTY — a workspace has no constitution.
+CONSTITUTION_PANES = set()
 # ADR-415 (2026-07-08): connectors + sources re-home from the dissolved
 # Channels surface back to Workspace Settings → Perception (pane-grade).
 PERCEPTION_PANES = {"connectors", "sources"}
-# ADR-418: expected-output is NOT pane-grade anymore (dormant) — excluded here.
+# ADR-418: expected-output dormant. ADR-421: mandate/identity/principles dormant.
 EXPECTED_PANES = WORKSPACE_SETTINGS_PANES | FREDDIE_PANES | CONSTITUTION_PANES | PERCEPTION_PANES
 
 
@@ -95,8 +94,10 @@ def test_registry_pane_model() -> None:
     for slug in sorted(CONSTITUTION_PANES):
         check(f"{slug}: pane_of == 'workspace-settings' (ADR-418)", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
-    # ADR-418: expected-output is dormant — NOT pane-grade (no pane_of).
-    check("expected-output not pane-grade (dormant, ADR-418)", by_slug["expected-output"].get("pane_of") is None)
+    # ADR-418: expected-output dormant. ADR-421: mandate/identity/principles
+    # dormant too (a workspace has no constitution of its own) — none pane-grade.
+    for slug in ("expected-output", "mandate", "identity", "principles"):
+        check(f"{slug} not pane-grade (dormant)", by_slug[slug].get("pane_of") is None)
     # ADR-415: connectors + sources re-home to Workspace Settings → Perception.
     for slug in sorted(PERCEPTION_PANES):
         check(f"{slug}: pane_of == 'workspace-settings' (ADR-415)", by_slug[slug].get("pane_of") == "workspace-settings")
@@ -124,12 +125,9 @@ def test_registry_pane_model() -> None:
     # connectors + sources re-home to the Perception group (Channels dissolved).
     check("connectors grouped Perception (ADR-415)", by_slug["connectors"]["pane_group"] == "Perception")
     check("sources grouped Perception (ADR-415)", by_slug["sources"]["pane_group"] == "Perception")
-    # Workspace Settings keeps Mandate + identity/principles (Constitution, ADR-418)
-    # + Program (Operation).
+    # ADR-421: Workspace Settings keeps Program (Operation). The Constitution
+    # group is removed (mandate/identity/principles dormant — per-agent, ADR-414 D6).
     check("program grouped Operation", by_slug["program"]["pane_group"] == "Operation")
-    check("mandate grouped Constitution", by_slug["mandate"]["pane_group"] == "Constitution")
-    for slug in sorted(CONSTITUTION_PANES):
-        check(f"{slug} grouped Constitution (ADR-418)", by_slug[slug]["pane_group"] == "Constitution")
 
 
 def test_settings_container() -> None:
@@ -157,10 +155,10 @@ def test_settings_container() -> None:
     ws_src = _read("app/(authenticated)/workspace-settings/page.tsx")
     check("Settings door mounts SettingsPaneShell", "SettingsPaneShell" in ws_src)
     check("Settings door declares PANE_GROUPS", "PANE_GROUPS" in ws_src)
-    # ADR-387 §6.4: Workspace Settings keeps Mandate + Brand (D3 interim) +
-    # Program. The agent-scoped governance cards moved to Freddie's pane.
+    # ADR-421: Workspace Settings keeps Brand (D3 interim) + Program. The
+    # Constitution panes (Mandate/Identity/Principles) were removed — a workspace
+    # has no constitution of its own; those render on the agent detail.
     for needle, label in [
-        ("MandateCard", "Mandate pane body"),
         ("ProgramLifecycleDrawer", "Program pane body"),
     ]:
         check(f"Settings door: {label}", needle in ws_src)
@@ -182,13 +180,15 @@ def test_settings_container() -> None:
     ]:
         check(f"SystemAgentPanes renders {label} (ADR-418)", needle in panes_src)
     for needle, label in [
-        ("PrinciplesCard", "Principles (moved to Constitution group)"),
+        ("PrinciplesCard", "Principles (per-agent, ADR-421)"),
         ("ExpectedOutputCard", "Expected Output (dormant)"),
     ]:
         check(f"SystemAgentPanes no longer renders {label} (ADR-418)", needle not in panes_src)
-    # ADR-418: Principles now renders on the Settings door itself (Constitution).
-    check("Settings door renders PrinciplesCard (Constitution, ADR-418)", "PrinciplesCard" in ws_src)
-    check("Settings door renders the Identity SubstrateTab (Constitution, ADR-418)", "SubstrateTab" in ws_src)
+    # ADR-421: the Settings door NO LONGER renders the Constitution panes — a
+    # workspace has no constitution of its own (mandate/identity/principles are
+    # per-agent, surfaced on the agent detail via AgentConstitutionBlock).
+    check("Settings door no longer renders MandateCard (ADR-421)", "MandateCard" not in ws_src)
+    check("Settings door no longer renders PrinciplesCard (ADR-421)", "PrinciplesCard" not in ws_src)
     agent_src = _read("components/agents/AgentContentView.tsx")
     for needle, label in [
         ("PrinciplesCard", "Principles"),
@@ -227,6 +227,15 @@ def test_redirect_stubs() -> None:
             continue
         target = f"/workspace-settings?workspace-settings.pane={slug}"
         check(f"/{slug} → {target} (ADR-415)", f"redirect('{target}')" in stub)
+        check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
+    # ADR-421: the mandate/identity/principles route stubs survive for BOOKMARK
+    # SAFETY only — their panes were removed (dormant), so they redirect to the
+    # bare Settings door (default pane), NOT a dead ?pane= param.
+    for slug in ("mandate", "identity", "principles"):
+        stub = _read(f"app/(authenticated)/{slug}/page.tsx")
+        check(f"/{slug} → /workspace-settings (no dead pane param — ADR-421)",
+              "redirect('/workspace-settings')" in stub
+              and f"pane={slug}" not in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
 
 

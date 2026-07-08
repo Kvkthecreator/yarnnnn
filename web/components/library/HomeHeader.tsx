@@ -52,36 +52,11 @@ const MANDATE_PATH = '/workspace/constitution/MANDATE.md';
 // Constitution links — ADR-340 P3
 // ---------------------------------------------------------------------------
 
-/**
- * ConstitutionLinks — the constitution band is the canonical DOOR to the
- * three constitution mirrors (ADR-340 D5: mandate/principles/identity
- * leave the launcher's at-rest top level; flat search still finds them).
- * Quiet trio of links opening the mirror windows via foregroundSurface.
- */
-function ConstitutionLinks() {
-  const { foregroundSurface } = useSurfacePreferences();
-  const items: { slug: string; label: string }[] = [
-    { slug: 'mandate', label: 'Mandate' },
-    { slug: 'principles', label: 'Principles' },
-    { slug: 'identity', label: 'Identity' },
-  ];
-  return (
-    <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground/60">
-      {items.map((item, i) => (
-        <span key={item.slug} className="flex items-center gap-1">
-          {i > 0 && <span aria-hidden>·</span>}
-          <button
-            type="button"
-            onClick={() => foregroundSurface(item.slug)}
-            className="hover:text-foreground hover:underline underline-offset-4 transition-colors"
-          >
-            {item.label}
-          </button>
-        </span>
-      ))}
-    </div>
-  );
-}
+// ADR-421: ConstitutionLinks (the mandate/principles/identity mirror-link trio)
+// is DELETED. A workspace has no constitution of its own — those are per-agent
+// concepts surfaced on the agent detail (AgentConstitutionBlock, ADR-419). The
+// band's remaining content (the mandate hero, when a hired agent has one) is
+// re-homed by the deferred §9b Home recompose.
 
 // ---------------------------------------------------------------------------
 // Autonomy display
@@ -184,27 +159,45 @@ export function HomeHeader({ initialMandate, initialAutonomy }: HomeHeaderProps 
   // Boundary Conditions. A workspace with Primary Action authored is NOT
   // skeleton even if downstream sub-sections still carry "Author here:"
   // prompts (those are operator-facing nudges, not skeleton markers).
-  const parsed = parseMandate(mandate ?? '');
+  //
+  // ADR-421: a steward-default MANDATE.md (the kernel constant seeded on
+  // pre-genesis workspaces, marked `yarnnn:steward-default`) is NOT an
+  // operator/agent mandate — it is Freddie's kernel purpose. Treat it as empty
+  // at the Home hero so a bare workspace shows the honest empty state instead of
+  // rendering "Steward this workspace's substrate" as the operation headline.
+  // (The backend envelope already rejects it via STEWARD_DEFAULT_MARKER; this is
+  // the FE parity. The real fix is the deferred §9b Home recompose — this keeps
+  // the interim hero honest until then.)
+  const isStewardDefault = (mandate ?? '').includes('yarnnn:steward-default');
+  const parsed = isStewardDefault
+    ? { primaryAction: null, successCriteria: [], boundaryCount: 0, isEmpty: true }
+    : parseMandate(mandate ?? '');
 
   if (parsed.isEmpty) {
     return (
       <header className="w-full px-4 py-4 sm:px-6 sm:py-5 border-b border-border/60">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <div className="rounded-md border border-dashed border-amber-300 bg-amber-50/50 px-4 py-3 text-sm text-amber-900">
-              <span className="font-medium">Mandate not yet declared.</span>{' '}
-              The mandate is the Primary Action and guardrails YARNNN operates within.{' '}
-              {canAmendConstitution && (
+            {/* ADR-421: altitude-honest empty state. A workspace has no mandate
+                of its own — it holds files, members, and a balance. A mandate is
+                a hired agent's declared intent (surfaced on the agent detail). */}
+            <div className="rounded-md border border-dashed border-border/60 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">This workspace is a commons.</span>{' '}
+              It holds your files, members, and connections. To give it an operation —
+              a declared intent that runs on cadence —{' '}
+              {canAmendConstitution ? (
                 <button
                   type="button"
-                  onClick={() => onOpenChatDraft('Help me author my mandate — the Primary Action this workspace is running, success criteria, and boundary conditions.')}
-                  className="font-medium underline underline-offset-4 hover:no-underline"
+                  onClick={() => onOpenChatDraft('Help me set up an operation for this workspace — walk me through hiring an agent with a mandate.')}
+                  className="font-medium text-foreground underline underline-offset-4 hover:no-underline"
                 >
-                  Author in chat
+                  hire an agent
                 </button>
+              ) : (
+                <span className="font-medium text-foreground">hire an agent</span>
               )}
+              .
             </div>
-            <ConstitutionLinks />
           </div>
           <AutonomyBadge
             level={effectiveLevel as AutonomyDelegation | null}
@@ -235,7 +228,11 @@ export function HomeHeader({ initialMandate, initialAutonomy }: HomeHeaderProps 
               {supportingLines.slice(0, 3).join(' · ')}
             </p>
           )}
-          <ConstitutionLinks />
+          {/* ADR-421: the constitution-trio band (mandate/identity/principles
+              mirror links) is removed — a workspace has no constitution of its
+              own; those live on the agent detail. When this header shows an
+              authored mandate it is a HIRED agent's (read from agents/{slug}/ via
+              the home-bundle); the deferred §9b Home recompose re-homes the hero. */}
         </div>
         <div className="flex items-center gap-3 shrink-0 mt-0.5">
           {/* Autonomy posture — links to Reviewer Autonomy tab for editing */}

@@ -127,16 +127,14 @@ def test_three_way_parity() -> None:
         f"pane slugs with window components: {sorted(reg & panes)}",
     )
     check(
-        "pane set is the ADR-347 one-door fold + ADR-340 D8 activity + ADR-418",
+        "pane set is the ADR-347 fold + ADR-340 D8 activity + ADR-418/420 removals",
         panes == {
             # The one Settings door — Contract (ADR-347). ADR-418: expected-output
-            # LEFT the pane set (dormant, routeless, no pane_of) — it is a hired
-            # Altitude-3 agent's contract, returning with the per-agent FE.
+            # LEFT (dormant). ADR-421: mandate/identity/principles LEFT (dormant) —
+            # a workspace has no constitution of its own; those are per-agent.
             "budget", "autonomy",
-            # The one Settings door — Operation/Perception/Constitution (ADR-347).
-            # identity/principles stay pane-grade (ADR-418 re-homed them System
-            # Agent → Constitution group, but they keep pane_of: workspace-settings).
-            "program", "connectors", "sources", "mandate", "identity", "principles",
+            # The one Settings door — Operation/Perception (ADR-347/415).
+            "program", "connectors", "sources",
             # Recurrence (Machinery) — ADR-340 D8
             "activity",
         },
