@@ -352,6 +352,16 @@ async def load_freddie_governance_envelope(
             STEWARD_DEFAULT_MARKER,
         )
 
+        # Two substitution triggers, and note their differing reach post-ADR-414:
+        #   - `not _val.strip()` (ABSENT file) — the LIVE trigger on a pure-genesis
+        #     workspace (Phase C stopped seeding these files, so they are simply
+        #     missing; the kernel constant rides in their place).
+        #   - `STEWARD_DEFAULT_MARKER in _val` (SEEDED marker file) — reachable
+        #     ONLY on a PRE-ADR-414 workspace that still carries a seeded
+        #     marker-bearing file from before genesis stopped seeding. Retained so
+        #     those legacy workspaces stay drift-proof (a kernel-side steward-copy
+        #     improvement reaches them too); harmless on pure-genesis workspaces
+        #     (no marker file exists → the absent-file branch fires instead).
         for _key, _const in (
             ("mandate_md", DEFAULT_STEWARD_MANDATE_MD),
             ("identity_md", DEFAULT_STEWARD_IDENTITY_MD),

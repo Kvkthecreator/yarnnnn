@@ -405,10 +405,29 @@ data migration.
    (per-agent `_budget.yaml` + `execution_events.principal_id` metering)
    are named follow-on — landing the file without the metering would be
    a dead declaration. The sidecar lock above already reserves the leaf.
-7. **Steward working set stays at `persona/` interim.** The steward's
-   standing_intent/judgment_log on a no-hire workspace keep their
-   current paths; their re-homing (persona/ → system/ or kernel data)
-   belongs to the re-founding's own sequenced plan (§11 "no flag-day").
+7. **Steward working set stays at `persona/` — DECIDED, not merely deferred
+   (2026-07-08 cleanup pass).** On a no-hire (steward-only) workspace, the
+   steward's `standing_intent.md` + `judgment_log.md` write to `persona/`
+   (the envelope reads them there via the no-hire branch;
+   `freddie_audit._judgment_log_path` + `freddie_envelope` fall back to
+   `PERSONA_*` when `resolve_judgment_home` is None). The audit asked whether,
+   now that genesis seeds *neither* (Phase C), these should move to `system/`
+   or to kernel data. **Ruling: keep them at `persona/`.** Three reasons,
+   recorded so the question is closed, not re-opened: **(a)** the steward is a
+   real agent that legitimately produces a working set — it is not a null, so
+   the files must live *somewhere* writable; **(b)** `persona/` is the
+   occupant-agnostic *seat* path (ADR-315/320) — "how the seat reasons + its
+   trail," correct for the steward's working files regardless of who fills the
+   seat; **(c)** `system/` is orchestration-runtime (mirrors, cleanup, ledgers)
+   — moving judgment lineage there would MIS-classify it as non-judgment
+   infrastructure, the exact category error ADR-320's topology exists to
+   prevent. A move to a *named* steward home (`agents/{steward-slug}/`) only
+   becomes coherent if/when the steward itself is recorded as a grant-bearing
+   agent — that is the Rung-2 direction (ADR-382), explicitly deferred. So
+   `persona/` is not a placeholder awaiting the re-founding; it is the
+   *correct* home for the steward's trail at Rung 1. (These `persona/` paths
+   are legacy ONLY for a *hired* agent — whose trail re-homes to
+   `agents/{slug}/`; for the steward they are current.)
 8. **Per-agent MANDATE gate is satisfied by construction**: the bundle
    ships a populated MANDATE into the agent home at fork; no
    dispatch-time skeleton gate is reinstated (consistent with Phase C
