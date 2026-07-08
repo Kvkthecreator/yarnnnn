@@ -12,8 +12,7 @@
  * It replaced the chat-narrative FeedSurface mount: post-ADR-407-Phase-4
  * the chat session is the viewer's PRIVATE thread, so a chat-derived
  * "Activity" showed the viewer their own turns and hid peers/agents — the
- * structural obsolescence ADR-410 §1 documents. FeedSurface itself survives
- * at its Channels In mount (the boundary crossing-ledger).
+ * structural obsolescence ADR-410 §1 documents.
  *
  * Unlike the bell, the workbench shows EVERY act — including the viewer's
  * own, resolved to "You" (a workbench is where you audit the whole commons;
@@ -21,6 +20,16 @@
  * rule). Rendering rides the shared timeline-row grammar + the viewer
  * resolution layer (ADR-412 D6); DP29: everything here is derived at read
  * time, nothing is stored.
+ *
+ * ADR-415 (2026-07-08): Activity is now the ONE "what happened" surface. The
+ * dissolved Channels surface's Out (emissions) ledger folds in here as a
+ * DIRECTION LENS — a Timeline/Out toggle. Timeline = the interior three-ledger
+ * view (kind/actor/date filters). Out = EmissionsView (GET /api/emissions:
+ * operator-addressing sends — channel · status · destination · did-it-land).
+ * Out swaps the body wholesale rather than mapping emissions into revision
+ * rows, because the delivery detail IS the value of Out (a unified row grammar
+ * would gut it). Channels' In pane was retired — inbound writes already appear
+ * in the timeline as attributed revisions.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -29,6 +38,7 @@ import { api } from '@/lib/api/client';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { PrincipalBadge } from '@/lib/workspace/principal-badge';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { EmissionsView } from '@/components/context/EmissionsView';
 import {
   resolveActorForViewer,
   useWorkspaceRoster,
@@ -52,9 +62,20 @@ const KIND_FILTERS: Array<{ key: 'all' | TimelineEntry['kind']; label: string }>
   { key: 'proposal', label: 'Decisions' },
 ];
 
+// ADR-415 — the direction lens: the interior timeline vs the outbound
+// emissions ledger (the dissolved Channels Out pane, re-homed).
+type DirectionLens = 'timeline' | 'out';
+const DIRECTION_LENSES: Array<{ key: DirectionLens; label: string }> = [
+  { key: 'timeline', label: 'Timeline' },
+  { key: 'out', label: 'Out' },
+];
+
 export function ActivityLedger() {
   const { userId } = useSurfacePreferences();
   const roster = useWorkspaceRoster();
+
+  // ADR-415 — Timeline (the three interior ledgers) vs Out (emissions).
+  const [lens, setLens] = useState<DirectionLens>('timeline');
 
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -138,64 +159,96 @@ export function ActivityLedger() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Filter bar — actor / kind / date (ADR-410 D5). Kind + actor filter
-          the loaded window client-side; the date jumps the server cursor. */}
+      {/* Filter bar. ADR-415 — the direction lens (Timeline / Out) leads;
+          the timeline-specific filters (kind / actor / date, ADR-410 D5) show
+          only in the Timeline lens (Out is the emissions ledger, a different
+          shape). Kind + actor filter the loaded window client-side; the date
+          jumps the server cursor. */}
       <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-6 py-2.5">
-        <div className="flex items-center gap-1" role="group" aria-label="Filter by kind">
-          {KIND_FILTERS.map((k) => (
+        <div className="flex items-center gap-1" role="group" aria-label="Direction">
+          {DIRECTION_LENSES.map((l) => (
             <button
-              key={k.key}
+              key={l.key}
               type="button"
-              onClick={() => setKindFilter(k.key)}
+              onClick={() => setLens(l.key)}
               className={cn(
                 'rounded-md px-2 py-1 text-[11px] transition-colors',
-                kindFilter === k.key
-                  ? 'bg-muted font-medium text-foreground'
+                lens === l.key
+                  ? 'bg-foreground font-medium text-background'
                   : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
               )}
             >
-              {k.label}
+              {l.label}
             </button>
           ))}
         </div>
-        <select
-          value={actorFilter}
-          onChange={(e) => setActorFilter(e.target.value)}
-          aria-label="Filter by actor"
-          className="h-7 rounded-md border border-border bg-background px-1.5 text-[11px] text-foreground"
-        >
-          <option value="all">Everyone</option>
-          {actorOptions.map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          Up to
-          <input
-            type="date"
-            value={beforeDate}
-            onChange={(e) => setBeforeDate(e.target.value)}
-            aria-label="Show history up to a date"
-            className="h-7 rounded-md border border-border bg-background px-1.5 text-[11px] text-foreground"
-          />
-        </label>
-        {(kindFilter !== 'all' || actorFilter !== 'all' || beforeDate) && (
-          <button
-            type="button"
-            onClick={() => {
-              setKindFilter('all');
-              setActorFilter('all');
-              setBeforeDate('');
-            }}
-            className="text-[11px] text-primary hover:underline"
-          >
-            Clear
-          </button>
+        {lens === 'timeline' && (
+          <>
+            <span aria-hidden className="h-4 w-px bg-border/60" />
+            <div className="flex items-center gap-1" role="group" aria-label="Filter by kind">
+              {KIND_FILTERS.map((k) => (
+                <button
+                  key={k.key}
+                  type="button"
+                  onClick={() => setKindFilter(k.key)}
+                  className={cn(
+                    'rounded-md px-2 py-1 text-[11px] transition-colors',
+                    kindFilter === k.key
+                      ? 'bg-muted font-medium text-foreground'
+                      : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+                  )}
+                >
+                  {k.label}
+                </button>
+              ))}
+            </div>
+            <select
+              value={actorFilter}
+              onChange={(e) => setActorFilter(e.target.value)}
+              aria-label="Filter by actor"
+              className="h-7 rounded-md border border-border bg-background px-1.5 text-[11px] text-foreground"
+            >
+              <option value="all">Everyone</option>
+              {actorOptions.map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              Up to
+              <input
+                type="date"
+                value={beforeDate}
+                onChange={(e) => setBeforeDate(e.target.value)}
+                aria-label="Show history up to a date"
+                className="h-7 rounded-md border border-border bg-background px-1.5 text-[11px] text-foreground"
+              />
+            </label>
+            {(kindFilter !== 'all' || actorFilter !== 'all' || beforeDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setKindFilter('all');
+                  setActorFilter('all');
+                  setBeforeDate('');
+                }}
+                className="text-[11px] text-primary hover:underline"
+              >
+                Clear
+              </button>
+            )}
+          </>
         )}
       </div>
 
+      {/* ADR-415 — the Out lens is the emissions ledger (a different data
+          source + row shape); it swaps the body wholesale. */}
+      {lens === 'out' ? (
+        <div className="flex-1 overflow-y-auto p-6">
+          <EmissionsView />
+        </div>
+      ) : (
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -278,6 +331,7 @@ export function ActivityLedger() {
           </button>
         )}
       </div>
+      )}
     </div>
   );
 }

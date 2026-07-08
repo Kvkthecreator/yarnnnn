@@ -84,10 +84,10 @@ const AUTHOR_SURFACES = new Set([
 // narrower default. Everything not named here falls to DRAWER_DEFAULT.
 const SUPERVISE_SURFACES = new Set([
   'queue',
-  'channels', // ADR-385 (was 'context') — the perception+principal read-surface workbench, narrow rail default
-  // ADR-385 follow-on (2026-06-30): the 'context'/'feed' legacy alias slugs are
-  // gone — persisted foreground state is normalized → 'channels' on read
-  // (surface-preferences.ts), so foregrounded can never be those slugs.
+  // ADR-415 (2026-07-08): 'channels' removed — the Channels surface dissolved;
+  // its read-surface job folded into 'activity' (already listed). Persisted
+  // foreground state naming channels/context/feed is normalized → 'home' on
+  // read (surface-preferences.ts), so foregrounded can never be those slugs.
   'activity',
   'recurrence',
   'files',

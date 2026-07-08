@@ -45,9 +45,10 @@ FREDDIE_PANES = {
     "autonomy", "budget",              # governance/ ceilings
     "expected-output",                 # contract/ (what it owes)
 }
-# ADR-385: connectors + sources are still pane-grade, but pane_of: channels.
-CHANNELS_PANES = {"connectors", "sources"}
-EXPECTED_PANES = WORKSPACE_SETTINGS_PANES | FREDDIE_PANES | CHANNELS_PANES
+# ADR-415 (2026-07-08): connectors + sources re-home from the dissolved
+# Channels surface back to Workspace Settings → Perception (pane-grade).
+PERCEPTION_PANES = {"connectors", "sources"}
+EXPECTED_PANES = WORKSPACE_SETTINGS_PANES | FREDDIE_PANES | PERCEPTION_PANES
 
 
 def check(label: str, condition: bool, detail: str = "") -> None:
@@ -85,9 +86,9 @@ def test_registry_pane_model() -> None:
     for slug in sorted(FREDDIE_PANES):
         check(f"{slug}: pane_of == 'workspace-settings' (ADR-412 D5)", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
-    # ADR-385: connectors + sources re-home onto the Channels surface.
-    for slug in sorted(CHANNELS_PANES):
-        check(f"{slug}: pane_of == 'channels' (ADR-385)", by_slug[slug].get("pane_of") == "channels")
+    # ADR-415: connectors + sources re-home to Workspace Settings → Perception.
+    for slug in sorted(PERCEPTION_PANES):
+        check(f"{slug}: pane_of == 'workspace-settings' (ADR-415)", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
     check(
         "settings is a container window (no pane_of on itself)",
@@ -97,8 +98,9 @@ def test_registry_pane_model() -> None:
         "workspace-settings is a container window (no pane_of on itself)",
         not by_slug["workspace-settings"].get("pane_of"),
     )
-    # ADR-349 D4: `settings` = the account/System Settings door; `workspace-settings` = the operation door.
-    check("settings titled 'System Settings' (ADR-349 D4)", by_slug["settings"]["title"] == "System Settings")
+    # ADR-349 D4: `settings` = the account door; `workspace-settings` = the operation door.
+    # 2026-07-08 naming-coherence pass (commit 4c0518c): "System Settings" → "User Settings".
+    check("settings titled 'User Settings'", by_slug["settings"]["title"] == "User Settings")
     check("workspace-settings titled 'Workspace Settings' (ADR-349 D4)", by_slug["workspace-settings"]["title"] == "Workspace Settings")
     check(
         "setup stays window-grade (Sequence surface, ADR-331)",
@@ -108,10 +110,10 @@ def test_registry_pane_model() -> None:
     # pedagogy flattened; pane bodies carry root-ownership taglines).
     for slug in sorted(FREDDIE_PANES):
         check(f"{slug} grouped System Agent (ADR-412 D5)", by_slug[slug]["pane_group"] == "System Agent")
-    # ADR-385 (2026-06-29): Perception left Workspace Settings — connectors +
-    # sources re-home onto the Channels surface (group Channels).
-    check("connectors grouped Channels (ADR-385)", by_slug["connectors"]["pane_group"] == "Channels")
-    check("sources grouped Channels (ADR-385)", by_slug["sources"]["pane_group"] == "Channels")
+    # ADR-415 (2026-07-08): Perception RETURNS to Workspace Settings —
+    # connectors + sources re-home to the Perception group (Channels dissolved).
+    check("connectors grouped Perception (ADR-415)", by_slug["connectors"]["pane_group"] == "Perception")
+    check("sources grouped Perception (ADR-415)", by_slug["sources"]["pane_group"] == "Perception")
     # Workspace Settings keeps Mandate (Constitution) + Program (Operation).
     check("program grouped Operation", by_slug["program"]["pane_group"] == "Operation")
     check("mandate grouped Constitution", by_slug["mandate"]["pane_group"] == "Constitution")
@@ -196,13 +198,13 @@ def test_redirect_stubs() -> None:
         target = f"/workspace-settings?workspace-settings.pane={slug}"
         check(f"/{slug} → {target} (ADR-412 D5)", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
-    # ADR-385: the re-homed Perception routes redirect to the Channels surface.
-    for slug in sorted(CHANNELS_PANES):
+    # ADR-415: the Perception routes redirect to Workspace Settings.
+    for slug in sorted(PERCEPTION_PANES):
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
         if not stub:
             continue
-        target = f"/channels?channels.pane={slug}"
-        check(f"/{slug} → {target} (ADR-385)", f"redirect('{target}')" in stub)
+        target = f"/workspace-settings?workspace-settings.pane={slug}"
+        check(f"/{slug} → {target} (ADR-415)", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
 
 

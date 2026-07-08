@@ -24,14 +24,15 @@
 // spoke "recurrence"; only the surface label lagged). /cadence is a
 // redirect stub.
 export type KernelSurfaceSlug =
-  | 'channels'  // ADR-385 — the perception + principal surface (was the context surface). Connections · Sources · AI Connections + Flow · In · Out
-  // ADR-385 follow-on (2026-06-30): the legacy feed + context alias slugs are
-  // DELETED from the union (full alias deletion — they caused a duplicate dock
-  // icon from stale persisted state). Persisted dock state naming them is
-  // normalized to channels by the surface-preferences read boundary, and the
-  // old /feed + /context URLs are next.config.js server redirects. (Keep this
-  // comment free of quoted-slug literals AND semicolons — the ADR-297 parity
-  // gate parses the union up to the first semicolon and reads quoted names.)
+  // ADR-415 (2026-07-08): the `channels` slug is DELETED from the union (the
+  // Channels surface dissolved; its content re-homed to Activity + Workspace
+  // Settings). The legacy feed + context alias slugs were already deleted
+  // (ADR-385 follow-on, 2026-06-30). Persisted dock state naming any of these
+  // is normalized to the default by the surface-preferences read boundary, and
+  // the old /channels + /context URLs are next.config.js server redirects.
+  // (Keep this comment free of quoted-slug literals AND semicolons — the
+  // ADR-297 parity gate parses the union up to the first semicolon and reads
+  // quoted names.)
   | 'home'
   | 'chat'  // ADR-412 D3 — the lanes surface (Altitude 2's chrome home; the redirect-stub lineage ends)
   | 'recurrence'
@@ -76,7 +77,7 @@ export type DeskSurface =
   | { type: 'idle' };
 
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
-  'channels', 'home', 'chat', 'recurrence', 'budget', 'autonomy', 'expected-output', 'mandate', 'principles',
+  'home', 'chat', 'recurrence', 'budget', 'autonomy', 'expected-output', 'mandate', 'principles',
   'identity', 'files', 'agents', 'setup', 'program', 'queue', 'notifications', 'activity',
   'settings', 'workspace-settings', 'connectors', 'sources',
 ] as const;

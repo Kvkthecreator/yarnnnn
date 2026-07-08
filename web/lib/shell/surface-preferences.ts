@@ -24,11 +24,11 @@
  * persistence is no longer deferred.
  *
  * Defaults:
- *   - keptSurfaces:        ['channels'] (ADR-370/377 → ADR-385 — Feed dissolved
- *                          into the perception surface as its Flow pane; that
- *                          surface was renamed `context` → `channels`. The dock
- *                          anchor is the Channels perception home, not the
- *                          retired `feed`/`context` alias slugs.)
+ *   - keptSurfaces:        ['home'] (ADR-415 — the Channels surface dissolved;
+ *                          Home, the composition front page (ADR-312), is the
+ *                          natural default dock anchor. The retired
+ *                          `channels`/`context`/`feed` alias slugs normalize →
+ *                          `home` on read.)
  *   - openSurfaces:        [] (first-time operators boot to desktop — D13)
  *   - foregroundedSurface: null (no surface foregrounded on first boot)
  */
@@ -40,7 +40,7 @@ const OPEN_KEY_PREFIX = 'yarnnn:shell:open-surfaces:';
 const FOREGROUND_KEY_PREFIX = 'yarnnn:shell:foregrounded-surface:';
 const WINDOW_STATE_KEY_PREFIX = 'yarnnn:shell:window-state:';
 
-export const DEFAULT_KEPT_SURFACES: string[] = ['channels'];
+export const DEFAULT_KEPT_SURFACES: string[] = ['home'];
 export const DEFAULT_OPEN_SURFACES: string[] = [];
 export const DEFAULT_FOREGROUNDED_SURFACE: string | null = null;
 
@@ -105,21 +105,21 @@ function key(prefix: string, userId: string): string {
 // Legacy-slug normalization (ADR-385 follow-on, 2026-06-30)
 // ----------------------------------------------------------------------------
 //
-// The `context` (ADR-385) and `feed` (ADR-370) surface slugs were renamed/
-// folded into `channels`. They were deleted from the registry + slug union
-// (full alias deletion). But persisted dock state (kept / open / foregrounded,
-// in localStorage) can still NAME them from before the rename. Left as-is, a
-// stale `context` entry rendered a SECOND `arrow-left-right` dock icon next to
-// the live `channels` one (the operator-observed duplicate), and a stale `feed`
-// entry pointed at a now-nonexistent registry row.
+// The `context` (ADR-385), `feed` (ADR-370), and `channels` (ADR-415) surface
+// slugs were successively renamed/folded and finally DISSOLVED (ADR-415 — the
+// Channels surface's content re-homed to Activity + Workspace Settings). They
+// were deleted from the registry + slug union. But persisted dock state (kept /
+// open / foregrounded, in localStorage) can still NAME them from before. Left
+// as-is, a stale entry rendered a dead/duplicate dock icon.
 //
-// Normalize on READ: every legacy alias collapses to `channels` (deduped), so a
-// returning operator's kept/open icon lands on the live Channels icon — no
-// vanished icon, no duplicate. The canonical map; extend if a future rename
-// retires another slug.
+// Normalize on READ: every retired alias collapses to `home` (the ADR-415
+// default dock anchor, deduped), so a returning operator's kept/open icon lands
+// on Home rather than a vanished surface. The canonical map; extend if a future
+// rename retires another slug.
 const LEGACY_SLUG_ALIASES: Record<string, string> = {
-  context: 'channels',
-  feed: 'channels',
+  context: 'home',
+  feed: 'home',
+  channels: 'home',
 };
 
 // Slugs retired from the DOCK (kept/open/foregrounded) but NOT deleted as

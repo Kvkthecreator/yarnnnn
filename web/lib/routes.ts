@@ -67,13 +67,9 @@
 export const HOME_ROUTE = "/desktop";
 export const HOME_LABEL = "Desktop";
 export const DESKTOP_ROUTE = "/desktop";
-// ADR-385: the Channels boundary surface (Connections · Sources · AI
-// Connections · In · Out). Reclaims the `context` slug (the prior /context →
-// /files stub is deleted; the context/ substrate root was retired by ADR-320,
-// so the route slug is free + unrelated to any filesystem path). NOTE: the
-// 2026-07-02 ACTIVITY re-scope retired the Flow pane — Channels no longer hosts
-// the global narrative (that lives at Notifications → Activity).
-export const CONTEXT_ROUTE = "/channels";
+// ADR-415 (2026-07-08): CONTEXT_ROUTE deleted. It pointed at /channels (the
+// dissolved Channels surface) and had zero consumers; /channels + /context are
+// now next.config.js redirect stubs → /home.
 // FEED_ROUTE stays "/feed" as the redirect-stub URL. The /feed alias was always
 // the NARRATIVE; after the 2026-07-02 ACTIVITY re-scope it forwards to the
 // narrative's real home — /notifications?notifications.pane=understand (see

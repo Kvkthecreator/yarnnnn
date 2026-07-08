@@ -243,7 +243,9 @@ export function ManageConnectionSubsurface({
   // There is deliberately no separate reconnect endpoint.
   const reconnect = async () => {
     try {
-      const back = `/channels?channels.pane=connectors&channels.connector=${provider}`;
+      // ADR-415 (2026-07-08): connectors re-homed to Workspace Settings →
+      // Perception (was /channels?channels.pane=connectors).
+      const back = `/workspace-settings?workspace-settings.pane=connectors&workspace-settings.connector=${provider}`;
       const result = await api.integrations.getAuthorizationUrl(provider, back);
       window.location.href = result.authorization_url;
     } catch (e) {

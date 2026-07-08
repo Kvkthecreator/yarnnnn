@@ -49,7 +49,7 @@ interface DesktopProps {
  * Detect first-time operator vs returning-with-empty-registry.
  * First-time = the operator has never opened a window; their
  * windowStates registry is empty AND their open-surfaces registry is
- * empty AND their kept set is exactly the default `['channels']`.
+ * empty AND their kept set is exactly the default `['home']`.
  * Anything else is treated as "returning operator who closed
  * everything" (more concise empty-state copy).
  */
@@ -57,14 +57,13 @@ function useIsFirstTime(): boolean {
   const { kept, open, windowStates } = useSurfacePreferences();
   if (open.length > 0) return false;
   if (Object.keys(windowStates).length > 0) return false;
-  // Default-kept set is ['channels'] (ADR-385; was ['context'] per ADR-377 D3,
-  // 'feed' before that). ADR-385 follow-on (2026-06-30): legacy 'context'/'feed'
-  // kept entries are normalized → 'channels' on read (surface-preferences.ts),
-  // so an old default reads as ['channels'] and isn't misclassified — the
-  // alias list here is no longer needed. If the operator modified the set
+  // Default-kept set is ['home'] (ADR-415; was ['channels']/['context']/['feed']
+  // through the dissolved-Channels lineage). Legacy kept entries naming those
+  // are normalized → 'home' on read (surface-preferences.ts), so an old default
+  // reads as ['home'] and isn't misclassified. If the operator modified the set
   // (added/removed surfaces), they've used the workspace.
   if (kept.length !== 1) return false;
-  if (kept[0] !== 'channels') return false;
+  if (kept[0] !== 'home') return false;
   return true;
 }
 

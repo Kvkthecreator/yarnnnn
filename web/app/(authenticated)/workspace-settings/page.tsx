@@ -39,15 +39,20 @@
  */
 
 import { useEffect, useState } from "react";
-import { Target, UserCircle, Package, AlertCircle, Rocket, Loader2, Users } from "lucide-react";
+import { Target, UserCircle, Package, AlertCircle, Rocket, Loader2, Users, Link2, Rss } from "lucide-react";
 import { api, APIError } from "@/lib/api/client";
-import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
-import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
+import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
+import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { MandateCard } from "@/components/workspace-concepts/MandateCard";
 import { GrantGate } from "@/components/workspace-concepts/GrantGate";
 import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
 import { WorkspaceFileView } from "@/components/shared/WorkspaceFileView";
 import { ProgramLifecycleDrawer } from "@/components/library/ProgramLifecycleDrawer";
+// ADR-415 — Perception (Connectors · Sources) re-homed here from the dissolved
+// Channels surface; a management pane, always-present (managing a connector ≠
+// running its capture lane, so no CONNECTOR_CAPTURE_ENABLED gating on the UI).
+import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
+import { SourcesCard } from "@/components/workspace-concepts/SourcesCard";
 // ADR-412 D5 — the System Agent group (Freddie's panes, re-homed from the
 // /agents roster; reverses ADR-387 §6.4).
 import {
@@ -81,7 +86,18 @@ const PANE_GROUPS: PaneGroup[] = [
       { key: "program", label: "Program", icon: Package },
     ],
   },
-  // ADR-385 D4 — the Perception group (Connectors · Sources) was removed.
+  // ADR-415 (2026-07-08) — the Perception group RETURNS here (reverses
+  // ADR-385 D4). Connectors + Sources are the operation's data-feed
+  // management: what platforms feed it, what web/RSS it watches. They live in
+  // the management plane unconditionally — the ADR-404 capture-lane flag
+  // governs runtime INGESTION, not whether the management UI is visible.
+  {
+    label: "Perception",
+    panes: [
+      { key: "connectors", label: "Connectors", icon: Link2 },
+      { key: "sources", label: "Sources", icon: Rss },
+    ],
+  },
   // ADR-387 D1 — the Constitution (Identity/Principles) + Contract
   // (Budget/Autonomy/Expected Output) groups dissolved (moved to Freddie).
   {
@@ -96,6 +112,8 @@ const PANE_GROUPS: PaneGroup[] = [
 
 export default function WorkspaceSettingsPage() {
   const { navigateToSurface } = useSurfacePreferences();
+  // ADR-415 — the connector drill-in param (was channels.connector).
+  const surfaceParam = useSurfaceParam("workspace-settings");
 
   const renderPane = (pane: string) => {
     // ADR-412 D5 — the System Agent panes render via the shared module.
@@ -148,7 +166,41 @@ export default function WorkspaceSettingsPage() {
             </GrantGate>
           </section>
         );
-      // ADR-385 D4 — connectors/sources moved to Channels.
+      // ADR-415 — Perception panes (re-homed from the dissolved Channels
+      // surface). Connectors carries a deep Manage drill-in via the
+      // `workspace-settings.connector=<provider>` param (was channels.connector).
+      case "connectors": {
+        const activeConnector = surfaceParam.get("connector");
+        return (
+          <section className="mb-8">
+            {!activeConnector && (
+              <PaneHeader
+                icon={Link2}
+                title="Connectors"
+                subtitle="Connected platforms feeding the operation — status, coverage, and freshness."
+              />
+            )}
+            <ConnectedIntegrationsSection
+              redirectTo="/workspace-settings?workspace-settings.pane=connectors"
+              showFreshness
+              activeConnector={activeConnector}
+              onManageConnection={(provider) => surfaceParam.set({ connector: provider })}
+              onBackFromManage={() => surfaceParam.set({ connector: null })}
+            />
+          </section>
+        );
+      }
+      case "sources":
+        return (
+          <section className="mb-8">
+            <PaneHeader
+              icon={Rss}
+              title="Sources"
+              subtitle="Standing web and RSS watches the operation tracks."
+            />
+            <SourcesCard variant="full" />
+          </section>
+        );
       case "members":
         // ADR-373 D2 — read-only Workspace Members legibility.
         return (

@@ -11,22 +11,20 @@ const withBundleAnalyzer = require("@next/bundle-analyzer")({
 const nextConfig = {
   // Vercel handles SSR natively
 
-  // ADR-385 follow-on (2026-06-30) — bookmark-safety for the retired legacy
-  // surface URLs. The `feed` (ADR-370) + `context` (ADR-385) surface slugs
-  // folded/renamed into `channels`; the alias surface entries were deleted
-  // (full alias deletion), so the prior `/feed` + `/context` page-component
-  // redirect stubs are removed. These server redirects preserve external
-  // bookmarks. Next.js carries the original query string through by default,
-  // so `?prompt=…` deep-links survive.
-  //   `/feed` was always the NARRATIVE alias. The 2026-07-02 ACTIVITY re-scope
-  //   retired the Channels Flow pane (a Channels surface tracks only boundary
-  //   crossings, not the global narrative), so `/feed` now lands on the
-  //   narrative's real home — Notifications → Activity (`understand` pane).
-  //   `/context` lands on Channels (default: the In crossing-ledger).
+  // Bookmark-safety for retired legacy surface URLs. Lineage: `feed` (ADR-370)
+  // → folded into `context` → renamed `channels` (ADR-385) → DISSOLVED
+  // (ADR-415). Next.js carries the original query string through by default, so
+  // `?prompt=…`/`?pane=…` deep-links survive.
+  //   `/feed` was always the NARRATIVE alias → Notifications → Activity.
+  //   `/channels` + `/context` — the Channels surface dissolved (ADR-415); its
+  //   content re-homed (Out → Activity; Connectors/Sources → Workspace
+  //   Settings → Perception; AI Connections → Access). Land on Home, the
+  //   general front page; the specific panes are reachable by name.
   async redirects() {
     return [
       { source: '/feed', destination: '/notifications?notifications.pane=understand', permanent: false },
-      { source: '/context', destination: '/channels', permanent: false },
+      { source: '/channels', destination: '/home', permanent: false },
+      { source: '/context', destination: '/home', permanent: false },
     ];
   },
 };

@@ -7,8 +7,7 @@
  * Settings doors. Now (2026-06-30) the SINGULAR responsive split-nav shell
  * for EVERY "nav-list + detail-pane" surface in the authenticated shell:
  *   - Workspace Settings (`/workspace-settings`)
- *   - System Settings (`/settings`)
- *   - Channels (`/channels`)
+ *   - User Settings (`/settings`)
  *   - Notifications (`/notifications`)
  *   - Freddie's pane (AgentContentView ReviewerDetail) — was a forked copy of
  *     this sidebar; now mounts the shell (Singular Implementation, CLAUDE.md §2)

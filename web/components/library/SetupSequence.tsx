@@ -183,8 +183,9 @@ export function SetupSequence() {
         <StepAction
           icon={<Sparkles className="w-3.5 h-3.5" />}
           label={constitutionAuthored ? 'Revisit in chat' : 'Author in chat'}
-          // ADR-385 follow-on (2026-06-30): narrative is the Channels Flow pane.
-          onClick={() => navigateToSurface('channels')}
+          // ADR-415 (2026-07-08): author in the chat surface (ADR-412 lanes);
+          // the dissolved Channels surface was the prior narrative target.
+          onClick={() => navigateToSurface('chat')}
         />
       ),
     },

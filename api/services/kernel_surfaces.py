@@ -249,7 +249,11 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # matched the surface's name or operator mental model. The literal
         # home glyph reads unambiguously as "the home surface."
         "icon_key": "home",
-        "default_pinned": False,
+        # ADR-415 (2026-07-08): Home is the default dock pin (was `channels`,
+        # which dissolved). Coherent with DEFAULT_KEPT_SURFACES=['home']. Home
+        # also renders as the fixed dock anchor (excluded from the kept/open
+        # segments), so this flag never double-renders it.
+        "default_pinned": True,
         "route": "/home",  # ADR-312 D1 (was /cockpit)
         "summary": "The operation, rendered — constitution, ground-truth, decision queue, live entities, recent artifacts, judgment trail. Composition over the workspace's present constituents.",
     },
@@ -277,41 +281,17 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/chat",
         "summary": "Your model-pinned helper conversations — isolated lanes over the shared workspace. The transcript stays private to each lane; the work lands in files, attributed to you via the lane's model.",
     },
-    {
-        # ADR-370 (2026-06-25) → ADR-377 (2026-06-26) → ADR-385 (2026-06-29):
-        # Channels — the operation's perception + principal surface (was
-        # `context`; renamed because "context" is ambiguous with the
-        # filesystem [Files surface] and the operation/context/ substrate
-        # namespace). A SettingsPane split-nav (the same shell behind
-        # Home/Notifications/Workspace Settings), two groups:
-        #   CHANNELS — what crosses the operation's edge:
-        #     Connections     — platform data-feeds (status·resources·freshness)
-        #     Sources         — standing web/RSS watches (ADR-335/336)
-        #     External Agents — MCP / external-LLM principals (ADR-373
-        #                       foreign-llm/a2a/platform grants; a filtered
-        #                       view of WorkspaceMembersCard, NOT a new source)
-        #   ACTIVITY — the boundary crossing-ledger (scoped to the channels
-        #   above — NOT the global workspace narrative, which lives at
-        #   Notifications → Activity; the `flow` pane was retired 2026-07-02):
-        #     In   — inbound crossings (FeedSurface, isInbound filter; default)
-        #     Out  — the emissions/dispatch ledger (GET /api/emissions, read-only)
-        #
-        # Connections + Sources + In + Out are compositions over existing
-        # substrate; External Agents is a second view of the principal_grants
-        # roster (ADR-385 D3, DP29 "mirror once, compose few").
-        #
-        # `/context` survives as an ADR-308 redirect stub → /channels.
-        "slug": "channels",
-        "launcher_tier": "primary",  # the perception surface, Workspace tier (inherits Feed's slot)
-        "register": "application",  # a windowed composition like home / notifications / workspace-settings
-        "title": "Channels",
-        "archetype": "dashboard",  # composition over multiple substrates (perception + principals + emissions + narrative)
-        "substrate_paths": [],  # composes _sources.yaml + platform_connections + principal_grants + destination_delivery_log/notifications + session_messages
-        "icon_key": "arrow-left-right",  # the boundary: context flowing in + out (operator-preferred glyph, preserved)
-        "default_pinned": True,
-        "route": "/channels",
-        "summary": "The operation's edge — what feeds it (Connections, Sources), who can write it (External Agents), and the record of every crossing in and out (In, Out).",
-    },
+    # ADR-415 (2026-07-08): the `channels` surface is DISSOLVED. It was a fossil
+    # of the Feed → Context → Channels lineage, scoped by boundary (edge vs
+    # interior) — an axis operators don't hold, producing two "what happened"
+    # surfaces (Channels + Notifications→Activity). Its content re-homed along
+    # the ACT each piece performs: Out (emissions) → the Activity Out lens; In →
+    # retired (the timeline already carries inbound writes as revisions); AI
+    # Connections → Access (the full roster already mounts there); Connections +
+    # Sources → Workspace Settings → Perception (a management pane, un-hidden —
+    # managing a connector ≠ running its capture lane). `/context` + `/channels`
+    # redirect via next.config.js. See ADR-415, supersedes the Channels shape of
+    # ADR-385/404/370/377.
     {
         # ADR-346 (2026-06-19) — the Operation surface, the SECOND composition
         # window (Home was the first, serving Dwell). A composition OVER the
@@ -714,14 +694,14 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "folder-kanban",
         "default_pinned": False,
         "route": "/workspace-settings",
-        "summary": "Workspace Settings — what this operation is and how it runs. Constitution (mandate/identity/principles), Contract (budget/autonomy/expected output), Program, Access (members). Perception (Connectors/Sources) lives on the Channels surface (ADR-385).",
+        "summary": "Workspace Settings — what this operation is and how it runs. Constitution (mandate/identity/principles), Contract (budget/autonomy/expected output), Program, Perception (Connectors/Sources), Access (members). (ADR-415 restored Perception here; Channels dissolved.)",
     },
     {
         "slug": "connectors",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 (was `settings`)
-        "pane_of": "channels",  # ADR-385 — Channels pane (was workspace-settings → Perception, ADR-341)
-        "pane_group": "Channels",
+        "pane_of": "workspace-settings",  # ADR-415 — re-homed from channels (dissolved) back to the management plane's Perception group
+        "pane_group": "Perception",
         "title": "Connectors",
         "archetype": "dashboard",
         "substrate_paths": [],  # platform_connections DB table
@@ -743,8 +723,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "slug": "sources",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 — a transport/driver binding
-        "pane_of": "channels",  # ADR-385 — Channels pane (was workspace-settings → Perception, ADR-341)
-        "pane_group": "Channels",
+        "pane_of": "workspace-settings",  # ADR-415 — re-homed from channels (dissolved) back to the management plane's Perception group
+        "pane_group": "Perception",
         "title": "Sources",
         "archetype": "dashboard",
         "substrate_paths": [],  # per-bundle _sources.yaml + _watch_signal.yaml, resolved via GET /api/sources

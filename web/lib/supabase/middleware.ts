@@ -34,7 +34,8 @@ const PROTECTED_PREFIXES = [
   "/cadence", // redirect stub → /recurrence (2026-06-03 — surface rename)
   "/agents",
   "/files",
-  "/context", // redirect stub → /channels (ADR-385). Was a /files redirect stub (2026-06-01); reclaimed by ADR-370, renamed by ADR-385.
+  "/channels", // ADR-415 — redirect stub → /home (Channels surface dissolved)
+  "/context", // ADR-415 — redirect stub → /home (was → /channels, ADR-385)
   "/activity",
   "/connectors",
   "/sources", // ADR-338 D4.1 — standing-watch drivers surface

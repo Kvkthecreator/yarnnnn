@@ -1,17 +1,17 @@
 /**
- * /connectors → /channels?channels.pane=connectors redirect stub.
+ * /connectors → /workspace-settings?workspace-settings.pane=connectors stub.
  *
- * ADR-377 (2026-06-26): Connections re-homed to the perception surface (the
- * canonical place for platform connections + their freshness). ADR-385
- * (2026-06-29): that surface renamed `context` → `channels`. Workspace
- * Settings no longer carries connections at all (ADR-385 D4); the `connectors`
- * door lands on Channels' Connections pane. Pure server transport per ADR-308.
+ * ADR-415 (2026-07-08): the Channels surface dissolved; Perception (Connectors
+ * · Sources) re-homed to Workspace Settings → Perception (a management pane,
+ * always-present). The `connectors` door lands there. Pure server transport per
+ * ADR-308.
  *
- * (Prior: ADR-341 routed /connectors → Workspace-Settings → Perception pane.)
+ * (Lineage: ADR-341 → Workspace-Settings; ADR-377/385 → Channels; ADR-415 →
+ * back to Workspace Settings.)
  */
 
 import { redirect } from 'next/navigation';
 
 export default function ConnectorsRedirect() {
-  redirect('/channels?channels.pane=connectors');
+  redirect('/workspace-settings?workspace-settings.pane=connectors');
 }

@@ -294,12 +294,12 @@ export default function SettingsPage() {
           // Route to /chat so TP greets the user and triggers the onboarding
           // modal (identity is empty/sparse after purge). Previously routed to
           // /work which skipped onboarding entirely.
-          // ADR-297 D19.4 — foreground the narrative surface (window-open),
-          // not router.push (which erases the Desktop). TP greets the
-          // operator + the activation flow engages (identity sparse
-          // after purge). ADR-385 follow-on (2026-06-30): the narrative is
-          // the Channels Flow pane (default); `feed` alias retired.
-          setTimeout(() => navigateToSurface('channels'), 1500);
+          // ADR-297 D19.4 — foreground a surface (window-open), not
+          // router.push (which erases the Desktop). ADR-415 (2026-07-08): land
+          // on Home — the composition front page whose constitution band is the
+          // activation CTA (identity sparse after purge). Was 'channels' (the
+          // dissolved perception surface).
+          setTimeout(() => navigateToSurface('home'), 1500);
           break;
         case "integrations":
           result = await api.account.clearIntegrations();
@@ -315,12 +315,11 @@ export default function SettingsPage() {
           // Route to /chat so TP greets the user and triggers the onboarding
           // modal (identity is empty/sparse after full reset). Previously routed
           // to /work which skipped onboarding entirely.
-          // ADR-297 D19.4 — foreground the narrative surface (window-open),
-          // not router.push (which erases the Desktop). TP greets the
-          // operator + the activation flow engages (identity sparse
-          // after purge). ADR-385 follow-on (2026-06-30): the narrative is
-          // the Channels Flow pane (default); `feed` alias retired.
-          setTimeout(() => navigateToSurface('channels'), 1500);
+          // ADR-297 D19.4 — foreground a surface (window-open), not
+          // router.push (which erases the Desktop). ADR-415 (2026-07-08): land
+          // on Home — the composition front page whose constitution band is the
+          // activation CTA (identity sparse after full reset). Was 'channels'.
+          setTimeout(() => navigateToSurface('home'), 1500);
           break;
         case "deactivate":
           result = await api.account.deactivateAccount();

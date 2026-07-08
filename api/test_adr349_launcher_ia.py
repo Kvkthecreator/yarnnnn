@@ -62,9 +62,11 @@ def test_at_rest_launcher() -> None:
         # 2026-07-08 (operator focus): Agents LEAVES the primary loop → search-only
         # (see test_agents_deferred_from_primary). A3 "hire an agent" is the
         # deferred horizon (ADR-380 Rung-2 launch line); the launch AI surface is
-        # the A2 chat lanes. So the primary loop is Home · Chat · Channels · Files.
-        "primary == {home, chat, channels, files}",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "chat", "channels", "files"},
+        # the A2 chat lanes.
+        # ADR-415 (2026-07-08): Channels DISSOLVED — its content re-homed to
+        # Activity + Workspace Settings. So the primary loop is Home · Chat · Files.
+        "primary == {home, chat, files}",
+        {s for s, t in tiers.items() if t == "primary"} == {"home", "chat", "files"},
         str(sorted(s for s, t in tiers.items() if t == "primary")),
     )
     # 2026-07-04 (operator re-sort, step 2): Notifications leaves the at-rest

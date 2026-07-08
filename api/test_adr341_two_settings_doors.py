@@ -107,12 +107,12 @@ def test_pane_homing() -> None:
     for slug in ("program",):
         check(f"{slug} → the one Settings door", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug} grouped Operation", by_slug[slug].get("pane_group") == "Operation")
-    # ADR-385 (2026-06-29): Perception left Workspace Settings — connectors +
-    # sources re-home onto the Channels surface (pane_of: channels, group
-    # Channels). The one-door Perception group is gone.
+    # ADR-415 (2026-07-08): Perception RETURNS to Workspace Settings — the
+    # Channels surface dissolved, so connectors + sources re-home to
+    # workspace-settings (pane_of: workspace-settings, group Perception).
     for slug in ("connectors", "sources"):
-        check(f"{slug} → Channels (ADR-385)", by_slug[slug].get("pane_of") == "channels")
-        check(f"{slug} grouped Channels (ADR-385)", by_slug[slug].get("pane_group") == "Channels")
+        check(f"{slug} → Workspace Settings (ADR-415)", by_slug[slug].get("pane_of") == "workspace-settings")
+        check(f"{slug} grouped Perception (ADR-415)", by_slug[slug].get("pane_group") == "Perception")
 
 
 def test_registers_unchanged() -> None:

@@ -62,9 +62,10 @@ def test_registry_tiers() -> None:
         # 2026-07-08 (operator focus): Agents LEAVES the primary loop → search-only.
         # A3 "hire an agent" is the deferred horizon (ADR-380 Rung-2 launch line;
         # ADR-414 already removed Freddie from this roster); the launch AI surface
-        # is the A2 chat lanes, not a second door. Home · Chat · Channels · Files.
-        "primary == the standing loop (home/chat/channels/files)",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "chat", "channels", "files"},
+        # is the A2 chat lanes, not a second door.
+        # ADR-415 (2026-07-08): Channels DISSOLVED. Home · Chat · Files.
+        "primary == the standing loop (home/chat/files)",
+        {s for s, t in tiers.items() if t == "primary"} == {"home", "chat", "files"},
     )
     # ADR-349 D4: two settings doors re-split — Workspace Settings (operation)
     # + System Settings (account). The `configure` lump (ADR-347) is retired.
@@ -87,9 +88,12 @@ def test_registry_tiers() -> None:
         "search-only == mirrors + Setup + panes (the at-rest-hidden set)",
         # 2026-07-04: notifications joins the set — the top-bar bell is its
         # always-present door, so its at-rest launcher tile was deleted.
+        # 2026-07-08: `agents` joins (deferred from launch chrome — ADR-414 /
+        # commit 6d2d216). connectors/sources stay search-only panes (ADR-415
+        # re-homed them pane_of workspace-settings; panes are always search-only).
         {s for s, t in tiers.items() if t == "search-only"}
         == {"mandate", "principles", "identity", "budget", "autonomy", "expected-output",
-            "program", "connectors", "sources", "activity",
+            "program", "connectors", "sources", "activity", "agents",
             "queue", "recurrence", "setup", "notifications"},
     )
     chrome = [e for e in KERNEL_SURFACES if not e.get("route")]
@@ -99,11 +103,12 @@ def test_registry_tiers() -> None:
 def test_launcher_two_modes() -> None:
     print("\n[launcher] act-tier groups at rest; flat when searching")
     src = _read("components/shell/Launcher.tsx")
-    # ADR-349 D4: at-rest groups are Workspace / Workspace Settings / System
+    # ADR-349 D4: at-rest groups are Workspace / Workspace Settings / User
     # Settings (the Utilities tier dissolved; two settings doors re-split).
-    check("KERNEL_TIER_GROUPS declared (Workspace/Workspace Settings/System Settings)",
+    # 2026-07-08 naming-coherence pass (4c0518c): "System Settings" → "User Settings".
+    check("KERNEL_TIER_GROUPS declared (Workspace/Workspace Settings/User Settings)",
           "'Workspace'" in src and "'Workspace Settings'" in src
-          and "'System Settings'" in src and "KERNEL_TIER_GROUPS" in src)
+          and "'User Settings'" in src and "KERNEL_TIER_GROUPS" in src)
     check("search-only hidden at rest", "search-only" in src and "return null" in src)
     check("flat list when searching (Spotlight role)", "isSearching" in src)
     check("pane rows labeled as Settings panes in search", "Settings pane" in src)

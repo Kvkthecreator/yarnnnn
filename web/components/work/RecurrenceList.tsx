@@ -504,8 +504,9 @@ function EmptySchedule({ hasFilters }: { hasFilters: boolean }) {
         </p>
         {!hasFilters && (
           <SurfaceLink
-            // ADR-385 follow-on (2026-06-30): narrative is the Channels Flow pane (`feed` alias retired).
-            to="channels"
+            // ADR-415 (2026-07-08): "Talk to YARNNN" opens the chat surface
+            // (ADR-412 lanes); the dissolved Channels surface was the prior target.
+            to="chat"
             className="inline-flex items-center gap-2 rounded-md bg-foreground px-3.5 py-1.5 text-xs font-medium text-background hover:bg-foreground/90 transition-colors"
           >
             Talk to YARNNN

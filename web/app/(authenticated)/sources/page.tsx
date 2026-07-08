@@ -1,16 +1,17 @@
 /**
- * /sources → /channels?channels.pane=sources redirect stub.
+ * /sources → /workspace-settings?workspace-settings.pane=sources stub.
  *
- * ADR-385 (2026-06-29): Perception leaves Workspace Settings entirely —
- * Sources (the operation's standing-watch transports, ADR-338 D4.1) is now a
- * pane on the Channels surface (the perception home). SourcesCard is unchanged;
- * only the door moved. Pure server transport per ADR-308.
+ * ADR-415 (2026-07-08): the Channels surface dissolved; Perception (Connectors
+ * · Sources) re-homed to Workspace Settings → Perception (a management pane,
+ * always-present). The `sources` door lands there. Pure server transport per
+ * ADR-308.
  *
- * (Prior: ADR-341 routed /sources → Workspace-Settings → Perception pane.)
+ * (Lineage: ADR-341 → Workspace-Settings; ADR-385 → Channels; ADR-415 → back
+ * to Workspace Settings.)
  */
 
 import { redirect } from 'next/navigation';
 
 export default function SourcesRedirect() {
-  redirect('/channels?channels.pane=sources');
+  redirect('/workspace-settings?workspace-settings.pane=sources');
 }

@@ -21,22 +21,14 @@
 import type { ComponentType } from 'react';
 import type { KernelSurfaceSlug } from '@/types/desk';
 
-// ADR-385 — the Channels perception+principal surface (was `context`).
-// Window-grade like Home / Notifications; its panes re-mount existing mirror
-// bodies (ConnectedIntegrations → Connections, SourcesCard → Sources,
-// WorkspaceMembersCard → AI Connections, FeedSurface [filtered to inbound
-// crossings] → In, EmissionsView → Out). The 2026-07-02 ACTIVITY re-scope
-// retired the Flow pane (the global narrative lives at Notifications → Activity,
-// not on a boundary surface).
-//
-// ADR-385 follow-on (2026-06-30): the legacy `feed` + `context` alias slugs
-// are RETIRED from this registry (full alias deletion). They produced a
-// duplicate dock icon from stale persisted state; persisted dock state naming
-// them is now normalized → `channels` at the surface-preferences read boundary
-// (lib/shell/surface-preferences.ts), and the OLD `/feed` + `/context` URLs are
-// next.config.js server redirects. So nothing foregrounds `feed`/`context`
-// anymore — they need no registry entry.
-import ChannelsPage from '@/app/(authenticated)/channels/page';
+// ADR-415 (2026-07-08) — the Channels surface is DISSOLVED. Its content
+// re-homed by act: Out (emissions) → the Activity Out lens; In → retired; AI
+// Connections → Access; Connections + Sources → Workspace Settings →
+// Perception. The `channels` slug is gone from the union; persisted dock state
+// naming `channels`/`context`/`feed` is normalized → the default at the
+// surface-preferences read boundary, and `/channels` + `/context` are
+// next.config.js server redirects. So nothing foregrounds it — no registry
+// entry. (Supersedes ADR-385's Channels registry entry.)
 // ADR-412 D3 — Chat: the lanes surface (Altitude 2's chrome home). The /chat
 // slug's redirect-stub lineage (ADR-259 → /feed, ADR-385 → notifications)
 // ends here — third life as a real windowed surface.
@@ -86,11 +78,9 @@ import SettingsPage from '@/app/(authenticated)/settings/page';
 import WorkspaceSettingsPage from '@/app/(authenticated)/workspace-settings/page';  // ADR-347 — the one Settings door
 
 export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, ComponentType>> = {
-  // ADR-385 — the Channels perception+principal surface. (The legacy `feed` +
-  // `context` alias keys were deleted 2026-06-30 — full alias deletion; their
-  // slugs no longer exist in the union, persisted dock state is normalized →
-  // `channels`, and the old URLs are next.config redirects.)
-  channels: ChannelsPage,
+  // ADR-415 — the Channels surface is dissolved; no window component. Its
+  // slug is removed from the union; persisted dock state is normalized → the
+  // default, and the old URLs are next.config redirects.
   chat: ChatPage,  // ADR-412 D3 — the lanes workbench
   home: HomePage,
   recurrence: RecurrencePage,

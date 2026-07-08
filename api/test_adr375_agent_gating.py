@@ -133,9 +133,9 @@ def test_surface_filter() -> None:
     )
 
     keepers = {
-        # "context" renamed → "channels" (ADR-385; the legacy slug row was
-        # deleted outright in the 2026-06-30 alias-deletion follow-on).
-        "files", "channels", "connectors", "sources",
+        # ADR-415 (2026-07-08): `channels` DELETED (Channels dissolved). Its
+        # connectors/sources panes survive, re-homed to workspace-settings.
+        "files", "connectors", "sources",
         "settings", "workspace-settings",
         "identity", "mandate", "principles", "home", "budget",
         "top-bar", "launcher", "chat-drawer", "setup",

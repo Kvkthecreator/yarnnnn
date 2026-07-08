@@ -134,11 +134,11 @@ export function WorkspaceSection() {
 
   const handleContinueToChat = () => {
     // ADR-297 D19.4 — cross-surface navigation is window-opening, not
-    // route-replacing. Foreground the narrative surface (opens it as a window
-    // on the Desktop) instead of router.push (which would erase the
-    // workspace and break the OS metaphor). ADR-385 follow-on (2026-06-30):
-    // the narrative is the Channels Flow pane (default); `feed` alias retired.
-    navigateToSurface('channels');
+    // route-replacing. Foreground the chat surface (opens it as a window on the
+    // Desktop) instead of router.push (which would erase the workspace and
+    // break the OS metaphor). ADR-415 (2026-07-08): the destination is `chat`
+    // (ADR-412 lanes) — the dissolved Channels surface was the prior target.
+    navigateToSurface('chat');
   };
 
   // ─── Loading / error states ──────────────────────────────────────────

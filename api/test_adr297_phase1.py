@@ -116,11 +116,9 @@ def test_kernel_surfaces_module() -> None:
 
     # Spot-check critical surfaces exist
     expected_slugs = {
-        # ADR-385 follow-on (2026-06-30): the `feed` row was DELETED from the
-        # registry (full alias deletion — the Feed folded into Channels per
-        # ADR-370/385; the slug produced a duplicate dock icon from stale
-        # persisted state). Assertion updated 2026-07-06 (was stale-red).
-        "channels",
+        # ADR-415 (2026-07-08): the `channels` row was DELETED (the Channels
+        # surface dissolved; its content re-homed to Activity + Workspace
+        # Settings). `feed`/`context` were already deleted (ADR-385 follow-on).
         "home",  # ADR-312 D1 — renamed from `cockpit` (was ADR-297 D1)
         "chat",  # ADR-412 D3 — the lanes surface (Altitude 2's chrome home)
         "recurrence",  # 2026-06-03 — renamed from `cadence` (substrate already spoke "recurrence")
@@ -198,14 +196,13 @@ def test_kernel_surfaces_module() -> None:
             f"is canonical",
         )
 
-    # Single default pin (ADR-297 D5). ADR-370 (2026-06-25): the Feed folded
-    # into the Context boundary surface as its Flow lens and handed off its pin.
-    # ADR-385 (2026-06-29): `context` renamed → `channels`, which inherited the
-    # pin. Assertion updated 2026-07-06 (was stale-red on the old slug).
+    # Single default pin (ADR-297 D5). ADR-415 (2026-07-08): the Channels
+    # surface dissolved and handed its pin to Home — the composition front page
+    # + the fixed dock anchor. Coherent with DEFAULT_KEPT_SURFACES=['home'].
     pinned_by_default = [s["slug"] for s in KERNEL_SURFACES if s["default_pinned"]]
     _assert(
-        pinned_by_default == ["channels"],
-        f"Only Channels is default_pinned (found: {pinned_by_default})",
+        pinned_by_default == ["home"],
+        f"Only Home is default_pinned (found: {pinned_by_default})",
     )
 
     # Two-register coherence (ADR-309; cleaved by ADR-312 D5). Every

@@ -260,14 +260,14 @@ def test_registration_coherence() -> None:
     # is an ADR-308 redirect stub.
     reg = _read("components/shell/SurfaceRegistry.tsx")
     check("SurfaceRegistry does NOT window-mount sources (pane-grade)", "sources: SourcesPage" not in reg)
-    # ADR-385 (2026-06-29): Sources re-homed to the Channels surface (Perception
-    # left Workspace Settings entirely). The SourcesCard pane renders on Channels;
+    # ADR-415 (2026-07-08): Sources re-homed to Workspace Settings → Perception
+    # (the Channels surface dissolved). The SourcesCard pane renders there;
     # /sources redirects there.
-    chan_page = _read("app/(authenticated)/channels/page.tsx")
-    check("Channels renders SourcesCard pane", "SourcesCard" in chan_page)
+    ws_page = _read("app/(authenticated)/workspace-settings/page.tsx")
+    check("Workspace Settings renders SourcesCard pane", "SourcesCard" in ws_page)
     sources_stub = _read("app/(authenticated)/sources/page.tsx")
-    check("/sources is a server redirect stub → /channels",
-          "redirect('/channels?channels.pane=sources')" in sources_stub)
+    check("/sources is a server redirect stub → /workspace-settings",
+          "workspace-settings.pane=sources" in sources_stub)
     # Middleware prefix
     mw = _read("lib/supabase/middleware.ts")
     check("middleware protects /sources", '"/sources"' in mw)
