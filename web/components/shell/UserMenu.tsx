@@ -77,18 +77,15 @@ export function UserMenu({ email }: UserMenuProps) {
   const { memberships } = useWorkspaceMemberships();
   const { members } = useWorkspaceMembers();
 
-  // Who's-here — a compact MEMBERSHIP read (who can act here), humans first,
-  // then AI principals; capped with an overflow count.
-  const whoIsHere = (() => {
-    const humans = members.filter((m) => m.role === 'owner' || m.role === 'member');
-    const ais = members.filter((m) => m.role !== 'owner' && m.role !== 'member');
-    const labels = [...humans, ...ais].map((m) => m.label || m.principal_id);
-    const shown = labels.slice(0, 4);
-    const overflow = labels.length - shown.length;
-    return labels.length > 0
-      ? shown.join(' · ') + (overflow > 0 ? ` · +${overflow} more` : '')
-      : null;
-  })();
+  // People-count for the workspace row's sub-label (2026-07-08: replaces the
+  // full WHO'S HERE list — a compact "N people" over the human members
+  // [owner + member roles], AI principals excluded [they live on the Members /
+  // AI-Connections surfaces, not this glance]). Rendered as "N people (Role)".
+  const humanCount = members.filter(
+    (m) => m.role === 'owner' || m.role === 'member',
+  ).length;
+  const peopleLabel =
+    humanCount > 0 ? `${humanCount} ${humanCount === 1 ? 'person' : 'people'}` : null;
 
   const handleSwitchWorkspace = (m: WorkspaceMembershipRow) => {
     if (m.is_active) {
@@ -109,13 +106,17 @@ export function UserMenu({ email }: UserMenuProps) {
     router.push('/');
   };
 
-  // ADR-347 (2026-06-19): two affordances —
-  //  - Settings → the ONE operation-settings door (workspace-settings):
+  // ADR-347 (2026-06-19): two affordances — the two scopes, one name each
+  // (naming-coherence pass 2026-07-08 — menu label == window title, no
+  // felt-redirect):
+  //  - Workspace Settings → the operation door (workspace-settings slug):
   //    constitution, contract (rhythm/witness/expected output), program,
   //    perception. The operation.
-  //  - Account → the account window (the `settings` slug, demoted out of the
-  //    launcher to UserMenu-reached): billing, usage, data/privacy. The
-  //    human/principal (user_id-scoped), not an operation setting.
+  //  - User Settings → the account window (the `settings` slug): billing,
+  //    usage, data/privacy. The human/principal (user_id-scoped), not an
+  //    operation setting. (Renamed from "Account" so it matches the window
+  //    title "User Settings" — was titled "System Settings", which fought both
+  //    its content and this label.)
   const handleSettings = () => {
     setIsOpen(false);
     // ADR-297 D19.4 + D19.5: open as a window on the Desktop; no router.push.
@@ -245,9 +246,11 @@ export function UserMenu({ email }: UserMenuProps) {
               double as the switcher when the caller holds more than one
               membership: selecting a workspace rebinds X-Workspace-Id
               (owner = clear, member = pin) and hard-reloads to /home so all
-              fetched state rebinds. Below the rows: the compact who's-here
-              roster read (MEMBERSHIP, never presence — ADR-373 rejection
-              stands) + the Manage-access door into the Members pane. */}
+              fetched state rebinds. The row's sub-label is a compact
+              "N people (Role)" — the human MEMBERSHIP count (never presence —
+              ADR-373 rejection stands) folded onto the role, replacing the
+              standalone who's-here list (2026-07-08). The Manage-access door
+              into the Members pane carries the full roster. */}
           {memberships.length > 0 && (
             <div className="border-b border-border py-1">
               <div className="px-3 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -262,23 +265,23 @@ export function UserMenu({ email }: UserMenuProps) {
                   <Briefcase className="w-4 h-4 text-muted-foreground shrink-0" />
                   <span className="flex-1 min-w-0">
                     <span className="block truncate">{m.label}</span>
-                    <span className="block text-[11px] text-muted-foreground capitalize">
-                      {m.role}
+                    <span className="block text-[11px] text-muted-foreground">
+                      {/* People-count only on the active workspace (the only
+                          roster we've fetched); inactive rows show the role
+                          alone. "3 people (Owner)" / "1 person (Member)". */}
+                      {m.is_active && peopleLabel ? (
+                        <>
+                          {peopleLabel}{' '}
+                          <span className="capitalize">({m.role})</span>
+                        </>
+                      ) : (
+                        <span className="capitalize">{m.role}</span>
+                      )}
                     </span>
                   </span>
                   {m.is_active && <Check className="w-4 h-4 text-primary shrink-0" />}
                 </button>
               ))}
-              {whoIsHere && (
-                <div className="px-3 pt-1 pb-1.5">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
-                    Who&apos;s here
-                  </p>
-                  <p className="text-[11px] text-muted-foreground leading-snug">
-                    {whoIsHere}
-                  </p>
-                </div>
-              )}
               <button
                 onClick={() => {
                   setIsOpen(false);
@@ -291,19 +294,19 @@ export function UserMenu({ email }: UserMenuProps) {
             </div>
           )}
 
-          {/* Menu items — ADR-347 (2026-06-19): the UserMenu carries the
-              two affordances that are NOT operation-loop surfaces:
-              Settings (the one operation-settings door) + Account (the
-              human/principal's account window — billing/usage/privacy,
-              demoted here from a launcher door). Sign out below. Operation
-              surfaces (Home/Feed/Queue/Files/…) are reached via Dock +
-              Launcher, not duplicated here. */}
+          {/* Menu items — ADR-347 (2026-06-19): the UserMenu carries the two
+              settings doors (NOT operation-loop surfaces): Workspace Settings
+              (the operation) + User Settings (the human/principal's account —
+              billing/usage/privacy). Each label == its window title, so
+              clicking one never feels like a redirect (naming-coherence pass
+              2026-07-08). Sign out below. Operation surfaces (Home/Files/…) are
+              reached via Dock + Launcher, not duplicated here. */}
           <button
             onClick={handleSettings}
             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
           >
             <Settings className="w-4 h-4 text-muted-foreground" />
-            <span>Settings</span>
+            <span>Workspace Settings</span>
           </button>
 
           <button
@@ -311,7 +314,7 @@ export function UserMenu({ email }: UserMenuProps) {
             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
           >
             <User className="w-4 h-4 text-muted-foreground" />
-            <span>Account</span>
+            <span>User Settings</span>
           </button>
 
           <div className="border-t border-border my-1" />

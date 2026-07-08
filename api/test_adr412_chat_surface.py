@@ -252,7 +252,7 @@ def test_ambient_context() -> None:
             "the Workspace section always renders once resolved (N=1 shows the single binding)")
     _assert("useWorkspaceMemberships" in menu and "useWorkspaceMembers" in menu,
             "both reads ride the module-cached viewer layer")
-    _assert("whoIsHere" in menu, "the compact who's-here roster read exists")
+    _assert("peopleLabel" in menu, "the compact people-count sub-label exists (replaced the who's-here list 2026-07-08)")
     _assert("never presence" in menu, "membership-not-presence is stated in-source (ADR-373 rejection stands)")
     _assert("WebSocket" not in menu and "setInterval" not in menu,
             "no realtime/polling — membership is a slow fact")
