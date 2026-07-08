@@ -135,3 +135,84 @@ export function getMarketingMetadata({
     },
   };
 }
+
+// =============================================================================
+// STRUCTURED DATA (JSON-LD)
+//
+// These schemas let AI agents and search engines identify yarnnn's product and
+// organization programmatically. The homepage emits Organization +
+// SoftwareApplication (so agents can parse "what is this product") alongside
+// the WebSite schema. Centralized here so any page can reuse the same canonical
+// identity.
+// =============================================================================
+
+const LOGO_URL = "/assets/logos/circleonly_yarnnn.png";
+
+function absoluteLogoUrl(): string {
+  return new URL(LOGO_URL, BRAND.url).toString();
+}
+
+/** schema.org Organization — who publishes yarnnn. */
+export function getOrganizationSchema() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": `${BRAND.url}/#organization`,
+    name: BRAND.name,
+    url: BRAND.url,
+    logo: absoluteLogoUrl(),
+    description: BRAND.description,
+    email: "admin@yarnnn.com",
+    sameAs: [] as string[],
+  };
+}
+
+/**
+ * schema.org SoftwareApplication — what yarnnn is, so agents can identify the
+ * product itself (not just the website). Includes the MCP interop surface and
+ * the freemium offer.
+ */
+export function getSoftwareApplicationSchema() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "@id": `${BRAND.url}/#software`,
+    name: BRAND.name,
+    url: BRAND.url,
+    applicationCategory: "BusinessApplication",
+    applicationSubCategory: "AI memory layer",
+    operatingSystem: "Web, MCP (Model Context Protocol)",
+    description: BRAND.description,
+    featureList: [
+      "Durable, attributed memory shared across every AI tool",
+      "Model Context Protocol (MCP) connector for ChatGPT, Claude, and others",
+      "Full provenance — trace who changed any fact, when, and what changed",
+      "One shared workspace for a team's humans and AIs",
+    ],
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+      description:
+        "Free workspace and memory; paid plans (Starter $19/mo, Pro $49/mo) add monthly usage allowances.",
+    },
+    publisher: {
+      "@id": `${BRAND.url}/#organization`,
+    },
+  };
+}
+
+/** schema.org WebSite — the marketing site itself. */
+export function getWebSiteSchema() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": `${BRAND.url}/#website`,
+    name: BRAND.name,
+    url: BRAND.url,
+    description: BRAND.description,
+    publisher: {
+      "@id": `${BRAND.url}/#organization`,
+    },
+  };
+}

@@ -9,7 +9,12 @@ import { TraceCard } from "@/components/landing/TraceCard";
 import { CompoundsStepper } from "@/components/landing/CompoundsStepper";
 import { SpotlightCard } from "@/components/landing/SpotlightCard";
 import { ScrollReveal } from "@/components/landing/ScrollReveal";
-import { BRAND, getMarketingMetadata } from "@/lib/metadata";
+import {
+  getMarketingMetadata,
+  getOrganizationSchema,
+  getSoftwareApplicationSchema,
+  getWebSiteSchema,
+} from "@/lib/metadata";
 import { CTA, PRIMARY_CTA_LABEL } from "@/lib/cta";
 
 export const metadata: Metadata = getMarketingMetadata({
@@ -31,17 +36,15 @@ export const metadata: Metadata = getMarketingMetadata({
 });
 
 export default function LandingPage() {
-  const websiteSchema = {
+  // Emit Organization + SoftwareApplication + WebSite as one JSON-LD graph so
+  // agents can identify both the product and the publisher programmatically.
+  const structuredData = {
     "@context": "https://schema.org",
-    "@type": "WebSite",
-    name: BRAND.name,
-    url: BRAND.url,
-    description: BRAND.description,
-    publisher: {
-      "@type": "Organization",
-      name: BRAND.name,
-      url: BRAND.url,
-    },
+    "@graph": [
+      getOrganizationSchema(),
+      getSoftwareApplicationSchema(),
+      getWebSiteSchema(),
+    ],
   };
 
   return (
@@ -272,7 +275,7 @@ export default function LandingPage() {
 
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
     </main>
   );

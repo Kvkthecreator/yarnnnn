@@ -69,6 +69,11 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
                 </Link>
               </li>
               <li>
+                <Link href="/developers" className={`${hoverClass} transition-colors`}>
+                  Developers
+                </Link>
+              </li>
+              <li>
                 <Link
                   href="https://yarnnn.gitbook.io/docs"
                   className={`${hoverClass} transition-colors`}

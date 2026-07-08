@@ -11,6 +11,8 @@ Single FastAPI application with route groups:
 
 import os
 import logging
+from typing import Optional
+
 import sentry_sdk
 from dotenv import load_dotenv
 
@@ -65,8 +67,11 @@ def _validate_environment():
 
 _validate_environment()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from routes import memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, alpha_trader, budget, mcp, authored, harvest, sources, emissions, member_state, lanes
 
@@ -92,6 +97,90 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ---------------------------------------------------------------------------
+# Structured JSON error responses
+#
+# Every error the API returns is machine-parseable JSON of the shape
+#   {"error": {"code": <str>, "message": <str>, "hint": <str|null>}}
+# so agents (and the frontend) never have to parse an HTML error page. This
+# covers three classes: raised HTTPExceptions (4xx/5xx), request-validation
+# failures (422), and otherwise-unhandled exceptions (500). See the "JSON
+# error responses" agent-readiness requirement.
+# ---------------------------------------------------------------------------
+
+_STATUS_ERROR_CODES = {
+    400: "bad_request",
+    401: "unauthorized",
+    402: "payment_required",
+    403: "forbidden",
+    404: "not_found",
+    405: "method_not_allowed",
+    409: "conflict",
+    422: "validation_error",
+    429: "rate_limited",
+    500: "internal_error",
+    502: "bad_gateway",
+    503: "service_unavailable",
+}
+
+
+def _error_body(code: str, message: str, hint: Optional[object] = None) -> dict:
+    return {"error": {"code": code, "message": message, "hint": hint}}
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Normalize raised HTTPExceptions to the structured JSON error shape.
+
+    Preserves the original status code; derives a machine-readable `code` from
+    it. `exc.detail` becomes the human `message` (it is usually already a plain
+    string set by the route). Keeps any WWW-Authenticate header for 401s.
+    """
+    code = _STATUS_ERROR_CODES.get(exc.status_code, f"http_{exc.status_code}")
+    detail = exc.detail
+    message = detail if isinstance(detail, str) else "Request failed."
+    body = _error_body(code, message)
+    # If detail was a dict/list (structured), surface it under `hint` so nothing
+    # is lost while keeping the top-level contract stable.
+    if not isinstance(detail, str) and detail is not None:
+        body["error"]["hint"] = detail
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=body,
+        headers=getattr(exc, "headers", None),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Return 422 validation failures as structured JSON with per-field hints."""
+    return JSONResponse(
+        status_code=422,
+        content=_error_body(
+            "validation_error",
+            "Request validation failed. Check the fields listed in `hint`.",
+            hint=exc.errors(),
+        ),
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Last-resort handler: never leak an HTML/traceback page to a client.
+
+    The full exception is still captured by Sentry (initialized above) and the
+    server logs; the client receives a stable, opaque JSON error.
+    """
+    logger.exception("[UNHANDLED] %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content=_error_body(
+            "internal_error",
+            "An unexpected error occurred. If this persists, contact support.",
+        ),
+    )
 
 
 @app.get("/health")
