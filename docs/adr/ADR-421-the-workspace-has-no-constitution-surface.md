@@ -71,8 +71,9 @@ survive but point to the **bare Settings door** (no dead `?pane=` param).
   locks, and every backend reader (`freddie_envelope`, `substrate_reapply`,
   `lane_runner`'s workspace-mandate orientation, `system.py`'s timezone parse)
   are unchanged — they tolerate absence and read whatever is (or isn't) on
-  disk. This is a surface removal, not a substrate deletion; retiring the
-  directories is a separate substrate decision.
+  disk. This is a surface removal, not a substrate deletion; **retiring the
+  workspace-root constitution substrate is a separate, explicitly-deferred
+  decision with its own prerequisites — see §6.**
 - **The Home mandate hero.** Still reads `MANDATE.md` (marker-guarded). Its
   full re-derivation toward the commons is the deferred §9b Home pass.
 - **The System Agent group** (Autonomy/Budget dials + Capabilities/Activity) —
@@ -102,3 +103,54 @@ pane_of, no route, off the allowlist); the Constitution group + the
 Settings door; the per-agent `AgentConstitutionBlock` is asserted present. The
 three-way parity invariant holds with all three out of navigable + allowlist +
 pane set.
+
+## 6. Named follow-on — the workspace-root constitution substrate (DEFERRED, its own decision)
+
+This ADR removes the **surfaces**. It deliberately does NOT touch the
+**substrate**: the `constitution/` + `persona/` roots, the
+`CONSTITUTION_MANDATE_PATH` / `PERSONA_IDENTITY_PATH` / `PERSONA_PRINCIPLES_PATH`
+constants, their region locks, or the backend readers. Whether the
+workspace-root constitution substrate is retired (and how) is a **separate,
+explicitly-deferred decision** with its own prerequisites — recorded here so it
+is a findable anchor, not a throwaway line.
+
+**Why it is not automatic.** "A workspace has no constitution *surface*" is a
+Channel-dimension statement; "a workspace has no constitution *substrate*" is an
+Axiom-1 statement, and the two are not equivalent while live readers still key
+on the workspace-root paths. The retirement must first resolve each reader:
+
+- `freddie_envelope.py` — the steward-wake mandate/identity/principles reads.
+  Already judgment-home-aware (reads `agents/{slug}/` when hired); the no-hire
+  branch is the steward kernel-constant substitution (ADR-414 D2 / ADR-419 §3),
+  which does NOT need the workspace-root file. **Candidate for the cleanest
+  removal.**
+- `lane_runner.py` — reads `constitution/MANDATE.md` as **"the workspace's
+  mandate (read-only orientation)"** for chat lanes (ADR-411). This is the one
+  reader that treats a workspace-root mandate as a live, meaningful "what is
+  this workspace for" — the retirement must decide whether that orientation
+  goes away, re-points to the hired agent's mandate, or is replaced by a
+  commons-level `_workspace_guide.md`-style file. **The load-bearing question.**
+- `substrate_reapply.py` — version-checks `MANDATE.md` for the reapply gate.
+  Tolerates absence; re-point or drop with the reapply pass.
+- `system.py` / `schedule_utils.py` / `workspace.py::get_profile` — parse
+  `PERSONA_IDENTITY.md` for operator profile fields (e.g. timezone). These read
+  operator metadata that pre-dates the per-agent persona split; the retirement
+  must relocate that metadata (it is NOT persona — it is a member/account
+  attribute, arguably `member_state` per ADR-407).
+- `get_home_bundle` / `get_workspace_setup_bundle` — the §9b Home + Setup
+  bundle reads. Bundled with their own deferred surface passes (ADR-414 §9b).
+
+**Sequencing.** This retirement is downstream of, and should ship with, the
+ADR-414 §9b Home recompose ("Home last") and the ADR-407 member-metadata
+relocation — because those passes own the two readers (`get_home_bundle` and
+the profile parsers) that still legitimately consume the workspace-root paths.
+Retiring the directories before those readers are re-pointed would break live
+paths. Until then the substrate stays as the steward-era layout + legacy
+fallback; it is unreferenced by any surface (this ADR) but still read by the
+backend (the follow-on).
+
+**Also owed** (recorded, not blocking): the `DEFAULT_STEWARD_*` doc-vs-code
+reconciliation (ADR-419 §3 — ADR-414 §8's "deleted" ledger vs their live
+presence as the envelope substitution). It is orthogonal to the substrate
+retirement but lives in the same neighborhood; resolve them together or note
+why not.
