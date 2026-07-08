@@ -431,6 +431,11 @@ async def _write_if_changed(
         summary=f"sync:{tool}",
         authored_by="system:sync-platform-state",
         message=f"synced {tool} → /workspace/{rel_path.lstrip('/')}",
+        # ADR-423: every path through this helper is a connector capture into the
+        # inbound/ raw lane (resolve_capture_path → inbound/{plat}/{sel}/...), so
+        # it is a retained raw arrival — mark it on the ledger so it unifies under
+        # Downloads/ by its revision_kind, not its path.
+        revision_kind="observation",
     )
     logger.debug("[SYNC_PLATFORM_STATE] wrote %s via %s", full_abs, tool)
     return True

@@ -281,6 +281,7 @@ async def handle_read_revision(auth: Any, input: dict) -> dict:
             "parent_version_id": rev.parent_version_id,
             "blob_sha": rev.blob_sha,
             "content": rev.content,
+            "revision_kind": rev.revision_kind,  # ADR-423
         },
     }
 

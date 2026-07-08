@@ -761,7 +761,11 @@ async def dispatch_remember_this(
             "path": path,
             "content": stamped_text,
             "mode": "append",
-            "message": "remember → inbound/ raw lane (awaiting seat derive-and-cite)",
+            "message": "remember → raw arrival (awaiting seat derive-and-cite)",
+            # ADR-423: mark the raw arrival on the ledger. This is what lets the
+            # inbound/ directory dissolve — the file is an 'observation' by its
+            # revision_kind, not by its path, so it unifies under Downloads/.
+            "revision_kind": "observation",
         },
     )
 
@@ -965,6 +969,13 @@ async def compose_trace(
     # about the evolution of the UNDERSTANDING; the raw is appended as its origin
     # (the derived-file branch below adds it via _extract_derived_from). If no
     # derived file cites the raw yet, trace the raw as-is (a clean pre-derive state).
+    #
+    # ADR-423: the canonical "is this a raw observation?" signal is now the
+    # revision_kind='observation' column (surfaced in `history` below), not the
+    # inbound/ path prefix. This path test is retained as behavior-preserving —
+    # every inbound/ write now ALSO carries revision_kind='observation', so the
+    # two agree; when the Downloads/ re-homing lands (Files-model note §6), the
+    # path prefix goes away and this forward-walk keys on the column alone.
     if f"/{INBOUND_ROOT}" in path:
         derived_path = await _find_derived_from_raw(auth, path)
         if derived_path:
@@ -989,6 +1000,11 @@ async def compose_trace(
             "when": rev.get("created_at"),
             "change": rev.get("message"),
             "revision_id": rev.get("id"),
+            # ADR-423: the provenance-kind now rides the ledger column (observation
+            # | derivation | authored) instead of being inferred from the path.
+            # ListRevisions surfaces it; trace carries it so a consumer can mark a
+            # raw arrival without a path/content proxy. Legacy rows read 'authored'.
+            "revision_kind": rev.get("revision_kind") or "authored",
         }
         for rev in revisions
     ]

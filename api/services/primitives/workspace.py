@@ -731,6 +731,10 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
     scope = input.get("scope") or _default_file_scope(auth)
     authored_by = input.get("authored_by")
     message = input.get("message")
+    # ADR-423: an intake writer (MCP remember) passes revision_kind='observation'
+    # so the raw arrival is marked on the ledger, not by its path. Default keeps
+    # every ordinary WriteFile byte-identical.
+    revision_kind = input.get("revision_kind") or "authored"
 
     # Empty-content guard (2026-06-11): a missing `content` key silently
     # defaulted to "" and overwrote real substrate with 0-byte files — the
@@ -805,6 +809,7 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
             summary=f"Workspace write: {path}",
             authored_by=resolved_author,
             message=resolved_message,
+            revision_kind=revision_kind,
         )
 
         abs_path = f"/workspace/{path}"

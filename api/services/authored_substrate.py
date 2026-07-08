@@ -214,6 +214,7 @@ class Revision:
     message: str
     created_at: datetime
     content: Optional[str] = None  # populated when joined with workspace_blobs
+    revision_kind: str = "authored"  # ADR-423: authored | observation | derivation
 
 
 # ---------------------------------------------------------------------------
@@ -307,6 +308,7 @@ def _insert_revision(
     author_identity_uuid: Optional[str],
     message: str,
     workspace_id: Optional[str] = None,
+    revision_kind: str = "authored",
 ) -> str:
     """Insert one revision row, return the new revision id.
 
@@ -315,6 +317,10 @@ def _insert_revision(
     NULL, which migration 189's backfill / a later write fills; in N=1 the
     column is redundant with ``user_id`` (one user owns one workspace), so the
     write is byte-identical whether or not ``workspace_id`` is passed.
+
+    ADR-423: ``revision_kind`` marks the provenance-kind (authored | observation
+    | derivation). Written only when not the default so a pre-migration DB (no
+    column) and the default path stay byte-identical.
     """
     row = {
         "user_id": user_id,
@@ -327,6 +333,10 @@ def _insert_revision(
     }
     if workspace_id is not None:
         row["workspace_id"] = workspace_id
+    # ADR-423: only set when non-default — keeps the insert byte-identical for
+    # the ~40 authored callers and safe against a not-yet-migrated DB.
+    if revision_kind and revision_kind != "authored":
+        row["revision_kind"] = revision_kind
     result = (
         db_client.table("workspace_file_versions")
         .insert(row)
@@ -447,8 +457,18 @@ def write_revision(
     metadata: Optional[dict] = None,
     workspace_id: Optional[str] = None,
     expected_parent_version_id: Any = _UNSET,
+    revision_kind: str = "authored",
 ) -> str:
     """The single write path for every substrate mutation.
+
+    ADR-423: ``revision_kind`` marks the revision's provenance-kind on the
+    ledger — ``'authored'`` (the default; an ordinary attributed revision),
+    ``'observation'`` (a retained raw intake — the three intake writers pass
+    this), or ``'derivation'`` (RESERVED — a derived act citing an observation;
+    no live writer yet). This is what lets the ``inbound/`` directory dissolve:
+    a raw arrival is distinguished by its ``revision_kind``, not its path, so
+    the two raw lanes unify under one ``Downloads/`` anchor. The ~40 non-intake
+    callers take the default and are unchanged.
 
     ADR-406 (optimistic concurrency): callers that read the file before
     editing MAY pass ``expected_parent_version_id`` — the head revision id
@@ -557,6 +577,7 @@ def write_revision(
                 author_identity_uuid=author_identity_uuid,
                 message=message,
                 workspace_id=workspace_id,
+                revision_kind=revision_kind,
             )
             break
         except Exception as exc:
@@ -694,8 +715,10 @@ def list_revisions(
 ) -> list[dict]:
     """Return the revision chain for (user_id, path), newest first.
 
-    Each entry: {id, authored_by, message, created_at, parent_version_id}.
-    Content is NOT fetched — use read_revision() for that.
+    Each entry: {id, authored_by, message, created_at, parent_version_id,
+    revision_kind}. Content is NOT fetched — use read_revision() for that.
+    (ADR-423: revision_kind lets a reader — trace, a details panel — know a
+    revision's provenance-kind from the column, not a path/content proxy.)
 
     Phase 3 wraps this in a ListRevisions primitive exposed to chat +
     headless + MCP.
@@ -704,7 +727,8 @@ def list_revisions(
     result = (
         _substrate_scope(
             db_client.table("workspace_file_versions").select(
-                "id, authored_by, author_identity_uuid, message, created_at, parent_version_id"
+                "id, authored_by, author_identity_uuid, message, created_at, "
+                "parent_version_id, revision_kind"
             ),
             user_id,
             ws,
@@ -769,7 +793,7 @@ def read_revision(
             db_client.table("workspace_file_versions").select(
                 "id, user_id, path, blob_sha, parent_version_id, "
                 "authored_by, author_identity_uuid, message, created_at, "
-                "workspace_blobs(content)"
+                "revision_kind, workspace_blobs(content)"
             ),
             user_id,
             ws,
@@ -796,6 +820,7 @@ def read_revision(
         message=row["message"],
         created_at=row["created_at"],
         content=content,
+        revision_kind=row.get("revision_kind") or "authored",
     )
 
 

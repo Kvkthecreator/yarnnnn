@@ -155,12 +155,17 @@ class AgentWorkspace:
         authored_by: str = None,
         message: str = None,
         author_identity_uuid: str = None,
+        revision_kind: str = "authored",
     ) -> bool:
         """Write a file through the Authored Substrate (ADR-209).
 
         Routes through services.authored_substrate.write_revision() — every
         write lands a revision with authored_by + message attribution and
         preserves the prior content in the revision chain.
+
+        ADR-423: ``revision_kind`` (authored | observation | derivation) marks
+        the revision's provenance-kind. Intake writers pass 'observation'; the
+        default keeps every other caller byte-identical.
 
         authored_by default (when not supplied): f"agent:{self._slug}" — the
         class is scoped to one agent, so the agent slug is the correct
@@ -202,6 +207,7 @@ class AgentWorkspace:
                 content_type=content_type,
                 content_url=content_url,
                 metadata=metadata,
+                revision_kind=revision_kind,
             )
             return True
         except Exception as e:
@@ -756,6 +762,7 @@ class UserMemory:
         authored_by: str = None,
         message: str = None,
         expected_parent_version_id: str = None,
+        revision_kind: str = "authored",
     ) -> bool:
         """Write a memory file through the Authored Substrate (ADR-209).
 
@@ -802,6 +809,7 @@ class UserMemory:
                 content_type=content_type,
                 content_url=content_url,
                 metadata=metadata,
+                revision_kind=revision_kind,
                 **extra,
             )
             return True

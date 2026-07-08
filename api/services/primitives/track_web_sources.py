@@ -371,6 +371,7 @@ def _write_raw_observation(
         content=header + truncated,
         authored_by="system:track-web-sources",
         message=f"raw web observation: {source_ref} @ {observed_at}",
+        revision_kind="observation",  # ADR-423: retained raw intake (inbound/web/)
     )
     return path
 
