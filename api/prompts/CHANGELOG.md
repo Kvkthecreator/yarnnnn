@@ -6,6 +6,12 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.08.6] - Lane history + session legibility (ADR-412 D2 tail)
+
+- `web/components/chat-surface/LanePanel.tsx`: reloaded lanes now render **day-separators** (when the calendar day changes) + a per-boundary **timestamp** (`formatTimestamp`) — a lane reads as sessions across time, not one undated blob. Uses data already persisted (`created_at` on every message); no backend change for this piece. Per-turn `tools_called` already round-trips from `session_messages.metadata` on reload.
+- `api/routes/lanes.py::archive_lane`: on archive, generate a prose **session summary** by reusing the steward's `session_continuity.generate_session_summary` (routes through the model router behind `MODEL_ROUTER_ENABLED`, records its own `execution_events` cost, attributes to the member) and store it on `chat_sessions.summary` (the existing column, migration 061). Best-effort — never blocks archive on summary failure. `_lane_row_to_dict` + `GET /api/lanes` now surface `summary`.
+- Expected behavior: no LLM-behavior change to a live turn. A lane's history is legible on reload (dated sessions); archiving a lane captures a 2-4 sentence summary of its work (reusing the exact machinery `working_memory` already reads via `chat_sessions.summary`). No new table, no new summary machinery — pure reuse + a richer read. `tsc --noEmit` clean; ADR-411 gate 13/13.
+
 ## [2026.07.08.5] - Lane streaming (ADR-412 D2): lane turns stream token-by-token
 
 - `services/model_router.py`: +`route_completion_stream` — a streaming async-generator sibling of `route_completion` (litellm `stream=True` + `stream_options.include_usage`). Yields `("delta", text)` per fragment, then one terminal `("done", RoutedCompletion)` with the SAME normalized shape (accumulated text, reassembled tool_calls by index, cache-exclusive usage, reconstructed `raw_assistant_message`). Transport-only change: the ONE ledger record (ADR-396) still happens in the caller from the terminal usage.

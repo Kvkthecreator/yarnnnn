@@ -58,6 +58,9 @@ def _lane_row_to_dict(row: dict) -> dict:
         "status": row.get("status"),
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at"),
+        # Session legibility (ADR-412 D2): the prose summary captured on
+        # archive (chat_sessions.summary). Null for active lanes.
+        "summary": row.get("summary"),
     }
 
 
@@ -92,7 +95,7 @@ async def list_lanes(auth: UserClient) -> dict:
     if enabled:
         q = (
             auth.client.table("chat_sessions")
-            .select("id, user_id, workspace_id, status, context_metadata, created_at, updated_at")
+            .select("id, user_id, workspace_id, status, context_metadata, created_at, updated_at, summary")
             .eq("user_id", auth.user_id)
             .eq("session_type", "lane")
             .eq("status", "active")
@@ -308,6 +311,41 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
 
 @router.post("/lanes/{lane_id}/archive")
 async def archive_lane(lane_id: str, auth: UserClient) -> dict:
+    """Archive a lane. Session legibility (ADR-412 D2): capture a prose
+    summary on the way out (reusing the steward's session-summary machinery)
+    so the lane's work is legible after it leaves the active list."""
     _get_lane(auth, lane_id)
-    auth.client.table("chat_sessions").update({"status": "archived"}).eq("id", lane_id).execute()
-    return {"success": True}
+
+    # Best-effort summary — never block archive on it.
+    summary: Optional[str] = None
+    try:
+        from datetime import date as _date
+        from services.session_continuity import generate_session_summary
+
+        msgs = (
+            auth.client.table("session_messages")
+            .select("role, content, sequence_number")
+            .eq("session_id", lane_id)
+            .order("sequence_number")
+            .limit(200)
+            .execute()
+        )
+        conv = [
+            {"role": r["role"], "content": r["content"] or ""}
+            for r in (msgs.data or [])
+            if r.get("role") in ("user", "assistant")
+        ]
+        summary = await generate_session_summary(
+            conv,
+            _date.today().isoformat(),
+            user_id=auth.user_id,
+            principal_id=getattr(auth, "principal_id", None) or auth.user_id,
+        )
+    except Exception as exc:
+        logger.warning("[LANE] archive summary failed (non-fatal): %s", exc)
+
+    update: dict = {"status": "archived"}
+    if summary:
+        update["summary"] = summary
+    auth.client.table("chat_sessions").update(update).eq("id", lane_id).execute()
+    return {"success": True, "summary": summary}

@@ -205,6 +205,7 @@ export const api = {
           status: string;
           created_at: string;
           updated_at: string;
+          summary?: string | null;
         }>;
       }>("/api/lanes"),
     create: (data: { name: string; model: string }) =>

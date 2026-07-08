@@ -23,7 +23,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp, Loader2, Wrench } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { formatTimestamp } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
+
+/** Day label for a message's separator (local date). '' when no timestamp. */
+function dayKey(ts?: string): string {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return Number.isNaN(d.getTime()) ? '' : d.toDateString();
+}
 
 interface LaneMessage {
   id: string;
@@ -169,40 +177,55 @@ export function LanePanel({ laneId, laneName, modelLabel }: LanePanelProps) {
             </p>
           </div>
         )}
-        {messages.map((m) => (
-          <div
-            key={m.id}
-            className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}
-          >
-            <div
-              className={cn(
-                'max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap break-words',
-                m.role === 'user'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-foreground',
-              )}
-            >
-              {/* Streaming: an empty assistant bubble shows a live indicator
-                  until the first delta lands, then fills token-by-token. */}
-              {m.role === 'assistant' && !m.content ? (
-                <span className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  {(m.tools_called && m.tools_called.length > 0)
-                    ? `${modelLabel} · ${Array.from(new Set(m.tools_called)).join(' · ')}…`
-                    : `${modelLabel} is working…`}
-                </span>
-              ) : (
-                m.content
-              )}
-              {m.content && m.tools_called && m.tools_called.length > 0 && (
-                <div className="mt-1.5 pt-1.5 border-t border-border/40 flex items-center gap-1 text-[10px] text-muted-foreground">
-                  <Wrench className="w-3 h-3" />
-                  {Array.from(new Set(m.tools_called)).join(' · ')}
+        {messages.map((m, i) => {
+          // Session legibility: a day-separator when the calendar day changes
+          // (ADR-412 D2). Reloaded lanes read across sessions, not as one blob.
+          const prevDay = i > 0 ? dayKey(messages[i - 1].created_at) : '';
+          const thisDay = dayKey(m.created_at);
+          const showDay = thisDay !== '' && thisDay !== prevDay;
+          return (
+            <div key={m.id}>
+              {showDay && (
+                <div className="flex items-center gap-2 my-3">
+                  <div className="flex-1 h-px bg-border" />
+                  <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wide">
+                    {formatTimestamp(m.created_at)}
+                  </span>
+                  <div className="flex-1 h-px bg-border" />
                 </div>
               )}
+              <div className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
+                <div
+                  className={cn(
+                    'max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap break-words',
+                    m.role === 'user'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-foreground',
+                  )}
+                >
+                  {/* Streaming: an empty assistant bubble shows a live indicator
+                      until the first delta lands, then fills token-by-token. */}
+                  {m.role === 'assistant' && !m.content ? (
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      {(m.tools_called && m.tools_called.length > 0)
+                        ? `${modelLabel} · ${Array.from(new Set(m.tools_called)).join(' · ')}…`
+                        : `${modelLabel} is working…`}
+                    </span>
+                  ) : (
+                    m.content
+                  )}
+                  {m.content && m.tools_called && m.tools_called.length > 0 && (
+                    <div className="mt-1.5 pt-1.5 border-t border-border/40 flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Wrench className="w-3 h-3" />
+                      {Array.from(new Set(m.tools_called)).join(' · ')}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {error && (
           <div className="text-xs text-destructive text-center">{error}</div>
         )}
