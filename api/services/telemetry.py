@@ -52,6 +52,19 @@ _BILLING_RATES: dict[str, dict[str, float]] = {
     # absent keys fall to Anthropic's shape (10% read / 125% write).
     "gpt-4o-mini":                {"input_per_mtok": 0.15, "output_per_mtok": 0.60,
                                    "cache_read_mult": 0.50, "cache_create_mult": 0.0},
+    # ADR-420 §10 seed lanes (verified against provider docs, 2026-07). Keys are
+    # BARE model names (ledger_model_name strips the LiteLLM provider prefix).
+    # Cache multipliers per provider invoice shape; absent → Anthropic default
+    # (10% read / 125% write). OpenAI/Gemini/DeepSeek have no cache-WRITE premium.
+    "gpt-5":                      {"input_per_mtok": 1.25, "output_per_mtok": 10.00,
+                                   "cache_read_mult": 0.50, "cache_create_mult": 0.0},
+    "gemini-2.5-flash":           {"input_per_mtok": 0.30, "output_per_mtok": 2.50,
+                                   "cache_read_mult": 0.25, "cache_create_mult": 0.0},
+    "gemini-2.5-pro":             {"input_per_mtok": 1.25, "output_per_mtok": 10.00,
+                                   "cache_read_mult": 0.25, "cache_create_mult": 0.0},
+    # DeepSeek cache-hit input is ~2% of the base rate (98% discount, V4 Flash).
+    "deepseek-chat":              {"input_per_mtok": 0.14, "output_per_mtok": 0.28,
+                                   "cache_read_mult": 0.02, "cache_create_mult": 0.0},
 }
 _DEFAULT_RATE = _BILLING_RATES["claude-sonnet-4-6"]
 

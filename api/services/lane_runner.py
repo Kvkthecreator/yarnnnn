@@ -51,6 +51,15 @@ LANE_MODELS: dict[str, dict[str, str]] = {
     "anthropic/claude-sonnet-4-6": {"label": "Claude Sonnet"},
     "anthropic/claude-haiku-4-5-20251001": {"label": "Claude Haiku"},
     "openai/gpt-4o-mini": {"label": "GPT-4o mini"},
+    # ADR-420 §10 seed set — "provide enough, not the most" (one lane per
+    # reason a user would leave, not one per model that exists). Each row
+    # is DATA: a _BILLING_RATES row (telemetry.py) + the provider key in env
+    # (GEMINI_API_KEY / OPENAI_API_KEY / DEEPSEEK_API_KEY on API + Scheduler)
+    # is all it costs. Lit dark until the key lands; MODEL_ROUTER_ENABLED gates.
+    "openai/gpt-5": {"label": "GPT-5"},                        # frontier OpenAI (completes mini→frontier)
+    "gemini/gemini-2.5-flash": {"label": "Gemini Flash"},      # the Google lane (fast/cheap)
+    "gemini/gemini-2.5-pro": {"label": "Gemini Pro"},          # frontier Google reasoning
+    "deepseek/deepseek-chat": {"label": "DeepSeek"},           # cost-floor / sovereign lane (compat alias → V4 Flash)
 }
 
 _LANE_MAX_ROUNDS = 8       # cost ceiling, not behavior (ADR-402 posture)

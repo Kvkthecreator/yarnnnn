@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.08.4] - ADR-420 §10: seed the lane model set (engine breadth — data only)
+
+- `services/lane_runner.py::LANE_MODELS`: +4 rows — `openai/gpt-5` (frontier OpenAI, completes the mini→frontier axis), `gemini/gemini-2.5-flash` + `gemini/gemini-2.5-pro` (the Google lane, previously zero representation — the highest-leverage gap), `deepseek/deepseek-chat` (the cost-floor / sovereign lane, ADR-408 D6). The ADR-420 §10 seed set: "provide enough, not the most" — one lane per *reason a user would leave*, not one per model that exists.
+- `services/telemetry.py::_BILLING_RATES`: +4 matching rows (bare model keys — `ledger_model_name` strips the LiteLLM prefix), list prices verified against provider docs 2026-07: gpt-5 $1.25/$10, gemini-2.5-flash $0.30/$2.50, gemini-2.5-pro $1.25/$10, deepseek-chat $0.14/$0.28. Per-provider cache multipliers set explicitly (OpenAI 50% read / Gemini 25% / DeepSeek 2% — all no cache-write premium) so cached rounds are priced right, not overcharged at the Anthropic 10%/125% default.
+- Expected behavior: a lane may now be *pinned* to any of the four when its provider key is present in env; each round meters on the one ledger (ADR-396) at the verified rate. This is pure DATA (the ADR-402 pattern) — no new architecture, no tool-surface change (lanes stay the five file verbs, ADR-411 D3). Premium models draw the shared workspace pool faster with no per-model gating (operator ruling: balance is the currency, hard-stop at zero, ADR-396 as-is).
+- **Ships dark without keys** — `LANE_MODELS` offers the row, but `litellm.acompletion` fails on a missing provider key; the lane lights up only when `GEMINI_API_KEY` / `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` land on **API + Scheduler** (Render parity). `MODEL_ROUTER_ENABLED` still gates the whole lane path.
+- Gate: `test_adr411_lanes.py::test_every_lane_model_has_a_rate_row` (loop over `LANE_MODELS`, enforces the rate row) + `test_lane_models_are_provider_prefixed` + `test_adr408_d4_router_spike.py` — 16/16 green. Cost function verified: each new model prefix-strips → hits its rate row → prices a real cache-inclusive number.
+
 ## [2026.07.08.3] - ADR-417: retire the render service — generation is rented, not owned
 
 - `services/primitives/runtime_dispatch.py`: **DELETED** — the `RuntimeDispatch` tool definition + handler (asset generation: chart/mermaid/image/video via the render service) are removed. The tool no longer appears in `CHAT_PRIMITIVES` / `HEADLESS_PRIMITIVES` / the handler map / the ADR-307 gate-queueable set.
