@@ -52,8 +52,12 @@ def test_two_container_surfaces() -> None:
     check("settings surface present", "settings" in by_slug)
     check("workspace-settings surface present", "workspace-settings" in by_slug)
     # ADR-349 D4 re-split into two launcher doors: `settings` is the account /
-    # System Settings door; `workspace-settings` is the operation door.
-    check("settings titled 'System Settings' (ADR-349 D4)", by_slug["settings"]["title"] == "System Settings")
+    # User Settings door; `workspace-settings` is the operation door.
+    # Renamed "System Settings" → "User Settings" (2026-07-08 naming-coherence
+    # pass): the content is billing/usage/account (user_id-scoped, the human),
+    # so the render name matches its content + the UserMenu item. Slug + route
+    # unchanged (naming-drift policy — rename stops at the render layer).
+    check("settings titled 'User Settings' (2026-07-08 rename)", by_slug["settings"]["title"] == "User Settings")
     check("workspace-settings titled 'Workspace Settings' (ADR-349 D4)", by_slug["workspace-settings"]["title"] == "Workspace Settings")
     # Containers are window-grade (not panes themselves).
     check("settings is window-grade (no pane_of)", not by_slug["settings"].get("pane_of"))
@@ -78,8 +82,8 @@ def test_two_settings_tiers() -> None:
     launcher = _read("components/shell/Launcher.tsx")
     check("Launcher group: Workspace Settings (workspace-config)",
           "label: 'Workspace Settings'" in launcher and "tier: 'workspace-config'" in launcher)
-    check("Launcher group: System Settings (system-config)",
-          "label: 'System Settings'" in launcher and "tier: 'system-config'" in launcher)
+    check("Launcher group: User Settings (system-config)",
+          "label: 'User Settings'" in launcher and "tier: 'system-config'" in launcher)
 
 
 def test_pane_homing() -> None:

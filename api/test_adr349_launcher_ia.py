@@ -166,7 +166,7 @@ def test_launcher_groups() -> None:
     src = _read("components/shell/Launcher.tsx")
     check("Workspace group", "label: 'Workspace'" in src and "tier: 'primary'" in src)
     check("Workspace Settings group", "label: 'Workspace Settings'" in src and "tier: 'workspace-config'" in src)
-    check("System Settings group", "label: 'System Settings'" in src and "tier: 'system-config'" in src)
+    check("User Settings group", "label: 'User Settings'" in src and "tier: 'system-config'" in src)
     # 2026-07-04 re-sort: the Notifications launcher group is deleted — the
     # top-bar bell is the door; the surface is search-only.
     check("Notifications group deleted", "tier: 'notifications'" not in src)

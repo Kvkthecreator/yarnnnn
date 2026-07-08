@@ -84,11 +84,12 @@ const KERNEL_TIER_GROUPS: { key: string; label: string; tier: string }[] = [
   // name, not browse); Setup goes search-only (a motion you re-enter); Agents
   // upgrades to the Workspace tier (the judgment seat is first-class). The
   // Utilities tier dissolves. The operator re-split settings into two doors
-  // (D4): Workspace Settings (the operation) above System Settings (the
-  // account/machine).
+  // (D4): Workspace Settings (the operation) above User Settings (the account /
+  // the human, user_id-scoped — renamed from "System Settings" 2026-07-08 so
+  // its label matches its billing/usage/account content + the UserMenu item).
   { key: 'kernel:primary', label: 'Workspace', tier: 'primary' },
   { key: 'kernel:workspace-config', label: 'Workspace Settings', tier: 'workspace-config' },
-  { key: 'kernel:system-config', label: 'System Settings', tier: 'system-config' },
+  { key: 'kernel:system-config', label: 'User Settings', tier: 'system-config' },
   // 2026-07-04 — Notifications' at-rest group (added 2026-07-01) is deleted:
   // the top-bar bell is the always-present door to that window on every
   // screen size (ADR-349 "one name, two zooms"), so any launcher tile was

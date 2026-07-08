@@ -62,10 +62,11 @@ def test_one_door_registry() -> None:
           ws["title"] == "Workspace Settings")
     check("workspace-settings in the workspace-config tier", ws.get("launcher_tier") == "workspace-config")
     check("workspace-settings is window-grade", not ws.get("pane_of"))
-    # The account / System Settings door.
+    # The account / User Settings door (renamed from "System Settings"
+    # 2026-07-08 — its content is billing/usage/account, user_id-scoped).
     acct = by_slug["settings"]
-    check("settings titled 'System Settings' (the account/machine door)",
-          acct["title"] == "System Settings")
+    check("settings titled 'User Settings' (the account door)",
+          acct["title"] == "User Settings")
     check("settings in the system-config tier (re-promoted to a door, ADR-349 D4)",
           acct.get("launcher_tier") == "system-config")
     check("settings is window-grade (account window)", not acct.get("pane_of"))
@@ -104,8 +105,8 @@ def test_settings_tiers() -> None:
     launcher = _read("components/shell/Launcher.tsx")
     check("Launcher declares the Workspace Settings group",
           "label: 'Workspace Settings'" in launcher and "tier: 'workspace-config'" in launcher)
-    check("Launcher declares the System Settings group",
-          "label: 'System Settings'" in launcher and "tier: 'system-config'" in launcher)
+    check("Launcher declares the User Settings group",
+          "label: 'User Settings'" in launcher and "tier: 'system-config'" in launcher)
 
 
 def test_account_moved_to_usermenu() -> None:

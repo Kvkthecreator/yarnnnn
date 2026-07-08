@@ -668,19 +668,27 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # operation config. Governance (Autonomy/Budget) lives on the
         # operation door (workspace-settings, the Contract group).
         # ADR-349 D4 (2026-06-19): the operator re-split the launcher into two
-        # settings doors — this re-promotes to an at-rest launcher door titled
-        # "System Settings" (the machine), `system-config` tier. Still ALSO
-        # reachable from the UserMenu (two doors, one window — fine).
+        # settings doors — this re-promotes to an at-rest launcher door,
+        # `system-config` tier. Still ALSO reachable from the UserMenu (two
+        # doors, one window — fine).
+        # 2026-07-08 (naming-coherence pass): titled "User Settings" — its
+        # content is Billing · Usage · Account, all user_id-scoped (the human,
+        # not "the machine"). "System Settings" read like OS/machine config and
+        # fought both its own content and the UserMenu's "Account" label. Now
+        # ONE render name — "User Settings" — everywhere a human reads it
+        # (window title + launcher group + UserMenu item). The `settings` slug +
+        # /settings route STAY (naming-drift policy: rename stops at the render
+        # layer; keep-slug below — GLOSSARY §Exceptions, ratified 2026-07-08).
         "slug": "settings",
         "launcher_tier": "system-config",  # ADR-349 D4 — re-promoted to a launcher door (was search-only/UserMenu-only, ADR-347)
         "register": "os-config",  # ADR-312 D5 (was `settings`)
-        "title": "System Settings",
+        "title": "User Settings",
         "archetype": "dashboard",
         "substrate_paths": [],  # account/billing — DB + Stripe; user_id-scoped (ADR-171/172)
         "icon_key": "settings",
         "default_pinned": False,
         "route": "/settings",
-        "summary": "System Settings — the machine/account level: billing, usage, and data/privacy. Program-agnostic, cross-workspace (user_id-scoped). Also reachable from the avatar menu.",
+        "summary": "User Settings — your account: billing, usage, and data/privacy. Program-agnostic, cross-workspace (user_id-scoped). Also reachable from the avatar menu.",
     },
     {
         # ADR-341 (2026-06-18) created the second door; ADR-347 (2026-06-19)

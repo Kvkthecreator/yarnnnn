@@ -2,6 +2,8 @@
 
 **Status:** **Accepted + Implemented (2026-06-19)** — same session. Closes the ADR-340 §9 deferred follow-on ("launcher IA re-sort ~17→~7") and ADR-346 §9 ("Queue window fate"). Gate `api/test_adr349_launcher_ia.py`. Sibling gates updated (ADR-340 P3, ADR-346, ADR-347, ADR-340 P1). `tsc --noEmit` clean (my files).
 **Amended by:** [ADR-370](ADR-370-context-surface-the-operations-boundary.md) (2026-06-25) — the at-rest primary tier gains **Context** (the operation's boundary composition), inheriting the launcher slot the Feed vacated. `feed` (already `search-only`, fronted by Notifications per this ADR) folds into Context as its Flow lens; `feed.default_pinned` flips False. The standing-loop primary tier becomes Home · Context · Queue · Files (+ Notifications, the bell's destination).
+
+**Amended by (2026-07-08, naming-coherence pass):** D4/D1's `settings`-door render name **"System Settings" → "User Settings"** (window title + launcher `system-config` group label + UserMenu item). The door's content is Billing · Usage · Account — all user_id-scoped (the human, not "the machine"); "System Settings" read like OS/machine config and fought both its content and the UserMenu's label. The two UserMenu items now read **"Workspace Settings"** + **"User Settings"**, each equal to its window title (no felt-redirect). The `settings` **slug + `/settings` route are unchanged** (naming-drift policy — rename stops at the render layer; keep-slug below). Agents also leaves the primary tier this pass (deferred A3, separate commit). Gates updated: `test_adr341_two_settings_doors`, `test_adr347_one_settings_door`, `test_adr349_launcher_ia`.
 **Date:** 2026-06-19
 **Deciders:** KVK (operator) + Claude (collaborator)
 **Hat:** A (system canon)
