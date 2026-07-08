@@ -202,20 +202,25 @@ def test_alpha_trader_workspace_guide_signal_files_is_path_only():
 
 
 def test_alpha_trader_has_mirror_signal_state_recurrence():
-    """ADR-281 §D3: alpha-trader declares the mirror-signal-state mechanical recurrence."""
-    rec_path = BUNDLES_ROOT / "alpha-trader" / "reference-workspace" / "_recurrences.yaml"
-    with rec_path.open() as f:
-        recs = yaml.safe_load(f)
-    by_slug = {r.get("slug"): r for r in recs.get("recurrences", [])}
+    """ADR-281 §D3: alpha-trader declares the mirror-signal-state mechanical intake.
+
+    ADR-393 (capture-lane migration): the mechanical intake declarations moved
+    from `_recurrences.yaml` to `_captures.yaml` verbatim (same primitive, same
+    fire-on-activation; the capture-lane field is `primitive:`, not `prompt:`).
+    This gate reads the capture lane where mirror-signal-state now lives.
+    """
+    cap_path = BUNDLES_ROOT / "alpha-trader" / "reference-workspace" / "_captures.yaml"
+    with cap_path.open() as f:
+        caps = yaml.safe_load(f)
+    by_slug = {r.get("slug"): r for r in caps.get("captures", [])}
     mirror = by_slug.get("mirror-signal-state")
-    assert mirror is not None, "alpha-trader bundle must declare mirror-signal-state recurrence"
-    assert mirror.get("mode") == "mechanical"
+    assert mirror is not None, "alpha-trader bundle must declare mirror-signal-state capture"
     assert mirror.get("fire_on_activation") is True, \
         "mirror-signal-state must fire on activation to populate substrate before first Reviewer wake"
-    prompt = mirror.get("prompt", "")
-    assert "@primitive: MirrorSignalState" in prompt
-    assert 'source="operation/trading/signals/*.yaml"' in prompt
-    assert 'write_to="operation/trading/_signals_summary.md"' in prompt
+    primitive = mirror.get("primitive", "")
+    assert "@primitive: MirrorSignalState" in primitive
+    assert 'source="operation/trading/signals/*.yaml"' in primitive
+    assert 'write_to="operation/trading/_signals_summary.md"' in primitive
 
 
 # ---------------------------------------------------------------------------
@@ -500,12 +505,16 @@ def test_alpha_trader_workspace_guide_declares_judgment_log_role():
     """alpha-trader bundle workspace guide declares judgment_log.md as system-ledger.
 
     ADR-281 renamed decisions.md → judgment_log.md; ADR-320 relocated it from
-    review/ to persona/. The guide must name the new path and carry no live
-    reference to either legacy path.
+    review/ to persona/; ADR-414 D+E-2 re-homed it to the hired agent's home
+    (`agents/alpha-trader/judgment_log.md` — a hired agent's judgment lineage
+    lives in its home, not the steward-era workspace-root persona/). The guide
+    must name the current path and carry no live reference to any legacy path.
     """
     guide = (BUNDLES_ROOT / "alpha-trader" / "reference-workspace" / "_workspace_guide.md").read_text()
-    assert "persona/judgment_log.md" in guide
+    assert "agents/alpha-trader/judgment_log.md" in guide
     assert "review/decisions.md" not in guide, "old (pre-ADR-281/320) path must be fully replaced"
+    assert "persona/judgment_log.md" not in guide, \
+        "steward-era persona/ path must be re-homed to the agent home (ADR-414 D+E-2)"
 
 
 def test_no_live_decisions_md_path_in_kernel_perception_files():

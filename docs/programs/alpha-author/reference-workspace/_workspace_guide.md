@@ -342,10 +342,9 @@ Schema when you author it yourself:
 ---
 as_of: <iso8601 — when this intent was authored>
 horizon: <free-form description of the time window this covers>
-occupant: <mirror what OCCUPANT.md declares>
 ---
 
-# Standing intent — <occupant-label>
+# Standing intent — <agent-label>
 
 ## What I'm watching for
 - <forward-looking conditions you expect may warrant action>
@@ -378,10 +377,12 @@ reader + lock + retention; see frontmatter `path_zones[*].role`):
   observations, and scratch the Reviewer wants to retain across wakes
   that aren't yet operation-shaping.
 - **`system-ledger`** — infrastructure-rendered append-only logs
-  (judgment_log.md, calibration.md, handoffs.md, OCCUPANT.md, system/recent.md).
-  The Reviewer supplies the content (via its `ReturnVerdict` for
-  judgment_log.md); infrastructure renders the entries. The Reviewer does
-  not WriteFile to these directly.
+  (your `judgment_log.md` in your agent home, `system/_calibration.md`,
+  `system/recent.md`). The agent supplies the content (via its
+  `ReturnVerdict` for judgment_log.md); infrastructure renders the entries.
+  The agent does not WriteFile to these directly. (The steward-era
+  `handoffs.md`/`OCCUPANT.md` are gone per ADR-414 D2 — the occupant fact
+  is kernel data; a hired agent has no OCCUPANT.md.)
 - **`world-mirror`** — external state mirrored into substrate by
   mechanical primitives (audience engagement state when audience-bearing
   per ADR-283 step 2). The Reviewer reads; never writes. Mechanical
