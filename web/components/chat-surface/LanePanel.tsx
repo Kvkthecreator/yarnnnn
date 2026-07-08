@@ -83,23 +83,69 @@ export function LanePanel({ laneId, laneName, modelLabel }: LanePanelProps) {
     setInput('');
     setError(null);
     setSending(true);
+
+    const userId = `local-${Date.now()}`;
+    const replyId = `local-r-${Date.now()}`;
+    // Optimistic user row + an empty assistant row the stream fills in place.
     setMessages((prev) => [
       ...prev,
-      { id: `local-${Date.now()}`, role: 'user', content },
+      { id: userId, role: 'user', content },
+      { id: replyId, role: 'assistant', content: '' },
     ]);
+
+    const appendDelta = (text: string) =>
+      setMessages((prev) =>
+        prev.map((m) => (m.id === replyId ? { ...m, content: m.content + text } : m)),
+      );
+
+    let sawDelta = false;
     try {
-      const res = await api.lanes.send(laneId, content);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `local-r-${Date.now()}`,
-          role: 'assistant',
-          content: res.reply,
-          tools_called: res.tools_called?.length ? res.tools_called : undefined,
+      await api.lanes.sendStream(laneId, content, {
+        onDelta: (text) => {
+          sawDelta = true;
+          appendDelta(text);
         },
-      ]);
+        onTool: (name) =>
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === replyId
+                ? { ...m, tools_called: [...(m.tools_called ?? []), name] }
+                : m,
+            ),
+          ),
+        onDone: ({ tools_called }) => {
+          if (tools_called?.length) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === replyId ? { ...m, tools_called } : m,
+              ),
+            );
+          }
+          // A turn that streamed no text (e.g. tool-only) shows a marker.
+          if (!sawDelta) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === replyId && !m.content
+                  ? { ...m, content: '[no reply]' }
+                  : m,
+              ),
+            );
+          }
+        },
+        onError: (message) => {
+          setError(message || 'The lane turn failed — try again.');
+          // Papercut fix: preserve the user's text so it isn't lost.
+          setInput((cur) => cur || content);
+          // Drop the empty assistant placeholder on a hard error.
+          setMessages((prev) =>
+            prev.filter((m) => !(m.id === replyId && !m.content)),
+          );
+        },
+      });
     } catch {
       setError('The lane turn failed — try again.');
+      setInput((cur) => cur || content);
+      setMessages((prev) => prev.filter((m) => !(m.id === replyId && !m.content)));
     } finally {
       setSending(false);
     }
@@ -136,8 +182,19 @@ export function LanePanel({ laneId, laneName, modelLabel }: LanePanelProps) {
                   : 'bg-muted text-foreground',
               )}
             >
-              {m.content}
-              {m.tools_called && m.tools_called.length > 0 && (
+              {/* Streaming: an empty assistant bubble shows a live indicator
+                  until the first delta lands, then fills token-by-token. */}
+              {m.role === 'assistant' && !m.content ? (
+                <span className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  {(m.tools_called && m.tools_called.length > 0)
+                    ? `${modelLabel} · ${Array.from(new Set(m.tools_called)).join(' · ')}…`
+                    : `${modelLabel} is working…`}
+                </span>
+              ) : (
+                m.content
+              )}
+              {m.content && m.tools_called && m.tools_called.length > 0 && (
                 <div className="mt-1.5 pt-1.5 border-t border-border/40 flex items-center gap-1 text-[10px] text-muted-foreground">
                   <Wrench className="w-3 h-3" />
                   {Array.from(new Set(m.tools_called)).join(' · ')}
@@ -146,14 +203,6 @@ export function LanePanel({ laneId, laneName, modelLabel }: LanePanelProps) {
             </div>
           </div>
         ))}
-        {sending && (
-          <div className="flex justify-start">
-            <div className="bg-muted rounded-lg px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              {modelLabel} is working…
-            </div>
-          </div>
-        )}
         {error && (
           <div className="text-xs text-destructive text-center">{error}</div>
         )}

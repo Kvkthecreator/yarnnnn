@@ -369,6 +369,146 @@ async def run_lane_turn(
     }
 
 
+async def run_lane_turn_stream(
+    auth: Any,
+    *,
+    model: str,
+    history: list[dict],
+    user_message: str,
+    member_label: Optional[str] = None,
+):
+    """Streaming sibling of ``run_lane_turn`` (ADR-412 D2 lane streaming).
+
+    An async generator over the SAME bounded tool loop, yielding events for
+    SSE transport:
+      - ``("tool", {"name": str})``       — a tool round called this tool
+      - ``("delta", str)``                — a text fragment on the FINAL round
+      - ``("done", {result dict})``       — terminal; the same shape
+                                            ``run_lane_turn`` returns
+      - ``("error", {error, message})``   — a fatal precondition
+
+    The two invariants ``run_lane_turn`` holds are held here byte-identically:
+    the ONE ledger record per round (ADR-396) and the bounded tool loop
+    (ADR-411). Only text TRANSPORT changes — tool rounds carry no user-visible
+    text (their deltas would be tool-call JSON), so text streams only on the
+    final round. The caller persists ONE assistant row at ``done`` from the
+    accumulated text + tools_called (the ADR-219 write path, unchanged).
+    """
+    if model not in LANE_MODELS:
+        yield ("error", {"error": "unknown_model",
+                         "message": f"model must be one of {sorted(LANE_MODELS)}"})
+        return
+
+    from services.model_router import model_router_enabled, route_completion_stream
+    if not model_router_enabled():
+        yield ("error", {"error": "router_disabled",
+                         "message": "MODEL_ROUTER_ENABLED is off — lanes need the router"})
+        return
+
+    from services.primitives.registry import execute_primitive
+
+    tool_auth = _lane_auth(auth, model)
+    tools = lane_tools_openai()
+    system = build_lane_conventions(
+        auth.client, auth.user_id, model=model, member_label=member_label,
+    )
+
+    messages: list[dict] = list(history) + [{"role": "user", "content": user_message}]
+    tools_called: list[str] = []
+    total_in = 0
+    total_out = 0
+    final_text = ""
+    rounds = 0
+    ledger_model = model.split("/", 1)[1] if "/" in model else model
+
+    for round_idx in range(_LANE_MAX_ROUNDS):
+        rounds = round_idx + 1
+        routed = None
+        # Stream this round. On a text round the deltas are user-visible; on
+        # a tool round they are empty and we act on `routed.tool_calls`.
+        async for kind, payload in route_completion_stream(
+            model, messages, system=system,
+            max_tokens=_LANE_MAX_TOKENS, timeout=_LANE_TIMEOUT_S, tools=tools,
+        ):
+            if kind == "delta":
+                yield ("delta", payload)
+            elif kind == "done":
+                routed = payload
+
+        if routed is None:  # defensive — the generator always yields done
+            yield ("error", {"error": "stream_incomplete",
+                             "message": "the model stream closed without a result"})
+            return
+
+        total_in += routed.usage.get("input_tokens", 0)
+        total_out += routed.usage.get("output_tokens", 0)
+
+        # ADR-411 D5 / ADR-396: one metered judgment invocation per round,
+        # attributed to the member — identical to the non-streaming path.
+        try:
+            from services.supabase import get_service_client
+            from services.telemetry import record_execution_event
+            record_execution_event(
+                get_service_client(),
+                user_id=auth.user_id,
+                slug="lane",
+                mode="judgment",
+                trigger_type="addressed",
+                status="success",
+                tool_rounds=rounds,
+                model=routed.ledger_model,
+                principal_id=getattr(auth, "principal_id", None) or auth.user_id,
+                workspace_id=getattr(auth, "workspace_id", None),
+                **routed.usage,
+            )
+        except Exception as exc:
+            logger.warning("[LANE stream] cost ledger record failed: %s", exc)
+
+        if not routed.tool_calls:
+            final_text = routed.text
+            break
+
+        messages.append(
+            routed.raw_assistant_message
+            or {"role": "assistant", "content": routed.text or ""}
+        )
+        for tc in routed.tool_calls:
+            name = tc["name"]
+            tools_called.append(name)
+            yield ("tool", {"name": name})
+            if name not in LANE_TOOL_NAMES:
+                result: Any = {
+                    "success": False, "error": "tool_not_on_lane_surface",
+                    "message": f"lane tools: {', '.join(LANE_TOOL_NAMES)}",
+                }
+            else:
+                try:
+                    result = await execute_primitive(tool_auth, name, tc["arguments"])
+                except Exception as exc:
+                    result = {"success": False, "error": "tool_raised", "message": str(exc)}
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tc["id"],
+                "content": _stringify_tool_result(result),
+            })
+    else:
+        final_text = final_text or "[lane turn exhausted its round budget without a final reply]"
+
+    logger.info(
+        "[LANE stream] model=%s rounds=%d tokens=%d/%d tools=%d",
+        model, rounds, total_in, total_out, len(tools_called),
+    )
+    yield ("done", {
+        "success": True,
+        "text": final_text,
+        "rounds": rounds,
+        "tools_called": tools_called,
+        "tokens_in": total_in,
+        "tokens_out": total_out,
+        "ledger_model": ledger_model,
+    })
+
+
 __all__ = [
     "LANE_MODELS",
     "LANE_TOOL_NAMES",
@@ -376,4 +516,5 @@ __all__ = [
     "lane_caller_identity",
     "build_lane_conventions",
     "run_lane_turn",
+    "run_lane_turn_stream",
 ]

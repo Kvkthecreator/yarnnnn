@@ -5,7 +5,7 @@ A lane is a member's model-pinned helper thread over the shared workspace:
                                      member's lanes in the acting workspace
 - `POST /api/lanes`                — create a lane (name + model)
 - `GET  /api/lanes/{id}/messages`  — lane history (user/assistant text)
-- `POST /api/lanes/{id}/messages`  — one turn (non-streaming; ADR-411 D2)
+- `POST /api/lanes/{id}/messages`  — one turn, STREAMING SSE (ADR-412 D2)
 - `POST /api/lanes/{id}/archive`   — archive (the lane list hides it)
 
 Scope: (workspace, principal) like every session post ADR-407 Phase 4 —
@@ -15,10 +15,12 @@ lane and never appears here (ADR-408 D6: no multi-chat at Altitude 1).
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from services.supabase import UserClient
@@ -184,10 +186,23 @@ async def lane_messages(lane_id: str, auth: UserClient) -> dict:
 
 
 @router.post("/lanes/{lane_id}/messages")
-async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient) -> dict:
-    """One lane turn (ADR-411 D2): persist the member's message, run the
-    bounded tool loop on the lane's pinned model, persist + return the reply."""
-    from services.lane_runner import lane_caller_identity, run_lane_turn
+async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
+    """One lane turn — STREAMING (ADR-412 D2): persist the member's message,
+    run the bounded tool loop on the lane's pinned model, stream text deltas
+    + tool-activity as SSE, persist the reply at stream close.
+
+    SSE grammar mirrors the steward (`data: {json}\\n\\n`, frames keyed by
+    their JSON discriminator):
+      - {"text_delta": str}            — a streamed text fragment
+      - {"tool": str}                  — a tool the turn called
+      - {"done": true, "rounds", "tools_called"}  — terminal
+      - {"error": str}                 — a fatal turn error
+
+    The two-write invariant (ADR-219): user row persisted up front (the turn
+    is real even if the provider errors); ONE assistant row at stream close
+    from the accumulated text + tools_called.
+    """
+    from services.lane_runner import lane_caller_identity, run_lane_turn_stream
     from services.narrative import write_narrative_entry
 
     content = (req.content or "").strip()
@@ -229,42 +244,66 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient) -> dic
         authored_by="operator",
     )
 
-    result = await run_lane_turn(
-        auth,
-        model=model,
-        history=history,
-        user_message=content,
-        member_label=getattr(auth, "email", None) or None,
-    )
-    if not result.get("success"):
-        raise HTTPException(
-            status_code=502,
-            detail=f"Lane turn failed: {result.get('error')}: {result.get('message')}",
-        )
+    async def event_stream():
+        def sse(obj: dict) -> str:
+            return f"data: {json.dumps(obj)}\n\n"
 
-    reply = result.get("text") or ""
-    write_narrative_entry(
-        auth.client, lane_id,
-        role="assistant",
-        summary=reply or "[no reply]",
-        pulse="addressed",
-        authored_by=lane_caller_identity(auth.user_id, model),
-        extra_metadata={
-            "lane_model": model,
-            "tools_called": result.get("tools_called") or [],
-        },
-    )
-    # Touch the session's updated_at so lane ordering reflects activity.
-    try:
-        auth.client.table("chat_sessions").update({"updated_at": "now()"}).eq("id", lane_id).execute()
-    except Exception:
-        pass
+        accumulated: list[str] = []
+        tools_called: list[str] = []
+        rounds = 0
+        errored: Optional[str] = None
+        try:
+            async for kind, payload in run_lane_turn_stream(
+                auth,
+                model=model,
+                history=history,
+                user_message=content,
+                member_label=getattr(auth, "email", None) or None,
+            ):
+                if kind == "delta":
+                    accumulated.append(payload)
+                    yield sse({"text_delta": payload})
+                elif kind == "tool":
+                    tools_called.append(payload["name"])
+                    yield sse({"tool": payload["name"]})
+                elif kind == "error":
+                    errored = f"{payload.get('error')}: {payload.get('message')}"
+                    yield sse({"error": errored})
+                elif kind == "done":
+                    rounds = payload.get("rounds") or 0
+                    # tools_called from the terminal result is authoritative
+                    tools_called = payload.get("tools_called") or tools_called
+        except Exception as exc:  # provider/transport failure mid-stream
+            logger.warning("[LANE stream] turn failed: %s", exc)
+            errored = str(exc)
+            yield sse({"error": errored})
 
-    return {
-        "reply": reply,
-        "rounds": result.get("rounds"),
-        "tools_called": result.get("tools_called") or [],
-    }
+        reply = "".join(accumulated)
+        # Persist ONE assistant row at close (unless the turn produced nothing
+        # AND errored — then there is no reply to record, only the user row).
+        if reply or not errored:
+            write_narrative_entry(
+                auth.client, lane_id,
+                role="assistant",
+                summary=reply or "[no reply]",
+                pulse="addressed",
+                authored_by=lane_caller_identity(auth.user_id, model),
+                extra_metadata={"lane_model": model, "tools_called": tools_called},
+            )
+            try:
+                auth.client.table("chat_sessions").update(
+                    {"updated_at": "now()"}
+                ).eq("id", lane_id).execute()
+            except Exception:
+                pass
+
+        yield sse({"done": True, "rounds": rounds, "tools_called": tools_called})
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+    )
 
 
 @router.post("/lanes/{lane_id}/archive")

@@ -222,11 +222,61 @@ export const api = {
           metadata: Record<string, unknown>;
         }>;
       }>(`/api/lanes/${laneId}/messages`),
-    send: (laneId: string, content: string) =>
-      request<{ reply: string; rounds: number; tools_called: string[] }>(
-        `/api/lanes/${laneId}/messages`,
-        { method: "POST", body: JSON.stringify({ content }) },
-      ),
+    /**
+     * Streaming lane turn (ADR-412 D2). Bypasses request() (which parses
+     * JSON) to read the SSE stream — mirrors the steward's NarrativeContext
+     * reader: getReader() + TextDecoder, buffer on '\n', parse `data: {json}`
+     * frames keyed by their discriminator. Callbacks accumulate on the FE.
+     */
+    sendStream: async (
+      laneId: string,
+      content: string,
+      handlers: {
+        onDelta: (text: string) => void;
+        onTool?: (name: string) => void;
+        onDone?: (info: { rounds: number; tools_called: string[] }) => void;
+        onError?: (message: string) => void;
+      },
+    ): Promise<void> => {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${API_BASE_URL}/api/lanes/${laneId}/messages`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok || !res.body) {
+        handlers.onError?.(`Lane turn failed (${res.status})`);
+        return;
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          let evt: Record<string, unknown>;
+          try {
+            evt = JSON.parse(line.slice(6));
+          } catch {
+            continue;
+          }
+          if (typeof evt.text_delta === "string") handlers.onDelta(evt.text_delta);
+          else if (typeof evt.tool === "string") handlers.onTool?.(evt.tool);
+          else if (typeof evt.error === "string") handlers.onError?.(evt.error);
+          else if (evt.done) {
+            handlers.onDone?.({
+              rounds: (evt.rounds as number) ?? 0,
+              tools_called: (evt.tools_called as string[]) ?? [],
+            });
+          }
+        }
+      }
+    },
     archive: (laneId: string) =>
       request<{ success: boolean }>(`/api/lanes/${laneId}/archive`, {
         method: "POST",

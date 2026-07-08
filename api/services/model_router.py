@@ -272,9 +272,153 @@ async def route_completion(
     )
 
 
+async def route_completion_stream(
+    model: str,
+    messages: list[dict],
+    *,
+    system: Optional[str] = None,
+    max_tokens: int = 1024,
+    temperature: Optional[float] = None,
+    timeout: float = 60.0,
+    tools: Optional[list[dict]] = None,
+):
+    """Streaming sibling of ``route_completion`` (ADR-412 D2 lane streaming).
+
+    An async generator. Yields ``("delta", text_chunk)`` for each streamed
+    text fragment as it arrives, then exactly one terminal
+    ``("done", RoutedCompletion)`` carrying the SAME normalized shape the
+    non-streaming path returns (accumulated text, tool_calls, usage,
+    raw_assistant_message) — so ``run_lane_turn`` gets one contract whether
+    a round streams or not, and the ledger write is byte-identical.
+
+    Streaming only changes TRANSPORT: the ONE ledger record (ADR-396) still
+    happens in the caller from the terminal RoutedCompletion's usage. Tool
+    calls arrive as index-keyed argument fragments and are reassembled here;
+    a tool-call round has no user-visible text (the deltas are empty), so
+    the caller streams text only on the final (text) round.
+    """
+    import json
+    import litellm  # lazy: same cold-import discipline as route_completion
+
+    full_messages = (
+        [{"role": "system", "content": system}] + list(messages)
+        if system else list(messages)
+    )
+
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": full_messages,
+        "max_tokens": max_tokens,
+        "timeout": timeout,
+        "stream": True,
+        # include_usage → the final chunk carries token usage (OpenAI +
+        # LiteLLM-normalized providers). Without it streaming drops usage
+        # and the ledger would undercount.
+        "stream_options": {"include_usage": True},
+    }
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+    if tools:
+        kwargs["tools"] = tools
+
+    text_parts: list[str] = []
+    finish_reason: Optional[str] = None
+    usage_obj: Any = None
+    # Tool-call fragments accumulate by index: {idx: {"id", "name", "args_str"}}
+    tc_acc: dict[int, dict] = {}
+
+    response = await litellm.acompletion(**kwargs)
+    async for chunk in response:
+        # Usage rides the final chunk (may have empty choices).
+        if getattr(chunk, "usage", None) is not None:
+            usage_obj = chunk.usage
+        choices = getattr(chunk, "choices", None) or []
+        if not choices:
+            continue
+        choice = choices[0]
+        if getattr(choice, "finish_reason", None):
+            finish_reason = choice.finish_reason
+        delta = getattr(choice, "delta", None)
+        if delta is None:
+            continue
+        piece = getattr(delta, "content", None)
+        if piece:
+            text_parts.append(piece)
+            yield ("delta", piece)
+        for tc in (getattr(delta, "tool_calls", None) or []):
+            idx = getattr(tc, "index", 0) or 0
+            slot = tc_acc.setdefault(idx, {"id": "", "name": "", "args_str": ""})
+            if getattr(tc, "id", None):
+                slot["id"] = tc.id
+            fn = getattr(tc, "function", None)
+            if fn is not None:
+                if getattr(fn, "name", None):
+                    slot["name"] = fn.name
+                if getattr(fn, "arguments", None):
+                    slot["args_str"] += fn.arguments
+
+    # Reassemble tool calls in index order (mirror the non-streaming shape).
+    tool_calls: list[dict] = []
+    raw_tool_calls: list[dict] = []
+    for idx in sorted(tc_acc):
+        slot = tc_acc[idx]
+        args_raw = slot["args_str"] or "{}"
+        try:
+            args = json.loads(args_raw)
+        except (ValueError, TypeError):
+            args = {}
+        tool_calls.append({"id": slot["id"] or "", "name": slot["name"] or "", "arguments": args})
+        raw_tool_calls.append({
+            "id": slot["id"] or "",
+            "type": "function",
+            "function": {"name": slot["name"] or "", "arguments": args_raw},
+        })
+
+    text = "".join(text_parts)
+    # Reconstruct the assistant message for tool-loop continuation (the
+    # streaming path can't call msg.model_dump() — build the equivalent).
+    raw_assistant_message: Optional[dict] = None
+    if tool_calls:
+        raw_assistant_message = {
+            "role": "assistant",
+            "content": text or None,
+            "tool_calls": raw_tool_calls,
+        }
+
+    usage = _normalize_usage(usage_obj)
+    lm = ledger_model_name(model)
+    try:
+        from services.telemetry import has_billing_rate
+        if not has_billing_rate(lm):
+            logger.warning(
+                "[MODEL-ROUTER] no billing rate for streamed model %r — "
+                "execution_events will price it at the default rate.", lm,
+            )
+    except ImportError:
+        pass
+
+    logger.info(
+        "[MODEL-ROUTER stream] model=%s tokens=%d/%d cache=%d/%d tool_calls=%d",
+        model, usage["input_tokens"], usage["output_tokens"],
+        usage["cache_read_tokens"], usage["cache_create_tokens"], len(tool_calls),
+    )
+
+    yield ("done", RoutedCompletion(
+        text=text,
+        model=model,
+        ledger_model=lm,
+        usage=usage,
+        router_cost_usd=None,  # streaming: no aggregate completion_cost; ledger prices from tokens
+        tool_calls=tool_calls,
+        finish_reason=finish_reason,
+        raw_assistant_message=raw_assistant_message,
+    ))
+
+
 __all__ = [
     "model_router_enabled",
     "route_completion",
+    "route_completion_stream",
     "ledger_model_name",
     "RoutedCompletion",
 ]
