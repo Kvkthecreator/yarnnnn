@@ -43,6 +43,22 @@ co-presence: the rail can deep-link to Freddie's Settings group; the Chat
 surface can deep-link to Files where a lane wrote; the roster frame names
 Freddie without seating him.
 
+> **Amendment (2026-07-08) — the rail hides on the Chat surface.** "Summonable
+> everywhere" narrows by exactly one carve: the Freddie-rail summon (the FAB) is
+> **suppressed while the `chat` lanes surface (Altitude 2) is foregrounded**. Two
+> chat entry points on one screen — the A1 rail floating over the A2 lanes — read
+> as two competing "chat" affordances and muddy the very altitude seam this ADR
+> draws. The rail stays A1's *only* chrome and is summonable over every *other*
+> surface; this is a co-presence carve, not a second home (the anti-goal "a
+> window" is untouched — the rail never becomes a window on `/chat`, it simply
+> yields the chat affordance to the surface that owns it). If the drawer is
+> already open when the operator enters `/chat`, it is unaffected — only the
+> redundant FAB summon hides. Implemented in `web/components/shell/Desktop.tsx`
+> (`onChatLanes = foregrounded === 'chat'`). Also on this pass: the FAB adopts
+> Freddie's face (`FreddieAvatar`, still-at-rest) in place of the generic
+> message-circle glyph — the rail *is* Freddie's voice (D1), so its summon wears
+> Freddie's mark.
+
 ## 3. D2 — The rail purifies to the steward
 
 The lane strip leaves the chat drawer (amending ADR-411's placement — the

@@ -29,7 +29,8 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { LayoutGrid, MessageCircle } from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
+import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import { useShellChrome } from './ShellChromeContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { Z_FAB } from '@/lib/shell/z-tiers';
@@ -69,8 +70,18 @@ function useIsFirstTime(): boolean {
 
 export function Desktop({ hasWindows, children }: DesktopProps) {
   const { toggleDrawer, drawerOpen, layoutMode } = useShellChrome();
-  const { setDesktopBounds } = useSurfacePreferences();
+  const { setDesktopBounds, foregrounded } = useSurfacePreferences();
   const isFirstTime = useIsFirstTime();
+  // ADR-412 amendment (2026-07-08) — hide the Freddie rail FAB while the
+  // chat-lanes surface (`chat`, Altitude 2 — the member's model-pinned
+  // helper threads) is foregrounded. ADR-412 D1 kept Freddie's rail (A1)
+  // summonable over EVERY surface; the one carve is /chat, where a second
+  // chat entry point (the A1 rail floating over the A2 lanes) reads as two
+  // competing "chat" affordances on one screen. The rail is still reachable
+  // from any other surface; this only suppresses the redundant summon while
+  // the operator is already in a chat surface. Freddie stays addressable —
+  // the drawer, if already open, is unaffected (only the FAB summon hides).
+  const onChatLanes = foregrounded === 'chat';
   const ref = useRef<HTMLDivElement>(null);
   // ADR-358 — in CANVAS the window area is NOT a desktop with a floating
   // window on wallpaper; it is ONE primary surface filling the column. So
@@ -172,11 +183,19 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
         type="button"
         onClick={toggleDrawer}
         aria-label={drawerOpen ? 'Close conversation' : 'Open conversation'}
-        title={drawerOpen ? 'Close conversation' : 'Ask YARNNN'}
+        title={drawerOpen ? 'Close conversation' : 'Ask Freddie'}
         className={cn(
-          'fixed flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all hover:shadow-xl active:scale-95',
-          'bg-foreground text-background hover:bg-foreground/90',
-          drawerOpen && 'opacity-0 pointer-events-none',
+          // The FAB is now Freddie's face (the system agent, ADR-412 —
+          // the rail is Freddie's voice). A light framed disc so the
+          // full-color mark reads (its dark-slate hair would vanish on the
+          // old black `bg-foreground` disc); ring for definition on the
+          // gray wallpaper.
+          'fixed flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all hover:shadow-xl active:scale-95 overflow-hidden',
+          'bg-background ring-1 ring-border hover:bg-muted',
+          // Hidden while the drawer is already open (redundant with its
+          // own X) OR while the chat-lanes surface is foregrounded (ADR-412
+          // amendment — see onChatLanes above).
+          (drawerOpen || onChatLanes) && 'opacity-0 pointer-events-none',
         )}
         style={{
           right: 'max(1.5rem, env(safe-area-inset-right, 0px) + 0.75rem)',
@@ -184,7 +203,10 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
           zIndex: Z_FAB,
         }}
       >
-        <MessageCircle className="h-5 w-5" />
+        {/* animate={false}: still at rest — motion is Freddie's working
+            tell (blink + bolt-pulse), so a resting FAB must not imply
+            Freddie is always working. */}
+        <FreddieAvatar animate={false} className="h-8 w-8" />
       </button>
     </div>
   );
