@@ -43,64 +43,21 @@ def _read(rel: str) -> str:
     return p.read_text() if p.exists() else ""
 
 
-def test_balance_chip_absorbed() -> None:
-    print("\n[merge] Budget chip absorbs Balance chip (ADR-340 P1 Build A)")
-    check(
-        "BalanceStatusItem.tsx deleted",
-        not (_WEB / "components/shell/system-status/BalanceStatusItem.tsx").exists(),
-    )
-    budget = _read("components/shell/system-status/BudgetStatusItem.tsx")
-    check("BudgetStatusItem fetches the envelope (api.budget)", "api.budget()" in budget)
-    check(
-        "BudgetStatusItem fetches the balance (api.integrations.getLimits)",
-        "api.integrations.getLimits()" in budget,
-    )
-    check("BudgetStatusItem keeps the /budget surface footer", "slug: 'budget'" in budget)
-    # 2026-06-19: the money chip is a GLANCE, not a settings map — it has ONE
-    # footer (the /budget surface). Billing is account config; it moved to the
-    # Budget PANE (BudgetCard "Balance & billing →") + the UserMenu account
-    # window (ADR-347). No billing link on the menu-bar glance.
-    check(
-        "BudgetStatusItem dropped the billing secondary footer (glance, not settings map)",
-        "secondaryFooterTarget" not in budget and "pane=billing" not in budget,
-    )
-    check(
-        "low-balance thresholds preserved from the absorbed chip",
-        "LOW_BALANCE_THRESHOLD_USD" in budget and "CRITICAL_BALANCE_THRESHOLD_USD" in budget,
-    )
-
-
-def test_cluster_is_three_chips() -> None:
-    print("\n[cluster] SystemStatusCluster renders Money + Connections, no Freddie/Balance")
-    src = _read("components/shell/system-status/SystemStatusCluster.tsx")
-    # 2026-07-08: the Freddie disposition chip was REMOVED — Freddie's chrome is
-    # the rail only (ADR-412 D1); a top-bar Freddie chip was a second Freddie
-    # surface. The cluster is now Money + Connections; the FreddieStatusItem
-    # component was deleted. (Was: the autonomy chip renamed to FreddieStatusItem
-    # per the ADR-412-era rename.)
-    check("no FreddieStatusItem import (removed 2026-07-08)", "FreddieStatusItem" not in src)
-    check("imports BudgetStatusItem", "import { BudgetStatusItem }" in src)
-    check("imports ConnectionsStatusItem", "import { ConnectionsStatusItem }" in src)
-    check("no BalanceStatusItem import", "BalanceStatusItem" not in src)
-    check(
-        "cluster docstring names the AttentionCenter as a distinct chrome role",
-        "AttentionCenter" in src,
-    )
-
-
-def test_popover_secondary_footer() -> None:
-    print("\n[popover] StatusItemPopover is one-footer (2026-06-19, Singular Impl)")
-    # The secondary-footer prop was added (ADR-340 P1) only for the merged
-    # money chip's billing link. That link moved to the Budget pane, so the
-    # prop has no consumer and was removed (Singular Implementation — no dead
-    # dual-path). A status GLANCE routes to exactly one surface.
-    src = _read("components/shell/system-status/StatusItemPopover.tsx")
-    check("secondaryFooterTarget prop removed", "secondaryFooterTarget" not in src)
-    check("secondaryFooterLabel prop removed", "secondaryFooterLabel" not in src)
-    check("popover keeps its single footerTarget/footerLabel", "footerTarget" in src and "footerLabel" in src)
-    # The billing link now lives on the Budget pane (BudgetCard). Routed via
-    # the navigateToSurface verb since the SurfaceLink rework — no URL
-    # literal (repointed 2026-07-07 from the stale `pane=billing` grep).
+def test_status_cluster_retired() -> None:
+    # 2026-07-08 (operator ruling): the SystemStatusCluster (Budget +
+    # Connections standing-state chips) is RETIRED and the whole
+    # system-status/ dir DELETED. Both glances fold into the UserMenu
+    # (Budget = a usage row, Connectors = a link) — the top bar keeps only
+    # the load-bearing items (Dock, bell, avatar). Supersedes the ADR-340 P1
+    # money-chip merge (the merge is moot once the chip is gone).
+    print("\n[cluster] SystemStatusCluster retired; glances fold into the UserMenu")
+    check("system-status/ dir deleted", not (_WEB / "components/shell/system-status").exists())
+    menu = _read("components/shell/UserMenu.tsx")
+    check("UserMenu carries the Budget glance", "handleBudget" in menu and "deriveUsageMeter" in menu)
+    check("UserMenu carries the Connectors link", "handleConnectors" in menu)
+    check("UserMenu opens the /budget surface", "foregroundSurface('budget')" in menu)
+    # The billing link lives on the Budget pane (BudgetCard) — unchanged by the
+    # cluster retirement; billing is account config, not a menu-bar glance.
     card = _read("components/workspace-concepts/BudgetCard.tsx")
     check(
         "BudgetCard carries the Balance & billing link",
@@ -155,21 +112,22 @@ def test_attention_center() -> None:
 
 
 def test_topbar_mounts_attention() -> None:
-    print("\n[topbar] TopBarSurface mounts cluster + AttentionCenter + UserMenu")
+    print("\n[topbar] TopBarSurface mounts AttentionCenter + UserMenu (cluster retired)")
     src = _read("components/shell/chrome/TopBarSurface.tsx")
     check("imports AttentionCenter", "import { AttentionCenter }" in src)
     check("mounts AttentionCenter", "<AttentionCenter />" in src)
+    # 2026-07-08: the SystemStatusCluster is gone; the right region is just
+    # bell + avatar. Order: AttentionCenter before UserMenu.
+    check("no SystemStatusCluster mount", "<SystemStatusCluster />" not in src)
     check(
-        "order: cluster before AttentionCenter before UserMenu",
-        src.find("<SystemStatusCluster />") < src.find("<AttentionCenter />") < src.find("<UserMenu"),
+        "order: AttentionCenter before UserMenu",
+        src.find("<AttentionCenter />") < src.find("<UserMenu"),
     )
 
 
 def main() -> int:
-    print("ADR-340 P1 gate — attention center + status-cluster consolidation")
-    test_balance_chip_absorbed()
-    test_cluster_is_three_chips()
-    test_popover_secondary_footer()
+    print("ADR-340 P1 gate — attention center (status-cluster retired 2026-07-08)")
+    test_status_cluster_retired()
     test_attention_center()
     test_topbar_mounts_attention()
     print(f"\n{PASSED} passed, {FAILED} failed")

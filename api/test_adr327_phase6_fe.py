@@ -47,7 +47,9 @@ def test_budget_fe_present() -> None:
     print("\n[create] budget FE files present")
     check("budget.ts shape exists", (_WEB / "lib/content-shapes/budget.ts").exists())
     check("BudgetCard.tsx exists", (_WEB / "components/workspace-concepts/BudgetCard.tsx").exists())
-    check("BudgetStatusItem.tsx exists", (_WEB / "components/shell/system-status/BudgetStatusItem.tsx").exists())
+    # 2026-07-08: BudgetStatusItem (the top-bar money chip) was DELETED with the
+    # SystemStatusCluster; the Budget glance is a UserMenu row now. The ADR-327
+    # substance (BudgetCard canonical rendering + /budget surface) is unchanged.
     check("/budget page exists", (_WEB / "app/(authenticated)/budget/page.tsx").exists())
 
 
@@ -81,8 +83,11 @@ def test_registries_swapped() -> None:
     # ADR-327 substance (BudgetCard as the canonical budget rendering, pace
     # retired) is unchanged.
     check("budget not window-mounted (pane-grade per ADR-340 P2)", "budget: BudgetPage" not in surf)
-    settings_door = _read("app/(authenticated)/workspace-settings/page.tsx")
-    check("the Settings door renders BudgetCard pane (ADR-347 Contract group)", "BudgetCard" in settings_door)
+    # ADR-412 D5: the Budget pane render moved into SystemAgentPanes (Freddie's
+    # Contract group), which the Settings door mounts. Assert on the real render
+    # home (BudgetCard was here directly pre-ADR-412; the assertion went stale).
+    panes = _read("components/agents/SystemAgentPanes.tsx")
+    check("the System Agent panes render BudgetCard (Contract group)", "BudgetCard" in panes)
     check("pace removed from registry map", "pace: PacePage" not in surf)
     shapes = _read("lib/content-shapes/index.ts")
     check("budget shape registered", "budget: budgetMeta" in shapes)
@@ -90,11 +95,14 @@ def test_registries_swapped() -> None:
 
 
 def test_status_cluster_swapped() -> None:
-    print("\n[cluster] SystemStatusCluster mounts BudgetStatusItem")
-    src = _read("components/shell/system-status/SystemStatusCluster.tsx")
-    check("imports BudgetStatusItem", "import { BudgetStatusItem }" in src)
-    check("mounts BudgetStatusItem", "<BudgetStatusItem />" in src)
-    check("no PaceStatusItem import", "PaceStatusItem" not in src)
+    # 2026-07-08 (operator ruling): the SystemStatusCluster is RETIRED + the
+    # whole system-status/ dir DELETED. The Budget glance folds into the
+    # UserMenu (a usage row); pace stays retired (ADR-327 substance intact).
+    print("\n[cluster] SystemStatusCluster retired; Budget glance in UserMenu")
+    check("system-status/ dir deleted", not (_WEB / "components/shell/system-status").exists())
+    menu = _read("components/shell/UserMenu.tsx")
+    check("UserMenu carries the Budget glance", "handleBudget" in menu and "deriveUsageMeter" in menu)
+    check("UserMenu opens the /budget surface", "foregroundSurface('budget')" in menu)
 
 
 def test_icon_registered() -> None:

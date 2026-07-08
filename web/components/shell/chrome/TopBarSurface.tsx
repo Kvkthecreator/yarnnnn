@@ -67,7 +67,6 @@ import { isKernelSurfaceSlug } from '@/types/desk';
 import { HOME_ROUTE } from '@/lib/routes';
 import { UserMenu } from '../UserMenu';
 import { AttentionCenter } from '../AttentionCenter';
-import { SystemStatusCluster } from '../system-status/SystemStatusCluster';
 import { useShellChrome } from '../ShellChromeContext';
 import type { Surface } from '@/lib/compositor/types';
 import { cn } from '@/lib/utils';
@@ -435,16 +434,15 @@ export function TopBarSurface() {
         )}
       </nav>
 
-      {/* Right region — agent-OS menu-bar status cluster (D20,
-          consolidated to Autonomy · Money · Connections per ADR-340 P1)
-          + AttentionCenter (ADR-340 D3 — the Notification Center
-          analog: EVENTS demanding the operator, distinct chrome role
-          from the cluster's standing STATE) + UserMenu (D19.4).
-          shrink-0 + fixed width pinned to viewport right edge. */}
+      {/* Right region — AttentionCenter (ADR-340 D3 — the Notification Center
+          analog: EVENTS demanding the operator) + UserMenu. shrink-0 + fixed
+          width pinned to viewport right edge.
+          2026-07-08 (operator ruling): the SystemStatusCluster (Budget +
+          Connections standing-state chips) is RETIRED — both fold into the
+          UserMenu (Budget = a usage row, Connectors = a link), where the
+          ambient workspace context already lives (ADR-412 D6). The top bar
+          keeps only the load-bearing items: Dock, bell, avatar. */}
       <div className="flex shrink-0 items-center gap-2">
-        {/* ADR-412 D6 ambient workspace context lives INSIDE the UserMenu
-            (operator ruling 2026-07-07 — the menu, not fixed top-bar chrome). */}
-        <SystemStatusCluster />
         <AttentionCenter />
         <UserMenu email={userEmail} />
       </div>

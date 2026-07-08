@@ -31,9 +31,9 @@ import {
 } from 'lucide-react';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
-// Commit G (2026-05-11): useAutonomy import retired here — autonomy chip
-// moved to feed header. ADR-297 D20 (2026-05-24): chip moved again to
-// top-bar SystemStatusCluster (kernel chrome, visible on every surface).
+// Commit G (2026-05-11): useAutonomy import retired here — the autonomy chip
+// left the composer. (It later lived on the top-bar status cluster, itself
+// retired 2026-07-08; autonomy now lives on Workspace Settings → Autonomy.)
 import { cn } from '@/lib/utils';
 import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -130,10 +130,9 @@ export function ConversationPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Commit G (2026-05-11): autonomy chip + popover relocated to feed
-  // header. ADR-297 D20 (2026-05-24): chip moved again to top-bar
-  // SystemStatusCluster — kernel chrome, every surface. Composer-side
-  // useAutonomy + popover state remains retired (Singular Implementation).
+  // Commit G (2026-05-11): autonomy chip + popover left the composer.
+  // Composer-side useAutonomy + popover state remains retired (Singular
+  // Implementation); autonomy lives on Workspace Settings → Autonomy.
 
   // Accept action card from parent
   useEffect(() => {

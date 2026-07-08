@@ -14,10 +14,25 @@
  * §D19.4.2) — operator reaches it via Launcher or by adding it to
  * the Dock.
  *
- * ADR-297 D20 (2026-05-24) — balance display deleted from the
- * dropdown header. Balance now lives in the top-bar agent-OS
- * SystemStatusCluster (slot 3). Header retains email + theme toggle.
- * Singular Implementation: one balance indicator in the workspace.
+ * ADR-297 D20 (2026-05-24) — balance display deleted from the dropdown
+ * header (was a raw-dollars line). Header retains email + theme toggle.
+ *
+ * 2026-07-08 (operator ruling) — the top-bar SystemStatusCluster (Budget +
+ * Connections chips) is RETIRED and DELETED; its two standing-state glances
+ * fold into THIS menu, where the ambient workspace context already lives
+ * (ADR-412 D6). Singular Implementation: the workspace's money + connection
+ * reach are read HERE, not in parallel top-bar chrome. The top bar keeps
+ * only the load-bearing items (Dock, bell, avatar):
+ *   - Budget → a compact read-only usage row in the Workspace section
+ *     (plan + usage%, the ADR-396 no-dollars readout); opens the Budget
+ *     surface. The workspace's money is a workspace-scoped glance, homed
+ *     with the workspace switcher + Manage-access.
+ *   - Connectors → a plain link into Workspace Settings → Perception
+ *     (its ADR-415 home). Connection reach is reachable, not a chip.
+ * The Workspace Settings menu ITEM is removed (Manage access → already
+ * opens that window at the Members pane); the gear now titles Workspace
+ * Settings itself. User Settings (the account) stays, with the account
+ * (user-circle) glyph.
  *
  * ADR-358 (2026-06-23) — the UserMenu gains the LAYOUT-MODE control: a
  * Canvas · Desktop segmented toggle. This is the operator's choice of the
@@ -28,17 +43,19 @@
  * below the breakpoint.
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { Settings, LogOut, Sun, Moon, Monitor, User, Columns2, LayoutGrid, Check, Briefcase } from 'lucide-react';
+import { LogOut, Sun, Moon, Monitor, UserCircle, Columns2, LayoutGrid, Check, Briefcase, Wallet, Link2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { api } from '@/lib/api/client';
 import { setActiveWorkspace, clearActiveWorkspace } from '@/lib/api/client';
 import {
   useWorkspaceMembers,
   useWorkspaceMemberships,
   type WorkspaceMembershipRow,
 } from '@/lib/workspace/viewer';
+import { deriveUsageMeter, type UsageLimits } from '@/lib/subscription/usage';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -60,9 +77,8 @@ export function UserMenu({ email }: UserMenuProps) {
   const supabase = createClient();
   const { theme, setTheme } = useTheme();
 
-  // ADR-297 D20 (2026-05-24): balance display moved from UserMenu
-  // dropdown header to top-bar SystemStatusCluster. Singular
-  // Implementation: one balance indicator, in kernel chrome.
+  // 2026-07-08: the money glance lives in the Budget row below (folded in from
+  // the retired top-bar cluster), expressed as usage% not raw dollars (ADR-396).
 
   // Click-outside + Escape close (shared dismissal contract, 2026-07-01).
   usePopoverDismissal(dropdownRef, isOpen, () => setIsOpen(false));
@@ -76,6 +92,29 @@ export function UserMenu({ email }: UserMenuProps) {
   // alternative to switch to.
   const { memberships } = useWorkspaceMemberships();
   const { members } = useWorkspaceMembers();
+
+  // 2026-07-08 — the Budget glance, re-homed from the retired top-bar chip.
+  // A workspace-scoped read: plan + usage% (ADR-396 no-dollars readout,
+  // derived by the shared meter). Fetched only while the menu is open (a
+  // glance, not a live cluster); the full detail lives on the Budget surface.
+  const [balance, setBalance] = useState<UsageLimits | null>(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    api.integrations
+      .getLimits()
+      .then((res) => {
+        if (!cancelled) setBalance(res as UsageLimits);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+  const usageMeter = deriveUsageMeter(balance);
+  const tierLabel = balance
+    ? balance.tier.charAt(0).toUpperCase() + balance.tier.slice(1)
+    : null;
 
   // People-count for the workspace row's sub-label (2026-07-08: replaces the
   // full WHO'S HERE list — a compact "N people" over the human members
@@ -117,15 +156,24 @@ export function UserMenu({ email }: UserMenuProps) {
   //    operation setting. (Renamed from "Account" so it matches the window
   //    title "User Settings" — was titled "System Settings", which fought both
   //    its content and this label.)
-  const handleSettings = () => {
-    setIsOpen(false);
-    // ADR-297 D19.4 + D19.5: open as a window on the Desktop; no router.push.
-    foregroundSurface('workspace-settings');
-  };
-
+  // User Settings — the account window (billing/usage/privacy). The Workspace
+  // Settings menu item was removed 2026-07-08 (Manage access → already opens
+  // that window); its handler is gone with it.
   const handleAccount = () => {
     setIsOpen(false);
     foregroundSurface('settings');
+  };
+
+  // 2026-07-08 — Budget + Connectors folded in from the retired top-bar cluster.
+  const handleBudget = () => {
+    setIsOpen(false);
+    foregroundSurface('budget');
+  };
+
+  const handleConnectors = () => {
+    setIsOpen(false);
+    // ADR-415 — Connectors is a Workspace Settings → Perception pane now.
+    navigateToSurface('workspace-settings', { pane: 'connectors' });
   };
 
   // Get initials from email
@@ -154,9 +202,8 @@ export function UserMenu({ email }: UserMenuProps) {
           style={{ zIndex: Z_POPOVER }}
           className="absolute top-full right-0 mt-1 w-56 bg-background border border-border rounded-lg shadow-lg py-1"
         >
-          {/* User info + Theme. ADR-297 D20: balance display removed
-              — balance is now in the top-bar SystemStatusCluster
-              (Singular Implementation: one balance indicator). */}
+          {/* User info + Theme. The money glance is the Budget row in the
+              Workspace section below (2026-07-08), not this header. */}
           {email && (
             <div className="px-3 py-2 border-b border-border">
               <div className="flex items-center justify-between gap-2">
@@ -291,29 +338,49 @@ export function UserMenu({ email }: UserMenuProps) {
               >
                 Manage access →
               </button>
+
+              {/* 2026-07-08 — Budget glance, re-homed from the retired top-bar
+                  chip. Read-only: plan + usage% (ADR-396 no-dollars readout);
+                  opens the Budget surface for detail. Workspace-scoped, so it
+                  sits with the workspace switcher. */}
+              <button
+                onClick={handleBudget}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+              >
+                <Wallet className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="flex-1 min-w-0">
+                  <span className="block">Budget</span>
+                  {usageMeter && tierLabel && (
+                    <span className="block text-[11px] text-muted-foreground">
+                      {tierLabel} · {usageMeter.percent}% used
+                    </span>
+                  )}
+                </span>
+              </button>
+
+              {/* Connectors — a plain link into Workspace Settings → Perception
+                  (ADR-415 home). Connection reach is reachable, not a chip. */}
+              <button
+                onClick={handleConnectors}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+              >
+                <Link2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span>Connectors</span>
+              </button>
             </div>
           )}
 
-          {/* Menu items — ADR-347 (2026-06-19): the UserMenu carries the two
-              settings doors (NOT operation-loop surfaces): Workspace Settings
-              (the operation) + User Settings (the human/principal's account —
-              billing/usage/privacy). Each label == its window title, so
-              clicking one never feels like a redirect (naming-coherence pass
-              2026-07-08). Sign out below. Operation surfaces (Home/Files/…) are
-              reached via Dock + Launcher, not duplicated here. */}
-          <button
-            onClick={handleSettings}
-            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
-          >
-            <Settings className="w-4 h-4 text-muted-foreground" />
-            <span>Workspace Settings</span>
-          </button>
-
+          {/* Menu items — 2026-07-08: the Workspace Settings item is REMOVED
+              (Manage access → above already opens that window at the Members
+              pane; the gear now titles Workspace Settings itself). User
+              Settings (the human/principal's account — billing/usage/privacy)
+              stays, with the account (user-circle) glyph. Operation surfaces
+              (Home/Files/…) are reached via Dock + Launcher, not duplicated. */}
           <button
             onClick={handleAccount}
             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
           >
-            <User className="w-4 h-4 text-muted-foreground" />
+            <UserCircle className="w-4 h-4 text-muted-foreground" />
             <span>User Settings</span>
           </button>
 

@@ -665,7 +665,11 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "title": "User Settings",
         "archetype": "dashboard",
         "substrate_paths": [],  # account/billing — DB + Stripe; user_id-scoped (ADR-171/172)
-        "icon_key": "settings",
+        # 2026-07-08 icon swap: User Settings takes the `user-circle` (account)
+        # glyph — its content is the human/principal's account (billing, usage,
+        # privacy), so an account-person icon reads truer than a gear. The gear
+        # (`settings`) moves to Workspace Settings (the operation config door).
+        "icon_key": "user-circle",
         "default_pinned": False,
         "route": "/settings",
         "summary": "User Settings — your account: billing, usage, and data/privacy. Program-agnostic, cross-workspace (user_id-scoped). Also reachable from the avatar menu.",
@@ -683,15 +687,18 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # UserMenu (ADR-347 D2).
         # ADR-349 D4 (2026-06-19): the operator re-split the launcher into two
         # settings doors. This is the OPERATION door, titled "Workspace
-        # Settings", `workspace-config` tier (above System Settings). Distinct
-        # icon (folder-kanban) so it reads apart from the System Settings gear.
+        # Settings", `workspace-config` tier (above User Settings).
+        # 2026-07-08 icon swap: Workspace Settings takes the `settings` GEAR —
+        # it's the operation-configuration door, the truest "settings" surface.
+        # User Settings (the account) took the `user-circle` glyph, so the two
+        # doors still read apart.
         "slug": "workspace-settings",
         "launcher_tier": "workspace-config",  # ADR-349 D4 — the operation door (re-split from ADR-347's one `configure` tier)
         "register": "application",  # a windowed app like `settings`
         "title": "Workspace Settings",
         "archetype": "dashboard",
         "substrate_paths": [],  # constitution/ + governance/ + operation/ + persona/ reads
-        "icon_key": "folder-kanban",
+        "icon_key": "settings",
         "default_pinned": False,
         "route": "/workspace-settings",
         "summary": "Workspace Settings — what this operation is and how it runs. Constitution (mandate/identity/principles), Contract (budget/autonomy/expected output), Program, Perception (Connectors/Sources), Access (members). (ADR-415 restored Perception here; Channels dissolved.)",

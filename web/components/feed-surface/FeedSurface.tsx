@@ -131,11 +131,10 @@ export function FeedSurface({ messageFilter, emptyLabel }: FeedSurfaceProps = {}
 
   const headerActions = (
     <div className="flex items-center gap-1.5">
-      {/* ADR-297 D20 (2026-05-24): autonomy chip relocated from feed
-          header to top-bar SystemStatusCluster. Workspace-level posture
-          is kernel chrome, visible on every surface — Feed header is
-          no longer special. AutonomyHeaderChip + PauseAutonomyModal
-          deleted; pause/resume happens on /autonomy. */}
+      {/* ADR-297 D20 (2026-05-24): autonomy chip left the feed header.
+          (It later lived on the top-bar status cluster, itself retired
+          2026-07-08.) AutonomyHeaderChip + PauseAutonomyModal deleted;
+          pause/resume happens on Workspace Settings → Autonomy. */}
       {snapshotAction}
     </div>
   );

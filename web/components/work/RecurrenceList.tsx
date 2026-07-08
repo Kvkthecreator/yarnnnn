@@ -305,9 +305,10 @@ export function RecurrenceList({
               <X className="w-3 h-3" />
             </button>
           )}
-          {/* ADR-297 D20 (2026-05-24): PaceBadge deleted — pace + queue
-              depth glance lives in the top-bar SystemStatusCluster
-              (slot 2). Singular Implementation: one pace indicator. */}
+          {/* ADR-297 D20 (2026-05-24): PaceBadge deleted. The pace + queue
+              depth glance lived on the top-bar status cluster (retired
+              2026-07-08); budget/queue detail is on the Budget surface + the
+              UserMenu Budget row. */}
           <OverflowOptions
             includeSystem={includeSystem}
             includeHistorical={includeHistorical}
