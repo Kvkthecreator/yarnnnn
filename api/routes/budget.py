@@ -101,3 +101,46 @@ async def get_budget(auth: UserClient) -> BudgetResponse:
         daily_burn_usd=daily_burn,
         runway_days=runway_days,
     )
+
+
+class PrincipalSpendRow(BaseModel):
+    """One principal's attributed draw on the shared workspace pool (ADR-416)."""
+
+    principal_id: str
+    spend_usd: float
+    event_count: int
+
+
+class SpendByPrincipalResponse(BaseModel):
+    """ADR-416 Phase 1 — the "who spent what" rollup over the workspace pool.
+
+    The rows attribute the pool's spend-since-anchor to the acting principals; they
+    sum (up to rounding) to the balance gate's spend for the same window. Legibility
+    only — the hard-stop stays workspace-summed (one pool).
+    """
+
+    rows: list[PrincipalSpendRow]
+
+
+@router.get("/spend-by-principal", response_model=SpendByPrincipalResponse)
+async def get_spend_by_principal(auth: UserClient) -> SpendByPrincipalResponse:
+    """Return per-principal spend attribution over the acting workspace's pool.
+
+    ADR-416 D3 / Phase 1 — the consumer of `execution_events.principal_id`. "Who
+    spent what" for the multi-principal commons. The acting workspace is resolved
+    the same way the balance gate resolves it (contextvar / owner fallback), so the
+    rollup names the same pool the balance draws from.
+    """
+    from services.platform_limits import spend_by_principal
+
+    rows = spend_by_principal(auth.client, auth.user_id)
+    return SpendByPrincipalResponse(
+        rows=[
+            PrincipalSpendRow(
+                principal_id=str(r["principal_id"]),
+                spend_usd=round(r["spend_usd"], 4),
+                event_count=r["event_count"],
+            )
+            for r in rows
+        ]
+    )

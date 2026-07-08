@@ -193,6 +193,45 @@ def check_balance(client, user_id: str) -> tuple[bool, float]:
     return balance > 0, balance
 
 
+def spend_by_principal(
+    client, user_id: str, workspace_id: Optional[str] = None
+) -> list[dict]:
+    """ADR-416 Phase 1 — per-principal spend attribution over the workspace pool.
+
+    "Who spent what" — the legibility consumer of `execution_events.principal_id`
+    (which migration 192 captured but nothing read). Returns one row per acting
+    principal for the ACTING WORKSPACE, over the SAME window the balance gate uses
+    (migration 206 mirrors get_effective_balance's anchor), so the rows sum to the
+    pool's spend-since-anchor.
+
+    This is a READ, never a gate: the hard-stop stays workspace-summed (one pool,
+    ADR-416 D-root); this only attributes the draws within it. The balance
+    mechanics are untouched.
+
+    Returns [] on error or when no workspace resolves (fail-safe: legibility, not
+    enforcement — an empty rollup never blocks spend).
+
+    Each row: {"principal_id": str, "spend_usd": float, "event_count": int}.
+    """
+    try:
+        ws = _acting_workspace_id(user_id, workspace_id)
+        if not ws:
+            return []
+        result = client.rpc("spend_by_principal", {"p_workspace_id": ws}).execute()
+        rows = result.data or []
+        return [
+            {
+                "principal_id": r.get("principal_id"),
+                "spend_usd": float(r.get("spend_usd") or 0),
+                "event_count": int(r.get("event_count") or 0),
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        logger.warning(f"[SPEND] Failed per-principal rollup for {user_id}: {e}")
+        return []
+
+
 def grant_allowance(client, workspace_id: str, user_id: str, allowance_usd: float,
                     lemon_subscription_id: str = None, metadata: dict = None,
                     period_anchor: str = None) -> bool:
