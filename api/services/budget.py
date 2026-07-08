@@ -198,23 +198,34 @@ def load_budget(client: Any, user_id: str) -> Budget:
     )
 
 
-def window_spend(client: Any, user_id: str, window: str) -> float:
+def window_spend(
+    client: Any, user_id: str, window: str, workspace_id: Optional[str] = None
+) -> float:
     """Sum `execution_events.cost_usd` over the current budget window
     (ADR-291 unified cost ledger; ADR-327 D3 — reader only, no new writer).
 
     `window` ∈ {monthly, weekly, daily}; monthly = since UTC month start.
     Returns 0.0 on any read failure (fail-open — a read error must not
     silently starve the operation).
+
+    ADR-416 Phase 4 (bug-fix): the window is scoped to the ACTING WORKSPACE
+    (`workspace_id`), matching the balance hard-stop gate (get_effective_balance,
+    migration 200). Pre-fix this read filtered `.eq("user_id", …)` — so at N>1 a
+    member's/agent's envelope check summed the wrong rows (their own singleton or
+    the owner's), diverging from the workspace-scoped balance gate on the binding
+    unit. Resolution mirrors the balance gate (contextvar / owner fallback), so
+    the ~single caller needs no change. Falls back to the `user_id` filter only
+    when no workspace resolves (fail-open, pre-ADR-416 behavior).
     """
     floor_iso = _window_floor_iso(window)
     try:
-        res = (
-            client.table("execution_events")
-            .select("cost_usd")
-            .eq("user_id", user_id)
-            .gte("created_at", floor_iso)
-            .execute()
-        )
+        from services.workspace_context import effective_workspace_id
+        ws = effective_workspace_id(user_id, workspace_id)
+        q = client.table("execution_events").select("cost_usd").gte("created_at", floor_iso)
+        # Scope to the workspace pool (ADR-416); fall back to user_id only if no
+        # workspace resolves (legacy safety — never a silent wrong-scope sum).
+        q = q.eq("workspace_id", ws) if ws else q.eq("user_id", user_id)
+        res = q.execute()
         rows = res.data or []
         return float(sum(float(r.get("cost_usd") or 0) for r in rows))
     except Exception as exc:
@@ -226,22 +237,29 @@ def window_spend(client: Any, user_id: str, window: str) -> float:
 
 
 def seconds_since_last_fire(
-    client: Any, user_id: str, slug: str,
+    client: Any, user_id: str, slug: str, workspace_id: Optional[str] = None,
 ) -> Optional[int]:
     """Return seconds since the most recent execution_events row for this
     slug, or None when no prior fire exists. (Per-slug min-interval floor —
     ADR-313 Gate 3, survives the budget collapse.)
+
+    ADR-416 Phase 4 (bug-fix): scoped to the ACTING WORKSPACE — the per-slug
+    pacing floor is a property of the recurrence in its workspace, not of the
+    owner's user_id across workspaces. Mirrors window_spend's resolution; falls
+    back to user_id only when no workspace resolves.
     """
     try:
-        res = (
+        from services.workspace_context import effective_workspace_id
+        ws = effective_workspace_id(user_id, workspace_id)
+        q = (
             client.table("execution_events")
             .select("created_at")
-            .eq("user_id", user_id)
             .eq("slug", slug)
             .order("created_at", desc=True)
             .limit(1)
-            .execute()
         )
+        q = q.eq("workspace_id", ws) if ws else q.eq("user_id", user_id)
+        res = q.execute()
         row = (res.data or [{}])[0]
         ts = row.get("created_at")
         if not ts:
