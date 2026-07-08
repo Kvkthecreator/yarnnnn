@@ -83,7 +83,9 @@ def test_contract_group() -> None:
     from services.kernel_surfaces import KERNEL_SURFACES
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
-    for slug in ("budget", "autonomy", "expected-output"):
+    # ADR-418: expected-output LEFT the Settings door (dormant — a hired agent's
+    # contract, no band door). budget/autonomy remain the System Agent dials.
+    for slug in ("budget", "autonomy"):
         check(f"{slug} → the Settings door (ADR-412 D5)", by_slug[slug].get("pane_of") == "workspace-settings")
     # Governance is no longer in the dissolved System Settings door, and no
     # longer a 'Governance' OR 'Contract'-in-workspace-settings group.
@@ -133,11 +135,19 @@ def test_redirect_stubs_point_to_one_door() -> None:
     # Settings door's System Agent group (the ADR-387 Freddie-pane targets
     # reversed).
     print("\n[stubs] governance routes redirect into the Settings door (ADR-412 D5)")
-    for slug in ("budget", "autonomy", "expected-output"):
+    # ADR-418: budget/autonomy still deep-link to their System Agent panes.
+    for slug in ("budget", "autonomy"):
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
         target = f"/workspace-settings?workspace-settings.pane={slug}"
         check(f"/{slug} → {target}", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (ADR-308)", "'use client'" not in stub)
+    # ADR-418 — the /expected-output stub survives for BOOKMARK SAFETY only, but
+    # the surface is dormant: it redirects to the Settings door WITHOUT a dead
+    # pane param (its pane no longer exists), and stays server-side (ADR-308).
+    eo_stub = _read("app/(authenticated)/expected-output/page.tsx")
+    check("/expected-output → /workspace-settings (no dead pane param)",
+          "redirect('/workspace-settings')" in eo_stub)
+    check("/expected-output stub is server-side (ADR-308)", "'use client'" not in eo_stub)
     # The Home autonomy badge deep-links via the navigation-enactment verb
     # (ADR-297 D19.5). foregroundSurface('autonomy') is UNCHANGED — the registry
     # re-point (pane_of: workspace-settings) makes it resolve to the door.
@@ -147,16 +157,21 @@ def test_redirect_stubs_point_to_one_door() -> None:
 
 
 def test_expected_output_registered() -> None:
-    print("\n[expected-output] the new pane is registered (ADR-348 dependency)")
+    # ADR-348 registered the surface; ADR-418 made it DORMANT — the registry row
+    # + substrate concept survive (so the concept + flat search persist), but the
+    # surface is routeless and off the FE allowlist until the per-agent FE (ADR-382).
+    print("\n[expected-output] the surface concept survives; the surface is dormant (ADR-418)")
     from services.kernel_surfaces import KERNEL_SURFACES
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
-    check("expected-output surface present", "expected-output" in by_slug)
+    check("expected-output registry row survives", "expected-output" in by_slug)
     eo = by_slug.get("expected-output", {})
-    check("expected-output reads governance/_expected_output.yaml",
+    check("expected-output still reads _expected_output.yaml",
           any("_expected_output.yaml" in p for p in eo.get("substrate_paths", [])))
+    check("expected-output is dormant (routeless)", not eo.get("route"))
     desk = _read("types/desk.ts")
-    check("desk.ts union includes 'expected-output'", "'expected-output'" in desk)
+    check("desk.ts allowlist DROPS 'expected-output' (dormant, ADR-418)",
+          "'expected-output'" not in desk)
 
 
 def main() -> int:

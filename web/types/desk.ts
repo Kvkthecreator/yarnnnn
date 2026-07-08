@@ -38,7 +38,13 @@ export type KernelSurfaceSlug =
   | 'recurrence'
   | 'budget'
   | 'autonomy'
-  | 'expected-output'  // ADR-348 — Expected Output pane (Contract group)
+  // ADR-348 added the Expected-Output pane. ADR-418 (2026-07-08) made it DORMANT
+  // (routeless, off this allowlist) — the output contract is a HIRED agent's
+  // concern with no constitution-band door, so its slug leaves the navigable set
+  // until the per-agent contract FE (ADR-382 / ADR-414 §9b). The registry row
+  // survives backend-side (services/kernel_surfaces.py) so the concept persists.
+  // (Slug intentionally NOT written as a quoted literal here — the parity gate
+  // reads quoted names from this union up to the first semicolon.)
   | 'mandate'
   | 'principles'
   | 'identity'
@@ -77,7 +83,11 @@ export type DeskSurface =
   | { type: 'idle' };
 
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
-  'home', 'chat', 'recurrence', 'budget', 'autonomy', 'expected-output', 'mandate', 'principles',
+  // ADR-418 — the Expected-Output slug is removed: dormant (routeless) until the
+  // per-agent contract FE (ADR-382). The three-way parity (navigable == allowlist
+  // == registry∪panes) holds with it out of all three. (Slug not quoted in this
+  // comment — the ADR-347 gate asserts the quoted literal is absent from desk.ts.)
+  'home', 'chat', 'recurrence', 'budget', 'autonomy', 'mandate', 'principles',
   'identity', 'files', 'agents', 'setup', 'program', 'queue', 'notifications', 'activity',
   'settings', 'workspace-settings', 'connectors', 'sources',
 ] as const;

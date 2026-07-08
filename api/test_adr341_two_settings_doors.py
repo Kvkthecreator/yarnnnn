@@ -92,18 +92,25 @@ def test_pane_homing() -> None:
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
     # ADR-387 §6.4 (2026-06-30) moved the agent-scoped governance panes to
-    # Freddie's roster pane; ADR-412 D5 (2026-07-06) REVERSED it — Freddie
-    # left the /agents roster, and the panes live on the Settings door as
-    # the System Agent group (the steward's inspection surface is system
-    # layer, not staff roster).
-    for slug in ("identity", "principles", "autonomy", "budget", "expected-output"):
+    # Freddie's roster pane; ADR-412 D5 (2026-07-06) REVERSED it — the panes
+    # live on the Settings door as the System Agent group. ADR-418 (2026-07-08)
+    # PURIFIED that group to what the STEWARD actually owns (ADR-414 D2): the
+    # two dials only.
+    for slug in ("autonomy", "budget"):
         check(f"{slug} → the Settings door (ADR-412 D5)", by_slug[slug].get("pane_of") == "workspace-settings")
-        check(f"{slug} grouped System Agent", by_slug[slug].get("pane_group") == "System Agent")
-    # Workspace Settings keeps the genuinely workspace-level residue: Mandate
-    # (constitution/ — operator intent) + Program (operation/). ADR-387 D1.
-    for slug in ("mandate",):
+        check(f"{slug} grouped System Agent (ADR-418: the steward's dials)", by_slug[slug].get("pane_group") == "System Agent")
+    # ADR-418 — identity/principles are constitution mirrors (NOT the steward's
+    # persona, which is a kernel constant): they re-home System Agent →
+    # Constitution group, joining Mandate. They keep pane_of: workspace-settings
+    # (the Home constitution band still doors them here).
+    for slug in ("mandate", "identity", "principles"):
         check(f"{slug} → the one Settings door", by_slug[slug].get("pane_of") == "workspace-settings")
-        check(f"{slug} grouped Constitution", by_slug[slug].get("pane_group") == "Constitution")
+        check(f"{slug} grouped Constitution (ADR-418)", by_slug[slug].get("pane_group") == "Constitution")
+    # ADR-418 — expected-output went DORMANT: a hired Altitude-3 agent's output
+    # contract with no constitution-band door, so it leaves the navigable set
+    # (no route, no pane_of) until the per-agent FE (ADR-382 / ADR-414 §9b).
+    check("expected-output is dormant (no pane_of)", by_slug["expected-output"].get("pane_of") is None)
+    check("expected-output is dormant (no route)", not by_slug["expected-output"].get("route"))
     for slug in ("program",):
         check(f"{slug} → the one Settings door", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug} grouped Operation", by_slug[slug].get("pane_group") == "Operation")

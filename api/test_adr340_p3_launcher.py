@@ -91,8 +91,11 @@ def test_registry_tiers() -> None:
         # 2026-07-08: `agents` joins (deferred from launch chrome — ADR-414 /
         # commit 6d2d216). connectors/sources stay search-only panes (ADR-415
         # re-homed them pane_of workspace-settings; panes are always search-only).
+        # ADR-418 (2026-07-08): `expected-output` LEAVES this set — it went
+        # dormant (route=""), so it is no longer navigable and drops out of the
+        # tier map entirely (the surface returns with the per-agent FE, ADR-382).
         {s for s, t in tiers.items() if t == "search-only"}
-        == {"mandate", "principles", "identity", "budget", "autonomy", "expected-output",
+        == {"mandate", "principles", "identity", "budget", "autonomy",
             "program", "connectors", "sources", "activity", "agents",
             "queue", "recurrence", "setup", "notifications"},
     )

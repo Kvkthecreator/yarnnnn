@@ -185,7 +185,7 @@ export function WorkspaceContextOverlay({
 // ---------------------------------------------------------------------------
 
 interface PulseData {
-  liveness_line: string;       // "Last wake 59m ago" | "No wakes in 7d" | "Reviewer not configured"
+  liveness_line: string;       // "Your agent last ran 59m ago" | "…hasn't run in 7d" | "Your agent is not configured yet"
   pending_count: number;
   pending_titles: string[];
   next_wake_slug: string | null;
@@ -231,7 +231,9 @@ function PulseSection({ onAskTP }: { onAskTP: (prompt: string) => void }) {
           return (dc.expected_effect as string) || p.primitive.replace(/^platform_/, '');
         });
 
-        let livenessLine = 'Reviewer not configured';
+        // ADR-418 — operator-facing copy says "agent", not "Reviewer" (the
+        // ADR-414 Phase-F ban; matches the sibling "Your agent…" branches below).
+        let livenessLine = 'Your agent is not configured yet';
         let nextWakeSlug: string | null = null;
         let nextWakeRelative: string | null = null;
 

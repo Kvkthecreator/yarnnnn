@@ -194,8 +194,12 @@ def test_system_agent_rehome() -> None:
     print("\n[d] System Agent panes live in Workspace Settings (ADR-412 D5)")
     from services.kernel_surfaces import KERNEL_SURFACES
 
-    rehomed = {"identity", "principles", "autonomy", "budget", "expected-output"}
-    for slug in sorted(rehomed):
+    # ADR-418 (2026-07-08) purified the System Agent group to the steward's DIALS.
+    # autonomy/budget stay pane_of workspace-settings + grouped System Agent;
+    # identity/principles moved to the Constitution group (still pane_of
+    # workspace-settings); expected-output went dormant (no pane_of).
+    dials = {"autonomy", "budget"}
+    for slug in sorted(dials):
         row = next((r for r in KERNEL_SURFACES if r["slug"] == slug), None)
         _assert(
             row is not None and row.get("pane_of") == "workspace-settings",
@@ -204,8 +208,20 @@ def test_system_agent_rehome() -> None:
         if row is not None:
             _assert(
                 row.get("pane_group") == "System Agent",
-                f"`{slug}` sits in the System Agent group",
+                f"`{slug}` sits in the System Agent group (ADR-418: the steward's dials)",
             )
+    for slug in ("identity", "principles"):
+        row = next((r for r in KERNEL_SURFACES if r["slug"] == slug), None)
+        _assert(
+            row is not None and row.get("pane_of") == "workspace-settings"
+            and row.get("pane_group") == "Constitution",
+            f"`{slug}` moved to the Constitution group (ADR-418 — constitution mirror, not the steward's persona)",
+        )
+    eo = next((r for r in KERNEL_SURFACES if r["slug"] == "expected-output"), None)
+    _assert(
+        eo is not None and eo.get("pane_of") is None and not eo.get("route"),
+        "`expected-output` is dormant (no pane_of, no route — ADR-418)",
+    )
     _assert(
         not any(r.get("pane_of") == "agents" for r in KERNEL_SURFACES),
         "No registry pane is homed on the agents window anymore",
@@ -224,12 +240,21 @@ def test_system_agent_rehome() -> None:
         "SystemAgentPanes module exists (the extracted Singular Implementation)",
     )
 
-    for route in ["autonomy", "budget", "principles", "identity", "expected-output"]:
+    # ADR-418: autonomy/budget/principles/identity still deep-link to their pane.
+    for route in ["autonomy", "budget", "principles", "identity"]:
         stub = _read(f"web/app/(authenticated)/{route}/page.tsx")
         _assert(
             f"workspace-settings.pane={route}" in stub and "agents.agent=freddie" not in stub,
             f"/{route} stub redirects into Workspace Settings",
         )
+    # ADR-418: the /expected-output stub survives for bookmark safety but its pane
+    # is gone (dormant) — it redirects to the Settings door with NO dead pane param.
+    eo_stub = _read("web/app/(authenticated)/expected-output/page.tsx")
+    _assert(
+        "redirect('/workspace-settings')" in eo_stub
+        and "workspace-settings.pane=expected-output" not in eo_stub,
+        "/expected-output stub redirects to the Settings door (no dead pane param — ADR-418)",
+    )
 
 
 # =============================================================================
@@ -301,9 +326,14 @@ def test_grant_derived_affordances() -> None:
     ws = _read("web/app/(authenticated)/workspace-settings/page.tsx")
     _assert('GrantGate region="constitution/"' in ws,
             "the Mandate pane is grant-gated")
+    # ADR-418: the System Agent panes are the steward's DIALS (governance/); the
+    # persona/ panes (identity/principles) moved to the workspace-settings
+    # Constitution group, where they gate on persona/ directly.
     sap = _read("web/components/agents/SystemAgentPanes.tsx")
-    _assert("PANE_REGIONS" in sap and "governance/" in sap and "persona/" in sap,
-            "System Agent panes gate per their region root")
+    _assert("PANE_REGIONS" in sap and "governance/" in sap,
+            "System Agent dial panes gate on governance/ (ADR-418)")
+    _assert('GrantGate region="persona/"' in ws,
+            "the constitution Identity/Principles panes gate on persona/ (ADR-418)")
 
 
 if __name__ == "__main__":

@@ -1,19 +1,28 @@
 'use client';
 
 /**
- * ADR-246: Reviewer persona name resolution.
+ * Persona name resolution (ADR-246; amended ADR-414 D2 / ADR-418).
  *
  * Reads /workspace/persona/IDENTITY.md and extracts the operator-authored
- * persona name so FreddieCard can show "Simons approved" instead of
- * "AI Reviewer approved".
+ * persona name so the rail + attribution can show "Simons" instead of a
+ * generic label.
+ *
+ * ADR-414 D2 note: the SYSTEM AGENT (Freddie) has NO operator-authored
+ * persona — its identity is a kernel constant, and a bare workspace's
+ * persona/IDENTITY.md is the kernel steward-default (rejected below via the
+ * `yarnnn:steward-default` marker → the caller falls back to "Freddie"). This
+ * hook returns a name only once a HIRED agent (or a program activation) has
+ * installed a real persona at persona/IDENTITY.md (the occupant-agnostic SEAT
+ * path, ADR-315). So "persona name" here means the hired occupant's — never
+ * the steward's.
  *
  * Resolution rules (in order):
  * 1. First `# ` heading line → strip `# ` prefix → use as persona name
  * 2. File missing or empty → return null (caller falls back to generic label)
- * 3. File is a skeleton/template (contains "_(empty" or "template") → return null
+ * 3. File is a skeleton/template/kernel-default → return null
  *
  * Kept intentionally thin — no composition, no inference. Just a name
- * extracted from the operator-authored IDENTITY.md per ADR-246 D2.
+ * extracted from the IDENTITY.md at the seat path.
  *
  * Module-level singleton cache: the persona name is workspace-stable
  * within a session, so a single fetch (deduped across all hook callers)

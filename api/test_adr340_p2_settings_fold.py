@@ -39,16 +39,21 @@ WORKSPACE_SETTINGS_PANES = {
     "program",   # Operation
 }
 # ADR-412 D5: the system agent's panes live in Workspace Settings (System
-# Agent group) — pane_of: workspace-settings.
+# Agent group). ADR-418 (2026-07-08) PURIFIED the group to the STEWARD's actual
+# surface (ADR-414 D2): the two dials only. identity/principles left for the
+# Constitution group; expected-output went dormant (no longer pane-grade).
 FREDDIE_PANES = {
-    "identity", "principles",          # the agent's persona/
-    "autonomy", "budget",              # governance/ ceilings
-    "expected-output",                 # contract/ (what it owes)
+    "autonomy", "budget",              # governance/ dials — the steward's own
 }
+# ADR-418: identity + principles are constitution mirrors (persona/ region,
+# doored from the Home band), grouped Constitution alongside Mandate — still
+# pane_of: workspace-settings. (mandate itself is in WORKSPACE_SETTINGS_PANES.)
+CONSTITUTION_PANES = {"identity", "principles"}
 # ADR-415 (2026-07-08): connectors + sources re-home from the dissolved
 # Channels surface back to Workspace Settings → Perception (pane-grade).
 PERCEPTION_PANES = {"connectors", "sources"}
-EXPECTED_PANES = WORKSPACE_SETTINGS_PANES | FREDDIE_PANES | PERCEPTION_PANES
+# ADR-418: expected-output is NOT pane-grade anymore (dormant) — excluded here.
+EXPECTED_PANES = WORKSPACE_SETTINGS_PANES | FREDDIE_PANES | CONSTITUTION_PANES | PERCEPTION_PANES
 
 
 def check(label: str, condition: bool, detail: str = "") -> None:
@@ -82,10 +87,16 @@ def test_registry_pane_model() -> None:
     for slug in sorted(WORKSPACE_SETTINGS_PANES):
         check(f"{slug}: pane_of == 'workspace-settings'", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
-    # ADR-412 D5: the system agent's panes fold into Workspace Settings.
+    # ADR-412 D5 + ADR-418: the system agent's DIALS fold into Workspace Settings.
     for slug in sorted(FREDDIE_PANES):
         check(f"{slug}: pane_of == 'workspace-settings' (ADR-412 D5)", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
+    # ADR-418: identity + principles are pane_of workspace-settings (Constitution group).
+    for slug in sorted(CONSTITUTION_PANES):
+        check(f"{slug}: pane_of == 'workspace-settings' (ADR-418)", by_slug[slug].get("pane_of") == "workspace-settings")
+        check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
+    # ADR-418: expected-output is dormant — NOT pane-grade (no pane_of).
+    check("expected-output not pane-grade (dormant, ADR-418)", by_slug["expected-output"].get("pane_of") is None)
     # ADR-415: connectors + sources re-home to Workspace Settings → Perception.
     for slug in sorted(PERCEPTION_PANES):
         check(f"{slug}: pane_of == 'workspace-settings' (ADR-415)", by_slug[slug].get("pane_of") == "workspace-settings")
@@ -106,17 +117,19 @@ def test_registry_pane_model() -> None:
         "setup stays window-grade (Sequence surface, ADR-331)",
         not by_slug["setup"].get("pane_of"),
     )
-    # ADR-412 D5 grouping — one System Agent group (the ADR-387 five-group
-    # pedagogy flattened; pane bodies carry root-ownership taglines).
+    # ADR-418 grouping — the System Agent group is the steward's DIALS only.
     for slug in sorted(FREDDIE_PANES):
-        check(f"{slug} grouped System Agent (ADR-412 D5)", by_slug[slug]["pane_group"] == "System Agent")
+        check(f"{slug} grouped System Agent (ADR-418)", by_slug[slug]["pane_group"] == "System Agent")
     # ADR-415 (2026-07-08): Perception RETURNS to Workspace Settings —
     # connectors + sources re-home to the Perception group (Channels dissolved).
     check("connectors grouped Perception (ADR-415)", by_slug["connectors"]["pane_group"] == "Perception")
     check("sources grouped Perception (ADR-415)", by_slug["sources"]["pane_group"] == "Perception")
-    # Workspace Settings keeps Mandate (Constitution) + Program (Operation).
+    # Workspace Settings keeps Mandate + identity/principles (Constitution, ADR-418)
+    # + Program (Operation).
     check("program grouped Operation", by_slug["program"]["pane_group"] == "Operation")
     check("mandate grouped Constitution", by_slug["mandate"]["pane_group"] == "Constitution")
+    for slug in sorted(CONSTITUTION_PANES):
+        check(f"{slug} grouped Constitution (ADR-418)", by_slug[slug]["pane_group"] == "Constitution")
 
 
 def test_settings_container() -> None:
@@ -159,14 +172,23 @@ def test_settings_container() -> None:
         "Settings door mounts the System Agent group (ADR-412 D5)",
         "SYSTEM_AGENT_PANE_GROUP" in ws_src and "renderSystemAgentPane" in ws_src,
     )
+    # ADR-418: SystemAgentPanes renders only the steward's DIALS (Autonomy,
+    # Budget) + the read-only Freddie panels. Principles moved to the
+    # workspace-settings Constitution group; Expected Output went dormant.
     panes_src = _read("components/agents/SystemAgentPanes.tsx")
     for needle, label in [
-        ("PrinciplesCard", "Principles"),
         ("BudgetCard", "Budget"),
         ("AutonomyCard", "Autonomy"),
-        ("ExpectedOutputCard", "Expected Output"),
     ]:
-        check(f"SystemAgentPanes renders {label} (ADR-412 D5)", needle in panes_src)
+        check(f"SystemAgentPanes renders {label} (ADR-418)", needle in panes_src)
+    for needle, label in [
+        ("PrinciplesCard", "Principles (moved to Constitution group)"),
+        ("ExpectedOutputCard", "Expected Output (dormant)"),
+    ]:
+        check(f"SystemAgentPanes no longer renders {label} (ADR-418)", needle not in panes_src)
+    # ADR-418: Principles now renders on the Settings door itself (Constitution).
+    check("Settings door renders PrinciplesCard (Constitution, ADR-418)", "PrinciplesCard" in ws_src)
+    check("Settings door renders the Identity SubstrateTab (Constitution, ADR-418)", "SubstrateTab" in ws_src)
     agent_src = _read("components/agents/AgentContentView.tsx")
     for needle, label in [
         ("PrinciplesCard", "Principles"),

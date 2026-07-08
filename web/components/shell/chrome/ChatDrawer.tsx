@@ -78,7 +78,8 @@ const AUTHOR_SURFACES = new Set([
   'mandate',
   'principles',
   'identity',
-  'expected-output',
+  // ADR-418 — 'expected-output' removed: the surface is dormant (routeless), so
+  // it can never be the foregrounded surface this width heuristic keys on.
 ]);
 // Surfaces where reading the surface leads and chat is a side-channel →
 // narrower default. Everything not named here falls to DRAWER_DEFAULT.

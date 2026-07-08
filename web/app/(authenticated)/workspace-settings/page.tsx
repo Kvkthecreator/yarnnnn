@@ -28,22 +28,29 @@
  * connectors/sources slugs are pane_of: channels.
  *
  * ADR-412 D5 (2026-07-06): the SYSTEM AGENT group lands — Freddie's panes
- * (Identity · Principles · Autonomy · Budget · Expected Output ·
- * Capabilities · Activity) re-home HERE from the /agents roster, reversing
- * ADR-387 §6.4's placement: the Agents surface is Altitude 3 (domain +
- * persona agents); the system agent's inspection surface belongs on the
- * system layer. Bodies render via SystemAgentPanes (Singular
- * Implementation — the roster mount is deleted). The ADR-387
- * MOVED_TO_FREDDIE redirect net is deleted with it: the old
- * workspace-settings.pane= URLs simply resolve here again.
+ * re-home HERE from the /agents roster (the Agents surface is Altitude 3;
+ * the system agent's inspection surface belongs on the system layer).
+ *
+ * ADR-418 (2026-07-08): the System Agent group is PURIFIED to what the
+ * steward actually owns post ADR-414 D2 — its two dials (Autonomy = witness,
+ * Budget = allocation) + read-only legibility (Capabilities · Activity).
+ *   - Identity + Principles rejoin the Constitution group (they are
+ *     constitution mirrors doored from the Home band, NOT the steward's
+ *     persona — which is a kernel constant now). Rendered in the switch below.
+ *   - Expected Output went DORMANT (a hired-agent contract, no band door;
+ *     returns with the per-agent FE — ADR-382 / ADR-414 §9b).
+ * The System Agent group's remaining panes still render via SystemAgentPanes
+ * (Singular Implementation).
  */
 
 import { useEffect, useState } from "react";
-import { Target, UserCircle, Package, AlertCircle, Rocket, Loader2, Users, Link2, Rss } from "lucide-react";
+import { Target, UserCircle, Package, AlertCircle, Rocket, Loader2, Users, Link2, Rss, User, Scale } from "lucide-react";
 import { api, APIError } from "@/lib/api/client";
 import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { MandateCard } from "@/components/workspace-concepts/MandateCard";
+import { PrinciplesCard } from "@/components/workspace-concepts/PrinciplesCard";
+import { SubstrateTab } from "@/components/agents/SubstrateTab";
 import { GrantGate } from "@/components/workspace-concepts/GrantGate";
 import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
 import { WorkspaceFileView } from "@/components/shared/WorkspaceFileView";
@@ -63,16 +70,26 @@ import {
 
 // ADR-341/347: pane keys match the kernel registry slugs for pane-grade
 // surfaces, so foregroundSurface(slug) → workspace-settings + ?pane=slug
-// resolves here. ADR-385: connectors/sources moved to pane_of: channels.
-// ADR-412 D5 (2026-07-06): the ADR-387 §6.4 move is REVERSED — the
-// agent-scoped panes (identity/principles/autonomy/budget/expected-output +
-// capabilities/activity) return as the System Agent group, since Freddie
-// left the /agents roster. Registry rows carry pane_of: workspace-settings
-// again; capabilities/activity stay local pane keys (no registry row).
+// resolves here. ADR-415: connectors/sources re-homed here (Channels dissolved).
+// ADR-418 (2026-07-08): the System Agent group carries only the steward's own
+// surface (autonomy/budget dials + capabilities/activity reads); identity/
+// principles moved to the Constitution group (constitution mirrors, doored from
+// the Home band); expected-output went dormant. capabilities/activity stay
+// local pane keys (no registry row).
 const PANE_GROUPS: PaneGroup[] = [
   {
+    // ADR-418 (2026-07-08): Identity + Principles rejoin Mandate here. Post
+    // ADR-414 D2 the steward has no operator-authored persona — identity/
+    // principles are constitution mirrors (register intent, doored from the
+    // Home constitution band), NOT Freddie's, so they leave the System Agent
+    // group and rejoin the constitution. A hired agent's own persona panes are
+    // the deferred per-agent FE (ADR-382 / ADR-414 §9b).
     label: "Constitution",
-    panes: [{ key: "mandate", label: "Mandate", icon: Target }],
+    panes: [
+      { key: "mandate", label: "Mandate", icon: Target },
+      { key: "identity", label: "Identity", icon: User },
+      { key: "principles", label: "Principles", icon: Scale },
+    ],
   },
   SYSTEM_AGENT_PANE_GROUP,
   {
@@ -129,6 +146,41 @@ export default function WorkspaceSettingsPage() {
           <section className="mb-8">
             <GrantGate region="constitution/">
               <MandateCard variant="full" />
+            </GrantGate>
+          </section>
+        );
+      // ADR-418 (2026-07-08) — Identity + Principles re-home here from the
+      // System Agent group. They are constitution mirrors (persona/ region,
+      // doored from the Home band), NOT the steward's persona (which is a
+      // kernel constant post ADR-414 D2). The persona.md/IDENTITY.md files ARE
+      // the seat a HIRED agent installs into — the copy names that honestly, no
+      // longer "Freddie's persona." A hired agent's own panes are the deferred
+      // per-agent FE (ADR-382 / ADR-414 §9b). GrantGate on persona/ per ADR-412 D3.
+      case "identity":
+        return (
+          <section className="mb-8">
+            <GrantGate region="persona/">
+              <SubstrateTab
+                title="Identity"
+                path="/workspace/persona/IDENTITY.md"
+                tagline="The reasoning-character of the seat — who occupies it. Empty for a bare workspace (the system agent reasons from kernel defaults); a hired agent installs its persona here, shaping how it reasons."
+                editPrompt="I want to author the workspace persona — the reasoning character. Walk me through the current declaration."
+                emptyBody={
+                  <p className="text-center text-xs">
+                    No persona declared. A bare workspace has none — the system
+                    agent reasons from kernel defaults. Hire a program (or author
+                    a domain agent) to install a persona here.
+                  </p>
+                }
+              />
+            </GrantGate>
+          </section>
+        );
+      case "principles":
+        return (
+          <section className="mb-8">
+            <GrantGate region="persona/">
+              <PrinciplesCard variant="full" />
             </GrantGate>
           </section>
         );

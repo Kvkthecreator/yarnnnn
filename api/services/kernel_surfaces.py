@@ -439,13 +439,22 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # reads-not-authors (ADR-345 / ADR-320). A floor-gated delivery
         # cadence, NEVER a quota (ADR-345 Goodhart guard).
         "slug": "expected-output",
-        "launcher_tier": "search-only",  # ADR-340 P3 — pane-grade
+        # ADR-418 — dormant: routeless, so no launcher_tier (the P3 gate treats a
+        # routeless entry as chrome, which must carry no tier). Returns with the
+        # per-agent contract FE (ADR-382 / ADR-414 §9b).
         "register": "os-config",  # governance-region machine config (like budget/autonomy)
         # ADR-387 §6.4 — Expected Output is the contract/ CONTRACT (what the
         # operator declares the agent owes, ADR-345/366).
         # ADR-412 D5 (2026-07-06): re-homed pane_of agents → workspace-settings (System Agent group).
-        "pane_of": "workspace-settings",
-        "pane_group": "System Agent",
+        # ADR-418 (2026-07-08): DORMANT. Post ADR-414 D2/D6 the output contract is
+        # a HIRED Altitude-3 agent's concern (ADR-408 D2 / ADR-382 §3), not the
+        # steward's — and unlike identity/principles it has no constitution-band
+        # door, so nothing else needs it reachable at Rung 1. The row stays in the
+        # registry (so the surface concept survives + flat search still knows it),
+        # but drops `route` + `pane_of` + `pane_group`: routeless (non-navigable,
+        # like chrome), off the FE allowlist (desk.ts), stub neutralized. It
+        # returns when the per-agent contract pane is built (ADR-382 / ADR-414 §9b
+        # per-agent FE). No `_route_status` route: dormant by design.
         "title": "Expected Output",
         "archetype": "document",
         "substrate_paths": [
@@ -453,8 +462,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         ],
         "icon_key": "target",
         "default_pinned": False,
-        "route": "/expected-output",  # _route_status: NEW 2026-06-19 (ADR-348)
-        "summary": "What the operation owes when it works — the output contract (kind + delivery-cadence + bar). A floor-gated cadence, never a quota.",
+        "route": "",  # ADR-418 — dormant: non-navigable until the per-agent FE (ADR-382)
+        "summary": "What the operation owes when it works — the output contract (kind + delivery-cadence + bar). A floor-gated cadence, never a quota. (Dormant per ADR-418 until the hired-agent contract pane is built.)",
     },
     {
         "slug": "mandate",
@@ -478,8 +487,14 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "register": "intent",  # ADR-312 D5 — constitution band (was `settings`)
         # ADR-387 §6.4 — Principles is the agent's persona/ judgment framework.
         # ADR-412 D5 (2026-07-06): re-homed pane_of agents → workspace-settings (System Agent group).
+        # ADR-418 (2026-07-08): re-homed System Agent → Constitution group. Post
+        # ADR-414 D2 the STEWARD has no persona (identity/principles are kernel
+        # constants); principles is a CONSTITUTION mirror (register intent),
+        # doored from the Home constitution band — it is not Freddie's, so it
+        # rejoins Mandate under Constitution. A hired Altitude-3 agent's own
+        # principles pane is the deferred per-agent FE (ADR-382 / ADR-414 §9b).
         "pane_of": "workspace-settings",
-        "pane_group": "System Agent",
+        "pane_group": "Constitution",
         "title": "Principles",
         "archetype": "document",
         "substrate_paths": [
@@ -499,8 +514,13 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # (ADR-320 D2b collapsed the legacy operator-identity into
         # persona/IDENTITY.md — the agent's.)
         # ADR-412 D5 (2026-07-06): re-homed pane_of agents → workspace-settings (System Agent group).
+        # ADR-418 (2026-07-08): re-homed System Agent → Constitution group. The
+        # STEWARD has no operator-authored persona post ADR-414 D2 (identity is a
+        # kernel constant); persona/IDENTITY.md is the SEAT path a hired agent
+        # installs into, not Freddie's. Identity is a CONSTITUTION mirror doored
+        # from the Home band — it rejoins Mandate under Constitution.
         "pane_of": "workspace-settings",
-        "pane_group": "System Agent",
+        "pane_group": "Constitution",
         "title": "Identity",
         "archetype": "document",
         "substrate_paths": [
