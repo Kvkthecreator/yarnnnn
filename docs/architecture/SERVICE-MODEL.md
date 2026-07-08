@@ -81,7 +81,7 @@ Every invocation surfaces in one **narrative** — the chat-shaped operator-faci
 
 **Tasks are legibility wrappers, not parallel substrates.** A task is a nameplate + pulse + contract attached to a category of recurring invocations. `/work` is the narrative filtered by task slug — the data substrate is unchanged from ADR-138; the mental model sharpens. Inline actions are invocations without a nameplate; the inline-to-task transition (attach a nameplate + pulse) is gradient and reversible.
 
-**Invocations compose into the Loop.** Per FOUNDATIONS v8.4, the runtime construct in which most invocations occur is **the Loop** (glossary-defined) — the synchronous Reviewer session per [ADR-260](../adr/ADR-260-real-time-reviewer-loop.md). One Loop wake-up is composed of one Reviewer invocation plus zero-or-more System Agent invocations (the tool calls the Reviewer makes, dispatched deterministically per ADR-257) plus zero-or-more nested specialist invocations (`DispatchSpecialist` calls). Mechanical recurrences (`mode: mechanical` per ADR-263 D5) are the deterministic end of the same architecture — they resolve to `funnel_decision="mechanical"` and bypass the Loop entirely, keeping substrate fresh so the Loop has truth to read from when it next wakes. The Loop is the runtime construct in which the operator-as-Reviewer (the personified embodiment per FOUNDATIONS Axiom 2) does its work; substrate is the bus the Loop runs over (Axiom 1's fourth sub-clause).
+**Invocations compose into the Loop.** Per FOUNDATIONS v8.4, the runtime construct in which most invocations occur is **the Loop** (glossary-defined) — the synchronous Reviewer session per [ADR-260](../adr/ADR-260-real-time-reviewer-loop.md). One Loop wake-up is composed of one Reviewer invocation plus zero-or-more System Agent invocations (the tool calls the Reviewer makes, dispatched deterministically per ADR-257) plus (dormant per ADR-417 follow-on) zero specialist invocations — the Reviewer does production work inline; `DispatchSpecialist` was removed from its tool surface. Mechanical recurrences (`mode: mechanical` per ADR-263 D5) are the deterministic end of the same architecture — they resolve to `funnel_decision="mechanical"` and bypass the Loop entirely, keeping substrate fresh so the Loop has truth to read from when it next wakes. The Loop is the runtime construct in which the operator-as-Reviewer (the personified embodiment per FOUNDATIONS Axiom 2) does its work; substrate is the bus the Loop runs over (Axiom 1's fourth sub-clause).
 
 Deep dive: [invocation-and-narrative.md](invocation-and-narrative.md). For the full **wake / recurrence / cadence / pace / autonomy** framework — the five wake sources, the evaluation funnel, the operator's Pace + Autonomy + Identity trifecta, and how the Reviewer authors its own cadence — see the canonical synthesis [**cadence-and-wakes.md**](cadence-and-wakes.md). ADR-219 (proposed) scopes implementation of the narrative-storage and /work-as-filter commitments. ADR-296 v2 (Implemented 2026-05-20) commits the wake architecture.
 
@@ -215,7 +215,7 @@ No hidden flag. No `task_kind` column. Task ownership (agent.role) is the only d
 
 > **Updated 2026-05-20 per ADR-296 v2** (canon rewrite). Prior framing of "three reasons a Reviewer session begins" is reframed as **five wake sources funneled through one singular gateway**. The wake gateway runs Tier 1 + Tier 2 funnel evaluation and escalates only when the moment warrants the Reviewer's full attention.
 >
-> Previously updated 2026-05-08 per ADRs 260/261/262: prior framing of "three execution layers" with a separate headless task pipeline dissolved. The unified execution model is: a wake proposal escalates through the funnel; the Reviewer's real-time tool-use loop runs whatever the wake envelope provides; specialists run as focused-prompt sub-LLM-calls within that loop; the deterministic System Agent dispatches each step.
+> Previously updated 2026-05-08 per ADRs 260/261/262: prior framing of "three execution layers" with a separate headless task pipeline dissolved. The unified execution model is: a wake proposal escalates through the funnel; the Reviewer's real-time tool-use loop runs whatever the wake envelope provides; the Reviewer does production work inline (the DispatchSpecialist escape hatch is dormant per ADR-417 follow-on — zero specialist roles); the deterministic System Agent dispatches each step.
 
 ### How a wake source produces a Reviewer invocation
 
@@ -288,8 +288,8 @@ Reviewer session start (wake proposal escalated)
          in feed)
        • Schedule / ManageHook / WriteFile — Trigger-authoring + standing-intent
          authority (per ADR-296 v2 D3; System Agent narrates as feed bubble)
-       • DispatchSpecialist(role, brief) — focused-prompt sub-LLM-call in headless
-         runtime mode (per ADR-261 D7)
+       • (DispatchSpecialist — REMOVED per ADR-417 follow-on; the Reviewer does
+         production work inline. Dormant seam for a future specialist role.)
        • ProposeAction — capital-moving directive (gated by AUTONOMY)
   → Tool result lands in substrate; Reviewer reads result (read-back as bubble per
     ADR-260 D6)
@@ -299,11 +299,12 @@ Reviewer session start (wake proposal escalated)
 
 **Per ADR-296 v2 D3, FireInvocation is NOT in the Reviewer's tool surface.** The Reviewer's trigger-authoring authority is cadence (`Schedule`) + substrate-event interest (`ManageHook`) + standing intent (`WriteFile` to `/workspace/persona/standing_intent.md`). FireInvocation remains in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES — operator manual fire is the `manual_fire` wake source's entry point.
 
-**Three actors, three responsibilities** (per ADR-261 D7 amendment):
+**Two live actors** (per ADR-261 D7, amended by ADR-417 follow-on — the Specialist actor is dormant):
 
-- **Reviewer** — judgment + high-level sequencing. Names specialist invocations as discrete steps. Writes verdicts to `/workspace/persona/judgment_log.md`.
-- **Specialist** (researcher / analyst / writer / tracker / designer / reporting) — focused-prompt sub-LLM-call (`headless` runtime mode), invoked by `DispatchSpecialist`. Identical execution shape to a Claude Code sub-agent. Returns markdown output to the Reviewer's loop.
-- **System Agent** — deterministic dispatcher (per ADR-257). Receives the Reviewer's structured directives (`FireInvocation`, `Schedule`, `WriteFile`, `DispatchSpecialist`), executes them mechanically, narrates each consequential action as a feed bubble.
+- **Reviewer** — judgment + execution. Does investigation, analysis, prose drafting, accumulation, composition, and cross-domain synthesis **inline** with its own tool surface. Writes verdicts to `/workspace/persona/judgment_log.md`.
+- **System Agent** — deterministic dispatcher (per ADR-257). Receives the Reviewer's structured directives (`FireInvocation`, `Schedule`, `WriteFile`), executes them mechanically, narrates each consequential action as a feed bubble.
+
+**The Specialist actor is dormant (ADR-417 follow-on).** The `DispatchSpecialist` sub-LLM-call escape hatch had a single surviving role (`designer`, ADR-272); ADR-417 retired its asset-generation half with the render service, and its compose-only remainder is work the Reviewer does inline. With zero roles, `DispatchSpecialist` was removed from the Reviewer's tool surface — the module stays as a dormant seam a future specialist role re-enters through (gated by ADR-272's structural Survival Test). Direct headless-role dispatch (e.g. harvest running as `role="researcher"` via `HeadlessAuth`) is a separate mechanism and is unaffected.
 
 **Cross-session continuity uses Authored Substrate (ADR-209)** as the only continuity record. When a later session begins, it reads the head revisions of relevant substrate; prior revisions' authored messages (`reviewer:{occupant}` / `agent:{slug}` / `system:{actor}` with `message` field) are the trail of what prior selves did. No parallel session-state mechanism.
 

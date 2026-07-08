@@ -41,54 +41,34 @@ _SPECIALIST_MAX_ROUNDS = 5  # specialist sub-calls are bounded; ADR-260 D8 round
 
 
 # ADR-272: VALID_SPECIALIST_ROLES narrowed to a single role — `designer`.
-# ADR-417: the designer's asset-generation half (RuntimeDispatch → the render
-# service) is retired — generation is rented, not owned. The role survives as
-# a compose-only shell (read substrate, compose HTML). DispatchSpecialist is
-# therefore now near-inert; collapsing or removing it is a NAMED FOLLOW-ON
-# (the specialist-dispatch architecture cleanup), deliberately out of ADR-417's
-# subtractive scope so the three-actor execution model is revisited on its own.
-VALID_SPECIALIST_ROLES = {
-    "designer",
-}
+# ADR-417 follow-on: `designer` is removed. Its asset-generation half retired
+# with the render service; its surviving compose-only half is work the Reviewer
+# does inline (Compose / WriteFile). Nothing dispatched `role="designer"` at
+# runtime. With zero roles left, DispatchSpecialist is uncallable — it is
+# removed from the LLM tool registry (CHAT/HEADLESS/FREDDIE), and this module +
+# handler are retained DORMANT as the seam a future specialist role re-enters
+# through (ADR-272's structural Survival Test still gates any re-addition).
+# NOTE: this does NOT touch the direct headless-dispatch path — harvest.py
+# dispatches `role="researcher"` via HeadlessAuth, a separate mechanism.
+VALID_SPECIALIST_ROLES: set[str] = set()
 
 
 DISPATCH_SPECIALIST_TOOL = {
     "name": "DispatchSpecialist",
-    "description": """Dispatch a focused-prompt specialist sub-LLM-call (ADR-261 D7, narrowed by ADR-272).
+    # ADR-417 follow-on: DORMANT — NOT registered in CHAT/HEADLESS/FREDDIE.
+    # VALID_SPECIALIST_ROLES is empty (designer removed with the render service;
+    # every prior specialist activity is now Reviewer-inline). This definition +
+    # handler are retained as the seam a future specialist role re-enters
+    # through: to re-activate, add the role to VALID_SPECIALIST_ROLES + a
+    # PRODUCTION_ROLES entry (both gated by ADR-272's structural Survival Test)
+    # and re-register the tool in registry.py.
+    "description": """Dispatch a focused-prompt specialist sub-LLM-call (ADR-261 D7).
 
-Escape hatch for production-shape work that genuinely needs a different
-tool surface, larger output budget, and longer latency tolerance than
-your own judgment loop.
-
-DEFAULT POSTURE: do production work inline. Read substrate, compute,
-write. Specialists are NOT a delegation pattern for "this would be nicer
-in a specialist"; they exist for work that fails inline-execution on
-structural grounds.
-
-One specialist role (post ADR-272 Specialist Survival Test):
-  - designer: composes substrate into HTML for in-workspace consumption.
-    (ADR-417: the asset-generation half — charts/mermaid/images/video via
-    the in-house render service — is retired. Generation is rented, not
-    owned; yarnnn hosts no generation engine.)
-
-Dissolved roles (do not call — Reviewer does this inline):
-  - researcher, analyst, writer, tracker, reporting → all dissolved.
-    These were judgment-adjacent activities expressed as production
-    roles; the Reviewer does investigation, analysis, prose drafting,
-    accumulation, and cross-domain synthesis using its own tool surface.
-
-The brief tells the designer what to compose, what substrate to read
-inputs from, and where to write the output (slug-templated paths per
-CONVENTIONS topology). The designer returns markdown summarizing the
-composed output.
-
-Examples:
-  DispatchSpecialist(role="designer",
-    brief="Compose a weekly performance HTML section from
-           /workspace/operation/portfolio/_money_truth.md — render the
-           equity series as a native HTML table with a one-line summary.
-           Output target: /workspace/operation/reports/
-           weekly-performance-review/{date}/sections/equity.md")""",
+DORMANT (ADR-417 follow-on): there are no specialist roles — every prior
+specialist activity (research, analysis, prose, accumulation, composition,
+synthesis) is work the Reviewer does inline with its own tool surface. This
+primitive is not exposed until a role clears ADR-272's structural Survival
+Test and is re-registered.""",
     "input_schema": {
         "type": "object",
         "properties": {

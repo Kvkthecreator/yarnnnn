@@ -33,30 +33,20 @@ from services.orchestration import ALL_ROLES, LEGACY_ROLE_MAP
 VALID_ROLES = set(ALL_ROLES.keys()) | set(LEGACY_ROLE_MAP.keys()) | {"act"}
 
 # Fallback scope from role (used when infer_scope can't reason about sources).
-# ADR-272: PRODUCTION_ROLES collapsed to {designer}; legacy/dissolved role
-# entries removed. Unknown roles fall through to "knowledge" via the default
-# in the `.get()` callsite below.
+# ADR-272 → ADR-417 follow-on: PRODUCTION_ROLES is now empty (designer removed).
+# Unknown roles fall through to "knowledge" via the default in the `.get()`
+# callsite below.
 ROLE_TO_SCOPE = {
-    # ADR-176 (narrowed by ADR-272): designer is the sole production specialist.
-    "designer": "knowledge",
     # ADR-164: YARNNN as meta-cognitive agent — orchestration is autonomous scope.
     "thinking_partner": "autonomous",
 }
 
 
 # Default agent_instructions seed text per role. ADR-272: inlined here when
-# orchestration_prompts.py was deleted (its build_role_prompt / validate_output
-# machinery was dead-code from the pre-ADR-261 task pipeline). Only the two
-# surviving roles have defaults; everything else gets empty string and the
-# operator authors instructions explicitly.
+# orchestration_prompts.py was deleted. ADR-417 follow-on: the `designer` seed
+# is removed (the role is gone). Only thinking_partner has a default; every
+# other role gets empty string and the operator authors instructions explicitly.
 _DEFAULT_INSTRUCTIONS: dict[str, str] = {
-    "designer": (
-        "Render visual assets — charts, mermaid diagrams, images, composed "
-        "HTML — from inputs the Reviewer hands you. Read inputs from the "
-        "brief's named substrate paths; write outputs to the slug-templated "
-        "paths the brief declares. Keep the rendered artifact self-contained; "
-        "the Reviewer reads your markdown summary, not your tool-use loop."
-    ),
     "thinking_partner": (
         "Orchestrate the operator's workspace. Read substrate, propose actions, "
         "respect the operator's mandate, defer judgment to the Reviewer."
@@ -239,20 +229,21 @@ async def create_agent_record(
 # deleted; `ensure_infrastructure_agents_for_type` deleted (callers derive
 # ensure list from the recurrence YAML body's process / agent_ref fields).
 
-# ADR-272: PRODUCTION_ROLES collapsed to {designer}; the previous 5-element
-# enumeration of universal specialists + 1 synthesizer narrows to one role.
-PRODUCTION_ROLE_SLUGS: frozenset[str] = frozenset({"designer"})
+# ADR-272 → ADR-417 follow-on: PRODUCTION_ROLES is now EMPTY (designer removed).
+# No slug classifies as a production "specialist" any longer — the Reviewer does
+# all production work inline. Retained as an (empty) frozenset so classify_role's
+# membership test stays valid and a future specialist role re-enters by adding a
+# slug here (gated by ADR-272's structural Survival Test).
+PRODUCTION_ROLE_SLUGS: frozenset[str] = frozenset()
 
 # Infrastructure slug → role. Slugs are derived from ALL_ROLES display
 # names via _slugify_agent; this map is the inverse. Dispatch sites that
 # resolve by slug use it to find the underlying infrastructure role for
 # lazy-ensure.
-# ADR-272: dissolved roles removed; legacy slugs fall through and surface
-# as "unresolvable" at the lazy-ensure call site (loud failure preferred
-# to silent re-route to wrong role).
+# ADR-272 → ADR-417 follow-on: dissolved + designer roles removed; legacy slugs
+# fall through and surface as "unresolvable" at the lazy-ensure call site (loud
+# failure preferred to silent re-route to wrong role).
 _INFRA_SLUG_TO_ROLE: dict[str, str] = {
-    # ADR-176 (narrowed by ADR-272): designer is the sole production role.
-    "designer": "designer",
     # YARNNN
     "thinking-partner": "thinking_partner",
 }

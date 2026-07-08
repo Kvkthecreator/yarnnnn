@@ -366,7 +366,6 @@ def test_reviewer_primitives_contract() -> None:
         "ManageHook",      # substrate-event interest (ADR-296 v2 D2)
         "WriteFile",       # full-substrate-authoring (lock-gated)
         "ProposeAction",   # direction primitive (ADR-258)
-        "DispatchSpecialist",  # ADR-261 D7
         "Clarify",         # conversation surface
     }
     missing = required - names
@@ -374,6 +373,16 @@ def test_reviewer_primitives_contract() -> None:
         f"FREDDIE_PRIMITIVES missing required tools: {missing}. "
         f"These are load-bearing for Variant F structural claims #1 "
         f"and #5."
+    )
+
+    # MUST NOT be present (ADR-417 follow-on — DispatchSpecialist removed from
+    # the LLM registry; its only role, designer, retired with the render
+    # service. The Reviewer does production work inline.)
+    assert "DispatchSpecialist" not in names, (
+        "DispatchSpecialist is back in FREDDIE_PRIMITIVES — the ADR-417 "
+        "follow-on removed it (zero specialist roles; the Reviewer does "
+        "production work inline). Re-adding needs a role that clears ADR-272's "
+        "structural Survival Test."
     )
 
     # MUST NOT be present (ADR-296 v2 D3 — Reviewer does not self-invoke)

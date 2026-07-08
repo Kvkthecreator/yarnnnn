@@ -47,11 +47,9 @@ from .embed import EMBED_TOOL, handle_embed
 # live via MCP remember_this (identity/brand foreign-LLM writes).
 from .schedule import SCHEDULE_TOOL, handle_schedule  # ADR-261 §3 — renamed from ManageRecurrence
 from .manage_hook import MANAGE_HOOK_TOOL, handle_manage_hook  # ADR-296 v2 D2 — substrate-event hook lifecycle
-from .compose import COMPOSE_TOOL, handle_compose  # ADR-262 D4 — callable primitive wrapping render engine
-from .dispatch_specialist import (  # ADR-261 D7 — Reviewer-loop specialist sub-call
-    DISPATCH_SPECIALIST_TOOL,
-    handle_dispatch_specialist,
-)
+from .compose import COMPOSE_TOOL, handle_compose  # ADR-262 D4 — callable primitive wrapping the in-API compose engine
+# ADR-417 follow-on: DispatchSpecialist NOT imported — removed from the LLM
+# registry (its only role, designer, is retired; module stays dormant as a seam).
 from .scaffold import MANAGE_DOMAINS_TOOL, handle_manage_domains
 from .workspace import (
     READ_FILE_TOOL, handle_read_file,
@@ -320,10 +318,6 @@ CHAT_PRIMITIVES = [
     # Operator/Reviewer/specialist may direct mid-session composition.
     # Also runs as opt-out structural default at session-close (separate hook).
     COMPOSE_TOOL,
-    # ADR-261 D7: DispatchSpecialist — Reviewer's chat-mode loop dispatches
-    # focused-prompt specialist sub-LLM-calls (researcher, analyst, writer,
-    # tracker, designer, reporting). Identical shape to Claude Code sub-agents.
-    DISPATCH_SPECIALIST_TOOL,
     # Repurpose (ADR-148 Phase 4)
     REPURPOSE_OUTPUT_TOOL,
     # Approval loop (3) — ADR-193
@@ -385,9 +379,6 @@ HEADLESS_PRIMITIVES = [
     FIRE_INVOCATION_TOOL,
     # ADR-262 D4: Compose — specialists may compose mid-session for handoff.
     COMPOSE_TOOL,
-    # ADR-261 D7: DispatchSpecialist — recurrence prompts that orchestrate
-    # multi-step specialist sequences may chain sub-calls.
-    DISPATCH_SPECIALIST_TOOL,
     MANAGE_DOMAINS_TOOL,
     # Approval loop (ADR-193) — headless agents must propose when action is
     # soft/irreversible; autonomous execution without approval is unsafe.
@@ -486,7 +477,6 @@ FREDDIE_PRIMITIVES = [
     # Specialist dispatch (ADR-261 D7) — Reviewer hands focused briefs to
     # researcher / analyst / writer / tracker / designer / reporting roles
     # for production work the Reviewer's context shouldn't carry.
-    DISPATCH_SPECIALIST_TOOL,
     # ADR-299 D8 (second-pass rewrite 2026-05-27): EMAIL_SEND_TO_OPERATOR_TOOL
     # is deliberately NOT in FREDDIE_PRIMITIVES and will not be added —
     # this is the architectural commitment, evidence-confirmed.
@@ -568,8 +558,6 @@ HANDLERS: dict[str, Callable] = {
     "ManageHook": handle_manage_hook,
     # ADR-262 D4: Compose — callable primitive wrapping render engine
     "Compose": handle_compose,
-    # ADR-261 D7: DispatchSpecialist — Reviewer-loop sub-LLM-call
-    "DispatchSpecialist": handle_dispatch_specialist,
     # ADR-264: SyncPlatformState — substrate-canonical-world primitive
     # (mirrors external state into substrate; primary surface for use in
     # mechanical-mode recurrences per ADR-263).
@@ -974,10 +962,11 @@ class HeadlessAuth:
 
     ADR-288 D1: ``caller_identity`` carries the ADR-209 attribution string
     for substrate writes performed through this auth. Headless callers are
-    specialist sub-LLM dispatches (per ADR-261 D7 DispatchSpecialist);
-    caller_identity defaults to ``f"specialist:{role}"`` when an agent
-    context with a role is available, else ``"specialist:unknown"`` as a
-    telemetry tripwire (logged by the substrate primitive on use). Note:
+    direct sub-LLM dispatches under a role (e.g. harvest.py dispatches
+    ``role="researcher"``; ADR-417 follow-on removed the DispatchSpecialist
+    primitive path). caller_identity defaults to ``f"specialist:{role}"``
+    when an agent context with a role is available, else ``"specialist:unknown"``
+    as a telemetry tripwire (logged by the substrate primitive on use). Note:
     specialist writes that the primitive itself asserts (e.g., output-folder
     writes carrying a more specific authored_by) override this default.
     """

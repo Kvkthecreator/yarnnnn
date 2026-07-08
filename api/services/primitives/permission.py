@@ -126,7 +126,7 @@ def action_class_for(name: str) -> str:
 # A Reviewer call to one of these under bounded/manual is enqueued as a
 # family='substrate' proposal by execute_primitive; under autonomous it
 # applies (subject to each primitive's own orthogonal resource ceiling —
-# Schedule's pace cap, DispatchSpecialist's token budget —
+# Schedule's pace cap —
 # which remain additive checks, not replaced by the autonomy gate).
 #
 # WriteFile is path-addressed (governance lock + diff). The others are
@@ -143,7 +143,6 @@ GATE_QUEUEABLE_PRIMITIVES: frozenset[str] = frozenset({
     "ManageHook",
     "ManageAgent",
     "ManageDomains",
-    "DispatchSpecialist",
     # ADR-325: Embed is consequential + autonomy-governed (the autonomy mode IS
     # the embed policy). Under bounded/manual a Reviewer Embed QUEUEs; under
     # autonomous it applies. Carries an orthogonal cost ceiling (embed daily cap)

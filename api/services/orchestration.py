@@ -140,39 +140,17 @@ from typing import Any, Optional
 
 PRODUCTION_ROLES: dict[str, dict[str, Any]] = {
 
-    # ── Production Specialists (ADR-176, narrowed by ADR-272) ──
-    # Post-ADR-272 Specialist Survival Test: one production role survives —
-    # `designer`. The five dissolved roles (researcher/analyst/writer/tracker/
-    # reporting — the latter was keyed "executive" historically) failed at least
-    # one of: tool-surface test, output-size test, latency test. The Reviewer
-    # does investigation, analysis, prose drafting, accumulation, and cross-
-    # domain synthesis using its own tool surface — inline, not via dispatch.
-    #
-    # ADR-417: the designer's asset-generation half is retired — generation is
-    # rented, not owned. What survives is the composition half: reading
-    # substrate and composing HTML for in-workspace consumption.
-
-    "designer": {
-        "class": "specialist",
-        "domain": None,
-        "display_name": "Designer",
-        "tagline": "Composes substrate into HTML for in-workspace consumption",
-        "capabilities": [
-            "read_workspace", "search_knowledge",
-            "compose_html",
-        ],
-        "description": "Reads substrate and composes HTML output for in-workspace "
-                       "consumption. Asset generation (charts, diagrams, images, video) "
-                       "was retired with the render service (ADR-417) — generation is "
-                       "rented, not owned.",
-        "default_instructions": (
-            "You are a Designer. Your job is to compose substrate into clear HTML "
-            "output for in-workspace consumption. Read the task context and relevant "
-            "workspace files to understand what to compose. Write data as native "
-            "tables and structure as text — yarnnn hosts no asset-generation engine; "
-            "do not attempt to render charts, diagrams, images, or video."
-        ),
-    },
+    # ── Production Specialists (ADR-176 → ADR-272 → ADR-417 follow-on) ──
+    # Post-ADR-272 Specialist Survival Test, one production role survived:
+    # `designer`. ADR-417 retired its asset-generation half with the render
+    # service; the surviving compose-only half is work the Reviewer does inline
+    # (Compose / WriteFile), and nothing dispatched it at runtime. So the
+    # ADR-417 follow-on removes `designer` too — PRODUCTION_ROLES is now EMPTY.
+    # The Reviewer does investigation, analysis, prose drafting, accumulation,
+    # composition, and cross-domain synthesis using its own tool surface,
+    # inline. DispatchSpecialist is removed from the LLM registry (no role to
+    # dispatch); its module stays dormant as the seam a future specialist role
+    # re-enters through, still gated by ADR-272's structural Survival Test.
 
     # ── Synthesizer (cross-domain, no owned domain) ──
 
@@ -1213,19 +1191,16 @@ once a decision I made has produced a reconciled, attested outcome.
 
 # Legacy role → new type mapping (for DB migration / backward compat reads).
 #
-# ADR-272: PRODUCTION_ROLES collapsed to {designer} only. Legacy role names
-# that previously resolved to researcher/analyst/writer/tracker/executive
-# are REMOVED from this map. Per the existing pattern (ADR-207 P4a for
-# deleted platform-bot roles), unmapped legacy roles fall through
-# resolve_role()'s passthrough and then fail the ALL_ROLES lookup loudly —
-# surfacing the migration need rather than silently re-routing to a
+# ADR-272 → ADR-417 follow-on: PRODUCTION_ROLES is now EMPTY (designer removed;
+# see PRODUCTION_ROLES above). Legacy specialist role names (researcher/analyst/
+# writer/tracker/executive/designer) are REMOVED from this map. Per the existing
+# pattern (ADR-207 P4a for deleted platform-bot roles), unmapped legacy roles
+# fall through resolve_role()'s passthrough and then fail the ALL_ROLES lookup
+# loudly — surfacing the migration need rather than silently re-routing to a
 # semantically-wrong role.
 #
-# Surviving entries: designer (current + only specialist) + thinking_partner
-# (systemic agent / chat LLM substrate).
+# Surviving entry: thinking_partner (systemic agent / chat LLM substrate).
 LEGACY_ROLE_MAP: dict[str, str] = {
-    # v5 current types pass through (ADR-176, narrowed by ADR-272)
-    "designer": "designer",
     # ADR-164: TP as meta-cognitive agent
     "thinking_partner": "thinking_partner",
 }
@@ -1441,10 +1416,9 @@ RUNTIMES: dict[str, dict[str, Any]] = {
 def get_type_capabilities(agent_type: str) -> list[str]:
     """Return the capability list for an agent type.
 
-    ADR-272: PRODUCTION_ROLES collapsed to {designer}; the previous
-    researcher-fallback would now crash. Unknown roles return an empty
-    capability list — the caller treats this as "no special tools" rather
-    than silently inheriting a wrong role's surface.
+    ADR-272 → ADR-417 follow-on: PRODUCTION_ROLES is now empty; unknown roles
+    return an empty capability list — the caller treats this as "no special
+    tools" rather than silently inheriting a wrong role's surface.
     """
     resolved = resolve_role(agent_type)
     type_def = ALL_ROLES.get(resolved)

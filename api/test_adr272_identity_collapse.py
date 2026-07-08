@@ -1,25 +1,27 @@
 """ADR-272 Regression Gate — Identity-Layer Collapse Invariants.
 
-Phase 1 BE (this commit) — asserts:
-  1. VALID_SPECIALIST_ROLES is exactly {"designer"}.
-  2. PRODUCTION_ROLES dict has exactly one entry — "designer".
-  3. ALL_ROLES has exactly {"designer", "thinking_partner"}.
-  4. LEGACY_ROLE_MAP has only the two surviving roles (designer +
-     thinking_partner); legacy targets (researcher/analyst/writer/tracker/
-     executive) are absent so legacy callers fail loudly through
-     resolve_role()'s passthrough.
+UPDATED by the ADR-417 follow-on (2026-07-08): ADR-272 collapsed the specialist
+roster to {"designer"}; ADR-417 retired the designer's asset-generation half
+with the render service and its compose-only remainder is Reviewer-inline work,
+so the follow-on collapses further to ZERO specialist roles. This gate now
+asserts the empty-roster state and that DispatchSpecialist is REMOVED from the
+LLM registry (dormant seam).
+
+Asserts:
+  1. VALID_SPECIALIST_ROLES is empty (designer removed — ADR-417 follow-on).
+  2. PRODUCTION_ROLES dict is empty.
+  3. ALL_ROLES has exactly {"thinking_partner"}.
+  4. LEGACY_ROLE_MAP has only thinking_partner; legacy specialist targets
+     (researcher/analyst/writer/tracker/executive/designer) are absent so
+     legacy callers fail loudly through resolve_role()'s passthrough.
   5. orchestration_prompts.py is DELETED (the module no longer importable).
-  6. agent_creation.py defines _DEFAULT_INSTRUCTIONS inline with the two
-     surviving roles.
-  7. PRODUCTION_ROLE_SLUGS in agent_creation.py is {"designer"}.
-  8. The alpha-trader bundle no longer declares the falsify-signals
-     recurrence; its bootstrap-research intent moved into
-     morning-reflection's prompt.
-  9. DispatchSpecialist primitive infrastructure is PRESERVED — the
-     primitive is still registered in CHAT/HEADLESS/REVIEWER tool surfaces,
-     handler still in HANDLERS. Only the role catalog narrows.
- 10. dispatch_specialist.py's tool schema enum lists exactly the surviving
-     roles (sorted output of VALID_SPECIALIST_ROLES → ["designer"]).
+  6. agent_creation.py defines _DEFAULT_INSTRUCTIONS inline (thinking_partner).
+  7. PRODUCTION_ROLE_SLUGS in agent_creation.py is empty.
+  8. The alpha-trader bundle no longer declares the falsify-signals recurrence.
+  9. DispatchSpecialist is REMOVED from the CHAT/HEADLESS/FREDDIE tool surfaces
+     + HANDLERS (ADR-417 follow-on — zero roles to dispatch). Module + handler
+     retained dormant as the seam a future role re-enters through.
+ 10. dispatch_specialist.py's VALID_SPECIALIST_ROLES enum is empty.
 
 Phase 2 FE (deferred to follow-on commit) invariants — NOT asserted here:
   - chat bubble shapes collapse to {user-bubble, reviewer-bubble,
@@ -62,43 +64,43 @@ def assert_true(cond, msg):
 
 
 def test_valid_specialist_roles_narrowed():
-    """D3: VALID_SPECIALIST_ROLES = {"designer"}."""
+    """ADR-417 follow-on: VALID_SPECIALIST_ROLES is empty (designer removed)."""
     from services.primitives.dispatch_specialist import VALID_SPECIALIST_ROLES
     assert_eq(
-        VALID_SPECIALIST_ROLES, {"designer"},
-        "VALID_SPECIALIST_ROLES is exactly {'designer'} (5 dissolved roles removed)",
+        VALID_SPECIALIST_ROLES, set(),
+        "VALID_SPECIALIST_ROLES is empty (designer removed — ADR-417 follow-on)",
     )
 
 
 def test_production_roles_narrowed():
-    """D3: PRODUCTION_ROLES dict has one entry — designer."""
+    """ADR-417 follow-on: PRODUCTION_ROLES dict is empty."""
     from services.orchestration import PRODUCTION_ROLES
     assert_eq(
-        set(PRODUCTION_ROLES.keys()), {"designer"},
-        "PRODUCTION_ROLES has exactly one key: 'designer'",
+        set(PRODUCTION_ROLES.keys()), set(),
+        "PRODUCTION_ROLES is empty (designer removed — ADR-417 follow-on)",
     )
 
 
 def test_all_roles_surviving():
-    """D3: ALL_ROLES = SYSTEMIC_AGENTS + PRODUCTION_ROLES = {designer, thinking_partner}."""
+    """ADR-417 follow-on: ALL_ROLES = SYSTEMIC_AGENTS only = {thinking_partner}."""
     from services.orchestration import ALL_ROLES
     assert_eq(
-        set(ALL_ROLES.keys()), {"designer", "thinking_partner"},
-        "ALL_ROLES has exactly {designer, thinking_partner}",
+        set(ALL_ROLES.keys()), {"thinking_partner"},
+        "ALL_ROLES has exactly {thinking_partner} (PRODUCTION_ROLES empty)",
     )
 
 
 def test_legacy_role_map_only_survivors():
-    """D3: LEGACY_ROLE_MAP only contains the two surviving roles."""
+    """ADR-417 follow-on: LEGACY_ROLE_MAP contains only thinking_partner."""
     from services.orchestration import LEGACY_ROLE_MAP
     legacy_targets = set(LEGACY_ROLE_MAP.values())
     assert_eq(
-        legacy_targets, {"designer", "thinking_partner"},
-        "LEGACY_ROLE_MAP targets only {designer, thinking_partner} — dissolved targets absent",
+        legacy_targets, {"thinking_partner"},
+        "LEGACY_ROLE_MAP targets only {thinking_partner} — specialist targets absent",
     )
-    # Dissolved roles must NOT be present as keys either (passthrough to
-    # failed ALL_ROLES lookup is the discipline).
-    for dissolved in ("researcher", "analyst", "writer", "tracker", "executive", "reporting"):
+    # Dissolved + designer roles must NOT be present as keys either (passthrough
+    # to failed ALL_ROLES lookup is the discipline).
+    for dissolved in ("researcher", "analyst", "writer", "tracker", "executive", "reporting", "designer"):
         assert_true(
             dissolved not in LEGACY_ROLE_MAP,
             f"LEGACY_ROLE_MAP does not map {dissolved!r} (loud failure preferred)",
@@ -131,17 +133,17 @@ def test_default_instructions_inlined_to_agent_creation():
     if di is None:
         return
     assert_eq(
-        set(di.keys()), {"designer", "thinking_partner"},
-        "agent_creation._DEFAULT_INSTRUCTIONS keyed by the two surviving roles only",
+        set(di.keys()), {"thinking_partner"},
+        "agent_creation._DEFAULT_INSTRUCTIONS keyed by thinking_partner only (designer removed)",
     )
 
 
 def test_production_role_slugs_narrowed():
-    """D7 cascade: PRODUCTION_ROLE_SLUGS in agent_creation.py = {designer}."""
+    """ADR-417 follow-on: PRODUCTION_ROLE_SLUGS in agent_creation.py is empty."""
     from services.agent_creation import PRODUCTION_ROLE_SLUGS
     assert_eq(
-        set(PRODUCTION_ROLE_SLUGS), {"designer"},
-        "PRODUCTION_ROLE_SLUGS = {'designer'} (dissolved slugs removed)",
+        set(PRODUCTION_ROLE_SLUGS), set(),
+        "PRODUCTION_ROLE_SLUGS is empty (designer removed — ADR-417 follow-on)",
     )
 
 
@@ -180,7 +182,9 @@ def test_falsify_signals_recurrence_deleted():
 
 
 def test_dispatch_specialist_primitive_preserved():
-    """D4: DispatchSpecialist mechanism survives across all three caller surfaces."""
+    """ADR-417 follow-on: DispatchSpecialist is REMOVED from every LLM surface
+    (zero specialist roles). The module + handler stay dormant as a seam, but
+    the primitive is not registered — an unusable tool must not be exposed."""
     from services.primitives.registry import (
         CHAT_PRIMITIVES,
         HEADLESS_PRIMITIVES,
@@ -192,20 +196,20 @@ def test_dispatch_specialist_primitive_preserved():
     reviewer_names = {t["name"] for t in FREDDIE_PRIMITIVES}
 
     assert_true(
-        "DispatchSpecialist" in chat_names,
-        "DispatchSpecialist still in CHAT_PRIMITIVES (mechanism preserved)",
+        "DispatchSpecialist" not in chat_names,
+        "DispatchSpecialist removed from CHAT_PRIMITIVES (ADR-417 follow-on)",
     )
     assert_true(
-        "DispatchSpecialist" in headless_names,
-        "DispatchSpecialist still in HEADLESS_PRIMITIVES",
+        "DispatchSpecialist" not in headless_names,
+        "DispatchSpecialist removed from HEADLESS_PRIMITIVES",
     )
     assert_true(
-        "DispatchSpecialist" in reviewer_names,
-        "DispatchSpecialist still in FREDDIE_PRIMITIVES",
+        "DispatchSpecialist" not in reviewer_names,
+        "DispatchSpecialist removed from FREDDIE_PRIMITIVES",
     )
     assert_true(
-        "DispatchSpecialist" in HANDLERS,
-        "DispatchSpecialist handler still in HANDLERS",
+        "DispatchSpecialist" not in HANDLERS,
+        "DispatchSpecialist handler removed from HANDLERS",
     )
 
 
@@ -264,12 +268,12 @@ def test_reviewer_prompt_defaults_to_inline():
             "(structural inline-default per ADR-272, replacing the deleted "
             "production_default prose per ADR-306 D3)",
         )
-    # DispatchSpecialist is the one escape hatch (designer-only, enforced by
-    # the enum in test_dispatch_specialist_tool_enum_narrowed).
+    # ADR-417 follow-on: DispatchSpecialist is REMOVED (zero specialist roles);
+    # production work is fully inline via the tools above.
     assert_true(
-        "DispatchSpecialist" in names,
-        "FREDDIE_PRIMITIVES must carry DispatchSpecialist (the narrow "
-        "designer-dispatch exception to inline-default)",
+        "DispatchSpecialist" not in names,
+        "FREDDIE_PRIMITIVES must NOT carry DispatchSpecialist (ADR-417 follow-on "
+        "— zero specialist roles; production work is inline)",
     )
 
 
@@ -296,7 +300,7 @@ def test_list_agents_filters_orchestration_row():
 
 
 def test_dispatch_specialist_tool_enum_narrowed():
-    """D3: tool schema's role enum reflects the narrowed VALID_SPECIALIST_ROLES."""
+    """ADR-417 follow-on: the role enum reflects the empty VALID_SPECIALIST_ROLES."""
     from services.primitives.dispatch_specialist import DISPATCH_SPECIALIST_TOOL
     role_enum = (
         DISPATCH_SPECIALIST_TOOL.get("input_schema", {})
@@ -305,8 +309,8 @@ def test_dispatch_specialist_tool_enum_narrowed():
         .get("enum", [])
     )
     assert_eq(
-        list(role_enum), ["designer"],
-        "DispatchSpecialist tool schema's role enum is exactly ['designer']",
+        list(role_enum), [],
+        "DispatchSpecialist tool schema's role enum is empty (dormant — ADR-417 follow-on)",
     )
 
 

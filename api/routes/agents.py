@@ -1154,11 +1154,14 @@ async def trigger_run(
 ) -> dict:
     """Trigger an ad-hoc agent run.
 
-    Per ADR-261 D7: agents are tools the Reviewer dispatches via
-    DispatchSpecialist (Phase C.2). "Operator clicked Run on agent X" is
-    expressed as a synthetic addressed-equivalent invocation — a one-shot
-    Recurrence whose prompt asks the Reviewer to dispatch this specific
-    agent now. The Reviewer's loop then routes to DispatchSpecialist.
+    "Operator clicked Run on agent X" is expressed as a synthetic
+    addressed-equivalent invocation — a one-shot Recurrence whose prompt asks
+    the Reviewer to do the agent's work now. Per ADR-417 follow-on the Reviewer
+    does this INLINE with its own tool surface (read the agent's IDENTITY +
+    instructions, gather context, produce the output) — DispatchSpecialist was
+    removed (its only role, designer, retired with the render service; it never
+    accepted user-authored agent slugs). The prior "dispatch this specialist"
+    prompt named a tool that rejected every user-agent slug via invalid_role.
     """
     from services.wake_sources.manual_fire import fire as wake_manual_fire
     from services.recurrence import Recurrence
@@ -1192,11 +1195,11 @@ async def trigger_run(
         schedule=None,
         prompt=(
             f"Operator manually requested a run of agent '{agent_slug}'. "
-            f"Dispatch this specialist now via DispatchSpecialist with a "
-            f"focused brief derived from the operator's standing context "
-            f"(MANDATE, IDENTITY, recent decisions). Read the resulting "
-            f"output, decide whether to ProposeAction or stand down, and "
-            f"narrate your reasoning."
+            f"Do this agent's work now, inline: read its IDENTITY + "
+            f"instructions and the operator's standing context (MANDATE, "
+            f"IDENTITY, recent decisions), gather what you need with your own "
+            f"tools, and produce the output. Then decide whether to "
+            f"ProposeAction or stand down, and narrate your reasoning."
         ),
         options={
             "manual_run": True,
