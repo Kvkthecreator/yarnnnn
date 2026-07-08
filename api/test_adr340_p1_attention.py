@@ -71,12 +71,14 @@ def test_balance_chip_absorbed() -> None:
 
 
 def test_cluster_is_three_chips() -> None:
-    print("\n[cluster] SystemStatusCluster renders three chips, no Balance import")
+    print("\n[cluster] SystemStatusCluster renders Money + Connections, no Freddie/Balance")
     src = _read("components/shell/system-status/SystemStatusCluster.tsx")
-    # ADR-412-era rename: the autonomy chip became FreddieStatusItem (the
-    # steward's rail chip). Repointed 2026-07-07 — the assert grepped for
-    # the deleted AutonomyStatusItem.
-    check("imports FreddieStatusItem", "import { FreddieStatusItem }" in src)
+    # 2026-07-08: the Freddie disposition chip was REMOVED — Freddie's chrome is
+    # the rail only (ADR-412 D1); a top-bar Freddie chip was a second Freddie
+    # surface. The cluster is now Money + Connections; the FreddieStatusItem
+    # component was deleted. (Was: the autonomy chip renamed to FreddieStatusItem
+    # per the ADR-412-era rename.)
+    check("no FreddieStatusItem import (removed 2026-07-08)", "FreddieStatusItem" not in src)
     check("imports BudgetStatusItem", "import { BudgetStatusItem }" in src)
     check("imports ConnectionsStatusItem", "import { ConnectionsStatusItem }" in src)
     check("no BalanceStatusItem import", "BalanceStatusItem" not in src)
