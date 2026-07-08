@@ -260,6 +260,59 @@ def _load_active_grant(principal_id: str, workspace_id: str) -> Optional[dict]:
     return rows[0] if rows else None
 
 
+# The grant scope that authorizes funding the workspace (subscribe / top-up /
+# manage billing). ADR-416 D1: billing authority is a grant, owner-default,
+# extendable to a member's grant `scopes` — decoupled from who-may-SPEND (any
+# member draws the pool). "Who may fund" is a grant, never a species/role-enum,
+# coherent with the ADR-373/405 permission model.
+BILLING_AUTHORITY_SCOPE = "billing"
+
+
+def has_billing_authority(principal_id: str, workspace_id: str) -> bool:
+    """True iff this principal may fund the workspace (subscribe / top-up / manage
+    billing) — ADR-416 D1.
+
+    Owner-default, and BYTE-IDENTICAL to the pre-ADR-416 owner-only routes: the
+    ground-truth owner check is `workspaces.owner_id == principal_id` — NOT the
+    presence of an `owner`-role grant. (Verified on live data: 2 legacy workspaces
+    have an owner with no owner-grant row — the ADR-373 grant backfill didn't cover
+    every pre-existing owner. Keying billing authority on the grant alone would 403
+    those real owners. The `owner_id` column is the authoritative ownership fact;
+    the grant is the extension mechanism, not the owner's proof.)
+
+    So a principal has billing authority iff EITHER:
+      1. it is the workspace's `owner_id` (the owner-default — always authorized,
+         regardless of grant provisioning state), OR
+      2. its active grant carries the `billing` scope (the extensible grant — a
+         co-owner/admin the owner has granted).
+
+    This is the ONLY place the billing-authority rule lives. Fail-closed on error.
+    """
+    try:
+        # (1) The ground-truth owner check — authoritative, grant-independent.
+        ws = (
+            _svc()
+            .table("workspaces")
+            .select("owner_id")
+            .eq("id", workspace_id)
+            .limit(1)
+            .execute()
+        ).data
+        if ws and str(ws[0].get("owner_id")) == str(principal_id):
+            return True
+
+        # (2) The extensible grant — a non-owner principal granted `billing`.
+        grant = _load_active_grant(principal_id, workspace_id)
+        if grant is None:
+            return False
+        if grant.get("role") == "owner":  # defensive: grant-owner also authorized
+            return True
+        scopes = grant.get("scopes") or []
+        return BILLING_AUTHORITY_SCOPE in scopes
+    except Exception:  # pragma: no cover — fail-closed on lookup error
+        return False
+
+
 def narrow_grant(
     principal_id: str,
     workspace_id: str,

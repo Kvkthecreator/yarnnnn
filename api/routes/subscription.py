@@ -76,6 +76,42 @@ TOPUP_MIN_USD = 5
 TOPUP_MAX_USD = 500
 
 
+# ── Billing-authority resolution (ADR-416 D1) ─────────────────────────────────
+
+def _resolve_billing_workspace(auth: "UserClient") -> str:
+    """Resolve the workspace this billing act targets AND authorize the caller to
+    fund it — ADR-416 D1: billing authority is a grant, not an owner-hardcode.
+
+    Replaces the pre-ADR-416 `.eq("owner_id", auth.user_id)` pattern, which
+    conflated "which workspace" with "am I authorized" (owner-only). Now the two
+    are split:
+      1. the acting workspace = the balance gate's resolution (contextvar /
+         owner fallback — `effective_workspace_id`), so a member's billing act
+         targets the workspace they operate, not their own singleton;
+      2. authorization = `has_billing_authority` (owner by default; any principal
+         whose grant carries the `billing` scope).
+
+    Owner path is byte-identical: an owner with no X-Workspace-Id resolves their
+    own workspace and is authorized by role='owner'. A plain member (spend-yes,
+    fund-no) gets 403. Raises 404 if no workspace resolves.
+    """
+    from services.workspace_context import effective_workspace_id
+    from services.supabase import resolve_principal_id
+    from services.principal_grants import has_billing_authority
+
+    ws = effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))
+    if not ws:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No workspace found")
+
+    principal_id = resolve_principal_id(auth) or auth.user_id
+    if not has_billing_authority(principal_id, ws):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have billing authority for this workspace",
+        )
+    return ws
+
+
 # ── LS HTTP helpers ───────────────────────────────────────────────────────────
 
 def _ls_headers(include_content_type: bool = False) -> dict[str, str]:
@@ -201,9 +237,13 @@ class PortalResponse(BaseModel):
 
 @router.get("/status", response_model=SubscriptionStatus)
 async def get_subscription_status(auth: UserClient):
+    # ADR-416 D1 — target the ACTING workspace, authorized by billing grant
+    # (owner-default). A member with billing authority sees the commons' tier;
+    # a plain member gets 403 (they draw the pool but don't manage its funding).
+    workspace_id = _resolve_billing_workspace(auth)
     result = auth.client.table("workspaces")\
         .select("subscription_tier, subscription_expires_at, lemonsqueezy_customer_id, lemonsqueezy_subscription_id")\
-        .eq("owner_id", auth.user_id)\
+        .eq("id", workspace_id)\
         .limit(1)\
         .execute()
     rows = result.data or []
@@ -226,11 +266,8 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
     if not LEMONSQUEEZY_API_KEY:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Payment service not configured")
 
-    ws_result = auth.client.table("workspaces").select("id").eq("owner_id", auth.user_id).limit(1).execute()
-    ws_rows = ws_result.data or []
-    workspace_id = ws_rows[0]["id"] if ws_rows else None
-    if not workspace_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No workspace found")
+    # ADR-416 D1 — fund the ACTING workspace, authorized by billing grant.
+    workspace_id = _resolve_billing_workspace(auth)
 
     # custom_price (integer cents) is set only for top-ups.
     custom_price_cents: Optional[int] = None
@@ -306,15 +343,16 @@ async def get_customer_portal(auth: UserClient):
     if not LEMONSQUEEZY_API_KEY:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Payment service not configured")
 
+    # ADR-416 D1 — manage the ACTING workspace's billing, authorized by grant.
+    workspace_id = _resolve_billing_workspace(auth)
     result = auth.client.table("workspaces")\
         .select("id, lemonsqueezy_customer_id, lemonsqueezy_subscription_id")\
-        .eq("owner_id", auth.user_id).limit(1).execute()
+        .eq("id", workspace_id).limit(1).execute()
     rows = result.data or []
     if not rows:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No workspace found")
 
     workspace = rows[0]
-    workspace_id = workspace["id"]
     customer_id = workspace.get("lemonsqueezy_customer_id")
     subscription_id = workspace.get("lemonsqueezy_subscription_id")
 
