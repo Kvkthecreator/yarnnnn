@@ -87,7 +87,7 @@ export function deriveUsageMeter(limits: UsageLimits | null | undefined): UsageM
       mode: "allowance",
       percent,
       primaryLabel: `${percent}% of included usage used`,
-      detail: "Your plan's monthly allowance funds the work your operation runs; it renews each cycle.",
+      detail: "Your plan's monthly allowance funds the work your workspace runs; it renews each cycle.",
       isCritical: percent >= 90,
       isWarn: percent >= 70,
       onOverage: false,
@@ -105,8 +105,8 @@ export function deriveUsageMeter(limits: UsageLimits | null | undefined): UsageM
         topups > 0 ? `${percent}% of top-up balance used` : "Allowance used up",
       detail:
         topups > 0
-          ? "Your monthly allowance is spent; the operation is now drawing your top-up balance. Top up or upgrade for more headroom."
-          : "Your monthly allowance is spent and you have no top-up balance. The operation pauses until you top up or upgrade.",
+          ? "Your monthly allowance is spent; the workspace is now drawing your top-up balance. Top up or upgrade for more headroom."
+          : "Your monthly allowance is spent and you have no top-up balance. The workspace pauses until you top up or upgrade.",
       isCritical: percent >= 90,
       isWarn: true,
       onOverage: true,
@@ -122,7 +122,7 @@ export function deriveUsageMeter(limits: UsageLimits | null | undefined): UsageM
     detail:
       topups > 0
         ? "You're on the free plan — usage draws from your top-up balance. Upgrade for a monthly included allowance."
-        : "You're on the free plan with no balance yet. Top up or upgrade to run an operation.",
+        : "You're on the free plan with no balance yet. Top up or upgrade to start running work.",
     isCritical: percent >= 90,
     isWarn: percent >= 70,
     onOverage: false,
@@ -146,8 +146,8 @@ export const TOPUP_DEFAULT = 25;
  */
 export const TIER_PRICE_USD: Record<SubscriptionTier, number> = {
   free: 0,
-  starter: 19,
-  pro: 49,
+  starter: 20, // ADR-429 §12.2 — the single paid plan, repriced $19→$20 (mirror TIER_CONFIG)
+  pro: 49,     // ADR-429 §12.1 — dormant (hidden); not offered until capture ships
 };
 
 /** "$19" / "$49" / "Free" — the price label for an upgrade CTA. */
@@ -162,11 +162,14 @@ export function tierPriceLabel(tier: SubscriptionTier): string {
  * Mirrors billing_tiers.py TIER_CONFIG (allowance + connector ceilings).
  */
 export function tierDescriptor(tier: SubscriptionTier): string {
+  // ADR-429 §13.2 — connector-history dropped from the pitch (it gates the DORMANT
+  // capture lane, §12.1). The paid plan's honest differentiator today is the
+  // included monthly allowance + a shared workspace everyone draws.
   switch (tier) {
     case "pro":
-      return "$45 monthly usage · 90-day connector history · unlimited connectors";
+      return "$45 monthly usage included"; // dormant tier (not offered); descriptor kept for a legacy row
     case "starter":
-      return "$15 monthly usage · 30-day connector history · up to 3 connectors";
+      return "$15 monthly usage included · your whole workspace draws one shared allowance";
     default:
       return "Workspace + memory, free forever · usage drawn from your balance";
   }

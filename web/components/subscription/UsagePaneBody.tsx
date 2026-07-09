@@ -142,41 +142,12 @@ export function UsagePaneBody() {
         })()}
       </div>
 
-      {/* Where it went — spend by work item (ADR-172 surface) */}
-      {usageDetail && usageDetail.by_work.length > 0 && (
-        <div className="p-4 border border-border rounded-lg space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-medium">Where this workspace's usage went</h3>
-            <span className="text-xs text-muted-foreground">
-              {usageDetail.activity.runs} runs
-            </span>
-          </div>
-          <div className="space-y-2.5">
-            {usageDetail.by_work.map((item) => (
-              <div key={item.slug} className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="truncate pr-3">{humanizeSlug(item.slug)}</span>
-                  <span className="font-mono text-xs text-muted-foreground shrink-0">
-                    {item.runs} runs · {item.pct}%
-                  </span>
-                </div>
-                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-primary/70"
-                    style={{ width: `${item.pct}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Who used it — per-member attribution over the shared pool (ADR-429
-          Phase 1). Same grammar as "Where it went", grouped by principal.
-          Activity, not dollars: % of pool + event count. Only when >1 principal
-          has drawn (a solo workspace has nothing to attribute). This is the
-          admin's legibility into a multi-principal commons — "who spent what". */}
+          Phase 1). LEADS the breakdown (ADR-429 §13.2): in a multi-principal
+          commons "who spent what" is the headline legibility, above the
+          work-item view. Same grammar (bar + %/count), grouped by principal.
+          Activity, not dollars. Only when >1 principal has drawn (a solo
+          workspace has nothing to attribute — the section is absent). */}
       {memberUsage.length > 0 && (
         <div className="p-4 border border-border rounded-lg space-y-3">
           <div className="flex items-center justify-between">
@@ -208,6 +179,37 @@ export function UsagePaneBody() {
             Share of this workspace&rsquo;s pooled usage, by member. Everyone draws
             the one shared allowance.
           </p>
+        </div>
+      )}
+
+      {/* Where it went — spend by work item (ADR-172 surface). Secondary to the
+          per-member view above (ADR-429 §13.2). */}
+      {usageDetail && usageDetail.by_work.length > 0 && (
+        <div className="p-4 border border-border rounded-lg space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium">Where this workspace&rsquo;s usage went</h3>
+            <span className="text-xs text-muted-foreground">
+              {usageDetail.activity.runs} runs
+            </span>
+          </div>
+          <div className="space-y-2.5">
+            {usageDetail.by_work.map((item) => (
+              <div key={item.slug} className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="truncate pr-3">{humanizeSlug(item.slug)}</span>
+                  <span className="font-mono text-xs text-muted-foreground shrink-0">
+                    {item.runs} runs · {item.pct}%
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary/70"
+                    style={{ width: `${item.pct}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

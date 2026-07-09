@@ -1156,7 +1156,7 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
         setStatus({ type: 'idle' });
 
         const errorContent = isBalanceExhausted
-          ? "This workspace's balance is exhausted. [Top up the balance](https://yarnnn.com/workspace-settings?workspace-settings.pane=billing) to continue."
+          ? "This workspace's balance is exhausted. [Top up the balance](https://yarnnn.com/settings?settings.pane=billing) to continue."
           : `Sorry, I encountered an error: ${errorMessage}`;
 
         const errorAssistantMessage: TPMessage = {

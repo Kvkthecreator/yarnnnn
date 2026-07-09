@@ -19,7 +19,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { api } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Zap, ArrowUpCircle } from "lucide-react";
+import { Loader2, Zap, ArrowUpCircle, Users, ShieldCheck } from "lucide-react";
 import type { SubscriptionTier } from "@/types";
 import {
   deriveUsageMeter,
@@ -47,7 +47,13 @@ const TIER_LABEL: Record<SubscriptionTier, string> = {
 const TIER_ORDER: SubscriptionTier[] = ["free", "starter"];
 
 export function SubscriptionCard() {
-  const { tier, isLoading, error, topup, subscribe, manageSubscription } = useSubscription();
+  const { status, tier, isLoading, error, topup, subscribe, manageSubscription } = useSubscription();
+  // ADR-429 §13.2 — the seat + comped state (already fetched by useSubscription's
+  // getStatus). Seats show the COUNT (a legibility fact) while pricing is dormant;
+  // an exempt workspace shows a "Comped" state instead of upgrade/top-up CTAs.
+  const exempt = status?.billing_exempt ?? false;
+  const humanSeats = status?.human_seats ?? 1;
+  const includedSeats = status?.included_seats ?? 1;
   const [usage, setUsage] = useState<UsageLimits | null>(null);
   const [nextRefill, setNextRefill] = useState<string | null>(null);
   const [topupAmount, setTopupAmount] = useState<string>(String(TOPUP_DEFAULT));
@@ -102,13 +108,27 @@ export function SubscriptionCard() {
       <CardHeader>
         <CardTitle>Billing</CardTitle>
         <CardDescription>
-          Your plan includes a monthly allowance for the work your operation runs. Top up any time for extra headroom.
+          This workspace&rsquo;s plan includes a monthly allowance that everyone in the
+          workspace draws from. Top up any time for extra headroom.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {error && (
           <div className="p-3 rounded-lg border border-destructive/20 bg-destructive/5 text-sm text-destructive">
             {error.message}
+          </div>
+        )}
+
+        {/* ADR-429 §13.2 — comped state. An exempt workspace pays nothing; show it
+            plainly and suppress the upgrade/top-up CTAs below (no bill to manage). */}
+        {exempt && (
+          <div className="p-3 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30 text-sm flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>
+              <span className="font-medium text-foreground">Comped</span> — this
+              workspace has no charges. Usage still draws its allowance and balance
+              normally.
+            </span>
           </div>
         )}
 
@@ -150,17 +170,36 @@ export function SubscriptionCard() {
               <p className="text-xs text-muted-foreground">{meter.primaryLabel}.</p>
             </div>
           )}
+          {/* ADR-429 §13.2 — the seats row. Shows the COUNT (who's on the workspace),
+              a legibility fact; seat PRICING stays invisible while dormant
+              (seat_billing_active false). "you + K members" reads the commons. */}
+          <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground border-t border-border/60">
+            <Users className="w-3.5 h-3.5 shrink-0" />
+            <span>
+              {humanSeats === 1
+                ? "1 person — just you"
+                : `${humanSeats} people — you + ${humanSeats - 1} ${humanSeats - 1 === 1 ? "member" : "members"}`}
+              {includedSeats > humanSeats && tier !== "free" && (
+                <> · {includedSeats} included in your plan</>
+              )}
+              {tier === "free" && (
+                <> · Free includes up to {includedSeats}</>
+              )}
+            </span>
+          </div>
         </section>
 
-        {/* Upgrade */}
-        {upgradeTargets.length > 0 && (
+        {/* Upgrade — hidden when comped (no bill to change). ADR-429 §13.2 copy:
+            a paid plan unlocks a bigger shared allowance + a team, not connector
+            history (which gates the dormant capture lane). */}
+        {!exempt && upgradeTargets.length > 0 && (
           <section className="p-4 border border-border rounded-lg space-y-3">
             <div className="flex items-center gap-2">
               <ArrowUpCircle className="w-4 h-4 text-primary" />
               <h3 className="font-medium">Upgrade your plan</h3>
             </div>
             <p className="text-sm text-muted-foreground">
-              A higher plan includes more monthly usage and a longer connector history window.
+              A paid plan includes a monthly usage allowance your whole workspace draws from, and lets you invite your team.
             </p>
             <div className="flex gap-2">
               {upgradeTargets.map((t) => (
@@ -183,14 +222,15 @@ export function SubscriptionCard() {
           </section>
         )}
 
-        {/* Add balance (dynamic top-up) */}
+        {/* Add balance (dynamic top-up) — hidden when comped. */}
+        {!exempt && (
         <section className="p-4 border border-border rounded-lg space-y-3">
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-primary" />
             <h3 className="font-medium">Add balance</h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            A one-time top-up gives your operation extra headroom beyond the monthly allowance. It never expires.
+            A one-time top-up gives this workspace extra headroom beyond the monthly allowance. It never expires.
           </p>
           <div className="flex gap-2">
             {TOPUP_PRESETS.map((amt) => (
@@ -224,20 +264,22 @@ export function SubscriptionCard() {
             </Button>
           </div>
         </section>
+        )}
 
-        {/* How it works */}
+        {/* How it works — ADR-429 §13.2 commons language. */}
         <section className="p-4 border border-border rounded-lg space-y-2 text-sm text-muted-foreground leading-relaxed">
           <p>
             <strong className="text-foreground">Idle costs nothing.</strong> The workspace and every
-            file are free — only a running operation draws on your allowance.
+            file are free — only work that runs draws on the allowance.
           </p>
           <p>
-            <strong className="text-foreground">Hard stop when exhausted.</strong> If your allowance and
-            balance run out, the operation pauses — nothing is lost. Upgrade or top up to resume.
+            <strong className="text-foreground">One shared pool.</strong> Everyone in the workspace —
+            you, your teammates, and any AI you connect — draws the same allowance. Usage is
+            attributed per member on the Usage tab.
           </p>
           <p>
-            <strong className="text-foreground">Cap your monthly spend</strong> per operation on the
-            Budget surface — a ceiling you set, not a charge.
+            <strong className="text-foreground">Hard stop when exhausted.</strong> If the allowance and
+            balance run out, work pauses — nothing is lost. Upgrade or top up to resume.
           </p>
         </section>
       </CardContent>

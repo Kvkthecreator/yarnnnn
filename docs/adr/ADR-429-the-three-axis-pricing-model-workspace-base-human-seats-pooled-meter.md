@@ -413,3 +413,94 @@ seat_usd` non-zero + set the notice window) remain the reversible layer.
 - **§9 open questions**: "free-tier team" is now DECIDED (owner + 1 guest);
   "per-member cap default" stays Phase 4; the base/seat numbers are decided (base)
   and dormant-deferred (seat).
+
+---
+
+## 13. Phase 3 (partial) — the Billing/Usage content refactor + the move to User Settings
+
+The operator, asked to place the Billing/Usage panes, correctly redirected: **the
+issue is the content, not the surfacing.** An audit (2026-07-09) confirmed the panes
+are written for the pre-commons, single-"operation" model and are stale against the
+three-axis model + the §12 restructure. This section refactors the content and, once
+correct, moves the panes to User Settings (the operator's ratified direction —
+"re-reversing [ADR-416's move-out] is actually right", Vercel-style: account door,
+workspace-scoped content). It lands the buildable slice of the deferred Phase 3;
+the truly-blocked bits (per-member caps = Phase 4; the final tier display-name =
+copy) stay deferred.
+
+### 13.1 — Why the content was wrong (the audit)
+
+- **Single-"operation" framing.** "your operation," "per operation," "the work your
+  operation runs" — pre-commons language. The workspace is a **multi-principal
+  commons** (humans + AIs); the copy must say "this workspace" / "everyone in this
+  workspace draws the pool."
+- **No seats.** The whole §12 point. The backend already flows the seat state
+  (`getStatus`: `human_seats` / `included_seats` / `seat_billing_active`) and
+  `useSubscription` already fetches it — but `SubscriptionCard` never rendered it. A
+  billing pane in a seat model shows "N of M seats," the Vercel/Team shape.
+- **`billing_exempt` ignored.** A comped workspace showed upgrade/top-up CTAs as if
+  it would be billed. It must show a "Comped — no charges" state instead.
+- **Stale numbers/copy.** `TIER_PRICE_USD.starter` still read $19 (the §12 reprice is
+  $20 — the FE price display was out of sync with the backend); `tierDescriptor` +
+  the upgrade copy pitched "connector history" (gates the DORMANT capture lane).
+- **Usage led with the wrong view.** "Where this workspace's usage went" by
+  *work-item* led; the commons headline is **"Who used it" by member** (built in
+  Phase 1) — the per-member view should lead, work-item secondary.
+
+### 13.2 — The content refactor (all buildable now — data already flows)
+
+- **Billing (`SubscriptionCard`)**: render a **seats row** ("N of M seats · you + K
+  members") from the `getStatus` seat fields `useSubscription` already returns; a
+  **comped state** (if `billing_exempt`: "Comped — no charges," suppress upgrade/
+  top-up); **commons language** throughout ("this workspace," not "your operation");
+  drop the stale connector-history + per-operation-cap lines. Seat *pricing* stays
+  invisible while dormant (`seat_billing_active` false) — the seats row shows the
+  *count* (a legibility fact), not a seat *fee*.
+- **Usage (`UsagePaneBody`)**: lead with the per-member **"Who used it"** section
+  (Phase 1); keep work-item + trend secondary; commons language.
+- **`usage.ts`**: `TIER_PRICE_USD.starter` $19 → **$20** (sync with §12.2);
+  `tierDescriptor` drops connector-history (dormant); meter `detail` copy
+  "operation" → "workspace."
+
+### 13.3 — The move to User Settings (Vercel-style)
+
+Billing + Usage move from Workspace Settings → **User Settings** (the account door).
+This re-reverses the ADR-416 follow-on (2026-07-08) that moved them the other way —
+**deliberately**, on the operator's ruling, adopting the Vercel/OpenAI shape: **the
+account door is the entry point; the content is scoped to the active workspace.**
+
+- **The safety guard (unchanged from ADR-416's own concern)**: each pane **names the
+  workspace it bills** ("Billing for ‹workspace›," "Usage for ‹workspace›"), so the
+  account-door placement never reads as "one personal plan" — it is explicit that
+  switching workspaces (via the avatar menu) changes which workspace's money you see.
+  `BillingPaneBody` already does this; `UsagePaneBody` gains the same line.
+- **Mechanically pure FE**: `billing`/`usage` are door-local pane keys (NOT
+  kernel-registry surfaces with `pane_of`), so the move is: remove the "Billing"
+  group from `workspace-settings/page.tsx`; add it to `settings/page.tsx`
+  `PANE_GROUPS`. No registry change, no migration, no redirect stub. The `settings`
+  registry summary already reads "your account: billing, usage, and data/privacy" —
+  the move re-aligns the door with its own stated purpose.
+- **Scope note (why this is NOT a scope violation)**: a seat is per-human, but the
+  workspace *pays* for its seats — billing stays workspace-scoped *content*; only the
+  *door* is the account. This is the Vercel model exactly (personal account door,
+  team-scoped billing content), not a claim that billing is a user-account concern.
+
+### 13.4 — What §13 does NOT do (stays deferred)
+
+- **Per-member spend caps** (the admin control) — Phase 4.
+- **The final tier display-name** ("Starter" → the launch name) — the marketing-copy
+  decision (§12.1); the pane reads the label from one place so the rename is a copy
+  edit later.
+- **The marketing pricing-page rewrite** — the public-face copy pass (still Phase 3's
+  larger half); §13 is the in-app pane slice.
+- **Seat pricing UI** (a seat *fee* line, per-seat checkout) — dormant until seat
+  activation (§5a/§12.3).
+
+### 13.5 — What §13 amends
+
+- **ADR-416 follow-on (2026-07-08)**: its move of Billing/Usage OUT of the account
+  door is re-reversed — back to User Settings, Vercel-style, with the workspace-naming
+  guard that makes account-door placement safe. The workspace-as-billing-unit
+  data-model is UNCHANGED (content stays workspace-scoped); only the door moves.
+- **ADR-429 §8**: the placement it left "resolved-but-deferred" is now decided (User
+  Settings, workspace-named).

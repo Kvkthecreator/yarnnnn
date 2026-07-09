@@ -31,14 +31,15 @@
  */
 
 import { useEffect, useState } from "react";
-import { Package, AlertCircle, Rocket, Loader2, Users, CreditCard, BarChart3 } from "lucide-react";
+import { Package, AlertCircle, Rocket, Loader2, Users } from "lucide-react";
 import { api, APIError } from "@/lib/api/client";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
-// ADR-416 follow-on — Billing + Usage re-home HERE (the workspace is the
-// billing unit; both read the acting workspace's money). Self-contained bodies.
-import { BillingPaneBody } from "@/components/subscription/BillingPaneBody";
-import { UsagePaneBody } from "@/components/subscription/UsagePaneBody";
+// ADR-429 §13.3 (2026-07-09) — Billing + Usage LEFT this door for the account
+// door (User Settings, Vercel-style: the account door is the entry point; the
+// content stays workspace-scoped + names its workspace). Re-reverses the ADR-416
+// follow-on that homed them here. The workspace-as-billing-unit data-model is
+// unchanged — only the door moved (see settings/page.tsx).
 // ADR-421 — the Constitution-pane card imports were removed with the group (a
 // workspace has no constitution of its own; the mandate/persona/principles cards
 // render on the agent detail via AgentConstitutionBlock, ADR-419).
@@ -105,20 +106,8 @@ const PANE_GROUPS: PaneGroup[] = [
     label: "Access",
     panes: [{ key: "members", label: "Workspace Members", icon: Users }],
   },
-  {
-    // ADR-416 follow-on (2026-07-08): Billing + Usage move HERE from the account
-    // door. The workspace is the billing unit (ADR-416) — balance + tier live on
-    // `workspaces`, checkout targets the acting workspace (authorized by billing
-    // grant), and Usage sums `execution_events` by workspace_id. So the
-    // workspace's money belongs in the workspace-content door, not the human's
-    // account door. Supersedes the ADR-347 account-door placement (which
-    // predated the ADR-416 "workspace is the billing unit" ratification).
-    label: "Billing",
-    panes: [
-      { key: "billing", label: "Billing", icon: CreditCard },
-      { key: "usage", label: "Usage", icon: BarChart3 },
-    ],
-  },
+  // ADR-429 §13.3 — the Billing group LEFT this door for the account door (User
+  // Settings, Vercel-style). See settings/page.tsx.
 ];
 
 export default function WorkspaceSettingsPage() {
@@ -165,35 +154,8 @@ export default function WorkspaceSettingsPage() {
             <WorkspaceMembersCard variant="full" />
           </section>
         );
-      case "billing":
-        // ADR-416 follow-on — the workspace's plan · balance · top-ups. The
-        // body names the workspace it bills (BillingPaneBody) so switching is
-        // legible, not silent.
-        return (
-          <section className="mb-8">
-            <PaneHeader
-              icon={CreditCard}
-              title="Billing"
-              subtitle="This workspace's plan, balance, and top-ups."
-              bordered={false}
-            />
-            <BillingPaneBody />
-          </section>
-        );
-      case "usage":
-        // ADR-416 follow-on — this workspace's usage this cycle (activity, not
-        // dollars — ADR-396 transparency). Workspace-scoped read.
-        return (
-          <section className="mb-8">
-            <PaneHeader
-              icon={BarChart3}
-              title="Usage"
-              subtitle="This workspace's included usage this cycle."
-              bordered={false}
-            />
-            <UsagePaneBody />
-          </section>
-        );
+      // ADR-429 §13.3 — the billing/usage cases LEFT this door for the account
+      // door (settings/page.tsx). No cases here; nothing routes to them.
       default:
         return null;
     }
