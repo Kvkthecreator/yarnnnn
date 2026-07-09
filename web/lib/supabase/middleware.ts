@@ -44,6 +44,7 @@ const PROTECTED_PREFIXES = [
   "/system",
   "/settings",
   "/workspace-settings", // ADR-341 — the second Settings door (the operation)
+  "/system-agent", // ADR-426 — the Freddie System Agent door (carved from Workspace Settings)
   "/integrations",
   "/invite", // ADR-404 step 5 — invite-accept page (login-bounce preserves ?next)
   "/docs",

@@ -42,17 +42,19 @@ WORKSPACE_SETTINGS_PANES = {
     "program",   # Operation
 }
 # ADR-418 (2026-07-08) PURIFIED the System Agent group to the STEWARD's dials
-# (ADR-414 D2): autonomy + budget only.
+# (ADR-414 D2): autonomy + budget only. ADR-426 (2026-07-09): the group carved
+# out into its OWN door — these are pane_of system-agent now, not
+# workspace-settings.
 FREDDIE_PANES = {
-    "autonomy", "budget",              # governance/ dials — the steward's own
+    "autonomy", "budget",              # governance/ dials — pane_of system-agent
 }
 # ADR-421: the Constitution pane set is EMPTY — a workspace has no constitution.
 CONSTITUTION_PANES = set()
-# ADR-415 (2026-07-08): connectors + sources re-home from the dissolved
-# Channels surface back to Workspace Settings → Perception (pane-grade).
-PERCEPTION_PANES = {"connectors", "sources"}
-# ADR-418: expected-output dormant. ADR-421: mandate/identity/principles dormant.
-EXPECTED_PANES = WORKSPACE_SETTINGS_PANES | FREDDIE_PANES | CONSTITUTION_PANES | PERCEPTION_PANES
+# ADR-425 (2026-07-09): connectors moved to the account door (pane_of settings);
+# sources is hidden (no pane_of). Neither is a workspace-settings pane anymore.
+PERCEPTION_PANES = set()
+# The full pane set spanning both settings doors + the system-agent door.
+EXPECTED_PANES = WORKSPACE_SETTINGS_PANES | FREDDIE_PANES | CONSTITUTION_PANES | {"connectors"}
 
 
 def check(label: str, condition: bool, detail: str = "") -> None:
@@ -86,22 +88,18 @@ def test_registry_pane_model() -> None:
     for slug in sorted(WORKSPACE_SETTINGS_PANES):
         check(f"{slug}: pane_of == 'workspace-settings'", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
-    # ADR-412 D5 + ADR-418: the system agent's DIALS fold into Workspace Settings.
+    # ADR-426: the system agent's DIALS live on their OWN door (system-agent).
     for slug in sorted(FREDDIE_PANES):
-        check(f"{slug}: pane_of == 'workspace-settings' (ADR-412 D5)", by_slug[slug].get("pane_of") == "workspace-settings")
-        check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
-    # ADR-418: identity + principles are pane_of workspace-settings (Constitution group).
-    for slug in sorted(CONSTITUTION_PANES):
-        check(f"{slug}: pane_of == 'workspace-settings' (ADR-418)", by_slug[slug].get("pane_of") == "workspace-settings")
+        check(f"{slug}: pane_of == 'system-agent' (ADR-426)", by_slug[slug].get("pane_of") == "system-agent")
         check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
     # ADR-418: expected-output dormant. ADR-421: mandate/identity/principles
     # dormant too (a workspace has no constitution of its own) — none pane-grade.
     for slug in ("expected-output", "mandate", "identity", "principles"):
         check(f"{slug} not pane-grade (dormant)", by_slug[slug].get("pane_of") is None)
-    # ADR-415: connectors + sources re-home to Workspace Settings → Perception.
-    for slug in sorted(PERCEPTION_PANES):
-        check(f"{slug}: pane_of == 'workspace-settings' (ADR-415)", by_slug[slug].get("pane_of") == "workspace-settings")
-        check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
+    # ADR-425: connectors is pane_of settings (the account door); sources is hidden.
+    check("connectors: pane_of == 'settings' (ADR-425)", by_slug["connectors"].get("pane_of") == "settings")
+    check("connectors: carries pane_group", bool(by_slug["connectors"].get("pane_group")))
+    check("sources not pane-grade (hidden — ADR-425 D2)", by_slug["sources"].get("pane_of") is None)
     check(
         "settings is a container window (no pane_of on itself)",
         not by_slug["settings"].get("pane_of"),
@@ -118,13 +116,14 @@ def test_registry_pane_model() -> None:
         "setup stays window-grade (Sequence surface, ADR-331)",
         not by_slug["setup"].get("pane_of"),
     )
-    # ADR-418 grouping — the System Agent group is the steward's DIALS only.
+    # ADR-426 grouping — the System Agent dials are grouped "Freddie System Agent"
+    # on their own door (the group carried the proper noun once it got its own frame).
     for slug in sorted(FREDDIE_PANES):
-        check(f"{slug} grouped System Agent (ADR-418)", by_slug[slug]["pane_group"] == "System Agent")
-    # ADR-415 (2026-07-08): Perception RETURNS to Workspace Settings —
-    # connectors + sources re-home to the Perception group (Channels dissolved).
-    check("connectors grouped Perception (ADR-415)", by_slug["connectors"]["pane_group"] == "Perception")
-    check("sources grouped Perception (ADR-415)", by_slug["sources"]["pane_group"] == "Perception")
+        check(f"{slug} grouped Freddie System Agent (ADR-426)", by_slug[slug]["pane_group"] == "Freddie System Agent")
+    # ADR-425 (2026-07-09): connectors is grouped "Connections" on the account
+    # door; sources is hidden (no pane_group).
+    check("connectors grouped Connections (ADR-425)", by_slug["connectors"]["pane_group"] == "Connections")
+    check("sources has no pane_group (hidden — ADR-425 D2)", not by_slug["sources"].get("pane_group"))
     # ADR-421: Workspace Settings keeps Program (Operation). The Constitution
     # group is removed (mandate/identity/principles dormant — per-agent, ADR-414 D6).
     check("program grouped Operation", by_slug["program"]["pane_group"] == "Operation")
@@ -163,12 +162,17 @@ def test_settings_container() -> None:
     ]:
         check(f"Settings door: {label}", needle in ws_src)
     check("Settings door Program pane carries re-run-setup door", "Re-run setup" in ws_src)
-    # ADR-412 D5: the agent-scoped cards render on the Settings door again —
-    # via the shared SystemAgentPanes module (a MOVE back, not a copy; the
-    # AgentContentView mount is deleted — Singular Implementation).
+    # ADR-426 (2026-07-09): the System Agent group carved out into its own door.
+    # The Settings door NO LONGER mounts it; the system-agent door does (via the
+    # shared SystemAgentPanes module — Singular Implementation).
     check(
-        "Settings door mounts the System Agent group (ADR-412 D5)",
-        "SYSTEM_AGENT_PANE_GROUP" in ws_src and "renderSystemAgentPane" in ws_src,
+        "Settings door no longer mounts the System Agent group (ADR-426)",
+        "SYSTEM_AGENT_PANE_GROUP" not in ws_src,
+    )
+    sa_src = _read("app/(authenticated)/system-agent/page.tsx")
+    check(
+        "the Freddie System Agent door mounts the System Agent group (ADR-426)",
+        "SYSTEM_AGENT_PANE_GROUP" in sa_src and "renderSystemAgentPane" in sa_src,
     )
     # ADR-418: SystemAgentPanes renders only the steward's DIALS (Autonomy,
     # Budget) + the read-only Freddie panels. Principles moved to the
@@ -210,15 +214,14 @@ def test_redirect_stubs() -> None:
         target = f"/workspace-settings?workspace-settings.pane={slug}"
         check(f"/{slug} → {target}", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
-    # ADR-412 D5: the agent-scoped governance route stubs redirect into the
-    # Settings door's System Agent group (the ADR-387 Freddie-pane targets
-    # reversed).
+    # ADR-426 (2026-07-09): the agent-scoped governance route stubs redirect into
+    # the Freddie System Agent door (the System Agent group's new home).
     for slug in sorted(FREDDIE_PANES):
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
         if not stub:
             continue
-        target = f"/workspace-settings?workspace-settings.pane={slug}"
-        check(f"/{slug} → {target} (ADR-412 D5)", f"redirect('{target}')" in stub)
+        target = f"/system-agent?system-agent.pane={slug}"
+        check(f"/{slug} → {target} (ADR-426)", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
     # ADR-415: the Perception routes redirect to Workspace Settings.
     for slug in sorted(PERCEPTION_PANES):

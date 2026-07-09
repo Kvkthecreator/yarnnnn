@@ -96,9 +96,12 @@ def test_pane_homing() -> None:
     # live on the Settings door as the System Agent group. ADR-418 (2026-07-08)
     # PURIFIED that group to what the STEWARD actually owns (ADR-414 D2): the
     # two dials only.
+    # ADR-426 (2026-07-09): the System Agent group carved out into its OWN door —
+    # budget/autonomy are pane_of system-agent now (the "Freddie System Agent"
+    # door), grouped "Freddie System Agent".
     for slug in ("autonomy", "budget"):
-        check(f"{slug} → the Settings door (ADR-412 D5)", by_slug[slug].get("pane_of") == "workspace-settings")
-        check(f"{slug} grouped System Agent (ADR-418: the steward's dials)", by_slug[slug].get("pane_group") == "System Agent")
+        check(f"{slug} → the Freddie System Agent door (ADR-426)", by_slug[slug].get("pane_of") == "system-agent")
+        check(f"{slug} grouped Freddie System Agent (ADR-426)", by_slug[slug].get("pane_group") == "Freddie System Agent")
     # ADR-421 — mandate/identity/principles are DORMANT: a workspace has no
     # constitution of its own (ADR-414 D6). They are per-agent concepts (surfaced
     # on the agent detail), so they leave the navigable set (no route, no pane_of).
@@ -109,12 +112,14 @@ def test_pane_homing() -> None:
     for slug in ("program",):
         check(f"{slug} → the one Settings door", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug} grouped Operation", by_slug[slug].get("pane_group") == "Operation")
-    # ADR-415 (2026-07-08): Perception RETURNS to Workspace Settings — the
-    # Channels surface dissolved, so connectors + sources re-home to
-    # workspace-settings (pane_of: workspace-settings, group Perception).
-    for slug in ("connectors", "sources"):
-        check(f"{slug} → Workspace Settings (ADR-415)", by_slug[slug].get("pane_of") == "workspace-settings")
-        check(f"{slug} grouped Perception (ADR-415)", by_slug[slug].get("pane_group") == "Perception")
+    # ADR-425 (2026-07-09): Perception left Workspace Settings — `connectors` is
+    # now pane_of settings (the account door: a credential is a human's account
+    # object), grouped "Connections"; `sources` is HIDDEN (no pane_of, no operator
+    # door — redirect stub only). (Was ADR-415 Perception-in-workspace-settings.)
+    check("connectors → the account door (ADR-425)", by_slug["connectors"].get("pane_of") == "settings")
+    check("connectors grouped Connections (ADR-425)", by_slug["connectors"].get("pane_group") == "Connections")
+    check("sources is hidden (no pane_of — ADR-425 D2)", by_slug["sources"].get("pane_of") is None)
+    check("sources is hidden (ADR-425 D2)", by_slug["sources"].get("hidden") is True)
 
 
 def test_registers_unchanged() -> None:

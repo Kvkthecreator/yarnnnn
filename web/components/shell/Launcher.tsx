@@ -17,10 +17,11 @@
  *   re-sort) — "Workspace" (primary: Home · Notifications · Files · Agents,
  *   the standing loop; Notifications is the operating-work composition that
  *   fronts Feed/Queue/Recurrence; Agents is the judgment seat upgraded to
- *   first-class), then the two Settings doors as SEPARATE labeled groups
- *   (ADR-349 D4): "Workspace Settings" (the operation) ABOVE "System
- *   Settings" (the account/machine). The Utilities tier dissolved — the
- *   fronted mirrors + Setup are `search-only`.
+ *   first-class), then the settings doors as SEPARATE labeled groups
+ *   (ADR-349 D4 + ADR-426): "Workspace Settings" (the operation), "Freddie
+ *   System Agent" (the system agent's config, carved out by ADR-426), and
+ *   "User Settings" (the account/human). Three doors, three altitudes. The
+ *   Utilities tier dissolved — the fronted mirrors + Setup are `search-only`.
  *   `search-only` surfaces are HIDDEN at rest — the constitution
  *   mirrors' first-class door is the Home constitution band (ADR-312
  *   slot #1; their pane door is Workspace Settings); the Settings panes'
@@ -89,6 +90,11 @@ const KERNEL_TIER_GROUPS: { key: string; label: string; tier: string }[] = [
   // its label matches its billing/usage/account content + the UserMenu item).
   { key: 'kernel:primary', label: 'Workspace', tier: 'primary' },
   { key: 'kernel:workspace-config', label: 'Workspace Settings', tier: 'workspace-config' },
+  // ADR-426 (2026-07-09) — a THIRD settings door on the same plane: the system
+  // agent's own config, carved out of Workspace Settings. Ordered between the
+  // operation door and the human door — three altitudes: operation · system
+  // agent · human.
+  { key: 'kernel:system-agent-config', label: 'Freddie System Agent', tier: 'system-agent-config' },
   { key: 'kernel:system-config', label: 'User Settings', tier: 'system-config' },
   // 2026-07-04 — Notifications' at-rest group (added 2026-07-01) is deleted:
   // the top-bar bell is the always-present door to that window on every

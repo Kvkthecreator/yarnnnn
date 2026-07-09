@@ -6,7 +6,12 @@
  * The system agent's legibility home. Lineage: ADR-387 §6.4 homed these on
  * the /agents roster as Freddie's pane; ADR-412 D5 reversed that — Freddie
  * left the roster (the Agents surface is Altitude 3), and the panes re-homed
- * to Workspace Settings as the SYSTEM AGENT group.
+ * to Workspace Settings as the SYSTEM AGENT group. ADR-426 (2026-07-09)
+ * carved the group out again — it becomes its OWN door ("Freddie System
+ * Agent", the /system-agent surface, same launcher plane as Workspace
+ * Settings), so the workspace-operation door no longer mixes the system
+ * agent's config with the operation's. Same bodies, new frame (Singular
+ * Implementation — the /system-agent page mounts this module).
  *
  * ADR-418 (2026-07-08) PURIFIED the group to what the system agent actually
  * owns. Post ADR-414 D2 the STEWARD has no operator-authored persona
@@ -22,9 +27,12 @@
  * dials (Autonomy = the witness dial, Budget = the allocation — ADR-414 D2)
  * plus the two read-only legibility panes (Capabilities · Activity).
  *
- * "System Agent" stays the group label (the role, not the proper noun — the
- * entity is named Freddie on its chrome home, the rail; ADR-381 D1 / ADR-412
- * D5). Rendered by the same *Card full variants (Singular Implementation).
+ * ADR-426 (2026-07-09): the group label becomes the proper noun "Freddie
+ * System Agent" — the ADR-412 D5 role-only ruling is reversed now that the
+ * panes have their OWN door (a door titled by its entity reads clearer than an
+ * abstract "System Agent"; the operator asked for it by name). The rail stays
+ * Freddie's conversational home (ADR-412 D1); this is the config door.
+ * Rendered by the same *Card full variants (Singular Implementation).
  */
 
 import {
@@ -41,15 +49,15 @@ import { AutonomyCard } from '@/components/workspace-concepts/AutonomyCard';
 import { BudgetCard } from '@/components/workspace-concepts/BudgetCard';
 
 /**
- * One sidebar group under Workspace Settings — the system agent's dials +
- * legibility. Pane keys autonomy/budget match the kernel registry slugs (so
- * foregroundSurface(slug) resolves here via pane_of: workspace-settings);
- * capabilities + activity are local pane keys (no registry row). ADR-418
- * removed identity/principles (→ Constitution group) + expected-output
- * (dormant) — see module header.
+ * The one sidebar group of the Freddie System Agent door — the system agent's
+ * dials + legibility. Pane keys autonomy/budget match the kernel registry slugs
+ * (so foregroundSurface(slug) resolves to /system-agent via pane_of:
+ * system-agent, ADR-426); capabilities + activity are local pane keys (no
+ * registry row). ADR-418 removed identity/principles (→ Constitution group,
+ * later removed by ADR-421) + expected-output (dormant) — see module header.
  */
 export const SYSTEM_AGENT_PANE_GROUP: PaneGroup = {
-  label: 'System Agent',
+  label: 'Freddie System Agent',
   panes: [
     { key: 'autonomy', label: 'Autonomy', icon: ShieldCheck },
     { key: 'budget', label: 'Budget', icon: Wallet },

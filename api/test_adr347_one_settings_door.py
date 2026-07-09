@@ -85,8 +85,11 @@ def test_contract_group() -> None:
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
     # ADR-418: expected-output LEFT the Settings door (dormant — a hired agent's
     # contract, no band door). budget/autonomy remain the System Agent dials.
+    # ADR-426 (2026-07-09): the System Agent group carved out into its OWN door —
+    # budget/autonomy are pane_of system-agent now (the Freddie System Agent door),
+    # not workspace-settings.
     for slug in ("budget", "autonomy"):
-        check(f"{slug} → the Settings door (ADR-412 D5)", by_slug[slug].get("pane_of") == "workspace-settings")
+        check(f"{slug} → the Freddie System Agent door (ADR-426)", by_slug[slug].get("pane_of") == "system-agent")
     # Governance is no longer in the dissolved System Settings door, and no
     # longer a 'Governance' OR 'Contract'-in-workspace-settings group.
     check("no pane homes to a 'Governance' group anymore",
@@ -147,11 +150,11 @@ def test_redirect_stubs_point_to_one_door() -> None:
     # ADR-412 D5: the agent-scoped governance route stubs redirect into the
     # Settings door's System Agent group (the ADR-387 Freddie-pane targets
     # reversed).
-    print("\n[stubs] governance routes redirect into the Settings door (ADR-412 D5)")
-    # ADR-418: budget/autonomy still deep-link to their System Agent panes.
+    print("\n[stubs] governance routes redirect into the Freddie System Agent door (ADR-426)")
+    # ADR-426: budget/autonomy deep-link to their pane on the new system-agent door.
     for slug in ("budget", "autonomy"):
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
-        target = f"/workspace-settings?workspace-settings.pane={slug}"
+        target = f"/system-agent?system-agent.pane={slug}"
         check(f"/{slug} → {target}", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (ADR-308)", "'use client'" not in stub)
     # ADR-418 — the /expected-output stub survives for BOOKMARK SAFETY only, but
@@ -163,7 +166,7 @@ def test_redirect_stubs_point_to_one_door() -> None:
     check("/expected-output stub is server-side (ADR-308)", "'use client'" not in eo_stub)
     # The Home autonomy badge deep-links via the navigation-enactment verb
     # (ADR-297 D19.5). foregroundSurface('autonomy') is UNCHANGED — the registry
-    # re-point (pane_of: workspace-settings) makes it resolve to the door.
+    # re-point (ADR-426: pane_of system-agent) makes it resolve to the new door.
     home = _read("components/library/HomeHeader.tsx")
     check("Home autonomy badge → foregroundSurface('autonomy')",
           "foregroundSurface('autonomy')" in home)

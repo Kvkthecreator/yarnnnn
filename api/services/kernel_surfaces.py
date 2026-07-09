@@ -390,8 +390,12 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # Freddie's roster pane. ADR-412 D5 (2026-07-06): re-homed pane_of agents → workspace-settings
         # (System Agent group) — Freddie left the roster; the steward's dials
         # live on the system layer. Still the agent's GRANT (ADR-366).
-        "pane_of": "workspace-settings",
-        "pane_group": "System Agent",
+        # ADR-426 (2026-07-09): the System Agent group leaves Workspace Settings
+        # and becomes its OWN door — re-homed pane_of workspace-settings →
+        # system-agent (the "Freddie System Agent" door, same launcher plane as
+        # Workspace Settings). foregroundSurface('budget') resolves there now.
+        "pane_of": "system-agent",
+        "pane_group": "Freddie System Agent",
         "title": "Budget",
         "archetype": "document",
         "substrate_paths": [
@@ -418,8 +422,11 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # Contract group (Witness dial = per-operation config, not machine).
         # ADR-387 §6.4 — Autonomy is a governance/ GRANT (the delegation ceiling
         # the agent runs under, ADR-366). ADR-412 D5 (2026-07-06): re-homed pane_of agents → workspace-settings (System Agent group).
-        "pane_of": "workspace-settings",
-        "pane_group": "System Agent",
+        # ADR-426 (2026-07-09): re-homed pane_of workspace-settings → system-agent
+        # (the "Freddie System Agent" door). foregroundSurface('autonomy') — the
+        # Home autonomy badge deep-link — resolves there now, unchanged call site.
+        "pane_of": "system-agent",
+        "pane_group": "Freddie System Agent",
         "title": "Autonomy",
         "archetype": "document",
         "substrate_paths": [
@@ -716,7 +723,35 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "settings",
         "default_pinned": False,
         "route": "/workspace-settings",
-        "summary": "Workspace Settings — what this operation is and how it runs. Constitution (mandate/identity/principles), Contract (budget/autonomy/expected output), Program, Access (members), Billing/Usage. (ADR-425 moved Connectors to the account door + hid Sources.)",
+        "summary": "Workspace Settings — what this operation is and how it runs. Program, Access (members), Billing/Usage. (ADR-426 moved the System Agent dials to their own door; ADR-425 moved Connectors to the account door + hid Sources.)",
+    },
+    {
+        # ADR-426 (2026-07-09) — Freddie System Agent: the system agent's own
+        # settings door. The System Agent group (ADR-412 D5 / ADR-418: Autonomy ·
+        # Budget · Capabilities · Activity) leaves Workspace Settings and becomes
+        # its own window-grade surface on the SAME launcher plane as Workspace
+        # Settings + User Settings — three sibling doors, three altitudes: the
+        # operation (workspace-settings) · the system agent (this) · the human
+        # (settings). The panes are the SAME SystemAgentPanes bodies (Singular
+        # Implementation — the group moved, not duplicated); the budget/autonomy
+        # rows re-point pane_of → system-agent (above). Its own launcher tier
+        # `system-agent-config` renders the "Freddie System Agent" group right
+        # after Workspace Settings (Launcher.tsx KERNEL_TIER_GROUPS). Steward-
+        # coupled (STEWARD_SURFACE_SLUGS): when AGENT_ENABLED is off the system
+        # agent has no dials to tune, so the door filters out (ADR-375 §6). The
+        # door carries the proper noun "Freddie System Agent" (ADR-426 D3 —
+        # reverses ADR-412 D5's role-only label ruling now that the panes have
+        # their own frame; the rail stays Freddie's conversational home, ADR-412 D1).
+        "slug": "system-agent",
+        "launcher_tier": "system-agent-config",  # ADR-426 — a third settings door tier
+        "register": "application",  # a windowed app like workspace-settings / settings
+        "title": "Freddie System Agent",
+        "archetype": "dashboard",
+        "substrate_paths": [],  # governance/_autonomy.yaml + governance/_budget.yaml (via the pane bodies)
+        "icon_key": "shield-check",
+        "default_pinned": False,
+        "route": "/system-agent",
+        "summary": "Freddie System Agent — how the system agent is configured. Its two operator-tunable dials (Autonomy = the witness dial, Budget = the allocation) plus its read-only legibility (Capabilities · Activity).",
     },
     {
         "slug": "connectors",
@@ -850,6 +885,11 @@ STEWARD_SURFACE_SLUGS: frozenset[str] = frozenset({
     "recurrence",
     "expected-output",
     "activity",
+    # ADR-426 — the Freddie System Agent door. When AGENT_ENABLED is off the
+    # system agent has no dials to tune, so its door filters out with the rest
+    # of the steward-coupled surfaces. (budget is intentionally NOT here — it is
+    # a per-principal allocation that stands even without the internal steward.)
+    "system-agent",
 })
 
 

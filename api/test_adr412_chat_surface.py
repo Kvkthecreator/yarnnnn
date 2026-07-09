@@ -191,25 +191,35 @@ def test_roster_purified() -> None:
 
 
 def test_system_agent_rehome() -> None:
-    print("\n[d] System Agent panes live in Workspace Settings (ADR-412 D5)")
+    print("\n[d] System Agent panes live on their own door (ADR-426)")
     from services.kernel_surfaces import KERNEL_SURFACES
 
-    # ADR-418 (2026-07-08) purified the System Agent group to the steward's DIALS.
-    # autonomy/budget stay pane_of workspace-settings + grouped System Agent;
-    # identity/principles moved to the Constitution group (still pane_of
-    # workspace-settings); expected-output went dormant (no pane_of).
+    # ADR-412 D5 re-homed the System Agent group into Workspace Settings; ADR-418
+    # purified it to the steward's DIALS. ADR-426 (2026-07-09) carved that group
+    # out into its OWN door (system-agent): autonomy/budget are pane_of
+    # system-agent + grouped "Freddie System Agent".
     dials = {"autonomy", "budget"}
     for slug in sorted(dials):
         row = next((r for r in KERNEL_SURFACES if r["slug"] == slug), None)
         _assert(
-            row is not None and row.get("pane_of") == "workspace-settings",
-            f"`{slug}` is pane_of workspace-settings (was agents, ADR-387 §6.4 reversed)",
+            row is not None and row.get("pane_of") == "system-agent",
+            f"`{slug}` is pane_of system-agent (ADR-426 — the Freddie System Agent door)",
         )
         if row is not None:
             _assert(
-                row.get("pane_group") == "System Agent",
-                f"`{slug}` sits in the System Agent group (ADR-418: the steward's dials)",
+                row.get("pane_group") == "Freddie System Agent",
+                f"`{slug}` sits in the Freddie System Agent group (ADR-426)",
             )
+    # ADR-426 — the system-agent door is a window-grade surface of its own.
+    sa_row = next((r for r in KERNEL_SURFACES if r["slug"] == "system-agent"), None)
+    _assert(
+        sa_row is not None and not sa_row.get("pane_of") and sa_row.get("route") == "/system-agent",
+        "`system-agent` is a window-grade door (route /system-agent, no pane_of)",
+    )
+    _assert(
+        sa_row is not None and sa_row.get("launcher_tier") == "system-agent-config",
+        "`system-agent` carries its own launcher tier (system-agent-config)",
+    )
     # ADR-421: mandate/identity/principles are DORMANT — a workspace has no
     # constitution of its own (ADR-414 D6); they are per-agent, surfaced on the
     # agent detail. ADR-418: expected-output likewise dormant.
@@ -224,25 +234,26 @@ def test_system_agent_rehome() -> None:
         "No registry pane is homed on the agents window anymore",
     )
 
+    # ADR-426: the System Agent group mounts on the system-agent door now, NOT
+    # Workspace Settings (which stopped mixing the system agent's config with the
+    # operation's).
     ws = _read("web/app/(authenticated)/workspace-settings/page.tsx")
-    _assert("SYSTEM_AGENT_PANE_GROUP" in ws, "Workspace Settings mounts the System Agent group")
-    _assert("renderSystemAgentPane" in ws, "Pane bodies render via the shared module")
-    _assert(
-        "const MOVED_TO_FREDDIE" not in ws,
-        "The ADR-387 stale-bookmark net is deleted (comment mentions allowed)",
-    )
+    _assert("SYSTEM_AGENT_PANE_GROUP" not in ws, "Workspace Settings no longer mounts the System Agent group (ADR-426)")
+    sa = _read("web/app/(authenticated)/system-agent/page.tsx")
+    _assert("SYSTEM_AGENT_PANE_GROUP" in sa, "the Freddie System Agent door mounts the System Agent group (ADR-426)")
+    _assert("renderSystemAgentPane" in sa, "Pane bodies render via the shared module")
 
     _assert(
         os.path.exists(os.path.join(REPO, "web/components/agents/SystemAgentPanes.tsx")),
         "SystemAgentPanes module exists (the extracted Singular Implementation)",
     )
 
-    # ADR-418: autonomy/budget still deep-link to their System Agent pane.
+    # ADR-426: autonomy/budget deep-link to their pane on the system-agent door.
     for route in ["autonomy", "budget"]:
         stub = _read(f"web/app/(authenticated)/{route}/page.tsx")
         _assert(
-            f"workspace-settings.pane={route}" in stub and "agents.agent=freddie" not in stub,
-            f"/{route} stub redirects into Workspace Settings",
+            f"system-agent.pane={route}" in stub and "agents.agent=freddie" not in stub,
+            f"/{route} stub redirects into the Freddie System Agent door",
         )
     # ADR-418/420: the dormant-surface stubs survive for bookmark safety but their
     # panes are gone — they redirect to the bare Settings door (no dead pane param).

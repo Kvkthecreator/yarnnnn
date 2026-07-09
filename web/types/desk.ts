@@ -25,7 +25,7 @@
 // redirect stub.
 export type KernelSurfaceSlug =
   // ADR-415 (2026-07-08): the `channels` slug is DELETED from the union (the
-  // Channels surface dissolved; its content re-homed to Activity + Workspace
+  // Channels surface dissolved — its content re-homed to Activity + Workspace
   // Settings). The legacy feed + context alias slugs were already deleted
   // (ADR-385 follow-on, 2026-06-30). Persisted dock state naming any of these
   // is normalized to the default by the surface-preferences read boundary, and
@@ -60,8 +60,14 @@ export type KernelSurfaceSlug =
   | 'activity'
   | 'settings'
   | 'workspace-settings'  // ADR-341 — the second Settings door (the operation)
-  | 'connectors'
-  | 'sources';  // ADR-338 D4.1 — standing-watch drivers view
+  | 'system-agent'  // ADR-426 — the Freddie System Agent door (carved from Workspace Settings)
+  | 'connectors';  // ADR-425 — the account door's Connections pane (pane_of: settings)
+  // ADR-425 D2 (2026-07-09): the `sources` slug LEFT the navigable allowlist — it
+  // is `hidden` (no operator door; a bookmark-safe /sources → /home redirect stub
+  // only). The backend row is retained (hide-not-delete) for a future first-class
+  // home (ADR-425 OQ3); it is simply not a navigable FE surface. (Slug intentionally
+  // not written as a quoted literal here — the parity gate reads the union up to
+  // the first semicolon.)
 
 export type DeskSurface =
   // ADR-297: atomic kernel surface — slug identifies which surface
@@ -93,7 +99,8 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   // registry∪panes) holds with them out of all three.
   'home', 'chat', 'recurrence', 'budget', 'autonomy',
   'files', 'agents', 'setup', 'program', 'queue', 'notifications', 'activity',
-  'settings', 'workspace-settings', 'connectors', 'sources',
+  // ADR-425 D2: `sources` LEFT the allowlist (hidden, redirect-stub only).
+  'settings', 'workspace-settings', 'system-agent', 'connectors',
 ] as const;
 
 export function isKernelSurfaceSlug(s: string): s is KernelSurfaceSlug {

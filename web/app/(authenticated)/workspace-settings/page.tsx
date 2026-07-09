@@ -4,43 +4,29 @@
  * /workspace-settings — the ONE Settings door (ADR-347, 2026-06-19;
  * created by ADR-341, 2026-06-18).
  *
- * ADR-347 reversed ADR-341's two-door split: this is now THE Settings door
- * — the operation's settings. It configures THIS operation (the ADR-320
- * constitution/ + governance/ + operation/ + persona/ roots). The account
- * (Billing/Usage/Account) moved OUT to the UserMenu (the human/principal's
- * concern, ADR-347 D2). Mounts the shared SettingsPaneShell (Singular
+ * ADR-347 reversed ADR-341's two-door split: this is THE operation-settings
+ * door. It configures THIS operation. The account (Billing/Usage/Account)
+ * lives on the User Settings door / UserMenu (the human/principal's concern,
+ * ADR-347 D2 — Billing/Usage later moved back here per the ADR-416 follow-on
+ * as workspace-scoped money). Mounts the shared SettingsPaneShell (Singular
  * Implementation, ADR-341 D5).
  *
- * Sidebar groups:
- *   - Constitution: Mandate · Identity · Principles — read/manage panes
- *     reusing the existing *Card full variants (read-mostly, "Edit via
- *     chat"; ADR-244 read-mostly + ADR-206 D6). Their FIRST-CLASS door
- *     stays the Home constitution band (ADR-312 D5 preserved).
- *   - Contract (ADR-347/ADR-348): Budget (Rhythm) · Autonomy (Witness) ·
- *     Expected Output — the operating contract. Operator-authored
- *     governance-region → inline editors (ADR-347 §3). Moved in from the
- *     dissolved System Settings door.
- *   - Operation: Program — the program lifecycle (ADR-244).
+ * Sidebar groups (the current live set):
+ *   - Operation: Brand · Program (ADR-244/387 D3).
  *   - Access (ADR-373 D2): Workspace Members — who can write the workspace.
+ *   - Billing (ADR-416 follow-on): Billing · Usage — this workspace's money.
  *
- * ADR-385 D4 (2026-06-29): the Perception group (Connectors · Sources) is
- * removed — perception is wholly owned by the Channels surface now; the
- * connectors/sources slugs are pane_of: channels.
- *
- * ADR-412 D5 (2026-07-06): the SYSTEM AGENT group lands — Freddie's panes
- * re-home HERE from the /agents roster (the Agents surface is Altitude 3;
- * the system agent's inspection surface belongs on the system layer).
- *
- * ADR-418 (2026-07-08): the System Agent group is PURIFIED to what the
- * steward actually owns post ADR-414 D2 — its two dials (Autonomy = witness,
- * Budget = allocation) + read-only legibility (Capabilities · Activity).
- *   - Identity + Principles rejoin the Constitution group (they are
- *     constitution mirrors doored from the Home band, NOT the steward's
- *     persona — which is a kernel constant now). Rendered in the switch below.
- *   - Expected Output went DORMANT (a hired-agent contract, no band door;
- *     returns with the per-agent FE — ADR-382 / ADR-414 §9b).
- * The System Agent group's remaining panes still render via SystemAgentPanes
- * (Singular Implementation).
+ * What LEFT this door:
+ *   - ADR-421 (2026-07-08): the Constitution group (Mandate/Identity/
+ *     Principles) — a workspace has no constitution of its own; those are
+ *     per-agent, surfaced on the agent detail (AgentConstitutionBlock).
+ *   - ADR-425 (2026-07-09): the Perception group — Connectors → the account
+ *     door (a credential is a human's account object), Sources → hidden.
+ *   - ADR-426 (2026-07-09): the System Agent group (Freddie's dials +
+ *     legibility — Autonomy · Budget · Capabilities · Activity) → its OWN
+ *     window-grade door (/system-agent, "Freddie System Agent", same launcher
+ *     plane). This door stops mixing the system agent's config with the
+ *     operation's; SystemAgentPanes mounts on system-agent/page.tsx now.
  */
 
 import { useEffect, useState } from "react";
@@ -63,22 +49,18 @@ import { ProgramLifecycleDrawer } from "@/components/library/ProgramLifecycleDra
 // Connectors → the account door (a credential is a human's account object),
 // Sources → hidden. ConnectedIntegrationsSection now mounts in settings/page.tsx;
 // SourcesCard is retained but has no operator mount (ADR-425 D2).
-// ADR-412 D5 — the System Agent group (Freddie's panes, re-homed from the
-// /agents roster; reverses ADR-387 §6.4).
-import {
-  SYSTEM_AGENT_PANE_GROUP,
-  SYSTEM_AGENT_PANE_KEYS,
-  renderSystemAgentPane,
-} from "@/components/agents/SystemAgentPanes";
+// ADR-426 (2026-07-09) — the System Agent group (Freddie's dials + legibility)
+// LEFT this door and became its own window-grade surface (/system-agent, the
+// "Freddie System Agent" door on the same launcher plane). This door no longer
+// mixes the operation's config with the system agent's; SystemAgentPanes now
+// mounts on system-agent/page.tsx (Singular Implementation).
 
 // ADR-341/347: pane keys match the kernel registry slugs for pane-grade
 // surfaces, so foregroundSurface(slug) → workspace-settings + ?pane=slug
 // resolves here. ADR-415: connectors/sources re-homed here (Channels dissolved).
-// ADR-418 (2026-07-08): the System Agent group carries only the steward's own
-// surface (autonomy/budget dials + capabilities/activity reads); identity/
-// principles moved to the Constitution group (constitution mirrors, doored from
-// the Home band); expected-output went dormant. capabilities/activity stay
-// local pane keys (no registry row).
+// ADR-426 (2026-07-09): the System Agent group LEFT this door for its own
+// surface (/system-agent). This door is now homogeneously about the operation +
+// the workspace: Operation (Brand · Program) · Access (Members) · Billing.
 const PANE_GROUPS: PaneGroup[] = [
   // ADR-421 (2026-07-08): the Constitution group is REMOVED. A workspace has no
   // constitution of its own — mandate/identity/principles are per-agent concepts
@@ -89,7 +71,6 @@ const PANE_GROUPS: PaneGroup[] = [
   // these into a Constitution group; ADR-419 made them home-aware; ADR-421
   // removes the workspace surface entirely — the honest endpoint.) The Home
   // HEADER still reads MANDATE.md content until the ADR-414 §9b Home recompose.
-  SYSTEM_AGENT_PANE_GROUP,
   {
     // ADR-387 D3 — Brand stays here (interim). It is operation/-rooted output
     // styling consumed by writing-agents, NOT Freddie's reasoning-character —
@@ -139,10 +120,8 @@ export default function WorkspaceSettingsPage() {
   // Connectors pane (settings.connector); this door no longer reads it.
 
   const renderPane = (pane: string) => {
-    // ADR-412 D5 — the System Agent panes render via the shared module.
-    if (SYSTEM_AGENT_PANE_KEYS.includes(pane)) {
-      return <section className="mb-8">{renderSystemAgentPane(pane)}</section>;
-    }
+    // ADR-426 — the System Agent panes moved to their own door (/system-agent);
+    // they no longer render here.
     switch (pane) {
       // ADR-421 — the Mandate/Identity/Principles cases are REMOVED. A workspace
       // has no constitution of its own (ADR-414 D6): these are a hired agent's
@@ -228,7 +207,7 @@ export default function WorkspaceSettingsPage() {
   };
 
   return (
-    <SettingsPaneShell windowSlug="workspace-settings" paneGroups={PANE_GROUPS} defaultPane="mandate" renderPane={renderPane} />
+    <SettingsPaneShell windowSlug="workspace-settings" paneGroups={PANE_GROUPS} defaultPane="brand" renderPane={renderPane} />
   );
 }
 

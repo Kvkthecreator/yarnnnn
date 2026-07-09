@@ -76,6 +76,11 @@ import SetupPage from '@/app/(authenticated)/setup/page';
 // window the UserMenu opens (billing/usage/account), kept as a windowed page.
 import SettingsPage from '@/app/(authenticated)/settings/page';
 import WorkspaceSettingsPage from '@/app/(authenticated)/workspace-settings/page';  // ADR-347 — the one Settings door
+// ADR-426 (2026-07-09) — the Freddie System Agent door: the System Agent group
+// (Autonomy · Budget · Capabilities · Activity) carved out of Workspace Settings
+// into its own window-grade surface. budget/autonomy re-point pane_of →
+// system-agent, so foregroundSurface('autonomy') resolves into this door.
+import SystemAgentPage from '@/app/(authenticated)/system-agent/page';
 
 export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, ComponentType>> = {
   // ADR-415 — the Channels surface is dissolved; no window component. Its
@@ -97,6 +102,7 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   setup: SetupPage,  // ADR-331 D1 — guided first-boot Sequence
   settings: SettingsPage,  // ADR-347 — the account window (UserMenu-reached: billing/usage/account)
   'workspace-settings': WorkspaceSettingsPage,  // ADR-347 — the ONE Settings door (the operation)
+  'system-agent': SystemAgentPage,  // ADR-426 — the Freddie System Agent door (Autonomy/Budget/Capabilities/Activity)
 };
 
 export function resolveSurfaceComponent(slug: KernelSurfaceSlug): ComponentType | undefined {

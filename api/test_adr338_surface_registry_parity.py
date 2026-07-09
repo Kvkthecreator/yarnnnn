@@ -62,9 +62,17 @@ def _backend_navigable_slugs() -> set[str]:
     """Authoritative source: import the constant, don't regex it."""
     from services.kernel_surfaces import KERNEL_SURFACES
 
-    # Navigable = has a non-empty route. Chrome surfaces (top-bar, launcher,
-    # chat-drawer) carry route="" and are not Launcher navigation targets.
-    return {e["slug"] for e in KERNEL_SURFACES if e.get("route")}
+    # Navigable = has a non-empty route AND is not `hidden`. Chrome surfaces
+    # (top-bar, launcher, chat-drawer) carry route="" and are not Launcher
+    # navigation targets. ADR-425 D2 (2026-07-09): `hidden` surfaces (sources)
+    # keep a bookmark-safe redirect-stub route but present NO operator door — so
+    # they are not a real navigation target and must not require a window
+    # component or an allowlist entry.
+    return {
+        e["slug"]
+        for e in KERNEL_SURFACES
+        if e.get("route") and not e.get("hidden")
+    }
 
 
 def _fe_allowlist_slugs() -> set[str]:
@@ -127,14 +135,18 @@ def test_three_way_parity() -> None:
         f"pane slugs with window components: {sorted(reg & panes)}",
     )
     check(
-        "pane set is the ADR-347 fold + ADR-340 D8 activity + ADR-418/420 removals",
+        "pane set is the live fold (ADR-426 System Agent door + ADR-425 sources hidden)",
         panes == {
-            # The one Settings door — Contract (ADR-347). ADR-418: expected-output
-            # LEFT (dormant). ADR-421: mandate/identity/principles LEFT (dormant) —
-            # a workspace has no constitution of its own; those are per-agent.
+            # ADR-426 (2026-07-09): budget/autonomy are pane_of system-agent now
+            # (the Freddie System Agent door), NOT workspace-settings — they are
+            # still pane-grade, just under a different parent. ADR-418:
+            # expected-output LEFT (dormant). ADR-421: mandate/identity/principles
+            # LEFT (dormant) — a workspace has no constitution of its own.
             "budget", "autonomy",
-            # The one Settings door — Operation/Perception (ADR-347/415).
-            "program", "connectors", "sources",
+            # Workspace Settings — Operation (program). ADR-425 (2026-07-09):
+            # `connectors` is now pane_of settings (the account door); `sources` is
+            # HIDDEN (no pane_of, no route) so it drops out of the pane set.
+            "program", "connectors",
             # Recurrence (Machinery) — ADR-340 D8
             "activity",
         },

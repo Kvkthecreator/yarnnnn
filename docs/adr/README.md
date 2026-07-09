@@ -357,6 +357,7 @@ The commons-first launch, the witness dial, the three altitudes/chromes, the pur
 | [423](ADR-423-revision-kind-the-observation-derivation-flag.md) | `revision_kind` — the observation/derivation flag | Accepted |
 | [424](ADR-424-the-pure-os-filesystem-model-for-all-participants.md) | The Pure-OS Filesystem Model for All Participants | Accepted |
 | [425](ADR-425-the-credential-is-an-account-object.md) | The Credential Is an Account Object | Proposed |
+| [426](ADR-426-freddie-system-agent-its-own-settings-door.md) | Freddie System Agent — Its Own Settings Door | Accepted |
 
 > **ADRs not listed above** (a handful of intermediate steps: 217, 234, 238–239, 241, 243, 246, 249–250, 255, 264–266, 271–272, 281, 288, 294, 299, 304, 366, 397, 402–403) exist in `docs/adr/` and are Implemented/absorbed intermediate decisions — read the file directly if you touch that surface.
 
