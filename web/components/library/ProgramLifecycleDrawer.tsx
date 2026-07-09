@@ -41,7 +41,8 @@ type CapabilityGap = WorkspaceState['capability_gaps'][number];
 interface ProgramLifecycleDrawerProps {
   state: WorkspaceState;
   /** Called after a successful activate/deactivate — parent re-fetches the
-   *  setup bundle so cards reflect post-fork content. */
+   *  setup bundle so cards reflect the newly-hired agent's installed content
+   *  (ADR-432 D2b: activation HIRES an agent into agents/{slug}/, ADR-414 D5). */
   onMutation: () => Promise<void>;
 }
 
@@ -201,8 +202,8 @@ export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDr
               </h3>
               <p className="text-xs text-muted-foreground/80">
                 {activeProgram
-                  ? 'Switching forks the new program on top — your authored content is preserved.'
-                  : 'Activating a program forks its starting configuration into your workspace.'}
+                  ? 'Switching hires the new agent in place — your authored content is preserved.'
+                  : 'Activating a program hires an agent — its load-out installs into the agent’s own home.'}
               </p>
               <div className="space-y-2">
                 {switchablePrograms.map(p => (

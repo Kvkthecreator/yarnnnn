@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.09.5] - Workspace Settings OPERATION group resolution (ADR-432) — Brand + Program
+
+- **Operator-surface change, no backend/gate/LLM-behavior change.** Resolves the long-owed ADR-387 D4 deferral ("Program/Operation surface scope post-Freddie") from a Workspace-Settings audit.
+- **Program (correctness)**: the backend was fully migrated to ADR-414's program-as-hire model, but the FE was left behind. Fixed the gate — `GrantGate region="constitution/"` → `"agents/"` (the hire installs into `agents/{slug}/`, and ADR-421 removed the workspace `constitution/` root; the `agents/` GrantGate label already ships per ADR-419). Reworded the stale "activation forks the constitution / writes MANDATE/persona/governance seeds" framing (routing comment + `ProgramLifecycleDrawer` copy) to the hire-grant model: activation HIRES an agent whose load-out installs into its own home; deactivation FIRES it. The singular workspace-level "Program" pane folds into the `/agents` roster under ADR-382 — direction ratified, build DEFERRED (the two surfaces read disjoint sources; a hired program is a `principal_grants` row with no `agents` table row, so folding = the ADR-382 hired-agent roster; and ADR-414's backfill found zero live hired programs — nothing to fold today).
+- **Brand (honest interim)**: `operation/BRAND.md` is operator-authored but read by NO live generation path (absent from `freddie_envelope.py`, `lane_runner.py`, `dispatch_specialist.py`; its only readers have zero production callers). The pane's tagline no longer claims agents "apply" the brand voice. Ratified DIRECTION (ADR-432 D1): brand voice is a hired agent's output-styling concern — homes per-agent under `agents/{slug}/` wired into that agent's producing envelope when it becomes load-bearing (following ADR-419), not a workspace pane. Retire-vs-keep the pane + `DEFAULT_BRAND_MD` seed is the operator's next call (recorded in ADR-432 D1c); this pass only stops the over-promise.
+- Expected behavior: no change to what the gate enforces or what any agent reads; the operator sees a Program pane framed by its real (hire) model + gated on the right region, and a Brand pane that no longer promises consumption that doesn't happen. Gate: `tsc --noEmit` clean; no gate pins the Program pane to `constitution/`.
+
 ## [2026.07.09.4] - System Agent pane purification (ADR-430) — Autonomy · Budget · Health
 
 - **Operator-surface change, no gate/LLM-behavior change.** Trims the three live Freddie System Agent panes to what the witness/cost canon says the steward's door should show.

@@ -12,7 +12,8 @@
  * Implementation, ADR-341 D5).
  *
  * Sidebar groups (the current live set):
- *   - Operation: Brand · Program (ADR-244/387 D3).
+ *   - Operation: Brand · Program (ADR-432 resolved the ADR-387 D4 deferral —
+ *     Brand's per-agent direction + Program's gate/framing fixes + fold-to-382).
  *   - Access (ADR-373 D2): Workspace Members — who can write the workspace.
  *   - Billing (ADR-416 follow-on): Billing · Usage — this workspace's money.
  *
@@ -72,10 +73,15 @@ const PANE_GROUPS: PaneGroup[] = [
   // removes the workspace surface entirely — the honest endpoint.) The Home
   // HEADER still reads MANDATE.md content until the ADR-414 §9b Home recompose.
   {
-    // ADR-387 D3 — Brand stays here (interim). It is operation/-rooted output
-    // styling consumed by writing-agents, NOT Freddie's reasoning-character —
-    // so it did not move with Identity. Its permanent home is deferred to the
-    // D4 follow-on ADR (agent output-styling vs operator brand vs per-persona).
+    // ADR-432 (2026-07-09) resolved the ADR-387 D4 deferral for this group:
+    //  - Brand: operator-authored output styling, read by NO producing path
+    //    today. Ratified DIRECTION (D1) — a HIRED AGENT's output-styling concern,
+    //    homes per-agent under agents/{slug}/ when load-bearing; the copy stops
+    //    over-promising this pass (retire-vs-keep is the operator's next call).
+    //  - Program: backend is ADR-414 hire-grant (correct); the pane's gate +
+    //    framing were fixed to the hire model (D2a/D2b). The singular pane folds
+    //    into the /agents roster under ADR-382 — direction ratified, build
+    //    deferred (zero live hired programs, D2c).
     label: "Operation",
     panes: [
       { key: "brand", label: "Brand", icon: UserCircle },
@@ -131,19 +137,27 @@ export default function WorkspaceSettingsPage() {
       // WorkspaceFileView reading operation/BRAND.md directly (Identity moved
       // to Freddie, so the old merged "Identity & Brand" card no longer fits).
       case "brand":
+        // ADR-432 D1 (2026-07-09): honest interim. `operation/BRAND.md` is
+        // operator-authored, but no producing path reads it today (it is absent
+        // from the wake envelope + the lane/specialist prompts) — so the copy no
+        // longer claims agents "apply" it. Ratified DIRECTION (D1b): brand voice
+        // is a HIRED AGENT's output-styling concern — when it becomes
+        // load-bearing it lives at `agents/{slug}/` wired into that agent's
+        // producing envelope + surfaced on the agent detail (following ADR-419),
+        // not a workspace pane. Retire-vs-keep is the operator's next call
+        // (ADR-432 D1c); this pass only stops the over-promise.
         return (
           <section className="mb-8">
             <GrantGate region="operation/">
               <WorkspaceFileView
                 title="Brand voice"
                 path="/workspace/operation/BRAND.md"
-                tagline="How produced output should sound — the brand voice writing-agents apply. Operator-authored. (Its permanent home is a follow-on ADR — ADR-387 D3.)"
-                editPrompt="Help me define my brand voice — the tone, style, and conventions all produced content should follow."
+                tagline="Operator-authored notes on how output should sound. Not yet wired to a producing agent — its home is per-agent output-styling when a hired agent applies it (ADR-432 D1)."
+                editPrompt="Help me define my brand voice — the tone, style, and conventions produced content should follow."
                 onEdit={(prompt) => navigateToSurface("chat", { prompt })}
                 emptyBody={
                   <p className="text-center text-xs">
-                    No brand voice declared yet. Author it to shape how produced
-                    content sounds.
+                    No brand voice declared yet.
                   </p>
                 }
               />
@@ -151,12 +165,19 @@ export default function WorkspaceSettingsPage() {
           </section>
         );
       case "program":
-        // ADR-412 D3 — activation/deactivation amends the constitution (the
-        // bundle fork writes MANDATE/persona/governance seeds); same gate as
-        // the Home activation CTA.
+        // ADR-432 D2a/D2b (2026-07-09): activation HIRES an Altitude-3 agent
+        // (ADR-414 D5) — it mints a `principal_grants` hire row and installs the
+        // bundle load-out into `agents/{slug}/`; deactivation FIRES it (revokes
+        // the grant). It does NOT fork the constitution (the pre-ADR-414
+        // occupant-fork + MANDATE/persona/governance-seed model is DELETED, and
+        // ADR-421 removed the workspace `constitution/` root entirely). So the
+        // gate keys on `agents/` — the region the hire actually writes — not the
+        // stale `constitution/`. (The singular workspace-level "Program" pane
+        // folds into the /agents roster under ADR-382 — direction ratified,
+        // build deferred; zero live hired programs today, ADR-432 D2c.)
         return (
           <section className="mb-8">
-            <GrantGate region="constitution/">
+            <GrantGate region="agents/">
               <ProgramPaneBody onRerunSetup={() => navigateToSurface("setup")} />
             </GrantGate>
           </section>
