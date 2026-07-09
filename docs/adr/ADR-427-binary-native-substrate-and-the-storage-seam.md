@@ -84,14 +84,15 @@ ADR-328 named "Category 1 exports to git format" as the *falsifiability test* of
 - **The working tree is native files** (the operator's literal "local-disk OS" ask): on disk `operation/foo.md` is a real file any local app opens; the moat metadata lives in `.yarnnn/` (git's `.git/`), authoritative and walkable.
 - **Reference driver uses real git plumbing** where it fits — the fork rides the most-proven content-addressed history on earth rather than re-implementing one.
 
-### 5a. The load-bearing divergence: per-path chain vs git's tree-commit
+### 5a. The load-bearing divergence: per-path chain vs git's tree-commit — and the repo maps to a WORKSPACE
 
-yarnnn's chain is **per-`(user_id, path)`** — each file has its own independent parent-pointer DAG (confirmed `authored_substrate.py:160-181`, the head-read filters `.eq("path", path)`). A git commit is a **whole-tree snapshot**. This is closer to **per-file version history** (Google-Docs-per-doc) than to git's tree-commit. The mapping (which the local driver MUST implement, specified so it is not hand-waved):
+yarnnn's chain is **per-`(workspace_id, path)`** — the workspace is the binding unit (ADR-373, **implemented**: `authored_substrate.py::_substrate_scope` at :245-256 prefers `workspace_id` whenever resolvable via `effective_workspace_id`, docstring *"The workspace is the binding unit"*; both head-reads route through it; migrations `189_adr373`/`198_adr373`/`199_adr404` are in-tree; the read sweep is live across 10+ services). `user_id` scoping is the **N=1 fallback**, byte-identical when no workspace resolves. Each file has its own independent parent-pointer DAG *within a workspace*. A git commit is a **whole-tree snapshot**. So yarnnn is closer to **per-file version history** (Google-Docs-per-doc) than to git's tree-commit — but the *repo* is the workspace, not the user. The mapping (which the local driver MUST implement, specified so it is not hand-waved):
 
-- **Blobs map trivially** — content-addressed bytes are identical in both models.
-- **Each yarnnn revision → a git commit touching one path** (`authored_by`→author, `message`→message, `parent_version_id`→parent). `git log -- <path>` reproduces the yarnnn per-file chain exactly (git supports the per-file view natively).
+- **The git repo IS the workspace, not the user.** This is the correction that makes D3 *obviously* correct rather than merely defensible: a multi-principal commons on local disk is **one repository with many committers** — which is exactly what git is. `authored_by → git author` is only meaningful because the repo spans principals; a repo-per-user would be incoherent for a commons. `LocalDiskBackend` is one `git + git-lfs` repo per `workspace_id`.
+- **Blobs map trivially** — content-addressed bytes are identical in both models; `workspace_blobs` is an unscoped global CAS (§7), so blob identity is workspace-independent by construction.
+- **Each yarnnn revision → a git commit touching one path** (`authored_by`→git author — *the multiple principals of the commons*, `message`→message, `parent_version_id`→parent). `git log -- <path>` reproduces the yarnnn per-file chain exactly (git supports the per-file view natively).
 - **Git's whole-tree atomic snapshot is a GAIN the fork MAY expose as a superset — not a conflict.** The cloud form simply doesn't have tree-commits today; no authoritative state is lost either direction.
-- **This is coherent *because of* ADR-286 (single-writer-per-path) + ADR-378/406 (no merge/CRDT; revert-as-write).** yarnnn deliberately has no cross-file atomic transaction to represent — so the absence of tree-commits in the cloud form is by design, not a gap. The per-file model and the no-merge invariant are the same decision.
+- **This is coherent *because of* ADR-286 (single-writer-per-path) + ADR-378/406 (no merge/CRDT; revert-as-write).** yarnnn deliberately has no cross-file atomic transaction to represent — so the absence of tree-commits in the cloud form is by design, not a gap. The per-file model and the no-merge invariant are the same decision. (Multi-principal is *why* this matters: two committers to one repo is the git norm; §5b — semantic merge is the app's job — is what keeps it coherent without a kernel merge.)
 
 ### 5b. Why no-merge is correct: semantic merge is the application's job (the strongest leg)
 
@@ -135,6 +136,7 @@ This also **corrects Phase 3's "MIME allowlist" line**, which presumed stored ty
 - **Does not ratify ADR-413 / build a public app ABI** — the external contract rides after the seam exists.
 - **Does not build a first-party media app** — the Preview-equivalent that dogfoods the seam follows the keystone.
 - **Does not change the revision chain, single-writer-per-path, or the no-merge invariant** (ADR-286/378/406 preserved and reaffirmed as *why* §5a is coherent).
+- **Does not scope the blob CAS.** `workspace_blobs` is an **unscoped global content-addressed store** — identical bytes across workspaces share one blob (the dedup property, `_upsert_blob`:229-242, no `user_id`/`workspace_id` column). **Scoping lives at the revision layer**, which post-ADR-373 is the **workspace** (`workspace_file_versions` via `_substrate_scope`). This is correct and stays: the local-disk fork gives each workspace its own `git + git-lfs` repo, and the LFS store dedups identical objects the same way the global CAS does — blob identity is workspace-independent by construction, authority is workspace-scoped at the revision.
 - **Does not raise the upload size cap or add media MIME types by itself** — those are Phase-3 consequences of the seam, not the seam.
 
 ## 8. The read-side blast radius (correction E — undercounted in the draft)
