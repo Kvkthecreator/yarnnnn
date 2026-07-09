@@ -29,6 +29,7 @@ import { useEffect, useState } from 'react';
 import { Users, ShieldCheck, Bot, Plug, User, Cpu, Loader2, MoreHorizontal, ShieldMinus, Trash2, AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { providerBrandIcon } from '@/lib/ai-providers/brand-icons';
 
 type Member = Awaited<ReturnType<typeof api.workspace.getMembers>>['members'][number];
 
@@ -276,10 +277,14 @@ export function WorkspaceMembersCard({
         // Resolves the operator's "whose?" question directly. Only the external
         // classes carry it; "your connection" when the viewer authorized it.
         const connectedBy = m.connected_by_label;
+        // ADR-431 §display follow-on — the external-LLM classes render their
+        // PROVIDER brand mark (keyed on principal_id = the host-id) so ChatGPT ≠
+        // Claude at a glance; humans + own-agent keep the role's lucide glyph.
+        const isExternalAI = m.role === 'foreign-llm' || m.role === 'a2a' || m.role === 'platform';
         return (
           <li key={`${m.principal_id}-${m.role}`} className="flex items-start gap-3 px-4 py-3">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-              <Icon className={cn('h-4 w-4', meta.tone)} />
+            <div className={cn('mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted', meta.tone)}>
+              {isExternalAI ? providerBrandIcon(m.principal_id) : <Icon className={cn('h-4 w-4', meta.tone)} />}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
