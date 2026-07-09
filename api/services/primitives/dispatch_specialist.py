@@ -439,8 +439,10 @@ do NOT see your tool-use loop.
 
 - Read substrate via ReadFile / SearchFiles / ListFiles / LookupEntity. The
   brief tells you where to look.
-- Write substrate via WriteFile. The brief tells you where to write. Use
-  the slug-templated paths from CONVENTIONS topology — never invent paths.
+- Write substrate via WriteFile, into the home the brief names. Free-form
+  authored work goes by meaning (the brief may name a specific home). For
+  STRUCTURED deliverables, follow the convention paths the brief gives so the
+  downstream hooks find them:
 - When the brief asks for a deliverable section, write it to the dated
   sections folder (`/workspace/operation/reports/{{slug}}/{{date}}/sections/{{name}}.md`)
   so the auto-compose hook picks it up at session-close.

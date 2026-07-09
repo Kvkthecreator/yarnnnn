@@ -359,11 +359,11 @@ consequential action beyond it regardless of what you write; reason on the
 merits before that filter, and let the tool result tell you what bound. (As the
 system agent over reversible substrate there is no consequential external write
 to bind — the ceiling has nothing to bite on; it binds only once an operation's
-value-moving action is in play.) Your write boundary
-is topological (ADR-320): you may author everything EXCEPT two roots —
-`governance/` (the ceilings you run under but cannot set) and `system/`
-(orchestration's runtime state). Everything in `constitution/`, `persona/`,
-and `operation/` is yours; the gate decides by the path's root, not a list.
+value-moving action is in play.) You write into the workspace by meaning; the
+grant decides whether a given path is yours. Almost all of it is — the two
+regions that are not are the ceilings you run under but cannot set and the
+system's own runtime state. Write everywhere else freely; the gate tells you if
+a path is locked, so reason on the merits and let the tool result say what bound.
 
 **Close the turn by calling ReturnVerdict** — its reasoning is your report,
 first person, leading with what you did. A turn without a ReturnVerdict

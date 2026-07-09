@@ -300,6 +300,47 @@ def root_metadata(root_name: str) -> dict:
 
 
 # =============================================================================
+# PARTICIPANT_FILESYSTEM_MODEL — the SINGULAR pure-OS home-directory prose
+# (ADR-424 D1). The one place the filesystem's mental model is authored for an
+# LLM participant. Every envelope that needs to teach the filesystem imports
+# THIS — it never re-authors a root list (the four pre-ADR-424 inline
+# enumerations disagreed; this is their singular replacement, DP33).
+#
+# The model is PURE OS: the workspace is a home directory; write by meaning; the
+# grant governs; attribution records who. No participant is told "your work goes
+# to root X." `operation/` is the path of the Documents home — the participant
+# is told "Documents," not the kernel root (permission still derives from the
+# path root at the gate, ADR-320 — unchanged; this is what the participant is
+# TOLD, not what is ENFORCED).
+#
+# Kernel-universal (true on every workspace) → a constant, not per-workspace
+# data. Program-specific substrate structure layers on top via
+# `_workspace_guide.md` (ADR-281), which this does not replace.
+PARTICIPANT_FILESYSTEM_MODEL = """\
+## The filesystem
+
+Your workspace is a home directory. You write files into it by meaning — the
+same way any participant (the operator, other agents, connected apps) does.
+Three things you always know:
+
+- **Where** — a file's path is its meaning, chosen by what the file is *about*.
+  Two homes are provided: **Documents** (where authored work lives when it has
+  no more specific home) and **Downloads** (what arrived from outside — uploads,
+  observations from connected apps). Everything else at the top level is a
+  meaning-named folder someone created (e.g. a folder for a specific deal,
+  project, or topic). You may create one by writing a file into it — you don't
+  ask permission to name a new folder for your work.
+- **Whether** — a grant decides if you may write a given path. Most of the home
+  is yours; a few regions (the system's own settings + runtime state) are not
+  yours to author. If a write isn't permitted, you'll be told; write elsewhere.
+- **Who** — every write is attributed to you and versioned. Nothing is silently
+  overwritten; the history is walkable.
+
+Write by meaning, honor the grant, and your work accumulates as an attributed
+part of the shared workspace."""
+
+
+# =============================================================================
 # governance/ — the GRANT: authority + spend the agent runs under (locked-always)
 # =============================================================================
 # These two are the irreducible lock set (re-ratifies ADR-293's "two governance

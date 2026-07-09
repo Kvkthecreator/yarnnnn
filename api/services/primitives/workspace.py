@@ -114,26 +114,27 @@ WRITE_FILE_TOOL = {
 This is a FILE LAYER primitive — it writes to a path within the workspace filesystem.
 For entity mutations by typed ref, use EditEntity.
 
+You write by MEANING (ADR-424): the path says what the file is about; the grant
+says whether you may write it; every write is attributed to you and versioned.
+Authored work lives in the **Documents** home (path prefix `operation/`) or in a
+meaning-named folder you create for a specific deal/project/topic (write a file
+into it to create it — you don't ask permission to name a folder for your work).
+A few regions (the system's settings + runtime state) are not yours to author.
+
 Three scopes (ADR-235 Option A):
 
-**scope='workspace'** (chat default) — write to operator-shared substrate via
-workspace-relative path. Use for governance declarations, working memory,
-task feedback, awareness handoff, etc.
-  WriteFile(scope='workspace', path='constitution/MANDATE.md', content='...')
+**scope='workspace'** (chat default) — write into the shared workspace via a
+workspace-relative path.
+  WriteFile(scope='workspace', path='operation/competitors/acme-corp/signals.md', content='...')
+  WriteFile(scope='workspace', path='the-acme-deal/notes.md', content='...')  # a peer meaning-folder
   WriteFile(scope='workspace', path='system/notes.md', content='...', mode='append')
-  WriteFile(scope='workspace', path='system/awareness.md', content='...')
-  WriteFile(scope='workspace', path='reports/market-weekly/feedback.md', content='...', mode='append')
 
   Writes to recognized canonical paths emit activity log events automatically:
     'system/notes.md'   → 'memory_written'
     'agents/{slug}/memory/feedback.md' → 'agent_feedback'
 
-  Accumulated domain context is path-native under operation/{domain}/ (ADR-321 —
-  the path's root is the address; there is no separate 'context' scope):
-  WriteFile(scope='workspace', path='operation/competitors/acme-corp/signals.md', content='...')
-
-**scope='agent'** — write to the calling agent's workspace
-(/agents/{slug}/...). Rarely needed — agent workspace is identity only.
+**scope='agent'** — write to the calling agent's own home
+(/agents/{slug}/...) — its persona/state, the app's-own-library equivalent.
 
 For attribution semantics, every write lands a workspace_file_versions row
 via the Authored Substrate (ADR-209) with attribution + revision chain.""",
@@ -142,7 +143,7 @@ via the Authored Substrate (ADR-209) with attribution + revision chain.""",
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Path (the root IS the address — ADR-320/321). For scope='workspace': workspace-relative under one of the five roots (e.g., 'constitution/MANDATE.md', 'system/notes.md', 'reports/market-weekly/feedback.md', 'operation/competitors/acme-corp/signals.md' for accumulated domain context). For scope='agent': relative to the agent's workspace (e.g., 'AGENT.md').",
+                "description": "Path — the meaning IS the address (ADR-424). For scope='workspace': workspace-relative, chosen by what the file is about (e.g., 'operation/competitors/acme-corp/signals.md' in the Documents home, or 'the-acme-deal/notes.md' in a meaning-folder you create). For scope='agent': relative to the agent's own home (e.g., 'AGENT.md').",
             },
             "content": {
                 "type": "string",
@@ -156,7 +157,7 @@ via the Authored Substrate (ADR-209) with attribution + revision chain.""",
             "scope": {
                 "type": "string",
                 "enum": ["workspace", "agent"],
-                "description": "Write scope (address-space selector, ADR-321). 'workspace' (default for chat) reaches the five-root operator-shared filesystem via a workspace-relative path — the path's top-level root is the address (governance/constitution/persona/operation/system). 'agent' writes to the calling agent's private workspace.",
+                "description": "Write scope (address-space selector, ADR-321). 'workspace' (default for chat) writes into the shared workspace by meaning-path — the grant governs whether a given path is yours. 'agent' writes to the calling agent's own home.",
             },
             "authored_by": {
                 "type": "string",

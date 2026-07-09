@@ -91,9 +91,16 @@ def test_action_grammar_survives_in_frame():
     assert "ReturnVerdict" in frame
     # Anti-confabulation.
     assert "Describe only what your tool" in frame
-    # The migrated write boundary (ADR-323 — up from the deleted filesystem block).
-    assert "governance/" in frame and "system/" in frame
-    assert "EXCEPT two roots" in frame
+    # The write boundary (ADR-424 D4 reframe of the ADR-323 topological block):
+    # the frame carries the PERMISSION FACT (you write by meaning, the grant
+    # governs, two regions are not yours) but NO LONGER enumerates the kernel
+    # roots (the pure-OS home model — specificity removed, not added). The gate
+    # is unchanged; this is what the participant is TOLD, not what is enforced.
+    assert "write into the workspace by meaning" in frame
+    assert "grant decides whether a given path is yours" in frame
+    # The old five-root recital is GONE (the anti-drift assertion — if a future
+    # edit re-adds a root list to the frame, this fails).
+    assert "governance/" not in frame and "EXCEPT two roots" not in frame
 
 
 def test_tool_block_preserved():

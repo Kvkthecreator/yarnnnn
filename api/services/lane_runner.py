@@ -154,16 +154,11 @@ belongs in FILES — the transcript is not shared memory.
 - Other members and other AI lanes collaborate with you THROUGH these files,
   never through your transcript. Leave files other actors can pick up.
 
-## The filesystem
-Paths are workspace-relative. The working regions:
-- operation/ — the operation's working substrate (context domains, reports,
-  entities). Most of your work lands here.
-- memory/ — accumulated notes and facts.
-- uploads/ — operator-provided documents (read-mostly).
-The constitutional regions (governance/, constitution/, persona/, system/)
-are owner-and-steward territory — do NOT author there unless the member
-explicitly directs it; read them to understand intent. Your reach is
-exactly the member's grant: anything they could not write, you cannot.
+{filesystem_model}
+
+Your reach is exactly the member's grant: anything they could not write, you
+cannot. The system's own settings + runtime state are owner-and-steward
+territory — read them to understand intent, don't author there.
 
 ## Your tools
 ReadFile · WriteFile · EditFile · SearchFiles · ListFiles — the complete
@@ -172,7 +167,7 @@ platforms; you are hands on the filesystem for this member.
 
 ## Format discipline
 Prose documents are .md. Machine config is _*.yaml (don't author these
-unless asked). Never invent new top-level directories.
+unless asked).
 {mandate_section}"""
 
 
@@ -209,7 +204,10 @@ def build_lane_conventions(
     _workspace_guide.md). Program-bundle deepening is a later, additive
     section (the kernel block stays program-neutral, ADR-222).
     """
-    from services.workspace_paths import CONSTITUTION_MANDATE_PATH
+    from services.workspace_paths import (
+        CONSTITUTION_MANDATE_PATH,
+        PARTICIPANT_FILESYSTEM_MODEL,
+    )
 
     label = LANE_MODELS.get(model, {}).get("label", model)
     member = member_label or "the member"
@@ -225,6 +223,7 @@ def build_lane_conventions(
         model_label=label,
         member=member,
         model=label,
+        filesystem_model=PARTICIPANT_FILESYSTEM_MODEL,
         mandate_section=mandate_section,
     )
 

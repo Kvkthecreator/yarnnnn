@@ -10,6 +10,13 @@ Conventions live as **operator-readable markdown** in
 module is the call-site mirror of that markdown — both must be kept
 in sync. When CONVENTIONS.md changes, this module changes too.
 
+ADR-424 D3: every builder takes an optional ``home`` (default = the Documents
+home, ``operation``). ``operation/`` is no longer a privileged "work root" — it
+is the path of the Documents home; a workflow whose output has a more specific
+meaning-home passes ``home="the-acme-deal"`` and the paths below re-root there.
+The default preserves every current caller byte-identically. The shapes below
+show the default (``operation``) form.
+
 The convention shapes (per ADR-262 D1):
 
     Reports (DELIVERABLE-shaped output, replacive per firing):
@@ -87,6 +94,22 @@ from typing import Optional
 
 DATE_FOLDER_FORMAT = "%Y-%m-%dT%H%M"
 
+# ADR-424 D3: the WORK HOME. `operation/` is no longer a privileged kernel "work
+# root" — it is the path of the DOCUMENTS home (authored work with no more
+# specific home). A workflow whose output has a more specific meaning-home may
+# pass `home="the-acme-deal"` to any builder below; the default preserves every
+# current caller byte-identically (all 19 call sites take the default → operation).
+# One resolver, one set of builders — parameterized, NOT a parallel path (the
+# Singular-Implementation discipline: there is one way to build a work path).
+DEFAULT_WORK_HOME = "operation"
+
+
+def _work_home(home: Optional[str] = None) -> str:
+    """Resolve the work-home segment. Default = the Documents home (operation/).
+    A meaning-named peer folder (e.g. 'the-acme-deal') is passed when the work
+    has a more specific home (ADR-424 D3)."""
+    return (home or DEFAULT_WORK_HOME).strip("/")
+
 # Canonical recurrences file (ADR-261 D2) — the AGENT's judgment scheduling.
 # A recurrence is a judgment prompt served by the wake funnel (services.wake).
 RECURRENCES_PATH = "/workspace/_recurrences.yaml"
@@ -117,57 +140,57 @@ def _date_token(when: Optional[datetime]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def report_root(slug: str) -> str:
+def report_root(slug: str, home: Optional[str] = None) -> str:
     """Per-report root directory (parent of dated folders + ancillary files)."""
-    return f"/workspace/operation/reports/{slug}"
+    return f"/workspace/{_work_home(home)}/reports/{slug}"
 
 
-def report_dated_folder(slug: str, when: Optional[datetime] = None) -> str:
+def report_dated_folder(slug: str, when: Optional[datetime] = None, home: Optional[str] = None) -> str:
     """The folder holding one firing's output bundle: ``output.md``,
     ``output.html``, ``sections/``, ``manifest.json``."""
-    return f"/workspace/operation/reports/{slug}/{_date_token(when)}"
+    return f"/workspace/{_work_home(home)}/reports/{slug}/{_date_token(when)}"
 
 
-def report_output_path(slug: str, when: Optional[datetime] = None) -> str:
+def report_output_path(slug: str, when: Optional[datetime] = None, home: Optional[str] = None) -> str:
     """The canonical markdown output for one firing."""
-    return f"{report_dated_folder(slug, when)}/output.md"
+    return f"{report_dated_folder(slug, when, home)}/output.md"
 
 
-def report_output_html_path(slug: str, when: Optional[datetime] = None) -> str:
+def report_output_html_path(slug: str, when: Optional[datetime] = None, home: Optional[str] = None) -> str:
     """The composed-HTML output for one firing (when Compose has run)."""
-    return f"{report_dated_folder(slug, when)}/output.html"
+    return f"{report_dated_folder(slug, when, home)}/output.html"
 
 
-def report_sections_dir(slug: str, when: Optional[datetime] = None) -> str:
+def report_sections_dir(slug: str, when: Optional[datetime] = None, home: Optional[str] = None) -> str:
     """Directory holding section partials. Presence of ``sections/*.md``
     triggers Compose by default per ADR-262 D4."""
-    return f"{report_dated_folder(slug, when)}/sections"
+    return f"{report_dated_folder(slug, when, home)}/sections"
 
 
-def report_manifest_path(slug: str, when: Optional[datetime] = None) -> str:
+def report_manifest_path(slug: str, when: Optional[datetime] = None, home: Optional[str] = None) -> str:
     """Per-firing manifest: sections, assets, compose engine version,
     attribution."""
-    return f"{report_dated_folder(slug, when)}/manifest.json"
+    return f"{report_dated_folder(slug, when, home)}/manifest.json"
 
 
-def report_latest_dir(slug: str) -> str:
+def report_latest_dir(slug: str, home: Optional[str] = None) -> str:
     """The 'latest' pointer folder (ADR-262 D1; symlink-equivalent)."""
-    return f"/workspace/operation/reports/{slug}/latest"
+    return f"/workspace/{_work_home(home)}/reports/{slug}/latest"
 
 
-def report_feedback_path(slug: str) -> str:
+def report_feedback_path(slug: str, home: Optional[str] = None) -> str:
     """Per-report feedback file (ADR-181)."""
-    return f"/workspace/operation/reports/{slug}/_feedback.md"
+    return f"/workspace/{_work_home(home)}/reports/{slug}/_feedback.md"
 
 
-def report_run_log_path(slug: str) -> str:
+def report_run_log_path(slug: str, home: Optional[str] = None) -> str:
     """Per-report append-only run log."""
-    return f"/workspace/operation/reports/{slug}/_run_log.md"
+    return f"/workspace/{_work_home(home)}/reports/{slug}/_run_log.md"
 
 
-def report_working_dir(slug: str) -> str:
+def report_working_dir(slug: str, home: Optional[str] = None) -> str:
     """Per-report ephemeral scratch directory."""
-    return f"/workspace/operation/reports/{slug}/working"
+    return f"/workspace/{_work_home(home)}/reports/{slug}/working"
 
 
 # ---------------------------------------------------------------------------
@@ -182,44 +205,44 @@ def report_working_dir(slug: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def authored_root(slug: str) -> str:
+def authored_root(slug: str, home: Optional[str] = None) -> str:
     """Per-piece root directory (parent of content.md, profile.md, and the
     dated composition folders)."""
-    return f"/workspace/operation/authored/{slug}"
+    return f"/workspace/{_work_home(home)}/authored/{slug}"
 
 
-def authored_content_path(slug: str) -> str:
+def authored_content_path(slug: str, home: Optional[str] = None) -> str:
     """The operator-canonical prose source (ADR-283 — never a projection)."""
-    return f"/workspace/operation/authored/{slug}/content.md"
+    return f"/workspace/{_work_home(home)}/authored/{slug}/content.md"
 
 
-def authored_profile_path(slug: str) -> str:
+def authored_profile_path(slug: str, home: Optional[str] = None) -> str:
     """Per-piece profile (status, voice ref, cadence ref, audit state)."""
-    return f"/workspace/operation/authored/{slug}/profile.md"
+    return f"/workspace/{_work_home(home)}/authored/{slug}/profile.md"
 
 
-def authored_dated_folder(slug: str, when: Optional[datetime] = None) -> str:
+def authored_dated_folder(slug: str, when: Optional[datetime] = None, home: Optional[str] = None) -> str:
     """The folder holding one composition's substrate bundle: ``sections/``,
     ``sys_manifest.json``, ``manifest.json``. No ``output.html`` — the HTML
     is pulled, never persisted (ADR-333)."""
-    return f"/workspace/operation/authored/{slug}/{_date_token(when)}"
+    return f"/workspace/{_work_home(home)}/authored/{slug}/{_date_token(when)}"
 
 
-def authored_sections_dir(slug: str, when: Optional[datetime] = None) -> str:
+def authored_sections_dir(slug: str, when: Optional[datetime] = None, home: Optional[str] = None) -> str:
     """Directory holding ``kind:``-tagged section partials the Reviewer wrote
     while authoring structure natively (ADR-333 D5)."""
-    return f"{authored_dated_folder(slug, when)}/sections"
+    return f"{authored_dated_folder(slug, when, home)}/sections"
 
 
-def authored_sys_manifest_path(slug: str, when: Optional[datetime] = None) -> str:
+def authored_sys_manifest_path(slug: str, when: Optional[datetime] = None, home: Optional[str] = None) -> str:
     """Per-composition section→kind map consumed by the composer."""
-    return f"{authored_dated_folder(slug, when)}/sys_manifest.json"
+    return f"{authored_dated_folder(slug, when, home)}/sys_manifest.json"
 
 
-def authored_manifest_path(slug: str, when: Optional[datetime] = None) -> str:
+def authored_manifest_path(slug: str, when: Optional[datetime] = None, home: Optional[str] = None) -> str:
     """Per-composition asset manifest (designer-rendered chart/mermaid/image
     URLs with role tags)."""
-    return f"{authored_dated_folder(slug, when)}/manifest.json"
+    return f"{authored_dated_folder(slug, when, home)}/manifest.json"
 
 
 # ---------------------------------------------------------------------------
@@ -227,34 +250,34 @@ def authored_manifest_path(slug: str, when: Optional[datetime] = None) -> str:
 # ---------------------------------------------------------------------------
 
 
-def domain_root(domain: str) -> str:
+def domain_root(domain: str, home: Optional[str] = None) -> str:
     """Per-domain context root."""
-    return f"/workspace/operation/{domain}"
+    return f"/workspace/{_work_home(home)}/{domain}"
 
 
-def domain_entity_path(domain: str, entity: str, ext: str = "md") -> str:
+def domain_entity_path(domain: str, entity: str, ext: str = "md", home: Optional[str] = None) -> str:
     """Per-entity file inside a domain.
 
     ``ext`` defaults to ``md`` (prose) but should be ``yaml`` for
     structured records per the file-format discipline (CLAUDE.md item 9).
     """
-    return f"/workspace/operation/{domain}/{entity}.{ext}"
+    return f"/workspace/{_work_home(home)}/{domain}/{entity}.{ext}"
 
 
-def domain_synthesis_path(domain: str, name: str) -> str:
+def domain_synthesis_path(domain: str, name: str, home: Optional[str] = None) -> str:
     """Cross-entity synthesis file (underscore-prefixed)."""
-    return f"/workspace/operation/{domain}/_{name}.md"
+    return f"/workspace/{_work_home(home)}/{domain}/_{name}.md"
 
 
-def domain_feedback_path(domain: str) -> str:
+def domain_feedback_path(domain: str, home: Optional[str] = None) -> str:
     """Per-domain feedback file (ADR-181, ADR-151)."""
-    return f"/workspace/operation/{domain}/_feedback.md"
+    return f"/workspace/{_work_home(home)}/{domain}/_feedback.md"
 
 
-def domain_run_log_path(domain: str) -> str:
+def domain_run_log_path(domain: str, home: Optional[str] = None) -> str:
     """Per-domain shared run log (multiple recurrences in one domain
     write to the same log; entries identify by slug)."""
-    return f"/workspace/operation/{domain}/_run_log.md"
+    return f"/workspace/{_work_home(home)}/{domain}/_run_log.md"
 
 
 # ---------------------------------------------------------------------------
@@ -262,20 +285,20 @@ def domain_run_log_path(domain: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def operation_root(slug: str) -> str:
+def operation_root(slug: str, home: Optional[str] = None) -> str:
     """Per-operation root. Action recurrences have no filesystem output —
     the platform side-effect IS the work, with outcomes flowing into the
     relevant domain's ground-truth substrate per FOUNDATIONS Axiom 8
     (alpha-trader instance: ``_money_truth.md`` per ADR-195 v2)."""
-    return f"/workspace/operation/operations/{slug}"
+    return f"/workspace/{_work_home(home)}/operations/{slug}"
 
 
-def operation_run_log_path(slug: str) -> str:
-    return f"/workspace/operation/operations/{slug}/_run_log.md"
+def operation_run_log_path(slug: str, home: Optional[str] = None) -> str:
+    return f"/workspace/{_work_home(home)}/operations/{slug}/_run_log.md"
 
 
-def operation_working_dir(slug: str) -> str:
-    return f"/workspace/operation/operations/{slug}/working"
+def operation_working_dir(slug: str, home: Optional[str] = None) -> str:
+    return f"/workspace/{_work_home(home)}/operations/{slug}/working"
 
 
 # ---------------------------------------------------------------------------
@@ -314,13 +337,14 @@ def operation_working_dir(slug: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def spec_path(name: str) -> str:
+def spec_path(name: str, home: Optional[str] = None) -> str:
     """Operator-authored spec doc cited by recurrence prompts."""
-    return f"/workspace/operation/specs/{name}.md"
+    return f"/workspace/{_work_home(home)}/specs/{name}.md"
 
 
 __all__ = [
     "DATE_FOLDER_FORMAT",
+    "DEFAULT_WORK_HOME",
     "RECURRENCES_PATH",
     "CAPTURES_PATH",
     # Reports
