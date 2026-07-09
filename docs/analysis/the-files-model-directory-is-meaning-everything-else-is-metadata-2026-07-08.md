@@ -96,41 +96,95 @@ YARNNN's invented words (`uploads/`, `operation/`, `inbound/`) ever did. Finder'
 words carry meaning a layman already holds — so we adopt them rather than mint
 our own:
 
-- **Documents** = *what you author and keep* — the home of your actual work. In
-  YARNNN this is the authored substrate: what chat/agents/you produce (today's
-  `operation/`), and **the operator's meaning-folders live *inside* it**
-  (`Documents/the-acme-deal/`), exactly as real folders live in `~/Documents`.
-- **Downloads** = *what arrived from outside, that you didn't author* — the raw
-  inbox you triage from. In YARNNN this **unifies the two raw lanes**:
-  `uploads/` (human drops) **and** `inbound/` (machine/external arrivals — MCP,
-  connectors). They are the *same concept* (arrived-not-authored); Finder gives
-  it one word. An `inbound/` item is distinguished *within* Downloads by its
-  `revision_kind='observation'` metadata (the ADR-423 reframe, §5) — a badge, not
-  a subfolder.
+The correct frame is the **home directory** (`~`). The workspace root IS the home
+directory. Documents and Downloads are two **system-provided homes** the OS
+ships at that level — they are not the ceiling, and they are not containers. The
+operator's (and an AI's) own folders are their **peers** at the same level, not
+their children (§3b).
+
+- **Documents** = *what you author and keep* — a system-provided home for
+  authored work with no more specific home (today's `operation/`). It is a real,
+  permanent landing zone (the systematic authored-work workflows need a definite
+  place to write), NOT a wrapper the operator's folders nest inside. `~/Documents`
+  in macOS is exactly this: a home the OS gives you, sitting *beside*
+  `~/projects/`, not above it.
+- **Downloads** = *what arrived from outside, that you didn't author* — a
+  system-provided home + the raw inbox you triage from. A **legitimate,
+  permanent home** for our most primitive systematic workflows: MCP intakes and
+  manual uploads *land here* (this is why it is a home, not merely a view). It
+  **unifies the two raw lanes** — `uploads/` (human drops) and `inbound/`
+  (machine/external arrivals — MCP, connectors) — the *same concept*
+  (arrived-not-authored); an arrival is distinguished by its
+  `revision_kind='observation'` metadata (the ADR-423 badge, §5), not by which
+  lane-root it sits in.
 
 The load-bearing discipline (the one place the analogy misleads if taken
 loosely): **NOT "everything goes to Downloads."** In Finder, authored documents
 go to Documents; only *arrivals* go to Downloads. That arrived-vs-authored split
 IS the meaning the two words carry — collapsing to one bucket loses it. So the
-two anchors are not alternatives; they are the two halves of kind ①:
-**Documents for what you make, Downloads for what arrives.** This retires the
-note's earlier invented "Records" term — "Downloads" is the layman-legible name
-for the same view.
+two homes are not alternatives; they are two of the home-directory's
+system-provided homes: **Documents for authored work with no more specific home,
+Downloads for what arrives.** This retires the note's earlier invented "Records"
+term — "Downloads" is the layman-legible name.
+
+### 3b. Documents/Downloads are PEER homes, not the ceiling (the OS home-directory model)
+
+The correction that makes this fully OS-faithful (operator ruling, 2026-07-09):
+**the workspace root is `~`, and both humans AND AI create top-level folders that
+are PEERS of Documents and Downloads — not trapped inside Documents.**
+
+`the-acme-deal/` is its own home at the workspace root, sitting *next to*
+Documents and Downloads, exactly as `~/projects/` sits next to `~/Documents`. The
+system ships two homes (Documents, Downloads); everything else at that level is
+operator-or-AI-authored peer folders. This is the true OS model — the home
+directory is not "Documents plus a hidden rest"; it is a flat namespace of homes,
+two of which the system provides.
+
+Two consequences, both already substantially true in the substrate (verified
+2026-07-09):
+
+- **Permission already allows it.** The gate (`_is_path_locked`, ADR-320) lists
+  *locked* prefixes; an unknown top-level root falls through to **writable for
+  every caller** and **organizable for the operator**. A peer folder created by a
+  human or an AI is writable by both — no gate change needed.
+- **Rendering already places it right.** `WORKSPACE_ROOTS`' `root_metadata`
+  fallback defaults an unknown root to the `work` zone, so a new peer folder
+  renders as a **peer of Documents** in the Files tree (not under System files,
+  not inside Documents).
+
+What the peer model ADDS (the capability this note's follow-on builds): an
+explicit way to **create** a peer folder (a human via the Files surface, an AI
+via a primitive) and to **route authored work into a chosen peer** instead of
+only the Documents home. Documents stays the *default* home for work with no more
+specific home; a peer folder is the home for work that has one. The kind-①
+namespace is therefore: **the two system homes (Documents, Downloads) + N
+operator/AI-authored peer homes**, all at the workspace root, all agnostic.
+
+**The participant-facing half is [ADR-424](../adr/ADR-424-the-pure-os-filesystem-model-for-all-participants.md).** This
+note fixes the *operator's* view (the Files surface); ADR-424 makes the SAME
+home-directory model the one every participant is told — Freddie, hired agents,
+external LLMs, the operator — with no privileged "work root" and no per-envelope
+root enumeration. It ratifies peer folders (removing the `lane_runner.py` "never
+invent directories" rule that forbade them) and reframes `operation/` as *just
+the Documents home*. Pure OS: every participant writes by meaning, the grant
+governs, attribution records who — the same on every surface.
 
 ## 4. The target Files model
 
 Derived directly from §3:
 
 ```
-OPERATOR TREE  (kind ①: the two Finder-standard namespace anchors)
-  Documents/                   ← what you author + keep (today's operation/);
-    the-acme-deal/                the operator's meaning-folders live INSIDE it
-    household/
-    yarnnn-product/
-  Downloads/                   ← what ARRIVED (didn't author): unifies uploads/
-    (a PDF you dropped)           (human drops) + inbound/ (machine/external);
-    (an MCP observation) ⬇        an arrival is badged by revision_kind, not
-                                  split into a subfolder
+HOME DIRECTORY (~) = the workspace root. Two system-provided homes + N peers.
+  Documents/                   ← SYSTEM HOME: authored work with no more specific
+                                  home (today's operation/). Default, not a wrapper.
+  Downloads/                   ← SYSTEM HOME: what ARRIVED — MCP intakes + uploads
+    (a PDF you dropped)           LAND here; unifies uploads/ + inbound/; an arrival
+    (an MCP observation) ⬇        is badged by revision_kind, not split by subfolder.
+  the-acme-deal/               ← PEER folder (operator- OR AI-authored) at the SAME
+    contract.md                   level as Documents — its own home, NOT inside
+    notes.md                      Documents. Writable by human + AI; organizable.
+  household/                   ← another peer home
+  yarnnn-product/              ← another peer home
 
 VIEWS          (kind ②: metadata lenses — the generalized Trash pattern)
   ▸ Recents    (updated_at desc)               ← exists (RecentRevisions)
@@ -146,17 +200,18 @@ SYSTEM         (kind ③: kernel residue — ONE collapsed disclosure, not 5 roo
 
 Three properties of this target:
 
-1. **The operator's tree is agnostic** — the kernel names only the two
-   Finder-standard anchors (`Documents/`, `Downloads/`); everything inside
-   `Documents/` is theirs. `the-acme-deal/` is a meaning-folder they author;
-   ADR-384's meaning-folders, realized, with a familiar home.
+1. **The operator's tree is agnostic and FLAT at the home level.** The kernel
+   ships only two named homes (`Documents/`, `Downloads/`); every other top-level
+   entry is an operator-or-AI-authored **peer** home (`the-acme-deal/`), not a
+   child of Documents. This is the OS home-directory model (§3b) and ADR-384's
+   meaning-folders realized — a flat namespace of homes, two provided.
 2. **Arrived-vs-authored is a place; finer disposition is a view.** The big
    split (did I make this, or did it arrive?) earns a *folder* because it is the
    first thing a person sorts by — that is why Finder gives Downloads its own
    place. Within Downloads, *how* it arrived (human upload vs machine
    observation) is `revision_kind` metadata — a badge, optionally an "Arrivals"
    lens, never a subfolder. Trash + Recents stay pure views (they cross-cut both
-   anchors). So `inbound/` the **directory** dissolves — its files land in
+   homes). So `inbound/` the **directory** dissolves — its files land in
    `Downloads/` and carry their `revision_kind` — the re-founding honored with a
    layman-legible name.
 3. **The kernel residue is honest and hidden** — not deleted (ADR-384 D2 says it

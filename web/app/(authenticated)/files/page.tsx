@@ -198,8 +198,11 @@ function buildRootNodes(input: {
   };
 
   // ADR-423 follow-on (Files-model note): partition roots by operator ZONE.
-  //   work    → Documents: rendered as direct root nodes at the top (the
-  //             operator's meaning-folders live inside operation/ → "Documents").
+  //   work    → the home level: Documents (the system-provided authored-work
+  //             home = operation/) PLUS any operator/AI-authored PEER folder
+  //             (an unknown top-level root defaults to 'work' — it renders as a
+  //             PEER of Documents, not inside it; the OS home-directory model,
+  //             note §3b). All rendered as direct top-level nodes.
   //   arrival → Downloads: ALL arrival roots (inbound/ + legacy uploads/) merge
   //             under ONE "Downloads" node — they are the same "what arrived"
   //             concept, so two identical "Downloads" labels would confuse.
