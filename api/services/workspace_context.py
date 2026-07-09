@@ -81,12 +81,30 @@ def substrate_scope_filter(
     (byte-identical in N=1). Applies to every table carrying workspace_id:
     the substrate pair (migration 189), execution_events (200), and the
     Phase-1 set — tasks, agents, agent_runs, activity_log, wake_queue,
-    action_proposals, platform_connections, sync_registry (201). NOT for
-    member-experience tables (chat_sessions, notifications, member_state) —
-    those key on the principal, per the ADR-407 §3 scope registry.
+    action_proposals (201). NOT for member-experience tables (chat_sessions,
+    notifications, member_state) — those key on the principal. NOT for
+    platform_connections / sync_registry — ADR-425 re-scoped those to the
+    HUMAN's account (a platform credential is an account object); use
+    account_scope_filter for them, per the ADR-407 §3 scope registry.
     """
     ws = effective_workspace_id(user_id, workspace_id)
     return ("workspace_id", ws) if ws else ("user_id", user_id)
+
+
+def account_scope_filter(user_id: str) -> tuple:
+    """The (column, value) scope for an ACCOUNT-scoped table query — a store
+    that belongs to the HUMAN across workspaces, keyed by `user_id` alone
+    (ADR-407 §3 D1 account scope).
+
+    Introduced by ADR-425 for `platform_connections` / `sync_registry`: a
+    human's platform credential (Slack, Drive, Notion, GitHub) is their own
+    account object, not a workspace peripheral — so its reads key on the human,
+    never on the acting workspace. Always `("user_id", user_id)`; there is no
+    workspace resolution, by design. (The vestigial `workspace_id` column on
+    those tables is reserved for the future D3 agent-owned connection, which
+    would use its own scope — not this helper.)
+    """
+    return ("user_id", user_id)
 
 
 def acting_workspace_owner(client, user_id: str) -> str:

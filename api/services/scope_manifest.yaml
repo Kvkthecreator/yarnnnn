@@ -37,8 +37,7 @@ stores:
   agent_runs: { scope: content, note: "execution audit" }
   activity_log: { scope: content, note: "narrative — service-client INSERT" }
   wake_queue: { scope: content, note: "transient compute (ADR-298)" }
-  platform_connections: { scope: content, note: "peripheral (ADR-407 D5 — connected_by credential is account-scoped)" }
-  sync_registry: { scope: content, note: "peripheral observability" }
+  sync_registry: { scope: content, note: "peripheral observability (D3 agent-owned case; ADR-425)" }
   balance_transactions: { scope: content, note: "billing audit trail (workspace_id)" }
   subscription_events: { scope: content, note: "billing lifecycle (workspace_id, ADR-396)" }
   filesystem_chunks: { scope: content, note: "uploaded-document chunks" }
@@ -55,6 +54,7 @@ stores:
   email_delivery_log: { scope: member-experience, note: "keyed by recipient — per-member delivery record" }
 
   # --- account: the human across workspaces (user_id) ---
+  platform_connections: { scope: account, note: "a human's platform credential (ADR-425 — the credential is an account object; RLS/index/writes keyed user_id. workspace_id column retained vestigial-for-humans, reserved for the future D3 agent-owned connection)" }
   mcp_oauth_clients: { scope: account, note: "OAuth credential (ADR-075)" }
   mcp_oauth_codes: { scope: account, note: "OAuth credential" }
   mcp_oauth_access_tokens: { scope: account, note: "OAuth credential" }
