@@ -40,7 +40,20 @@ export interface FreddieAvatarProps {
    * (a response streaming, a wake running).
    */
   animate?: boolean;
-  /** Sizing (Freddie is always the full-color mark). Default 'w-4 h-4'. */
+  /**
+   * MONOCHROME variant for CHROME (launcher / dock / top-bar), added 2026-07-09.
+   * The design system's "one appearance, always full-color" rule is the BRAND
+   * mark (chat FAB, card, hero) — but in a glyph row next to monochrome lucide
+   * icons the full-color Frankie reads as a heavy color block, and on the active
+   * tile (`bg-foreground text-background`) it ignores the white recolor. `mono`
+   * renders the SAME Frankenstein silhouette (head · bolts · dot-eyes · grin)
+   * in a SINGLE ink — `currentColor` — so it inherits `text-*` exactly like a
+   * lucide glyph (white on the black active tile, dark otherwise). The face
+   * survives; only the palette collapses. Motion is off in chrome, so `mono`
+   * implies still. Default false (full-color brand mark).
+   */
+  mono?: boolean;
+  /** Sizing. Default 'w-4 h-4'. */
   className?: string;
   /** Accessible label. */
   title?: string;
@@ -124,7 +137,59 @@ function isBoltCap(r: number, c: number): boolean {
   return (r === 9 || r === 10) && (c === 4 || c === 19);
 }
 
-export function FreddieAvatar({ animate = true, className, title }: FreddieAvatarProps) {
+// ── Monochrome chrome variant ──────────────────────────────────────────────
+// The SAME silhouette in one ink (currentColor), with the eyes + grin punched
+// out as negative space so the face still reads. The head body (skin + outline
+// + bolts) is one solid currentColor mass; the feature pixels (eyes, mouth,
+// fangs) are rendered in the tile BACKGROUND so they show as holes. Because a
+// surface icon can sit on either a light row (dark ink) or the active tile
+// (white ink on bg-foreground), the "hole" color must be the surrounding
+// surface, which we can't know statically — so we cut the holes with a mask
+// instead: draw the body, then knock out the feature pixels via a <mask>.
+function FreddieMono({ className, title }: { className?: string; title?: string }) {
+  const uid = useId().replace(/:/g, '');
+  const maskId = `freddie-mono-mask-${uid}`;
+
+  // Body pixels: everything in the base grid that is NOT a background dot.
+  const body: React.ReactNode[] = [];
+  for (let r = 0; r < BASE.length; r++) {
+    for (let c = 0; c < BASE[r].length; c++) {
+      if (BASE[r][c] === '.') continue;
+      body.push(
+        <rect key={`mb-${r}-${c}`} x={c} y={r} width={1} height={1} fill="white" />
+      );
+    }
+  }
+  // Feature holes: eyes (open) + the grin mouth, painted BLACK in the mask so
+  // they subtract from the body (mask white = keep, black = cut).
+  const holes = [...EYES_OPEN, ...MOUTH].map((p, i) => (
+    <rect key={`mh-${i}`} x={p.c} y={p.r} width={1} height={1} fill="black" />
+  ));
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={cn('shrink-0', className ?? 'w-4 h-4')}
+      role="img"
+      aria-label={title ?? 'Freddie'}
+      shapeRendering="crispEdges"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <title>{title ?? 'Freddie'}</title>
+      <mask id={maskId}>
+        {/* white = visible ink, black = cut hole (eyes/grin show the tile) */}
+        {body}
+        {holes}
+      </mask>
+      {/* One solid fill in currentColor, shaped by the mask — inherits text-* */}
+      <rect x={0} y={0} width={24} height={24} fill="currentColor" mask={`url(#${maskId})`} />
+    </svg>
+  );
+}
+
+export function FreddieAvatar({ animate = true, mono = false, className, title }: FreddieAvatarProps) {
+  if (mono) return <FreddieMono className={className} title={title} />;
+
   const uid = useId().replace(/:/g, '');
   const blinkKf = `freddie-blink-${uid}`;
   const pulseKf = `freddie-pulse-${uid}`;

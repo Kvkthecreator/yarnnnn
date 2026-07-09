@@ -47,11 +47,15 @@ export type SurfaceIcon = ComponentType<{ className?: string }>;
 
 // ADR-426 amendment — the Freddie System Agent door wears Freddie's OWN mark, the
 // mascot face (FreddieAvatar), the same one on the chat rail FAB + ChatDrawer +
-// FreddieCard. Rendered STILL (animate=false) as a surface icon — motion is the
-// "working" signal in the Freddie design system, so a static launcher/dock tile
+// FreddieCard. In CHROME (launcher / dock / top-bar) it renders MONOCHROME
+// (mono → currentColor silhouette) so it sits in the glyph row like the lucide
+// icons and inherits the active tile's `text-background` white-on-black recolor
+// (the full-color Frankie is the BRAND mark elsewhere; on the active tile it
+// ignored the recolor and read as a heavy green block — 2026-07-09). Rendered
+// STILL (mono implies still) — motion is the "working" signal, a static tile
 // must not perpetually animate. The `freddie` icon_key resolves here.
 const FreddieSurfaceIcon: SurfaceIcon = ({ className }) => (
-  <FreddieAvatar animate={false} className={className} />
+  <FreddieAvatar mono className={className} />
 );
 
 const ICON_REGISTRY: Record<string, LucideIcon> = {
