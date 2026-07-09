@@ -67,15 +67,26 @@ export function UploadButton({ onUploaded }: UploadButtonProps) {
   );
 }
 
-function UploadModal({
+/**
+ * Finder-parity refactor (2026-07-09): the "Add Files" verb is no longer a
+ * standing header button — it lives in the canvas right-click menu (like Finder,
+ * which has no visible upload button). The Files page owns the open-state and
+ * mounts <UploadModal> directly when the menu fires. `UploadModal` is exported
+ * so the page can summon it; `initialFiles` lets a drag-drop-onto-canvas gesture
+ * open the modal pre-loaded with the dropped files (Finder's primary import).
+ */
+export function UploadModal({
   onClose,
   onUploaded,
+  initialFiles,
 }: {
   onClose: () => void;
   onUploaded?: (workspacePath: string) => void | Promise<void>;
+  /** Pre-seed the batch (drag-drop onto the canvas opens the modal with these). */
+  initialFiles?: File[];
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [picked, setPicked] = useState<File[]>([]);
+  const [picked, setPicked] = useState<File[]>(initialFiles ?? []);
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

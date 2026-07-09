@@ -28,13 +28,15 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { History, Loader2, LayoutGrid, List as ListIcon } from 'lucide-react';
+import { History, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/formatting';
 import { formatAuthorLabelOrSystem, authorAccent } from '@/lib/workspace/attribution';
-import { FileIcon } from './FileIcon';
-import { SurfaceLink } from '@/components/shell/SurfaceLink';
+import { FileTile } from './FileTile';
+import { FileListHeader, FileListRow } from './FileListView';
+import { FilesViewToggle } from './FilesViewToggle';
+import { useFilesViewMode } from '@/lib/workspace/useFilesViewMode';
 import { useFileContextMenu, type FileVerbs, type FileMenuTarget } from './FileContextMenu';
 
 interface Revision {
@@ -46,18 +48,12 @@ interface Revision {
   content_url?: string | null;   // image blob → real thumbnail (resolved to signed URL)
   content_type?: string | null;  // format hint
   preview?: string | null;       // short text snippet for md/text tiles
+  svg_text?: string | null;      // inline SVG markup (no blob) → drawn as thumbnail
 }
 
-export type RecentsViewMode = 'icon' | 'list';
-
-const VIEW_PREF_KEY = 'yarnnn:recents:view-mode';
-const DEFAULT_MODE: RecentsViewMode = 'icon';
-
-function loadViewMode(): RecentsViewMode {
-  if (typeof window === 'undefined') return DEFAULT_MODE;
-  const raw = window.localStorage.getItem(VIEW_PREF_KEY);
-  return raw === 'list' || raw === 'icon' ? raw : DEFAULT_MODE;
-}
+// View mode is the ONE shared Files-surface preference (useFilesViewMode) — no
+// Recents-private key. Toggling here moves the folder-listing toggle too, and
+// vice-versa (one memory of the preference, the Finder model).
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -134,17 +130,11 @@ export function RecentsView({
 }: RecentsViewProps) {
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState<RecentsViewMode>(DEFAULT_MODE);
+  // The ONE shared Files view mode (icon/list) — synced with the folder-listing
+  // toggle across every mount (useFilesViewMode's module-level subscriber set).
+  const { mode, setMode: setView } = useFilesViewMode();
   // ADR-400: right-click a tile/row → the shared file context menu (main-panel).
   const { openMenu, menu } = useFileContextMenu(verbs);
-
-  // SSR-safe: start at the default, apply the stored choice post-mount.
-  useEffect(() => { setMode(loadViewMode()); }, []);
-
-  const setView = useCallback((m: RecentsViewMode) => {
-    setMode(m);
-    try { window.localStorage.setItem(VIEW_PREF_KEY, m); } catch { /* ignore */ }
-  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -200,13 +190,13 @@ export function RecentsView({
             {subtitle ?? `${revisions.length} change${revisions.length === 1 ? '' : 's'}`}
           </span>
           <div className="ml-auto">
-            <ViewToggle mode={mode} onChange={setView} />
+            <FilesViewToggle mode={mode} onChange={setView} />
           </div>
         </div>
       )}
       {hideHeader && (
         <div className="mb-2 flex justify-end">
-          <ViewToggle mode={mode} onChange={setView} />
+          <FilesViewToggle mode={mode} onChange={setView} />
         </div>
       )}
 
@@ -221,133 +211,17 @@ export function RecentsView({
 }
 
 // ---------------------------------------------------------------------------
-// View toggle (Finder-style segmented switcher)
-// ---------------------------------------------------------------------------
-
-function ViewToggle({ mode, onChange }: { mode: RecentsViewMode; onChange: (m: RecentsViewMode) => void }) {
-  return (
-    <div className="inline-flex items-center rounded-md border border-border/60 p-0.5" role="group" aria-label="Recents view">
-      <button
-        type="button"
-        aria-label="Icon view"
-        aria-pressed={mode === 'icon'}
-        onClick={() => onChange('icon')}
-        className={cn(
-          'rounded p-1 transition-colors',
-          mode === 'icon' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
-        )}
-      >
-        <LayoutGrid className="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        aria-label="List view"
-        aria-pressed={mode === 'list'}
-        onClick={() => onChange('list')}
-        className={cn(
-          'rounded p-1 transition-colors',
-          mode === 'list' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
-        )}
-      >
-        <ListIcon className="h-3.5 w-3.5" />
-      </button>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // A single row's click target — Files-mount uses onSelectPath, Home-mount
 // deep-links to the Files surface. One <RowShell> keeps the dispatch in one
 // place so icon + list modes share it.
 // ---------------------------------------------------------------------------
 
-function RowShell({
-  path,
-  onSelectPath,
-  onContextMenu,
-  className,
-  title,
-  children,
-}: {
-  path: string;
-  onSelectPath?: (path: string) => void;
-  onContextMenu?: (target: FileMenuTarget, e: React.MouseEvent) => void;
-  className?: string;
-  title?: string;
-  children: React.ReactNode;
-}) {
-  // Every Recents row is a FILE (the feed is workspace_file_versions), so the
-  // menu target is always isFile: true.
-  const ctx = onContextMenu
-    ? (e: React.MouseEvent) => onContextMenu(
-        { path, name: path.split('/').filter(Boolean).pop() || path, isFile: true }, e,
-      )
-    : undefined;
-  if (onSelectPath) {
-    return (
-      <button type="button" onClick={() => onSelectPath(path)} onContextMenu={ctx} className={className} title={title}>
-        {children}
-      </button>
-    );
-  }
-  return (
-    <SurfaceLink to="files" params={{ path }} className={className} title={title}>
-      {children}
-    </SurfaceLink>
-  );
-}
-
 // ---------------------------------------------------------------------------
-// Icon view — Finder small-icon grid
+// Icon view — the shared <FileTile> grid (Singular Implementation, 2026-07-09).
+// The tile geometry, preview zone, radius, and thumbnail logic all live in
+// FileTile now; the Recents grid just maps rows onto it. The folder-listing icon
+// view (ContentViewer) renders the SAME tile — one look across the surface.
 // ---------------------------------------------------------------------------
-
-const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg']);
-function fileExt(path: string): string {
-  return (fileName(path).split('.').pop() || '').toLowerCase();
-}
-
-/** Resolve an image blob's content_url → signed URL, then render a cover
- * thumbnail. Absolute URLs (output gateway) render directly. Falls back to the
- * format glyph while loading or on error. (ADR-395 authed blob resolution.) */
-function ThumbImage({ contentUrl, filename }: { contentUrl: string; filename: string }) {
-  const [url, setUrl] = useState<string>('');
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    if (/^(https?:|data:|blob:)/i.test(contentUrl)) { setUrl(contentUrl); return; }
-    let cancelled = false;
-    api.documents.blobUrl(contentUrl)
-      .then((r) => { if (!cancelled) setUrl(r.url); })
-      .catch(() => { if (!cancelled) setFailed(true); });
-    return () => { cancelled = true; };
-  }, [contentUrl]);
-  if (failed || (!url && !/^(https?:|data:|blob:)/i.test(contentUrl))) {
-    // still resolving or failed → keep the glyph so the tile never looks broken
-    return <FileIcon filename={filename} size="2xl" />;
-  }
-  if (!url) return <FileIcon filename={filename} size="2xl" />;
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={url} alt={filename} className="h-full w-full rounded object-cover" onError={() => setFailed(true)} />;
-}
-
-/** The per-format tile preview (Explorer-style): real image thumbnail · text
- * snippet card for md/text · branded format glyph otherwise. */
-function Thumbnail({ rev }: { rev: Revision }) {
-  const ext = fileExt(rev.path);
-  if (IMAGE_EXTS.has(ext) && rev.content_url) {
-    return <ThumbImage contentUrl={rev.content_url} filename={fileName(rev.path)} />;
-  }
-  if (rev.preview && (ext === 'md' || ext === 'txt')) {
-    // A content-snippet card — the first real line of the doc, like a mini page.
-    return (
-      <span className="flex h-full w-full flex-col gap-0.5 overflow-hidden rounded bg-background/70 px-2 py-1.5 text-left">
-        <span className="line-clamp-4 text-[9px] leading-[1.35] text-muted-foreground">
-          {rev.preview}
-        </span>
-      </span>
-    );
-  }
-  return <FileIcon filename={fileName(rev.path)} size="2xl" />;
-}
 
 function IconGrid({
   revisions, onSelectPath, selectedPath, onContextMenu,
@@ -358,44 +232,33 @@ function IconGrid({
   onContextMenu?: (target: FileMenuTarget, e: React.MouseEvent) => void;
 }) {
   return (
-    // Windows-Explorer icon grid: roomy tiles, real per-format thumbnails, clear
-    // hover + selection. No metadata dots — just the preview + name + time.
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       {revisions.map((rev, i) => {
         const sys = isSystemFile(rev.path);
         const selected = !!selectedPath && rev.path === selectedPath;
+        // Every Recents row is a FILE (the feed is workspace_file_versions).
+        const menuTarget: FileMenuTarget = {
+          path: rev.path, name: fileName(rev.path), isFile: true,
+        };
         return (
-          <RowShell
+          <FileTile
             key={`${rev.path}-${rev.created_at}-${i}`}
             path={rev.path}
-            onSelectPath={onSelectPath}
-            onContextMenu={onContextMenu}
-            title={rev.path}
-            className={cn(
-              'group flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center transition-colors',
-              selected
-                ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/40'
-                : 'border-transparent hover:border-border/70 hover:bg-muted/40',
-              sys && !selected && 'opacity-70',
-            )}
-          >
-            {/* Preview zone — a real Explorer-style thumbnail area. */}
-            <span className={cn(
-              'flex h-24 w-full items-center justify-center overflow-hidden rounded-md bg-muted/40 transition-colors group-hover:bg-muted/60',
-              selected && 'bg-primary/10',
-            )}>
-              <Thumbnail rev={rev} />
-            </span>
-            <span className={cn(
-              'mt-0.5 w-full truncate text-xs font-medium text-foreground',
-              sys && !selected && 'text-muted-foreground',
-            )}>
-              {fileName(rev.path)}
-            </span>
-            <span className="w-full truncate text-[10px] text-muted-foreground/70">
-              {rev.created_at ? formatRelativeTime(rev.created_at) : ''}
-            </span>
-          </RowShell>
+            kind="file"
+            selected={selected}
+            dim={sys}
+            thumb={{
+              content_url: rev.content_url,
+              content_type: rev.content_type,
+              preview: rev.preview,
+              svgText: rev.svg_text,
+            }}
+            subtext={rev.created_at ? formatRelativeTime(rev.created_at) : ''}
+            // Files mount owns selection (onSelectPath); Home mount deep-links.
+            onClick={onSelectPath ? () => onSelectPath(rev.path) : undefined}
+            linkTo={onSelectPath ? undefined : rev.path}
+            onContextMenu={onContextMenu ? (e) => onContextMenu(menuTarget, e) : undefined}
+          />
         );
       })}
     </div>
@@ -403,7 +266,10 @@ function IconGrid({
 }
 
 // ---------------------------------------------------------------------------
-// List view — macOS list / Windows-Explorer details table
+// List view — the shared <FileListRow> details list (Singular Implementation,
+// 2026-07-09). Same header + column model + row height as the folder-listing
+// list view (ContentViewer): Name · Where · Author · When. Recents fills the
+// Where column with the substrate section; the folder listing leaves it empty.
 // ---------------------------------------------------------------------------
 
 function ListTable({
@@ -415,60 +281,37 @@ function ListTable({
   onContextMenu?: (target: FileMenuTarget, e: React.MouseEvent) => void;
 }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-border/60">
-      <table className="w-full text-sm">
-        <thead className="bg-background">
-          <tr className="border-b border-border/60 text-[11px] uppercase tracking-wide text-muted-foreground">
-            <th className="px-4 py-2 text-left font-medium">Name</th>
-            <th className="hidden px-3 py-2 text-left font-medium md:table-cell">Where</th>
-            <th className="px-3 py-2 text-left font-medium">Author</th>
-            <th className="w-28 px-4 py-2 text-right font-medium">When</th>
-          </tr>
-        </thead>
-        <tbody>
-          {revisions.map((rev, i) => {
-            const sys = isSystemFile(rev.path);
-            const selected = !!selectedPath && rev.path === selectedPath;
-            return (
-              <tr
-                key={`${rev.path}-${rev.created_at}-${i}`}
-                className={cn(
-                  'border-b border-border/40 transition-colors last:border-b-0',
-                  selected ? 'bg-primary/10 hover:bg-primary/15' : 'hover:bg-muted/40',
-                  sys && !selected && 'opacity-70',
-                )}
-              >
-                <td className="px-4 py-2">
-                  <RowShell
-                    path={rev.path}
-                    onSelectPath={onSelectPath}
-                    onContextMenu={onContextMenu}
-                    title={rev.path}
-                    className="flex w-full min-w-0 items-center gap-2.5 text-left"
-                  >
-                    <FileIcon filename={fileName(rev.path)} size="md" />
-                    <span className={cn('truncate text-foreground', sys && 'text-muted-foreground')}>
-                      {fileName(rev.path)}
-                    </span>
-                  </RowShell>
-                </td>
-                <td className="hidden px-3 py-2 text-muted-foreground md:table-cell">
-                  <span className="block max-w-[18rem] truncate">{whereLabel(rev.path)}</span>
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className={cn('h-1.5 w-1.5 rounded-full', authorAccent(rev.authored_by))} />
-                    {formatAuthorLabelOrSystem(rev.authored_by)}
-                  </span>
-                </td>
-                <td className="whitespace-nowrap px-4 py-2 text-right text-muted-foreground/80">
-                  {rev.created_at ? formatRelativeTime(rev.created_at) : ''}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="overflow-hidden rounded-lg border border-border/60">
+      <FileListHeader />
+      <div className="divide-y divide-border/40">
+        {revisions.map((rev, i) => {
+          const sys = isSystemFile(rev.path);
+          const selected = !!selectedPath && rev.path === selectedPath;
+          const menuTarget: FileMenuTarget = { path: rev.path, name: fileName(rev.path), isFile: true };
+          return (
+            <FileListRow
+              key={`${rev.path}-${rev.created_at}-${i}`}
+              name={fileName(rev.path)}
+              kind="file"
+              where={whereLabel(rev.path)}
+              when={rev.created_at ? formatRelativeTime(rev.created_at) : ''}
+              selected={selected}
+              dim={sys}
+              author={
+                <span className="inline-flex items-center gap-1.5">
+                  <span className={cn('h-1.5 w-1.5 rounded-full', authorAccent(rev.authored_by))} />
+                  {formatAuthorLabelOrSystem(rev.authored_by)}
+                </span>
+              }
+              title={rev.path}
+              // Files mount owns selection; Home mount deep-links to Files.
+              onClick={onSelectPath ? () => onSelectPath(rev.path) : undefined}
+              linkTo={onSelectPath ? undefined : rev.path}
+              onContextMenu={onContextMenu ? (e) => onContextMenu(menuTarget, e) : undefined}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }

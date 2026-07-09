@@ -35,6 +35,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { InferenceContentView } from '@/components/context/InferenceContentView';
 import { resolveViewerApplication } from '@/lib/file-types';
 import { parseUploadFrontmatter, uploadSourceCaption } from '@/lib/workspace/upload-frontmatter';
+import { TILE_PREVIEW_GROUND } from '@/components/workspace/FileTile';
 import { cn } from '@/lib/utils';
 import type { WorkspaceFile } from '@/types';
 
@@ -140,12 +141,16 @@ export function FileBody({ file, compact = false, className }: FileBodyProps) {
           title={filename}
           srcDoc={file.content || ''}
           sandbox=""
-          className={cn('w-full rounded-xl border border-border bg-white', frameHeight)}
+          className={cn('w-full rounded-lg border border-border bg-white', frameHeight)}
         />
       )}
 
+      {/* Finder-parity (2026-07-09): the detail preview frames a file identically
+          to its Recents card — one radius (rounded-lg) + the ONE tile ground
+          (TILE_PREVIEW_GROUND). The same SVG no longer looks like two different
+          files card→detail (the audit's flagged mismatch). */}
       {kind === 'image' && (
-        <div className="rounded-xl border border-border bg-muted/10 p-4">
+        <div className={cn('rounded-lg border border-border p-4', TILE_PREVIEW_GROUND)}>
           {file.content_url ? (
             <ImagePreview contentUrl={file.content_url} alt={filename} />
           ) : (
@@ -179,13 +184,13 @@ export function FileBody({ file, compact = false, className }: FileBodyProps) {
       {kind === 'csv' && file.content && <CsvPreview content={file.content} compact={compact} />}
 
       {kind === 'text' && (
-        <pre className="overflow-auto rounded-xl border border-border bg-muted/20 p-4 text-sm whitespace-pre-wrap">
+        <pre className="overflow-auto rounded-lg border border-border bg-muted/20 p-4 text-sm whitespace-pre-wrap">
           {file.content || ''}
         </pre>
       )}
 
       {kind === 'download' && (
-        <div className="rounded-xl border border-dashed border-border bg-muted/10 p-6 text-center">
+        <div className="rounded-lg border border-dashed border-border bg-muted/10 p-6 text-center">
           <FileText className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
           <p className="text-sm font-medium">Preview not available inline</p>
           <p className="text-xs text-muted-foreground mt-1">
@@ -220,7 +225,7 @@ function VideoPreview({ contentUrl }: { contentUrl: string }) {
       src={url}
       controls
       preload="metadata"
-      className="w-full max-h-[70vh] rounded-xl border border-border bg-black"
+      className="w-full max-h-[70vh] rounded-lg border border-border bg-black"
     />
   );
 }
@@ -230,7 +235,7 @@ function AudioPreview({ contentUrl }: { contentUrl: string }) {
   if (loading) return <BlobLoading label="Loading audio…" />;
   if (error || !url) return <BlobError />;
   return (
-    <div className="rounded-xl border border-border bg-muted/10 p-4">
+    <div className="rounded-lg border border-border bg-muted/10 p-4">
       <audio src={url} controls className="w-full" />
     </div>
   );
@@ -245,7 +250,7 @@ function PdfPreview({ contentUrl, title, compact }: { contentUrl: string; title:
       title={title}
       src={url}
       className={cn(
-        'w-full rounded-xl border border-border bg-white',
+        'w-full rounded-lg border border-border bg-white',
         compact ? 'min-h-[320px]' : 'min-h-[800px]',
       )}
     />
@@ -254,7 +259,7 @@ function PdfPreview({ contentUrl, title, compact }: { contentUrl: string; title:
 
 function BlobLoading({ label }: { label: string }) {
   return (
-    <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/10 py-16 text-sm text-muted-foreground">
+    <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-muted/10 py-16 text-sm text-muted-foreground">
       <Loader2 className="h-4 w-4 animate-spin" />
       {label}
     </div>
@@ -263,7 +268,7 @@ function BlobLoading({ label }: { label: string }) {
 
 function BlobError() {
   return (
-    <div className="rounded-xl border border-dashed border-border bg-muted/10 p-6 text-center text-sm text-muted-foreground">
+    <div className="rounded-lg border border-dashed border-border bg-muted/10 p-6 text-center text-sm text-muted-foreground">
       <FileQuestion className="mx-auto mb-2 h-6 w-6 text-muted-foreground/50" />
       Couldn’t load this file. Try Download to open it in a native viewer.
     </div>
@@ -281,7 +286,7 @@ function BlobError() {
  */
 function BlobMissing({ kind }: { kind: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-border bg-muted/10 p-6 text-center text-sm text-muted-foreground">
+    <div className="rounded-lg border border-dashed border-border bg-muted/10 p-6 text-center text-sm text-muted-foreground">
       <FileQuestion className="mx-auto mb-2 h-6 w-6 text-muted-foreground/50" />
       This {kind} has no stored bytes yet.
     </div>
@@ -296,7 +301,7 @@ function CsvPreview({ content, compact }: { content: string; compact?: boolean }
   const [header, ...body] = rows;
 
   return (
-    <div className="overflow-auto rounded-xl border border-border">
+    <div className="overflow-auto rounded-lg border border-border">
       <table className="w-full text-sm">
         <thead className="bg-muted/30">
           <tr>

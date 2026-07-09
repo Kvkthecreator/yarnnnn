@@ -1370,6 +1370,12 @@ export const api = {
           authored_by: string | null;
           message: string | null;
           created_at: string | null;
+          // Explorer icon-view thumbnail material (per-format preview).
+          content_url?: string | null;
+          content_type?: string | null;
+          preview?: string | null;
+          // Inline SVG markup (no blob) → drawn as the tile thumbnail.
+          svg_text?: string | null;
         }>;
       }>(`/api/workspace/recent-revisions?limit=${limit}`),
 

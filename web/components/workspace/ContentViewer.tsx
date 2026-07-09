@@ -12,6 +12,8 @@ import { Folder, Loader2, Trash2, FileQuestion } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
 import { FileIcon } from '@/components/workspace/FileIcon';
+import { FileTile } from '@/components/workspace/FileTile';
+import { FileListHeader, FileListRow } from '@/components/workspace/FileListView';
 // 2026-07-09 — the file BODY (the kind-switch + blob previews) lifted out to
 // `FileBody`, the one shared viewer. ContentViewer keeps the DOCUMENT CHROME
 // (header, verbs, folder listing) and mounts the body; the chat surface's
@@ -208,67 +210,55 @@ function DirectoryView({
       )}
 
       {/* ADR-388 D4: honor the surface-wide view mode. Right-click any row/tile
-          → Get Info (D5); each row shows who last wrote it (D3). */}
+          → Get Info (D5); each row shows who last wrote it (D3).
+          Finder-parity (2026-07-09): the icon view renders the SHARED <FileTile>
+          — the same roomy tile + preview zone + radius the Recents grid uses, so
+          a folder's files look identical whether reached via Recents or by
+          browsing in. Tree nodes carry no blob, so file tiles show the format
+          glyph (no thumbnail material here) with attribution as the subtext. */}
       {viewMode === 'icon' ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2 p-3">
+        <div className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-3 lg:grid-cols-5">
           {children.map((child) => (
-            <button
+            <FileTile
               key={child.path}
+              path={child.path}
+              kind={child.type === 'folder' ? 'folder' : 'file'}
               onClick={() => onNavigate(child)}
               onContextMenu={rowContext(child)}
-              className="flex flex-col items-center gap-1.5 rounded-lg border border-transparent p-3 text-center hover:border-border hover:bg-muted/40 transition-colors"
-            >
-              {child.type === 'folder' ? (
-                <Folder className="h-8 w-8 text-sky-600" />
-              ) : (
-                <FileIcon filename={child.name} size="lg" />
-              )}
-              <span className="w-full truncate text-xs font-medium">{child.name}</span>
-              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                <span className={cn('h-1.5 w-1.5 rounded-full', authorAccent((child as any).authored_by))} />
-                {formatAuthorLabel((child as any).authored_by)}
-              </span>
-            </button>
+              subtext={
+                <span className="inline-flex items-center gap-1">
+                  <span className={cn('h-1.5 w-1.5 rounded-full', authorAccent((child as any).authored_by))} />
+                  {formatAuthorLabel((child as any).authored_by)}
+                </span>
+              }
+            />
           ))}
         </div>
       ) : (
-        <div className="px-2 py-2">
-          <div className="grid grid-cols-[minmax(0,1fr)_140px_120px] gap-3 px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border/60">
-            <span>Name</span>
-            <span>Author</span>
-            <span>Modified</span>
-          </div>
-          <div className="divide-y divide-border/50">
+        // Finder-parity (2026-07-09): the SHARED <FileListRow> details list —
+        // same header + column model + row height as the Recents list view
+        // (Name · Where · Author · When). A folder's rows all live in the same
+        // folder, so the Where column stays empty; the file summary shows as the
+        // name subtitle instead.
+        <div className="overflow-hidden rounded-lg border border-border/60 mx-2 my-2">
+          <FileListHeader />
+          <div className="divide-y divide-border/40">
             {children.map((child) => (
-              <button
+              <FileListRow
                 key={child.path}
+                name={child.name}
+                kind={child.type === 'folder' ? 'folder' : 'file'}
+                subtitle={child.summary || undefined}
+                when={formatTimestamp(child.updated_at)}
+                author={
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', authorAccent((child as any).authored_by))} />
+                    <span className="truncate">{formatAuthorLabel((child as any).authored_by)}</span>
+                  </span>
+                }
                 onClick={() => onNavigate(child)}
                 onContextMenu={rowContext(child)}
-                className="grid w-full grid-cols-[minmax(0,1fr)_140px_120px] gap-3 px-3 py-3 text-left hover:bg-muted/40 transition-colors"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  {child.type === 'folder' ? (
-                    <Folder className="w-4 h-4 text-sky-600 shrink-0" />
-                  ) : (
-                    <FileIcon filename={child.name} size="md" />
-                  )}
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{child.name}</p>
-                    {child.summary && (
-                      <p className="text-xs text-muted-foreground truncate">{child.summary}</p>
-                    )}
-                  </div>
-                </div>
-                {/* ADR-388 D3: who last wrote this — the attribution the folder
-                    listing showed NONE of before. */}
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground self-center">
-                  <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', authorAccent((child as any).authored_by))} />
-                  <span className="truncate">{formatAuthorLabel((child as any).authored_by)}</span>
-                </div>
-                <div className="text-xs text-muted-foreground self-center">
-                  {formatTimestamp(child.updated_at)}
-                </div>
-              </button>
+              />
             ))}
           </div>
         </div>

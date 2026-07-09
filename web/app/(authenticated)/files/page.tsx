@@ -43,10 +43,7 @@ import {
   Loader2,
   Info,
   History,
-  LayoutGrid,
-  List as ListIcon,
   Trash2,
-  FolderPlus,
 } from 'lucide-react';
 import { SettingsPaneShell } from '@/components/settings/SettingsPaneShell';
 import { useNarrative } from '@/contexts/NarrativeContext';
@@ -64,9 +61,11 @@ import { formatAuthorLabel } from '@/lib/workspace/attribution';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { RecentRevisions } from '@/components/workspace/RecentRevisions';
 import { TrashView } from '@/components/workspace/TrashView';
-import { UploadButton } from '@/components/workspace/UploadButton';
+import { UploadModal } from '@/components/workspace/UploadButton';
+import { CanvasContextMenu } from '@/components/workspace/CanvasContextMenu';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { PropertiesModal } from '@/components/workspace/PropertiesModal';
+import { FilesViewToggle } from '@/components/workspace/FilesViewToggle';
 import { useFilesViewMode } from '@/lib/workspace/useFilesViewMode';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { DeliverableMiddle } from '@/components/work/details/DeliverableMiddle';
@@ -352,6 +351,16 @@ export default function ContextPage() {
   // ADR-388 D4: the Files-surface-wide view mode (icon grid / details list),
   // shared across Recents + folder listings (was Recents-only).
   const { mode: viewMode, setMode: setViewMode } = useFilesViewMode();
+
+  // Finder-parity (2026-07-09): the New Folder / Add Files verbs left the header
+  // for the canvas right-click menu (Finder has no visible buttons for either).
+  // `canvasMenu` = the background-menu open-state (x/y click point); `uploadOpen`
+  // = the Add Files modal, summonable from the menu OR from a drag-drop onto the
+  // canvas (which pre-seeds it with `droppedFiles`). One import path, no button.
+  const [canvasMenu, setCanvasMenu] = useState<{ x: number; y: number } | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [droppedFiles, setDroppedFiles] = useState<File[] | null>(null);
+  const [canvasDragOver, setCanvasDragOver] = useState(false);
 
   // 2026-06-30 unification: the explorer mounts the shared SettingsPaneShell.
   // The shell owns the responsive contract (wide two-pane / narrow drill-in)
@@ -715,6 +724,42 @@ export default function ContextPage() {
     activateBodyRef.current(); // narrow: drill into the viewer
   }, [loadExplorer]);
 
+  // Finder-parity canvas verbs (2026-07-09). Right-click on empty canvas → the
+  // background menu (New Folder / Add Files) — the gesture Finder's muscle memory
+  // reaches for. We only open the menu on a right-click of the pane BACKGROUND,
+  // not of a file tile/row (those carry their own <FileContextMenu>); the row
+  // handlers call stopPropagation, so a background contextmenu means empty space.
+  const openCanvasMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setCanvasMenu({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const openUpload = useCallback((files?: File[]) => {
+    setDroppedFiles(files ?? null);
+    setUploadOpen(true);
+  }, []);
+
+  // Drag-drop onto the canvas = Finder's primary import gesture. A real file
+  // drop opens the Add Files modal pre-seeded with the dropped files. We guard on
+  // dataTransfer having files (an internal node drag carries none) so dragging a
+  // tree node around never trips the uploader.
+  const onCanvasDragOver = useCallback((e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.types || []).includes('Files')) return;
+    e.preventDefault();
+    setCanvasDragOver(true);
+  }, []);
+  const onCanvasDragLeave = useCallback((e: React.DragEvent) => {
+    // Only clear when leaving the pane itself, not when crossing a child.
+    if (e.currentTarget === e.target) setCanvasDragOver(false);
+  }, []);
+  const onCanvasDrop = useCallback((e: React.DragEvent) => {
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length === 0) return;
+    e.preventDefault();
+    setCanvasDragOver(false);
+    openUpload(files);
+  }, [openUpload]);
+
   // D19 (2026-05-22): the prior plusMenuActions + chat empty-state
   // block were ThreePanelLayout-side affordances. Chat affordances
   // now live in the universal ChatDrawer FAB (singular summon path).
@@ -733,26 +778,15 @@ export default function ContextPage() {
   // (with the manual collapse `×`) folds in here — the shell owns collapse now.
   const treePaneContent = (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0 gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground">Explorer</p>
-          <p className="text-[11px] text-muted-foreground">Workspace context and settings</p>
-        </div>
-        {/* ADR-329: 'add' is an operator verb, homed on Files. On success the
-            surface jumps to the new file in Uploads/ (handleUploaded). */}
-        <div className="flex items-center gap-1.5">
-          {/* ADR-424 D2: New Folder — a top-level peer of Documents/Downloads. */}
-          <button
-            type="button"
-            onClick={() => setNewFolderOpen(true)}
-            title="New folder"
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/60"
-          >
-            <FolderPlus className="w-3.5 h-3.5" />
-            <span>New folder</span>
-          </button>
-          <UploadButton onUploaded={handleUploaded} />
-        </div>
+      {/* Finder-parity (2026-07-09): the sidebar has no titled panel header and
+          no visible New Folder / Add Files buttons — those verbs live in the
+          canvas right-click menu (openCanvasMenu) + drag-drop, like Finder. A
+          quiet uppercase group label heads the source list (Finder's "Favorites"
+          / "Locations" pattern), nothing more. */}
+      <div className="px-3 pt-3 pb-1 shrink-0">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+          Explorer
+        </p>
       </div>
       <div className="flex-1 overflow-y-auto">
         {fileTreeLoading && treeNodes.length === 0 ? (
@@ -823,32 +857,11 @@ export default function ContextPage() {
         metadata={getNodeMetadata(selectedNode)}
         actions={
           <div className="flex items-center gap-2">
-            {/* ADR-388 D4: surface-wide view toggle (folder listings honor it). */}
+            {/* ADR-388 D4: the ONE shared Files view toggle (folder listings honor
+                it; same control + memory as the Recents toggle — Finder-parity
+                2026-07-09). */}
             {selectedNode.type === 'folder' && (
-              <div className="inline-flex items-center rounded-md border border-border p-0.5">
-                <button
-                  onClick={() => setViewMode('icon')}
-                  title="Icon view"
-                  aria-pressed={viewMode === 'icon'}
-                  className={cn(
-                    'rounded p-1 transition-colors',
-                    viewMode === 'icon' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  title="List view"
-                  aria-pressed={viewMode === 'list'}
-                  className={cn(
-                    'rounded p-1 transition-colors',
-                    viewMode === 'list' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  <ListIcon className="h-3.5 w-3.5" />
-                </button>
-              </div>
+              <FilesViewToggle mode={viewMode} onChange={setViewMode} />
             )}
             {/* ADR-388 D5 / ADR-400: Properties → modal. Also reachable by
                 right-click on any tree/row node. */}
@@ -922,10 +935,48 @@ export default function ContextPage() {
         onActivateRef={registerActivate}
         onDrillOutRef={registerDrillOut}
       >
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-y-auto bg-background">
+        {/* Finder-parity (2026-07-09): the body IS the canvas — right-click its
+            background for New Folder / Add Files, and drop files onto it to
+            import. A drop highlight rings the pane while dragging files over it.
+            Row/tile right-clicks stopPropagation, so these only fire on empty
+            space (the Finder contract). */}
+        <div
+          className={cn(
+            'flex-1 min-w-0 min-h-0 flex flex-col overflow-y-auto bg-background transition-shadow',
+            canvasDragOver && 'ring-2 ring-inset ring-primary/50',
+          )}
+          onContextMenu={openCanvasMenu}
+          onDragOver={onCanvasDragOver}
+          onDragLeave={onCanvasDragLeave}
+          onDrop={onCanvasDrop}
+        >
           {bodyContent}
         </div>
       </SettingsPaneShell>
+
+      {/* Finder-parity canvas menu — the background right-click on the center
+          pane. Carries the two canvas verbs (New Folder / Add Files) that used to
+          be header buttons. */}
+      {canvasMenu && (
+        <CanvasContextMenu
+          x={canvasMenu.x}
+          y={canvasMenu.y}
+          onClose={() => setCanvasMenu(null)}
+          onNewFolder={() => setNewFolderOpen(true)}
+          onAddFiles={() => openUpload()}
+        />
+      )}
+
+      {/* The Add Files modal, summoned from the canvas menu or a drag-drop.
+          `initialFiles` pre-seeds the batch when the operator dropped files onto
+          the canvas. */}
+      {uploadOpen && (
+        <UploadModal
+          onClose={() => { setUploadOpen(false); setDroppedFiles(null); }}
+          onUploaded={handleUploaded}
+          initialFiles={droppedFiles ?? undefined}
+        />
+      )}
 
       {/* ADR-400: Properties modal — the flat Kind/Location/Ownership/Modified/
           Contributors block + the ADR-209 revision history. Opened by the header

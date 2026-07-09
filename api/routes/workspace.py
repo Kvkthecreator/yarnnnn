@@ -187,6 +187,11 @@ class RecentRevision(BaseModel):
     content_url: Optional[str] = None      # image blob reference (→ signed URL)
     content_type: Optional[str] = None     # MIME/type hint
     preview: Optional[str] = None          # short text snippet (md/text tiles)
+    # Finder-parity (2026-07-09): an inline SVG's markup lives in the text
+    # column (no blob), so content_url is null and the card fell back to a flat
+    # glyph while the detail view showed the real vector. Ship the markup for
+    # `.svg` files with no blob so the tile draws the same vector, card→detail.
+    svg_text: Optional[str] = None
 
 
 class RecentRevisionsResponse(BaseModel):
@@ -1594,6 +1599,13 @@ async def get_recent_revisions(
             f = live.get(path)
             if f is None:  # revision outlived its file → not browsable
                 continue
+            # Inline SVG (no blob) → ship the markup so the tile draws the vector.
+            content_val = f.get("content")
+            svg_text = (
+                content_val
+                if (path.lower().endswith(".svg") and not f.get("content_url") and content_val)
+                else None
+            )
             revisions.append(
                 RecentRevision(
                     path=path,
@@ -1602,7 +1614,8 @@ async def get_recent_revisions(
                     created_at=row.get("created_at"),
                     content_url=f.get("content_url"),
                     content_type=f.get("content_type"),
-                    preview=_thumb_preview(path, f.get("summary"), f.get("content")),
+                    preview=_thumb_preview(path, f.get("summary"), content_val),
+                    svg_text=svg_text,
                 )
             )
             if len(revisions) >= limit:
