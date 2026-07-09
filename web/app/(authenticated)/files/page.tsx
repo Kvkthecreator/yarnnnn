@@ -46,6 +46,7 @@ import {
   LayoutGrid,
   List as ListIcon,
   Trash2,
+  FolderPlus,
 } from 'lucide-react';
 import { SettingsPaneShell } from '@/components/settings/SettingsPaneShell';
 import { useNarrative } from '@/contexts/NarrativeContext';
@@ -57,6 +58,7 @@ import { operatorCanOrganize, organizeBlockedReason } from '@/lib/workspace/owne
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { MoveToFolderModal } from '@/components/workspace/MoveToFolderModal';
 import { RenameModal } from '@/components/workspace/RenameModal';
+import { NewFolderModal } from '@/components/workspace/NewFolderModal';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
@@ -630,6 +632,23 @@ export default function ContextPage() {
     } catch { /* error toast already surfaced; stop (don't refresh on failure) */ }
   }, [runAction, loadExplorer]);
 
+  // New Folder — ADR-424 D2: create a top-level PEER folder (peer of Documents/
+  // Downloads). The modal collects a name; this seeds the folder's first file.
+  const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const commitNewFolder = useCallback(async (name: string) => {
+    try {
+      const r = await runAction(() => api.documents.createFolder(name), {
+        pending: 'Creating folder…',
+        success: 'Folder created',
+        error: (e) => (e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Could not create the folder' : 'Could not create the folder'),
+      });
+      setNewFolderOpen(false);
+      await loadExplorer();
+      // Jump to the seeded README so the new folder is visible + selected.
+      if (r?.seeded) setSelectedPath(r.seeded);
+    } catch { /* error toast already surfaced; keep the modal open to retry */ }
+  }, [runAction, loadExplorer]);
+
   // Move — opens the MoveToFolderModal (folder-picker tree, no raw-path typing).
   const openMove = useCallback(async (t: { path: string; name: string }) => {
     if (await carveGuard(t.path)) return;
@@ -721,7 +740,19 @@ export default function ContextPage() {
         </div>
         {/* ADR-329: 'add' is an operator verb, homed on Files. On success the
             surface jumps to the new file in Uploads/ (handleUploaded). */}
-        <UploadButton onUploaded={handleUploaded} />
+        <div className="flex items-center gap-1.5">
+          {/* ADR-424 D2: New Folder — a top-level peer of Documents/Downloads. */}
+          <button
+            type="button"
+            onClick={() => setNewFolderOpen(true)}
+            title="New folder"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/60"
+          >
+            <FolderPlus className="w-3.5 h-3.5" />
+            <span>New folder</span>
+          </button>
+          <UploadButton onUploaded={handleUploaded} />
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto">
         {fileTreeLoading && treeNodes.length === 0 ? (
@@ -930,6 +961,13 @@ export default function ContextPage() {
           setRenameTarget(null);
           if (t) await commitRename(t, nextLeaf);
         }}
+      />
+
+      {/* ADR-424 D2: New Folder — create a top-level peer of Documents/Downloads. */}
+      <NewFolderModal
+        open={newFolderOpen}
+        onClose={() => setNewFolderOpen(false)}
+        onSubmit={commitNewFolder}
       />
     </>
   );

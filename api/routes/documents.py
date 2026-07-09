@@ -700,6 +700,92 @@ async def move_document(body: MoveRequest, auth: UserClient):
 
 
 # =============================================================================
+# CREATE FOLDER — ADR-424 D2/D6: the operator makes a top-level PEER folder
+# =============================================================================
+
+class CreateFolderRequest(BaseModel):
+    #: Workspace-relative path of the new folder (e.g. "the-acme-deal" or
+    #: "operation/projects/q3"). A top-level value creates a peer of Documents.
+    path: str
+
+
+def _sanitize_folder_segment(seg: str) -> str:
+    """A folder name segment → filesystem-safe (letters/digits/dash/underscore/
+    space collapsed to dashes, lowercased). Rejects empty + traversal."""
+    import re
+    seg = seg.strip().strip("/").strip()
+    seg = re.sub(r"[^\w\s-]", "", seg).strip()
+    seg = re.sub(r"[\s_]+", "-", seg).lower()
+    return seg
+
+
+@router.post("/documents/folder")
+async def create_folder(body: CreateFolderRequest, auth: UserClient):
+    """Create a folder — including a TOP-LEVEL PEER of the Documents/Downloads
+    homes (ADR-424 D2: pure-OS — you don't ask permission to name a folder for
+    your work; the operator + AI both may).
+
+    Folders are implicit in the substrate (a folder exists iff a file exists
+    under its prefix — the tree is derived from paths). So "create a folder"
+    seeds the folder's first file: a starter ``README.md`` (a real, useful
+    file — the folder's note — not clutter). Written through the WriteFile
+    primitive → the ADR-209 write path, operator-attributed.
+
+    Guarded by ``operator_can_organize``: the operator may create a folder
+    anywhere they may organize — i.e. everywhere except system/, inbound/ (the
+    immutable arrival lane), and a machine-config leaf. A peer meaning-folder
+    (unknown top-level root) is permitted (the gate lists LOCKED prefixes; an
+    unknown root falls through — ADR-424).
+    """
+    # Normalize + sanitize each segment; reject empties / traversal.
+    raw = (body.path or "").strip().lstrip("/")
+    if raw.startswith("workspace/"):
+        raw = raw[len("workspace/"):]
+    segments = [_sanitize_folder_segment(s) for s in raw.split("/") if s.strip()]
+    segments = [s for s in segments if s]
+    if not segments:
+        raise HTTPException(status_code=400, detail="Enter a folder name.")
+
+    rel_folder = "/".join(segments)
+    readme_path = f"{rel_folder}/README.md"
+    abs_folder = f"/workspace/{rel_folder}"
+    abs_readme = f"/workspace/{readme_path}"
+
+    # The operator's organize reach is the create reach (ADR-424 D2). A folder
+    # under system/ / inbound/ / a machine-config leaf is refused honestly.
+    if not operator_can_organize(abs_readme):
+        raise HTTPException(
+            status_code=403,
+            detail="You can't create a folder here — that location is managed by the system.",
+        )
+
+    # If the folder already has files, don't reseed (idempotent-ish create).
+    existing = auth.client.table("workspace_files") \
+        .select("path") \
+        .eq(*substrate_scope_filter(auth.user_id)) \
+        .like("path", f"{abs_folder}/%") \
+        .or_("lifecycle.is.null,lifecycle.neq.archived") \
+        .limit(1) \
+        .execute()
+    if existing.data:
+        raise HTTPException(status_code=409, detail="A folder with that name already exists.")
+
+    from services.primitives.registry import execute_primitive
+    leaf = segments[-1]
+    result = await execute_primitive(auth, "WriteFile", {
+        "scope": "workspace",
+        "path": readme_path,
+        "content": f"# {leaf}\n\n_This folder was created to hold work about {leaf}._\n",
+        "message": f"Create folder: {rel_folder}",
+        "authored_by": "operator",
+    })
+    if not (isinstance(result, dict) and result.get("success")):
+        detail = (result or {}).get("message", "Could not create the folder.")
+        raise HTTPException(status_code=400, detail=detail)
+    return {"success": True, "path": abs_folder, "seeded": abs_readme}
+
+
+# =============================================================================
 # SHARE FILE — ADR-127: TP-Level User-Shared File Staging
 # =============================================================================
 

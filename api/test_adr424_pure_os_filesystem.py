@@ -96,6 +96,19 @@ def run() -> int:
     )
     ok &= _check("D3 peer home re-roots correctly", peer_ok)
 
+    # ── D2 create-folder route: the operator makes a peer folder ──────────────
+    from routes.documents import _sanitize_folder_segment, create_folder
+    ok &= _check("create-folder sanitizer strips traversal + specials",
+                 _sanitize_folder_segment("The Acme Deal!") == "the-acme-deal"
+                 and _sanitize_folder_segment("../etc") == "etc")
+    cf_src = inspect.getsource(create_folder)
+    # The route must guard on operator_can_organize (so system/ + inbound/ refuse)
+    # and seed via the WriteFile primitive (the ADR-209 write path), not a raw insert.
+    ok &= _check("create-folder guards on operator_can_organize",
+                 "operator_can_organize" in cf_src)
+    ok &= _check("create-folder seeds via WriteFile (the write path), README.md",
+                 "WriteFile" in cf_src and "README.md" in cf_src)
+
     return 0 if ok else 1
 
 

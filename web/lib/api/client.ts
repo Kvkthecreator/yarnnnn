@@ -462,6 +462,14 @@ export const api = {
         { method: "POST", body: JSON.stringify({ path, new_path: newPath }) }
       ),
 
+    // ADR-424 D2: create a top-level PEER folder (a peer of Documents/Downloads).
+    // Folders are implicit, so this seeds the folder's first file (README.md).
+    createFolder: (path: string) =>
+      request<{ success: boolean; path: string; seeded: string }>(
+        "/api/documents/folder",
+        { method: "POST", body: JSON.stringify({ path }) }
+      ),
+
     // ADR-127: Share file to global user_shared/ staging area
     shareFile: (filename: string, content: string) =>
       request<{ success: boolean; path: string; filename: string; message: string }>(
