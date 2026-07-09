@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.09.4] - System Agent pane purification (ADR-430) — Autonomy · Budget · Health
+
+- **Operator-surface change, no gate/LLM-behavior change.** Trims the three live Freddie System Agent panes to what the witness/cost canon says the steward's door should show.
+- **Autonomy**: removed the operator-facing "NEVER AUTO-EXECUTE" editor (`NeverAutoEditor` in `AutonomyCard.tsx` + `setNeverAuto` in `content-shapes/autonomy.ts`). Its `path:` form was redundant with the ADR-320/366 topology lock (locked roots hard-stop independent of the mode); the action-type form is a bundle-authored capital floor (`agents/{slug}/_autonomy.yaml`), not an operator dial, with nothing to gate at Rung-1 (ADR-380 D3). The pane is now the three-mode witness dial alone (ADR-405 D2). The `_autonomy.yaml::never_auto` field + `_check_never_auto` stay backend-live (bundles author it); the parser/serializer still round-trips a bundle-authored list on `setDelegation`.
+- **Budget**: kept on Freddie (ADR-418 D1 — it is the allocation dial) but purified to allocation-only. Dropped the dollar utilization meter (`$X of $Y used`, `$/day burn` → shown as **% used / % left**, honoring ADR-396 "dollars not shown to the user"), removed the "Balance & billing" link (balance is Layer ①, on the Workspace Settings door per ADR-391 D3 / ADR-416), and relabeled "Operation budget" → **"Allocation"** (ADR-416 §4 retired the "operation" frame for the steward's dial). Amount presets stay (declaring an envelope is a dollar act).
+- **Activity → Health**: relabeled the pane (`SystemAgentPanes.tsx`) to end the collision with the global Activity surface; it is the system agent's own liveness/supervision view (different substrate + question), not a second "what happened" feed. Cleaned stale operator-facing/comment vocabulary ("Reviewer" → "your agent", dropped `back-office.yaml`/ADR-251 lineage) per ADR-410 D4. Pane key stays `activity` (registry stability); endpoint + component unchanged.
+- **Backend docstring fix**: `review_policy.py` no longer documents `never_auto` as ADR-261-deleted (ADR-293 D5 reversed that fold; `_check_never_auto` is live).
+- **Known follow-on flagged in ADR-430 §3, NOT fixed here**: on a HIRED-program workspace the autonomy pane writes `governance/_autonomy.yaml` while the gate reads `agents/{slug}/_autonomy.yaml` (ADR-414 D6) + the `substrate:` block (ADR-408 D3) — a file/block-target divergence. Bites only on program workspaces (N=1 steward workspaces are byte-identical). Tracked, needs its own gate.
+- Expected behavior: no change to what the gate enforces (three modes + topology lock + never_auto field untouched); the operator sees a cleaner, canon-aligned System Agent door. Gate: FE `tsc --noEmit` clean; backend `test_adr293_governance_taxonomy` unaffected (only a docstring changed; the 12/13 has one pre-existing `cockpit_awareness.py` failure unrelated to this work).
+
 ## [2026.07.09.3] - Retire the eager foreign-write derive wake (the `remember` derive-and-cite prompt)
 
 - **This IS an LLM-behavior change** — it removes a per-write seat invocation whose entire payload was a `DERIVE-AND-CITE` prompt.

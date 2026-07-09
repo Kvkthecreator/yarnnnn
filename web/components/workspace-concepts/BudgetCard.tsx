@@ -25,8 +25,7 @@
  */
 
 import { useState } from 'react';
-import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
-import { Wallet, ArrowRight, CreditCard } from 'lucide-react';
+import { Wallet, ArrowRight } from 'lucide-react';
 import {
   useCockpitBudget,
   budgetWindowLabel,
@@ -82,17 +81,17 @@ function pct(spend: number, amount: number): number {
   return Math.min(100, Math.round((spend / amount) * 100));
 }
 
-// ADR-338 D4.4 — runway line. Frames balance + observed burn as time
-// remaining ("~12 days left at this pace"). Returns null when the backend
-// has no burn signal yet (fresh window / zero spend) — runway only becomes
-// honest once there's spend to project from.
+// ADR-338 D4.4 — runway line. Frames observed draw-down as time remaining
+// ("~12 days left at this pace"). Returns null when the backend has no burn
+// signal yet (fresh window / zero spend) — runway only becomes honest once
+// there's spend to project from. ADR-430/396: the DOLLAR burn figure is
+// dropped — this door shows draw-down as time + %, never a running $ meter.
 function runwayLine(u: {
   runway_days?: number | null;
   daily_burn_usd?: number | null;
 }): React.ReactNode {
   if (u.runway_days == null || u.daily_burn_usd == null) return null;
   const days = u.runway_days;
-  const burn = u.daily_burn_usd;
   // Phrase the time horizon in the operator's terms.
   let horizon: string;
   if (days >= 999) horizon = 'plenty of runway at this pace';
@@ -105,11 +104,7 @@ function runwayLine(u: {
       : days < 14
         ? 'text-amber-600 dark:text-amber-400'
         : 'text-muted-foreground/70';
-  return (
-    <p className={cn('text-[11px]', tone)}>
-      {horizon} <span className="text-muted-foreground/50">· ${burn.toFixed(2)}/day burn</span>
-    </p>
-  );
+  return <p className={cn('text-[11px]', tone)}>{horizon}</p>;
 }
 
 export function BudgetCard({
@@ -121,7 +116,6 @@ export function BudgetCard({
 }: BudgetCardProps) {
   const { meta, utilization, loading, summary, setBudget } = useCockpitBudget({ initialContent });
   const [pendingWindow, setPendingWindow] = useState<BudgetWindow | null>(null);
-  const { navigateToSurface } = useSurfacePreferences();
 
   const amount = meta?.amount_usd ?? utilization?.amount_usd ?? null;
   const window = meta?.window ?? utilization?.window ?? null;
@@ -147,26 +141,26 @@ export function BudgetCard({
   }
 
   // ---- utilization line (shared by compact + full) ----
+  // ADR-430/396: draw-down shown as a PERCENT of the declared envelope, never a
+  // running dollar meter (the Claude-settings transparency pattern — activity is
+  // legible, dollars are not surfaced here). The envelope itself is set in
+  // dollars (declaring a budget is a dollar act); the SPEND is shown as %.
+  const usedPct = utilization ? pct(utilization.window_spend_usd, utilization.amount_usd) : 0;
   const utilLine = utilization ? (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
         <span className="text-muted-foreground">
-          ${utilization.window_spend_usd.toFixed(2)} of ${utilization.amount_usd.toFixed(2)} used
-          {' '}({budgetWindowLabel(utilization.window)})
+          {usedPct}% used ({budgetWindowLabel(utilization.window)})
         </span>
-        <span className="font-medium">${utilization.remaining_usd.toFixed(2)} left</span>
+        <span className="font-medium">{Math.max(0, 100 - usedPct)}% left</span>
       </div>
       <div className="h-1.5 w-full rounded-full bg-muted/50 overflow-hidden">
         <div
           className={cn(
             'h-full rounded-full transition-all',
-            pct(utilization.window_spend_usd, utilization.amount_usd) >= 90
-              ? 'bg-destructive'
-              : pct(utilization.window_spend_usd, utilization.amount_usd) >= 70
-                ? 'bg-amber-500'
-                : 'bg-primary',
+            usedPct >= 90 ? 'bg-destructive' : usedPct >= 70 ? 'bg-amber-500' : 'bg-primary',
           )}
-          style={{ width: `${pct(utilization.window_spend_usd, utilization.amount_usd)}%` }}
+          style={{ width: `${usedPct}%` }}
         />
       </div>
       {/* ADR-338 D4.4 — runway: observed burn → time remaining. Null until
@@ -219,11 +213,11 @@ export function BudgetCard({
     <div className={cn('space-y-4', className)}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold">Operation budget</p>
+          <p className="text-sm font-semibold">Allocation</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            How much this operation may spend over the window below. The agent
-            allocates judgment wakes within this envelope — it decides how often
-            to work; you decide how much it costs (ADR-327).
+            The spend envelope for your agent over the window below. It allocates
+            its own judgment wakes within this envelope — it decides how often to
+            work; you decide how much it may cost (ADR-327).
           </p>
         </div>
         <RevisionFootnote revision={lastRevision ?? null} className="shrink-0 pt-1" />
@@ -303,27 +297,15 @@ export function BudgetCard({
 
           {amount == null && (
             <p className="text-[11px] text-muted-foreground/60 px-1">
-              No budget declared — the kernel default ($50/monthly) applies until you set one.
+              No allocation declared — the kernel default ($50/monthly) applies until you set one.
             </p>
           )}
 
-          {/* Account funds footer (2026-06-19). The budget above is THIS
-              operation's spend envelope; the balance that funds it is the
-              account's — billing/top-up live on the account (ADR-347). The
-              link lives here on the pane, not on the top-bar money glance. */}
-          <div className="border-t border-border/60 pt-3 flex items-center justify-between gap-3">
-            <p className="text-[11px] text-muted-foreground/70">
-              The balance that funds this envelope is this workspace&apos;s.
-            </p>
-            <button
-              type="button"
-              onClick={() => navigateToSurface('workspace-settings', { pane: 'billing' })}
-              className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline shrink-0"
-            >
-              <CreditCard className="w-3.5 h-3.5" />
-              Balance &amp; billing
-            </button>
-          </div>
+          {/* ADR-430 (2026-07-09): the "Balance & billing" link is REMOVED.
+              Balance is the workspace's money (Layer ①, ADR-391 D3 — "not an
+              agent concern") and lives on the Workspace Settings billing door
+              (ADR-416), not on the steward's allocation dial. This pane is the
+              allocation envelope alone. */}
         </div>
       )}
 

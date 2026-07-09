@@ -72,7 +72,12 @@ export const SYSTEM_AGENT_PANE_GROUP: PaneGroup = {
     { key: 'about', label: 'About', icon: Info },
     { key: 'autonomy', label: 'Autonomy', icon: ShieldCheck },
     { key: 'budget', label: 'Budget', icon: Wallet },
-    { key: 'activity', label: 'Activity', icon: ActivityIcon },
+    // ADR-430 (2026-07-09): relabeled 'Activity' → 'Health' to end the label
+    // collision with the global Activity surface. This pane is the system
+    // agent's own liveness/supervision view (a different substrate + question),
+    // not a second "what happened" feed. The pane KEY stays 'activity' (registry
+    // pane_of stability); only the operator-facing label changes.
+    { key: 'activity', label: 'Health', icon: ActivityIcon },
   ],
 };
 

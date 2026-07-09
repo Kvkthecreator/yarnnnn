@@ -34,8 +34,17 @@ Deleted fields (per ADR-261 D5):
 - `assisted` value (folded into `manual` — same effective behavior)
 - `bounded_autonomous` value (renamed to `bounded`)
 - `auto_approve_below_cents` — folded into `ceiling_cents` under `bounded`
-- `never_auto` — folded into `manual` delegation
 - `heartbeat_triggers` — gone with ADR-260 D4 (heartbeat trigger deleted)
+
+`never_auto` — LIVE (NOT deleted; ADR-261 D5's fold was reversed by ADR-293 D5).
+It is a backend safety hook read by `_check_never_auto` below: a list of
+action-type substrings and/or `path:`-prefixed substrate prefixes that ALWAYS
+queue regardless of delegation mode. Bundles author it into their shipped
+`agents/{slug}/_autonomy.yaml` (e.g. alpha-trader's `close_position_market`).
+Per ADR-430 (2026-07-09) it is NO LONGER an operator-facing surface — the
+`NeverAutoEditor` was retired (its `path:` form was redundant with the ADR-320
+topology lock; the action-type form is a bundle floor, not an operator dial).
+The field + this function stay; only the operator editor is gone.
 
 `paused_until` + `pause_reason` survive (per ADR-248 D3+D4) — when non-null,
 AUTONOMY is effectively `manual` regardless of declared `delegation`.

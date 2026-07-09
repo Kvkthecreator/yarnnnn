@@ -417,10 +417,9 @@ export interface UseAutonomyResult {
   setPause: (untilIso: string | null, reason: string) => Promise<void>;
   /** Lift the pause immediately. */
   clearPause: () => Promise<void>;
-  /** ADR-338 D4.2: replace the never_auto hard-safety list. Each entry is a
-   *  bare action-type substring or a `path:`-prefixed substrate path. Any
-   *  matching action ALWAYS routes to the Queue regardless of delegation. */
-  setNeverAuto: (entries: string[]) => Promise<void>;
+  // ADR-430 (2026-07-09): `setNeverAuto` removed — the operator-facing never_auto
+  // editor is retired (the field stays a backend safety hook; the parser/
+  // serializer still round-trips a bundle-authored list on setDelegation).
 }
 
 export function useAutonomy(opts?: { initialContent?: string | null }): UseAutonomyResult {
@@ -529,27 +528,12 @@ export function useAutonomy(opts?: { initialContent?: string | null }): UseAuton
     });
   };
 
-  // ADR-338 D4.2: the never_auto hard-safety list. Replaces the whole list
-  // (the editor passes the post-edit set). Backend-enforced by
-  // review_policy._check_never_auto — any matching action ALWAYS queues.
-  // Routing through serialize() emits it structurally once, killing the
-  // duplicate-key-shadow failure class at the write path.
-  const setNeverAuto = async (entries: string[]) => {
-    const cleaned = entries.map((e) => e.trim()).filter(Boolean);
-    const next: AutonomyMeta = {
-      ...(meta ?? {}),
-      // delegation must be present for the default block to be meaningful;
-      // default to manual if unset (the safe floor).
-      default_delegation: meta?.default_delegation ?? 'manual',
-      default_never_auto: cleaned,
-    };
-    const content = serialize(next, rawBody, tierBlock);
-    setMeta(next);
-    const { writeShape } = await import('./write');
-    await writeShape('autonomy', 'governance/_autonomy.yaml', content, {
-      message: `never_auto list → ${cleaned.length} ${cleaned.length === 1 ? 'guard' : 'guards'}`,
-    });
-  };
+  // ADR-430 (2026-07-09): the operator-facing `setNeverAuto` write path is
+  // retired with the NeverAutoEditor (its `path:` form was redundant with the
+  // topology lock; its action-type form is a bundle-authored capital floor).
+  // The `never_auto` field stays backend-live (`_check_never_auto`); the parser
+  // (`default_never_auto`) + serializer preservation remain so a bundle-authored
+  // list round-trips untouched on setDelegation. No operator surface writes it.
 
   const effectiveDelegation = resolveEffectiveLevel(meta);
   const summary = formatAutonomySummary(meta ?? {});
@@ -577,6 +561,5 @@ export function useAutonomy(opts?: { initialContent?: string | null }): UseAuton
     setLevel: setDelegation,  // back-compat alias
     setPause,
     clearPause,
-    setNeverAuto,
   };
 }

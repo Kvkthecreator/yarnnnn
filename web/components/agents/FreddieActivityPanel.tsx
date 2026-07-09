@@ -1,17 +1,17 @@
 'use client';
 
 /**
- * FreddieActivityPanel — Reviewer supervision surface.
+ * FreddieActivityPanel — the system agent's Health / supervision pane.
  *
- * Authored 2026-05-14 as first-principles rewrite (replaces the
- * ADR-251-D5-era panel that read dissolved back-office.yaml substrate
- * and a stale slug filter). Now reads the canonical post-ADR-261
- * GET /api/agents/freddie/activity which derives from
- * /workspace/_recurrences.yaml (judgment-mode entries = Reviewer wakes
- * per ADR-263 D1).
+ * The "Health" pane of the Freddie System Agent door (ADR-430 relabel — it was
+ * "Activity", which collided with the global Activity surface). Reads
+ * GET /api/agents/freddie/activity, which derives from
+ * /workspace/_recurrences.yaml (judgment-mode entries = the agent's own wakes,
+ * ADR-263 D1). This is a DIFFERENT substrate + question than the global Activity
+ * surface's "what happened across the workspace."
  *
  * Single operator question this surface answers:
- *   "Is my Reviewer functioning autonomously the way it's been told to?"
+ *   "Is my agent functioning autonomously the way it's been told to?"
  *
  * Four sections (top-to-bottom — most-actionable signal first):
  *
@@ -22,26 +22,22 @@
  *      Operator can see the cadence schedule at a glance and judge
  *      whether autonomy is well-shaped.
  *
- *   3. Recent autonomous actions — what the Reviewer has actually done
- *      on the operator's behalf (Reviewer-originated or auto-approved
- *      proposals). The money-moving trail.
+ *   3. Recent autonomous actions — what the agent has actually done on the
+ *      operator's behalf (agent-originated or auto-approved proposals). The
+ *      money-moving trail.
  *
  *   4. Recent runs — every judgment-mode run in the supervision window.
- *      Forensic, but compact — each row deep-links to /activity for
- *      detail per the supervision-vs-execution lens distinction
- *      (WORKSPACE.md).
+ *      Forensic, but compact — each row deep-links to the global Activity /
+ *      Runs view for detail (supervision-vs-execution lens, WORKSPACE.md).
  *
- * Distinct from /activity (workspace-wide execution-lens covering every
- * recurrence + mode + cost): this surface is **Reviewer-only supervision**.
- * The "View all runs →" deep-link bridges to /activity for the broader
- * execution view.
+ * Distinct from the global Activity surface (workspace-wide execution-lens
+ * covering every recurrence + mode + cost): this is the system agent's own
+ * liveness/supervision view. The "View all runs →" deep-link bridges out.
  *
  * Read-only. Mutations route through chat per ADR-235 D1 + ADR-245
  * (substrate writes via primitives, not bespoke modals).
  *
- * Reused on:
- *   - Workspace Settings → System Agent → Activity (canonical home, ADR-412 D5)
- *   - Chat WorkspaceContextOverlay Review section
+ * Mounted on: the Freddie System Agent door → Health pane (ADR-426/430).
  */
 
 import { useEffect, useState } from 'react';
