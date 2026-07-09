@@ -101,6 +101,12 @@ class WorkspaceMember(BaseModel):
     write_regions: list[str]               # the raw ADR-320 write-region roots (the wire truth)
     write_zones: list[str]                 # ADR-424 operator zones (Documents/Downloads/System files) — what the roster SHOWS
     scopes_explicit: bool                  # True if narrowed by an explicit grant; False if class-default
+    # The powerbox three-way access state (2026-07-10) — read⊇write, so this is
+    # the READ reach too. The polarity fix made 'none' representable:
+    #   'all'    → NULL scopes → class default (unconfigured; reads/writes its class)
+    #   'scoped' → [..] → narrowed to the named roots (reads/writes exactly those)
+    #   'none'   → [] → explicit deny-all (an empty allow-list; reads/writes nothing)
+    access_state: str
     status: str                            # active | revoked
     granted_by: Optional[str] = None
     created_at: Optional[str] = None
@@ -1155,8 +1161,22 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
             role = r.get("role") or "member"
             principal_id = r["principal_id"]
             scopes = r.get("scopes")
-            explicit = bool(scopes)  # NULL/[] → class default
-            write_regions = list(scopes) if explicit else _class_default_write_regions(role)
+            # POLARITY (powerbox, 2026-07-10) — three states, not two. NULL is
+            # unconfigured (class default); [] is an explicit deny-all; [..] is a
+            # narrowing. `bool(scopes)` collapsed [] into NULL (both falsy); use
+            # `is not None` so a locked-down member is representable + legible.
+            if scopes is None:
+                access_state = "all"
+                explicit = False
+                write_regions = _class_default_write_regions(role)
+            elif len(scopes) == 0:
+                access_state = "none"
+                explicit = True
+                write_regions = []
+            else:
+                access_state = "scoped"
+                explicit = True
+                write_regions = list(scopes)
 
             label: Optional[str] = None
             if role in ("owner", "member"):
@@ -1193,6 +1213,7 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
                 write_regions=write_regions,
                 write_zones=_write_regions_to_zones(write_regions),  # ADR-424 operator projection
                 scopes_explicit=explicit,
+                access_state=access_state,
                 status=r.get("status") or "active",
                 granted_by=r.get("granted_by"),
                 created_at=r.get("created_at"),
@@ -1242,11 +1263,14 @@ def _resolve_caller_workspace(auth: UserClient) -> str:
 
 @router.post("/workspace/members/{principal_id}/narrow", response_model=MemberLifecycleResponse)
 async def narrow_member(principal_id: str, body: NarrowMemberRequest, auth: UserClient) -> MemberLifecycleResponse:
-    """Tighten a member's write-region scopes (ADR-386 D2 — NARROW).
+    """Tighten a member's scopes (ADR-386 D2 — NARROW; powerbox read⊇write 2026-07-10).
 
-    Authz-only: the member stays connected, can still read; the gate's allow-list
-    path then denies writes outside the narrowed set. The owner grant is
-    immutable (403)."""
+    Authz-only (the member stays connected): the gate's allow-list path then
+    denies BOTH writes AND reads outside the narrowed set — the powerbox read
+    gate made `narrow` honest on the read axis (before, narrowing restricted
+    writes but not reads). `scopes: []` is a deliberate DENY-ALL (the member may
+    touch nothing); `scopes: ['operation/', ...]` narrows to those roots. The
+    owner grant is immutable (403)."""
     from services.principal_grants import narrow_grant, OwnerGrantImmutable
     workspace_id = _resolve_caller_workspace(auth)
     try:

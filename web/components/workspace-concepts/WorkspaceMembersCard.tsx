@@ -301,11 +301,19 @@ export function WorkspaceMembersCard({
               {kindHint && (
                 <p className="mt-0.5 text-[11px] text-muted-foreground/50">{kindHint}</p>
               )}
+              {/* Powerbox (2026-07-10): the reach is READ + WRITE (read⊇write),
+                  so the label is "Can access", and the three access_states read
+                  honestly — 'all' (everything in their class), 'scoped' (only the
+                  named zones), 'none' (an explicit deny-all: touches nothing). */}
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <span className="text-[11px] text-muted-foreground/70">
-                  {m.scopes_explicit ? 'Can write (narrowed)' : 'Can write'}:
+                  {m.access_state === 'scoped' ? 'Can access (narrowed)' : 'Can access'}:
                 </span>
-                {zones.length === 0 ? (
+                {m.access_state === 'none' ? (
+                  <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                    nothing (access removed)
+                  </span>
+                ) : zones.length === 0 ? (
                   <span className="text-[11px] text-muted-foreground/60 italic">nothing</span>
                 ) : (
                   zones.map((zone) => (
@@ -508,8 +516,13 @@ export function WorkspaceMembersCard({
 }
 
 /**
- * NarrowDialog — pick the write-regions a member is allowed to author (ADR-386
- * D2). Authz-only; lightweight vs the Revoke eviction modal.
+ * NarrowDialog — pick the regions a member may access (ADR-386 D2; powerbox
+ * read⊇write, 2026-07-10). The selected set bounds BOTH reads and writes — so
+ * an empty selection is a deliberate DENY-ALL (the member touches nothing but
+ * stays connected), which the powerbox made representable. Deny-all is NOT a
+ * disabled-button accident: it is its own confirm affordance, so the operator
+ * chooses it on purpose. (Full eviction — disconnect + token delete — is the
+ * separate Revoke modal.)
  */
 function NarrowDialog({
   member,
@@ -522,25 +535,30 @@ function NarrowDialog({
   onCancel: () => void;
   onConfirm: (scopes: string[]) => void;
 }) {
-  // Seed from the member's current explicit scopes (if narrowed already),
-  // else default to operation/ only (the tightest sensible floor).
+  // Seed from the member's current access: an already-narrowed member keeps its
+  // scopes; a deny-all member seeds empty; otherwise operation/ only (the
+  // tightest sensible floor).
   const [selected, setSelected] = useState<string[]>(
-    member.scopes_explicit && member.write_regions.length
-      ? member.write_regions.map((r) => (r.endsWith('/') ? r : `${r}/`))
-      : ['operation/'],
+    member.access_state === 'none'
+      ? []
+      : member.access_state === 'scoped' && member.write_regions.length
+        ? member.write_regions.map((r) => (r.endsWith('/') ? r : `${r}/`))
+        : ['operation/'],
   );
   const toggle = (region: string) =>
     setSelected((s) => (s.includes(region) ? s.filter((x) => x !== region) : [...s, region]));
+
+  const isDenyAll = selected.length === 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !busy && onCancel()}>
       <div className="w-full max-w-md rounded-lg border border-border bg-background p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-sm font-semibold text-foreground">
-          Narrow {member.label ?? member.principal_id}&rsquo;s access
+          Set {member.label ?? member.principal_id}&rsquo;s access
         </h3>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          Choose the regions this principal may write. It stays connected and can still read;
-          writes outside the selected regions are denied.
+          Choose the regions this principal may read and write. It stays
+          connected; anything outside the selected regions is hidden and denied.
         </p>
         <div className="mt-4 space-y-1.5">
           {NARROWABLE_REGIONS.map((region) => (
@@ -555,6 +573,14 @@ function NarrowDialog({
             </label>
           ))}
         </div>
+        {/* The deny-all state, made honest: when nothing is selected, say so —
+            it is a deliberate "no access" grant, not a broken form. */}
+        {isDenyAll && (
+          <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[13px] text-amber-700 dark:text-amber-400">
+            No regions selected — this removes all access. {member.label ?? 'The principal'} stays
+            connected but can read and write nothing. (To disconnect entirely, use Revoke.)
+          </p>
+        )}
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
@@ -566,12 +592,17 @@ function NarrowDialog({
           </button>
           <button
             type="button"
-            disabled={busy || selected.length === 0}
+            disabled={busy}
             onClick={() => onConfirm(selected)}
-            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50',
+              isDenyAll
+                ? 'bg-amber-600 text-white hover:bg-amber-600/90'
+                : 'bg-primary text-primary-foreground hover:bg-primary/90',
+            )}
           >
             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Apply
+            {isDenyAll ? 'Remove all access' : 'Apply'}
           </button>
         </div>
       </div>

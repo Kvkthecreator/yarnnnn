@@ -216,6 +216,26 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
     `autonomous`, QUEUE under `bounded`/`manual`. The capital path's gate stays
     at review_proposal_dispatch (verdict + estimated_cents known there).
     """
+    # The READ gate — the powerbox debt (2026-07-10). ADR-373 grants + `narrow`
+    # were enforced on WRITES only; a narrowed principal still read the whole
+    # commons because read-only primitives short-circuit APPLY below before any
+    # consult. `ReadFile` is a SINGLE-OBJECT read, so a wholesale DENY is the
+    # correct shape (the SET-returning reads — ListFiles/SearchFiles/
+    # QueryKnowledge — must FILTER instead, in their handlers, or an out-of-scope
+    # file's existence leaks as an error; that filtering is not here).
+    #
+    # SAFETY INVARIANT: owner / NULL-scoped grants read everything
+    # (_is_path_readable_for_principal → True), so this is byte-identical for
+    # every live grant. It bites only a principal with an explicit narrowing
+    # (a scoped member / foreign-llm), which is the whole point.
+    if name == "ReadFile":
+        from services.primitives.workspace import (
+            _is_path_readable_for_principal, _resolve_read_gate_path,
+        )
+        target = _resolve_read_gate_path(input)
+        if target and not _is_path_readable_for_principal(auth, target):
+            return PermissionDecision.DENY, f"read_scope_denied:{target}"
+
     # Read-only / narration → never gates (ADR-307 D2).
     if is_read_only(name):
         return PermissionDecision.APPLY, "read_only"

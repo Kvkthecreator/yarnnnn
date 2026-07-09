@@ -640,6 +640,21 @@ def _resolve_workspace_path_for_gate(input: dict) -> Optional[str]:
     return path
 
 
+def _resolve_read_gate_path(input: dict) -> Optional[str]:
+    """The ReadFile analog of `_resolve_workspace_path_for_gate` (the powerbox
+    read gate, 2026-07-10). Returns the workspace-relative path a workspace-scope
+    ReadFile targets, or None when the read is NOT a shared-commons read.
+
+    None (→ the gate does not fire, read proceeds) when:
+      - scope is 'agent' (the caller's own workspace, a different topology — the
+        commons read gate does not govern an agent reading its own files), or
+      - no path is present.
+    Same scope + normalization contract as the write gate, so read and write
+    consult the identically-normalized path.
+    """
+    return _resolve_workspace_path_for_gate(input)
+
+
 # ---------------------------------------------------------------------------
 # Activity-log path recognition (ADR-235 D1.b)
 # ---------------------------------------------------------------------------
@@ -1216,6 +1231,12 @@ async def handle_search_files(auth: Any, input: dict) -> dict:
             prefix = "/workspace"
             if path_prefix:
                 prefix = path_prefix if path_prefix.startswith("/") else f"/workspace/{path_prefix.lstrip('/')}"
+            out = _exact_search(auth, query, prefix)
+            # Powerbox read gate — filter to granted roots (commons only).
+            if out.get("results"):
+                out["results"] = filter_results_by_read_scope(auth, out["results"])
+                out["count"] = len(out["results"])
+            return out
         else:
             agent = getattr(auth, "agent", None)
             if not agent:
@@ -1245,20 +1266,24 @@ async def handle_search_files(auth: Any, input: dict) -> dict:
             logger.warning(f"[SEARCH_FILES] workspace search failed: {e}")
             rows = []
 
+        results = [
+            {
+                "path": r["path"],
+                "summary": r.get("summary"),
+                "content_preview": (r.get("content") or "")[:500],
+            }
+            for r in rows
+        ]
+        # Powerbox read gate — filter to granted roots (commons only). The
+        # reported count is the filtered count; no hidden-results tally leaks.
+        results = filter_results_by_read_scope(auth, results)
         return {
             "success": True,
             "scope": "workspace",
             "query": query,
             "path_prefix": prefix,
-            "count": len(rows),
-            "results": [
-                {
-                    "path": r["path"],
-                    "summary": r.get("summary"),
-                    "content_preview": (r.get("content") or "")[:500],
-                }
-                for r in rows
-            ],
+            "count": len(results),
+            "results": results,
         }
 
     agent = getattr(auth, "agent", None)
@@ -1417,6 +1442,12 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
             item["similarity"] = round(r["similarity"], 3)
         result_items.append(item)
 
+    # Powerbox read gate (2026-07-10) — filter to the caller's granted roots.
+    # QueryKnowledge sweeps the whole searchable commons, so a narrowed principal
+    # must not recall substrate outside its grant. Owner / NULL scope → unchanged.
+    # Applied after the searchable-root filter so the count stays honest.
+    result_items = filter_results_by_read_scope(auth, result_items)
+
     return {
         "success": True,
         "query": query,
@@ -1560,6 +1591,18 @@ async def handle_list_files(auth: Any, input: dict) -> dict:
         abs_prefix = rel_base + sub
 
     entries, truncated = _list_tree(auth, abs_prefix, rel_base, authored_by, since, until)
+
+    # The powerbox read gate (2026-07-10) — FILTER, not deny. A narrowed
+    # principal enumerates only its granted roots; the rest are silently absent,
+    # never surfaced as a count or an error (that would leak the existence +
+    # volume of out-of-scope files). Owner / NULL-scoped grants → read_roots is
+    # None → no filtering (byte-identical). Only applies to the shared commons
+    # (scope='workspace'); an agent listing its own workspace is a different
+    # topology the commons gate does not govern.
+    if scope == "workspace":
+        read_roots = grant_read_roots(auth)
+        if read_roots is not None:
+            entries = [e for e in entries if path_readable_under_roots(e["path"], read_roots)]
 
     result = {
         "success": True,
@@ -2014,8 +2057,18 @@ def _lookup_grant_scopes(auth: Any) -> Optional[list[str]]:
 
         if result.data:
             raw = result.data[0].get("scopes")
-            # NULL scopes → None (class default). A non-empty list → allow-list.
-            if raw:
+            # POLARITY (the powerbox debt fix, 2026-07-10). Three states, three
+            # meanings — an empty allow-list is NOT the same as no allow-list:
+            #   NULL  → None      → class default (the pre-consult world; owner)
+            #   []    → []        → EXPLICIT DENY-ALL (an allow-list of nothing;
+            #                       _grant_root_set([]) = ∅ → every path locked)
+            #   [..]  → [..]      → allow-list of the named roots
+            # The prior `if raw:` collapsed [] into the NULL branch (both falsy),
+            # so "this principal may touch nothing" silently resolved to the
+            # class default = write-capable. `is not None` splits them: an empty
+            # list is a deliberate, representable "no access" grant. This is the
+            # only way to express a locked-down principal, and it was unreachable.
+            if raw is not None:
                 scopes = list(raw)
     except Exception as exc:  # pragma: no cover — fail safe to class default
         import logging
@@ -2045,8 +2098,87 @@ def _is_path_locked_for_principal(auth: Any, path: str) -> bool:
 
     # Explicit scopes → allow-list. Normalize the candidate path the same way
     # _is_path_locked does, then lock iff its root is NOT in the granted set.
-    candidate = path.strip().lstrip("/")
-    if candidate.startswith("workspace/"):
-        candidate = candidate[len("workspace/"):]
+    candidate = _normalize_scope_candidate(path)
     granted_roots = _grant_root_set(scopes)
     return not any(candidate.startswith(root) for root in granted_roots)
+
+
+# ---------------------------------------------------------------------------
+# The READ axis — the powerbox debt (2026-07-10). ADR-373 shipped multi-principal
+# grants + a `narrow` verb; the consult above enforces them on WRITES only. A
+# narrowed principal still READ the whole commons (no read gate anywhere — the
+# ADR-307 gate short-circuits read-only primitives to APPLY before any consult).
+# These two helpers are the read analog, and they close that gap.
+#
+# HALF-A MODEL — read ⊇ write. There is no separate read-scope field yet (that
+# is Half B: object-granular, read-only-vs-scoped-write). In Half A a principal
+# READs exactly the roots it may WRITE: the same `scopes` list governs both, so
+# narrowing a member to `operation/` narrows BOTH axes coherently, and an owner /
+# NULL-scoped grant reads everything — byte-identical to the pre-powerbox world.
+# ---------------------------------------------------------------------------
+
+def _normalize_scope_candidate(path: str) -> str:
+    """Normalize a path to the form scope-roots match against (the same
+    normalization `_is_path_locked_for_principal` applied inline)."""
+    candidate = (path or "").strip().lstrip("/")
+    if candidate.startswith("workspace/"):
+        candidate = candidate[len("workspace/"):]
+    return candidate
+
+
+def grant_read_roots(auth: Any) -> Optional[set[str]]:
+    """The set of root prefixes this principal may READ, or None for read-all.
+
+    Returns:
+      - None  → no grant / NULL scopes → read EVERYTHING (owner + every live
+                grant today; the safety invariant — byte-identical to before).
+      - set   → the granted roots (possibly EMPTY = read nothing, the deny-all
+                grant the polarity fix made representable).
+
+    Half-A read ⊇ write: read roots == write scope roots (one `scopes` list).
+    The set-returning read handlers (ListFiles / SearchFiles / QueryKnowledge)
+    call this and FILTER their results — a wholesale DENY would leak the
+    existence of out-of-scope files by turning an enumeration into an error.
+    """
+    scopes = _lookup_grant_scopes(auth)
+    if scopes is None:
+        return None
+    return _grant_root_set(scopes)
+
+
+def _is_path_readable_for_principal(auth: Any, path: str) -> bool:
+    """True iff this principal may READ `path` (the ReadFile wholesale gate).
+
+    The read analog of `_is_path_locked_for_principal`, inverted polarity
+    (returns readable, not locked). NULL scopes → readable (class default =
+    read-all). Explicit scopes → readable iff the path's root is granted;
+    an empty allow-list ([]) → nothing readable (deny-all).
+    """
+    read_roots = grant_read_roots(auth)
+    if read_roots is None:
+        return True  # read-all (owner / NULL scopes) — today's behavior
+    candidate = _normalize_scope_candidate(path)
+    return any(candidate.startswith(root) for root in read_roots)
+
+
+def path_readable_under_roots(path: str, read_roots: Optional[set[str]]) -> bool:
+    """Pure predicate for the set-returning handlers: given a pre-resolved
+    read-root set (None = read-all), is `path` readable? Factored out so a
+    handler resolves the grant ONCE (grant_read_roots) then filters many rows
+    without re-hitting the consult per row."""
+    if read_roots is None:
+        return True
+    candidate = _normalize_scope_candidate(path)
+    return any(candidate.startswith(root) for root in read_roots)
+
+
+def filter_results_by_read_scope(auth: Any, results: list[dict]) -> list[dict]:
+    """Filter a list of `{path: ...}` result rows to the caller's readable roots
+    (the SearchFiles / QueryKnowledge shape). Resolves the grant once, then
+    filters. None read_roots (owner / NULL scope) → returned unchanged
+    (byte-identical). The count reported to the caller is the FILTERED count —
+    an out-of-scope row's existence never leaks as a hidden-results tally."""
+    read_roots = grant_read_roots(auth)
+    if read_roots is None:
+        return results
+    return [r for r in results if path_readable_under_roots(r.get("path", ""), read_roots)]

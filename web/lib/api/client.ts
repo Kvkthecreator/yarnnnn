@@ -1444,6 +1444,10 @@ export const api = {
           write_regions: string[]; // raw ADR-320 write-region roots (the wire truth)
           write_zones: string[]; // ADR-424 operator zones (Documents/Downloads/System files) — what the roster shows
           scopes_explicit: boolean; // true if narrowed by an explicit grant
+          // powerbox (2026-07-10) — the three-way access state (read⊇write, so
+          // this is the READ reach too): 'all' (NULL → class default, unconfigured)
+          // | 'scoped' (narrowed to named roots) | 'none' ([] → explicit deny-all).
+          access_state: 'all' | 'scoped' | 'none';
           status: string;
           granted_by: string | null;
           created_at: string | null;
@@ -1454,8 +1458,10 @@ export const api = {
         grant_consult_active: boolean;
       }>("/api/workspace/members"),
 
-    // ADR-386 D2 — NARROW: tighten a member's write-region scopes (authz only;
-    // the member stays connected). Owner grant is immutable (403).
+    // ADR-386 D2 — NARROW: tighten a member's scopes (authz only; the member
+    // stays connected). Powerbox (2026-07-10, read⊇write): the narrowed set now
+    // bounds BOTH reads AND writes — `scopes: []` is a deliberate deny-all
+    // (touches nothing). Owner grant is immutable (403).
     // ADR-431: `connectedBy` targets a specific member's AI connection when a
     // provider is connected by several members.
     narrowMember: (principalId: string, scopes: string[], connectedBy?: string | null) =>

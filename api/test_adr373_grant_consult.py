@@ -167,13 +167,23 @@ def test_fallback_identity_null_scopes_is_byte_identical(monkeypatch):
         )
 
 
-def test_fallback_identity_empty_scopes_list_is_class_default(monkeypatch):
-    """An empty scopes list ([]) is treated as NULL (no narrowing) → class
-    default. Guards the falsy-list edge: [] must NOT mean 'deny everything'."""
+def test_empty_scopes_list_is_deny_all(monkeypatch):
+    """POLARITY AMENDMENT (the powerbox, 2026-07-10). An empty scopes list ([])
+    is an EXPLICIT allow-list of nothing → DENY-ALL, NOT the class default.
+
+    This REVERSES the pre-powerbox assertion (which pinned the `if raw:` bug:
+    `[]` collapsed into the NULL branch and resolved to class-default =
+    write-capable, so "this principal may touch nothing" was unrepresentable).
+    The fix (`if raw is not None:`) splits [] from NULL: [] is a deliberate,
+    representable locked-down grant. NULL still → class default (the test above).
+    See test_powerbox_read_gate.py for the full polarity + read-gate coverage."""
     _patch_grant(monkeypatch, [{"scopes": []}])
     auth = _auth(caller_identity="operator", principal_id="u-owner")
+    # Every path is locked — an empty allow-list grants nothing.
     for path in _SAMPLE_PATHS:
-        assert _is_path_locked_for_principal(auth, path) == _is_path_locked("operator", path)
+        assert _is_path_locked_for_principal(auth, path) is True, (
+            f"[] must deny {path} (deny-all), not fall to class default"
+        )
 
 
 def test_fallback_when_principal_unresolvable(monkeypatch):

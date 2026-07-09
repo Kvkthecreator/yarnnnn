@@ -3,6 +3,8 @@
 *Finishing `access(2)`: the read axis, the empty-set fix, and object-scoping. Permissions, not runtime.*
 
 > **Status**: Scoping analysis (2026-07-10). Doc-first, receipts-backed @ `adf735e`. **No ADR rides this yet** — this doc scopes the work so a powerbox ADR can be written against a real map. It is the implementation companion to `the-commons-is-the-os-2026-07-09.md` §5 (the *why*) and to the concepts carryover (the *runtime-vs-permissions* nuance, handled separately).
+>
+> **⚡ HALF A IMPLEMENTED (2026-07-10).** The DB pre-check (§5) came back clean: **0 narrowed grants; all 15 live grants NULL-scoped** — so Half A shipped as a **silent, byte-identical flip** (no migration). Landed: the polarity fix (`scopes:[]` → deny-all), the `ReadFile` wholesale read gate, the `ListFiles`/`SearchFiles`/`QueryKnowledge` result filters (read⊇write, roots-only), the members-endpoint `access_state` three-way (`all`/`scoped`/`none`), and the FE scope picker with an explicit deny-all affordance. Gate: `api/test_powerbox_read_gate.py` (17/17); the ADR-373 empty-scopes test was amended (it had pinned the polarity bug); full grant/permission/interop suite green; `tsc` clean. **Half B (object-scoping + minted capability) remains held for the use-case session.**
 > **Authors**: KVK, Claude
 > **Hat**: A (system canon). Vocabulary: principal, grant, scope, gate, powerbox, read-axis, object-scope, minted capability.
 > **The one-sentence frame**: the powerbox is **permissions, not runtime** — completing the write-only, root-granular grant gate into a read+write, object-granular one. It is `chmod`/`access(2)` reads for `principal_grants`, which today only checks mode bits on writes.
