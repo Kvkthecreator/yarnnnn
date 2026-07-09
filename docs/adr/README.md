@@ -109,7 +109,8 @@ The moat's substrate floor and the permission topology it stands on.
 | [323](ADR-323-finish-the-persona-frame-collapse.md) | Finish the Persona-Frame Collapse | Implemented |
 | [324](ADR-324-infercontext-dissolution.md) | InferContext Dissolution | Implemented |
 | [325](ADR-325-embed-as-gated-primitive.md) | Embed as a Gated Primitive | Implemented |
-| [328](ADR-328-substrate-portability-invariant.md) | Substrate Portability Invariant | Proposed |
+| [328](ADR-328-substrate-portability-invariant.md) | Substrate Portability Invariant | Proposed · D8 resolved by ADR-427 |
+| [427](ADR-427-binary-native-substrate-and-the-storage-seam.md) | Binary-Native Substrate + the Storage Seam (local-disk keystone) | **★ Proposed (keystone)** |
 
 ### OS framing + programs + compositor (222–230, 242, 273, 312)
 
