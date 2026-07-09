@@ -1,27 +1,32 @@
 'use client';
 
 /**
- * BudgetCard — L3 component for /workspace/governance/_budget.yaml (ADR-327).
+ * BudgetCard — the System Agent's PACE pane (ADR-433, reframing ADR-327/430).
  *
- * Supersedes PaceCard. Pace retired — "how often the agent works" is the
- * Reviewer's allocation problem within the dollar budget, not an operator
- * dial. This card shows TWO things:
- *   1. The declared spend envelope (amount + window) — operator-editable.
- *   2. Window-to-date utilization ("$12 of $50 used, on pace") — read-only,
- *      from GET /api/budget (the execution_events cost ledger). The budget
- *      concept is only honest paired with the utilization view (ADR-327 D8).
+ * ADR-433 reversed ADR-430 D2: after the pooled-balance model (ADR-396/429), a
+ * per-agent DOLLAR envelope is a second, fictional money number disconnected from
+ * the operator's real money (the pooled balance on the billing door). So this
+ * pane stops being a "spend envelope" dial and becomes Freddie's PACE surface:
+ *   1. CONSUMPTION — a non-dollar draw-down (%) of the real pooled balance this
+ *      window (ADR-396: dollars are not shown), framed as how hard Freddie is
+ *      working, not as a budget.
+ *   2. WINDOW — the measurement/reset window (Monthly/Weekly/Daily) over which
+ *      consumption is read. Operator-editable (writes _budget.yaml::window).
+ *   3. A pointer to the workspace BILLING door, where the actual money lives
+ *      (ADR-416/391 D3 — money is the workspace's concern, not an agent dial).
  *
- * Window selection mutates via setBudget() (writeShape → governance file).
- * Amount edits route through chat (the escape hatch — V1 surface offers
- * window presets + a few amount presets; precise dollar amounts via chat).
+ * The dollar amount presets ($30/$50/$100/$200) are REMOVED (ADR-433 D1). The
+ * `_budget.yaml::amount_usd` field survives as a backend runaway-safety envelope
+ * (paired with per_wake_ceiling_usd), settable via chat as an escape hatch, but
+ * is no longer a first-class operator dollar dial competing with the billing door.
  *
  * Variants:
- *   full    — /budget atomic surface (window control + amount presets + utilization)
- *   compact — context overlay (summary + utilization line)
- *   chip    — chat composer (amount badge only, read-only; deep-links to /budget)
+ *   full    — the System Agent Budget pane (consumption + window + billing link)
+ *   compact — context overlay (summary + consumption line)
+ *   chip    — chat composer (read-only pace badge; deep-links to the pane)
  *
- * Budget is operator-only substrate per ADR-327 (governance/ root, locked
- * from the Reviewer per ADR-320). The Reviewer reads it; only the operator writes.
+ * Substrate is operator-only per ADR-327 (governance/ root, locked from the
+ * agent per ADR-320). The agent reads it; only the operator writes.
  */
 
 import { useState } from 'react';
@@ -33,6 +38,7 @@ import {
   type BudgetWindow,
 } from '@/lib/content-shapes/budget';
 import { cn } from '@/lib/utils';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import type { WorkspaceRevisionSummary } from '@/types';
 import { RevisionFootnote } from './RevisionFootnote';
 import { ConfirmDialChange } from './ConfirmDialChange';
@@ -55,26 +61,19 @@ const WINDOW_OPTIONS: {
   {
     value: 'monthly',
     label: 'Monthly',
-    description: 'The budget covers a calendar month. Absorbs day-to-day variance — the default.',
+    description: 'Read pace over a calendar month. Absorbs day-to-day variance — the default.',
   },
   {
     value: 'weekly',
     label: 'Weekly',
-    description: 'The budget resets each week. Tighter control; more frequent reset.',
+    description: 'Read pace over each week. A tighter, more frequent view.',
   },
   {
     value: 'daily',
     label: 'Daily',
-    description: 'The budget resets each day. Strictest cadence-cost control.',
+    description: 'Read pace over each day. The tightest cadence view.',
   },
 ];
-
-// Amount presets per window — operator picks one or edits precisely via chat.
-const AMOUNT_PRESETS: Record<BudgetWindow, number[]> = {
-  monthly: [30, 50, 100, 200],
-  weekly: [10, 25, 50],
-  daily: [2, 5, 10],
-};
 
 function pct(spend: number, amount: number): number {
   if (amount <= 0) return 0;
@@ -114,15 +113,23 @@ export function BudgetCard({
   lastRevision,
   className,
 }: BudgetCardProps) {
-  const { meta, utilization, loading, summary, setBudget } = useCockpitBudget({ initialContent });
+  const { meta, utilization, loading, setBudget } = useCockpitBudget({ initialContent });
+  const { navigateToSurface } = useSurfacePreferences();
   const [pendingWindow, setPendingWindow] = useState<BudgetWindow | null>(null);
 
-  const amount = meta?.amount_usd ?? utilization?.amount_usd ?? null;
   const window = meta?.window ?? utilization?.window ?? null;
 
   // ---- chip ----
+  // ADR-433 — the chip is a PACE badge, not a dollar figure. Shows how much of
+  // the balance Freddie has drawn this window (%), never "$50/m".
   if (variant === 'chip') {
-    if (loading || amount == null) return null;
+    if (loading || !utilization) return null;
+    const chipPct = pct(
+      utilization.window_spend_usd,
+      utilization.effective_balance_usd != null
+        ? utilization.window_spend_usd + utilization.effective_balance_usd
+        : utilization.amount_usd,
+    );
     return (
       <button
         type="button"
@@ -132,25 +139,30 @@ export function BudgetCard({
           'bg-muted/60 text-muted-foreground hover:text-foreground transition-colors',
           className,
         )}
-        title="Budget — click to manage"
+        title="Pace — click to manage"
       >
         <Wallet className="w-3 h-3" />
-        ${amount}{window ? `/${window[0]}` : ''}
+        {chipPct}% drawn
       </button>
     );
   }
 
-  // ---- utilization line (shared by compact + full) ----
-  // ADR-430/396: draw-down shown as a PERCENT of the declared envelope, never a
-  // running dollar meter (the Claude-settings transparency pattern — activity is
-  // legible, dollars are not surfaced here). The envelope itself is set in
-  // dollars (declaring a budget is a dollar act); the SPEND is shown as %.
-  const usedPct = utilization ? pct(utilization.window_spend_usd, utilization.amount_usd) : 0;
+  // ---- consumption line (shared by compact + full) ----
+  // ADR-433 D2 / ADR-396: draw-down shown as a PERCENT of the REAL pooled
+  // balance drawn this window (never a dollar meter — the Claude-settings
+  // transparency pattern). Denominator = window_spend + effective_balance (the
+  // money that existed this window). Falls back to the envelope % only when the
+  // balance signal is unavailable (a % is better than none), never to dollars.
+  const consumptionBasis =
+    utilization && utilization.effective_balance_usd != null
+      ? utilization.window_spend_usd + utilization.effective_balance_usd
+      : (utilization?.amount_usd ?? 0);
+  const usedPct = utilization ? pct(utilization.window_spend_usd, consumptionBasis) : 0;
   const utilLine = utilization ? (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
         <span className="text-muted-foreground">
-          {usedPct}% used ({budgetWindowLabel(utilization.window)})
+          {usedPct}% of balance drawn ({budgetWindowLabel(utilization.window)})
         </span>
         <span className="font-medium">{Math.max(0, 100 - usedPct)}% left</span>
       </div>
@@ -175,19 +187,22 @@ export function BudgetCard({
   ) : null;
 
   // ---- compact ----
+  // ADR-433 — "Pace", not "Budget"; no dollar `summary` (that leaks $X/window).
   if (variant === 'compact') {
     return (
       <div className={cn('space-y-1.5', className)}>
         <div className="flex items-center gap-1.5">
           <Wallet className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Budget</h3>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Pace</h3>
         </div>
         {loading ? (
           <p className="text-xs text-muted-foreground/40">Loading…</p>
         ) : (
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-medium">{summary}</span>
+              <span className="text-sm font-medium">
+                {window ? `Read ${budgetWindowLabel(window)}` : 'Pace'}
+              </span>
               {onOpen && (
                 <button
                   type="button"
@@ -213,11 +228,12 @@ export function BudgetCard({
     <div className={cn('space-y-4', className)}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold">Allocation</p>
+          <p className="text-sm font-semibold">Pace</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            The spend envelope for your agent over the window below. It allocates
-            its own judgment wakes within this envelope — it decides how often to
-            work; you decide how much it may cost (ADR-327).
+            How hard your agent works — it allocates its own judgment wakes and
+            decides how often to act. This shows how much of the workspace balance
+            it&rsquo;s drawing over the window below. The money itself lives on the
+            workspace&rsquo;s billing.
           </p>
         </div>
         <RevisionFootnote revision={lastRevision ?? null} className="shrink-0 pt-1" />
@@ -227,43 +243,14 @@ export function BudgetCard({
         <div className="h-32 rounded-md bg-muted/30 animate-pulse" />
       ) : (
         <div className="space-y-4">
-          {/* Utilization hero */}
+          {/* Consumption hero — non-dollar draw-down of the pooled balance */}
           {utilLine && (
             <div className="rounded-lg border border-border/60 px-4 py-3">
               {utilLine}
             </div>
           )}
 
-          {/* Amount presets for the current window */}
-          {window && (
-            <div className="space-y-1.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Amount ({budgetWindowLabel(window)})
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {AMOUNT_PRESETS[window].map(a => (
-                  <button
-                    key={a}
-                    type="button"
-                    onClick={() => { if (a !== amount) void setBudget({ amount_usd: a }); }}
-                    className={cn(
-                      'rounded-md border px-3 py-1.5 text-sm transition-colors',
-                      a === amount
-                        ? 'border-primary/50 bg-primary/5 font-medium'
-                        : 'border-border/60 hover:border-border hover:bg-muted/20',
-                    )}
-                  >
-                    ${a}
-                  </button>
-                ))}
-              </div>
-              <p className="text-[11px] text-muted-foreground/60">
-                Need a precise amount? Set it via chat — “set my budget to $X {budgetWindowLabel(window)}”.
-              </p>
-            </div>
-          )}
-
-          {/* Window selection */}
+          {/* Measurement window — over what period Freddie's pace is read. */}
           <div className="space-y-2">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Window
@@ -295,28 +282,31 @@ export function BudgetCard({
             })}
           </div>
 
-          {amount == null && (
-            <p className="text-[11px] text-muted-foreground/60 px-1">
-              No allocation declared — the kernel default ($50/monthly) applies until you set one.
-            </p>
-          )}
-
-          {/* ADR-430 (2026-07-09): the "Balance & billing" link is REMOVED.
-              Balance is the workspace's money (Layer ①, ADR-391 D3 — "not an
-              agent concern") and lives on the Workspace Settings billing door
-              (ADR-416), not on the steward's allocation dial. This pane is the
-              allocation envelope alone. */}
+          {/* ADR-433 D2 — the money lives on the billing door, not here. A
+              pointer, not a second money surface (ADR-391 D3 / ADR-416). Uses
+              the same committed target as AttentionCenter (settings → billing). */}
+          <button
+            type="button"
+            onClick={() => navigateToSurface('settings', { pane: 'billing' })}
+            className="flex w-full items-center justify-between rounded-lg border border-border/60 px-4 py-3 text-left transition-colors hover:border-border hover:bg-muted/20"
+          >
+            <span className="text-sm">
+              <span className="font-medium">Workspace balance</span>
+              <span className="text-muted-foreground"> — top up, plan, and spend</span>
+            </span>
+            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </button>
         </div>
       )}
 
       <ConfirmDialChange
         open={pendingWindow !== null && pendingMeta !== undefined}
-        dialName="budget window"
+        dialName="window"
         fromLabel={currentWindowMeta?.label ?? 'unset'}
         toLabel={pendingMeta?.label ?? ''}
         consequence={
-          `Spend will be measured ${pendingMeta ? budgetWindowLabel(pendingMeta.value) : ''} ` +
-          `and reset at the start of each ${pendingWindow ?? ''} window. Your amount preset may need adjusting.`
+          `Freddie's pace will be read ${pendingMeta ? budgetWindowLabel(pendingMeta.value) : ''}, ` +
+          `resetting at the start of each ${pendingWindow ?? ''} window.`
         }
         onCancel={() => setPendingWindow(null)}
         onConfirm={async () => {

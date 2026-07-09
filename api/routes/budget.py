@@ -37,12 +37,17 @@ class BudgetResponse(BaseModel):
     depth, so the operator sees at a glance where the spend went.
     """
 
-    amount_usd: float           # the declared spend envelope
+    amount_usd: float           # the backend runaway-safety envelope (ADR-433: no longer an operator dollar dial)
     window: str                 # 'monthly' | 'weekly' | 'daily'
     window_spend_usd: float     # spend so far this window (execution_events sum)
     remaining_usd: float        # max(0, amount - spend)
     per_wake_ceiling_usd: float # runaway floor — single-fire cap
     queue_depth: int = 0        # pending wakes (single lane post-ADR-327)
+    # ADR-433 D2 — the REAL pooled balance (allowance + top-ups − metered spend,
+    # ADR-396/429). The pace pane draws consumption as a % of window_spend against
+    # this, so the draw-down is honest money, not the fictional envelope. None on
+    # a balance-read failure (the FE then falls back to the envelope %).
+    effective_balance_usd: Optional[float] = None
     # ADR-338 D4.4 — runway framing: balance + observed burn → time remaining.
     # daily_burn = window_spend / days-elapsed-in-window (observed, not projected
     # from history). runway_days = remaining / daily_burn. Both null/None when
@@ -78,9 +83,28 @@ async def get_budget(auth: UserClient) -> BudgetResponse:
 
     remaining = max(0.0, budget.amount_usd - spent)
 
+    # ADR-433 D3 — runway projects against the REAL pooled balance, not the
+    # per-agent envelope (`amount_usd − spent`). Pre-433 "N days left" meant N
+    # days until a fictional $50 envelope ran out; the honest runway is N days
+    # until the operator's actual money (get_effective_balance = allowance +
+    # top-ups − metered spend, ADR-396/429) is exhausted. Best-effort: on any
+    # balance-read failure we fall back to the envelope remaining so the line is
+    # never silently wrong-by-omission (a runway is better than none), but the
+    # real balance is preferred.
+    runway_basis = remaining
+    effective_balance: Optional[float] = None
+    try:
+        from services.platform_limits import get_effective_balance
+        eff = get_effective_balance(auth.client, auth.user_id)
+        if eff is not None:
+            effective_balance = max(0.0, float(eff))
+            runway_basis = effective_balance
+    except Exception as exc:  # pragma: no cover — fall back to envelope remaining
+        logger.debug("[BUDGET] effective-balance runway basis unavailable: %s", exc)
+
     # ADR-338 D4.4 — runway: observed daily burn → days of remaining balance.
     # daily_burn = window_spend / days-elapsed. None when spend is ~0 (no signal
-    # to project from yet). runway_days = remaining / daily_burn; clamps high.
+    # to project from yet). runway_days = runway_basis / daily_burn; clamps high.
     daily_burn: Optional[float] = None
     runway_days: Optional[float] = None
     if spent > 0.005:  # > half a cent — enough to have a real burn signal
@@ -89,7 +113,7 @@ async def get_budget(auth: UserClient) -> BudgetResponse:
         if burn and burn > 0:
             daily_burn = round(burn, 4)
             # Cap the displayed runway at 999 days — beyond that it's "plenty."
-            runway_days = round(min(remaining / burn, 999.0), 1)
+            runway_days = round(min(runway_basis / burn, 999.0), 1)
 
     return BudgetResponse(
         amount_usd=round(budget.amount_usd, 2),
@@ -100,6 +124,7 @@ async def get_budget(auth: UserClient) -> BudgetResponse:
         queue_depth=depth,
         daily_burn_usd=daily_burn,
         runway_days=runway_days,
+        effective_balance_usd=round(effective_balance, 2) if effective_balance is not None else None,
     )
 
 

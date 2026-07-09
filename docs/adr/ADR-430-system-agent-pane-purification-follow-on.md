@@ -80,6 +80,9 @@ their shipped `agents/{slug}/_autonomy.yaml`. It is removed as an *operator
 surface*, not as a *mechanism*. Re-surfaceable if a Rung-2 need emerges.
 
 ### D2 — Budget pane → allocation-only
+
+> **⚠ Superseded by [ADR-433](ADR-433-the-freddie-budget-pane-is-pace-not-a-dollar-envelope.md) (2026-07-09).** D2 kept the `$30/$50/$100/$200` dollar amount presets on the argument "declaring a budget is inherently a dollar act." Operator audit found the $50 envelope is a *second, fictional money number* disconnected from the real pooled balance (ADR-396/429) — the confusion this pane creates. ADR-433 reverses D2: the pane becomes **Pace** (consumption % of the real balance + window), the dollar presets are removed, and `amount_usd` survives only as a backend runaway envelope. D2's *placement* (Budget stays on Freddie's door) + the *non-dollar draw-down principle* are preserved.
+
 The Budget pane stays on Freddie's door (ADR-418 D1) but is trimmed to the
 **allocation dial**: amount + window (writing `_budget.yaml`), plus a
 **non-dollar** draw-down indicator (percent, honoring ADR-396). Removed: the

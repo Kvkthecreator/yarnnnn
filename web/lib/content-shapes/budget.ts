@@ -221,6 +221,9 @@ export interface BudgetUtilization {
   // ADR-338 D4.4 — runway framing (null until enough spend signal this window).
   daily_burn_usd?: number | null;
   runway_days?: number | null;
+  // ADR-433 D2 — the real pooled balance (allowance + top-ups − metered spend).
+  // The pace draw-down reads against this, not the fictional envelope amount_usd.
+  effective_balance_usd?: number | null;
 }
 
 export interface UseBudgetResult {
