@@ -145,6 +145,8 @@ Health follows the DP29/DP28 derivation discipline (attention-routing is derived
 
 ## Amendment note (2026-07-04) — the principal-binding of connections: ratified direction, deferred implementation
 
+> **⚠ Resolved for the human case by [ADR-425](ADR-425-the-credential-is-an-account-object.md) (2026-07-09, Implemented).** This amendment's deferral is now decided: a human's connection is **authorized-by-principal AND owned-by-principal** (an account object, keyed `user_id`, managed in the account door). The "feeds-the-workspace" binding — and the `connected_by` principal reference this note anticipated — survive only for the *future D3 agent-owned* connection (Freddie / a hired agent acting through a platform). The peripheral ontology (D1: connection = mechanical peripheral, not a principal) is unchanged.
+
 Operator-ratified direction, recorded so downstream work doesn't re-derive or
 half-build it. **No code changes now.**
 

@@ -92,6 +92,8 @@ per principal, ADR-391 Layer ②) remains demand-gated; this ADR only fixes the
 gate's key.
 
 **D5 — Connections are workspace peripherals; credentials stay personal.**
+> **⚠ Superseded for the human case by [ADR-425](ADR-425-the-credential-is-an-account-object.md) (2026-07-09, Implemented).** ADR-425 inverts this polarity: a human's connector is an **account object** (the credential is primary, keyed `user_id`, managed in the account door), not a workspace peripheral. `platform_connections` re-scopes `content → account` in `scope_manifest.yaml`. The workspace-peripheral framing below survives only for the *future D3 agent-owned* connection (a non-human principal acting through a platform). D5's "one table carries both facts" instinct is preserved; which fact is primary flips.
+
 `platform_connections` splits semantically: the *connection* (the peripheral
 the workspace perceives through, ADR-401) is workspace content; the *OAuth
 credential* inside it belongs to the member who granted it (account scope).

@@ -50,6 +50,8 @@ Channels is scoped by **boundary**, not by user-vs-shared. It does not earn a pl
 
 ### D2 — Connectors + Sources restored to Workspace Settings (un-hidden)
 
+> **⚠ Superseded by [ADR-425](ADR-425-the-credential-is-an-account-object.md) (2026-07-09, Implemented).** D2's ratified thesis — *don't hide a management pane behind a dormancy flag* — is preserved; its *placement* (Workspace Settings, inherited unexamined from the ADR-341→385 lineage) is reversed. ADR-425 moves **Connectors → the account door** (a platform credential is a human's account object) and **hides Sources** from the operator surface (its substrate is retained). The "Perception group" no longer exists on Workspace Settings.
+
 ADR-385 D4 removed the Perception group from Workspace Settings and moved Connectors/Sources to Channels; ADR-404 then *hid* them behind `CONNECTOR_CAPTURE_ENABLED`. Both moves are reversed here: **Connections + Sources return to Workspace Settings as a first-class Perception group** — a management pane, always present (management of a peripheral is legible even when its capture lane is dormant; you can see/add/remove a connector without the capture drain running). This ends the "hide-and-defer" posture the operator rejected: the peripheral-management UI is either a real surface or it isn't — it is, so it lives in the management plane unconditionally.
 
 > Note: the *capture lane* (the background drain that ingests connector/watch data) stays governed by `CONNECTOR_CAPTURE_ENABLED` — that flag is about **runtime ingestion**, not about **whether the management UI is visible**. Decoupling these is the point: managing a connector ≠ running its capture.
