@@ -47,14 +47,10 @@ export function BillingPaneBody() {
           Balance updated — thanks for the top-up.
         </div>
       )}
-      {activeWorkspaceName && (
-        <p className="text-xs text-muted-foreground">
-          Billing for <span className="font-medium text-foreground">{activeWorkspaceName}</span> —
-          this workspace&apos;s plan and balance. Switch workspaces from the avatar menu to
-          manage another.
-        </p>
-      )}
-      <SubscriptionCard />
+      {/* ADR-429 §13.3 — the workspace name headlines the card itself now (passed
+          in), so the redundant subtitle line is gone. The card makes the workspace
+          the clear subject of every section. */}
+      <SubscriptionCard workspaceName={activeWorkspaceName} />
     </div>
   );
 }

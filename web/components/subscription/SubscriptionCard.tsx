@@ -46,7 +46,7 @@ const TIER_LABEL: Record<SubscriptionTier, string> = {
 // re-add 'pro' here when the backend un-hides it.
 const TIER_ORDER: SubscriptionTier[] = ["free", "starter"];
 
-export function SubscriptionCard() {
+export function SubscriptionCard({ workspaceName }: { workspaceName?: string | null }) {
   const { status, tier, isLoading, error, topup, subscribe, manageSubscription } = useSubscription();
   // ADR-429 §13.2 — the seat + comped state (already fetched by useSubscription's
   // getStatus). Seats show the COUNT (a legibility fact) while pricing is dormant;
@@ -54,6 +54,7 @@ export function SubscriptionCard() {
   const exempt = status?.billing_exempt ?? false;
   const humanSeats = status?.human_seats ?? 1;
   const includedSeats = status?.included_seats ?? 1;
+  const seatBillingActive = status?.seat_billing_active ?? false;
   const [usage, setUsage] = useState<UsageLimits | null>(null);
   const [nextRefill, setNextRefill] = useState<string | null>(null);
   const [topupAmount, setTopupAmount] = useState<string>(String(TOPUP_DEFAULT));
@@ -103,54 +104,57 @@ export function SubscriptionCard() {
     (t): t is "starter" | "pro" => t === "starter" || t === "pro",
   );
 
+  const overSeats = humanSeats > includedSeats;
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Billing</CardTitle>
+        {/* ADR-429 §13.3 — the WORKSPACE is the subject of this pane. Every section
+            below is this workspace's; the account door is just the entry point. */}
         <CardDescription>
-          This workspace&rsquo;s plan includes a monthly allowance that everyone in the
-          workspace draws from. Top up any time for extra headroom.
+          {workspaceName ? (
+            <>
+              For <span className="font-medium text-foreground">{workspaceName}</span> — its plan,
+              seats, and balance. Switch workspaces from the avatar menu to manage another.
+            </>
+          ) : (
+            <>This workspace&rsquo;s plan, seats, and balance.</>
+          )}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4">
         {error && (
           <div className="p-3 rounded-lg border border-destructive/20 bg-destructive/5 text-sm text-destructive">
             {error.message}
           </div>
         )}
 
-        {/* ADR-429 §13.2 — comped state. An exempt workspace pays nothing; show it
-            plainly and suppress the upgrade/top-up CTAs below (no bill to manage). */}
-        {exempt && (
-          <div className="p-3 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30 text-sm flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span>
-              <span className="font-medium text-foreground">Comped</span> — this
-              workspace has no charges. Usage still draws its allowance and balance
-              normally.
-            </span>
-          </div>
-        )}
-
-        {/* Current plan — a prominent header: what plan you're on, what it gives
-            you, and when it renews (the reference "Max plan" pattern). */}
-        <section className="p-4 border border-border rounded-lg space-y-3">
+        {/* ── PLAN CARD (reference layout, our model) ──────────────────────────
+            Prominent: plan badge · cycle · seats front-and-center · Manage. */}
+        <section className="border border-border rounded-lg p-4 space-y-4">
+          {/* Plan name + badge + cycle + Manage (the reference's Business-Plan header) */}
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-center gap-2">
                 <span className="text-lg font-semibold">{TIER_LABEL[tier]} plan</span>
-                <span className="text-sm text-muted-foreground">{tierPriceLabel(tier)}</span>
+                <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  {tier === "free" ? "Free" : "Monthly"}
+                </span>
+                {exempt && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-950/40 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                    <ShieldCheck className="w-3 h-3" /> Comped
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                {tierDescriptor(tier)}
-              </p>
               {tier !== "free" && nextRefill && (
                 <p className="text-xs text-muted-foreground">
-                  Renews {new Date(nextRefill).toLocaleDateString([], { month: "long", day: "numeric", year: "numeric" })}
+                  Current cycle: renews {new Date(nextRefill).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
                 </p>
               )}
+              <p className="text-xs text-muted-foreground leading-relaxed">{tierDescriptor(tier)}</p>
             </div>
-            {tier !== "free" && (
+            {tier !== "free" && !exempt && (
               <button
                 onClick={manageSubscription}
                 className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border border-border hover:bg-muted/40 transition-colors"
@@ -159,34 +163,59 @@ export function SubscriptionCard() {
               </button>
             )}
           </div>
-          {meter && (
-            <div className="space-y-1.5">
-              <div className="h-1.5 w-full rounded-full bg-muted/50 overflow-hidden">
+
+          {/* SEATS — front-and-center (the reference's "14/13 seats in use").
+              Count/legibility while pricing is dormant; the honest note names it. */}
+          <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+            <div className="flex items-center gap-2.5">
+              <Users className="w-4 h-4 text-muted-foreground shrink-0" />
+              <div>
+                <div className="text-sm font-medium">
+                  {humanSeats} of {includedSeats} {includedSeats === 1 ? "seat" : "seats"} used
+                  {overSeats && <span className="text-amber-600 dark:text-amber-400"> · over plan</span>}
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  {humanSeats === 1 ? "Just you" : `You + ${humanSeats - 1} ${humanSeats - 1 === 1 ? "member" : "members"}`}
+                  {" · "}
+                  {seatBillingActive
+                    ? overSeats
+                      ? `${humanSeats - includedSeats} extra billed at renewal`
+                      : "included in your plan"
+                    : "seats aren't billed yet"}
+                  {" · AI connections are free"}
+                </div>
+              </div>
+            </div>
+            {tier === "free" && overSeats ? (
+              <span className="text-[11px] text-muted-foreground shrink-0">Upgrade to add more</span>
+            ) : null}
+          </div>
+        </section>
+
+        {/* ── BALANCE / USAGE (the reference's "Credits balance" — but OUR model:
+            included-usage %, no credits, no dollars per ADR-396). ───────────── */}
+        <section className="border border-border rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium">
+              {meter?.mode === "overage" ? "Top-up balance" : meter?.mode === "balance" ? "Balance" : "Included usage"}
+            </h3>
+            {meter && <span className="text-sm font-medium tabular-nums">{meter.percent}% used</span>}
+          </div>
+          {meter ? (
+            <>
+              <div className="h-2 w-full rounded-full bg-muted/50 overflow-hidden">
                 <div
                   className={meter.isCritical ? "h-full rounded-full bg-destructive" : meter.isWarn ? "h-full rounded-full bg-amber-500" : "h-full rounded-full bg-primary"}
                   style={{ width: `${meter.percent}%` }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">{meter.primaryLabel}.</p>
+              <p className="text-xs text-muted-foreground">{meter.detail}</p>
+            </>
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading usage…
             </div>
           )}
-          {/* ADR-429 §13.2 — the seats row. Shows the COUNT (who's on the workspace),
-              a legibility fact; seat PRICING stays invisible while dormant
-              (seat_billing_active false). "you + K members" reads the commons. */}
-          <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground border-t border-border/60">
-            <Users className="w-3.5 h-3.5 shrink-0" />
-            <span>
-              {humanSeats === 1
-                ? "1 person — just you"
-                : `${humanSeats} people — you + ${humanSeats - 1} ${humanSeats - 1 === 1 ? "member" : "members"}`}
-              {includedSeats > humanSeats && tier !== "free" && (
-                <> · {includedSeats} included in your plan</>
-              )}
-              {tier === "free" && (
-                <> · Free includes up to {includedSeats}</>
-              )}
-            </span>
-          </div>
         </section>
 
         {/* Upgrade — hidden when comped (no bill to change). ADR-429 §13.2 copy:
