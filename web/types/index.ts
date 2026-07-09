@@ -139,6 +139,9 @@ export interface SubscriptionStatus {
   billable_seats: number;       // humans beyond the base
   seat_fee_usd: number;         // billable_seats × additional_seat_usd (0 = dormant)
   seat_billing_active: boolean; // additional_seat_usd > 0 → seat pricing is live
+  // ADR-429 §12.3a — comped workspace (base + seats forced $0). The FE shows a
+  // "comped" state instead of a bill; the operator's test workspaces are exempt.
+  billing_exempt: boolean;
 }
 
 export interface CheckoutResponse {

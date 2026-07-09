@@ -237,6 +237,10 @@ class SubscriptionStatus(BaseModel):
     billable_seats: int = 0              # humans beyond the base (max(0, human−included))
     seat_fee_usd: float = 0.0            # billable_seats × additional_seat_usd (0 = dormant)
     seat_billing_active: bool = False    # additional_seat_usd > 0 → seat pricing is live
+    # ADR-429 §12.3a — the comp/exempt override. When true the workspace pays
+    # nothing (base + seats forced to $0); the operator's test workspaces are
+    # exempt. Surfaced so the FE can show a "comped" state instead of a bill.
+    billing_exempt: bool = False
 
 
 class PortalResponse(BaseModel):
@@ -252,7 +256,7 @@ async def get_subscription_status(auth: UserClient):
     # a plain member gets 403 (they draw the pool but don't manage its funding).
     workspace_id = _resolve_billing_workspace(auth)
     result = auth.client.table("workspaces")\
-        .select("subscription_tier, subscription_expires_at, lemonsqueezy_customer_id, lemonsqueezy_subscription_id")\
+        .select("subscription_tier, subscription_expires_at, lemonsqueezy_customer_id, lemonsqueezy_subscription_id, billing_exempt")\
         .eq("id", workspace_id)\
         .limit(1)\
         .execute()
@@ -261,6 +265,7 @@ async def get_subscription_status(auth: UserClient):
         return SubscriptionStatus(tier="free")
     ws = rows[0]
     tier = normalize_tier(ws.get("subscription_tier"))
+    exempt = bool(ws.get("billing_exempt", False))
     # ADR-429 Phase 2 — the seat state (dormant §5a). The math runs live; with a
     # $0 additional-seat fee it bills nothing and `seat_billing_active` is False,
     # so the FE renders the workspace as a flat plan (seats invisible) until the
@@ -274,6 +279,12 @@ async def get_subscription_status(auth: UserClient):
         tier_additional_seat_usd,
     )
     humans = count_human_seats(auth.client, workspace_id)
+    # ADR-429 §12.3a — an exempt workspace pays nothing: force the seat fee to $0
+    # and mark seat billing inactive regardless of the tier's configured fee. (The
+    # base is likewise waived at the checkout/webhook layer; the status read
+    # reflects the exempt state so the FE shows "comped", not a bill.)
+    fee = 0.0 if exempt else _seat_fee_usd(tier, humans)
+    seat_active = (not exempt) and tier_additional_seat_usd(tier) > 0
     return SubscriptionStatus(
         tier=tier,
         expires_at=ws.get("subscription_expires_at"),
@@ -282,8 +293,9 @@ async def get_subscription_status(auth: UserClient):
         human_seats=humans,
         included_seats=tier_included_seats(tier),
         billable_seats=_billable_seats(tier, humans),
-        seat_fee_usd=_seat_fee_usd(tier, humans),
-        seat_billing_active=tier_additional_seat_usd(tier) > 0,
+        seat_fee_usd=fee,
+        seat_billing_active=seat_active,
+        billing_exempt=exempt,
     )
 
 

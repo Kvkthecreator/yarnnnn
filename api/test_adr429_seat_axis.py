@@ -112,6 +112,38 @@ def test_ladder_exposes_seats() -> None:
               row["additional_seat_usd"] == 0.0)
 
 
+def test_tier_collapse() -> None:
+    print("\n[§12] launch = Free + one paid plan; pro dormant; Free = owner + 1 guest")
+    from services.billing_tiers import (
+        TIER_CONFIG,
+        tier_hidden,
+        offered_paid_tiers,
+        public_tier_ladder,
+        tier_included_seats,
+    )
+
+    # §12.1 — pro is hidden (dormant); free + starter are offered.
+    check("pro is hidden (dormant, §12.1)", tier_hidden("pro") is True)
+    check("free is NOT hidden", tier_hidden("free") is False)
+    check("starter is NOT hidden", tier_hidden("starter") is False)
+    check("offered_paid_tiers() == ('starter',) — one paid plan at launch",
+          offered_paid_tiers() == ("starter",))
+    ladder_tiers = [r["tier"] for r in public_tier_ladder()]
+    check("public ladder == [free, starter] (no pro)", ladder_tiers == ["free", "starter"])
+
+    # §12.2 — the one paid plan repriced to $20 / $15.
+    check("starter base == $20 (§12.2)", TIER_CONFIG["starter"]["price_usd"] == 20.0)
+    check("starter allowance == $15 (§12.2)", TIER_CONFIG["starter"]["monthly_allowance_usd"] == 15.0)
+
+    # §12.3c — Free = owner + 1 guest (included_seats: 2).
+    check("free included_seats == 2 (owner + 1 guest, §12.3c)", tier_included_seats("free") == 2)
+    check("starter included_seats == 1 (owner; additional humans bill)", tier_included_seats("starter") == 1)
+
+    # The 3 enum values are KEPT (product collapse, not schema change).
+    check("all 3 tier keys still present (enum kept, §12.1)",
+          set(TIER_CONFIG.keys()) == {"free", "starter", "pro"})
+
+
 def _silent(cond: bool) -> None:
     """Count a silent assertion (no line printed) — keeps the dormant sweep terse."""
     global PASSED, FAILED
@@ -130,6 +162,7 @@ def main() -> int:
     test_activation_math()
     test_seat_is_human()
     test_ladder_exposes_seats()
+    test_tier_collapse()
     print("\n" + "=" * 70)
     print(f"  {PASSED} passed, {FAILED} failed")
     print("=" * 70)

@@ -39,8 +39,12 @@ const TIER_LABEL: Record<SubscriptionTier, string> = {
   pro: "Pro",
 };
 
-// The upgrade ladder — the next tier(s) above the current one.
-const TIER_ORDER: SubscriptionTier[] = ["free", "starter", "pro"];
+// The upgrade ladder — the OFFERED tiers, low→high (ADR-429 §12.1). `pro` is
+// DORMANT (hidden) at launch — the tier ladder collapsed to Free + one paid plan
+// (`starter`); pro returns as the 2nd paid tier when the connector-capture lane
+// ships. Mirrors billing_tiers.offered_paid_tiers() (backend source of truth);
+// re-add 'pro' here when the backend un-hides it.
+const TIER_ORDER: SubscriptionTier[] = ["free", "starter"];
 
 export function SubscriptionCard() {
   const { tier, isLoading, error, topup, subscribe, manageSubscription } = useSubscription();

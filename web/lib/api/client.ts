@@ -632,6 +632,12 @@ export const api = {
       request<AdminTokenUsage>(`/api/admin/token-usage?days=${days}`),
     executionStats: () => request<AdminExecutionStats>("/api/admin/execution-stats"),
     users: () => request<AdminUserRow[]>("/api/admin/users"),
+    // ADR-429 §12.3a — toggle a workspace's billing-exempt (comp) state.
+    setBillingExempt: (workspaceId: string, exempt: boolean) =>
+      request<{ workspace_id: string; billing_exempt: boolean }>(
+        `/api/admin/workspace/${encodeURIComponent(workspaceId)}/billing-exempt`,
+        { method: "POST", body: JSON.stringify({ exempt }) },
+      ),
     accounts: () => request<AdminAccountRow[]>("/api/admin/accounts"),
     accountDetail: (slug: string) =>
       request<AdminAccountDetail>(`/api/admin/accounts/${encodeURIComponent(slug)}`),

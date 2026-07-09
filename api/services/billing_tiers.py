@@ -53,12 +53,34 @@ class TierSpec(TypedDict):
     # (ADR-429 §3): a seat NEVER carries a usage bucket — usage is the shared meter.
     included_seats: int              # humans covered by the base (owner-inclusive)
     additional_seat_usd: float       # $/additional human/mo (0 = dormant, ADR-429 §5a)
+    # ── ADR-429 §12 — the tier structure collapse ─────────────────────────────
+    # `hidden` marks a tier that is NOT offered at launch (not on the pricing page,
+    # not an upgrade target, not in the ladder) — its config survives so it can be
+    # un-hidden with one flag. `pro` is hidden until the connector-capture lane
+    # ships (its retention/connector ceilings become real differentiators again,
+    # ADR-429 §12.1); launch offers Free + one paid plan (`starter`) only. A live
+    # `starter`/`free` workspace is unaffected; only which tiers are *offered*.
+    hidden: bool                     # not offered at launch (§12.1); config retained
 
 
 # ── The tiers ────────────────────────────────────────────────────────────────
-# free → starter → pro. Free is the floor: no allowance (top-up to use), the
-# tightest ceilings. The $3 signup grant (Postgres trigger) lands in balance_usd
-# and lets a free workspace try the product before topping up.
+# ADR-429 §12.1 — LAUNCH is Free + ONE paid plan. The Starter/Pro ladder (ADR-396)
+# differentiated on allowance + retention + connectors, but retention/connectors
+# gate the DORMANT connector-capture lane (CONNECTOR_CAPTURE_ENABLED off) — so at
+# launch the tiers only differed by allowance size, not a good tier axis in the
+# three-axis model (usage is metered + pooled, ADR-429 §3). So:
+#   • `free`    — the floor: no allowance (top-up/$3-signup-grant to use), owner +
+#                 1 guest (included_seats: 2, §12.3c — a team may TRY the commons).
+#   • `starter` — THE single paid plan, repriced $20 base / $15 allowance (§12.2).
+#                 Its display NAME is a Phase-3 marketing decision (keep-the-slug,
+#                 name-at-render — working name "Paid"). The `starter` KEY is kept
+#                 (no data migration: the 1 live starter row stays valid).
+#   • `pro`     — DORMANT (`hidden: True`, §12.1). Not offered, not on the pricing
+#                 page, not an upgrade target. Its config survives so the
+#                 Starter/Pro split is a one-flag un-hide when the capture lane
+#                 ships (retention/connectors become real differentiators again).
+# The 3 enum values are KEPT in the CHECK constraint — this is a PRODUCT collapse
+# (which tiers are offered), not a schema change.
 
 TIER_CONFIG: dict[str, TierSpec] = {
     "free": {
@@ -68,38 +90,52 @@ TIER_CONFIG: dict[str, TierSpec] = {
         "retention_max_days": 7,
         "connector_max": 1,
         "ls_variant_env": None,
-        # ADR-429 §5a — seat axis DORMANT ($0). Free is single-seat by design
-        # (a shared commons is a paid capability — §5/§9 open question); the
-        # additional-seat fee is $0 everywhere until activation.
-        "included_seats": 1,
+        # ADR-429 §12.3c — Free is owner + 1 guest (a team may try the shared
+        # commons before paying); a 3rd human requires a paid plan (gated at the
+        # invite route). Seat fee DORMANT ($0) everywhere until activation (§5a).
+        "included_seats": 2,
         "additional_seat_usd": 0.0,
+        "hidden": False,
     },
     "starter": {
+        # ADR-429 §12.2 — THE single paid plan. Repriced $19→$20 base, $15
+        # allowance retained (~190 judgment calls; clears a Light user's ~$6/mo
+        # with headroom, the $5 gap = asset-margin). A real launch number, still
+        # reversible. Display name is Phase-3 copy (working name "Paid").
         "label": "Starter",
-        "price_usd": 19.0,
+        "price_usd": 20.0,
         "monthly_allowance_usd": 15.0,
         "retention_max_days": 30,
         "connector_max": 3,
         "ls_variant_env": "LEMONSQUEEZY_STARTER_VARIANT_ID",
-        # ADR-429 §5a — DORMANT. Placeholder activation value would be ~$12
-        # (the ADR-429 §5 launch-test hypothesis); $0 until the operator flips it.
+        # ADR-429 §5a — seat fee DORMANT ($0). Placeholder activation ~$12/human
+        # (§5 hypothesis); $0 until the operator flips it. included_seats: 1 =
+        # the owner; additional humans bill the (dormant) seat fee.
         "included_seats": 1,
         "additional_seat_usd": 0.0,
+        "hidden": False,
     },
     "pro": {
+        # ADR-429 §12.1 — DORMANT (hidden). Returns as the 2nd paid tier when the
+        # connector-capture lane ships. Config retained (one-flag un-hide); NOT
+        # offered at launch. Numbers below are the pre-collapse ADR-396 values,
+        # preserved as the starting point for the future split — not live.
         "label": "Pro",
         "price_usd": 49.0,
         "monthly_allowance_usd": 45.0,
         "retention_max_days": 90,
         "connector_max": None,  # unlimited
         "ls_variant_env": "LEMONSQUEEZY_PRO_VARIANT_ID",
-        # ADR-429 §5a — DORMANT ($0).
         "included_seats": 1,
         "additional_seat_usd": 0.0,
+        "hidden": True,  # ADR-429 §12.1 — not offered until capture ships
     },
 }
 
 DEFAULT_TIER = "free"
+# PAID_TIERS = every tier with a paid price + LS variant (used by the webhook
+# reverse-map). `pro` stays here (its variant still resolves if an old checkout
+# exists), but it is `hidden` so it is never OFFERED — see `offered_paid_tiers()`.
 PAID_TIERS = ("starter", "pro")
 
 
@@ -156,6 +192,21 @@ def tier_retention_max_days(tier: str) -> int:
 def tier_connector_max(tier: str) -> Optional[int]:
     """Connector-count ceiling for a tier (None = unlimited) — ADR-396 gate 2."""
     return tier_spec(tier)["connector_max"]
+
+
+# ── ADR-429 §12.1 — offered vs hidden tiers (the launch collapse) ─────────────
+
+def tier_hidden(tier: str) -> bool:
+    """True if a tier is NOT offered at launch (dormant config, §12.1). `pro` is
+    hidden until the capture lane ships; `free`/`starter` are live."""
+    return tier_spec(tier).get("hidden", False)
+
+
+def offered_paid_tiers() -> tuple[str, ...]:
+    """Paid tiers actually OFFERED at launch (not hidden) — the upgrade targets.
+    Launch: ('starter',) only (pro is hidden, §12.1). Un-hiding pro restores the
+    Starter/Pro split with zero call-site change (this is the single source)."""
+    return tuple(t for t in PAID_TIERS if not tier_hidden(t))
 
 
 # ── ADR-429 Axis ② — seat math (SHIPPED DORMANT, §5a) ─────────────────────────
@@ -256,6 +307,10 @@ def public_tier_ladder() -> list[dict]:
     ladder = []
     for tier in ("free", "starter", "pro"):
         spec = TIER_CONFIG[tier]
+        # ADR-429 §12.1 — hidden (dormant) tiers are not offered; skip pro until
+        # the capture lane ships. Launch ladder = Free + the one paid plan.
+        if spec.get("hidden", False):
+            continue
         ladder.append({
             "tier": tier,
             "label": spec["label"],
@@ -294,4 +349,7 @@ __all__ = [
     "count_human_seats",
     "billable_seats",
     "seat_fee_usd",
+    # ADR-429 §12.1 — offered vs hidden tiers (the launch collapse)
+    "tier_hidden",
+    "offered_paid_tiers",
 ]

@@ -133,6 +133,20 @@ class AdminUserRow(BaseModel):
     session_count: int
     spend_usd: float
     last_activity: Optional[str] = None
+    # ADR-429 §12.3a — the comp/exempt state + its workspace target (for the admin
+    # toggle). `workspace_id` is the row's owner-workspace; `billing_exempt` is
+    # whether it pays nothing (base + seats forced $0).
+    workspace_id: Optional[str] = None
+    billing_exempt: bool = False
+
+
+class BillingExemptRequest(BaseModel):
+    exempt: bool
+
+
+class BillingExemptResponse(BaseModel):
+    workspace_id: str
+    billing_exempt: bool
 
 
 class AdminAccountRow(BaseModel):
@@ -655,7 +669,7 @@ async def list_users(admin: AdminAuth):
         ).isoformat()
 
         workspaces_result = client.table("workspaces")\
-            .select("owner_id, owner_email, created_at")\
+            .select("id, owner_id, owner_email, created_at, billing_exempt")\
             .order("created_at", desc=True)\
             .limit(100)\
             .execute()
@@ -667,6 +681,8 @@ async def list_users(admin: AdminAuth):
         for workspace in workspaces_result.data:
             user_id = workspace["owner_id"]
             email = workspace.get("owner_email") or "unknown"
+            workspace_id = workspace.get("id")
+            billing_exempt = bool(workspace.get("billing_exempt", False))
 
             # Agent count
             agents = client.table("agents")\
@@ -709,12 +725,37 @@ async def list_users(admin: AdminAuth):
                 session_count=sessions.count or 0,
                 spend_usd=spend_usd,
                 last_activity=last_activity,
+                workspace_id=workspace_id,
+                billing_exempt=billing_exempt,
             ))
 
         return users
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch users: {str(e)}")
+
+
+@router.post("/workspace/{workspace_id}/billing-exempt", response_model=BillingExemptResponse)
+async def set_billing_exempt(workspace_id: str, body: BillingExemptRequest, admin: AdminAuth):
+    """Toggle a workspace's billing-exempt state (ADR-429 §12.3a — comp/override).
+
+    When exempt, the workspace pays nothing (base + seats forced $0), regardless
+    of tier/headcount. Operator-only (AdminAuth); the intended use is holding test
+    workspaces out of billing + the permanent comped-account capability. Dormant-
+    safe: with the seat fee at $0 today this changes no billing outcome yet — it is
+    the rail the eventual seat activation honors."""
+    try:
+        result = admin.client.table("workspaces")\
+            .update({"billing_exempt": body.exempt})\
+            .eq("id", workspace_id)\
+            .execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        return BillingExemptResponse(workspace_id=workspace_id, billing_exempt=body.exempt)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to set billing exempt: {str(e)}")
 
 
 # =============================================================================

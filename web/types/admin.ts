@@ -81,6 +81,10 @@ export interface AdminUserRow {
   session_count: number;
   spend_usd: number;
   last_activity: string | null;
+  // ADR-429 §12.3a — the comp/exempt toggle target + state. When exempt, the
+  // workspace pays nothing (base + seats forced $0).
+  workspace_id: string | null;
+  billing_exempt: boolean;
 }
 
 // GET /admin/accounts — per-persona test-account health (Hat-B eval surface)

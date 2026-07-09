@@ -65,6 +65,28 @@ export default function AdminDashboardPage() {
     fetchData(tokenDays);
   }, [tokenDays]);
 
+  // ADR-429 §12.3a — toggle a workspace's billing-exempt (comp) state. Optimistic:
+  // flip locally, call the admin route, revert on failure.
+  const [exemptPending, setExemptPending] = useState<string | null>(null);
+  const handleToggleExempt = async (user: AdminUserRow) => {
+    if (!user.workspace_id) return;
+    const next = !user.billing_exempt;
+    setExemptPending(user.id);
+    setUsers((prev) =>
+      prev.map((u) => (u.id === user.id ? { ...u, billing_exempt: next } : u)),
+    );
+    try {
+      await api.admin.setBillingExempt(user.workspace_id, next);
+    } catch (err) {
+      console.error("Failed to toggle billing exempt:", err);
+      setUsers((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, billing_exempt: !next } : u)),
+      );
+    } finally {
+      setExemptPending(null);
+    }
+  };
+
   const handleExportReport = async () => {
     try {
       setExporting(true);
@@ -454,12 +476,13 @@ export default function AdminDashboardPage() {
                   <th className="text-right py-2 px-2 font-medium text-muted-foreground">Sessions</th>
                   <th className="text-right py-2 px-2 font-medium text-muted-foreground">Spend (mo)</th>
                   <th className="text-right py-2 px-2 font-medium text-muted-foreground">Last Active</th>
+                  <th className="text-center py-2 px-2 font-medium text-muted-foreground" title="Billing-exempt: workspace pays nothing (ADR-429 §12.3a)">Comp</th>
                 </tr>
               </thead>
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={8} className="py-8 text-center text-muted-foreground">
                       No users found
                     </td>
                   </tr>
@@ -484,6 +507,22 @@ export default function AdminDashboardPage() {
                       <td className="py-2 px-2 text-right">${user.spend_usd?.toFixed(2) ?? "—"}</td>
                       <td className="py-2 px-2 text-right text-muted-foreground text-xs">
                         {user.last_activity ? formatDate(user.last_activity) : "—"}
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        {/* ADR-429 §12.3a — comp/exempt toggle. Exempt = pays nothing. */}
+                        <button
+                          type="button"
+                          disabled={!user.workspace_id || exemptPending === user.id}
+                          onClick={() => handleToggleExempt(user)}
+                          title={user.billing_exempt ? "Comped — click to bill normally" : "Billing normally — click to comp"}
+                          className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium transition-colors disabled:opacity-40 ${
+                            user.billing_exempt
+                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                              : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                          }`}
+                        >
+                          {user.billing_exempt ? "Comped" : "Bill"}
+                        </button>
                       </td>
                     </tr>
                   ))

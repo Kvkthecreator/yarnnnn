@@ -1,6 +1,6 @@
 # ADR-429 — The Three-Axis Pricing Model: Workspace Base · Human Seats · Pooled Meter
 
-**Status**: Accepted (2026-07-09, operator-ratified in discourse — the model shape [three axes + the seat=access carve], the "launch-test placeholder numbers" approach, and the **ship-dormant-activate-by-config** sequencing were each confirmed; the operator anchored the model on "what Anthropic/OpenAI Team does"). **This commit is doc-first — no code.** The build follows: **Phases 1–2 are approved to build now** (per-member usage FE + the dormant seat mechanism); **Phases 3–4 (marketing coherence + per-member caps) are held for the numbers/activation discourse** (§9). Each build seam is its own follow-on commit (the ADR-391/416 pattern). This ADR RATIFIES the pricing model and DECIDES the three revenue axes + their carve + the dormant-activation shape; the *numbers* and the *activation moment* are the reversible layer (§5/§5a/§9). It supersedes no built code — the balance layer, the Type-B tier, and the per-principal attribution stand; this ADR names what they *mean together* and closes the seams they left open.
+**Status**: Accepted (2026-07-09, operator-ratified in discourse — the model shape [three axes + the seat=access carve], the "launch-test placeholder numbers" approach, and the **ship-dormant-activate-by-config** sequencing were each confirmed; the operator anchored the model on "what Anthropic/OpenAI Team does"). **Amended same day (§12, the activation + tier-structure discourse)**: the tier ladder collapses to **Free + one paid plan** at launch (the Starter/Pro split returns with the capture lane), the paid base is set to **$20/mo including $15 usage** (now a real number, not a placeholder), and the activation architecture is decided (billing-exempt flag + grandfather-with-notice + Free = owner-plus-one-guest). Phases 1–2 shipped; §12's build (the tier restructure + exempt flag + free-seat gate) is the next commit; Phases 3–4 (marketing coherence + per-member caps) stay held. This ADR RATIFIES the pricing model and DECIDES the three revenue axes + their carve + the dormant-activation shape + (§12) the launch tier structure + activation; the *seat fee number* and the *seat activation moment* remain the reversible layer (§5a/§12). It supersedes no built code — the balance layer and the per-principal attribution stand; this ADR names what they *mean together* and closes the seams they left open.
 **Date**: 2026-07-09
 **Authors**: KVK (operator) + Claude (collaborator)
 **Hat**: A (system canon — real-operator-facing)
@@ -294,3 +294,122 @@ together. This ADR unblocks that choice; it does not pre-empt it. *(This closes 
   precisely to protect it: a seat never buys tokens the meter also bills).
 - **No autonomy-as-price** (ADR-334 stays retired; "seat" here is human access).
 - **No pane moved yet** (the placement resolves in Phase 3, workspace-named).
+
+---
+
+## 12. Amendment (2026-07-09) — the launch tier structure + activation, settled
+
+The §5 numbers were placeholders "a first customer resolves." Pressing on them
+surfaced that the *structure* they sat in was legacy — inherited from ADR-396
+(2026-07-01), set before the commons pivot, the three-axis model, and Freddie.
+This amendment settles the structure and the activation architecture; the numbers
+that remain open (the seat fee) are explicitly scoped.
+
+### 12.1 — The Starter/Pro ladder is legacy at launch; collapse to Free + one paid plan
+
+**The finding.** ADR-396's Free/Starter/Pro tiers differentiate on three things:
+allowance size, **retention window**, and **connector count**. But two of the
+three — retention + connectors — gate the **connector-capture lane, which is
+DORMANT** (`CONNECTOR_CAPTURE_ENABLED` off, ADR-404 D2). So at launch a "Pro"
+workspace buys "90-day retention + unlimited connectors" for a lane that does not
+run. **The tiers differentiate on inert capabilities.** Strip those away and
+Starter vs Pro differ only by allowance size — which, in the three-axis model, is
+not a good tier axis (usage is metered + pooled per ADR-429 §3; it is not where
+plans should split).
+
+**The decision.** At launch the ladder is **Free + ONE paid plan.** The paid plan
+unlocks the team (seats, §3 Axis ②) + a real included allowance + full memory; the
+metered pool (③) and seats (②) do the differentiation the tier ladder used to fake.
+**The Starter/Pro split RETURNS when the capture lane ships** — at that point
+retention + connector ceilings become *real* differentiators again, and a second
+paid tier is honest. Until then, one paid plan.
+
+**Implementation (no data migration — audit 2026-07-09: 12 workspaces `free`, 1
+`starter`, 0 `pro`).** The three tier ENUM values are KEPT (the CHECK constraint is
+untouched; the one live `starter` row stays valid). The *product* collapse is:
+- `free` and `starter` are the two LIVE tiers. `starter` is the single paid plan's
+  internal key, **repriced to $20 base / $15 allowance** (§12.2). Its *display
+  name* is a Phase-3 marketing-copy decision (naming-drift policy — keep the slug,
+  name at the render layer; the operator ruled "structure now, naming in the
+  marketing pass"). Working name: "Paid".
+- `pro` becomes a **dormant tier** (`hidden: True` in `TIER_CONFIG`) — its config
+  survives so the Starter/Pro split is a one-flag un-hide when capture ships, but
+  it is not offered, not on the pricing page, not an upgrade target. (The dormant-
+  config pattern, cf. ADR-421 dormant surfaces.)
+
+### 12.2 — The paid base: $20/mo including $15 usage (a real number)
+
+The one paid plan is **$20/mo, including $15 of metered usage** (~190 judgment
+calls at ~$0.08). Grounded in UNIT-ECONOMICS: it clears a Light user's ~$6/mo usage
+with headroom (the $5 base-over-allowance gap is asset-margin — pricing the memory,
+not the tokens); an Active user (~$34/mo usage) tops up beyond the allowance (the
+healthy heavy tail). $20 sits mid-band of the ~$15–25 viable range. **This is now a
+real launch number, not a placeholder** — still reversible against first-customer
+evidence (ADR-396's standing discipline), but it is the decided value, and it
+replaces the §5 Starter $19 / Pro $49 table for launch.
+
+Free stays $0 with no allowance (a $3 signup grant lets a solo operator taste the
+loop; the pooled meter hard-stops fast without an allowance — a natural self-limit).
+
+### 12.3 — The activation architecture (the seat axis stays dormant; these are its rails)
+
+The seat fee remains **dormant ($0)** — §5a stands; the *number* and the *moment*
+are deferred. But the discourse decided the **rails** activation will run on, and
+they shape code now:
+
+**(a) Billing-exempt flag — the comp/override capability.** A new
+`workspaces.billing_exempt` boolean (default `false`). When set, the workspace pays
+nothing — no base, no seats — regardless of tier or headcount. This serves two
+needs: the operator's existing test workspaces are marked exempt (held out of
+billing deliberately, not via a time window), and it is the permanent "comped
+account" capability every product needs. **Preferred over promo codes** (a
+Lemon-Squeezy checkout-time concept that does not govern ongoing billing).
+Exempt is checked in the base + seat fee resolution (an exempt workspace's
+`seat_fee_usd` and effective base are $0).
+
+**(b) Grandfather with notice — the seat-activation transition.** When the seat fee
+is eventually activated, existing multi-human workspaces are not retroactively
+hiked. A `workspaces.seat_pricing_effective_at` timestamp (nullable) marks when the
+seat fee begins applying to a given workspace; existing teams get a notice window
+(e.g. 60 days) at the old price, new workspaces bill from creation. The seat math
+reads this date. (Standard SaaS pricing-change transition; Notion/Linear precedent.)
+
+**(c) Free = owner + one guest.** Free's `included_seats` becomes **2** (the owner +
+one collaborator). A Free workspace may have two humans; inviting a **third** human
+requires a paid plan. This lets a team *try* the shared commons before paying (the
+viral-team funnel) while keeping "real teams are paid." Enforced at the invite route
+(a Free workspace at 2 human members gets an upgrade-required response on the next
+human invite). Note: this is the FIRST tier-gate on member invites — today invites
+are ungated (audit 2026-07-09). AI principals are never gated (they are free, §3).
+
+**(d) Seat billed on accept.** A seat counts when a human's grant is active (an
+accepted invite), not when invited — which is already how `count_human_seats`
+counts (active `principal_grants` only). No pending-invite is billed.
+
+### 12.4 — What §12 builds now vs. holds
+
+**Builds now (this amendment's follow-on commit):** the `TIER_CONFIG` restructure
+(reprice `starter` → $20/$15; `pro` → dormant `hidden`; Free `included_seats: 2`),
+the `billing_exempt` column + its check in base/seat resolution, the
+`seat_pricing_effective_at` column (the seat-math reads it, dormant-safe), and the
+Free-tier seat gate at the invite route. The seat fee stays $0 (dormant) — these are
+its rails, not its activation. The ADR-396 gate is updated for the dormant-`pro` +
+two-live-tier shape.
+
+**Still held (Phase 3 / Phase 4):** the marketing pricing-page rewrite (to two
+cards + the three-axis story) + the tier display-name + the Billing/Usage/Budget
+placement (§8) — the marketing-copy pass; and the per-member spend caps (Phase 4).
+The **seat fee number** and the **seat activation moment** (when to flip `additional_
+seat_usd` non-zero + set the notice window) remain the reversible layer.
+
+### 12.5 — What §12 amends
+
+- **§1 / §5**: the "three overlapping models" framing stands; the §5 launch-test
+  TABLE (Starter $19 / Pro $49) is superseded by §12.2 (Free + one paid $20/$15;
+  the seat placeholder $12 stays a §5a-dormant hypothesis).
+- **ADR-396**: its Free/Starter/Pro ladder is collapsed to Free + one paid at
+  launch (the split returns with capture); its numbers are re-cut to $20/$15. The
+  metering carve + balance mechanics are untouched.
+- **§9 open questions**: "free-tier team" is now DECIDED (owner + 1 guest);
+  "per-member cap default" stays Phase 4; the base/seat numbers are decided (base)
+  and dormant-deferred (seat).

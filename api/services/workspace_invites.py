@@ -71,6 +71,58 @@ def create_invite(
         raise InviteError("invalid_role", "Only the member role is invitable (ADR-373 D4)")
 
     svc = _svc()
+
+    # ADR-429 §12.3c — the free-tier seat gate. A workspace may hold up to its
+    # tier's `included_seats` HUMANS (Free = owner + 1 guest = 2); inviting a human
+    # beyond that requires a paid plan. Projected human count = active human members
+    # + still-pending invites (each is a seat about to fill) + this one. AI
+    # principals are never gated (free, §3); exempt workspaces (§12.3a) grow freely.
+    # This is the FIRST invite gate (invites were ungated pre-ADR-429); it fails
+    # CLOSED only on a confident over-count — a read error fails OPEN (never block a
+    # legit invite over a transient DB hiccup).
+    try:
+        from services.billing_tiers import HUMAN_SEAT_ROLES, tier_included_seats
+
+        ws_row = (
+            svc.table("workspaces")
+            .select("subscription_tier, billing_exempt")
+            .eq("id", workspace_id)
+            .limit(1)
+            .execute()
+        ).data
+        ws = ws_row[0] if ws_row else {}
+        if not ws.get("billing_exempt", False):
+            included = tier_included_seats(ws.get("subscription_tier") or "free")
+            grants = (
+                svc.table("principal_grants")
+                .select("principal_id")
+                .eq("workspace_id", workspace_id)
+                .eq("status", "active")
+                .in_("role", list(HUMAN_SEAT_ROLES))
+                .execute()
+            ).data or []
+            human_members = len({g.get("principal_id") for g in grants if g.get("principal_id")})
+            pending = (
+                svc.table("workspace_invites")
+                .select("email")
+                .eq("workspace_id", workspace_id)
+                .eq("status", "pending")
+                .neq("email", email_norm)  # a re-invite of THIS email refreshes, not adds
+                .execute()
+            ).data or []
+            projected = human_members + len(pending) + 1  # +1 for this invite
+            if projected > included:
+                raise InviteError(
+                    "seat_limit",
+                    f"This workspace's plan includes {included} "
+                    f"{'seat' if included == 1 else 'seats'}. "
+                    "Upgrade to a paid plan to invite more people.",
+                )
+    except InviteError:
+        raise
+    except Exception:  # noqa: BLE001 — fail OPEN on a read error (never block a legit invite)
+        pass
+
     svc.table("workspace_invites").update({"status": "revoked"}).eq(
         "workspace_id", workspace_id
     ).eq("email", email_norm).eq("status", "pending").execute()
