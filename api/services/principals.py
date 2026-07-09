@@ -72,7 +72,7 @@ def load_principal_roster(client: Any, user_id: str) -> list[dict]:
     svc = get_service_client()
     rows = (
         svc.table("principal_grants")
-        .select("principal_id, role, scopes, status, granted_by, created_at")
+        .select("principal_id, role, scopes, status, granted_by, created_at, connected_by")
         .eq("workspace_id", workspace_id)
         .eq("status", "active")
         .order("created_at")
@@ -115,5 +115,6 @@ def load_principal_roster(client: Any, user_id: str) -> list[dict]:
             "label": label,
             "write_regions": write_regions,
             "scopes_explicit": explicit,
+            "connected_by": r.get("connected_by"),  # ADR-431 — the authorizing member
         })
     return roster

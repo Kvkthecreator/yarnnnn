@@ -173,14 +173,20 @@ def client_ids_for_provider(workspace_id: str, provider_id: str) -> list[str]:
     return out
 
 
-def delete_tokens_for_client(client_id: str) -> int:
-    """Delete ALL OAuth tokens for a client_id (ADR-386 D2 — REVOKE = eviction).
+def delete_tokens_for_client(client_id: str, user_id: Optional[str] = None) -> int:
+    """Delete OAuth tokens for a client_id (ADR-386 D2 — REVOKE = eviction).
 
-    The by-client sibling of the OAuth provider's by-token revoke. When the
-    operator evicts a foreign-LLM member (principal_id == OAuth client_id,
-    ADR-373 D2), this removes every access + refresh token for that client, so
-    it can no longer authenticate against the workspace — it must re-authorize
-    from scratch to return. Returns the count of token rows deleted.
+    The by-client sibling of the OAuth provider's by-token revoke. Removes the
+    access + refresh tokens so the connection can no longer authenticate against
+    the workspace — it must re-authorize from scratch to return. Returns the
+    count of token rows deleted.
+
+    ADR-431 D4: when `user_id` is given, the delete additionally scopes to that
+    member's tokens (`mcp_oauth_*` carries `user_id`). This is what lets a
+    revoke of "seulkim's ChatGPT" leave the owner's ChatGPT connected — the two
+    share a provider (hence client_ids) but not a token-owner. When `user_id` is
+    None the sweep is provider-wide (the pre-431 behavior — correct at N=1 and
+    for legacy grants with no `connected_by`).
 
     Lives HERE (not in mcp_server/oauth_provider.py) deliberately: it is a plain
     DB delete with no MCP-SDK dependency, and oauth_provider imports the `mcp`
@@ -191,9 +197,15 @@ def delete_tokens_for_client(client_id: str) -> int:
     svc = _svc()
     deleted = 0
     for table in ("mcp_oauth_access_tokens", "mcp_oauth_refresh_tokens"):
-        res = svc.table(table).delete().eq("client_id", client_id).execute()
+        q = svc.table(table).delete().eq("client_id", client_id)
+        if user_id is not None:
+            q = q.eq("user_id", user_id)
+        res = q.execute()
         deleted += len(res.data or [])
-    logger.info("[ADR-386] evicted client %s — %d OAuth token rows deleted", client_id, deleted)
+    logger.info(
+        "[ADR-386/431] evicted client %s (user=%s) — %d OAuth token rows deleted",
+        client_id, user_id or "all", deleted,
+    )
     return deleted
 
 
@@ -203,27 +215,35 @@ def ensure_principal_grant(
     role: str,
     scopes: Optional[list[str]] = None,
     granted_by: str = "system:adr386-lifecycle",
+    connected_by: Optional[str] = None,
 ) -> dict:
-    """Lazily ensure an active grant for (principal_id, workspace_id) (ADR-386 D1).
+    """Lazily ensure an active grant for (principal_id, workspace_id, connected_by)
+    (ADR-386 D1 + ADR-431 D2).
 
-    Idempotent: if an active grant already exists for the pair (the
-    `uq_principal_grant_active` partial-unique index), this is a no-op and
-    returns the existing row. Otherwise inserts a fresh active grant.
+    Idempotent on the ACTIVE partial-unique key, which ADR-431 widened to include
+    `connected_by`: a foreign-LLM grant's identity is (provider, workspace, the
+    connecting member). So two members connecting the same provider produce two
+    grants — the second no longer no-ops onto the first. For human/agent grants
+    `connected_by` is redundant (the index coalesces it to `principal_id`), so
+    their behavior is byte-identical to pre-431.
 
     Returns the grant row dict. Best-effort at the call site (the OAuth hook
     wraps it so a failure never breaks the connect flow — the consult still
     falls back to the class default, ADR-386 §6.3).
     """
     svc = _svc()
-    existing = (
+    # Idempotency key mirrors the widened unique index (ADR-431): a distinct
+    # connecting member is a distinct grant. `connected_by IS NULL` is matched
+    # explicitly so a NULL-connected grant (human/agent) stays a singleton.
+    q = (
         svc.table("principal_grants")
-        .select("id, principal_id, workspace_id, role, scopes, status")
+        .select("id, principal_id, workspace_id, role, scopes, status, connected_by")
         .eq("principal_id", principal_id)
         .eq("workspace_id", workspace_id)
         .eq("status", "active")
-        .limit(1)
-        .execute()
     )
+    q = q.eq("connected_by", connected_by) if connected_by else q.is_("connected_by", "null")
+    existing = q.limit(1).execute()
     if existing.data:
         return existing.data[0]
 
@@ -236,27 +256,42 @@ def ensure_principal_grant(
             "scopes": scopes,  # None → class default at the gate (ADR-373 D3)
             "granted_by": granted_by,
             "status": "active",
+            "connected_by": connected_by,  # ADR-431 — the authorizing member
         })
         .execute()
     )
     logger.info(
-        "[ADR-386] auto-provisioned %s grant for principal=%s workspace=%s",
-        role, principal_id, workspace_id,
+        "[ADR-386/431] auto-provisioned %s grant for principal=%s workspace=%s connected_by=%s",
+        role, principal_id, workspace_id, connected_by,
     )
     return (inserted.data or [{}])[0]
 
 
-def _load_active_grant(principal_id: str, workspace_id: str) -> Optional[dict]:
-    rows = (
+def _load_active_grant(
+    principal_id: str,
+    workspace_id: str,
+    connected_by: Optional[str] = None,
+) -> Optional[dict]:
+    """Load the active grant for a principal (ADR-431: disambiguated by the
+    connecting member when given).
+
+    `connected_by=None` preserves the pre-431 lookup (first active grant for the
+    pair) — correct for the human/owner path (a singleton) and for lifecycle
+    callers that name the provider without a member. When a specific member's
+    connection is targeted (multi-member same-provider), pass `connected_by` to
+    select that member's row.
+    """
+    q = (
         _svc()
         .table("principal_grants")
-        .select("id, role, scopes, status")
+        .select("id, role, scopes, status, connected_by")
         .eq("principal_id", principal_id)
         .eq("workspace_id", workspace_id)
         .eq("status", "active")
-        .limit(1)
-        .execute()
-    ).data
+    )
+    if connected_by is not None:
+        q = q.eq("connected_by", connected_by)
+    rows = q.limit(1).execute().data
     return rows[0] if rows else None
 
 
@@ -317,6 +352,7 @@ def narrow_grant(
     principal_id: str,
     workspace_id: str,
     scopes: list[str],
+    connected_by: Optional[str] = None,
 ) -> dict:
     """Tighten a member's write-region `scopes` (ADR-386 D2 — NARROW).
 
@@ -324,10 +360,14 @@ def narrow_grant(
     (the member stays connected, can still read). The gate's allow-list path
     (ADR-373 D2) then denies writes outside the narrowed set.
 
+    ADR-431 D4: `connected_by` targets a specific member's grant when the same
+    provider is connected by multiple members; None narrows the first (the
+    singleton case — human/owner or a provider with one connector).
+
     Rejects the owner grant (ADR-386 D4) — raises OwnerGrantImmutable.
     Raises ValueError if no active grant exists for the pair.
     """
-    grant = _load_active_grant(principal_id, workspace_id)
+    grant = _load_active_grant(principal_id, workspace_id, connected_by)
     if grant is None:
         raise ValueError("no active grant for this principal in this workspace")
     if grant.get("role") == "owner":
@@ -350,13 +390,21 @@ def narrow_grant(
 def evict_principal(
     principal_id: str,
     workspace_id: str,
+    connected_by: Optional[str] = None,
 ) -> dict:
-    """REVOKE = full eviction (ADR-386 D2/D3).
+    """REVOKE = full eviction (ADR-386 D2/D3 + ADR-431 D4).
 
     Two coupled effects:
       1. flip the grant to `status='revoked'` (the audit record of the eviction);
-      2. delete the principal's OAuth access + refresh tokens (by client_id) —
-         the principal can no longer authenticate, read, or write.
+      2. delete the principal's OAuth access + refresh tokens — the principal can
+         no longer authenticate, read, or write.
+
+    ADR-431 D4: `connected_by` targets a SPECIFIC member's connection when the
+    same provider is connected by several members — and the token sweep then
+    scopes to that member's tokens (by `user_id`), so revoking "seulkim's
+    ChatGPT" leaves the owner's ChatGPT connected. When `connected_by` is None
+    (owner/human singleton, or a legacy provider-wide revoke) the sweep is
+    provider-wide (pre-431 behavior).
 
     Because a revoked principal has no token, it never reaches the gate, so the
     consult needs no `revoked`-aware branch (ADR-386 D3). Reconnecting requires
@@ -365,7 +413,7 @@ def evict_principal(
     Rejects the owner grant (ADR-386 D4) — raises OwnerGrantImmutable.
     Raises ValueError if no active grant exists for the pair.
     """
-    grant = _load_active_grant(principal_id, workspace_id)
+    grant = _load_active_grant(principal_id, workspace_id, connected_by)
     if grant is None:
         raise ValueError("no active grant for this principal in this workspace")
     if grant.get("role") == "owner":
@@ -380,10 +428,16 @@ def evict_principal(
     # per re-registration). So sweep EVERY client_id registered to this provider,
     # not just `principal_id` (which now matches no token row). For a legacy
     # client_id-keyed grant (pre-D2.a) `client_ids_for_provider` returns [] and
-    # we fall back to deleting by the principal_id directly. Best-effort: a
-    # token-delete failure must not leave the grant un-revoked — the status flip
-    # already happened above.
+    # we fall back to deleting by the principal_id directly. ADR-431 D4: scope
+    # the delete to the connecting member's tokens (`token_user`) so a co-member
+    # sharing the provider is not disconnected. Best-effort: a token-delete
+    # failure must not leave the grant un-revoked — the status flip already
+    # happened above.
     tokens_deleted = 0
+    # The grant's own connected_by (persisted) is authoritative for the token
+    # scope even when the caller passed None (the singleton lookup still found
+    # a member-owned grant).
+    token_user = connected_by or grant.get("connected_by")
     try:
         role = grant.get("role")
         client_ids: list[str] = []
@@ -392,7 +446,7 @@ def evict_principal(
         # Fallback: a legacy client_id-keyed grant (or unknown provider) — the
         # principal_id IS the client_id, so delete by it directly.
         for cid in (client_ids or [principal_id]):
-            tokens_deleted += delete_tokens_for_client(cid)
+            tokens_deleted += delete_tokens_for_client(cid, token_user)
     except Exception as exc:  # pragma: no cover — best-effort token sweep
         logger.warning(
             "[ADR-386] token eviction for principal=%s failed: %s "
@@ -401,7 +455,47 @@ def evict_principal(
         )
 
     logger.info(
-        "[ADR-386] evicted principal=%s workspace=%s (grant revoked, %d tokens deleted)",
-        principal_id, workspace_id, tokens_deleted,
+        "[ADR-386/431] evicted principal=%s workspace=%s connected_by=%s (grant revoked, %d tokens deleted)",
+        principal_id, workspace_id, token_user, tokens_deleted,
     )
     return {"principal_id": principal_id, "status": "revoked", "tokens_deleted": tokens_deleted}
+
+
+def cascade_member_ai_connections(member_id: str, workspace_id: str) -> list[dict]:
+    """Revoke the AI connections a departing member authorized (ADR-431 D5).
+
+    When a human member is evicted, the foreign-LLM / a2a / platform grants they
+    connected (`connected_by = member_id`) go with them — a member's departure
+    takes their AI connections. Each is a full eviction (grant revoked + the
+    member's tokens for that provider deleted, D4-scoped).
+
+    Called by the member-revoke route AFTER the member's own grant is revoked.
+    Best-effort per connection; returns the list of eviction results. Owner is
+    never a `connected_by` target for eviction (owner grants are immutable,
+    ADR-386 D4), so no owner AI connection is ever orphaned this way.
+    """
+    rows = (
+        _svc()
+        .table("principal_grants")
+        .select("principal_id, role, connected_by")
+        .eq("workspace_id", workspace_id)
+        .eq("connected_by", member_id)
+        .eq("status", "active")
+        .in_("role", ["foreign-llm", "a2a", "platform"])
+        .execute()
+    ).data or []
+    results = []
+    for r in rows:
+        try:
+            results.append(evict_principal(r["principal_id"], workspace_id, member_id))
+        except Exception as exc:  # pragma: no cover — best-effort cascade
+            logger.warning(
+                "[ADR-431 D5] cascade revoke of %s (connected_by %s) failed: %s",
+                r["principal_id"], member_id, exc,
+            )
+    if results:
+        logger.info(
+            "[ADR-431 D5] member %s eviction cascaded to %d AI connection(s)",
+            member_id, len(results),
+        )
+    return results

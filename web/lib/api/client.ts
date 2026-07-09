@@ -1433,29 +1433,34 @@ export const api = {
         members: Array<{
           principal_id: string;
           role: string; // owner | member | own-agent | foreign-llm | platform | a2a
-          label: string | null; // humanized name (email / LLM room / slug)
+          label: string | null; // humanized name (email / LLM provider / slug)
           write_regions: string[]; // resolved write-region set (grant scopes or class-default)
           scopes_explicit: boolean; // true if narrowed by an explicit grant
           status: string;
           granted_by: string | null;
           created_at: string | null;
+          connected_by: string | null; // ADR-431 — the member who authorized an AI connection
+          connected_by_label: string | null; // resolved: "your connection" | their email
         }>;
         grant_consult_active: boolean;
       }>("/api/workspace/members"),
 
     // ADR-386 D2 — NARROW: tighten a member's write-region scopes (authz only;
     // the member stays connected). Owner grant is immutable (403).
-    narrowMember: (principalId: string, scopes: string[]) =>
+    // ADR-431: `connectedBy` targets a specific member's AI connection when a
+    // provider is connected by several members.
+    narrowMember: (principalId: string, scopes: string[], connectedBy?: string | null) =>
       request<{ success: boolean; principal_id: string; action: string; scopes: string[] | null }>(
         `/api/workspace/members/${encodeURIComponent(principalId)}/narrow`,
-        { method: "POST", body: JSON.stringify({ scopes }) },
+        { method: "POST", body: JSON.stringify({ scopes, connected_by: connectedBy ?? null }) },
       ),
 
     // ADR-386 D2/D3 — REVOKE = full eviction: grant revoked + OAuth tokens
     // deleted. The member must re-authorize from scratch. Owner is immutable (403).
-    revokeMember: (principalId: string) =>
+    // ADR-431: `connectedBy` targets a specific member's AI connection.
+    revokeMember: (principalId: string, connectedBy?: string | null) =>
       request<{ success: boolean; principal_id: string; action: string; tokens_deleted: number | null }>(
-        `/api/workspace/members/${encodeURIComponent(principalId)}/revoke`,
+        `/api/workspace/members/${encodeURIComponent(principalId)}/revoke${connectedBy ? `?connected_by=${encodeURIComponent(connectedBy)}` : ""}`,
         { method: "POST" },
       ),
 

@@ -39,44 +39,28 @@ const NARROWABLE_REGIONS = ['operation/', 'agents/'] as const;
 export type WorkspaceMembersVariant = 'full' | 'compact';
 
 /**
- * ADR-385 amendment (2026-07-04) — a role-grouped section of the roster. The
- * grouping axis is the principal's RELATIONSHIP to the workspace (encoded in
- * the grant `role`), never the wire transport: MCP is a transport both an
- * AI chat and an autonomous agent can arrive over, so "MCP vs API" would
- * break the first time an a2a caller connects over MCP. Transport belongs on
- * the row as metadata (host-profile badge), not as the grouping key.
+ * The roster's presentation axis (ADR-431 §display). Principals split into two
+ * KINDS the operator holds in their head — humans and external AI — because the
+ * confusing screenshot was a flat list where "ChatGPT" sat between two people
+ * with no signal that it is a categorically different principal. The split axis
+ * is the grant `role`, never the wire transport (ADR-385: MCP is a transport an
+ * AI chat AND an autonomous agent both arrive over; transport is row metadata,
+ * not a grouping key).
+ *
+ * NOTE — what is NOT here: a member's in-chat model (Sonnet/Gemini via the
+ * router, ADR-408 A2) is NOT a principal and never appears on this roster. It
+ * writes as `member:{user} via {model}` under the MEMBER's grant (the member is
+ * the principal, the model is the tool they hold). This roster is scoped to
+ * principals only: humans, external LLMs reaching in over MCP, and (future,
+ * ADR-382) Altitude-3 persona agents.
  */
-export interface MemberRoleGroup {
-  /** Section heading rendered above the group's roster. */
-  label: string;
-  /** Grant roles included in this group. */
-  roles: string[];
-  /** Skip the section entirely while it has no members (reserved classes). */
-  hideWhenEmpty?: boolean;
-  emptyTitle?: string;
-  emptyHint?: string;
-}
+const HUMAN_ROLES = ['owner', 'member'] as const;
+const AI_ROLES = ['foreign-llm', 'a2a', 'platform', 'own-agent'] as const;
 
 interface WorkspaceMembersCardProps {
   variant?: WorkspaceMembersVariant;
   className?: string;
-  /**
-   * ADR-385 D3 — restrict the rendered roster to these principal roles. When
-   * omitted, all roles render (the full Workspace-Settings → Access roster).
-   * The Channels → AI Connections pane (slug `external-agents`) passes
-   * `['foreign-llm', 'a2a', 'platform']` to show only the external/automation
-   * principals (MCP LLMs, agent-to-agent callers, platform writers) — a second
-   * VIEW of the one principal_grants substrate, not a parallel source (DP29).
-   */
-  roleFilter?: string[];
-  /**
-   * ADR-385 amendment (2026-07-04) — render the roster as labeled role-grouped
-   * sections (one fetch, N views; DP29). Used by the Channels → AI Connections
-   * pane: AI Chats (`foreign-llm`) / AI Agents (`a2a`). Takes precedence over
-   * `roleFilter` when both are provided.
-   */
-  roleGroups?: MemberRoleGroup[];
-  /** Optional override for the empty state (shown when the filtered roster is empty). */
+  /** Optional override for the empty state (shown when the roster is empty). */
   emptyTitle?: string;
   emptyHint?: string;
 }
@@ -118,8 +102,6 @@ function regionLabel(region: string): string {
 export function WorkspaceMembersCard({
   variant = 'full',
   className,
-  roleFilter,
-  roleGroups,
   emptyTitle,
   emptyHint,
 }: WorkspaceMembersCardProps) {
@@ -206,8 +188,8 @@ export function WorkspaceMembersCard({
         if (!cancelled) setLoading(false);
       }
       // Invite roster is owner-only; loaded separately so a member's 403
-      // never blanks the members list. Only on the full (Access) roster.
-      if (!cancelled && !roleFilter && !roleGroups) void refreshInvites();
+      // never blanks the members list.
+      if (!cancelled) void refreshInvites();
     })();
     return () => {
       cancelled = true;
@@ -218,7 +200,9 @@ export function WorkspaceMembersCard({
   const onRevoke = async (m: Member) => {
     setBusy(true);
     try {
-      await api.workspace.revokeMember(m.principal_id);
+      // ADR-431 — target the specific member's connection when a provider is
+      // connected by several members (connected_by disambiguates the grant).
+      await api.workspace.revokeMember(m.principal_id, m.connected_by);
       setRevokeTarget(null);
       await refresh();
     } finally {
@@ -229,7 +213,7 @@ export function WorkspaceMembersCard({
   const onNarrow = async (m: Member, scopes: string[]) => {
     setBusy(true);
     try {
-      await api.workspace.narrowMember(m.principal_id, scopes);
+      await api.workspace.narrowMember(m.principal_id, scopes, m.connected_by);
       setNarrowTarget(null);
       await refresh();
     } finally {
@@ -237,9 +221,12 @@ export function WorkspaceMembersCard({
     }
   };
 
-  // ADR-385 D3 — one substrate, two views: filter the rendered roster by role
-  // without forking the data source.
-  const visible = roleFilter ? members.filter((m) => roleFilter.includes(m.role)) : members;
+  // ADR-431 §display — split the ONE roster fetch into the two principal KINDS
+  // (humans / external AI). Not a data fork (DP29): one fetch, partitioned for
+  // legibility. A member's in-chat model is not here at all (it's not a
+  // principal), so the two partitions are exhaustive over the roster.
+  const humans = members.filter((m) => (HUMAN_ROLES as readonly string[]).includes(m.role));
+  const ais = members.filter((m) => (AI_ROLES as readonly string[]).includes(m.role));
 
   if (loading) {
     return (
@@ -260,8 +247,8 @@ export function WorkspaceMembersCard({
     </div>
   );
 
-  // One row renderer for both the flat roster and the role-grouped sections —
-  // the governance verbs (narrow / revoke) ride along unchanged.
+  // One row renderer for both partitions — the governance verbs (narrow /
+  // revoke) ride along unchanged.
   const renderMemberList = (list: Member[]) => (
     <ul className="divide-y divide-border rounded-lg border border-border">
       {list.map((m) => {
@@ -270,6 +257,25 @@ export function WorkspaceMembersCard({
         const name = m.label ?? m.principal_id;
         // ADR-386 D4 — the owner grant is immutable from this surface: no verbs.
         const governable = m.role !== 'owner';
+        // ADR-431 §display — the one-line "what kind of principal is this" hint
+        // that carries the conceptual framing. For an external LLM it names the
+        // distinguishing fact: it reaches in autonomously over MCP and writes
+        // as ITSELF — categorically unlike a member's in-chat model (which
+        // writes as the member). Kept to a single short clause; no new data.
+        const kindHint =
+          m.role === 'foreign-llm'
+            ? 'Connects over MCP · writes as itself'
+            : m.role === 'a2a'
+            ? 'Agent-to-agent caller · writes as itself'
+            : m.role === 'platform'
+            ? 'Platform integration · writes as itself'
+            : m.role === 'own-agent'
+            ? 'Workspace agent · writes as itself'
+            : null;
+        // ADR-431 D3 — WHO authorized this AI connection ("whose ChatGPT").
+        // Resolves the operator's "whose?" question directly. Only the external
+        // classes carry it; "your connection" when the viewer authorized it.
+        const connectedBy = m.connected_by_label;
         return (
           <li key={`${m.principal_id}-${m.role}`} className="flex items-start gap-3 px-4 py-3">
             <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
@@ -282,6 +288,14 @@ export function WorkspaceMembersCard({
                   {meta.label}
                 </span>
               </div>
+              {kindHint && (
+                <p className="mt-0.5 text-[11px] text-muted-foreground/60">
+                  {kindHint}
+                  {connectedBy && (
+                    <> · connected by <span className="text-muted-foreground/80">{connectedBy}</span></>
+                  )}
+                </p>
+              )}
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <span className="text-[11px] text-muted-foreground/70">
                   {m.scopes_explicit ? 'Can write' : 'Can write (default)'}:
@@ -342,39 +356,24 @@ export function WorkspaceMembersCard({
     </ul>
   );
 
-  if (!roleGroups && visible.length === 0) {
+  if (members.length === 0) {
     return <div className={className}>{renderEmptyState(emptyTitle, emptyHint)}</div>;
   }
 
   return (
-    <div className={cn('space-y-4', className)}>
+    <div className={cn('space-y-6', className)}>
       {variant === 'full' && (
-        roleGroups ? (
-          <p className="text-sm text-muted-foreground">
-            The AI that reaches into this workspace — each connects as a{' '}
-            <span className="font-medium text-foreground/80">principal</span>, attributes its
-            writes as itself, and is authorized to a specific region of the substrate. You can
-            narrow a connection&rsquo;s access or revoke it.
-          </p>
-        ) : roleFilter ? (
-          <p className="text-sm text-muted-foreground">
-            External LLMs, agent-to-agent callers, and platforms that reach into this workspace —
-            each connects as a <span className="font-medium text-foreground/80">principal</span>,
-            attributes its writes as itself, and is authorized to a specific region of the substrate.
-            Granting and scoping their access is coming soon.
-          </p>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Everyone — and everything — that can write to this workspace. In this model an MCP
-            connection from an external LLM is a <span className="font-medium text-foreground/80">member</span>:
-            it attributes its writes as itself and is authorized to a specific region of the substrate.
-            You can narrow a member&rsquo;s access or revoke it.
-          </p>
-        )
+        <p className="text-sm text-muted-foreground">
+          Everyone — and everything — that can write to this workspace. People are the humans on
+          the workspace; <span className="font-medium text-foreground/80">AI connections</span> are
+          external LLMs that reach in over MCP and write as themselves. (A member&rsquo;s in-chat
+          model isn&rsquo;t here — it writes as the member, not as its own principal.) Narrow or
+          revoke any principal&rsquo;s access.
+        </p>
       )}
 
       {/* ADR-404 step 5 — invite a human member (owner-only; hidden on 403). */}
-      {variant === 'full' && !roleFilter && !roleGroups && canInvite && (
+      {variant === 'full' && canInvite && (
         <div className="rounded-lg border border-border p-3">
           <div className="flex flex-wrap items-center gap-2">
             <input
@@ -426,26 +425,24 @@ export function WorkspaceMembersCard({
         </div>
       )}
 
-      {roleGroups ? (
-        // ADR-385 amendment (2026-07-04) — role-grouped sections over the ONE
-        // roster fetch. A group with `hideWhenEmpty` (reserved classes like
-        // `a2a`) stays invisible until its first grant exists.
-        roleGroups.map((group) => {
-          const groupMembers = members.filter((m) => group.roles.includes(m.role));
-          if (groupMembers.length === 0 && group.hideWhenEmpty) return null;
-          return (
-            <section key={group.label} className="space-y-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {group.label}
-              </h3>
-              {groupMembers.length === 0
-                ? renderEmptyState(group.emptyTitle, group.emptyHint)
-                : renderMemberList(groupMembers)}
-            </section>
-          );
-        })
-      ) : (
-        renderMemberList(visible)
+      {/* ADR-431 §display — two partitions of the ONE roster fetch: People
+          (humans) and AI connections (external LLMs). The AI section only
+          appears once at least one AI principal exists, so a cold-start
+          workspace (owner only) sees a clean People list, not an empty AI box. */}
+      <section className="space-y-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          People
+        </h3>
+        {humans.length === 0 ? renderEmptyState('No people yet') : renderMemberList(humans)}
+      </section>
+
+      {ais.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            AI connections
+          </h3>
+          {renderMemberList(ais)}
+        </section>
       )}
 
       {/* ADR-386 D2/D3 — REVOKE = full eviction. The modal emphasizes the weight:

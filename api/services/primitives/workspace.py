@@ -1961,17 +1961,26 @@ def _lookup_grant_scopes(auth: Any) -> Optional[list[str]]:
     from services.supabase import resolve_principal_id, resolve_owner_workspace_id
 
     principal_id = resolve_principal_id(auth)
+    user_id = getattr(auth, "user_id", None)
     workspace_id = getattr(auth, "workspace_id", None) or (
-        resolve_owner_workspace_id(getattr(auth, "user_id", "") or "")
-        if getattr(auth, "user_id", None) else None
+        resolve_owner_workspace_id(user_id or "") if user_id else None
     )
     if not principal_id or not workspace_id:
         return None  # cannot key the grant → class default
 
+    # ADR-431 — a foreign-LLM provider can now be connected by MANY members, so
+    # (provider, workspace) no longer uniquely keys a grant. Disambiguate by the
+    # connecting member (`connected_by = auth.user_id`) whenever the principal is
+    # NOT the human themself (principal_id != user_id → an external principal the
+    # human authorized). For the owner/human path (principal_id == user_id) the
+    # grant is a singleton with connected_by NULL, so we DON'T filter by it —
+    # keeping the owner lookup byte-identical to pre-431.
+    connected_by = user_id if (user_id and principal_id != user_id) else None
+
     cache = getattr(_grant_cache, "store", None)
     if cache is None:
         cache = _grant_cache.store = {}
-    key = (principal_id, workspace_id)
+    key = (principal_id, workspace_id, connected_by)
     if key in cache:
         return cache[key]
 
@@ -1980,16 +1989,29 @@ def _lookup_grant_scopes(auth: Any) -> Optional[list[str]]:
         # Use the SERVICE client for the lookup — the grant table is the gate's
         # authority and must not depend on the caller's own (mid-transition) RLS.
         from services.supabase import get_service_client
-        result = (
-            get_service_client()
-            .table("principal_grants")
-            .select("scopes")
-            .eq("principal_id", principal_id)
-            .eq("workspace_id", workspace_id)
-            .eq("status", "active")
-            .limit(1)
-            .execute()
-        )
+        svc = get_service_client()
+
+        def _fetch(cb: Optional[str]):
+            q = (
+                svc.table("principal_grants")
+                .select("scopes")
+                .eq("principal_id", principal_id)
+                .eq("workspace_id", workspace_id)
+                .eq("status", "active")
+            )
+            q = q.eq("connected_by", cb) if cb is not None else q
+            return q.limit(1).execute()
+
+        # ADR-431 — MEMBER-FIRST, PROVIDER-WIDE FALLBACK. When the caller is an
+        # external principal (connected_by set), prefer THIS member's grant; if
+        # none exists, fall back to the provider-wide grant (connected_by NULL —
+        # a legacy/backfilled grant, or one this member hasn't personally
+        # re-provisioned yet). For the owner/human path connected_by is None, so
+        # only the single fetch runs — byte-identical to pre-431.
+        result = _fetch(connected_by)
+        if not result.data and connected_by is not None:
+            result = _fetch(None)  # provider-wide fallback
+
         if result.data:
             raw = result.data[0].get("scopes")
             # NULL scopes → None (class default). A non-empty list → allow-list.

@@ -87,11 +87,16 @@ def _ensure_foreign_llm_grant(user_id: str, client_id: str, granted_by: str) -> 
             # unknown to the registry (still legible + revocable, just not
             # collapsed across re-registrations).
             provider_id = resolve_provider_id_for_client(client_id) or client_id
+            # ADR-431 D2 — record WHO connected it: the human whose OAuth session
+            # minted this token (`user_id`). This is what makes seulkim's ChatGPT
+            # and the owner's ChatGPT two distinct, independently-governed grants
+            # instead of the second silently no-op'ing onto the first.
             ensure_principal_grant(
                 principal_id=provider_id,
                 workspace_id=workspace_id,
                 role="foreign-llm",
                 granted_by=granted_by,
+                connected_by=user_id,
             )
         else:
             logger.debug(

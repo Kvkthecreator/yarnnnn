@@ -82,13 +82,35 @@ class _Query:
         self._filters[col] = val
         return self
 
+    def is_(self, col, _null):
+        # ADR-431 — models PostgREST `.is_(col, "null")` (connected_by IS NULL).
+        self._null_filters = getattr(self, "_null_filters", set())
+        self._null_filters.add(col)
+        return self
+
+    def in_(self, col, vals):
+        self._in_filters = getattr(self, "_in_filters", {})
+        self._in_filters[col] = list(vals)
+        return self
+
     def limit(self, *a, **k):
         return self
+
+    def _match(self, r):
+        if not all(r.get(k) == v for k, v in self._filters.items()):
+            return False
+        for col in getattr(self, "_null_filters", set()):
+            if r.get(col) is not None:
+                return False
+        for col, vals in getattr(self, "_in_filters", {}).items():
+            if r.get(col) not in vals:
+                return False
+        return True
 
     def execute(self):
         rows = self._store.get(self._table, [])
         if self._op == "select":
-            out = [r for r in rows if all(r.get(k) == v for k, v in self._filters.items())]
+            out = [r for r in rows if self._match(r)]
             return _Exec(out)
         if self._op == "insert":
             self._rec.append((self._table, "insert", dict(self._payload)))
@@ -98,14 +120,14 @@ class _Query:
             self._store[self._table] = rows
             return _Exec([row])
         if self._op == "update":
-            matched = [r for r in rows if all(r.get(k) == v for k, v in self._filters.items())]
+            matched = [r for r in rows if self._match(r)]
             for r in matched:
                 r.update(self._payload)
             self._rec.append((self._table, "update", dict(self._payload), dict(self._filters)))
             return _Exec(matched)
         if self._op == "delete":
-            kept = [r for r in rows if not all(r.get(k) == v for k, v in self._filters.items())]
-            deleted = [r for r in rows if all(r.get(k) == v for k, v in self._filters.items())]
+            kept = [r for r in rows if not self._match(r)]
+            deleted = [r for r in rows if self._match(r)]
             self._store[self._table] = kept
             self._rec.append((self._table, "delete", dict(self._filters)))
             return _Exec(deleted)

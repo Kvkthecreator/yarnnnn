@@ -95,14 +95,19 @@ class WorkspaceMember(BaseModel):
     ADR; this is the "who can touch this workspace" view (ADR-338 management
     plane idiom).
     """
-    principal_id: str                      # the stable grant key (user id / client id / slug)
+    principal_id: str                      # the stable grant key (user id / provider host-id / slug)
     role: str                              # owner | member | own-agent | foreign-llm | platform | a2a
-    label: Optional[str] = None            # humanized name (email / LLM room / slug)
+    label: Optional[str] = None            # humanized name (email / LLM provider / slug)
     write_regions: list[str]               # the resolved write-region set (grant scopes or class-default)
     scopes_explicit: bool                  # True if narrowed by an explicit grant; False if class-default
     status: str                            # active | revoked
     granted_by: Optional[str] = None
     created_at: Optional[str] = None
+    # ADR-431 — the connecting member (for foreign-LLM/a2a/platform rows): WHO
+    # authorized this AI connection. `connected_by` is the raw member id; the
+    # route resolves `connected_by_label` to that human's email for the roster.
+    connected_by: Optional[str] = None
+    connected_by_label: Optional[str] = None
 
 
 class WorkspaceMembersResponse(BaseModel):
@@ -1046,7 +1051,7 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
         svc = get_service_client()
         rows = (
             svc.table("principal_grants")
-            .select("principal_id, role, scopes, status, granted_by, created_at")
+            .select("principal_id, role, scopes, status, granted_by, created_at, connected_by")
             .eq("workspace_id", workspace_id)
             .eq("status", "active")
             .order("created_at")
@@ -1082,19 +1087,27 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
         # themself. A member's roster showed raw UUIDs for the owner row and
         # their own row. principal_id for owner/member IS auth.users.id —
         # resolve emails via the auth admin API (service key), best-effort.
-        human_emails: dict[str, str] = {}
+        # The set of human ids to resolve to emails: owner/member principal_ids
+        # PLUS every `connected_by` (ADR-431 — the member who authorized an AI
+        # connection; may not appear as a roster row of their own).
+        human_ids: set[str] = set()
         for r in rows:
             if r.get("role") in ("owner", "member"):
-                pid = r["principal_id"]
-                if pid == auth.user_id and auth.email:
-                    human_emails[pid] = auth.email
-                    continue
-                try:
-                    u = svc.auth.admin.get_user_by_id(pid)
-                    if u and getattr(u, "user", None) and u.user.email:
-                        human_emails[pid] = u.user.email
-                except Exception as exc:  # noqa: BLE001 — humanization is best-effort
-                    logger.debug("[WORKSPACE_API] member email lookup failed for %s: %s", pid[:8], exc)
+                human_ids.add(r["principal_id"])
+            if r.get("connected_by"):
+                human_ids.add(str(r["connected_by"]))
+
+        human_emails: dict[str, str] = {}
+        for pid in human_ids:
+            if pid == auth.user_id and auth.email:
+                human_emails[pid] = auth.email
+                continue
+            try:
+                u = svc.auth.admin.get_user_by_id(pid)
+                if u and getattr(u, "user", None) and u.user.email:
+                    human_emails[pid] = u.user.email
+            except Exception as exc:  # noqa: BLE001 — humanization is best-effort
+                logger.debug("[WORKSPACE_API] member email lookup failed for %s: %s", pid[:8], exc)
 
         members: list[WorkspaceMember] = []
         for r in rows:
@@ -1117,6 +1130,18 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
                     or principal_id
                 )
 
+            # ADR-431 — the connecting-member attribution ("whose ChatGPT").
+            # "your connection" when the viewer authorized it; else the member's
+            # email. Only meaningful for the external-principal classes.
+            connected_by = r.get("connected_by")
+            connected_by_label: Optional[str] = None
+            if connected_by and role in ("foreign-llm", "platform", "a2a"):
+                cb = str(connected_by)
+                connected_by_label = (
+                    "your connection" if cb == auth.user_id
+                    else human_emails.get(cb)
+                )
+
             members.append(WorkspaceMember(
                 principal_id=principal_id,
                 role=role,
@@ -1126,6 +1151,8 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
                 status=r.get("status") or "active",
                 granted_by=r.get("granted_by"),
                 created_at=r.get("created_at"),
+                connected_by=str(connected_by) if connected_by else None,
+                connected_by_label=connected_by_label,
             ))
 
         return WorkspaceMembersResponse(members=members)
@@ -1144,6 +1171,9 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
 
 class NarrowMemberRequest(BaseModel):
     scopes: list[str]   # the write-region set to narrow the member to (ADR-320 roots)
+    # ADR-431 — disambiguate WHICH connection when a provider is connected by
+    # several members (foreign-LLM). None targets the singleton grant.
+    connected_by: Optional[str] = None
 
 
 class MemberLifecycleResponse(BaseModel):
@@ -1174,7 +1204,7 @@ async def narrow_member(principal_id: str, body: NarrowMemberRequest, auth: User
     from services.principal_grants import narrow_grant, OwnerGrantImmutable
     workspace_id = _resolve_caller_workspace(auth)
     try:
-        narrow_grant(principal_id, workspace_id, body.scopes)
+        narrow_grant(principal_id, workspace_id, body.scopes, body.connected_by)
     except OwnerGrantImmutable:
         raise HTTPException(status_code=403, detail="the owner grant cannot be narrowed")
     except ValueError as ve:
@@ -1188,14 +1218,26 @@ async def narrow_member(principal_id: str, body: NarrowMemberRequest, auth: User
 
 
 @router.post("/workspace/members/{principal_id}/revoke", response_model=MemberLifecycleResponse)
-async def revoke_member(principal_id: str, auth: UserClient) -> MemberLifecycleResponse:
+async def revoke_member(
+    principal_id: str,
+    auth: UserClient,
+    connected_by: Optional[str] = None,
+) -> MemberLifecycleResponse:
     """REVOKE = full eviction (ADR-386 D2/D3): grant revoked + OAuth tokens
     deleted. The member can no longer authenticate, read, or write; it must
-    re-authorize from scratch to return. The owner grant is immutable (403)."""
-    from services.principal_grants import evict_principal, OwnerGrantImmutable
+    re-authorize from scratch to return. The owner grant is immutable (403).
+
+    ADR-431: `connected_by` (query param) targets a SPECIFIC member's AI
+    connection when a provider is connected by several members — revoking
+    "seulkim's ChatGPT" leaves the owner's ChatGPT connected. When a HUMAN
+    member is revoked, D5 cascades to the AI connections THEY authorized
+    (`connected_by = them`), so a departing member takes their AI with them."""
+    from services.principal_grants import (
+        evict_principal, cascade_member_ai_connections, OwnerGrantImmutable,
+    )
     workspace_id = _resolve_caller_workspace(auth)
     try:
-        result = evict_principal(principal_id, workspace_id)
+        result = evict_principal(principal_id, workspace_id, connected_by)
     except OwnerGrantImmutable:
         raise HTTPException(status_code=403, detail="the owner grant cannot be revoked")
     except ValueError as ve:
@@ -1203,6 +1245,16 @@ async def revoke_member(principal_id: str, auth: UserClient) -> MemberLifecycleR
     except Exception as e:
         logger.error(f"[WORKSPACE_API] member revoke failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+    # ADR-431 D5 — a human member's eviction cascades to the AI connections they
+    # authorized. principal_id for a member IS their user id, so it is the
+    # `connected_by` of their AI grants. (No-op for AI/provider revokes: an AI
+    # principal is never a `connected_by`.)
+    try:
+        cascade_member_ai_connections(principal_id, workspace_id)
+    except Exception as exc:  # best-effort — the member is already evicted
+        logger.warning("[ADR-431 D5] AI-connection cascade failed for %s: %s", principal_id[:8], exc)
+
     return MemberLifecycleResponse(
         success=True, principal_id=principal_id, action="revoke",
         tokens_deleted=result.get("tokens_deleted"),
