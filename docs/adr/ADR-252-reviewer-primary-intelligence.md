@@ -2,7 +2,7 @@
 
 > **⚠ SUPERSEDED by ADR-256** (2026-05-08). `address_turn()` deleted; addressed trigger now runs via `invoke_reviewer(trigger="addressed")` with a tool-use loop. The `action_instruction` string output and execution router ProposeAction pattern handler are both deleted — Reviewer calls tools directly. Chat routing in chat.py updated. **D1 intent classifier deleted**: `api/services/intent_classifier.py` no longer exists; routing is now unified through `invoke_reviewer()` rather than gated by an upstream Haiku classifier (the Reviewer itself reasons about whether a turn requires its judgment). All §"Implementation surface" references to `intent_classifier.py` are stale. Core architectural intent (Reviewer as primary intelligence) preserved and strengthened.
 
-> **Status**: **Phases 1 + 2 + 3 Implemented** (2026-05-06 — Phase 1: intent classifier, Reviewer addressed mode, system_agent role, three-party narrative rendering, no-impersonation prompt clause; Phase 2: deterministic execution router — zero LLM for fire/pause/resume/list/read patterns; Phase 3: full autonomy loop — Reviewer-initiated proposals from reflection, source flag skipping double-judgment, auto-execute gate, migration 168)
+> **Status**: **Superseded by ADR-256** (2026-05-08). *(Was: Phases 1 + 2 + 3 Implemented 2026-05-06 — intent classifier, addressed mode, execution router, autonomy loop; `address_turn()` + `intent_classifier.py` deleted, routing unified through `invoke_reviewer()` per the banner above. Core intent — Reviewer as primary intelligence — preserved.)*
 > **Date**: 2026-05-06
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-249 D2 partial (System Agent posture sharpened further — executor/narrator, not co-reasoner, now structural not just prompt-layer)

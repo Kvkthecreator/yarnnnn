@@ -2,7 +2,7 @@
 
 > **⚠ SUPERSEDED by [ADR-272](ADR-272-identity-collapse-system-agent-and-specialist.md) (2026-05-14).** The three-party model (Operator + System Agent + Reviewer) collapses to a two-voice model (Operator + Reviewer) plus an ambient `system-activity` stream for deterministic dispatch and Reviewer-directed action narration. The `system_agent` participant framing dissolves at the cockpit surface; the `meta-cognitive` DB row persists as the chat-mode LLM substrate but is no longer rendered as a peer entity. The audit that produced this reversal (commits `54eadf6` ADR-271 Thread D + `2430622` ADR-271 Thread A) showed System Agent had no LLM identity backing — it was a label across three places (regex router output, Reviewer-directed action narration, cockpit roster card), none of which is an LLM. ADR-272 §6 documents the operator-legibility floor that must be preserved by the FE Phase 2 follow-on.
 
-> **Status**: Proposed (superseded by ADR-272 above)
+> **Status**: **Superseded by ADR-272** (2026-05-14). *(Was: Proposed; the three-party model collapses to two voices + ambient system-activity per the banner above.)*
 > **Date**: 2026-05-03
 > **Authors**: KVK, Claude
 > **Supersedes**: naming sections of ADR-241 (surface collapse correct; persona naming deferred at the time)

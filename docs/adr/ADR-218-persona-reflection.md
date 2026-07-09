@@ -2,7 +2,7 @@
 
 > **⚠ SUPERSEDED by ADR-256** (2026-05-08), then further reshaped by **[ADR-260](ADR-260-real-time-reviewer-loop.md) + [ADR-261](ADR-261-recurrences-as-prompts.md)** (2026-05-10, merged on `main` as `42725c6`). `run_reflection()` deleted by ADR-256; the `reflection` trigger then collapsed into `scheduled` per ADR-260 D2 (three triggers, not four). The `back_office.reviewer_reflection.py` deterministic Python executor and `reflection_writer.py` are also DELETED per ADR-261 D6 §4 — reflection is now a Reviewer-driven recurrence prompt in `/workspace/_recurrences.yaml` (e.g. `morning-reflection`) whose prompt asks the Reviewer to read its own substrate and produce a reflection verdict via the unified tool-use loop. This ADR's architectural intent (Reviewer self-evolution through periodic reflection on its own substrate against money-truth) is preserved; the implementation mechanism is now the unified recurrence shape.
 
-> **Status**: Proposed — staged implementation across five commits (this ADR, back-office task, reflection-mode invocation, write-back + visibility, E2E validation).
+> **Status**: **Superseded by ADR-256** (reshaped by ADR-260 + ADR-261). *(Was: Proposed — staged implementation across five commits; the architectural intent is preserved in the unified recurrence shape per the banner above.)*
 > **Date**: 2026-04-24
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Identity** (Axiom 2) primary — the Reviewer evolves its own persona character. **Mechanism** (Axiom 5) secondary — reflection is a scheduled back-office mechanism. **Purpose** (Axiom 3) — evolution serves operator-declared MANDATE, never contradicts it.

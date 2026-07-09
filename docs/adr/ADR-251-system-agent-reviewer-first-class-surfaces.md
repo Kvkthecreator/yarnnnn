@@ -4,6 +4,8 @@
 
 > **⚠ Vocabulary update (2026-05-08, [ADR-259](ADR-259-feed-surface.md))**: references to "chat" / "the chat" below are preserved as period vocabulary. Operator-facing surface is "the Feed" post-ADR-259. (The three-party participant model that this ADR rested on is itself superseded by ADR-272 above — feed becomes two voices + ambient activity.)
 
+> **Status**: **Superseded by ADR-272** (2026-05-14). *(Was: Proposed — D1/D3/D7 all reversed; System Agent dissolves as a cockpit entity per the banner above.)*
+
 > **Status**: **Implemented** (2026-05-06 — Commits 1–2; D5 cadence panel shipped)
 > **Date**: 2026-05-06
 > **Authors**: KVK, Claude
