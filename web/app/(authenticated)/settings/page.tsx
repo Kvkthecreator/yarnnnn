@@ -28,6 +28,10 @@ import { useNarrative } from "@/contexts/NarrativeContext";
 // ADR-416, superseding ADR-347's account-door placement). The shared
 // SettingsPaneShell renders the sidebar + pane switch (ADR-341 D5).
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
+// ADR-425 — the Connectors pane (a human's platform credentials) lives in the
+// account door now. The section is location-agnostic; it was formerly mounted
+// under Workspace Settings → Perception.
+import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
 
 interface DangerZoneStats {
   workspace_files: number;
@@ -55,13 +59,23 @@ interface NotificationPreferences {
 // WORKSPACE-scoped (the workspace is the billing unit, ADR-416; getLimits /
 // getUsageDetail key on the acting workspace_id, migration 200). This supersedes
 // ADR-347's account-door placement, which predated the ADR-416 billing-unit
-// ratification. The account door now holds only Account.
-type SettingsTab = "account";
+// ratification.
+// ADR-425 (2026-07-09): Connectors moves IN — a platform credential is an
+// account object (a human's own Slack/Notion/GitHub, keyed user_id), not a
+// workspace peripheral. So the account door holds Account + Connections.
+type SettingsTab = "account" | "connectors";
 
 const PANE_GROUPS: PaneGroup[] = [
   {
     label: "Account",
     panes: [{ key: "account", label: "Account", icon: User }],
+  },
+  // ADR-425 — a human's platform connections are their own credentials, in
+  // their account. (The workspace does not present "its connectors"; it
+  // presents who has a grant + what they authored.)
+  {
+    label: "Connections",
+    panes: [{ key: "connectors", label: "Connectors", icon: Link2 }],
   },
 ];
 
@@ -277,7 +291,31 @@ export default function SettingsPage() {
   const renderPane = (pane: string) => (
     <>
       {/* Billing + Usage moved to Workspace Settings (ADR-416 follow-on,
-          2026-07-08) — workspace-scoped money. This door is Account only. */}
+          2026-07-08) — workspace-scoped money. */}
+
+      {/* Connectors — ADR-425: a human's platform connections are account
+          objects (their own credential, keyed user_id). Moved here from
+          Workspace Settings → Perception. Reuses ConnectedIntegrationsSection
+          (location-agnostic); the connector drill-in rides settings.connector. */}
+      {pane === "connectors" && (
+        <section className="mb-8">
+          {!accountParam.get("connector") && (
+            <PaneHeader
+              icon={Link2}
+              title="Connectors"
+              subtitle="Your platform connections — each is your own credential, in your account. Connect, see status, disconnect."
+              bordered={false}
+            />
+          )}
+          <ConnectedIntegrationsSection
+            redirectTo="/settings?settings.pane=connectors"
+            showFreshness
+            activeConnector={accountParam.get("connector")}
+            onManageConnection={(provider) => accountParam.set({ connector: provider })}
+            onBackFromManage={() => accountParam.set({ connector: null })}
+          />
+        </section>
+      )}
 
       {/* Account Tab - Data & Privacy */}
       {pane === "account" && (

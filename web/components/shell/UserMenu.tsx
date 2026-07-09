@@ -172,8 +172,10 @@ export function UserMenu({ email }: UserMenuProps) {
 
   const handleConnectors = () => {
     setIsOpen(false);
-    // ADR-415 — Connectors is a Workspace Settings → Perception pane now.
-    navigateToSurface('workspace-settings', { pane: 'connectors' });
+    // ADR-425 — Connectors is an account-door pane now (a credential is a
+    // human's account object). foregroundSurface resolves pane_of=settings
+    // from the registry, so this follows the surface registry automatically.
+    foregroundSurface('connectors');
   };
 
   // Get initials from email
@@ -358,8 +360,9 @@ export function UserMenu({ email }: UserMenuProps) {
                 </span>
               </button>
 
-              {/* Connectors — a plain link into Workspace Settings → Perception
-                  (ADR-415 home). Connection reach is reachable, not a chip. */}
+              {/* Connectors — a plain link into the account door (ADR-425:
+                  a platform credential is a human's account object). Reachable,
+                  not a chip. */}
               <button
                 onClick={handleConnectors}
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"

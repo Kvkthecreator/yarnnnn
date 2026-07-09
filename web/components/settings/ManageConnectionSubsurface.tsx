@@ -243,9 +243,10 @@ export function ManageConnectionSubsurface({
   // There is deliberately no separate reconnect endpoint.
   const reconnect = async () => {
     try {
-      // ADR-415 (2026-07-08): connectors re-homed to Workspace Settings →
-      // Perception (was /channels?channels.pane=connectors).
-      const back = `/workspace-settings?workspace-settings.pane=connectors&workspace-settings.connector=${provider}`;
+      // ADR-425 (2026-07-09): connectors re-homed to the account door (a
+      // platform credential is a human's account object). The reconnect
+      // round-trip returns to the account door's Connectors pane + drill-in.
+      const back = `/settings?settings.pane=connectors&settings.connector=${provider}`;
       const result = await api.integrations.getAuthorizationUrl(provider, back);
       window.location.href = result.authorization_url;
     } catch (e) {

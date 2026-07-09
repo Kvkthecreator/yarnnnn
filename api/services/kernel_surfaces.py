@@ -697,8 +697,9 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # read/manage; first-class door stays the Home band, ADR-312 D5),
         # Contract (Budget=Rhythm · Autonomy=Witness · Expected Output — the
         # operating contract, moved in by ADR-347), Operation (Program),
-        # Perception (Connectors, Sources). The account moved OUT to the
-        # UserMenu (ADR-347 D2).
+        # Access (members). Perception left: Connectors → the account door
+        # (ADR-425 — a credential is a human's account object), Sources hidden.
+        # The account moved OUT to the UserMenu (ADR-347 D2).
         # ADR-349 D4 (2026-06-19): the operator re-split the launcher into two
         # settings doors. This is the OPERATION door, titled "Workspace
         # Settings", `workspace-config` tier (above User Settings).
@@ -715,44 +716,43 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "settings",
         "default_pinned": False,
         "route": "/workspace-settings",
-        "summary": "Workspace Settings — what this operation is and how it runs. Constitution (mandate/identity/principles), Contract (budget/autonomy/expected output), Program, Perception (Connectors/Sources), Access (members). (ADR-415 restored Perception here; Channels dissolved.)",
+        "summary": "Workspace Settings — what this operation is and how it runs. Constitution (mandate/identity/principles), Contract (budget/autonomy/expected output), Program, Access (members), Billing/Usage. (ADR-425 moved Connectors to the account door + hid Sources.)",
     },
     {
         "slug": "connectors",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 (was `settings`)
-        "pane_of": "workspace-settings",  # ADR-415 — re-homed from channels (dissolved) back to the management plane's Perception group
-        "pane_group": "Perception",
+        "pane_of": "settings",  # ADR-425 — a platform credential is an account object; the Connectors pane lives in the account door (the UserMenu window), not Workspace Settings. Re-homed from workspace-settings (ADR-415) → settings.
+        "pane_group": "Connections",
         "title": "Connectors",
         "archetype": "dashboard",
-        "substrate_paths": [],  # platform_connections DB table
+        "substrate_paths": [],  # platform_connections DB table (account-scoped, user_id — ADR-425)
         "icon_key": "link-2",
         "default_pinned": False,
         "route": "/connectors",
-        "summary": "OAuth + API-key platform integrations (Slack, Notion, GitHub, Alpaca, Lemon Squeezy, etc.). Live connection state + per-platform substrate.",
+        "summary": "Your platform connections (Slack, Notion, GitHub, Alpaca, Lemon Squeezy, etc.) — each is your own credential, in your account. Connect, see status, disconnect.",
     },
     {
-        # ADR-338 D4.1 (2026-06-11): the standing-watch "drivers" view. Sibling
-        # of Connectors in the os-config register — both bind transports the
-        # operation perceives through. Connectors binds head platforms (OAuth);
-        # Sources binds the generic web/RSS standing watch (ADR-336). Reads the
-        # active bundle's declared watch sources (_sources.yaml) paired with
-        # observed per-source health (_watch_signal.yaml). Kernel-agnostic: the
-        # declaration path comes from the bundle's substrate_abi.watches, not a
-        # kernel constant (ADR-224 boundary). substrate_paths is [] — the surface
-        # reads GET /api/sources, which resolves the per-bundle paths server-side.
+        # ADR-425 D2 (2026-07-09): Sources is HIDDEN from the operator surface.
+        # It has no pane home — `pane_of`/`pane_group` stripped so it renders
+        # nowhere; the row is retained (hide-not-delete) so the slug still
+        # resolves for the /sources redirect stub and so the substrate + GET
+        # /api/sources + SourcesCard stay intact for a future first-class home
+        # (ADR-425 OQ3). A standing web/RSS watch is the operation watching the
+        # world (ADR-336/338) — a legitimate concern, but not one the operator
+        # manages today; it returns as its own thing, not grouped with a human's
+        # OAuth connectors under a cosmetic "Perception" label.
         "slug": "sources",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 — a transport/driver binding
-        "pane_of": "workspace-settings",  # ADR-415 — re-homed from channels (dissolved) back to the management plane's Perception group
-        "pane_group": "Perception",
+        "hidden": True,  # ADR-425 D2 — no operator door; renders in no pane
         "title": "Sources",
         "archetype": "dashboard",
         "substrate_paths": [],  # per-bundle _sources.yaml + _watch_signal.yaml, resolved via GET /api/sources
         "icon_key": "rss",
         "default_pinned": False,
-        "route": "/sources",  # _route_status: NEW in ADR-338 D4.1
-        "summary": "Standing-watch sources — the web/RSS feeds the operation reads on cadence, with observed per-source health. A portfolio of attention, not a crawler.",
+        "route": "/sources",  # redirect stub → /home (ADR-425 D2); substrate retained
+        "summary": "Standing-watch sources — the web/RSS feeds the operation reads on cadence. Hidden from the operator surface (ADR-425 D2); substrate retained for a future first-class home.",
     },
     # =========================================================================
     # ADR-297 D11 — Chrome surfaces (Universal Surface Application)
