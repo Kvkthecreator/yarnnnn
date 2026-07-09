@@ -9,7 +9,14 @@ services:
     region: singapore
     plan: starter
     buildCommand: pip install -r api/requirements.txt
-    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    # cwd = api/ (matches the live service; some reads resolve relative to the
+    # app dir). --limit-max-requests recycles the single uvicorn worker after N
+    # requests so the process restarts clean, bounding any residual RSS creep
+    # regardless of source (belt-and-suspenders atop MALLOC_TRIM + the client-
+    # teardown fixes). At ~0.5 req/s that's ≈ one clean restart per 5–6h; uvicorn
+    # drains in-flight requests first, so SSE streams finish before the recycle.
+    # See docs/infrastructure/memory-and-client-lifecycle.md.
+    startCommand: cd api && uvicorn main:app --host 0.0.0.0 --port $PORT --limit-max-requests 10000
     envVars:
       # Memory discipline (2026-06-05): glibc malloc retains freed per-thread
       # arenas under threaded request churn (httpx pools) and is slow to return
