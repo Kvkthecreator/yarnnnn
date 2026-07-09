@@ -106,12 +106,13 @@ def test_pane_homing() -> None:
     # constitution of its own (ADR-414 D6). They are per-agent concepts (surfaced
     # on the agent detail), so they leave the navigable set (no route, no pane_of).
     # ADR-418 — expected-output is likewise dormant (a hired agent's contract).
-    for slug in ("mandate", "identity", "principles", "expected-output"):
+    # ADR-432 D2d (2026-07-09): `program` joins the dormant set — the
+    # operator-facing hire pane is retired (zero hired-program grants; the hire
+    # machinery stays, but the surface is non-navigable, like the constitution
+    # surfaces above).
+    for slug in ("mandate", "identity", "principles", "expected-output", "program"):
         check(f"{slug} is dormant (no pane_of)", by_slug[slug].get("pane_of") is None)
         check(f"{slug} is dormant (no route)", not by_slug[slug].get("route"))
-    for slug in ("program",):
-        check(f"{slug} → the one Settings door", by_slug[slug].get("pane_of") == "workspace-settings")
-        check(f"{slug} grouped Operation", by_slug[slug].get("pane_group") == "Operation")
     # ADR-425 (2026-07-09): Perception left Workspace Settings — `connectors` is
     # now pane_of settings (the account door: a credential is a human's account
     # object), grouped "Connections"; `sources` is HIDDEN (no pane_of, no operator

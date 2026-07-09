@@ -143,10 +143,11 @@ def test_three_way_parity() -> None:
             # expected-output LEFT (dormant). ADR-421: mandate/identity/principles
             # LEFT (dormant) — a workspace has no constitution of its own.
             "budget", "autonomy",
-            # Workspace Settings — Operation (program). ADR-425 (2026-07-09):
-            # `connectors` is now pane_of settings (the account door); `sources` is
-            # HIDDEN (no pane_of, no route) so it drops out of the pane set.
-            "program", "connectors",
+            # ADR-425 (2026-07-09): `connectors` is now pane_of settings (the
+            # account door); `sources` is HIDDEN (no pane_of/route). ADR-432 D2d
+            # (2026-07-09): `program` LEFT the pane set — the operator hire pane
+            # is retired, the slug is dormant (routeless).
+            "connectors",
             # Recurrence (Machinery) — ADR-340 D8
             "activity",
         },

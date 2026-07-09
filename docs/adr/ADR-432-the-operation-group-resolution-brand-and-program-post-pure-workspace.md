@@ -105,6 +105,38 @@ the structural fold is a deferred build.
   workspace Program pane stays this pass (with corrected gate + framing) until
   the roster reconciliation ships.**
 
+- **D2d — Amendment (2026-07-09, operator ruling): retire the operator-facing
+  Program PANE now; keep the hire machinery.** D2c kept the pane "until the fold
+  ships." The operator then asked whether the pane is dead at this stage. The
+  empirical answer is yes: **zero hired-program grants exist anywhere on the
+  platform** (`principal_grants where role='own-agent' and principal_id like
+  'program:%'` → 0 rows), activation has never fired, and the commons-first
+  launch (ADR-404) is the shared workspace + members/AI — not hiring pre-built
+  programs. Worse than merely unused: the pane presents a launch operator a
+  "hire a program" action into the **deliberately-unvalidated Rung-2 path**
+  (ADR-380's track-record clock defers autonomy-over-consequential-action;
+  alpha-trader activation would mint an untested judgment agent). And with
+  Billing/Usage having left this door (ADR-429 §13.3), Operation was a
+  group-of-one — a never-used action into a deferred model.
+  **The cut (bounded, honest):**
+  - The operator-facing pane + its (now-empty) **Operation group** + the in-file
+    `ProgramPaneBody` are removed; Workspace Settings becomes **Access (Members)**
+    alone — a coherent "who can write this workspace" door.
+  - The `program` kernel surface goes **DORMANT** — `pane_of: None`, `route: None`
+    — the **exact pattern ADR-421 used** to retire the constitution surfaces
+    (mandate/identity/principles) from the operator door while preserving the
+    slug. `/program` redirects to bare `/workspace-settings` for bookmark-safety.
+  - **The machinery is UNTOUCHED**: `getState.available_programs`/
+    `active_program_slug`, `resolve_hired_program_slug`, the hire-grant path
+    (`routes/programs.py` + `services/programs.py`), `bundle_reader`, the
+    compositor **ProgramCockpit** (reads `active_program_slug` +
+    `home.program_sections`, NOT the `program` surface row), the alpha-trader
+    component suite, and `ProgramLifecycleDrawer` (still used by `SetupSequence`)
+    all stay. When ADR-382 builds the hired-agent roster, activation re-surfaces
+    there (D2c) — the ratified endpoint — not on a workspace-settings pane.
+  This does NOT reverse D2c (the fold is still the endpoint); it removes the
+  dead interim UI ahead of that build rather than keeping a misleading action.
+
 ### D3 — The residual container (ADR-387 D5) — resolved: keep Workspace Settings
 
 After this pass the OPERATION group holds Brand (interim) + Program (interim,

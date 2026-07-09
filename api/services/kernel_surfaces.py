@@ -596,10 +596,18 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "program",
-        "launcher_tier": "search-only",  # ADR-340 P3
+        # ADR-432 D2d (2026-07-09): DORMANT — mirrors the ADR-421 mandate/identity
+        # dormancy. The operator-facing Program PANE (the "hire a program"
+        # activation UI) is retired: zero hired-program grants exist anywhere,
+        # activation has never fired, and it presented a launch operator an action
+        # into the deliberately-unvalidated Rung-2 path (ADR-380). No `pane_of`, no
+        # `pane_group`, no `route`, no `launcher_tier` — non-navigable, the surface
+        # concept survives in the registry (flat search) only. The hire MACHINERY
+        # is untouched (getState available_programs / active_program_slug, the
+        # compositor ProgramCockpit, routes/programs.py, ProgramLifecycleDrawer via
+        # SetupSequence). Activation re-surfaces on /agents when ADR-382 builds the
+        # hired-agent roster (ADR-432 D2c).
         "register": "os-config",  # ADR-312 D5 (was `settings`)
-        "pane_of": "workspace-settings",  # ADR-341 — Operation pane (was settings, ADR-340 P2)
-        "pane_group": "Operation",
         "title": "Program",
         "archetype": "document",
         "substrate_paths": [
@@ -607,7 +615,6 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         ],
         "icon_key": "package",
         "default_pinned": False,
-        "route": "/program",  # _route_status: NEW in Phase 2 — replaces ProgramLifecycleDrawer
         "summary": "Active program bundle, phase, and capability gaps.",
     },
     {

@@ -30,22 +30,16 @@
  *     operation's; SystemAgentPanes mounts on system-agent/page.tsx now.
  */
 
-import { useEffect, useState } from "react";
-import { Package, AlertCircle, Rocket, Loader2, Users } from "lucide-react";
-import { api, APIError } from "@/lib/api/client";
-import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
-import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
+import { Users } from "lucide-react";
+import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 // ADR-429 §13.3 (2026-07-09) — Billing + Usage LEFT this door for the account
-// door (User Settings, Vercel-style: the account door is the entry point; the
-// content stays workspace-scoped + names its workspace). Re-reverses the ADR-416
-// follow-on that homed them here. The workspace-as-billing-unit data-model is
+// door (User Settings, Vercel-style). The workspace-as-billing-unit data-model is
 // unchanged — only the door moved (see settings/page.tsx).
-// ADR-421 — the Constitution-pane card imports were removed with the group (a
-// workspace has no constitution of its own; the mandate/persona/principles cards
-// render on the agent detail via AgentConstitutionBlock, ADR-419).
-import { GrantGate } from "@/components/workspace-concepts/GrantGate";
+// ADR-421 — the Constitution-pane card imports were removed with the group.
+// ADR-432 D1c/D2d — Brand + Program pane imports removed (Brand retired; the
+// operator-facing Program hire UI is retired, its lifecycle-drawer component
+// stays in the Setup sequence).
 import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
-import { ProgramLifecycleDrawer } from "@/components/library/ProgramLifecycleDrawer";
 // ADR-425 — the Perception group (Connectors · Sources) left this door:
 // Connectors → the account door (a credential is a human's account object),
 // Sources → hidden. ConnectedIntegrationsSection now mounts in settings/page.tsx;
@@ -72,24 +66,17 @@ const PANE_GROUPS: PaneGroup[] = [
   // these into a Constitution group; ADR-419 made them home-aware; ADR-421
   // removes the workspace surface entirely — the honest endpoint.) The Home
   // HEADER still reads MANDATE.md content until the ADR-414 §9b Home recompose.
-  {
-    // ADR-432 (2026-07-09) resolved the ADR-387 D4 deferral for this group:
-    //  - Brand: operator-authored output styling, read by NO producing path
-    //    today. Ratified DIRECTION (D1) — a HIRED AGENT's output-styling concern,
-    //    homes per-agent under agents/{slug}/ when load-bearing; the copy stops
-    //    over-promising this pass (retire-vs-keep is the operator's next call).
-    //  - Program: backend is ADR-414 hire-grant (correct); the pane's gate +
-    //    framing were fixed to the hire model (D2a/D2b). The singular pane folds
-    //    into the /agents roster under ADR-382 — direction ratified, build
-    //    deferred (zero live hired programs, D2c).
-    label: "Operation",
-    panes: [
-      // ADR-432 D1c (2026-07-09): the Brand pane is RETIRED — operation/BRAND.md
-      // was read by no producing path; brand voice homes per-agent when a hired
-      // agent needs it (ADR-432 D1b), not on a workspace pane.
-      { key: "program", label: "Program", icon: Package },
-    ],
-  },
+  // ADR-432 (2026-07-09) — the OPERATION group is REMOVED entirely.
+  //  - Brand: retired in full (D1c) — operation/BRAND.md read by no producing path.
+  //  - Program: the operator-facing pane is RETIRED (D2d). Zero hired-program
+  //    grants exist anywhere; activation has never fired; the pane presented a
+  //    launch operator a "hire a program" action into the deliberately-unvalidated
+  //    Rung-2 path (ADR-380). The `program` surface goes DORMANT (like ADR-421 did
+  //    to the constitution surfaces); the hire MACHINERY is untouched (getState
+  //    available_programs / active_program_slug, routes/programs.py, the compositor
+  //    program-cockpit, the lifecycle-drawer via the Setup sequence). Activation
+  //    re-surfaces on the /agents roster when ADR-382 builds it (D2c).
+  // With Billing/Usage gone (ADR-429 §13.3), the door is now Access alone.
   // ADR-425 (2026-07-09) — the Perception group is REMOVED. Connectors moved
   // to the account door (User Settings): a platform credential is a human's
   // account object, not a workspace peripheral. Sources is hidden from the
@@ -111,42 +98,16 @@ const PANE_GROUPS: PaneGroup[] = [
 ];
 
 export default function WorkspaceSettingsPage() {
-  const { navigateToSurface } = useSurfacePreferences();
-  // ADR-425 — the connector drill-in param moved to the account door with the
-  // Connectors pane (settings.connector); this door no longer reads it.
-
   const renderPane = (pane: string) => {
     // ADR-426 — the System Agent panes moved to their own door (/system-agent);
     // they no longer render here.
     switch (pane) {
-      // ADR-421 — the Mandate/Identity/Principles cases are REMOVED. A workspace
-      // has no constitution of its own (ADR-414 D6): these are a hired agent's
-      // concerns, surfaced on the agent detail (AgentConstitutionBlock, ADR-419).
-      // The registry slugs are dormant; nothing routes here.
-      // ADR-432 D1c (2026-07-09) — the `brand` case is REMOVED. operation/BRAND.md
-      // was read by no producing path; brand voice homes per-agent (ADR-432 D1b).
-      case "program":
-        // ADR-432 D2a/D2b (2026-07-09): activation HIRES an Altitude-3 agent
-        // (ADR-414 D5) — it mints a `principal_grants` hire row and installs the
-        // bundle load-out into `agents/{slug}/`; deactivation FIRES it (revokes
-        // the grant). It does NOT fork the constitution (the pre-ADR-414
-        // occupant-fork + MANDATE/persona/governance-seed model is DELETED, and
-        // ADR-421 removed the workspace `constitution/` root entirely). So the
-        // gate keys on `agents/` — the region the hire actually writes — not the
-        // stale `constitution/`. (The singular workspace-level "Program" pane
-        // folds into the /agents roster under ADR-382 — direction ratified,
-        // build deferred; zero live hired programs today, ADR-432 D2c.)
-        return (
-          <section className="mb-8">
-            <GrantGate region="agents/">
-              <ProgramPaneBody onRerunSetup={() => navigateToSurface("setup")} />
-            </GrantGate>
-          </section>
-        );
-      // ADR-425 — the "connectors" + "sources" cases are REMOVED. Connectors
-      // renders in the account door (settings/page.tsx); Sources is hidden from
-      // the operator surface (its SourcesCard + GET /api/sources substrate are
-      // retained for a future first-class home, ADR-425 D2/OQ3).
+      // ADR-421 — Mandate/Identity/Principles cases REMOVED (workspace has no
+      // constitution of its own; per-agent, ADR-419). ADR-432 D1c — `brand` case
+      // REMOVED (Brand retired). ADR-432 D2d — `program` case REMOVED (the
+      // operator-facing hire UI is retired; the `program` surface is dormant, the
+      // hire machinery stays — see PANE_GROUPS). ADR-425 — connectors/sources
+      // cases REMOVED (connectors → account door; sources hidden).
       case "members":
         // ADR-373 D2 — read-only Workspace Members legibility.
         return (
@@ -162,56 +123,10 @@ export default function WorkspaceSettingsPage() {
   };
 
   return (
-    <SettingsPaneShell windowSlug="workspace-settings" paneGroups={PANE_GROUPS} defaultPane="program" renderPane={renderPane} />
+    <SettingsPaneShell windowSlug="workspace-settings" paneGroups={PANE_GROUPS} defaultPane="members" renderPane={renderPane} />
   );
 }
 
-/**
- * ProgramPaneBody — the Program pane (lifted from the ADR-340 P2
- * SettingsPage; re-homed to Workspace Settings per ADR-341). Wraps
- * ProgramLifecycleDrawer (ADR-244) + the "re-run setup" re-entry door
- * (Setup itself stays a window-grade Sequence surface per ADR-331).
- */
-function ProgramPaneBody({ onRerunSetup }: { onRerunSetup: () => void }) {
-  const [state, setState] = useState<Awaited<ReturnType<typeof api.workspace.getState>> | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const refresh = async () => {
-    try {
-      const next = await api.workspace.getState();
-      setState(next);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof APIError ? err.message : "Failed to load program state");
-    }
-  };
-
-  useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return (
-    <div className="space-y-4">
-      {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-      {!state && !error && (
-        <div className="flex items-center justify-center py-10">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-        </div>
-      )}
-      {state && <ProgramLifecycleDrawer state={state} onMutation={refresh} />}
-      <button
-        onClick={onRerunSetup}
-        className="flex items-center gap-2 text-sm text-primary hover:underline"
-      >
-        <Rocket className="w-4 h-4" />
-        Re-run setup
-      </button>
-    </div>
-  );
-}
+// ADR-432 D2d (2026-07-09): the in-file Program pane body was REMOVED with the
+// operator-facing Program pane. The lifecycle-drawer component it wrapped stays
+// (used by the Setup sequence); the getState / hire machinery is untouched.

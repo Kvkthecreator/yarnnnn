@@ -94,11 +94,13 @@ export type DeskSurface =
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   // ADR-418 removed the Expected-Output slug (dormant). ADR-421 (2026-07-08)
   // removes mandate / principles / identity too — a workspace has no
-  // constitution of its own (ADR-414 D6). All four are dormant registry rows
-  // (routeless, backend-only); the three-way parity (navigable == allowlist ==
+  // constitution of its own (ADR-414 D6). ADR-432 D2d (2026-07-09) removes
+  // `program` — the operator-facing hire pane is retired; the slug goes dormant
+  // (routeless, backend-only, like the constitution surfaces). All are dormant
+  // registry rows; the three-way parity (navigable == allowlist ==
   // registry∪panes) holds with them out of all three.
   'home', 'chat', 'recurrence', 'budget', 'autonomy',
-  'files', 'agents', 'setup', 'program', 'queue', 'notifications', 'activity',
+  'files', 'agents', 'setup', 'queue', 'notifications', 'activity',
   // ADR-425 D2: `sources` LEFT the allowlist (hidden, redirect-stub only).
   'settings', 'workspace-settings', 'system-agent', 'connectors',
 ] as const;

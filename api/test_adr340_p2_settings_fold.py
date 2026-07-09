@@ -35,12 +35,12 @@ FAILED = 0
 # the /agents roster, and the panes re-homed to Workspace Settings as the
 # System Agent group.
 # ADR-421 (2026-07-08): the Constitution group is REMOVED — a workspace has no
-# constitution of its own (ADR-414 D6). mandate/identity/principles are dormant
-# (per-agent concepts, surfaced on the agent detail). Only Program remains a
-# workspace-content pane here.
-WORKSPACE_SETTINGS_PANES = {
-    "program",   # Operation
-}
+# constitution of its own (ADR-414 D6). mandate/identity/principles are dormant.
+# ADR-432 D2d (2026-07-09): Program's operator pane is RETIRED — `program` is now
+# dormant too (the hire machinery stays, the surface is non-navigable). So there
+# are NO os-config panes left on the Workspace-Settings door (Members is an Access
+# card, not an os-config pane). This set is empty.
+WORKSPACE_SETTINGS_PANES: set = set()
 # ADR-418 (2026-07-08) PURIFIED the System Agent group to the STEWARD's dials
 # (ADR-414 D2): autonomy + budget only. ADR-426 (2026-07-09): the group carved
 # out into its OWN door — these are pane_of system-agent now, not
@@ -124,9 +124,9 @@ def test_registry_pane_model() -> None:
     # door; sources is hidden (no pane_group).
     check("connectors grouped Connections (ADR-425)", by_slug["connectors"]["pane_group"] == "Connections")
     check("sources has no pane_group (hidden — ADR-425 D2)", not by_slug["sources"].get("pane_group"))
-    # ADR-421: Workspace Settings keeps Program (Operation). The Constitution
-    # group is removed (mandate/identity/principles dormant — per-agent, ADR-414 D6).
-    check("program grouped Operation", by_slug["program"]["pane_group"] == "Operation")
+    # ADR-432 D2d: `program` is dormant (operator hire pane retired) — no
+    # pane_group, no pane_of. The Constitution group was already removed (ADR-421).
+    check("program is dormant (no pane_group)", not by_slug["program"].get("pane_group"))
 
 
 def test_settings_container() -> None:
@@ -154,14 +154,16 @@ def test_settings_container() -> None:
     ws_src = _read("app/(authenticated)/workspace-settings/page.tsx")
     check("Settings door mounts SettingsPaneShell", "SettingsPaneShell" in ws_src)
     check("Settings door declares PANE_GROUPS", "PANE_GROUPS" in ws_src)
-    # ADR-421: Workspace Settings keeps Brand (D3 interim) + Program. The
-    # Constitution panes (Mandate/Identity/Principles) were removed — a workspace
-    # has no constitution of its own; those render on the agent detail.
-    for needle, label in [
-        ("ProgramLifecycleDrawer", "Program pane body"),
-    ]:
-        check(f"Settings door: {label}", needle in ws_src)
-    check("Settings door Program pane carries re-run-setup door", "Re-run setup" in ws_src)
+    # ADR-432 D1c/D2d (2026-07-09): the Workspace-Settings OPERATION group is GONE
+    # — Brand retired (D1c), and the operator-facing Program pane retired (D2d, the
+    # slug is dormant, the hire machinery stays). The door no longer mounts
+    # ProgramLifecycleDrawer or the "Re-run setup" door — those were the Program
+    # pane body. The drawer survives in SetupSequence; setup re-entry is the Setup
+    # surface itself (ADR-331). The door is now Access (Members) alone.
+    check("Settings door NO LONGER mounts the Program pane body",
+          "ProgramLifecycleDrawer" not in ws_src)
+    check("Settings door NO LONGER carries the re-run-setup door",
+          "Re-run setup" not in ws_src)
     # ADR-426 (2026-07-09): the System Agent group carved out into its own door.
     # The Settings door NO LONGER mounts it; the system-agent door does (via the
     # shared SystemAgentPanes module — Singular Implementation).

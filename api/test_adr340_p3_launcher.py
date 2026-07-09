@@ -95,9 +95,11 @@ def test_registry_tiers() -> None:
         # ADR-421 (2026-07-08): `mandate`/`identity`/`principles` LEAVE too — a
         # workspace has no constitution of its own; they went dormant (route=""),
         # so they drop out of the navigable tier map (surfaced on the agent detail).
+        # ADR-432 D2d (2026-07-09): `program` LEAVES — the operator hire pane is
+        # retired; the slug went dormant (no route, no launcher_tier).
         {s for s, t in tiers.items() if t == "search-only"}
         == {"budget", "autonomy",
-            "program", "connectors", "sources", "activity", "agents",
+            "connectors", "sources", "activity", "agents",
             "queue", "recurrence", "setup", "notifications"},
     )
     chrome = [e for e in KERNEL_SURFACES if not e.get("route")]
