@@ -129,6 +129,16 @@ export interface SubscriptionStatus {
   expires_at: string | null;
   customer_id: string | null;
   subscription_id: string | null;
+  // ADR-429 Axis ② — the seat state (SHIPPED DORMANT, §5a). The backend computes
+  // the seat math live; while `seat_billing_active` is false (additional_seat_usd
+  // = 0) the fee is $0 and the FE renders the workspace as a flat plan (seats
+  // invisible). The seat UI is Phase 3 (gated on the numbers/activation
+  // discourse); these fields exist now so getStatus() is honest end-to-end.
+  human_seats: number;          // active human members (owner + members)
+  included_seats: number;       // humans covered by the base
+  billable_seats: number;       // humans beyond the base
+  seat_fee_usd: number;         // billable_seats × additional_seat_usd (0 = dormant)
+  seat_billing_active: boolean; // additional_seat_usd > 0 → seat pricing is live
 }
 
 export interface CheckoutResponse {

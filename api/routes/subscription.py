@@ -227,6 +227,16 @@ class SubscriptionStatus(BaseModel):
     expires_at: Optional[str] = None
     customer_id: Optional[str] = None
     subscription_id: Optional[str] = None
+    # ── ADR-429 Axis ② — the seat state (SHIPPED DORMANT, §5a) ────────────────
+    # The seat math, surfaced for legibility. `seat_fee_usd` is $0 while the axis
+    # is dormant (additional_seat_usd = 0 in TIER_CONFIG); `seat_billing_active`
+    # tells the FE whether to SHOW seat pricing at all. When dormant the FE treats
+    # the workspace as flat-plan (the seat axis is invisible) — N=1 unaffected.
+    human_seats: int = 1                 # active human members (owner + members)
+    included_seats: int = 1              # humans covered by the base
+    billable_seats: int = 0              # humans beyond the base (max(0, human−included))
+    seat_fee_usd: float = 0.0            # billable_seats × additional_seat_usd (0 = dormant)
+    seat_billing_active: bool = False    # additional_seat_usd > 0 → seat pricing is live
 
 
 class PortalResponse(BaseModel):
@@ -250,11 +260,30 @@ async def get_subscription_status(auth: UserClient):
     if not rows:
         return SubscriptionStatus(tier="free")
     ws = rows[0]
+    tier = normalize_tier(ws.get("subscription_tier"))
+    # ADR-429 Phase 2 — the seat state (dormant §5a). The math runs live; with a
+    # $0 additional-seat fee it bills nothing and `seat_billing_active` is False,
+    # so the FE renders the workspace as a flat plan (seats invisible) until the
+    # operator sets a non-zero fee in TIER_CONFIG. Never raises — seat helpers
+    # fail-safe to (1 human, $0).
+    from services.billing_tiers import (
+        count_human_seats,
+        tier_included_seats,
+        billable_seats as _billable_seats,
+        seat_fee_usd as _seat_fee_usd,
+        tier_additional_seat_usd,
+    )
+    humans = count_human_seats(auth.client, workspace_id)
     return SubscriptionStatus(
-        tier=normalize_tier(ws.get("subscription_tier")),
+        tier=tier,
         expires_at=ws.get("subscription_expires_at"),
         customer_id=ws.get("lemonsqueezy_customer_id"),
         subscription_id=ws.get("lemonsqueezy_subscription_id"),
+        human_seats=humans,
+        included_seats=tier_included_seats(tier),
+        billable_seats=_billable_seats(tier, humans),
+        seat_fee_usd=_seat_fee_usd(tier, humans),
+        seat_billing_active=tier_additional_seat_usd(tier) > 0,
     )
 
 

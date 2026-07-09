@@ -43,6 +43,16 @@ class TierSpec(TypedDict):
     retention_max_days: int          # connector raw-lane retention ceiling (gate 1)
     connector_max: Optional[int]     # connector count ceiling; None = unlimited (gate 2)
     ls_variant_env: Optional[str]    # env var holding the LS subscription variant id
+    # ── ADR-429 Axis ② — the seat axis (SHIPPED DORMANT, §5a) ─────────────────
+    # A seat = a HUMAN member's access (role ∈ {owner, member}); AI principals are
+    # free (never counted). `included_seats` humans are covered by the base;
+    # additional humans bill `additional_seat_usd` each. DORMANT at launch:
+    # `additional_seat_usd = 0` → billable-seat math runs and returns $0, so N=1
+    # and existing multi-human workspaces are byte-identical. Activation = set a
+    # non-zero fee here (one config change, no code). The seat=access carve
+    # (ADR-429 §3): a seat NEVER carries a usage bucket — usage is the shared meter.
+    included_seats: int              # humans covered by the base (owner-inclusive)
+    additional_seat_usd: float       # $/additional human/mo (0 = dormant, ADR-429 §5a)
 
 
 # ── The tiers ────────────────────────────────────────────────────────────────
@@ -58,6 +68,11 @@ TIER_CONFIG: dict[str, TierSpec] = {
         "retention_max_days": 7,
         "connector_max": 1,
         "ls_variant_env": None,
+        # ADR-429 §5a — seat axis DORMANT ($0). Free is single-seat by design
+        # (a shared commons is a paid capability — §5/§9 open question); the
+        # additional-seat fee is $0 everywhere until activation.
+        "included_seats": 1,
+        "additional_seat_usd": 0.0,
     },
     "starter": {
         "label": "Starter",
@@ -66,6 +81,10 @@ TIER_CONFIG: dict[str, TierSpec] = {
         "retention_max_days": 30,
         "connector_max": 3,
         "ls_variant_env": "LEMONSQUEEZY_STARTER_VARIANT_ID",
+        # ADR-429 §5a — DORMANT. Placeholder activation value would be ~$12
+        # (the ADR-429 §5 launch-test hypothesis); $0 until the operator flips it.
+        "included_seats": 1,
+        "additional_seat_usd": 0.0,
     },
     "pro": {
         "label": "Pro",
@@ -74,6 +93,9 @@ TIER_CONFIG: dict[str, TierSpec] = {
         "retention_max_days": 90,
         "connector_max": None,  # unlimited
         "ls_variant_env": "LEMONSQUEEZY_PRO_VARIANT_ID",
+        # ADR-429 §5a — DORMANT ($0).
+        "included_seats": 1,
+        "additional_seat_usd": 0.0,
     },
 }
 
@@ -136,6 +158,67 @@ def tier_connector_max(tier: str) -> Optional[int]:
     return tier_spec(tier)["connector_max"]
 
 
+# ── ADR-429 Axis ② — seat math (SHIPPED DORMANT, §5a) ─────────────────────────
+# A seat is a HUMAN member (role ∈ {owner, member}). AI principals (foreign-llm,
+# a2a, own-agent, platform) are free — never counted. The math runs live but with
+# a $0 additional-seat fee it bills nothing, so N=1 + existing workspaces are
+# byte-identical (§5a). Activation = a non-zero `additional_seat_usd` in TIER_CONFIG.
+
+HUMAN_SEAT_ROLES = ("owner", "member")
+
+
+def tier_included_seats(tier: str) -> int:
+    """Humans covered by the base (owner-inclusive) for a tier."""
+    return tier_spec(tier)["included_seats"]
+
+
+def tier_additional_seat_usd(tier: str) -> float:
+    """$/additional human seat/mo for a tier (0.0 = DORMANT, ADR-429 §5a)."""
+    return tier_spec(tier)["additional_seat_usd"]
+
+
+def count_human_seats(client: Any, workspace_id: str) -> int:
+    """Count active HUMAN members of a workspace (role ∈ {owner, member}).
+
+    The seat axis bills humans; AI principals (foreign-llm/a2a/own-agent/platform)
+    are free and excluded. Reads active `principal_grants` — the same roster the
+    members surface + the UserMenu people-count derive from (audit §5). Fail-safe
+    to 1 (a workspace always has at least its owner) so a read error can never
+    over-count and over-bill."""
+    try:
+        result = (
+            client.table("principal_grants")
+            .select("principal_id, role")
+            .eq("workspace_id", workspace_id)
+            .eq("status", "active")
+            .in_("role", list(HUMAN_SEAT_ROLES))
+            .execute()
+        )
+        rows = result.data or []
+        # Distinct principals (defensive — a principal should hold one active grant).
+        humans = {r.get("principal_id") for r in rows if r.get("principal_id")}
+        return max(1, len(humans))
+    except Exception as e:
+        logger.warning(f"[SEATS] count_human_seats failed for {workspace_id}: {e}")
+        return 1
+
+
+def billable_seats(tier: str, human_count: int) -> int:
+    """Additional humans billed beyond the base's included seats.
+
+    `max(0, human_count − included_seats)`. At N=1 (solo) or when a tier includes
+    every human present, this is 0 — the seat axis is invisible."""
+    return max(0, human_count - tier_included_seats(tier))
+
+
+def seat_fee_usd(tier: str, human_count: int) -> float:
+    """Total monthly seat fee for a workspace: billable_seats × additional_seat_usd.
+
+    DORMANT (§5a): with `additional_seat_usd = 0` this is always $0.0 — the seat
+    math is exercised and correct, but nothing is charged until activation."""
+    return round(billable_seats(tier, human_count) * tier_additional_seat_usd(tier), 2)
+
+
 def retention_max_days_for_user(client: Any, user_id: str) -> int:
     """Resolve the retention ceiling for a user via their active tier. The one
     call the retention GC + FE read route use to clamp the declared window."""
@@ -180,6 +263,11 @@ def public_tier_ladder() -> list[dict]:
             "monthly_allowance_usd": spec["monthly_allowance_usd"],
             "retention_max_days": spec["retention_max_days"],
             "connector_max": spec["connector_max"],
+            # ADR-429 Axis ② — seat info for the pricing page (Phase 3). Dormant
+            # while additional_seat_usd = 0; the page reads `additional_seat_usd`
+            # to decide whether to show per-seat pricing at all (§5a).
+            "included_seats": spec["included_seats"],
+            "additional_seat_usd": spec["additional_seat_usd"],
         })
     return ladder
 
@@ -199,4 +287,11 @@ __all__ = [
     "variant_id_for_tier",
     "tier_for_variant_id",
     "public_tier_ladder",
+    # ADR-429 Axis ② — seat helpers (dormant §5a)
+    "HUMAN_SEAT_ROLES",
+    "tier_included_seats",
+    "tier_additional_seat_usd",
+    "count_human_seats",
+    "billable_seats",
+    "seat_fee_usd",
 ]
