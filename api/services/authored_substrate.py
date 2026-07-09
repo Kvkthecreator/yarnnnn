@@ -38,11 +38,12 @@ Canonical references:
 
 from __future__ import annotations
 
-import hashlib
 import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Optional
+
+from services.storage_backend import get_storage_backend, sha256_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -222,24 +223,34 @@ class Revision:
 # ---------------------------------------------------------------------------
 
 def _sha256(content: str) -> str:
-    """Compute hex sha256 of content (utf-8 encoded)."""
-    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+    """Compute hex sha256 of content (utf-8 encoded).
+
+    ADR-427 D1: this is the text case of the bytes-addressed CAS —
+    ``sha256_bytes(content.encode("utf-8"))``. Kept as a thin alias so the
+    ~existing callers are untouched; the seam owns the definition.
+    """
+    return sha256_bytes(content.encode("utf-8"))
 
 
 def _upsert_blob(db_client: Any, sha: str, content: str) -> None:
     """Insert a blob if not already present. Content-addressed by sha256.
 
-    Uses ON CONFLICT DO NOTHING semantics via the Supabase client's upsert.
-    Identical content across workspaces shares a single blob — this is the
-    content-addressed dedup property.
+    ADR-427 Phase 1: routes through the storage seam
+    (``PostgresObjectStoreBackend.put_text``) instead of a direct
+    ``workspace_blobs`` upsert — byte-identical behavior, but now the ONLY
+    physical-store knowledge lives behind ``StorageBackend`` (the down-payment
+    that makes the local-disk fork a driver swap). ``sha`` is passed by
+    existing callers and re-derived by the seam from the content; they agree by
+    construction (both are ``sha256(content.encode("utf-8"))``).
     """
-    # The Supabase Python client's upsert uses the table's primary key as
-    # the conflict target by default. sha256 is the PK, so this is
-    # idempotent by construction.
-    db_client.table("workspace_blobs").upsert(
-        {"sha256": sha, "content": content},
-        on_conflict="sha256",
-    ).execute()
+    written_sha = get_storage_backend(db_client).put_text(content)
+    # Invariant guard: the caller-supplied sha and the seam-derived sha must
+    # match (both are sha256 of the utf-8 bytes). A mismatch would mean a caller
+    # computed the address differently — a bug worth failing loudly on.
+    if written_sha != sha:  # pragma: no cover - defensive, cannot happen in Phase 1
+        raise RuntimeError(
+            f"blob address mismatch: caller {sha} != seam {written_sha}"
+        )
 
 
 def _substrate_scope(query: Any, user_id: str, workspace_id: Optional[str]) -> Any:
@@ -781,6 +792,13 @@ def read_revision(
         target_id = revisions[walk_back]["id"]
 
     # Fetch the full revision with content joined from workspace_blobs.
+    # ADR-427 Phase 1 boundary: the READ side keeps its PostgREST join
+    # (`workspace_blobs(content)`) rather than routing through the seam's
+    # get_text(sha) — the join is one query vs the seam's two (N+1), and it is
+    # byte-identical. The seam owns the WRITE path in Phase 1; the read path's
+    # join is a Postgres-driver optimization the local-disk driver replaces
+    # wholesale (ADR-427 D3), so re-plumbing it now buys nothing. Binary reads
+    # (Phase 2) route through the seam's stream, not this text join.
     # Defense-in-depth (ADR-310 follow-on, re-keyed by ADR-373): filter by
     # the acting workspace even though target_id is a PK. A caller-supplied
     # revision_id (reachable via the MCP-exposed ReadRevision/DiffRevisions
