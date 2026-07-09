@@ -26,7 +26,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Users, ShieldCheck, Bot, Plug, User, Cpu, Loader2, MoreHorizontal, ShieldMinus, Trash2, AlertTriangle } from 'lucide-react';
+import { Users, ShieldCheck, Bot, Plug, User, Cpu, Loader2, MoreHorizontal, ShieldMinus, Trash2, AlertTriangle, Link as LinkIcon } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { providerBrandIcon } from '@/lib/ai-providers/brand-icons';
@@ -77,22 +77,14 @@ const ROLE_META: Record<string, { label: string; icon: typeof Users; tone: strin
   a2a: { label: 'Agent (A2A)', icon: Bot, tone: 'text-violet-600 dark:text-violet-400' },
 };
 
-// Write-region root → a short operator-facing name. The roots are the ADR-320
-// semantic classes; operators don't think in path prefixes.
-//
-// NOTE (ADR-423 follow-on): this is the PERMISSION-region view (which grant a
-// principal holds), NOT the Files-surface operator ZONE. The Files tree renders
-// operation/ as "Documents", inbound/ as "Downloads", and folds the residue
-// under "System files" (WORKSPACE_ROOTS.group) — a deliberately DIFFERENT axis.
-// Here we name the write-REGION, so "Operation" (the operation/ lock class) is
-// correct and must NOT be renamed to match the Files zone. Two orthogonal facts.
+// Narrow-region root → operator-facing name for the NARROW dialog options.
+// ADR-424: the roster displays operator ZONES (Documents/Downloads/System files,
+// resolved backend-side into `write_zones`), never raw kernel roots. This map is
+// now only the NARROW picker's option labels — the two regions an operator can
+// grant a member (operation/ = the Documents home; agents/ = the agents home),
+// named in the same operator vocabulary the Files tree uses.
 const REGION_LABEL: Record<string, string> = {
-  'governance/': 'Governance',
-  'constitution/': 'Constitution',
-  'persona/': 'Persona',
-  'operation/': 'Operation',
-  'contract/': 'Contract',
-  'system/': 'System',
+  'operation/': 'Documents',
   'agents/': 'Agents',
 };
 
@@ -274,15 +266,19 @@ export function WorkspaceMembersCard({
             ? 'Workspace agent · writes as itself'
             : null;
         // ADR-431 D3 — WHO authorized this AI connection ("whose ChatGPT").
-        // Resolves the operator's "whose?" question directly. Only the external
-        // classes carry it; "your connection" when the viewer authorized it.
-        const connectedBy = m.connected_by_label;
-        // ADR-431 §display follow-on — the external-LLM classes render their
-        // PROVIDER brand mark (keyed on principal_id = the host-id) so ChatGPT ≠
-        // Claude at a glance; humans + own-agent keep the role's lucide glyph.
+        // Resolves the operator's "whose?" question directly. "You" when the
+        // viewer authorized it, else the member's email. Rendered as its own
+        // prominent attribution line (not buried in the kind hint).
         const isExternalAI = m.role === 'foreign-llm' || m.role === 'a2a' || m.role === 'platform';
+        const connectedByName = m.connected_by_is_you ? 'You' : (m.connected_by_label ?? null);
+        // ADR-424 — show OPERATOR ZONES (Documents/Downloads/System files), NOT
+        // the raw kernel roots. write_zones is the backend's operator projection.
+        const zones = m.write_zones ?? [];
         return (
           <li key={`${m.principal_id}-${m.role}`} className="flex items-start gap-3 px-4 py-3">
+            {/* ADR-431 §display — external LLMs render their PROVIDER brand mark
+                (keyed on principal_id = the host-id) so ChatGPT ≠ Claude at a
+                glance; humans + own-agent keep the role's lucide glyph. */}
             <div className={cn('mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted', meta.tone)}>
               {isExternalAI ? providerBrandIcon(m.principal_id) : <Icon className={cn('h-4 w-4', meta.tone)} />}
             </div>
@@ -293,27 +289,31 @@ export function WorkspaceMembersCard({
                   {meta.label}
                 </span>
               </div>
+              {/* ADR-431 D3 — WHO authorized this AI connection, first-class:
+                  a distinct, legible line (not a dim tail clause). */}
+              {isExternalAI && connectedByName && (
+                <div className="mt-1 flex items-center gap-1.5 text-[11px]">
+                  <LinkIcon className="h-3 w-3 text-muted-foreground/60" />
+                  <span className="text-muted-foreground/70">Connected by</span>
+                  <span className="font-medium text-foreground/80">{connectedByName}</span>
+                </div>
+              )}
               {kindHint && (
-                <p className="mt-0.5 text-[11px] text-muted-foreground/60">
-                  {kindHint}
-                  {connectedBy && (
-                    <> · connected by <span className="text-muted-foreground/80">{connectedBy}</span></>
-                  )}
-                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground/50">{kindHint}</p>
               )}
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <span className="text-[11px] text-muted-foreground/70">
-                  {m.scopes_explicit ? 'Can write' : 'Can write (default)'}:
+                  {m.scopes_explicit ? 'Can write (narrowed)' : 'Can write'}:
                 </span>
-                {m.write_regions.length === 0 ? (
+                {zones.length === 0 ? (
                   <span className="text-[11px] text-muted-foreground/60 italic">nothing</span>
                 ) : (
-                  m.write_regions.map((region) => (
+                  zones.map((zone) => (
                     <span
-                      key={region}
+                      key={zone}
                       className="rounded border border-border/60 px-1.5 py-0.5 text-[11px] text-foreground/70"
                     >
-                      {regionLabel(region)}
+                      {zone}
                     </span>
                   ))
                 )}

@@ -98,16 +98,19 @@ class WorkspaceMember(BaseModel):
     principal_id: str                      # the stable grant key (user id / provider host-id / slug)
     role: str                              # owner | member | own-agent | foreign-llm | platform | a2a
     label: Optional[str] = None            # humanized name (email / LLM provider / slug)
-    write_regions: list[str]               # the resolved write-region set (grant scopes or class-default)
+    write_regions: list[str]               # the raw ADR-320 write-region roots (the wire truth)
+    write_zones: list[str]                 # ADR-424 operator zones (Documents/Downloads/System files) — what the roster SHOWS
     scopes_explicit: bool                  # True if narrowed by an explicit grant; False if class-default
     status: str                            # active | revoked
     granted_by: Optional[str] = None
     created_at: Optional[str] = None
     # ADR-431 — the connecting member (for foreign-LLM/a2a/platform rows): WHO
-    # authorized this AI connection. `connected_by` is the raw member id; the
-    # route resolves `connected_by_label` to that human's email for the roster.
+    # authorized this AI connection. `connected_by` is the raw member id;
+    # `connected_by_label` is that human's email; `connected_by_is_you` is True
+    # when the viewer authorized it (the FE renders "You" then).
     connected_by: Optional[str] = None
     connected_by_label: Optional[str] = None
+    connected_by_is_you: bool = False
 
 
 class WorkspaceMembersResponse(BaseModel):
@@ -850,6 +853,39 @@ async def get_recent_artifacts(
 from services.principals import class_default_write_regions as _class_default_write_regions
 
 
+def _write_regions_to_zones(regions: list[str]) -> list[str]:
+    """Collapse raw ADR-320 write-region roots → operator-facing ADR-424 zones.
+
+    The roster is a legibility surface, and ADR-424 D4 is explicit: no
+    operator-facing surface enumerates kernel roots — the filesystem is presented
+    as Documents / Downloads / peer folders / System files, never as
+    governance/constitution/persona/… The pre-424 roster recited the raw roots
+    (the "fifth enumeration" ADR-424's four-collapse missed), showing an owner
+    5 kernel chips (Governance·Constitution·Persona·Operation·Contract) and an
+    AI connection "Operation" — legacy topology the operator doesn't hold.
+
+    This maps each region to its `WORKSPACE_ROOTS.group` zone (the SINGULAR source
+    the Files surface uses), dedupes, and orders Documents → Downloads → System
+    files. So the owner reads "Documents · System files" and an AI connection
+    reads "Documents" — the same vocabulary the Files tree uses. The gate is
+    UNCHANGED (ADR-424: presentation only); write_regions stays the raw truth on
+    the wire, write_zones is the operator projection.
+    """
+    from services.workspace_paths import WORKSPACE_ROOTS
+    GROUP_LABEL = {"work": "Documents", "arrival": "Downloads", "system": "System files"}
+    GROUP_ORDER = {"Documents": 0, "Downloads": 1, "System files": 2}
+    zones: set[str] = set()
+    for region in regions:
+        root = region.rstrip("/")
+        meta = WORKSPACE_ROOTS.get(root)
+        if meta:
+            zones.add(GROUP_LABEL.get(meta.get("group", "system"), "System files"))
+        else:
+            # An unknown/peer root (ADR-424 D2 peer folder) → its own name, title-cased.
+            zones.add(root.replace("-", " ").replace("_", " ").title() or "Documents")
+    return sorted(zones, key=lambda z: GROUP_ORDER.get(z, 99))
+
+
 @router.get("/workspace/timeline", response_model=WorkspaceTimelineResponse)
 async def get_workspace_timeline(
     auth: UserClient, limit: int = 40, before: Optional[str] = None
@@ -1131,28 +1167,33 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
                 )
 
             # ADR-431 — the connecting-member attribution ("whose ChatGPT").
-            # "your connection" when the viewer authorized it; else the member's
-            # email. Only meaningful for the external-principal classes.
+            # The label is the authorizing member's email (or None for the viewer's
+            # own — the FE renders "You" for that case, keyed on connected_by_is_you).
+            # Only meaningful for the external-principal classes.
             connected_by = r.get("connected_by")
             connected_by_label: Optional[str] = None
+            connected_by_is_you = False
             if connected_by and role in ("foreign-llm", "platform", "a2a"):
                 cb = str(connected_by)
-                connected_by_label = (
-                    "your connection" if cb == auth.user_id
-                    else human_emails.get(cb)
-                )
+                if cb == auth.user_id:
+                    connected_by_is_you = True
+                    connected_by_label = auth.email  # the viewer's own email, if we have it
+                else:
+                    connected_by_label = human_emails.get(cb)
 
             members.append(WorkspaceMember(
                 principal_id=principal_id,
                 role=role,
                 label=label,
                 write_regions=write_regions,
+                write_zones=_write_regions_to_zones(write_regions),  # ADR-424 operator projection
                 scopes_explicit=explicit,
                 status=r.get("status") or "active",
                 granted_by=r.get("granted_by"),
                 created_at=r.get("created_at"),
                 connected_by=str(connected_by) if connected_by else None,
                 connected_by_label=connected_by_label,
+                connected_by_is_you=connected_by_is_you,
             ))
 
         return WorkspaceMembersResponse(members=members)

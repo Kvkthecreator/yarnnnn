@@ -1429,13 +1429,15 @@ export const api = {
           principal_id: string;
           role: string; // owner | member | own-agent | foreign-llm | platform | a2a
           label: string | null; // humanized name (email / LLM provider / slug)
-          write_regions: string[]; // resolved write-region set (grant scopes or class-default)
+          write_regions: string[]; // raw ADR-320 write-region roots (the wire truth)
+          write_zones: string[]; // ADR-424 operator zones (Documents/Downloads/System files) — what the roster shows
           scopes_explicit: boolean; // true if narrowed by an explicit grant
           status: string;
           granted_by: string | null;
           created_at: string | null;
           connected_by: string | null; // ADR-431 — the member who authorized an AI connection
-          connected_by_label: string | null; // resolved: "your connection" | their email
+          connected_by_label: string | null; // the authorizing member's email (or the viewer's own)
+          connected_by_is_you: boolean; // true when the viewer authorized this connection
         }>;
         grant_consult_active: boolean;
       }>("/api/workspace/members"),
