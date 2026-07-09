@@ -1893,6 +1893,16 @@ export const api = {
         };
       }>("/api/user/usage-detail"),
 
+    // ADR-429 Phase 1 — per-member usage attribution. "Who spent what" over the
+    // acting workspace's shared pool (rows sum to the pool's spend-since-anchor).
+    // Legibility only; the hard-stop stays workspace-summed. principal_id is a
+    // member user_id / foreign-LLM host-id / agent slug — humanize via the
+    // workspace roster (useWorkspaceRoster). Backend: GET /api/budget/spend-by-principal.
+    getSpendByPrincipal: () =>
+      request<{
+        rows: Array<{ principal_id: string; spend_usd: number; event_count: number }>;
+      }>("/api/budget/spend-by-principal"),
+
     // Get selected sources for a platform
     getSources: (provider: "slack" | "notion" | "github") =>
       request<{

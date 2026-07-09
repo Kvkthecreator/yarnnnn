@@ -18,11 +18,12 @@
  * "% used", the trend shows relative activity — the $ figure is never surfaced.
  */
 
-import { useEffect, useState } from "react";
-import { BarChart3, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BarChart3, Loader2, Users } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { humanizeSlug } from "@/lib/schedule";
 import { deriveUsageMeter } from "@/lib/subscription/usage";
+import { useWorkspaceRoster } from "@/lib/workspace/viewer";
 
 export function UsagePaneBody() {
   const [limits, setLimits] = useState<
@@ -32,6 +33,12 @@ export function UsagePaneBody() {
   const [usageDetail, setUsageDetail] = useState<
     Awaited<ReturnType<typeof api.integrations.getUsageDetail>> | null
   >(null);
+  // ADR-429 Phase 1 — per-member usage attribution over the shared pool.
+  const [spendByPrincipal, setSpendByPrincipal] = useState<
+    Awaited<ReturnType<typeof api.integrations.getSpendByPrincipal>> | null
+  >(null);
+  // principal_id → humanized label (member email / LLM room / agent slug).
+  const { labels: principalLabels } = useWorkspaceRoster();
 
   useEffect(() => {
     let cancelled = false;
@@ -51,10 +58,37 @@ export function UsagePaneBody() {
         if (!cancelled) setUsageDetail(d);
       })
       .catch(() => {});
+    api.integrations
+      .getSpendByPrincipal()
+      .then((d) => {
+        if (!cancelled) setSpendByPrincipal(d);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, []);
+
+  // Per-member rows: humanized label + % of pool + activity count. Activity, not
+  // dollars (ADR-396 transparency) — % is share of the pool's spend, computed
+  // from the rows' relative cost, and the count is the event tally. Only shown
+  // when >1 principal has drawn the pool (a solo workspace has nothing to
+  // attribute — the seat axis is dormant at N=1, ADR-429).
+  const memberUsage = useMemo(() => {
+    const rows = spendByPrincipal?.rows ?? [];
+    const total = rows.reduce((sum, r) => sum + r.spend_usd, 0);
+    if (rows.length < 2 || total <= 0) return [];
+    return rows
+      .map((r) => ({
+        principal_id: r.principal_id,
+        label:
+          principalLabels.get(r.principal_id) ??
+          (r.principal_id === "unknown" ? "Unattributed" : r.principal_id),
+        pct: Math.round((r.spend_usd / total) * 100),
+        events: r.event_count,
+      }))
+      .filter((r) => r.pct > 0 || r.events > 0);
+  }, [spendByPrincipal, principalLabels]);
 
   if (limitsLoading) {
     return (
@@ -135,6 +169,45 @@ export function UsagePaneBody() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Who used it — per-member attribution over the shared pool (ADR-429
+          Phase 1). Same grammar as "Where it went", grouped by principal.
+          Activity, not dollars: % of pool + event count. Only when >1 principal
+          has drawn (a solo workspace has nothing to attribute). This is the
+          admin's legibility into a multi-principal commons — "who spent what". */}
+      {memberUsage.length > 0 && (
+        <div className="p-4 border border-border rounded-lg space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Who used it
+            </h3>
+            <span className="text-xs text-muted-foreground">this cycle</span>
+          </div>
+          <div className="space-y-2.5">
+            {memberUsage.map((m) => (
+              <div key={m.principal_id} className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="truncate pr-3">{m.label}</span>
+                  <span className="font-mono text-xs text-muted-foreground shrink-0">
+                    {m.events} {m.events === 1 ? "action" : "actions"} · {m.pct}%
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary/70"
+                    style={{ width: `${m.pct}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Share of this workspace&rsquo;s pooled usage, by member. Everyone draws
+            the one shared allowance.
+          </p>
         </div>
       )}
 
