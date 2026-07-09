@@ -1,6 +1,6 @@
 # ADR-426: Freddie System Agent — Its Own Settings Door
 
-**Status**: Accepted (2026-07-09, operator-ratified — "separate carve out, same leveling plane as Workspace Settings, separately dedicated for Freddie System Agent"; label ruled "Freddie System Agent"). Doc-first with its code in the same pass; a single FE + registry + gate change pushed to main.
+**Status**: Accepted (2026-07-09, operator-ratified — "separate carve out, same leveling plane as Workspace Settings, separately dedicated for Freddie System Agent"; label ruled "Freddie System Agent"). Doc-first with its code in the same pass; a single FE + registry + gate change pushed to main. **Amended same day (§7)**: the door wears Freddie's mascot mark; the Capabilities pane is retired and replaced by an About pane.
 **Date**: 2026-07-09
 **Dimension**: Channel (Axiom 6 — where the system agent's config lives in the shell) + Identity (Axiom 2 — the system agent given its own door, at the workspace-settings plane)
 **Relates to**: ADR-412 D5 (the System Agent group placement this amends), ADR-418 (the pane-set purification this carries forward — the same four panes, new home), ADR-349 D4 (the two-settings-door launcher re-split this extends to a third door), ADR-341/347 (the SettingsPaneShell one-door model — a third mount), ADR-381 D1 (Freddie the entity; its chrome home is the rail), ADR-414 D2 (the steward's two dials — the door's content)
@@ -158,3 +158,50 @@ Updated gates:
 The three-way parity invariant (`navigable == allowlist`,
 `registry == allowlist − panes`) holds with `system-agent` added to navigable +
 allowlist + registry (it is window-grade, so it carries a window component).
+
+---
+
+## 7. Amendment (2026-07-09) — the mascot mark + About replaces Capabilities
+
+Two operator-requested refinements landed the same day the door shipped, once
+the door was live and legible:
+
+**7.1 — The door wears Freddie's own mark.** The `system-agent` row's `icon_key`
+changed `shield-check` → `freddie`. `shield-check` was generic and collided with
+the Autonomy pane's own glyph; the door now carries the **Freddie mascot**
+(`FreddieAvatar` — the Frankenstein/cryptopunks face already on the chat-rail
+FAB, ChatDrawer, and FreddieCard), so the same mark reads as "Freddie"
+everywhere the entity appears (launcher tile · dock icon · page header). Because
+the mascot is a custom SVG (not a lucide glyph), `resolveSurfaceIcon` gains a
+`freddie` special-case returning a still (`animate={false}`) mascot, and its
+return type widens `LucideIcon` → `SurfaceIcon = ComponentType<{ className? }>`
+(every call site only passes `className`, so this is the honest contract). Motion
+is the "working" signal in the Freddie design system, so the surface tile renders
+the still face — it does not perpetually animate.
+
+**7.2 — Capabilities retired; About added.** The Capabilities pane read
+`/workspace/operation/specs/*.md` ("the Reviewer's capability library" — quality
+contracts for producing recurring outputs). That is a **pre-ADR-414 concept**:
+post-ADR-414 the specs library is a *hired* Altitude-3 agent's operation concern,
+not the system agent's, and the pane wrongly invited the operator to configure
+output specs *for the steward* — which the steward does not produce. It also read
+as "you configure the system agent's capabilities," cutting against the ADR-414
+truth that Freddie's character is a kernel constant the operator tunes but never
+authors. **Retired** (Singular Implementation — deleted: the `FreddieCapabilitiesPanel`
+component, the `api.agents.reviewerCapabilities()` client method, and the
+`GET /api/agents/freddie/capabilities` backend route + its spec-parsing helpers).
+
+In its place, a read-only **About** pane (`FreddieAboutPanel`) — who Freddie is
+(the system agent / substrate steward), what it does *not* do (no consequential
+external action), and the one thing the operator should take away: **you tune
+Freddie (Autonomy · Budget), you do not author its character.** The prose mirrors
+the canonical steward identity (`DEFAULT_STEWARD_IDENTITY_MD`); since that persona
+is a kernel constant (nothing to fetch or edit), the copy lives FE-side rather
+than behind a new endpoint. New pane order: **About · Autonomy · Budget ·
+Activity**; the door's `defaultPane` becomes `about` (the door opens on the
+explanation).
+
+No gate changes were needed — no gate asserted the Capabilities pane or the
+`shield-check` icon; the pane-set/parity gates key on `AutonomyCard`/`BudgetCard`
+presence and `SYSTEM_AGENT_PANE_GROUP` mounting, all unchanged. `tsc --noEmit`
+clean; the six door gates stay green.

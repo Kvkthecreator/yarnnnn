@@ -724,23 +724,10 @@ export const api = {
         window_days: number;
       }>("/api/agents/freddie/activity"),
 
-    // 2026-05-14: Reviewer capability library — operator-facing view of
-    // /workspace/operation/specs/. Each spec is a quality contract (schema, sections,
-    // anti-patterns) the Reviewer reads when producing recurring outputs.
-    // The capability-library analog of Claude Code's skills.md.
-    reviewerCapabilities: () =>
-      request<{
-        specs: Array<{
-          slug: string;
-          path: string;
-          title: string;
-          description: string | null;
-          sections: string[];
-          used_by: string[];
-          updated_at: string | null;
-          size_bytes: number;
-        }>;
-      }>("/api/agents/freddie/capabilities"),
+    // ADR-426 amendment (2026-07-09): reviewerCapabilities() removed. The
+    // Capabilities pane read /workspace/operation/specs/ (a hired-agent output-
+    // spec concept, pre-ADR-414); the pane + its /api/agents/freddie/capabilities
+    // route are retired. The system agent's About pane replaced it.
 
     // Create a new agent
     create: (data: AgentCreate) =>

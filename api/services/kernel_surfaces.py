@@ -748,7 +748,11 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "title": "Freddie System Agent",
         "archetype": "dashboard",
         "substrate_paths": [],  # governance/_autonomy.yaml + governance/_budget.yaml (via the pane bodies)
-        "icon_key": "shield-check",
+        # ADR-426 amendment (2026-07-09): the door wears Freddie's OWN mark — the
+        # mascot face (FreddieAvatar, the chat-rail FAB face), not the generic
+        # shield-check (which also read as the Autonomy pane glyph). The `freddie`
+        # icon_key resolves to the still mascot in resolveSurfaceIcon.
+        "icon_key": "freddie",
         "default_pinned": False,
         "route": "/system-agent",
         "summary": "Freddie System Agent — how the system agent is configured. Its two operator-tunable dials (Autonomy = the witness dial, Budget = the allocation) plus its read-only legibility (Capabilities · Activity).",

@@ -25,7 +25,7 @@
  *     per-agent contract FE — ADR-382 / ADR-414 §9b).
  * What remains is the system agent's genuine surface: its two operator-tunable
  * dials (Autonomy = the witness dial, Budget = the allocation — ADR-414 D2)
- * plus the two read-only legibility panes (Capabilities · Activity).
+ * plus its read-only legibility (About · Activity).
  *
  * ADR-426 (2026-07-09): the group label becomes the proper noun "Freddie
  * System Agent" — the ADR-412 D5 role-only ruling is reversed now that the
@@ -33,35 +33,45 @@
  * abstract "System Agent"; the operator asked for it by name). The rail stays
  * Freddie's conversational home (ADR-412 D1); this is the config door.
  * Rendered by the same *Card full variants (Singular Implementation).
+ *
+ * ADR-426 amendment (2026-07-09): the Capabilities pane is RETIRED. It read
+ * /workspace/operation/specs/ ("the Reviewer's capability library" — quality
+ * contracts for producing recurring outputs), a pre-ADR-414 concept: post
+ * ADR-414 the specs library is a HIRED agent's operation concern, not the
+ * steward's, and the pane wrongly invited the operator to configure output
+ * specs for the system agent. Replaced by an "About" pane (read-only — who
+ * Freddie is and what the operator tunes here). Pane order: About · Autonomy ·
+ * Budget · Activity.
  */
 
 import {
+  Info,
   ShieldCheck,
   Wallet,
-  FileCode,
   Activity as ActivityIcon,
 } from 'lucide-react';
 import type { PaneGroup } from '@/components/settings/SettingsPaneShell';
 import { GrantGate } from '@/components/workspace-concepts/GrantGate';
+import { FreddieAboutPanel } from './FreddieAboutPanel';
 import { FreddieActivityPanel } from './FreddieActivityPanel';
-import { FreddieCapabilitiesPanel } from './FreddieCapabilitiesPanel';
 import { AutonomyCard } from '@/components/workspace-concepts/AutonomyCard';
 import { BudgetCard } from '@/components/workspace-concepts/BudgetCard';
 
 /**
- * The one sidebar group of the Freddie System Agent door — the system agent's
+ * The one sidebar group of the Freddie System Agent door — Freddie's About +
  * dials + legibility. Pane keys autonomy/budget match the kernel registry slugs
  * (so foregroundSurface(slug) resolves to /system-agent via pane_of:
- * system-agent, ADR-426); capabilities + activity are local pane keys (no
- * registry row). ADR-418 removed identity/principles (→ Constitution group,
- * later removed by ADR-421) + expected-output (dormant) — see module header.
+ * system-agent, ADR-426); about + activity are local pane keys (no registry
+ * row). ADR-418 removed identity/principles (→ Constitution group, later
+ * removed by ADR-421) + expected-output (dormant); ADR-426 amendment retired
+ * capabilities and added about — see module header.
  */
 export const SYSTEM_AGENT_PANE_GROUP: PaneGroup = {
   label: 'Freddie System Agent',
   panes: [
+    { key: 'about', label: 'About', icon: Info },
     { key: 'autonomy', label: 'Autonomy', icon: ShieldCheck },
     { key: 'budget', label: 'Budget', icon: Wallet },
-    { key: 'capabilities', label: 'Capabilities', icon: FileCode },
     { key: 'activity', label: 'Activity', icon: ActivityIcon },
   ],
 };
@@ -71,7 +81,7 @@ export const SYSTEM_AGENT_PANE_KEYS = SYSTEM_AGENT_PANE_GROUP.panes.map((p) => p
 /** ADR-412 D3 — each pane's write affordances land in one ADR-320 region
  *  root; the pane renders per the viewer's grant coverage (GrantGate:
  *  explicit read-only when outside it, never a role-enum check).
- *  capabilities/activity are pure reads — no gate. */
+ *  about/activity are pure reads — no gate. */
 const PANE_REGIONS: Record<string, string> = {
   autonomy: 'governance/',
   budget: 'governance/',
@@ -88,12 +98,12 @@ export function renderSystemAgentPane(pane: string) {
 
 function renderPaneBody(pane: string) {
   switch (pane) {
+    case 'about':
+      return <FreddieAboutPanel />;
     case 'autonomy':
       return <AutonomyCard variant="full" />;
     case 'budget':
       return <BudgetCard variant="full" />;
-    case 'capabilities':
-      return <FreddieCapabilitiesPanel />;
     case 'activity':
       return <FreddieActivityPanel />;
     default:

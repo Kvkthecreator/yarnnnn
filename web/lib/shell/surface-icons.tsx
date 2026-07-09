@@ -9,7 +9,9 @@
  * Box icon as a safe fallback so the launcher still renders.
  */
 
+import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import {
   Activity,
   ArrowLeftRight,
@@ -36,6 +38,21 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
+
+// The type the resolver returns — every call site renders `<Icon className=... />`
+// and nothing else, so a component taking only `className` is the honest contract.
+// This is wider than LucideIcon so the Freddie mascot (a custom SVG, not a lucide
+// glyph) can be a first-class surface icon. (ADR-426 amendment, 2026-07-09.)
+export type SurfaceIcon = ComponentType<{ className?: string }>;
+
+// ADR-426 amendment — the Freddie System Agent door wears Freddie's OWN mark, the
+// mascot face (FreddieAvatar), the same one on the chat rail FAB + ChatDrawer +
+// FreddieCard. Rendered STILL (animate=false) as a surface icon — motion is the
+// "working" signal in the Freddie design system, so a static launcher/dock tile
+// must not perpetually animate. The `freddie` icon_key resolves here.
+const FreddieSurfaceIcon: SurfaceIcon = ({ className }) => (
+  <FreddieAvatar animate={false} className={className} />
+);
 
 const ICON_REGISTRY: Record<string, LucideIcon> = {
   activity: Activity,
@@ -93,6 +110,9 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   users: Users,
 };
 
-export function resolveSurfaceIcon(iconKey: string): LucideIcon {
+export function resolveSurfaceIcon(iconKey: string): SurfaceIcon {
+  // ADR-426 amendment — the Freddie mascot is not a lucide glyph; resolve it
+  // explicitly so launcher, dock, and page header all render the same face.
+  if (iconKey === 'freddie') return FreddieSurfaceIcon;
   return ICON_REGISTRY[iconKey] ?? Box;
 }

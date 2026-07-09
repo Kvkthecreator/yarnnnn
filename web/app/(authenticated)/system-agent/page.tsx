@@ -35,7 +35,7 @@ export default function SystemAgentPage() {
     <SettingsPaneShell
       windowSlug="system-agent"
       paneGroups={[SYSTEM_AGENT_PANE_GROUP]}
-      defaultPane="autonomy"
+      defaultPane="about"
       renderPane={(pane) => (
         <section className="mb-8">{renderSystemAgentPane(pane)}</section>
       )}
