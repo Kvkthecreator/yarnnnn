@@ -95,11 +95,11 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "type": "shared_context",
         "path": "constitution/+governance/+operation/ (legacy _shared, ADR-320)",
         "display_name": "Shared Context",
-        "description": "Workspace identity, brand, and filesystem conventions (authored)",
+        "description": "Workspace identity and filesystem conventions (authored)",
         "managed_by": "user_and_yarnnn",
+        # ADR-432 D1c: BRAND.md removed (Brand retired).
         "scaffolded_files": (
             "IDENTITY.md",
-            "BRAND.md",
             "CONVENTIONS.md",
         ),
     },

@@ -11,7 +11,7 @@ Tests:
   7. _append_inference_meta no longer emits `inferred_at`
   8. _append_inference_meta still emits target + sources + gaps
   9. Existing ADR-162 provenance callers still produce parsable output
- 10. save_identity / save_brand route writes attributed to `operator`
+ 10. save_identity route writes attributed to `operator` (ADR-432 D1c: save_brand retired)
  11. Phases 1 + 2 + 3 regression (full suites re-run)
 
 Strategy: Real DB reads + HTTPX calls against the FastAPI app under test.
@@ -331,9 +331,10 @@ def test_inference_meta_keeps_target_sources_gaps() -> None:
             "richness": "sparse",
             "gaps": [{"field": "company_name", "severity": "high"}],
         }
+        # ADR-432 D1c: was target="brand" — Brand retired; use identity.
         result = _append_inference_meta(
             content="# Test",
-            target="brand",
+            target="identity",
             source_summary={"has_text": False, "doc_filenames": [], "urls": ["https://example.com"]},
             gap_report=gap_report,
         )
@@ -343,7 +344,7 @@ def test_inference_meta_keeps_target_sources_gaps() -> None:
             return
         meta = json.loads(match.group(1))
         ok = (
-            meta.get("target") == "brand"
+            meta.get("target") == "identity"
             and meta.get("sources", {}).get("urls") == ["https://example.com"]
             and meta.get("gaps", {}).get("richness") == "sparse"
         )
@@ -382,50 +383,52 @@ def test_inference_meta_parseable_from_frontend_shape() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 10: save_identity / save_brand attribution
+# Test 10: save_identity operator attribution
+# (ADR-432 D1c: was save_identity / save_brand — Brand retired; the identity
+#  endpoint carries the same operator-attribution invariant.)
 # ---------------------------------------------------------------------------
 
 async def test_save_identity_brand_operator_attribution(client) -> None:
-    """Simulated call of save_brand — verifies authored_by ends up as `operator`
-    via the new routes-layer explicit attribution (not the default
+    """Simulated call of save_identity — verifies authored_by ends up as
+    `operator` via the routes-layer explicit attribution (not the default
     `system:user-memory`)."""
     try:
-        from routes.memory import save_brand, BrandSaveRequest
+        from routes.memory import save_identity, IdentitySaveRequest
         from routes.workspace import list_revisions_route
 
         auth = _FakeAuth(client, TEST_USER_ID)
 
-        # Capture current brand so we restore it at the end (don't mutate user data)
-        brand_path = "/workspace/operation/BRAND.md"
+        # Capture current identity so we restore it at the end (don't mutate user data)
+        identity_path = "/workspace/persona/IDENTITY.md"
         before = (
             client.table("workspace_files")
             .select("content")
             .eq("user_id", TEST_USER_ID)
-            .eq("path", brand_path)
+            .eq("path", identity_path)
             .limit(1)
             .execute()
         )
         prior_content = (before.data or [{}])[0].get("content")
 
-        # Save a test brand
-        test_content = "# Test brand (phase 4 attribution check)\n- test: true\n"
-        await save_brand(BrandSaveRequest(content=test_content), auth)
+        # Save a test identity
+        test_content = "# Test identity (phase 4 attribution check)\n- test: true\n"
+        await save_identity(IdentitySaveRequest(content=test_content), auth)
 
         # Inspect the head revision
-        resp = await list_revisions_route(auth, path=brand_path, limit=3)
+        resp = await list_revisions_route(auth, path=identity_path, limit=3)
         head = resp.revisions[0] if resp.revisions else None
         ok = head is not None and head.authored_by == "operator" and "settings surface" in head.message
         record(
-            "save_brand routes operator-attributed revision",
+            "save_identity routes operator-attributed revision",
             ok,
             f"head.authored_by={head.authored_by if head else None}, head.message={(head.message if head else '')!r}",
         )
 
         # Restore prior content if any
         if prior_content:
-            await save_brand(BrandSaveRequest(content=prior_content), auth)
+            await save_identity(IdentitySaveRequest(content=prior_content), auth)
     except Exception as e:
-        record("save_brand attribution", False, f"Error: {e}")
+        record("save_identity attribution", False, f"Error: {e}")
 
 
 # ---------------------------------------------------------------------------

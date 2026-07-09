@@ -22,7 +22,8 @@ import type { ContentShapeMeta } from './index';
 // ---------------------------------------------------------------------------
 
 export const SHAPE_KEY = 'inference-meta' as const;
-export const PATH_GLOB = '**/{persona/IDENTITY,operation/BRAND}.md';
+// ADR-432 D1c: BRAND retired — the inference-meta shape now anchors only to IDENTITY.md.
+export const PATH_GLOB = '**/persona/IDENTITY.md';
 export const WRITE_CONTRACT = 'system_owned' as const;
 export const CANONICAL_L3 = 'InferenceContentView' as const;
 

@@ -510,7 +510,6 @@ class AgentWorkspace:
             index_lines.append("")
             index_lines.append("**Always apply:**")
             index_lines.append("- Check domain assets/ folder for existing visuals before generating new")
-            index_lines.append("- Use BRAND.md colors when available, professional defaults otherwise")
             index_lines.append("- Every visual must carry information — no decorative filler")
 
             parts.append("\n".join(index_lines))
@@ -688,7 +687,6 @@ class UserMemory:
     Authored shared context lives under constitution/ + governance/ + operation/ (ADR-320 split of legacy _shared/):
     - /workspace/constitution/MANDATE.md     — what the workspace is running
     - /workspace/persona/IDENTITY.md    — who you are (name, role, company, timezone, summary)
-    - /workspace/operation/BRAND.md       — how outputs look and sound
     - /workspace/operation/CONVENTIONS.md — program-specific behavioral rules (program-scoped; only present when a bundle forks it)
     - /workspace/governance/AUTONOMY.md    — delegation ceiling for AI judgment
     - /workspace/constitution/PRECEDENT.md   — durable interpretations and boundary cases
@@ -867,12 +865,13 @@ class UserMemory:
         daily-update template) get stable identifiers independent of
         layout changes.
         """
+        # ADR-432 D1c: OPERATION_BRAND_PATH removed (Brand retired).
         from services.workspace_paths import (
-            PERSONA_IDENTITY_PATH, OPERATION_BRAND_PATH,
+            PERSONA_IDENTITY_PATH,
             SYSTEM_STYLE_PATH, SYSTEM_NOTES_PATH,
         )
         files: dict[str, str] = {}
-        for path in (PERSONA_IDENTITY_PATH, OPERATION_BRAND_PATH, SYSTEM_STYLE_PATH, SYSTEM_NOTES_PATH):
+        for path in (PERSONA_IDENTITY_PATH, SYSTEM_STYLE_PATH, SYSTEM_NOTES_PATH):
             content = await self.read(path)
             if content:
                 files[path.rsplit("/", 1)[-1]] = content
@@ -880,12 +879,13 @@ class UserMemory:
 
     def read_all_sync(self) -> dict[str, str]:
         """Synchronous read_all for thread pool use."""
+        # ADR-432 D1c: OPERATION_BRAND_PATH removed (Brand retired).
         from services.workspace_paths import (
-            PERSONA_IDENTITY_PATH, OPERATION_BRAND_PATH,
+            PERSONA_IDENTITY_PATH,
             SYSTEM_STYLE_PATH, SYSTEM_NOTES_PATH,
         )
         files: dict[str, str] = {}
-        for path in (PERSONA_IDENTITY_PATH, OPERATION_BRAND_PATH, SYSTEM_STYLE_PATH, SYSTEM_NOTES_PATH):
+        for path in (PERSONA_IDENTITY_PATH, SYSTEM_STYLE_PATH, SYSTEM_NOTES_PATH):
             content = self.read_sync(path)
             if content:
                 files[path.rsplit("/", 1)[-1]] = content

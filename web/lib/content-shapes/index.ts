@@ -41,7 +41,7 @@ export type ContentShape = {
 export type ContentShapeMeta = ContentShape;
 
 import { META as autonomyMeta } from './autonomy';
-import { META as brandMeta } from './brand';
+// ADR-432 D1c: the brand content-shape is deleted (Brand retired).
 import { META as decisionsMeta } from './decisions';
 import { META as identityMeta } from './identity';
 import { META as inferenceMetaMeta } from './inference-meta';
@@ -55,7 +55,6 @@ import { META as sourcesMeta } from './sources';
 
 export const CONTENT_SHAPES: Readonly<Record<string, ContentShape>> = Object.freeze({
   autonomy: autonomyMeta,
-  brand: brandMeta,
   decisions: decisionsMeta,
   identity: identityMeta,
   'inference-meta': inferenceMetaMeta,

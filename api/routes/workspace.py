@@ -313,12 +313,12 @@ async def get_workspace_nav(auth: UserClient) -> dict:
         # ADR-206: authored shared context under constitution/ + governance/ + operation/ (ADR-320 split of legacy _shared/),
         # YARNNN working-memory files under /workspace/system/.
         from services.workspace_paths import (
-            PERSONA_IDENTITY_PATH, OPERATION_BRAND_PATH,
+            PERSONA_IDENTITY_PATH,
             SYSTEM_AWARENESS_PATH, SYSTEM_NOTES_PATH, SYSTEM_STYLE_PATH,
         )
+        # ADR-432 D1c: BRAND.md removed from the settings file set (Brand retired).
         SETTINGS_FILES = [
             (PERSONA_IDENTITY_PATH, "IDENTITY.md", "Identity"),
-            (OPERATION_BRAND_PATH, "BRAND.md", "Brand"),
             (SYSTEM_AWARENESS_PATH, "awareness.md", "Awareness"),
             (SYSTEM_NOTES_PATH, "notes.md", "Notes"),
             (SYSTEM_STYLE_PATH, "style.md", "Style"),
@@ -1608,7 +1608,7 @@ async def edit_workspace_file(
         # `authored_by=operator` attribution. Same revision-chain path as
         # every other caller (ADR-209).
         "/workspace/persona/IDENTITY.md",
-        "/workspace/operation/BRAND.md",
+        # ADR-432 D1c: operation/BRAND.md removed from editable prefixes (Brand retired).
         "/workspace/operation/CONVENTIONS.md",
         "/workspace/constitution/MANDATE.md",
         "/workspace/governance/AUTONOMY.md",
@@ -2020,7 +2020,7 @@ def _build_tree(rows: list[dict], root: str) -> list[dict]:
 #     /api/programs/activatable endpoint shape; co-located here so the
 #     Workspace tab makes one round-trip).
 #   - substrate_status — per-file skeleton/authored classification for the
-#     core workspace files (mandate, identity, brand, autonomy, principles).
+#     core workspace files (mandate, identity, autonomy, principles).
 #   - capability_gaps — required-but-not-connected platforms for the active
 #     bundle; closes the visibility gap between the substrate marker
 #     (active_program_slug) and the capability-implicit signal
@@ -2062,7 +2062,7 @@ class SubstrateFileStatus(BaseModel):
 class SubstrateStatus(BaseModel):
     mandate: SubstrateFileStatus
     identity: SubstrateFileStatus
-    brand: SubstrateFileStatus
+    # ADR-432 D1c: `brand` field removed (Brand retired).
     autonomy: SubstrateFileStatus
     principles: SubstrateFileStatus  # /workspace/persona/principles.md
 
@@ -2123,7 +2123,6 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
     from services.workspace_paths import (
         CONSTITUTION_MANDATE_PATH,
         PERSONA_IDENTITY_PATH,
-        OPERATION_BRAND_PATH,
         GOVERNANCE_AUTONOMY_PATH,
         GOVERNANCE_BUDGET_PATH,
         PERSONA_PRINCIPLES_PATH,
@@ -2270,7 +2269,6 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
     substrate_status = SubstrateStatus(
         mandate=await _read_file_status(mandate_path),
         identity=await _read_file_status(identity_path),
-        brand=await _read_file_status(OPERATION_BRAND_PATH),
         autonomy=await _read_file_status(autonomy_path),
         principles=await _read_file_status(principles_path),
     )
@@ -2278,7 +2276,7 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
     # last_revised_at via batched workspace_files lookup (singular round-trip)
     try:
         paths = [
-            mandate_path, identity_path, OPERATION_BRAND_PATH,
+            mandate_path, identity_path,
             autonomy_path, principles_path,
         ]
         rows = (
@@ -2294,7 +2292,6 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
         }
         substrate_status.mandate.last_revised_at = timestamps.get(mandate_path)
         substrate_status.identity.last_revised_at = timestamps.get(identity_path)
-        substrate_status.brand.last_revised_at = timestamps.get(OPERATION_BRAND_PATH)
         substrate_status.autonomy.last_revised_at = timestamps.get(autonomy_path)
         substrate_status.principles.last_revised_at = timestamps.get(principles_path)
     except Exception as exc:
@@ -2385,7 +2382,7 @@ class WorkspaceSetupBundleResponse(BaseModel):
     principles_prose: FileWithRevision
     principles_yaml: FileWithRevision
     identity: FileWithRevision
-    brand: FileWithRevision
+    # ADR-432 D1c: `brand` field removed (Brand retired).
 
 
 @router.get("/workspace/setup-bundle", response_model=WorkspaceSetupBundleResponse)
@@ -2408,7 +2405,6 @@ async def get_workspace_setup_bundle(
     from services.workspace_paths import (
         CONSTITUTION_MANDATE_PATH,
         PERSONA_IDENTITY_PATH,
-        OPERATION_BRAND_PATH,
         GOVERNANCE_AUTONOMY_YAML_PATH,
         PERSONA_PRINCIPLES_PATH,
         PERSONA_PRINCIPLES_YAML_PATH,
@@ -2434,20 +2430,19 @@ async def get_workspace_setup_bundle(
         except Exception:
             return None
 
+    # ADR-432 D1c: brand read removed (Brand retired).
     (
         mandate_content,
         autonomy_yaml_content,
         principles_prose_content,
         principles_yaml_content,
         identity_content,
-        brand_content,
     ) = await asyncio.gather(
         _read(CONSTITUTION_MANDATE_PATH),
         _read(GOVERNANCE_AUTONOMY_YAML_PATH),
         _read(PERSONA_PRINCIPLES_PATH),
         _read(PERSONA_PRINCIPLES_YAML_PATH),
         _read(PERSONA_IDENTITY_PATH),
-        _read(OPERATION_BRAND_PATH),
     )
 
     # ─── Step 3: revision metadata (parallel, absolute paths) ───────────
@@ -2458,7 +2453,6 @@ async def get_workspace_setup_bundle(
         "principles_prose": f"/workspace/{PERSONA_PRINCIPLES_PATH}",
         "principles_yaml": f"/workspace/{PERSONA_PRINCIPLES_YAML_PATH}",
         "identity": f"/workspace/{PERSONA_IDENTITY_PATH}",
-        "brand": f"/workspace/{OPERATION_BRAND_PATH}",
     }
 
     def _last_rev_sync(abs_path: str) -> Optional[dict]:
@@ -2496,7 +2490,6 @@ async def get_workspace_setup_bundle(
         principles_prose=_build("principles_prose", principles_prose_content),
         principles_yaml=_build("principles_yaml", principles_yaml_content),
         identity=_build("identity", identity_content),
-        brand=_build("brand", brand_content),
     )
 
 

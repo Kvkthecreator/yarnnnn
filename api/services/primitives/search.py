@@ -30,7 +30,7 @@ DOES NOT SEARCH:
 - Uploaded documents (ADR-322) — documents are FILES at /workspace/uploads/{slug}.md. Use SearchFiles(scope='workspace', path_prefix='uploads/') to find them and ReadFile('uploads/...') to read them. (The document:uuid entity ref was removed.)
 - Work declarations — recurrence YAML files at natural-home paths. The compact index lists every recurrence by slug; use ReadFile with the YAML path directly (/workspace/operation/reports/{slug}/_spec.yaml, /workspace/operation/{domain}/_recurring.yaml, /workspace/operation/operations/{slug}/_action.yaml, /workspace/_shared/back-office.yaml). For scheduling/status use Schedule.
 - Accumulated domain files (/workspace/operation/**) — use QueryKnowledge for semantic search or ReadFile for a known path.
-- AGENT.md, IDENTITY.md, BRAND.md — these are workspace files. Use ReadFile with the known path.
+- AGENT.md, IDENTITY.md — these are workspace files. Use ReadFile with the known path.
 
 Use SearchEntities ONLY when you need database rows (agent records, agent run history).""",
     "input_schema": {

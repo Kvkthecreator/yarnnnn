@@ -127,8 +127,10 @@ def test_persona_writable_by_reviewer_locked_from_mcp_and_agent():
 
 
 def test_operation_writable_by_all():
+    # ADR-432 D1c: operation/BRAND.md retired — use CONVENTIONS.md as the loose
+    # operation/-root example (the claim is about the root's topology, not the file).
     for caller in ("reviewer", "mcp", "agent", "operator", "system"):
-        assert not _locked(caller, "operation/BRAND.md"), caller
+        assert not _locked(caller, "operation/CONVENTIONS.md"), caller
         assert not _locked(caller, "operation/trading/_risk.md"), caller
         assert not _locked(caller, "operation/reports/x/output.md"), caller
 
@@ -143,7 +145,7 @@ def test_operator_writes_everything_except_system():
     assert not _locked("operator", "governance/AUTONOMY.md")
     assert not _locked("operator", "constitution/MANDATE.md")
     assert not _locked("operator", "persona/IDENTITY.md")
-    assert not _locked("operator", "operation/BRAND.md")
+    assert not _locked("operator", "operation/CONVENTIONS.md")  # ADR-432 D1c: was BRAND.md
     assert _locked("operator", "system/notes.md")
 
 

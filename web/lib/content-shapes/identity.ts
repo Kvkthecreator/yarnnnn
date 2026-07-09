@@ -13,7 +13,10 @@ import type { ContentShapeMeta } from './index';
 export const SHAPE_KEY = 'identity' as const;
 export const PATH_GLOB = '**/persona/IDENTITY.md';
 export const WRITE_CONTRACT = 'authored_prose' as const;
-export const CANONICAL_L3 = 'IdentityBrandCard' as const;
+// ADR-432 D1c: repointed off the deleted IdentityBrandCard (Brand retired). The
+// canonical L3 renderer for the inferred IDENTITY.md prose is InferenceContentView
+// (ContentViewer routes persona/IDENTITY.md there; identity is agent-owned post-ADR-387/419).
+export const CANONICAL_L3 = 'InferenceContentView' as const;
 
 export const META: ContentShapeMeta = {
   SHAPE_KEY,

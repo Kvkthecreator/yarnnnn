@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.09.6] - Retire Brand in full (ADR-432 D1c)
+
+- **LLM-facing removal**: the `BRAND_SYSTEM` inference prompt + `_detect_brand_gaps` are deleted from `context_inference.py`; `author_identity`/`author_identity_merge`/`detect_inference_gaps` narrow `target: Literal["identity","brand"]` → `["identity"]` (the identity authoring path is byte-identical). The `SearchFiles` tool description drops "BRAND.md"; the compact-index substrate line drops the "Brand:" richness token; the workspace file-inventory prompt drops the BRAND.md entry. No producing path ever read BRAND.md, so no generation behavior changes beyond the removed dead references.
+- **Full end-to-end removal** (per operator "retire, not reword"): the Brand pane + `case` + `/brand` redirect stub + orphaned `IdentityBrandCard` + `content-shapes/brand.ts` + the `api.brand` client namespace + the `GET/POST /user/brand` endpoints (the one live BRAND.md writer) + `DEFAULT_BRAND_MD` genesis seed + `OPERATION_BRAND_PATH` constant + the two bundle `operation/BRAND.md` seed files (which `fork_reference_workspace`'s `rglob("*.md")` would otherwise orphan-write on any future hire) + brand fields on `SubstrateStatus`/`WorkspaceSetupBundleResponse` and their FE type mirrors.
+- **Why**: ADR-432 D1 — `operation/BRAND.md` was operator-authored but read by no generation path; brand voice is a hired agent's output-styling concern that homes per-agent (`agents/{slug}/`) when load-bearing (ADR-419 pattern), not a workspace file. This is the honest endpoint of the ADR-387 D3 deferral.
+- Gates: FE `tsc --noEmit` clean; no live dangling brand reference (full grep sweep); adr286/287/320/209/324 gates updated to the post-Brand reality. Pre-existing unrelated failures untouched (adr209 `system:backfill-158` data assertion; a stale `save_identity` test-fake `author_identity_uuid` mismatch surfaced-not-caused by the Test-10 conversion).
+
 ## [2026.07.09.5] - Workspace Settings OPERATION group resolution (ADR-432) — Brand + Program
 
 - **Operator-surface change, no backend/gate/LLM-behavior change.** Resolves the long-owed ADR-387 D4 deferral ("Program/Operation surface scope post-Freddie") from a Workspace-Settings audit.

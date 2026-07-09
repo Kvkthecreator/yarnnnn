@@ -12,8 +12,8 @@
  * Implementation, ADR-341 D5).
  *
  * Sidebar groups (the current live set):
- *   - Operation: Brand · Program (ADR-432 resolved the ADR-387 D4 deferral —
- *     Brand's per-agent direction + Program's gate/framing fixes + fold-to-382).
+ *   - Operation: Program (ADR-432 — Brand RETIRED per D1c; Program's gate/framing
+ *     fixed to the hire model, folds into /agents under ADR-382).
  *   - Access (ADR-373 D2): Workspace Members — who can write the workspace.
  *   - Billing (ADR-416 follow-on): Billing · Usage — this workspace's money.
  *
@@ -31,7 +31,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { UserCircle, Package, AlertCircle, Rocket, Loader2, Users, CreditCard, BarChart3 } from "lucide-react";
+import { Package, AlertCircle, Rocket, Loader2, Users, CreditCard, BarChart3 } from "lucide-react";
 import { api, APIError } from "@/lib/api/client";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
@@ -44,7 +44,6 @@ import { UsagePaneBody } from "@/components/subscription/UsagePaneBody";
 // render on the agent detail via AgentConstitutionBlock, ADR-419).
 import { GrantGate } from "@/components/workspace-concepts/GrantGate";
 import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
-import { WorkspaceFileView } from "@/components/shared/WorkspaceFileView";
 import { ProgramLifecycleDrawer } from "@/components/library/ProgramLifecycleDrawer";
 // ADR-425 — the Perception group (Connectors · Sources) left this door:
 // Connectors → the account door (a credential is a human's account object),
@@ -84,7 +83,9 @@ const PANE_GROUPS: PaneGroup[] = [
     //    deferred (zero live hired programs, D2c).
     label: "Operation",
     panes: [
-      { key: "brand", label: "Brand", icon: UserCircle },
+      // ADR-432 D1c (2026-07-09): the Brand pane is RETIRED — operation/BRAND.md
+      // was read by no producing path; brand voice homes per-agent when a hired
+      // agent needs it (ADR-432 D1b), not on a workspace pane.
       { key: "program", label: "Program", icon: Package },
     ],
   },
@@ -133,37 +134,8 @@ export default function WorkspaceSettingsPage() {
       // has no constitution of its own (ADR-414 D6): these are a hired agent's
       // concerns, surfaced on the agent detail (AgentConstitutionBlock, ADR-419).
       // The registry slugs are dormant; nothing routes here.
-      // ADR-387 D3 — Brand stays here (interim). Rendered via the universal
-      // WorkspaceFileView reading operation/BRAND.md directly (Identity moved
-      // to Freddie, so the old merged "Identity & Brand" card no longer fits).
-      case "brand":
-        // ADR-432 D1 (2026-07-09): honest interim. `operation/BRAND.md` is
-        // operator-authored, but no producing path reads it today (it is absent
-        // from the wake envelope + the lane/specialist prompts) — so the copy no
-        // longer claims agents "apply" it. Ratified DIRECTION (D1b): brand voice
-        // is a HIRED AGENT's output-styling concern — when it becomes
-        // load-bearing it lives at `agents/{slug}/` wired into that agent's
-        // producing envelope + surfaced on the agent detail (following ADR-419),
-        // not a workspace pane. Retire-vs-keep is the operator's next call
-        // (ADR-432 D1c); this pass only stops the over-promise.
-        return (
-          <section className="mb-8">
-            <GrantGate region="operation/">
-              <WorkspaceFileView
-                title="Brand voice"
-                path="/workspace/operation/BRAND.md"
-                tagline="Operator-authored notes on how output should sound. Not yet wired to a producing agent — its home is per-agent output-styling when a hired agent applies it (ADR-432 D1)."
-                editPrompt="Help me define my brand voice — the tone, style, and conventions produced content should follow."
-                onEdit={(prompt) => navigateToSurface("chat", { prompt })}
-                emptyBody={
-                  <p className="text-center text-xs">
-                    No brand voice declared yet.
-                  </p>
-                }
-              />
-            </GrantGate>
-          </section>
-        );
+      // ADR-432 D1c (2026-07-09) — the `brand` case is REMOVED. operation/BRAND.md
+      // was read by no producing path; brand voice homes per-agent (ADR-432 D1b).
       case "program":
         // ADR-432 D2a/D2b (2026-07-09): activation HIRES an Altitude-3 agent
         // (ADR-414 D5) — it mints a `principal_grants` hire row and installs the
@@ -228,7 +200,7 @@ export default function WorkspaceSettingsPage() {
   };
 
   return (
-    <SettingsPaneShell windowSlug="workspace-settings" paneGroups={PANE_GROUPS} defaultPane="brand" renderPane={renderPane} />
+    <SettingsPaneShell windowSlug="workspace-settings" paneGroups={PANE_GROUPS} defaultPane="program" renderPane={renderPane} />
   );
 }
 

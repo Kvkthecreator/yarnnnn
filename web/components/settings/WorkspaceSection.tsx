@@ -50,10 +50,10 @@ type WorkspaceState = Awaited<ReturnType<typeof api.workspace.getState>>;
 type ProgramItem = WorkspaceState['available_programs'][number];
 type FileStatus = WorkspaceState['substrate_status']['mandate'];
 
+// ADR-432 D1c: `brand` removed (Brand retired).
 const FILE_LABELS: Record<keyof WorkspaceState['substrate_status'], string> = {
   mandate: 'Mandate',
   identity: 'Identity',
-  brand: 'Brand',
   autonomy: 'Autonomy',
   principles: 'Agent principles',
 };
@@ -63,7 +63,6 @@ const FILE_LABELS: Record<keyof WorkspaceState['substrate_status'], string> = {
 const FILE_PATHS: Record<keyof WorkspaceState['substrate_status'], string> = {
   mandate: '/workspace/constitution/MANDATE.md',
   identity: '/workspace/persona/IDENTITY.md',
-  brand: '/workspace/operation/BRAND.md',
   autonomy: '/workspace/governance/AUTONOMY.md',
   principles: '/workspace/persona/principles.md',
 };

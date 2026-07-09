@@ -205,50 +205,12 @@ async def save_identity(body: IdentitySaveRequest, auth: UserClient):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ─── Brand (ADR-133 — workspace-level brand) ────────────────────────────────
-
-@router.get("/user/brand")
-async def get_brand(auth: UserClient):
-    """Get workspace brand. Reads /workspace/operation/BRAND.md (ADR-206)."""
-    try:
-        from services.workspace_paths import OPERATION_BRAND_PATH
-        um = UserMemory(auth.client, auth.user_id)
-        content = await um.read(OPERATION_BRAND_PATH)
-        if content and content.strip():
-            return {"content": content, "exists": True}
-        return {"content": None, "exists": False}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-class BrandSaveRequest(BaseModel):
-    content: str
-
-
-@router.post("/user/brand")
-async def save_brand(body: BrandSaveRequest, auth: UserClient):
-    """Save workspace brand. Writes /workspace/operation/BRAND.md (ADR-206).
-
-    ADR-209 Phase 4: operator-initiated edit — attribute to `operator`.
-    """
-    try:
-        from services.workspace_paths import OPERATION_BRAND_PATH
-        um = UserMemory(auth.client, auth.user_id)
-        success = await um.write(
-            OPERATION_BRAND_PATH,
-            body.content,
-            summary="Brand identity",
-            authored_by="operator",
-            author_identity_uuid=auth.user_id,  # ADR-410/412 viewer pass — which human
-            message="edit BRAND.md (settings surface)",
-        )
-        if not success:
-            raise HTTPException(status_code=500, detail="Failed to write BRAND.md")
-        return {"exists": True}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# ─── Brand — RETIRED (ADR-432 D1c, 2026-07-09) ──────────────────────────────
+# The GET/POST /user/brand endpoints are DELETED. operation/BRAND.md was read by
+# no producing path; brand voice is a hired agent's output-styling concern that
+# homes per-agent (agents/{slug}/) when load-bearing, not a workspace file
+# (ADR-432 D1b). This was the one live writer of BRAND.md — removed so nothing
+# orphan-writes the retired file.
 
 
 # ─── Profile ──────────────────────────────────────────────────────────────────

@@ -88,8 +88,8 @@ def test_workspace_init_does_not_scaffold_bundle_owned_paths() -> None:
     # ADR-383 amendment (2026-07-02): GOVERNANCE_AUTONOMY_YAML_PATH moved OUT of
     # this ban list — it is now a steward-seed (like MANDATE/IDENTITY/principles).
     # The prose GOVERNANCE_AUTONOMY_PATH (AUTONOMY.md) stays bundle-owned/banned.
+    # ADR-432 D1c: OPERATION_BRAND_PATH removed from this set — Brand retired.
     bundle_owned_constants = {
-        "OPERATION_BRAND_PATH",
         "GOVERNANCE_AUTONOMY_PATH",
         "SYSTEM_AWARENESS_PATH",
     }
@@ -170,14 +170,14 @@ def test_workspace_init_drops_bundle_owned_imports() -> None:
     # legitimately imported (the steward seeds). The bundle-OWNED constants
     # (the program's own MANDATE/IDENTITY/principles content + BRAND/AUTONOMY/
     # AWARENESS) stay banned — those are bundle-fork-only.
+    # ADR-432 D1c: DEFAULT_BRAND_MD + OPERATION_BRAND_PATH removed from the ban
+    # list — those constants no longer exist (Brand retired).
     banned_imports = {
         "DEFAULT_IDENTITY_MD",
-        "DEFAULT_BRAND_MD",
         "DEFAULT_AUTONOMY_MD",
         "DEFAULT_AWARENESS_MD",
         "DEFAULT_REVIEW_IDENTITY_MD",
         "DEFAULT_REVIEW_PRINCIPLES_MD",
-        "OPERATION_BRAND_PATH",
         "GOVERNANCE_AUTONOMY_PATH",
         "GOVERNANCE_AUTONOMY_YAML_PATH",
         "SYSTEM_AWARENESS_PATH",

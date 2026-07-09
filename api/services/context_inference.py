@@ -4,7 +4,7 @@ Context Inference — ADR-144: Inference-First Shared Context
 
 Single inference function for workspace shared context. Reads any combination
 of sources (text, documents, URLs, platform content) and produces rich markdown
-for IDENTITY.md or BRAND.md.
+for IDENTITY.md. (ADR-432 D1c: the BRAND.md target was retired.)
 
 Replaces enrich_context() from ADR-138/140 onboarding flow.
 
@@ -54,56 +54,29 @@ RULES:
 - Be specific — use their actual context, not generic labels
 - If existing content is provided, MERGE: preserve information from both old and new sources"""
 
-
-BRAND_SYSTEM = """You are updating a user's workspace brand file (BRAND.md).
-Read all provided sources carefully. Produce a rich markdown brand guide.
-
-OUTPUT FORMAT (use exactly this structure):
-# Brand
-
-## Voice
-[1-2 sentences describing the communication style — how they sound]
-
-## Tone
-[Professional/casual/technical/etc. with nuance and examples]
-
-## Terminology
-- [Term]: [how they use it, what it means in their context]
-- [Term]: [how they use it]
-
-## Audience
-[Who they typically communicate with — investors, engineers, customers, etc.]
-
-## Style Notes
-- [Specific observation from their materials about how they write]
-- [Another observation]
-
-RULES:
-- Extract real voice/tone from their actual writing, not generic descriptions
-- Terminology should capture their specific vocabulary
-- If they have a company, capture company brand voice (not just personal style)
-- If something isn't mentioned, omit that section entirely
-- If existing content is provided, MERGE: preserve information from both old and new sources"""
+# ADR-432 D1c: BRAND_SYSTEM removed — Brand retired; this workflow authors IDENTITY.md only.
 
 
 async def author_identity_merge(
-    target: Literal["identity", "brand"],
+    target: Literal["identity"],
     text: str = "",
     document_contents: Optional[list] = None,
     url_contents: Optional[list] = None,
     existing_content: str = "",
 ) -> str:
-    """Merge new operator input into the identity/brand file content (ADR-324).
+    """Merge new operator input into the IDENTITY.md file content (ADR-324).
 
     The focused LLM merge step: read-set (text + doc contents + URLs + existing)
-    → IDENTITY_SYSTEM/BRAND_SYSTEM prompt → merged markdown. Renamed from
+    → IDENTITY_SYSTEM prompt → merged markdown. Renamed from
     `infer_shared_context` (ADR-324 — honest name; it authors the operator's
-    identity/brand, it does not "infer context"). Used by `author_identity`
+    identity, it does not "infer context"). Used by `author_identity`
     (the full workflow), the MCP path, and the eval harness. Returns merged
     markdown content for the target workspace file.
 
+    ADR-432 D1c: the `brand` target is retired — this now authors identity only.
+
     Args:
-        target: "identity" or "brand"
+        target: "identity"
         text: Direct text from user (chat message, description)
         document_contents: [{filename, content}] from uploaded documents
         url_contents: [{url, content}] from web search/fetch
@@ -151,7 +124,7 @@ async def author_identity_merge(
         parts.append(f"--- Existing {target.upper()}.md (merge with this) ---\n{existing_content.strip()}")
 
     source_material = "\n\n".join(parts)
-    system = IDENTITY_SYSTEM if target == "identity" else BRAND_SYSTEM
+    system = IDENTITY_SYSTEM  # ADR-432 D1c: identity-only (brand retired)
 
     try:
         from services.anthropic import chat_completion_with_usage
@@ -176,35 +149,37 @@ async def author_identity_merge(
 async def author_identity(
     client: Any,
     user_id: str,
-    target: Literal["identity", "brand"],
+    target: Literal["identity"],
     text: str = "",
     document_ids: Optional[list] = None,
     url_contents: Optional[list] = None,
     authored_by: str = "operator",
 ) -> dict:
-    """Full identity/brand authoring workflow (ADR-324 — relocated from the
+    """Full IDENTITY.md authoring workflow (ADR-324 — relocated from the
     dissolved InferContext primitive's handler).
 
     Reads the existing file, merges new input via `author_identity_merge`,
     records the cost ledger, writes the result via UserMemory (→ write_revision,
     authored_by=operator by default), and runs deterministic gap detection.
 
-    Called by the MCP `dispatch_remember_this` identity/brand path and the
-    eval harness. The chat surface does NOT call this — post-ADR-324 the chat
-    LLM authors identity/brand inline via WriteFile (no focused sub-prompt).
+    Called by the MCP `dispatch_remember_this` identity path and the eval
+    harness. The chat surface does NOT call this — post-ADR-324 the chat LLM
+    authors identity inline via WriteFile (no focused sub-prompt).
+
+    ADR-432 D1c: the `brand` target is retired — this authors identity only.
 
     Returns the same shape the old handle_infer_context returned:
         {success, target, filename, content, gaps, message} | {success: False, error, message}
     """
     from services.workspace import UserMemory
-    from services.workspace_paths import PERSONA_IDENTITY_PATH, OPERATION_BRAND_PATH
+    from services.workspace_paths import PERSONA_IDENTITY_PATH
 
-    if target not in ("identity", "brand"):
-        return {"success": False, "error": "invalid_target", "message": "target must be 'identity' or 'brand'"}
+    if target != "identity":
+        return {"success": False, "error": "invalid_target", "message": "target must be 'identity'"}
     if not text or not text.strip():
         return {"success": False, "error": "empty_text", "message": "text is required"}
 
-    filename = PERSONA_IDENTITY_PATH if target == "identity" else OPERATION_BRAND_PATH
+    filename = PERSONA_IDENTITY_PATH
 
     try:
         um = UserMemory(client, user_id)
@@ -531,52 +506,7 @@ def _detect_identity_gaps(content: str) -> list[dict]:
     return gaps
 
 
-def _detect_brand_gaps(content: str) -> list[dict]:
-    """Identify missing-but-load-bearing fields in a BRAND.md inference.
-
-    Brand has fewer required fields than identity. Voice and audience are the
-    two load-bearing ones — without them, downstream agents can't write in the
-    user's voice for the user's audience.
-    """
-    gaps: list[dict] = []
-
-    voice_block = _extract_section(content, "Voice")
-    tone_block = _extract_section(content, "Tone")
-    audience_block = _extract_section(content, "Audience")
-
-    # Gap: voice (high severity)
-    if not voice_block or len(voice_block.split()) < 10:
-        gaps.append({
-            "field": "voice",
-            "severity": "high",
-            "suggested_question": "How would you describe your communication style? (e.g., direct and technical, warm and conversational, formal and concise)",
-            "options": [
-                "Direct and technical",
-                "Warm and conversational",
-                "Formal and concise",
-                "Playful and casual",
-            ],
-        })
-
-    # Gap: audience (high severity)
-    if not audience_block or len(audience_block.split()) < 5:
-        gaps.append({
-            "field": "audience",
-            "severity": "high",
-            "suggested_question": "Who do you typically write for?",
-            "options": [],
-        })
-
-    # Gap: tone (medium severity)
-    if not tone_block or len(tone_block.split()) < 5:
-        gaps.append({
-            "field": "tone",
-            "severity": "medium",
-            "suggested_question": "What tone fits your work? (formal/casual/technical/playful/serious)",
-            "options": ["Formal", "Casual", "Technical", "Playful", "Serious"],
-        })
-
-    return gaps
+# ADR-432 D1c: _detect_brand_gaps removed — Brand retired.
 
 
 def _classify_richness(content: str) -> str:
@@ -596,15 +526,16 @@ def _classify_richness(content: str) -> str:
 
 
 def detect_inference_gaps(
-    target: Literal["identity", "brand"],
+    target: Literal["identity"],
     inferred_content: str,
 ) -> dict:
     """Identify missing-but-load-bearing fields in an inference output.
 
     ADR-162 Sub-phase A. Pure Python. Zero LLM cost. Deterministic.
+    ADR-432 D1c: identity-only (brand retired).
 
     Args:
-        target: "identity" or "brand"
+        target: "identity"
         inferred_content: The markdown content produced by infer_shared_context()
 
     Returns:
@@ -629,8 +560,6 @@ def detect_inference_gaps(
 
     if target == "identity":
         gaps = _detect_identity_gaps(inferred_content)
-    elif target == "brand":
-        gaps = _detect_brand_gaps(inferred_content)
     else:
         gaps = []
 

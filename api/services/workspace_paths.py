@@ -33,7 +33,7 @@ IS the permission taxonomy — `access(2)` for the agent OS (Derived Principle 1
       │     OCCUPANT.md, handoffs.md, calibration.md, standing_intent.md.
       │     OS analog: the process's own address space / working set.
       ├── operation/     THE WORK the agent operates on / produces. Many writers.
-      │     BRAND.md, CONVENTIONS.md, _voice.md-class style files, specs/, reports/,
+      │     CONVENTIONS.md, _voice.md-class style files, specs/, reports/,
       │     operations/, {domain}/ accumulated context (_money_truth.md, _risk.md,
       │     _operator_profile.md, _universe.yaml, etc.).
       │     OS analog: ~/Documents/ + project working dirs (the commons).
@@ -421,7 +421,8 @@ PERSONA_FILES = (
 # =============================================================================
 # operation/ — the work the agent operates on / produces
 # =============================================================================
-OPERATION_BRAND_PATH = "operation/BRAND.md"
+# ADR-432 D1c: OPERATION_BRAND_PATH removed — Brand retired (no producing path
+# read operation/BRAND.md; brand voice homes per-agent when load-bearing).
 # CONVENTIONS.md: program-scoped (NOT kernel-seeded); bundle forks it.
 OPERATION_CONVENTIONS_PATH = "operation/CONVENTIONS.md"
 # Program-bundle capability library (Claude Code skills.md analog, ADR-261 D6).

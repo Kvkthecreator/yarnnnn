@@ -8,15 +8,15 @@ nothing inferred by background jobs.
 Sources:
   /memory/ files — MEMORY.md, style.md, notes.md (ADR-108, replaces user_memory table)
   activity_log   — recent system events: task runs, integrations, scheduler heartbeat
-  workspace_files — identity, brand, awareness, context domain health
+  workspace_files — identity, awareness, context domain health
 
 What goes in the prompt (~3,000 tokens, + ~500 for agent scope):
   - Identity: IDENTITY.md content (name, role, company, work context) ← ADR-144/156
-  - Brand: BRAND.md content ← ADR-143
   - Awareness: AWARENESS.md — TP's persistent situational notes (shift handoff)
   - Active tasks (max 10): slug, mode, status, schedule, last/next run ← ADR-149
   - Context domains: per-domain file count + freshness + health ← ADR-151
-  - Workspace state: unified signal — identity/brand gaps, tasks stale, budget, agent health ← ADR-156
+  - Workspace state: unified signal — identity gaps, tasks stale, budget, agent health ← ADR-156
+  - (Brand retired — ADR-432 D1c)
   - Preferences: tone_*, verbosity_*
   - What you've told me: fact:*, instruction:*
   - Active agents (max 5)
@@ -124,12 +124,12 @@ async def build_working_memory(
         _run_sync_with_client, _get_user_shared_files_sync, user_id
     )
 
-    # ADR-143 + ADR-206: Read brand + orchestration playbook from workspace
+    # ADR-206: Read the orchestration playbook from workspace.
+    # ADR-432 D1c: brand read removed (Brand retired).
     from services.workspace_paths import (
-        OPERATION_BRAND_PATH, PERSONA_IDENTITY_PATH,
+        PERSONA_IDENTITY_PATH,
         SYSTEM_PLAYBOOK_PATH, SYSTEM_AWARENESS_PATH,
     )
-    brand_content = memory_files.get("BRAND.md", "")
     orchestration_playbook = await asyncio.to_thread(
         _run_sync_with_client, _get_workspace_file_sync, user_id, SYSTEM_PLAYBOOK_PATH
     )
@@ -205,7 +205,7 @@ async def build_working_memory(
         "preferences": _extract_preferences_from_file(memory_files.get("style.md")),
         "known": _extract_known_from_file(memory_files.get("notes.md")),
         "identity": identity_content,
-        "brand": brand_content.strip() if brand_content else None,
+        # ADR-432 D1c: "brand" key removed (Brand retired).
         "awareness": awareness_content,
         "conversation_summary": conversation_summary,
         "orchestration_playbook": orchestration_playbook,
@@ -230,7 +230,7 @@ async def build_working_memory(
         "workspace_state": {
             # Identity
             "identity": _classify_richness(identity_content),
-            "brand": _classify_richness(brand_content),
+            # ADR-432 D1c: "brand" richness removed (Brand retired).
             # Content
             "documents": doc_count,
             "context_domains": len([d for d in context_domains if d.get("file_count", 0) > 0 and not d.get("temporal")]) if context_domains else 0,
@@ -1422,7 +1422,6 @@ def format_compact_index(
     # --- Workspace state (unified signal) ---
     ws = working_memory.get("workspace_state", {})
     identity = ws.get("identity", "empty")
-    brand = ws.get("brand", "empty")
     tasks_active = ws.get("tasks_active", 0)
     tasks_stale = ws.get("tasks_stale", 0)
     docs = ws.get("documents", 0)
@@ -1440,7 +1439,7 @@ def format_compact_index(
     principles = ws.get("principles", "empty")
     # Substrate richness line (unchanged — used by activation checks)
     lines.append(
-        f"- Substrate: Mandate:{mandate} · Identity:{identity} · Brand:{brand} · "
+        f"- Substrate: Mandate:{mandate} · Identity:{identity} · "
         f"Autonomy:{autonomy} · Principles:{principles} · {docs} docs"
     )
     # Operational signals — extracted content so YARNNN acts without ReadFile
@@ -1658,7 +1657,6 @@ def format_compact_index(
     lines.append("- `/workspace/governance/AUTONOMY.md` — delegation ceiling")
     lines.append("- `/workspace/constitution/PRECEDENT.md` — durable interpretations and boundary cases")
     lines.append("- `/workspace/persona/IDENTITY.md` — who the user is")
-    lines.append("- `/workspace/operation/BRAND.md` — visual style and voice")
     lines.append("- `/workspace/system/awareness.md` — your shift notes from prior sessions")
     lines.append("- `/workspace/system/conversation.md` — summary of earlier conversation")
     lines.append("- `/workspace/system/notes.md` — stable facts and user preferences")

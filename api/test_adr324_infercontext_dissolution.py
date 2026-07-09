@@ -5,8 +5,9 @@ Asserts:
   (b) infer_context.py module is deleted.
   (c) context_inference exposes author_identity_merge (renamed) + author_identity
       (the relocated workflow).
-  (d) MCP dispatch_remember_this routes identity/brand to author_identity, NOT
-      to execute_primitive("InferContext").
+  (d) MCP composition layer does not dispatch the dissolved InferContext
+      primitive. (ADR-368 removed the identity/brand→author_identity routing;
+      ADR-432 D1c retired Brand — the surviving invariant is just "no InferContext".)
   (e) grep gate — no live `execute_primitive(..., "InferContext"` dispatch and no
       `INFER_CONTEXT_TOOL` reference in registry.
 
@@ -54,16 +55,17 @@ def test_author_identity_helpers_present():
     )
 
 
-def test_mcp_routes_to_author_identity_not_primitive():
+def test_mcp_does_not_dispatch_infercontext():
+    # ADR-324 gated that the MCP path did NOT dispatch execute_primitive("InferContext").
+    # ADR-368 (memory-first interop) then removed the identity/brand routing to
+    # author_identity entirely — `remember` now writes a raw observation to the
+    # inbound/ lane (no focused inference sub-call). ADR-432 D1c retired Brand.
+    # So the surviving, current invariant is simply: the MCP composition layer
+    # must not dispatch the dissolved InferContext primitive.
     src = _read("services", "mcp_composition.py")
-    # The identity/brand branch must call author_identity, not execute_primitive("InferContext").
     assert 'execute_primitive(\n            auth,\n            "InferContext"' not in src
-    assert '"InferContext"' not in src.replace(
-        # allow the docstring/comment historical mention; gate the live dispatch only
-        "", ""
-    ) or "author_identity" in src
-    assert "from services.context_inference import author_identity" in src, (
-        "dispatch_remember_this must import + call author_identity for identity/brand (ADR-324)."
+    assert '"InferContext"' not in src, (
+        "mcp_composition must not reference the dissolved InferContext primitive."
     )
 
 

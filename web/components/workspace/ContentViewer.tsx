@@ -43,7 +43,7 @@ import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
 // on the backend. When rendered on Files, we surface that provenance (source
 // caption + gap banner) above the markdown body via InferenceContentView.
 const IDENTITY_PATH = '/workspace/persona/IDENTITY.md';
-const BRAND_PATH = '/workspace/operation/BRAND.md';
+// ADR-432 D1c: BRAND_PATH removed with the retired Brand concept.
 
 /**
  * Resolve a file's content_url to a directly-renderable URL (ADR-395).
@@ -77,9 +77,8 @@ function useSignedBlobUrl(contentUrl: string | null | undefined): { url: string;
   return state;
 }
 
-function inferenceTarget(path: string): 'identity' | 'brand' | null {
+function inferenceTarget(path: string): 'identity' | null {
   if (path === IDENTITY_PATH) return 'identity';
-  if (path === BRAND_PATH) return 'brand';
   return null;
 }
 

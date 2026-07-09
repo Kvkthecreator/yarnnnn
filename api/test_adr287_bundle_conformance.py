@@ -265,7 +265,7 @@ _ADR414_AGENT_HOME_OWNED_LEAVES = [
     "_preferences.yaml",
 ]
 _ADR286_D3_WORKSPACE_OWNED_PATHS = [
-    "operation/BRAND.md",
+    # ADR-432 D1c: operation/BRAND.md removed (Brand retired; bundle seeds deleted).
     "operation/CONVENTIONS.md",
     "system/awareness.md",
     "_recurrences.yaml",

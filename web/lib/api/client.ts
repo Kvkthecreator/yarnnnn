@@ -357,26 +357,15 @@ export const api = {
       }),
   },
 
-  // (styles API deleted — ADR-133: preferences dissolved into BRAND.md)
-
   // ADR-244 (2026-05-01): api.onboarding deleted — `getState` migrated into
   // the existing api.workspace namespace below (workspace lifecycle is the
   // canonical name; the OnboardingModal lived for the duration of signup,
   // the surface lives forever). Singular implementation: one canonical
   // state read, one canonical namespace.
 
-  // ADR-133: Brand — reads/writes /workspace/BRAND.md
-  brand: {
-    get: () =>
-      request<{ content: string | null; exists: boolean }>(
-        "/api/memory/user/brand"
-      ),
-    save: (content: string) =>
-      request<{ exists: boolean }>(
-        "/api/memory/user/brand",
-        { method: "POST", body: JSON.stringify({ content }) },
-      ),
-  },
+  // ADR-432 D1c (2026-07-09): the `api.brand` namespace is DELETED. Brand is
+  // retired — operation/BRAND.md was read by no producing path (its home is
+  // per-agent output-styling when a hired agent needs it, ADR-432 D1b).
 
   // ADR-144: Identity (workspace IDENTITY.md — replaces profile fields)
   identity: {
@@ -1234,7 +1223,7 @@ export const api = {
         substrate_status: {
           mandate: { path: string; state: 'skeleton' | 'authored' | 'missing'; last_revised_at: string | null };
           identity: { path: string; state: 'skeleton' | 'authored' | 'missing'; last_revised_at: string | null };
-          brand: { path: string; state: 'skeleton' | 'authored' | 'missing'; last_revised_at: string | null };
+          // ADR-432 D1c: `brand` removed (Brand retired).
           autonomy: { path: string; state: 'skeleton' | 'authored' | 'missing'; last_revised_at: string | null };
           principles: { path: string; state: 'skeleton' | 'authored' | 'missing'; last_revised_at: string | null };
         };
@@ -1262,7 +1251,7 @@ export const api = {
         principles_prose: WorkspaceFileWithRevision;
         principles_yaml: WorkspaceFileWithRevision;
         identity: WorkspaceFileWithRevision;
-        brand: WorkspaceFileWithRevision;
+        // ADR-432 D1c: `brand` removed (Brand retired).
       }>("/api/workspace/setup-bundle"),
 
     // ADR-312: bundled read for the Home page mount. Collapses the per-slot
