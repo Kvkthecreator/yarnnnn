@@ -10,74 +10,66 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA } from "@/lib/cta";
 
 export const metadata = getMarketingMetadata({
-  title: "Pricing — a free workspace, a plan with included usage, a budget you cap",
+  title: "Pricing — a free shared workspace, one paid plan for the team",
   description:
-    "The workspace and your memory are free forever. Pick a plan for the work your operation runs — each includes a monthly usage allowance. Top up any time for extra headroom, and cap monthly spend with a budget you set. See every action; never a surprise bill.",
+    "The workspace and your memory are free forever — bring one teammate at no cost. One paid plan opens the workspace to your team and includes a monthly usage allowance the whole workspace shares. AI connections are always free. See every action; never a surprise bill.",
   path: "/pricing",
-  keywords: ["yarnnn pricing", "ai subscription plans", "usage-based ai pricing", "ai operation budget", "monthly ai spend cap", "transparent ai usage", "included usage plan"],
+  keywords: ["yarnnn pricing", "ai workspace pricing", "shared ai workspace", "team ai plan", "usage-based ai pricing", "transparent ai usage", "included usage plan"],
 });
 
-// ADR-396 (2026-07-01): Type-B subscription over the metered balance. The public
-// face is a three-tier plan ladder (Free / Starter / Pro): each paid tier grants
-// a monthly INCLUDED USAGE allowance; top-ups are the overage pool beneath it; a
-// budget you set caps monthly spend (a ceiling, not a charge — the _budget.yaml
-// dial survives ADR-396); zero balance is the hard floor. Transparency contract:
-// we show you every ACTION your operation takes; the plan is the price.
-// Launch-test numbers (Free / $19 / $49) — set to test in front of a first user,
-// reversible against evidence (ADR-396 §7, relaxed).
+// ADR-429 §12 (2026-07-09): the launch tier structure — Free + ONE paid plan. The
+// old Free/Starter/Pro ladder differentiated on retention + connector count, which
+// gate the DORMANT capture lane (ADR-404 D2); stripping those away, Starter vs Pro
+// differed only by allowance size — not a tier axis in the three-axis model (usage
+// is metered + pooled). So at launch the paid plan unlocks the TEAM (seats, Axis ②)
+// + a real included allowance; the pooled meter (③) does the usage differentiation.
+// The split RETURNS when capture ships (retention/connectors become real again);
+// until then, one paid plan. `pro` is dormant — not shown here.
+//
+// Three axes: ① the plan (free vs one paid base) · ② seats — free workspace = owner
+// + 1 guest, paid opens the team (seat fee DORMANT $0 today, §12.3) · ③ pooled meter
+// — one shared allowance the whole workspace draws; AI connections never cost a seat
+// and never a charge. Numbers ($0 / $20 base / $15 allowance) are launch-test values,
+// reversible against first-customer evidence (ADR-396 §7 standing discipline).
 
 const PLANS = [
   {
     name: "Free",
     price: "$0",
     cadence: "forever",
-    blurb: "Your memory — files, notes, and context — kept with full history and reachable from every AI you use.",
+    blurb: "Your memory — files, notes, and context — kept with full history and reachable from every AI you use. Bring one teammate, no card.",
     cta: "Start free",
     href: CTA.signup,
     featured: false,
     points: [
       "Workspace + memory, free forever",
+      "You + one guest — try the shared commons",
       "$3 starting balance — feel the loop before you spend",
       "Reachable from any AI over MCP",
     ],
   },
   {
     name: "Starter",
-    price: "$19",
+    price: "$20",
     cadence: "/mo",
-    blurb: "For a focused operation running through the week. Includes a monthly usage allowance for its work.",
+    blurb: "For a real team working out of one shared workspace. Opens the workspace to everyone and includes a monthly usage allowance the whole team draws from.",
     cta: "Go Starter",
     href: CTA.signup,
     featured: true,
     points: [
       "Everything in Free",
-      "Monthly included usage for your operation",
-      "30-day connector history",
-      "Up to 3 connectors",
-    ],
-  },
-  {
-    name: "Pro",
-    price: "$49",
-    cadence: "/mo",
-    blurb: "For high-cadence work or several operations at once. A larger allowance and a longer memory of the world.",
-    cta: "Go Pro",
-    href: CTA.signup,
-    featured: false,
-    points: [
-      "Everything in Starter",
-      "Larger monthly included usage",
-      "90-day connector history",
-      "Unlimited connectors",
+      "Invite your whole team into one workspace",
+      "$15 of monthly usage included — one shared pool",
+      "Connect any AI over MCP — always free",
     ],
   },
 ];
 
 const HOW_IT_WORKS = [
-  "Each plan includes a monthly usage allowance — the work your operation runs is drawn from it first.",
+  "One shared allowance. Your plan includes a monthly amount of usage the whole workspace draws from — you, your teammates, and any AI you connect all draw the same pool.",
+  "Idle costs nothing. The workspace and every file are free — only work that actually runs draws on the allowance.",
   "Need more in a heavy month? Top up any amount from $5. Top-ups never expire and sit beneath your allowance.",
-  "Idle costs nothing. The workspace and every file are free — only a running operation draws usage.",
-  "Hard stop at zero. If your allowance and balance run out, the operation pauses — nothing is lost. You resume by upgrading or topping up.",
+  "Hard stop at zero. If your allowance and balance run out, work pauses — nothing is lost. You resume by upgrading or topping up.",
 ];
 
 export default function PricingPage() {
@@ -111,19 +103,19 @@ export default function PricingPage() {
             {/* Header */}
             <div className="text-center mb-16">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-6 tracking-tight">
-                Free to keep.<br />A plan for the work.
+                Free to keep.<br />One plan for the team.
               </h1>
               <p className="text-white/50 text-lg max-w-2xl mx-auto">
-                The workspace and your memory are free forever — and you can invite
-                your team into the same shared workspace. Pick a plan for the
-                operation that runs on them — each includes a monthly usage
-                allowance. See every action it takes; never a surprise bill.
+                The workspace and your memory are free forever — and you can bring
+                one teammate at no cost. One paid plan opens the workspace to your
+                whole team and includes a monthly usage allowance everyone shares.
+                AI connections are always free. See every action; never a surprise bill.
               </p>
             </div>
 
-            {/* Plan ladder */}
+            {/* Plan ladder — Free + one paid plan (ADR-429 §12.1); two cards, centered */}
             <ScrollReveal className="mb-8">
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 max-w-2xl mx-auto">
                 {PLANS.map((plan, i) => (
                   <SpotlightCard
                     key={plan.name}
@@ -179,7 +171,7 @@ export default function PricingPage() {
                     How usage works
                   </div>
                   <div className="flex items-baseline gap-2 mb-5">
-                    <h2 className="text-2xl font-medium">Included, then top up</h2>
+                    <h2 className="text-2xl font-medium">One shared pool, then top up</h2>
                     <span className="text-white/40 text-sm">— never a surprise</span>
                   </div>
                   <ul className="space-y-4">
@@ -236,11 +228,12 @@ export default function PricingPage() {
             <ScrollReveal className="max-w-3xl mx-auto mb-16 grid gap-6">
               <SpotlightCard variant="dark" spotlightSize={500}>
                 <div className="p-6">
-                  <h3 className="text-lg font-medium mb-3">What&apos;s an operation?</h3>
+                  <h3 className="text-lg font-medium mb-3">What does a seat cost?</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    An operation is the optional assistant (in beta) running on your workspace. It
-                    draws on your plan&apos;s included usage while it&apos;s working, capped by the
-                    budget you set. Your memory, files, and access from any AI are always free.
+                    A seat is a human on your workspace. Free covers you plus one guest; the paid
+                    plan opens the workspace to your whole team. Every human draws the same shared
+                    allowance — and any AI you connect over MCP is always free, never a seat and
+                    never a charge.
                   </p>
                 </div>
               </SpotlightCard>
@@ -272,8 +265,9 @@ export default function PricingPage() {
                 <div className="p-6 space-y-4 text-white/50 text-sm leading-relaxed">
                   <p>
                     <strong className="text-white/70">Do I need a paid plan?</strong> No. The
-                    workspace and your memory are free forever. A plan is for running an operation
-                    on them — it includes the monthly usage that work needs.
+                    workspace and your memory are free forever, and you can bring one teammate at no
+                    cost. A paid plan is for a real team — inviting a third human opens the workspace
+                    to everyone, and includes the monthly usage the shared work needs.
                   </p>
                   <p>
                     <strong className="text-white/70">Starting balance.</strong> Every workspace
