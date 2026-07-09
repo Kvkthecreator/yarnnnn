@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.09.3] - Retire the eager foreign-write derive wake (the `remember` derive-and-cite prompt)
+
+- **This IS an LLM-behavior change** — it removes a per-write seat invocation whose entire payload was a `DERIVE-AND-CITE` prompt.
+- `mcp_server/server.py` (`remember` handler): the `submit_foreign_write_wake(...)` call after a raw `remember` write is **removed**. The raw observation still lands immutably in `inbound/mcp/{client}/`, attributed `yarnnn:mcp:{client}`, tagged `revision_kind='observation'` — the `retain + attribute` half of the ledger-intake invariant (ADR-376/DP32), carried by the ADR-423 column, not by a wake.
+- `services/mcp_composition.py`: `submit_foreign_write_wake` (the seam that built the `mcp-foreign-write-review` substrate_event wake + its DERIVE-AND-CITE `hook.prompt`) is **deleted**, replaced by a tombstone comment. It was the SINGLE MCP site touching the wake contract; MCP tools are now fully wake-agnostic.
+- **Why**: ADR-423 §7 + the Files-model note §5 (2026-07-09) demote the derive step to *"reserved, not the justification."* No live code ever produced a derivation deterministically — the wake was a prompt-only contract. Empirically (kvk workspace, `execution_events` + `workspace_file_versions`), recent firings ran **1 genuine derivation to 2 no-ops**, each no-op ~$0.22 of Sonnet whose only output was a `standing_intent.md` note reading *"observation evaluated, no derivation needed."* The trigger population is the operator's own MCP writes (`yarnnn:mcp:Claude`), not a low-context foreign agent — the derive premise ("the writer didn't understand the structure") no longer holds.
+- **Expected behavior**: `remember` over MCP no longer enqueues a per-write Reviewer/Freddie wake — no `mcp-foreign-write-review` substrate_event, no ~$0.22 derive-or-log invocation per write. The raw is captured, attributed, tagged, and `trace`-walkable exactly as before (`compose_trace`'s `derived_from` walk is unchanged and ready the day a real derive producer exists). The DP32 invariant's `cite` half re-attaches deliberately as deterministic code (ADR-423 §7 deferred), writing `revision_kind='derivation'` + `derived_from`, not as a per-write prompt.
+- Gates: `api/test_adr376_ledger_intake.py` **11/11** (check #5 rewritten to assert the surviving truth — raw tagged `observation` + eager wake retired; a pre-existing stale `fake_write_revision` mock that rejected the ADR-423 `revision_kind` kwarg fixed with `**_kwargs`, unblocking #11). Probe `probe_mcp_memory_surface.py` R3/R3b updated to the same post-retirement assertions.
+
 ## [2026.07.09.2] - The storage seam (ADR-427 Phase 1) — pure refactor, no behavior change
 
 - **Not a prompt/LLM change** — recorded here because `api/prompts/CHANGELOG.md` is the maintained changelog; the top-level `CHANGELOG.md` is frozen at ADR-058.

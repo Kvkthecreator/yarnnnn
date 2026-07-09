@@ -13,7 +13,7 @@ Three verbs, shaped on the user's memory mental model (ADR-368 D1): **put in · 
 
 | Verb | User says | Nature | Composes (server-side) |
 |---|---|---|---|
-| `remember` | "remember this" | write · sync | `WriteFile(operation/…)` + integrity wake |
+| `remember` | "remember this" | write · sync | `WriteFile(inbound/mcp/…)` — raw, immutable, tagged `revision_kind='observation'` (no derive wake — ADR-428) |
 | `recall` | "what do I know about X" | read · sync | `QueryKnowledge` → rank |
 | `trace` | "how did my thinking on X change" | read · sync | resolve → `ListRevisions` → `DiffRevisions` |
 
@@ -26,8 +26,8 @@ Each verb returns a reason-ready result in **one round** from the host's perspec
 1. **Memory-model names, kernel internals.** The verbs mirror how a person thinks about their own memory. The dispatch composes kernel primitives; that never surfaces.
 2. **Free-form context, silently filled.** Each verb's description tells the host LLM to compress the recent conversation into the parameters (`content`/`about`/`subject`/`question`) at call time, and never to ask the user for it.
 3. **`recall` returns; it does not synthesize.** The bright memory-vs-delegation line (ADR-368 D1): YARNNN returns material; the host LLM explains. A verb that composed an answer would be the deferred delegation nature leaking in.
-4. **`remember` captures a dump; the Reviewer places it** (ADR-368 D3 + D5). The MCP layer writes the memory inbox (`operation/memory/`) only — it does not route content to a home, because placement is a judgment the foreign caller lacks the workspace knowledge to make. The `mcp` caller is locked from `governance/`/`contract/`/`constitution/`/`persona/`/`system/` by `CALLER_WRITE_POLICY` (ADR-320/366); the gate is the backstop.
-5. **Every dump is placed, judged + attributed.** `remember` commits to the inbox stamped `authored_by="yarnnn:mcp"` (ADR-288) + ADR-162 provenance, then invokes the Reviewer (substrate_event wake) to file it where it belongs and check it against ground-truth — a separate `reviewer:<id>` revision. `trace` surfaces the full chain.
+4. **`remember` captures a raw observation; it is not placed at write time** (ADR-368 D3 + D5, amended by ADR-428). The MCP layer writes the raw intake lane (`inbound/mcp/{client}/`) only — it does not route content to a derived home, because that is a judgment the foreign caller lacks the workspace knowledge to make. The `mcp` caller is locked from `governance/`/`contract/`/`constitution/`/`persona/`/`system/` by `CALLER_WRITE_POLICY` (ADR-320/366); the gate is the backstop.
+5. **Every dump is retained + attributed + tagged.** `remember` commits to the raw lane stamped `authored_by="yarnnn:mcp:{client}"` (ADR-288) + ADR-162 provenance + `revision_kind='observation'` (ADR-423) — the `retain + attribute` half of DP32, carried by the revision, not a wake. **The eager per-write derive wake is retired (ADR-428):** a derived, cited act into `operation/` (a separate `reviewer:<id>` revision carrying `derived_from`) re-attaches when a real deterministic derive step ships (ADR-423 §7 deferred). `trace` surfaces the full chain (`derived_from` walk) the day a derivation exists.
 6. **Operator-visibility is session-independent** (ADR-368 D4). Every call emits a narrative entry even when no session is active, so the cross-room operator sees what entered.
 
 ### Zero LLM calls inside MCP
@@ -70,17 +70,17 @@ remember(
 { "success": False, "error": "empty_content", "message": "content is required" }
 ```
 
-### Capture, then placement-by-judgment (ADR-368 D3 + D5)
+### Capture as raw observation; derivation is deferred (ADR-368 D3 + D5 → ADR-376 → ADR-428)
 
-**`remember` does not route content to a home — it CAPTURES a dump and the Reviewer places it.** Placement is a judgment, not a deterministic route (the MCP layer doesn't understand the workspace's structure well enough to file into it, and must not corrupt a program's output tree).
+**`remember` does not route content to a derived home — it CAPTURES a raw observation into the intake lane.** Deriving the understanding is a judgment, not a deterministic route (the MCP layer doesn't understand the workspace's structure well enough to file into it, and must not corrupt a program's output tree).
 
-`resolve_remember_path(about)` → the **memory inbox**, subject-organized only so dumps group:
-- `about="Acme Corp"` → `operation/memory/acme-corp.md`
-- no `about` → `operation/memory/inbox.md`
+`resolve_remember_path(about)` → the **raw intake lane** (`inbound/mcp/{client}/`, per-client sublane, ADR-376), subject-organized only so dumps group:
+- `about="Acme Corp"` (client claude.ai) → `inbound/mcp/claude-ai/acme-corp.md`
+- no `about` → `inbound/mcp/{client}/inbox.md`
 
-The write is attributed `yarnnn:mcp`, then `submit_foreign_write_wake` **invokes the Reviewer** (substrate_event wake) to reason about where the dump belongs and file it into its real home (a domain, an entity file, agent feedback, or left as memory) — a separate `reviewer:<id>` revision. `trace` then shows the chain: *contributed via claude.ai → filed to X by the Reviewer*.
+The write is immutable, attributed `yarnnn:mcp:{client}` (ADR-288), and tagged `revision_kind='observation'` (ADR-423) — the `retain + attribute` half of DP32, carried by the revision. **The eager per-write derive wake is RETIRED (ADR-428):** no `substrate_event` fires on `remember`. A derived, cited act into `operation/` (a separate `reviewer:<id>` revision carrying `derived_from`) re-attaches when a real deterministic derive step ships (ADR-423 §7 deferred); `trace` then shows the chain *contributed via claude.ai → derived to X* the day a derivation exists.
 
-A foreign LLM never writes `system/`, `persona/`, `constitution/`, `governance/`, or `contract/` — the surface only constructs `operation/memory/` paths, and the ADR-307 gate is the backstop. The pre-ADR-368 five-target enum (`memory|identity|brand|agent|task`) — three of whose targets pointed at locked roots — is **deleted**, along with the first-draft `operation/{domain}/` keyword router (ADR-151 domain fiction live workspaces don't use).
+A foreign LLM never writes `system/`, `persona/`, `constitution/`, `governance/`, or `contract/` — the surface only constructs `inbound/mcp/{client}/` paths, and the ADR-307/320 gate is the backstop. The pre-ADR-368 five-target enum (`memory|identity|brand|agent|task`) — three of whose targets pointed at locked roots — is **deleted**, along with the first-draft `operation/{domain}/` keyword router (ADR-151 domain fiction live workspaces don't use).
 
 ### Description text (what the LLM reads)
 

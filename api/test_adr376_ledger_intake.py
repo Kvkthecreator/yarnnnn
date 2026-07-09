@@ -77,7 +77,9 @@ def _perception_roundtrip(tws):
     saved_fetch = tws._fetch
     writes = []
 
-    def fake_write_revision(client, *, user_id, path, content, authored_by, message):
+    def fake_write_revision(client, *, user_id, path, content, authored_by, message, **_kwargs):
+        # **_kwargs tolerates the ADR-423 revision_kind field (and any future
+        # optional write_revision kwarg) — the mock only asserts path/author/content.
         writes.append({"path": path, "authored_by": authored_by, "content": content})
 
     RSS = (
@@ -167,19 +169,21 @@ def main():
         p_claude != p_gpt and "/claude" in p_claude and "/chatgpt" in p_gpt and "/unknown/" in p_none,
         f"claude={p_claude} gpt={p_gpt}"))
 
-    # 5. placement wake is DERIVE-AND-CITE, not rewrite-in-place.
-    wake_src = inspect.getsource(m.submit_foreign_write_wake)
-    derive_and_cite = (
-        "derived_from" in wake_src
-        and "do NOT rewrite" in wake_src
-        and "DERIVE" in wake_src
-        and "operation/" in wake_src
+    # 5. retain+attribute carried by the revision-kind COLUMN, not an eager wake.
+    #    (ADR-423/384 + the 2026-07-09 retirement: the raw `remember` write is
+    #    tagged revision_kind='observation'; the eager per-write DERIVE wake —
+    #    submit_foreign_write_wake — is retired, its derive step "reserved, not
+    #    the justification". The `cite` half re-attaches as real code later.)
+    dispatch_src = inspect.getsource(m.dispatch_remember_this)
+    raw_tagged_observation = (
+        '"revision_kind": "observation"' in dispatch_src
+        or "'revision_kind': 'observation'" in dispatch_src
     )
-    no_old_move = "move or copy" not in wake_src  # the pre-ADR-376 rewrite-in-place phrasing
+    eager_derive_wake_gone = not hasattr(m, "submit_foreign_write_wake")
     results.append(_check(
-        "5 placement wake is DERIVE-AND-CITE (derived_from + 'do NOT rewrite the raw'), not move/rewrite-in-place",
-        derive_and_cite and no_old_move,
-        f"derive_and_cite={derive_and_cite} no_old_move={no_old_move}"))
+        "5 raw remember is tagged revision_kind='observation' (retain+attribute via column) AND the eager derive wake is retired",
+        raw_tagged_observation and eager_derive_wake_gone,
+        f"raw_tagged={raw_tagged_observation} eager_wake_gone={eager_derive_wake_gone}"))
 
     # 6. the derived_from walk exists and compose_trace consults it (both
     #    directions: append the cited raw chain when on the derived file, AND

@@ -488,14 +488,17 @@ async def remember(
 
     written_path = result.get("filename") or result.get("path") or "(unknown)"
 
-    # ADR-376/DP32: the raw observation landed immutably in the inbound/ lane;
-    # this wake INVOKES the seat to DERIVE-AND-CITE the understanding into
-    # operation/ (a separate citing act, never a rewrite of the raw), and to
-    # judge it against ground-truth. Eventually-async; never blocks.
-    if written_path and written_path != "(unknown)":
-        await mcp_composition.submit_foreign_write_wake(
-            auth, written_path=written_path, target="inbound-raw-lane", client_name=client_name,
-        )
+    # ADR-376/DP32 (retire the eager derive wake, 2026-07-09): the raw observation
+    # landed immutably in the inbound/ lane, attributed, and tagged
+    # revision_kind='observation' (mcp_composition.dispatch_remember_this) — the
+    # `retain + attribute` half of the invariant, carried by the column per
+    # ADR-423/384, not by a wake. The `cite` half — a derived-and-cited act into
+    # operation/ — is NOT eager code: ADR-423 §7 / the Files-model note §5 demote
+    # the derive step to "reserved, not the justification" (no live code produced
+    # a derivation deterministically; the wake was a prompt-only contract that
+    # mostly logged "nothing to derive" at ~$0.22/fire). We do NOT fire a
+    # per-write seat wake here. A real derive step, when it ships, re-attaches
+    # deliberately as its own mechanism.
 
     _emit_mcp_narrative(
         auth, tool="remember", weight="material",

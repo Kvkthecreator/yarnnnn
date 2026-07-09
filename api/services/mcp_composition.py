@@ -1140,133 +1140,23 @@ async def _embed_revision_diffs(
 # ADR-310 D2 / ADR-368 D5 — the moat seam: foreign DUMP → Reviewer PLACEMENT
 # =============================================================================
 #
-# This is the SINGLE site in the MCP path that touches the wake contract
-# (services.wake.submit_wake_proposal). It is deliberately isolated in one
-# best-effort adapter so that if the wake contract is ever reshaped, the blast
-# radius is exactly this function. Everything else in the MCP tools stays
-# wake-agnostic.
+# RETIRED (2026-07-09) — the eager per-write derive wake.
 #
-# Derive-and-cite model (ADR-376/DP32 — the ledger-intake axiom): a foreign LLM's
-# `remember` is a RAW observation — it commits IMMUTABLY to the inbound/ raw lane
-# (`inbound/mcp/{client}/…`) attributed `yarnnn:mcp:{client}`. This adapter then
-# INVOKES the seat to DERIVE the workspace's understanding from it — a SEPARATE,
-# CITING act authored into operation/ (carrying `derived_from`) — NOT a rewrite or
-# move of the raw (the raw is never rewritten; it stays as the source of record).
-# Derivation lives with the judgment seat — which understands the workspace and
-# can write everywhere the foreign caller can't — not with the least-context
-# foreign caller. The foreign tool never blocks on it; the raw is captured
-# instantly, the seat derives shortly after (or derives nothing — a clean state).
+# The `remember` raw observation lands IMMUTABLY in the inbound/ raw lane
+# (`inbound/mcp/{client}/…`), attributed `yarnnn:mcp:{client}`, and tagged
+# `revision_kind='observation'` (dispatch_remember_this above). That is the
+# `retain + attribute` half of the ledger-intake invariant (ADR-376/DP32),
+# carried by the revision-kind COLUMN per ADR-423/384 — no wake required.
 #
-# The two-object split is git-legible: the raw's `yarnnn:mcp:{client}` origin
-# survives forever on its inbound/ revision; the seat's understanding is a SEPARATE
-# `reviewer:<id>` revision on a DIFFERENT operation/ file that CITES the raw via
-# `derived_from`; the `trace` verb walks the citation to show the whole chain
-# ("contributed via claude.ai → derived by the seat"). The instruction reaches the
-# seat in the wake's hook.prompt (ADR-310 D3) — not a new payload field — so the
-# substrate_event contract stays frozen.
-
-async def submit_foreign_write_wake(
-    auth: Any,
-    *,
-    written_path: str,
-    target: str,
-    client_name: str,
-) -> None:
-    """Best-effort: invoke the seat to DERIVE-AND-CITE from a raw observation.
-
-    Resolves the head revision_id for the just-written raw path and submits a
-    substrate_event wake whose hook.prompt invokes the seat to DERIVE the
-    workspace's understanding from the raw observation into operation/ — a NEW,
-    separate, citing act (carrying `derived_from`), NOT a rewrite of the raw
-    (ADR-376/DP32: the raw is never rewritten; understanding is a distinct
-    attributed object that cites its source). Never raises — a wake failure must
-    not affect the `remember` result (the raw already committed and is attributed).
-
-    Shared-workspace seam (CLOSED — ADR-407 Phase 1): the Reviewer is a
-    WORKSPACE-level seat (one per workspace), not per-user. The wake fires for
-    the workspace that owns this substrate, independent of which member's LLM
-    wrote it — `wake_scope` resolves acting-workspace → owner user id (the
-    wake pipeline's key), owner-fallback byte-identical in N=1. The writing
-    principal's identity is preserved separately via authored_by on the
-    revision (ADR-288) + principal_id on the wake payload.
-    """
-    try:
-        # workspace-relative path → absolute workspace path for revision lookup.
-        abs_path = written_path
-        if abs_path and not abs_path.startswith("/workspace/"):
-            abs_path = "/workspace/" + abs_path.lstrip("/")
-
-        # ADR-407 Phase 1 / ADR-408 D2: the wake fires for the WORKSPACE that
-        # owns this substrate, independent of which member's LLM wrote it.
-        # The wake pipeline is keyed by the workspace's OWNER user id
-        # (wake.py's unit) — the shared seam helper resolves it (owner
-        # fallback == auth.user_id, byte-identical N=1).
-        from services.workspace_context import acting_workspace_owner
-        wake_scope = acting_workspace_owner(auth.client, auth.user_id)
-
-        from services.authored_substrate import _read_head_revision_id
-
-        # Revision lookup is scoped to the writer's data (auth.user_id) — correct
-        # in both worlds: the revision was written under the writer's scope.
-        revision_id = _read_head_revision_id(auth.client, auth.user_id, abs_path)
-        if not revision_id:
-            logger.info(
-                "[MCP WAKE] no revision for %s — skipping Reviewer wake", abs_path
-            )
-            return
-
-        prompt = (
-            f"The operator contributed a RAW observation from outside YARNNN (via "
-            f"MCP, client: {client_name}). It is captured immutably in the raw "
-            f"intake lane at `{abs_path}` — a source of record, NOT its understood "
-            f"home. Your job is to DERIVE the workspace's understanding from it, as "
-            f"a SEPARATE act — do NOT rewrite or move the raw file (it stays as the "
-            f"attributed source of record).\n\n"
-            f"Read the raw observation, then AUTHOR (or update) the understanding "
-            f"into its real home under `operation/` — a domain file, an entity "
-            f"file, agent feedback, or wherever its subject lives — and on that "
-            f"derived file include a citation back to the raw source:\n"
-            f"    a frontmatter line  `derived_from: {abs_path}`\n"
-            f"so the provenance chain (raw contributor → your derived understanding) "
-            f"is walkable. Judge the observation against authored ground-truth and "
-            f"the mandate while you derive — if it conflicts, surface that. If the "
-            f"observation carries no understanding worth deriving yet (pure free "
-            f"memory, or nothing actionable), it is legitimate to derive nothing and "
-            f"leave it in the raw lane — that is a clean state, not an omission. You "
-            f"understand this workspace's structure; the contributing LLM did not, "
-            f"which is why the derivation is yours."
-        )
-
-        from services.wake import submit_wake_proposal
-        from services.supabase import resolve_principal_id
-
-        # Capture-first (migration 192): attribute the review wake to the FOREIGN
-        # principal that wrote (the provider host-id — chatgpt/claude.ai — per
-        # ADR-373 D2.a), not the workspace owner. The drainer reads this from the
-        # payload and stamps execution_events.principal_id, so the cost surface
-        # shows "ChatGPT caused this review", not "you".
-        foreign_principal = resolve_principal_id(auth)
-
-        await submit_wake_proposal(
-            auth.client,
-            wake_scope,  # workspace-scoped seam (Phase 3) — == auth.user_id today
-            source="substrate_event",
-            payload={
-                "hook": {
-                    "slug": "mcp-foreign-write-review",
-                    "event": "substrate_change",
-                    "prompt": prompt,
-                },
-                "path": abs_path,
-                "field_change": {"source": "mcp", "target": "inbound-raw-lane"},
-                "revision_id": revision_id,
-                # ADR-373 principal attribution — survives the wake_queue payload
-                # round-trip; read in the drainer's substrate_event dispatch body.
-                "principal_id": foreign_principal,
-            },
-        )
-        logger.info(
-            "[MCP WAKE] submitted Reviewer wake for foreign write to %s", abs_path
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[MCP WAKE] submit failed (non-fatal): %s", exc)
+# The `cite` half — a derived-and-cited act into operation/ — used to fire here
+# as a best-effort substrate_event wake (slug `mcp-foreign-write-review`) whose
+# hook.prompt asked the seat to DERIVE the understanding. ADR-423 §7 + the
+# Files-model note §5 (2026-07-09) demote that derive step to "reserved, not the
+# justification": no live code produced a derivation deterministically — it was
+# a prompt-only contract that, in practice, mostly authored a "nothing to derive"
+# log entry at ~$0.22/fire. The wake is removed rather than left firing.
+#
+# When a REAL derive step ships (deterministic code, ADR-423 §7 deferred), it
+# re-attaches as its own mechanism and writes `revision_kind='derivation'` +
+# `derived_from`. The `trace` verb's derived_from walk (compose_trace) already
+# supports that chain the day a producer exists — no reader change needed here.

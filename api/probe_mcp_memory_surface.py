@@ -40,7 +40,6 @@ async def _run():
     from services.supabase import AuthenticatedClient, get_service_client
     from services import mcp_composition
     from services.primitives.registry import execute_primitive
-    from services.wake_queue import queue_depth
 
     c = get_service_client()
     user_id = _live_user_id()
@@ -83,32 +82,21 @@ async def _run():
           bool(rev) and rev[0].get("authored_by") == "yarnnn:mcp:claude.ai",
           f"got={rev[0].get('authored_by') if rev else '(none)'}")
 
-    # --- R3: derive-and-cite wake fires (the seat is invoked to DERIVE from raw) ---
-    depth_before = queue_depth(c, user_id=user_id)
-    await mcp_composition.submit_foreign_write_wake(
-        auth, written_path=path, target="inbound-raw-lane", client_name="claude.ai")
-    depth_after = queue_depth(c, user_id=user_id)
-    check("R3 derive-and-cite wake enqueued — seat invoked to derive from the raw (ADR-376/DP32)",
-          depth_after >= depth_before + 1, f"queue {depth_before}→{depth_after}")
-    # R3b: the wake PROMPT instructs DERIVE-AND-CITE (author understanding into
-    # operation/ with derived_from; do NOT rewrite the raw) — the ADR-376 reshape.
-    enq = (
-        c.table("wake_queue").select("payload")
-        .eq("user_id", user_id).eq("wake_source", "substrate_event")
-        .eq("dedup_key", str(rev[0]["id"]) if rev else "").limit(1).execute().data or []
+    # --- R3: retain+attribute via the revision-kind COLUMN, no eager derive wake ---
+    # (ADR-423/384 + the 2026-07-09 retirement: the raw `remember` write is tagged
+    # revision_kind='observation'; the eager per-write derive wake is retired. The
+    # raw is retained + attributed + tagged; the `cite` half re-attaches as real
+    # deterministic code when it ships, NOT as a prompt-only per-write wake.)
+    rev_kind = (
+        c.table("workspace_file_versions").select("revision_kind")
+        .eq("user_id", user_id).eq("path", abs_path)
+        .order("created_at", desc=True).limit(1).execute().data or []
     )
-    prompt = ((enq[0].get("payload") or {}).get("hook") or {}).get("prompt", "") if enq else ""
-    check("R3b wake prompt invokes DERIVE-AND-CITE (derived_from, do NOT rewrite the raw)",
-          ("derived_from" in prompt and "derive" in prompt.lower()
-           and "do not rewrite" in prompt.lower().replace("\n", " ")),
-          f"prompt[:70]={prompt[:70]!r}")
-    # cleanup the probe wake (dedup_key == revision_id for substrate_event)
-    if rev:
-        try:
-            c.table("wake_queue").delete().eq("user_id", user_id).eq(
-                "wake_source", "substrate_event").eq("dedup_key", str(rev[0]["id"])).execute()
-        except Exception:
-            pass
+    check("R3 raw remember is tagged revision_kind='observation' (retain+attribute via column, ADR-423)",
+          bool(rev_kind) and rev_kind[0].get("revision_kind") == "observation",
+          f"got={rev_kind[0].get('revision_kind') if rev_kind else '(none)'}")
+    check("R3b the eager per-write derive wake is retired (submit_foreign_write_wake removed)",
+          not hasattr(mcp_composition, "submit_foreign_write_wake"))
 
     # --- R4: recall ROUND-TRIPS the just-saved subject (Finding 1, 2026-06-26) ---
     # The probe saved SUBJECT via dispatch_remember_this in R1, so recall(subject=
