@@ -18,6 +18,14 @@
  * The contract rendered here: the transcript is private to the lane; the
  * work lands in files. When a turn used tools, the reply footer names them
  * so the member sees the lane touched the commons.
+ *
+ * 2026-07-09 — THE ARTIFACT CARD. Naming the verb was not enough: a lane that
+ * wrote a report rendered as `gemini-2.5-pro · WriteFile…` and the member never
+ * saw what it made. The stream now carries the PATH of every landed
+ * WriteFile/EditFile (`lane_runner.artifact_path_from`), and each one mounts
+ * `ArtifactCard` → `FileBody` — the same viewer the Files surface uses. The
+ * card renders and opens; it never edits (ADR-236: chat is the mutation
+ * surface). Assistant text renders as markdown, as it always should have.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -25,6 +33,8 @@ import { ArrowUp, Loader2, Wrench } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatTimestamp } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { ArtifactCard } from './ArtifactCard';
 
 /** Day label for a message's separator (local date). '' when no timestamp. */
 function dayKey(ts?: string): string {
@@ -33,12 +43,34 @@ function dayKey(ts?: string): string {
   return Number.isNaN(d.getTime()) ? '' : d.toDateString();
 }
 
+/** A file this turn wrote or revised — the pointer the lane contract promises. */
+interface LaneArtifact {
+  path: string;
+  verb?: string;
+}
+
 interface LaneMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   created_at?: string;
   tools_called?: string[];
+  /** Persisted on the assistant row's metadata, so a reloaded lane keeps its cards. */
+  artifacts?: LaneArtifact[];
+}
+
+/** Metadata `artifacts` is a bare path list on the wire; the verb rides the
+ *  live stream only. Normalize both shapes to one. */
+function toArtifacts(raw: unknown): LaneArtifact[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out: LaneArtifact[] = [];
+  for (const item of raw) {
+    if (typeof item === 'string') out.push({ path: item });
+    else if (item && typeof item === 'object' && typeof (item as LaneArtifact).path === 'string') {
+      out.push(item as LaneArtifact);
+    }
+  }
+  return out.length ? out : undefined;
 }
 
 interface LanePanelProps {
@@ -71,6 +103,7 @@ export function LanePanel({ laneId, laneName, modelLabel }: LanePanelProps) {
             content: m.content,
             created_at: m.created_at,
             tools_called: (m.metadata?.tools_called as string[]) ?? undefined,
+            artifacts: toArtifacts(m.metadata?.artifacts),
           })),
         );
       })
@@ -121,7 +154,18 @@ export function LanePanel({ laneId, laneName, modelLabel }: LanePanelProps) {
                 : m,
             ),
           ),
-        onDone: ({ tools_called }) => {
+        // A write landed. Show the file as soon as it exists — mid-turn, before
+        // the model has finished narrating it.
+        onArtifact: ({ path, verb }) =>
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== replyId) return m;
+              const existing = m.artifacts ?? [];
+              if (existing.some((a) => a.path === path)) return m;
+              return { ...m, artifacts: [...existing, { path, verb }] };
+            }),
+          ),
+        onDone: ({ tools_called, artifacts }) => {
           if (tools_called?.length) {
             setMessages((prev) =>
               prev.map((m) =>
@@ -129,8 +173,27 @@ export function LanePanel({ laneId, laneName, modelLabel }: LanePanelProps) {
               ),
             );
           }
-          // A turn that streamed no text (e.g. tool-only) shows a marker.
-          if (!sawDelta) {
+          // The terminal list is authoritative (it survives a dropped frame).
+          // Union by path, keeping the streamed entries first — they carry the
+          // verb, which the terminal list does not.
+          const finalArtifacts = toArtifacts(artifacts);
+          if (finalArtifacts) {
+            setMessages((prev) =>
+              prev.map((m) => {
+                if (m.id !== replyId) return m;
+                const seen = m.artifacts ?? [];
+                const merged = [
+                  ...seen,
+                  ...finalArtifacts.filter((a) => !seen.some((s) => s.path === a.path)),
+                ];
+                return { ...m, artifacts: merged };
+              }),
+            );
+          }
+          // A turn that streamed no text shows a marker — UNLESS it produced an
+          // artifact, in which case the card is the reply and a "[no reply]"
+          // bubble above it would be a lie.
+          if (!sawDelta && !finalArtifacts) {
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === replyId && !m.content
@@ -146,14 +209,16 @@ export function LanePanel({ laneId, laneName, modelLabel }: LanePanelProps) {
           setInput((cur) => cur || content);
           // Drop the empty assistant placeholder on a hard error.
           setMessages((prev) =>
-            prev.filter((m) => !(m.id === replyId && !m.content)),
+            prev.filter((m) => !(m.id === replyId && !m.content && !m.artifacts?.length)),
           );
         },
       });
     } catch {
       setError('The lane turn failed — try again.');
       setInput((cur) => cur || content);
-      setMessages((prev) => prev.filter((m) => !(m.id === replyId && !m.content)));
+      setMessages((prev) =>
+        prev.filter((m) => !(m.id === replyId && !m.content && !m.artifacts?.length)),
+      );
     } finally {
       setSending(false);
     }
@@ -194,35 +259,61 @@ export function LanePanel({ laneId, laneName, modelLabel }: LanePanelProps) {
                   <div className="flex-1 h-px bg-border" />
                 </div>
               )}
-              <div className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
-                <div
-                  className={cn(
-                    'max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap break-words',
-                    m.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-foreground',
-                  )}
-                >
-                  {/* Streaming: an empty assistant bubble shows a live indicator
-                      until the first delta lands, then fills token-by-token. */}
-                  {m.role === 'assistant' && !m.content ? (
-                    <span className="flex items-center gap-2 text-muted-foreground">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      {(m.tools_called && m.tools_called.length > 0)
-                        ? `${modelLabel} · ${Array.from(new Set(m.tools_called)).join(' · ')}…`
-                        : `${modelLabel} is working…`}
-                    </span>
-                  ) : (
-                    m.content
-                  )}
-                  {m.content && m.tools_called && m.tools_called.length > 0 && (
-                    <div className="mt-1.5 pt-1.5 border-t border-border/40 flex items-center gap-1 text-[10px] text-muted-foreground">
-                      <Wrench className="w-3 h-3" />
-                      {Array.from(new Set(m.tools_called)).join(' · ')}
-                    </div>
-                  )}
+              {/* The bubble is speech. An artifact is not speech — it renders
+                  below, at row width, outside the bubble (ADR-236: render +
+                  open, never edit). A tool-only turn shows only the card. */}
+              {(m.content || m.role === 'user' || !m.artifacts?.length) && (
+                <div className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
+                  <div
+                    className={cn(
+                      'max-w-[85%] rounded-lg px-3 py-2 text-sm break-words',
+                      m.role === 'user'
+                        ? 'bg-primary text-primary-foreground whitespace-pre-wrap'
+                        : 'bg-muted text-foreground',
+                    )}
+                  >
+                    {/* Streaming: an empty assistant bubble shows a live indicator
+                        until the first delta lands, then fills token-by-token. */}
+                    {m.role === 'assistant' && !m.content ? (
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        {(m.tools_called && m.tools_called.length > 0)
+                          ? `${modelLabel} · ${Array.from(new Set(m.tools_called)).join(' · ')}…`
+                          : `${modelLabel} is working…`}
+                      </span>
+                    ) : m.role === 'assistant' ? (
+                      // 2026-07-09: the lane's reply is markdown, like every
+                      // other model reply in the product. It rendered as raw
+                      // text for no reason other than that LanePanel was a
+                      // reimplementation.
+                      <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-1.5 prose-pre:my-2">
+                        <MarkdownRenderer content={m.content} />
+                      </div>
+                    ) : (
+                      m.content
+                    )}
+                    {m.content && m.tools_called && m.tools_called.length > 0 && (
+                      <div className="mt-1.5 pt-1.5 border-t border-border/40 flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <Wrench className="w-3 h-3" />
+                        {Array.from(new Set(m.tools_called)).join(' · ')}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {m.role === 'assistant' && m.artifacts?.length ? (
+                <div className="mt-2 space-y-2">
+                  {m.artifacts.map((a) => (
+                    <ArtifactCard
+                      key={a.path}
+                      path={a.path}
+                      verb={a.verb}
+                      attribution={`you via ${modelLabel}`}
+                    />
+                  ))}
+                </div>
+              ) : null}
             </div>
           );
         })}

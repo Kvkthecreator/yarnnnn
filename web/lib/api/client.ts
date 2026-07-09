@@ -235,7 +235,9 @@ export const api = {
       handlers: {
         onDelta: (text: string) => void;
         onTool?: (name: string) => void;
-        onDone?: (info: { rounds: number; tools_called: string[] }) => void;
+        /** A WriteFile/EditFile landed — render the file inline (artifact card). */
+        onArtifact?: (a: { path: string; verb: string }) => void;
+        onDone?: (info: { rounds: number; tools_called: string[]; artifacts: string[] }) => void;
         onError?: (message: string) => void;
       },
     ): Promise<void> => {
@@ -268,11 +270,15 @@ export const api = {
           }
           if (typeof evt.text_delta === "string") handlers.onDelta(evt.text_delta);
           else if (typeof evt.tool === "string") handlers.onTool?.(evt.tool);
+          else if (evt.artifact && typeof evt.artifact === "object") {
+            handlers.onArtifact?.(evt.artifact as { path: string; verb: string });
+          }
           else if (typeof evt.error === "string") handlers.onError?.(evt.error);
           else if (evt.done) {
             handlers.onDone?.({
               rounds: (evt.rounds as number) ?? 0,
               tools_called: (evt.tools_called as string[]) ?? [],
+              artifacts: (evt.artifacts as string[]) ?? [],
             });
           }
         }

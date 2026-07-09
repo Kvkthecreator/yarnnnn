@@ -198,12 +198,18 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
     their JSON discriminator):
       - {"text_delta": str}            — a streamed text fragment
       - {"tool": str}                  — a tool the turn called
-      - {"done": true, "rounds", "tools_called"}  — terminal
+      - {"artifact": {"path", "verb"}} — a WriteFile/EditFile landed; the FE
+                                         opens the file inline (artifact card)
+      - {"done": true, "rounds", "tools_called", "artifacts"}  — terminal
       - {"error": str}                 — a fatal turn error
 
     The two-write invariant (ADR-219): user row persisted up front (the turn
     is real even if the provider errors); ONE assistant row at stream close
-    from the accumulated text + tools_called.
+    from the accumulated text + tools_called + artifacts.
+
+    `artifacts` is persisted on the assistant row's metadata so a RELOADED
+    lane still renders its cards — the transcript stays private (ADR-411), but
+    a POINTER to the shared file is exactly what the lane contract promises.
     """
     from services.lane_runner import lane_caller_identity, run_lane_turn_stream
     from services.narrative import write_narrative_entry
@@ -253,6 +259,7 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
 
         accumulated: list[str] = []
         tools_called: list[str] = []
+        artifacts: list[str] = []
         rounds = 0
         errored: Optional[str] = None
         try:
@@ -269,13 +276,17 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
                 elif kind == "tool":
                     tools_called.append(payload["name"])
                     yield sse({"tool": payload["name"]})
+                elif kind == "artifact":
+                    artifacts.append(payload["path"])
+                    yield sse({"artifact": payload})
                 elif kind == "error":
                     errored = f"{payload.get('error')}: {payload.get('message')}"
                     yield sse({"error": errored})
                 elif kind == "done":
                     rounds = payload.get("rounds") or 0
-                    # tools_called from the terminal result is authoritative
+                    # the terminal result is authoritative for both ledgers
                     tools_called = payload.get("tools_called") or tools_called
+                    artifacts = payload.get("artifacts") or artifacts
         except Exception as exc:  # provider/transport failure mid-stream
             logger.warning("[LANE stream] turn failed: %s", exc)
             errored = str(exc)
@@ -291,7 +302,11 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
                 summary=reply or "[no reply]",
                 pulse="addressed",
                 authored_by=lane_caller_identity(auth.user_id, model),
-                extra_metadata={"lane_model": model, "tools_called": tools_called},
+                extra_metadata={
+                    "lane_model": model,
+                    "tools_called": tools_called,
+                    "artifacts": artifacts,
+                },
             )
             try:
                 auth.client.table("chat_sessions").update(
@@ -300,7 +315,12 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
             except Exception:
                 pass
 
-        yield sse({"done": True, "rounds": rounds, "tools_called": tools_called})
+        yield sse({
+            "done": True,
+            "rounds": rounds,
+            "tools_called": tools_called,
+            "artifacts": artifacts,
+        })
 
     return StreamingResponse(
         event_stream(),

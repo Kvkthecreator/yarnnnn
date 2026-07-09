@@ -74,6 +74,30 @@ _LANE_TIMEOUT_S = 120.0
 #: verbs, no Schedule, no DispatchSpecialist, no platform tools.
 LANE_TOOL_NAMES = ("ReadFile", "WriteFile", "EditFile", "SearchFiles", "ListFiles")
 
+#: The subset of the lane surface that PRODUCES substrate. A successful call
+#: to one of these lands an attributed revision, and the member should SEE what
+#: their lane made — not just the verb's name (2026-07-09, the artifact card).
+#: ReadFile/SearchFiles/ListFiles also return a `path`, which is why the gate
+#: is on the verb and not merely on the result's shape.
+LANE_ARTIFACT_VERBS = ("WriteFile", "EditFile")
+
+
+def artifact_path_from(name: str, result: Any) -> Optional[str]:
+    """The workspace path a lane tool call produced, or None.
+
+    Pure. The path is read from the primitive's RESULT, never from the model's
+    arguments: `handle_write_file` normalizes (`/workspace/…` and `workspace/…`
+    prefixes are stripped, then re-absolutized), so the result carries the one
+    canonical form the Files surface deep-links on. A failed write yields None —
+    the member sees the tool row, never a card for a file that isn't there.
+    """
+    if name not in LANE_ARTIFACT_VERBS:
+        return None
+    if not isinstance(result, dict) or not result.get("success"):
+        return None
+    path = result.get("path")
+    return path if isinstance(path, str) and path else None
+
 
 def _anthropic_to_openai_tool(tool: dict) -> dict:
     """Mechanical format conversion — the registry's Anthropic-shape tool
@@ -261,7 +285,7 @@ async def run_lane_turn(
 
     Returns:
         {"success": True, "text": ..., "rounds": n, "tools_called": [...],
-         "tokens_in": n, "tokens_out": n}
+         "artifacts": [...], "tokens_in": n, "tokens_out": n}
         or {"success": False, "error": ..., "message": ...}
     """
     if model not in LANE_MODELS:
@@ -283,6 +307,7 @@ async def run_lane_turn(
 
     messages: list[dict] = list(history) + [{"role": "user", "content": user_message}]
     tools_called: list[str] = []
+    artifacts: list[str] = []
     total_in = 0
     total_out = 0
     final_text = ""
@@ -345,6 +370,9 @@ async def run_lane_turn(
                     result = await execute_primitive(tool_auth, name, tc["arguments"])
                 except Exception as exc:
                     result = {"success": False, "error": "tool_raised", "message": str(exc)}
+            produced = artifact_path_from(name, result)
+            if produced and produced not in artifacts:
+                artifacts.append(produced)
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc["id"],
@@ -354,14 +382,15 @@ async def run_lane_turn(
         final_text = final_text or "[lane turn exhausted its round budget without a final reply]"
 
     logger.info(
-        "[LANE] model=%s rounds=%d tokens=%d/%d tools=%d",
-        model, rounds, total_in, total_out, len(tools_called),
+        "[LANE] model=%s rounds=%d tokens=%d/%d tools=%d artifacts=%d",
+        model, rounds, total_in, total_out, len(tools_called), len(artifacts),
     )
     return {
         "success": True,
         "text": final_text,
         "rounds": rounds,
         "tools_called": tools_called,
+        "artifacts": artifacts,
         "tokens_in": total_in,
         "tokens_out": total_out,
         "ledger_model": ledger_model,
@@ -381,6 +410,12 @@ async def run_lane_turn_stream(
     An async generator over the SAME bounded tool loop, yielding events for
     SSE transport:
       - ``("tool", {"name": str})``       — a tool round called this tool
+                                            (emitted BEFORE execution, so the
+                                            member sees the spinner name)
+      - ``("artifact", {"path", "verb"})`` — a WriteFile/EditFile LANDED. The
+                                            member's chat renders the file
+                                            inline (the artifact card). Emitted
+                                            AFTER execution, success only.
       - ``("delta", str)``                — a text fragment on the FINAL round
       - ``("done", {result dict})``       — terminal; the same shape
                                             ``run_lane_turn`` returns
@@ -414,6 +449,7 @@ async def run_lane_turn_stream(
 
     messages: list[dict] = list(history) + [{"role": "user", "content": user_message}]
     tools_called: list[str] = []
+    artifacts: list[str] = []
     total_in = 0
     total_out = 0
     final_text = ""
@@ -485,6 +521,13 @@ async def run_lane_turn_stream(
                     result = await execute_primitive(tool_auth, name, tc["arguments"])
                 except Exception as exc:
                     result = {"success": False, "error": "tool_raised", "message": str(exc)}
+            # The work landed in a file — say WHICH file, so the member's chat
+            # can open it inline. This is the ADR-411 lane contract ("the
+            # transcript is private; the work lands in files") made visible.
+            produced = artifact_path_from(name, result)
+            if produced and produced not in artifacts:
+                artifacts.append(produced)
+                yield ("artifact", {"path": produced, "verb": name})
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc["id"],
@@ -494,14 +537,15 @@ async def run_lane_turn_stream(
         final_text = final_text or "[lane turn exhausted its round budget without a final reply]"
 
     logger.info(
-        "[LANE stream] model=%s rounds=%d tokens=%d/%d tools=%d",
-        model, rounds, total_in, total_out, len(tools_called),
+        "[LANE stream] model=%s rounds=%d tokens=%d/%d tools=%d artifacts=%d",
+        model, rounds, total_in, total_out, len(tools_called), len(artifacts),
     )
     yield ("done", {
         "success": True,
         "text": final_text,
         "rounds": rounds,
         "tools_called": tools_called,
+        "artifacts": artifacts,
         "tokens_in": total_in,
         "tokens_out": total_out,
         "ledger_model": ledger_model,

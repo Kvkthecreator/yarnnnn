@@ -8,11 +8,17 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Download, ExternalLink, FileText, Folder, Loader2, Trash2, FileQuestion } from 'lucide-react';
+import { Folder, Loader2, Trash2, FileQuestion } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
-import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
 import { FileIcon } from '@/components/workspace/FileIcon';
+// 2026-07-09 — the file BODY (the kind-switch + blob previews) lifted out to
+// `FileBody`, the one shared viewer. ContentViewer keeps the DOCUMENT CHROME
+// (header, verbs, folder listing) and mounts the body; the chat surface's
+// ArtifactCard mounts the same body inside a bounded card. Singular
+// Implementation — a new file type is a rule in `lib/file-types` plus a branch
+// in FileBody, never a branch in a mount.
+import { FileBody, FileActions } from '@/components/workspace/FileBody';
 // ADR-236 Files page rework (2026-04-30): SubstrateEditor deleted. Direct
 // inline editing of substrate files is removed per the original assessment
 // ("not notion-like, streamline back to edit via Chat"). Every file now
@@ -22,65 +28,16 @@ import { FileIcon } from '@/components/workspace/FileIcon';
 // revert affordance) moved out of the file body into the Get-Info modal — it
 // was double-mounted; the modal is its single home. The file header still
 // shows the head-revision author glance.
-import { InferenceContentView } from '@/components/context/InferenceContentView';
-// ADR-309: the type→application association layer (Applications register).
-// Lifted out of this file's private getFileKind into the shared kernel-
-// default table so every Application dispatches through one layer.
-import {
-  resolveViewerApplication,
-  describeViewerApplication,
-} from '@/lib/file-types';
+// ADR-309: the type→viewer association layer. Lifted out of this file's
+// private getFileKind into the shared kernel-default table so every mount
+// dispatches through one layer.
+import { describeViewerApplication } from '@/lib/file-types';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel, authorAccent } from '@/lib/workspace/attribution';
-import { parseUploadFrontmatter, uploadSourceCaption } from '@/lib/workspace/upload-frontmatter';
 import { operatorCanOrganize } from '@/lib/workspace/ownership';
 import { useFileContextMenu, type FileVerbs } from '@/components/workspace/FileContextMenu';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
-
-// ADR-162 Sub-phase D / ADR-215: IDENTITY and BRAND files carry an
-// `<!-- inference-meta: ... -->` comment injected by `_append_inference_meta()`
-// on the backend. When rendered on Files, we surface that provenance (source
-// caption + gap banner) above the markdown body via InferenceContentView.
-const IDENTITY_PATH = '/workspace/persona/IDENTITY.md';
-// ADR-432 D1c: BRAND_PATH removed with the retired Brand concept.
-
-/**
- * Resolve a file's content_url to a directly-renderable URL (ADR-395).
- *
- * A raw upload's content_url is a relative `/api/documents/blob?storage_path=…`
- * reference that requires AUTH to resolve — a browser `<img>/<iframe>` src can't
- * send the Bearer header, so we resolve the signed URL here via an authenticated
- * fetch and hand the DIRECT (Supabase) signed URL to the element. Absolute URLs
- * (output-gateway S3/render outputs) pass through unchanged — no fetch. Returns
- * {url, loading, error}; url is '' until resolved.
- */
-function useSignedBlobUrl(contentUrl: string | null | undefined): { url: string; loading: boolean; error: boolean } {
-  const [state, setState] = useState<{ url: string; loading: boolean; error: boolean }>(
-    { url: '', loading: false, error: false }
-  );
-  useEffect(() => {
-    if (!contentUrl) { setState({ url: '', loading: false, error: false }); return; }
-    // Absolute URL (output gateway) — render directly, no auth resolve needed.
-    if (/^(https?:|data:|blob:)/i.test(contentUrl)) {
-      setState({ url: contentUrl, loading: false, error: false });
-      return;
-    }
-    let cancelled = false;
-    setState({ url: '', loading: true, error: false });
-    api.documents
-      .blobUrl(contentUrl)
-      .then((r) => { if (!cancelled) setState({ url: r.url, loading: false, error: false }); })
-      .catch(() => { if (!cancelled) setState({ url: '', loading: false, error: true }); });
-    return () => { cancelled = true; };
-  }, [contentUrl]);
-  return state;
-}
-
-function inferenceTarget(path: string): 'identity' | null {
-  if (path === IDENTITY_PATH) return 'identity';
-  return null;
-}
 
 interface ContentViewerProps {
   selectedNode: WorkspaceTreeNode | null;
@@ -476,7 +433,6 @@ function FileView({
   }
 
   const filename = file.path.split('/').pop() || file.path;
-  const kind = resolveViewerApplication(file.path, file.content_type);
 
   return (
     <div className="h-full overflow-auto">
@@ -559,215 +515,17 @@ function FileView({
         </div>
       ) : null}
 
-      <div className="p-4 space-y-4">
-        {kind === 'markdown' && file.content && (() => {
-          const target = inferenceTarget(file.path);
-          if (target) {
-            // ADR-162 Sub-phase D: IDENTITY/BRAND carry inference-meta comments
-            // surfaced as a source caption + gap banner above the body.
-            return <InferenceContentView content={file.content} target={target} />;
-          }
-          // 2026-07-01: an uploaded document's extracted-text `.md` carries a
-          // `---…---` YAML header (documents.py) that would otherwise render as
-          // raw body text. Strip it before rendering; surface the original
-          // filename + type as a clean Source caption. General strip (harmless
-          // on prose files, which have no leading frontmatter); caption is
-          // upload-scoped. Orthogonal to ADR-395, which retires the header.
-          const { fields, body, hasFrontmatter } = parseUploadFrontmatter(file.content);
-          const sourceCaption = hasFrontmatter ? uploadSourceCaption(fields) : null;
-          return (
-            <>
-              {sourceCaption && (
-                <div className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <FileText className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate" title={sourceCaption}>
-                    Extracted from {sourceCaption}
-                  </span>
-                </div>
-              )}
-              <div className="prose prose-sm max-w-none dark:prose-invert">
-                <MarkdownRenderer content={body} />
-              </div>
-            </>
-          );
-        })()}
+      <div className="p-4">
+        {/* The one shared viewer (2026-07-09). The kind-switch + blob previews
+            live in FileBody, which the chat surface's ArtifactCard mounts too.
 
-        {kind === 'html' && (
-          <iframe
-            title={filename}
-            srcDoc={file.content || ''}
-            className="w-full min-h-[720px] rounded-xl border border-border bg-white"
-          />
-        )}
-
-        {kind === 'image' && (
-          <div className="rounded-xl border border-border bg-muted/10 p-4">
-            {file.content_url ? (
-              <ImagePreview contentUrl={file.content_url} alt={filename} />
-            ) : (
-              <div
-                className="mx-auto max-w-full [&_svg]:h-auto [&_svg]:max-w-full"
-                dangerouslySetInnerHTML={{ __html: file.content || '' }}
-              />
-            )}
-          </div>
-        )}
-
-        {kind === 'pdf' && file.content_url && (
-          <PdfPreview contentUrl={file.content_url} title={filename} />
-        )}
-
-        {kind === 'csv' && file.content && <CsvPreview content={file.content} />}
-
-        {kind === 'text' && (
-          <pre className="overflow-auto rounded-xl border border-border bg-muted/20 p-4 text-sm whitespace-pre-wrap">
-            {file.content || ''}
-          </pre>
-        )}
-
-        {kind === 'download' && file.content_url && (
-          <div className="rounded-xl border border-dashed border-border bg-muted/10 p-6 text-center">
-            <FileText className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
-            <p className="text-sm font-medium">Preview not available inline</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Open or download this file to inspect it in a native viewer.
-            </p>
-          </div>
-        )}
-
-        {/* ADR-388 follow-up: the revision chain (ADR-209 provenance) moved
+            ADR-388 follow-up: the revision chain (ADR-209 provenance) moved
             OUT of the file body — it was double-mounted (here inline AND in the
             Get-Info modal). Singular home: Get Info (right-click or the header
             button). The file body shows content; "who wrote it" + the full
-            history live one click away in Get Info, where the attribution
-            summary heads the chain. (ADR-329 D1's "provenance first-class"
-            intent is preserved — it's first-class in Get Info, not duplicated
-            below every file.) */}
+            history live one click away. */}
+        <FileBody file={file} />
       </div>
-    </div>
-  );
-}
-
-// ADR-395 image preview — resolves the authed signed URL then renders the
-// direct image (a browser <img> src can't carry the Bearer header).
-function ImagePreview({ contentUrl, alt }: { contentUrl: string; alt: string }) {
-  const { url, loading, error } = useSignedBlobUrl(contentUrl);
-  if (loading) return <BlobLoading label="Loading image…" />;
-  if (error || !url) return <BlobError />;
-  return <img src={url} alt={alt} className="max-w-full h-auto mx-auto rounded-lg" />;
-}
-
-// ADR-395 PDF preview — same signed-URL resolution, rendered in an iframe.
-function PdfPreview({ contentUrl, title }: { contentUrl: string; title: string }) {
-  const { url, loading, error } = useSignedBlobUrl(contentUrl);
-  if (loading) return <BlobLoading label="Loading PDF…" />;
-  if (error || !url) return <BlobError />;
-  return (
-    <iframe
-      title={title}
-      src={url}
-      className="w-full min-h-[800px] rounded-xl border border-border bg-white"
-    />
-  );
-}
-
-function BlobLoading({ label }: { label: string }) {
-  return (
-    <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/10 py-16 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" />
-      {label}
-    </div>
-  );
-}
-
-function BlobError() {
-  return (
-    <div className="rounded-xl border border-dashed border-border bg-muted/10 p-6 text-center text-sm text-muted-foreground">
-      <FileQuestion className="mx-auto mb-2 h-6 w-6 text-muted-foreground/50" />
-      Couldn’t load this file. Try Download to open it in a native viewer.
-    </div>
-  );
-}
-
-function FileActions({ contentUrl }: { contentUrl: string }) {
-  // ADR-395: a raw upload's content_url needs an authed resolve to a signed URL
-  // (a download-anchor can't send the Bearer header either). Resolve once, then
-  // the Open/Download anchors point at the direct signed URL.
-  const { url, loading } = useSignedBlobUrl(contentUrl);
-  const disabled = loading || !url;
-  return (
-    <div className="flex items-center gap-2 shrink-0">
-      <a
-        href={disabled ? undefined : url}
-        target="_blank"
-        rel="noreferrer"
-        aria-disabled={disabled}
-        className={cn(
-          'inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground',
-          disabled && 'pointer-events-none opacity-50'
-        )}
-      >
-        <ExternalLink className="w-3.5 h-3.5" />
-        Open
-      </a>
-      <a
-        href={disabled ? undefined : url}
-        download
-        aria-disabled={disabled}
-        className={cn(
-          'inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground',
-          disabled && 'pointer-events-none opacity-50'
-        )}
-      >
-        <Download className="w-3.5 h-3.5" />
-        Download
-      </a>
-    </div>
-  );
-}
-
-function CsvPreview({ content }: { content: string }) {
-  const rows = content
-    .trim()
-    .split('\n')
-    .slice(0, 21)
-    .map((line) => line.split(',').map((cell) => cell.trim()));
-
-  if (rows.length === 0) {
-    return null;
-  }
-
-  const [header, ...body] = rows;
-
-  return (
-    <div className="overflow-auto rounded-xl border border-border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/30">
-          <tr>
-            {header.map((cell, idx) => (
-              <th key={idx} className="px-3 py-2 text-left font-medium border-b border-border">
-                {cell}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {body.map((row, rowIdx) => (
-            <tr key={rowIdx} className="border-b border-border/50 last:border-b-0">
-              {row.map((cell, cellIdx) => (
-                <td key={cellIdx} className="px-3 py-2 text-muted-foreground">
-                  {cell}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {content.trim().split('\n').length > 21 && (
-        <div className="border-t border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-          Preview truncated to first 20 rows
-        </div>
-      )}
     </div>
   );
 }
