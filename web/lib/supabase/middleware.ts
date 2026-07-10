@@ -47,6 +47,7 @@ const PROTECTED_PREFIXES = [
   "/system-agent", // ADR-426 — the Freddie System Agent door (carved from Workspace Settings)
   "/integrations",
   "/invite", // ADR-404 step 5 — invite-accept page (login-bounce preserves ?next)
+  "/s", // ADR-437 D4 — the shared-artifact accept page (login-bounce preserves ?next)
   "/docs",
   "/chat", // ADR-412 D3 — the Chat surface (lanes workbench), a real authenticated surface
   // Legacy routes still protected for redirect stubs

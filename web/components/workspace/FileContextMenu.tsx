@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Info, ExternalLink, Pencil, FolderInput, Trash2 } from 'lucide-react';
+import { Info, ExternalLink, Pencil, FolderInput, Trash2, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface FileMenuTarget {
@@ -42,6 +42,8 @@ export interface FileVerbs {
   onRename?: (t: { path: string; name: string }) => void;
   onMove?: (t: { path: string; name: string }) => void;
   onDelete?: (t: { path: string; name: string }) => void;
+  /** Share a link to this artifact (ADR-437 D4 — the cockpit share origin). */
+  onShare?: (t: { path: string; name: string }) => void;
 }
 
 export interface FileContextMenuProps {
@@ -59,10 +61,12 @@ export interface FileContextMenuProps {
   onMove?: (t: FileMenuTarget) => void;
   /** Move to Trash (files only). */
   onDelete?: (t: FileMenuTarget) => void;
+  /** Share a link to the target (ADR-437 D4). */
+  onShare?: (t: FileMenuTarget) => void;
 }
 
 export function FileContextMenu({
-  target, x, y, onClose, onOpen, onProperties, onRename, onMove, onDelete,
+  target, x, y, onClose, onOpen, onProperties, onRename, onMove, onDelete, onShare,
 }: FileContextMenuProps) {
   useEffect(() => {
     const close = () => onClose();
@@ -97,6 +101,11 @@ export function FileContextMenu({
       {onProperties && (
         <MenuItem icon={<Info className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onProperties)}>
           Properties
+        </MenuItem>
+      )}
+      {onShare && (
+        <MenuItem icon={<Share2 className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onShare)}>
+          Share…
         </MenuItem>
       )}
       {isFile && (onRename || onMove || onDelete) && <div className="my-1 h-px bg-border/60" />}
@@ -152,7 +161,7 @@ function MenuItem({
 export function useFileContextMenu(verbs: FileVerbs | undefined) {
   const [state, setState] = useState<{ target: FileMenuTarget; x: number; y: number } | null>(null);
 
-  const hasVerbs = !!(verbs && (verbs.onOpen || verbs.onProperties || verbs.onRename || verbs.onMove || verbs.onDelete));
+  const hasVerbs = !!(verbs && (verbs.onOpen || verbs.onProperties || verbs.onRename || verbs.onMove || verbs.onDelete || verbs.onShare));
 
   const openMenu = useCallback((target: FileMenuTarget, e: React.MouseEvent) => {
     if (!hasVerbs) return;
@@ -171,6 +180,7 @@ export function useFileContextMenu(verbs: FileVerbs | undefined) {
       onRename={verbs.onRename ? () => verbs.onRename!(state.target) : undefined}
       onMove={verbs.onMove ? () => verbs.onMove!(state.target) : undefined}
       onDelete={verbs.onDelete ? () => verbs.onDelete!(state.target) : undefined}
+      onShare={verbs.onShare ? () => verbs.onShare!(state.target) : undefined}
     />
   ) : null;
 

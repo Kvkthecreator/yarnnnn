@@ -28,6 +28,7 @@ stores:
   workspace_blobs: { scope: content, note: "content-addressed CAS (shared)" }
   principal_grants: { scope: content, note: "authz (ADR-373)" }
   workspace_invites: { scope: content, note: "authz" }
+  workspace_shares: { scope: content, note: "authz — shared-artifact wedge (ADR-437)" }
   workspaces: { scope: content, note: "billing root — balance + tier (ADR-391/396)" }
   execution_events: { scope: content, note: "cost ledger (ADR-291)" }
   token_usage: { scope: content, note: "legacy cost ledger (dropped by ADR-396; retained here for the write-scan tail)" }

@@ -1523,6 +1523,43 @@ export const api = {
         workspace_name: string | null; role: string;
       }>(`/api/invites/${encodeURIComponent(token)}/accept`, { method: "POST" }),
 
+    // ADR-437 D4 — the shared-artifact wedge. A share is the invite's
+    // link-based, broad-by-default sibling: create a link on an artifact,
+    // anyone who opens it and accepts joins the commons as a member.
+    createShare: (artifactPath?: string, label?: string, ttlDays?: number) =>
+      request<{
+        id: string; artifact_path: string | null; label: string | null;
+        role: string; status: string; created_at?: string;
+        expires_at?: string | null; share_link?: string | null;
+      }>(`/api/workspace/shares`, {
+        method: "POST",
+        body: JSON.stringify({ artifact_path: artifactPath, label, ttl_days: ttlDays }),
+      }),
+
+    listShares: () =>
+      request<{ shares: Array<{
+        id: string; artifact_path: string | null; label: string | null;
+        role: string; status: string; created_at?: string; expires_at?: string | null;
+      }> }>(`/api/workspace/shares`),
+
+    revokeShare: (shareId: string) =>
+      request<{ success: boolean; id: string }>(
+        `/api/workspace/shares/${encodeURIComponent(shareId)}/revoke`,
+        { method: "POST" },
+      ),
+
+    previewShare: (token: string) =>
+      request<{
+        workspace_name: string | null; artifact_path: string | null;
+        label: string | null; role: string; status: string;
+      }>(`/api/s/${encodeURIComponent(token)}`),
+
+    acceptShare: (token: string) =>
+      request<{
+        success: boolean; workspace_id: string;
+        workspace_name: string | null; artifact_path: string | null; role: string;
+      }>(`/api/s/${encodeURIComponent(token)}/accept`, { method: "POST" }),
+
     // ADR-406 D2: pass expectedHeadVersionId (the head_version_id the file
     // was loaded with) to make the save conditional — the API returns 409
     // with the intervening revision's attribution when the base has moved.

@@ -1,9 +1,15 @@
 # ADR-437 — The Activation Model: Discovery, Cold Landing, and the Shared-Artifact Wedge
 
-**Status**: Proposed (2026-07-10, doc-first). Supersedes the `/setup` onboarding
-sequence entirely (delete, not repair). Reframes the question from "what does
-onboarding look like" to "**how does a stranger become an activated principal in a
-commons**." No code in this commit; the phases in §9 are each their own follow-on.
+**Status**: Accepted (2026-07-10, operator-ratified — "implement in full"). Supersedes
+the `/setup` onboarding sequence entirely (delete, not repair). Reframes the question
+from "what does onboarding look like" to "**how does a stranger become an activated
+principal in a commons**." **Phases A–E implemented same day** (each its own commit):
+A the wizard deletion; B the hire-model drift correction (the hire surface defers to
+ADR-382); C the cold empty-state reframe; D the shared-artifact wedge (`/s/{token}` +
+broad-by-default grant + cockpit Share; migration 214; the MCP `share` verb is the
+named additive follow-on on the separate MCP deploy); E accept-path hardening
+(reliable delivery, seat awareness on the members surface, the fail-open + generic-400
+seat-gate fixes).
 **Date**: 2026-07-10
 **Authors**: KVK (operator) + Claude (collaborator)
 **Hat**: A (system canon — real-operator-facing)
@@ -263,9 +269,15 @@ the least robust surface in the app. Three hardening moves ride with the wedge:
 - **Phase C — the cold empty state (D3)**: the `/desktop` empty-state design pass —
   teach the moat, point at the commons, invite the first substrate act. Design-led;
   coordinates with the ADR-414 §9b Home recompose if that lands adjacent.
-- **Phase D — the shared-artifact wedge (D4)**: the `/s/{token}` accept surface + the
-  broad-by-default member grant on accept + the cockpit "Share" affordance + the MCP
-  `share` verb. Reuses the invite-token plumbing; one accept surface, two framings.
+- **Phase D — the shared-artifact wedge (D4)**: **SHIPPED** — the `/s/{token}` accept
+  surface + the broad-by-default member grant on accept (reuses `ensure_principal_grant`
+  with `scopes=None` → class default) + the cockpit "Share" affordance (a `Share…` verb
+  on the file context menu → mints a link + copies it). Backend: `workspace_shares`
+  table (migration 214) + `services/workspace_shares.py` + `routes/shares.py` (kept off
+  the co-edited `workspace.py`). **The MCP `share` verb (the second origin, D4.1) is the
+  named follow-on** — it lands on the separate MCP-server deploy, additive (both origins
+  mint the same share row). One accept surface, two framings, delivered; the second
+  origin is a thin additive commit when the interop lane wants it.
 - **Phase E — accept-surface hardening (D5)**: reliable share/invite delivery; seat
   awareness on the members surface; the fail-open + generic-400 seat-gate fix.
 

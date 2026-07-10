@@ -699,17 +699,40 @@ export default function ContextPage() {
     } catch { /* error toast already surfaced; stop */ }
   }, [carveGuard, confirm, runAction, loadExplorer]);
 
+  // ADR-437 D4: share a link to an artifact. The cockpit origin of the
+  // shared-artifact wedge — mints a link (a broad member grant on accept, the
+  // Figma default) and copies it to the clipboard. The recipient lands on the
+  // /s/{token} accept surface; accessing the artifact is the activation.
+  const handleShare = useCallback(async (t: { path: string; name: string }) => {
+    try {
+      const res = await runAction(
+        () => api.workspace.createShare(t.path, t.name),
+        {
+          pending: 'Creating share link…',
+          success: 'Share link copied — anyone with it can join the workspace',
+          error: (e) => (e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Could not create a share link' : 'Could not create a share link'),
+        },
+      );
+      const link = res?.share_link;
+      if (link && typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(link).catch(() => { /* copy is best-effort */ });
+      }
+    } catch { /* error toast already surfaced; stop */ }
+  }, [runAction]);
+
   // ADR-400: the operator's file verbs as one bundle, threaded to every file
   // surface (tree + RecentsView grid + ContentViewer folder listing) so the
   // right-click menu works on the MAIN PANEL, not only the left tree. Properties
-  // + Open are the reads; rename/move/delete the organize verbs.
+  // + Open are the reads; rename/move/delete the organize verbs; share (ADR-437
+  // D4) mints a link to the artifact.
   const fileVerbs = useMemo(() => ({
     onOpen: (t: { path: string }) => handleExplorerSelect_byPath(t.path),
     onProperties: (t: { path: string }) => { setShowTrash(false); setSelectedPath(t.path); setDetailsOpen(true); },
     onRename: openRename,
     onMove: openMove,
     onDelete: handleTreeDelete,
-  }), [handleExplorerSelect_byPath, openRename, openMove, handleTreeDelete]);
+    onShare: handleShare,
+  }), [handleExplorerSelect_byPath, openRename, openMove, handleTreeDelete, handleShare]);
 
   // Upload success (2026-07-01): after files land in the Intake raw lane
   // (inbound/uploads/{principal}/{slug}.{ext}, ADR-395), refresh the tree AND

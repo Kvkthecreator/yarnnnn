@@ -73,7 +73,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from routes import memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, alpha_trader, budget, mcp, authored, harvest, sources, emissions, member_state, lanes
+from routes import memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, alpha_trader, budget, mcp, authored, harvest, sources, emissions, member_state, lanes, shares
 
 app = FastAPI(
     title="YARNNN API",
@@ -217,6 +217,9 @@ app.include_router(system.router, prefix="/api/system", tags=["system"])
 app.include_router(recurrences.router, prefix="/api/recurrences", tags=["recurrences"])
 app.include_router(authored.router, prefix="/api/authored", tags=["authored"])  # ADR-333 D6
 app.include_router(workspace.router, prefix="/api", tags=["workspace"])
+# ADR-437 D4: the shared-artifact wedge — create/list/revoke + the /s/{token}
+# accept surface (the member-invite's generous, link-based sibling).
+app.include_router(shares.router, prefix="/api", tags=["shares"])
 # ADR-193: approval loop — proposal list + approve/reject endpoints
 app.include_router(proposals.router, prefix="/api", tags=["proposals"])
 # ADR-407 Phase 3: member-experience home (shell state, read cursor, prefs)
