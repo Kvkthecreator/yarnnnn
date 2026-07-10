@@ -98,9 +98,11 @@ def test_activity_has_out_lens():
 # ---- 5. redirects re-homed -----------------------------------------------
 
 def test_channels_context_redirect_to_home():
+    # ADR-435: the /channels + /context redirects now land on /chat (the Home
+    # surface + its /home target were deleted; chat is the new anchor).
     src = _read_web("next.config.js")
     assert "redirects()" in src
-    assert "'/channels'" in src and "'/home'" in src
+    assert "'/channels'" in src and "'/chat'" in src
     assert "'/context'" in src
 
 
@@ -115,15 +117,18 @@ def test_connectors_sources_stubs_point_at_workspace_settings():
 # ---- 6. defaults + normalization -----------------------------------------
 
 def test_default_kept_is_home():
+    # ADR-435: the default dock anchor moved from 'home' (deleted) to 'chat'.
     src = _read_web("lib/shell/surface-preferences.ts")
-    assert "DEFAULT_KEPT_SURFACES: string[] = ['home']" in src
+    assert "DEFAULT_KEPT_SURFACES: string[] = ['chat']" in src
 
 
 def test_legacy_slugs_normalize_to_home():
+    # ADR-435: the retired slugs (incl. 'home') normalize to 'chat', the anchor.
     prefs = _read_web("lib/shell/surface-preferences.ts")
-    assert "channels: 'home'" in prefs
-    assert "context: 'home'" in prefs
-    assert "feed: 'home'" in prefs
+    assert "channels: 'chat'" in prefs
+    assert "context: 'chat'" in prefs
+    assert "feed: 'chat'" in prefs
+    assert "home: 'chat'" in prefs
 
 
 # ---- 7. no live channels call sites --------------------------------------

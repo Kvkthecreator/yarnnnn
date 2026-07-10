@@ -49,21 +49,17 @@ def test_recents_view_exists_with_toggle_default_icon():
 
 
 def test_both_mounts_delegate_to_shared_view():
-    home = _read_web("components/library/kernel-home/HomeRecents.tsx")
+    # ADR-435: the Home mount (HomeRecents) was deleted with the Home surface.
+    # Files (RecentRevisions) remains the mount, and still delegates to the
+    # shared RecentsView rather than re-fetching or re-declaring the helpers.
     files = _read_web("components/workspace/RecentRevisions.tsx")
-    assert "RecentsView" in home, "Home mount must delegate to RecentsView."
     assert "RecentsView" in files, "Files mount must delegate to RecentsView."
-
-    # the bespoke renderers + their copy-pasted helpers are gone: neither mount
-    # makes the live feed CALL or re-implements the author helpers itself.
-    # (Doc-comment mentions of the endpoint are fine — we check the call site.)
-    for src, who in ((home, "HomeRecents"), (files, "RecentRevisions")):
-        assert "recentRevisions(" not in src, (
-            f"{who} must not re-fetch the feed — it delegates to RecentsView."
-        )
-        assert "function authorAccent" not in src and "function formatAuthorLabel" not in src, (
-            f"{who} must not re-declare the recents helpers (deduped into RecentsView)."
-        )
+    assert "recentRevisions(" not in files, (
+        "RecentRevisions must not re-fetch the feed — it delegates to RecentsView."
+    )
+    assert "function authorAccent" not in files and "function formatAuthorLabel" not in files, (
+        "RecentRevisions must not re-declare the recents helpers (deduped into RecentsView)."
+    )
 
 
 def test_fileicon_covers_yaml_and_has_xl_size():

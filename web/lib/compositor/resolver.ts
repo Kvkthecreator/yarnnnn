@@ -84,24 +84,8 @@ export function resolveChrome(
   return KERNEL_DEFAULT_CHROME;
 }
 
-
-/**
- * getProgramSections — ADR-243 Phase B; key renamed by ADR-312 D2.
- *
- * Returns the ordered list of program sections from the active
- * composition when the bundle declares `home.program_sections`.
- * Returns an empty array when the key is absent (the Home renders its
- * constitution-band CTA instead — ADR-312 D6).
- *
- * Sections are sorted ascending by `order` so SURFACES.yaml authoring
- * order doesn't have to match visual order.
- */
-export function getProgramSections(
-  composition: import('./types').SurfacesResponse,
-): Array<{ kind: string; order: number }> {
-  const home = composition.composition.tabs?.work?.list?.home as
-    | { program_sections?: Array<{ kind: string; order: number }> }
-    | undefined;
-  const sections = home?.program_sections ?? [];
-  return [...sections].sort((a, b) => a.order - b.order);
-}
+// ADR-435 (2026-07-10) — getProgramSections DELETED. It read
+// `home.program_sections` off the composition for HomeRenderer/ProgramCockpit,
+// both deleted with the Home surface. Program cockpits no longer render; a
+// program's live state lives on its own mirror surfaces. resolveMiddle /
+// resolveChrome (WorkDetail's composition path) are untouched.

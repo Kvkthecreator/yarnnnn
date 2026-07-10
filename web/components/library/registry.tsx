@@ -38,37 +38,13 @@ import type { Binding } from '@/lib/compositor';
 import { KernelDeliverableMetadata } from './kernel-chrome/KernelDeliverableMetadata';
 import { KernelDeliverableActions } from './kernel-chrome/KernelDeliverableActions';
 
-// Kernel-universal Home slots (ADR-312 slots #3/#5/#6). Unlike program
-// sections, these are NOT declared in any SURFACES.yaml — the kernel
-// renders them for EVERY workspace from kernel substrate (action_proposals,
-// delivered outputs, decisions.md). HomeRenderer interleaves them with
-// program sections in the six-slot order. Each self-hides when its
-// substrate is empty.
-import { KernelDecisionQueue } from './kernel-home/KernelDecisionQueue';
-import { KernelRecentArtifacts } from './kernel-home/KernelRecentArtifacts';
-import { KernelJudgmentTrail } from './kernel-home/KernelJudgmentTrail';
-
-// alpha-trader bundle components — kernel/program folder split per
-// ADR-273 D1; component `kind`s remain bare strings in SURFACES.yaml.
-// Folder location is filesystem signal, not registry namespacing.
-import { TraderRegime } from './programs/alpha-trader/TraderRegime';
-import { TraderPortfolio } from './programs/alpha-trader/TraderPortfolio';
-import { TraderMoneyTruth } from './programs/alpha-trader/TraderMoneyTruth';
-import { TraderExpectancy } from './programs/alpha-trader/TraderExpectancy';
-import { TraderPositions } from './programs/alpha-trader/TraderPositions';
-import { TraderSignals } from './programs/alpha-trader/TraderSignals';
-import { TraderOrders } from './programs/alpha-trader/TraderOrders';
-
-// alpha-author bundle components — six-slot contract (ADR-312 D2 +
-// 2026-06-04 amendment). A program declares exactly TWO slots: the
-// ground-truth hero (#2 "what's working") + the entity list (#4 "what's
-// in play"). The former four cards (AuthorMandate / AuthorCorpus /
-// AuthorVoice / AuthorPipeline) were deleted: AuthorMandate duplicated the
-// kernel HomeHeader; Corpus + Voice both surfaced "voice accuracy" and
-// merged into AuthorHero; Pipeline's 3-metric grid became the AuthorPieces
-// list. Substrate reads unchanged.
-import { AuthorHero } from './programs/alpha-author/AuthorHero';
-import { AuthorPieces } from './programs/alpha-author/AuthorPieces';
+// ADR-435 (2026-07-10) — the kernel-universal Home slots (KernelDecisionQueue /
+// KernelRecentArtifacts / KernelJudgmentTrail) and ALL program-cockpit sections
+// (alpha-trader Trader*, alpha-author Author*) were DELETED with the Home
+// surface. They rendered ONLY through `home.program_sections` via ProgramCockpit
+// (Home was their sole consumer). Their concerns live on their own mirror
+// surfaces now (queue, activity, files). What remains registered below is only
+// the WorkDetail chrome pair, which MiddleResolver + ChromeRenderer still use.
 
 /**
  * Standard prop bag passed to every library component. Components
@@ -92,33 +68,10 @@ export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
   KernelDeliverableMetadata: () => <KernelDeliverableMetadata />,
   KernelDeliverableActions: () => <KernelDeliverableActions />,
 
-  // Kernel-universal Home slots (ADR-312 #3/#5/#6) — rendered for every
-  // workspace by HomeRenderer, NOT via SURFACES.yaml. Registered here so
-  // they share the one dispatch path with program sections.
-  KernelDecisionQueue: () => <KernelDecisionQueue />,
-  KernelRecentArtifacts: () => <KernelRecentArtifacts />,
-  KernelJudgmentTrail: () => <KernelJudgmentTrail />,
-
-  // alpha-trader bundle components. Declared in
-  // docs/programs/alpha-trader/SURFACES.yaml under cockpit.program_sections[].
-  // Order is determined by SURFACES.yaml; registration here is alphabetical
-  // for grep-ability. Future programs (alpha-commerce, etc.) register their
-  // own components here following the same pattern.
-  TraderExpectancy: () => <TraderExpectancy />,
-  TraderMoneyTruth: () => <TraderMoneyTruth />,
-  TraderOrders: () => <TraderOrders />,
-  TraderPortfolio: () => <TraderPortfolio />,
-  TraderPositions: () => <TraderPositions />,
-  TraderRegime: () => <TraderRegime />,
-  TraderSignals: () => <TraderSignals />,
-
-  // alpha-author bundle components. Declared in
-  // docs/programs/alpha-author/SURFACES.yaml under home.program_sections[].
-  // Six-slot contract (ADR-312 D2 amendment 2026-06-04): exactly TWO —
-  // AuthorHero (slot #2, "is my writing still mine?") + AuthorPieces
-  // (slot #4, the pieces in play).
-  AuthorHero: () => <AuthorHero />,
-  AuthorPieces: () => <AuthorPieces />,
+  // ADR-435 — the Home-slot components (KernelDecisionQueue / *RecentArtifacts /
+  // *JudgmentTrail) and every program-cockpit section (Trader* / Author*) were
+  // deleted with the Home surface (their sole consumer). Only the WorkDetail
+  // chrome pair above remains — dispatched by MiddleResolver + ChromeRenderer.
 };
 
 /**

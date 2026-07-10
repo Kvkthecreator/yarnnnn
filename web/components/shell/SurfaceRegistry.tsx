@@ -33,7 +33,6 @@ import type { KernelSurfaceSlug } from '@/types/desk';
 // slug's redirect-stub lineage (ADR-259 → /feed, ADR-385 → notifications)
 // ends here — third life as a real windowed surface.
 import ChatPage from '@/app/(authenticated)/chat/page';
-import HomePage from '@/app/(authenticated)/home/page';
 import RecurrencePage from '@/app/(authenticated)/recurrence/page';
 // ADR-327: /pace retired from the surface registry — it is now a route-level
 // redirect stub (app/(authenticated)/pace/page.tsx → /budget) handled by Next
@@ -86,8 +85,7 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   // ADR-415 — the Channels surface is dissolved; no window component. Its
   // slug is removed from the union; persisted dock state is normalized → the
   // default, and the old URLs are next.config redirects.
-  chat: ChatPage,  // ADR-412 D3 — the lanes workbench
-  home: HomePage,
+  chat: ChatPage,  // ADR-412 D3 — the lanes workbench; ADR-435 — the dock anchor (Home deleted)
   recurrence: RecurrencePage,
   // ADR-309 (2026-06-01): `brand` slug DELETED. Brand is not a standalone
   // surface — the Identity surface (IdentityBrandCard) co-renders it.

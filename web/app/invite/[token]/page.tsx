@@ -63,7 +63,7 @@ export default function InviteAcceptPage() {
       // keyed per (workspace, user) — ADR-407 Phase 3 — so the new binding
       // reads fresh keys by construction; no wipe needed on accept.
       setActiveWorkspace(result.workspace_id);
-      window.location.assign("/home");
+      window.location.assign("/chat");
     } catch (e) {
       const data = e instanceof APIError ? (e.data as { detail?: unknown } | undefined) : undefined;
       const detail =

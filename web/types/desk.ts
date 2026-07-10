@@ -33,8 +33,7 @@ export type KernelSurfaceSlug =
   // (Keep this comment free of quoted-slug literals AND semicolons — the
   // ADR-297 parity gate parses the union up to the first semicolon and reads
   // quoted names.)
-  | 'home'
-  | 'chat'  // ADR-412 D3 — the lanes surface (Altitude 2's chrome home; the redirect-stub lineage ends)
+  | 'chat'  // ADR-412 D3 — the lanes surface; ADR-435 — the dock anchor (Home deleted)
   | 'recurrence'
   | 'budget'
   | 'autonomy'
@@ -99,7 +98,7 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   // (routeless, backend-only, like the constitution surfaces). All are dormant
   // registry rows; the three-way parity (navigable == allowlist ==
   // registry∪panes) holds with them out of all three.
-  'home', 'chat', 'recurrence', 'budget', 'autonomy',
+  'chat', 'recurrence', 'budget', 'autonomy',
   'files', 'agents', 'setup', 'queue', 'notifications', 'activity',
   // ADR-425 D2: `sources` LEFT the allowlist (hidden, redirect-stub only).
   'settings', 'workspace-settings', 'system-agent', 'connectors',

@@ -1260,20 +1260,11 @@ export const api = {
         // ADR-432 D1c: `brand` removed (Brand retired).
       }>("/api/workspace/setup-bundle"),
 
-    // ADR-312: bundled read for the Home page mount. Collapses the per-slot
-    // fan-out (composition + state + 3 kernel slots + mandate + autonomy) into
-    // one call. The kernel slots keep their self-fetch fallback (they render
-    // standalone elsewhere) — when HomeRenderer passes data props they skip it.
-    getHomeBundle: () =>
-      request<{
-        surfaces: SurfacesResponse;
-        proposals: Awaited<ReturnType<typeof api.proposals.list>>['proposals'];
-        current_occupant: Awaited<ReturnType<typeof api.proposals.list>>['current_occupant'];
-        recent_artifacts: Awaited<ReturnType<typeof api.workspace.recentArtifacts>>['artifacts'];
-        judgment_log: string | null;
-        mandate: string | null;
-        autonomy_yaml: string | null;
-      }>("/api/workspace/home-bundle"),
+    // ADR-435 (2026-07-10): getHomeBundle DELETED with the Home surface — the
+    // one composition in a registry of mirrors. It was the single bundled read
+    // for the Home page mount; the concerns it aggregated (proposals, artifacts,
+    // judgment log, mandate, autonomy) are each read by their own mirror surface
+    // (queue, files, activity, workspace-settings).
 
     // ADR-154: Structured navigation for Agent OS workfloor.
     // ADR-236 Item 6 (2026-04-29): `mode` and `essential` removed from

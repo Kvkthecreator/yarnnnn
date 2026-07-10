@@ -57,13 +57,14 @@ function useIsFirstTime(): boolean {
   const { kept, open, windowStates } = useSurfacePreferences();
   if (open.length > 0) return false;
   if (Object.keys(windowStates).length > 0) return false;
-  // Default-kept set is ['home'] (ADR-415; was ['channels']/['context']/['feed']
-  // through the dissolved-Channels lineage). Legacy kept entries naming those
-  // are normalized → 'home' on read (surface-preferences.ts), so an old default
-  // reads as ['home'] and isn't misclassified. If the operator modified the set
-  // (added/removed surfaces), they've used the workspace.
+  // Default-kept set is ['chat'] (ADR-435 — Home deleted; was ['home'] and,
+  // before that, ['channels']/['context']/['feed'] through the dissolved-Channels
+  // lineage). Legacy kept entries naming any of those are normalized → 'chat' on
+  // read (surface-preferences.ts), so an old default reads as ['chat'] and isn't
+  // misclassified. If the operator modified the set (added/removed surfaces),
+  // they've used the workspace.
   if (kept.length !== 1) return false;
-  if (kept[0] !== 'home') return false;
+  if (kept[0] !== 'chat') return false;
   return true;
 }
 

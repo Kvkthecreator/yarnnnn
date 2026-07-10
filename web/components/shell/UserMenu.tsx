@@ -137,7 +137,7 @@ export function UserMenu({ email }: UserMenuProps) {
     // workspace — no client-side route.
     if (m.role === 'owner') clearActiveWorkspace();
     else setActiveWorkspace(m.workspace_id);
-    window.location.assign('/home');
+    window.location.assign('/chat');
   };
 
   const handleLogout = async () => {

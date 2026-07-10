@@ -245,11 +245,11 @@ export default function SettingsPage() {
           // modal (identity is empty/sparse after purge). Previously routed to
           // /work which skipped onboarding entirely.
           // ADR-297 D19.4 — foreground a surface (window-open), not
-          // router.push (which erases the Desktop). ADR-415 (2026-07-08): land
-          // on Home — the composition front page whose constitution band is the
-          // activation CTA (identity sparse after purge). Was 'channels' (the
-          // dissolved perception surface).
-          setTimeout(() => navigateToSurface('home'), 1500);
+          // router.push (which erases the Desktop). ADR-435 (2026-07-10): land
+          // on Chat — the steward's voice + activation surface (Home was
+          // deleted; identity sparse after purge, so the steward greets + the
+          // onboarding modal triggers). Was 'home', before that 'channels'.
+          setTimeout(() => navigateToSurface('chat'), 1500);
           break;
         case "integrations":
           result = await api.account.clearIntegrations();
@@ -266,10 +266,11 @@ export default function SettingsPage() {
           // modal (identity is empty/sparse after full reset). Previously routed
           // to /work which skipped onboarding entirely.
           // ADR-297 D19.4 — foreground a surface (window-open), not
-          // router.push (which erases the Desktop). ADR-415 (2026-07-08): land
-          // on Home — the composition front page whose constitution band is the
-          // activation CTA (identity sparse after full reset). Was 'channels'.
-          setTimeout(() => navigateToSurface('home'), 1500);
+          // router.push (which erases the Desktop). ADR-435 (2026-07-10): land
+          // on Chat — the steward's voice + activation surface (Home was
+          // deleted; identity sparse after full reset, so the steward greets +
+          // the onboarding modal triggers). Was 'home', before that 'channels'.
+          setTimeout(() => navigateToSurface('chat'), 1500);
           break;
         case "deactivate":
           result = await api.account.deactivateAccount();

@@ -115,13 +115,15 @@ def test_d5_notifications_workbench() -> None:
     client = _read("web/lib/api/client.ts")
     _assert("before?: string" in client, "the FE timeline client exposes the before cursor")
 
-    # One render grammar, N mounts (ADR-340 D8): the Home slot, the bell, and
-    # the workbench share the timeline-row primitives.
+    # One render grammar, N mounts (ADR-340 D8): the bell + the activity
+    # workbench share the timeline-row primitives. ADR-435: the Home slot
+    # (WorkspaceTimeline) was deleted with the Home surface — the shared grammar
+    # now spans the two surviving mounts.
     rows = _read("web/lib/workspace/timeline-rows.tsx")
     _assert("actorLine" in rows and "secondaryLine" in rows and "KindGlyph" in rows,
             "shared timeline-row grammar module exists")
-    home_slot = _read("web/components/library/kernel-home/WorkspaceTimeline.tsx")
-    _assert("timeline-rows" in home_slot, "the Home slot rides the shared grammar")
+    ledger = _read("web/components/notifications/ActivityLedger.tsx")
+    _assert("timeline-rows" in ledger, "the activity workbench rides the shared grammar")
     bell = _read("web/components/shell/AttentionCenter.tsx")
     _assert("timeline-rows" in bell, "the bell rides the shared grammar")
     _assert("cron_tick" in rows and "scheduled" in rows,

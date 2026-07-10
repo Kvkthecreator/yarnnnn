@@ -227,17 +227,18 @@ export function SetupSequence() {
       key: 'first-artifact',
       title: 'See your first artifact',
       detail:
-        'When the operation produces its first output, it lands on Home — the operation, rendered. Outcomes calibrate the agent from there.',
+        'When the operation produces its first output, it lands in Files as an attributed artifact. Outcomes calibrate the agent from there.',
       // No getState() signal for "first output" yet; this step points the
-      // operator at Home where the operation renders. Honest Phase-1 shape:
-      // not auto-completed (it completes when the operation runs, surfaced
-      // on Home), action is "go to Home."
+      // operator at Files where produced artifacts land (ADR-435 — Home was
+      // deleted; the artifact is a file, reached through its own surface).
+      // Honest Phase-1 shape: not auto-completed (it completes when the
+      // operation runs), action is "go to Files."
       done: false,
       action: (
         <StepAction
           icon={<HomeIcon className="w-3.5 h-3.5" />}
-          label="Go to Home"
-          onClick={() => navigateToSurface('home')}
+          label="Go to Files"
+          onClick={() => navigateToSurface('files')}
         />
       ),
     },

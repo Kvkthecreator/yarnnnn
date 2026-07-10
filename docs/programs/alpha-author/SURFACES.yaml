@@ -27,27 +27,11 @@ tabs:
       filters_default:
         output_kind: produces_deliverable
 
-      # Six-slot contract (ADR-312 D2 + 2026-06-04 amendment): a program
-      # declares exactly TWO slots — the ground-truth hero (#2) and the
-      # entity list (#4). The kernel owns the other four (#1 constitution,
-      # #3 decision queue, #5 recent artifacts, #6 judgment trail) and
-      # renders them itself. A program does NOT re-render the mandate or
-      # sprawl into a metric stack (the former 4-card AuthorMandate /
-      # Corpus / Voice / Pipeline did both and read as an incoherent
-      # dashboard).
-      #
-      # For an author:
-      #   - hero  (#2, "is this working?")  → AuthorHero — does my shipped
-      #     writing still sound like me? Voice consistency is the headline;
-      #     coherence + audit volume are quiet support.
-      #   - entities (#4, "what's in play?") → AuthorPieces — the corpus
-      #     pieces, newest first, with their state.
-      home:
-        program_sections:
-          - kind: AuthorHero            # slot #2 — ground-truth hero (voice consistency)
-            order: 1
-          - kind: AuthorPieces          # slot #4 — entity list (corpus pieces)
-            order: 2
+      # ADR-435 (2026-07-10): the `home.program_sections` program cockpit
+      # (AuthorHero + AuthorPieces) is DELETED with the Home surface. The author's
+      # live state (voice consistency, corpus pieces) is read through its
+      # substrate on its own mirror surfaces + /work detail middles; there is no
+      # composed program front page. The component files were removed.
 
     # No detail middles. Per ADR-228 the bundle-shaped specifics for
     # alpha-author (corpus state, voice consistency, pipeline) live

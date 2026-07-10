@@ -7,13 +7,13 @@
  * for tree access.
  *
  * ADR-228/312: cockpit-side resolution (resolveCockpitPanes,
- * KERNEL_DEFAULT_COCKPIT_PANES) deleted — the Home renders its
- * program-declared sections via HomeRenderer (getProgramSections); no
- * compositor-resolver step stands between SURFACES.yaml and the Home.
+ * KERNEL_DEFAULT_COCKPIT_PANES) deleted. ADR-435: the Home surface itself was
+ * deleted, along with getProgramSections (its program-section reader). The
+ * compositor now resolves only WorkDetail middle/chrome — no Home path remains.
  */
 
 export { useComposition, getTab, getDetailMiddles, getActiveBundles } from './useComposition';
-export { resolveMiddle, resolveChrome, getProgramSections } from './resolver';
+export { resolveMiddle, resolveChrome } from './resolver';
 export type { ResolutionContext } from './resolver';
 export { KERNEL_DEFAULT_CHROME } from './kernel-defaults';
 export type {

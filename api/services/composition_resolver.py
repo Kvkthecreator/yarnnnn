@@ -263,32 +263,11 @@ def _merge_list_or_detail_block(
             result[k] = (result.get(k) or []) + deepcopy(v)
         elif k == "components" and isinstance(v, list):
             result[k] = (result.get(k) or []) + deepcopy(v)
-        elif k == "home" and isinstance(v, dict):
-            # ADR-243 Phase B + ADR-312 D2: home block merge (key renamed
-            # cockpit→home). `program_sections` (list of {kind, order}) is
-            # union-merged across bundles — deduped by kind, first-bundle
-            # wins on order conflicts. All other keys use per-face deep-merge
-            # (first-bundle wins on scalars).
-            existing = result.get(k) or {}
-            for face_key, face_value in v.items():
-                if face_key == "program_sections" and isinstance(face_value, list):
-                    # Union merge by `kind`; existing bundle's section wins.
-                    existing_sections = existing.get("program_sections") or []
-                    existing_kinds = {s["kind"] for s in existing_sections}
-                    merged = list(deepcopy(existing_sections))
-                    for sec in face_value:
-                        if sec.get("kind") not in existing_kinds:
-                            merged.append(deepcopy(sec))
-                    existing["program_sections"] = merged
-                elif isinstance(face_value, dict) and isinstance(existing.get(face_key), dict):
-                    merged_face = deepcopy(existing[face_key])
-                    for fk, fv in face_value.items():
-                        if fk not in merged_face:
-                            merged_face[fk] = deepcopy(fv)
-                    existing[face_key] = merged_face
-                elif face_key not in existing:
-                    existing[face_key] = deepcopy(face_value)
-            result[k] = existing
+        # ADR-435 (2026-07-10): the special `home` block merge (ADR-243/312 D2 —
+        # `home.program_sections` union-merge for the program cockpit) is DELETED
+        # with the Home surface. Program cockpits no longer render. A stray `home`
+        # key from a not-yet-cleaned bundle falls through to the generic
+        # first-bundle-wins passthrough below, harmlessly.
         elif k not in result:
             result[k] = deepcopy(v)
         # else: first-bundle wins on scalar conflicts (banner, group_default, etc.)

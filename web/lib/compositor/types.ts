@@ -166,33 +166,13 @@ export interface TabListBlock {
   default_collapsed?: boolean;
   reviewer?: { principles_default?: string };
   /**
-   * Bundle-supplied home configuration (key renamed cockpit→home by
-   * ADR-312 D2).
-   *
-   * ADR-243 Phase B: `program_sections` is the primary mechanism — an
-   * ordered list of named section components the program declares for
-   * the Home's composed slots, rendered below `HomeHeader` (the
-   * Constitution band) when the bundle is active. Each section is
-   * independently registered in `LIBRARY_COMPONENTS`; the `order` field
-   * controls display sequence. Operator (or YARNNN) can reorder or remove
-   * sections by editing their workspace SURFACES.yaml.
-   *
-   * When `program_sections` is present → HomeRenderer renders
-   * HomeHeader + the program-declared sections.
-   * When absent → HomeRenderer renders the constitution-band CTA
-   * (the honest Phase-1 cold-start home, ADR-312 D6) — there is no
-   * kernel-default four-face stack (deleted by ADR-273, confirmed
-   * deleted by ADR-312).
-   *
-   * The legacy per-face binding keys (money_truth.live_source,
-   * performance.components, tracking.operational_state) remain in the
-   * open-schema Record for backward compat; new programs use
-   * program_sections.
+   * ADR-435 (2026-07-10): the bundle-supplied `home` block (ADR-312 D2
+   * `home.program_sections` — the program cockpit's declared sections) is
+   * RETIRED with the Home surface. The field is kept as an open passthrough so
+   * a not-yet-cleaned bundle SURFACES.yaml doesn't fail type-checking, but
+   * nothing reads `program_sections` anymore (getProgramSections deleted).
    */
-  home?: {
-    program_sections?: Array<{ kind: string; order: number }>;
-    [key: string]: unknown;
-  };
+  home?: Record<string, unknown>;
 }
 
 export interface TabDetailBlock {

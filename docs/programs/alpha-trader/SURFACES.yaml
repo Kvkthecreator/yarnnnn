@@ -18,32 +18,12 @@ tabs:
       filters_default:
         output_kind: produces_deliverable
 
-      # ADR-273 Phase 6 (2026-05-14): seven-section program stack.
-      # The Home tells a story top-to-bottom: tape → account →
-      # balances → tenure → live state → today's decisions → ledger.
-      # HomeHeader / the Constitution band (kernel-general) sits above
-      # this stack and shows mandate + autonomy posture.
-      #
-      # Operator can reorder by editing `order` values; suppress a
-      # section by removing its entry. YARNNN can edit this file via
-      # WriteFile on request. ADR-312 D2: this `home` key is the
-      # program's declared composition for the Home's slots.
-      home:
-        program_sections:
-          - kind: TraderRegime          # tape regime headline strip (_regime.yaml)
-            order: 1
-          - kind: TraderPortfolio       # equity chart + headline (Alpaca history)
-            order: 2
-          - kind: TraderMoneyTruth      # live balances: buying power, cash, day Δ
-            order: 3
-          - kind: TraderExpectancy      # accumulated per-signal P&L attribution
-            order: 4
-          - kind: TraderPositions       # live positions + per-ticker indicators merge
-            order: 5
-          - kind: TraderSignals         # today's signals + reviewer decision trail
-            order: 6
-          - kind: TraderOrders          # recent orders ledger
-            order: 7
+      # ADR-435 (2026-07-10): the `home.program_sections` program cockpit
+      # (the seven-section trader stack: TraderRegime/Portfolio/MoneyTruth/
+      # Expectancy/Positions/Signals/Orders) is DELETED with the Home surface.
+      # The program's live state (positions, balances, signals, orders) is read
+      # through its substrate on its own mirror surfaces + /work detail middles;
+      # there is no composed program front page. The component files were removed.
 
     # No detail middles. Per ADR-228 the bundle-shaped specifics for
     # alpha-trader (positions, risk gauge, performance attribution,

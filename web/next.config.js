@@ -16,15 +16,17 @@ const nextConfig = {
   // (ADR-415). Next.js carries the original query string through by default, so
   // `?prompt=…`/`?pane=…` deep-links survive.
   //   `/feed` was always the NARRATIVE alias → Notifications → Activity.
-  //   `/channels` + `/context` — the Channels surface dissolved (ADR-415); its
-  //   content re-homed (Out → Activity; Connectors/Sources → Workspace
-  //   Settings → Perception; AI Connections → Access). Land on Home, the
-  //   general front page; the specific panes are reachable by name.
+  //   `/channels` + `/context` — the Channels surface dissolved (ADR-415).
+  //   `/home` — the Home surface was DELETED (ADR-435, the one composition in a
+  //   registry of mirrors). All three land on `/chat`, the new dock anchor +
+  //   the steward's operating surface; the specific concerns (queue, activity,
+  //   files) are reachable by name.
   async redirects() {
     return [
       { source: '/feed', destination: '/notifications?notifications.pane=understand', permanent: false },
-      { source: '/channels', destination: '/home', permanent: false },
-      { source: '/context', destination: '/home', permanent: false },
+      { source: '/channels', destination: '/chat', permanent: false },
+      { source: '/context', destination: '/chat', permanent: false },
+      { source: '/home', destination: '/chat', permanent: false },
     ];
   },
 };

@@ -219,45 +219,6 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # returning operator's kept icon collapses onto the live Channels icon —
     # no vanished icon, no duplicate. (Was: two search-only alias rows here.)
     {
-        # ADR-312 D1 (2026-06-02): the cockpit surface renames to `home`.
-        # The home is a composition over the workspace's present
-        # constituents (six kernel slots, top→bottom; the program declares
-        # each slot's weight/label/shape via the compositor) — substrate-
-        # forward when empty, operation-forward when a program runs. The
-        # four-face stack (ADR-228) and fixed trader section sequence
-        # (ADR-273) survive ONLY as a program's declared composition, never
-        # as the kernel default. The atomic Home surface hosts HomeRenderer.
-        # (Was: ADR-297 D1 cockpit, the 13th kernel surface.)
-        #
-        # 2026-07-01 — Home is FIRST in the primary (Workspace) launcher group
-        # (operator re-sort: Home · Channels · Files · Agents). Array position
-        # within a `launcher_tier` is the at-rest display order (Launcher.tsx
-        # preserves compositor order within a tier group).
-        "slug": "home",
-        "launcher_tier": "primary",  # ADR-340 P3
-        "register": "application",  # ADR-309 / ADR-312 D5 two-register model
-        "title": "Home",
-        "archetype": "dashboard",
-        "substrate_paths": [
-            "/workspace/constitution/MANDATE.md",
-            "/workspace/governance/_autonomy.yaml",
-            "/workspace/operation/_performance.md",
-            "/workspace/operation/_performance_summary.md",
-        ],
-        # 2026-06-03: icon → `home`. Post the ADR-312 cockpit→home rename the
-        # square-activity glyph (a "live operations monitor" shape) no longer
-        # matched the surface's name or operator mental model. The literal
-        # home glyph reads unambiguously as "the home surface."
-        "icon_key": "home",
-        # ADR-415 (2026-07-08): Home is the default dock pin (was `channels`,
-        # which dissolved). Coherent with DEFAULT_KEPT_SURFACES=['home']. Home
-        # also renders as the fixed dock anchor (excluded from the kept/open
-        # segments), so this flag never double-renders it.
-        "default_pinned": True,
-        "route": "/home",  # ADR-312 D1 (was /cockpit)
-        "summary": "The operation, rendered — constitution, ground-truth, decision queue, live entities, recent artifacts, judgment trail. Composition over the workspace's present constituents.",
-    },
-    {
         # ADR-412 D3 (2026-07-06) — Chat: the lanes surface, Altitude 2's
         # chrome home. The member's model-pinned helper threads (ADR-411)
         # get a windowed workbench: work-first recents (the model is a CHIP
@@ -268,8 +229,15 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # is honestly empty. The steward is NOT here (Altitude 1 lives in
         # the chat-drawer rail — D2); the slug's redirect-stub lineage
         # (ADR-259 → /feed, ADR-385 → notifications) ends — third life as
-        # a real surface. Second in the Workspace tier (Home · Chat · …),
-        # a NEW capability's home, not a launcher re-sort (ADR-412 D7).
+        # a real surface.
+        #
+        # ADR-435 (2026-07-10) — Chat is now FIRST in the primary (Workspace)
+        # tier and the DEFAULT DOCK ANCHOR (`default_pinned: True`), inheriting
+        # both roles from the deleted `home` surface. Chat is the steward's
+        # operating voice + the activation landing for an empty workspace — "what
+        # do you want to do," not a passive browser. Coherent with
+        # DEFAULT_KEPT_SURFACES=['chat'] and the context/feed/channels/home
+        # legacy-slug normalization → `chat`.
         "slug": "chat",
         "launcher_tier": "primary",  # ADR-412 D3
         "register": "application",
@@ -277,7 +245,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "archetype": "stream",
         "substrate_paths": [],  # member-experience scope (chat_sessions lanes)
         "icon_key": "message-circle",
-        "default_pinned": False,
+        "default_pinned": True,  # ADR-435 — dock anchor (was `home`)
         "route": "/chat",
         "summary": "Your model-pinned helper conversations — isolated lanes over the shared workspace. The transcript stays private to each lane; the work lands in files, attributed to you via the lane's model.",
     },

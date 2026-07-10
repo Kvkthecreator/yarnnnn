@@ -158,31 +158,10 @@ def test_phase_overlay_banner_applied_to_observation():
     assert "Paper-only" in banner
 
 
-def test_alpha_trader_home_block_surfaces():
-    """ADR-273 Phase 6 + ADR-312 D2: bundles fill the Home via
-    `tabs.work.list.home.program_sections` (the cockpit composition key
-    renamed → home). alpha-trader declares a seven-section program stack
-    (TraderRegime / TraderPortfolio / TraderMoneyTruth / TraderExpectancy /
-    TraderPositions / TraderSignals / TraderOrders). The pre-ADR-273
-    per-face bindings (money_truth/performance) were superseded by
-    program_sections; ADR-312 confirms the four-face stack is deleted, not
-    a kernel default. Detail middles remain absent — /work detail falls
-    through to kernel-default DeliverableMiddle."""
-    _bust_caches()
-    from services.composition_resolver import resolve_workspace_composition
-    client = _StubClient(platform_connections_rows=[
-        {"platform": "trading", "status": "active", "created_at": "2026-04-01T00:00:00Z"},
-    ])
-    result = resolve_workspace_composition("user-trader", client)
-    home = result["composition"]["tabs"]["work"]["list"].get("home") or {}
-    sections = home.get("program_sections") or []
-    section_kinds = {s.get("kind") for s in sections}
-    assert "TraderMoneyTruth" in section_kinds
-    assert "TraderPositions" in section_kinds
-    # Detail middles intentionally absent (ADR-228/312) — kernel default handles detail.
-    assert "detail" not in result["composition"]["tabs"]["work"] or not (
-        result["composition"]["tabs"]["work"].get("detail", {}).get("middles")
-    )
+# ADR-435 (2026-07-10): test_alpha_trader_home_block_surfaces DELETED. It
+# verified `tabs.work.list.home.program_sections` (the trader program cockpit) —
+# deleted with the Home surface. Bundles no longer declare a Home composition;
+# their live state renders on their own mirror surfaces + /work detail middles.
 
 
 # =============================================================================

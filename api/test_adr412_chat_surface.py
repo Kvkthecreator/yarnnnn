@@ -101,13 +101,15 @@ def test_kernel_registry_row() -> None:
     _assert(row["route"] == "/chat", "Route is /chat (slug reclaimed)")
     _assert(row["substrate_paths"] == [], "Member-experience scope — no authored substrate paths")
 
-    # D3's launcher note: Home · Chat · … — chat sits directly after home in
-    # array order (array position within a tier is the at-rest display order).
+    # ADR-435: Home was deleted; Chat is now FIRST in the Workspace tier and the
+    # default dock anchor (inherited both roles from Home).
     slugs = [s["slug"] for s in KERNEL_SURFACES]
+    primary = [s["slug"] for s in KERNEL_SURFACES if s.get("launcher_tier") == "primary"]
     _assert(
-        slugs.index("chat") == slugs.index("home") + 1,
-        "Chat is second in the Workspace tier (immediately after Home)",
+        primary[0] == "chat",
+        "Chat is first in the Workspace (primary) tier (ADR-435 — Home deleted)",
     )
+    _assert(row["default_pinned"] is True, "Chat is the default dock anchor (ADR-435)")
 
 
 def test_fe_registration() -> None:
@@ -317,21 +319,16 @@ def test_grant_derived_affordances() -> None:
     _assert("Read-only" in gate, "the gap is EXPLICIT (banner names the region)")
 
     # The no-species-law twin: no affordance keys on the role enum.
+    # ADR-435: HomeHeader / HomeFrontPage were deleted with the Home surface;
+    # the grant-awareness they carried is exercised on the surviving gate
+    # surfaces (GrantGate + the settings panes below).
     for rel in (
         "web/components/workspace-concepts/GrantGate.tsx",
-        "web/components/library/HomeHeader.tsx",
-        "web/components/library/kernel-home/HomeFrontPage.tsx",
     ):
         src = _read(rel)
         _assert("role ===" not in src and "role !==" not in src,
                 f"{rel.split('/')[-1]} never keys on a role enum")
 
-    home = _read("web/components/library/HomeHeader.tsx")
-    _assert("useViewerGrant" in home and "constitution/" in home,
-            "constitution-band drafts gate on constitution/ coverage")
-    front = _read("web/components/library/kernel-home/HomeFrontPage.tsx")
-    _assert("useViewerGrant" in front and "canActivate" in front,
-            "the activation CTA gates on constitution/ coverage")
     ws = _read("web/app/(authenticated)/workspace-settings/page.tsx")
     # ADR-421: the Constitution panes are GONE from Workspace Settings — a
     # workspace has no constitution of its own; mandate/identity/principles are
