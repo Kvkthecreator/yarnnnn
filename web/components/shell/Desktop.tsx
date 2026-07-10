@@ -29,7 +29,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { LayoutGrid } from 'lucide-react';
+import { LayoutGrid, FileText, MessageSquare, ArrowRight } from 'lucide-react';
 import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import { useShellChrome } from './ShellChromeContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -70,7 +70,7 @@ function useIsFirstTime(): boolean {
 
 export function Desktop({ hasWindows, children }: DesktopProps) {
   const { toggleDrawer, drawerOpen, layoutMode } = useShellChrome();
-  const { setDesktopBounds, foregrounded } = useSurfacePreferences();
+  const { setDesktopBounds, foregrounded, navigateToSurface } = useSurfacePreferences();
   const isFirstTime = useIsFirstTime();
   // ADR-412 amendment (2026-07-08) — hide the Freddie rail FAB while the
   // chat-lanes surface (`chat`, Altitude 2 — the member's model-pinned
@@ -118,30 +118,57 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
       )}
     >
       {/* Empty-state copy renders only when no windows are mounted.
-          Context-aware: first-time operators get a richer welcome with
-          an arrow pointer; returning operators get a concise hint. */}
+          Context-aware: a first-time operator gets a cold-start that teaches
+          the moat (durable, attributed memory) and invites the first
+          substrate-creating act (ADR-437 D3 — the empty state is the demo,
+          not a wizard); a returning operator gets a concise "nothing open"
+          hint. Neither points at program activation — a program is an
+          anytime hire, not a setup step (ADR-414 D5). */}
       {!hasWindows && (
         <div className="absolute inset-0 flex items-center justify-center px-6 pointer-events-none">
           <div className="max-w-md text-center pointer-events-auto">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border/40 bg-muted/40 text-muted-foreground">
-              <LayoutGrid className="h-5 w-5" />
-            </div>
             {isFirstTime ? (
               <>
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border/40 bg-muted/40 text-muted-foreground">
+                  <FileText className="h-5 w-5" />
+                </div>
                 <h2 className="text-lg font-medium text-foreground mb-1">
-                  Welcome to YARNNN
+                  This workspace is a commons — and it&rsquo;s yours
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Click the launcher (the grid icon{' '}
-                  <span aria-hidden className="inline-flex items-center -mt-0.5 align-middle">
-                    <LayoutGrid className="inline h-3 w-3" />
-                  </span>
-                  ) in the top bar to see all surfaces, or click a pinned
-                  icon in the dock above to open it.
+                  Drop in a file or tell the system agent what you&rsquo;re
+                  working on. Everything that lands here is placed, attributed,
+                  and recallable — by you, your team, and any AI you connect.
+                </p>
+                <div className="mt-5 flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => navigateToSurface('files')}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    Add your first file
+                    <ArrowRight className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigateToSurface('chat')}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted/30 transition-colors"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Talk to your agent
+                  </button>
+                </div>
+                <p className="mt-4 text-[11px] text-muted-foreground/70">
+                  Working with others? Invite them from Workspace Settings —
+                  they join the same attributed commons.
                 </p>
               </>
             ) : (
               <>
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border/40 bg-muted/40 text-muted-foreground">
+                  <LayoutGrid className="h-5 w-5" />
+                </div>
                 <h2 className="text-lg font-medium text-foreground mb-1">
                   Nothing open
                 </h2>
