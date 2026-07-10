@@ -251,6 +251,10 @@ async def route_completion(
     try:
         from services.telemetry import has_billing_rate
         if not has_billing_rate(lm):
+            # ADR-439 §4 (F1): the LANE path now hard-blocks unpriced models
+            # PRE-call (lane_runner.unpriced_lane_model), so this warning fires
+            # only for NON-lane routed callers (e.g. session-summary) as
+            # defense-in-depth — they'd otherwise price at the Sonnet default.
             logger.warning(
                 "[MODEL-ROUTER] no billing rate for routed model %r — "
                 "execution_events will price it at the default rate. "
@@ -407,6 +411,8 @@ async def route_completion_stream(
     try:
         from services.telemetry import has_billing_rate
         if not has_billing_rate(lm):
+            # ADR-439 §4 (F1): lanes hard-block unpriced models pre-call; this
+            # warns only for non-lane streamed callers (defense-in-depth).
             logger.warning(
                 "[MODEL-ROUTER] no billing rate for streamed model %r — "
                 "execution_events will price it at the default rate.", lm,

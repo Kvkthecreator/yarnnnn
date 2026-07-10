@@ -115,6 +115,26 @@ def _resolve_byok_key(auth: Any, model: str) -> Optional[str]:
         return None
 
 
+def unpriced_lane_model(model: str) -> bool:
+    """ADR-439 §4 (F1) — True if this lane model has NO `_BILLING_RATES` row.
+
+    The D4-spike rule promoted from convention to ENFORCEMENT: an unpriced model
+    would silently price at the Sonnet `_DEFAULT_RATE`, mis-metering the pool. This
+    is the PRE-CALL check the lane loops gate on, so an unpriced model is refused
+    BEFORE any (billable) API call — not warned about after. `LANE_MODELS` and
+    `_BILLING_RATES` are kept in sync + gate-tested, so in practice this never trips
+    in prod; it is the hard floor that makes the guarantee enforced, not incidental."""
+    from services.model_router import ledger_model_name
+    from services.telemetry import has_billing_rate
+    return not has_billing_rate(ledger_model_name(model))
+
+
+_UNPRICED_MODEL_ERROR = {
+    "error": "model_unpriced",
+    "message": "this model has no billing rate configured and cannot run (ADR-439 §4)",
+}
+
+
 def _anthropic_to_openai_tool(tool: dict) -> dict:
     """Mechanical format conversion — the registry's Anthropic-shape tool
     definition becomes the OpenAI function-tool shape LiteLLM expects."""
@@ -308,6 +328,11 @@ async def run_lane_turn(
         return {"success": False, "error": "unknown_model",
                 "message": f"model must be one of {sorted(LANE_MODELS)}"}
 
+    # ADR-439 §4 (F1) — hard-block an unpriced model BEFORE any billable call.
+    if unpriced_lane_model(model):
+        logger.error("[LANE] refused unpriced model %r — no _BILLING_RATES row", model)
+        return {"success": False, **_UNPRICED_MODEL_ERROR}
+
     from services.model_router import model_router_enabled, route_completion
     if not model_router_enabled():
         return {"success": False, "error": "router_disabled",
@@ -460,6 +485,12 @@ async def run_lane_turn_stream(
     if model not in LANE_MODELS:
         yield ("error", {"error": "unknown_model",
                          "message": f"model must be one of {sorted(LANE_MODELS)}"})
+        return
+
+    # ADR-439 §4 (F1) — hard-block an unpriced model BEFORE any billable call.
+    if unpriced_lane_model(model):
+        logger.error("[LANE] refused unpriced model %r — no _BILLING_RATES row", model)
+        yield ("error", dict(_UNPRICED_MODEL_ERROR))
         return
 
     from services.model_router import model_router_enabled, route_completion_stream

@@ -106,6 +106,43 @@ def run():
         and "cost_override_usd=byok_cost_override" in lr_src,
     ))
 
+    # ── 6. §4 F1 — unpriced models are HARD-BLOCKED pre-call ────────────────
+    results.append(_check(
+        "every LANE_MODELS entry is priced (F1 never trips a real lane)",
+        all(not lr.unpriced_lane_model(m) for m in lr.LANE_MODELS),
+    ))
+    results.append(_check(
+        "unpriced_lane_model flags a model with no _BILLING_RATES row",
+        lr.unpriced_lane_model("anthropic/claude-not-a-real-model") is True,
+    ))
+    def _guard_precedes_router_import(src: str) -> bool:
+        """In BOTH loops the unpriced guard must precede that loop's router import
+        (`from services.model_router import model_router_enabled, ...`) — i.e. the
+        block runs before any call can be made. Check each guard/import pairing in
+        source order."""
+        guards = [i for i in range(len(src)) if src.startswith("if unpriced_lane_model(model):", i)]
+        imports = [i for i in range(len(src)) if src.startswith("from services.model_router import model_router_enabled", i)]
+        if len(guards) != 2 or len(imports) != 2:
+            return False
+        return all(g < imp for g, imp in zip(guards, imports))
+
+    results.append(_check(
+        "both lane loops gate on unpriced_lane_model BEFORE the router import/call",
+        _guard_precedes_router_import(lr_src),
+    ))
+
+    # ── 7. §4 F2 — a dropped ledger row alerts (not a silent warning) ───────
+    import services.telemetry as tel
+    rec_src = inspect.getsource(tel.record_execution_event)
+    results.append(_check(
+        "dropped ledger row emits a distinct [LEDGER-DROP] ERROR with lost cost",
+        "[LEDGER-DROP]" in rec_src and "logger.error" in rec_src and "lost_cost" in rec_src,
+    ))
+    results.append(_check(
+        "F2 stays fail-open (still returns None; never re-raises)",
+        "return None" in rec_src.split("except Exception as e:")[-1],
+    ))
+
     passed = sum(results)
     total = len(results)
     print(f"\nADR-439 gate: {passed}/{total} PASS")

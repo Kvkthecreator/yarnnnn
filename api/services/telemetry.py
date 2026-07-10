@@ -346,5 +346,29 @@ def record_execution_event(
         )
         return inserted_id
     except Exception as e:
-        logger.warning("[TELEMETRY] record_execution_event failed (non-fatal): %s", e)
+        # ADR-439 §4 (F2) — a DROPPED ledger row. Fail-open is deliberate (a
+        # transient DB blip must never break a user's turn), but a dropped row
+        # means a REAL cost went unrecorded and undrawn from the pool. Emit a
+        # distinct, high-signal [LEDGER-DROP] ERROR (was a silent warning) so a
+        # log-based monitor can alert on a SYSTEMATIC drop — with the lost cost +
+        # attribution so the gap is quantifiable, not just "something failed".
+        lost = None
+        try:
+            if cost_override_usd is not None:
+                lost = cost_override_usd
+            elif input_tokens is not None and output_tokens is not None:
+                lost = compute_cost_usd_inclusive(
+                    model=model or "claude-sonnet-4-6",
+                    input_tokens=input_tokens, output_tokens=output_tokens,
+                    cache_read_tokens=cache_read_tokens or 0,
+                    cache_create_tokens=cache_create_tokens or 0,
+                )
+        except Exception:  # pragma: no cover — cost estimate is best-effort
+            pass
+        logger.error(
+            "[LEDGER-DROP] execution_events insert failed — UNRECORDED spend "
+            "(slug=%s principal=%s workspace=%s model=%s lost_cost=%s): %s",
+            slug, principal_id or user_id, workspace_id, model,
+            f"${lost:.6f}" if lost is not None else "unknown", e,
+        )
         return None
