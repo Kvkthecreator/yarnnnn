@@ -165,14 +165,6 @@ export interface TabListBlock {
   components?: ComponentDecl[];
   default_collapsed?: boolean;
   reviewer?: { principles_default?: string };
-  /**
-   * ADR-435 (2026-07-10): the bundle-supplied `home` block (ADR-312 D2
-   * `home.program_sections` — the program cockpit's declared sections) is
-   * RETIRED with the Home surface. The field is kept as an open passthrough so
-   * a not-yet-cleaned bundle SURFACES.yaml doesn't fail type-checking, but
-   * nothing reads `program_sections` anymore (getProgramSections deleted).
-   */
-  home?: Record<string, unknown>;
 }
 
 export interface TabDetailBlock {
