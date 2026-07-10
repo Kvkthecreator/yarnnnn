@@ -65,6 +65,10 @@ The categorical difference from the benchmark (Claude Design imports into a silo
 
 **Deferred, each already named**: publish + pin-at-publish + pins-as-GC-roots (ADR-427 Ph2/3) · pointing (v1.1) · any direct manipulation (drift test) · desktop-tile mount (ADR-438 D2) · the app manifest as substrate + the engineer-agent hire (the format ratifies from this probe's residue) · Open-With picker listing (the Studio is a *surface*, not an `APPS` renderer row — it does not enter the ADR-436 table; "Edit in Studio" affordances are navigation, preserving the registry's renderer purity).
 
+**Two scope clarifications** (2026-07-10, first-session discourse):
+- **Asset creation splits on the text/binary line, not the "generation" word.** HTML-native visual assets — SVG charts, diagrams, icons — are *plain-text authoring* and therefore IN scope today: the lane writes `./assets/chart.svg` and cites it (the posture teaches this). RASTER image generation is a rented engine (ADR-417: generation is rented, not owned) — demand-gated, and when wired it lands as settle-then-cite (external call → attributed file in `assets/` → citation), never as a hosted engine.
+- **Direct manipulation, when it comes, is a gesture-composer — never a second write path.** The benchmark itself proves the shape: Claude Design's Edit mode banner reads "this file does not support automatic edits… we will describe changes to Claude to apply on exit" — even there, gestures mutate a preview and are *described back to the model* to apply. The Studio's future tweak-mode composes `EditFile` patches from gestures (deterministic property changes may not even need the model), applied as attributed revisions. Keystroke-level realtime co-editing is a permanent non-goal: the revision is the atom, and there is no merge/CRDT layer, ever (ADR-406/286).
+
 **The drift guard** (part 1 §7, standing): *does this feature force a definitional question about the app format, or is it just a better editor?* The second kind is refused — TextEdit, not Word.
 
 ## Consequences

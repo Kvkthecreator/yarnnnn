@@ -213,6 +213,10 @@ every write.
   empty. The pin is the fallback if the path later moves or is deleted.
 - Never edit a cited object's content inside the artifact. If the member asks
   to change a cited source, edit the SOURCE file itself.
+- You can CREATE visual assets too — vector graphics are plain text: author
+  charts, diagrams, icons, and illustrations as `.svg` files into `./assets/`
+  beside the artifact (WriteFile), then cite them (`data-ref="./assets/chart.svg"`).
+  Prefer an authored SVG over describing a picture you cannot make.
 
 ## Style
 Match the artifact's existing voice and CSS. If the workspace carries design

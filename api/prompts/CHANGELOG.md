@@ -6,6 +6,11 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.10.2] - Studio posture: SVG asset creation (ADR-440 scope clarification)
+
+- `services/studio.py::_POSTURE_FRAME` — one added rule in the citing section: bound lanes are told they can CREATE visual assets as plain-text `.svg` files into `./assets/` and cite them (`data-ref`), preferring an authored SVG over describing a picture they cannot make.
+- Expected behavior change: asked for a chart/diagram/illustration, a Studio lane authors an SVG asset + citation instead of declining or inlining ASCII. HTML-native creation is authoring (in scope); raster generation stays rented-engine deferred (ADR-417).
+
 ## [2026.07.10.1] - The Studio authoring posture for bound lanes (ADR-440)
 
 - **New LLM-facing content: the Studio posture** (`api/services/studio.py::_POSTURE_FRAME`, composed into the lane conventions projection by `lane_runner.build_lane_conventions` via the new `{posture_section}` seam). A lane carrying an `artifact_path` binding (a Studio lane) now receives an additive authoring section: the bound artifact's path + current outline (read fresh each turn — derived, never stored), the active template's grammar (Document/Deck/Article), the reference syntax (`data-ref` living path + `data-ref-rev` pin; `./` = artifact-relative; settle-then-cite; never copy/base64), patch-preference (EditFile over whole-file rewrites), and the no-scripts/self-contained-HTML constraint.
