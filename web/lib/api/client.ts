@@ -1456,6 +1456,10 @@ export const api = {
           connected_by_is_you: boolean; // true when the viewer authorized this connection
         }>;
         grant_consult_active: boolean;
+        // ADR-437 D5 — proactive seat awareness at the members surface.
+        human_seats: number; // active human members
+        included_seats: number; // the tier's seat ceiling (Free = 2)
+        seats_available: boolean; // whether another human may be invited
       }>("/api/workspace/members"),
 
     // NARROW (ADR-386 D2; powerbox 2026-07-10) — set a member's read + write

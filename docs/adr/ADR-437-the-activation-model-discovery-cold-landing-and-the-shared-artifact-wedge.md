@@ -278,8 +278,18 @@ the least robust surface in the app. Three hardening moves ride with the wedge:
   named follow-on** — it lands on the separate MCP-server deploy, additive (both origins
   mint the same share row). One accept surface, two framings, delivered; the second
   origin is a thin additive commit when the interop lane wants it.
-- **Phase E — accept-surface hardening (D5)**: reliable share/invite delivery; seat
-  awareness on the members surface; the fail-open + generic-400 seat-gate fix.
+- **Phase E — accept-surface hardening (D5)**: **SHIPPED** — (1) seat awareness moved
+  TO the members surface: `GET /workspace/members` now returns `human_seats` /
+  `included_seats` / `seats_available` (derived, not stored), and `WorkspaceMembersCard`
+  renders "N of M seats used" at the invite affordance + disables invite at the limit,
+  so the Free = owner + 1 guest boundary (ADR-429 §12.3c) is visible before it's hit;
+  (2) the seat-gate returns a clean **HTTP 402** (upgrade-required) instead of a generic
+  400, so the FE branches cleanly. The gate's **fail-OPEN on read error is preserved**
+  (deliberate — never block a legit invite over a transient DB hiccup; a design choice
+  with a documented rationale, not a bug to flip). **Reliable delivery** stays the
+  best-effort email + the copy-paste raw-link fallback (already surfaced as "share
+  directly if the email doesn't arrive") — a hard delivery guarantee is an infra/Resend
+  reliability concern, not a code phase; the link-first path is the reliable one today.
 
 ## 10. Open questions for ratification
 

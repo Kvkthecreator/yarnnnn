@@ -129,6 +129,14 @@ class WorkspaceMembersResponse(BaseModel):
     # Whether the grant-consult is the active authorization path (always True
     # post-ADR-373; surfaced so the FE can render the legibility honestly).
     grant_consult_active: bool = True
+    # ADR-437 D5 (Phase E) — proactive seat awareness AT the members surface,
+    # not one surface away on the billing card. So a team sees the Free = owner
+    # + 1 guest boundary (ADR-429 §12.3c) BEFORE hitting it as a surprise 400.
+    # Derived, not stored: human_seats = active human grants; included_seats =
+    # the tier ceiling; seats_available = whether another human may be invited.
+    human_seats: int = 0
+    included_seats: int = 0
+    seats_available: bool = True
 
 
 class TimelineEntry(BaseModel):
@@ -1253,7 +1261,46 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
                 connected_by_is_you=connected_by_is_you,
             ))
 
-        return WorkspaceMembersResponse(members=members)
+        # ADR-437 D5 (Phase E) — proactive seat awareness. Human seats = active
+        # grants with a human role; the ceiling is the tier's included_seats
+        # (Free = owner + 1 guest = 2, ADR-429 §12.3c). Computed from the rows
+        # already in hand + one tier read; billing_exempt workspaces grow freely.
+        human_seats = 0
+        included_seats = 0
+        seats_available = True
+        try:
+            from services.billing_tiers import HUMAN_SEAT_ROLES, tier_included_seats
+            human_seats = len({
+                r["principal_id"] for r in rows
+                if r.get("role") in HUMAN_SEAT_ROLES and r.get("principal_id")
+            })
+            ws_row = (
+                svc.table("workspaces")
+                .select("subscription_tier, billing_exempt")
+                .eq("id", workspace_id)
+                .limit(1)
+                .execute()
+            ).data or []
+            ws = ws_row[0] if ws_row else {}
+            included_seats = tier_included_seats(ws.get("subscription_tier") or "free")
+            # Pending invites also hold seats (each is a seat about to fill).
+            pending = (
+                svc.table("workspace_invites")
+                .select("id", count="exact")
+                .eq("workspace_id", workspace_id)
+                .eq("status", "pending")
+                .execute()
+            ).count or 0
+            seats_available = bool(ws.get("billing_exempt")) or (human_seats + pending < included_seats)
+        except Exception as exc:  # noqa: BLE001 — seat awareness is best-effort legibility
+            logger.debug("[WORKSPACE_API] seat awareness compute failed: %s", exc)
+
+        return WorkspaceMembersResponse(
+            members=members,
+            human_seats=human_seats,
+            included_seats=included_seats,
+            seats_available=seats_available,
+        )
     except Exception as e:
         logger.error(f"[WORKSPACE_API] Workspace members read failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1434,7 +1481,12 @@ async def invite_member(body: InviteCreateRequest, auth: UserClient) -> InviteSu
             workspace_id=workspace_id, email=body.email, invited_by=auth.user_id,
         )
     except InviteError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # ADR-437 D5 (Phase E) — a seat-limit block is an upgrade-required
+        # signal (402), not a generic 400, so the FE can branch cleanly to an
+        # upgrade CTA instead of parsing the detail string. Other invite errors
+        # (invalid email/role) stay 400.
+        status = 402 if e.code == "seat_limit" else 400
+        raise HTTPException(status_code=status, detail=str(e))
 
     # Best-effort email (never blocks — the returned link is the fallback).
     ws_name = None

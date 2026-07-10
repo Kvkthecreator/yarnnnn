@@ -100,6 +100,8 @@ export function WorkspaceMembersCard({
 }: WorkspaceMembersCardProps) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  // ADR-437 D5 — proactive seat awareness (Free = owner + 1 guest, ADR-429 §12.3c).
+  const [seatInfo, setSeatInfo] = useState<{ human: number; included: number; available: boolean } | null>(null);
   // ADR-386 D2 — lifecycle verb state.
   const [menuFor, setMenuFor] = useState<string | null>(null);   // principal_id whose menu is open
   const [revokeTarget, setRevokeTarget] = useState<Member | null>(null);
@@ -162,6 +164,7 @@ export function WorkspaceMembersCard({
     try {
       const res = await api.workspace.getMembers();
       setMembers(res.members);
+      setSeatInfo({ human: res.human_seats, included: res.included_seats, available: res.seats_available });
     } catch {
       setMembers([]);
     } finally {
@@ -174,7 +177,10 @@ export function WorkspaceMembersCard({
     (async () => {
       try {
         const res = await api.workspace.getMembers();
-        if (!cancelled) setMembers(res.members);
+        if (!cancelled) {
+          setMembers(res.members);
+          setSeatInfo({ human: res.human_seats, included: res.included_seats, available: res.seats_available });
+        }
       } catch {
         if (!cancelled) setMembers([]);
       } finally {
@@ -411,19 +417,34 @@ export function WorkspaceMembersCard({
       {/* ADR-404 step 5 — invite a human member (owner-only; hidden on 403). */}
       {variant === 'full' && canInvite && (
         <div className="rounded-lg border border-border p-3">
+          {/* ADR-437 D5 — proactive seat awareness AT the invite affordance, so
+              the Free = owner + 1 guest boundary (ADR-429 §12.3c) is visible
+              before it's hit as a surprise 402. */}
+          {seatInfo && seatInfo.included > 0 && (
+            <p className="mb-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">
+                {seatInfo.human} of {seatInfo.included} {seatInfo.included === 1 ? 'seat' : 'seats'} used
+              </span>
+              {!seatInfo.available && (
+                <span className="text-amber-600 dark:text-amber-400">
+                  {' '}· seat limit reached — upgrade to invite more people
+                </span>
+              )}
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <input
               type="email"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void onInvite(); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && seatInfo?.available !== false) void onInvite(); }}
               placeholder="teammate@company.com"
               className="min-w-0 flex-1 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-sm"
               aria-label="Invite email"
             />
             <button
               onClick={() => void onInvite()}
-              disabled={inviting || !inviteEmail.trim()}
+              disabled={inviting || !inviteEmail.trim() || seatInfo?.available === false}
               className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
             >
               {inviting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
