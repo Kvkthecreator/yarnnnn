@@ -32,6 +32,7 @@ Sequence surface is deleted; setup-as-a-guided-wizard is retired, not re-rendere
 wedge, one accept surface, both origins); **amends ADR-414 §9b** (the deferred Home
 cold-start CTA reframe is subsumed — cold-start points at the commons, not at program
 activation, and there is no `/setup` to point to)
+**Derivation**: `docs/analysis/onboarding-legacy-framing-audit-2026-07-10.md`
 
 ---
 
@@ -301,6 +302,9 @@ the least robust surface in the app. Three hardening moves ride with the wedge:
    named, not built.)
 3. **The `share` MCP verb's exact contract** (does it mint the token, or return a
    shareable link for the assistant to relay?) — deferred to the Phase D design.
-4. **The fate of the audit doc** (`onboarding-legacy-framing-audit-2026-07-10.md`) —
-   whether it stays as the derivation record for this ADR or is folded in. (Operator's
-   call; recommend keep as derivation, per the ADR-407 `Derivation:` precedent.)
+4. **The fate of the audit doc** — RESOLVED (2026-07-10): the audit's findings +
+   receipts are absorbed into this ADR (§2, §5) and maintained here (Singular
+   Implementation). `docs/analysis/onboarding-legacy-framing-audit-2026-07-10.md` is
+   collapsed to a lean `Derivation:` breadcrumb pointing back here (the ADR-407
+   precedent) — kept for the "why this ADR exists" trail, not as a second source of
+   truth.
