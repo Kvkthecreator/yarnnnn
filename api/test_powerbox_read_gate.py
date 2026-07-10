@@ -1,29 +1,22 @@
-"""Powerbox read gate + empty-set polarity — regression gate (2026-07-10).
+"""The Powerbox — read+write, arbitrary-depth, two-axis gate (ADR-434, 2026-07-10).
 
-ADR-373 shipped multi-principal grants + a `narrow` verb; the gate consult
-(`_is_path_locked_for_principal`) enforced them on WRITES only. A narrowed
-principal still READ the whole commons, because read-only primitives short-
-circuit APPLY in `resolve_permission` before any consult runs. This is the
-powerbox debt — `access(2)`'s read check for `principal_grants`, which existed
-only on the write path.
-
-Half A closes it, at ROOT granularity (object-scoping is Half B), with the
-read⊇write model (the same `scopes` list governs both axes; no separate
-read-scope field yet). Two mechanisms, because the gate is binary but reads split:
-  - ReadFile (single object) → a WHOLESALE DENY in resolve_permission.
-  - ListFiles/SearchFiles/QueryKnowledge (result sets) → a FILTER in the handler
-    (a wholesale deny would leak an out-of-scope file's existence as an error).
+ADR-373 shipped a write-only, top-level-root, one-axis grant `scopes`. The
+powerbox completes it: `read_scopes` + `write_scopes`, each an allow-list of PATH
+PREFIXES at ARBITRARY DEPTH, enforced on BOTH reads and writes. It is access(2)'s
+read check for principal_grants. Permissions, not runtime.
 
 What this gate pins:
-  1. POLARITY — scopes:[] is DENY-ALL (an explicit empty allow-list), distinct
-     from scopes:NULL → class default. On BOTH axes.
-  2. THE SAFETY INVARIANT — owner / NULL scopes read everything, byte-identical
-     to the pre-powerbox world (the 15 live grants are all NULL-scoped).
-  3. THE READ GATE — a narrowed principal's ReadFile of an out-of-scope path
-     resolves DENY; an in-scope path resolves APPLY (read_only).
-  4. THE FILTER — the set helper drops out-of-scope rows and NEVER leaks their
-     count (the returned list IS the count).
-  5. AGENT-SCOPE READS are not commons reads — the gate does not fire on them.
+  1. THE MATCHER — path_under_scopes: longest-prefix, arbitrary depth, three-state
+     polarity (None=not-narrowing, []=deny-all, [..]=allow-list).
+  2. TWO INDEPENDENT AXES — read and write move separately (read-only auditor:
+     write=[], read=['operation/']). read ⊇ write is a default, not a constraint.
+  3. THE READ GATE — ReadFile wholesale-DENYs out-of-scope; the set-returning
+     reads FILTER (never leak an out-of-scope file's existence).
+  4. THE SAFETY INVARIANT — no grant / NULL axis → class default (read-all /
+     class-default write) = byte-identical (every live grant is NULL-scoped).
+  5. OBJECT-DEPTH — operation/marketing/ and operation/reports/q3.md are valid
+     scopes and nest correctly (the future-proof capability roots lacked).
+  6. AGENT-SCOPE reads are not commons reads — the gate does not fire on them.
 
 Run: cd api && python -m pytest test_powerbox_read_gate.py -q
 """
@@ -40,18 +33,21 @@ sys.path.insert(0, str(API_DIR))
 
 from services.primitives import workspace as ws  # noqa: E402
 from services.primitives.workspace import (  # noqa: E402
-    grant_read_roots,
+    path_under_scopes,
+    grant_read_scopes,
+    read_scope_db_prefixes,
+    filter_results_by_read_scope,
+    _grant_axis,
     _is_path_readable_for_principal,
     _is_path_locked_for_principal,
+    _is_path_locked,
     _resolve_read_gate_path,
-    path_readable_under_roots,
-    filter_results_by_read_scope,
 )
 from services.primitives.permission import resolve_permission, PermissionDecision  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
-# Fakes — reuse the ADR-373 shape (a service client returning a chosen grant).
+# Fakes — a service client returning a chosen grant row (two-axis columns).
 # ---------------------------------------------------------------------------
 
 class _FakeQuery:
@@ -94,6 +90,12 @@ def _patch_grant(monkeypatch, grant_rows):
     monkeypatch.setattr("services.supabase.get_service_client", lambda: fake)
 
 
+def _grant(read=None, write=None, legacy=None):
+    """One grant row in the two-axis shape. read/write are the new columns;
+    legacy is the deprecated `scopes` mirror (used only for the fallback test)."""
+    return {"read_scopes": read, "write_scopes": write, "scopes": legacy}
+
+
 def _auth(caller_identity="operator", user_id="u-owner", workspace_id="ws-1",
           principal_id=None, freddie_caller=False):
     return SimpleNamespace(
@@ -106,7 +108,7 @@ def _auth(caller_identity="operator", user_id="u-owner", workspace_id="ws-1",
     )
 
 
-_SAMPLE_PATHS = [
+_SAMPLE = [
     "governance/_autonomy.yaml",
     "constitution/MANDATE.md",
     "persona/IDENTITY.md",
@@ -117,199 +119,230 @@ _SAMPLE_PATHS = [
 
 
 # ===========================================================================
-# 1. POLARITY — [] is deny-all on BOTH axes; NULL is class default
+# 1. THE MATCHER — longest-prefix, arbitrary depth, three-state polarity
 # ===========================================================================
 
-def test_null_scopes_read_everything(monkeypatch):
-    """The safety invariant: NULL scopes → grant_read_roots None → read-all.
-    This is the 15 live grants. Byte-identical to the pre-powerbox world."""
-    _patch_grant(monkeypatch, [{"scopes": None}])
+def test_matcher_polarity():
+    assert path_under_scopes("operation/x.md", None) is True    # not narrowing
+    assert path_under_scopes("operation/x.md", []) is False     # deny-all
+    assert path_under_scopes("operation/x.md", ["operation/"]) is True
+
+
+def test_matcher_arbitrary_depth():
+    # A subtree scope matches itself + everything beneath it.
+    assert path_under_scopes("operation/marketing/", ["operation/marketing/"]) is True
+    assert path_under_scopes("operation/marketing/q3.md", ["operation/marketing/"]) is True
+    # A sibling under the same parent is NOT matched.
+    assert path_under_scopes("operation/finance/x.md", ["operation/marketing/"]) is False
+    # The parent is not matched by a child scope.
+    assert path_under_scopes("operation/other.md", ["operation/marketing/"]) is False
+
+
+def test_matcher_exact_file_scope():
+    assert path_under_scopes("operation/reports/q3.md", ["operation/reports/q3.md"]) is True
+    assert path_under_scopes("operation/reports/q4.md", ["operation/reports/q3.md"]) is False
+    # a file scope does not act as a directory prefix
+    assert path_under_scopes("operation/reports/q3.md/child", ["operation/reports/q3.md"]) is False
+
+
+def test_matcher_no_sibling_prefix_bleed():
+    # 'operation/' must NOT match 'operationX/' (trailing slash guards this).
+    assert path_under_scopes("operationX/x.md", ["operation/"]) is False
+
+
+def test_matcher_normalizes_absolute_and_workspace_prefix():
+    for form in ("operation/x.md", "/operation/x.md", "workspace/operation/x.md",
+                 "/workspace/operation/x.md"):
+        assert path_under_scopes(form, ["operation/"]) is True
+
+
+# ===========================================================================
+# 2. TWO INDEPENDENT AXES — read and write move separately
+# ===========================================================================
+
+def test_axes_resolve_independently(monkeypatch):
+    _patch_grant(monkeypatch, [_grant(read=["operation/"], write=["operation/drafts/"])])
+    auth = _auth(principal_id="p-member")
+    assert _grant_axis(auth, "read") == ["operation/"]
+    assert _grant_axis(auth, "write") == ["operation/drafts/"]
+
+
+def test_read_only_auditor(monkeypatch):
+    """write=[] (deny-all writes) + read=['operation/'] — a read-only auditor.
+    The exact case one-axis scopes could not express."""
+    _patch_grant(monkeypatch, [_grant(read=["operation/"], write=[])])
+    auth = _auth(principal_id="p-auditor")
+    # reads operation/, denied elsewhere
+    assert _is_path_readable_for_principal(auth, "operation/reports/q3.md") is True
+    assert _is_path_readable_for_principal(auth, "governance/x.md") is False
+    # writes NOTHING (deny-all write axis)
+    assert _is_path_locked_for_principal(auth, "operation/reports/q3.md") is True
+    assert _is_path_locked_for_principal(auth, "operation/drafts/x.md") is True
+
+
+def test_scoped_writer_broad_reader(monkeypatch):
+    """read broader than write: reads all of operation/, writes only drafts/."""
+    _patch_grant(monkeypatch, [_grant(read=["operation/"], write=["operation/drafts/"])])
+    auth = _auth(principal_id="p-member")
+    assert _is_path_readable_for_principal(auth, "operation/reports/q3.md") is True   # readable
+    assert _is_path_locked_for_principal(auth, "operation/reports/q3.md") is True     # NOT writable
+    assert _is_path_locked_for_principal(auth, "operation/drafts/x.md") is False      # writable
+
+
+# ===========================================================================
+# 3. POLARITY per axis — deny-all vs class default, both axes
+# ===========================================================================
+
+def test_null_axes_are_class_default(monkeypatch):
+    """The safety invariant: NULL on both axes → read-all + class-default write.
+    This is the 15 live grants — byte-identical."""
+    _patch_grant(monkeypatch, [_grant(read=None, write=None)])
     auth = _auth(principal_id="u-owner")
-    assert grant_read_roots(auth) is None
-    for p in _SAMPLE_PATHS:
+    assert grant_read_scopes(auth) is None
+    for p in _SAMPLE:
         assert _is_path_readable_for_principal(auth, p) is True
+        # write matches the class default (owner: only system/ locked)
+        assert _is_path_locked_for_principal(auth, p) == _is_path_locked("operator", p)
 
 
-def test_no_grant_row_reads_everything(monkeypatch):
-    """No grant row at all → read-all (class default). Same as NULL."""
+def test_no_grant_row_is_class_default(monkeypatch):
     _patch_grant(monkeypatch, [])
     auth = _auth(principal_id="u-owner")
-    assert grant_read_roots(auth) is None
-    for p in _SAMPLE_PATHS:
+    assert grant_read_scopes(auth) is None
+    for p in _SAMPLE:
         assert _is_path_readable_for_principal(auth, p) is True
 
 
-def test_empty_scopes_read_nothing(monkeypatch):
-    """POLARITY: scopes:[] is an EXPLICIT empty allow-list → read NOTHING.
-    grant_read_roots returns the empty set (NOT None). Every path unreadable."""
-    _patch_grant(monkeypatch, [{"scopes": []}])
+def test_empty_read_axis_reads_nothing(monkeypatch):
+    _patch_grant(monkeypatch, [_grant(read=[], write=[])])
     auth = _auth(principal_id="p-locked")
-    assert grant_read_roots(auth) == set()
-    for p in _SAMPLE_PATHS:
+    assert grant_read_scopes(auth) == []
+    for p in _SAMPLE:
         assert _is_path_readable_for_principal(auth, p) is False
 
 
-def test_empty_scopes_write_nothing(monkeypatch):
-    """The write-axis half of the same polarity fix: scopes:[] → EVERY write
-    locked (deny-all), not the class default. (This is the assertion the ADR-373
-    gate's test_empty_scopes_list_is_deny_all also pins — proven here on the
-    read module's own entry point for completeness.)"""
-    _patch_grant(monkeypatch, [{"scopes": []}])
-    auth = _auth(principal_id="p-locked")
-    for p in _SAMPLE_PATHS:
-        assert _is_path_locked_for_principal(auth, p) is True
-
-
-# ===========================================================================
-# 2. NARROWED READ — a granted root reads; others don't
-# ===========================================================================
-
-def test_narrowed_read_honors_granted_root(monkeypatch):
-    """scopes:['operation/'] → read operation/, deny everything else."""
-    _patch_grant(monkeypatch, [{"scopes": ["operation/"]}])
-    auth = _auth(principal_id="p-member")
-    assert grant_read_roots(auth) == {"operation/"}
-    assert _is_path_readable_for_principal(auth, "operation/reports/q3.md") is True
-    assert _is_path_readable_for_principal(auth, "governance/_autonomy.yaml") is False
-    assert _is_path_readable_for_principal(auth, "persona/IDENTITY.md") is False
-
-
-def test_narrowed_read_multi_root(monkeypatch):
-    _patch_grant(monkeypatch, [{"scopes": ["operation/", "uploads/"]}])
-    auth = _auth(principal_id="p-member")
+def test_legacy_scopes_column_mirrors_both_axes(monkeypatch):
+    """A row predating migration 211 (new columns absent, only `scopes` set) →
+    the legacy `scopes` mirrors into BOTH axes (read ⊇ write = ADR-373 behavior)."""
+    _patch_grant(monkeypatch, [_grant(read=None, write=None, legacy=["operation/"])])
+    auth = _auth(principal_id="p-legacy")
+    assert _grant_axis(auth, "read") == ["operation/"]
+    assert _grant_axis(auth, "write") == ["operation/"]
     assert _is_path_readable_for_principal(auth, "operation/x.md") is True
-    assert _is_path_readable_for_principal(auth, "uploads/doc.md") is True
-    assert _is_path_readable_for_principal(auth, "agents/x/n.md") is False
-
-
-def test_read_gate_normalizes_absolute_and_workspace_prefix(monkeypatch):
-    """The read consult normalizes '/workspace/...' + 'workspace/...' the same
-    way the write consult does, so a granted root matches regardless of form."""
-    _patch_grant(monkeypatch, [{"scopes": ["operation/"]}])
-    auth = _auth(principal_id="p-member")
-    for form in ("operation/x.md", "/operation/x.md", "workspace/operation/x.md",
-                 "/workspace/operation/x.md"):
-        assert _is_path_readable_for_principal(auth, form) is True
+    assert _is_path_readable_for_principal(auth, "governance/x.md") is False
 
 
 # ===========================================================================
-# 3. THE READFILE WHOLESALE GATE (resolve_permission)
+# 4. THE READFILE WHOLESALE GATE (resolve_permission)
 # ===========================================================================
 
 @pytest.mark.asyncio
 async def test_readfile_in_scope_applies(monkeypatch):
-    _patch_grant(monkeypatch, [{"scopes": ["operation/"]}])
+    _patch_grant(monkeypatch, [_grant(read=["operation/"], write=["operation/"])])
     auth = _auth(principal_id="p-member")
     decision, reason = await resolve_permission(
         auth, "ReadFile", {"scope": "workspace", "path": "operation/reports/q3.md"})
-    assert decision == PermissionDecision.APPLY
-    assert reason == "read_only"
+    assert decision == PermissionDecision.APPLY and reason == "read_only"
 
 
 @pytest.mark.asyncio
 async def test_readfile_out_of_scope_denies(monkeypatch):
-    _patch_grant(monkeypatch, [{"scopes": ["operation/"]}])
+    _patch_grant(monkeypatch, [_grant(read=["operation/"], write=["operation/"])])
     auth = _auth(principal_id="p-member")
     decision, reason = await resolve_permission(
         auth, "ReadFile", {"scope": "workspace", "path": "governance/_autonomy.yaml"})
-    assert decision == PermissionDecision.DENY
-    assert reason.startswith("read_scope_denied:")
+    assert decision == PermissionDecision.DENY and reason.startswith("read_scope_denied:")
+
+
+@pytest.mark.asyncio
+async def test_readfile_deep_scope(monkeypatch):
+    """Object-depth at the gate: read scope operation/marketing/ denies a sibling."""
+    _patch_grant(monkeypatch, [_grant(read=["operation/marketing/"], write=[])])
+    auth = _auth(principal_id="p-member")
+    d1, _ = await resolve_permission(auth, "ReadFile",
+                                     {"scope": "workspace", "path": "operation/marketing/plan.md"})
+    d2, _ = await resolve_permission(auth, "ReadFile",
+                                     {"scope": "workspace", "path": "operation/finance/plan.md"})
+    assert d1 == PermissionDecision.APPLY
+    assert d2 == PermissionDecision.DENY
 
 
 @pytest.mark.asyncio
 async def test_readfile_null_scopes_applies_everything(monkeypatch):
-    """The safety invariant at the gate: NULL scopes → every ReadFile APPLYs
-    (read_only). Byte-identical for the live grants."""
-    _patch_grant(monkeypatch, [{"scopes": None}])
+    _patch_grant(monkeypatch, [_grant(read=None, write=None)])
     auth = _auth(principal_id="u-owner")
-    for p in _SAMPLE_PATHS:
-        decision, _ = await resolve_permission(
-            auth, "ReadFile", {"scope": "workspace", "path": p})
+    for p in _SAMPLE:
+        decision, _ = await resolve_permission(auth, "ReadFile", {"scope": "workspace", "path": p})
         assert decision == PermissionDecision.APPLY
 
 
 @pytest.mark.asyncio
 async def test_readfile_agent_scope_not_gated(monkeypatch):
-    """An agent reading its OWN workspace (scope='agent') is a different topology
-    — the commons read gate does not fire. Even a deny-all commons grant does not
-    block an agent-scope read."""
-    _patch_grant(monkeypatch, [{"scopes": []}])  # deny-all in the commons
+    _patch_grant(monkeypatch, [_grant(read=[], write=[])])  # deny-all commons
     auth = _auth(principal_id="p-locked")
     decision, reason = await resolve_permission(
         auth, "ReadFile", {"scope": "agent", "path": "thesis.md"})
-    assert decision == PermissionDecision.APPLY
-    assert reason == "read_only"
+    assert decision == PermissionDecision.APPLY and reason == "read_only"
 
 
 def test_resolve_read_gate_path_skips_agent_scope():
-    """The gate-path resolver returns None for agent scope (no commons gate)."""
     assert _resolve_read_gate_path({"scope": "agent", "path": "x.md"}) is None
     assert _resolve_read_gate_path({"scope": "workspace", "path": "operation/x.md"}) == "operation/x.md"
-    # absent scope → treated as workspace (the Reviewer default)
     assert _resolve_read_gate_path({"path": "operation/x.md"}) == "operation/x.md"
 
 
 # ===========================================================================
-# 4. THE SET FILTER — drops out-of-scope rows, never leaks their count
+# 5. THE SET FILTER — drops out-of-scope rows, never leaks their count
 # ===========================================================================
 
 def test_filter_drops_out_of_scope_rows(monkeypatch):
-    _patch_grant(monkeypatch, [{"scopes": ["operation/"]}])
+    _patch_grant(monkeypatch, [_grant(read=["operation/marketing/"], write=[])])
     auth = _auth(principal_id="p-member")
     rows = [
-        {"path": "operation/reports/q3.md"},
+        {"path": "operation/marketing/q3.md"},
+        {"path": "operation/finance/q3.md"},
         {"path": "governance/_autonomy.yaml"},
-        {"path": "operation/notes.md"},
-        {"path": "persona/IDENTITY.md"},
+        {"path": "operation/marketing/plans/2027.md"},  # deeper — still in scope
     ]
-    kept = filter_results_by_read_scope(auth, rows)
-    kept_paths = {r["path"] for r in kept}
-    assert kept_paths == {"operation/reports/q3.md", "operation/notes.md"}
-    # No count leak: the returned list IS the count. Nothing signals "2 hidden".
-    assert len(kept) == 2
+    kept = {r["path"] for r in filter_results_by_read_scope(auth, rows)}
+    assert kept == {"operation/marketing/q3.md", "operation/marketing/plans/2027.md"}
 
 
-def test_filter_null_scopes_returns_unchanged(monkeypatch):
-    """The safety invariant on the filter: NULL scopes → the list is returned
-    verbatim (same object contents, no filtering)."""
-    _patch_grant(monkeypatch, [{"scopes": None}])
+def test_filter_null_scope_unchanged(monkeypatch):
+    _patch_grant(monkeypatch, [_grant(read=None, write=None)])
     auth = _auth(principal_id="u-owner")
     rows = [{"path": "governance/x.md"}, {"path": "operation/y.md"}]
-    kept = filter_results_by_read_scope(auth, rows)
-    assert kept == rows
+    assert filter_results_by_read_scope(auth, rows) == rows
 
 
-def test_filter_empty_scopes_returns_nothing(monkeypatch):
-    """Deny-all grant → the filter returns an empty list (reads nothing)."""
-    _patch_grant(monkeypatch, [{"scopes": []}])
+def test_filter_deny_all_returns_nothing(monkeypatch):
+    _patch_grant(monkeypatch, [_grant(read=[], write=[])])
     auth = _auth(principal_id="p-locked")
     rows = [{"path": "operation/x.md"}, {"path": "uploads/y.md"}]
     assert filter_results_by_read_scope(auth, rows) == []
 
 
-def test_path_readable_under_roots_pure_predicate():
-    """The pure predicate the handlers filter with — None = read-all."""
-    assert path_readable_under_roots("operation/x.md", None) is True
-    assert path_readable_under_roots("operation/x.md", {"operation/"}) is True
-    assert path_readable_under_roots("governance/x.md", {"operation/"}) is False
-    assert path_readable_under_roots("operation/x.md", set()) is False  # deny-all
-    # normalization: absolute + workspace-prefixed forms match too
-    assert path_readable_under_roots("/workspace/operation/x.md", {"operation/"}) is True
-
-
 # ===========================================================================
-# 5. THE THREE LAYERS AGREE — read helpers are the read analog of the write one
+# 6. DB-SIDE SCOPE PREFIXES — absolute form for the search RPCs
 # ===========================================================================
 
-def test_read_is_the_inverse_polarity_of_write(monkeypatch):
-    """_is_path_readable_for_principal is the polarity inverse of
-    _is_path_locked_for_principal under the read⊇write model: for the same
-    narrowing grant, readable(path) == not locked-for-write(path)."""
-    _patch_grant(monkeypatch, [{"scopes": ["operation/", "agents/"]}])
+def test_read_scope_db_prefixes_absolute(monkeypatch):
+    """The search RPCs match wf.path (absolute /workspace/...), so the scopes
+    convert to absolute prefixes. This is what makes limit-after-scope work."""
+    _patch_grant(monkeypatch, [_grant(read=["operation/marketing/"], write=[])])
     auth = _auth(principal_id="p-member")
-    for p in _SAMPLE_PATHS:
-        readable = _is_path_readable_for_principal(auth, p)
-        locked = _is_path_locked_for_principal(auth, p)
-        assert readable == (not locked), (
-            f"read/write polarity mismatch at {p}: readable={readable} locked={locked}"
-        )
+    assert read_scope_db_prefixes(auth) == ["/workspace/operation/marketing/"]
+
+
+def test_read_scope_db_prefixes_null_is_none(monkeypatch):
+    """NULL read axis → None → the RPC skips scoping (unscoped, byte-identical)."""
+    _patch_grant(monkeypatch, [_grant(read=None, write=None)])
+    auth = _auth(principal_id="u-owner")
+    assert read_scope_db_prefixes(auth) is None
+
+
+def test_read_scope_db_prefixes_deny_all_is_empty(monkeypatch):
+    """Deny-all read axis → [] → the RPC matches nothing."""
+    _patch_grant(monkeypatch, [_grant(read=[], write=[])])
+    auth = _auth(principal_id="p-locked")
+    assert read_scope_db_prefixes(auth) == []

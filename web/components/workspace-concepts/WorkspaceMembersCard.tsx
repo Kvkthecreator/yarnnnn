@@ -26,7 +26,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Users, ShieldCheck, Bot, Plug, User, Cpu, Loader2, MoreHorizontal, ShieldMinus, Trash2, AlertTriangle, Link as LinkIcon } from 'lucide-react';
+import { Users, ShieldCheck, Bot, Plug, User, Cpu, Loader2, MoreHorizontal, ShieldMinus, Trash2, AlertTriangle, Link as LinkIcon, Plus } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { providerBrandIcon } from '@/lib/ai-providers/brand-icons';
@@ -203,10 +203,19 @@ export function WorkspaceMembersCard({
     }
   };
 
-  const onNarrow = async (m: Member, scopes: string[]) => {
+  const onNarrow = async (m: Member, writeScopes: string[], readScopes: string[]) => {
     setBusy(true);
     try {
-      await api.workspace.narrowMember(m.principal_id, scopes, m.connected_by);
+      // Two axes. Omit readScopes when it equals writeScopes (read ⊇ write, the
+      // common case) so the backend applies its mirror default; pass it when the
+      // operator moved the read axis independently.
+      const sameAxes =
+        readScopes.length === writeScopes.length &&
+        readScopes.every((s) => writeScopes.includes(s));
+      await api.workspace.narrowMember(m.principal_id, writeScopes, {
+        readScopes: sameAxes ? undefined : readScopes,
+        connectedBy: m.connected_by,
+      });
       setNarrowTarget(null);
       await refresh();
     } finally {
@@ -301,18 +310,24 @@ export function WorkspaceMembersCard({
               {kindHint && (
                 <p className="mt-0.5 text-[11px] text-muted-foreground/50">{kindHint}</p>
               )}
-              {/* Powerbox (2026-07-10): the reach is READ + WRITE (read⊇write),
-                  so the label is "Can access", and the three access_states read
-                  honestly — 'all' (everything in their class), 'scoped' (only the
-                  named zones), 'none' (an explicit deny-all: touches nothing). */}
+              {/* Powerbox (2026-07-10): TWO AXES. The chips are the WRITE reach
+                  (the operator zones); a read-only badge shows when the read axis
+                  is broader than write (an auditor: reads a folder, writes none).
+                  'none' write with any read = read-only; 'none' both = no access. */}
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <span className="text-[11px] text-muted-foreground/70">
-                  {m.access_state === 'scoped' ? 'Can access (narrowed)' : 'Can access'}:
+                  {m.write_state === 'scoped' ? 'Can write (narrowed)' : m.write_state === 'none' ? 'Write' : 'Can write'}:
                 </span>
-                {m.access_state === 'none' ? (
-                  <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
-                    nothing (access removed)
-                  </span>
+                {m.write_state === 'none' ? (
+                  m.read_state === 'none' ? (
+                    <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                      nothing (access removed)
+                    </span>
+                  ) : (
+                    <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[11px] font-medium text-blue-600 dark:text-blue-400">
+                      read-only
+                    </span>
+                  )
                 ) : zones.length === 0 ? (
                   <span className="text-[11px] text-muted-foreground/60 italic">nothing</span>
                 ) : (
@@ -325,6 +340,14 @@ export function WorkspaceMembersCard({
                     </span>
                   ))
                 )}
+                {/* When read is scoped BROADER than write (both scoped but read has
+                    more), hint that reads reach further. */}
+                {m.write_state !== 'none' && m.read_state === 'scoped' &&
+                  (m.read_scopes?.length ?? 0) > (m.write_regions?.length ?? 0) && (
+                    <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] text-blue-600 dark:text-blue-400">
+                      +read
+                    </span>
+                  )}
               </div>
             </div>
             {governable && (
@@ -508,21 +531,38 @@ export function WorkspaceMembersCard({
           member={narrowTarget}
           busy={busy}
           onCancel={() => setNarrowTarget(null)}
-          onConfirm={(scopes) => onNarrow(narrowTarget, scopes)}
+          onConfirm={(write, read) => onNarrow(narrowTarget, write, read)}
         />
       )}
     </div>
   );
 }
 
+// The three access levels an operator assigns per path (powerbox two-axis).
+// 'none' = the path is not in either scope; 'read' = read-only (read scope only);
+// 'write' = read + write (in both scopes — read ⊇ write, the norm).
+type AccessLevel = 'none' | 'read' | 'write';
+
+/** A path the operator is scoping, with its level. Paths are prefixes at
+ *  arbitrary depth ('operation/', 'operation/marketing/', 'operation/x.md'). */
+interface ScopeRow {
+  path: string;
+  level: AccessLevel;
+}
+
+function normalizePrefix(p: string): string {
+  const t = p.trim().replace(/^\/+/, '').replace(/^workspace\//, '');
+  return t;
+}
+
 /**
- * NarrowDialog — pick the regions a member may access (ADR-386 D2; powerbox
- * read⊇write, 2026-07-10). The selected set bounds BOTH reads and writes — so
- * an empty selection is a deliberate DENY-ALL (the member touches nothing but
- * stays connected), which the powerbox made representable. Deny-all is NOT a
- * disabled-button accident: it is its own confirm affordance, so the operator
- * chooses it on purpose. (Full eviction — disconnect + token delete — is the
- * separate Revoke modal.)
+ * NarrowDialog — set a member's READ + WRITE scope, at arbitrary path depth
+ * (ADR-386 D2; the powerbox, 2026-07-10). TWO INDEPENDENT AXES: each path gets
+ * a level — No access / Read only / Read & write — so a read-only auditor
+ * (read a folder, write nothing) is expressible, and paths can be any depth
+ * ('operation/marketing/' or a single file), not just top-level zones. An empty
+ * result on an axis is a deliberate DENY-ALL for that axis. (Full eviction —
+ * disconnect + token delete — is the separate Revoke modal.)
  */
 function NarrowDialog({
   member,
@@ -533,55 +573,150 @@ function NarrowDialog({
   member: Member;
   busy: boolean;
   onCancel: () => void;
-  onConfirm: (scopes: string[]) => void;
+  onConfirm: (writeScopes: string[], readScopes: string[]) => void;
 }) {
-  // Seed from the member's current access: an already-narrowed member keeps its
-  // scopes; a deny-all member seeds empty; otherwise operation/ only (the
-  // tightest sensible floor).
-  const [selected, setSelected] = useState<string[]>(
-    member.access_state === 'none'
-      ? []
-      : member.access_state === 'scoped' && member.write_regions.length
-        ? member.write_regions.map((r) => (r.endsWith('/') ? r : `${r}/`))
-        : ['operation/'],
-  );
-  const toggle = (region: string) =>
-    setSelected((s) => (s.includes(region) ? s.filter((x) => x !== region) : [...s, region]));
+  // Seed the rows from the member's current two-axis grant. Union the read +
+  // write prefixes; a path in write_regions is 'write', a read-only path is
+  // 'read'. The quick-pick zones (Documents/Agents) seed as rows too, so the
+  // common case is one click, and deeper paths are added by hand.
+  const seedRows = (): ScopeRow[] => {
+    const write = new Set(member.write_regions.map(normalizePrefix).filter(Boolean));
+    const read = new Set((member.read_scopes ?? []).map(normalizePrefix).filter(Boolean));
+    // A fresh, unconfigured member: default to Documents = read & write.
+    if (member.write_state === 'all' && member.read_state === 'all') {
+      return [{ path: 'operation/', level: 'write' }];
+    }
+    const paths = Array.from(new Set<string>([...Array.from(write), ...Array.from(read)]));
+    const rows: ScopeRow[] = [];
+    for (const p of paths) {
+      const level: AccessLevel = write.has(p) ? 'write' : read.has(p) ? 'read' : 'none';
+      if (level !== 'none') rows.push({ path: p, level });
+    }
+    return rows;
+  };
 
-  const isDenyAll = selected.length === 0;
+  const [rows, setRows] = useState<ScopeRow[]>(seedRows);
+  const [newPath, setNewPath] = useState('');
+
+  const setLevel = (path: string, level: AccessLevel) =>
+    setRows((rs) =>
+      level === 'none'
+        ? rs.filter((r) => r.path !== path)
+        : rs.map((r) => (r.path === path ? { ...r, level } : r)),
+    );
+
+  const addPath = () => {
+    const p = normalizePrefix(newPath);
+    if (!p || rows.some((r) => r.path === p)) return;
+    setRows((rs) => [...rs, { path: p, level: 'write' }]);
+    setNewPath('');
+  };
+
+  const addZone = (region: string) => {
+    const p = normalizePrefix(region);
+    if (rows.some((r) => r.path === p)) return;
+    setRows((rs) => [...rs, { path: p, level: 'write' }]);
+  };
+
+  // Derive the two axes: write = 'write' rows; read = 'write' ∪ 'read' rows
+  // (read ⊇ write). Empty axis → deny-all for that axis.
+  const writeScopes = rows.filter((r) => r.level === 'write').map((r) => r.path);
+  const readScopes = rows.filter((r) => r.level !== 'none').map((r) => r.path);
+  const denyAllWrite = writeScopes.length === 0;
+  const denyAllBoth = readScopes.length === 0;
+
+  const zoneRows = rows.map((r) => r.path);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !busy && onCancel()}>
-      <div className="w-full max-w-md rounded-lg border border-border bg-background p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-lg rounded-lg border border-border bg-background p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-sm font-semibold text-foreground">
           Set {member.label ?? member.principal_id}&rsquo;s access
         </h3>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          Choose the regions this principal may read and write. It stays
-          connected; anything outside the selected regions is hidden and denied.
+          Grant read or read &amp; write on any folder or file. Paths can be as
+          deep as you like. Anything not listed is hidden and denied — the member
+          stays connected either way.
         </p>
-        <div className="mt-4 space-y-1.5">
-          {NARROWABLE_REGIONS.map((region) => (
-            <label key={region} className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm hover:bg-muted/50">
-              <input
-                type="checkbox"
-                checked={selected.includes(region)}
-                onChange={() => toggle(region)}
-                className="h-4 w-4"
-              />
-              {regionLabel(region)}
-            </label>
+
+        {/* Quick-pick zones — one click to add a top-level home as a row. */}
+        <div className="mt-4 flex flex-wrap gap-1.5">
+          {NARROWABLE_REGIONS.filter((rg) => !zoneRows.includes(normalizePrefix(rg))).map((region) => (
+            <button
+              key={region}
+              type="button"
+              onClick={() => addZone(region)}
+              className="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-1 text-[12px] text-muted-foreground hover:bg-muted/50"
+            >
+              <Plus className="h-3 w-3" /> {regionLabel(region)}
+            </button>
           ))}
         </div>
-        {/* The deny-all state, made honest: when nothing is selected, say so —
-            it is a deliberate "no access" grant, not a broken form. */}
-        {isDenyAll && (
-          <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[13px] text-amber-700 dark:text-amber-400">
-            No regions selected — this removes all access. {member.label ?? 'The principal'} stays
-            connected but can read and write nothing. (To disconnect entirely, use Revoke.)
-          </p>
-        )}
-        <div className="mt-5 flex justify-end gap-2">
+
+        {/* The scope rows — each path with its access level. */}
+        <div className="mt-3 space-y-1.5">
+          {rows.length === 0 && (
+            <p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[13px] text-amber-700 dark:text-amber-400">
+              No paths — this removes all access. {member.label ?? 'The principal'} stays
+              connected but can read and write nothing. (To disconnect entirely, use Revoke.)
+            </p>
+          )}
+          {rows.map((r) => (
+            <div key={r.path} className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2">
+              <code className="min-w-0 flex-1 truncate text-[13px] text-foreground/80" title={r.path}>
+                {r.path}
+              </code>
+              <div className="flex shrink-0 overflow-hidden rounded border border-border text-[11px]">
+                {(['none', 'read', 'write'] as AccessLevel[]).map((lvl) => (
+                  <button
+                    key={lvl}
+                    type="button"
+                    onClick={() => setLevel(r.path, lvl)}
+                    className={cn(
+                      'px-2 py-1 capitalize',
+                      r.level === lvl
+                        ? lvl === 'none'
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-muted/60',
+                    )}
+                  >
+                    {lvl === 'none' ? 'No access' : lvl === 'read' ? 'Read' : 'Read+Write'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Add a deeper path by hand (object-granularity). */}
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            value={newPath}
+            onChange={(e) => setNewPath(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addPath())}
+            placeholder="e.g. operation/marketing/ or operation/reports/q3.md"
+            className="min-w-0 flex-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <button
+            type="button"
+            onClick={addPath}
+            disabled={!normalizePrefix(newPath)}
+            className="shrink-0 rounded-md border border-border px-2.5 py-1.5 text-[12px] font-medium hover:bg-muted disabled:opacity-40"
+          >
+            Add path
+          </button>
+        </div>
+
+        {/* Honest summary of what the two axes resolve to. */}
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          {denyAllBoth
+            ? 'Read: nothing · Write: nothing'
+            : `Read: ${readScopes.length} path${readScopes.length === 1 ? '' : 's'}` +
+              ` · Write: ${denyAllWrite ? 'nothing (read-only)' : `${writeScopes.length} path${writeScopes.length === 1 ? '' : 's'}`}`}
+        </p>
+
+        <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
             disabled={busy}
@@ -593,16 +728,16 @@ function NarrowDialog({
           <button
             type="button"
             disabled={busy}
-            onClick={() => onConfirm(selected)}
+            onClick={() => onConfirm(writeScopes, readScopes)}
             className={cn(
               'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50',
-              isDenyAll
+              denyAllBoth
                 ? 'bg-amber-600 text-white hover:bg-amber-600/90'
                 : 'bg-primary text-primary-foreground hover:bg-primary/90',
             )}
           >
             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {isDenyAll ? 'Remove all access' : 'Apply'}
+            {denyAllBoth ? 'Remove all access' : 'Apply'}
           </button>
         </div>
       </div>

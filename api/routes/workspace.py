@@ -98,14 +98,19 @@ class WorkspaceMember(BaseModel):
     principal_id: str                      # the stable grant key (user id / provider host-id / slug)
     role: str                              # owner | member | own-agent | foreign-llm | platform | a2a
     label: Optional[str] = None            # humanized name (email / LLM provider / slug)
-    write_regions: list[str]               # the raw ADR-320 write-region roots (the wire truth)
+    write_regions: list[str]               # the raw write-scope prefixes (the wire truth)
     write_zones: list[str]                 # ADR-424 operator zones (Documents/Downloads/System files) — what the roster SHOWS
-    scopes_explicit: bool                  # True if narrowed by an explicit grant; False if class-default
-    # The powerbox three-way access state (2026-07-10) — read⊇write, so this is
-    # the READ reach too. The polarity fix made 'none' representable:
-    #   'all'    → NULL scopes → class default (unconfigured; reads/writes its class)
-    #   'scoped' → [..] → narrowed to the named roots (reads/writes exactly those)
-    #   'none'   → [] → explicit deny-all (an empty allow-list; reads/writes nothing)
+    scopes_explicit: bool                  # True if narrowed on the WRITE axis; False if class-default
+    # Powerbox (2026-07-10) — TWO INDEPENDENT AXES, path prefixes at arbitrary
+    # depth. Each axis has a three-way state (the polarity fix made 'none' real):
+    #   'all'    → NULL → class default (unconfigured)
+    #   'scoped' → [..] → narrowed to the named prefixes
+    #   'none'   → []   → explicit deny-all (touches nothing)
+    read_scopes: list[str]                 # the raw read-scope prefixes
+    read_state: str                        # all | scoped | none
+    write_state: str                       # all | scoped | none
+    # `access_state` = the combined operator glance (the wider of the two axes,
+    # since read ⊇ write is the norm): the reach the row's chip communicates.
     access_state: str
     status: str                            # active | revoked
     granted_by: Optional[str] = None
@@ -864,6 +869,16 @@ async def get_recent_artifacts(
 from services.principals import class_default_write_regions as _class_default_write_regions
 
 
+def _axis_state(scopes) -> str:
+    """The powerbox three-way state of a scope axis: 'all' (NULL → class default),
+    'none' ([] → deny-all), 'scoped' ([..] → allow-list)."""
+    if scopes is None:
+        return "all"
+    if len(scopes) == 0:
+        return "none"
+    return "scoped"
+
+
 def _write_regions_to_zones(regions: list[str]) -> list[str]:
     """Collapse raw ADR-320 write-region roots → operator-facing ADR-424 zones.
 
@@ -1098,7 +1113,7 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
         svc = get_service_client()
         rows = (
             svc.table("principal_grants")
-            .select("principal_id, role, scopes, status, granted_by, created_at, connected_by")
+            .select("principal_id, role, scopes, read_scopes, write_scopes, status, granted_by, created_at, connected_by")
             .eq("workspace_id", workspace_id)
             .eq("status", "active")
             .order("created_at")
@@ -1160,23 +1175,36 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
         for r in rows:
             role = r.get("role") or "member"
             principal_id = r["principal_id"]
-            scopes = r.get("scopes")
-            # POLARITY (powerbox, 2026-07-10) — three states, not two. NULL is
-            # unconfigured (class default); [] is an explicit deny-all; [..] is a
-            # narrowing. `bool(scopes)` collapsed [] into NULL (both falsy); use
-            # `is not None` so a locked-down member is representable + legible.
-            if scopes is None:
-                access_state = "all"
-                explicit = False
+            # Powerbox (2026-07-10) — TWO AXES. Prefer the new columns; if a row
+            # predates migration 211 (both absent → None) fall back to the legacy
+            # `scopes` mirror for BOTH axes (read ⊇ write), preserving behavior.
+            raw_read = r.get("read_scopes")
+            raw_write = r.get("write_scopes")
+            if raw_read is None and raw_write is None and r.get("scopes") is not None:
+                raw_read = raw_write = r.get("scopes")
+
+            write_state = _axis_state(raw_write)
+            read_state = _axis_state(raw_read)
+            explicit = write_state != "all"
+
+            # write_regions (the raw truth behind the operator-zone chips) follow
+            # the WRITE axis: class default when unconfigured, [] when deny-all.
+            if write_state == "all":
                 write_regions = _class_default_write_regions(role)
-            elif len(scopes) == 0:
-                access_state = "none"
-                explicit = True
+            elif write_state == "none":
                 write_regions = []
             else:
-                access_state = "scoped"
-                explicit = True
-                write_regions = list(scopes)
+                write_regions = list(raw_write)
+            read_regions = list(raw_read) if read_state == "scoped" else (
+                [] if read_state == "none" else _class_default_write_regions(role)
+            )
+            # The combined operator-glance chip: the WIDER axis (read ⊇ write
+            # norm). 'all' on either → 'all'; else 'scoped' unless both 'none'.
+            access_state = (
+                "all" if "all" in (read_state, write_state)
+                else "none" if read_state == "none" and write_state == "none"
+                else "scoped"
+            )
 
             label: Optional[str] = None
             if role in ("owner", "member"):
@@ -1213,6 +1241,9 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
                 write_regions=write_regions,
                 write_zones=_write_regions_to_zones(write_regions),  # ADR-424 operator projection
                 scopes_explicit=explicit,
+                read_scopes=read_regions,
+                read_state=read_state,
+                write_state=write_state,
                 access_state=access_state,
                 status=r.get("status") or "active",
                 granted_by=r.get("granted_by"),
@@ -1237,7 +1268,16 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
 # from the authenticated owner.
 
 class NarrowMemberRequest(BaseModel):
-    scopes: list[str]   # the write-region set to narrow the member to (ADR-320 roots)
+    # Powerbox (2026-07-10) — two independent axes, path prefixes at arbitrary
+    # depth. Send `write_scopes` (the primary narrowing); `read_scopes` optional
+    # → defaults to "read ⊇ write" (read mirrors write). Pass read_scopes
+    # explicitly to move the read axis independently (a read-only auditor).
+    # Polarity per axis: [] = deny-all, [..] = allow-list.
+    # `scopes` is the legacy field (= write); accepted for old clients. Exactly
+    # one of {write_scopes, scopes} must be present (resolved in the route).
+    write_scopes: Optional[list[str]] = None
+    read_scopes: Optional[list[str]] = None
+    scopes: Optional[list[str]] = None
     # ADR-431 — disambiguate WHICH connection when a provider is connected by
     # several members (foreign-LLM). None targets the singleton grant.
     connected_by: Optional[str] = None
@@ -1271,10 +1311,17 @@ async def narrow_member(principal_id: str, body: NarrowMemberRequest, auth: User
     writes but not reads). `scopes: []` is a deliberate DENY-ALL (the member may
     touch nothing); `scopes: ['operation/', ...]` narrows to those roots. The
     owner grant is immutable (403)."""
-    from services.principal_grants import narrow_grant, OwnerGrantImmutable
+    from services.principal_grants import narrow_grant, OwnerGrantImmutable, _UNSET
     workspace_id = _resolve_caller_workspace(auth)
+    # write axis: prefer the powerbox field, fall back to the legacy `scopes`.
+    write_scopes = body.write_scopes if body.write_scopes is not None else body.scopes
+    if write_scopes is None:
+        raise HTTPException(status_code=422, detail="write_scopes (or legacy scopes) required")
+    # read axis: None-in-body means "not specified" → read ⊇ write (_UNSET); an
+    # explicit list (incl. []) moves the read axis independently.
+    read_arg = _UNSET if body.read_scopes is None else body.read_scopes
     try:
-        narrow_grant(principal_id, workspace_id, body.scopes, body.connected_by)
+        narrow_grant(principal_id, workspace_id, write_scopes, body.connected_by, read_scopes=read_arg)
     except OwnerGrantImmutable:
         raise HTTPException(status_code=403, detail="the owner grant cannot be narrowed")
     except ValueError as ve:
@@ -1283,7 +1330,7 @@ async def narrow_member(principal_id: str, body: NarrowMemberRequest, auth: User
         logger.error(f"[WORKSPACE_API] member narrow failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     return MemberLifecycleResponse(
-        success=True, principal_id=principal_id, action="narrow", scopes=body.scopes,
+        success=True, principal_id=principal_id, action="narrow", scopes=write_scopes,
     )
 
 

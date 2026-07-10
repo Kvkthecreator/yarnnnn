@@ -1252,6 +1252,10 @@ async def handle_search_files(auth: Any, input: dict) -> dict:
             normalized = path_prefix if path_prefix.startswith("/") else f"/workspace/{path_prefix.lstrip('/')}"
             prefix = normalized
 
+        # Powerbox read gate — pushed INTO the RPC (migration 212) so the LIMIT
+        # applies to in-scope rows only. None → unscoped (owner); [] → deny-all
+        # (the RPC matches nothing); [..] → absolute allow-list prefixes.
+        allowed_prefixes = read_scope_db_prefixes(auth)
         try:
             from services.workspace_context import effective_workspace_id
             ws = effective_workspace_id(auth.user_id)
@@ -1260,6 +1264,7 @@ async def handle_search_files(auth: Any, input: dict) -> dict:
                 "p_query": query,
                 "p_path_prefix": prefix,
                 "p_limit": 20,
+                "p_allowed_prefixes": allowed_prefixes,
             }).execute() if ws else None
             rows = (result.data or []) if result else []
         except Exception as e:
@@ -1274,9 +1279,6 @@ async def handle_search_files(auth: Any, input: dict) -> dict:
             }
             for r in rows
         ]
-        # Powerbox read gate — filter to granted roots (commons only). The
-        # reported count is the filtered count; no hidden-results tally leaks.
-        results = filter_results_by_read_scope(auth, results)
         return {
             "success": True,
             "scope": "workspace",
@@ -1356,6 +1358,9 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
         bm25_ok = False
         from services.workspace_context import effective_workspace_id
         _ws = effective_workspace_id(auth.user_id)
+        # Powerbox read gate — scope both RPCs at the DB (migration 212) so LIMIT
+        # applies to in-scope rows only. None → unscoped; [] → deny-all.
+        allowed_prefixes = read_scope_db_prefixes(auth)
         try:
             if not _ws:
                 raise ValueError("no acting workspace resolves")
@@ -1364,6 +1369,7 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
                 "p_query": query,
                 "p_path_prefix": prefix,
                 "p_limit": limit,
+                "p_allowed_prefixes": allowed_prefixes,
             }).execute()
             rows = result.data or []
             if rows:
@@ -1386,6 +1392,7 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
                     "p_query_embedding": query_embedding,
                     "p_path_prefix": prefix,
                     "p_limit": limit,
+                    "p_allowed_prefixes": allowed_prefixes,
                 }).execute()
                 sem_rows = result.data or []
                 # Only use semantic results if we got meaningful similarity scores
@@ -1593,16 +1600,16 @@ async def handle_list_files(auth: Any, input: dict) -> dict:
     entries, truncated = _list_tree(auth, abs_prefix, rel_base, authored_by, since, until)
 
     # The powerbox read gate (2026-07-10) — FILTER, not deny. A narrowed
-    # principal enumerates only its granted roots; the rest are silently absent,
-    # never surfaced as a count or an error (that would leak the existence +
-    # volume of out-of-scope files). Owner / NULL-scoped grants → read_roots is
-    # None → no filtering (byte-identical). Only applies to the shared commons
-    # (scope='workspace'); an agent listing its own workspace is a different
-    # topology the commons gate does not govern.
+    # principal enumerates only its granted prefixes (arbitrary depth); the rest
+    # are silently absent, never surfaced as a count or an error (that would leak
+    # the existence + volume of out-of-scope files). Owner / NULL read axis →
+    # read_scopes is None → no filtering (byte-identical). Only applies to the
+    # shared commons (scope='workspace'); an agent listing its own workspace is a
+    # different topology the commons gate does not govern.
     if scope == "workspace":
-        read_roots = grant_read_roots(auth)
-        if read_roots is not None:
-            entries = [e for e in entries if path_readable_under_roots(e["path"], read_roots)]
+        read_scopes = grant_read_scopes(auth)
+        if read_scopes is not None:
+            entries = [e for e in entries if path_under_scopes(e["path"], read_scopes)]
 
     result = {
         "success": True,
@@ -1979,27 +1986,118 @@ from threading import local as _threadlocal
 _grant_cache = _threadlocal()
 
 
-def _grant_root_set(scopes: list[str]) -> set[str]:
-    """Normalize a grant's `scopes` to a set of top-level root prefixes.
+def _normalize_scope_candidate(path: str) -> str:
+    """Normalize a path to the workspace-relative form scopes match against
+    (leading slash + `workspace/` prefix stripped). Shared by every matcher so
+    a scope and a candidate path are compared in one canonical form."""
+    candidate = (path or "").strip().lstrip("/")
+    if candidate.startswith("workspace/"):
+        candidate = candidate[len("workspace/"):]
+    return candidate
 
-    Scopes are write-region prefixes (e.g. ``operation/``, ``agents/``). A
-    path is allowed iff its top-level root matches a granted prefix. Trailing
-    slashes are normalized so ``operation`` and ``operation/`` both match.
+
+def _normalize_scope_prefix(scope: str) -> str:
+    """Normalize a single grant scope element to its canonical prefix form.
+
+    A scope is a PATH PREFIX at ARBITRARY DEPTH (powerbox, 2026-07-10) —
+    `operation/`, `operation/marketing/`, or an exact file `operation/x.md`.
+
+    Directory-vs-file intent:
+      - a trailing slash → DIRECTORY (matches the dir + everything beneath).
+      - no trailing slash + a file EXTENSION on the last segment → EXACT FILE.
+      - no trailing slash + NO extension → DIRECTORY (we append `/`). This keeps
+        ADR-373 back-compat: a bare token like `operation` means the `operation/`
+        home, not a file named literally `operation`. Extensionless files are
+        vanishingly rare in the substrate and never a scope target.
     """
-    return {s.rstrip("/") + "/" for s in scopes if s}
+    s = _normalize_scope_candidate(scope)
+    if not s or s.endswith("/"):
+        return s
+    last = s.rsplit("/", 1)[-1]
+    if "." not in last:
+        # no extension → directory intent (ADR-373 bare-root back-compat)
+        return s + "/"
+    return s  # has an extension → exact-file scope
 
 
-def _lookup_grant_scopes(auth: Any) -> Optional[list[str]]:
-    """Resolve the caller's active-grant `scopes` (ADR-373 D2), or None.
+def path_under_scopes(path: str, scopes: Optional[list[str]]) -> bool:
+    """The ONE matcher — longest-prefix, arbitrary depth, both axes.
 
-    Returns the explicit scopes list when an active grant row exists WITH
-    non-NULL scopes; returns None when there is no grant row OR scopes is NULL —
-    BOTH of which mean "fall back to the class default". The None return is the
-    safety invariant's hinge: it is indistinguishable, at the gate, from the
-    pre-consult world.
+    `scopes` polarity (powerbox three-state):
+      - None → NO grant / axis unconfigured → the caller must fall back to the
+        class default; this matcher is not consulted (returns True as a no-op so
+        callers that reach it with None treat it as "not narrowing").
+      - []   → EXPLICIT deny-all → nothing matches → False for every path.
+      - [..] → allow-list → True iff `path` is at or under any granted prefix.
 
-    Best-effort + fail-safe: any resolution error returns None (class default),
-    never blocks or widens. Memoized per-request on (principal_id, workspace_id).
+    A directory scope (`operation/marketing/`) matches itself and everything
+    beneath it. A file scope (`operation/x.md`) matches that exact path. This is
+    depth-agnostic: `operation/`, `operation/marketing/`, and
+    `operation/marketing/q3.md` are all valid scopes and nest correctly.
+    """
+    if scopes is None:
+        return True  # not narrowing — caller uses the class default
+    candidate = _normalize_scope_candidate(path)
+    for raw in scopes:
+        scope = _normalize_scope_prefix(raw)
+        if not scope:
+            continue
+        if scope.endswith("/"):
+            # Directory prefix: the path is the dir itself or lives under it.
+            if candidate == scope.rstrip("/") or candidate.startswith(scope):
+                return True
+        else:
+            # Exact-file scope: only that path (or, defensively, that path used
+            # as a directory prefix — a file can't have children, so exact only).
+            if candidate == scope:
+                return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# ADR-373 D2/D3 + THE POWERBOX (2026-07-10) — the per-principal grant-consult,
+# now TWO-AXIS (read + write) at ARBITRARY DEPTH.
+# ---------------------------------------------------------------------------
+#
+# ADR-373 shipped a single write-only, top-level-root `scopes` list. The
+# powerbox lifts it to the shape a commons at scale needs: read_scopes +
+# write_scopes, each an allow-list of PATH PREFIXES at arbitrary depth
+# (migration 211). The consult resolves BOTH axes for a principal in one lookup.
+#
+# POLARITY (per axis, three states): CALLER_WRITE_POLICY lists LOCKED prefixes
+# (the class ceiling); an axis's scope list is an ALLOW-list (what the owner
+# granted below that ceiling). Complements — never swap them:
+#   - axis NULL         → fall through to the class default (_is_path_locked /
+#                         read-all) = TODAY'S EXACT BEHAVIOR (the safety invariant).
+#   - axis []           → EXPLICIT deny-all (an empty allow-list; nothing matches).
+#   - axis [..]         → allow-list at arbitrary depth (longest-prefix match).
+#
+# Every live grant is NULL on both axes (migration 211 backfill, 15 rows), so
+# EVERY caller hits the fall-through — byte-identical to the pre-powerbox gate.
+# The grant-honored branch is exercised only once a narrowing grant row exists.
+#
+# read ⊇ write is a DEFAULT (the backfill mirrors `scopes` into both axes), not
+# a constraint: an owner can grant read_scopes broader than write_scopes (a
+# read-only auditor: read `operation/`, write []).
+
+#: Per-request memo of (principal_id, workspace_id, connected_by) → the grant's
+#: {"read": Optional[list], "write": Optional[list]} axes (or None if no grant).
+from threading import local as _threadlocal
+_grant_cache = _threadlocal()
+
+
+def _lookup_grant_axes(auth: Any) -> Optional[dict]:
+    """Resolve the caller's active-grant read/write scope axes, or None.
+
+    Returns {"read": Optional[list[str]], "write": Optional[list[str]]} when an
+    active grant row exists (each axis: None=class-default, []=deny-all,
+    [..]=allow-list); returns None when there is no grant row at all (→ class
+    default on both axes). Best-effort + fail-safe: any resolution error → None.
+
+    Reads read_scopes/write_scopes (powerbox, migration 211). The legacy `scopes`
+    column is a transition mirror of write_scopes; if the new columns are absent
+    on a row (pre-migration read), we fall back to `scopes` for BOTH axes
+    (read ⊇ write), preserving ADR-373 behavior. Memoized per-request.
     """
     from services.supabase import resolve_principal_id, resolve_owner_workspace_id
 
@@ -2009,15 +2107,11 @@ def _lookup_grant_scopes(auth: Any) -> Optional[list[str]]:
         resolve_owner_workspace_id(user_id or "") if user_id else None
     )
     if not principal_id or not workspace_id:
-        return None  # cannot key the grant → class default
+        return None  # cannot key the grant → class default on both axes
 
-    # ADR-431 — a foreign-LLM provider can now be connected by MANY members, so
+    # ADR-431 — a foreign-LLM provider may be connected by MANY members, so
     # (provider, workspace) no longer uniquely keys a grant. Disambiguate by the
-    # connecting member (`connected_by = auth.user_id`) whenever the principal is
-    # NOT the human themself (principal_id != user_id → an external principal the
-    # human authorized). For the owner/human path (principal_id == user_id) the
-    # grant is a singleton with connected_by NULL, so we DON'T filter by it —
-    # keeping the owner lookup byte-identical to pre-431.
+    # connecting member for external principals; owner/human path is a singleton.
     connected_by = user_id if (user_id and principal_id != user_id) else None
 
     cache = getattr(_grant_cache, "store", None)
@@ -2027,17 +2121,15 @@ def _lookup_grant_scopes(auth: Any) -> Optional[list[str]]:
     if key in cache:
         return cache[key]
 
-    scopes: Optional[list[str]] = None
+    axes: Optional[dict] = None
     try:
-        # Use the SERVICE client for the lookup — the grant table is the gate's
-        # authority and must not depend on the caller's own (mid-transition) RLS.
         from services.supabase import get_service_client
         svc = get_service_client()
 
         def _fetch(cb: Optional[str]):
             q = (
                 svc.table("principal_grants")
-                .select("scopes")
+                .select("read_scopes, write_scopes, scopes")
                 .eq("principal_id", principal_id)
                 .eq("workspace_id", workspace_id)
                 .eq("status", "active")
@@ -2045,140 +2137,109 @@ def _lookup_grant_scopes(auth: Any) -> Optional[list[str]]:
             q = q.eq("connected_by", cb) if cb is not None else q
             return q.limit(1).execute()
 
-        # ADR-431 — MEMBER-FIRST, PROVIDER-WIDE FALLBACK. When the caller is an
-        # external principal (connected_by set), prefer THIS member's grant; if
-        # none exists, fall back to the provider-wide grant (connected_by NULL —
-        # a legacy/backfilled grant, or one this member hasn't personally
-        # re-provisioned yet). For the owner/human path connected_by is None, so
-        # only the single fetch runs — byte-identical to pre-431.
+        # ADR-431 — MEMBER-FIRST, PROVIDER-WIDE FALLBACK (external principals).
         result = _fetch(connected_by)
         if not result.data and connected_by is not None:
-            result = _fetch(None)  # provider-wide fallback
+            result = _fetch(None)
 
         if result.data:
-            raw = result.data[0].get("scopes")
-            # POLARITY (the powerbox debt fix, 2026-07-10). Three states, three
-            # meanings — an empty allow-list is NOT the same as no allow-list:
-            #   NULL  → None      → class default (the pre-consult world; owner)
-            #   []    → []        → EXPLICIT DENY-ALL (an allow-list of nothing;
-            #                       _grant_root_set([]) = ∅ → every path locked)
-            #   [..]  → [..]      → allow-list of the named roots
-            # The prior `if raw:` collapsed [] into the NULL branch (both falsy),
-            # so "this principal may touch nothing" silently resolved to the
-            # class default = write-capable. `is not None` splits them: an empty
-            # list is a deliberate, representable "no access" grant. This is the
-            # only way to express a locked-down principal, and it was unreachable.
-            if raw is not None:
-                scopes = list(raw)
+            row = result.data[0]
+            # Powerbox columns are authoritative. If a row predates migration 211
+            # (columns absent → None where `scopes` is set), mirror the legacy
+            # `scopes` into BOTH axes (read ⊇ write) so behavior is preserved.
+            legacy = row.get("scopes")
+            read = row.get("read_scopes")
+            write = row.get("write_scopes")
+            if read is None and write is None and legacy is not None:
+                read = list(legacy)
+                write = list(legacy)
+            axes = {
+                "read": list(read) if read is not None else None,
+                "write": list(write) if write is not None else None,
+            }
     except Exception as exc:  # pragma: no cover — fail safe to class default
         import logging
         logging.getLogger(__name__).warning(
-            "[ADR-373] grant lookup failed for (%s, %s): %s — class default.",
+            "[POWERBOX] grant lookup failed for (%s, %s): %s — class default.",
             principal_id, workspace_id, exc,
         )
-        scopes = None
+        axes = None
 
-    cache[key] = scopes
-    return scopes
+    cache[key] = axes
+    return axes
+
+
+def _grant_axis(auth: Any, axis: str) -> Optional[list[str]]:
+    """The read or write scope list for this principal (None if no grant / axis
+    unconfigured → class default). `axis` ∈ {'read','write'}."""
+    axes = _lookup_grant_axes(auth)
+    if axes is None:
+        return None
+    return axes.get(axis)
 
 
 def _is_path_locked_for_principal(auth: Any, path: str) -> bool:
-    """The grant-consulting write-lock (ADR-373 D2). Single gate entry point.
+    """The grant-consulting WRITE lock (single gate entry point).
 
-    Resolves the caller's per-principal grant; uses its allow-list scopes when
-    present, else falls back to the class-default `_is_path_locked`. Replaces
-    the direct `_is_path_locked(_caller_class(auth), path)` calls at the gate —
-    one consult site, so a new principal type lights up by writing a grant row,
-    no gate edit.
+    Resolves the caller's write axis; None → class default (_is_path_locked);
+    [] → deny-all (locked everywhere); [..] → locked iff `path` is NOT under any
+    granted prefix (longest-prefix, arbitrary depth). One consult site, so a new
+    principal type lights up by writing a grant row — no gate edit.
     """
-    scopes = _lookup_grant_scopes(auth)
-    if scopes is None:
-        # No grant / NULL scopes → class default = today's behavior.
+    write_scopes = _grant_axis(auth, "write")
+    if write_scopes is None:
+        # No grant / write axis NULL → class default = today's behavior.
         return _is_path_locked(_caller_class(auth), path)
-
-    # Explicit scopes → allow-list. Normalize the candidate path the same way
-    # _is_path_locked does, then lock iff its root is NOT in the granted set.
-    candidate = _normalize_scope_candidate(path)
-    granted_roots = _grant_root_set(scopes)
-    return not any(candidate.startswith(root) for root in granted_roots)
-
-
-# ---------------------------------------------------------------------------
-# The READ axis — the powerbox debt (2026-07-10). ADR-373 shipped multi-principal
-# grants + a `narrow` verb; the consult above enforces them on WRITES only. A
-# narrowed principal still READ the whole commons (no read gate anywhere — the
-# ADR-307 gate short-circuits read-only primitives to APPLY before any consult).
-# These two helpers are the read analog, and they close that gap.
-#
-# HALF-A MODEL — read ⊇ write. There is no separate read-scope field yet (that
-# is Half B: object-granular, read-only-vs-scoped-write). In Half A a principal
-# READs exactly the roots it may WRITE: the same `scopes` list governs both, so
-# narrowing a member to `operation/` narrows BOTH axes coherently, and an owner /
-# NULL-scoped grant reads everything — byte-identical to the pre-powerbox world.
-# ---------------------------------------------------------------------------
-
-def _normalize_scope_candidate(path: str) -> str:
-    """Normalize a path to the form scope-roots match against (the same
-    normalization `_is_path_locked_for_principal` applied inline)."""
-    candidate = (path or "").strip().lstrip("/")
-    if candidate.startswith("workspace/"):
-        candidate = candidate[len("workspace/"):]
-    return candidate
-
-
-def grant_read_roots(auth: Any) -> Optional[set[str]]:
-    """The set of root prefixes this principal may READ, or None for read-all.
-
-    Returns:
-      - None  → no grant / NULL scopes → read EVERYTHING (owner + every live
-                grant today; the safety invariant — byte-identical to before).
-      - set   → the granted roots (possibly EMPTY = read nothing, the deny-all
-                grant the polarity fix made representable).
-
-    Half-A read ⊇ write: read roots == write scope roots (one `scopes` list).
-    The set-returning read handlers (ListFiles / SearchFiles / QueryKnowledge)
-    call this and FILTER their results — a wholesale DENY would leak the
-    existence of out-of-scope files by turning an enumeration into an error.
-    """
-    scopes = _lookup_grant_scopes(auth)
-    if scopes is None:
-        return None
-    return _grant_root_set(scopes)
+    # Explicit allow-list ([] = deny-all handled by the matcher: nothing matches).
+    return not path_under_scopes(path, write_scopes)
 
 
 def _is_path_readable_for_principal(auth: Any, path: str) -> bool:
     """True iff this principal may READ `path` (the ReadFile wholesale gate).
 
-    The read analog of `_is_path_locked_for_principal`, inverted polarity
-    (returns readable, not locked). NULL scopes → readable (class default =
-    read-all). Explicit scopes → readable iff the path's root is granted;
-    an empty allow-list ([]) → nothing readable (deny-all).
+    The read analog: read axis None → readable (class default = read-all);
+    [] → nothing readable (deny-all); [..] → readable iff under a granted prefix.
     """
-    read_roots = grant_read_roots(auth)
-    if read_roots is None:
-        return True  # read-all (owner / NULL scopes) — today's behavior
-    candidate = _normalize_scope_candidate(path)
-    return any(candidate.startswith(root) for root in read_roots)
+    read_scopes = _grant_axis(auth, "read")
+    if read_scopes is None:
+        return True  # read-all (no grant / read axis NULL) — today's behavior
+    return path_under_scopes(path, read_scopes)
 
 
-def path_readable_under_roots(path: str, read_roots: Optional[set[str]]) -> bool:
-    """Pure predicate for the set-returning handlers: given a pre-resolved
-    read-root set (None = read-all), is `path` readable? Factored out so a
-    handler resolves the grant ONCE (grant_read_roots) then filters many rows
-    without re-hitting the consult per row."""
-    if read_roots is None:
-        return True
-    candidate = _normalize_scope_candidate(path)
-    return any(candidate.startswith(root) for root in read_roots)
+def grant_read_scopes(auth: Any) -> Optional[list[str]]:
+    """The caller's READ scope list, or None for read-all (no grant / NULL axis).
+    Resolved ONCE by a handler, then applied per-row via `path_under_scopes` —
+    so a set-returning read filters many rows without re-hitting the consult."""
+    return _grant_axis(auth, "read")
+
+
+def read_scope_db_prefixes(auth: Any) -> Optional[list[str]]:
+    """The caller's read scope as ABSOLUTE `/workspace/...` prefixes for the
+    search RPCs' `p_allowed_prefixes` param, or None for unscoped (read-all).
+
+    The gate scopes are workspace-relative (`operation/`); `workspace_files.path`
+    is absolute (`/workspace/operation/...`). This converts so the DB filters
+    BEFORE its LIMIT (correctness at scale — a narrowed principal's page is full,
+    not starved by a pre-scope limit). Deny-all ([]) → [] (matches nothing in the
+    RPC). None (owner / NULL axis) → None (the RPC skips scoping)."""
+    scopes = grant_read_scopes(auth)
+    if scopes is None:
+        return None
+    out: list[str] = []
+    for s in scopes:
+        rel = _normalize_scope_prefix(s)
+        if not rel:
+            continue
+        out.append(f"/workspace/{rel}")
+    return out
 
 
 def filter_results_by_read_scope(auth: Any, results: list[dict]) -> list[dict]:
-    """Filter a list of `{path: ...}` result rows to the caller's readable roots
-    (the SearchFiles / QueryKnowledge shape). Resolves the grant once, then
-    filters. None read_roots (owner / NULL scope) → returned unchanged
-    (byte-identical). The count reported to the caller is the FILTERED count —
-    an out-of-scope row's existence never leaks as a hidden-results tally."""
-    read_roots = grant_read_roots(auth)
-    if read_roots is None:
+    """Filter a list of `{path: ...}` rows to the caller's read scope (the
+    SearchFiles / QueryKnowledge shape). None read scope (owner / NULL axis) →
+    returned unchanged. The reported count is the FILTERED count — an out-of-scope
+    row's existence never leaks as a hidden-results tally."""
+    read_scopes = grant_read_scopes(auth)
+    if read_scopes is None:
         return results
-    return [r for r in results if path_readable_under_roots(r.get("path", ""), read_roots)]
+    return [r for r in results if path_under_scopes(r.get("path", ""), read_scopes)]

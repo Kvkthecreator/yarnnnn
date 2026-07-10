@@ -27,6 +27,10 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
+#: Sentinel for "read axis not specified" → read ⊇ write (read mirrors write).
+#: Distinct from None (an explicit "read axis = class default") and [] (deny-all).
+_UNSET: Any = object()
+
 
 class OwnerGrantImmutable(PermissionError):
     """Raised when a lifecycle verb targets the owner grant (ADR-386 D4)."""
@@ -351,21 +355,28 @@ def has_billing_authority(principal_id: str, workspace_id: str) -> bool:
 def narrow_grant(
     principal_id: str,
     workspace_id: str,
-    scopes: list[str],
+    write_scopes: Optional[list[str]],
     connected_by: Optional[str] = None,
+    read_scopes: Optional[list[str]] = _UNSET,
 ) -> dict:
-    """Tighten a member's write-region `scopes` (ADR-386 D2 — NARROW).
+    """Set a member's read + write scope axes (ADR-386 D2 NARROW; powerbox 2026-07-10).
 
-    Authz-only: writes `principal_grants.scopes`; the OAuth token is untouched
-    (the member stays connected, can still read). The gate's allow-list path
-    (ADR-373 D2) then denies writes outside the narrowed set.
+    TWO INDEPENDENT AXES, each a list of PATH PREFIXES at arbitrary depth
+    (`operation/`, `operation/marketing/`, `operation/reports/q3.md`). Polarity
+    per axis: None → class default (unconfigured); [] → explicit deny-all;
+    [..] → allow-list.
 
-    ADR-431 D4: `connected_by` targets a specific member's grant when the same
-    provider is connected by multiple members; None narrows the first (the
-    singleton case — human/owner or a provider with one connector).
+    `read_scopes` defaults to _UNSET → "read ⊇ write" (read mirrors write) — the
+    common case and the byte-identical-to-ADR-373 default. Pass an explicit list
+    (or []) to move the read axis independently (a read-only auditor: write=[],
+    read=['operation/']).
 
-    Rejects the owner grant (ADR-386 D4) — raises OwnerGrantImmutable.
-    Raises ValueError if no active grant exists for the pair.
+    Authz-only: the OAuth token is untouched (the member stays connected); the
+    gate then bounds BOTH reads and writes to the granted prefixes. The legacy
+    `scopes` column is written as a transition mirror of write_scopes.
+
+    ADR-431 D4: `connected_by` targets a specific member's grant. Rejects the
+    owner grant (ADR-386 D4) → OwnerGrantImmutable. ValueError if no active grant.
     """
     grant = _load_active_grant(principal_id, workspace_id, connected_by)
     if grant is None:
@@ -373,16 +384,23 @@ def narrow_grant(
     if grant.get("role") == "owner":
         raise OwnerGrantImmutable("the owner grant cannot be narrowed")
 
+    # read ⊇ write default: unspecified read axis mirrors write.
+    effective_read = write_scopes if read_scopes is _UNSET else read_scopes
+
     updated = (
         _svc()
         .table("principal_grants")
-        .update({"scopes": scopes})
+        .update({
+            "write_scopes": write_scopes,
+            "read_scopes": effective_read,
+            "scopes": write_scopes,  # deprecated mirror (= write) for the transition
+        })
         .eq("id", grant["id"])
         .execute()
     )
     logger.info(
-        "[ADR-386] narrowed grant principal=%s workspace=%s scopes=%s",
-        principal_id, workspace_id, scopes,
+        "[POWERBOX] narrowed grant principal=%s workspace=%s write=%s read=%s",
+        principal_id, workspace_id, write_scopes, effective_read,
     )
     return (updated.data or [{}])[0]
 

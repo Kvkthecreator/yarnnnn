@@ -36,7 +36,7 @@ from services.primitives.workspace import (  # noqa: E402
     _caller_class,
     _is_path_locked,
     _is_path_locked_for_principal,
-    _grant_root_set,
+    path_under_scopes,
 )
 from services.supabase import resolve_principal_id  # noqa: E402
 from services.workspace_paths import (  # noqa: E402
@@ -253,10 +253,19 @@ def test_grant_honored_strips_workspace_prefix(monkeypatch):
     assert _is_path_locked_for_principal(auth, "workspace/governance/x.md") is True
 
 
-def test_grant_root_set_helper():
-    assert _grant_root_set(["operation/", "agents"]) == {"operation/", "agents/"}
-    assert _grant_root_set([]) == set()
-    assert _grant_root_set(["", "operation/"]) == {"operation/"}
+def test_path_under_scopes_matcher():
+    # The powerbox matcher (arbitrary depth) replaces _grant_root_set (top-level
+    # roots). None → not narrowing (True); [] → deny-all (False); [..] → prefix.
+    assert path_under_scopes("operation/x.md", None) is True          # not narrowing
+    assert path_under_scopes("operation/x.md", []) is False           # deny-all
+    assert path_under_scopes("operation/x.md", ["operation/"]) is True
+    assert path_under_scopes("agents/y.md", ["operation/", "agents/"]) is True
+    assert path_under_scopes("governance/z.md", ["operation/"]) is False
+    # arbitrary depth — the future-proof capability the roots model lacked
+    assert path_under_scopes("operation/marketing/q3.md", ["operation/marketing/"]) is True
+    assert path_under_scopes("operation/finance/x.md", ["operation/marketing/"]) is False
+    assert path_under_scopes("operation/reports/q3.md", ["operation/reports/q3.md"]) is True  # exact file
+    assert path_under_scopes("operation/reports/q4.md", ["operation/reports/q3.md"]) is False
 
 
 # ===========================================================================

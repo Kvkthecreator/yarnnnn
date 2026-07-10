@@ -24,9 +24,54 @@ logger = logging.getLogger(__name__)
 
 from services.supabase import UserClient, get_service_client
 from services.workspace_context import substrate_scope_filter
-from services.documents import process_document, create_signed_url_for_storage_path
+from services.documents import (
+    process_document,
+    create_signed_url_for_storage_path,
+    blob_content_url,
+)
+from services.primitives.workspace import _is_path_readable_for_principal
 
 router = APIRouter()
+
+
+# =============================================================================
+# POWERBOX BLOB READ-GATE (2026-07-10 — ADR-373 read-scope, ADR-427 seam)
+# =============================================================================
+# A raw upload's blob is served OUT-OF-BAND (a signed URL / content_url), so it
+# does NOT pass through the primitive ReadFile gate. Without this, a narrowed
+# principal who cannot ReadFile a path could still fetch its blob by URL. This
+# closes that hole by consulting the SAME read-scope the primitives use.
+#
+# SAFETY INVARIANT: every live grant is NULL-scoped, so
+# `_is_path_readable_for_principal` returns True (read-all) and this gate is a
+# pure no-op — byte-identical to the pre-powerbox serving path. Only a narrowed
+# principal (explicit read_scopes) is ever denied.
+
+
+def _workspace_path_for_storage_path(auth: UserClient, storage_path: str) -> Optional[str]:
+    """Map a `documents`-bucket key back to the workspace_files path that serves
+    it, for the read-scope consult.
+
+    A raw upload row carries `content_url` = `/api/documents/blob?storage_path=…`
+    (ADR-395), so the row whose `content_url` == blob_content_url(storage_path) is
+    the file this blob belongs to. Returns its `path`, or None when no such row is
+    found (the mapping is genuinely unavailable — the caller then falls back to
+    the ownership guard alone, never fabricating a path)."""
+    try:
+        target = blob_content_url(storage_path)
+        result = (
+            auth.client.table("workspace_files")
+            .select("path")
+            .eq(*substrate_scope_filter(auth.user_id))
+            .eq("content_url", target)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            return result.data[0].get("path")
+    except Exception:  # noqa: BLE001 — best-effort; never break serving on a lookup error
+        logger.warning("[POWERBOX] blob→path lookup failed for %s", storage_path, exc_info=True)
+    return None
 
 
 # =============================================================================
@@ -389,6 +434,13 @@ async def get_blob_url(auth: UserClient, storage_path: str):
         # Not owned by the caller (or empty) — 404, don't leak existence.
         raise HTTPException(status_code=404, detail="Blob not found")
 
+    # POWERBOX read-gate: a narrowed principal must not fetch a blob whose
+    # workspace path is outside its read scope. NULL-scoped grants (all live
+    # grants) → _is_path_readable_for_principal True → no-op (byte-identical).
+    ws_path = _workspace_path_for_storage_path(auth, storage_path)
+    if ws_path and not _is_path_readable_for_principal(auth, ws_path):
+        raise HTTPException(status_code=404, detail="Blob not found")
+
     service = get_service_client()
     signed = create_signed_url_for_storage_path(service, storage_path, expires_in=3600)
     if not signed:
@@ -440,6 +492,12 @@ async def download_document(auth: UserClient, document_path: str):
         .execute()
 
     if not result.data:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # POWERBOX read-gate: a narrowed principal must not download a file outside
+    # its read scope. The workspace path is `document_path` directly. NULL-scoped
+    # grants (all live grants) → readable True → no-op (byte-identical).
+    if not _is_path_readable_for_principal(auth, document_path):
         raise HTTPException(status_code=404, detail="Document not found")
 
     row = result.data[0]

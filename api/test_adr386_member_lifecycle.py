@@ -183,11 +183,18 @@ def test_ensure_grant_is_idempotent(fake):
 # ===========================================================================
 
 def test_narrow_writes_scopes(fake):
+    # Powerbox (2026-07-10) — narrow_grant now writes BOTH axes. read ⊇ write is
+    # the default (read mirrors write when read_scopes is unspecified); the legacy
+    # `scopes` column is written as a transition mirror of write_scopes.
     from services.principal_grants import ensure_principal_grant, narrow_grant
     ensure_principal_grant("client-abc", "ws-1", "foreign-llm")
     narrow_grant("client-abc", "ws-1", ["operation/"])
     updates = [r for r in fake.recorder if r[0] == "principal_grants" and r[1] == "update"]
-    assert updates and updates[-1][2] == {"scopes": ["operation/"]}
+    assert updates and updates[-1][2] == {
+        "write_scopes": ["operation/"],
+        "read_scopes": ["operation/"],  # read ⊇ write default
+        "scopes": ["operation/"],       # deprecated mirror (= write)
+    }
 
 
 def test_narrow_then_gate_denies_outside(fake, monkeypatch):

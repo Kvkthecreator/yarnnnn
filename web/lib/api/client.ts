@@ -1441,13 +1441,16 @@ export const api = {
           principal_id: string;
           role: string; // owner | member | own-agent | foreign-llm | platform | a2a
           label: string | null; // humanized name (email / LLM provider / slug)
-          write_regions: string[]; // raw ADR-320 write-region roots (the wire truth)
+          write_regions: string[]; // raw write-scope prefixes (the wire truth)
           write_zones: string[]; // ADR-424 operator zones (Documents/Downloads/System files) — what the roster shows
-          scopes_explicit: boolean; // true if narrowed by an explicit grant
-          // powerbox (2026-07-10) — the three-way access state (read⊇write, so
-          // this is the READ reach too): 'all' (NULL → class default, unconfigured)
-          // | 'scoped' (narrowed to named roots) | 'none' ([] → explicit deny-all).
-          access_state: 'all' | 'scoped' | 'none';
+          scopes_explicit: boolean; // true if narrowed on the WRITE axis
+          // powerbox (2026-07-10) — TWO INDEPENDENT AXES, path prefixes at
+          // arbitrary depth. Each axis has a three-way state:
+          //   'all' (NULL → class default) | 'scoped' ([..]) | 'none' ([] deny-all)
+          read_scopes: string[]; // raw read-scope prefixes
+          read_state: 'all' | 'scoped' | 'none';
+          write_state: 'all' | 'scoped' | 'none';
+          access_state: 'all' | 'scoped' | 'none'; // combined operator glance (wider axis)
           status: string;
           granted_by: string | null;
           created_at: string | null;
@@ -1458,16 +1461,27 @@ export const api = {
         grant_consult_active: boolean;
       }>("/api/workspace/members"),
 
-    // ADR-386 D2 — NARROW: tighten a member's scopes (authz only; the member
-    // stays connected). Powerbox (2026-07-10, read⊇write): the narrowed set now
-    // bounds BOTH reads AND writes — `scopes: []` is a deliberate deny-all
-    // (touches nothing). Owner grant is immutable (403).
-    // ADR-431: `connectedBy` targets a specific member's AI connection when a
-    // provider is connected by several members.
-    narrowMember: (principalId: string, scopes: string[], connectedBy?: string | null) =>
+    // NARROW (ADR-386 D2; powerbox 2026-07-10) — set a member's read + write
+    // scope axes. Path prefixes at arbitrary depth; `[]` on an axis is a
+    // deliberate deny-all. `readScopes` omitted → read ⊇ write (read mirrors
+    // write). The narrowed set bounds BOTH reads and writes. Owner grant is
+    // immutable (403). ADR-431: `connectedBy` targets a specific member's AI
+    // connection when a provider is connected by several members.
+    narrowMember: (
+      principalId: string,
+      writeScopes: string[],
+      opts?: { readScopes?: string[]; connectedBy?: string | null },
+    ) =>
       request<{ success: boolean; principal_id: string; action: string; scopes: string[] | null }>(
         `/api/workspace/members/${encodeURIComponent(principalId)}/narrow`,
-        { method: "POST", body: JSON.stringify({ scopes, connected_by: connectedBy ?? null }) },
+        {
+          method: "POST",
+          body: JSON.stringify({
+            write_scopes: writeScopes,
+            read_scopes: opts?.readScopes ?? null,
+            connected_by: opts?.connectedBy ?? null,
+          }),
+        },
       ),
 
     // ADR-386 D2/D3 — REVOKE = full eviction: grant revoked + OAuth tokens
