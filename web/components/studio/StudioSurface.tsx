@@ -51,6 +51,32 @@ function baseName(p: string): string {
   return parts[parts.length - 1] || p;
 }
 
+/** The artifact's declared template (data-template root attr). */
+function extractTemplate(html: string): string {
+  const m = /data-template="([a-z-]+)"/.exec(html);
+  return m?.[1] ?? 'document';
+}
+
+/** Starter prompts per template — clickable chips while the lane is empty.
+ *  Plain words, no model-speak: they teach what the Studio DOES. */
+const TEMPLATE_SUGGESTIONS: Record<string, string[]> = {
+  document: [
+    'Draft this document from these points: ',
+    'Add a section on ',
+    'Tighten the wording throughout — keep the structure',
+  ],
+  deck: [
+    'Draft a 6-slide deck that argues: ',
+    'Rewrite the title slide to lead with the strongest number',
+    'Add a slide that shows the table from a workspace file',
+  ],
+  article: [
+    'Draft this article from my rough notes: ',
+    'Give it a sharper title and subtitle',
+    'Add a closing section with a call to action',
+  ],
+};
+
 /** Headings (h1/h2) in document order — the artifact's outline (rail). */
 function extractOutline(html: string): Array<{ level: number; text: string }> {
   const out: Array<{ level: number; text: string }> = [];
@@ -147,6 +173,7 @@ export function StudioSurface() {
   );
 
   const outline = useMemo(() => extractOutline(file?.content ?? ''), [file]);
+  const template = useMemo(() => extractTemplate(file?.content ?? ''), [file]);
   const modelLabel = useMemo(
     () => models.find((m) => m.id === boundLane?.model)?.label ?? boundLane?.model ?? '',
     [models, boundLane],
@@ -205,6 +232,21 @@ export function StudioSurface() {
               laneName={boundLane.name}
               modelLabel={modelLabel}
               onArtifactWrite={onArtifactWrite}
+              emptyState={
+                <div className="space-y-2 text-center text-xs text-muted-foreground">
+                  <p className="text-sm font-medium text-foreground/80">
+                    Tell it what to write.
+                  </p>
+                  <p>
+                    Ask in plain words — every reply becomes an edit to{' '}
+                    <span className="font-medium text-foreground/70">{baseName(artifactPath)}</span>,
+                    and the page on the right updates as it works. It can also
+                    pull in your workspace files — images, tables, notes — as
+                    live references.
+                  </p>
+                </div>
+              }
+              suggestions={TEMPLATE_SUGGESTIONS[template] ?? TEMPLATE_SUGGESTIONS.document}
             />
           ) : (
             <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -258,6 +300,9 @@ export function StudioSurface() {
 
 function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
+  const [recents, setRecents] = useState<
+    Array<{ path: string; updated_at: string | null; summary: string | null }>
+  >([]);
   const [selected, setSelected] = useState<string>('document');
   const [name, setName] = useState('');
   const [pathEdited, setPathEdited] = useState(false);
@@ -271,6 +316,12 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
       .templates()
       .then((res) => setTemplates(res.templates))
       .catch(() => setError('Could not load templates.'));
+    api.studio
+      .artifacts()
+      .then((res) => setRecents(res.artifacts))
+      .catch(() => {
+        /* recents are a convenience — creation still works without them */
+      });
   }, []);
 
   // Meaning-placed default (D6): under operation/, named by the work — the
@@ -302,8 +353,10 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
           <Palette className="mx-auto h-8 w-8 text-muted-foreground" />
           <h1 className="text-lg font-semibold">Studio</h1>
           <p className="text-sm text-muted-foreground">
-            Author a living artifact — a lane drafts it, the canvas renders it,
-            every citation stays a live workspace reference.
+            Pick a shape, name it, then describe what you want in plain words.
+            The Studio writes it as a real document in your workspace — you
+            watch it take shape live, and it can pull in your files, images,
+            and data as it goes.
           </p>
         </div>
 
@@ -354,11 +407,42 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
           </button>
         </div>
 
-        <div className="space-y-2 border-t border-border pt-4">
-          <p className="text-xs text-muted-foreground">
-            Or open an existing artifact by its workspace path:
-          </p>
-          <div className="flex gap-2">
+        {recents.length > 0 && (
+          <div className="space-y-2 border-t border-border pt-4">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              Continue where you left off
+            </p>
+            <ul className="space-y-1">
+              {recents.slice(0, 6).map((r) => (
+                <li key={r.path}>
+                  <button
+                    type="button"
+                    onClick={() => onOpen(r.path)}
+                    className="flex w-full items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-left transition-colors hover:bg-muted/30"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm">{baseName(r.path)}</span>
+                      <span className="block truncate text-[11px] text-muted-foreground">
+                        {relPath(r.path)}
+                      </span>
+                    </span>
+                    {r.updated_at && (
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        {new Date(r.updated_at).toLocaleDateString()}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <details className="border-t border-border pt-3">
+          <summary className="cursor-pointer text-xs text-muted-foreground">
+            Open by workspace path…
+          </summary>
+          <div className="mt-2 flex gap-2">
             <input
               value={existing}
               onChange={(e) => setExisting(e.target.value)}
@@ -374,7 +458,7 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
               Open
             </button>
           </div>
-        </div>
+        </details>
 
         {error && <p className="text-center text-xs text-red-500">{error}</p>}
       </div>

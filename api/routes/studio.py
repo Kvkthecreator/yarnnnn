@@ -50,6 +50,32 @@ async def list_templates(auth: UserClient) -> dict:
     }
 
 
+@router.get("/studio/artifacts")
+async def list_artifacts(auth: UserClient) -> dict:
+    """Recent Studio-openable artifacts — .html files in the artifact region,
+    newest first. The start state renders these as a clickable list (a member
+    should never have to type a path to reopen their own work)."""
+    from services.studio import STUDIO_ARTIFACT_REGION
+    from services.workspace_context import substrate_scope_filter
+
+    rows = (
+        auth.client.table("workspace_files")
+        .select("path, updated_at, summary")
+        .eq(*substrate_scope_filter(auth.user_id))
+        .like("path", f"{STUDIO_ARTIFACT_REGION}%")
+        .like("path", "%.html")
+        .order("updated_at", desc=True)
+        .limit(20)
+        .execute()
+    ).data or []
+    return {
+        "artifacts": [
+            {"path": r["path"], "updated_at": r.get("updated_at"), "summary": r.get("summary")}
+            for r in rows
+        ]
+    }
+
+
 @router.post("/studio/artifacts")
 async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     from services.authored_substrate import write_revision

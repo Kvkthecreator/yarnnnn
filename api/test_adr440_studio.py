@@ -105,6 +105,8 @@ def run() -> bool:
     src = inspect.getsource(studio_routes)
     _check("GET /studio/templates registered", '"/studio/templates"' in src)
     _check("POST /studio/artifacts registered", '"/studio/artifacts"' in src)
+    _check("GET /studio/artifacts (recents list) registered",
+           "list_artifacts" in src and "updated_at" in src)
     _check("creation refuses overwrite (409)", "409" in src)
     _check("creation region-gated", "STUDIO_ARTIFACT_REGION" in src)
     _check("creation writes via write_revision (authored substrate)",

@@ -28,7 +28,7 @@
  * surface). Assistant text renders as markdown, as it always should have.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowUp, Loader2, Wrench } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatTimestamp } from '@/lib/formatting';
@@ -81,9 +81,23 @@ interface LanePanelProps {
    *  again from the terminal list), so an embedding surface (the Studio
    *  canvas) can refresh its view of a file this lane just authored. */
   onArtifactWrite?: (path: string) => void;
+  /** ADR-440 — optional replacement for the default (lane-contract) empty
+   *  state, so an embedding surface can teach its own act in its own words.
+   *  Absent → the /chat default renders unchanged. */
+  emptyState?: ReactNode;
+  /** ADR-440 — optional starter prompts, rendered as clickable chips while
+   *  the transcript is empty; clicking one fills the composer. */
+  suggestions?: string[];
 }
 
-export function LanePanel({ laneId, laneName, modelLabel, onArtifactWrite }: LanePanelProps) {
+export function LanePanel({
+  laneId,
+  laneName,
+  modelLabel,
+  onArtifactWrite,
+  emptyState,
+  suggestions,
+}: LanePanelProps) {
   const [messages, setMessages] = useState<LaneMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -242,13 +256,31 @@ export function LanePanel({ laneId, laneName, modelLabel, onArtifactWrite }: Lan
           </div>
         )}
         {!loading && messages.length === 0 && (
-          <div className="text-xs text-muted-foreground py-6 px-4 text-center space-y-1">
-            <p className="font-medium text-foreground/80">{laneName} · {modelLabel}</p>
-            <p>
-              This conversation is private to this lane. The work it produces
-              lands in the shared workspace files, attributed to you via{' '}
-              {modelLabel}.
-            </p>
+          <div className="py-6 px-4 space-y-3">
+            {emptyState ?? (
+              <div className="text-xs text-muted-foreground text-center space-y-1">
+                <p className="font-medium text-foreground/80">{laneName} · {modelLabel}</p>
+                <p>
+                  This conversation is private to this lane. The work it produces
+                  lands in the shared workspace files, attributed to you via{' '}
+                  {modelLabel}.
+                </p>
+              </div>
+            )}
+            {suggestions && suggestions.length > 0 && (
+              <div className="flex flex-col items-stretch gap-1.5">
+                {suggestions.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setInput(s)}
+                    className="rounded-lg border border-border px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
         {messages.map((m, i) => {

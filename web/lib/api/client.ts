@@ -289,6 +289,10 @@ export const api = {
       request<{ templates: Array<{ slug: string; label: string; description: string }> }>(
         "/api/studio/templates",
       ),
+    artifacts: () =>
+      request<{ artifacts: Array<{ path: string; updated_at: string | null; summary: string | null }> }>(
+        "/api/studio/artifacts",
+      ),
     createArtifact: (path: string, template: string) =>
       request<{ success: boolean; path: string; template: string }>(
         "/api/studio/artifacts",
