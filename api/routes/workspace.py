@@ -1522,6 +1522,91 @@ async def accept_workspace_invite(token: str, auth: UserClient) -> InviteAcceptR
 
 
 # =============================================================================
+# BYOK — the workspace's own LLM key for the member chat lanes (ADR-439)
+# =============================================================================
+# Owner-only, enterprise-tier-only. Storing/toggling a key is a consequential,
+# workspace-scoped act; availability is gated on tier_byok_available (enterprise).
+# The plaintext key never leaves services.byok + the router call site; these
+# routes never RETURN the key (status returns only enabled/provider/configured).
+
+class ByokKeyRequest(BaseModel):
+    provider: str          # one of BYOK_PROVIDERS (anthropic|openai|gemini|deepseek)
+    api_key: str           # the plaintext key — encrypted at rest, never returned
+
+
+class ByokToggleRequest(BaseModel):
+    enabled: bool
+
+
+def _require_byok_owner_workspace(auth: UserClient) -> str:
+    """Owner-gate + enterprise-tier gate for BYOK management. BYOK is an enterprise
+    capability (ADR-439 §3) an owner manages; a non-enterprise workspace or a
+    non-owner cannot touch it."""
+    from services.workspace_invites import workspace_owner_id
+    from services.billing_tiers import get_tier, tier_byok_available
+
+    workspace_id = _resolve_caller_workspace(auth)
+    if not workspace_id:
+        raise HTTPException(status_code=404, detail="No workspace")
+    if workspace_owner_id(workspace_id) != auth.user_id:
+        raise HTTPException(status_code=403, detail="Only the workspace owner can manage BYOK")
+    if not tier_byok_available(get_tier(auth.client, auth.user_id)):
+        raise HTTPException(
+            status_code=403,
+            detail="BYOK is available on the Enterprise plan. Contact us to enable it.",
+        )
+    return workspace_id
+
+
+@router.get("/workspace/byok")
+async def get_workspace_byok(auth: UserClient) -> dict:
+    """The BYOK legibility view (never the key). Available to read on any tier so
+    the FE can show 'not available on your plan' vs the toggle; the write verbs
+    below enforce the enterprise gate."""
+    from services.byok import get_byok_status
+    from services.billing_tiers import get_tier, tier_byok_available
+
+    workspace_id = _resolve_caller_workspace(auth)
+    available = tier_byok_available(get_tier(auth.client, auth.user_id))
+    status = get_byok_status(auth.client, workspace_id)
+    return {"available": available, **status}
+
+
+@router.put("/workspace/byok")
+async def set_workspace_byok(body: ByokKeyRequest, auth: UserClient) -> dict:
+    """Store the workspace's BYOK key for a provider (encrypted) and enable it."""
+    from services.byok import set_byok_key, get_byok_status
+
+    workspace_id = _require_byok_owner_workspace(auth)
+    try:
+        set_byok_key(auth.client, workspace_id, body.provider, body.api_key)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"success": True, **get_byok_status(auth.client, workspace_id)}
+
+
+@router.patch("/workspace/byok")
+async def toggle_workspace_byok(body: ByokToggleRequest, auth: UserClient) -> dict:
+    """Turn BYOK on/off without changing the stored key (revert to managed keys
+    while keeping the key on file)."""
+    from services.byok import set_byok_enabled, get_byok_status
+
+    workspace_id = _require_byok_owner_workspace(auth)
+    set_byok_enabled(auth.client, workspace_id, body.enabled)
+    return {"success": True, **get_byok_status(auth.client, workspace_id)}
+
+
+@router.delete("/workspace/byok")
+async def clear_workspace_byok(auth: UserClient) -> dict:
+    """Remove the stored key and disable BYOK (full teardown)."""
+    from services.byok import clear_byok_key, get_byok_status
+
+    workspace_id = _require_byok_owner_workspace(auth)
+    clear_byok_key(auth.client, workspace_id)
+    return {"success": True, **get_byok_status(auth.client, workspace_id)}
+
+
+# =============================================================================
 # GET /workspace/recent-revisions — Recently authored substrate (ADR-329 D2)
 # =============================================================================
 # The Files "Recently authored" feed. Reads authored substrate changes across

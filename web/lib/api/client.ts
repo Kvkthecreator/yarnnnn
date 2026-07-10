@@ -15,6 +15,7 @@ import type {
   DocumentDownloadResponse,
   DeleteResponse,
   SubscriptionStatus,
+  ByokStatus,
   CheckoutResponse,
   PortalResponse,
   Agent,
@@ -1412,6 +1413,24 @@ export const api = {
           is_active: boolean;
         }>;
       }>("/api/workspace/memberships"),
+
+    // ADR-439 — BYOK (enterprise-tier). GET is readable on any tier (the FE
+    // shows availability); the write verbs are owner + enterprise-gated server-side.
+    getByok: () => request<ByokStatus>("/api/workspace/byok"),
+    setByok: (provider: string, apiKey: string) =>
+      request<{ success: boolean } & ByokStatus>("/api/workspace/byok", {
+        method: "PUT",
+        body: JSON.stringify({ provider, api_key: apiKey }),
+      }),
+    toggleByok: (enabled: boolean) =>
+      request<{ success: boolean } & ByokStatus>("/api/workspace/byok", {
+        method: "PATCH",
+        body: JSON.stringify({ enabled }),
+      }),
+    clearByok: () =>
+      request<{ success: boolean } & ByokStatus>("/api/workspace/byok", {
+        method: "DELETE",
+      }),
 
     getMembers: () =>
       request<{

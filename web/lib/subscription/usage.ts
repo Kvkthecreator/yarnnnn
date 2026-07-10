@@ -148,6 +148,7 @@ export const TIER_PRICE_USD: Record<SubscriptionTier, number> = {
   free: 0,
   starter: 20, // ADR-429 §12.2 — the single paid plan, repriced $19→$20 (mirror TIER_CONFIG)
   pro: 49,     // ADR-429 §12.1 — dormant (hidden); not offered until capture ships
+  enterprise: 0, // ADR-439 — sales-led custom pricing; no self-serve checkout price (mirror TIER_CONFIG)
 };
 
 /** "$19" / "$49" / "Free" — the price label for an upgrade CTA. */
@@ -166,6 +167,8 @@ export function tierDescriptor(tier: SubscriptionTier): string {
   // capture lane, §12.1). The paid plan's honest differentiator today is the
   // included monthly allowance + a shared workspace everyone draws.
   switch (tier) {
+    case "enterprise":
+      return "Your team, your keys (BYOK) · custody, on-prem, and support"; // ADR-439
     case "pro":
       return "$45 monthly usage included"; // dormant tier (not offered); descriptor kept for a legacy row
     case "starter":

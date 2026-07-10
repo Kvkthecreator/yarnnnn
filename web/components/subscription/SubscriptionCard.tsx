@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Zap, ArrowUpCircle, Users, ShieldCheck } from "lucide-react";
 import type { SubscriptionTier } from "@/types";
+import { ByokSection } from "@/components/subscription/ByokSection";
 import {
   deriveUsageMeter,
   tierPriceLabel,
@@ -37,6 +38,7 @@ const TIER_LABEL: Record<SubscriptionTier, string> = {
   free: "Free",
   starter: "Starter",
   pro: "Pro",
+  enterprise: "Enterprise",  // ADR-439 — sales-led; not a self-serve upgrade target
 };
 
 // The upgrade ladder — the OFFERED tiers, low→high (ADR-429 §12.1). `pro` is
@@ -294,6 +296,10 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
           </div>
         </section>
         )}
+
+        {/* BYOK (ADR-439) — self-renders only on an enterprise workspace where
+            tier_byok_available is true; a no-op card otherwise. */}
+        <ByokSection />
 
         {/* How it works — ADR-429 §13.2 commons language. */}
         <section className="p-4 border border-border rounded-lg space-y-2 text-sm text-muted-foreground leading-relaxed">

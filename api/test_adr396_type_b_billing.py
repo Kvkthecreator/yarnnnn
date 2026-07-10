@@ -87,13 +87,15 @@ def main():
 
     # ── 2. Tier resolution ─────────────────────────────────────────────────────
     results.append(_check(
-        "normalize_tier: unknown/None → free",
-        bt.normalize_tier(None) == "free" and bt.normalize_tier("enterprise") == "free"
-        and bt.normalize_tier("pro") == "pro",
+        "normalize_tier: unknown/None → free; known tiers pass through",
+        bt.normalize_tier(None) == "free" and bt.normalize_tier("bogus") == "free"
+        and bt.normalize_tier("pro") == "pro"
+        # ADR-439 — `enterprise` is now a REAL tier (not an unknown → free).
+        and bt.normalize_tier("enterprise") == "enterprise",
     ))
     results.append(_check(
-        "PAID_TIERS = (starter, pro); DEFAULT_TIER = free",
-        set(bt.PAID_TIERS) == {"starter", "pro"} and bt.DEFAULT_TIER == "free",
+        "PAID_TIERS = (starter, pro, enterprise); DEFAULT_TIER = free",  # ADR-439 adds enterprise
+        set(bt.PAID_TIERS) == {"starter", "pro", "enterprise"} and bt.DEFAULT_TIER == "free",
     ))
 
     # variant round-trip (env-driven — set them for the test window)

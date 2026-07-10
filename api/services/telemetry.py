@@ -168,9 +168,18 @@ def record_execution_event(
     agent_run_id: Optional[str] = None,
     principal_id: Optional[str] = None,
     workspace_id: Optional[str] = None,
+    cost_override_usd: Optional[float] = None,
 ) -> Optional[str]:
     """Write one row to execution_events. Never raises. Returns the row id on
     success, None on insert failure.
+
+    ADR-439 — `cost_override_usd`: when provided, the row's `cost_usd` is set to
+    this value INSTEAD of computing it from tokens. The ONE intentional exception
+    to the ADR-396 "ledger records at-cost" invariant: a BYOK lane round paid on
+    the customer's own key costs US nothing, so the lane passes 0.0 and the pool
+    draw sees $0 (ADR-409 D2). Use ONLY for BYOK; never to fudge a real cost. When
+    None (the default), cost is computed from tokens exactly as before — every
+    non-BYOK call is byte-identical.
 
     Args:
         client:             Supabase service client
@@ -243,7 +252,12 @@ def record_execution_event(
     """
     try:
         cost_usd = None
-        if input_tokens is not None and output_tokens is not None:
+        if cost_override_usd is not None:
+            # ADR-439 BYOK — the customer's own key paid for this call, so it
+            # costs US nothing; record the override (0.0) instead of computing.
+            # The single intentional exception to at-cost recording (ADR-396).
+            cost_usd = cost_override_usd
+        elif input_tokens is not None and output_tokens is not None:
             cost_usd = compute_cost_usd_inclusive(
                 model=model or "claude-sonnet-4-6",
                 input_tokens=input_tokens,

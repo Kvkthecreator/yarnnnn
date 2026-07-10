@@ -122,7 +122,8 @@ export interface DeleteResponse {
 
 // Subscription (Lemon Squeezy) — ADR-100: 2-tier model
 // ADR-396: Type-B subscription — three plan tiers.
-export type SubscriptionTier = "free" | "starter" | "pro";
+// ADR-439: `enterprise` — the sales-led tier where BYOK may be enabled.
+export type SubscriptionTier = "free" | "starter" | "pro" | "enterprise";
 
 export interface SubscriptionStatus {
   tier: SubscriptionTier;
@@ -142,6 +143,15 @@ export interface SubscriptionStatus {
   // ADR-429 §12.3a — comped workspace (base + seats forced $0). The FE shows a
   // "comped" state instead of a bill; the operator's test workspaces are exempt.
   billing_exempt: boolean;
+}
+
+// ADR-439 — BYOK legibility view (never the key). `available` is the tier gate
+// (enterprise-only); `enabled`/`provider`/`configured` are the workspace's state.
+export interface ByokStatus {
+  available: boolean;   // tier_byok_available (enterprise) — may the toggle show at all
+  enabled: boolean;     // the workspace's BYOK toggle is ON
+  provider: string | null;   // which provider the stored key is for
+  configured: boolean;  // a key is stored (shown as "key set" without exposing it)
 }
 
 export interface CheckoutResponse {

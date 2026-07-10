@@ -99,6 +99,22 @@ def artifact_path_from(name: str, result: Any) -> Optional[str]:
     return path if isinstance(path, str) and path else None
 
 
+def _resolve_byok_key(auth: Any, model: str) -> Optional[str]:
+    """ADR-439 — the workspace's own provider key for this model, or None.
+
+    None means the managed default (our platform keys, metered normally) — the
+    byte-identical path for every non-BYOK workspace. Total + fail-safe: a resolver
+    error must never break a member's turn (it falls back to managed). Resolved once
+    per turn by the lane loop, threaded into every router call as `api_key`."""
+    try:
+        from services.byok import get_byok_key, provider_from_model
+        workspace_id = getattr(auth, "workspace_id", None)
+        return get_byok_key(auth.client, workspace_id, provider_from_model(model))
+    except Exception as exc:  # pragma: no cover — defensive, never break a turn
+        logger.warning("[LANE] BYOK resolve failed (falling back to managed): %s", exc)
+        return None
+
+
 def _anthropic_to_openai_tool(tool: dict) -> dict:
     """Mechanical format conversion — the registry's Anthropic-shape tool
     definition becomes the OpenAI function-tool shape LiteLLM expects."""
@@ -314,6 +330,14 @@ async def run_lane_turn(
     rounds = 0
     ledger_model = model.split("/", 1)[1] if "/" in model else model
 
+    # ADR-439 BYOK — resolve the workspace's own key for this model's provider,
+    # ONCE per turn. None → managed default (our keys, metered normally). When a
+    # key resolves, the router authenticates with it AND the ledger records the
+    # rounds at cost-to-us = 0 (ADR-409 D2 — draws nothing from the pool). The
+    # steward still meters on our keys elsewhere (D3).
+    byok_key = _resolve_byok_key(auth, model)
+    byok_cost_override = 0.0 if byok_key else None
+
     for round_idx in range(_LANE_MAX_ROUNDS):
         rounds = round_idx + 1
         routed = await route_completion(
@@ -323,12 +347,16 @@ async def run_lane_turn(
             max_tokens=_LANE_MAX_TOKENS,
             timeout=_LANE_TIMEOUT_S,
             tools=tools,
+            api_key=byok_key,
         )
         total_in += routed.usage.get("input_tokens", 0)
         total_out += routed.usage.get("output_tokens", 0)
 
         # ADR-411 D5: every round is a metered judgment invocation on the
         # ONE ledger, attributed to the member (their embodiment acting).
+        # ADR-439: a BYOK round records cost_usd=0 (an EXPLICIT, intentional
+        # exception to the ADR-396 at-cost invariant — the customer's key paid,
+        # so it draws nothing from the pool).
         try:
             from services.supabase import get_service_client
             from services.telemetry import record_execution_event
@@ -343,6 +371,7 @@ async def run_lane_turn(
                 model=routed.ledger_model,
                 principal_id=getattr(auth, "principal_id", None) or auth.user_id,
                 workspace_id=getattr(auth, "workspace_id", None),
+                cost_override_usd=byok_cost_override,
                 **routed.usage,
             )
         except Exception as exc:
@@ -456,6 +485,11 @@ async def run_lane_turn_stream(
     rounds = 0
     ledger_model = model.split("/", 1)[1] if "/" in model else model
 
+    # ADR-439 BYOK — resolve once per turn (see the non-streaming path for the
+    # full rationale). None → managed default; a key → customer auth + cost-0 rows.
+    byok_key = _resolve_byok_key(auth, model)
+    byok_cost_override = 0.0 if byok_key else None
+
     for round_idx in range(_LANE_MAX_ROUNDS):
         rounds = round_idx + 1
         routed = None
@@ -464,6 +498,7 @@ async def run_lane_turn_stream(
         async for kind, payload in route_completion_stream(
             model, messages, system=system,
             max_tokens=_LANE_MAX_TOKENS, timeout=_LANE_TIMEOUT_S, tools=tools,
+            api_key=byok_key,
         ):
             if kind == "delta":
                 yield ("delta", payload)
@@ -480,6 +515,7 @@ async def run_lane_turn_stream(
 
         # ADR-411 D5 / ADR-396: one metered judgment invocation per round,
         # attributed to the member — identical to the non-streaming path.
+        # ADR-439: BYOK rounds record cost_usd=0 (explicit at-cost exception).
         try:
             from services.supabase import get_service_client
             from services.telemetry import record_execution_event
@@ -494,6 +530,7 @@ async def run_lane_turn_stream(
                 model=routed.ledger_model,
                 principal_id=getattr(auth, "principal_id", None) or auth.user_id,
                 workspace_id=getattr(auth, "workspace_id", None),
+                cost_override_usd=byok_cost_override,
                 **routed.usage,
             )
         except Exception as exc:

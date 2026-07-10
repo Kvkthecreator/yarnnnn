@@ -156,6 +156,7 @@ async def route_completion(
     temperature: Optional[float] = None,
     timeout: float = 60.0,
     tools: Optional[list[dict]] = None,
+    api_key: Optional[str] = None,
 ) -> RoutedCompletion:
     """One provider-blind completion call via LiteLLM (lib-mode, no proxy).
 
@@ -171,6 +172,12 @@ async def route_completion(
         tools:       ADR-411 — OpenAI-format tool definitions
                      (``{"type": "function", "function": {...}}``); LiteLLM
                      translates per provider. Omit for plain completions.
+        api_key:     ADR-439 — BYOK. When provided, LiteLLM authenticates this
+                     call with the customer's OWN provider key instead of the
+                     platform env key. The call path is otherwise unchanged
+                     (the design the module docstring anticipated). None = the
+                     managed default (platform env key). The caller (lane_runner)
+                     resolves it per turn from the workspace's BYOK setting.
         max_tokens / temperature / timeout: standard knobs.
 
     Returns:
@@ -195,6 +202,8 @@ async def route_completion(
         kwargs["temperature"] = temperature
     if tools:
         kwargs["tools"] = tools
+    if api_key:
+        kwargs["api_key"] = api_key  # ADR-439 BYOK — LiteLLM takes a per-call key natively
 
     response = await litellm.acompletion(**kwargs)
 
@@ -281,8 +290,14 @@ async def route_completion_stream(
     temperature: Optional[float] = None,
     timeout: float = 60.0,
     tools: Optional[list[dict]] = None,
+    api_key: Optional[str] = None,
 ):
     """Streaming sibling of ``route_completion`` (ADR-412 D2 lane streaming).
+
+    ``api_key`` (ADR-439 BYOK): same contract as ``route_completion`` — when
+    provided, the call authenticates with the customer's own provider key;
+    None = the managed platform key. Transport-only change; the ledger write
+    is unaffected.
 
     An async generator. Yields ``("delta", text_chunk)`` for each streamed
     text fragment as it arrives, then exactly one terminal
@@ -320,6 +335,8 @@ async def route_completion_stream(
         kwargs["temperature"] = temperature
     if tools:
         kwargs["tools"] = tools
+    if api_key:
+        kwargs["api_key"] = api_key  # ADR-439 BYOK — LiteLLM takes a per-call key natively
 
     text_parts: list[str] = []
     finish_reason: Optional[str] = None

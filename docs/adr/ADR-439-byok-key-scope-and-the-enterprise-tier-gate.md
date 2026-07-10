@@ -1,4 +1,11 @@
-# ADR-437 — BYOK key scope, the enterprise tier, and the pre-lane metering floor
+# ADR-439 — BYOK key scope, the enterprise tier, and the pre-lane metering floor
+
+> **Renumbered 437 → 439 (2026-07-10):** a parallel session committed a different
+> ADR-437 (the activation/onboarding model) with downstream code + an ADR-438 built
+> on its arc. This BYOK ADR (committed first, but self-contained) moved to the next
+> free number to resolve the collision without orphaning the onboarding arc's
+> commits. Earlier commit messages + code comments referencing "ADR-437" for BYOK
+> mean this doc.
 
 **Status**: Accepted (2026-07-10, operator-ratified — doc-first, no code). Implementation is demand-gated to the seat lane going GA (as ADR-409); this ADR closes the two BYOK ambiguities ADR-409 left open so that build, when it lands, has no undecided fork. The metering-floor items (§4) are the exception — they are pre-lane-launch hardening, buildable independent of BYOK, and should ship before the chat lanes leave the `MODEL_ROUTER_ENABLED`-off state.
 
@@ -117,4 +124,4 @@ Grounded in a code-seam audit (2026-07-10). The headline: **BYOK itself is mostl
 
 **BYOK cannot ship before the enterprise tier (P1).** So the honest order is: **(1) the enterprise tier ADR + build** (its own decision — definition, numbers, on-prem/custody/support bundle) → **(2) P2 the workspace secret columns** → **(3) S1–S5 BYOK** (a single small PR once the prerequisites exist). BYOK is genuinely a ~1-day build *sitting on top of* a bigger enterprise-tier decision that is not BYOK's to make. Do NOT scope BYOK as if the tier exists.
 
-**Independent of all the above — the ADR-437 §4 metering floor (F1 hard-block unpriced models, F2 alert on dropped ledger rows) ships whenever, gated to nothing.** It is the pre-lane-launch safety and has no dependency on the enterprise tier or BYOK.
+**Independent of all the above — the §4 metering floor (F1 hard-block unpriced models, F2 alert on dropped ledger rows) ships whenever, gated to nothing.** It is the pre-lane-launch safety and has no dependency on the enterprise tier or BYOK.

@@ -61,6 +61,12 @@ class TierSpec(TypedDict):
     # ADR-429 §12.1); launch offers Free + one paid plan (`starter`) only. A live
     # `starter`/`free` workspace is unaffected; only which tiers are *offered*.
     hidden: bool                     # not offered at launch (§12.1); config retained
+    # ── ADR-439 — BYOK availability (enterprise capability) ────────────────────
+    # True iff this tier MAY turn on BYOK (the customer's own LLM key powers the
+    # member chat lanes; ADR-439 §3). Availability is the tier capability;
+    # ENGAGEMENT is a per-workspace default-OFF toggle (`workspaces.byok_enabled`).
+    # Only `enterprise` is True — BYOK is enterprise-only but optional within it.
+    byok_available: bool
 
 
 # ── The tiers ────────────────────────────────────────────────────────────────
@@ -96,6 +102,7 @@ TIER_CONFIG: dict[str, TierSpec] = {
         "included_seats": 2,
         "additional_seat_usd": 0.0,
         "hidden": False,
+        "byok_available": False,  # ADR-439 — BYOK is enterprise-only
     },
     "starter": {
         # ADR-429 §12.2 — THE single paid plan. Repriced $19→$20 base, $15
@@ -114,6 +121,7 @@ TIER_CONFIG: dict[str, TierSpec] = {
         "included_seats": 1,
         "additional_seat_usd": 0.0,
         "hidden": False,
+        "byok_available": False,  # ADR-439 — BYOK is enterprise-only
     },
     "pro": {
         # ADR-429 §12.1 — DORMANT (hidden). Returns as the 2nd paid tier when the
@@ -129,6 +137,34 @@ TIER_CONFIG: dict[str, TierSpec] = {
         "included_seats": 1,
         "additional_seat_usd": 0.0,
         "hidden": True,  # ADR-429 §12.1 — not offered until capture ships
+        "byok_available": False,  # ADR-439 — BYOK is enterprise-only
+    },
+    "enterprise": {
+        # ADR-439 §9 P1 — the enterprise tier. Its reason to exist is the
+        # CAPABILITY BUNDLE (BYOK availability · on-prem lane · custody controls ·
+        # support · scale/seats), NOT a fake retention/connector axis. BYOK is a
+        # default-OFF toggle INSIDE this tier (byok_available: True), not the tier's
+        # definition (ADR-439 §3) — a managed enterprise runs on our keys + meter,
+        # byte-identical to lower tiers on the key path.
+        #
+        # NUMBERS ARE LAUNCH-TEST HYPOTHESES (ADR-396 §7 discipline, as ADR-429's):
+        # base + allowance below are placeholders to make the tier real, NOT the
+        # decided price. The enterprise price is a per-workspace + per-seat + custody
+        # bundle that a first enterprise customer resolves — change freely on
+        # evidence. Seat fee stays DORMANT ($0) like every tier (§5a) until the seat
+        # axis activates. Retention/connectors set generous (the bundle isn't sold
+        # on them). `hidden: True` — enterprise is SALES-LED, not a self-serve
+        # upgrade target on the public ladder (contact-us, not a checkout button).
+        "label": "Enterprise",
+        "price_usd": 0.0,       # placeholder — sales-led custom pricing, not a checkout price
+        "monthly_allowance_usd": 0.0,  # placeholder — sized per contract
+        "retention_max_days": 90,
+        "connector_max": None,  # unlimited
+        "ls_variant_env": "LEMONSQUEEZY_ENTERPRISE_VARIANT_ID",  # unset until a self-serve enterprise checkout exists
+        "included_seats": 1,
+        "additional_seat_usd": 0.0,  # DORMANT (§5a)
+        "hidden": True,  # sales-led — not on the self-serve public ladder
+        "byok_available": True,  # ADR-439 — THE tier where BYOK may be enabled
     },
 }
 
@@ -136,7 +172,7 @@ DEFAULT_TIER = "free"
 # PAID_TIERS = every tier with a paid price + LS variant (used by the webhook
 # reverse-map). `pro` stays here (its variant still resolves if an old checkout
 # exists), but it is `hidden` so it is never OFFERED — see `offered_paid_tiers()`.
-PAID_TIERS = ("starter", "pro")
+PAID_TIERS = ("starter", "pro", "enterprise")
 
 
 def normalize_tier(raw: Optional[str]) -> str:
@@ -228,6 +264,16 @@ def tier_additional_seat_usd(tier: str) -> float:
     return tier_spec(tier)["additional_seat_usd"]
 
 
+# ── ADR-439 — BYOK availability (enterprise capability) ───────────────────────
+
+def tier_byok_available(tier: str) -> bool:
+    """True iff this tier MAY enable BYOK (ADR-439 §3 — enterprise-only). This is
+    the CAPABILITY gate (availability); the per-workspace ENGAGEMENT toggle is
+    `workspaces.byok_enabled`. A managed enterprise (toggle OFF) is byte-identical
+    to lower tiers on the key path — BYOK-ON is the one added resolution branch."""
+    return tier_spec(tier).get("byok_available", False)
+
+
 def count_human_seats(client: Any, workspace_id: str) -> int:
     """Count active HUMAN members of a workspace (role ∈ {owner, member}).
 
@@ -305,10 +351,12 @@ def public_tier_ladder() -> list[dict]:
     hide-$ contract governs the in-app ACTIVITY surfaces, not the price list).
     Allowance is expressed as an included-usage descriptor, not a raw $ meter."""
     ladder = []
-    for tier in ("free", "starter", "pro"):
+    for tier in ("free", "starter", "pro", "enterprise"):
         spec = TIER_CONFIG[tier]
         # ADR-429 §12.1 — hidden (dormant) tiers are not offered; skip pro until
-        # the capture lane ships. Launch ladder = Free + the one paid plan.
+        # the capture lane ships. ADR-439 — enterprise is `hidden` (sales-led, not a
+        # self-serve upgrade target), so it is skipped here too. Launch ladder =
+        # Free + the one paid plan.
         if spec.get("hidden", False):
             continue
         ladder.append({
@@ -352,4 +400,6 @@ __all__ = [
     # ADR-429 §12.1 — offered vs hidden tiers (the launch collapse)
     "tier_hidden",
     "offered_paid_tiers",
+    # ADR-439 — BYOK availability (enterprise capability)
+    "tier_byok_available",
 ]
