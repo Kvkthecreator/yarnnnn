@@ -1,6 +1,8 @@
-# ADR-437 — BYOK key scope, the enterprise tier gate, and the pre-lane metering floor
+# ADR-437 — BYOK key scope, the enterprise tier, and the pre-lane metering floor
 
 **Status**: Accepted (2026-07-10, operator-ratified — doc-first, no code). Implementation is demand-gated to the seat lane going GA (as ADR-409); this ADR closes the two BYOK ambiguities ADR-409 left open so that build, when it lands, has no undecided fork. The metering-floor items (§4) are the exception — they are pre-lane-launch hardening, buildable independent of BYOK, and should ship before the chat lanes leave the `MODEL_ROUTER_ENABLED`-off state.
+
+**Revision (2026-07-10, same session):** §3 originally made BYOK the enterprise tier's *gate/definition*. Operator review corrected this: **BYOK is an *option within* the enterprise tier, not its definition** — enterprise is the *capability bundle* (custody controls · on-prem lane · support · scale/seats), and BYOK is a toggle inside it (default OFF = YARNNN-managed keys + metering; ON = the customer's key, seat-chat draws nothing). Enterprise capabilities and key-ownership are **orthogonal axes**: a security-conscious org with no in-house LLM procurement wants the bundle but is happy for YARNNN to hold the keys and bill them. Making BYOK mandatory-for-enterprise would push that (larger) segment to a lower tier they've outgrown. §3 + §6 are rewritten to reflect this; D1 (workspace-scoped key) and §4 (metering floor) are unchanged.
 **Date**: 2026-07-10
 **Dimension**: Purpose (Axiom 3 — what the operation pays for, and on whose key the intelligence runs) over the ADR-391 cost architecture.
 **Relates to**: ADR-409 (per-seat Type-B — the pricing model this refines), ADR-408 (three altitudes + the seat lane + the D4 router), ADR-391 (balance/allocation/ledger — preserved), ADR-396 (one meter, hide-dollars — preserved), ADR-310/311 (the MCP interop face — the de-facto BYOK already true today), ADR-373/378 (the workspace is the unified, outermost binding unit — no data fork).
@@ -33,16 +35,22 @@ A BYOK provider key is set **once, by the workspace owner, on the workspace.** E
 
 **Deferred, not rejected: a member override on top of the workspace key.** ADR-409's phrasing left room for "member/workspace"; this ADR takes the workspace side and parks the member-override as a demand-gated future (build iff a real customer needs per-member keys inside a BYOK workspace). The workspace key is the floor; an override is additive and would not change the workspace-key resolution path.
 
-## 3. D2 — BYOK is an ENTERPRISE TIER GATE, not a cross-tier add-on
+## 3. D2 — Enterprise is a capability bundle; BYOK is an OPTION within it (default: YARNNN-managed)
 
-BYOK unlocks **only on the top (enterprise) tier**, bundled with its siblings: key custody, the on-prem endpoint lane (ADR-409 D4), longer retention, and support. It is not a toggle any paid workspace can flip.
+BYOK is available **only on the enterprise tier** — but it is **not what defines the tier, and not mandatory within it.** Enterprise is defined by its **capability bundle**: key-custody controls, the on-prem endpoint lane (ADR-409 D4), longer retention, support, and scale/seats. **BYOK is a toggle inside that bundle**, with two settings:
 
-**Why a gate:**
-- It gives "enterprise" its **honest, non-fakeable reason to exist.** ADR-429 §12 collapsed the Free/Starter/Pro ladder to Free + one paid plan precisely because retention + connector-count were *fake* differentiators for the dormant capture lane. BYOK/on-prem/custody is the *opposite* — a real capability a lower tier genuinely does not have. It re-justifies a third rung above the ADR-429 collapse without reintroducing a fake axis.
-- It keeps the **zero-draw optics clean.** As a gated enterprise capability sold on custody + on-prem + support, "your model calls draw nothing because they're on your key" reads as a *benefit of the tier you bought*. As a cross-tier add-on it risks reading as "pay us a subscription AND pay your own LLM bill" — the margin-on-their-own-key optics ADR-409 already flagged as a reason to reject a usage tax.
-- It is the **solo-vs-enterprise segmentation ADR-409 D4 already named**: low tiers are internalized-only (fastest setup, our keys, usage margin); the enterprise tier buys key custody + the on-prem lane. A gate makes that segmentation structural rather than à la carte.
+- **Default (OFF) — YARNNN-managed.** The enterprise workspace uses *our* keys and *our* metering, exactly like every lower tier. The customer pays and never touches a key. This is the byte-identical-to-lower-tiers key path — zero new resolution logic, it *is* the default.
+- **ON — customer's key.** The workspace's seat-chat lanes resolve to the customer's own workspace-scoped key (D1), and that line draws nothing (ADR-409 D2). The steward keeps metering on our keys regardless (D3).
 
-**Explicitly rejected: cross-tier add-on toggle.** More flexible, but it decouples BYOK from the enterprise narrative (weakening the only honest enterprise axis), muddies the zero-draw copy, and invites the "am I double-paying?" confusion. Flexibility here buys nothing the tier gate doesn't, and costs the story.
+**Why enterprise capabilities and key-ownership are ORTHOGONAL (the correction):** "wants enterprise scale/custody/support" and "wants to run on their own LLM keys" are independent. A large, security-conscious org with **no in-house LLM procurement** wants the bundle but is *happier* for YARNNN to hold the keys and send one bill (one vendor, one invoice, zero key ops). Welding BYOK to the tier's definition would force that org — likely the *larger* enterprise segment — either into a lower tier they've outgrown or away entirely. Making BYOK an **option** captures both the "we run our own keys" org *and* the "just handle it for us" org under one enterprise tier.
+
+**Why still enterprise-only (not cross-tier):**
+- The **capability bundle** (on-prem, custody controls, support, scale) is what gives enterprise its honest, non-fakeable reason to exist and re-justifies a rung above the ADR-429 Free + one-paid collapse. BYOK availability is *one* of those capabilities, not the whole reason. Lower tiers stay internalized-only (fastest setup, our keys, usage margin) — the ADR-409 D4 solo-vs-enterprise segmentation, now carried by the bundle rather than by BYOK alone.
+- Keeping BYOK availability *inside* enterprise (rather than a cross-tier add-on any paid workspace can flip) keeps the **zero-draw optics** clean: "your model calls draw nothing because they're on your key" reads as an enterprise-capability benefit, not a "pay us a subscription AND pay your own LLM bill" add-on tax. The margin-on-their-own-key optics ADR-409 flagged stay avoided.
+
+**Explicitly rejected: a separate "Enterprise-BYOK" tier.** BYOK-managed and BYOK-on are the *same* enterprise tier with a toggle — **not two named tiers on the pricing page** (that reintroduces the tier proliferation ADR-429 killed). If BYOK-ON meaningfully lowers *our* COGS (the customer's seat-chat usage is off our books), that may surface as a discount or a different seat-allowance *modifier on the one tier* — never as a second tier.
+
+**Explicitly rejected: cross-tier add-on toggle** (any paid workspace flips BYOK). It decouples BYOK from the enterprise narrative and muddies the zero-draw copy for the mass tiers; enterprise-only-but-optional gets the flexibility without the story cost.
 
 ## 4. D3 — The pre-lane metering floor (buildable now, independent of BYOK)
 
@@ -65,15 +73,17 @@ Keeping them distinct matters: the interop face is the free, always-on reach tha
 
 ## 6. What this makes "enterprise" (the summary)
 
-Enterprise is **not an account type and not a data split.** It is the top tier's capability bundle on the *same* unified workspace:
-- `byok` on (workspace-scoped key, §2) → seat-chat lanes resolve to the customer's key → that line draws nothing (ADR-409 D2) → the tier is priced on **custody + on-prem + support + per-seat**, not on usage (usage is theirs now).
-- Same substrate, same RLS, same single metering ledger; **one flag flips one resolution path.** The steward keeps metering on our keys (D3) so the meter stays honest and the moat stays ours.
+Enterprise is **not an account type and not a data split.** It is a **capability bundle** on the *same* unified workspace — custody controls · on-prem lane · support · scale/seats — with **BYOK as a default-off option inside it**:
+- **Managed (default):** the enterprise workspace runs on our keys and our meter, byte-identical to lower tiers on the key path. The customer pays for the *bundle* (custody controls, on-prem, support, seats) and never touches a key. Priced on the bundle + per-seat + usage-through-the-pool.
+- **BYOK (toggle ON):** the workspace's own key (workspace-scoped, §2) powers the seat-chat lanes → that line draws nothing (ADR-409 D2) → the customer's own LLM account carries that usage. Priced on the bundle + per-seat (usage is theirs now); a possible COGS-based modifier, never a separate tier (§3).
 
-This is the "empowering but not over-engineered" shape: the enterprise customer gets key custody and on-prem — a real yes-worthy capability — and we add exactly one flag + one resolution branch, no fork.
+In both settings: same substrate, same RLS, same single metering ledger; the steward always meters on our keys (D3) so the meter stays honest and the moat stays ours. BYOK-ON is **one flag flipping one resolution path** — the managed default adds nothing.
+
+This is the "empowering but not over-engineered" shape: the enterprise customer who *wants* key custody gets it; the enterprise customer who *doesn't want to think about keys* just pays and we handle it — **one tier, one toggle, no fork.**
 
 ## 7. Amends / preserves
 
-**Amends ADR-409:** resolves its two open BYOK sub-questions — key scope (→ workspace, §2) and shape (→ enterprise tier gate, §3). ADR-409's §4 implementation note ("`TIER_CONFIG` gains a `byok` flag") is refined: the flag is a **tier** flag (gate), and the key it points at is a **workspace-scoped** secret resolved by `workspace_id` at the router call site.
+**Amends ADR-409:** resolves its two open BYOK sub-questions — key scope (→ workspace, §2) and shape (→ enterprise-only but *optional within* the tier, §3). ADR-409's §4 implementation note ("`TIER_CONFIG` gains a `byok` flag") is refined: BYOK *availability* is an enterprise-tier capability, but BYOK *engagement* is a **per-workspace toggle** (default OFF = managed) — so the implementation is a tier-level `byok_available` capability **plus** a workspace-level `byok_enabled` setting pointing at a **workspace-scoped** key resolved by `workspace_id` at the router call site. Managed-default is the byte-identical lower-tier key path; BYOK-ON is the one added resolution branch.
 
 **Preserves (unchanged):** ADR-409 D1 (seat = human member), D2 (per-workspace pool, one ledger, router-reports/ledger-records, BYOK rows land at cost-to-us = 0), D3 (steward always meters on platform keys), D5 (hard-stop + top-up, no overage billing, no credit currency). ADR-396 (one meter, hide-dollars, Type-B). ADR-391 (balance/allocation/ledger). ADR-373/378 (unified commons, workspace as binding + outermost unit, no data fork). ADR-310/311/416 (the interop face and its metering split, §5).
 
