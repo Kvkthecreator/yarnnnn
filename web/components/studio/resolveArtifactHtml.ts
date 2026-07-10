@@ -127,16 +127,97 @@ async function resolveOne(el: Element, artifactPath: string): Promise<void> {
   }
 }
 
+// ── The pointer runtime (ADR-440 v1.1 — pointing) ─────────────────────────
+//
+// Injected into the projected document so the member can POINT at an element
+// (deixis, never editing): a click selects the nearest pointable element,
+// outlines it, and posts {type:'yarnnn-point', tag, text, dataRef} to the
+// parent (StudioCanvas listens). Runs under sandbox="allow-scripts" with an
+// OPAQUE origin — no same-origin access, no credentials, no top-navigation.
+// The projection pass strips every artifact-authored script and inline
+// handler first (D5's no-script rule, enforced mechanically), so this is the
+// ONLY code that executes in the canvas.
+
+const POINTABLE =
+  'h1,h2,h3,h4,p,li,img,figure,figcaption,table,blockquote,pre,[data-ref]';
+
+const POINTER_CSS = `
+${POINTABLE.split(',').map((s) => `${s}:hover`).join(',')} {
+  outline: 1px dashed rgba(99,102,241,0.45); outline-offset: 2px; cursor: pointer;
+}
+.yarnnn-pointed { outline: 2px solid #6366f1 !important; outline-offset: 2px; }
+`;
+
+const POINTER_SCRIPT = `
+(function () {
+  var SEL = ${JSON.stringify(POINTABLE)};
+  var cur = null;
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    var el = t && t.closest ? t.closest(SEL) : null;
+    e.preventDefault();
+    if (!el) {
+      if (cur) { cur.classList.remove('yarnnn-pointed'); cur = null; }
+      parent.postMessage({ type: 'yarnnn-point-clear' }, '*');
+      return;
+    }
+    if (cur) cur.classList.remove('yarnnn-pointed');
+    cur = el;
+    el.classList.add('yarnnn-pointed');
+    var text = (el.getAttribute('alt') || el.textContent || '')
+      .replace(/\\s+/g, ' ').trim().slice(0, 120);
+    parent.postMessage({
+      type: 'yarnnn-point',
+      tag: el.tagName.toLowerCase(),
+      text: text,
+      dataRef: el.getAttribute('data-ref') || null,
+    }, '*');
+  }, true);
+})();
+`;
+
+/** Remove every artifact-authored executable: script/iframe/object/embed
+ *  elements + inline on* handlers + javascript: URLs. The posture forbids
+ *  them; this enforces the rule mechanically before allow-scripts renders. */
+function stripExecutable(doc: Document): void {
+  doc.querySelectorAll('script, iframe, object, embed').forEach((el) => el.remove());
+  doc.querySelectorAll('*').forEach((el) => {
+    for (const attr of Array.from(el.attributes)) {
+      const name = attr.name.toLowerCase();
+      if (name.startsWith('on')) el.removeAttribute(attr.name);
+      else if (
+        (name === 'href' || name === 'src') &&
+        attr.value.trim().toLowerCase().startsWith('javascript:')
+      ) {
+        el.removeAttribute(attr.name);
+      }
+    }
+  });
+}
+
 /** Resolve every `data-ref` citation in the artifact's HTML; returns the
- *  projected document string ready for a sandboxed iframe's srcDoc. */
+ *  projected document string ready for the canvas iframe's srcDoc.
+ *  `pointer: true` (the Studio canvas) additionally strips all artifact-
+ *  authored executables and injects the pointer runtime. */
 export async function resolveArtifactHtml(
   html: string,
   artifactPath: string,
+  opts?: { pointer?: boolean },
 ): Promise<string> {
-  if (!html || !html.includes('data-ref')) return html;
+  if (!html) return html;
+  if (!opts?.pointer && !html.includes('data-ref')) return html;
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const cited = Array.from(doc.querySelectorAll('[data-ref]'));
   await Promise.all(cited.map((el) => resolveOne(el, artifactPath)));
+  if (opts?.pointer) {
+    stripExecutable(doc);
+    const style = doc.createElement('style');
+    style.textContent = POINTER_CSS;
+    doc.head?.appendChild(style);
+    const script = doc.createElement('script');
+    script.textContent = POINTER_SCRIPT;
+    doc.body?.appendChild(script);
+  }
   const doctype = '<!doctype html>\n';
   return doctype + (doc.documentElement?.outerHTML ?? html);
 }

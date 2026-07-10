@@ -88,6 +88,11 @@ interface LanePanelProps {
   /** ADR-440 — optional starter prompts, rendered as clickable chips while
    *  the transcript is empty; clicking one fills the composer. */
   suggestions?: string[];
+  /** ADR-440 v1.1 — optional composer seed: when `nonce` changes, `text` is
+   *  set into (or appended to) the composer. Drives pointing + the insert
+   *  menu from an embedding surface. Slated to become a mount-contract slot
+   *  in the conversation-mount refactor. */
+  composerSeed?: { text: string; nonce: number } | null;
 }
 
 export function LanePanel({
@@ -97,6 +102,7 @@ export function LanePanel({
   onArtifactWrite,
   emptyState,
   suggestions,
+  composerSeed,
 }: LanePanelProps) {
   const [messages, setMessages] = useState<LaneMessage[]>([]);
   const [input, setInput] = useState('');
@@ -135,6 +141,14 @@ export function LanePanel({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sending]);
+
+  // ADR-440 v1.1 — composer seeding (pointing + insert menu). Appends when
+  // the member already typed something; replaces when the composer is empty.
+  useEffect(() => {
+    if (!composerSeed?.text) return;
+    setInput((cur) => (cur.trim() ? `${cur.replace(/\s*$/, ' ')}${composerSeed.text}` : composerSeed.text));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composerSeed?.nonce]);
 
   const send = useCallback(async () => {
     const content = input.trim();

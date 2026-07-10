@@ -293,6 +293,11 @@ export const api = {
       request<{ artifacts: Array<{ path: string; updated_at: string | null; summary: string | null }> }>(
         "/api/studio/artifacts",
       ),
+    citable: () =>
+      request<{
+        images: Array<{ path: string; updated_at: string | null }>;
+        tables: Array<{ path: string; updated_at: string | null }>;
+      }>("/api/studio/citable"),
     createArtifact: (path: string, template: string) =>
       request<{ success: boolean; path: string; template: string }>(
         "/api/studio/artifacts",

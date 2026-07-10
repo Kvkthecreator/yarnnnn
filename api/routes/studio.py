@@ -76,6 +76,38 @@ async def list_artifacts(auth: UserClient) -> dict:
     }
 
 
+@router.get("/studio/citable")
+async def list_citable(auth: UserClient) -> dict:
+    """Citable workspace objects for the insert menu (ADR-440 v1.1) —
+    images + tables the member can reference into an artifact. Workspace-wide
+    (citations reach anywhere the member may read; the powerbox gates reads
+    downstream), newest first."""
+    from services.workspace_context import substrate_scope_filter
+
+    def _q():
+        return (
+            auth.client.table("workspace_files")
+            .select("path, updated_at")
+            .eq(*substrate_scope_filter(auth.user_id))
+            .order("updated_at", desc=True)
+            .limit(24)
+        )
+
+    images = (
+        _q()
+        .or_(
+            "path.ilike.%.png,path.ilike.%.jpg,path.ilike.%.jpeg,"
+            "path.ilike.%.gif,path.ilike.%.webp,path.ilike.%.svg"
+        )
+        .execute()
+    ).data or []
+    tables = (_q().ilike("path", "%.csv").execute()).data or []
+    return {
+        "images": [{"path": r["path"], "updated_at": r.get("updated_at")} for r in images],
+        "tables": [{"path": r["path"], "updated_at": r.get("updated_at")} for r in tables],
+    }
+
+
 @router.post("/studio/artifacts")
 async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     from services.authored_substrate import write_revision

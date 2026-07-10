@@ -25,7 +25,8 @@ import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
-import { StudioCanvas } from './StudioCanvas';
+import { StudioCanvas, type PointerEvent2 } from './StudioCanvas';
+import { StudioInsertMenu } from './StudioInsertMenu';
 
 interface LaneInfo {
   id: string;
@@ -172,6 +173,23 @@ export function StudioSurface() {
     [artifactPath],
   );
 
+  // ── Composer seeding (v1.1): pointing + the insert menu ────────────────
+  const [seed, setSeed] = useState<{ text: string; nonce: number } | null>(null);
+  const seedComposer = useCallback(
+    (text: string) => setSeed((s) => ({ text, nonce: (s?.nonce ?? 0) + 1 })),
+    [],
+  );
+  const onPoint = useCallback(
+    (p: PointerEvent2) => {
+      seedComposer(
+        p.dataRef
+          ? `Pointing at the cited object "${p.dataRef}" — `
+          : `Pointing at the ${p.tag}${p.text ? ` "${p.text}"` : ''} — `,
+      );
+    },
+    [seedComposer],
+  );
+
   const outline = useMemo(() => extractOutline(file?.content ?? ''), [file]);
   const template = useMemo(() => extractTemplate(file?.content ?? ''), [file]);
   const modelLabel = useMemo(
@@ -226,13 +244,16 @@ export function StudioSurface() {
               chat needs the model router. The canvas still renders the artifact.
             </div>
           ) : boundLane ? (
-            <LanePanel
-              key={boundLane.id}
-              laneId={boundLane.id}
-              laneName={boundLane.name}
-              modelLabel={modelLabel}
-              onArtifactWrite={onArtifactWrite}
-              emptyState={
+            <>
+              <StudioInsertMenu onSeed={seedComposer} />
+              <LanePanel
+                key={boundLane.id}
+                laneId={boundLane.id}
+                laneName={boundLane.name}
+                modelLabel={modelLabel}
+                onArtifactWrite={onArtifactWrite}
+                composerSeed={seed}
+                emptyState={
                 <div className="space-y-2 text-center text-xs text-muted-foreground">
                   <p className="text-sm font-medium text-foreground/80">
                     Tell it what to write.
@@ -247,7 +268,8 @@ export function StudioSurface() {
                 </div>
               }
               suggestions={TEMPLATE_SUGGESTIONS[template] ?? TEMPLATE_SUGGESTIONS.document}
-            />
+              />
+            </>
           ) : (
             <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -269,7 +291,11 @@ export function StudioSurface() {
                 {relPath(artifactPath)}.
               </div>
             ) : (
-              <StudioCanvas file={file} artifactPath={artifactPath} />
+              <StudioCanvas
+                file={file}
+                artifactPath={artifactPath}
+                onPoint={onPoint}
+              />
             )}
           </div>
           {outline.length > 1 && (
