@@ -21,6 +21,7 @@ import { FileListHeader, FileListRow } from '@/components/workspace/FileListView
 // Implementation — a new file type is a rule in `lib/file-types` plus a branch
 // in FileBody, never a branch in a mount.
 import { FileBody, FileActions } from '@/components/workspace/FileBody';
+import { useFileLoad } from '@/components/workspace/useFileLoad';
 // ADR-236 Files page rework (2026-04-30): SubstrateEditor deleted. Direct
 // inline editing of substrate files is removed per the original assessment
 // ("not notion-like, streamline back to edit via Chat"). Every file now
@@ -274,11 +275,6 @@ function DirectoryView({
 // "ChatGPT (via MCP)" now shows on the file header too.
 const formatHeadAuthor = formatAuthorLabel;
 
-interface HeadRevision {
-  authored_by: string;
-  created_at: string;
-}
-
 // ADR-400 Amendment 1: the file-header Trash button shows for anything the
 // operator can organize (the shared mirror of the backend gate). Optimistic:
 // the backend is authoritative; the button just doesn't offer a verb that will
@@ -297,52 +293,14 @@ function FileView({
   onDeleted?: () => void;
 }) {
   const { confirm, runAction } = useFeedback();
-  const [file, setFile] = useState<WorkspaceFile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  // ADR-388 follow-up: a 404 here means the file doesn't exist at this path
-  // (e.g. a stale deep-link, or a synthetic node fabricated for a typed path
-  // that was never written). That's an honest "no longer here" empty state,
-  // NOT a red "API Error" — distinguished from a real load failure.
-  const [notFound, setNotFound] = useState(false);
-  const [reloadKey] = useState(0);
   const [deleting, setDeleting] = useState(false);
-  // ADR-236 Cluster B: head-revision authorship surfaced on the file
-  // header. Reads /api/workspace/revisions?limit=1 — the existing
-  // ADR-209 Phase 4 endpoint. No new backend.
-  const [headRevision, setHeadRevision] = useState<HeadRevision | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    setNotFound(false);
-    setHeadRevision(null);
-    api.workspace
-      .getFile(path)
-      .then((data) => setFile(data))
-      .catch((err) => {
-        // 404 → honest "no longer at this path" state, not a red error.
-        if (err instanceof APIError && err.status === 404) {
-          setNotFound(true);
-        } else {
-          setError(err?.message || 'Failed to load file');
-        }
-      })
-      .finally(() => setLoading(false));
-    // Fire revision lookup in parallel — non-blocking on file render.
-    api.workspace
-      .listRevisions({ path }, 1)
-      .then((res) => {
-        const head = res.revisions[0];
-        if (head) {
-          setHeadRevision({ authored_by: head.authored_by, created_at: head.created_at });
-        }
-      })
-      .catch(() => {
-        // Non-fatal — head-author display is informational; absence
-        // just falls back to the existing updated_at timestamp.
-      });
-  }, [path, reloadKey]);
+  // ADR-436 §6: the shared file-load hook (was a hand-written getFile + revision
+  // state machine). `withRevision` fetches the ADR-209 Phase-4 head author in
+  // parallel (surfaced on the header); a 404 is an honest `notFound` state (a
+  // stale deep-link / synthetic node), distinct from a real load `error`.
+  const { file, loading, notFound, error, headRevision } = useFileLoad(path, {
+    withRevision: true,
+  });
 
   // ADR-329/ADR-400 'delete' verb — trash-semantics (the backend archives via
   // lifecycle; ADR-209-retained, reversible; restorable from Trash). Operator-

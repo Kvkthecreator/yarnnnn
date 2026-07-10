@@ -19,28 +19,31 @@
  * file. The card is a pointer to that file, with its attribution on it. It is
  * the contract rendered.
  *
- * ── LAYOUT ────────────────────────────────────────────────────────────────
+ * ── OPENING (ADR-436 §7 — supersedes the redirect-only stance) ────────────
  *
- * Bounded height + fade, never a scroll trap inside a scroll container: the
- * body is clipped at `--artifact-max` with a gradient mask, and "Open in Files"
- * hands off to the real window. Side-by-side is achieved by the EXISTING window
- * manager (ADR-297 D15 — open Files beside Chat and drag), never by nesting a
- * second pane inside the chat window. We do not build a window manager.
+ * The card is bounded (height + fade). "Open" gives the artifact its own frame
+ * via `FileOpenModal` (the chat-open mount) — NOT a teleport to Files. This
+ * supersedes the prior "Open in Files hands off to the real window" stance:
+ * once the renderer is frame-agnostic, opening in place is cheap and honest.
+ * "Open in Files" remains as a secondary handoff.
+ *
+ * PRESERVED: "we do not build a window manager." The modal uses the existing
+ * overlay primitive (PropertiesModal pattern), not a new surface window. The
+ * window=surface invariant (ADR-297 D15) is untouched.
  *
  * The card sits OUTSIDE the assistant bubble at full row width — a bubble's
  * `max-w-[85%]` is too narrow for a rendered document, and an artifact is not
  * speech.
  */
 
-import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, ExternalLink, FileQuestion, Loader2, PencilLine, Plus } from 'lucide-react';
-import { api, APIError } from '@/lib/api/client';
+import { useState } from 'react';
+import { ChevronDown, ChevronUp, Maximize2, FileQuestion, Loader2, PencilLine, Plus } from 'lucide-react';
 import { FileBody } from '@/components/workspace/FileBody';
 import { FileIcon } from '@/components/workspace/FileIcon';
-import { SurfaceLink } from '@/components/shell/SurfaceLink';
+import { FileOpenModal } from '@/components/chat-surface/FileOpenModal';
+import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { describeViewerApplication } from '@/lib/file-types';
 import { cn } from '@/lib/utils';
-import type { WorkspaceFile } from '@/types';
 
 /** Collapsed height of the preview body before the fade + "Show more". */
 const COLLAPSED_MAX_PX = 360;
@@ -55,26 +58,11 @@ interface ArtifactCardProps {
 }
 
 export function ArtifactCard({ path, verb, attribution }: ArtifactCardProps) {
-  const [file, setFile] = useState<WorkspaceFile | null>(null);
-  const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
+  // ADR-436 §6: the shared file-load hook (was a hand-written getFile machine).
+  const { file, loading, notFound, error } = useFileLoad(path);
   const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setState('loading');
-    api.workspace
-      .getFile(path)
-      .then((data) => {
-        if (cancelled) return;
-        setFile(data);
-        setState('ready');
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setState(err instanceof APIError && err.status === 404 ? 'missing' : 'error');
-      });
-    return () => { cancelled = true; };
-  }, [path]);
+  // ADR-436 §7: the chat-open mount — the artifact opens in its own frame.
+  const [openInModal, setOpenInModal] = useState(false);
 
   const filename = path.split('/').pop() || path;
   // The path the operator reads — the `/workspace/` root is plumbing (ADR-244 D7).
@@ -101,38 +89,38 @@ export function ArtifactCard({ path, verb, attribution }: ArtifactCardProps) {
             {attribution && <span>· {attribution}</span>}
           </div>
         </div>
-        <SurfaceLink
-          to="files"
-          params={{ path }}
+        <button
+          type="button"
+          onClick={() => setOpenInModal(true)}
           className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/40 hover:text-foreground"
         >
-          <ExternalLink className="h-3 w-3" />
-          Open in Files
-        </SurfaceLink>
+          <Maximize2 className="h-3 w-3" />
+          Open
+        </button>
       </div>
 
       {/* ── body: the one shared viewer, bounded ── */}
-      {state === 'loading' && (
+      {loading && (
         <div className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           Opening {filename}…
         </div>
       )}
 
-      {state === 'missing' && (
+      {notFound && (
         <div className="px-3 py-6 text-center text-xs text-muted-foreground">
           <FileQuestion className="mx-auto mb-2 h-5 w-5 opacity-40" />
           This file is no longer at {relPath}.
         </div>
       )}
 
-      {state === 'error' && (
+      {error && (
         <div className="px-3 py-6 text-center text-xs text-muted-foreground">
           Couldn’t open this file. It’s still in the workspace — try Files.
         </div>
       )}
 
-      {state === 'ready' && file && (
+      {!loading && !notFound && !error && file && (
         <>
           <div
             className={cn('relative px-3 py-3', !expanded && 'overflow-hidden')}
@@ -156,6 +144,9 @@ export function ArtifactCard({ path, verb, attribution }: ArtifactCardProps) {
           </button>
         </>
       )}
+
+      {/* ADR-436 §7 — the chat-open mount: the artifact in its own frame. */}
+      {openInModal && <FileOpenModal path={path} onClose={() => setOpenInModal(false)} />}
     </div>
   );
 }
