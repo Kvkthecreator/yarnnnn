@@ -50,6 +50,7 @@ const PROTECTED_PREFIXES = [
   "/s", // ADR-437 D4 — the shared-artifact accept page (login-bounce preserves ?next)
   "/docs",
   "/chat", // ADR-412 D3 — the Chat surface (lanes workbench), a real authenticated surface
+  "/studio", // ADR-440 — the Studio authoring surface (bound lane + live canvas)
   // Legacy routes still protected for redirect stubs
   "/backend",    // ADR-265 — redirect stub → /activity
   "/schedule",

@@ -6,6 +6,11 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.10.1] - The Studio authoring posture for bound lanes (ADR-440)
+
+- **New LLM-facing content: the Studio posture** (`api/services/studio.py::_POSTURE_FRAME`, composed into the lane conventions projection by `lane_runner.build_lane_conventions` via the new `{posture_section}` seam). A lane carrying an `artifact_path` binding (a Studio lane) now receives an additive authoring section: the bound artifact's path + current outline (read fresh each turn — derived, never stored), the active template's grammar (Document/Deck/Article), the reference syntax (`data-ref` living path + `data-ref-rev` pin; `./` = artifact-relative; settle-then-cite; never copy/base64), patch-preference (EditFile over whole-file rewrites), and the no-scripts/self-contained-HTML constraint.
+- **Expected behavior change**: bound lanes author/patch one HTML artifact and cite workspace objects by reference; they get an 8192 max_tokens authoring profile (vs 2048 chat). **Plain chat lanes are byte-identical** — no binding → empty posture section, unchanged token cap (verified: composed plain prompt unchanged; ADR-440 gate 41/41).
+
 ## [2026.07.09.7] - Retire the operator-facing Program pane (ADR-432 D2d)
 
 - **Operator-surface change, no LLM-behavior change.** The Program pane (the "hire a program" activation UI) is retired from Workspace Settings. Empirical basis: ZERO hired-program grants exist anywhere (`principal_grants where role='own-agent' and principal_id like 'program:%'` → 0 rows); activation has never fired; the commons-first launch (ADR-404) is the shared workspace + members/AI, not hiring pre-built programs. The pane presented a launch operator an action into the deliberately-unvalidated Rung-2 path (ADR-380). With Billing/Usage gone (ADR-429 §13.3), Operation was a group-of-one — a never-used action into a deferred model.

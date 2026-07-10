@@ -77,9 +77,13 @@ interface LanePanelProps {
   laneId: string;
   laneName: string;
   modelLabel: string;
+  /** ADR-440 — optional mount hook: fires when a write LANDS mid-turn (and
+   *  again from the terminal list), so an embedding surface (the Studio
+   *  canvas) can refresh its view of a file this lane just authored. */
+  onArtifactWrite?: (path: string) => void;
 }
 
-export function LanePanel({ laneId, laneName, modelLabel }: LanePanelProps) {
+export function LanePanel({ laneId, laneName, modelLabel, onArtifactWrite }: LanePanelProps) {
   const [messages, setMessages] = useState<LaneMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -156,7 +160,8 @@ export function LanePanel({ laneId, laneName, modelLabel }: LanePanelProps) {
           ),
         // A write landed. Show the file as soon as it exists — mid-turn, before
         // the model has finished narrating it.
-        onArtifact: ({ path, verb }) =>
+        onArtifact: ({ path, verb }) => {
+          onArtifactWrite?.(path);
           setMessages((prev) =>
             prev.map((m) => {
               if (m.id !== replyId) return m;
@@ -164,7 +169,8 @@ export function LanePanel({ laneId, laneName, modelLabel }: LanePanelProps) {
               if (existing.some((a) => a.path === path)) return m;
               return { ...m, artifacts: [...existing, { path, verb }] };
             }),
-          ),
+          );
+        },
         onDone: ({ tools_called, artifacts }) => {
           if (tools_called?.length) {
             setMessages((prev) =>
@@ -177,6 +183,9 @@ export function LanePanel({ laneId, laneName, modelLabel }: LanePanelProps) {
           // Union by path, keeping the streamed entries first — they carry the
           // verb, which the terminal list does not.
           const finalArtifacts = toArtifacts(artifacts);
+          // The terminal list survives dropped frames — notify the mount for
+          // any write the mid-turn stream may have missed (idempotent hook).
+          finalArtifacts?.forEach((a) => onArtifactWrite?.(a.path));
           if (finalArtifacts) {
             setMessages((prev) =>
               prev.map((m) => {
@@ -222,7 +231,7 @@ export function LanePanel({ laneId, laneName, modelLabel }: LanePanelProps) {
     } finally {
       setSending(false);
     }
-  }, [input, laneId, sending]);
+  }, [input, laneId, sending, onArtifactWrite]);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">

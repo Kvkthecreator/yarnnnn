@@ -33,6 +33,10 @@ import type { KernelSurfaceSlug } from '@/types/desk';
 // slug's redirect-stub lineage (ADR-259 → /feed, ADR-385 → notifications)
 // ends here — third life as a real windowed surface.
 import ChatPage from '@/app/(authenticated)/chat/page';
+// ADR-440 (2026-07-10) — the Studio: the first AUTHORING app (second app class
+// after ADR-436's viewer renderers). Window-grade, launcher-primary; a bound
+// lane (left) + the live artifact canvas (right).
+import StudioPage from '@/app/(authenticated)/studio/page';
 import RecurrencePage from '@/app/(authenticated)/recurrence/page';
 // ADR-327: /pace retired from the surface registry — it is now a route-level
 // redirect stub (app/(authenticated)/pace/page.tsx → /budget) handled by Next
@@ -84,6 +88,7 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   // slug is removed from the union; persisted dock state is normalized → the
   // default, and the old URLs are next.config redirects.
   chat: ChatPage,  // ADR-412 D3 — the lanes workbench; ADR-435 — the dock anchor (Home deleted)
+  studio: StudioPage,  // ADR-440 — the first authoring app (bound lane + live canvas)
   recurrence: RecurrencePage,
   // ADR-309 (2026-06-01): `brand` slug DELETED. Brand is not a standalone
   // surface — the Identity surface (IdentityBrandCard) co-renders it.

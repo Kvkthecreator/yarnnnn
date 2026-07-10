@@ -39,6 +39,10 @@ _MAX_MESSAGE_LEN = 32_000
 class CreateLaneRequest(BaseModel):
     name: str
     model: str
+    # ADR-440 D3 — the Studio binding: a workspace path this lane authors.
+    # A lane with a binding is a Studio lane; its turns carry the authoring
+    # posture + token profile. Optional; plain chat lanes never set it.
+    artifact_path: Optional[str] = None
 
 
 class LaneTurnRequest(BaseModel):
@@ -55,6 +59,8 @@ def _lane_row_to_dict(row: dict) -> dict:
         "id": row["id"],
         "name": lane_meta.get("name") or "Lane",
         "model": lane_meta.get("model") or "",
+        # ADR-440 D3 — the Studio binding (None for plain chat lanes).
+        "artifact_path": lane_meta.get("artifact_path"),
         "status": row.get("status"),
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at"),
@@ -146,11 +152,16 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
             detail=f"Lane limit reached ({_MAX_ACTIVE_LANES}) — archive one first",
         )
 
+    lane_meta: dict = {"name": name, "model": req.model}
+    artifact_path = (req.artifact_path or "").strip()
+    if artifact_path:
+        lane_meta["artifact_path"] = artifact_path
+
     row = {
         "user_id": auth.user_id,
         "session_type": "lane",
         "status": "active",
-        "context_metadata": {"lane": {"name": name, "model": req.model}},
+        "context_metadata": {"lane": lane_meta},
     }
     if ws:
         row["workspace_id"] = ws
@@ -269,6 +280,8 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
                 history=history,
                 user_message=content,
                 member_label=getattr(auth, "email", None) or None,
+                # ADR-440 D3 — a bound lane's turns carry the Studio posture.
+                artifact_path=lane_meta.get("artifact_path"),
             ):
                 if kind == "delta":
                     accumulated.append(payload)

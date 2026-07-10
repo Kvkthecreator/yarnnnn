@@ -34,6 +34,7 @@ export type KernelSurfaceSlug =
   // ADR-297 parity gate parses the union up to the first semicolon and reads
   // quoted names.)
   | 'chat'  // ADR-412 D3 — the lanes surface; ADR-435 — the dock anchor (Home deleted)
+  | 'studio'  // ADR-440 — the first authoring app (bound lane + live canvas)
   | 'recurrence'
   | 'budget'
   | 'autonomy'
@@ -105,7 +106,7 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   // (genesis is empty, ADR-414; activation reframes to cold-landing + the
   // shared-artifact wedge). All are dormant registry rows; the three-way parity
   // (navigable == allowlist == registry∪panes) holds with them out of all three.
-  'chat', 'recurrence', 'budget', 'autonomy',
+  'chat', 'studio', 'recurrence', 'budget', 'autonomy',
   'files', 'agents', 'queue', 'notifications', 'activity',
   // ADR-425 D2: `sources` LEFT the allowlist (hidden, redirect-stub only).
   'settings', 'workspace-settings', 'system-agent', 'connectors',

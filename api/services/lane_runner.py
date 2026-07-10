@@ -66,6 +66,12 @@ _LANE_MAX_ROUNDS = 8       # cost ceiling, not behavior (ADR-402 posture)
 _LANE_MAX_TOKENS = 2048
 _LANE_TIMEOUT_S = 120.0
 
+
+def _studio_max_tokens() -> int:
+    """ADR-440 D3 — the authoring token profile for BOUND (Studio) lanes."""
+    from services.studio import STUDIO_LANE_MAX_TOKENS
+    return STUDIO_LANE_MAX_TOKENS
+
 # ---------------------------------------------------------------------------
 # Tool surface (ADR-411 D3) — five file verbs, registry definitions converted
 # ---------------------------------------------------------------------------
@@ -228,7 +234,7 @@ platforms; you are hands on the filesystem for this member.
 ## Format discipline
 Prose documents are .md. Machine config is _*.yaml (don't author these
 unless asked).
-{mandate_section}"""
+{mandate_section}{posture_section}"""
 
 
 def _read_workspace_file(client: Any, user_id: str, path: str) -> str:
@@ -256,6 +262,7 @@ def build_lane_conventions(
     *,
     model: str,
     member_label: Optional[str] = None,
+    artifact_path: Optional[str] = None,
 ) -> str:
     """Compose the AGENTS.md-shaped system prompt for one lane turn.
 
@@ -263,6 +270,11 @@ def build_lane_conventions(
     (DP29 derived-never-stored — a stored copy would drift against
     _workspace_guide.md). Program-bundle deepening is a later, additive
     section (the kernel block stays program-neutral, ADR-222).
+
+    ADR-440 D3: a BOUND lane (``artifact_path`` set — a Studio lane) gains the
+    authoring posture as an additive section: the artifact's current head is
+    read fresh here (derived, never stored) and ``services.studio`` composes
+    the overlay purely.
     """
     from services.workspace_paths import (
         CONSTITUTION_MANDATE_PATH,
@@ -279,12 +291,19 @@ def build_lane_conventions(
         if mandate_head else ""
     )
 
+    posture_section = ""
+    if artifact_path:
+        from services.studio import build_studio_posture
+        artifact = _read_workspace_file(client, user_id, artifact_path)
+        posture_section = "\n" + build_studio_posture(artifact_path, artifact) + "\n"
+
     return _CONVENTIONS_FRAME.format(
         model_label=label,
         member=member,
         model=label,
         filesystem_model=PARTICIPANT_FILESYSTEM_MODEL,
         mandate_section=mandate_section,
+        posture_section=posture_section,
     )
 
 
@@ -308,6 +327,7 @@ async def run_lane_turn(
     history: list[dict],
     user_message: str,
     member_label: Optional[str] = None,
+    artifact_path: Optional[str] = None,
 ) -> dict:
     """Run one lane turn: bounded tool loop over the router.
 
@@ -344,7 +364,10 @@ async def run_lane_turn(
     tools = lane_tools_openai()
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
+        artifact_path=artifact_path,
     )
+    # ADR-440 D3 — authoring turns need more room than chat turns.
+    max_tokens = _studio_max_tokens() if artifact_path else _LANE_MAX_TOKENS
 
     messages: list[dict] = list(history) + [{"role": "user", "content": user_message}]
     tools_called: list[str] = []
@@ -369,7 +392,7 @@ async def run_lane_turn(
             model,
             messages,
             system=system,
-            max_tokens=_LANE_MAX_TOKENS,
+            max_tokens=max_tokens,
             timeout=_LANE_TIMEOUT_S,
             tools=tools,
             api_key=byok_key,
@@ -458,6 +481,7 @@ async def run_lane_turn_stream(
     history: list[dict],
     user_message: str,
     member_label: Optional[str] = None,
+    artifact_path: Optional[str] = None,
 ):
     """Streaming sibling of ``run_lane_turn`` (ADR-412 D2 lane streaming).
 
@@ -505,7 +529,10 @@ async def run_lane_turn_stream(
     tools = lane_tools_openai()
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
+        artifact_path=artifact_path,
     )
+    # ADR-440 D3 — authoring turns need more room than chat turns.
+    max_tokens = _studio_max_tokens() if artifact_path else _LANE_MAX_TOKENS
 
     messages: list[dict] = list(history) + [{"role": "user", "content": user_message}]
     tools_called: list[str] = []
@@ -528,7 +555,7 @@ async def run_lane_turn_stream(
         # a tool round they are empty and we act on `routed.tool_calls`.
         async for kind, payload in route_completion_stream(
             model, messages, system=system,
-            max_tokens=_LANE_MAX_TOKENS, timeout=_LANE_TIMEOUT_S, tools=tools,
+            max_tokens=max_tokens, timeout=_LANE_TIMEOUT_S, tools=tools,
             api_key=byok_key,
         ):
             if kind == "delta":

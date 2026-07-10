@@ -249,6 +249,26 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/chat",
         "summary": "Your model-pinned helper conversations — isolated lanes over the shared workspace. The transcript stays private to each lane; the work lands in files, attributed to you via the lane's model.",
     },
+    {
+        # ADR-440 (2026-07-10) — the Studio, the first AUTHORING app (the
+        # second app class after ADR-436's viewer renderers). One surface ↔
+        # one operator act: AUTHOR AN ARTIFACT — the first honest DP29
+        # composition since ADR-435 deleted Home. Left pane = a BOUND lane
+        # (ADR-411 machinery + an artifact binding + the authoring posture);
+        # right pane = the live canvas over one self-contained HTML artifact.
+        # Templates: Document · Deck · Article (kernel constants,
+        # services/studio.py — apps bring program, not substrate, D6).
+        "slug": "studio",
+        "launcher_tier": "primary",  # ADR-440 D2 — the probe needs traffic
+        "register": "application",
+        "title": "Studio",
+        "archetype": "document",
+        "substrate_paths": [],  # artifacts are meaning-placed; no app namespace
+        "icon_key": "palette",
+        "default_pinned": False,
+        "route": "/studio",
+        "summary": "Author documents, decks, and articles as living artifacts: a model-pinned lane drafts and patches the file while the canvas re-renders it — every citation a live workspace reference, every edit an attributed revision.",
+    },
     # ADR-415 (2026-07-08): the `channels` surface is DISSOLVED. It was a fossil
     # of the Feed → Context → Channels lineage, scoped by boundary (edge vs
     # interior) — an axis operators don't hold, producing two "what happened"

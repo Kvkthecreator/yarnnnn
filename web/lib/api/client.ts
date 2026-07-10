@@ -190,14 +190,16 @@ export const api = {
           id: string;
           name: string;
           model: string;
+          /** ADR-440 D3 — the Studio binding (null for plain chat lanes). */
+          artifact_path?: string | null;
           status: string;
           created_at: string;
           updated_at: string;
           summary?: string | null;
         }>;
       }>("/api/lanes"),
-    create: (data: { name: string; model: string }) =>
-      request<{ id: string; name: string; model: string; status: string }>(
+    create: (data: { name: string; model: string; artifact_path?: string }) =>
+      request<{ id: string; name: string; model: string; artifact_path?: string | null; status: string }>(
         "/api/lanes",
         { method: "POST", body: JSON.stringify(data) },
       ),
@@ -276,6 +278,22 @@ export const api = {
       request<{ success: boolean }>(`/api/lanes/${laneId}/archive`, {
         method: "POST",
       }),
+  },
+
+  // ADR-440 — the Studio (the first authoring app). Templates are kernel
+  // constants server-side; creation writes the skeleton as the artifact's
+  // first revision (authored_by=operator). Everything after creation flows
+  // through existing machinery (bound lanes + GET /api/workspace/file).
+  studio: {
+    templates: () =>
+      request<{ templates: Array<{ slug: string; label: string; description: string }> }>(
+        "/api/studio/templates",
+      ),
+    createArtifact: (path: string, template: string) =>
+      request<{ success: boolean; path: string; template: string }>(
+        "/api/studio/artifacts",
+        { method: "POST", body: JSON.stringify({ path, template }) },
+      ),
   },
 
   // ADR-108: User context entries (user-scoped, stored in /system/notes.md)
