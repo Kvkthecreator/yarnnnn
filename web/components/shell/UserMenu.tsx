@@ -165,9 +165,12 @@ export function UserMenu({ email }: UserMenuProps) {
   };
 
   // 2026-07-08 — Budget + Connectors folded in from the retired top-bar cluster.
+  // 2026-07-10 — the Budget glance now opens User Settings → Billing (the account
+  // door's billing pane, ADR-439/396), NOT the Freddie System-Agent budget surface.
+  // The money readout is a billing concern reached from the account door.
   const handleBudget = () => {
     setIsOpen(false);
-    foregroundSurface('budget');
+    navigateToSurface('settings', { pane: 'billing' });
   };
 
   const handleConnectors = () => {
