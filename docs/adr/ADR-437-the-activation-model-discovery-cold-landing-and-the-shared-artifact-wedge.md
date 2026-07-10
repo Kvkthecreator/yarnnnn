@@ -108,15 +108,25 @@ five steps is dead-on-arrival or redundant with a surface that already exists:
 surface (D2), not the wizard. The deletion is the wizard surface + its redirect + the
 dead twin, not the program-availability data model.
 
-## 4. D2 — Program activation relocates to an anytime "hire an agent" affordance
+## 4. D2 — Program activation is an anytime hire; the operator surface defers to ADR-382
 
 Per ADR-414 D5, a program is an Altitude-3 **hire**, recorded as a grant row, done
-anytime. Its home is the **agents surface** (where the roster of hired agents lives),
-framed as **"hire a specialist"** / "bring in an agent," not "type your workspace." A
-first-run user works fully with **zero hires** — the bare commons is a first-class
-resting state, not a pre-operational one. The `POST /api/programs/activate` route is
-unchanged (it already installs into `agents/{slug}/`); only its *surface* moves off
-`/setup` and its docstring's pre-414 "forks into `/workspace/`" prose is corrected.
+anytime — never a setup gate. A first-run user works fully with **zero hires**; the
+bare commons is a first-class resting state, not a pre-operational one.
+
+**The hire machinery already exists and is unchanged**: `POST /api/programs/activate`
+mints the grant and installs the bundle into `agents/{slug}/` (its docstring's pre-414
+"forks into `/workspace/`" prose is corrected here to reflect the hire model).
+
+**The operator-facing hire SURFACE is deferred, not built here** — this aligns with
+ADR-432 D2, which made the `program` slug dormant and ruled that the hired-agent
+roster (where "hire an agent" lives) is **ADR-382's, build-when-demanded** (ADR-380
+§5: zero hired-program grants exist; it is the deliberately-unvalidated Rung-2 path).
+Building a hire UI now would re-open a ratified same-week deferral and duplicate
+ADR-382. So D2's scope in this ADR is: **remove the wizard's program-pick step (done
+in D1) and correct the drift prose; the anytime-hire affordance re-surfaces with the
+ADR-382 roster.** The point that matters for onboarding — *activation is not a setup
+step* — is fully delivered by D1's deletion.
 
 ## 5. D3 — Channel 1: cold landing is the current default surface, with a deliberate empty state
 
@@ -245,9 +255,11 @@ the least robust surface in the app. Three hardening moves ride with the wedge:
   redirect branch; `/setup` → bookmark-safety stub or dropped. Cold landing = plain
   `HOME_ROUTE`. Gate: no `first_run` / `SetupSequence` references survive; the
   auth-callback lands on `HOME_ROUTE` for a fresh sign-up. **Ships first, low risk.**
-- **Phase B — the anytime hire affordance (D2)**: relocate program activation to the
-  agents surface as "hire an agent"; correct the `activate` route docstring. (May
-  already be substantially present — audit the agents surface first.)
+- **Phase B — hire-model drift correction (D2)**: correct the `activate` route
+  docstring (pre-414 "forks into `/workspace/`" → the hire model). The operator-facing
+  "hire an agent" surface is **deferred to ADR-382** (ADR-432 D2 — build-when-demanded);
+  Phase B does NOT build a hire UI. The onboarding-relevant point (activation is not a
+  setup step) is delivered by Phase A's deletion.
 - **Phase C — the cold empty state (D3)**: the `/desktop` empty-state design pass —
   teach the moat, point at the commons, invite the first substrate act. Design-led;
   coordinates with the ADR-414 §9b Home recompose if that lands adjacent.

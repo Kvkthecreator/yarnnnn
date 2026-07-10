@@ -131,20 +131,27 @@ async def list_activatable_programs(auth: UserClient) -> dict:
 
 @router.post("/activate")
 async def activate_program(req: ActivateRequest, auth: UserClient) -> dict:
-    """ADR-226: activate a program for the operator's workspace.
+    """Hire a program agent (ADR-414 D5).
 
-    Runs the reference-workspace fork against the operator's workspace,
-    forking the bundle's `reference-workspace/` files into `/workspace/`
-    honoring three-tier file categorization (canon/authored/placeholder).
+    "Hire a trader," not "become a trading workspace." Activation is a
+    post-genesis Altitude-3 HIRE recorded as a `principal_grants` row; the
+    bundle's persona / mandate / principles / governance content installs into
+    the hired agent's home `agents/{slug}/` (ADR-414 §9a), NEVER into the
+    workspace root — the workspace is never typed by a program (ADR-222).
+    `fork_reference_workspace` mints the hire grant and writes the agent home.
 
     Idempotent — re-running re-applies canon, preserves operator-authored.
-    Same primitive whether called at signup or later (ADR-226 §6).
+
+    Note (ADR-437 / ADR-432 D2): there is no operator-facing "hire" SURFACE
+    yet — the hired-agent roster on /agents is deferred to ADR-382
+    (build-when-demanded, ADR-380 §5). This route is the hire machinery; its
+    operator entry point re-surfaces with the ADR-382 roster.
 
     Returns:
       {
         "schema_version": 1,
         "activated_program": "alpha-trader",
-        "files_written": ["constitution/MANDATE.md", ...],
+        "files_written": ["agents/{slug}/MANDATE.md", ...],
         "files_skipped": ["..."]
       }
     """
