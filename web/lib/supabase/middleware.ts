@@ -28,7 +28,7 @@ import { HOME_ROUTE } from "@/lib/routes";
 // /connectors is a user-menu shortcut (same pattern as /workspace).
 const PROTECTED_PREFIXES = [
   "/desktop", // ADR-297 §D17 — authenticated boot route
-  "/setup", // ADR-331 — guided first-boot sequence surface (first-run redirect target)
+  "/setup", // ADR-437 — redirect stub → /chat (the guided first-boot wizard was deleted)
   "/feed", // redirect stub → /notifications?notifications.pane=understand (the narrative's home; 2026-07-02 ACTIVITY re-scope)
   "/recurrence", // ADR-297 — absorbed /work (recurrence list + task detail); renamed from /cadence 2026-06-03
   "/cadence", // redirect stub → /recurrence (2026-06-03 — surface rename)

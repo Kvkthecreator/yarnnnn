@@ -176,19 +176,6 @@ async function request<T>(
   return response.json();
 }
 
-/**
- * ADR-331 — a single harvest source the operator picks on /setup. Ephemeral
- * (lives in picker component state until Confirm; never persisted). `id` is the
- * provider container (Slack channel_id / Notion page_id / GitHub owner-repo);
- * `range_days` is an optional date window for the read.
- */
-export interface HarvestSource {
-  provider: 'slack' | 'notion' | 'github';
-  id?: string | null;
-  label?: string | null;
-  range_days?: number | null;
-}
-
 export const api = {
   // ADR-411 (ADR-408 D6): chat lanes — model-pinned helper threads per
   // member over the shared workspace. `enabled` reflects MODEL_ROUTER_ENABLED
@@ -1608,42 +1595,10 @@ export const api = {
       ),
   },
 
-  // ADR-331 — harvest: "bring in your reality" from the /setup sequence.
-  // Selection scope is ephemeral (passed per call, never persisted).
-  harvest: {
-    // Metadata-only estimate for the picker (D4). No writes, no LLM.
-    dryRun: (sources: HarvestSource[]) =>
-      request<{
-        success: boolean;
-        estimate: { item_count: number; source_count: number };
-        per_source: Array<{
-          provider: string;
-          id: string | null;
-          label: string | null;
-          item_count: number;
-          note?: string;
-        }>;
-        target_domains: string[];
-      }>("/api/harvest/dry-run", {
-        method: "POST",
-        body: JSON.stringify({ sources }),
-      }),
-
-    // Fire the curated harvest invocation (D3). Writes agent:harvest substrate.
-    run: (sources: HarvestSource[]) =>
-      request<{
-        success: boolean;
-        files_written?: string[];
-        rounds_used?: number;
-        tools_called?: string[];
-        summary?: string;
-        error?: string;
-        message?: string;
-      }>("/api/harvest/run", {
-        method: "POST",
-        body: JSON.stringify({ sources }),
-      }),
-  },
+  // ADR-437 (2026-07-10) — the `harvest` client block was removed with the
+  // /setup wizard (its only consumer, HarvestPicker, is deleted). The backend
+  // /api/harvest/* route is retained as a real capability an anytime-harvest
+  // surface would re-wire to (ADR-437 §9 — deferred until demanded).
 
   // Account management
   account: {

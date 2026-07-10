@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/client";
 import { Suspense } from "react";
 import { getSafeNextPath } from "@/lib/auth/redirect";
 import { HOME_ROUTE } from "@/lib/routes";
-import { api } from "@/lib/api/client";
 
 function CallbackHandler() {
   const router = useRouter();
@@ -44,26 +43,13 @@ function CallbackHandler() {
       }
 
       const finalize = async () => {
-        // ADR-331 D2: first-run operators land on the guided /setup SEQUENCE
-        // surface (Setup Assistant), not the /program reference drawer
-        // (System Settings). ADR-297 had moved the redirect off ADR-244 D5's
-        // /settings?tab=workspace to /program; ADR-331 moves it one more hop
-        // to the welcome-shaped guided sequence. The /program drawer remains
-        // the random-access reference rendering; both read the same
-        // api.workspace.getState() composition. The state-fetch still
-        // triggers roster scaffolding as a side effect.
-        if (next === HOME_ROUTE) {
-          try {
-            setStatus("Setting up...");
-            const state = await api.workspace.getState(); // triggers roster scaffolding
-            if (state.activation_state === "none" && !state.active_program_slug) {
-              window.location.href = "/setup?first_run=1";
-              return;
-            }
-          } catch {
-            // Best effort — HOME_ROUTE is the fallback anyway
-          }
-        }
+        // ADR-437 (2026-07-10): NO first-run wizard. Genesis is empty (ADR-414
+        // D4) and activation is not a setup ceremony — a cold sign-up lands on
+        // the default landing (HOME_ROUTE), where the empty-state teaches the
+        // moat and invites the first substrate-creating act (ADR-437 D3). The
+        // guided /setup SEQUENCE surface + its first_run redirect are deleted.
+        // A lazy workspace-state fetch still triggers backend scaffolding on
+        // first load via GET /api/workspace/state; the shell does it.
         window.location.href = next;
       };
 

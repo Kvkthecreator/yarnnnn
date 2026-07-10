@@ -50,9 +50,14 @@ export type KernelSurfaceSlug =
   // those are per-agent concepts surfaced on the agent detail. The registry rows
   // survive backend-side (dormant) so flat search knows them; they leave the FE
   // navigable set. (Slugs not quoted in this comment for the same parity reason.)
+  // ADR-437 (2026-07-10): the `setup` slug is REMOVED from the union — the
+  // guided first-boot wizard is deleted (genesis is empty, ADR-414; activation
+  // reframes to cold-landing + the shared-artifact wedge). The registry row
+  // survives backend-side (dormant) for flat search; /setup → /chat stub.
+  // (Slug intentionally not written as a quoted literal here — the parity gate
+  // reads quoted names from this union up to the first semicolon.)
   | 'files'
   | 'agents'
-  | 'setup'  // ADR-331 D1 — guided first-boot Sequence surface
   | 'program'
   | 'queue'
   | 'notifications'  // ADR-346/349 — the operating-work composition (was 'operation')
@@ -95,11 +100,13 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   // removes mandate / principles / identity too — a workspace has no
   // constitution of its own (ADR-414 D6). ADR-432 D2d (2026-07-09) removes
   // `program` — the operator-facing hire pane is retired; the slug goes dormant
-  // (routeless, backend-only, like the constitution surfaces). All are dormant
-  // registry rows; the three-way parity (navigable == allowlist ==
-  // registry∪panes) holds with them out of all three.
+  // (routeless, backend-only, like the constitution surfaces). ADR-437
+  // (2026-07-10) removes `setup` — the guided first-boot wizard is deleted
+  // (genesis is empty, ADR-414; activation reframes to cold-landing + the
+  // shared-artifact wedge). All are dormant registry rows; the three-way parity
+  // (navigable == allowlist == registry∪panes) holds with them out of all three.
   'chat', 'recurrence', 'budget', 'autonomy',
-  'files', 'agents', 'setup', 'queue', 'notifications', 'activity',
+  'files', 'agents', 'queue', 'notifications', 'activity',
   // ADR-425 D2: `sources` LEFT the allowlist (hidden, redirect-stub only).
   'settings', 'workspace-settings', 'system-agent', 'connectors',
 ] as const;

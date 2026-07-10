@@ -155,13 +155,20 @@ def test_three_way_parity() -> None:
     )
 
 
-def test_setup_wired() -> None:
-    print("\n[setup] ADR-331 surface reachable from the OS shell")
-    check("backend registers setup", "setup" in _backend_navigable_slugs())
-    check("FE allowlist includes setup", "setup" in _fe_allowlist_slugs())
-    check("FE registry maps setup → SetupPage",
-          "setup:" in _read("components/shell/SurfaceRegistry.tsx")
-          and "SetupPage" in _read("components/shell/SurfaceRegistry.tsx"))
+def test_setup_dormant() -> None:
+    # ADR-437 (2026-07-10): the guided first-boot /setup wizard is DELETED
+    # (genesis is empty, ADR-414 D4; activation reframes to cold-landing + the
+    # shared-artifact wedge). The slug goes dormant — a registry row with no
+    # route, off the FE navigable set (mirrors ADR-421/432 dormant slugs).
+    print("\n[setup] ADR-437 — the setup wizard is deleted; slug dormant")
+    from services.kernel_surfaces import KERNEL_SURFACES
+    setup_row = next((e for e in KERNEL_SURFACES if e["slug"] == "setup"), None)
+    check("backend retains a dormant setup registry row", setup_row is not None)
+    check("setup row carries no route (non-navigable)", not (setup_row or {}).get("route"))
+    check("setup NOT in backend navigable set", "setup" not in _backend_navigable_slugs())
+    check("setup NOT in FE allowlist", "setup" not in _fe_allowlist_slugs())
+    reg = _read("components/shell/SurfaceRegistry.tsx")
+    check("FE registry does not map setup", "setup:" not in reg and "SetupPage" not in reg)
 
 
 def test_pace_retired_budget_canonical() -> None:
@@ -180,7 +187,7 @@ def main() -> int:
     print("ADR-338 surface audit — backend ↔ frontend kernel-surface parity")
     print("=" * 70)
     test_three_way_parity()
-    test_setup_wired()
+    test_setup_dormant()
     test_pace_retired_budget_canonical()
     print("\n" + "=" * 70)
     print(f"  {PASSED} passed, {FAILED} failed")

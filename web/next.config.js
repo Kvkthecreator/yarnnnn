@@ -27,6 +27,10 @@ const nextConfig = {
       { source: '/channels', destination: '/chat', permanent: false },
       { source: '/context', destination: '/chat', permanent: false },
       { source: '/home', destination: '/chat', permanent: false },
+      // ADR-437 (2026-07-10) — the guided first-boot /setup wizard is deleted
+      // (genesis is empty, ADR-414; activation reframes to cold-landing + the
+      // shared-artifact wedge). Bookmark-safe transport to the dock anchor.
+      { source: '/setup', destination: '/chat', permanent: false },
     ];
   },
 };

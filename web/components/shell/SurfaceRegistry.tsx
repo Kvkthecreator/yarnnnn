@@ -57,11 +57,9 @@ import NotificationsPage from '@/app/(authenticated)/notifications/page';
 // + ?pane=activity, and /activity is an ADR-308 redirect stub.
 import AgentsPage from '@/app/(authenticated)/agents/page';
 import FilesPage from '@/app/(authenticated)/files/page';
-// ADR-331 D1: the guided first-boot Sequence surface. Built as a page +
-// SetupSequence renderer but never registered as a kernel surface until the
-// ADR-338 surface audit — the launcher's "Setup" link was a dead no-op
-// because isKernelSurfaceSlug('setup') was false.
-import SetupPage from '@/app/(authenticated)/setup/page';
+// ADR-437 (2026-07-10): the `setup` guided first-boot Sequence surface is
+// DELETED (genesis is empty, ADR-414; activation reframes to cold-landing +
+// the shared-artifact wedge). No import, no registry entry; /setup → /chat stub.
 // ADR-297 D19.4 (2026-05-22) — Settings + Connectors promoted from
 // legacy pages to atomic kernel surfaces. Reverses D19.7.
 // ADR-347 (2026-06-19) — the two-door split (ADR-341) is reversed.
@@ -97,7 +95,7 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   // ADR-340 D8 — `activity` is pane-grade under recurrence; no window component.
   agents: AgentsPage,
   files: FilesPage,
-  setup: SetupPage,  // ADR-331 D1 — guided first-boot Sequence
+  // ADR-437 (2026-07-10) — `setup` deleted (dormant registry row backend-side).
   settings: SettingsPage,  // ADR-347 — the account window (UserMenu-reached: billing/usage/account)
   'workspace-settings': WorkspaceSettingsPage,  // ADR-347 — the ONE Settings door (the operation)
   'system-agent': SystemAgentPage,  // ADR-426 — the Freddie System Agent door (Autonomy/Budget/Capabilities/Activity)

@@ -540,27 +540,23 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "Agent roster — hired Altitude-3 persona agents (the deferred horizon; A2 chat lanes are the launch AI surface).",
     },
     {
-        # ADR-331 D1 (2026-06-10): the guided first-boot SEQUENCE rendering
-        # over the same workspace-state composition the /program drawer
-        # presents random-access. macOS Setup Assistant ⇄ System Settings:
-        # one substrate, two presentation registers. NO stored wizard state
-        # — every step's status is derived from substrate at render time
-        # (substrate_status authored? platform_connections active? harvest
-        # invocation in narrative?). `substrate_paths == []` is load-bearing:
-        # the surface owns no file; it reads api.workspace.getState(). The
-        # first-run redirect (auth/callback), the Home empty-state CTA, and
-        # the summon-index all point here. Re-enterable any time (the
-        # Migration-Assistant property).
+        # ADR-437 (2026-07-10): DORMANT — the guided first-boot SEQUENCE surface
+        # is DELETED. It was built on the pre-pure-workspace model (ADR-414 D4/D5:
+        # genesis is empty, programs are anytime hires; ADR-421: a workspace has
+        # no constitution to author). The activation model reframes to two channels
+        # (cold discovery → the default landing with a deliberate empty state;
+        # invited/shared → one accept surface, the shared-artifact wedge) — neither
+        # needs a wizard. No `route`, no `launcher_tier` — non-navigable; the row
+        # survives for flat search only (mirrors ADR-421/432 dormant-slug pattern).
+        # `/setup` is a bookmark-safe redirect → /chat (web/next.config.js).
         "slug": "setup",
-        "launcher_tier": "search-only",  # ADR-349 D5 — a motion you re-enter (Home CTA + Workspace Settings); off the at-rest launcher
-        "register": "os-config",  # ADR-309/312 — it configures the OS, not an open file
+        "register": "os-config",  # ADR-309/312 — it configured the OS (dormant)
         "title": "Setup",
-        "archetype": "sequence",  # ADR-331 D1 — new archetype
-        "substrate_paths": [],  # reads api.workspace.getState() composition; owns no file
+        "archetype": "sequence",
+        "substrate_paths": [],
         "icon_key": "rocket",
-        "default_pinned": False,  # summon-only after first run
-        "route": "/setup",  # _route_status: NEW in ADR-331 Phase 1
-        "summary": "Guided first-boot sequence — activate, author, connect, bring in reality.",
+        "default_pinned": False,
+        "summary": "Guided first-boot sequence (DORMANT — ADR-437 deleted the wizard).",
     },
     {
         "slug": "program",
