@@ -27,6 +27,7 @@ import { parseUploadFrontmatter, uploadSourceCaption } from '@/lib/workspace/upl
 import { TILE_PREVIEW_GROUND } from '@/components/workspace/FileTile';
 import { cn } from '@/lib/utils';
 import { useSignedBlobUrl, BlobLoading, BlobError, BlobMissing } from './blob';
+import { useArtifactProjection } from './projection';
 
 /** The frame-agnostic viewer-app contract (ADR-436 §2). */
 export interface ViewerAppProps {
@@ -91,10 +92,15 @@ export const MarkdownViewer: ViewerApp = ({ file }) => {
 // ---------------------------------------------------------------------------
 export const WebViewer: ViewerApp = ({ file, compact }) => {
   const filename = file.path.split('/').pop() || file.path;
+  // ADR-441 D3: citations resolve in the RENDERER — every mount (ArtifactCard,
+  // FileOpenModal, the Files detail) draws a citing artifact exactly as the
+  // Studio canvas does. Non-citing HTML renders verbatim (the projection
+  // short-circuits); a citing document holds blank until the projection lands.
+  const { needsProjection, projected } = useArtifactProjection(file);
   return (
     <iframe
       title={filename}
-      srcDoc={file.content || ''}
+      srcDoc={needsProjection ? projected ?? '' : file.content || ''}
       sandbox=""
       className={cn(
         'w-full rounded-lg border border-border bg-white',

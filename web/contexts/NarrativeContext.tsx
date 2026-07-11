@@ -13,6 +13,7 @@ import { TPState, TPAction, TPMessage, TPToolResult, TPImageAttachment, TPNotifi
 import { SetupConfirmData } from '@/components/modals/SetupConfirmModal';
 import { api } from '@/lib/api/client';
 import { postChatWithFallback } from '@/lib/api/chatTransport';
+import { sseEvents } from '@/lib/sse';
 import { getToolDisplayMessage } from '@/lib/utils';
 import { getFreddiePersonaName } from '@/lib/freddie-persona';
 import { useSessionMessagesRealtime } from '@/lib/realtime/use-session-messages-realtime';
@@ -671,9 +672,12 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
           throw new Error(errorDetail);
         }
 
-        // Handle streaming response
-        const reader = response.body?.getReader();
-        if (!reader) {
+        // Handle streaming response — ADR-441 D4: the byte-level SSE
+        // transport is shared (lib/sse); the steward EVENT VOCABULARY
+        // dispatched below stays this reader's own (ADR-441 D1 — the
+        // altitude seam is a wire-protocol seam).
+        const streamBody = response.body;
+        if (!streamBody) {
           throw new Error('No response body');
         }
 
@@ -686,8 +690,6 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
         let assistantContent = '';
         const toolResults: TPToolResult[] = [];
         const blocks: MessageBlock[] = [];
-        const decoder = new TextDecoder();
-        let buffer = '';
         let pendingSurface: DeskSurface | null = null;
         let pendingHandoff: string | null = null;
         let clarifyWasCalled = false;
@@ -707,225 +709,253 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
           dispatch({ type: 'UPDATE_STREAMING_MESSAGE', messageId: streamingMessageId, blocks: [...blocks], content: assistantContent });
         };
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        for await (const rawEvent of sseEvents(streamBody)) {
+          // The steward vocabulary is dispatched dynamically below — before
+          // ADR-441 this was JSON.parse's implicit `any`; the cast preserves
+          // that contract at the one loop boundary.
+          const event = rawEvent as Record<string, any>;
+          try {
+            // API sends: {stream_start}, {content}, {tool_use}, {tool_result}, {done}, {error}
+            if (event.stream_start) {
+              // ADR-124: Author attribution from backend
+              streamAuthor = {
+                agentId: event.author_agent_id,
+                agentSlug: event.author_agent_slug,
+                role: event.author_role,
+                name: event.author_name,
+              };
+              // Insert the streaming placeholder now — only when we know the
+              // System Agent will stream content. Reviewer turns never reach
+              // stream_start; they call loadScopedHistory() on reviewer_response.
+              streamingMessageId = crypto.randomUUID();
+              const streamingPlaceholder: TPMessage = {
+                id: streamingMessageId,
+                role: 'assistant',
+                content: '',
+                blocks: [],
+                timestamp: new Date(),
+                narrative: { pulse: 'addressed', weight: 'material' },
+                ...(event.author_agent_id && { authorAgentId: event.author_agent_id }),
+                ...(event.author_agent_slug && { authorAgentSlug: event.author_agent_slug }),
+                ...(event.author_role && { authorRole: event.author_role }),
+                ...(event.author_name && { authorName: event.author_name }),
+              };
+              dispatch({ type: 'ADD_MESSAGE', message: streamingPlaceholder });
+              setStatus({ type: 'streaming', content: '' });
+            } else if (event.content) {
+              assistantContent += event.content;
+              // Update or add text block
+              // Key fix: only update the LAST text block if it's the most recent block
+              // If a tool_call block is more recent, create a NEW text block
+              const lastBlock = blocks[blocks.length - 1];
+              if (lastBlock?.type === 'text') {
+                // Continue appending to existing text block
+                lastBlock.content += event.content;
+              } else {
+                // After a tool_call, start a fresh text block
+                blocks.push({ type: 'text', content: event.content });
+              }
+              // Batch updates to reduce re-renders
+              if (assistantContent.length % 50 < event.content.length || event.content.includes('\n')) {
+                setStatus({ type: 'streaming', content: assistantContent });
+                updateStreamingMessage();
+              }
+            } else if (event.tool_use) {
+              // ADR-042: Add pending tool call block immediately
+              const toolId = event.tool_use.id || `tool_${Date.now()}`;
+              const toolBlock: MessageBlock = {
+                type: 'tool_call',
+                id: toolId,
+                tool: event.tool_use.name,
+                input: event.tool_use.input,
+                status: 'pending',
+              };
+              blocks.push(toolBlock);
+              pendingToolCalls.set(toolId, blocks.length - 1);
+              // ADR-039: Use descriptive tool display message (Claude Code style)
+              const toolDisplayMessage = getToolDisplayMessage(
+                event.tool_use.name,
+                event.tool_use.input as Record<string, unknown>
+              );
+              setStatus({ type: 'tool', toolName: event.tool_use.name, toolDisplayMessage });
+              updateStreamingMessage();
+            } else if (event.tool_result) {
+              const toolResult = event.tool_result.result || event.tool_result;
+              const result: TPToolResult = {
+                toolName: event.tool_result.name,
+                success: toolResult.success ?? true,
+                data: toolResult,
+                uiAction: toolResult.ui_action,
+              };
+              toolResults.push(result);
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
+              // ADR-042: Update the pending tool call block with result
+              const toolId = event.tool_result.tool_use_id;
+              const blockIdx = pendingToolCalls.get(toolId);
+              if (blockIdx !== undefined && blocks[blockIdx]?.type === 'tool_call') {
+                const toolBlock = blocks[blockIdx] as Extract<MessageBlock, { type: 'tool_call' }>;
+                toolBlock.status = result.success ? 'success' : 'failed';
+                toolBlock.result = result;
+              }
+              updateStreamingMessage();
 
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
+              // Handle UI actions
+              if (result.uiAction) {
+                const action = result.uiAction;
 
-            try {
-              const event = JSON.parse(data);
+                if (action.type === 'OPEN_SURFACE' && onSurfaceChange) {
+                  const newSurface = mapToolActionToSurface(action);
+                  if (newSurface) pendingSurface = newSurface;
+                  const navMessage = result.data?.message as string;
+                  if (navMessage && !assistantContent) assistantContent = navMessage;
+                  setStatus({ type: 'complete', message: navMessage });
+                } else if (action.type === 'RESPOND') {
+                  const message = action.data?.message as string;
+                  if (message) {
+                    assistantContent = message;
+                    if (pendingSurface) pendingHandoff = message;
+                    // Add text block for response - always create new block after tool
+                    // This ensures tool results don't get mixed with subsequent text
+                    blocks.push({ type: 'text', content: message });
+                    setStatus({ type: 'streaming', content: message });
+                    updateStreamingMessage();
+                  }
+                } else if (action.type === 'CLARIFY') {
+                  const question = action.data?.question as string || '';
+                  const options = action.data?.options as string[] | undefined;
+                  clarifyWasCalled = true;
+                  blocks.push({ type: 'clarify', question, options });
+                  setPendingClarification({ question, options });
+                  setStatus({ type: 'clarify', question, options });
+                  updateStreamingMessage();
+                } else if (action.type === 'SHOW_SETUP_CONFIRM') {
+                  const setupData = action.data as unknown as SetupConfirmData;
+                  setSetupConfirmModal({ open: true, data: setupData });
+                  setStatus({ type: 'complete', message: 'Agent created' });
+                } else if (action.type === 'NAVIGATE') {
+                  // ADR-144: Navigation links shown inline on tool call result.
+                  // No auto-redirect — user clicks the "View →" link when ready.
+                  // Auto-redirect was removed because bulk tool calls (e.g., creating
+                  // 5 tasks in one turn) would redirect on the first result, losing
+                  // the remaining tool calls and TP's response text.
+                } else if (action.type === 'UPDATE_TODOS') {
+                  const todos = (action.data?.todos as Todo[]) || [];
+                  dispatch({ type: 'SET_TODOS', todos });
+                  if (todos.length > 0) {
+                    dispatch({ type: 'SET_WORK_PANEL_EXPANDED', expanded: true });
+                  }
+                }
+              }
 
-              // API sends: {stream_start}, {content}, {tool_use}, {tool_result}, {done}, {error}
-              if (event.stream_start) {
-                // ADR-124: Author attribution from backend
-                streamAuthor = {
-                  agentId: event.author_agent_id,
-                  agentSlug: event.author_agent_slug,
-                  role: event.author_role,
-                  name: event.author_name,
-                };
-                // Insert the streaming placeholder now — only when we know the
-                // System Agent will stream content. Reviewer turns never reach
-                // stream_start; they call loadScopedHistory() on reviewer_response.
-                streamingMessageId = crypto.randomUUID();
-                const streamingPlaceholder: TPMessage = {
-                  id: streamingMessageId,
-                  role: 'assistant',
-                  content: '',
-                  blocks: [],
-                  timestamp: new Date(),
-                  narrative: { pulse: 'addressed', weight: 'material' },
-                  ...(event.author_agent_id && { authorAgentId: event.author_agent_id }),
-                  ...(event.author_agent_slug && { authorAgentSlug: event.author_agent_slug }),
-                  ...(event.author_role && { authorRole: event.author_role }),
-                  ...(event.author_name && { authorName: event.author_name }),
-                };
-                dispatch({ type: 'ADD_MESSAGE', message: streamingPlaceholder });
-                setStatus({ type: 'streaming', content: '' });
-              } else if (event.content) {
-                assistantContent += event.content;
-                // Update or add text block
-                // Key fix: only update the LAST text block if it's the most recent block
-                // If a tool_call block is more recent, create a NEW text block
+              // ADR-155: Notification-worthy tool results → inline card + FAB badge
+              const toolName = event.tool_result.name;
+              const resultData = toolResult;
+              let notifTitle = '';
+              let notifDesc = '';
+
+              // ADR-235 D1.a: InferWorkspace produces identity + brand + entities
+              // + work_intent in one Sonnet call; result carries `scaffolded` at
+              // top level (entities-by-domain) plus `entity_count`.
+              if (toolName === 'InferWorkspace' && resultData.scaffolded) {
+                const scaffolded = resultData.scaffolded as Record<string, unknown>;
+                const domains = Object.keys(scaffolded).filter(
+                  (k) => Array.isArray(scaffolded[k])
+                );
+                const total = domains.reduce(
+                  (sum: number, k: string) => sum + ((scaffolded[k] as unknown[])?.length ?? 0),
+                  0
+                );
+                notifTitle = 'Workspace scaffolded';
+                notifDesc = `${total} entities across ${domains.length} domains`;
+              } else if (toolName === 'ManageRecurrence' && resultData.success) {
+                // ADR-235 D1.c: lifecycle actions (create/update/pause/resume/archive).
+                const mrAction = resultData.action as string;
+                if (mrAction === 'create') {
+                  notifTitle = 'Recurrence created';
+                  notifDesc = (resultData.message as string) || (resultData.slug as string) || '';
+                } else if (mrAction === 'archive') {
+                  notifTitle = 'Recurrence archived';
+                  notifDesc = (resultData.message as string) || '';
+                }
+              }
+
+              if (notifTitle) {
+                // Inline card in chat stream (persists in history)
+                blocks.push({ type: 'notification', title: notifTitle, description: notifDesc, toolName });
+                updateStreamingMessage();
+                // FAB badge (for when chat is closed)
+                dispatch({
+                  type: 'ADD_NOTIFICATION',
+                  notification: { id: crypto.randomUUID(), toolName, title: notifTitle, description: notifDesc, timestamp: new Date() },
+                });
+              }
+            } else if (event.usage) {
+              // Track token usage from API
+              setTokenUsage({
+                inputTokens: event.usage.input_tokens,
+                outputTokens: event.usage.output_tokens,
+                totalTokens: event.usage.total_tokens,
+              });
+            } else if (event.reviewer_progress) {
+              const phase = event.phase;
+
+              // ADR-351 Phase 2: the Reviewer's reasoning streams token-by-
+              // token. On the first delta, insert a streaming REVIEWER bubble
+              // (the stream_start analog the Reviewer path never had — see the
+              // comment at the stream_start branch) and append progressively,
+              // mirroring the System Agent content path above. The bubble is
+              // TRANSIENT: when reviewer_response arrives, fetchAndSetHistory()
+              // replaces the whole scoped history with DB truth, dropping this
+              // placeholder and rendering the authoritative FreddieCard. So
+              // the operator watches the reasoning build, then it settles into
+              // the persisted card — no duplicate.
+              if (phase === 'text_delta') {
+                const chunk: string = event.text ?? '';
+                if (!chunk) continue;
+                if (!streamingMessageId) {
+                  streamingMessageId = crypto.randomUUID();
+                  // role:'freddie' is what MessageDispatch keys the
+                  // freddie-bubble on (MessageDispatch.tsx:77), matching a
+                  // real system-agent history row.
+                  const freddiePlaceholder: TPMessage = {
+                    id: streamingMessageId,
+                    role: 'freddie',
+                    content: '',
+                    blocks: [],
+                    timestamp: new Date(),
+                    narrative: { pulse: 'addressed', weight: 'material' },
+                  };
+                  dispatch({ type: 'ADD_MESSAGE', message: freddiePlaceholder });
+                }
+                assistantContent += chunk;
                 const lastBlock = blocks[blocks.length - 1];
                 if (lastBlock?.type === 'text') {
-                  // Continue appending to existing text block
-                  lastBlock.content += event.content;
+                  lastBlock.content += chunk;
                 } else {
-                  // After a tool_call, start a fresh text block
-                  blocks.push({ type: 'text', content: event.content });
+                  blocks.push({ type: 'text', content: chunk });
                 }
-                // Batch updates to reduce re-renders
-                if (assistantContent.length % 50 < event.content.length || event.content.includes('\n')) {
-                  setStatus({ type: 'streaming', content: assistantContent });
+                // The streaming BUBBLE is the surface for the reasoning text —
+                // do NOT echo it into the transient status line (that would
+                // duplicate the whole block into the 11px status row). Clear
+                // status.content so the panel's `streaming && content` guard
+                // hides the line while the bubble carries the words. This is
+                // the 'streaming' state of D3's thinking/streaming/settled.
+                if (assistantContent.length % 50 < chunk.length || chunk.includes('\n')) {
+                  setStatus({ type: 'streaming', content: '' });
                   updateStreamingMessage();
                 }
-              } else if (event.tool_use) {
-                // ADR-042: Add pending tool call block immediately
-                const toolId = event.tool_use.id || `tool_${Date.now()}`;
-                const toolBlock: MessageBlock = {
-                  type: 'tool_call',
-                  id: toolId,
-                  tool: event.tool_use.name,
-                  input: event.tool_use.input,
-                  status: 'pending',
-                };
-                blocks.push(toolBlock);
-                pendingToolCalls.set(toolId, blocks.length - 1);
-                // ADR-039: Use descriptive tool display message (Claude Code style)
-                const toolDisplayMessage = getToolDisplayMessage(
-                  event.tool_use.name,
-                  event.tool_use.input as Record<string, unknown>
-                );
-                setStatus({ type: 'tool', toolName: event.tool_use.name, toolDisplayMessage });
-                updateStreamingMessage();
-              } else if (event.tool_result) {
-                const toolResult = event.tool_result.result || event.tool_result;
-                const result: TPToolResult = {
-                  toolName: event.tool_result.name,
-                  success: toolResult.success ?? true,
-                  data: toolResult,
-                  uiAction: toolResult.ui_action,
-                };
-                toolResults.push(result);
-
-                // ADR-042: Update the pending tool call block with result
-                const toolId = event.tool_result.tool_use_id;
-                const blockIdx = pendingToolCalls.get(toolId);
-                if (blockIdx !== undefined && blocks[blockIdx]?.type === 'tool_call') {
-                  const toolBlock = blocks[blockIdx] as Extract<MessageBlock, { type: 'tool_call' }>;
-                  toolBlock.status = result.success ? 'success' : 'failed';
-                  toolBlock.result = result;
-                }
-                updateStreamingMessage();
-
-                // Handle UI actions
-                if (result.uiAction) {
-                  const action = result.uiAction;
-
-                  if (action.type === 'OPEN_SURFACE' && onSurfaceChange) {
-                    const newSurface = mapToolActionToSurface(action);
-                    if (newSurface) pendingSurface = newSurface;
-                    const navMessage = result.data?.message as string;
-                    if (navMessage && !assistantContent) assistantContent = navMessage;
-                    setStatus({ type: 'complete', message: navMessage });
-                  } else if (action.type === 'RESPOND') {
-                    const message = action.data?.message as string;
-                    if (message) {
-                      assistantContent = message;
-                      if (pendingSurface) pendingHandoff = message;
-                      // Add text block for response - always create new block after tool
-                      // This ensures tool results don't get mixed with subsequent text
-                      blocks.push({ type: 'text', content: message });
-                      setStatus({ type: 'streaming', content: message });
-                      updateStreamingMessage();
-                    }
-                  } else if (action.type === 'CLARIFY') {
-                    const question = action.data?.question as string || '';
-                    const options = action.data?.options as string[] | undefined;
-                    clarifyWasCalled = true;
-                    blocks.push({ type: 'clarify', question, options });
-                    setPendingClarification({ question, options });
-                    setStatus({ type: 'clarify', question, options });
-                    updateStreamingMessage();
-                  } else if (action.type === 'SHOW_SETUP_CONFIRM') {
-                    const setupData = action.data as unknown as SetupConfirmData;
-                    setSetupConfirmModal({ open: true, data: setupData });
-                    setStatus({ type: 'complete', message: 'Agent created' });
-                  } else if (action.type === 'NAVIGATE') {
-                    // ADR-144: Navigation links shown inline on tool call result.
-                    // No auto-redirect — user clicks the "View →" link when ready.
-                    // Auto-redirect was removed because bulk tool calls (e.g., creating
-                    // 5 tasks in one turn) would redirect on the first result, losing
-                    // the remaining tool calls and TP's response text.
-                  } else if (action.type === 'UPDATE_TODOS') {
-                    const todos = (action.data?.todos as Todo[]) || [];
-                    dispatch({ type: 'SET_TODOS', todos });
-                    if (todos.length > 0) {
-                      dispatch({ type: 'SET_WORK_PANEL_EXPANDED', expanded: true });
-                    }
-                  }
-                }
-
-                // ADR-155: Notification-worthy tool results → inline card + FAB badge
-                const toolName = event.tool_result.name;
-                const resultData = toolResult;
-                let notifTitle = '';
-                let notifDesc = '';
-
-                // ADR-235 D1.a: InferWorkspace produces identity + brand + entities
-                // + work_intent in one Sonnet call; result carries `scaffolded` at
-                // top level (entities-by-domain) plus `entity_count`.
-                if (toolName === 'InferWorkspace' && resultData.scaffolded) {
-                  const scaffolded = resultData.scaffolded as Record<string, unknown>;
-                  const domains = Object.keys(scaffolded).filter(
-                    (k) => Array.isArray(scaffolded[k])
-                  );
-                  const total = domains.reduce(
-                    (sum: number, k: string) => sum + ((scaffolded[k] as unknown[])?.length ?? 0),
-                    0
-                  );
-                  notifTitle = 'Workspace scaffolded';
-                  notifDesc = `${total} entities across ${domains.length} domains`;
-                } else if (toolName === 'ManageRecurrence' && resultData.success) {
-                  // ADR-235 D1.c: lifecycle actions (create/update/pause/resume/archive).
-                  const mrAction = resultData.action as string;
-                  if (mrAction === 'create') {
-                    notifTitle = 'Recurrence created';
-                    notifDesc = (resultData.message as string) || (resultData.slug as string) || '';
-                  } else if (mrAction === 'archive') {
-                    notifTitle = 'Recurrence archived';
-                    notifDesc = (resultData.message as string) || '';
-                  }
-                }
-
-                if (notifTitle) {
-                  // Inline card in chat stream (persists in history)
-                  blocks.push({ type: 'notification', title: notifTitle, description: notifDesc, toolName });
-                  updateStreamingMessage();
-                  // FAB badge (for when chat is closed)
-                  dispatch({
-                    type: 'ADD_NOTIFICATION',
-                    notification: { id: crypto.randomUUID(), toolName, title: notifTitle, description: notifDesc, timestamp: new Date() },
-                  });
-                }
-              } else if (event.usage) {
-                // Track token usage from API
-                setTokenUsage({
-                  inputTokens: event.usage.input_tokens,
-                  outputTokens: event.usage.output_tokens,
-                  totalTokens: event.usage.total_tokens,
-                });
-              } else if (event.reviewer_progress) {
-                const phase = event.phase;
-
-                // ADR-351 Phase 2: the Reviewer's reasoning streams token-by-
-                // token. On the first delta, insert a streaming REVIEWER bubble
-                // (the stream_start analog the Reviewer path never had — see the
-                // comment at the stream_start branch) and append progressively,
-                // mirroring the System Agent content path above. The bubble is
-                // TRANSIENT: when reviewer_response arrives, fetchAndSetHistory()
-                // replaces the whole scoped history with DB truth, dropping this
-                // placeholder and rendering the authoritative FreddieCard. So
-                // the operator watches the reasoning build, then it settles into
-                // the persisted card — no duplicate.
-                if (phase === 'text_delta') {
-                  const chunk: string = event.text ?? '';
-                  if (!chunk) continue;
+              } else {
+                // ADR-398 D1 (amends ADR-351 D4's scope): the FE never
+                // INVENTS meaning from a primitive name (D4's deletion
+                // stands) — but it DOES render what the runtime REPORTS:
+                // the actual call (tool name + server-composed input
+                // summary) as a tool_call block in the streaming Freddie
+                // bubble, the same ADR-042 block shape the settled card
+                // reconstructs from metadata.tool_history.
+                if (phase === 'tool_start') {
                   if (!streamingMessageId) {
                     streamingMessageId = crypto.randomUUID();
-                    // role:'freddie' is what MessageDispatch keys the
-                    // freddie-bubble on (MessageDispatch.tsx:77), matching a
-                    // real system-agent history row.
-                    const freddiePlaceholder: TPMessage = {
+                    const reviewerPlaceholder: TPMessage = {
                       id: streamingMessageId,
                       role: 'freddie',
                       content: '',
@@ -933,161 +963,103 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                       timestamp: new Date(),
                       narrative: { pulse: 'addressed', weight: 'material' },
                     };
-                    dispatch({ type: 'ADD_MESSAGE', message: freddiePlaceholder });
+                    dispatch({ type: 'ADD_MESSAGE', message: reviewerPlaceholder });
                   }
-                  assistantContent += chunk;
+                  // ADR-399: text streamed before a tool call is interim
+                  // reasoning — re-type the open text block to 'thinking'
+                  // (persisted server-side as the trail's reasoning entry);
+                  // only the text trailing the LAST call is the report.
                   const lastBlock = blocks[blocks.length - 1];
-                  if (lastBlock?.type === 'text') {
-                    lastBlock.content += chunk;
-                  } else {
-                    blocks.push({ type: 'text', content: chunk });
+                  if (lastBlock?.type === 'text' && lastBlock.content.trim()) {
+                    blocks[blocks.length - 1] = { type: 'thinking', content: lastBlock.content };
+                    assistantContent = '';
                   }
-                  // The streaming BUBBLE is the surface for the reasoning text —
-                  // do NOT echo it into the transient status line (that would
-                  // duplicate the whole block into the 11px status row). Clear
-                  // status.content so the panel's `streaming && content` guard
-                  // hides the line while the bubble carries the words. This is
-                  // the 'streaming' state of D3's thinking/streaming/settled.
-                  if (assistantContent.length % 50 < chunk.length || chunk.includes('\n')) {
-                    setStatus({ type: 'streaming', content: '' });
-                    updateStreamingMessage();
-                  }
-                } else {
-                  // ADR-398 D1 (amends ADR-351 D4's scope): the FE never
-                  // INVENTS meaning from a primitive name (D4's deletion
-                  // stands) — but it DOES render what the runtime REPORTS:
-                  // the actual call (tool name + server-composed input
-                  // summary) as a tool_call block in the streaming Freddie
-                  // bubble, the same ADR-042 block shape the settled card
-                  // reconstructs from metadata.tool_history.
-                  if (phase === 'tool_start') {
-                    if (!streamingMessageId) {
-                      streamingMessageId = crypto.randomUUID();
-                      const reviewerPlaceholder: TPMessage = {
-                        id: streamingMessageId,
-                        role: 'freddie',
-                        content: '',
-                        blocks: [],
-                        timestamp: new Date(),
-                        narrative: { pulse: 'addressed', weight: 'material' },
-                      };
-                      dispatch({ type: 'ADD_MESSAGE', message: reviewerPlaceholder });
-                    }
-                    // ADR-399: text streamed before a tool call is interim
-                    // reasoning — re-type the open text block to 'thinking'
-                    // (persisted server-side as the trail's reasoning entry);
-                    // only the text trailing the LAST call is the report.
-                    const lastBlock = blocks[blocks.length - 1];
-                    if (lastBlock?.type === 'text' && lastBlock.content.trim()) {
-                      blocks[blocks.length - 1] = { type: 'thinking', content: lastBlock.content };
-                      assistantContent = '';
-                    }
-                    const inputSummary: string = event.input_summary ?? '';
-                    blocks.push({
-                      type: 'tool_call',
-                      id: `live_${blocks.length}`,
-                      tool: event.tool as string,
-                      input: inputSummary ? { summary: inputSummary } : {},
-                      status: 'pending',
-                    });
-                    updateStreamingMessage();
-                    // Persona-aware transient status line (ADR-338 DP28
-                    // consent line) — persona name if authored, else Freddie.
-                    const speaker = getFreddiePersonaName() ?? 'Freddie';
-                    setStatus({ type: 'streaming', content: `${speaker} is working through it…` });
-                  } else if (phase === 'tool_end') {
-                    // Close the most recent open tool_call block for this tool.
-                    for (let i = blocks.length - 1; i >= 0; i--) {
-                      const b = blocks[i];
-                      if (b.type === 'tool_call' && b.tool === event.tool && b.status === 'pending') {
-                        b.status = event.success === false ? 'failed' : 'success';
-                        b.result = {
-                          toolName: event.tool as string,
-                          success: event.success !== false,
-                          data: { message: (event.summary as string) || 'done' },
-                        };
-                        break;
-                      }
-                    }
-                    updateStreamingMessage();
-                  }
-                }
-              } else if (event.reviewer_response) {
-                // ADR-399: settle IN PLACE — nothing the operator watched is
-                // removed or replaced. The trailing live text block was the
-                // report streaming in; the settled body is the authoritative
-                // reviewer_response text (the same words). The DB row —
-                // persisted by the route with the identical trail — takes
-                // over on the next natural history load, pixel-equivalent.
-                // (The pre-ADR-399 fetchAndSetHistory() replace here WAS the
-                // operator-visible delete-rewrite. Deleted.)
-                const finalText = event.reviewer_response as string;
-                // Trailing streamed text is interim reasoning too (the report
-                // arrives from the verdict, not the delta stream) — re-type it
-                // to 'thinking', don't discard it. Dedup guard: if it IS the
-                // report (model streamed the same words), drop the duplicate.
-                const normFinal = finalText.replace(/\s+/g, ' ').trim();
-                for (let i = blocks.length - 1; i >= 0; i--) {
-                  const b = blocks[i];
-                  if (b.type !== 'text') break;
-                  const normText = b.content.replace(/\s+/g, ' ').trim();
-                  if (normText && (normFinal.includes(normText) || normText.includes(normFinal))) {
-                    blocks.splice(i, 1);
-                  } else if (normText) {
-                    blocks[i] = { type: 'thinking', content: b.content };
-                  } else {
-                    blocks.splice(i, 1);
-                  }
-                }
-                assistantContent = finalText;
-                if (streamingMessageId) {
-                  updateStreamingMessage();
-                } else {
-                  // No streaming bubble existed (no deltas/tools reached us):
-                  // create the settled message directly.
-                  streamingMessageId = crypto.randomUUID();
-                  dispatch({
-                    type: 'ADD_MESSAGE',
-                    message: {
-                      id: streamingMessageId,
-                      role: 'freddie',
-                      content: finalText,
-                      blocks: [...blocks],
-                      timestamp: new Date(),
-                      narrative: { pulse: 'addressed', weight: 'material' },
-                    },
+                  const inputSummary: string = event.input_summary ?? '';
+                  blocks.push({
+                    type: 'tool_call',
+                    id: `live_${blocks.length}`,
+                    tool: event.tool as string,
+                    input: inputSummary ? { summary: inputSummary } : {},
+                    status: 'pending',
                   });
-                }
-              } else if (event.balance_exhausted) {
-                throw new Error('__balance_exhausted__');
-              } else if (event.error) {
-                throw new Error(event.error);
-              }
-            } catch (parseErr) {
-              if (parseErr instanceof Error && parseErr.message.startsWith('__')) {
-                throw parseErr;
-              }
-              console.warn('Failed to parse SSE event:', data, parseErr);
-            }
-          }
-        }
-
-        // Process remaining buffer
-        if (buffer.startsWith('data: ')) {
-          const data = buffer.slice(6);
-          if (data && data !== '[DONE]') {
-            try {
-              const event = JSON.parse(data);
-              if (event.content) {
-                assistantContent += event.content;
-                const lastBlock = blocks[blocks.length - 1];
-                if (lastBlock?.type === 'text') {
-                  lastBlock.content = assistantContent;
+                  updateStreamingMessage();
+                  // Persona-aware transient status line (ADR-338 DP28
+                  // consent line) — persona name if authored, else Freddie.
+                  const speaker = getFreddiePersonaName() ?? 'Freddie';
+                  setStatus({ type: 'streaming', content: `${speaker} is working through it…` });
+                } else if (phase === 'tool_end') {
+                  // Close the most recent open tool_call block for this tool.
+                  for (let i = blocks.length - 1; i >= 0; i--) {
+                    const b = blocks[i];
+                    if (b.type === 'tool_call' && b.tool === event.tool && b.status === 'pending') {
+                      b.status = event.success === false ? 'failed' : 'success';
+                      b.result = {
+                        toolName: event.tool as string,
+                        success: event.success !== false,
+                        data: { message: (event.summary as string) || 'done' },
+                      };
+                      break;
+                    }
+                  }
+                  updateStreamingMessage();
                 }
               }
-            } catch {
-              // Ignore
+            } else if (event.reviewer_response) {
+              // ADR-399: settle IN PLACE — nothing the operator watched is
+              // removed or replaced. The trailing live text block was the
+              // report streaming in; the settled body is the authoritative
+              // reviewer_response text (the same words). The DB row —
+              // persisted by the route with the identical trail — takes
+              // over on the next natural history load, pixel-equivalent.
+              // (The pre-ADR-399 fetchAndSetHistory() replace here WAS the
+              // operator-visible delete-rewrite. Deleted.)
+              const finalText = event.reviewer_response as string;
+              // Trailing streamed text is interim reasoning too (the report
+              // arrives from the verdict, not the delta stream) — re-type it
+              // to 'thinking', don't discard it. Dedup guard: if it IS the
+              // report (model streamed the same words), drop the duplicate.
+              const normFinal = finalText.replace(/\s+/g, ' ').trim();
+              for (let i = blocks.length - 1; i >= 0; i--) {
+                const b = blocks[i];
+                if (b.type !== 'text') break;
+                const normText = b.content.replace(/\s+/g, ' ').trim();
+                if (normText && (normFinal.includes(normText) || normText.includes(normFinal))) {
+                  blocks.splice(i, 1);
+                } else if (normText) {
+                  blocks[i] = { type: 'thinking', content: b.content };
+                } else {
+                  blocks.splice(i, 1);
+                }
+              }
+              assistantContent = finalText;
+              if (streamingMessageId) {
+                updateStreamingMessage();
+              } else {
+                // No streaming bubble existed (no deltas/tools reached us):
+                // create the settled message directly.
+                streamingMessageId = crypto.randomUUID();
+                dispatch({
+                  type: 'ADD_MESSAGE',
+                  message: {
+                    id: streamingMessageId,
+                    role: 'freddie',
+                    content: finalText,
+                    blocks: [...blocks],
+                    timestamp: new Date(),
+                    narrative: { pulse: 'addressed', weight: 'material' },
+                  },
+                });
+              }
+            } else if (event.balance_exhausted) {
+              throw new Error('__balance_exhausted__');
+            } else if (event.error) {
+              throw new Error(event.error);
             }
+          } catch (handlerErr) {
+            if (handlerErr instanceof Error && handlerErr.message.startsWith('__')) {
+              throw handlerErr;
+            }
+            console.warn('Failed to handle SSE event:', event, handlerErr);
           }
         }
 

@@ -18,7 +18,7 @@
 
 import { useEffect, useState } from 'react';
 import type { WorkspaceFile } from '@/types';
-import { resolveArtifactHtml } from './resolveArtifactHtml';
+import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
 
 export interface PointerEvent2 {
   tag: string;

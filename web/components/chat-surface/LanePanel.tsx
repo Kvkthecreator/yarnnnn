@@ -15,6 +15,12 @@
  * steward (Altitude 1); lanes live in their windowed workbench
  * (Altitude 2). Mechanics unchanged.
  *
+ * ADR-441 D2 (2026-07-11): THE lane-thread renderer — one per Altitude 2,
+ * frame-agnostic, mounted N times (the /chat workbench, the Studio's left
+ * pane) behind the named `LaneMountSlots` contract below. Deliberately NOT
+ * merged with the steward's ConversationPanel: the A1/A2 split is a
+ * wire-protocol split (ADR-441 D1), not a styling preference.
+ *
  * The contract rendered here: the transcript is private to the lane; the
  * work lands in files. When a turn used tools, the reply footer names them
  * so the member sees the lane touched the commons.
@@ -73,26 +79,34 @@ function toArtifacts(raw: unknown): LaneArtifact[] | undefined {
   return out.length ? out : undefined;
 }
 
-interface LanePanelProps {
+/**
+ * The lane mount-slots contract (ADR-441 D2) — how an embedding surface
+ * configures THE lane-thread renderer. One renderer, N mounts (the /chat
+ * workbench, the Studio's left pane); the mount owns its frame and declares
+ * slots — it never reaches into the thread's messages or transport. A new
+ * mount need is a new named slot here, never a surface-specific branch
+ * inside LanePanel.
+ */
+export interface LaneMountSlots {
+  /** Fires when a write LANDS mid-turn (and again from the terminal list), so
+   *  the mount can refresh its view of a file this lane just authored — the
+   *  Studio canvas reload (ADR-440). */
+  onArtifactWrite?: (path: string) => void;
+  /** Replace the default (lane-contract) empty state — teach the mount's act
+   *  in the mount's own words. Absent → the /chat default renders (ADR-440). */
+  emptyState?: ReactNode;
+  /** Starter prompts, rendered as clickable chips while the transcript is
+   *  empty; clicking one fills the composer (ADR-440). */
+  suggestions?: string[];
+  /** Composer seed: when `nonce` changes, `text` is set into (or appended to)
+   *  the composer. Drives pointing + the insert menu (ADR-440 v1.1). */
+  composerSeed?: { text: string; nonce: number } | null;
+}
+
+interface LanePanelProps extends LaneMountSlots {
   laneId: string;
   laneName: string;
   modelLabel: string;
-  /** ADR-440 — optional mount hook: fires when a write LANDS mid-turn (and
-   *  again from the terminal list), so an embedding surface (the Studio
-   *  canvas) can refresh its view of a file this lane just authored. */
-  onArtifactWrite?: (path: string) => void;
-  /** ADR-440 — optional replacement for the default (lane-contract) empty
-   *  state, so an embedding surface can teach its own act in its own words.
-   *  Absent → the /chat default renders unchanged. */
-  emptyState?: ReactNode;
-  /** ADR-440 — optional starter prompts, rendered as clickable chips while
-   *  the transcript is empty; clicking one fills the composer. */
-  suggestions?: string[];
-  /** ADR-440 v1.1 — optional composer seed: when `nonce` changes, `text` is
-   *  set into (or appended to) the composer. Drives pointing + the insert
-   *  menu from an embedding surface. Slated to become a mount-contract slot
-   *  in the conversation-mount refactor. */
-  composerSeed?: { text: string; nonce: number } | null;
 }
 
 export function LanePanel({

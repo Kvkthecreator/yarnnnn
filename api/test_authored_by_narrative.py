@@ -147,9 +147,10 @@ def test_fe_principal_badge_extends_attribution_with_icon():
 def test_fe_surfaces_adopt_the_badge():
     # Flow rows + chat routine row + notifications activity all render the
     # shared badge (registry + shared primitive, per-surface layout kept).
+    # (components/feed/* rows retired — the fossil feed subtree, zero
+    # importers, was deleted by ADR-441 D5; the badge lives on in the
+    # steward transcript + the attention bell.)
     for rel in (
-        "components/feed/StandaloneEventRow.tsx",
-        "components/feed/OperatorEventMarker.tsx",
         "components/tp/MessageRow.tsx",
         "components/shell/AttentionCenter.tsx",
     ):

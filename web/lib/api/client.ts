@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "@/lib/supabase/client";
+import { sseEvents } from "@/lib/sse";
 import type {
   Memory,
   MemoryCreate,
@@ -215,9 +216,10 @@ export const api = {
       }>(`/api/lanes/${laneId}/messages`),
     /**
      * Streaming lane turn (ADR-412 D2). Bypasses request() (which parses
-     * JSON) to read the SSE stream — mirrors the steward's NarrativeContext
-     * reader: getReader() + TextDecoder, buffer on '\n', parse `data: {json}`
-     * frames keyed by their discriminator. Callbacks accumulate on the FE.
+     * JSON) to read the SSE stream over the shared transport (`lib/sse`,
+     * ADR-441 D4). The LANE event vocabulary dispatched here is deliberately
+     * separate from the steward's (ADR-441 D1 — the altitude seam is a
+     * wire-protocol seam). Callbacks accumulate on the FE.
      */
     sendStream: async (
       laneId: string,
@@ -241,36 +243,19 @@ export const api = {
         handlers.onError?.(`Lane turn failed (${res.status})`);
         return;
       }
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          let evt: Record<string, unknown>;
-          try {
-            evt = JSON.parse(line.slice(6));
-          } catch {
-            continue;
-          }
-          if (typeof evt.text_delta === "string") handlers.onDelta(evt.text_delta);
-          else if (typeof evt.tool === "string") handlers.onTool?.(evt.tool);
-          else if (evt.artifact && typeof evt.artifact === "object") {
-            handlers.onArtifact?.(evt.artifact as { path: string; verb: string });
-          }
-          else if (typeof evt.error === "string") handlers.onError?.(evt.error);
-          else if (evt.done) {
-            handlers.onDone?.({
-              rounds: (evt.rounds as number) ?? 0,
-              tools_called: (evt.tools_called as string[]) ?? [],
-              artifacts: (evt.artifacts as string[]) ?? [],
-            });
-          }
+      for await (const evt of sseEvents(res.body)) {
+        if (typeof evt.text_delta === "string") handlers.onDelta(evt.text_delta);
+        else if (typeof evt.tool === "string") handlers.onTool?.(evt.tool);
+        else if (evt.artifact && typeof evt.artifact === "object") {
+          handlers.onArtifact?.(evt.artifact as { path: string; verb: string });
+        }
+        else if (typeof evt.error === "string") handlers.onError?.(evt.error);
+        else if (evt.done) {
+          handlers.onDone?.({
+            rounds: (evt.rounds as number) ?? 0,
+            tools_called: (evt.tools_called as string[]) ?? [],
+            artifacts: (evt.artifacts as string[]) ?? [],
+          });
         }
       }
     },

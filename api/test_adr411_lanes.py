@@ -195,7 +195,13 @@ def test_turn_with_tool_round_executes_under_member_identity_and_meters():
         assert ev["principal_id"] == "user-1"
         assert ev["workspace_id"] == "ws-1"
         assert ev["model"] == "gpt-4o-mini"
-        assert "cost" not in " ".join(ev.keys())
+        # No second pricing path: the ONLY cost-named kwarg permitted is
+        # ADR-439's ratified BYOK override, and on managed-key turns it must
+        # be None (the pool draws normally). Reconciled by ADR-441 D6 — the
+        # original blanket "no cost key" predates ADR-439.
+        cost_keys = [k for k in ev.keys() if "cost" in k]
+        assert cost_keys in ([], ["cost_override_usd"])
+        assert ev.get("cost_override_usd") is None
 
 
 def test_off_surface_tool_is_refused_without_execution():

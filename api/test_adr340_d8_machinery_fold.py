@@ -124,9 +124,8 @@ def test_deeplinks_repointed() -> None:
     rpanel = _read("components/agents/ReviewerActivityPanel.tsx")
     check("ReviewerActivityPanel → /recurrence?recurrence.pane=activity", "/recurrence?recurrence.pane=activity" in rpanel)
     check("ReviewerActivityPanel no longer points at /activity?slug=", 'href={`/activity?slug=' not in rpanel)
-    # Feed overlay link.
-    overlay = _read("components/feed-surface/WorkspaceContextOverlay.tsx")
-    check("WorkspaceContextOverlay → /recurrence?recurrence.pane=activity", "/recurrence?recurrence.pane=activity" in overlay)
+    # Feed overlay link — RETIRED: the fossil feed-surface (FeedSurface +
+    # WorkspaceContextOverlay, zero importers) was deleted by ADR-441 D5.
     # routes.ts constant repointed.
     routes = _read("lib/routes.ts")
     check("ACTIVITY_ROUTE repointed to the Runs lens", 'ACTIVITY_ROUTE = "/recurrence?recurrence.pane=activity"' in routes)
