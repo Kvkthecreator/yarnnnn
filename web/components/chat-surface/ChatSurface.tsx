@@ -30,6 +30,7 @@ import { LanePanel } from './LanePanel';
 import { api } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
+import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { cn } from '@/lib/utils';
 
 interface LaneInfo {
@@ -98,6 +99,17 @@ export function ChatSurface() {
   const activeLane = useMemo(
     () => (data?.lanes ?? []).find((l) => l.id === activeLaneId) ?? null,
     [data, activeLaneId],
+  );
+
+  // ADR-442 D5: locator honesty — the active lane is the surface's crumb
+  // (`Chat › ‹lane›`; the strip's root-click returns to the lane list). The
+  // in-body headers stay: they carry content state (the model chip), not
+  // surface chrome (ADR-442 D3).
+  useWindowCrumb(
+    'chat',
+    activeLane
+      ? [{ label: activeLane.name, onClick: () => setParam({ lane: null }) }]
+      : [],
   );
 
   const createLane = useCallback(async () => {

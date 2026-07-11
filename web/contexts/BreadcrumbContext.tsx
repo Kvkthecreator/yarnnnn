@@ -31,6 +31,12 @@
  * segments, keeps the leaf) under a width threshold — the title bar is a
  * locator, not a navigator; the in-body back affordance carries "go back"
  * on small screens. See WindowFrame.
+ *
+ * ADR-442 D2 (2026-07-11): this context is THE surface-chrome declaration
+ * channel, and it carries BOTH halves — identity (`useWindowCrumb`, above)
+ * and whole-surface verbs (`useSurfaceActions`, below). The surface bar
+ * (GlobalLocatorStrip) renders both for the foregrounded surface; actions
+ * are DATA, never JSX — the surface declares, the bar owns the rendering.
  */
 
 import {
@@ -40,8 +46,10 @@ import {
   useEffect,
   useMemo,
   useState,
+  type ComponentType,
   type ReactNode,
 } from 'react';
+import type { KernelSurfaceSlug } from '@/types/desk';
 
 export interface BreadcrumbSegment {
   label: string;
@@ -52,7 +60,32 @@ export interface BreadcrumbSegment {
   kind?: 'surface' | 'entity' | 'task' | 'agent' | 'context' | 'output' | 'artifact';
 }
 
+/**
+ * A surface-declared whole-surface verb (ADR-442 D2). Data, never JSX.
+ * Link-shaped actions (`to` set) render through SurfaceLink so native link
+ * affordances (middle-click, new tab, a11y) survive; button-shaped actions
+ * (`onClick`) render as buttons. The surface bar owns style and placement.
+ */
+export interface SurfaceAction {
+  id: string;
+  label: string;
+  icon?: ComponentType<{ className?: string }>;
+  /** Button-shaped action. Ignored when `to` is present. */
+  onClick?: () => void;
+  /** Link-shaped action — the target surface slug (renders via SurfaceLink). */
+  to?: KernelSurfaceSlug;
+  /** Params for a link-shaped action (bare keys — namespaced downstream). */
+  params?: Record<string, string>;
+}
+
 type CrumbMap = Record<string, BreadcrumbSegment[]>;
+type ActionMap = Record<string, SurfaceAction[]>;
+
+/** Identity key for the equality guard — link-shaped actions re-register when
+ *  their target changes; button handlers (recreated per render) don't churn. */
+function actionKey(a: SurfaceAction): string {
+  return `${a.id}␟${a.label}␟${a.to ?? ''}␟${JSON.stringify(a.params ?? null)}`;
+}
 
 interface WindowCrumbContextValue {
   /** All registered window crumbs, keyed by kernel slug. */
@@ -63,6 +96,12 @@ interface WindowCrumbContextValue {
   setCrumb: (slug: string, segments: BreadcrumbSegment[]) => void;
   /** Drop a window's crumb entirely (on unmount / window close). */
   clearCrumb: (slug: string) => void;
+  /** Read one surface's declared actions (ADR-442; empty if none). */
+  getActions: (slug: string) => SurfaceAction[];
+  /** Register/replace a surface's declared actions. Pass `[]` to clear. */
+  setActions: (slug: string, actions: SurfaceAction[]) => void;
+  /** Drop a surface's actions entirely (on unmount). */
+  clearActions: (slug: string) => void;
 }
 
 const WindowCrumbCtx = createContext<WindowCrumbContextValue>({
@@ -70,15 +109,47 @@ const WindowCrumbCtx = createContext<WindowCrumbContextValue>({
   getCrumb: () => [],
   setCrumb: () => {},
   clearCrumb: () => {},
+  getActions: () => [],
+  setActions: () => {},
+  clearActions: () => {},
 });
 
 export function BreadcrumbProvider({ children }: { children: ReactNode }) {
   const [crumbs, setCrumbs] = useState<CrumbMap>({});
+  const [actions, setActionsMap] = useState<ActionMap>({});
 
   const getCrumb = useCallback(
     (slug: string): BreadcrumbSegment[] => crumbs[slug] ?? [],
     [crumbs]
   );
+
+  const getActions = useCallback(
+    (slug: string): SurfaceAction[] => actions[slug] ?? [],
+    [actions]
+  );
+
+  const setActions = useCallback((slug: string, next: SurfaceAction[]) => {
+    setActionsMap((prev) => {
+      const existing = prev[slug];
+      if (
+        existing &&
+        existing.length === next.length &&
+        existing.every((a, i) => actionKey(a) === actionKey(next[i]))
+      ) {
+        return prev;
+      }
+      return { ...prev, [slug]: next };
+    });
+  }, []);
+
+  const clearActions = useCallback((slug: string) => {
+    setActionsMap((prev) => {
+      if (!(slug in prev)) return prev;
+      const next = { ...prev };
+      delete next[slug];
+      return next;
+    });
+  }, []);
 
   const setCrumb = useCallback((slug: string, segments: BreadcrumbSegment[]) => {
     setCrumbs((prev) => {
@@ -106,8 +177,8 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ crumbs, getCrumb, setCrumb, clearCrumb }),
-    [crumbs, getCrumb, setCrumb, clearCrumb]
+    () => ({ crumbs, getCrumb, setCrumb, clearCrumb, getActions, setActions, clearActions }),
+    [crumbs, getCrumb, setCrumb, clearCrumb, getActions, setActions, clearActions]
   );
 
   return <WindowCrumbCtx.Provider value={value}>{children}</WindowCrumbCtx.Provider>;
@@ -140,6 +211,31 @@ export function useWindowCrumb(slug: string, segments: BreadcrumbSegment[]): voi
     return () => clearCrumb(slug);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, labelKey, setCrumb, clearCrumb]);
+}
+
+/**
+ * Surface-side hook: declare THIS surface's whole-surface verbs into the
+ * surface bar (ADR-442 D2). Actions are data ({id, label, icon?, onClick |
+ * to+params}); the bar renders them right-aligned for the foregrounded
+ * surface only. Pass `[]` when the surface has no verbs in its current state
+ * (e.g. the Studio's start state). Auto-clears on unmount.
+ *
+ *   // StudioSurface, workbench state:
+ *   useSurfaceActions('studio', artifactPath
+ *     ? [{ id: 'open-in-files', label: 'Open in Files', icon: ExternalLink,
+ *          to: 'files', params: { path: artifactPath } }]
+ *     : []);
+ */
+export function useSurfaceActions(slug: string, actions: SurfaceAction[]): void {
+  const { setActions, clearActions } = useWindowCrumbRegistry();
+  // Same churn discipline as useWindowCrumb: re-fire only when the actions'
+  // identity (id/label/target) changes, not on handler re-creation.
+  const identityKey = actions.map(actionKey).join('␞');
+  useEffect(() => {
+    setActions(slug, actions);
+    return () => clearActions(slug);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, identityKey, setActions, clearActions]);
 }
 
 /**

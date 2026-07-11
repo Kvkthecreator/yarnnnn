@@ -23,8 +23,8 @@ import { ExternalLink, Loader2, Palette, Plus } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
+import { useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
-import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { StudioCanvas, type PointerEvent2 } from './StudioCanvas';
 import { StudioInsertMenu } from './StudioInsertMenu';
 
@@ -106,6 +106,37 @@ export function StudioSurface() {
       ? artifactParam
       : `/workspace/${artifactParam}`
     : null;
+
+  // ADR-442 D4: the Studio declares its surface chrome into the surface bar
+  // instead of hand-rolling a header row. Identity = the crumb (the strip's
+  // root-click fires the leaf onClick → back to the start state, which is
+  // what "New / open…" did); "Open in Files" = a declared link-shaped action.
+  useWindowCrumb(
+    'studio',
+    artifactPath
+      ? [
+          {
+            label: baseName(artifactPath),
+            kind: 'artifact',
+            onClick: () => setParam({ file: null }),
+          },
+        ]
+      : [],
+  );
+  useSurfaceActions(
+    'studio',
+    artifactPath
+      ? [
+          {
+            id: 'open-in-files',
+            label: 'Open in Files',
+            icon: ExternalLink,
+            to: 'files',
+            params: { path: artifactPath },
+          },
+        ]
+      : [],
+  );
 
   // ── Lane environment (models + existing lanes) ─────────────────────────
   const [lanesEnabled, setLanesEnabled] = useState<boolean | null>(null);
@@ -207,34 +238,11 @@ export function StudioSurface() {
   }
 
   // ── WORKBENCH ───────────────────────────────────────────────────────────
+  // No header row: the artifact's nameplate + verbs live in the surface bar
+  // (ADR-442 D4 — the strip shows `Studio › ‹artifact›` + "Open in Files";
+  // clicking "Studio" returns to the start state).
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Header — the artifact's nameplate; frame belongs to the mount. */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <Palette className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span className="truncate text-sm font-medium">{baseName(artifactPath)}</span>
-          <span className="truncate text-xs text-muted-foreground">{relPath(artifactPath)}</span>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <SurfaceLink
-            to="files"
-            params={{ path: artifactPath }}
-            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-          >
-            <ExternalLink className="h-3 w-3" />
-            Open in Files
-          </SurfaceLink>
-          <button
-            type="button"
-            onClick={() => setParam({ file: null })}
-            className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-          >
-            New / open…
-          </button>
-        </div>
-      </div>
-
       <div className="flex min-h-0 flex-1">
         {/* Left — the bound lane (the mind; the single write path). */}
         <div className="flex w-[380px] shrink-0 flex-col border-r border-border">

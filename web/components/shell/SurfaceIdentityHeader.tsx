@@ -23,7 +23,10 @@
  * Used by:
  *   - WorkDetail (task title + mode/status/schedule strip + Run/Pause/Edit)
  *   - AgentContentView (agent title + class/domain/task count strip)
- *   - FeedSurface (agent title + workspace-state toggle action)
+ *   - Files (selected node title + view toggle + Properties)
+ * (These are CONTENT-scoped headers — a selection within the surface — and
+ *  stay in-body per ADR-442 D3; surface-scoped chrome declares into the
+ *  surface bar instead.)
  *
  * Size presets:
  *   - "lg" (default): `text-2xl font-semibold` — full hero treatment for
@@ -35,8 +38,6 @@
  *     conversation itself is the hero, not the H1).
  *
  * Icon slot: optional `icon` ReactNode renders to the left of the title.
- * Used by FeedSurface for the yarnnn circle logo next to "YARNNN"
- * — matching the sidebar chat panel's logo treatment for consistency.
  */
 
 import type { ReactNode } from 'react';

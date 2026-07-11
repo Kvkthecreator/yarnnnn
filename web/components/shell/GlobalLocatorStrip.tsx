@@ -37,19 +37,55 @@
  *     is dropped (the surface's own header already names it; showing it twice
  *     wastes scarce vertical space). In list mode (no segments) the strip
  *     collapses to nothing on mobile.
+ *
+ * ADR-442 (2026-07-11): this strip IS the SURFACE BAR — the one authority for
+ * surface chrome, both halves: identity/location on the left (the crumb) and
+ * the foreground surface's DECLARED whole-surface verbs on the right
+ * (`useSurfaceActions` — data, never JSX; link-shaped actions render through
+ * SurfaceLink for native affordances). Surface-scoped header rows inside
+ * surface bodies die as their surfaces adopt (the Studio first); rows that
+ * describe a selection within a surface stay in-body (ADR-442 D3).
  */
 
 import { ChevronRight, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
-import { useWindowCrumbRegistry, type BreadcrumbSegment } from '@/contexts/BreadcrumbContext';
+import {
+  useWindowCrumbRegistry,
+  type BreadcrumbSegment,
+  type SurfaceAction,
+} from '@/contexts/BreadcrumbContext';
 import { useComposition } from '@/lib/compositor/useComposition';
 import { useViewport } from '@/lib/shell/useViewport';
 import { surfaceTitleFor } from '@/lib/compositor/surfaceTitle';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
+
+const ACTION_CLS =
+  'inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted/40 hover:text-foreground';
+
+/** One declared action — the bar owns the rendering (ADR-442 D2). */
+function ActionChip({ action }: { action: SurfaceAction }) {
+  const Icon = action.icon;
+  const body = (
+    <>
+      {Icon && <Icon className="h-3 w-3" />}
+      {action.label}
+    </>
+  );
+  return action.to ? (
+    <SurfaceLink to={action.to} params={action.params} className={ACTION_CLS}>
+      {body}
+    </SurfaceLink>
+  ) : (
+    <button type="button" onClick={action.onClick} className={ACTION_CLS}>
+      {body}
+    </button>
+  );
+}
 
 export function GlobalLocatorStrip() {
   const { foregrounded } = useSurfacePreferences();
-  const { getCrumb } = useWindowCrumbRegistry();
+  const { getCrumb, getActions } = useWindowCrumbRegistry();
   const { data: composition } = useComposition();
   const viewport = useViewport();
 
@@ -57,6 +93,8 @@ export function GlobalLocatorStrip() {
   const isEmpty = !foregrounded;
   // Detail segments BELOW the surface name, for the foregrounded slug only.
   const crumb: BreadcrumbSegment[] = foregrounded ? getCrumb(foregrounded) : [];
+  // The foreground surface's declared whole-surface verbs (ADR-442 D2).
+  const actions: SurfaceAction[] = foregrounded ? getActions(foregrounded) : [];
   // The "back to list" action surfaces register on the leaf (clears the
   // deep-link param). Used to make the ROOT title navigational.
   const backToList = crumb.length > 0 ? crumb[crumb.length - 1].onClick : undefined;
@@ -64,25 +102,33 @@ export function GlobalLocatorStrip() {
   // ── Mobile: leaf-only back-chip. List mode → nothing (the surface header
   //    already names the surface; a root-only strip would just duplicate it).
   if (viewport.isMobile) {
-    if (crumb.length === 0) return null;
-    const leaf = crumb[crumb.length - 1];
+    if (crumb.length === 0 && actions.length === 0) return null;
+    const leaf = crumb.length > 0 ? crumb[crumb.length - 1] : null;
     return (
       <div
         className="flex h-7 shrink-0 items-center gap-1 overflow-hidden bg-background px-3 text-xs font-medium text-foreground/80"
         aria-label="Location"
       >
-        {backToList ? (
-          <button
-            type="button"
-            onClick={() => backToList()}
-            className="flex min-w-0 items-center gap-0.5 text-muted-foreground hover:text-foreground"
-            title={`Back to ${title}`}
-          >
-            <ChevronLeft className="h-3.5 w-3.5 shrink-0" />
+        {leaf &&
+          (backToList ? (
+            <button
+              type="button"
+              onClick={() => backToList()}
+              className="flex min-w-0 items-center gap-0.5 text-muted-foreground hover:text-foreground"
+              title={`Back to ${title}`}
+            >
+              <ChevronLeft className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{leaf.label}</span>
+            </button>
+          ) : (
             <span className="truncate">{leaf.label}</span>
-          </button>
-        ) : (
-          <span className="truncate">{leaf.label}</span>
+          ))}
+        {actions.length > 0 && (
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            {actions.map((a) => (
+              <ActionChip key={a.id} action={a} />
+            ))}
+          </div>
         )}
       </div>
     );
@@ -130,6 +176,14 @@ export function GlobalLocatorStrip() {
           </span>
         );
       })}
+      {/* The foreground surface's declared verbs — right-aligned (ADR-442). */}
+      {actions.length > 0 && (
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-3">
+          {actions.map((a) => (
+            <ActionChip key={a.id} action={a} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

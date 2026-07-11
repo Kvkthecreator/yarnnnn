@@ -57,12 +57,17 @@ def test_strip_exists_and_keys_on_foregrounded():
 
 def test_strip_is_seamless_no_border_no_tint():
     """Operator: the strip should look continuous, not a separate bar. No
-    bottom border, no tinted background — it sits in the same plane (bg-
-    background) as the content below."""
+    bottom border, no tinted background on the strip's own ROW — it sits in
+    the same plane (bg-background) as the content below. (ADR-442: the
+    declared action CHIPS inside it carry their own hairline/hover styles;
+    the assertion targets the row containers, not the whole file.)"""
     src = _read_web("components/shell/GlobalLocatorStrip.tsx")
-    assert "border-b" not in src, "the locator strip must not carry a bottom border (seamless)."
-    assert "bg-muted" not in src, "the locator strip must not carry a tinted background (seamless)."
-    assert "bg-background" in src
+    rows = [ln for ln in src.splitlines() if "h-7 shrink-0 items-center" in ln]
+    assert rows, "the strip's h-7 row containers must exist"
+    for ln in rows:
+        assert "border-b" not in ln, "the locator strip row must not carry a bottom border (seamless)."
+        assert "bg-muted" not in ln, "the locator strip row must not carry a tinted background (seamless)."
+        assert "bg-background" in ln
 
 
 def test_root_title_is_navigational_when_drilled_in():
@@ -77,11 +82,12 @@ def test_root_title_is_navigational_when_drilled_in():
 
 def test_mobile_is_leaf_only_chip():
     """Mobile drops the redundant root name (the surface header already names
-    it) and shows a leaf-only back-chip; list mode collapses to nothing."""
+    it) and shows a leaf-only back-chip; with nothing declared (no segments,
+    no ADR-442 actions) the strip collapses to nothing."""
     src = _read_web("components/shell/GlobalLocatorStrip.tsx")
     assert "viewport.isMobile" in src
-    # mobile branch returns null in list mode (no segments)
-    assert "if (crumb.length === 0) return null;" in src
+    # mobile branch returns null when nothing is declared
+    assert "if (crumb.length === 0 && actions.length === 0) return null;" in src
     # leaf-only chip uses a back chevron
     assert "ChevronLeft" in src
 
