@@ -1,11 +1,23 @@
+'use client';
+
 /**
- * resolveArtifactHtml — the Studio's reference projection pass (ADR-440 D5).
+ * The reference projection pass (ADR-440 D5; re-homed by ADR-441 D3).
  *
- * A Studio artifact cites workspace objects by REFERENCE (`data-ref` = the
- * living path, `data-ref-rev` = the last-resolved pin), never by copy. This
- * pass runs before the canvas renders: it walks the artifact's HTML, resolves
- * every citation against the commons, and rewrites the element so a fully
- * sandboxed iframe (no scripts, no network reach into the API) can display it.
+ * An artifact cites workspace objects by REFERENCE (`data-ref` = the living
+ * path, `data-ref-rev` = the last-resolved pin), never by copy. This pass
+ * walks the HTML, resolves every citation against the commons, and rewrites
+ * the element so a fully sandboxed iframe (no scripts, no network reach into
+ * the API) can display it.
+ *
+ * ADR-441 D3: the projection is a property of the FILE TYPE, not of any one
+ * mount — "an app owns file types and draws their content" (ADR-436), and
+ * drawing an HTML file that cites the commons includes resolving its
+ * citations. It therefore lives in the viewers layer and runs in TWO places:
+ *   - the Web Viewer app (`useArtifactProjection` below) — so every FileBody
+ *     mount (ArtifactCard, FileOpenModal, the Files detail) renders citations
+ *     identically to the Studio canvas;
+ *   - the Studio canvas, which adds its mount-specific pointer runtime via
+ *     `opts.pointer` (deixis under sandbox="allow-scripts").
  *
  * Resolution rules (ADR-440 D5):
  *  - `./…` refs are ARTIFACT-RELATIVE (resolved against the artifact's own
@@ -24,7 +36,9 @@
  * turns (the lane), because reads must not write (read-only grants render).
  */
 
+import { useEffect, useState } from 'react';
 import { api } from '@/lib/api/client';
+import type { WorkspaceFile } from '@/types';
 
 function artifactDir(artifactPath: string): string {
   const abs = artifactPath.startsWith('/') ? artifactPath : `/workspace/${artifactPath}`;
@@ -220,4 +234,31 @@ export async function resolveArtifactHtml(
   }
   const doctype = '<!doctype html>\n';
   return doctype + (doc.documentElement?.outerHTML ?? html);
+}
+
+/** The Web Viewer's projection hook (ADR-441 D3). Resolves citations when the
+ *  content carries any, holding the frame empty until the projection lands so
+ *  a broken-citation flash never paints; non-citing HTML short-circuits (the
+ *  caller renders it verbatim). Falls back to the raw content on a projection
+ *  failure — safe, because the Web Viewer's iframe is fully sandboxed
+ *  (`sandbox=""`, no scripts), unlike the Studio canvas's pointer mode. */
+export function useArtifactProjection(file: WorkspaceFile): {
+  needsProjection: boolean;
+  projected: string | null;
+} {
+  const content = file.content ?? '';
+  const needsProjection = content.includes('data-ref');
+  const [projected, setProjected] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setProjected(null);
+    if (!needsProjection) return;
+    resolveArtifactHtml(content, file.path)
+      .then((html) => !cancelled && setProjected(html))
+      .catch(() => !cancelled && setProjected(content));
+    return () => {
+      cancelled = true;
+    };
+  }, [content, file.path, needsProjection]);
+  return { needsProjection, projected };
 }
