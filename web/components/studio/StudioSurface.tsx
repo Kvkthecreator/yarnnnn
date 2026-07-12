@@ -19,7 +19,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ExternalLink, Loader2, Palette, Plus } from 'lucide-react';
+import { Check, ExternalLink, LayoutTemplate, Loader2, Palette, Plus } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
@@ -107,6 +107,10 @@ export function StudioSurface() {
       : `/workspace/${artifactParam}`
     : null;
 
+  // Declared before the surface-actions hook below (its action array
+  // references the setter at render time).
+  const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
+
   // ADR-442 D4: the Studio declares its surface chrome into the surface bar
   // instead of hand-rolling a header row. Identity = the crumb (the strip's
   // root-click fires the leaf onClick → back to the start state, which is
@@ -127,6 +131,14 @@ export function StudioSurface() {
     'studio',
     artifactPath
       ? [
+          {
+            // ADR-443 D5 — layout is always visible + changeable (operator
+            // word: "Change layout"; the change is an edit, not a toggle).
+            id: 'change-layout',
+            label: 'Change layout',
+            icon: LayoutTemplate,
+            onClick: () => setLayoutMenuOpen((o) => !o),
+          },
           {
             id: 'open-in-files',
             label: 'Open in Files',
@@ -212,11 +224,17 @@ export function StudioSurface() {
   );
   const onPoint = useCallback(
     (p: PointerEvent2) => {
-      seedComposer(
-        p.dataRef
-          ? `Pointing at the cited object "${p.dataRef}" — `
-          : `Pointing at the ${p.tag}${p.text ? ` "${p.text}"` : ''} — `,
-      );
+      // ADR-443 D6: block-grain selection speaks operator words — the block's
+      // kind + id when the hit lands inside one; element fallbacks otherwise.
+      if (p.blockId || p.blockKind) {
+        const kind = p.blockKind ?? 'content';
+        const id = p.blockId ? ` (id: ${p.blockId})` : '';
+        seedComposer(`Selected the ${kind} block${id}${p.text ? ` — "${p.text}"` : ''}: `);
+      } else if (p.dataRef) {
+        seedComposer(`Selected the inserted object "${p.dataRef}": `);
+      } else {
+        seedComposer(`Selected the ${p.tag}${p.text ? ` "${p.text}"` : ''}: `);
+      }
     },
     [seedComposer],
   );
@@ -226,6 +244,32 @@ export function StudioSurface() {
   const modelLabel = useMemo(
     () => models.find((m) => m.id === boundLane?.model)?.label ?? boundLane?.model ?? '',
     [models, boundLane],
+  );
+
+  // ── Change layout (ADR-443 D5): a surface-bar action opens the picker;
+  // picking a layout seeds the lane's re-layout TRANSFORMATION (R2 — an
+  // authored revision that preserves every block, never a view toggle). ──
+  const [layouts, setLayouts] = useState<Array<{ slug: string; label: string; description: string }>>([]);
+  useEffect(() => {
+    if (!artifactPath || layouts.length) return;
+    api.studio
+      .vocabulary()
+      .then((v) => setLayouts(v.layouts))
+      .catch(() => {
+        /* the switcher just stays empty — creation/authoring unaffected */
+      });
+  }, [artifactPath, layouts.length]);
+
+  const switchLayout = useCallback(
+    (slug: string, label: string) => {
+      seedComposer(
+        `Change this artifact's layout to ${label}: preserve every block and its ` +
+          `data-block-id, replace the <style> skin and the flow structure per the ` +
+          `${label.toLowerCase()} grammar, and update data-template to "${slug}". `,
+      );
+      setLayoutMenuOpen(false);
+    },
+    [seedComposer],
   );
 
   // ── START STATE ─────────────────────────────────────────────────────────
@@ -242,7 +286,36 @@ export function StudioSurface() {
   // (ADR-442 D4 — the strip shows `Studio › ‹artifact›` + "Open in Files";
   // clicking "Studio" returns to the start state).
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="relative flex h-full min-h-0 flex-col">
+      {/* The layout picker (ADR-443 D5) — opened by the "Change layout" bar
+          action; picking seeds the lane's re-layout transformation. */}
+      {layoutMenuOpen && (
+        <div className="absolute right-4 top-2 z-30 w-72 rounded-md border border-border bg-background p-1 shadow-md">
+          <p className="px-2 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Layout — changing it is an edit you can see in History
+          </p>
+          {layouts.map((l) => (
+            <button
+              key={l.slug}
+              type="button"
+              disabled={l.slug === template}
+              onClick={() => switchLayout(l.slug, l.label)}
+              className="flex w-full items-start justify-between gap-2 rounded px-2 py-1.5 text-left hover:bg-muted/40 disabled:cursor-default disabled:opacity-100 disabled:hover:bg-transparent"
+            >
+              <span className="min-w-0">
+                <span className="block text-xs">{l.label}</span>
+                <span className="block text-[10px] leading-snug text-muted-foreground">
+                  {l.description}
+                </span>
+              </span>
+              {l.slug === template && <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+            </button>
+          ))}
+          {layouts.length === 0 && (
+            <p className="p-3 text-xs text-muted-foreground">Loading layouts…</p>
+          )}
+        </div>
+      )}
       <div className="flex min-h-0 flex-1">
         {/* Left — the bound lane (the mind; the single write path). */}
         <div className="flex w-[380px] shrink-0 flex-col border-r border-border">

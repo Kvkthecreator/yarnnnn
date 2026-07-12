@@ -141,19 +141,21 @@ async function resolveOne(el: Element, artifactPath: string): Promise<void> {
   }
 }
 
-// ── The pointer runtime (ADR-440 v1.1 — pointing) ─────────────────────────
+// ── The pointer runtime (ADR-440 v1.1 pointing · ADR-443 D6 block grain) ──
 //
 // Injected into the projected document so the member can POINT at an element
 // (deixis, never editing): a click selects the nearest pointable element,
-// outlines it, and posts {type:'yarnnn-point', tag, text, dataRef} to the
-// parent (StudioCanvas listens). Runs under sandbox="allow-scripts" with an
-// OPAQUE origin — no same-origin access, no credentials, no top-navigation.
-// The projection pass strips every artifact-authored script and inline
-// handler first (D5's no-script rule, enforced mechanically), so this is the
-// ONLY code that executes in the canvas.
+// walks to its enclosing BLOCK (`[data-block]`, ADR-443 D4) when one exists,
+// outlines the block, and posts {type:'yarnnn-point', tag, text, dataRef,
+// blockId, blockKind} to the parent (StudioCanvas listens). Runs under
+// sandbox="allow-scripts" with an OPAQUE origin — no same-origin access, no
+// credentials, no top-navigation. The projection pass strips every
+// artifact-authored script and inline handler first (D5's no-script rule,
+// enforced mechanically), so this is the ONLY code that executes in the
+// canvas.
 
 const POINTABLE =
-  'h1,h2,h3,h4,p,li,img,figure,figcaption,table,blockquote,pre,[data-ref]';
+  'h1,h2,h3,h4,p,li,img,figure,figcaption,table,blockquote,pre,[data-ref],[data-block]';
 
 const POINTER_CSS = `
 ${POINTABLE.split(',').map((s) => `${s}:hover`).join(',')} {
@@ -175,16 +177,22 @@ const POINTER_SCRIPT = `
       parent.postMessage({ type: 'yarnnn-point-clear' }, '*');
       return;
     }
+    // ADR-443 D6: the selection UNIT is the block when one encloses the hit —
+    // the outline lands on the block, the payload carries its id + kind.
+    var blk = el.closest ? el.closest('[data-block]') : null;
+    var mark = blk || el;
     if (cur) cur.classList.remove('yarnnn-pointed');
-    cur = el;
-    el.classList.add('yarnnn-pointed');
+    cur = mark;
+    mark.classList.add('yarnnn-pointed');
     var text = (el.getAttribute('alt') || el.textContent || '')
       .replace(/\\s+/g, ' ').trim().slice(0, 120);
     parent.postMessage({
       type: 'yarnnn-point',
       tag: el.tagName.toLowerCase(),
       text: text,
-      dataRef: el.getAttribute('data-ref') || null,
+      dataRef: el.getAttribute('data-ref') || (blk && blk.getAttribute('data-ref')) || null,
+      blockId: blk ? (blk.getAttribute('data-block-id') || null) : null,
+      blockKind: blk ? (blk.getAttribute('data-block') || null) : null,
     }, '*');
   }, true);
 })();

@@ -283,6 +283,13 @@ export const api = {
         images: Array<{ path: string; updated_at: string | null }>;
         tables: Array<{ path: string; updated_at: string | null }>;
       }>("/api/studio/citable"),
+    // ADR-443 R4: the ONE kernel vocabulary (blocks + layouts) — the palette
+    // and layout switcher render from the same source the posture teaches from.
+    vocabulary: () =>
+      request<{
+        blocks: Array<{ kind: string; label: string; description: string; group: string }>;
+        layouts: Array<{ slug: string; label: string; description: string }>;
+      }>("/api/studio/vocabulary"),
     createArtifact: (path: string, template: string) =>
       request<{ success: boolean; path: string; template: string }>(
         "/api/studio/artifacts",

@@ -6,6 +6,11 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.12.1] - Studio posture v2: the block grammar + layout switching (ADR-443)
+
+- `services/studio.py::_POSTURE_FRAME` — two new sections composed from the unified kernel registries: **Blocks** (the 8-kind component grammar with markup examples; stamp + PRESERVE `data-block-id`; patch within block boundaries; address blocks by id when the member selects one; grammar-not-schema — unannotated content is never rejected) and **Layout** (the artifact's current layout + flow rule from `STUDIO_LAYOUTS`; layout-switch discipline: preserve every block + id, swap skin + flow, update `data-template` — an ordinary versioned edit). The per-template `_TEMPLATE_GRAMMARS` dict is absorbed into the layout registry's `flow` strings.
+- Expected behavior change: bound lanes author block-annotated HTML (skeletons now start annotated), patch at block grain (finer trace), respond to block-grain selection ("Selected the callout block (id: b7)"), and perform layout switches as transformations. Plain chat lanes unchanged. Posture size ~4.8k chars (was ~2.3k) — an authoring-turn-only cost.
+
 ## [2026.07.10.2] - Studio posture: SVG asset creation (ADR-440 scope clarification)
 
 - `services/studio.py::_POSTURE_FRAME` — one added rule in the citing section: bound lanes are told they can CREATE visual assets as plain-text `.svg` files into `./assets/` and cite them (`data-ref`), preferring an authored SVG over describing a picture they cannot make.

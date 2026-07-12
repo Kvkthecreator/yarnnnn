@@ -76,6 +76,25 @@ async def list_artifacts(auth: UserClient) -> dict:
     }
 
 
+@router.get("/studio/vocabulary")
+async def get_vocabulary(auth: UserClient) -> dict:
+    """The block vocabulary + layout registry (ADR-443 R4/D5) — the ONE
+    kernel-seeded grammar, served so the FE palette and layout switcher render
+    from the same source the posture teaches from. Grammar, not schema."""
+    from services.studio import STUDIO_BLOCKS, STUDIO_LAYOUTS
+
+    return {
+        "blocks": [
+            {"kind": k, "label": b["label"], "description": b["description"], "group": b["group"]}
+            for k, b in STUDIO_BLOCKS.items()
+        ],
+        "layouts": [
+            {"slug": s, "label": l["label"], "description": l["description"]}
+            for s, l in STUDIO_LAYOUTS.items()
+        ],
+    }
+
+
 @router.get("/studio/citable")
 async def list_citable(auth: UserClient) -> dict:
     """Citable workspace objects for the insert menu (ADR-440 v1.1) —

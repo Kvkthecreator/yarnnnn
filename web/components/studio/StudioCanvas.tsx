@@ -24,6 +24,9 @@ export interface PointerEvent2 {
   tag: string;
   text: string;
   dataRef: string | null;
+  /** ADR-443 D6 — the enclosing block's address, when the hit is inside one. */
+  blockId: string | null;
+  blockKind: string | null;
 }
 
 interface StudioCanvasProps {
@@ -66,6 +69,8 @@ export function StudioCanvas({ file, artifactPath, onPoint, onPointClear }: Stud
           tag: d.tag,
           text: typeof d.text === 'string' ? d.text : '',
           dataRef: typeof d.dataRef === 'string' ? d.dataRef : null,
+          blockId: typeof d.blockId === 'string' ? d.blockId : null,
+          blockKind: typeof d.blockKind === 'string' ? d.blockKind : null,
         });
       } else if (d.type === 'yarnnn-point-clear') {
         onPointClear?.();
