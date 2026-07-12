@@ -283,18 +283,29 @@ export const api = {
         images: Array<{ path: string; updated_at: string | null }>;
         tables: Array<{ path: string; updated_at: string | null }>;
       }>("/api/studio/citable"),
-    // ADR-443 R4 + ADR-444: the ONE kernel vocabulary (blocks + layouts +
-    // containers) — palette, layout switcher, and slide-master menus render
-    // AND EXECUTE from the same source the posture teaches from. `fragment`
-    // is the deterministic insertion payload.
+    // ADR-443 R4 + ADR-444 + ADR-447: the ONE kernel vocabulary (blocks +
+    // layouts + arrangements) — palette, layout switcher, and the Arrange menu
+    // render AND EXECUTE from the same source the posture teaches from.
+    // `fragment` is the deterministic insertion payload; `grain`/`slots` carry
+    // the arrangement's composition shape (the FE derives a thumbnail from them).
     vocabulary: () =>
       request<{
         blocks: Array<{ kind: string; label: string; description: string; group: string; fragment: string }>;
         layouts: Array<{ slug: string; label: string; description: string }>;
-        containers: Record<string, Array<{ slug: string; label: string; description: string; fragment: string }>>;
+        arrangements: Record<
+          string,
+          Array<{
+            slug: string;
+            label: string;
+            description: string;
+            grain: string;
+            slots: Array<{ name: string; role: string }>;
+            fragment: string;
+          }>
+        >;
       }>("/api/studio/vocabulary"),
-    // ADR-444: the mechanical write door — deterministic structural ops
-    // (insert block / add slide / apply slide layout) computed FE-side, landed
+    // ADR-444/447: the mechanical write door — deterministic structural ops
+    // (insert block / add arrangement / re-arrange) computed FE-side, landed
     // as ONE operator-attributed CAS-guarded revision (409 on a stale base).
     writeArtifact: (path: string, content: string, expectedHeadVersionId: string | null, message: string) =>
       request<{ success: boolean; path: string }>("/api/studio/artifacts/write", {

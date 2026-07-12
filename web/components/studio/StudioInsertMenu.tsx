@@ -19,13 +19,25 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Loader2, MessageSquare, Pencil, Plus, Presentation, X } from 'lucide-react';
+import { Check, ChevronDown, LayoutGrid, Loader2, MessageSquare, Pencil, Plus, X } from 'lucide-react';
 import { api } from '@/lib/api/client';
+
+/** An arrangement (ADR-447) — the composition shape of a page/slide. `grain`
+ *  is 'page' in v1; `slots` carry the composition shape the FE will derive a
+ *  wireframe thumbnail from (phase 2). */
+export interface StudioArrangement {
+  slug: string;
+  label: string;
+  description: string;
+  grain: string;
+  slots: Array<{ name: string; role: string }>;
+  fragment: string;
+}
 
 export interface StudioVocabulary {
   blocks: Array<{ kind: string; label: string; description: string; group: string; fragment: string }>;
   layouts: Array<{ slug: string; label: string; description: string }>;
-  containers: Record<string, Array<{ slug: string; label: string; description: string; fragment: string }>>;
+  arrangements: Record<string, StudioArrangement[]>;
 }
 
 export interface StudioSelection {
@@ -57,7 +69,7 @@ function baseName(p: string): string {
 
 interface StudioToolbarProps {
   vocabulary: StudioVocabulary | null;
-  /** The artifact's current layout slug — gates the Slide menu (deck). */
+  /** The artifact's current layout slug — selects the arrangement set + noun. */
   layout: string;
   selection: StudioSelection | null;
   /** ADR-446: the selected block is currently in edit mode. */
@@ -67,10 +79,10 @@ interface StudioToolbarProps {
   onInsertBlock: (fragment: string, label: string) => void;
   /** EXECUTE: insert a cited block (figure/table) for a picked workspace file. */
   onInsertCited: (kind: 'figure' | 'table', path: string) => void;
-  /** EXECUTE: add a slide from a container fragment (after the selection). */
-  onAddSlide: (fragment: string, label: string) => void;
-  /** EXECUTE: re-lay the SELECTED slide to a container (slide master). */
-  onApplySlideLayout: (fragment: string, label: string) => void;
+  /** ADR-447 EXECUTE: add an arrangement (a slide / a section) after the selection. */
+  onAddArrangement: (fragment: string, label: string) => void;
+  /** ADR-447 EXECUTE: re-lay the SELECTED page/slide to an arrangement. */
+  onApplyArrangement: (fragment: string, label: string) => void;
   /** The one generative ask (Chart) — seeds the lane. */
   onSeed: (text: string) => void;
   /** ADR-446: bring the selection to the lane, one seed on purpose (replaces
@@ -88,13 +100,16 @@ export function StudioInsertMenu({
   onClearSelection,
   onInsertBlock,
   onInsertCited,
-  onAddSlide,
-  onApplySlideLayout,
+  onAddArrangement,
+  onApplyArrangement,
   onSeed,
   onAskAboutSelection,
   onToggleEdit,
 }: StudioToolbarProps) {
-  const [open, setOpen] = useState<null | 'add' | 'slide' | 'image' | 'table'>(null);
+  // ADR-447: a deck's arrangement is a "slide"; a document/article's is a
+  // "section" — the operator word follows the layout.
+  const arrangeNoun = layout === 'deck' ? 'slide' : 'section';
+  const [open, setOpen] = useState<null | 'add' | 'arrange' | 'image' | 'table'>(null);
   const [citable, setCitable] = useState<Citable | null>(null);
   const [loadingCitable, setLoadingCitable] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -121,7 +136,10 @@ export function StudioInsertMenu({
   }, [open]);
 
   const blocks = vocabulary?.blocks ?? [];
-  const containers = vocabulary?.containers?.[layout] ?? [];
+  // ADR-447: arrangements are per-layout and exist for every type (not deck
+  // only). The "Arrange" menu renders these; a deck arrangement is a slide, a
+  // document/article arrangement is a section.
+  const arrangements = vocabulary?.arrangements?.[layout] ?? [];
   const grouped = blocks.reduce<Record<string, typeof blocks>>((acc, b) => {
     (acc[b.group] = acc[b.group] ?? []).push(b);
     return acc;
@@ -151,9 +169,9 @@ export function StudioInsertMenu({
       <button type="button" className={btn} onClick={() => setOpen(open === 'add' ? null : 'add')}>
         <Plus className="h-3 w-3" /> Add <ChevronDown className="h-3 w-3" />
       </button>
-      {layout === 'deck' && (
-        <button type="button" className={btn} onClick={() => setOpen(open === 'slide' ? null : 'slide')}>
-          <Presentation className="h-3 w-3" /> Slide <ChevronDown className="h-3 w-3" />
+      {arrangements.length > 0 && (
+        <button type="button" className={btn} onClick={() => setOpen(open === 'arrange' ? null : 'arrange')}>
+          <LayoutGrid className="h-3 w-3" /> Arrange <ChevronDown className="h-3 w-3" />
         </button>
       )}
 
@@ -229,41 +247,41 @@ export function StudioInsertMenu({
         </div>
       )}
 
-      {open === 'slide' && (
+      {open === 'arrange' && (
         <div className={panel}>
           <p className="px-2 pb-0.5 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Add a slide
+            Add {arrangeNoun}
           </p>
-          {containers.map((c) => (
+          {arrangements.map((a) => (
             <button
-              key={`add-${c.slug}`}
+              key={`add-${a.slug}`}
               type="button"
               onClick={() => {
-                onAddSlide(c.fragment, c.label);
+                onAddArrangement(a.fragment, a.label);
                 setOpen(null);
               }}
               className="flex w-full flex-col rounded px-2 py-1.5 text-left hover:bg-muted/40"
             >
-              <span className="text-xs">{c.label}</span>
-              <span className="text-[10px] leading-snug text-muted-foreground">{c.description}</span>
+              <span className="text-xs">{a.label}</span>
+              <span className="text-[10px] leading-snug text-muted-foreground">{a.description}</span>
             </button>
           ))}
           <p className="px-2 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Change selected slide to
+            Change selected {arrangeNoun} to
           </p>
-          {containers.map((c) => (
+          {arrangements.map((a) => (
             <button
-              key={`lay-${c.slug}`}
+              key={`lay-${a.slug}`}
               type="button"
               disabled={!selection}
-              title={selection ? undefined : 'Select something on a slide first'}
+              title={selection ? undefined : `Select a ${arrangeNoun} first`}
               onClick={() => {
-                onApplySlideLayout(c.fragment, c.label);
+                onApplyArrangement(a.fragment, a.label);
                 setOpen(null);
               }}
               className="flex w-full flex-col rounded px-2 py-1.5 text-left hover:bg-muted/40 disabled:opacity-40"
             >
-              <span className="text-xs">{c.label}</span>
+              <span className="text-xs">{a.label}</span>
             </button>
           ))}
         </div>

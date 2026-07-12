@@ -145,9 +145,11 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
         "scaffold": """<main>
   <h1 data-block="heading" data-block-id="t1">Untitled document</h1>
   <p class="lede" data-block="heading" data-block-id="t2">One sentence on what this document is for.</p>
-  <section data-block="prose" data-block-id="b1">
-    <h2>First section</h2>
-    <p>Start here.</p>
+  <section data-arrange="title-lede">
+    <h2 data-block="heading" data-block-id="t3">First section</h2>
+    <div data-slot="main">
+      <div data-block="prose" data-block-id="b1"><p>Start here.</p></div>
+    </div>
   </section>
 </main>""",
     },
@@ -175,12 +177,12 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     .slide .cols { display: flex; gap: 2.5rem; align-items: flex-start; }
     .slide .col { flex: 1; min-width: 0; }
 """.strip("\n"),
-        "scaffold": """<section class="slide">
+        "scaffold": """<section class="slide" data-arrange="title">
   <p class="kicker" data-block="heading" data-block-id="k1">Untitled deck</p>
   <h1 data-block="heading" data-block-id="t1">The one-line thesis goes here.</h1>
   <p data-block="heading" data-block-id="f1">Subtitle or framing sentence.</p>
 </section>
-<section class="slide">
+<section class="slide" data-arrange="content">
   <h2 data-block="heading" data-block-id="t2">First point</h2>
   <div data-block="prose" data-block-id="b1">
     <p>One idea per slide.</p>
@@ -212,29 +214,40 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     <p class="subtitle" data-block="heading" data-block-id="t2">The one-sentence promise to the reader.</p>
     <p class="byline" data-block="heading" data-block-id="t3">Byline · Date</p>
   </header>
-  <div data-block="prose" data-block-id="b1">
-    <p>Opening paragraph.</p>
-  </div>
+  <section data-arrange="section">
+    <div data-slot="main">
+      <div data-block="prose" data-block-id="b1"><p>Opening paragraph.</p></div>
+    </div>
+  </section>
 </article>""",
     },
 }
 
 
 # ---------------------------------------------------------------------------
-# Containers (ADR-444) — the slide-master grain. Per-LAYOUT structural
-# arrangements the member applies to a SELECTED container (a deck slide) or
-# inserts fresh — deterministic, member-attributed operations, no LLM.
-# `data-container` names the arrangement; `data-slot` regions receive the
-# container's blocks on a deterministic reflow (first slot takes existing
-# blocks; other slots keep their placeholders).
+# Arrangements (ADR-447) — the composition layer, PROMOTED from ADR-444's
+# deck-only "slide masters" to a first-class, per-document-type grammar.
+# An arrangement says WHERE content goes on a page/section: grids, slots,
+# overlays, sizings. It is orthogonal to the block (what content is) and the
+# skin (how it looks). v1 is page-grain (whole page/slide); section-band
+# nesting is phase 2.
+#
+# Each row: label + description (operator words) · grain ('page' in v1) ·
+# slots (each {name, role}: role='flow' accepts blocks on a reflow,
+# role='heading' is structural and anchors) · fragment (the deterministic
+# insertion payload — data-arrange names the arrangement; data-slot marks the
+# regions; the FE stamps fresh block ids and writes through the mechanical
+# door). Grammar not schema (R4): an un-arranged artifact stays valid.
 # ---------------------------------------------------------------------------
 
-STUDIO_CONTAINERS: dict[str, dict[str, dict[str, str]]] = {
+STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
     "deck": {
         "title": {
             "label": "Title slide",
             "description": "Kicker, thesis headline, framing line.",
-            "fragment": """<section class="slide" data-container="title">
+            "grain": "page",
+            "slots": [{"name": "heading", "role": "heading"}],
+            "fragment": """<section class="slide" data-arrange="title">
   <p class="kicker" data-block="heading" data-block-id="k1">Kicker</p>
   <h1 data-block="heading" data-block-id="t1">The headline goes here.</h1>
   <p data-block="heading" data-block-id="f1">Framing sentence.</p>
@@ -243,7 +256,9 @@ STUDIO_CONTAINERS: dict[str, dict[str, dict[str, str]]] = {
         "content": {
             "label": "Content",
             "description": "A heading with content below.",
-            "fragment": """<section class="slide" data-container="content">
+            "grain": "page",
+            "slots": [{"name": "main", "role": "flow"}],
+            "fragment": """<section class="slide" data-arrange="content">
   <h2 data-block="heading" data-block-id="t1">Slide title</h2>
   <div data-slot="main"></div>
 </section>""",
@@ -251,7 +266,9 @@ STUDIO_CONTAINERS: dict[str, dict[str, dict[str, str]]] = {
         "two-column": {
             "label": "Two column",
             "description": "A heading over two side-by-side regions.",
-            "fragment": """<section class="slide" data-container="two-column">
+            "grain": "page",
+            "slots": [{"name": "main", "role": "flow"}, {"name": "side", "role": "flow"}],
+            "fragment": """<section class="slide" data-arrange="two-column">
   <h2 data-block="heading" data-block-id="t1">Slide title</h2>
   <div class="cols">
     <div class="col" data-slot="main"></div>
@@ -259,20 +276,79 @@ STUDIO_CONTAINERS: dict[str, dict[str, dict[str, str]]] = {
   </div>
 </section>""",
         },
+        "comparison": {
+            "label": "Comparison",
+            "description": "Two headed columns, side by side.",
+            "grain": "page",
+            "slots": [{"name": "left", "role": "flow"}, {"name": "right", "role": "flow"}],
+            "fragment": """<section class="slide" data-arrange="comparison">
+  <h2 data-block="heading" data-block-id="t1">Slide title</h2>
+  <div class="cols">
+    <div class="col"><h3 data-block="heading" data-block-id="l1">Option A</h3><div data-slot="left"></div></div>
+    <div class="col"><h3 data-block="heading" data-block-id="r1">Option B</h3><div data-slot="right"></div></div>
+  </div>
+</section>""",
+        },
         "quote": {
             "label": "Quote",
             "description": "One centered pull quote.",
-            "fragment": """<section class="slide" data-container="quote">
+            "grain": "page",
+            "slots": [{"name": "main", "role": "flow"}],
+            "fragment": """<section class="slide" data-arrange="quote">
   <div data-slot="main">
     <blockquote data-block="quote" data-block-id="b1"><p>The quote.</p><cite>Attribution</cite></blockquote>
   </div>
 </section>""",
         },
     },
-    # document/article containers arrive as rows here when demanded — the
-    # registry admits them with zero mechanism change.
-    "document": {},
-    "article": {},
+    "document": {
+        "title-lede": {
+            "label": "Title + lede",
+            "description": "A title and one-line lede, then content.",
+            "grain": "page",
+            "slots": [{"name": "main", "role": "flow"}],
+            "fragment": """<section data-arrange="title-lede">
+  <h2 data-block="heading" data-block-id="t1">Section title</h2>
+  <p class="lede" data-block="heading" data-block-id="l1">One line on what this section is for.</p>
+  <div data-slot="main"></div>
+</section>""",
+        },
+        "two-column": {
+            "label": "Two column",
+            "description": "A heading over two side-by-side regions.",
+            "grain": "page",
+            "slots": [{"name": "main", "role": "flow"}, {"name": "side", "role": "flow"}],
+            "fragment": """<section data-arrange="two-column">
+  <h2 data-block="heading" data-block-id="t1">Section title</h2>
+  <div class="cols">
+    <div class="col" data-slot="main"></div>
+    <div class="col" data-slot="side"></div>
+  </div>
+</section>""",
+        },
+    },
+    "article": {
+        "section": {
+            "label": "Section",
+            "description": "A subheading and flowing prose.",
+            "grain": "page",
+            "slots": [{"name": "main", "role": "flow"}],
+            "fragment": """<section data-arrange="section">
+  <h2 data-block="heading" data-block-id="t1">Section heading</h2>
+  <div data-slot="main"></div>
+</section>""",
+        },
+        "pull-quote": {
+            "label": "Pull quote",
+            "description": "A prose region with an offset pull quote aside.",
+            "grain": "page",
+            "slots": [{"name": "main", "role": "flow"}],
+            "fragment": """<section data-arrange="pull-quote">
+  <blockquote data-block="quote" data-block-id="q1"><p>The line worth pulling.</p></blockquote>
+  <div data-slot="main"></div>
+</section>""",
+        },
+    },
 }
 
 
@@ -326,6 +402,20 @@ def _blocks_grammar() -> str:
     )
 
 
+def _arrangements_grammar(template: str) -> str:
+    """The arrangement roster for a layout — the composition options the lane
+    can author or re-lay to (ADR-447). Grammar, not schema."""
+    rows = STUDIO_ARRANGEMENTS.get(template, {})
+    if not rows:
+        return "  (no named arrangements for this layout — a single flow.)"
+    return "\n".join(
+        f"  - {slug} — {a['description']} (slots: "
+        + ", ".join(s["name"] for s in a["slots"])
+        + ")"
+        for slug, a in rows.items()
+    )
+
+
 _POSTURE_FRAME = """
 ## Studio: you are authoring one artifact
 This lane is bound to `{path}` (layout: {template}). Your job is to author
@@ -367,6 +457,20 @@ When the member asks to change the layout: preserve every block and its
 data-block-id, replace the <style> skin and the flow structure per the
 target layout's grammar, and update data-template on the root. A layout
 change is an ordinary edit — versioned and revertible like any other.
+
+## Arrangements (where content goes on a page/section)
+Each page or section carries an ARRANGEMENT — data-arrange="<slug>" on the
+page element (a deck slide, or a document/article <section>), with
+data-slot="<name>" regions that hold blocks. The arrangement is the
+composition (grids, columns, slots); the block is the content; keep them
+distinct. When you author a new page/section, annotate it with data-arrange
+and give its content regions data-slot. When you re-lay a page to a different
+arrangement, move existing blocks INTACT (ids preserved) into the new
+arrangement's slots — heading blocks anchor the page and are not swept. The
+member also re-arranges directly with the toolbar; treat the current
+arrangement as truth and re-read before editing. Arrangements for this
+layout:
+{arrangements_grammar}
 
 ## Citing workspace objects (references, never copies)
 - Embed a workspace file by REFERENCE, resolved live at render time:
@@ -436,5 +540,6 @@ def build_studio_posture(artifact_path: str, artifact_content: str) -> str:
         template=template,
         outline_section=outline_section,
         blocks_grammar=_blocks_grammar(),
+        arrangements_grammar=_arrangements_grammar(template),
         flow=layout["flow"],
     )

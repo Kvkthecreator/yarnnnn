@@ -74,11 +74,16 @@ export interface OpAnchor {
   slideIndex?: number | null;
 }
 
-function slideAt(doc: Document, anchor: OpAnchor): Element | null {
+/** The page-grain arrangement element enclosing the anchor (ADR-447). A
+ *  deck slide (`section.slide[data-arrange]`) and a document/article section
+ *  (`section[data-arrange]`) are both `[data-arrange]` — so this finds either.
+ *  `slideIndex` (the pointer's enclosing-slide index) still resolves a deck
+ *  slide with no block (a title slide). */
+function arrangedPageAt(doc: Document, anchor: OpAnchor): Element | null {
   if (anchor.blockId) {
     const viaBlock = doc
       .querySelector(`[data-block-id="${CSS.escape(anchor.blockId)}"]`)
-      ?.closest('section.slide');
+      ?.closest('[data-arrange]');
     if (viaBlock) return viaBlock;
   }
   const slides = doc.querySelectorAll('section.slide');
@@ -104,28 +109,29 @@ export function insertBlock(
   if (afterBlock?.parentElement) {
     afterBlock.insertAdjacentElement('afterend', el);
   } else {
-    const slide = slideAt(doc, anchor);
-    const target = slide ? (slide.querySelector('[data-slot]') ?? slide) : defaultFlow(doc);
+    const page = arrangedPageAt(doc, anchor);
+    const target = page ? (page.querySelector('[data-slot]') ?? page) : defaultFlow(doc);
     target.appendChild(el);
   }
   return { html: serialize(doc), landedId: el.getAttribute('data-block-id') };
 }
 
-/** Insert a new slide (from a container fragment) after the selected slide,
- *  or at the end of the deck. */
-export function insertSlide(
+/** Insert a new arrangement (a slide / a section, from its fragment) after the
+ *  selected page, or at the end of the artifact (ADR-447 — generalizes
+ *  insertSlide to any layout). */
+export function insertArrangement(
   html: string,
-  containerFragment: string,
+  fragment: string,
   anchor: OpAnchor,
 ): OpResult | null {
   const doc = parse(html);
-  const el = materializeFragment(doc, containerFragment);
+  const el = materializeFragment(doc, fragment);
   if (!el) return null;
-  const slides = doc.querySelectorAll('section.slide');
-  const after = slideAt(doc, anchor) ?? (slides.length ? slides[slides.length - 1] : null);
-  if (after) after.insertAdjacentElement('afterend', el);
-  else (doc.querySelector('main') ?? doc.body).appendChild(el);
-  return { html: serialize(doc), landedId: el.getAttribute('data-container') };
+  const pages = doc.querySelectorAll('[data-arrange]');
+  const after = arrangedPageAt(doc, anchor) ?? (pages.length ? pages[pages.length - 1] : null);
+  if (after?.parentElement) after.insertAdjacentElement('afterend', el);
+  else (doc.querySelector('main') ?? doc.querySelector('article') ?? doc.body).appendChild(el);
+  return { html: serialize(doc), landedId: el.getAttribute('data-arrange') };
 }
 
 /** Strip every executable from a fragment of member-typed inner HTML before
@@ -171,25 +177,26 @@ export function editBlockText(
   return { html: serialize(doc), landedId: blockId };
 }
 
-/** Apply a container layout to the selected slide: every existing
- *  [data-block] in the slide moves INTACT (ids preserved) into the new
- *  arrangement's first [data-slot]; other slots keep their placeholders;
- *  the old slide is replaced. The slide-master reflow. */
-export function applySlideLayout(
+/** Apply an arrangement to the selected page (a slide / a section): every
+ *  existing [data-block] in the page moves INTACT (ids preserved) into the new
+ *  arrangement's first [data-slot]; other slots keep their placeholders; the
+ *  old page is replaced. The reflow (ADR-447 — generalizes applySlideLayout to
+ *  any layout; the deck slide-master reflow is the deck case). */
+export function applyArrangement(
   html: string,
-  containerFragment: string,
+  fragment: string,
   anchor: OpAnchor,
 ): OpResult | null {
   const doc = parse(html);
-  const slide = slideAt(doc, anchor);
-  if (!slide) return null;
-  const el = materializeFragment(doc, containerFragment);
+  const page = arrangedPageAt(doc, anchor);
+  if (!page) return null;
+  const el = materializeFragment(doc, fragment);
   if (!el) return null;
   // Reflow moves CONTENT blocks into the new arrangement; heading blocks
-  // (title/kicker/subtitle) belong to the slide's own structure and the new
-  // container brings its own — so they are NOT swept (ADR-446: headings are
-  // editable blocks, but they anchor the slide, they don't flow into a slot).
-  const blocks = Array.from(slide.querySelectorAll('[data-block]')).filter(
+  // (title/kicker/subtitle) belong to the page's own structure and the new
+  // arrangement brings its own — so they are NOT swept (ADR-446: headings are
+  // editable blocks, but they anchor the page, they don't flow into a slot).
+  const blocks = Array.from(page.querySelectorAll('[data-block]')).filter(
     (b) => b.getAttribute('data-block') !== 'heading',
   );
   const slot = el.querySelector('[data-slot]');
@@ -198,6 +205,6 @@ export function applySlideLayout(
     slot.querySelectorAll('[data-block]').forEach((p) => p.remove());
     blocks.forEach((b) => slot.appendChild(b));
   }
-  slide.replaceWith(el);
-  return { html: serialize(doc), landedId: el.getAttribute('data-container') };
+  page.replaceWith(el);
+  return { html: serialize(doc), landedId: el.getAttribute('data-arrange') };
 }

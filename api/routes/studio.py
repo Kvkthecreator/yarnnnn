@@ -78,13 +78,14 @@ async def list_artifacts(auth: UserClient) -> dict:
 
 @router.get("/studio/vocabulary")
 async def get_vocabulary(auth: UserClient) -> dict:
-    """The block vocabulary + layout + container registries (ADR-443 R4/D5 +
-    ADR-444) — the ONE kernel-seeded grammar, served so the FE palette,
-    layout switcher, and slide-master menus render (and EXECUTE) from the same
-    source the posture teaches from. `fragment` is the deterministic insertion
-    payload — the FE stamps a fresh data-block-id and writes. Grammar, not
-    schema."""
-    from services.studio import STUDIO_BLOCKS, STUDIO_CONTAINERS, STUDIO_LAYOUTS
+    """The block + layout + arrangement registries (ADR-443 R4/D5 + ADR-447) —
+    the ONE kernel-seeded grammar, served so the FE palette, layout switcher,
+    and the Arrange menu render (and EXECUTE) from the same source the posture
+    teaches from. `fragment` is the deterministic insertion payload — the FE
+    stamps a fresh data-block-id and writes. `grain`/`slots` carry the
+    arrangement's composition shape (the FE derives a wireframe thumbnail from
+    them — ADR-447 D7.1). Grammar, not schema."""
+    from services.studio import STUDIO_ARRANGEMENTS, STUDIO_BLOCKS, STUDIO_LAYOUTS
 
     return {
         "blocks": [
@@ -101,12 +102,19 @@ async def get_vocabulary(auth: UserClient) -> dict:
             {"slug": s, "label": l["label"], "description": l["description"]}
             for s, l in STUDIO_LAYOUTS.items()
         ],
-        "containers": {
+        "arrangements": {
             layout: [
-                {"slug": s, "label": c["label"], "description": c["description"], "fragment": c["fragment"]}
-                for s, c in containers.items()
+                {
+                    "slug": s,
+                    "label": a["label"],
+                    "description": a["description"],
+                    "grain": a["grain"],
+                    "slots": a["slots"],
+                    "fragment": a["fragment"],
+                }
+                for s, a in arrangements.items()
             ]
-            for layout, containers in STUDIO_CONTAINERS.items()
+            for layout, arrangements in STUDIO_ARRANGEMENTS.items()
         },
     }
 

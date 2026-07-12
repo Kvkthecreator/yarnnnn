@@ -41,7 +41,7 @@ fourth from a deck-only afterthought:
 | **Layout** | what kind of artifact | `data-template` (document/deck/article) |
 | **Arrangement** *(this ADR)* | **where content goes on a page/section** | `data-arrange` + `data-slot` |
 | **Block** | what a content unit is | `data-block` + `data-block-id` |
-| **Skin** | how it looks (design system) | `<style>` — **out of scope** (a separate decision) |
+| **Skin** | how it looks (design system) | `<style>` — a **separate, complementary layer** (ADR-449 shipped it: a marked, cited `data-skin` style element); orthogonal to arrangement |
 
 Arrangement answers exactly one question — *where do things go* (grids, slots, overlays, sizings) —
 orthogonal to *what the content is* (block) and *how it looks* (skin). A "Two Content" slide and a
@@ -142,7 +142,9 @@ not just the page's first slot — a modest change; selection already reports `b
 richer cross-type section-band set + **drag-and-drop** into slots (the iframe pointer-bridge).
 
 **Out of scope (named so it never re-litigates)**: the design-system/skin layer (palette, type,
-mood — a separate ADR when demanded; the operator scoped it out) · responsive breakpoints
+mood — the operator scoped it out; a **complementary** layer, now shipped by ADR-449 as a marked
+`data-skin` cited style element — orthogonal to arrangement: Skin is *how it looks*, Arrangement is
+*where content goes*) · responsive breakpoints
 (v1 arrangements are fixed like today's deck) · a widget/plugin ABI (R5 — arrangements are
 semantic HTML + grid CSS) · a JSON layout model (R1 — the DOM is the model).
 

@@ -27,7 +27,7 @@ import { useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext'
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { StudioCanvas, type PointerEvent2 } from './StudioCanvas';
 import { StudioInsertMenu, type StudioVocabulary } from './StudioInsertMenu';
-import { applySlideLayout, editBlockText, insertBlock, insertSlide, type OpResult } from './artifactOps';
+import { applyArrangement, editBlockText, insertArrangement, insertBlock, type OpResult } from './artifactOps';
 
 interface LaneInfo {
   id: string;
@@ -273,9 +273,9 @@ export function StudioSurface() {
     [models, boundLane],
   );
 
-  // ── The served kernel vocabulary (ADR-443 R4 + ADR-444): blocks + layouts
-  // + containers — the toolbar EXECUTES from it, the switcher renders from
-  // it, the posture teaches from the same source. One fetch per open. ──
+  // ── The served kernel vocabulary (ADR-443 R4 + ADR-444 + ADR-447): blocks +
+  // layouts + arrangements — the toolbar EXECUTES from it, the switcher renders
+  // from it, the posture teaches from the same source. One fetch per open. ──
   const [vocabulary, setVocabulary] = useState<StudioVocabulary | null>(null);
   useEffect(() => {
     if (!artifactPath || vocabulary) return;
@@ -352,16 +352,16 @@ export function StudioSurface() {
     },
     [applyOp, anchor, vocabulary],
   );
-  const handleAddSlide = useCallback(
+  const handleAddArrangement = useCallback(
     (fragment: string, label: string) =>
-      applyOp((html) => insertSlide(html, fragment, anchor), `Studio: add ${label} slide`),
+      applyOp((html) => insertArrangement(html, fragment, anchor), `Studio: add ${label}`),
     [applyOp, anchor],
   );
-  const handleApplySlideLayout = useCallback(
+  const handleApplyArrangement = useCallback(
     (fragment: string, label: string) =>
       applyOp(
-        (html) => applySlideLayout(html, fragment, anchor),
-        `Studio: change slide layout to ${label}`,
+        (html) => applyArrangement(html, fragment, anchor),
+        `Studio: change arrangement to ${label}`,
       ),
     [applyOp, anchor],
   );
@@ -442,8 +442,8 @@ export function StudioSurface() {
                 onClearSelection={onPointClear}
                 onInsertBlock={handleInsertBlock}
                 onInsertCited={handleInsertCited}
-                onAddSlide={handleAddSlide}
-                onApplySlideLayout={handleApplySlideLayout}
+                onAddArrangement={handleAddArrangement}
+                onApplyArrangement={handleApplyArrangement}
                 onSeed={seedComposer}
                 onAskAboutSelection={askAboutSelection}
                 onToggleEdit={() =>

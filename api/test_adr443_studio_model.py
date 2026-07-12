@@ -11,7 +11,10 @@ Static/structural checks (no DB, no LLM):
   5. Block-grain pointing: the projection pointer runtime carries blockId +
      blockKind (D6) — read as text from the FE file.
   6. Grammar-not-schema: no validation gate anywhere in the studio module.
-  7. ADR-444: the mechanical layer (containers, the write door, FE ops).
+  7. ADR-444: the mechanical layer (arrangements, the write door, FE ops).
+  9. ADR-447: the arrangement layer — STUDIO_ARRANGEMENTS per-type (document/
+     article filled), skeletons carry data-arrange, the reflow generalizes to
+     [data-arrange] (any type), the "Arrange" menu, posture teaches it.
   8. ADR-446: the direct-edit runtime — editBlockText maps to the SOURCE by
      block id (id-preserving, sanitizing, no-op-safe); the projection edit
      runtime stamps citation islands + commits on blur/idle (the revision is
@@ -124,23 +127,24 @@ def run() -> bool:
     _check("no validation gate on blocks (grammar not schema — zero raises)",
            studio_src.count("raise") == 0)
 
-    # ── 7. ADR-444: the mechanical layer ─────────────────────────────────
-    from services.studio import STUDIO_CONTAINERS
-    _check("containers registry keyed by layout",
-           set(STUDIO_CONTAINERS) == set(STUDIO_LAYOUTS))
-    _check("deck ships 4 slide masters",
-           set(STUDIO_CONTAINERS["deck"]) == {"title", "content", "two-column", "quote"})
-    _check("container fragments carry identity + slots",
-           all("data-container" in c["fragment"] for c in STUDIO_CONTAINERS["deck"].values())
-           and "data-slot" in STUDIO_CONTAINERS["deck"]["content"]["fragment"])
+    # ── 7. ADR-444/447: the mechanical layer + arrangements ──────────────
+    from services.studio import STUDIO_ARRANGEMENTS
+    _check("arrangements registry keyed by layout",
+           set(STUDIO_ARRANGEMENTS) == set(STUDIO_LAYOUTS))
+    _check("deck ships its page arrangements",
+           {"title", "content", "two-column", "quote"} <= set(STUDIO_ARRANGEMENTS["deck"]))
+    _check("arrangement fragments carry data-arrange + slots + grain metadata",
+           all("data-arrange" in a["fragment"] and "grain" in a and "slots" in a
+               for a in STUDIO_ARRANGEMENTS["deck"].values())
+           and "data-slot" in STUDIO_ARRANGEMENTS["deck"]["content"]["fragment"])
     _check("mechanical write door registered (CAS)",
            '"/studio/artifacts/write"' in src and "expected_parent_version_id" in src
            and "StaleWriteError" in src)
-    _check("vocabulary serves fragments + containers",
-           '"fragment"' in src and "STUDIO_CONTAINERS" in src)
+    _check("vocabulary serves fragments + arrangements",
+           '"fragment"' in src and "STUDIO_ARRANGEMENTS" in src)
     ops = (repo / "web/components/studio/artifactOps.ts").read_text()
-    _check("FE ops: insert/slide/slide-master reflow, ids preserved",
-           "insertBlock" in ops and "insertSlide" in ops and "applySlideLayout" in ops
+    _check("FE ops: insert/arrangement reflow, ids preserved",
+           "insertBlock" in ops and "insertArrangement" in ops and "applyArrangement" in ops
            and "freshBlockId" in ops)
     _check("toolbar EXECUTES (not prompt-prefill)",
            "onInsertBlock" in surface and "writeArtifact" in surface)
@@ -192,16 +196,45 @@ def run() -> bool:
         sk = build_skeleton(slug)
         _check(f"scaffold '{slug}': title is an editable heading block",
                'data-block="heading"' in sk)
-    _check("deck slide masters annotate their titles (heading blocks)",
-           all('data-block="heading"' in c["fragment"]
-               for c in STUDIO_CONTAINERS["deck"].values()
-               if "<h1" in c["fragment"] or "<h2" in c["fragment"]))
+    _check("deck arrangements annotate their titles (heading blocks)",
+           all('data-block="heading"' in a["fragment"]
+               for a in STUDIO_ARRANGEMENTS["deck"].values()
+               if "<h1" in a["fragment"] or "<h2" in a["fragment"]))
     _check("heading is NOT a palette-inserted vocabulary kind (grammar, not schema)",
            "heading" not in STUDIO_BLOCKS)
     _check("posture teaches the heading block (editable titles)",
            'data-block="heading"' in posture)
-    _check("slide reflow does not sweep heading blocks into a slot",
+    _check("arrangement reflow does not sweep heading blocks into a slot",
            "'heading'" in ops and "data-block')" in ops)
+
+    # ── 9. ADR-447: the arrangement layer (composition, per-type) ────────
+    from services.studio import _arrangements_grammar
+    _check("every layout has page arrangements (document/article filled)",
+           all(len(STUDIO_ARRANGEMENTS[t]) >= 1 for t in STUDIO_LAYOUTS)
+           and len(STUDIO_ARRANGEMENTS["document"]) >= 1
+           and len(STUDIO_ARRANGEMENTS["article"]) >= 1)
+    _check("arrangement slots carry name + role (flow vs heading)",
+           all("name" in s and "role" in s
+               for arr in STUDIO_ARRANGEMENTS.values()
+               for a in arr.values() for s in a["slots"]))
+    for slug in STUDIO_LAYOUTS:
+        sk = build_skeleton(slug)
+        _check(f"scaffold '{slug}': first page carries data-arrange (arrangeable from creation)",
+               'data-arrange=' in sk)
+    _check("reflow targets [data-arrange] (any type), not just section.slide",
+           "arrangedPageAt" in ops and "[data-arrange]" in ops)
+    _check("reflow lands the arrangement slug (data-arrange), not data-container",
+           "getAttribute('data-arrange')" in ops and "data-container" not in ops)
+    _check("posture: Arrangements section composed from the registry",
+           "Arrangements (where content goes" in posture
+           and STUDIO_ARRANGEMENTS["deck"]["comparison"]["description"] in posture)
+    _check("the 'Arrange' menu replaces the deck-only 'Slide' menu (all types)",
+           "Arrange" in menu and "arrangements" in menu
+           and "onAddArrangement" in menu and "onApplyArrangement" in menu)
+    _check("arrange menu is not deck-gated (arrangements.length gate)",
+           "arrangements.length > 0" in menu)
+    _check("vocabulary endpoint serves arrangements with grain + slots",
+           '"arrangements"' in src and '"grain"' in src and '"slots"' in src)
 
     failed = [r for r in _results if not r[1]]
     print(f"\n{len(_results) - len(failed)}/{len(_results)} checks passed"

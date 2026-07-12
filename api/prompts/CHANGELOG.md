@@ -6,6 +6,11 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.12.6] - Studio posture: the arrangement layer (ADR-447 v1 Phase 1)
+
+- `services/studio.py::_POSTURE_FRAME` — a new **Arrangements** section (composed per turn from `STUDIO_ARRANGEMENTS[layout]` via `_arrangements_grammar`): teaches that each page/section carries `data-arrange="<slug>"` with `data-slot` regions; the arrangement is the composition (grids/columns/slots), the block is the content, keep them distinct; annotate new pages, move blocks intact into slots on a re-lay (heading blocks anchor, not swept), treat the current arrangement as truth (concurrent-writer). The section lists the current layout's arrangements.
+- Expected behavior change: bound lanes author `data-arrange`-annotated pages/sections and re-lay them by moving blocks into slots, on all three layouts (deck slide masters + new document/article page arrangements). `STUDIO_CONTAINERS` → `STUDIO_ARRANGEMENTS` (deck fragments byte-compatible; `data-container` → `data-arrange`). Plain chat lanes unchanged; posture grows ~0.4k chars on authoring turns only.
+
 ## [2026.07.12.5] - The design-system posture section for bound lanes (ADR-449)
 
 - `services/design_systems.py::build_design_system_section` (new) + `services/lane_runner.py::build_lane_conventions` — when the workspace contains at least one design system (a folder with a `_design.yaml` manifest), bound Studio lanes gain an additive "Design system" section: the system(s) by manifest path + the Skin contract — compose ONE marked `<style data-skin="true" data-ref="<manifest>">` element last in `<head>` from the manifest's css sources; replace only that element on re-apply; never touch it on layout switches; never strip the `data-ref` citation.
