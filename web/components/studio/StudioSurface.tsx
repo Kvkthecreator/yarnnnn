@@ -19,14 +19,15 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, ExternalLink, LayoutTemplate, Loader2, Palette, Plus } from 'lucide-react';
+import { Check, LayoutTemplate, Loader2, Palette, Plus } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { StudioCanvas, type PointerEvent2 } from './StudioCanvas';
-import { StudioInsertMenu } from './StudioInsertMenu';
+import { StudioInsertMenu, type StudioVocabulary } from './StudioInsertMenu';
+import { applySlideLayout, insertBlock, insertSlide, type OpResult } from './artifactOps';
 
 interface LaneInfo {
   id: string;
@@ -127,6 +128,9 @@ export function StudioSurface() {
         ]
       : [],
   );
+  // ADR-444: "Open in Files" removed — unnecessary chrome (the crumb carries
+  // identity; Files is a launcher away). The bar keeps the one artifact-level
+  // verb: Change layout.
   useSurfaceActions(
     'studio',
     artifactPath
@@ -138,13 +142,6 @@ export function StudioSurface() {
             label: 'Change layout',
             icon: LayoutTemplate,
             onClick: () => setLayoutMenuOpen((o) => !o),
-          },
-          {
-            id: 'open-in-files',
-            label: 'Open in Files',
-            icon: ExternalLink,
-            to: 'files',
-            params: { path: artifactPath },
           },
         ]
       : [],
@@ -222,10 +219,25 @@ export function StudioSurface() {
     (text: string) => setSeed((s) => ({ text, nonce: (s?.nonce ?? 0) + 1 })),
     [],
   );
+  // ── The selection (ADR-444): held by the surface, it anchors the toolbar's
+  // deterministic ops AND informs the lane (via a visible composer seed). ──
+  const [selection, setSelection] = useState<{
+    blockId: string | null;
+    blockKind: string | null;
+    slideIndex: number | null;
+    text: string;
+  } | null>(null);
+
   const onPoint = useCallback(
     (p: PointerEvent2) => {
-      // ADR-443 D6: block-grain selection speaks operator words — the block's
-      // kind + id when the hit lands inside one; element fallbacks otherwise.
+      setSelection({
+        blockId: p.blockId,
+        blockKind: p.blockKind,
+        slideIndex: p.slideIndex,
+        text: p.text,
+      });
+      // ADR-443 D6: the lane hears about the selection in operator words —
+      // visible in the composer (honesty over magic).
       if (p.blockId || p.blockKind) {
         const kind = p.blockKind ?? 'content';
         const id = p.blockId ? ` (id: ${p.blockId})` : '';
@@ -238,6 +250,7 @@ export function StudioSurface() {
     },
     [seedComposer],
   );
+  const onPointClear = useCallback(() => setSelection(null), []);
 
   const outline = useMemo(() => extractOutline(file?.content ?? ''), [file]);
   const template = useMemo(() => extractTemplate(file?.content ?? ''), [file]);
@@ -246,19 +259,20 @@ export function StudioSurface() {
     [models, boundLane],
   );
 
-  // ── Change layout (ADR-443 D5): a surface-bar action opens the picker;
-  // picking a layout seeds the lane's re-layout TRANSFORMATION (R2 — an
-  // authored revision that preserves every block, never a view toggle). ──
-  const [layouts, setLayouts] = useState<Array<{ slug: string; label: string; description: string }>>([]);
+  // ── The served kernel vocabulary (ADR-443 R4 + ADR-444): blocks + layouts
+  // + containers — the toolbar EXECUTES from it, the switcher renders from
+  // it, the posture teaches from the same source. One fetch per open. ──
+  const [vocabulary, setVocabulary] = useState<StudioVocabulary | null>(null);
   useEffect(() => {
-    if (!artifactPath || layouts.length) return;
+    if (!artifactPath || vocabulary) return;
     api.studio
       .vocabulary()
-      .then((v) => setLayouts(v.layouts))
+      .then(setVocabulary)
       .catch(() => {
-        /* the switcher just stays empty — creation/authoring unaffected */
+        /* toolbar menus stay empty — chat authoring unaffected */
       });
-  }, [artifactPath, layouts.length]);
+  }, [artifactPath, vocabulary]);
+  const layouts = vocabulary?.layouts ?? [];
 
   const switchLayout = useCallback(
     (slug: string, label: string) => {
@@ -270,6 +284,72 @@ export function StudioSurface() {
       setLayoutMenuOpen(false);
     },
     [seedComposer],
+  );
+
+  // ── The mechanical executor (ADR-444): compute a deterministic op FE-side,
+  // land it as ONE operator-attributed CAS-guarded revision, re-render. ──
+  const [opError, setOpError] = useState<string | null>(null);
+  const applyOp = useCallback(
+    async (compute: (html: string) => OpResult | null, message: string) => {
+      if (!artifactPath || !file?.content) return;
+      setOpError(null);
+      const result = compute(file.content);
+      if (!result) {
+        setOpError('Could not apply that here — select something in the document first.');
+        return;
+      }
+      try {
+        await api.studio.writeArtifact(
+          artifactPath,
+          result.html,
+          file.head_version_id ?? null,
+          message,
+        );
+        setReloadKey((k) => k + 1);
+      } catch (e) {
+        // A 409 = the lane wrote under us — reload and let the member retry.
+        setOpError(e instanceof Error ? e.message : 'The edit did not land — reloading.');
+        setReloadKey((k) => k + 1);
+      }
+    },
+    [artifactPath, file],
+  );
+
+  const anchor = useMemo(
+    () => ({ blockId: selection?.blockId ?? null, slideIndex: selection?.slideIndex ?? null }),
+    [selection],
+  );
+
+  const handleInsertBlock = useCallback(
+    (fragment: string, label: string) =>
+      applyOp((html) => insertBlock(html, fragment, anchor), `Studio: add ${label} block`),
+    [applyOp, anchor],
+  );
+  const handleInsertCited = useCallback(
+    (kind: 'figure' | 'table', path: string) => {
+      const rel = relPath(path);
+      const base = vocabulary?.blocks.find((b) => b.kind === kind)?.fragment;
+      if (!base) return;
+      const fragment = base.replace(/data-ref="[^"]*"/, `data-ref="${rel}"`);
+      void applyOp(
+        (html) => insertBlock(html, fragment, anchor),
+        `Studio: insert ${kind === 'figure' ? 'image' : 'table'} ${rel}`,
+      );
+    },
+    [applyOp, anchor, vocabulary],
+  );
+  const handleAddSlide = useCallback(
+    (fragment: string, label: string) =>
+      applyOp((html) => insertSlide(html, fragment, anchor), `Studio: add ${label} slide`),
+    [applyOp, anchor],
+  );
+  const handleApplySlideLayout = useCallback(
+    (fragment: string, label: string) =>
+      applyOp(
+        (html) => applySlideLayout(html, fragment, anchor),
+        `Studio: change slide layout to ${label}`,
+      ),
+    [applyOp, anchor],
   );
 
   // ── START STATE ─────────────────────────────────────────────────────────
@@ -326,7 +406,22 @@ export function StudioSurface() {
             </div>
           ) : boundLane ? (
             <>
-              <StudioInsertMenu onSeed={seedComposer} />
+              <StudioInsertMenu
+                vocabulary={vocabulary}
+                layout={template}
+                selection={selection}
+                onClearSelection={onPointClear}
+                onInsertBlock={handleInsertBlock}
+                onInsertCited={handleInsertCited}
+                onAddSlide={handleAddSlide}
+                onApplySlideLayout={handleApplySlideLayout}
+                onSeed={seedComposer}
+              />
+              {opError && (
+                <p className="border-b border-border bg-red-50 px-3 py-1 text-[11px] text-red-700 dark:bg-red-950/30 dark:text-red-300">
+                  {opError}
+                </p>
+              )}
               <LanePanel
                 key={boundLane.id}
                 laneId={boundLane.id}
@@ -382,6 +477,7 @@ export function StudioSurface() {
                 file={file}
                 artifactPath={artifactPath}
                 onPoint={onPoint}
+                onPointClear={onPointClear}
               />
             )}
           </div>

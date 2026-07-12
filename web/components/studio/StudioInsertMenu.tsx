@@ -1,45 +1,44 @@
 'use client';
 
 /**
- * StudioInsertMenu — the block palette (ADR-440 v1.1 → ADR-443 D7).
+ * StudioToolbar (file keeps its historical name) — the EXECUTING toolbar
+ * (ADR-444, superseding the v1.1 prompt-prefill strip).
  *
- * Prompt-composer buttons rendered from the ONE kernel vocabulary
- * (GET /studio/vocabulary — the same source the lane's posture teaches from,
- * ADR-443 R4). Buttons PREFILL the composer with the right ask; nothing here
- * writes the artifact — the lane does, when the member sends.
+ * Buttons here EXECUTE deterministic structural operations at the canvas
+ * selection — the PowerPoint/Notion model: Add → a real block lands in the
+ * document; pick an image → a cited figure block is INSERTED; Slide → add a
+ * slide from a container layout or re-lay the SELECTED slide (slide master).
+ * Each execution is one operator-attributed, CAS-guarded revision through
+ * the Studio's mechanical write door — no LLM, no prompt.
  *
- * Operator words only in the chrome (ADR-443 D3): "Add" — never "compose".
- * Citation-backed kinds keep their pickers over the commons: Image (figure)
- * and Table open GET /studio/citable lists; Chart seeds the SVG-authoring
- * ask (plain-text authoring, ADR-440 D7).
+ * The ONE exception: Chart still asks the lane (authoring an SVG is
+ * generative judgment, not a deterministic op).
+ *
+ * Renders from the served kernel vocabulary (GET /studio/vocabulary) — the
+ * same source the lane's posture teaches from (ADR-443 R4).
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { BarChart3, ImagePlus, Loader2, Plus, Table2 } from 'lucide-react';
+import { ChevronDown, Loader2, Plus, Presentation, X } from 'lucide-react';
 import { api } from '@/lib/api/client';
+
+export interface StudioVocabulary {
+  blocks: Array<{ kind: string; label: string; description: string; group: string; fragment: string }>;
+  layouts: Array<{ slug: string; label: string; description: string }>;
+  containers: Record<string, Array<{ slug: string; label: string; description: string; fragment: string }>>;
+}
+
+export interface StudioSelection {
+  blockId: string | null;
+  blockKind: string | null;
+  slideIndex: number | null;
+  text: string;
+}
 
 interface Citable {
   images: Array<{ path: string; updated_at: string | null }>;
   tables: Array<{ path: string; updated_at: string | null }>;
 }
-
-interface VocabularyBlock {
-  kind: string;
-  label: string;
-  description: string;
-  group: string;
-}
-
-/** The ask each block kind seeds. Falls back to a generic add for kinds the
- *  kernel grows later — the palette never needs a code change per kind. */
-const KIND_SEEDS: Record<string, string> = {
-  prose: 'Add a text section about: ',
-  callout: 'Add a callout that highlights: ',
-  quote: 'Add a quote: ',
-  checklist: 'Add a checklist of: ',
-  metrics: 'Add a metrics row showing: ',
-  chart: 'Create an SVG chart at ./assets/chart.svg, cite it in the document, showing: ',
-};
 
 const GROUP_LABELS: Record<string, string> = {
   content: 'Content',
@@ -56,36 +55,52 @@ function baseName(p: string): string {
   return parts[parts.length - 1] || p;
 }
 
-interface StudioInsertMenuProps {
+interface StudioToolbarProps {
+  vocabulary: StudioVocabulary | null;
+  /** The artifact's current layout slug — gates the Slide menu (deck). */
+  layout: string;
+  selection: StudioSelection | null;
+  onClearSelection: () => void;
+  /** EXECUTE: insert this block fragment at the selection. */
+  onInsertBlock: (fragment: string, label: string) => void;
+  /** EXECUTE: insert a cited block (figure/table) for a picked workspace file. */
+  onInsertCited: (kind: 'figure' | 'table', path: string) => void;
+  /** EXECUTE: add a slide from a container fragment (after the selection). */
+  onAddSlide: (fragment: string, label: string) => void;
+  /** EXECUTE: re-lay the SELECTED slide to a container (slide master). */
+  onApplySlideLayout: (fragment: string, label: string) => void;
+  /** The one generative ask (Chart) — seeds the lane. */
   onSeed: (text: string) => void;
 }
 
-export function StudioInsertMenu({ onSeed }: StudioInsertMenuProps) {
-  const [open, setOpen] = useState<null | 'image' | 'table' | 'add'>(null);
+export function StudioInsertMenu({
+  vocabulary,
+  layout,
+  selection,
+  onClearSelection,
+  onInsertBlock,
+  onInsertCited,
+  onAddSlide,
+  onApplySlideLayout,
+  onSeed,
+}: StudioToolbarProps) {
+  const [open, setOpen] = useState<null | 'add' | 'slide' | 'image' | 'table'>(null);
   const [citable, setCitable] = useState<Citable | null>(null);
-  const [blocks, setBlocks] = useState<VocabularyBlock[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingCitable, setLoadingCitable] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const toggle = (panel: 'image' | 'table' | 'add') => {
-    setOpen((cur) => (cur === panel ? null : panel));
-    if (panel === 'add' && !blocks) {
-      api.studio
-        .vocabulary()
-        .then((v) => setBlocks(v.blocks))
-        .catch(() => setBlocks([]));
-    }
-    if ((panel === 'image' || panel === 'table') && !citable && !loading) {
-      setLoading(true);
+  const openPicker = (panel: 'image' | 'table') => {
+    setOpen(panel);
+    if (!citable && !loadingCitable) {
+      setLoadingCitable(true);
       api.studio
         .citable()
         .then(setCitable)
         .catch(() => setCitable({ images: [], tables: [] }))
-        .finally(() => setLoading(false));
+        .finally(() => setLoadingCitable(false));
     }
   };
 
-  // Close on outside click.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
@@ -95,70 +110,68 @@ export function StudioInsertMenu({ onSeed }: StudioInsertMenuProps) {
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  const pickCitable = (path: string) => {
-    const rel = relPath(path);
-    onSeed(
-      open === 'image'
-        ? `Insert the workspace image "${rel}" where it fits best. `
-        : `Show the data from "${rel}" as a table in the document. `,
-    );
-    setOpen(null);
-  };
+  const blocks = vocabulary?.blocks ?? [];
+  const containers = vocabulary?.containers?.[layout] ?? [];
+  const grouped = blocks.reduce<Record<string, typeof blocks>>((acc, b) => {
+    (acc[b.group] = acc[b.group] ?? []).push(b);
+    return acc;
+  }, {});
 
-  const pickBlock = (b: VocabularyBlock) => {
-    // Citation-backed kinds route to their pickers; the rest seed directly.
-    if (b.kind === 'figure') {
-      toggle('image');
+  const pickBlock = (b: StudioVocabulary['blocks'][number]) => {
+    if (b.kind === 'figure') return openPicker('image');
+    if (b.kind === 'table') return openPicker('table');
+    if (b.kind === 'chart') {
+      onSeed('Create an SVG chart at ./assets/chart.svg, cite it in the document, showing: ');
+      setOpen(null);
       return;
     }
-    if (b.kind === 'table') {
-      toggle('table');
-      return;
-    }
-    onSeed(KIND_SEEDS[b.kind] ?? `Add a ${b.label.toLowerCase()} block: `);
+    onInsertBlock(b.fragment, b.label);
     setOpen(null);
   };
 
   const items = open === 'image' ? citable?.images : open === 'table' ? citable?.tables : undefined;
 
-  const groupedBlocks = (blocks ?? []).reduce<Record<string, VocabularyBlock[]>>((acc, b) => {
-    (acc[b.group] = acc[b.group] ?? []).push(b);
-    return acc;
-  }, {});
-
   const btn =
-    'inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground';
+    'inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-40';
+  const panel =
+    'absolute left-2 top-full z-20 mt-1 max-h-72 w-80 overflow-y-auto rounded-md border border-border bg-background p-1 shadow-md';
 
   return (
     <div ref={rootRef} className="relative flex items-center gap-1 border-b border-border px-2 py-1.5">
-      <button type="button" className={btn} onClick={() => toggle('add')}>
-        <Plus className="h-3 w-3" /> Add
+      <button type="button" className={btn} onClick={() => setOpen(open === 'add' ? null : 'add')}>
+        <Plus className="h-3 w-3" /> Add <ChevronDown className="h-3 w-3" />
       </button>
-      <button type="button" className={btn} onClick={() => toggle('image')}>
-        <ImagePlus className="h-3 w-3" /> Image
-      </button>
-      <button type="button" className={btn} onClick={() => toggle('table')}>
-        <Table2 className="h-3 w-3" /> Table
-      </button>
-      <button
-        type="button"
-        className={btn}
-        onClick={() => {
-          onSeed(KIND_SEEDS.chart);
-          setOpen(null);
-        }}
-      >
-        <BarChart3 className="h-3 w-3" /> Chart
-      </button>
+      {layout === 'deck' && (
+        <button type="button" className={btn} onClick={() => setOpen(open === 'slide' ? null : 'slide')}>
+          <Presentation className="h-3 w-3" /> Slide <ChevronDown className="h-3 w-3" />
+        </button>
+      )}
+
+      {/* The selection chip — what the next Add/Slide op anchors to, and what
+          the lane hears about on the next message. */}
+      {selection && (
+        <span className="ml-auto inline-flex min-w-0 items-center gap-1 rounded-full border border-indigo-300/60 bg-indigo-50/60 px-2 py-0.5 text-[10px] text-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200">
+          <span className="truncate">
+            {selection.blockKind
+              ? `${selection.blockKind}${selection.blockId ? ` · ${selection.blockId}` : ''}`
+              : selection.slideIndex != null
+                ? `slide ${selection.slideIndex + 1}`
+                : 'selection'}
+          </span>
+          <button type="button" onClick={onClearSelection} aria-label="Clear selection">
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      )}
 
       {open === 'add' && (
-        <div className="absolute left-2 top-full z-20 mt-1 max-h-72 w-72 overflow-y-auto rounded-md border border-border bg-background p-1 shadow-md">
-          {!blocks && (
+        <div className={panel}>
+          {!vocabulary && (
             <div className="flex items-center justify-center gap-2 p-3 text-xs text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
             </div>
           )}
-          {Object.entries(groupedBlocks).map(([group, list]) => (
+          {Object.entries(grouped).map(([group, list]) => (
             <div key={group} className="mb-1">
               <p className="px-2 pb-0.5 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                 {GROUP_LABELS[group] ?? group}
@@ -171,9 +184,7 @@ export function StudioInsertMenu({ onSeed }: StudioInsertMenuProps) {
                   className="flex w-full flex-col rounded px-2 py-1.5 text-left hover:bg-muted/40"
                 >
                   <span className="text-xs">{b.label}</span>
-                  <span className="text-[10px] leading-snug text-muted-foreground">
-                    {b.description}
-                  </span>
+                  <span className="text-[10px] leading-snug text-muted-foreground">{b.description}</span>
                 </button>
               ))}
             </div>
@@ -181,33 +192,74 @@ export function StudioInsertMenu({ onSeed }: StudioInsertMenuProps) {
         </div>
       )}
 
+      {open === 'slide' && (
+        <div className={panel}>
+          <p className="px-2 pb-0.5 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Add a slide
+          </p>
+          {containers.map((c) => (
+            <button
+              key={`add-${c.slug}`}
+              type="button"
+              onClick={() => {
+                onAddSlide(c.fragment, c.label);
+                setOpen(null);
+              }}
+              className="flex w-full flex-col rounded px-2 py-1.5 text-left hover:bg-muted/40"
+            >
+              <span className="text-xs">{c.label}</span>
+              <span className="text-[10px] leading-snug text-muted-foreground">{c.description}</span>
+            </button>
+          ))}
+          <p className="px-2 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Change selected slide to
+          </p>
+          {containers.map((c) => (
+            <button
+              key={`lay-${c.slug}`}
+              type="button"
+              disabled={!selection}
+              title={selection ? undefined : 'Select something on a slide first'}
+              onClick={() => {
+                onApplySlideLayout(c.fragment, c.label);
+                setOpen(null);
+              }}
+              className="flex w-full flex-col rounded px-2 py-1.5 text-left hover:bg-muted/40 disabled:opacity-40"
+            >
+              <span className="text-xs">{c.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {(open === 'image' || open === 'table') && (
-        <div className="absolute left-2 top-full z-20 mt-1 max-h-64 w-80 overflow-y-auto rounded-md border border-border bg-background p-1 shadow-md">
-          {loading && (
+        <div className={panel}>
+          {loadingCitable && (
             <div className="flex items-center justify-center gap-2 p-3 text-xs text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
             </div>
           )}
-          {!loading && (!items || items.length === 0) && (
+          {!loadingCitable && (!items || items.length === 0) && (
             <p className="p-3 text-xs text-muted-foreground">
               {open === 'image'
-                ? 'No images in the workspace yet — drop one into Files, or ask for an SVG instead.'
+                ? 'No images in the workspace yet — drop one into Files, or ask the chat for an SVG.'
                 : 'No CSV files in the workspace yet.'}
             </p>
           )}
-          {!loading &&
+          {!loadingCitable &&
             items?.map((it) => (
               <button
                 key={it.path}
                 type="button"
-                onClick={() => pickCitable(it.path)}
+                onClick={() => {
+                  onInsertCited(open === 'image' ? 'figure' : 'table', it.path);
+                  setOpen(null);
+                }}
                 className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left hover:bg-muted/40"
               >
                 <span className="min-w-0">
                   <span className="block truncate text-xs">{baseName(it.path)}</span>
-                  <span className="block truncate text-[10px] text-muted-foreground">
-                    {relPath(it.path)}
-                  </span>
+                  <span className="block truncate text-[10px] text-muted-foreground">{relPath(it.path)}</span>
                 </span>
               </button>
             ))}

@@ -27,6 +27,8 @@ export interface PointerEvent2 {
   /** ADR-443 D6 — the enclosing block's address, when the hit is inside one. */
   blockId: string | null;
   blockKind: string | null;
+  /** ADR-444 — the enclosing slide's index (deck layouts), for slide ops. */
+  slideIndex: number | null;
 }
 
 interface StudioCanvasProps {
@@ -71,6 +73,7 @@ export function StudioCanvas({ file, artifactPath, onPoint, onPointClear }: Stud
           dataRef: typeof d.dataRef === 'string' ? d.dataRef : null,
           blockId: typeof d.blockId === 'string' ? d.blockId : null,
           blockKind: typeof d.blockKind === 'string' ? d.blockKind : null,
+          slideIndex: typeof d.slideIndex === 'number' ? d.slideIndex : null,
         });
       } else if (d.type === 'yarnnn-point-clear') {
         onPointClear?.();

@@ -78,21 +78,84 @@ async def list_artifacts(auth: UserClient) -> dict:
 
 @router.get("/studio/vocabulary")
 async def get_vocabulary(auth: UserClient) -> dict:
-    """The block vocabulary + layout registry (ADR-443 R4/D5) — the ONE
-    kernel-seeded grammar, served so the FE palette and layout switcher render
-    from the same source the posture teaches from. Grammar, not schema."""
-    from services.studio import STUDIO_BLOCKS, STUDIO_LAYOUTS
+    """The block vocabulary + layout + container registries (ADR-443 R4/D5 +
+    ADR-444) — the ONE kernel-seeded grammar, served so the FE palette,
+    layout switcher, and slide-master menus render (and EXECUTE) from the same
+    source the posture teaches from. `fragment` is the deterministic insertion
+    payload — the FE stamps a fresh data-block-id and writes. Grammar, not
+    schema."""
+    from services.studio import STUDIO_BLOCKS, STUDIO_CONTAINERS, STUDIO_LAYOUTS
 
     return {
         "blocks": [
-            {"kind": k, "label": b["label"], "description": b["description"], "group": b["group"]}
+            {
+                "kind": k,
+                "label": b["label"],
+                "description": b["description"],
+                "group": b["group"],
+                "fragment": b["markup"],
+            }
             for k, b in STUDIO_BLOCKS.items()
         ],
         "layouts": [
             {"slug": s, "label": l["label"], "description": l["description"]}
             for s, l in STUDIO_LAYOUTS.items()
         ],
+        "containers": {
+            layout: [
+                {"slug": s, "label": c["label"], "description": c["description"], "fragment": c["fragment"]}
+                for s, c in containers.items()
+            ]
+            for layout, containers in STUDIO_CONTAINERS.items()
+        },
     }
+
+
+class WriteArtifactRequest(BaseModel):
+    path: str
+    content: str
+    expected_head_version_id: Optional[str] = None
+    message: Optional[str] = None
+
+
+@router.post("/studio/artifacts/write")
+async def write_artifact(req: WriteArtifactRequest, auth: UserClient) -> dict:
+    """The Studio's MECHANICAL write door (ADR-444) — deterministic,
+    member-executed structural operations (insert a block, add a slide, apply
+    a slide layout) computed in the FE and landed as ONE operator-attributed
+    revision. CAS-guarded (ADR-406): a stale base 409s with the intervening
+    attribution instead of silently clobbering a lane write."""
+    from services.authored_substrate import StaleWriteError, write_revision
+    from services.studio import STUDIO_ARTIFACT_REGION
+
+    raw = (req.path or "").strip()
+    path = raw if raw.startswith("/") else f"/workspace/{raw}"
+    if not path.endswith(".html") or ".." in path or not path.startswith(STUDIO_ARTIFACT_REGION):
+        raise HTTPException(status_code=403, detail=f"Not a Studio artifact path: {path}")
+    if not (req.content or "").strip():
+        raise HTTPException(status_code=422, detail="content required")
+
+    write_kwargs: dict = {}
+    if req.expected_head_version_id is not None:
+        write_kwargs["expected_parent_version_id"] = req.expected_head_version_id
+    try:
+        write_revision(
+            auth.client,
+            user_id=auth.user_id,
+            path=path,
+            content=req.content,
+            authored_by="operator",
+            author_identity_uuid=auth.user_id,
+            message=req.message or "Studio: structural edit",
+            summary=req.message or "Structural edit in the Studio",
+            **write_kwargs,
+        )
+    except StaleWriteError as e:
+        raise HTTPException(
+            status_code=409,
+            detail=f"The artifact changed under you (expected {e.expected_parent_version_id or '<none>'}) — it will reload.",
+        )
+    return {"success": True, "path": path}
 
 
 @router.get("/studio/citable")

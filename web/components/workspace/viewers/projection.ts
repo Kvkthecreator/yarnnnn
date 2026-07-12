@@ -186,6 +186,14 @@ const POINTER_SCRIPT = `
     mark.classList.add('yarnnn-pointed');
     var text = (el.getAttribute('alt') || el.textContent || '')
       .replace(/\\s+/g, ' ').trim().slice(0, 120);
+    // ADR-444: slide-level anchor — which slide (if any) contains the hit,
+    // so slide ops work even where no block is annotated (e.g. title slides).
+    var slide = el.closest ? el.closest('section.slide') : null;
+    var slideIndex = null;
+    if (slide) {
+      var all = document.querySelectorAll('section.slide');
+      for (var i = 0; i < all.length; i++) { if (all[i] === slide) { slideIndex = i; break; } }
+    }
     parent.postMessage({
       type: 'yarnnn-point',
       tag: el.tagName.toLowerCase(),
@@ -193,6 +201,7 @@ const POINTER_SCRIPT = `
       dataRef: el.getAttribute('data-ref') || (blk && blk.getAttribute('data-ref')) || null,
       blockId: blk ? (blk.getAttribute('data-block-id') || null) : null,
       blockKind: blk ? (blk.getAttribute('data-block') || null) : null,
+      slideIndex: slideIndex,
     }, '*');
   }, true);
 })();

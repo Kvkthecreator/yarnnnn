@@ -108,7 +108,7 @@ def run() -> bool:
            "'Change layout'" in surface or '"Change layout"' in surface)
     menu = (repo / "web/components/studio/StudioInsertMenu.tsx").read_text()
     _check("palette renders from the served vocabulary",
-           "vocabulary()" in menu and "groupedBlocks" in menu)
+           "StudioVocabulary" in menu and "grouped" in menu)
 
     # ── 6. Grammar, not schema ───────────────────────────────────────────
     import services.studio as studio_mod
@@ -117,6 +117,29 @@ def run() -> bool:
            "write_revision" not in studio_src and ".table(" not in studio_src)
     _check("no validation gate on blocks (grammar not schema — zero raises)",
            studio_src.count("raise") == 0)
+
+    # ── 7. ADR-444: the mechanical layer ─────────────────────────────────
+    from services.studio import STUDIO_CONTAINERS
+    _check("containers registry keyed by layout",
+           set(STUDIO_CONTAINERS) == set(STUDIO_LAYOUTS))
+    _check("deck ships 4 slide masters",
+           set(STUDIO_CONTAINERS["deck"]) == {"title", "content", "two-column", "quote"})
+    _check("container fragments carry identity + slots",
+           all("data-container" in c["fragment"] for c in STUDIO_CONTAINERS["deck"].values())
+           and "data-slot" in STUDIO_CONTAINERS["deck"]["content"]["fragment"])
+    _check("mechanical write door registered (CAS)",
+           '"/studio/artifacts/write"' in src and "expected_parent_version_id" in src
+           and "StaleWriteError" in src)
+    _check("vocabulary serves fragments + containers",
+           '"fragment"' in src and "STUDIO_CONTAINERS" in src)
+    ops = (repo / "web/components/studio/artifactOps.ts").read_text()
+    _check("FE ops: insert/slide/slide-master reflow, ids preserved",
+           "insertBlock" in ops and "insertSlide" in ops and "applySlideLayout" in ops
+           and "freshBlockId" in ops)
+    _check("toolbar EXECUTES (not prompt-prefill)",
+           "onInsertBlock" in surface and "writeArtifact" in surface)
+    _check("posture: concurrent-writer contract (never renumber ids)",
+           "never renumber" in " ".join(posture.split()))
 
     failed = [r for r in _results if not r[1]]
     print(f"\n{len(_results) - len(failed)}/{len(_results)} checks passed"

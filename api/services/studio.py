@@ -170,6 +170,8 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
                      letter-spacing: 0.08em; text-transform: uppercase;
                      margin-bottom: 1rem; }
     .slide p { max-width: 36rem; }
+    .slide .cols { display: flex; gap: 2.5rem; align-items: flex-start; }
+    .slide .col { flex: 1; min-width: 0; }
 """.strip("\n"),
         "scaffold": """<section class="slide">
   <p class="kicker">Untitled deck</p>
@@ -212,6 +214,62 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
   </div>
 </article>""",
     },
+}
+
+
+# ---------------------------------------------------------------------------
+# Containers (ADR-444) — the slide-master grain. Per-LAYOUT structural
+# arrangements the member applies to a SELECTED container (a deck slide) or
+# inserts fresh — deterministic, member-attributed operations, no LLM.
+# `data-container` names the arrangement; `data-slot` regions receive the
+# container's blocks on a deterministic reflow (first slot takes existing
+# blocks; other slots keep their placeholders).
+# ---------------------------------------------------------------------------
+
+STUDIO_CONTAINERS: dict[str, dict[str, dict[str, str]]] = {
+    "deck": {
+        "title": {
+            "label": "Title slide",
+            "description": "Kicker, thesis headline, framing line.",
+            "fragment": """<section class="slide" data-container="title">
+  <p class="kicker">Kicker</p>
+  <h1>The headline goes here.</h1>
+  <p>Framing sentence.</p>
+</section>""",
+        },
+        "content": {
+            "label": "Content",
+            "description": "A heading with content below.",
+            "fragment": """<section class="slide" data-container="content">
+  <h2>Slide title</h2>
+  <div data-slot="main"></div>
+</section>""",
+        },
+        "two-column": {
+            "label": "Two column",
+            "description": "A heading over two side-by-side regions.",
+            "fragment": """<section class="slide" data-container="two-column">
+  <h2>Slide title</h2>
+  <div class="cols">
+    <div class="col" data-slot="main"></div>
+    <div class="col" data-slot="side"><p>Second column.</p></div>
+  </div>
+</section>""",
+        },
+        "quote": {
+            "label": "Quote",
+            "description": "One centered pull quote.",
+            "fragment": """<section class="slide" data-container="quote">
+  <div data-slot="main">
+    <blockquote data-block="quote" data-block-id="b1"><p>The quote.</p><cite>Attribution</cite></blockquote>
+  </div>
+</section>""",
+        },
+    },
+    # document/article containers arrive as rows here when demanded — the
+    # registry admits them with zero mechanism change.
+    "document": {},
+    "article": {},
 }
 
 
@@ -274,6 +332,10 @@ every write.
 - PATCH, don't rewrite: prefer EditFile with exact old/new fragments for
   changes; reserve WriteFile (full replace) for re-drafts the member
   explicitly asks for. Small patches keep the revision history legible.
+- The member can also insert blocks and slides DIRECTLY (operator-authored
+  revisions land between your turns): always re-read before editing, treat
+  the current content as truth, and never renumber or remove existing
+  data-block-id values you didn't create.
 - The artifact is self-contained HTML: inline CSS only, no <script> and no
   external URLs — the canvas renders it fully sandboxed (scripts never run),
   and everything it shows must come from the workspace.

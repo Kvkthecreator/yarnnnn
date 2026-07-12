@@ -6,6 +6,11 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.12.2] - Studio posture: the concurrent-writer contract (ADR-444)
+
+- `services/studio.py::_POSTURE_FRAME` — one added rule: the member can insert blocks/slides DIRECTLY (operator-authored revisions land between the lane's turns) — re-read before editing, treat current content as truth, never renumber or remove `data-block-id` values the lane didn't create.
+- Expected behavior change: bound lanes stay coherent when mechanical toolbar edits interleave with their turns (the CAS door guards the other direction).
+
 ## [2026.07.12.1] - Studio posture v2: the block grammar + layout switching (ADR-443)
 
 - `services/studio.py::_POSTURE_FRAME` — two new sections composed from the unified kernel registries: **Blocks** (the 8-kind component grammar with markup examples; stamp + PRESERVE `data-block-id`; patch within block boundaries; address blocks by id when the member selects one; grammar-not-schema — unannotated content is never rejected) and **Layout** (the artifact's current layout + flow rule from `STUDIO_LAYOUTS`; layout-switch discipline: preserve every block + id, swap skin + flow, update `data-template` — an ordinary versioned edit). The per-template `_TEMPLATE_GRAMMARS` dict is absorbed into the layout registry's `flow` strings.
