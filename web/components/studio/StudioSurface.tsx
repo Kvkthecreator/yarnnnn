@@ -9,17 +9,21 @@
  *  - No `studio.file` param → the START state: pick a template (Document ·
  *    Deck · Article), name it, place it (meaning-placed under operation/ —
  *    the Studio owns no namespace, D6), or open an existing artifact.
- *  - `studio.file` set → the WORKBENCH: a BOUND lane (left — full ADR-411
- *    machinery via LanePanel; its turns carry the authoring posture) + the
- *    live canvas (right — sandboxed projection) + the outline rail.
+ *  - `studio.file` set → the WORKBENCH, three columns (ADR-447): the per-type
+ *    NAVIGATOR (left — a slide strip for a deck, an outline for a doc/article)
+ *    · the CANVAS (center — sandboxed projection, edited in place) with the
+ *    Add/Arrange toolbar over it · the BOUND chat LANE (right — full ADR-411
+ *    machinery via LanePanel; its turns carry the authoring posture). Freddie's
+ *    floating rail is suppressed on `studio` (Desktop.tsx onOwnChatSurface), so
+ *    the Studio's own chat owns the right edge.
  *
- * Mutation is single-path (ADR-236): the lane writes, the canvas renders.
- * The lane's `onArtifactWrite` bumps `reloadKey` when the bound artifact
- * lands a write, so the member watches the document change as the lane works.
+ * Two write paths, one door (ADR-444/446): the lane writes judgment edits; the
+ * member writes mechanical ones (toolbar ops + in-place text). Both bump
+ * `reloadKey`, so the member watches the document change live.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, LayoutTemplate, Loader2, Palette, Plus } from 'lucide-react';
+import { Loader2, Palette, Plus } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
@@ -27,6 +31,7 @@ import { useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext'
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { StudioCanvas, type PointerEvent2 } from './StudioCanvas';
 import { StudioInsertMenu, type StudioVocabulary } from './StudioInsertMenu';
+import { StudioNavigator } from './StudioNavigator';
 import { applyArrangement, editBlockText, insertArrangement, insertBlock, type OpResult } from './artifactOps';
 
 interface LaneInfo {
@@ -79,18 +84,6 @@ const TEMPLATE_SUGGESTIONS: Record<string, string[]> = {
   ],
 };
 
-/** Headings (h1/h2) in document order — the artifact's outline (rail). */
-function extractOutline(html: string): Array<{ level: number; text: string }> {
-  const out: Array<{ level: number; text: string }> = [];
-  const re = /<h([12])[^>]*>([\s\S]*?)<\/h\1>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) && out.length < 32) {
-    const text = m[2].replace(/<[^>]+>/g, '').trim();
-    if (text) out.push({ level: Number(m[1]), text });
-  }
-  return out;
-}
-
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -108,14 +101,10 @@ export function StudioSurface() {
       : `/workspace/${artifactParam}`
     : null;
 
-  // Declared before the surface-actions hook below (its action array
-  // references the setter at render time).
-  const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
-
   // ADR-442 D4: the Studio declares its surface chrome into the surface bar
   // instead of hand-rolling a header row. Identity = the crumb (the strip's
   // root-click fires the leaf onClick → back to the start state, which is
-  // what "New / open…" did); "Open in Files" = a declared link-shaped action.
+  // what "New / open…" did).
   useWindowCrumb(
     'studio',
     artifactPath
@@ -128,24 +117,12 @@ export function StudioSurface() {
         ]
       : [],
   );
-  // ADR-444: "Open in Files" removed — unnecessary chrome (the crumb carries
-  // identity; Files is a launcher away). The bar keeps the one artifact-level
-  // verb: Change layout.
-  useSurfaceActions(
-    'studio',
-    artifactPath
-      ? [
-          {
-            // ADR-443 D5 — layout is always visible + changeable (operator
-            // word: "Change layout"; the change is an edit, not a toggle).
-            id: 'change-layout',
-            label: 'Change layout',
-            icon: LayoutTemplate,
-            onClick: () => setLayoutMenuOpen((o) => !o),
-          },
-        ]
-      : [],
-  );
+  // ADR-447 (2026-07-12): the type-switcher (formerly a surface-bar action)
+  // is DELETED. It was a legacy misread — morphing a whole artifact from a
+  // deck into a document (or vice versa) is not an operation the member wants;
+  // the artifact's TYPE is fixed at creation. Composition happens WITHIN the
+  // type via the Arrange menu (re-lay the current page/slide). No surface-bar
+  // action for the type.
 
   // ── Lane environment (models + existing lanes) ─────────────────────────
   const [lanesEnabled, setLanesEnabled] = useState<boolean | null>(null);
@@ -266,7 +243,6 @@ export function StudioSurface() {
     }
   }, [selection, seedComposer]);
 
-  const outline = useMemo(() => extractOutline(file?.content ?? ''), [file]);
   const template = useMemo(() => extractTemplate(file?.content ?? ''), [file]);
   const modelLabel = useMemo(
     () => models.find((m) => m.id === boundLane?.model)?.label ?? boundLane?.model ?? '',
@@ -274,8 +250,9 @@ export function StudioSurface() {
   );
 
   // ── The served kernel vocabulary (ADR-443 R4 + ADR-444 + ADR-447): blocks +
-  // layouts + arrangements — the toolbar EXECUTES from it, the switcher renders
-  // from it, the posture teaches from the same source. One fetch per open. ──
+  // arrangements — the toolbar EXECUTES from it, the posture teaches from the
+  // same source. One fetch per open. (Layouts are served too but the Studio no
+  // longer switches type — ADR-447 deleted the format-switcher.) ──
   const [vocabulary, setVocabulary] = useState<StudioVocabulary | null>(null);
   useEffect(() => {
     if (!artifactPath || vocabulary) return;
@@ -286,19 +263,6 @@ export function StudioSurface() {
         /* toolbar menus stay empty — chat authoring unaffected */
       });
   }, [artifactPath, vocabulary]);
-  const layouts = vocabulary?.layouts ?? [];
-
-  const switchLayout = useCallback(
-    (slug: string, label: string) => {
-      seedComposer(
-        `Change this artifact's layout to ${label}: preserve every block and its ` +
-          `data-block-id, replace the <style> skin and the flow structure per the ` +
-          `${label.toLowerCase()} grammar, and update data-template to "${slug}". `,
-      );
-      setLayoutMenuOpen(false);
-    },
-    [seedComposer],
-  );
 
   // ── The mechanical executor (ADR-444): compute a deterministic op FE-side,
   // land it as ONE operator-attributed CAS-guarded revision, re-render. ──
@@ -380,6 +344,13 @@ export function StudioSurface() {
     [applyOp, file],
   );
 
+  // ADR-447: selecting a slide in the left navigator sets the selection to that
+  // slide (no block) — the toolbar's Arrange ops target it via slideIndex.
+  const selectSlideFromNavigator = useCallback((index: number) => {
+    setSelection({ blockId: null, blockKind: null, slideIndex: index, text: '' });
+    setEditingBlockId(null);
+  }, []);
+
   // ── START STATE ─────────────────────────────────────────────────────────
   if (!artifactPath) {
     return (
@@ -390,151 +361,109 @@ export function StudioSurface() {
   }
 
   // ── WORKBENCH ───────────────────────────────────────────────────────────
-  // No header row: the artifact's nameplate + verbs live in the surface bar
-  // (ADR-442 D4 — the strip shows `Studio › ‹artifact›` + "Open in Files";
-  // clicking "Studio" returns to the start state).
+  // Three columns (ADR-447): the per-type NAVIGATOR (left — slide strip for a
+  // deck, outline for a doc/article) · the CANVAS (center — the artifact, edited
+  // in place) with the Add/Arrange toolbar over it · the bound CHAT LANE (right
+  // — the judgment path; Freddie's floating rail is suppressed here, so the
+  // Studio's own chat owns the right edge). Identity + the crumb live in the
+  // surface bar (ADR-442 D4).
   return (
     <div className="relative flex h-full min-h-0 flex-col">
-      {/* The layout picker (ADR-443 D5) — opened by the "Change layout" bar
-          action; picking seeds the lane's re-layout transformation. */}
-      {layoutMenuOpen && (
-        <div className="absolute right-4 top-2 z-30 w-72 rounded-md border border-border bg-background p-1 shadow-md">
-          <p className="px-2 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Layout — changing it is an edit you can see in History
-          </p>
-          {layouts.map((l) => (
-            <button
-              key={l.slug}
-              type="button"
-              disabled={l.slug === template}
-              onClick={() => switchLayout(l.slug, l.label)}
-              className="flex w-full items-start justify-between gap-2 rounded px-2 py-1.5 text-left hover:bg-muted/40 disabled:cursor-default disabled:opacity-100 disabled:hover:bg-transparent"
-            >
-              <span className="min-w-0">
-                <span className="block text-xs">{l.label}</span>
-                <span className="block text-[10px] leading-snug text-muted-foreground">
-                  {l.description}
-                </span>
-              </span>
-              {l.slug === template && <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-            </button>
-          ))}
-          {layouts.length === 0 && (
-            <p className="p-3 text-xs text-muted-foreground">Loading layouts…</p>
+      <div className="flex min-h-0 flex-1">
+        {/* Left — the per-type navigator. */}
+        <div className="w-56 shrink-0 border-r border-border">
+          <StudioNavigator
+            layout={template}
+            html={file?.content ?? ''}
+            selectedSlide={selection?.slideIndex ?? null}
+            onSelectSlide={selectSlideFromNavigator}
+          />
+        </div>
+
+        {/* Center — the toolbar over the canvas (renders, edits in place). */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <StudioInsertMenu
+            vocabulary={vocabulary}
+            layout={template}
+            selection={selection}
+            editing={editingBlockId != null}
+            onClearSelection={onPointClear}
+            onInsertBlock={handleInsertBlock}
+            onInsertCited={handleInsertCited}
+            onAddArrangement={handleAddArrangement}
+            onApplyArrangement={handleApplyArrangement}
+            onSeed={seedComposer}
+            onAskAboutSelection={askAboutSelection}
+            onToggleEdit={() =>
+              setEditingBlockId((cur) =>
+                cur === selection?.blockId ? null : (selection?.blockId ?? null),
+              )
+            }
+          />
+          {opError && (
+            <p className="border-b border-border bg-red-50 px-3 py-1 text-[11px] text-red-700 dark:bg-red-950/30 dark:text-red-300">
+              {opError}
+            </p>
+          )}
+          {loading ? (
+            <div className="flex flex-1 items-center justify-center text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          ) : notFound || !file ? (
+            <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
+              This artifact does not exist yet — ask the lane to create it at{' '}
+              {relPath(artifactPath)}.
+            </div>
+          ) : (
+            <StudioCanvas
+              file={file}
+              artifactPath={artifactPath}
+              onPoint={onPoint}
+              onPointClear={onPointClear}
+              editingBlockId={editingBlockId}
+              onEdit={onEdit}
+              onEditExited={() => setEditingBlockId(null)}
+            />
           )}
         </div>
-      )}
-      <div className="flex min-h-0 flex-1">
-        {/* Left — the bound lane (the mind; the single write path). */}
-        <div className="flex w-[380px] shrink-0 flex-col border-r border-border">
+
+        {/* Right — the bound chat lane (the mind; the single judgment path). */}
+        <div className="flex w-[380px] shrink-0 flex-col border-l border-border">
           {lanesEnabled === false ? (
             <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-              Lanes are not enabled on this deployment — the Studio's authoring
+              Lanes are not enabled on this deployment — the Studio&apos;s authoring
               chat needs the model router. The canvas still renders the artifact.
             </div>
           ) : boundLane ? (
-            <>
-              <StudioInsertMenu
-                vocabulary={vocabulary}
-                layout={template}
-                selection={selection}
-                editing={editingBlockId != null}
-                onClearSelection={onPointClear}
-                onInsertBlock={handleInsertBlock}
-                onInsertCited={handleInsertCited}
-                onAddArrangement={handleAddArrangement}
-                onApplyArrangement={handleApplyArrangement}
-                onSeed={seedComposer}
-                onAskAboutSelection={askAboutSelection}
-                onToggleEdit={() =>
-                  setEditingBlockId((cur) =>
-                    cur === selection?.blockId ? null : (selection?.blockId ?? null),
-                  )
-                }
-              />
-              {opError && (
-                <p className="border-b border-border bg-red-50 px-3 py-1 text-[11px] text-red-700 dark:bg-red-950/30 dark:text-red-300">
-                  {opError}
-                </p>
-              )}
-              <LanePanel
-                key={boundLane.id}
-                laneId={boundLane.id}
-                laneName={boundLane.name}
-                modelLabel={modelLabel}
-                onArtifactWrite={onArtifactWrite}
-                composerSeed={seed}
-                // ADR-443: the canvas (right) IS the artifact view — suppress
-                // the transcript's inline ArtifactCard so the lane doesn't
-                // render the very thing we're looking at twice. The authoring
-                // trail lives in the artifact's revision history (trace), not
-                // in transcript breadcrumbs.
-                artifactWrite="none"
-                emptyState={
+            <LanePanel
+              key={boundLane.id}
+              laneId={boundLane.id}
+              laneName={boundLane.name}
+              modelLabel={modelLabel}
+              onArtifactWrite={onArtifactWrite}
+              composerSeed={seed}
+              // ADR-443: the canvas (center) IS the artifact view — suppress
+              // the transcript's inline ArtifactCard so the lane doesn't render
+              // the very thing we're looking at twice. The authoring trail lives
+              // in the artifact's revision history (trace), not in breadcrumbs.
+              artifactWrite="none"
+              emptyState={
                 <div className="space-y-2 text-center text-xs text-muted-foreground">
-                  <p className="text-sm font-medium text-foreground/80">
-                    Tell it what to write.
-                  </p>
+                  <p className="text-sm font-medium text-foreground/80">Tell it what to write.</p>
                   <p>
                     Ask in plain words — every reply becomes an edit to{' '}
                     <span className="font-medium text-foreground/70">{baseName(artifactPath)}</span>,
-                    and the page on the right updates as it works. It can also
-                    pull in your workspace files — images, tables, notes — as
-                    live references.
+                    and the page updates as it works. It can also pull in your
+                    workspace files — images, tables, notes — as live references.
                   </p>
                 </div>
               }
               suggestions={TEMPLATE_SUGGESTIONS[template] ?? TEMPLATE_SUGGESTIONS.document}
-              />
-            </>
+            />
           ) : (
             <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               {laneError ?? 'Preparing the authoring lane…'}
-            </div>
-          )}
-        </div>
-
-        {/* Right — the canvas (renders, never edits) + the outline rail. */}
-        <div className="flex min-w-0 flex-1">
-          <div className="flex min-w-0 flex-1 flex-col">
-            {loading ? (
-              <div className="flex flex-1 items-center justify-center text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin" />
-              </div>
-            ) : notFound || !file ? (
-              <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-                This artifact does not exist yet — ask the lane to create it at{' '}
-                {relPath(artifactPath)}.
-              </div>
-            ) : (
-              <StudioCanvas
-                file={file}
-                artifactPath={artifactPath}
-                onPoint={onPoint}
-                onPointClear={onPointClear}
-                editingBlockId={editingBlockId}
-                onEdit={onEdit}
-                onEditExited={() => setEditingBlockId(null)}
-              />
-            )}
-          </div>
-          {outline.length > 1 && (
-            <div className="w-52 shrink-0 overflow-y-auto border-l border-border p-3">
-              <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                Outline
-              </p>
-              <ul className="space-y-1">
-                {outline.map((h, i) => (
-                  <li
-                    key={i}
-                    className={`truncate text-xs ${h.level === 1 ? 'font-medium' : 'pl-3 text-muted-foreground'}`}
-                    title={h.text}
-                  >
-                    {h.text}
-                  </li>
-                ))}
-              </ul>
             </div>
           )}
         </div>

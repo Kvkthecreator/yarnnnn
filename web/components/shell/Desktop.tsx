@@ -72,16 +72,17 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
   const { toggleDrawer, drawerOpen, layoutMode } = useShellChrome();
   const { setDesktopBounds, foregrounded, navigateToSurface } = useSurfacePreferences();
   const isFirstTime = useIsFirstTime();
-  // ADR-412 amendment (2026-07-08) — hide the Freddie rail FAB while the
-  // chat-lanes surface (`chat`, Altitude 2 — the member's model-pinned
-  // helper threads) is foregrounded. ADR-412 D1 kept Freddie's rail (A1)
-  // summonable over EVERY surface; the one carve is /chat, where a second
-  // chat entry point (the A1 rail floating over the A2 lanes) reads as two
-  // competing "chat" affordances on one screen. The rail is still reachable
-  // from any other surface; this only suppresses the redundant summon while
-  // the operator is already in a chat surface. Freddie stays addressable —
-  // the drawer, if already open, is unaffected (only the FAB summon hides).
-  const onChatLanes = foregrounded === 'chat';
+  // ADR-412 amendment (2026-07-08) + ADR-447 (2026-07-12) — hide the Freddie
+  // rail FAB while a surface that OWNS its own chat is foregrounded: `chat`
+  // (Altitude 2 — the member's model-pinned helper threads) and `studio` (the
+  // authoring app's bound lane, ADR-440, now the right column). ADR-412 D1
+  // kept Freddie's rail (A1) summonable over EVERY surface; the carve is
+  // surfaces with a first-class chat of their own, where a second chat entry
+  // point (the A1 rail floating over the surface's own lane) reads as two
+  // competing "chat" affordances on one screen. The rail stays reachable from
+  // any other surface; this only suppresses the redundant summon here. Freddie
+  // stays addressable — the drawer, if already open, is unaffected.
+  const onOwnChatSurface = foregrounded === 'chat' || foregrounded === 'studio';
   const ref = useRef<HTMLDivElement>(null);
   // ADR-358 — in CANVAS the window area is NOT a desktop with a floating
   // window on wallpaper; it is ONE primary surface filling the column. So
@@ -220,9 +221,9 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
           'fixed flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all hover:shadow-xl active:scale-95 overflow-hidden',
           'bg-background ring-1 ring-border hover:bg-muted',
           // Hidden while the drawer is already open (redundant with its
-          // own X) OR while the chat-lanes surface is foregrounded (ADR-412
-          // amendment — see onChatLanes above).
-          (drawerOpen || onChatLanes) && 'opacity-0 pointer-events-none',
+          // own X) OR while a surface that owns its own chat is foregrounded
+          // (chat, studio — see onOwnChatSurface above).
+          (drawerOpen || onOwnChatSurface) && 'opacity-0 pointer-events-none',
         )}
         style={{
           right: 'max(1.5rem, env(safe-area-inset-right, 0px) + 0.75rem)',

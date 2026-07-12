@@ -111,10 +111,13 @@ def run() -> bool:
     _check("pointer payload carries blockId + blockKind",
            "blockId" in projection and "blockKind" in projection)
     surface = (repo / "web/components/studio/StudioSurface.tsx").read_text()
-    _check("selection seed speaks operator words (Selected the … block)",
-           "Selected the ${kind} block" in surface or "Selected the " in surface)
-    _check("the Change-layout bar action exists (operator word)",
-           "'Change layout'" in surface or '"Change layout"' in surface)
+    _check("selection informs the lane in operator words (About the … block)",
+           "About the ${kind} block" in surface or "askAboutSelection" in surface)
+    # ADR-447: the format-switcher ("Change layout") is DELETED — morphing a
+    # deck into a document was a legacy misread; composition is WITHIN the type
+    # (the Arrange menu). Guard the deletion.
+    _check("Change-layout format-switcher is deleted (no type morph)",
+           "Change layout" not in surface and "switchLayout" not in surface)
     menu = (repo / "web/components/studio/StudioInsertMenu.tsx").read_text()
     _check("palette renders from the served vocabulary",
            "StudioVocabulary" in menu and "grouped" in menu)
@@ -235,6 +238,22 @@ def run() -> bool:
            "arrangements.length > 0" in menu)
     _check("vocabulary endpoint serves arrangements with grain + slots",
            '"arrangements"' in src and '"grain"' in src and '"slots"' in src)
+
+    # ── 10. ADR-447 workbench restructure (nav · canvas · chat) ──────────
+    nav = (repo / "web/components/studio/StudioNavigator.tsx").read_text()
+    _check("per-type navigator: deck slide strip + doc/article outline",
+           "extractSlides" in nav and "extractOutline" in nav
+           and "layout === 'deck'" in nav)
+    _check("navigator reads SOURCE html (not the projection)",
+           "SOURCE html" in nav or "not the projection" in nav)
+    _check("surface mounts the navigator + selects slides from it",
+           "StudioNavigator" in surface and "selectSlideFromNavigator" in surface)
+    _check("chat lane moved to the RIGHT (border-l on the lane column)",
+           "the bound chat lane (the mind" in surface
+           and "border-l border-border" in surface)
+    desktop = (repo / "web/components/shell/Desktop.tsx").read_text()
+    _check("Freddie FAB suppressed on the studio surface (own-chat carve)",
+           "onOwnChatSurface" in desktop and "'studio'" in desktop)
 
     failed = [r for r in _results if not r[1]]
     print(f"\n{len(_results) - len(failed)}/{len(_results)} checks passed"

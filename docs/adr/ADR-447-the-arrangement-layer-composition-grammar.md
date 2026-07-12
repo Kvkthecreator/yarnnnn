@@ -104,13 +104,16 @@ dropdowns, but composition is spatial." Four decisions:
   CSS** (a scaled structural render), NOT a hand-drawn asset — so adding an arrangement is still one
   registry row (grammar not schema, R4; the preview comes free). Blocks may stay text-labelled
   (a "callout" is known by name); arrangements are shown by shape.
-- **D7.2 — A right-side contextual inspector.** The workbench becomes three columns with distinct
-  jobs: **lane (left — think/judgment)** · **canvas (center — see + touch/direct-manipulation)** ·
-  **inspector (right — compose)**. The inspector is selection-contextual: nothing selected → the
-  page's arrangement thumbnails; a slide/section/slot selected → that element's arrangement + its
-  actions (re-lay this slide, add a band, act on a slot). The current **outline rail folds into the
-  inspector** (an "Outline" mode of it). The Keynote/Figma model — spatial controls beside the
-  spatial canvas.
+- **D7.2 — Three columns: navigator · canvas · chat (operator-refined, 2026-07-12).** The
+  workbench is three columns with distinct jobs: **navigator (left — a PER-TYPE navigator: a slide
+  strip for a deck [PowerPoint's left thumbnails], an outline for a document/article)** · **canvas
+  (center — see + touch/direct-manipulation), with the Add/Arrange toolbar over it** · **the bound
+  chat LANE (right)**. The chat moved to the RIGHT because Freddie's floating rail is suppressed on
+  the Studio surface (D7.6) — so the Studio's own chat owns the right edge and reads as the one chat
+  affordance. The *compose* controls (arrangement thumbnails, selection actions) live in the toolbar
+  (the "Arrange" menu, D5) rather than a fourth inspector column — a leaner realization of the
+  Keynote model than the original "inspector on the right" sketch. **SHIPPED** (structural navigator
+  now; visual slide thumbnails ride Phase 2's thumbnail work).
 - **D7.3 — Click-to-drill + empty-slot affordances.** The pointer runtime (already walks to the
   nearest `[data-block]`) gains grain navigation: a click selects the finest grain (block); a
   re-click on the container drills UP (block → slot → section → page), with a **breadcrumb** showing
@@ -119,8 +122,20 @@ dropdowns, but composition is spatial." Four decisions:
   postMessage bridge (the runtime is the only code in the sandboxed opaque-origin frame).
 - **D7.4 — Drag-and-drop is deferred.** Dragging a block into a slot across the sandboxed
   opaque-origin iframe is genuinely hard (HTML5 DnD does not cross the frame; it needs a
-  pointer-event bridge). v1 composes by click-select + inspector actions + empty-slot add. DnD is
-  phase 2+ if demand warrants.
+  pointer-event bridge). v1 composes by click-select + toolbar actions + (Phase 4) empty-slot add.
+  DnD is phase 2+ if demand warrants.
+- **D7.5 — The type-switcher ("Change layout") is DELETED (operator, 2026-07-12).** Morphing a whole
+  artifact from a deck into a document (or vice versa) was a legacy misread — not an operation the
+  member wants. The artifact's TYPE is fixed at creation; **composition happens WITHIN the type** via
+  the Arrange menu (re-lay the current page/slide). The surface-bar "Change layout" action, its
+  picker, and `switchLayout` are removed. (The `layouts` registry is still served — the creation
+  picker uses it — but there is no in-artifact type switch.) **SHIPPED.**
+- **D7.6 — Freddie's floating rail is suppressed on the Studio surface (operator, 2026-07-12).** Like
+  `/chat`, the Studio owns a first-class chat (the bound lane, now the right column); the global
+  Freddie summon FAB floating over it would read as two competing chat affordances. The existing
+  ADR-412 own-chat carve (`Desktop.tsx`, `foregrounded === 'chat'`) generalizes to
+  `foregrounded === 'chat' || 'studio'`. Freddie stays addressable from every other surface; only
+  the redundant summon hides here. **SHIPPED.**
 
 The mutation contract is unchanged: every compositional act (re-lay, add band, fill slot) is a
 deterministic reflow through the ONE mechanical write door (ADR-444/446), free, CAS-guarded,
