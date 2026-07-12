@@ -20,8 +20,9 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Info, ExternalLink, Pencil, FolderInput, Trash2, Share2 } from 'lucide-react';
+import { Info, ExternalLink, Pencil, FolderInput, Trash2, Share2, MoreVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 
 export interface FileMenuTarget {
   path: string;
@@ -160,6 +161,10 @@ function MenuItem({
  */
 export function useFileContextMenu(verbs: FileVerbs | undefined) {
   const [state, setState] = useState<{ target: FileMenuTarget; x: number; y: number } | null>(null);
+  // Touch parity (2026-07-12): on a coarse pointer there is no right-click, so
+  // the surfaces render a tappable kebab that opens this same menu. `coarse`
+  // tells a surface whether to show the kebab; the menu + verbs are identical.
+  const coarse = useCoarsePointer();
 
   const hasVerbs = !!(verbs && (verbs.onOpen || verbs.onProperties || verbs.onRename || verbs.onMove || verbs.onDelete || verbs.onShare));
 
@@ -168,6 +173,36 @@ export function useFileContextMenu(verbs: FileVerbs | undefined) {
     e.preventDefault();
     setState({ target, x: e.clientX, y: e.clientY });
   }, [hasVerbs]);
+
+  // Kebab trigger: open the same menu anchored at the tapped button's box, so
+  // touch reaches every verb the right-click menu offers. Stops propagation so
+  // the tap doesn't also select/open the row. (`FileContextMenu` clamps the
+  // final position within the viewport, so anchoring at the button is safe.)
+  const openMenuFromButton = useCallback((target: FileMenuTarget, e: React.MouseEvent) => {
+    if (!hasVerbs) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setState({ target, x: r.left, y: r.bottom + 4 });
+  }, [hasVerbs]);
+
+  /** The tappable ⋯ kebab a surface renders per row on coarse pointers. */
+  const Kebab = useCallback(({ target, className }: { target: FileMenuTarget; className?: string }) => {
+    if (!coarse || !hasVerbs) return null;
+    return (
+      <button
+        type="button"
+        aria-label="File actions"
+        onClick={(e) => openMenuFromButton(target, e)}
+        className={cn(
+          'shrink-0 rounded p-1 text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+          className,
+        )}
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+    );
+  }, [coarse, hasVerbs, openMenuFromButton]);
 
   const menu = state && verbs ? (
     <FileContextMenu
@@ -184,5 +219,5 @@ export function useFileContextMenu(verbs: FileVerbs | undefined) {
     />
   ) : null;
 
-  return { openMenu, menu, hasVerbs };
+  return { openMenu, menu, hasVerbs, coarse, Kebab };
 }

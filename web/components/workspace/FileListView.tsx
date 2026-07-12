@@ -67,18 +67,24 @@ export interface FileListRowProps {
   linkTo?: string;
   onContextMenu?: (e: React.MouseEvent) => void;
   title?: string;
+  /** Trailing actions overlay (the touch kebab — ADR-400 touch parity). Absent
+   *  on desktop; overlaid at the right edge so the grid columns are untouched. */
+  actions?: ReactNode;
 }
 
 export function FileListRow({
   name, kind, where, subtitle, author, when,
-  selected = false, dim = false, onClick, linkTo, onContextMenu, title,
+  selected = false, dim = false, onClick, linkTo, onContextMenu, title, actions,
 }: FileListRowProps) {
   const rowClass = cn(
     GRID,
-    'w-full items-center px-4 py-2 text-left text-sm transition-colors',
+    'relative w-full items-center px-4 py-2 text-left text-sm transition-colors',
     selected ? 'bg-primary/10 hover:bg-primary/15' : 'hover:bg-muted/40',
     dim && !selected && 'opacity-70',
   );
+  const actionsOverlay = actions ? (
+    <span className="absolute right-1.5 top-1/2 z-10 -translate-y-1/2">{actions}</span>
+  ) : null;
 
   const inner = (
     <>
@@ -105,12 +111,14 @@ export function FileListRow({
     return (
       <SurfaceLink to="files" params={{ path: linkTo }} className={rowClass} title={title ?? name} onContextMenu={onContextMenu}>
         {inner}
+        {actionsOverlay}
       </SurfaceLink>
     );
   }
   return (
     <button type="button" onClick={onClick} onContextMenu={onContextMenu} title={title ?? name} className={rowClass}>
       {inner}
+      {actionsOverlay}
     </button>
   );
 }

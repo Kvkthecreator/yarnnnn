@@ -132,7 +132,7 @@ function DirectoryView({
 }) {
   // ADR-400: right-click a folder-listing row → the shared file context menu.
   // Falls back to onGetInfo-only when verbs aren't wired (Home/other mounts).
-  const { openMenu, menu } = useFileContextMenu(verbs);
+  const { openMenu, menu, Kebab } = useFileContextMenu(verbs);
   const rowContext = (child: WorkspaceTreeNode) => (e: React.MouseEvent) => {
     if (verbs) {
       openMenu({ path: child.path, name: child.name, isFile: child.type === 'file' }, e);
@@ -141,6 +141,11 @@ function DirectoryView({
       onGetInfo(child);
     }
   };
+  // Touch parity (2026-07-12): a folder-listing row has the same verbs the
+  // right-click menu offers; on a coarse pointer the kebab exposes them. Only
+  // wired when `verbs` are present (the organize mount), matching rowContext.
+  const rowKebab = (child: WorkspaceTreeNode) =>
+    verbs ? <Kebab target={{ path: child.path, name: child.name, isFile: child.type === 'file' }} /> : undefined;
   // For synthetic nodes (entity subfolders with no pre-populated children),
   // fetch children on demand via the tree API.
   const [fetchedChildren, setFetchedChildren] = useState<WorkspaceTreeNode[] | null>(null);
@@ -226,6 +231,7 @@ function DirectoryView({
               kind={child.type === 'folder' ? 'folder' : 'file'}
               onClick={() => onNavigate(child)}
               onContextMenu={rowContext(child)}
+              actions={rowKebab(child)}
               subtext={
                 <span className="inline-flex items-center gap-1">
                   <span className={cn('h-1.5 w-1.5 rounded-full', authorAccent((child as any).authored_by))} />
@@ -259,6 +265,7 @@ function DirectoryView({
                 }
                 onClick={() => onNavigate(child)}
                 onContextMenu={rowContext(child)}
+                actions={rowKebab(child)}
               />
             ))}
           </div>

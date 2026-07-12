@@ -134,7 +134,7 @@ export function RecentsView({
   // toggle across every mount (useFilesViewMode's module-level subscriber set).
   const { mode, setMode: setView } = useFilesViewMode();
   // ADR-400: right-click a tile/row → the shared file context menu (main-panel).
-  const { openMenu, menu } = useFileContextMenu(verbs);
+  const { openMenu, menu, Kebab } = useFileContextMenu(verbs);
 
   const load = useCallback(async () => {
     try {
@@ -201,9 +201,9 @@ export function RecentsView({
       )}
 
       {mode === 'icon' ? (
-        <IconGrid revisions={revisions} onSelectPath={onSelectPath} selectedPath={selectedPath} onContextMenu={openMenu} />
+        <IconGrid revisions={revisions} onSelectPath={onSelectPath} selectedPath={selectedPath} onContextMenu={openMenu} Kebab={Kebab} />
       ) : (
-        <ListTable revisions={revisions} onSelectPath={onSelectPath} selectedPath={selectedPath} onContextMenu={openMenu} />
+        <ListTable revisions={revisions} onSelectPath={onSelectPath} selectedPath={selectedPath} onContextMenu={openMenu} Kebab={Kebab} />
       )}
       {menu}
     </div>
@@ -224,12 +224,13 @@ export function RecentsView({
 // ---------------------------------------------------------------------------
 
 function IconGrid({
-  revisions, onSelectPath, selectedPath, onContextMenu,
+  revisions, onSelectPath, selectedPath, onContextMenu, Kebab,
 }: {
   revisions: Revision[];
   onSelectPath?: (path: string) => void;
   selectedPath?: string | null;
   onContextMenu?: (target: FileMenuTarget, e: React.MouseEvent) => void;
+  Kebab?: (props: { target: FileMenuTarget; className?: string }) => React.ReactNode;
 }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -258,6 +259,7 @@ function IconGrid({
             onClick={onSelectPath ? () => onSelectPath(rev.path) : undefined}
             linkTo={onSelectPath ? undefined : rev.path}
             onContextMenu={onContextMenu ? (e) => onContextMenu(menuTarget, e) : undefined}
+            actions={Kebab ? <Kebab target={menuTarget} /> : undefined}
           />
         );
       })}
@@ -273,12 +275,13 @@ function IconGrid({
 // ---------------------------------------------------------------------------
 
 function ListTable({
-  revisions, onSelectPath, selectedPath, onContextMenu,
+  revisions, onSelectPath, selectedPath, onContextMenu, Kebab,
 }: {
   revisions: Revision[];
   onSelectPath?: (path: string) => void;
   selectedPath?: string | null;
   onContextMenu?: (target: FileMenuTarget, e: React.MouseEvent) => void;
+  Kebab?: (props: { target: FileMenuTarget; className?: string }) => React.ReactNode;
 }) {
   return (
     <div className="overflow-hidden rounded-lg border border-border/60">
@@ -308,6 +311,7 @@ function ListTable({
               onClick={onSelectPath ? () => onSelectPath(rev.path) : undefined}
               linkTo={onSelectPath ? undefined : rev.path}
               onContextMenu={onContextMenu ? (e) => onContextMenu(menuTarget, e) : undefined}
+              actions={Kebab ? <Kebab target={menuTarget} /> : undefined}
             />
           );
         })}

@@ -44,8 +44,11 @@ import {
   Info,
   History,
   Trash2,
+  FolderPlus,
+  Upload,
 } from 'lucide-react';
 import { SettingsPaneShell } from '@/components/settings/SettingsPaneShell';
+import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
@@ -305,6 +308,11 @@ export default function ContextPage() {
   // window.alert/confirm/prompt for the operator's file verbs. See
   // docs/design/ACTION-FEEDBACK.md.
   const { confirm, runAction } = useFeedback();
+  // Touch parity (2026-07-12): the canvas New Folder / Add Files verbs live in a
+  // right-click menu (mouse-only). On a coarse pointer we surface them as
+  // buttons in the Explorer header — the Finder-parity clean look stays on
+  // desktop, touch gets a reachable trigger.
+  const coarse = useCoarsePointer();
 
   // ADR-358 D6 (2026-06-25): read this window's OWN deep-link params under
   // the `files.` namespace (`?files.domain=`, `?files.path=`) so they never
@@ -806,10 +814,32 @@ export default function ContextPage() {
           canvas right-click menu (openCanvasMenu) + drag-drop, like Finder. A
           quiet uppercase group label heads the source list (Finder's "Favorites"
           / "Locations" pattern), nothing more. */}
-      <div className="px-3 pt-3 pb-1 shrink-0">
+      <div className="px-3 pt-3 pb-1 shrink-0 flex items-center justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
           Explorer
         </p>
+        {/* Touch parity (2026-07-12): on a coarse pointer, the canvas verbs
+            (right-click-only on desktop) get reachable buttons here. */}
+        {coarse && (
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setNewFolderOpen(true)}
+              aria-label="New folder"
+              className="rounded p-1 text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+            >
+              <FolderPlus className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => openUpload()}
+              aria-label="Add files"
+              className="rounded p-1 text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+            >
+              <Upload className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto">
         {fileTreeLoading && treeNodes.length === 0 ? (

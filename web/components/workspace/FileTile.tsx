@@ -134,20 +134,28 @@ export interface FileTileProps {
   linkTo?: string;
   onContextMenu?: (e: React.MouseEvent) => void;
   title?: string;
+  /** Trailing actions overlay (the touch kebab — ADR-400 touch parity). Rendered
+   *  top-right so it doesn't disturb the centered card; absent on desktop. */
+  actions?: React.ReactNode;
 }
 
 export function FileTile({
   path, kind, subtext, thumb, selected = false, dim = false,
-  onClick, linkTo, onContextMenu, title,
+  onClick, linkTo, onContextMenu, title, actions,
 }: FileTileProps) {
   const name = fileName(path);
   const shellClass = cn(
-    'group flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center transition-colors',
+    'group relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center transition-colors',
     selected
       ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/40'
       : 'border-transparent hover:border-border/70 hover:bg-muted/40',
     dim && !selected && 'opacity-70',
   );
+  // The touch kebab overlay (absent on desktop — `actions` is only supplied on
+  // a coarse pointer). Top-right so the centered card is undisturbed.
+  const actionsOverlay = actions ? (
+    <span className="absolute right-1 top-1 z-10">{actions}</span>
+  ) : null;
 
   const inner = (
     <>
@@ -181,12 +189,14 @@ export function FileTile({
   if (linkTo && !onClick) {
     return (
       <SurfaceLink to="files" params={{ path: linkTo }} className={shellClass} title={title ?? path} onContextMenu={onContextMenu}>
+        {actionsOverlay}
         {inner}
       </SurfaceLink>
     );
   }
   return (
     <button type="button" onClick={onClick} onContextMenu={onContextMenu} title={title ?? path} className={shellClass}>
+      {actionsOverlay}
       {inner}
     </button>
   );
