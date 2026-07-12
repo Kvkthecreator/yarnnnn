@@ -35,7 +35,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowUp, Loader2, Wrench } from 'lucide-react';
+import { ArrowUp, Loader2, Wrench, FileText } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatTimestamp } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
@@ -101,6 +101,17 @@ export interface LaneMountSlots {
   /** Composer seed: when `nonce` changes, `text` is set into (or appended to)
    *  the composer. Drives pointing + the insert menu (ADR-440 v1.1). */
   composerSeed?: { text: string; nonce: number } | null;
+  /** How this mount renders an assistant turn's artifact writes (ADR-443):
+   *   - `'card'` (default): the full ArtifactCard preview — the mount has no
+   *     other view of the artifact (/chat).
+   *   - `'link'`: a compact "wrote {file} →" citation line — the mount
+   *     references the artifact but doesn't render it inline.
+   *   - `'none'`: suppress entirely — the mount fully OWNS the artifact view,
+   *     so an inline render would be a duplicate (Studio: the canvas IS the
+   *     artifact view; the transcript stays pure conversation).
+   *  The card-vs-suppress decision is a MOUNT concern (declared here), never a
+   *  branch inside the renderer (ADR-441 D2). */
+  artifactWrite?: 'card' | 'link' | 'none';
 }
 
 interface LanePanelProps extends LaneMountSlots {
@@ -117,6 +128,7 @@ export function LanePanel({
   emptyState,
   suggestions,
   composerSeed,
+  artifactWrite = 'card',
 }: LanePanelProps) {
   const [messages, setMessages] = useState<LaneMessage[]>([]);
   const [input, setInput] = useState('');
@@ -371,16 +383,32 @@ export function LanePanel({
                 </div>
               )}
 
-              {m.role === 'assistant' && m.artifacts?.length ? (
+              {/* ADR-443: how artifact writes render is a MOUNT concern the
+                  mount declares via the `artifactWrite` slot. 'card' (default,
+                  /chat) = full preview; 'link' = a compact citation line; 'none'
+                  (Studio) = suppressed, because the mount already owns the view
+                  (the canvas), so a transcript render would duplicate it. */}
+              {m.role === 'assistant' && m.artifacts?.length && artifactWrite !== 'none' ? (
                 <div className="mt-2 space-y-2">
-                  {m.artifacts.map((a) => (
-                    <ArtifactCard
-                      key={a.path}
-                      path={a.path}
-                      verb={a.verb}
-                      attribution={`you via ${modelLabel}`}
-                    />
-                  ))}
+                  {m.artifacts.map((a) =>
+                    artifactWrite === 'link' ? (
+                      <div
+                        key={a.path}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                      >
+                        <FileText className="h-3.5 w-3.5 shrink-0" />
+                        <span className="text-foreground/80">{a.verb}</span>
+                        <span className="truncate font-medium">{a.path.split('/').pop() || a.path}</span>
+                      </div>
+                    ) : (
+                      <ArtifactCard
+                        key={a.path}
+                        path={a.path}
+                        verb={a.verb}
+                        attribution={`you via ${modelLabel}`}
+                      />
+                    ),
+                  )}
                 </div>
               ) : null}
             </div>

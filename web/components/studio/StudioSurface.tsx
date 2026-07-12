@@ -334,6 +334,12 @@ export function StudioSurface() {
                 modelLabel={modelLabel}
                 onArtifactWrite={onArtifactWrite}
                 composerSeed={seed}
+                // ADR-443: the canvas (right) IS the artifact view — suppress
+                // the transcript's inline ArtifactCard so the lane doesn't
+                // render the very thing we're looking at twice. The authoring
+                // trail lives in the artifact's revision history (trace), not
+                // in transcript breadcrumbs.
+                artifactWrite="none"
                 emptyState={
                 <div className="space-y-2 text-center text-xs text-muted-foreground">
                   <p className="text-sm font-medium text-foreground/80">

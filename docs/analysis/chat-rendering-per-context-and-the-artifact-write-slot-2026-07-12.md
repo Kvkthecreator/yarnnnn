@@ -1,7 +1,7 @@
 # Chat rendering per context — the artifact-write slot, and why it's one slot, not three chat stacks
 
 **Date**: 2026-07-12
-**Status**: Discourse (doc-first, receipts-backed). Frames a decision; no code yet. If ratified, the fix is a small extension to the ADR-441 `LaneMountSlots` contract (candidate ADR-443) — NOT a new chat stack.
+**Status**: Discourse → **ratified as [ADR-443](../adr/ADR-443-the-artifact-write-render-slot.md)** (2026-07-12, Implemented). The `artifactWrite` slot was added to `LaneMountSlots`; Studio passes `'none'` (operator ruling — the canvas is the artifact view, so the transcript stays pure conversation). This doc is the derivation record. Receipts-backed; NOT a new chat stack.
 **Author**: Claude (collaborator) + KVK (operator)
 **Trigger**: Operator screenshot — in Studio, the bound lane renders `deck.html` as an inline `ArtifactCard` bubble *while the same artifact is rendered full-size on the canvas beside it*. "Displaying the render in the chat while we're working on the file seems wrong." Plus the meta-concern: handle per-context chat display **without over-engineering a separate chat layout stack**, systematically, since the set of layouts may grow.
 
