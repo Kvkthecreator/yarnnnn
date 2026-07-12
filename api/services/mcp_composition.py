@@ -39,6 +39,13 @@ from typing import Any, Optional
 
 from services.workspace_paths import INBOUND_ROOT  # the raw intake lane (ADR-376/DP32)
 
+# ADR-448: the derived_from parser relocated to authored_substrate (the ledger
+# owns its convention — the write door lifts with the SAME parser the trace
+# walk reads with). Imported, not duplicated.
+from services.authored_substrate import (
+    extract_derived_from_list as _extract_derived_from_list,
+)
+
 
 def _substrate_scope(auth) -> tuple:
     """(column, value) scope for substrate reads — ADR-407 Phase 1.
@@ -404,78 +411,6 @@ def _naturalize_subject(subject: str) -> str:
     return re.sub(r"[-_/]+", " ", subject or "").strip()
 
 
-def _normalize_inbound_ref(ref: str) -> Optional[str]:
-    """Normalize one raw-citation token to an absolute /workspace/ path."""
-    ref = (ref or "").strip().strip("`").strip("'\"").rstrip(",")
-    if not ref or ref in ("[", "]", "-"):
-        return None
-    return ref if ref.startswith("/workspace/") else "/workspace/" + ref.lstrip("/")
-
-
-def _extract_derived_from_list(content: Optional[str]) -> list[str]:
-    """Read ALL `derived_from:` citations from a derived file (ADR-376/DP32 D3).
-
-    A derived object cites the raw observation(s) it was built from. The MCP
-    `remember` derivation cites ONE raw dump; a PERCEPTION distillation cites N
-    raw web observations (one signal from several feeds — the first multi-cite
-    case, ADR-376 §9 DECIDED 2026-06-26: `derived_from` is a list, the single
-    case is the one-element list). This reader is tolerant of all three on-wire
-    shapes so a derived file authored by the seat (free-form `.md`) or written
-    mechanically (`.yaml` block list) both walk cleanly:
-
-        derived_from: /workspace/inbound/mcp/claude.ai/acme.md        # bare scalar
-        derived_from: [a.md, b.md]                                    # inline list
-        derived_from:                                                 # block list
-          - /workspace/inbound/web/stereogum/2026-06-26T10:00:00Z.md
-          - /workspace/inbound/web/pitchfork/2026-06-26T10:00:00Z.md
-
-    Returns absolute /workspace/ paths (deduped, order-preserved). Scans the
-    header region (first ~20 lines — a block list can run several lines).
-    """
-    if not content:
-        return []
-    lines = content.split("\n")
-    refs: list[str] = []
-    # Find the `derived_from:` key in the header region (first ~20 lines); once
-    # found, a block list may run as many lines as it has cites (perception can
-    # distill N feeds), so consume the WHOLE following block, not a fixed window.
-    for i, line in enumerate(lines[:20]):
-        m = re.match(r"\s*derived_from:\s*(.*)$", line)
-        if not m:
-            continue
-        rest = m.group(1).strip()
-        if rest.startswith("["):
-            # inline list — strip brackets, split on commas
-            for tok in rest.strip("[]").split(","):
-                norm = _normalize_inbound_ref(tok)
-                if norm:
-                    refs.append(norm)
-        elif rest and not rest.startswith("#"):
-            # bare scalar on the same line
-            norm = _normalize_inbound_ref(re.split(r"[\s|<>\"']", rest, 1)[0])
-            if norm:
-                refs.append(norm)
-        else:
-            # block list — consume ALL following `- item` lines (unbounded by the
-            # header window; stops at the first non-`- ` line, e.g. the next key)
-            for nxt in lines[i + 1:]:
-                bm = re.match(r"\s*-\s+(.+)$", nxt)
-                if not bm:
-                    break
-                norm = _normalize_inbound_ref(bm.group(1))
-                if norm:
-                    refs.append(norm)
-        break  # only the first derived_from: key in the header region
-    # dedupe, preserve order
-    seen: set[str] = set()
-    out: list[str] = []
-    for r in refs:
-        if r not in seen:
-            seen.add(r)
-            out.append(r)
-    return out
-
-
 def _extract_derived_from(content: Optional[str]) -> Optional[str]:
     """Read the FIRST `derived_from:` citation (ADR-376/DP32 D3).
 
@@ -491,29 +426,23 @@ def _extract_derived_from(content: Optional[str]) -> Optional[str]:
 async def _find_derived_from_raw(auth: Any, raw_abs_path: str) -> Optional[str]:
     """Reverse-walk the citation: find the DERIVED file that cites `raw_abs_path`.
 
-    The seat derives a raw observation into operation/ and names that file by its
-    own judgment (not the subject slug), citing the raw via `derived_from`. So the
-    only reliable way to reach the derived understanding FROM the raw is the
-    citation itself. Returns the newest active operation/ file whose content cites
-    the raw path, or None (no derivation yet). Best-effort; raw-path may be bare or
-    absolute (both are matched against the stored `derived_from` text).
+    The seat derives a raw observation and names that file by its own judgment
+    (not the subject slug), citing the raw via `derived_from`. So the only
+    reliable way to reach the derived understanding FROM the raw is the
+    citation itself. ADR-448: the walk is the ledger dependents query
+    (column-first with the content-convention fallback inside
+    ``list_dependents``), preferring a derived understanding OUTSIDE the raw
+    lane (a co-located ``.extracted.md`` projection is plumbing, not the seat's
+    understanding). Returns the first such path, or None (no derivation yet).
     """
-    bare = raw_abs_path[len("/workspace/"):] if raw_abs_path.startswith("/workspace/") else raw_abs_path
     try:
-        hits = (
-            auth.client.table("workspace_files")
-            .select("path, content, updated_at")
-            .eq(*_substrate_scope(auth))
-            .like("path", "/workspace/operation/%")
-            .ilike("content", "%derived_from%")
-            .order("updated_at", desc=True)
-            .limit(25)
-            .execute()
-        ).data or []
-        for h in hits:
-            cited = _extract_derived_from(h.get("content"))
-            if cited and (cited == raw_abs_path or cited.endswith(bare) or bare.endswith(cited.lstrip("/workspace/"))):
-                return h["path"]
+        from services.authored_substrate import list_dependents
+
+        deps = list_dependents(auth.client, user_id=auth.user_id, path=raw_abs_path)
+        for d in deps:
+            p = d.get("path") or ""
+            if not p.startswith("/workspace/inbound/"):
+                return p
     except Exception as exc:  # noqa: BLE001
         logger.debug("[MCP] reverse derived_from walk failed: %s", exc)
     return None
@@ -1027,19 +956,24 @@ async def compose_trace(
     raw_path = None
     citations = [abs_path]
     try:
-        head = (
-            auth.client.table("workspace_files")
-            .select("content")
-            .eq(*_substrate_scope(auth))
-            .eq("path", abs_path)
-            .limit(1)
-            .execute()
-        )
-        # ADR-376 §9 DECIDED (2026-06-26): derived_from is a LIST — one derived
-        # object may cite N raw observations (the MCP `remember` derivation cites
-        # one; a PERCEPTION distillation cites several feeds). Walk ALL cited raws
-        # and append each chain, so trace shows the complete provenance fan-in.
-        derived_froms = _extract_derived_from_list((head.data or [{}])[0].get("content")) if head.data else []
+        # ADR-448: column-first — the newest revision carries its reference
+        # edge on the ledger. Legacy revisions (pre-column) fall back to the
+        # content-convention walk (read-both IS the migration; no backfill).
+        derived_froms = list((revisions[0].get("derived_from") or [])) if revisions else []
+        if not derived_froms:
+            head = (
+                auth.client.table("workspace_files")
+                .select("content")
+                .eq(*_substrate_scope(auth))
+                .eq("path", abs_path)
+                .limit(1)
+                .execute()
+            )
+            # ADR-376 §9 DECIDED (2026-06-26): derived_from is a LIST — one derived
+            # object may cite N raw observations (the MCP `remember` derivation cites
+            # one; a PERCEPTION distillation cites several feeds). Walk ALL cited raws
+            # and append each chain, so trace shows the complete provenance fan-in.
+            derived_froms = _extract_derived_from_list((head.data or [{}])[0].get("content")) if head.data else []
         for cited in derived_froms:
             if not cited or cited == abs_path:
                 continue

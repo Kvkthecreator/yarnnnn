@@ -282,6 +282,7 @@ async def handle_read_revision(auth: Any, input: dict) -> dict:
             "blob_sha": rev.blob_sha,
             "content": rev.content,
             "revision_kind": rev.revision_kind,  # ADR-423
+            "derived_from": rev.derived_from,  # ADR-448: the reference edge
         },
     }
 

@@ -217,6 +217,10 @@ belongs in FILES — the transcript is not shared memory.
   ReadFile) before creating or overwriting.
 - Every write attributes as "{member} via {model}" and is versioned with
   full history — writes are revertible, never silently destructive.
+- Cite your sources: when you author a file FROM another file (something
+  that arrived, a shared reference, any file you read and built on), pass
+  derived_from=[its path(s)] on the WriteFile. The workspace uses that edge
+  to show what was made from what and to warn before a source is deleted.
 - Other members and other AI lanes collaborate with you THROUGH these files,
   never through your transcript. Leave files other actors can pick up.
 

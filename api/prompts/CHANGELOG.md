@@ -6,6 +6,12 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.12.4] - The reference edge: WriteFile derived_from + lane derive-and-cite (ADR-448)
+
+- `services/primitives/workspace.py::WRITE_FILE_TOOL` — new optional `derived_from` input (array of workspace paths): the source(s) this content was made from. Recorded on the revision as its provenance edge; marks the revision as a derivation.
+- `services/lane_runner.py::_CONVENTIONS_FRAME` — one added commons-contract bullet: cite your sources — pass `derived_from=[path(s)]` when authoring FROM another file; the workspace uses the edge to show what was made from what and to warn before a source is deleted.
+- Expected behavior change: lanes and the steward cite sources structurally (the ledger column) instead of only via `derived_from:` frontmatter prose; the write door also LIFTS the frontmatter convention and artifact `data-ref` citations when the param is absent, so untrained writers still land edges. This is the "Learn from" derive step's parameter face.
+
 ## [2026.07.12.3] - Studio posture: member in-place text edits (ADR-446)
 
 - `services/studio.py::_POSTURE_FRAME` — the concurrent-writer clause widens: the member now also edits DIRECTLY on the canvas by typing block text in place (not only inserting blocks/slides). The lane is told an in-place text edit changes only a block's inner content, never its id or its cited objects, and to re-read a block fresh rather than assume its last version when asked to build on an edit.

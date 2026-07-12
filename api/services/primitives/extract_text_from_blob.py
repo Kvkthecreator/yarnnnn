@@ -197,6 +197,11 @@ async def handle_extract_text_from_blob(auth: Any, input: dict) -> dict:
             authored_by=getattr(auth, "caller_identity", None) or "system:extract",
             message=f"text projection of {source_filename}",
             lifecycle="active",
+            # ADR-448: the first live derivation writer — the projection is a
+            # derived act citing the raw it was made from. Explicit (belt over
+            # the frontmatter lift), so the edge + kind ride the ledger.
+            revision_kind="derivation",
+            derived_from=[raw_path],
         )
     except Exception as e:  # noqa: BLE001
         logger.error("[EXTRACT] projection write failed for %s: %s", write_to, e)

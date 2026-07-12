@@ -790,6 +790,31 @@ async def get_workspace_file(
 
 
 # =============================================================================
+# GET /workspace/file/dependents — the reference edge, read outward (ADR-448)
+# =============================================================================
+# The legibility register: which files' HEAD revision was made FROM this path
+# (derived_from column-first, content-convention fallback — read-both). Serves
+# the Files delete-confirm warning ("N other files were made from this one")
+# and any "referenced by" badge. Best-effort and read-only — a dependents
+# lookup never blocks an action; protection beyond a warning is the powerbox's
+# job (ADR-434), not this endpoint's.
+
+@router.get("/workspace/file/dependents")
+async def get_workspace_file_dependents(
+    auth: UserClient,
+    path: str = Query(..., description="File path — workspace-relative or absolute."),
+) -> dict:
+    from services.authored_substrate import list_dependents
+
+    try:
+        deps = list_dependents(auth.client, user_id=auth.user_id, path=path)
+        return {"path": path, "dependents": deps, "count": len(deps)}
+    except Exception as e:  # noqa: BLE001 — legibility is best-effort
+        logger.warning(f"[WORKSPACE_API] dependents lookup failed for {path}: {e}")
+        return {"path": path, "dependents": [], "count": 0}
+
+
+# =============================================================================
 # GET /workspace/recent-artifacts — Recent delivered outputs (ADR-312 slot #5)
 # =============================================================================
 # Kernel-universal Home slot. Reads delivered task outputs across the WHOLE

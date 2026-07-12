@@ -689,9 +689,23 @@ export default function ContextPage() {
 
   const handleTreeDelete = useCallback(async (t: { path: string; name: string }) => {
     if (await carveGuard(t.path)) return;
+    // ADR-448: the load-bearing check — if other files were made FROM this one
+    // (the derived_from reference edge), say so before the operator confirms.
+    // A warning, never a block: delete stays reversible trash, and dependents
+    // keep working from history. Best-effort — a lookup failure warns nothing.
+    let dependentsLine = '';
+    try {
+      const deps = await api.documents.dependents(t.path);
+      if (deps.count > 0) {
+        dependentsLine =
+          deps.count === 1
+            ? ' One other file was made from this one — it keeps its history, but its live reference will point at the Trash.'
+            : ` ${deps.count} other files were made from this one — they keep their history, but their live references will point at the Trash.`;
+      }
+    } catch { /* legibility is best-effort */ }
     const ok = await confirm({
       title: `Move “${t.name}” to Trash?`,
-      body: 'It stays recoverable — you can restore it from Trash any time.',
+      body: `It stays recoverable — you can restore it from Trash any time.${dependentsLine}`,
       confirmLabel: 'Move to Trash',
       danger: true,
     });

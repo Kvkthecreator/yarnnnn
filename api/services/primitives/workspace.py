@@ -167,6 +167,11 @@ via the Authored Substrate (ADR-209) with attribution + revision chain.""",
                 "type": "string",
                 "description": "ADR-209 commit-style message describing what changed (optional).",
             },
+            "derived_from": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "ADR-448 reference edge — the workspace path(s) of the source(s) this content was made from. Pass whenever you author FROM a source: a file that arrived (an upload, an MCP intake, a web observation), a design system, another workspace file you read and built on. Recorded on the revision as its provenance edge and marks the revision as a derivation — this is what lets the workspace show 'what was made from this' and warn before a load-bearing source is deleted.",
+            },
         },
         "required": ["path", "content"],
     },
@@ -751,6 +756,9 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
     # so the raw arrival is marked on the ledger, not by its path. Default keeps
     # every ordinary WriteFile byte-identical.
     revision_kind = input.get("revision_kind") or "authored"
+    # ADR-448: the reference edge — source paths this content was made from.
+    # The write door normalizes + marks the revision as a derivation.
+    derived_from = input.get("derived_from") or None
 
     # Empty-content guard (2026-06-11): a missing `content` key silently
     # defaulted to "" and overwrote real substrate with 0-byte files — the
@@ -826,6 +834,7 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
             authored_by=resolved_author,
             message=resolved_message,
             revision_kind=revision_kind,
+            derived_from=derived_from,
         )
 
         abs_path = f"/workspace/{path}"
@@ -864,7 +873,7 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
     if mode == "append":
         success = await ws.append(path, content)
     else:
-        success = await ws.write(path, content)
+        success = await ws.write(path, content, derived_from=derived_from)
 
     if not success:
         return {"success": False, "error": "write_failed", "message": f"Failed to write: {path}"}

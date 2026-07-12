@@ -38,7 +38,9 @@ Canonical references:
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Optional
@@ -216,6 +218,142 @@ class Revision:
     created_at: datetime
     content: Optional[str] = None  # populated when joined with workspace_blobs
     revision_kind: str = "authored"  # ADR-423: authored | observation | derivation
+    derived_from: Optional[list] = None  # ADR-448: workspace paths this was made from
+
+
+# ---------------------------------------------------------------------------
+# The reference edge (ADR-448) — derived_from as ledger metadata
+# ---------------------------------------------------------------------------
+#
+# A revision may carry the absolute /workspace/... paths it was made from.
+# The edge is a HISTORICAL FACT about the revision, not a live foreign key —
+# a later move/rename of a source never rewrites the ledger. Three producers:
+# an explicit `derived_from` parameter (the declared derive act), the
+# `derived_from:` content-frontmatter convention (DP32 — lifted at the write
+# door), and artifact `data-ref` citations (lifted for .html content).
+
+_EDGE_CAP = 64  # defensive bound on edges per revision
+
+# Artifact citation attribute (ADR-443: data-ref = the living path).
+_DATA_REF_RX = re.compile(r'data-ref="([^"]+)"')
+
+
+def normalize_workspace_ref(ref: str) -> Optional[str]:
+    """Normalize one citation token to an absolute /workspace/ path.
+
+    Relocated from mcp_composition._normalize_inbound_ref (ADR-448 — the
+    ledger owns its convention's parser; mcp_composition imports from here).
+    """
+    ref = (ref or "").strip().strip("`").strip("'\"").rstrip(",")
+    if not ref or ref in ("[", "]", "-"):
+        return None
+    return ref if ref.startswith("/workspace/") else "/workspace/" + ref.lstrip("/")
+
+
+def extract_derived_from_list(content: Optional[str]) -> list[str]:
+    """Read ALL `derived_from:` citations from a derived file (ADR-376/DP32).
+
+    Head-anchored (the key must appear in the first ~20 lines) and tolerant of
+    the three on-wire shapes — bare scalar, inline list, block list (a block
+    list may run as long as it has cites). Relocated verbatim from
+    mcp_composition (ADR-448) so the write door and the trace walk share ONE
+    parser.
+    """
+    if not content:
+        return []
+    lines = content.split("\n")
+    refs: list[str] = []
+    for i, line in enumerate(lines[:20]):
+        m = re.match(r"\s*derived_from:\s*(.*)$", line)
+        if not m:
+            continue
+        rest = m.group(1).strip()
+        if rest.startswith("["):
+            for tok in rest.strip("[]").split(","):
+                norm = normalize_workspace_ref(tok)
+                if norm:
+                    refs.append(norm)
+        elif rest and not rest.startswith("#"):
+            norm = normalize_workspace_ref(re.split(r"[\s|<>\"']", rest, 1)[0])
+            if norm:
+                refs.append(norm)
+        else:
+            for nxt in lines[i + 1:]:
+                bm = re.match(r"\s*-\s+(.+)$", nxt)
+                if not bm:
+                    break
+                norm = normalize_workspace_ref(bm.group(1))
+                if norm:
+                    refs.append(norm)
+        break  # only the first derived_from: key in the header region
+    seen: set[str] = set()
+    out: list[str] = []
+    for r in refs:
+        if r not in seen:
+            seen.add(r)
+            out.append(r)
+    return out
+
+
+def extract_data_ref_paths(content: Optional[str]) -> list[str]:
+    """Extract artifact citation paths (`data-ref="…"`) from HTML content.
+
+    ADR-448 D3 citation lift: every `data-ref` in an artifact is a reference
+    edge to the workspace object it projects (ADR-443 — cite by reference,
+    never by copy). Deduplicated, normalized, order-preserving.
+    """
+    if not content or "data-ref" not in content:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in _DATA_REF_RX.findall(content):
+        norm = normalize_workspace_ref(raw)
+        if norm and norm not in seen:
+            seen.add(norm)
+            out.append(norm)
+    return out
+
+
+def _plausible_edge(abs_ref: str) -> bool:
+    """Junk-filter for LIFTED edges: prose like `derived_from: the meeting`
+    never becomes an edge. A real citation has path structure (a slash beyond
+    /workspace/) or a filename extension."""
+    bare = abs_ref[len("/workspace/"):] if abs_ref.startswith("/workspace/") else abs_ref
+    return "/" in bare or "." in bare.rsplit("/", 1)[-1]
+
+
+def _resolve_derived_from(
+    path: str,
+    content: str,
+    derived_from: Optional[list],
+    revision_kind: str,
+) -> tuple[Optional[list], str]:
+    """Resolve the revision's edges + effective kind (ADR-448 D2/D3).
+
+    Explicit param → the declared derive act (kind defaults to 'derivation').
+    Else lift from content: frontmatter convention (also a derive act) or
+    artifact data-ref citations (edges only — a citation is a reference, not a
+    provenance class; the revision stays 'authored'). An explicitly-passed
+    revision_kind always wins.
+    """
+    edges: Optional[list] = None
+    kind = revision_kind
+    if derived_from:
+        edges = [normalize_workspace_ref(r) for r in derived_from]
+        edges = [e for e in edges if e and e != path][:_EDGE_CAP]
+        if edges and kind == "authored":
+            kind = "derivation"
+    elif content:
+        lifted = [r for r in extract_derived_from_list(content) if _plausible_edge(r) and r != path]
+        if lifted:
+            edges = lifted[:_EDGE_CAP]
+            if kind == "authored":
+                kind = "derivation"
+        elif path.endswith(".html"):
+            refs = [r for r in extract_data_ref_paths(content) if r != path]
+            if refs:
+                edges = refs[:_EDGE_CAP]
+    return (edges or None), kind
 
 
 # ---------------------------------------------------------------------------
@@ -320,6 +458,7 @@ def _insert_revision(
     message: str,
     workspace_id: Optional[str] = None,
     revision_kind: str = "authored",
+    derived_from: Optional[list] = None,
 ) -> str:
     """Insert one revision row, return the new revision id.
 
@@ -332,6 +471,10 @@ def _insert_revision(
     ADR-423: ``revision_kind`` marks the provenance-kind (authored | observation
     | derivation). Written only when not the default so a pre-migration DB (no
     column) and the default path stay byte-identical.
+
+    ADR-448: ``derived_from`` carries the reference edge (the workspace paths
+    this revision was made from). Written only when non-empty — same
+    byte-identical discipline.
     """
     row = {
         "user_id": user_id,
@@ -348,6 +491,9 @@ def _insert_revision(
     # the ~40 authored callers and safe against a not-yet-migrated DB.
     if revision_kind and revision_kind != "authored":
         row["revision_kind"] = revision_kind
+    # ADR-448: the reference edge — only set when non-empty.
+    if derived_from:
+        row["derived_from"] = derived_from
     result = (
         db_client.table("workspace_file_versions")
         .insert(row)
@@ -469,17 +615,27 @@ def write_revision(
     workspace_id: Optional[str] = None,
     expected_parent_version_id: Any = _UNSET,
     revision_kind: str = "authored",
+    derived_from: Optional[list] = None,
 ) -> str:
     """The single write path for every substrate mutation.
 
     ADR-423: ``revision_kind`` marks the revision's provenance-kind on the
     ledger — ``'authored'`` (the default; an ordinary attributed revision),
-    ``'observation'`` (a retained raw intake — the three intake writers pass
-    this), or ``'derivation'`` (RESERVED — a derived act citing an observation;
-    no live writer yet). This is what lets the ``inbound/`` directory dissolve:
-    a raw arrival is distinguished by its ``revision_kind``, not its path, so
-    the two raw lanes unify under one ``Downloads/`` anchor. The ~40 non-intake
-    callers take the default and are unchanged.
+    ``'observation'`` (a retained raw intake — the intake writers pass this),
+    or ``'derivation'`` (a derived act citing its sources — first live writer:
+    the ADR-395 upload projection, per ADR-448). This is what lets the
+    ``inbound/`` directory dissolve: a raw arrival is distinguished by its
+    ``revision_kind``, not its path, so the two raw lanes unify under one
+    ``Downloads/`` anchor. The ~40 non-intake callers take the default and are
+    unchanged.
+
+    ADR-448: ``derived_from`` is the reference edge — the absolute workspace
+    paths this content was made from. Passed explicitly it marks a declared
+    derive act (kind defaults to ``'derivation'``); when absent, the edge is
+    LIFTED deterministically from the two content conventions at this single
+    door (head-anchored ``derived_from:`` frontmatter → edge + kind; artifact
+    ``data-ref`` citations in ``.html`` → edge only). Edges are historical
+    facts about the revision, never live foreign keys.
 
     ADR-406 (optimistic concurrency): callers that read the file before
     editing MAY pass ``expected_parent_version_id`` — the head revision id
@@ -551,6 +707,12 @@ def write_revision(
                 user_id, exc,
             )
 
+    # ADR-448: resolve the reference edge (explicit param, or lifted from the
+    # content conventions) + the effective provenance-kind, once, at the door.
+    derived_from, revision_kind = _resolve_derived_from(
+        path, content, derived_from, revision_kind
+    )
+
     sha = _sha256(content)
     _upsert_blob(db_client, sha, content)
 
@@ -589,6 +751,7 @@ def write_revision(
                 message=message,
                 workspace_id=workspace_id,
                 revision_kind=revision_kind,
+                derived_from=derived_from,
             )
             break
         except Exception as exc:
@@ -727,9 +890,10 @@ def list_revisions(
     """Return the revision chain for (user_id, path), newest first.
 
     Each entry: {id, authored_by, message, created_at, parent_version_id,
-    revision_kind}. Content is NOT fetched — use read_revision() for that.
-    (ADR-423: revision_kind lets a reader — trace, a details panel — know a
-    revision's provenance-kind from the column, not a path/content proxy.)
+    revision_kind, derived_from}. Content is NOT fetched — use read_revision()
+    for that. (ADR-423: revision_kind lets a reader — trace, a details panel —
+    know a revision's provenance-kind from the column, not a path/content
+    proxy. ADR-448: derived_from carries the reference edge the same way.)
 
     Phase 3 wraps this in a ListRevisions primitive exposed to chat +
     headless + MCP.
@@ -739,7 +903,7 @@ def list_revisions(
         _substrate_scope(
             db_client.table("workspace_file_versions").select(
                 "id, authored_by, author_identity_uuid, message, created_at, "
-                "parent_version_id, revision_kind"
+                "parent_version_id, revision_kind, derived_from"
             ),
             user_id,
             ws,
@@ -811,7 +975,7 @@ def read_revision(
             db_client.table("workspace_file_versions").select(
                 "id, user_id, path, blob_sha, parent_version_id, "
                 "authored_by, author_identity_uuid, message, created_at, "
-                "revision_kind, workspace_blobs(content)"
+                "revision_kind, derived_from, workspace_blobs(content)"
             ),
             user_id,
             ws,
@@ -839,6 +1003,7 @@ def read_revision(
         created_at=row["created_at"],
         content=content,
         revision_kind=row.get("revision_kind") or "authored",
+        derived_from=row.get("derived_from") or None,
     )
 
 
@@ -855,3 +1020,104 @@ def count_revisions(db_client: Any, *, user_id: str, path: str) -> int:
         .execute()
     )
     return result.count or 0
+
+
+def list_dependents(
+    db_client: Any,
+    *,
+    user_id: str,
+    path: str,
+    limit: int = 20,
+) -> list[dict]:
+    """The files whose HEAD revision was made from `path` (ADR-448 D6).
+
+    The legibility register: "what was made from this?" — a dependents count in
+    Files, a warning on delete, trace's reverse walk. Column-first (the GIN
+    containment on ``derived_from``), with a bounded content-scan fallback for
+    legacy heads whose edge still lives only in the ``derived_from:``
+    frontmatter convention (read-both is the migration — no backfill).
+
+    Returns [{path}], newest-cited first, deduplicated, excluding the source
+    itself and archived files. Best-effort: any query failure returns what was
+    found so far — a dependents lookup never breaks its caller.
+    """
+    abs_path = path if path.startswith("/workspace/") else "/workspace/" + path.lstrip("/")
+    ws = _effective_ws(user_id, None)
+    found: list[str] = []
+    seen: set[str] = set()
+
+    # 1) Column-first: revisions carrying the edge, then keep only those that
+    #    are still their file's HEAD (an old revision's edge is history).
+    try:
+        cand = (
+            _substrate_scope(
+                db_client.table("workspace_file_versions").select("id, path"),
+                user_id,
+                ws,
+            )
+            # JSONB containment (@>): the value must be a JSON literal — a
+            # Python list would serialize to a Postgres ARRAY literal and fail
+            # the ::jsonb cast at PostgREST.
+            .contains("derived_from", json.dumps([abs_path]))
+            .order("created_at", desc=True)
+            .limit(200)
+            .execute()
+        ).data or []
+        ids_by_path: dict[str, set] = {}
+        for row in cand:
+            ids_by_path.setdefault(row["path"], set()).add(row["id"])
+        if ids_by_path:
+            heads = (
+                _substrate_scope(
+                    db_client.table("workspace_files").select(
+                        "path, head_version_id, lifecycle"
+                    ),
+                    user_id,
+                    ws,
+                )
+                .in_("path", list(ids_by_path.keys()))
+                .execute()
+            ).data or []
+            for h in heads:
+                p = h["path"]
+                if (
+                    p != abs_path
+                    and h.get("lifecycle") != "archived"
+                    and h.get("head_version_id") in ids_by_path.get(p, set())
+                    and p not in seen
+                ):
+                    seen.add(p)
+                    found.append(p)
+    except Exception as exc:  # noqa: BLE001 — legibility is best-effort
+        logger.debug("[AUTHORED_SUBSTRATE] dependents column query failed: %s", exc)
+
+    # 2) Legacy fallback: heads whose edge lives only in content frontmatter
+    #    (pre-column revisions). Bounded scan, tolerant of bare-vs-absolute
+    #    citation forms — retires when the content convention does (ADR-423 §7).
+    if len(found) < limit:
+        bare = abs_path[len("/workspace/"):]
+        try:
+            hits = (
+                _substrate_scope(
+                    db_client.table("workspace_files").select("path, content, lifecycle"),
+                    user_id,
+                    ws,
+                )
+                .ilike("content", "%derived_from%")
+                .order("updated_at", desc=True)
+                .limit(50)
+                .execute()
+            ).data or []
+            for h in hits:
+                p = h["path"]
+                if p == abs_path or p in seen or h.get("lifecycle") == "archived":
+                    continue
+                for cited in extract_derived_from_list(h.get("content")):
+                    if cited == abs_path or cited.endswith(bare) or bare.endswith(cited[len("/workspace/"):]):
+                        seen.add(p)
+                        found.append(p)
+                        break
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("[AUTHORED_SUBSTRATE] dependents content fallback failed: %s", exc)
+
+    return [{"path": p} for p in found[:limit]]

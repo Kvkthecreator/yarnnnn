@@ -208,6 +208,9 @@ async def process_document(
             lifecycle="active",
             content_url=content_url,
             content_type=f"application/{file_type}",
+            # ADR-448 (closing the ADR-423 D3 gap): an inbound/ write is an
+            # observation — the arrival badge on the ledger, not the path.
+            revision_kind="observation",
         )
     except Exception as e:
         logger.error(f"[DOCUMENTS] Failed to write raw upload {raw_path}: {e}")

@@ -156,6 +156,7 @@ class AgentWorkspace:
         message: str = None,
         author_identity_uuid: str = None,
         revision_kind: str = "authored",
+        derived_from: list = None,
     ) -> bool:
         """Write a file through the Authored Substrate (ADR-209).
 
@@ -166,6 +167,10 @@ class AgentWorkspace:
         ADR-423: ``revision_kind`` (authored | observation | derivation) marks
         the revision's provenance-kind. Intake writers pass 'observation'; the
         default keeps every other caller byte-identical.
+
+        ADR-448: ``derived_from`` (list of workspace paths) records the
+        reference edge — the sources this content was made from. Marks the
+        revision as a derivation.
 
         authored_by default (when not supplied): f"agent:{self._slug}" — the
         class is scoped to one agent, so the agent slug is the correct
@@ -208,6 +213,7 @@ class AgentWorkspace:
                 content_url=content_url,
                 metadata=metadata,
                 revision_kind=revision_kind,
+                derived_from=derived_from,
             )
             return True
         except Exception as e:
@@ -761,6 +767,7 @@ class UserMemory:
         message: str = None,
         expected_parent_version_id: str = None,
         revision_kind: str = "authored",
+        derived_from: list = None,
     ) -> bool:
         """Write a memory file through the Authored Substrate (ADR-209).
 
@@ -808,6 +815,7 @@ class UserMemory:
                 content_url=content_url,
                 metadata=metadata,
                 revision_kind=revision_kind,
+                derived_from=derived_from,
                 **extra,
             )
             return True

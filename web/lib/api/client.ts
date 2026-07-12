@@ -451,6 +451,15 @@ export const api = {
       return request<{ url: string; expires_in: number }>(`/api/documents/blob${qs}`);
     },
 
+    // ADR-448: the reference edge, read outward — which files' head revision
+    // was made FROM this path. Serves the delete-confirm "N other files were
+    // made from this one" line. Best-effort: the backend returns {count: 0}
+    // on any lookup failure, never an error the FE must handle.
+    dependents: (path: string) =>
+      request<{ path: string; dependents: Array<{ path: string }>; count: number }>(
+        `/api/workspace/file/dependents?path=${encodeURIComponent(path)}`
+      ),
+
     // Delete an uploaded file (operator-facing 'Delete'). Trash-semantics,
     // not erasure: the backend archives via lifecycle (ADR-209 retention,
     // reversible) and scopes to operator-owned uploads/ (ADR-320 topology).
