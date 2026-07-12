@@ -300,6 +300,14 @@ def build_lane_conventions(
         from services.studio import build_studio_posture
         artifact = _read_workspace_file(client, user_id, artifact_path)
         posture_section = "\n" + build_studio_posture(artifact_path, artifact) + "\n"
+        # ADR-449 D4: when the workspace has a design system, the bound lane
+        # learns the Skin contract as an ADDITIVE section (composed here, not
+        # in build_studio_posture — the studio posture frame is the ADR-447
+        # pass's file). No design system → empty string → zero prompt cost.
+        from services.design_systems import build_design_system_section
+        ds_section = build_design_system_section(client, user_id)
+        if ds_section:
+            posture_section += "\n" + ds_section + "\n"
 
     return _CONVENTIONS_FRAME.format(
         model_label=label,

@@ -6,6 +6,11 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.12.5] - The design-system posture section for bound lanes (ADR-449)
+
+- `services/design_systems.py::build_design_system_section` (new) + `services/lane_runner.py::build_lane_conventions` — when the workspace contains at least one design system (a folder with a `_design.yaml` manifest), bound Studio lanes gain an additive "Design system" section: the system(s) by manifest path + the Skin contract — compose ONE marked `<style data-skin="true" data-ref="<manifest>">` element last in `<head>` from the manifest's css sources; replace only that element on re-apply; never touch it on layout switches; never strip the `data-ref` citation.
+- Expected behavior change: asked to "use our design system," a bound lane reads the manifest + css with its file verbs and lands the marked, cited style element — the ADR-448 lift then records the reference edge, so the design system's dependents/delete-warning light up. Workspaces with no design system see zero prompt change (empty section).
+
 ## [2026.07.12.4] - The reference edge: WriteFile derived_from + lane derive-and-cite (ADR-448)
 
 - `services/primitives/workspace.py::WRITE_FILE_TOOL` — new optional `derived_from` input (array of workspace paths): the source(s) this content was made from. Recorded on the revision as its provenance edge; marks the revision as a derivation.
