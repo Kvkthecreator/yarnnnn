@@ -302,6 +302,7 @@ const EDIT_SCRIPT = `
   // Restore every citation island in the block to its SOURCE form, then read
   // the block's inner — the source-mapped emit (D2/D3).
   function readSourceInner(el) {
+    if (!el || !el.cloneNode) return '';
     var clone = el.cloneNode(true);
     var refs = clone.querySelectorAll('[data-src-html]');
     for (var i = 0; i < refs.length; i++) {
@@ -328,19 +329,29 @@ const EDIT_SCRIPT = `
   // edit-exit command) pass notify=false: the parent already owns that state.
   function exit(notify) {
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
-    if (editingEl) {
-      commit();
-      editingEl.removeAttribute('contenteditable');
-      var refs = editingEl.querySelectorAll('[data-ref]');
+    var el = editingEl;
+    editingEl = null; editingId = null; // clear FIRST so any re-entry is a no-op
+    if (el && el.querySelectorAll) {
+      var innerNow = readSourceInner(el);
+      if (innerNow) parent.postMessage({ type: 'yarnnn-edit', blockId: el.getAttribute('data-block-id'), newInner: innerNow }, '*');
+      el.removeAttribute('contenteditable');
+      var refs = el.querySelectorAll('[data-ref]');
       for (var i = 0; i < refs.length; i++) refs[i].removeAttribute('contenteditable');
     }
-    editingEl = null; editingId = null;
     if (notify) parent.postMessage({ type: 'yarnnn-edit-exited' }, '*');
   }
 
   function enter(blockId) {
+    // Idempotent: if this block is already being edited, do nothing. This
+    // breaks the re-entrancy where a local dblclick enters, tells the parent,
+    // and the parent echoes back 'yarnnn-edit-enter' for the SAME block —
+    // which would otherwise re-enter mid-flight and null-out state.
+    if (editingId === blockId && editingEl) return;
     exit(false);
-    var el = document.querySelector('[data-block-id="' + (window.CSS && CSS.escape ? CSS.escape(blockId) : blockId) + '"]');
+    var el = null;
+    try {
+      el = document.querySelector('[data-block-id="' + (window.CSS && CSS.escape ? CSS.escape(blockId) : blockId) + '"]');
+    } catch (err) { el = null; }
     if (!el) return;
     editingEl = el; editingId = blockId;
     // Citation islands: never editable (D3).
