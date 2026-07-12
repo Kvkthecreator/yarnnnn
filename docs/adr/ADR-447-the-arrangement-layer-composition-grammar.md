@@ -112,8 +112,13 @@ dropdowns, but composition is spatial." Four decisions:
   the Studio surface (D7.6) — so the Studio's own chat owns the right edge and reads as the one chat
   affordance. The *compose* controls (arrangement thumbnails, selection actions) live in the toolbar
   (the "Arrange" menu, D5) rather than a fourth inspector column — a leaner realization of the
-  Keynote model than the original "inspector on the right" sketch. **SHIPPED** (structural navigator
-  now; visual slide thumbnails ride Phase 2's thumbnail work).
+  Keynote model than the original "inspector on the right" sketch. **SHIPPED**, and the deck
+  navigator renders **visual slide previews** (2026-07-13): the artifact is projected once (citations
+  resolved, no runtime), each slide sliced into a scaled `sandbox=""` iframe — a real miniature of
+  the slide, PowerPoint/Preview.app style. Honest ceiling: one preview iframe per slide, re-rendered
+  on each edit (fine for normal decks; per-slide memoization is a later optimization if large decks
+  feel slow). Arrangement-picker wireframe thumbnails (the *Arrange menu*, distinct from the
+  navigator) still ride the remaining Phase-2 thumbnail work.
 - **D7.3 — Double-click-to-edit + empty-slot affordances (Phase 4, SHIPPED 2026-07-13).** Two
   direct-manipulation gestures on the canvas: **(a) double-click a block to edit its text in place**
   — the natural gesture (every editor since 1984), replacing the toolbar's chip "Edit" button

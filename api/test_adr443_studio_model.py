@@ -242,11 +242,12 @@ def run() -> bool:
 
     # ── 10. ADR-447 workbench restructure (nav · canvas · chat) ──────────
     nav = (repo / "web/components/studio/StudioNavigator.tsx").read_text()
-    _check("per-type navigator: deck slide strip + doc/article outline",
-           "extractSlides" in nav and "extractOutline" in nav
+    _check("per-type navigator: deck slide previews + doc/article outline",
+           "buildSlidePreviews" in nav and "extractOutline" in nav
            and "layout === 'deck'" in nav)
-    _check("navigator reads SOURCE html (not the projection)",
-           "SOURCE html" in nav or "not the projection" in nav)
+    _check("deck slides render as VISUAL previews (scaled projected iframe)",
+           "resolveArtifactHtml" in nav and "transform:scale" in nav
+           and 'sandbox=""' in nav)
     _check("surface mounts the navigator + selects slides from it",
            "StudioNavigator" in surface and "selectSlideFromNavigator" in surface)
     _check("chat lane moved to the RIGHT (border-l on the lane column)",

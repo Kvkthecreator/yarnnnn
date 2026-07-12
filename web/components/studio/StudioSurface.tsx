@@ -397,6 +397,7 @@ export function StudioSurface() {
           <StudioNavigator
             layout={template}
             html={file?.content ?? ''}
+            artifactPath={artifactPath}
             selectedSlide={selection?.slideIndex ?? null}
             onSelectSlide={selectSlideFromNavigator}
           />
