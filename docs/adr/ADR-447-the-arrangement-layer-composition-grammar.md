@@ -114,12 +114,18 @@ dropdowns, but composition is spatial." Four decisions:
   (the "Arrange" menu, D5) rather than a fourth inspector column — a leaner realization of the
   Keynote model than the original "inspector on the right" sketch. **SHIPPED** (structural navigator
   now; visual slide thumbnails ride Phase 2's thumbnail work).
-- **D7.3 — Click-to-drill + empty-slot affordances.** The pointer runtime (already walks to the
-  nearest `[data-block]`) gains grain navigation: a click selects the finest grain (block); a
-  re-click on the container drills UP (block → slot → section → page), with a **breadcrumb** showing
-  the nesting path. **Empty slots render an on-canvas `+ Add here`** so the member sees where
-  content goes. Selection grain flows canvas→parent; actions flow parent→canvas — the established
-  postMessage bridge (the runtime is the only code in the sandboxed opaque-origin frame).
+- **D7.3 — Double-click-to-edit + empty-slot affordances (Phase 4, SHIPPED 2026-07-13).** Two
+  direct-manipulation gestures on the canvas: **(a) double-click a block to edit its text in place**
+  — the natural gesture (every editor since 1984), replacing the toolbar's chip "Edit" button
+  (deleted). The edit runtime enters edit mode itself on `dblclick` and posts `yarnnn-edit-entered`
+  so the surface's `editingBlockId` stays in sync. **(b) empty slots render an on-canvas
+  `+ Add here`** so the member sees where content goes; clicking posts `{slot, slideIndex}` and the
+  surface inserts a text block into that slot (`insertBlockInSlot`). Both flow through the same free
+  CAS door. **Click-to-drill across grains (block → slot → section → page) is DEFERRED to phase 2's
+  section-band nesting** — until sections exist there is nothing between block and page to drill
+  through; it ships when nesting does. Selection grain flows canvas→parent; actions flow
+  parent→canvas — the established postMessage bridge (the runtime is the only code in the sandboxed
+  opaque-origin frame).
 - **D7.4 — Drag-and-drop is deferred.** Dragging a block into a slot across the sandboxed
   opaque-origin iframe is genuinely hard (HTML5 DnD does not cross the frame; it needs a
   pointer-event bridge). v1 composes by click-select + toolbar actions + (Phase 4) empty-slot add.

@@ -19,7 +19,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, LayoutGrid, Loader2, MessageSquare, Pencil, Plus, X } from 'lucide-react';
+import { ChevronDown, LayoutGrid, Loader2, MessageSquare, Plus, X } from 'lucide-react';
 import { api } from '@/lib/api/client';
 
 /** An arrangement (ADR-447) — the composition shape of a page/slide. `grain`
@@ -72,8 +72,6 @@ interface StudioToolbarProps {
   /** The artifact's current layout slug — selects the arrangement set + noun. */
   layout: string;
   selection: StudioSelection | null;
-  /** ADR-446: the selected block is currently in edit mode. */
-  editing: boolean;
   onClearSelection: () => void;
   /** EXECUTE: insert this block fragment at the selection. */
   onInsertBlock: (fragment: string, label: string) => void;
@@ -88,15 +86,12 @@ interface StudioToolbarProps {
   /** ADR-446: bring the selection to the lane, one seed on purpose (replaces
    *  the auto-seed spam). */
   onAskAboutSelection: () => void;
-  /** ADR-446: toggle in-place text editing of the selected block. */
-  onToggleEdit: () => void;
 }
 
 export function StudioInsertMenu({
   vocabulary,
   layout,
   selection,
-  editing,
   onClearSelection,
   onInsertBlock,
   onInsertCited,
@@ -104,7 +99,6 @@ export function StudioInsertMenu({
   onApplyArrangement,
   onSeed,
   onAskAboutSelection,
-  onToggleEdit,
 }: StudioToolbarProps) {
   // ADR-447: a deck's arrangement is a "slide"; a document/article's is a
   // "section" — the operator word follows the layout.
@@ -181,20 +175,13 @@ export function StudioInsertMenu({
           purpose). The chip is what the next Add/Slide op anchors to. */}
       {selection && (
         <div className="ml-auto flex min-w-0 items-center gap-1">
+          {/* ADR-447 Phase 4: no Edit button — DOUBLE-CLICK a block on the
+              canvas to edit its text in place (the natural gesture). The chip
+              anchors Add/Arrange ops + the explicit "Ask about this". */}
           {selection.blockId && (
-            <button
-              type="button"
-              onClick={onToggleEdit}
-              title={editing ? 'Done editing' : 'Edit this block’s text in place'}
-              className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] transition-colors ${
-                editing
-                  ? 'border-indigo-400 bg-indigo-100 text-indigo-900 dark:bg-indigo-900/50 dark:text-indigo-100'
-                  : 'border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground'
-              }`}
-            >
-              {editing ? <Check className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
-              {editing ? 'Done' : 'Edit'}
-            </button>
+            <span className="text-[10px] text-muted-foreground/70" title="Double-click the block on the canvas to edit its text">
+              double-click to edit
+            </span>
           )}
           <button
             type="button"

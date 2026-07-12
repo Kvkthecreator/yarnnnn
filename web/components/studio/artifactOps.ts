@@ -116,6 +116,31 @@ export function insertBlock(
   return { html: serialize(doc), landedId: el.getAttribute('data-block-id') };
 }
 
+/** Insert a block into a NAMED slot (ADR-447 Phase 4 — the empty-slot
+ *  "+ Add here"). Targets `[data-slot="<slot>"]` within the given slide (deck)
+ *  or the first matching slot in the artifact. Appends the block there; a
+ *  placeholder "+ Add here" button in the slot is ignored (it is not a
+ *  [data-block]). */
+export function insertBlockInSlot(
+  html: string,
+  fragment: string,
+  slot: string,
+  slideIndex: number | null,
+): OpResult | null {
+  const doc = parse(html);
+  const el = materializeFragment(doc, fragment);
+  if (!el) return null;
+  const scope =
+    slideIndex != null
+      ? (doc.querySelectorAll('section.slide')[slideIndex] ?? doc)
+      : doc;
+  const target =
+    (scope as ParentNode).querySelector?.(`[data-slot="${CSS.escape(slot)}"]`) ?? null;
+  if (!target) return null;
+  target.appendChild(el);
+  return { html: serialize(doc), landedId: el.getAttribute('data-block-id') };
+}
+
 /** Insert a new arrangement (a slide / a section, from its fragment) after the
  *  selected page, or at the end of the artifact (ADR-447 — generalizes
  *  insertSlide to any layout). */

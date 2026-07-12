@@ -32,7 +32,14 @@ import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { StudioCanvas, type PointerEvent2 } from './StudioCanvas';
 import { StudioInsertMenu, type StudioVocabulary } from './StudioInsertMenu';
 import { StudioNavigator } from './StudioNavigator';
-import { applyArrangement, editBlockText, insertArrangement, insertBlock, type OpResult } from './artifactOps';
+import {
+  applyArrangement,
+  editBlockText,
+  insertArrangement,
+  insertBlock,
+  insertBlockInSlot,
+  type OpResult,
+} from './artifactOps';
 
 interface LaneInfo {
   id: string;
@@ -351,6 +358,21 @@ export function StudioSurface() {
     setEditingBlockId(null);
   }, []);
 
+  // ADR-447 Phase 4: "+ Add here" in an empty slot — drop a text block into
+  // that slot. Prose is the sensible default; the member edits it in place
+  // (double-click) or asks the lane to fill it. Uses the served prose fragment.
+  const onAddHere = useCallback(
+    (slot: string, slideIndex: number | null) => {
+      const proseFragment = vocabulary?.blocks.find((b) => b.kind === 'prose')?.fragment;
+      if (!proseFragment) return;
+      void applyOp(
+        (html) => insertBlockInSlot(html, proseFragment, slot, slideIndex),
+        `Studio: add text to ${slot}`,
+      );
+    },
+    [applyOp, vocabulary],
+  );
+
   // ── START STATE ─────────────────────────────────────────────────────────
   if (!artifactPath) {
     return (
@@ -386,7 +408,6 @@ export function StudioSurface() {
             vocabulary={vocabulary}
             layout={template}
             selection={selection}
-            editing={editingBlockId != null}
             onClearSelection={onPointClear}
             onInsertBlock={handleInsertBlock}
             onInsertCited={handleInsertCited}
@@ -394,11 +415,6 @@ export function StudioSurface() {
             onApplyArrangement={handleApplyArrangement}
             onSeed={seedComposer}
             onAskAboutSelection={askAboutSelection}
-            onToggleEdit={() =>
-              setEditingBlockId((cur) =>
-                cur === selection?.blockId ? null : (selection?.blockId ?? null),
-              )
-            }
           />
           {opError && (
             <p className="border-b border-border bg-red-50 px-3 py-1 text-[11px] text-red-700 dark:bg-red-950/30 dark:text-red-300">
@@ -423,6 +439,8 @@ export function StudioSurface() {
               editingBlockId={editingBlockId}
               onEdit={onEdit}
               onEditExited={() => setEditingBlockId(null)}
+              onEditEntered={(id) => setEditingBlockId(id)}
+              onAddHere={onAddHere}
             />
           )}
         </div>

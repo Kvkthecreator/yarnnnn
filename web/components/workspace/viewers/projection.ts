@@ -162,6 +162,14 @@ ${POINTABLE.split(',').map((s) => `${s}:hover`).join(',')} {
   outline: 1px dashed rgba(99,102,241,0.45); outline-offset: 2px; cursor: pointer;
 }
 .yarnnn-pointed { outline: 2px solid #6366f1 !important; outline-offset: 2px; }
+/* ADR-447 Phase 4: empty-slot "+ Add here" affordance. */
+.yarnnn-add-here {
+  display: block; width: 100%; margin: 0.5rem 0; padding: 0.6rem;
+  border: 1px dashed rgba(99,102,241,0.5); border-radius: 6px;
+  background: rgba(99,102,241,0.04); color: #6366f1;
+  font: 500 0.8rem system-ui, sans-serif; cursor: pointer; text-align: center;
+}
+.yarnnn-add-here:hover { background: rgba(99,102,241,0.1); }
 `;
 
 const POINTER_SCRIPT = `
@@ -207,6 +215,51 @@ const POINTER_SCRIPT = `
       slideIndex: slideIndex,
     }, '*');
   }, true);
+})();
+`;
+
+// ── The empty-slot affordance (ADR-447 Phase 4) ──────────────────────────
+//
+// An arrangement declares slots (data-slot); a fresh arrangement has empty
+// ones. This decorates every EMPTY slot with a "+ Add here" button so the
+// member sees WHERE content goes and can put it there directly. Clicking posts
+// {slideIndex, slot} to the parent, which inserts a block targeted at that
+// slot (StudioSurface handles the op). Runs after the pointer runtime; the
+// buttons are not [data-block] so they never confuse selection.
+
+const ADD_HERE_SCRIPT = `
+(function () {
+  function slideIndexOf(el) {
+    var slide = el.closest ? el.closest('section.slide') : null;
+    if (!slide) return null;
+    var all = document.querySelectorAll('section.slide');
+    for (var i = 0; i < all.length; i++) { if (all[i] === slide) return i; }
+    return null;
+  }
+  function decorate() {
+    var slots = document.querySelectorAll('[data-slot]');
+    for (var i = 0; i < slots.length; i++) {
+      var slot = slots[i];
+      // Empty = no block inside AND no existing affordance.
+      if (slot.querySelector('[data-block]')) continue;
+      if (slot.querySelector('.yarnnn-add-here')) continue;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'yarnnn-add-here';
+      btn.textContent = '+ Add here';
+      btn.setAttribute('data-slot-name', slot.getAttribute('data-slot') || '');
+      btn.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        parent.postMessage({
+          type: 'yarnnn-add-here',
+          slot: this.getAttribute('data-slot-name'),
+          slideIndex: slideIndexOf(this),
+        }, '*');
+      });
+      slot.appendChild(btn);
+    }
+  }
+  decorate();
 })();
 `;
 
@@ -310,6 +363,21 @@ const EDIT_SCRIPT = `
     });
   }
 
+  // ADR-447 Phase 4: DOUBLE-CLICK to edit — the natural gesture (every editor
+  // since 1984), replacing the toolbar chip. A dblclick on a [data-block]
+  // enters edit mode HERE and tells the parent (yarnnn-edit-entered) so its
+  // editingBlockId stays in sync (the parent then won't re-command on reload).
+  document.addEventListener('dblclick', function (e) {
+    var t = e.target;
+    var blk = t && t.closest ? t.closest('[data-block]') : null;
+    if (!blk) return;
+    var id = blk.getAttribute('data-block-id');
+    if (!id) return;
+    e.preventDefault();
+    enter(id);
+    parent.postMessage({ type: 'yarnnn-edit-entered', blockId: id }, '*');
+  }, true);
+
   window.addEventListener('message', function (e) {
     var d = e.data;
     if (!d || typeof d !== 'object') return;
@@ -380,6 +448,11 @@ export async function resolveArtifactHtml(
     const script = doc.createElement('script');
     script.textContent = POINTER_SCRIPT;
     doc.body?.appendChild(script);
+    // ADR-447 Phase 4: empty-slot "+ Add here" (last — decorates the settled
+    // DOM; its buttons are not [data-block], so pointer selection ignores them).
+    const addHere = doc.createElement('script');
+    addHere.textContent = ADD_HERE_SCRIPT;
+    doc.body?.appendChild(addHere);
   }
   const doctype = '<!doctype html>\n';
   return doctype + (doc.documentElement?.outerHTML ?? html);

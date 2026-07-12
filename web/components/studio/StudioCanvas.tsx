@@ -54,6 +54,12 @@ interface StudioCanvasProps {
   /** ADR-446: the block left edit mode via a member blur — the surface clears
    *  its editingBlockId so it doesn't re-enter on the post-commit reload. */
   onEditExited?: () => void;
+  /** ADR-447 Phase 4: the member DOUBLE-CLICKED a block — the runtime entered
+   *  edit mode itself; the surface syncs its editingBlockId to match. */
+  onEditEntered?: (blockId: string) => void;
+  /** ADR-447 Phase 4: the member clicked "+ Add here" in an empty slot — insert
+   *  a block into that slot (of that slide, for a deck). */
+  onAddHere?: (slot: string, slideIndex: number | null) => void;
 }
 
 export function StudioCanvas({
@@ -64,6 +70,8 @@ export function StudioCanvas({
   editingBlockId,
   onEdit,
   onEditExited,
+  onEditEntered,
+  onAddHere,
 }: StudioCanvasProps) {
   const [projected, setProjected] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -132,11 +140,15 @@ export function StudioCanvas({
         onEdit?.(d.blockId, d.newInner);
       } else if (d.type === 'yarnnn-edit-exited') {
         onEditExited?.();
+      } else if (d.type === 'yarnnn-edit-entered' && typeof d.blockId === 'string') {
+        onEditEntered?.(d.blockId);
+      } else if (d.type === 'yarnnn-add-here' && typeof d.slot === 'string') {
+        onAddHere?.(d.slot, typeof d.slideIndex === 'number' ? d.slideIndex : null);
       }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [onPoint, onPointClear, onEdit, onEditExited]);
+  }, [onPoint, onPointClear, onEdit, onEditExited, onEditEntered, onAddHere]);
 
   return (
     <iframe

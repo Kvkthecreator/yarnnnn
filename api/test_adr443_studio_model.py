@@ -187,8 +187,9 @@ def run() -> bool:
            and "seedComposer(`Selected the" not in surface)
     _check("surface: explicit 'Ask about this' affordance replaces the auto-seed",
            "askAboutSelection" in surface and "onAskAboutSelection" in menu)
-    _check("menu: in-place Edit + Ask verbs on the selection chip",
-           "onToggleEdit" in menu and "Ask about this" in menu)
+    _check("menu: Ask-about-this verb on the chip; Edit button DELETED (Phase 4)",
+           "Ask about this" in menu and "onToggleEdit" not in menu
+           and "double-click to edit" in menu)
     _check("canvas: renders in edit mode + forwards edit commits",
            "editingBlockId" in surface
            and "yarnnn-edit" in (repo / "web/components/studio/StudioCanvas.tsx").read_text())
@@ -254,6 +255,22 @@ def run() -> bool:
     desktop = (repo / "web/components/shell/Desktop.tsx").read_text()
     _check("Freddie FAB suppressed on the studio surface (own-chat carve)",
            "onOwnChatSurface" in desktop and "'studio'" in desktop)
+
+    # ── 11. ADR-447 Phase 4: direct manipulation ─────────────────────────
+    _check("double-click enters edit mode (runtime dblclick → yarnnn-edit-entered)",
+           "dblclick" in projection and "yarnnn-edit-entered" in projection)
+    _check("surface syncs editingBlockId on double-click entry (onEditEntered)",
+           "onEditEntered" in surface and "onEditEntered" in
+           (repo / "web/components/studio/StudioCanvas.tsx").read_text())
+    _check("empty-slot '+ Add here' runtime injects into empty [data-slot]",
+           "ADD_HERE_SCRIPT" in projection and "yarnnn-add-here" in projection
+           and "data-slot" in projection and "yarnnn-add-here" in projection)
+    _check("empty-slot add: does NOT decorate slots that hold a block",
+           "querySelector('[data-block]')" in projection)
+    _check("slot-targeted insert op (insertBlockInSlot) + surface handler",
+           "insertBlockInSlot" in ops and "onAddHere" in surface)
+    _check("the injected + Add here button is NOT a [data-block] (no selection confusion)",
+           "not [data-block]" in projection or "not a [data-block]" in projection)
 
     failed = [r for r in _results if not r[1]]
     print(f"\n{len(_results) - len(failed)}/{len(_results)} checks passed"
