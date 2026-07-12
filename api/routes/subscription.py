@@ -161,6 +161,74 @@ async def _get_subscription_payload(http: httpx.AsyncClient, subscription_id: st
     return response.json()
 
 
+async def sync_seat_quantity(workspace_id: str) -> None:
+    """Sync the LS subscription's seat quantity to the workspace's current headcount
+    (ADR-445 §7 Phase 2). Called when a human member is added or removed so the
+    recurring invoice tracks the team. Best-effort — never raises into the member
+    lifecycle. No-op for free/exempt workspaces or when there is no LS subscription
+    (a solo owner who hasn't taken the paid plan).
+
+    Quantity = max(1, billable_seats) = additional humans beyond the base, floored at
+    1 (the taking-owner's own seat). The pooled usage allowance is unchanged — this
+    touches only the seat AXIS (Axis ①), never the meter (Axis ②).
+    """
+    if not LEMONSQUEEZY_API_KEY:
+        return
+    try:
+        from services.supabase import get_service_client
+        from services.billing_tiers import (
+            PAID_TIERS,
+            billable_seats,
+            count_human_seats,
+            normalize_tier,
+        )
+
+        svc = get_service_client()
+        rows = (
+            svc.table("workspaces")
+            .select("subscription_tier, billing_exempt, lemonsqueezy_subscription_id")
+            .eq("id", workspace_id)
+            .limit(1)
+            .execute()
+        ).data or []
+        if not rows:
+            return
+        ws = rows[0]
+        tier = normalize_tier(ws.get("subscription_tier"))
+        sub_id = ws.get("lemonsqueezy_subscription_id")
+        # Only a paid, non-exempt workspace with a live LS subscription is synced.
+        if ws.get("billing_exempt") or tier not in PAID_TIERS or not sub_id:
+            return
+
+        humans = count_human_seats(svc, workspace_id)
+        quantity = max(1, billable_seats(tier, humans))
+
+        # PATCH the subscription-item quantity. LS updates the quantity on the
+        # subscription's first (and only) item; the subscription id resolves it.
+        body = {
+            "data": {
+                "type": "subscriptions",
+                "id": str(sub_id),
+                "attributes": {"quantity": quantity},
+            }
+        }
+        async with httpx.AsyncClient() as http:
+            resp = await http.patch(
+                f"https://api.lemonsqueezy.com/v1/subscriptions/{sub_id}",
+                headers=_ls_headers(include_content_type=True),
+                json=body, timeout=30.0,
+            )
+            if resp.status_code not in (200, 202):
+                log.warning(
+                    f"[SEAT_SYNC] LS quantity update failed for ws {workspace_id} "
+                    f"(sub {sub_id}): {resp.status_code} {resp.text[:200]}"
+                )
+            else:
+                log.info(f"[SEAT_SYNC] ws {workspace_id} → {quantity} seats (sub {sub_id})")
+    except Exception as e:  # noqa: BLE001 — best-effort; never break the member lifecycle
+        log.warning(f"[SEAT_SYNC] failed for ws {workspace_id}: {e}")
+
+
 async def _get_customer_payload(http: httpx.AsyncClient, customer_id: str) -> Optional[dict]:
     response = await http.get(
         f"https://api.lemonsqueezy.com/v1/customers/{customer_id}",
@@ -227,18 +295,18 @@ class SubscriptionStatus(BaseModel):
     expires_at: Optional[str] = None
     customer_id: Optional[str] = None
     subscription_id: Optional[str] = None
-    # ── ADR-429 Axis ② — the seat state (SHIPPED DORMANT, §5a) ────────────────
-    # The seat math, surfaced for legibility. `seat_fee_usd` is $0 while the axis
-    # is dormant (additional_seat_usd = 0 in TIER_CONFIG); `seat_billing_active`
-    # tells the FE whether to SHOW seat pricing at all. When dormant the FE treats
-    # the workspace as flat-plan (the seat axis is invisible) — N=1 unaffected.
+    # ── ADR-445 Axis ① — the seat state (LIVE) ────────────────────────────────
+    # The seat math, surfaced for legibility. Seat 1 (the owner) is free; each
+    # additional human is a priced seat. `seat_billing_active` = the workspace has
+    # billable seats beyond the owner (a paid team). A solo workspace reads 0
+    # billable seats (only usage bills).
     human_seats: int = 1                 # active human members (owner + members)
-    included_seats: int = 1              # humans covered by the base
-    billable_seats: int = 0              # humans beyond the base (max(0, human−included))
-    seat_fee_usd: float = 0.0            # billable_seats × additional_seat_usd (0 = dormant)
-    seat_billing_active: bool = False    # additional_seat_usd > 0 → seat pricing is live
-    # ADR-429 §12.3a — the comp/exempt override. When true the workspace pays
-    # nothing (base + seats forced to $0); the operator's test workspaces are
+    included_seats: int = 1              # billing baseline (humans covered before the seat fee)
+    billable_seats: int = 0              # additional humans beyond the base (the billed seats)
+    seat_fee_usd: float = 0.0            # billable_seats × additional_seat_usd (the seat-axis total)
+    seat_billing_active: bool = False    # billable_seats > 0 on a paid, non-exempt tier
+    # ADR-445 §12.3a — the comp/exempt override. When true the workspace pays
+    # nothing (seats + usage forced to $0); the operator's test workspaces are
     # exempt. Surfaced so the FE can show a "comped" state instead of a bill.
     billing_exempt: bool = False
 
@@ -266,25 +334,25 @@ async def get_subscription_status(auth: UserClient):
     ws = rows[0]
     tier = normalize_tier(ws.get("subscription_tier"))
     exempt = bool(ws.get("billing_exempt", False))
-    # ADR-429 Phase 2 — the seat state (dormant §5a). The math runs live; with a
-    # $0 additional-seat fee it bills nothing and `seat_billing_active` is False,
-    # so the FE renders the workspace as a flat plan (seats invisible) until the
-    # operator sets a non-zero fee in TIER_CONFIG. Never raises — seat helpers
-    # fail-safe to (1 human, $0).
+    # ADR-445 — the seat state (Axis ①, LIVE). Seat 1 (the owner) is free; each
+    # additional human is a priced seat. `seat_billing_active` is True when the
+    # workspace has billable seats beyond the owner (a paid team); a solo workspace
+    # reads inactive (0 billable seats). Never raises — seat helpers fail-safe to
+    # (1 human, $0).
     from services.billing_tiers import (
         count_human_seats,
         tier_included_seats,
         billable_seats as _billable_seats,
         seat_fee_usd as _seat_fee_usd,
-        tier_additional_seat_usd,
     )
     humans = count_human_seats(auth.client, workspace_id)
-    # ADR-429 §12.3a — an exempt workspace pays nothing: force the seat fee to $0
-    # and mark seat billing inactive regardless of the tier's configured fee. (The
-    # base is likewise waived at the checkout/webhook layer; the status read
-    # reflects the exempt state so the FE shows "comped", not a bill.)
+    # ADR-445 §12.3a — an exempt workspace pays nothing: force the seat fee to $0
+    # and mark seat billing inactive. Otherwise `seat_billing_active` means the
+    # workspace has billable seats beyond the free owner-seat (a paid team) — a
+    # solo paid workspace has 0 billable seats and reads inactive.
+    n_billable = 0 if exempt else _billable_seats(tier, humans)
     fee = 0.0 if exempt else _seat_fee_usd(tier, humans)
-    seat_active = (not exempt) and tier_additional_seat_usd(tier) > 0
+    seat_active = (not exempt) and n_billable > 0
     return SubscriptionStatus(
         tier=tier,
         expires_at=ws.get("subscription_expires_at"),
@@ -312,6 +380,13 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
 
     # custom_price (integer cents) is set only for top-ups.
     custom_price_cents: Optional[int] = None
+    # ADR-445 §7 Phase 2 — the seat QUANTITY for a subscription checkout. The paid
+    # plan is seat-priced (variant unit price × quantity); quantity = billable_seats
+    # = max(0, humans − included_seats). A solo owner checks out with quantity 1 (the
+    # minimum billable unit LS accepts — seat 1 is the owner's own paid seat when
+    # they take the plan solo, e.g. to lift the usage allowance); a team's quantity
+    # is (humans − 1). Kept ≥ 1 so LS never rejects a 0-quantity subscription.
+    seat_quantity: Optional[int] = None
 
     if request.checkout_type == "topup":
         amount = request.topup_amount
@@ -331,6 +406,11 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
         variant_id = variant_id_for_tier(tier)
         if not variant_id:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Subscription variant not configured for {tier}")
+        # Seat quantity = additional humans beyond the base, floored at 1 (the plan
+        # always bills at least the taking-owner's seat). AI principals excluded.
+        from services.billing_tiers import billable_seats, count_human_seats
+        humans = count_human_seats(auth.client, workspace_id)
+        seat_quantity = max(1, billable_seats(tier, humans))
 
     attributes: dict = {
         "checkout_data": {
@@ -341,6 +421,13 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
     if custom_price_cents is not None:
         # LS reads custom_price at the checkout root (integer cents).
         attributes["custom_price"] = custom_price_cents
+    if seat_quantity is not None:
+        # LS sets the initial subscription quantity via variant_quantities on the
+        # checkout_data (keyed by variant id). This is the seat count the recurring
+        # invoice multiplies the unit price by.
+        attributes["checkout_data"]["variant_quantities"] = [
+            {"variant_id": int(variant_id), "quantity": seat_quantity}
+        ]
 
     checkout_data = {
         "data": {

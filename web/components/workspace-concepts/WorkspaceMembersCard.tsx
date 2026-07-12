@@ -26,7 +26,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Users, ShieldCheck, Bot, Plug, User, Cpu, Loader2, MoreHorizontal, ShieldMinus, Trash2, AlertTriangle, Link as LinkIcon, Plus } from 'lucide-react';
+import { Users, ShieldCheck, Bot, Plug, User, Cpu, Loader2, MoreHorizontal, ShieldMinus, Trash2, AlertTriangle, Link as LinkIcon, Plus, Wallet } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { providerBrandIcon } from '@/lib/ai-providers/brand-icons';
@@ -100,12 +100,14 @@ export function WorkspaceMembersCard({
 }: WorkspaceMembersCardProps) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  // ADR-437 D5 — proactive seat awareness (Free = owner + 1 guest, ADR-429 §12.3c).
+  // ADR-445 §6 — proactive seat awareness (Free = solo; the 2nd human is paid).
   const [seatInfo, setSeatInfo] = useState<{ human: number; included: number; available: boolean } | null>(null);
   // ADR-386 D2 — lifecycle verb state.
   const [menuFor, setMenuFor] = useState<string | null>(null);   // principal_id whose menu is open
   const [revokeTarget, setRevokeTarget] = useState<Member | null>(null);
   const [narrowTarget, setNarrowTarget] = useState<Member | null>(null);
+  // ADR-445 §7 Phase 4 — the per-member spend-cap dialog target.
+  const [capTarget, setCapTarget] = useState<Member | null>(null);
   const [busy, setBusy] = useState(false);
   // ADR-404 step 5 — human-member invites (owner-only; API 403s otherwise).
   type Invite = Awaited<ReturnType<typeof api.workspace.listInvites>>['invites'][number];
@@ -223,6 +225,18 @@ export function WorkspaceMembersCard({
         connectedBy: m.connected_by,
       });
       setNarrowTarget(null);
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ADR-445 §7 Phase 4 — owner sets/clears a member's spend cap on the shared pool.
+  const onCap = async (m: Member, capUsd: number | null) => {
+    setBusy(true);
+    try {
+      await api.workspace.capMember(m.principal_id, capUsd);
+      setCapTarget(null);
       await refresh();
     } finally {
       setBusy(false);
@@ -354,6 +368,12 @@ export function WorkspaceMembersCard({
                       +read
                     </span>
                   )}
+                {/* ADR-445 §7 Phase 4 — the owner-set spend cap on the shared pool. */}
+                {typeof m.spend_cap_usd === 'number' && m.spend_cap_usd > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                    <Wallet className="h-2.5 w-2.5" /> ${m.spend_cap_usd}/mo cap
+                  </span>
+                )}
               </div>
             </div>
             {governable && (
@@ -378,6 +398,14 @@ export function WorkspaceMembersCard({
                       >
                         <ShieldMinus className="h-3.5 w-3.5 text-muted-foreground" />
                         Narrow access
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setMenuFor(null); setCapTarget(m); }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+                      >
+                        <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
+                        Set spend cap…
                       </button>
                       <button
                         type="button"
@@ -417,19 +445,18 @@ export function WorkspaceMembersCard({
       {/* ADR-404 step 5 — invite a human member (owner-only; hidden on 403). */}
       {variant === 'full' && canInvite && (
         <div className="rounded-lg border border-border p-3">
-          {/* ADR-437 D5 — proactive seat awareness AT the invite affordance, so
-              the Free = owner + 1 guest boundary (ADR-429 §12.3c) is visible
-              before it's hit as a surprise 402. */}
-          {seatInfo && seatInfo.included > 0 && (
+          {/* ADR-445 §6 — proactive seat awareness AT the invite affordance. The
+              only headcount gate is the free→paid boundary: a Free workspace is
+              solo, so inviting a teammate needs the paid plan. A paid workspace
+              grows freely (each new human a billed seat) — `available` is always
+              true there, so this warning never shows. Surfaced before it's hit as
+              a surprise 402. */}
+          {seatInfo && !seatInfo.available && (
             <p className="mb-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">
-                {seatInfo.human} of {seatInfo.included} {seatInfo.included === 1 ? 'seat' : 'seats'} used
+              <span className="font-medium text-foreground">The free plan is for one person.</span>
+              <span className="text-amber-600 dark:text-amber-400">
+                {' '}Upgrade to the paid plan to invite your team.
               </span>
-              {!seatInfo.available && (
-                <span className="text-amber-600 dark:text-amber-400">
-                  {' '}· seat limit reached — upgrade to invite more people
-                </span>
-              )}
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2">
@@ -555,6 +582,92 @@ export function WorkspaceMembersCard({
           onConfirm={(write, read) => onNarrow(narrowTarget, write, read)}
         />
       )}
+
+      {/* ADR-445 §7 Phase 4 — SPEND CAP: bound the member's draw of the shared pool. */}
+      {capTarget && (
+        <CapDialog
+          member={capTarget}
+          busy={busy}
+          onCancel={() => setCapTarget(null)}
+          onConfirm={(cap) => onCap(capTarget, cap)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * CapDialog — set (or clear) a member's monthly spend cap on the shared pool
+ * (ADR-445 §7 Phase 4). The cap bounds ONE principal's draw; usage is still the
+ * shared pool (a cap is safety, not a per-member bucket — ADR-445 §4). Clearing
+ * leaves the member uncapped (draws the whole pool, backstopped by the hard-stop).
+ */
+function CapDialog({
+  member,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  member: Member;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: (capUsd: number | null) => void;
+}) {
+  const [value, setValue] = useState<string>(
+    typeof member.spend_cap_usd === 'number' && member.spend_cap_usd > 0
+      ? String(member.spend_cap_usd)
+      : '',
+  );
+  const parsed = value.trim() === '' ? null : Number(value);
+  const invalid = value.trim() !== '' && (!Number.isFinite(parsed) || (parsed as number) <= 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !busy && onCancel()}>
+      <div className="w-full max-w-md rounded-lg border border-border bg-background p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-sm font-semibold text-foreground">
+          Set {member.label ?? member.principal_id}&rsquo;s spend cap
+        </h3>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Bound how much this member may draw from the workspace&rsquo;s shared usage pool
+          each cycle. They stay a member and keep their access — only their spend is
+          capped. Leave blank to remove the cap (they draw the whole pool, up to the
+          workspace balance).
+        </p>
+        <div className="mt-4 flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">$</span>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="no cap"
+            className="min-w-0 flex-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            aria-label="Monthly spend cap in dollars"
+          />
+          <span className="text-xs text-muted-foreground">/ month</span>
+        </div>
+        {invalid && <p className="mt-1.5 text-xs text-destructive">Enter a positive dollar amount, or leave blank to clear.</p>}
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onCancel}
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={busy || invalid}
+            onClick={() => onConfirm(parsed)}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {parsed === null ? 'Remove cap' : 'Set cap'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

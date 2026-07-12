@@ -73,7 +73,7 @@ export function UsagePaneBody() {
   // dollars (ADR-396 transparency) — % is share of the pool's spend, computed
   // from the rows' relative cost, and the count is the event tally. Only shown
   // when >1 principal has drawn the pool (a solo workspace has nothing to
-  // attribute — the seat axis is dormant at N=1, ADR-429).
+  // attribute — it has a single seat, the owner, ADR-445).
   const memberUsage = useMemo(() => {
     const rows = spendByPrincipal?.rows ?? [];
     const total = rows.reduce((sum, r) => sum + r.spend_usd, 0);

@@ -246,12 +246,12 @@ export default function LandingPage() {
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <ScrollReveal className="max-w-3xl mx-auto text-center">
             <h2 className="text-2xl md:text-3xl font-medium mb-4 text-[#1a1a1a]">
-              Free to keep. A plan for the work.
+              Free for one. A seat for the team.
             </h2>
             <p className="text-[#1a1a1a]/50 mb-10 max-w-xl mx-auto leading-relaxed">
-              Your memory is free forever — your files, your context, reachable from any AI you
-              use. When the optional assistant runs on it, pick a plan for the work: each includes
-              a monthly usage allowance, and you cap monthly spend with a budget you set. No seats.
+              Your memory is free forever for one person — your files, your context, reachable from
+              any AI you use. Add a teammate and each extra person is a paid seat; usage is a shared
+              pool the owner funds. AI connections are always free — never a seat.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link

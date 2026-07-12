@@ -72,16 +72,23 @@ def create_invite(
 
     svc = _svc()
 
-    # ADR-429 §12.3c — the free-tier seat gate. A workspace may hold up to its
-    # tier's `included_seats` HUMANS (Free = owner + 1 guest = 2); inviting a human
-    # beyond that requires a paid plan. Projected human count = active human members
-    # + still-pending invites (each is a seat about to fill) + this one. AI
-    # principals are never gated (free, §3); exempt workspaces (§12.3a) grow freely.
-    # This is the FIRST invite gate (invites were ungated pre-ADR-429); it fails
-    # CLOSED only on a confident over-count — a read error fails OPEN (never block a
+    # ADR-445 §6/§7 — the free→paid boundary gate. This is the ONLY headcount gate:
+    # a FREE workspace is solo (included_seats: 1 = the owner); inviting a 2nd human
+    # requires the paid plan. A PAID workspace grows its team freely — each new human
+    # is a billed seat (ADR-445 §4), never blocked. So the gate fires ONLY on tiers
+    # that offer no in-tier paid resolution, i.e. `free`. Projected human count =
+    # active human members + still-pending invites + this one. AI principals are
+    # never gated (free, §3); exempt workspaces grow freely. Fails CLOSED only on a
+    # confident over-count on a free tier — a read error fails OPEN (never block a
     # legit invite over a transient DB hiccup).
     try:
-        from services.billing_tiers import HUMAN_SEAT_ROLES, tier_included_seats
+        from services.billing_tiers import (
+            DEFAULT_TIER,
+            HUMAN_SEAT_ROLES,
+            PAID_TIERS,
+            normalize_tier,
+            tier_included_seats,
+        )
 
         ws_row = (
             svc.table("workspaces")
@@ -91,8 +98,11 @@ def create_invite(
             .execute()
         ).data
         ws = ws_row[0] if ws_row else {}
-        if not ws.get("billing_exempt", False):
-            included = tier_included_seats(ws.get("subscription_tier") or "free")
+        tier = normalize_tier(ws.get("subscription_tier") or DEFAULT_TIER)
+        # A paid workspace grows freely — the seat axis bills the extra human, it
+        # does not refuse the invite. Only a non-exempt FREE workspace is capped.
+        if not ws.get("billing_exempt", False) and tier not in PAID_TIERS:
+            included = tier_included_seats(tier)
             grants = (
                 svc.table("principal_grants")
                 .select("principal_id")
@@ -113,10 +123,9 @@ def create_invite(
             projected = human_members + len(pending) + 1  # +1 for this invite
             if projected > included:
                 raise InviteError(
-                    "seat_limit",
-                    f"This workspace's plan includes {included} "
-                    f"{'seat' if included == 1 else 'seats'}. "
-                    "Upgrade to a paid plan to invite more people.",
+                    "upgrade_required",
+                    "The free plan is for one person. Upgrade to the paid plan "
+                    "to invite your team into this workspace.",
                 )
     except InviteError:
         raise

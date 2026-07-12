@@ -1489,12 +1489,13 @@ export const api = {
           connected_by: string | null; // ADR-431 — the member who authorized an AI connection
           connected_by_label: string | null; // the authorizing member's email (or the viewer's own)
           connected_by_is_you: boolean; // true when the viewer authorized this connection
+          spend_cap_usd: number | null; // ADR-445 §7 Phase 4 — owner-set cap on the shared pool (null = uncapped)
         }>;
         grant_consult_active: boolean;
-        // ADR-437 D5 — proactive seat awareness at the members surface.
+        // ADR-445 §6 — proactive seat awareness at the members surface.
         human_seats: number; // active human members
-        included_seats: number; // the tier's seat ceiling (Free = 2)
-        seats_available: boolean; // whether another human may be invited
+        included_seats: number; // the tier's billing baseline (Free = 1, solo)
+        seats_available: boolean; // whether another human may be invited without an upgrade (paid = always true)
       }>("/api/workspace/members"),
 
     // NARROW (ADR-386 D2; powerbox 2026-07-10) — set a member's read + write
@@ -1527,6 +1528,14 @@ export const api = {
       request<{ success: boolean; principal_id: string; action: string; tokens_deleted: number | null }>(
         `/api/workspace/members/${encodeURIComponent(principalId)}/revoke${connectedBy ? `?connected_by=${encodeURIComponent(connectedBy)}` : ""}`,
         { method: "POST" },
+      ),
+
+    // ADR-445 §7 Phase 4 — owner sets/clears a member's spend cap on the shared
+    // pool. `capUsd: null` (or ≤0) clears the cap (uncapped). Owner-only (403 else).
+    capMember: (principalId: string, capUsd: number | null) =>
+      request<{ success: boolean; principal_id: string; action: string }>(
+        `/api/workspace/members/${encodeURIComponent(principalId)}/cap`,
+        { method: "POST", body: JSON.stringify({ cap_usd: capUsd }) },
       ),
 
     // ADR-404 step 5 — member invites (the ADR-373 D4 provisioning UX).

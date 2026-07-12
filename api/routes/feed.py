@@ -1251,11 +1251,23 @@ async def global_chat(
 
     # ── Main stream dispatcher ────────────────────────────────────────────────
     async def response_stream():
-        # Balance gate
+        # Balance gate — the shared-pool hard-stop (ADR-396). Applies to every
+        # principal drawing the workspace pool.
         from services.platform_limits import check_balance
         balance_ok, effective_balance = check_balance(auth.client, auth.user_id)
         if not balance_ok:
             yield f"data: {json.dumps({'balance_exhausted': True, 'balance_usd': round(effective_balance, 4)})}\n\n"
+            return
+
+        # Per-member cap gate (ADR-445 §7 Phase 4) — layered ON TOP of the pool
+        # hard-stop: an owner may bound one member's draw of the shared pool. The
+        # owner is never capped; an uncapped member passes freely. Fail-safe:
+        # any error → allowed (the pool hard-stop is the backstop).
+        acting_principal = getattr(auth, "principal_id", None) or auth.user_id
+        from services.member_caps import check_member_cap
+        cap_ok, cap_usd, cap_spent = check_member_cap(auth.client, auth.user_id, acting_principal)
+        if not cap_ok:
+            yield f"data: {json.dumps({'member_cap_reached': True, 'cap_usd': cap_usd, 'spent_usd': round(cap_spent, 4)})}\n\n"
             return
 
         try:

@@ -69,7 +69,7 @@ const faqSections: FaqSection[] = [
       {
         question: "What does it cost?",
         answer:
-          "Your memory is free forever — your files, your context, reachable from any AI. When the optional assistant runs on it, you pick a plan for the work: Free, Starter ($19/mo), or Pro ($49/mo). Each paid plan includes a monthly usage allowance; heavier months you top up any amount from $5 (top-ups never expire). No seats, no feature gates — a plan sets an included allowance and a couple of ceilings (connector history, connector count), never a feature lock. Every workspace starts with a $3 balance to feel the loop before you spend a cent.",
+          "Your memory is free forever for one person — your files, your context, reachable from any AI. Pricing has two axes: a seat per teammate, and shared usage. The first seat (you, the owner) is free; each additional human is a paid seat ($20/mo), and AI connections are always free — never a seat. The paid plan includes a monthly shared usage pool the whole workspace draws from (owner-funded); heavier months you top up any amount from $5 (top-ups never expire). A solo workspace is free (usage-only); a team is paid per additional person. Every workspace starts with a $3 balance to feel the loop before you spend a cent.",
       },
       {
         question: "Can I cap what it spends?",

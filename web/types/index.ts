@@ -130,17 +130,16 @@ export interface SubscriptionStatus {
   expires_at: string | null;
   customer_id: string | null;
   subscription_id: string | null;
-  // ADR-429 Axis ② — the seat state (SHIPPED DORMANT, §5a). The backend computes
-  // the seat math live; while `seat_billing_active` is false (additional_seat_usd
-  // = 0) the fee is $0 and the FE renders the workspace as a flat plan (seats
-  // invisible). The seat UI is Phase 3 (gated on the numbers/activation
-  // discourse); these fields exist now so getStatus() is honest end-to-end.
+  // ADR-445 Axis ① — the seat state (LIVE). Seat 1 (the owner) is free; each
+  // additional human is a priced seat. `seat_billing_active` is true when the
+  // workspace has billable seats beyond the owner (a paid team). A solo workspace
+  // has billable_seats = 0 (owner is the free seat).
   human_seats: number;          // active human members (owner + members)
-  included_seats: number;       // humans covered by the base
-  billable_seats: number;       // humans beyond the base
-  seat_fee_usd: number;         // billable_seats × additional_seat_usd (0 = dormant)
-  seat_billing_active: boolean; // additional_seat_usd > 0 → seat pricing is live
-  // ADR-429 §12.3a — comped workspace (base + seats forced $0). The FE shows a
+  included_seats: number;       // billing baseline: humans covered before the seat fee
+  billable_seats: number;       // additional humans beyond the base (the billed seats)
+  seat_fee_usd: number;         // billable_seats × additional_seat_usd (the seat-axis total)
+  seat_billing_active: boolean; // billable_seats > 0 on a paid, non-exempt tier
+  // ADR-445 §12.3a — comped workspace (seats + usage forced $0). The FE shows a
   // "comped" state instead of a bill; the operator's test workspaces are exempt.
   billing_exempt: boolean;
 }

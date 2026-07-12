@@ -148,6 +148,17 @@ def is_agent_grant_sidecar(path: str) -> bool:
 # construction today (a convention ADR-373's per-principal grant later enforces).
 INBOUND_ROOT = "inbound/"
 
+# The HUMAN upload sublane of the raw arrival lane (ADR-395: uploads land at
+# inbound/uploads/{principal}/{slug}.{ext}). It is the N=human case of the raw
+# lane — but unlike machine/external observations, the operator OWNS what they
+# uploaded and may reorganize it (rename/move/trash). So this sublane is carved
+# BACK OUT of the inbound/ immutability rule (ADR-422 D2's stated invariant:
+# "uploads/ is the HUMAN raw lane and stays organizable"). When ADR-395 relocated
+# uploads from the top-level uploads/ root INTO inbound/uploads/, the blanket
+# inbound/ carve started swallowing them, contradicting that invariant; this
+# constant restores it.
+INBOUND_UPLOADS_ROOT = "inbound/uploads/"
+
 
 # =============================================================================
 # WORKSPACE_ROOTS — the UI source-of-truth for the Files surface (ADR-388 D1)
@@ -354,6 +365,12 @@ GOVERNANCE_AUTONOMY_YAML_PATH = "governance/_autonomy.yaml"
 # of capital to the operation — upstream of the work, not a judgment within it).
 # Collapses the retired _pace.yaml + _token_budget.yaml (both deleted by ADR-327).
 GOVERNANCE_BUDGET_PATH = "governance/_budget.yaml"
+# ADR-445 §7 Phase 4 — per-member spend caps (the owner's abuse lever; ADR-391
+# Layer ②). One ceiling per principal on their draw from the shared workspace pool.
+# Owner-authored only (the owner bounds a member); the member cannot lift their own
+# cap. Machine-parsed yaml (a map of principal_id → cap_usd). Read by the balance
+# gate to block a capped member while the pool is non-zero for others.
+GOVERNANCE_MEMBER_CAPS_PATH = "governance/_member_caps.yaml"
 
 # =============================================================================
 # contract/ — the operating CONTRACT: operator-declared, agent-honored,
@@ -522,14 +539,15 @@ CALLER_WRITE_POLICY: dict[str, tuple[str, ...]] = {
 #      moving one breaks the reader. This is a FILESYSTEM-INTEGRITY rule (don't
 #      rename a file another program finds by path), NOT a permission hierarchy —
 #      the operator "owns" it, but the machine depends on its exact location.
-#   3. inbound/  — the RAW INTAKE LANE (ADR-376 / DP32). Every file here is an
-#      immutable attributed observation of what arrived from the outside: raw is
-#      RETAINED and reasoned-against, NEVER rewritten. Moving/renaming/trashing a
-#      record of what came in is a category error — the operator reads the raw and
-#      corrects the DERIVED understanding, not the observation. Added by ADR-422
-#      D2: the FE previously believed intake was organizable (no carve), so the
-#      surface and this gate disagreed; this closes that (uploads/ is the HUMAN
-#      raw lane and stays organizable — the operator owns what they uploaded).
+#   3. inbound/  — the RAW INTAKE LANE (ADR-376 / DP32), EXCEPT inbound/uploads/.
+#      Every machine/external file here is an immutable attributed observation of
+#      what arrived from the outside: raw is RETAINED and reasoned-against, NEVER
+#      rewritten. Moving/renaming/trashing a record of what came in is a category
+#      error — the operator reads the raw and corrects the DERIVED understanding,
+#      not the observation. Added by ADR-422 D2. The exception: inbound/uploads/
+#      is the HUMAN raw lane (ADR-395 relocated uploads here from the top-level
+#      uploads/ root) and STAYS organizable — the operator owns what they
+#      uploaded. Only NON-upload inbound/ (connector/MCP/web observations) carves.
 #
 # Everything else — constitution/, persona/, operation/, uploads/, all prose — is
 # the operator's to reorganize. Delete is trash-not-erase (reversible), so this is
@@ -544,8 +562,10 @@ def operator_can_organize(path: str) -> bool:
     The three carves on top of the operator's near-total workspace reach:
       - under system/ → False (runtime state, the declared operator lock)
       - a _*.yaml/_*.json machine-config file → False (read by exact path)
-      - under inbound/ → False (immutable raw intake, ADR-376 — retained, never
-        rewritten; uploads/ is the human raw lane and stays organizable)
+      - under inbound/ (EXCEPT inbound/uploads/) → False (immutable raw intake,
+        ADR-376 — retained, never rewritten). inbound/uploads/ is the HUMAN raw
+        lane (ADR-395) and stays organizable — the operator owns what they
+        uploaded.
       - everything else → True (constitution/persona/operation/uploads/... prose)
     """
     rel = path.strip().lstrip("/")
@@ -553,7 +573,7 @@ def operator_can_organize(path: str) -> bool:
         rel = rel[len("workspace/"):]
     if rel.startswith(SYSTEM_ROOT):
         return False
-    if rel.startswith(INBOUND_ROOT):
+    if rel.startswith(INBOUND_ROOT) and not rel.startswith(INBOUND_UPLOADS_ROOT):
         return False
     leaf = rel.rsplit("/", 1)[-1]
     if leaf.startswith("_") and leaf.lower().endswith(_MACHINE_CONFIG_EXTS):

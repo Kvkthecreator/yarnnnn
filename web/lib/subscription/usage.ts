@@ -144,36 +144,39 @@ export const TOPUP_DEFAULT = 25;
  * the source of truth for what LS charges; this is the display copy. Keep in sync
  * (both are launch-test numbers per ADR-396 §7, relaxed).
  */
-export const TIER_PRICE_USD: Record<SubscriptionTier, number> = {
+// ADR-445 — the per-SEAT price (the paid subscription IS the seat fee; no base).
+// A solo workspace pays $0 (the owner is the free seat, usage-only); a team pays
+// (humans − 1) × this. Mirror of TIER_CONFIG.additional_seat_usd.
+export const TIER_SEAT_PRICE_USD: Record<SubscriptionTier, number> = {
   free: 0,
-  starter: 20, // ADR-429 §12.2 — the single paid plan, repriced $19→$20 (mirror TIER_CONFIG)
-  pro: 49,     // ADR-429 §12.1 — dormant (hidden); not offered until capture ships
-  enterprise: 0, // ADR-439 — sales-led custom pricing; no self-serve checkout price (mirror TIER_CONFIG)
+  starter: 20, // $20/additional human/mo (mirror TIER_CONFIG.additional_seat_usd)
+  pro: 20,     // dormant (hidden); returns as a 2nd seat-priced plan with richer gates
+  enterprise: 20, // seat-priced like every paid tier; the custody bundle is the sell
 };
 
-/** "$19" / "$49" / "Free" — the price label for an upgrade CTA. */
+/** "$20/seat" / "Free" — the price label for an upgrade CTA (ADR-445: per-seat). */
 export function tierPriceLabel(tier: SubscriptionTier): string {
-  const price = TIER_PRICE_USD[tier];
-  return price > 0 ? `$${price}/mo` : "Free";
+  const price = TIER_SEAT_PRICE_USD[tier];
+  return price > 0 ? `$${price}/seat/mo` : "Free";
 }
 
 /**
  * One-line descriptor of what a tier gives you — shown under the plan name on the
  * billing header so the operator sees WHAT they're on, not just the label.
- * Mirrors billing_tiers.py TIER_CONFIG (allowance + connector ceilings).
+ * Mirrors billing_tiers.py TIER_CONFIG (seat price + pooled allowance).
  */
 export function tierDescriptor(tier: SubscriptionTier): string {
-  // ADR-429 §13.2 — connector-history dropped from the pitch (it gates the DORMANT
-  // capture lane, §12.1). The paid plan's honest differentiator today is the
-  // included monthly allowance + a shared workspace everyone draws.
+  // ADR-445 — two axes: a per-seat price (free for the owner) + a pooled usage
+  // allowance the whole workspace draws. Connector-history is dropped from the
+  // pitch (it gates the dormant capture lane).
   switch (tier) {
     case "enterprise":
       return "Your team, your keys (BYOK) · custody, on-prem, and support"; // ADR-439
     case "pro":
-      return "$45 monthly usage included"; // dormant tier (not offered); descriptor kept for a legacy row
+      return "$20/seat · $45 pooled usage included"; // dormant tier (not offered); descriptor kept for a legacy row
     case "starter":
-      return "$15 monthly usage included · your whole workspace draws one shared allowance";
+      return "Free for you · $20/seat for each teammate · $15 pooled usage the workspace shares";
     default:
-      return "Workspace + memory, free forever · usage drawn from your balance";
+      return "Workspace + memory, free forever for one person · usage drawn from your balance";
   }
 }

@@ -122,6 +122,9 @@ class WorkspaceMember(BaseModel):
     connected_by: Optional[str] = None
     connected_by_label: Optional[str] = None
     connected_by_is_you: bool = False
+    # ADR-445 §7 Phase 4 — the per-member spend cap on the shared pool (owner-set).
+    # None = uncapped (the default). The owner is never capped.
+    spend_cap_usd: Optional[float] = None
 
 
 class WorkspaceMembersResponse(BaseModel):
@@ -1179,6 +1182,15 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
             except Exception as exc:  # noqa: BLE001 — humanization is best-effort
                 logger.debug("[WORKSPACE_API] member email lookup failed for %s: %s", pid[:8], exc)
 
+        # ADR-445 §7 Phase 4 — the per-member cap map (owner-set), read once for the
+        # roster. Absent = uncapped. Best-effort — a read failure leaves all None.
+        member_caps: dict[str, float] = {}
+        try:
+            from services.member_caps import load_member_caps
+            member_caps = load_member_caps(svc, auth.user_id)
+        except Exception as exc:  # noqa: BLE001 — legibility, never blocks the roster
+            logger.debug("[WORKSPACE_API] member-cap load failed: %s", exc)
+
         members: list[WorkspaceMember] = []
         for r in rows:
             role = r.get("role") or "member"
@@ -1259,17 +1271,28 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
                 connected_by=str(connected_by) if connected_by else None,
                 connected_by_label=connected_by_label,
                 connected_by_is_you=connected_by_is_you,
+                spend_cap_usd=member_caps.get(principal_id),
             ))
 
-        # ADR-437 D5 (Phase E) — proactive seat awareness. Human seats = active
-        # grants with a human role; the ceiling is the tier's included_seats
-        # (Free = owner + 1 guest = 2, ADR-429 §12.3c). Computed from the rows
-        # already in hand + one tier read; billing_exempt workspaces grow freely.
+        # ADR-445 §6 — proactive seat awareness. Human seats = active grants with a
+        # human role. `included_seats` = the tier's billing baseline (free = 1 solo;
+        # paid = 1, the owner, additional humans billed). `seats_available` means
+        # "another human may be invited without an upgrade" — which mirrors the
+        # invite gate EXACTLY: a PAID (or exempt) workspace can always invite (the
+        # team grows freely, each new human a billed seat); a FREE workspace can
+        # invite only until it hits its solo cap. Computed from the rows in hand +
+        # one tier read.
         human_seats = 0
         included_seats = 0
         seats_available = True
         try:
-            from services.billing_tiers import HUMAN_SEAT_ROLES, tier_included_seats
+            from services.billing_tiers import (
+                DEFAULT_TIER,
+                HUMAN_SEAT_ROLES,
+                PAID_TIERS,
+                normalize_tier,
+                tier_included_seats,
+            )
             human_seats = len({
                 r["principal_id"] for r in rows
                 if r.get("role") in HUMAN_SEAT_ROLES and r.get("principal_id")
@@ -1282,16 +1305,21 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
                 .execute()
             ).data or []
             ws = ws_row[0] if ws_row else {}
-            included_seats = tier_included_seats(ws.get("subscription_tier") or "free")
-            # Pending invites also hold seats (each is a seat about to fill).
-            pending = (
-                svc.table("workspace_invites")
-                .select("id", count="exact")
-                .eq("workspace_id", workspace_id)
-                .eq("status", "pending")
-                .execute()
-            ).count or 0
-            seats_available = bool(ws.get("billing_exempt")) or (human_seats + pending < included_seats)
+            tier = normalize_tier(ws.get("subscription_tier") or DEFAULT_TIER)
+            included_seats = tier_included_seats(tier)
+            is_paid_or_exempt = bool(ws.get("billing_exempt")) or tier in PAID_TIERS
+            if is_paid_or_exempt:
+                seats_available = True  # paid/exempt grows freely
+            else:
+                # Pending invites also hold seats (each is a seat about to fill).
+                pending = (
+                    svc.table("workspace_invites")
+                    .select("id", count="exact")
+                    .eq("workspace_id", workspace_id)
+                    .eq("status", "pending")
+                    .execute()
+                ).count or 0
+                seats_available = (human_seats + pending) < included_seats
         except Exception as exc:  # noqa: BLE001 — seat awareness is best-effort legibility
             logger.debug("[WORKSPACE_API] seat awareness compute failed: %s", exc)
 
@@ -1333,7 +1361,7 @@ class NarrowMemberRequest(BaseModel):
 class MemberLifecycleResponse(BaseModel):
     success: bool
     principal_id: str
-    action: str                      # "narrow" | "revoke"
+    action: str                      # "narrow" | "revoke" | "cap"
     scopes: Optional[list[str]] = None
     tokens_deleted: Optional[int] = None
 
@@ -1419,9 +1447,52 @@ async def revoke_member(
     except Exception as exc:  # best-effort — the member is already evicted
         logger.warning("[ADR-431 D5] AI-connection cascade failed for %s: %s", principal_id[:8], exc)
 
+    # ADR-445 §7 Phase 2 — a removed human shrinks the seat count; sync the LS
+    # subscription quantity so the next invoice reflects the smaller team.
+    # Best-effort + no-op for free/exempt/no-subscription workspaces.
+    try:
+        from routes.subscription import sync_seat_quantity
+        await sync_seat_quantity(workspace_id)
+    except Exception as exc:  # noqa: BLE001 — never block the revoke on a billing sync
+        logger.warning("[ADR-445] seat-quantity sync after revoke failed: %s", exc)
+
     return MemberLifecycleResponse(
         success=True, principal_id=principal_id, action="revoke",
         tokens_deleted=result.get("tokens_deleted"),
+    )
+
+
+# =============================================================================
+# Per-member spend caps — ADR-445 §7 Phase 4 (the owner's abuse lever)
+# =============================================================================
+# The owner bounds one principal's draw from the shared pool this cycle. Owner-only
+# (the governance/ sidecar is owner-locked). Setting cap_usd = null clears the cap.
+
+class MemberCapRequest(BaseModel):
+    cap_usd: Optional[float] = None   # null / ≤0 clears the cap (uncapped)
+
+
+@router.post("/workspace/members/{principal_id}/cap", response_model=MemberLifecycleResponse)
+async def set_member_spend_cap(
+    principal_id: str, body: MemberCapRequest, auth: UserClient,
+) -> MemberLifecycleResponse:
+    """Owner sets or clears a member's spend cap on the shared pool (ADR-445 §7
+    Phase 4). Owner-only. The owner cannot cap themselves (400)."""
+    workspace_id = _require_owner_workspace(auth)
+    from services.member_caps import set_member_cap
+    try:
+        caps = set_member_cap(auth.client, auth.user_id, principal_id, body.cap_usd)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"[WORKSPACE_API] set member cap failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    logger.info(
+        "[ADR-445] member cap set: ws=%s principal=%s → %s",
+        workspace_id[:8], principal_id[:8], caps.get(principal_id, "cleared"),
+    )
+    return MemberLifecycleResponse(
+        success=True, principal_id=principal_id, action="cap",
     )
 
 
@@ -1481,11 +1552,12 @@ async def invite_member(body: InviteCreateRequest, auth: UserClient) -> InviteSu
             workspace_id=workspace_id, email=body.email, invited_by=auth.user_id,
         )
     except InviteError as e:
-        # ADR-437 D5 (Phase E) — a seat-limit block is an upgrade-required
-        # signal (402), not a generic 400, so the FE can branch cleanly to an
-        # upgrade CTA instead of parsing the detail string. Other invite errors
+        # ADR-445 §6 — the free→paid boundary block is an upgrade-required signal
+        # (402), so the FE branches cleanly to an upgrade CTA instead of parsing the
+        # detail string. This fires only on the Free tier's 2nd-human invite; a paid
+        # workspace never hits it (its team grows freely). Other invite errors
         # (invalid email/role) stay 400.
-        status = 402 if e.code == "seat_limit" else 400
+        status = 402 if e.code == "upgrade_required" else 400
         raise HTTPException(status_code=status, detail=str(e))
 
     # Best-effort email (never blocks — the returned link is the fallback).
@@ -1565,6 +1637,16 @@ async def accept_workspace_invite(token: str, auth: UserClient) -> InviteAcceptR
             "email_mismatch": 403, "already_owner": 409,
         }.get(e.code, 400)
         raise HTTPException(status_code=status, detail=str(e))
+
+    # ADR-445 §7 Phase 2 — a newly-accepted human grows the seat count; sync the LS
+    # subscription quantity so the next invoice bills the added seat. Best-effort +
+    # no-op for free/exempt/no-subscription workspaces.
+    try:
+        from routes.subscription import sync_seat_quantity
+        await sync_seat_quantity(result["workspace_id"])
+    except Exception as exc:  # noqa: BLE001 — never block the accept on a billing sync
+        logger.warning("[ADR-445] seat-quantity sync after invite-accept failed: %s", exc)
+
     return InviteAcceptResponse(
         success=True,
         workspace_id=result["workspace_id"],

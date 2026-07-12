@@ -194,7 +194,7 @@ export function getSoftwareApplicationSchema() {
       price: "0",
       priceCurrency: "USD",
       description:
-        "Free workspace and memory; paid plans (Starter $19/mo, Pro $49/mo) add monthly usage allowances.",
+        "Free for one person; a paid seat ($20/mo) per teammate plus a shared monthly usage pool. AI connections are always free.",
     },
     publisher: {
       "@id": `${BRAND.url}/#organization`,

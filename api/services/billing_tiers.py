@@ -1,23 +1,44 @@
-"""Subscription tier config — ADR-396 (Type-B subscription over the metered balance).
+"""Subscription tier config — the TWO-AXIS pricing model (ADR-445, supersedes ADR-429).
 
-The single source of truth for the plan tiers. A tier is a plan the operator
-subscribes to; it grants a monthly INCLUDED ALLOWANCE (dollars, drawn before the
-topped-up balance) and sets two ceilings: connector retention window + connector
-count (ADR-396's "two gates"). The metered spend itself lives in execution_events
-(ADR-291) — this module never touches cost math; it only reads/derives the tier
-and its ceilings.
+The single source of truth for the plan tiers. Pricing has TWO axes, both paid by
+the workspace OWNER (ADR-445 §4):
+
+  ① SEATS (per human) — seat 1 (the owner) is FREE; each additional human is a
+     priced seat (`additional_seat_usd`/mo). The per-seat price IS the paid
+     subscription — there is NO separate per-workspace "base fee" (that was
+     ADR-429's Axis ①, collapsed here). A workspace with 1 human is free; a
+     workspace with ≥2 humans is paid at (humans − 1) × the seat fee. AI principals
+     (foreign-llm/a2a/own-agent/platform) are NEVER seats and NEVER charged.
+
+  ② METERED USAGE (pooled) — the workspace draws one shared pool (monthly allowance
+     → topped-up balance → hard-stop at zero, ADR-396). Every principal draws the
+     same pool; usage is attributed per principal (execution_events, ADR-291). The
+     owner funds it. This module never touches cost math — it only reads/derives the
+     tier, its allowance, and its two connector gates (retention window + count).
+
+The carve that keeps the axes honest (ADR-445 §4, from ADR-429 §3): **a seat buys
+ACCESS, not usage** — a seat never carries its own token bucket; usage is the shared
+pool. No double-charge (ADR-396 invariant preserved).
 
 The draw order (ADR-396 §3): monthly allowance → topped-up balance → hard-stop at
-zero. The allowance is granted on each billing cycle (see grant_balance's
-`allowance_grant` kind); top-ups are the overage pool and are NEVER reset by a
-refill. "Balance IS the currency" — no credit unit.
+zero. The allowance is granted on each billing cycle (grant_allowance); top-ups are
+the overage pool and are NEVER reset by a refill. "Balance IS the currency" — no
+credit unit.
 
-NUMBERS (ADR-396 §7, relaxed 2026-07-01): the base prices + allowance sizes below
-are LAUNCH-TEST values, set to test in front of a first user, NOT claimed correct.
-The economics (docs/monetization/UNIT-ECONOMICS) bound the paid base to a ~$15–25
-band; these sit at/above that band and are reversible against first-customer
-evidence. They are the only place numbers live — checkout, retention gate, and the
-FE all derive from here.
+`monthly_allowance_usd` is the WORKSPACE-wide pooled allowance the paid plan grants
+(not per-seat — the meter is pooled). `additional_seat_usd` is the LIVE seat price
+(ADR-445 reverses ADR-429 §5a's dormant launch — in the two-axis model seats ARE the
+team-revenue path). `included_seats` is the BILLING BASELINE only (humans covered
+before the per-seat fee); it is NOT a hard headcount cap — a paid workspace grows its
+team freely, each new human accruing a billed seat (the only headcount gate is the
+free→paid boundary at the invite route: a Free workspace's 2nd human requires the
+paid plan — ADR-445 §7 Phase 1).
+
+NUMBERS (ADR-445 §6, ADR-396 §7 discipline): the seat price + allowance sizes below
+are LAUNCH-TEST values a first paying team resolves, NOT claimed correct. The seat
+price sits at the low end of the reference Team band (~$25–30/seat, OpenAI/Anthropic);
+reversible against evidence. They are the only place numbers live — checkout, the
+retention gate, and the FE all derive from here.
 
 File-format note (ADR-254): this is Python code config, not a workspace file — the
 tier→ceiling mapping is machine dispatch, kept in one module per Singular
@@ -43,16 +64,19 @@ class TierSpec(TypedDict):
     retention_max_days: int          # connector raw-lane retention ceiling (gate 1)
     connector_max: Optional[int]     # connector count ceiling; None = unlimited (gate 2)
     ls_variant_env: Optional[str]    # env var holding the LS subscription variant id
-    # ── ADR-429 Axis ② — the seat axis (SHIPPED DORMANT, §5a) ─────────────────
+    # ── ADR-445 Axis ① — SEATS (per human; the paid subscription itself) ──────
     # A seat = a HUMAN member's access (role ∈ {owner, member}); AI principals are
-    # free (never counted). `included_seats` humans are covered by the base;
-    # additional humans bill `additional_seat_usd` each. DORMANT at launch:
-    # `additional_seat_usd = 0` → billable-seat math runs and returns $0, so N=1
-    # and existing multi-human workspaces are byte-identical. Activation = set a
-    # non-zero fee here (one config change, no code). The seat=access carve
-    # (ADR-429 §3): a seat NEVER carries a usage bucket — usage is the shared meter.
-    included_seats: int              # humans covered by the base (owner-inclusive)
-    additional_seat_usd: float       # $/additional human/mo (0 = dormant, ADR-429 §5a)
+    # free (never counted). `included_seats` = the BILLING BASELINE — humans covered
+    # before the per-seat fee (seat 1 = the owner = free). Each additional human
+    # bills `additional_seat_usd`/mo. This IS the paid subscription (no separate base
+    # fee — ADR-429's Axis ① collapsed, ADR-445 §4). `included_seats` is NOT a hard
+    # cap: a paid workspace grows freely (each new human = a billed seat); the only
+    # headcount gate is the free→paid boundary (a Free workspace's 2nd human needs a
+    # paid plan — enforced at the invite route, ADR-445 §7 Phase 1). The seat=access
+    # carve (ADR-445 §4): a seat NEVER carries a usage bucket — usage is the shared
+    # pooled meter (Axis ②).
+    included_seats: int              # billing baseline: humans covered before the seat fee (owner-inclusive)
+    additional_seat_usd: float       # $/additional human/mo (LIVE at launch — ADR-445 §6)
     # ── ADR-429 §12 — the tier structure collapse ─────────────────────────────
     # `hidden` marks a tier that is NOT offered at launch (not on the pricing page,
     # not an upgrade target, not in the ladder) — its config survives so it can be
@@ -70,23 +94,26 @@ class TierSpec(TypedDict):
 
 
 # ── The tiers ────────────────────────────────────────────────────────────────
-# ADR-429 §12.1 — LAUNCH is Free + ONE paid plan. The Starter/Pro ladder (ADR-396)
-# differentiated on allowance + retention + connectors, but retention/connectors
-# gate the DORMANT connector-capture lane (CONNECTOR_CAPTURE_ENABLED off) — so at
-# launch the tiers only differed by allowance size, not a good tier axis in the
-# three-axis model (usage is metered + pooled, ADR-429 §3). So:
-#   • `free`    — the floor: no allowance (top-up/$3-signup-grant to use), owner +
-#                 1 guest (included_seats: 2, §12.3c — a team may TRY the commons).
-#   • `starter` — THE single paid plan, repriced $20 base / $15 allowance (§12.2).
-#                 Its display NAME is a Phase-3 marketing decision (keep-the-slug,
-#                 name-at-render — working name "Paid"). The `starter` KEY is kept
-#                 (no data migration: the 1 live starter row stays valid).
-#   • `pro`     — DORMANT (`hidden: True`, §12.1). Not offered, not on the pricing
-#                 page, not an upgrade target. Its config survives so the
-#                 Starter/Pro split is a one-flag un-hide when the capture lane
-#                 ships (retention/connectors become real differentiators again).
-# The 3 enum values are KEPT in the CHECK constraint — this is a PRODUCT collapse
-# (which tiers are offered), not a schema change.
+# ADR-445 — the two-axis model. LAUNCH is Free + ONE paid plan. The paid plan is
+# SEAT-priced (the subscription IS the per-additional-human seat fee; no separate
+# base fee) + a shared pooled allowance. The free→paid boundary is the 2nd human:
+#   • `free`    — the floor: SOLO (included_seats: 1 = the owner alone), no
+#                 allowance (top-up/signup-grant to use). Inviting a 2nd human
+#                 requires the paid plan (the free→paid boundary, ADR-445 §6). A
+#                 time-boxed "try a teammate" trial is a deferred growth funnel
+#                 (ADR-445 §9), NOT a pricing change.
+#   • `starter` — THE single paid plan. $20/additional human/mo (seat 2+) + a $15
+#                 workspace-wide pooled allowance. Seat 1 (owner) is free; the plan
+#                 grows the team freely, each new human a billed seat. Its display
+#                 NAME is a Phase-3 marketing decision (keep-the-slug, name-at-render
+#                 — working name "Paid"). The `starter` KEY is kept (no data
+#                 migration: the 1 live starter row stays valid).
+#   • `pro`     — DORMANT (`hidden: True`). Returns as a 2nd seat-priced plan with
+#                 richer connector gates when the capture lane ships
+#                 (CONNECTOR_CAPTURE_ENABLED). Config survives (one-flag un-hide);
+#                 not offered, not on the pricing page, not an upgrade target.
+# The 3 enum values are KEPT in the CHECK constraint — this is a PRODUCT decision
+# (which tiers are offered + what the price MEANS), not a schema change.
 
 TIER_CONFIG: dict[str, TierSpec] = {
     "free": {
@@ -96,47 +123,54 @@ TIER_CONFIG: dict[str, TierSpec] = {
         "retention_max_days": 7,
         "connector_max": 1,
         "ls_variant_env": None,
-        # ADR-429 §12.3c — Free is owner + 1 guest (a team may try the shared
-        # commons before paying); a 3rd human requires a paid plan (gated at the
-        # invite route). Seat fee DORMANT ($0) everywhere until activation (§5a).
-        "included_seats": 2,
-        "additional_seat_usd": 0.0,
+        # ADR-445 §6 — Free is SOLO (the owner alone). Inviting a 2nd human is the
+        # free→paid boundary (requires the paid plan; gated at the invite route).
+        # A "try a teammate" trial is a deferred growth funnel (§9), not this.
+        "included_seats": 1,
+        "additional_seat_usd": 0.0,  # free tier never charges a seat
         "hidden": False,
         "byok_available": False,  # ADR-439 — BYOK is enterprise-only
     },
     "starter": {
-        # ADR-429 §12.2 — THE single paid plan. Repriced $19→$20 base, $15
-        # allowance retained (~190 judgment calls; clears a Light user's ~$6/mo
-        # with headroom, the $5 gap = asset-margin). A real launch number, still
-        # reversible. Display name is Phase-3 copy (working name "Paid").
+        # ADR-445 §6 — THE single paid plan, SEAT-priced (the subscription IS the
+        # per-additional-human fee; no separate base). $20/additional human/mo +
+        # a $15 workspace-wide pooled allowance (~190 judgment calls; clears a
+        # Light user's ~$6/mo with headroom). $20/seat sits at the low end of the
+        # reference Team band (~$25–30). A real launch number, still reversible.
+        # Display name is Phase-3 copy (working name "Paid").
         "label": "Starter",
+        # price_usd = the per-seat unit price. It is NOT a standalone base fee — a
+        # solo owner (1 human) pays $0 subscription (usage-only); a team pays
+        # (humans − 1) × price_usd. Kept named `price_usd` for the LS variant + FE
+        # derivation; its MEANING is the seat price (ADR-445 §4).
         "price_usd": 20.0,
-        "monthly_allowance_usd": 15.0,
+        "monthly_allowance_usd": 15.0,   # workspace-wide pooled allowance (not per-seat)
         "retention_max_days": 30,
         "connector_max": 3,
         "ls_variant_env": "LEMONSQUEEZY_STARTER_VARIANT_ID",
-        # ADR-429 §5a — seat fee DORMANT ($0). Placeholder activation ~$12/human
-        # (§5 hypothesis); $0 until the operator flips it. included_seats: 1 =
-        # the owner; additional humans bill the (dormant) seat fee.
+        # ADR-445 §4/§6 — seat fee is LIVE at launch. included_seats: 1 = the owner
+        # (seat 1 free); each additional human bills additional_seat_usd. NOT a hard
+        # cap — the team grows freely, each new human a billed seat.
         "included_seats": 1,
-        "additional_seat_usd": 0.0,
+        "additional_seat_usd": 20.0,
         "hidden": False,
         "byok_available": False,  # ADR-439 — BYOK is enterprise-only
     },
     "pro": {
-        # ADR-429 §12.1 — DORMANT (hidden). Returns as the 2nd paid tier when the
-        # connector-capture lane ships. Config retained (one-flag un-hide); NOT
-        # offered at launch. Numbers below are the pre-collapse ADR-396 values,
-        # preserved as the starting point for the future split — not live.
+        # ADR-445 — DORMANT (hidden). Returns as a 2nd SEAT-priced plan with richer
+        # connector gates when the capture lane ships. Config retained (one-flag
+        # un-hide); NOT offered at launch. `additional_seat_usd` set to match the
+        # launch seat price so an un-hide is coherent (the tier ladder differentiates
+        # on gates/allowance, not seat price); the base numbers are placeholders.
         "label": "Pro",
-        "price_usd": 49.0,
+        "price_usd": 20.0,       # per-seat unit (matches starter; ladder splits on gates)
         "monthly_allowance_usd": 45.0,
         "retention_max_days": 90,
         "connector_max": None,  # unlimited
         "ls_variant_env": "LEMONSQUEEZY_PRO_VARIANT_ID",
         "included_seats": 1,
-        "additional_seat_usd": 0.0,
-        "hidden": True,  # ADR-429 §12.1 — not offered until capture ships
+        "additional_seat_usd": 20.0,
+        "hidden": True,  # ADR-445 — not offered until capture ships
         "byok_available": False,  # ADR-439 — BYOK is enterprise-only
     },
     "enterprise": {
@@ -147,12 +181,12 @@ TIER_CONFIG: dict[str, TierSpec] = {
         # definition (ADR-439 §3) — a managed enterprise runs on our keys + meter,
         # byte-identical to lower tiers on the key path.
         #
-        # NUMBERS ARE LAUNCH-TEST HYPOTHESES (ADR-396 §7 discipline, as ADR-429's):
+        # NUMBERS ARE LAUNCH-TEST HYPOTHESES (ADR-396 §7 discipline, as ADR-445's):
         # base + allowance below are placeholders to make the tier real, NOT the
-        # decided price. The enterprise price is a per-workspace + per-seat + custody
-        # bundle that a first enterprise customer resolves — change freely on
-        # evidence. Seat fee stays DORMANT ($0) like every tier (§5a) until the seat
-        # axis activates. Retention/connectors set generous (the bundle isn't sold
+        # decided price. The enterprise price is a per-seat + custody bundle that a
+        # first enterprise customer resolves — change freely on evidence. Seat fee
+        # is live like every paid tier (ADR-445 §4). Retention/connectors set
+        # generous (the bundle isn't sold
         # on them). `hidden: True` — enterprise is SALES-LED, not a self-serve
         # upgrade target on the public ladder (contact-us, not a checkout button).
         "label": "Enterprise",
@@ -162,7 +196,7 @@ TIER_CONFIG: dict[str, TierSpec] = {
         "connector_max": None,  # unlimited
         "ls_variant_env": "LEMONSQUEEZY_ENTERPRISE_VARIANT_ID",  # unset until a self-serve enterprise checkout exists
         "included_seats": 1,
-        "additional_seat_usd": 0.0,  # DORMANT (§5a)
+        "additional_seat_usd": 20.0,  # seat-priced like every paid tier (ADR-445 §4)
         "hidden": True,  # sales-led — not on the self-serve public ladder
         "byok_available": True,  # ADR-439 — THE tier where BYOK may be enabled
     },
@@ -245,22 +279,28 @@ def offered_paid_tiers() -> tuple[str, ...]:
     return tuple(t for t in PAID_TIERS if not tier_hidden(t))
 
 
-# ── ADR-429 Axis ② — seat math (SHIPPED DORMANT, §5a) ─────────────────────────
+# ── ADR-445 Axis ① — seat math (LIVE at launch) ───────────────────────────────
 # A seat is a HUMAN member (role ∈ {owner, member}). AI principals (foreign-llm,
-# a2a, own-agent, platform) are free — never counted. The math runs live but with
-# a $0 additional-seat fee it bills nothing, so N=1 + existing workspaces are
-# byte-identical (§5a). Activation = a non-zero `additional_seat_usd` in TIER_CONFIG.
+# a2a, own-agent, platform) are free — never counted. Seat 1 (the owner) is free;
+# each additional human bills `additional_seat_usd`. `billable_seats` = the LS
+# subscription quantity. N=1 (solo) always bills $0 seats (only usage); a team pays
+# (humans − 1) × the seat fee.
 
 HUMAN_SEAT_ROLES = ("owner", "member")
 
 
 def tier_included_seats(tier: str) -> int:
-    """Humans covered by the base (owner-inclusive) for a tier."""
+    """Billing baseline — humans covered before the per-seat fee (owner-inclusive).
+
+    This is NOT a hard headcount cap (ADR-445 §4): a paid workspace grows its team
+    freely, each additional human accruing a billed seat. The only headcount gate is
+    the free→paid boundary, enforced at the invite route (a Free workspace's 2nd
+    human requires the paid plan)."""
     return tier_spec(tier)["included_seats"]
 
 
 def tier_additional_seat_usd(tier: str) -> float:
-    """$/additional human seat/mo for a tier (0.0 = DORMANT, ADR-429 §5a)."""
+    """$/additional human seat/mo for a tier (the LIVE seat price, ADR-445 §6)."""
     return tier_spec(tier)["additional_seat_usd"]
 
 
@@ -301,18 +341,20 @@ def count_human_seats(client: Any, workspace_id: str) -> int:
 
 
 def billable_seats(tier: str, human_count: int) -> int:
-    """Additional humans billed beyond the base's included seats.
+    """Additional humans billed beyond the base's included seats — the LS
+    subscription quantity (ADR-445 §7 Phase 2).
 
-    `max(0, human_count − included_seats)`. At N=1 (solo) or when a tier includes
-    every human present, this is 0 — the seat axis is invisible."""
+    `max(0, human_count − included_seats)`. At N=1 (solo) this is 0 — the owner is
+    the one free seat, so a solo workspace pays $0 subscription (usage-only)."""
     return max(0, human_count - tier_included_seats(tier))
 
 
 def seat_fee_usd(tier: str, human_count: int) -> float:
     """Total monthly seat fee for a workspace: billable_seats × additional_seat_usd.
 
-    DORMANT (§5a): with `additional_seat_usd = 0` this is always $0.0 — the seat
-    math is exercised and correct, but nothing is charged until activation."""
+    LIVE at launch (ADR-445 §6): a solo owner pays $0 (billable_seats = 0); a team
+    pays (humans − 1) × the seat price. This is the seat AXIS total; the pooled
+    usage meter (Axis ②) is billed separately as the allowance/balance draw."""
     return round(billable_seats(tier, human_count) * tier_additional_seat_usd(tier), 2)
 
 
@@ -366,9 +408,9 @@ def public_tier_ladder() -> list[dict]:
             "monthly_allowance_usd": spec["monthly_allowance_usd"],
             "retention_max_days": spec["retention_max_days"],
             "connector_max": spec["connector_max"],
-            # ADR-429 Axis ② — seat info for the pricing page (Phase 3). Dormant
-            # while additional_seat_usd = 0; the page reads `additional_seat_usd`
-            # to decide whether to show per-seat pricing at all (§5a).
+            # ADR-445 Axis ① — seat info for the pricing page (Phase 3). The page
+            # reads `additional_seat_usd` (the live per-additional-human price) to
+            # render the seat line: free tier = $0 (solo), paid = the seat fee.
             "included_seats": spec["included_seats"],
             "additional_seat_usd": spec["additional_seat_usd"],
         })
@@ -390,7 +432,7 @@ __all__ = [
     "variant_id_for_tier",
     "tier_for_variant_id",
     "public_tier_ladder",
-    # ADR-429 Axis ② — seat helpers (dormant §5a)
+    # ADR-445 Axis ① — seat helpers (live)
     "HUMAN_SEAT_ROLES",
     "tier_included_seats",
     "tier_additional_seat_usd",

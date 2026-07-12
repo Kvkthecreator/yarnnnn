@@ -10,66 +10,64 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA } from "@/lib/cta";
 
 export const metadata = getMarketingMetadata({
-  title: "Pricing — a free shared workspace, one paid plan for the team",
+  title: "Pricing — free for one person, a paid seat for every teammate",
   description:
-    "The workspace and your memory are free forever — bring one teammate at no cost. One paid plan opens the workspace to your team and includes a monthly usage allowance the whole workspace shares. AI connections are always free. See every action; never a surprise bill.",
+    "Your workspace and memory are free forever for one person. Add a teammate and each extra person is a paid seat; usage is a shared pool the owner funds. AI connections are always free. See every action; never a surprise bill.",
   path: "/pricing",
-  keywords: ["yarnnn pricing", "ai workspace pricing", "shared ai workspace", "team ai plan", "usage-based ai pricing", "transparent ai usage", "included usage plan"],
+  keywords: ["yarnnn pricing", "ai workspace pricing", "shared ai workspace", "per seat ai pricing", "team ai plan", "usage-based ai pricing", "transparent ai usage"],
 });
 
-// ADR-429 §12 (2026-07-09): the launch tier structure — Free + ONE paid plan. The
-// old Free/Starter/Pro ladder differentiated on retention + connector count, which
-// gate the DORMANT capture lane (ADR-404 D2); stripping those away, Starter vs Pro
-// differed only by allowance size — not a tier axis in the three-axis model (usage
-// is metered + pooled). So at launch the paid plan unlocks the TEAM (seats, Axis ②)
-// + a real included allowance; the pooled meter (③) does the usage differentiation.
-// The split RETURNS when capture ships (retention/connectors become real again);
-// until then, one paid plan. `pro` is dormant — not shown here.
-//
-// Three axes: ① the plan (free vs one paid base) · ② seats — free workspace = owner
-// + 1 guest, paid opens the team (seat fee DORMANT $0 today, §12.3) · ③ pooled meter
-// — one shared allowance the whole workspace draws; AI connections never cost a seat
-// and never a charge. Numbers ($0 / $20 base / $15 allowance) are launch-test values,
+// ADR-445 (2026-07-12): the TWO-AXIS pricing model (supersedes ADR-429's three
+// axes). There is NO separate per-workspace base fee — the paid subscription IS the
+// per-seat price. Two axes:
+//   ① SEATS — seat 1 (the owner) is free; each additional human is a priced seat
+//      ($20/seat/mo). Unlimited workspaces; a solo workspace is free; a team is paid
+//      at (humans − 1) × the seat fee. The free→paid boundary is the 2nd human. AI
+//      connections are never seats and never charged.
+//   ② METERED USAGE — the paid plan grants a monthly POOLED allowance the whole
+//      workspace draws (owner-funded); top-ups sit beneath; hard-stop at zero.
+// The tier ladder is Free + one paid plan (`pro` dormant, returns with the capture
+// lane). Numbers ($0 / $20 seat / $15 pooled allowance) are launch-test values,
 // reversible against first-customer evidence (ADR-396 §7 standing discipline).
 
 const PLANS = [
   {
     name: "Free",
     price: "$0",
-    cadence: "forever",
-    blurb: "Your memory — files, notes, and context — kept with full history and reachable from every AI you use. Bring one teammate, no card.",
+    cadence: "for one person",
+    blurb: "Your memory — files, notes, and context — kept with full history and reachable from every AI you use. Free forever for one person, no card.",
     cta: "Start free",
     href: CTA.signup,
     featured: false,
     points: [
-      "Workspace + memory, free forever",
-      "You + one guest — try the shared commons",
+      "Workspace + memory, free forever for one person",
       "$3 starting balance — feel the loop before you spend",
-      "Reachable from any AI over MCP",
+      "Reachable from any AI over MCP — always free",
+      "Add a teammate anytime on the paid plan",
     ],
   },
   {
     name: "Starter",
     price: "$20",
-    cadence: "/mo",
-    blurb: "For a real team working out of one shared workspace. Opens the workspace to everyone and includes a monthly usage allowance the whole team draws from.",
+    cadence: "/seat/mo",
+    blurb: "For a real team working out of one shared workspace. You stay free; each teammate is a paid seat, and usage is one shared pool the workspace draws from.",
     cta: "Go Starter",
     href: CTA.signup,
     featured: true,
     points: [
-      "Everything in Free",
-      "Invite your whole team into one workspace",
+      "Everything in Free — your seat stays free",
+      "$20/mo per teammate you add",
       "$15 of monthly usage included — one shared pool",
-      "Connect any AI over MCP — always free",
+      "Connect any AI over MCP — always free, never a seat",
     ],
   },
 ];
 
 const HOW_IT_WORKS = [
-  "One shared allowance. Your plan includes a monthly amount of usage the whole workspace draws from — you, your teammates, and any AI you connect all draw the same pool.",
-  "Idle costs nothing. The workspace and every file are free — only work that actually runs draws on the allowance.",
-  "Need more in a heavy month? Top up any amount from $5. Top-ups never expire and sit beneath your allowance.",
-  "Hard stop at zero. If your allowance and balance run out, work pauses — nothing is lost. You resume by upgrading or topping up.",
+  "Free for one person. Your workspace, your memory, and your own seat are free forever — you only pay when you bring a teammate.",
+  "A seat per teammate. Each additional person on the workspace is a paid seat; AI connections you plug in over MCP are always free and never a seat.",
+  "One shared usage pool. The paid plan includes a monthly amount of usage the whole workspace draws from — you, your teammates, and any AI all draw the same pool, funded by the owner.",
+  "Need more in a heavy month? Top up any amount from $5. Top-ups never expire and sit beneath your allowance. Hard stop at zero — nothing is lost, you resume by topping up.",
 ];
 
 export default function PricingPage() {
@@ -103,17 +101,17 @@ export default function PricingPage() {
             {/* Header */}
             <div className="text-center mb-16">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-6 tracking-tight">
-                Free to keep.<br />One plan for the team.
+                Free for one.<br />A seat for the team.
               </h1>
               <p className="text-white/50 text-lg max-w-2xl mx-auto">
-                The workspace and your memory are free forever — and you can bring
-                one teammate at no cost. One paid plan opens the workspace to your
-                whole team and includes a monthly usage allowance everyone shares.
-                AI connections are always free. See every action; never a surprise bill.
+                Your workspace and your memory are free forever for one person. Add a
+                teammate and each extra person is a paid seat; usage is one shared
+                pool the owner funds. AI connections are always free — never a seat.
+                See every action; never a surprise bill.
               </p>
             </div>
 
-            {/* Plan ladder — Free + one paid plan (ADR-429 §12.1); two cards, centered */}
+            {/* Plan ladder — Free + one paid plan (ADR-445); two cards, centered */}
             <ScrollReveal className="mb-8">
               <div className="grid gap-4 sm:grid-cols-2 max-w-2xl mx-auto">
                 {PLANS.map((plan, i) => (
@@ -230,9 +228,9 @@ export default function PricingPage() {
                 <div className="p-6">
                   <h3 className="text-lg font-medium mb-3">What does a seat cost?</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    A seat is a human on your workspace. Free covers you plus one guest; the paid
-                    plan opens the workspace to your whole team. Every human draws the same shared
-                    allowance — and any AI you connect over MCP is always free, never a seat and
+                    A seat is a human on your workspace. The first seat — you, the owner — is free.
+                    Each teammate you add is $20/mo. Every human draws the same shared usage pool the
+                    owner funds — and any AI you connect over MCP is always free, never a seat and
                     never a charge.
                   </p>
                 </div>
@@ -265,9 +263,9 @@ export default function PricingPage() {
                 <div className="p-6 space-y-4 text-white/50 text-sm leading-relaxed">
                   <p>
                     <strong className="text-white/70">Do I need a paid plan?</strong> No. The
-                    workspace and your memory are free forever, and you can bring one teammate at no
-                    cost. A paid plan is for a real team — inviting a third human opens the workspace
-                    to everyone, and includes the monthly usage the shared work needs.
+                    workspace and your memory are free forever for one person. A paid plan is for a
+                    real team — inviting your first teammate makes the workspace paid ($20/mo per
+                    person), and includes a shared monthly usage pool the work draws from.
                   </p>
                   <p>
                     <strong className="text-white/70">Starting balance.</strong> Every workspace

@@ -1,17 +1,19 @@
 "use client";
 
 /**
- * Billing pane — ADR-396: Type-B subscription over the metered balance.
+ * Billing pane — the TWO-AXIS pricing model (ADR-445, over ADR-396's meter).
  *
- * The plan tier (Free / Starter / Pro) grants a monthly INCLUDED ALLOWANCE; a
- * dynamic top-up is the overage pool beneath it. Draw order: allowance → balance
- * → hard-stop at zero.
+ * Two axes, both owner-paid:
+ *   ① SEATS — seat 1 (the owner) is free; each additional human is a priced seat.
+ *      The per-seat price IS the paid subscription (no separate base fee). A solo
+ *      workspace is free; a team is paid at (humans − 1) × the seat fee.
+ *   ② METERED USAGE — the plan grants a monthly pooled ALLOWANCE the whole
+ *      workspace draws; a dynamic top-up is the overage pool beneath it. Draw
+ *      order: allowance → balance → hard-stop at zero.
  *
- * Transparency contract (ADR-396): this customer surface shows ACTIVITY — the
- * plan + allowance consumed this cycle — NOT raw dollar figures. The one dollar
- * amount the operator sets is the top-up they choose to buy. The monthly spend
- * CEILING (an operator-set governance dial, not a bill) lives on the Budget
- * surface, not here.
+ * Transparency contract (ADR-396): this customer surface shows ACTIVITY — the plan
+ * + seats + allowance consumed this cycle — NOT raw dollar figures. The monthly
+ * spend CEILING (a governance dial, not a bill) lives on the Budget surface.
  */
 
 import { useEffect, useState } from "react";
@@ -41,21 +43,23 @@ const TIER_LABEL: Record<SubscriptionTier, string> = {
   enterprise: "Enterprise",  // ADR-439 — sales-led; not a self-serve upgrade target
 };
 
-// The upgrade ladder — the OFFERED tiers, low→high (ADR-429 §12.1). `pro` is
-// DORMANT (hidden) at launch — the tier ladder collapsed to Free + one paid plan
-// (`starter`); pro returns as the 2nd paid tier when the connector-capture lane
-// ships. Mirrors billing_tiers.offered_paid_tiers() (backend source of truth);
-// re-add 'pro' here when the backend un-hides it.
+// The upgrade ladder — the OFFERED tiers, low→high (ADR-445). `pro` is DORMANT
+// (hidden) at launch — the tier ladder is Free + one paid plan (`starter`); pro
+// returns as the 2nd paid tier when the connector-capture lane ships. Mirrors
+// billing_tiers.offered_paid_tiers() (backend source of truth); re-add 'pro' here
+// when the backend un-hides it.
 const TIER_ORDER: SubscriptionTier[] = ["free", "starter"];
 
 export function SubscriptionCard({ workspaceName }: { workspaceName?: string | null }) {
   const { status, tier, isLoading, error, topup, subscribe, manageSubscription } = useSubscription();
-  // ADR-429 §13.2 — the seat + comped state (already fetched by useSubscription's
-  // getStatus). Seats show the COUNT (a legibility fact) while pricing is dormant;
-  // an exempt workspace shows a "Comped" state instead of upgrade/top-up CTAs.
+  // ADR-445 — the seat + comped state (already fetched by useSubscription's
+  // getStatus). `seatBillingActive` is now TRUE on paid tiers (seats are live):
+  // it means the workspace has billable seats beyond the owner. An exempt
+  // workspace shows a "Comped" state instead of upgrade/top-up CTAs.
   const exempt = status?.billing_exempt ?? false;
   const humanSeats = status?.human_seats ?? 1;
   const includedSeats = status?.included_seats ?? 1;
+  const billableSeats = status?.billable_seats ?? 0;
   const seatBillingActive = status?.seat_billing_active ?? false;
   const [usage, setUsage] = useState<UsageLimits | null>(null);
   const [nextRefill, setNextRefill] = useState<string | null>(null);
@@ -105,8 +109,6 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
   const upgradeTargets = TIER_ORDER.slice(currentIndex + 1).filter(
     (t): t is "starter" | "pro" => t === "starter" || t === "pro",
   );
-
-  const overSeats = humanSeats > includedSeats;
 
   return (
     <Card>
@@ -166,30 +168,32 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
             )}
           </div>
 
-          {/* SEATS — front-and-center (the reference's "14/13 seats in use").
-              Count/legibility while pricing is dormant; the honest note names it. */}
+          {/* SEATS — Axis ① (ADR-445). Seat 1 (the owner) is free; each additional
+              human is a priced seat. Solo = free; a team is billed per extra head.
+              The line names the live billing honestly (no "not billed yet"). */}
           <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
             <div className="flex items-center gap-2.5">
               <Users className="w-4 h-4 text-muted-foreground shrink-0" />
               <div>
                 <div className="text-sm font-medium">
-                  {humanSeats} of {includedSeats} {includedSeats === 1 ? "seat" : "seats"} used
-                  {overSeats && <span className="text-amber-600 dark:text-amber-400"> · over plan</span>}
+                  {humanSeats === 1
+                    ? "1 seat — just you"
+                    : `${humanSeats} people · ${billableSeats} ${billableSeats === 1 ? "seat" : "seats"} billed`}
                 </div>
                 <div className="text-[11px] text-muted-foreground">
-                  {humanSeats === 1 ? "Just you" : `You + ${humanSeats - 1} ${humanSeats - 1 === 1 ? "member" : "members"}`}
-                  {" · "}
-                  {seatBillingActive
-                    ? overSeats
-                      ? `${humanSeats - includedSeats} extra billed at renewal`
-                      : "included in your plan"
-                    : "seats aren't billed yet"}
+                  {humanSeats === 1
+                    ? "Your seat is free. Invite a teammate and each extra person is a paid seat."
+                    : exempt
+                      ? "Comped — no seat charge on this workspace."
+                      : seatBillingActive
+                        ? `Seat 1 (you) is free; ${billableSeats} additional ${billableSeats === 1 ? "person is a billed seat" : "people are billed seats"} at renewal.`
+                        : "Seat 1 (you) is free; additional people are billed seats on a paid plan."}
                   {" · AI connections are free"}
                 </div>
               </div>
             </div>
-            {tier === "free" && overSeats ? (
-              <span className="text-[11px] text-muted-foreground shrink-0">Upgrade to add more</span>
+            {tier === "free" && humanSeats >= includedSeats ? (
+              <span className="text-[11px] text-muted-foreground shrink-0">Upgrade to add your team</span>
             ) : null}
           </div>
         </section>
