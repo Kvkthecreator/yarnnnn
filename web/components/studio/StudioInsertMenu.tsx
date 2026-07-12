@@ -19,7 +19,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Loader2, Plus, Presentation, X } from 'lucide-react';
+import { Check, ChevronDown, Loader2, MessageSquare, Pencil, Plus, Presentation, X } from 'lucide-react';
 import { api } from '@/lib/api/client';
 
 export interface StudioVocabulary {
@@ -60,6 +60,8 @@ interface StudioToolbarProps {
   /** The artifact's current layout slug — gates the Slide menu (deck). */
   layout: string;
   selection: StudioSelection | null;
+  /** ADR-446: the selected block is currently in edit mode. */
+  editing: boolean;
   onClearSelection: () => void;
   /** EXECUTE: insert this block fragment at the selection. */
   onInsertBlock: (fragment: string, label: string) => void;
@@ -71,18 +73,26 @@ interface StudioToolbarProps {
   onApplySlideLayout: (fragment: string, label: string) => void;
   /** The one generative ask (Chart) — seeds the lane. */
   onSeed: (text: string) => void;
+  /** ADR-446: bring the selection to the lane, one seed on purpose (replaces
+   *  the auto-seed spam). */
+  onAskAboutSelection: () => void;
+  /** ADR-446: toggle in-place text editing of the selected block. */
+  onToggleEdit: () => void;
 }
 
 export function StudioInsertMenu({
   vocabulary,
   layout,
   selection,
+  editing,
   onClearSelection,
   onInsertBlock,
   onInsertCited,
   onAddSlide,
   onApplySlideLayout,
   onSeed,
+  onAskAboutSelection,
+  onToggleEdit,
 }: StudioToolbarProps) {
   const [open, setOpen] = useState<null | 'add' | 'slide' | 'image' | 'table'>(null);
   const [citable, setCitable] = useState<Citable | null>(null);
@@ -147,21 +157,48 @@ export function StudioInsertMenu({
         </button>
       )}
 
-      {/* The selection chip — what the next Add/Slide op anchors to, and what
-          the lane hears about on the next message. */}
+      {/* The selection chip + its verbs (ADR-446). Selecting a block no longer
+          seeds the chat automatically; the member acts on the selection here:
+          Edit (type in place) · Ask (bring it to the lane, one seed on
+          purpose). The chip is what the next Add/Slide op anchors to. */}
       {selection && (
-        <span className="ml-auto inline-flex min-w-0 items-center gap-1 rounded-full border border-indigo-300/60 bg-indigo-50/60 px-2 py-0.5 text-[10px] text-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200">
-          <span className="truncate">
-            {selection.blockKind
-              ? `${selection.blockKind}${selection.blockId ? ` · ${selection.blockId}` : ''}`
-              : selection.slideIndex != null
-                ? `slide ${selection.slideIndex + 1}`
-                : 'selection'}
-          </span>
-          <button type="button" onClick={onClearSelection} aria-label="Clear selection">
-            <X className="h-3 w-3" />
+        <div className="ml-auto flex min-w-0 items-center gap-1">
+          {selection.blockId && (
+            <button
+              type="button"
+              onClick={onToggleEdit}
+              title={editing ? 'Done editing' : 'Edit this block’s text in place'}
+              className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] transition-colors ${
+                editing
+                  ? 'border-indigo-400 bg-indigo-100 text-indigo-900 dark:bg-indigo-900/50 dark:text-indigo-100'
+                  : 'border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+              }`}
+            >
+              {editing ? <Check className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
+              {editing ? 'Done' : 'Edit'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onAskAboutSelection}
+            title="Ask the chat about this selection"
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+          >
+            <MessageSquare className="h-3 w-3" /> Ask about this
           </button>
-        </span>
+          <span className="inline-flex min-w-0 items-center gap-1 rounded-full border border-indigo-300/60 bg-indigo-50/60 px-2 py-0.5 text-[10px] text-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200">
+            <span className="truncate">
+              {selection.blockKind
+                ? `${selection.blockKind}${selection.blockId ? ` · ${selection.blockId}` : ''}`
+                : selection.slideIndex != null
+                  ? `slide ${selection.slideIndex + 1}`
+                  : 'selection'}
+            </span>
+            <button type="button" onClick={onClearSelection} aria-label="Clear selection">
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        </div>
       )}
 
       {open === 'add' && (

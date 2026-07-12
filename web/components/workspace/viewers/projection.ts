@@ -169,6 +169,9 @@ const POINTER_SCRIPT = `
   var SEL = ${JSON.stringify(POINTABLE)};
   var cur = null;
   document.addEventListener('click', function (e) {
+    // ADR-446: while a block is being edited, clicks must place the caret, not
+    // re-select — the edit runtime (if present) reports the editing block id.
+    if (window.__yarnnnEditingId && window.__yarnnnEditingId() != null) return;
     var t = e.target;
     var el = t && t.closest ? t.closest(SEL) : null;
     e.preventDefault();
@@ -207,6 +210,119 @@ const POINTER_SCRIPT = `
 })();
 `;
 
+// ── The edit runtime (ADR-446: direct text editing) ──────────────────────
+//
+// The member edits BLOCK TEXT in place. The canvas renders a PROJECTION
+// (citations resolved to blobs/tables, executables stripped), so an edit must
+// map back to the artifact's SOURCE, never serialize the projection (ADR-446
+// D2). Two rules make that safe:
+//
+//  1. Citation islands (D3): every `[data-ref]` inside an editable block is
+//     `contentEditable=false` and carries `data-src-html` (its SOURCE
+//     outerHTML, stamped BEFORE resolution mutated it). On commit the runtime
+//     restores each island to `data-src-html` before reading the block's
+//     inner — so the emitted `newInner` carries the citation in its
+//     living-reference markup, never its resolved bytes.
+//  2. The revision is the atom (D4): a keystroke-burst commits on blur OR
+//     idle-2s, whichever first; the parent debounces further via the CAS door.
+//
+// The parent (StudioCanvas) commands edit mode: postMessage
+// {type:'yarnnn-edit-enter', blockId} enters, {type:'yarnnn-edit-exit'} exits.
+// On commit the runtime posts {type:'yarnnn-edit', blockId, newInner}.
+
+const EDIT_CSS = `
+[data-block][contenteditable="true"] {
+  outline: 2px solid #6366f1 !important; outline-offset: 3px;
+  background: rgba(99,102,241,0.04);
+}
+[data-block][contenteditable="true"] [data-ref] {
+  outline: 1px dashed rgba(99,102,241,0.5); cursor: default;
+}
+`;
+
+const EDIT_SCRIPT = `
+(function () {
+  var editingId = null;      // the block currently in edit mode
+  var editingEl = null;
+  var idleTimer = null;
+
+  // Restore every citation island in the block to its SOURCE form, then read
+  // the block's inner — the source-mapped emit (D2/D3).
+  function readSourceInner(el) {
+    var clone = el.cloneNode(true);
+    var refs = clone.querySelectorAll('[data-src-html]');
+    for (var i = 0; i < refs.length; i++) {
+      var r = refs[i];
+      var src = r.getAttribute('data-src-html');
+      if (src == null) continue;
+      var holder = document.createElement('div');
+      holder.innerHTML = decodeURIComponent(src);
+      var srcEl = holder.firstElementChild;
+      if (srcEl && r.parentNode) r.parentNode.replaceChild(srcEl, r);
+    }
+    return clone.innerHTML;
+  }
+
+  function commit() {
+    if (!editingEl || editingId == null) return;
+    var inner = readSourceInner(editingEl);
+    parent.postMessage({ type: 'yarnnn-edit', blockId: editingId, newInner: inner }, '*');
+  }
+
+  // notify=true only on a member-initiated blur — the surface then clears its
+  // editingBlockId so it doesn't re-enter this block on the post-commit reload.
+  // Internal exits (re-enter of another block, or the parent's explicit
+  // edit-exit command) pass notify=false: the parent already owns that state.
+  function exit(notify) {
+    if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+    if (editingEl) {
+      commit();
+      editingEl.removeAttribute('contenteditable');
+      var refs = editingEl.querySelectorAll('[data-ref]');
+      for (var i = 0; i < refs.length; i++) refs[i].removeAttribute('contenteditable');
+    }
+    editingEl = null; editingId = null;
+    if (notify) parent.postMessage({ type: 'yarnnn-edit-exited' }, '*');
+  }
+
+  function enter(blockId) {
+    exit(false);
+    var el = document.querySelector('[data-block-id="' + (window.CSS && CSS.escape ? CSS.escape(blockId) : blockId) + '"]');
+    if (!el) return;
+    editingEl = el; editingId = blockId;
+    // Citation islands: never editable (D3).
+    var refs = el.querySelectorAll('[data-ref]');
+    for (var i = 0; i < refs.length; i++) refs[i].setAttribute('contenteditable', 'false');
+    el.setAttribute('contenteditable', 'true');
+    el.focus();
+    el.addEventListener('blur', function () { exit(true); }, { once: true });
+    el.addEventListener('input', function () {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(commit, 2000); // idle-2s safety commit (D4)
+    });
+    // Sanitize paste to plain text — no HTML injection through the clipboard.
+    el.addEventListener('paste', function (e) {
+      e.preventDefault();
+      var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
+        document.execCommand('insertText', false, text);
+      }
+    });
+  }
+
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (!d || typeof d !== 'object') return;
+    if (d.type === 'yarnnn-edit-enter' && typeof d.blockId === 'string') enter(d.blockId);
+    else if (d.type === 'yarnnn-edit-exit') exit(false);
+  });
+
+  // Expose to the pointer runtime so it can suppress its click-to-select while
+  // a block is being edited (the caret must land, not a new selection).
+  window.__yarnnnEditingId = function () { return editingId; };
+})();
+`;
+
 /** Remove every artifact-authored executable: script/iframe/object/embed
  *  elements + inline on* handlers + javascript: URLs. The posture forbids
  *  them; this enforces the rule mechanically before allow-scripts renders. */
@@ -229,22 +345,38 @@ function stripExecutable(doc: Document): void {
 /** Resolve every `data-ref` citation in the artifact's HTML; returns the
  *  projected document string ready for the canvas iframe's srcDoc.
  *  `pointer: true` (the Studio canvas) additionally strips all artifact-
- *  authored executables and injects the pointer runtime. */
+ *  authored executables and injects the pointer runtime; `edit: true`
+ *  (ADR-446) also stamps citation islands with their SOURCE outerHTML and
+ *  injects the edit runtime so blocks become editable in place. */
 export async function resolveArtifactHtml(
   html: string,
   artifactPath: string,
-  opts?: { pointer?: boolean },
+  opts?: { pointer?: boolean; edit?: boolean },
 ): Promise<string> {
   if (!html) return html;
   if (!opts?.pointer && !html.includes('data-ref')) return html;
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const cited = Array.from(doc.querySelectorAll('[data-ref]'));
+  // ADR-446 D3: stamp each citation's SOURCE outerHTML BEFORE resolution
+  // mutates it — by render time its content is resolved and the source form
+  // is otherwise unrecoverable. On edit-commit the runtime restores islands
+  // from data-src-html so a text edit never bakes a reference.
+  if (opts?.edit) {
+    cited.forEach((el) => el.setAttribute('data-src-html', encodeURIComponent(el.outerHTML)));
+  }
   await Promise.all(cited.map((el) => resolveOne(el, artifactPath)));
   if (opts?.pointer) {
     stripExecutable(doc);
     const style = doc.createElement('style');
-    style.textContent = POINTER_CSS;
+    style.textContent = POINTER_CSS + (opts?.edit ? EDIT_CSS : '');
     doc.head?.appendChild(style);
+    if (opts?.edit) {
+      // The edit runtime is injected FIRST so window.__yarnnnEditingId is
+      // defined before the pointer runtime checks it (script order = DOM order).
+      const editScript = doc.createElement('script');
+      editScript.textContent = EDIT_SCRIPT;
+      doc.body?.appendChild(editScript);
+    }
     const script = doc.createElement('script');
     script.textContent = POINTER_SCRIPT;
     doc.body?.appendChild(script);

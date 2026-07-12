@@ -23,8 +23,8 @@ The operations are internal vocabulary. **The chrome speaks the right column, al
 |---|---|---|
 | CREATE | **Create** / "New" | start state: layout picker + name + place |
 | COMPOSE | **Add** | the palette (Add block · Image · Table · Chart) |
-| TRANSFORM | **Edit** — by asking, in plain words | the lane (chat); later: tweak gestures |
-| POINT | **Select** | click in the canvas; the selection feeds your next ask |
+| TRANSFORM | **Edit** — type in the block, or ask in plain words | in place on the canvas (block text, ADR-446); the lane (chat) for judgment work; later: tweak gestures |
+| POINT | **Select** | click a block in the canvas; the selection anchors Add/Slide ops and gates edit mode (it feeds the chat only on "Ask about this") |
 | CITE | **Insert from workspace** | the Image/Table pickers; `data-ref` under the hood |
 | PROJECT | *(implicit)* — the canvas; later **Share/Publish** | the live canvas; publish deferred |
 | TRACE | **History** | revision history / Files detail; block-grain lens later |
@@ -59,10 +59,11 @@ A **template = layout × starter blocks** (assembled by `build_skeleton`). Layou
 ## The surface contract
 
 - **Start state**: layout picker (operator words + one-line descriptions) → name → meaning-placed path (`operation/…`, never an app-named root) → Create. Below: "Continue where you left off" (recent artifacts, clickable) + open-by-path fallback.
-- **Workbench**: bound lane (left — the editor engine; teaching empty state + per-layout starter chips) · live canvas (right — sandboxed projection; select-by-click) · outline rail. Identity + verbs live in the **surface bar** (ADR-442): the artifact crumb, Open in Files, Change layout.
-- **Mutation is single-path**: the lane writes; the canvas renders and selects; the palette and pickers only prefill asks. (ADR-236, unbroken through every iteration.)
-- **Canvas security posture**: the projection pass strips all artifact-authored executables and injects only the kernel pointer runtime; the iframe is `sandbox="allow-scripts"` on an opaque origin; on projection failure the canvas renders blank, never raw.
+- **Workbench**: bound lane (left — the judgment path; teaching empty state + per-layout starter chips) · live canvas (right — sandboxed projection; **select-by-click, edit-in-place**) · outline rail. Identity + verbs live in the **surface bar** (ADR-442): the artifact crumb, Change layout.
+- **Mutation is two-path, one door** (ADR-444 + ADR-446): the **lane** writes judgment edits (metered); the **member** writes mechanical edits (structural ops via the toolbar, and **block text typed in place on the canvas** — free). Both land through the one write door (`POST /studio/artifacts/write`, `authored_by="operator"`, CAS-guarded). The palette pickers and the "Ask about this" chip action prefill the lane's composer; nothing else is a write path. (ADR-236's *point* — one attributed door, no silent second path — is unbroken; its *letter* is amended to let the canvas edit.)
+- **Direct editing maps to the source, never the projection** (ADR-446): the canvas renders a projection (citations resolved, executables stripped, runtime injected). A block edit emits `{data-block-id, new inner}`; the FE applies it to the artifact's SOURCE html, restores any cited object inside the block to its living-reference form (citations are `contentEditable=false` islands), sanitizes, and lands one debounced revision (blur / idle-2s). The revision is the atom — no keystroke-realtime CRDT, ever.
+- **Canvas security posture**: the projection pass strips all artifact-authored executables and injects only the kernel pointer + edit runtime; the iframe is `sandbox="allow-scripts"` on an opaque origin; typed content is sanitized on write-back; on projection failure the canvas renders blank, never raw.
 
 ## What Studio is NOT (the standing refusals)
 
-No shadow/JSON content model · no widget/plugin ABI (blocks are semantic HTML + skin, never embedded editors) · no WYSIWYG second write path · no keystroke-realtime co-editing (the revision is the atom; no CRDT — ADR-406/286) · no editing of viewer-owned formats (a PDF is citable, not Studio-editable) · no raster generation engine (rented at the boundary when demanded — ADR-417). The standing drift test (ADR-440 §7): *does this force a definitional question about the app format, or is it just a better editor?*
+No shadow/JSON content model · no widget/plugin ABI (blocks are semantic HTML + skin, never embedded editors) · no *second* write path — in-place editing lands as debounced attributed revisions through the ONE write door (ADR-446), not a parallel one · **no keystroke-realtime CO-EDITING (CRDT)** — the revision is the atom, single-writer-per-path, no merge (ADR-406/286; "real time" means the manipulation feels immediate, not operational-transform co-editing) · no editing of viewer-owned formats (a PDF is citable, not Studio-editable) · no raster generation engine (rented at the boundary when demanded — ADR-417). The standing drift test (ADR-440 §7): *does this force a definitional question about the app format, or is it just a better editor?* — with the operator's 2026-07-12 widening on record: **direct text editing is in scope** (a webpage editor's in-place edit, committed as a revision).

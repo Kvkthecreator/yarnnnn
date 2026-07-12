@@ -27,7 +27,7 @@ import { useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext'
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { StudioCanvas, type PointerEvent2 } from './StudioCanvas';
 import { StudioInsertMenu, type StudioVocabulary } from './StudioInsertMenu';
-import { applySlideLayout, insertBlock, insertSlide, type OpResult } from './artifactOps';
+import { applySlideLayout, editBlockText, insertBlock, insertSlide, type OpResult } from './artifactOps';
 
 interface LaneInfo {
   id: string;
@@ -228,29 +228,43 @@ export function StudioSurface() {
     text: string;
   } | null>(null);
 
-  const onPoint = useCallback(
-    (p: PointerEvent2) => {
-      setSelection({
-        blockId: p.blockId,
-        blockKind: p.blockKind,
-        slideIndex: p.slideIndex,
-        text: p.text,
-      });
-      // ADR-443 D6: the lane hears about the selection in operator words —
-      // visible in the composer (honesty over magic).
-      if (p.blockId || p.blockKind) {
-        const kind = p.blockKind ?? 'content';
-        const id = p.blockId ? ` (id: ${p.blockId})` : '';
-        seedComposer(`Selected the ${kind} block${id}${p.text ? ` — "${p.text}"` : ''}: `);
-      } else if (p.dataRef) {
-        seedComposer(`Selected the inserted object "${p.dataRef}": `);
-      } else {
-        seedComposer(`Selected the ${p.tag}${p.text ? ` "${p.text}"` : ''}: `);
-      }
-    },
-    [seedComposer],
-  );
-  const onPointClear = useCallback(() => setSelection(null), []);
+  // ADR-446 D5: a click SELECTS a block (anchors Add/Slide ops + gates edit
+  // mode). It NO LONGER auto-seeds the composer — that produced the seed-append
+  // spam ("Selected the h2…: Selected the p…: "). The lane hears the selection
+  // only on the explicit "Ask about this" affordance below.
+  const onPoint = useCallback((p: PointerEvent2) => {
+    setSelection({
+      blockId: p.blockId,
+      blockKind: p.blockKind,
+      slideIndex: p.slideIndex,
+      text: p.text,
+    });
+  }, []);
+  const onPointClear = useCallback(() => {
+    setSelection(null);
+    setEditingBlockId(null);
+  }, []);
+
+  // ADR-446: which block is being edited in place (surface-held; the canvas
+  // commands its iframe runtime). Selecting a different block exits the prior
+  // edit (the runtime commits on the enter of the next).
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+
+  // The explicit ask (replaces the auto-seed): the member chose to bring the
+  // selection to the lane — one seed, on purpose, in operator words.
+  const askAboutSelection = useCallback(() => {
+    if (!selection) return;
+    const s = selection;
+    if (s.blockId || s.blockKind) {
+      const kind = s.blockKind ?? 'content';
+      const id = s.blockId ? ` (id: ${s.blockId})` : '';
+      seedComposer(`About the ${kind} block${id}${s.text ? ` — "${s.text}"` : ''}: `);
+    } else if (s.slideIndex != null) {
+      seedComposer(`About slide ${s.slideIndex + 1}: `);
+    } else {
+      seedComposer(`About the selection${s.text ? ` "${s.text}"` : ''}: `);
+    }
+  }, [selection, seedComposer]);
 
   const outline = useMemo(() => extractOutline(file?.content ?? ''), [file]);
   const template = useMemo(() => extractTemplate(file?.content ?? ''), [file]);
@@ -352,6 +366,20 @@ export function StudioSurface() {
     [applyOp, anchor],
   );
 
+  // ADR-446: a block edit committed on the canvas (blur/idle) — the newInner is
+  // already source-mapped (citation islands restored). Land it through the same
+  // mechanical door as every other op; editBlockText no-ops a byte-identical
+  // edit (returns null → applyOp surfaces "select something" only on a real
+  // miss, so guard the no-op here to stay silent).
+  const onEdit = useCallback(
+    (blockId: string, newInner: string) => {
+      if (!file?.content) return;
+      if (!editBlockText(file.content, blockId, newInner)) return; // no-op — no revision, no error
+      void applyOp((html) => editBlockText(html, blockId, newInner), `Studio: edit ${blockId} block`);
+    },
+    [applyOp, file],
+  );
+
   // ── START STATE ─────────────────────────────────────────────────────────
   if (!artifactPath) {
     return (
@@ -410,12 +438,19 @@ export function StudioSurface() {
                 vocabulary={vocabulary}
                 layout={template}
                 selection={selection}
+                editing={editingBlockId != null}
                 onClearSelection={onPointClear}
                 onInsertBlock={handleInsertBlock}
                 onInsertCited={handleInsertCited}
                 onAddSlide={handleAddSlide}
                 onApplySlideLayout={handleApplySlideLayout}
                 onSeed={seedComposer}
+                onAskAboutSelection={askAboutSelection}
+                onToggleEdit={() =>
+                  setEditingBlockId((cur) =>
+                    cur === selection?.blockId ? null : (selection?.blockId ?? null),
+                  )
+                }
               />
               {opError && (
                 <p className="border-b border-border bg-red-50 px-3 py-1 text-[11px] text-red-700 dark:bg-red-950/30 dark:text-red-300">
@@ -478,6 +513,9 @@ export function StudioSurface() {
                 artifactPath={artifactPath}
                 onPoint={onPoint}
                 onPointClear={onPointClear}
+                editingBlockId={editingBlockId}
+                onEdit={onEdit}
+                onEditExited={() => setEditingBlockId(null)}
               />
             )}
           </div>

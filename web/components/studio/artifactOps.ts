@@ -128,6 +128,49 @@ export function insertSlide(
   return { html: serialize(doc), landedId: el.getAttribute('data-container') };
 }
 
+/** Strip every executable from a fragment of member-typed inner HTML before
+ *  it lands in the source (ADR-446 D2): script/iframe/object/embed elements,
+ *  inline on* handlers, javascript: URLs. Typing must not inject a script. */
+function sanitizeInner(doc: Document, inner: string): string {
+  const holder = doc.createElement('div');
+  holder.innerHTML = inner;
+  holder.querySelectorAll('script, iframe, object, embed').forEach((el) => el.remove());
+  holder.querySelectorAll('*').forEach((el) => {
+    for (const attr of Array.from(el.attributes)) {
+      const name = attr.name.toLowerCase();
+      if (name.startsWith('on')) el.removeAttribute(attr.name);
+      else if (
+        (name === 'href' || name === 'src') &&
+        attr.value.trim().toLowerCase().startsWith('javascript:')
+      ) {
+        el.removeAttribute(attr.name);
+      }
+    }
+  });
+  return holder.innerHTML;
+}
+
+/** Direct text edit (ADR-446): replace the inner HTML of the block whose
+ *  data-block-id matches, in the SOURCE html. The `newInner` arrives from the
+ *  canvas edit runtime already source-mapped (citation islands restored to
+ *  their living-reference form); this pass sanitizes it and swaps it in. The
+ *  block's id, kind, and every other attribute are untouched — only its
+ *  content changes. Returns null (no revision) if the block is gone or the
+ *  content is byte-identical (a no-op edit lands nothing). */
+export function editBlockText(
+  html: string,
+  blockId: string,
+  newInner: string,
+): OpResult | null {
+  const doc = parse(html);
+  const block = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+  if (!block) return null;
+  const sanitized = sanitizeInner(doc, newInner);
+  if (block.innerHTML === sanitized) return null; // no-op — no revision
+  block.innerHTML = sanitized;
+  return { html: serialize(doc), landedId: blockId };
+}
+
 /** Apply a container layout to the selected slide: every existing
  *  [data-block] in the slide moves INTACT (ids preserved) into the new
  *  arrangement's first [data-slot]; other slots keep their placeholders;

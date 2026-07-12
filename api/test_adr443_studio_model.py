@@ -11,6 +11,12 @@ Static/structural checks (no DB, no LLM):
   5. Block-grain pointing: the projection pointer runtime carries blockId +
      blockKind (D6) — read as text from the FE file.
   6. Grammar-not-schema: no validation gate anywhere in the studio module.
+  7. ADR-444: the mechanical layer (containers, the write door, FE ops).
+  8. ADR-446: the direct-edit runtime — editBlockText maps to the SOURCE by
+     block id (id-preserving, sanitizing, no-op-safe); the projection edit
+     runtime stamps citation islands + commits on blur/idle (the revision is
+     the atom, never keystroke); the surface kills the seed spam and lands
+     edits through the ONE mechanical write door.
 
 Run:  cd api && ./venv/bin/python test_adr443_studio_model.py
 Exit code is authoritative (0 = pass).
@@ -140,6 +146,45 @@ def run() -> bool:
            "onInsertBlock" in surface and "writeArtifact" in surface)
     _check("posture: concurrent-writer contract (never renumber ids)",
            "never renumber" in " ".join(posture.split()))
+
+    # ── 8. ADR-446: the direct-edit runtime ──────────────────────────────
+    # (a) The source transform — a text edit maps back to the SOURCE by block
+    #     id, id-preserving, sanitizing, no-op-safe.
+    _check("editBlockText: source transform present, id-preserving",
+           "export function editBlockText" in ops
+           and "data-block-id" in ops and "CSS.escape" in ops)
+    _check("editBlockText: sanitizes member-typed inner (no executables)",
+           "sanitizeInner" in ops
+           and "script, iframe, object, embed" in ops
+           and "javascript:" in ops)
+    _check("editBlockText: no-op edit lands no revision",
+           "no-op — no revision" in ops or "byte-identical" in ops)
+    # (b) The projection edit runtime — citation islands mapped to SOURCE, the
+    #     revision is the atom (blur/idle, never keystroke), pointer suppressed.
+    _check("projection: edit runtime injected under an `edit` option",
+           "edit?: boolean" in projection and "EDIT_SCRIPT" in projection)
+    _check("projection: citation islands stamped with SOURCE outerHTML (D3)",
+           "data-src-html" in projection and "el.outerHTML" in projection)
+    _check("projection: islands are non-editable + restored on commit",
+           "contenteditable" in projection and "readSourceInner" in projection)
+    _check("projection: the revision is the atom (blur/idle, not keystroke)",
+           "blur" in projection and "2000" in projection)
+    _check("projection: pointer suppressed while a block is being edited",
+           "__yarnnnEditingId" in projection)
+    # (c) The surface wiring — one door (mechanical write), the seed spam killed,
+    #     the explicit ask restored.
+    _check("surface: edits land through the ONE mechanical door (applyOp)",
+           "editBlockText" in surface and "onEdit" in surface)
+    _check("surface: selection no longer auto-seeds the composer (spam killed)",
+           "no longer auto-seed" in surface.lower()
+           and "seedComposer(`Selected the" not in surface)
+    _check("surface: explicit 'Ask about this' affordance replaces the auto-seed",
+           "askAboutSelection" in surface and "onAskAboutSelection" in menu)
+    _check("menu: in-place Edit + Ask verbs on the selection chip",
+           "onToggleEdit" in menu and "Ask about this" in menu)
+    _check("canvas: renders in edit mode + forwards edit commits",
+           "editingBlockId" in surface
+           and "yarnnn-edit" in (repo / "web/components/studio/StudioCanvas.tsx").read_text())
 
     failed = [r for r in _results if not r[1]]
     print(f"\n{len(_results) - len(failed)}/{len(_results)} checks passed"

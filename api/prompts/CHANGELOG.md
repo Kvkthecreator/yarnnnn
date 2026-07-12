@@ -6,6 +6,11 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.12.3] - Studio posture: member in-place text edits (ADR-446)
+
+- `services/studio.py::_POSTURE_FRAME` — the concurrent-writer clause widens: the member now also edits DIRECTLY on the canvas by typing block text in place (not only inserting blocks/slides). The lane is told an in-place text edit changes only a block's inner content, never its id or its cited objects, and to re-read a block fresh rather than assume its last version when asked to build on an edit.
+- Expected behavior change: bound lanes stay coherent when the member's direct text edits interleave with their turns (the CAS door guards the other direction — a lane write 409s a stale member edit). No change to plain chat lanes or to the authoring token profile.
+
 ## [2026.07.12.2] - Studio posture: the concurrent-writer contract (ADR-444)
 
 - `services/studio.py::_POSTURE_FRAME` — one added rule: the member can insert blocks/slides DIRECTLY (operator-authored revisions land between the lane's turns) — re-read before editing, treat current content as truth, never renumber or remove `data-block-id` values the lane didn't create.
