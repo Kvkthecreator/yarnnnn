@@ -15,6 +15,19 @@ Studio is an **HTML-native, AI-native editing system** built from first principl
 
 **The refinements that make this hold** (ADR-443 D1): the DOM is the model — no shadow content layer (R1); layout is a binding inside the artifact and switching it is an authored revision (R2); blocks are owned, citations are borrowed (R3); one kernel vocabulary that teaches and never validates (R4); Studio authors one type — agnosticism is about renderings, not editors (R5).
 
+## The four layers (the composition model)
+
+An artifact is composed from four orthogonal layers. Each answers one question; each is a thin `data-*` annotation on real HTML (the DOM is the model, never a JSON tree):
+
+| Layer | Answers | Annotation | Status |
+|---|---|---|---|
+| **Layout** | what *kind* of artifact | `data-template` (document/deck/article) | live (ADR-443) |
+| **Arrangement** | *where content goes* on a page/section — grids, slots, overlays, sizings | `data-arrange` + `data-slot` | **proposed (ADR-447)** — generalizes ADR-444's deck-only slide masters to a per-type, nested (page → section → slot) grammar |
+| **Block** | what a content unit *is* | `data-block` + `data-block-id` | live (ADR-443/446) |
+| **Skin** | how it *looks* (design system: palette/type/mood) | `<style>` | out of scope — a separate architectural decision |
+
+Arrangement is the composition layer PowerPoint's New-Slide flyout and Wix's section stacks both name: *Title Slide · Two Content · Comparison · Picture-with-Caption* (page grain) and drop-in *two-column / three-grid / image-overlay* bands (section grain), nested. It is orthogonal to blocks (what) and skin (how). See ADR-447.
+
 ## The seven operations × operator words (ADR-443 D2/D3)
 
 The operations are internal vocabulary. **The chrome speaks the right column, always.**
@@ -30,6 +43,8 @@ The operations are internal vocabulary. **The chrome speaks the right column, al
 | TRACE | **History** | revision history / Files detail; block-grain lens later |
 
 Plus **Change layout** (a TRANSFORM specialization worth its own verb in chrome): visible in the surface bar, always switchable, lands as an edit you can see in History.
+
+Plus **Arrange** *(proposed, ADR-447)* — the composition verb: re-lay a whole page/slide (page arrangement) or drop in a section band (two-column, three-grid, image-overlay). Generalizes today's deck-only "Slide" menu. TRANSFORM + COMPOSE surfaced in one operator word; a re-arrange is a free, id-preserving, attributed reflow.
 
 ## The block vocabulary (kernel-seeded — `services/studio.py`, served via `GET /studio/vocabulary`)
 
@@ -54,7 +69,16 @@ Annotation spec: `data-block="<kind>"` + `data-block-id="<short-id>"` on top-lev
 | `deck` | Deck | `<section class="slide">` containers, one idea each |
 | `article` | Article | `<article>` with header (title/subtitle/byline) + prose flow |
 
-A **template = layout × starter blocks** (assembled by `build_skeleton`). Layout is visible in the surface bar and switchable at any time; the switch preserves every block and its id, replaces skin + flow, updates `data-template`, and lands as an attributed revision.
+A **template = layout × [page arrangement] × starter blocks** (assembled by `build_skeleton`). Layout is visible in the surface bar and switchable at any time; the switch preserves every block and its id, replaces skin + flow, updates `data-template`, and lands as an attributed revision.
+
+## The arrangements *(proposed, ADR-447 — generalizes ADR-444's slide masters)*
+
+An **arrangement** says *where content goes* on a page or section: grids, slots, overlays, sizings. It is per-document-type and nested — page → section → slot → block:
+
+- **Page arrangements** (whole canvas): deck → `title · content · two-column · quote` (live today as `STUDIO_CONTAINERS`), extended to `comparison · picture-with-caption · section-header` and to document/article page arrangements (`title+lede · hero`, `lead-image · pull-quote-aside`). The PowerPoint New-Slide grain.
+- **Section arrangements** (drop-in bands, cross-type — phase 2): `two-column · three-grid · image-overlay · sidebar · full-bleed-band`. The Wix section-stack grain.
+
+Annotation: `data-arrange="<slug>"` on the page/section element; `data-slot="main|left|right|media|…"` on its regions; blocks fill slots; slots may hold sub-arrangement bands (the recursion). Grid/overlay/sizing is CSS in the arrangement's skin fragment — HTML-native, no layout DSL, no JSON tree. Applying/switching an arrangement is the same free CAS-guarded reflow that moves blocks between slots today (`applySlideLayout`, generalized) — blocks move intact, ids preserved, heading blocks anchor rather than flow. Grammar not schema: an un-arranged artifact stays valid.
 
 ## The surface contract
 
