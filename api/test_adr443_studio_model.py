@@ -185,6 +185,23 @@ def run() -> bool:
     _check("canvas: renders in edit mode + forwards edit commits",
            "editingBlockId" in surface
            and "yarnnn-edit" in (repo / "web/components/studio/StudioCanvas.tsx").read_text())
+    # ADR-446 follow-on: titles/headers are editable heading blocks — every
+    # layout's scaffold stamps data-block="heading" on its title so the most
+    # prominent element on the artifact is reachable by the edit path.
+    for slug in STUDIO_LAYOUTS:
+        sk = build_skeleton(slug)
+        _check(f"scaffold '{slug}': title is an editable heading block",
+               'data-block="heading"' in sk)
+    _check("deck slide masters annotate their titles (heading blocks)",
+           all('data-block="heading"' in c["fragment"]
+               for c in STUDIO_CONTAINERS["deck"].values()
+               if "<h1" in c["fragment"] or "<h2" in c["fragment"]))
+    _check("heading is NOT a palette-inserted vocabulary kind (grammar, not schema)",
+           "heading" not in STUDIO_BLOCKS)
+    _check("posture teaches the heading block (editable titles)",
+           'data-block="heading"' in posture)
+    _check("slide reflow does not sweep heading blocks into a slot",
+           "'heading'" in ops and "data-block')" in ops)
 
     failed = [r for r in _results if not r[1]]
     print(f"\n{len(_results) - len(failed)}/{len(_results)} checks passed"

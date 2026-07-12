@@ -185,7 +185,13 @@ export function applySlideLayout(
   if (!slide) return null;
   const el = materializeFragment(doc, containerFragment);
   if (!el) return null;
-  const blocks = Array.from(slide.querySelectorAll('[data-block]'));
+  // Reflow moves CONTENT blocks into the new arrangement; heading blocks
+  // (title/kicker/subtitle) belong to the slide's own structure and the new
+  // container brings its own — so they are NOT swept (ADR-446: headings are
+  // editable blocks, but they anchor the slide, they don't flow into a slot).
+  const blocks = Array.from(slide.querySelectorAll('[data-block]')).filter(
+    (b) => b.getAttribute('data-block') !== 'heading',
+  );
   const slot = el.querySelector('[data-slot]');
   if (slot && blocks.length) {
     // Placeholder fragment blocks in the target slot yield to the real ones.

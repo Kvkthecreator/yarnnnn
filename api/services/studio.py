@@ -143,8 +143,8 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     section[data-block] h2 { font-size: 1.3rem; margin-bottom: 0.75rem; }
 """.strip("\n"),
         "scaffold": """<main>
-  <h1>Untitled document</h1>
-  <p class="lede">One sentence on what this document is for.</p>
+  <h1 data-block="heading" data-block-id="t1">Untitled document</h1>
+  <p class="lede" data-block="heading" data-block-id="t2">One sentence on what this document is for.</p>
   <section data-block="prose" data-block-id="b1">
     <h2>First section</h2>
     <p>Start here.</p>
@@ -158,7 +158,9 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
             "each slide is <section class=\"slide\"> (a flow container, not a "
             "block); blocks live INSIDE slides. The first slide is the title "
             "slide (kicker + h1 thesis); every other slide is one idea led by an "
-            "<h2>. Keep slide text sparse — a deck is spoken over, not read."
+            "<h2>. A slide's title, kicker, and framing lines ARE heading blocks "
+            "(data-block=\"heading\") so the member can edit them in place — keep "
+            "them annotated. Keep slide text sparse — a deck is spoken over, not read."
         ),
         "skin": """
     .slide { min-height: 92vh; padding: 4rem 3.5rem; display: flex;
@@ -174,13 +176,13 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     .slide .col { flex: 1; min-width: 0; }
 """.strip("\n"),
         "scaffold": """<section class="slide">
-  <p class="kicker">Untitled deck</p>
-  <h1>The one-line thesis goes here.</h1>
-  <p>Subtitle or framing sentence.</p>
+  <p class="kicker" data-block="heading" data-block-id="k1">Untitled deck</p>
+  <h1 data-block="heading" data-block-id="t1">The one-line thesis goes here.</h1>
+  <p data-block="heading" data-block-id="f1">Subtitle or framing sentence.</p>
 </section>
 <section class="slide">
+  <h2 data-block="heading" data-block-id="t2">First point</h2>
   <div data-block="prose" data-block-id="b1">
-    <h2>First point</h2>
     <p>One idea per slide.</p>
   </div>
 </section>""",
@@ -190,9 +192,10 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
         "description": "A publishing shape — blog post, essay, announcement.",
         "flow": (
             "one <article> with a <header> (h1 title, .subtitle promise, .byline "
-            "— the header is a flow container, not a block) followed by blocks of "
-            "flowing prose; figures carry cited images. Written to be read by "
-            "someone outside the workspace."
+            "— the header is a flow container; its title/subtitle/byline ARE "
+            "heading blocks, data-block=\"heading\", so the member can edit them "
+            "in place) followed by blocks of flowing prose; figures carry cited "
+            "images. Written to be read by someone outside the workspace."
         ),
         "skin": """
     article { max-width: 42rem; margin: 0 auto; padding: 3.5rem 1.5rem; }
@@ -205,9 +208,9 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
 """.strip("\n"),
         "scaffold": """<article>
   <header>
-    <h1>Untitled article</h1>
-    <p class="subtitle">The one-sentence promise to the reader.</p>
-    <p class="byline">Byline · Date</p>
+    <h1 data-block="heading" data-block-id="t1">Untitled article</h1>
+    <p class="subtitle" data-block="heading" data-block-id="t2">The one-sentence promise to the reader.</p>
+    <p class="byline" data-block="heading" data-block-id="t3">Byline · Date</p>
   </header>
   <div data-block="prose" data-block-id="b1">
     <p>Opening paragraph.</p>
@@ -232,16 +235,16 @@ STUDIO_CONTAINERS: dict[str, dict[str, dict[str, str]]] = {
             "label": "Title slide",
             "description": "Kicker, thesis headline, framing line.",
             "fragment": """<section class="slide" data-container="title">
-  <p class="kicker">Kicker</p>
-  <h1>The headline goes here.</h1>
-  <p>Framing sentence.</p>
+  <p class="kicker" data-block="heading" data-block-id="k1">Kicker</p>
+  <h1 data-block="heading" data-block-id="t1">The headline goes here.</h1>
+  <p data-block="heading" data-block-id="f1">Framing sentence.</p>
 </section>""",
         },
         "content": {
             "label": "Content",
             "description": "A heading with content below.",
             "fragment": """<section class="slide" data-container="content">
-  <h2>Slide title</h2>
+  <h2 data-block="heading" data-block-id="t1">Slide title</h2>
   <div data-slot="main"></div>
 </section>""",
         },
@@ -249,7 +252,7 @@ STUDIO_CONTAINERS: dict[str, dict[str, dict[str, str]]] = {
             "label": "Two column",
             "description": "A heading over two side-by-side regions.",
             "fragment": """<section class="slide" data-container="two-column">
-  <h2>Slide title</h2>
+  <h2 data-block="heading" data-block-id="t1">Slide title</h2>
   <div class="cols">
     <div class="col" data-slot="main"></div>
     <div class="col" data-slot="side"><p>Second column.</p></div>
@@ -349,8 +352,14 @@ data-block="<kind>" plus a short unique data-block-id (e.g. "b7") that you
 stamp when creating a block and PRESERVE when editing it. Patch WITHIN block
 boundaries — one block per edit where possible — and address blocks by their
 id when the member selects one. Content that fits no kind may stay
-unannotated; the grammar teaches, it never rejects. Kinds:
+unannotated; the grammar teaches, it never rejects.
+Titles, headings, kickers, subtitles, and framing lines are also blocks —
+data-block="heading" — so the member can select and edit them in place; keep
+them annotated with a stable id when you author or restructure a header or a
+slide title. Kinds:
 {blocks_grammar}
+  - heading — a title/kicker/subtitle/framing line (structural, not
+    palette-inserted); e.g. <h1 data-block="heading" data-block-id="t1">Title</h1>
 
 ## Layout
 This artifact's layout is {template}: {flow}
