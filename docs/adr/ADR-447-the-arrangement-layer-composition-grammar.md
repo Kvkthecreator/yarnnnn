@@ -1,13 +1,16 @@
 # ADR-447 — The arrangement layer: composition as a first-class, per-type, nested grammar
 
-> **Status**: **Proposed** (2026-07-12, doc-first — awaiting operator ratification; NO code this
-> commit). The operator, from the Word / PowerPoint / Wix galleries, named a missing *fundamental*
-> layer and scoped it precisely: not the design system (palette/type/mood — a separate decision),
-> but the **spatial-composition layer** — page/slide masters, sections, grids, overlays, sizings —
-> at **both the whole-page and the sub-region grain, nested**. This ADR promotes the Studio's
-> deck-only `STUDIO_CONTAINERS` (ADR-444's slide masters) to a first-class **arrangement** layer:
-> per-document-type, nested (page → section → slot), kernel-seeded, applied as the same free
-> CAS-guarded mechanical reflow that already moves blocks between slots. Derivation:
+> **Status**: **Accepted** (2026-07-12, operator-ratified — "the model holds"; the operator then
+> widened v1 to include the **front-end UX** (D7). Doc-first; implementation delegated as ADR-447
+> v1 = model + UX together). The operator, from the Word / PowerPoint / Wix galleries, named a
+> missing *fundamental* layer and scoped it precisely: not the design system (palette/type/mood —
+> a separate decision), but the **spatial-composition layer** — page/slide masters, sections,
+> grids, overlays, sizings — at **both the whole-page and the sub-region grain, nested**. This ADR
+> promotes the Studio's deck-only `STUDIO_CONTAINERS` (ADR-444's slide masters) to a first-class
+> **arrangement** layer: per-document-type, nested (page → section → slot), kernel-seeded, applied
+> as the same free CAS-guarded mechanical reflow that already moves blocks between slots — AND
+> restructures the workbench UX so composition is spatial (thumbnail pickers, a right-side
+> inspector, click-to-drill, empty-slot affordances). Derivation:
 > `docs/analysis/the-composition-layer-arrangements-as-a-first-class-grammar-2026-07-12.md`. Living
 > design doc: `docs/design/STUDIO.md`.
 
@@ -90,15 +93,53 @@ in. Same executor (`applyOp` + reflow). The seven operations are unchanged — "
 (re-lay) + COMPOSE (drop a band), surfaced in one operator word. A template becomes
 **layout × page-arrangement × starter blocks** (`build_skeleton` composes from the arrangement row).
 
-## D6 — Scope: v1 spine ships / deferred
+## D7 — The workbench UX: composition is spatial (operator-widened, 2026-07-12)
 
-**v1 spine (the implementation this ADR authorizes once ratified)**: `STUDIO_ARRANGEMENTS`
-generalized + page-grain arrangements across all three types (the PowerPoint parity cut) + the
-"Arrange" menu + `build_skeleton` from arrangement rows + the served vocabulary + the gate.
+The operator widened v1 to make the composition UX itself first-class — "the toolbar is text-list
+dropdowns, but composition is spatial." Four decisions:
 
-**Phase 2 (deferred)**: sub-region section-band nesting (the reflow targets a *selected slot*, not
-just the page's first slot — a modest change; selection already reports `blockId`, add
-slot-awareness) + the richer cross-type section-band set.
+- **D7.1 — Visual thumbnails, not text rows.** An arrangement picker renders a small **wireframe
+  thumbnail** of the arrangement's slot shape (title bar, two columns, media region) — the
+  PowerPoint New-Slide grain. The thumbnail is **derived from the arrangement's own `slots` + grid
+  CSS** (a scaled structural render), NOT a hand-drawn asset — so adding an arrangement is still one
+  registry row (grammar not schema, R4; the preview comes free). Blocks may stay text-labelled
+  (a "callout" is known by name); arrangements are shown by shape.
+- **D7.2 — A right-side contextual inspector.** The workbench becomes three columns with distinct
+  jobs: **lane (left — think/judgment)** · **canvas (center — see + touch/direct-manipulation)** ·
+  **inspector (right — compose)**. The inspector is selection-contextual: nothing selected → the
+  page's arrangement thumbnails; a slide/section/slot selected → that element's arrangement + its
+  actions (re-lay this slide, add a band, act on a slot). The current **outline rail folds into the
+  inspector** (an "Outline" mode of it). The Keynote/Figma model — spatial controls beside the
+  spatial canvas.
+- **D7.3 — Click-to-drill + empty-slot affordances.** The pointer runtime (already walks to the
+  nearest `[data-block]`) gains grain navigation: a click selects the finest grain (block); a
+  re-click on the container drills UP (block → slot → section → page), with a **breadcrumb** showing
+  the nesting path. **Empty slots render an on-canvas `+ Add here`** so the member sees where
+  content goes. Selection grain flows canvas→parent; actions flow parent→canvas — the established
+  postMessage bridge (the runtime is the only code in the sandboxed opaque-origin frame).
+- **D7.4 — Drag-and-drop is deferred.** Dragging a block into a slot across the sandboxed
+  opaque-origin iframe is genuinely hard (HTML5 DnD does not cross the frame; it needs a
+  pointer-event bridge). v1 composes by click-select + inspector actions + empty-slot add. DnD is
+  phase 2+ if demand warrants.
+
+The mutation contract is unchanged: every compositional act (re-lay, add band, fill slot) is a
+deterministic reflow through the ONE mechanical write door (ADR-444/446), free, CAS-guarded,
+id-preserving. The UX makes composition *legible and direct*; it adds no write path.
+
+## D6 — Scope: v1 ships / deferred
+
+**v1 (the implementation this ADR authorizes — MODEL + UX together, per the operator's widening)**:
+- **Model**: `STUDIO_ARRANGEMENTS` generalized + **page-grain** arrangements across all three types
+  (the PowerPoint parity cut) + `build_skeleton` from arrangement rows + the served vocabulary
+  (with derived thumbnails) + the reflow generalized from `applySlideLayout`.
+- **UX**: the three-column workbench (lane · canvas · inspector) + thumbnail arrangement picker +
+  the contextual inspector (outline folded in) + click-to-drill grain navigation + breadcrumb +
+  empty-slot `+ Add here` + the "Arrange" operator word replacing the deck-only "Slide" menu.
+- **The gate** covers both (registry/reflow shape + the FE UX receipts).
+
+**Phase 2 (deferred)**: sub-region **section-band nesting** (the reflow targets a *selected slot*,
+not just the page's first slot — a modest change; selection already reports `blockId`/grain) + the
+richer cross-type section-band set + **drag-and-drop** into slots (the iframe pointer-bridge).
 
 **Out of scope (named so it never re-litigates)**: the design-system/skin layer (palette, type,
 mood — a separate ADR when demanded; the operator scoped it out) · responsive breakpoints
@@ -109,14 +150,19 @@ semantic HTML + grid CSS) · a JSON layout model (R1 — the DOM is the model).
 
 - **Positive**: the composition layer becomes first-class and per-type; PowerPoint's slide-master
   grain and Wix's section-stack grain unify as one nested grammar; document/article gain real
-  layouts; re-arranging is a traceable, id-preserving, free revision; the manifesto's
-  "object-processing system" ambition gains its spatial dimension without a design-system decision,
-  a layout DSL, or a widget platform.
-- **Cost**: the *mechanism* is small (generalize one reflow, rename+extend one registry, extend one
-  served endpoint, rename one menu); the *content* is craft (designing good arrangements per type,
-  phased). Sub-region nesting is a phase-2 slot-selection change.
-- **Risk**: low — additive annotations (un-arranged artifacts stay valid); the deck migration is
-  byte-compatible; no schema/migration; reuses the CAS write door.
+  layouts; re-arranging is a traceable, id-preserving, free revision; the workbench becomes a
+  coherent three-column story (*think · see/touch · compose*) where composition is spatial and
+  direct; the manifesto's "object-processing system" ambition gains its spatial dimension without a
+  design-system decision, a layout DSL, or a widget platform.
+- **Cost**: the model *mechanism* is small (generalize one reflow, rename+extend one registry,
+  extend one served endpoint); the *UX* is a real workbench restructure (the inspector, thumbnail
+  pickers, click-to-drill, empty-slot affordances — the largest FE lift since the Studio shipped);
+  the *content* is craft (designing good arrangements per type, phased). Thumbnails derive from
+  arrangement data (no per-arrangement asset work).
+- **Risk**: low-moderate — model side is additive (un-arranged artifacts stay valid; deck migration
+  byte-compatible; no schema; reuses the CAS door); UX side carries the postMessage-sync complexity
+  between the inspector and the sandboxed canvas runtime (the established bridge, now bidirectional
+  for selection-grain + actions) — the one place to get right.
 
 ## The one-line statement
 
@@ -125,5 +171,8 @@ semantic HTML + grid CSS) · a JSON layout model (R1 — the DOM is the model).
 `data-arrange` + `data-slot` + grid CSS on real HTML (the DOM is still the model), kernel-seeded
 grammar that teaches without validating, applied as the same free CAS-guarded reflow that already
 moves blocks between slots today; PowerPoint's New-Slide grain and Wix's section-stack grain become
-one recursion, and re-arranging a page is an attributed, id-preserving revision that gives
-composition a trace no competitor has.**
+one recursion, re-arranging a page is an attributed, id-preserving revision that gives composition
+a trace no competitor has — and because composition is spatial, v1 restructures the workbench into
+three jobs (lane thinks · canvas shows and is touched · a right-side inspector composes) with
+shape-showing thumbnail pickers, click-to-drill grain navigation, and empty-slot affordances, so
+the member sees where content goes and puts it there directly.**

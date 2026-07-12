@@ -7,8 +7,10 @@
 > separate architectural decision), but the **spatial-composition layer** — "closer to page
 > layout, master-slides design… text overlays, sizings, grids or sections (title, subtitle,
 > two-grid, three-grid)," operating at **both** the whole-page/slide grain AND the sub-region
-> grain, **nested**. This doc works out that layer against yarnnn's HTML-native, DOM-is-the-model
-> handling. Receipts under every load-bearing claim.
+> grain, **nested**. He then ratified the model ("the model holds") and **widened v1 to include the
+> front-end UX** (§5.5) — because composition is spatial and the current toolbar is text-list
+> dropdowns. This doc works out both the model and the UX against yarnnn's HTML-native,
+> DOM-is-the-model handling. Receipts under every load-bearing claim.
 
 ---
 
@@ -119,15 +121,51 @@ the PowerPoint grain (page arrangement) and the Wix grain (section band) with on
   headings don't sweep into a slot) generalizes: an arrangement declares which slots accept flowed
   content vs which carry structural headings.
 
+## 5.5 The front-end UX (operator-widened, 2026-07-12) — composition is spatial
+
+The operator widened v1 to make the composition UX first-class, on one observation: **the Studio's
+mechanical UX is text-list dropdowns (`Add ▾` · `Slide ▾`, `StudioInsertMenu.tsx:151-158`), but
+composition is inherently spatial.** A text row "Two Content" hides the shape your eye needs;
+PowerPoint's flyout shows the arrangement as a *wireframe*. If arrangement becomes first-class,
+keeping it a text row would under-serve the most spatial operation in the app. Four decisions:
+
+- **Thumbnails, not text rows** — an arrangement picker shows a **wireframe of the slot shape**,
+  derived from the arrangement's own `slots` + grid CSS (a scaled structural render), not a
+  hand-drawn asset. Adding an arrangement stays one registry row; the preview is free (grammar not
+  schema, R4). Blocks may stay text-labelled; arrangements are shown by shape.
+- **A right-side contextual inspector** — the workbench becomes three columns with distinct jobs:
+  **lane (think)** · **canvas (see + touch)** · **inspector (compose)**. The inspector is
+  selection-contextual (page → arrangement thumbnails; slide/slot selected → that element's
+  actions); the current **outline rail folds into it** as an "Outline" mode. The Keynote/Figma
+  model — spatial controls beside the spatial canvas. The lane stays the judgment path on the left,
+  untouched (mount-session territory — additive props only, as with `composerSeed`/`emptyState`).
+- **Click-to-drill + empty-slot affordances** — the pointer runtime already walks to the nearest
+  `[data-block]` (`projection.ts:182`); it gains grain navigation: click selects the finest grain,
+  re-click drills UP (block → slot → section → page) with a **breadcrumb**; **empty slots render an
+  on-canvas `+ Add here`**. Selection grain flows canvas→parent; actions flow parent→canvas — the
+  established postMessage bridge (bidirectional now, as ADR-446's edit-enter already is).
+- **Drag-and-drop deferred** — dragging across the sandboxed opaque-origin iframe is genuinely hard
+  (HTML5 DnD does not cross the frame; needs a pointer-event bridge). v1 composes by click-select +
+  inspector actions + empty-slot add; DnD is phase 2+.
+
+**The one place to get right**: the inspector↔canvas postMessage sync (selection grain out, actions
+in). It is the established runtime bridge, now carrying grain + actions both ways — the real
+complexity of this UX, isolated to one seam. Every compositional act still lands as one free
+CAS-guarded id-preserving revision (ADR-444/446); the UX adds no write path.
+
 ## 6. Scope boundary + honest cost
 
-- **The mechanism is small**: generalize one reflow function, rename+extend one registry, extend
-  `GET /studio/vocabulary` (already serves containers), rename one toolbar menu. Reuses the ADR-446
-  write door verbatim.
-- **The content is the real work**: designing ~6–10 good arrangements per type with honest grid
-  CSS is craft, phased. v1 spine = page-grain across all three types (the PowerPoint parity cut);
-  **sub-region section-band nesting is phase 2** (needs the reflow to target a *selected slot*, a
-  modest change — selection already reports `blockId`, we add slot-awareness).
+- **The model mechanism is small**: generalize one reflow function, rename+extend one registry,
+  extend `GET /studio/vocabulary` (already serves containers). Reuses the ADR-446 write door
+  verbatim.
+- **The UX is the real lift**: the three-column workbench + inspector + thumbnail pickers +
+  click-to-drill + empty-slot affordances is the largest FE restructure since the Studio shipped
+  (v1 = model + UX together, the operator's widening). The inspector↔canvas postMessage sync is the
+  one seam to get right.
+- **The content is craft, phased**: designing ~6–10 good arrangements per type with honest grid CSS.
+  v1 = **page-grain across all three types** (the PowerPoint parity cut); **sub-region section-band
+  nesting + drag-and-drop are phase 2** (the reflow targets a *selected slot* — a modest change,
+  selection already reports grain; DnD needs the iframe pointer-bridge).
 - **What this is NOT**: not the design system (palette/type/mood — separate ADR when demanded); not
   responsive breakpoints (a later concern — v1 arrangements are print/screen-fixed like the current
   deck); not a widget ABI (ADR-443 R5 — arrangements are semantic HTML + grid CSS, never embedded
