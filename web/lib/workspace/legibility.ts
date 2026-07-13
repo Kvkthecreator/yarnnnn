@@ -79,8 +79,10 @@ export function fileLegibilityState(node: {
   // FIRST by path, then fall to machine-config for the remaining non-organizable
   // set. (Ordering matters: an inbound file is non-organizable AND under inbound/;
   // it should read as raw-intake, not machine-config.)
+  // inbound/uploads/ is the HUMAN upload lane (ADR-395) — organizable, operator-
+  // owned, NOT an immutable record. Only NON-upload inbound/ is raw-intake.
   const rel = toRel(node.path);
-  if (rel.startsWith('inbound/')) return 'raw-intake';
+  if (rel.startsWith('inbound/') && !rel.startsWith('inbound/uploads/')) return 'raw-intake';
   if (!operatorCanOrganize(node.path)) return 'machine-config';
 
   if (AGENT_AUTHOR_CLASSES.has(authorClass(node.authored_by))) {

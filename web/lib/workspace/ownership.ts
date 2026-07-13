@@ -13,12 +13,13 @@
  *      renaming or moving one breaks the reader. A FILESYSTEM-INTEGRITY rule,
  *      NOT a permission hierarchy — the operator "owns" it, the machine depends
  *      on its location.
- *   3. inbound/ — the raw intake lane (ADR-376 / DP32): immutable attributed
- *      observations of what arrived from outside, retained and reasoned-against,
- *      NEVER rewritten. Moving/renaming/trashing a record of what came in is a
- *      category error. (Added ADR-422 D2 — the FE used to believe intake was
- *      organizable, disagreeing with the gate. uploads/ is the HUMAN raw lane
- *      and stays organizable — the operator owns what they uploaded.)
+ *   3. inbound/ (EXCEPT inbound/uploads/) — the raw intake lane (ADR-376 / DP32):
+ *      immutable attributed observations of what arrived from outside, retained
+ *      and reasoned-against, NEVER rewritten. Moving/renaming/trashing a record
+ *      of what came in is a category error. (Added ADR-422 D2 — the FE used to
+ *      believe intake was organizable, disagreeing with the gate.) inbound/uploads/
+ *      is the HUMAN raw lane (ADR-395 relocated uploads here) and STAYS
+ *      organizable — the operator owns what they uploaded.
  *
  * Everything else — constitution/, persona/, operation/, uploads/, all prose —
  * is the operator's to reorganize (delete is reversible, so it's safe).
@@ -32,15 +33,22 @@
 
 const MACHINE_CONFIG_EXTS = ['.yaml', '.yml', '.json'];
 
+// The human upload sublane of inbound/ (ADR-395: uploads land at
+// inbound/uploads/{principal}/{slug}.{ext}). Carved BACK OUT of the inbound/
+// immutability rule — the operator owns what they uploaded (ADR-422 D2 invariant).
+const INBOUND_UPLOADS_PREFIX = 'inbound/uploads/';
+
 /**
  * True iff the operator may move/rename/trash `path` — mirrors the backend
- * `operator_can_organize`. False only for system/ + inbound/ + _*.yaml/_*.json.
+ * `operator_can_organize`. False only for system/ + inbound/ (except
+ * inbound/uploads/) + _*.yaml/_*.json.
  */
 export function operatorCanOrganize(path: string): boolean {
   let rel = path.replace(/^\/+/, '');
   if (rel.startsWith('workspace/')) rel = rel.slice('workspace/'.length);
   if (rel.startsWith('system/')) return false;
-  if (rel.startsWith('inbound/')) return false; // ADR-422 D2 — immutable raw intake
+  // ADR-422 D2 — immutable raw intake, EXCEPT the human upload lane (ADR-395).
+  if (rel.startsWith('inbound/') && !rel.startsWith(INBOUND_UPLOADS_PREFIX)) return false;
   const leaf = rel.split('/').pop() || '';
   if (leaf.startsWith('_') && MACHINE_CONFIG_EXTS.some((e) => leaf.toLowerCase().endsWith(e))) {
     return false;
@@ -62,8 +70,10 @@ export function organizeBlockedReason(path: string): { title: string; body: stri
       body: 'It’s used by the system to keep your workspace running. Moving, renaming, or deleting it isn’t allowed.',
     };
   }
-  if (rel.startsWith('inbound/')) {
+  if (rel.startsWith('inbound/') && !rel.startsWith(INBOUND_UPLOADS_PREFIX)) {
     // ADR-422 D2 — raw intake: object-focused, macOS-plain (no DP32 jargon).
+    // inbound/uploads/ is excluded — the human upload lane is organizable, so it
+    // never reaches this blocked reason.
     return {
       title: `“${leaf}” is a record`,
       body: 'It’s a record of something that came into your workspace, kept exactly as it arrived. Records like this don’t change.',

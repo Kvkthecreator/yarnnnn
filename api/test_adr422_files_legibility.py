@@ -27,6 +27,14 @@ import pytest
     # they uploaded; the D2 carve is inbound/ only, not the raw-lane concept).
     ("/workspace/uploads/report.pdf", True),
     ("/workspace/uploads/deep/nested/x.md", True),
+    # inbound/uploads/ = the ADR-395 landing zone for HUMAN uploads → STILL
+    # organizable. ADR-395 relocated uploads from the top-level uploads/ root
+    # INTO inbound/uploads/; the blanket inbound/ carve must NOT swallow them
+    # (the invariant every ADR-422 D2 comment states). Regression guard: an
+    # uploaded PDF was falsely labeled an immutable "record" and un-renamable.
+    ("/workspace/inbound/uploads/operator/report.pdf", True),
+    ("/workspace/inbound/uploads/operator/배출증-출력namechange.pdf", True),
+    ("/workspace/inbound/uploads/some-member/deep/nested/x.md", True),
     # sanity: the pre-existing carves are unaffected.
     ("/workspace/system/_recent_execution.md", False),
     ("/workspace/governance/_budget.yaml", False),

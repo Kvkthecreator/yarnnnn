@@ -30,6 +30,9 @@ import { LearnFromFlowModal } from './LearnFromFlowModal';
 import { NewArtifactModal, slugify } from './NewArtifactModal';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
+import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
+import { FileContextMenu } from '@/components/workspace/FileContextMenu';
+import { MoreHorizontal } from 'lucide-react';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { StudioCanvas, type PointerEvent2 } from './StudioCanvas';
 import { StudioInsertMenu, type StudioVocabulary } from './StudioInsertMenu';
@@ -128,6 +131,28 @@ export function StudioSurface() {
   // type via the Arrange menu (re-lay the current page/slide). No surface-bar
   // action for the type.
 
+  // ADR-446 surface-bar action: a single ⋯ that opens the organize menu
+  // (Rename / Move / Trash) for the open artifact. Only present in the
+  // workbench (an artifact is open) — the START state has no file to organize.
+  useSurfaceActions(
+    'studio',
+    artifactPath
+      ? [
+          {
+            id: 'organize',
+            label: 'File actions',
+            icon: MoreHorizontal,
+            onClick: () => {
+              // Anchor the menu under the strip's right edge (the SurfaceAction
+              // button lives there; FileContextMenu clamps within the viewport).
+              const x = typeof window !== 'undefined' ? window.innerWidth - 40 : 0;
+              setOrganizeMenu({ x, y: 52 });
+            },
+          },
+        ]
+      : [],
+  );
+
   // ── Lane environment (models + existing lanes) ─────────────────────────
   const [lanesEnabled, setLanesEnabled] = useState<boolean | null>(null);
   const [models, setModels] = useState<Array<{ id: string; label: string }>>([]);
@@ -193,6 +218,23 @@ export function StudioSurface() {
     },
     [artifactPath],
   );
+
+  // ── Organize the open artifact (ADR-446): Rename / Move to… / Move to Trash.
+  // The SAME shared implementation the Files surface uses (useFileOrganizeVerbs)
+  // — the artifact-as-file is organized from the app that opened it (the macOS
+  // window-titlebar model), not only from the Files explorer. Optimistic: an
+  // inbound record / machine-config 403s with the honest reason; an ordinary
+  // artifact (or an uploaded file under inbound/uploads/) organizes cleanly.
+  // After the mutation: rename/move → re-point the surface at the new path;
+  // trash → the artifact is gone, so fall to the Studio START state.
+  const { verbs: organizeVerbs, modals: organizeModals } = useFileOrganizeVerbs({
+    onAfterMutate: (newPath) => {
+      setParam({ file: newPath === null ? null : relPath(newPath) });
+    },
+  });
+  // The surface-bar ⋯ opens this menu (a SurfaceAction is a plain button, so the
+  // menu is Studio-owned, anchored under the strip's right edge).
+  const [organizeMenu, setOrganizeMenu] = useState<{ x: number; y: number } | null>(null);
 
   // ── Composer seeding (v1.1): pointing + the insert menu ────────────────
   const [seed, setSeed] = useState<{ text: string; nonce: number } | null>(null);
@@ -566,6 +608,23 @@ export function StudioSurface() {
           </button>
         ))}
       </nav>
+
+      {/* ADR-446: the organize menu for the open artifact, opened by the
+          surface-bar ⋯. The SAME FileContextMenu + shared verbs the Files
+          surface uses — organize the artifact-as-file from the app that opened
+          it (the macOS window-titlebar model). */}
+      {organizeMenu && (
+        <FileContextMenu
+          target={{ path: artifactPath, name: baseName(artifactPath), isFile: true }}
+          x={organizeMenu.x}
+          y={organizeMenu.y}
+          onClose={() => setOrganizeMenu(null)}
+          onRename={(t) => organizeVerbs.onRename(t)}
+          onMove={(t) => organizeVerbs.onMove(t)}
+          onDelete={(t) => organizeVerbs.onDelete(t)}
+        />
+      )}
+      {organizeModals}
     </div>
   );
 }
