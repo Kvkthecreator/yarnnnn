@@ -96,6 +96,10 @@ export function scopeParamKey(slug: string, key: string): string {
 
 export interface SurfacePreferences {
   userId: string | null;
+  /** True once the one-time mount restore has run (localStorage read inside the
+   *  getUser callback). Consumers gate the Desktop empty-state on this so a
+   *  refresh doesn't flash "Nothing open" before persisted windows remount. */
+  hydrated: boolean;
   /** Dock-permanence surfaces (D14). The macOS "Keep in Dock" semantic. */
   kept: string[];
   /** Currently-open surfaces (D13). */
@@ -255,6 +259,16 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
   // the just-hydrated server value) isn't immediately echoed back.
   const serverSyncReady = useRef(false);
 
+  // Hydration gate for the DESKTOP EMPTY-STATE (2026-07-13). `open` initializes
+  // to [] and only fills after supabase.auth.getUser() resolves (a network
+  // round-trip), so for the first tick after a refresh the Desktop sees zero
+  // windows and flashes its "Nothing open" empty-state before restoring the
+  // persisted windows. This flips true the moment the local restore runs (the
+  // synchronous getOpenSurfaces read inside the getUser callback), so consumers
+  // can suppress the empty-state until we actually know the window set. It is a
+  // one-way latch — never resets — so it can't cause the empty-state to blink.
+  const [hydrated, setHydrated] = useState(false);
+
   useEffect(() => {
     let mounted = true;
     const supabase = createClient();
@@ -262,12 +276,20 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       if (!mounted) return;
       const uid = data.user?.id ?? null;
       setUserId(uid);
-      if (!uid) return;
+      if (!uid) {
+        // No user → nothing to restore; unblock the empty-state so a genuinely
+        // empty desktop still shows its "Nothing open" copy.
+        setHydrated(true);
+        return;
+      }
       const hadLocal = hasLocalShellState(uid);
       setKept(getKeptSurfaces(uid));
       setOpen(getOpenSurfaces(uid));
       setForegrounded(getForegroundedSurface(uid));
       setWindowStatesState(getWindowStates(uid));
+      // The local (synchronous) restore has run — `open` now reflects the
+      // persisted window set. Unblock the empty-state (one-way latch).
+      setHydrated(true);
 
       // ADR-407 Phase 3 — one-time server read. The server value fills a
       // FRESH device only (no local state for the current (workspace, user)
@@ -932,6 +954,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
   const value = useMemo<SurfacePreferences>(
     () => ({
       userId,
+      hydrated,
       kept,
       open,
       foregrounded,
@@ -955,6 +978,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
     }),
     [
       userId,
+      hydrated,
       kept,
       open,
       foregrounded,

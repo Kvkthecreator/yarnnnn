@@ -70,7 +70,7 @@ function useIsFirstTime(): boolean {
 
 export function Desktop({ hasWindows, children }: DesktopProps) {
   const { toggleDrawer, drawerOpen, layoutMode } = useShellChrome();
-  const { setDesktopBounds, foregrounded, navigateToSurface } = useSurfacePreferences();
+  const { setDesktopBounds, foregrounded, navigateToSurface, hydrated } = useSurfacePreferences();
   const isFirstTime = useIsFirstTime();
   // ADR-412 amendment (2026-07-08) + ADR-447 (2026-07-12) — hide the Freddie
   // rail FAB while a surface that OWNS its own chat is foregrounded: `chat`
@@ -124,8 +124,12 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
           substrate-creating act (ADR-437 D3 — the empty state is the demo,
           not a wizard); a returning operator gets a concise "nothing open"
           hint. Neither points at program activation — a program is an
-          anytime hire, not a setup step (ADR-414 D5). */}
-      {!hasWindows && (
+          anytime hire, not a setup step (ADR-414 D5).
+          Gated on `hydrated` (2026-07-13): `open` fills only after auth
+          resolves, so before hydration `hasWindows` is spuriously false —
+          rendering the empty-state here flashed it on every refresh of a
+          workspace with open windows. Wait until the window set is known. */}
+      {hydrated && !hasWindows && (
         <div className="absolute inset-0 flex items-center justify-center px-6 pointer-events-none">
           <div className="max-w-md text-center pointer-events-auto">
             {isFirstTime ? (
