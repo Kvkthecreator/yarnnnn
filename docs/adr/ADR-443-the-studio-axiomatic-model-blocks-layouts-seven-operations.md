@@ -5,6 +5,14 @@
 > pixels) and a second MARKED head element, `<style data-kernel="true">` (versioned kernel token
 > CSS, self-retrofitting), joining ADR-449's `data-skin` in the switch-survival rule.
 
+> **Amended by ADR-456** (2026-07-14): (1) **the markdown ruling** — R1 is upheld against a
+> dual-source proposal: HTML stays the sole canonical source; markdown is an interchange
+> *projection* (import at creation, export at the boundary), never a second source format.
+> (2) The launch vocabulary grows by registry rows (D4's growth clause exercised): `divider` ·
+> `toggle` · `button` · `gallery`. (3) The "format-agnostic" axiom is reconciled with ADR-447
+> D7.5: the axiom survives as **block portability** — type change is a lane-performed judgment
+> act (blocks + ids preserved); what D7.5 deleted was the mechanical type toggle.
+
 > **Status**: **Accepted** (2026-07-12, operator-ratified; full-scope implementation delegated same-day). Ratifies the operator's six-axiom design philosophy for the Studio (HTML-native · component-native · layout-native · AI-native · format-agnostic · interoperable) **with the R1–R5 refinements** from the part-4 analysis, closes the universal feature set at **seven operations**, and flips the build sequence: the block/layout model lands **before** v1.2 tweak-gestures. Derivation: `docs/analysis/the-studio-axiomatic-model-components-and-layouts-2026-07-12.md` (part 4 of the probe series). Living design doc: `docs/design/STUDIO.md`.
 
 **Date**: 2026-07-12

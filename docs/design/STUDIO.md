@@ -1,6 +1,8 @@
 # STUDIO — the living design doc
 
-> The Studio is yarnnn's first authoring app (ADR-440) governed by the axiomatic model (ADR-443). This doc is the FE-facing contract: the philosophy, the operations and their operator words, the vocabulary and layout registries, and the surface contract. Derivations live in the four probe analyses (`the-authoring-app-claude-design-benchmark` · `the-studio-surface-lane-and-reference-model` · `the-studio-content-and-the-reference-mechanics` · `the-studio-axiomatic-model-components-and-layouts`).
+> The Studio is yarnnn's first authoring app (ADR-440) governed by the axiomatic model (ADR-443). This doc is the FE-facing contract: the philosophy, the operations and their operator words, the vocabulary and layout registries, and the surface contract. Derivations live in the four probe analyses (`the-authoring-app-claude-design-benchmark` · `the-studio-surface-lane-and-reference-model` · `the-studio-content-and-the-reference-mechanics` · `the-studio-axiomatic-model-components-and-layouts`). The next-horizon plan (the markdown ruling · the Notion/builder gap carve · Waves 1–4) is ADR-456.
+
+**The markdown ruling (ADR-456 D1)**: HTML is the sole canonical source for Studio artifacts; markdown is an interchange **projection** — import at creation ("New document from this .md", Wave 4), export at the boundary (with publish/exports, Wave 4) — never a second source format. `.md` stays the substrate's prose currency; `.html` the Studio's authored-artifact currency.
 
 ## Philosophy (operator-authored, 2026-07-12; ratified with refinements by ADR-443)
 
@@ -25,7 +27,7 @@ An artifact is composed from four orthogonal layers. Each answers one question; 
 | **Arrangement** | *where content goes* on a page/section — grids, slots, overlays, sizings | `data-arrange` + `data-slot` | live (ADR-447) — per-type, page-grain shipped; section-band nesting is phase 2 |
 | **Block** | what a content unit *is* | `data-block` + `data-block-id` | live (ADR-443/446) |
 | **Skin** | how it *looks* (design system: palette/type/mood) | `<style data-skin="true" data-ref="…">` — marked + cited | live (ADR-449) |
-| **Property tokens** | *placement + emphasis* of one block/page/artifact — align, tone, sizing presets, column ratio, typography, width | `data-align` / `data-tone` / `data-height` / `data-fit` / `data-ratio` / `data-valign` (block/page) + `data-font` / `data-measure` on the ROOT (document grain, ADR-455) | live (ADR-453/455) — tokens not pixels; styled by the marked `<style data-kernel="true">` element (v2), themed by the skin's custom properties; absence = default |
+| **Property tokens** | *placement + emphasis* of one block/page/artifact — align, tone, sizing presets, column ratio, typography, width, breathing room, slide numbers | `data-align` / `data-tone` / `data-height` / `data-fit` / `data-ratio` / `data-valign` / `data-pad` (block/page) + `data-font` / `data-measure` / `data-pagenum` on the ROOT (document grain, ADR-455/456) | live (ADR-453/455/456) — tokens not pixels; styled by the marked `<style data-kernel="true">` element (v3), themed by the skin's custom properties; absence = default |
 
 Arrangement is the composition layer PowerPoint's New-Slide flyout and Wix's section stacks both name: *Title Slide · Two Content · Comparison · Picture-with-Caption* (page grain) and drop-in *two-column / three-grid / image-overlay* bands (section grain), nested. It is orthogonal to blocks (what) and skin (how). See ADR-447.
 
@@ -53,10 +55,14 @@ Plus the page verbs *(ADR-453)*: **New slide/section** (add a page from the gall
 | Content | `callout` | Callout |
 | Content | `quote` | Quote |
 | Content | `checklist` | Checklist |
+| Content | `divider` | Divider *(ADR-456 W1)* |
+| Content | `toggle` | Toggle *(native `<details>/<summary>` — script-free; ADR-456 W1)* |
+| Content | `button` | Button *(a styled `<a>` CTA, themed via the palette variables; ADR-456 W1)* |
 | Data | `table` | Table *(from a workspace CSV — cited)* |
 | Data | `metrics` | Metrics |
 | Data | `chart` | Chart *(authored SVG in `./assets/`)* |
 | Media | `figure` | Image *(workspace image — cited)* |
+| Media | `gallery` | Gallery *(a grid of cited workspace images — the Insert palette opens a multi-select picker; ADR-456 W1)* |
 
 Annotation spec: `data-block="<kind>"` + `data-block-id="<short-id>"` on top-level content units. Layout flow containers (slides, `<main>`, `<article>`) are structure, not blocks. Unannotated content stays valid — the vocabulary is grammar, not schema.
 
@@ -76,8 +82,9 @@ A **template = layout × [page arrangement] × starter blocks** (assembled by `b
 
 An **arrangement** says *where content goes* on a page or section: grids, slots, overlays, sizings. It is per-document-type and nested — page → section → slot → block:
 
-- **Page arrangements** (whole canvas): deck → `title · content · two-column · quote` (live today as `STUDIO_CONTAINERS`), extended to `comparison · picture-with-caption · section-header` and to document/article page arrangements (`title+lede · hero`, `lead-image · pull-quote-aside`). The PowerPoint New-Slide grain.
+- **Page arrangements** (whole canvas): deck → `title · content · two-column · comparison · quote · picture-with-caption · section-header` + `agenda · big-number · full-bleed · closing` (ADR-456 W1); document → `title-lede · two-column` + `checklist-section · metrics-band` (W1); article → `section · pull-quote · lead-image`. The PowerPoint New-Slide grain. A fourth layout, **`page`** (landing/one-pager: hero/CTA/feature arrangements), lands with the background-image mechanism in Wave 3 (ADR-456 D4).
 - **Section arrangements** (drop-in bands, cross-type — phase 2): `two-column · three-grid · image-overlay · sidebar · full-bleed-band`. The Wix section-stack grain.
+- **Arrangement/block CSS lives in the versioned KERNEL element, not the layout skin** (ADR-456 W1 mechanism ruling): the kernel element is the only style that retrofits into existing artifacts, so new kinds/arrangements light up in old artifacts on first touch. Inside the sheet, block/arrangement rules come first and token rules last — a token wins at equal specificity. Responsive stacking is kernel CSS too, scoped `[data-arrange]:not(.slide) .cols` — document/article bands stack on narrow screens; a deck slide is a fixed 16:9 stage, exempt.
 
 Annotation: `data-arrange="<slug>"` on the page/section element; `data-slot="main|left|right|media|…"` on its regions; blocks fill slots; slots may hold sub-arrangement bands (the recursion). Grid/overlay/sizing is CSS in the arrangement's skin fragment — HTML-native, no layout DSL, no JSON tree. Applying/switching an arrangement is the same free CAS-guarded reflow that moves blocks between slots today (`applySlideLayout`, generalized) — blocks move intact, ids preserved, heading blocks anchor rather than flow. Grammar not schema: an un-arranged artifact stays valid.
 
@@ -91,4 +98,4 @@ Annotation: `data-arrange="<slug>"` on the page/section element; `data-slot="mai
 
 ## What Studio is NOT (the standing refusals)
 
-No shadow/JSON content model · no widget/plugin ABI (blocks are semantic HTML + skin, never embedded editors) · no *second* write path — in-place editing lands as debounced attributed revisions through the ONE write door (ADR-446), not a parallel one · **no keystroke-realtime CO-EDITING (CRDT)** — the revision is the atom, single-writer-per-path, no merge (ADR-406/286; "real time" means the manipulation feels immediate, not operational-transform co-editing) · no editing of viewer-owned formats (a PDF is citable, not Studio-editable) · no raster generation engine (rented at the boundary when demanded — ADR-417). The standing drift test (ADR-440 §7): *does this force a definitional question about the app format, or is it just a better editor?* — with the operator's 2026-07-12 widening on record: **direct text editing is in scope** (a webpage editor's in-place edit, committed as a revision).
+No shadow/JSON content model · no widget/plugin ABI (blocks are semantic HTML + skin, never embedded editors) · no *second* write path — in-place editing lands as debounced attributed revisions through the ONE write door (ADR-446), not a parallel one · **no keystroke-realtime CO-EDITING (CRDT)** — the revision is the atom, single-writer-per-path, no merge (ADR-406/286; "real time" means the manipulation feels immediate, not operational-transform co-editing) · no editing of viewer-owned formats (a PDF is citable, not Studio-editable) · no raster generation engine (rented at the boundary when demanded — ADR-417) · **the ADR-456 stop-lines**: no second source format (markdown = projection, D1) · no block-as-page recursion or arbitrary block trees (native `ul>li` + toggle content are the allowed nesting) · no databases/linked views (the cited `table` is the stronger primitive) · no synced-block mechanism (that is `data-ref` at block grain — a future citation, never a new mechanism) · no JS carousels (CSS scroll-snap is the offer) · no forms · no per-breakpoint editing · no web-font CDNs. The standing drift test (ADR-440 §7): *does this force a definitional question about the app format, or is it just a better editor?* — with the operator's 2026-07-12 widening on record: **direct text editing is in scope** (a webpage editor's in-place edit, committed as a revision).
