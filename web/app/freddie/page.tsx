@@ -33,17 +33,20 @@ export const metadata: Metadata = getMarketingMetadata({
 // + SearchFiles; organizes = WriteFile/EditFile/MoveFile/DeleteFile; checks =
 // ProposeAction through the ADR-307 gate; records = ListRevisions/DiffRevisions.
 const CAPABILITIES = [
+  // ADR-454 (2026-07-13, the ambient steward): copy carries no "ask him" /
+  // chat-affordance claims — Freddie works in the background and is met in
+  // the record of his work; conversations happen in your chat, on your terms.
   {
     tag: "Reads",
     title: "He sees what you connect.",
     body:
-      "Connect Slack, Notion, your files and notes, and Freddie reads them the way you would — pulling up the last message in a channel, finding the doc you half-remember. Ask him and he looks it up.",
+      "Connect Slack, Notion, your files and notes, and Freddie reads what arrives — so new things land in your memory already understood, filed, and findable the moment you go looking.",
   },
   {
     tag: "Organizes",
     title: "He keeps your memory in order.",
     body:
-      "Freddie files new things where they belong, tidies what's messy, and edits a detail when you ask. Your memory stays legible instead of piling up — and nothing he touches is ever silently lost.",
+      "Freddie files new things where they belong, tidies what's messy, and keeps details current as things change. Your memory stays legible instead of piling up — and nothing he touches is ever silently lost.",
   },
   {
     tag: "Checks",

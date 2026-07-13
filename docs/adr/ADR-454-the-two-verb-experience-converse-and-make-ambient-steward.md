@@ -5,6 +5,13 @@ subtraction arc"). This ADR names the experience model the 435→452 subtraction
 rather than deciding a new one: the shell has exactly **two acting surfaces** — chat (Converse)
 and Studio (Make) — everything else is legibility or configuration; and the steward's persona
 chrome retires while the steward function continues unchanged.
+**§7 item 1 RESOLVED same day (operator: "the freddie posture is not that complicated since I
+agree")** — the **mascot posture**: Freddie stays the named steward in narrative (ESSENCE v15.1),
+brand (the `/freddie` landing survives, copy aligned to ambient — no "ask him" affordance
+claims), and the ledger (`freddie:` attribution untouched); he is never a fronted chat character.
+Cascade: ESSENCE v15.1 · GLOSSARY v3.2 (chrome-home line + altitude table) · `/freddie` +
+capability copy de-chat-ified. Items 2–4 (artifact comments · presence · the `.md` bench) remain
+open for the focused discourse.
 **Date**: 2026-07-13
 **Dimension**: Channel (the experience census — which surfaces carry the operator's acts) +
 Identity (which actor fronts chrome).
@@ -157,9 +164,14 @@ the intro is the load-bearing claim.
 
 ## 7. Deferred — the regroup items (named, not decided)
 
-1. **Narrative posture** — mascot vs full de-front: ESSENCE v15.1, NARRATIVE, GLOSSARY, the
-   public `/freddie` landing, `agent-identity.ts` display strings. Until decided, marketing may
-   name Freddie while the product keeps him ambient; the attribution name is stable either way.
+1. **Narrative posture** — ~~mascot vs full de-front~~ **RESOLVED 2026-07-13 (same day): the
+   mascot posture.** Freddie keeps the name in narrative, brand, and the ledger; no fronted chat
+   character. Landed: ESSENCE v15.1 (ambient-steward amendment) · GLOSSARY v3.2 (chrome-home +
+   altitude-table amendments) · `/freddie` page copy de-chat-ified ("Ask him and he looks it up"
+   → capture framing; "when you ask" → ambient framing) — the page itself survives as the brand
+   surface, its honesty band unchanged. NARRATIVE.md needed nothing (zero Freddie references);
+   `agent-identity.ts` + `freddie-persona.ts` needed nothing (attribution machinery — the name
+   stays). Any future full de-front would be a new decision, not this ADR's.
 2. **Artifact-anchored shared discussion** (the real multi-user gap): bound lanes are
    member-private (ADR-407), so two members co-working on one artifact have no shared
    conversation surface. The candidate shape is comments-as-substrate — attributed, on the
