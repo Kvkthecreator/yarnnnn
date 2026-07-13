@@ -46,6 +46,7 @@ import {
   duplicateBlock,
   duplicatePage,
   editBlockText,
+  galleryFragment,
   insertArrangement,
   insertBlock,
   insertBlockInSlot,
@@ -382,6 +383,20 @@ export function StudioSurface() {
     },
     [applyOp, anchor, vocabulary],
   );
+  // ADR-456 W1: N cited images land as ONE gallery block, one revision.
+  const handleInsertGallery = useCallback(
+    (paths: string[]) => {
+      const base = vocabulary?.blocks.find((b) => b.kind === 'gallery')?.fragment;
+      if (!base) return;
+      const fragment = galleryFragment(base, paths.map(relPath));
+      if (!fragment) return;
+      void applyOp(
+        (html) => insertBlock(html, fragment, anchor),
+        `Studio: insert gallery (${paths.length} images)`,
+      );
+    },
+    [applyOp, anchor, vocabulary],
+  );
   const handleAddArrangement = useCallback(
     (fragment: string, label: string) =>
       applyOp(
@@ -662,6 +677,7 @@ export function StudioSurface() {
                 onClearSelection={onPointClear}
                 onInsertBlock={handleInsertBlock}
                 onInsertCited={handleInsertCited}
+                onInsertGallery={handleInsertGallery}
                 onAddArrangement={handleAddArrangement}
                 onSeed={seedComposer}
               />

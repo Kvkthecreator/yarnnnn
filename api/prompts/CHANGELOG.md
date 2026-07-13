@@ -6,6 +6,11 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.14.1] - Studio posture: the Wave-1 registry growth (ADR-456)
+
+- `services/studio.py` — registry rows, all reaching the posture via its derived grammars (no frame change): four new block kinds (`divider` `<hr>` · `toggle` native `<details>/<summary>` · `button` styled `<a>` · `gallery` a grid of CITED figures), six new arrangements (deck `agenda`/`big-number`/`full-bleed`/`closing`, document `checklist-section`/`metrics-band`), two new token families (`data-pad="s|l"` page breathing room · `data-pagenum="on"` deck slide numbers, on the `<html>` root — the root-carrier line now names font/measure/pagenum). Kernel CSS bumps to **v3**: the new block/arrangement rules live in the marked kernel element (NOT the layout skin) so the versioned retrofit carries them into existing artifacts; token rules stay last in the sheet (a token wins at equal specificity); responsive stacking added for document/article `.cols` (deck stage exempt).
+- Expected behavior change: bound lanes can author toggles/buttons/dividers/galleries and the new arrangements by name, honor "tighter/airier" (`data-pad`) and "slide numbers on" (`data-pagenum`) as token edits, and inherit the retrofit automatically. Posture grows ~1k chars on authoring turns only (registry-derived lines); plain chat lanes unchanged.
+
 ## [2026.07.13.4] - Studio posture: document-grain tokens (ADR-455)
 
 - `services/studio.py::STUDIO_TOKENS` — two new families: `data-font="serif|sans|mono"` + `data-measure="wide"`, set on the artifact ROOT (`<html>`) — the Notion page-menu typography/width affordances as tokens. The posture's Property-tokens section (registry-derived) picks them up automatically and now names the root as a token carrier; kernel CSS bumps to v2 (the marked element self-retrofits on the next mechanical op).

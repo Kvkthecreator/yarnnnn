@@ -289,7 +289,8 @@ export function StudioDesignTab({
       tokens.filter(
         (t) =>
           t.applies.includes('document') ||
-          (layout !== 'deck' && t.applies.includes('document-flow')),
+          (layout !== 'deck' && t.applies.includes('document-flow')) ||
+          (layout === 'deck' && t.applies.includes('document-deck')),
       ),
     [tokens, layout],
   );

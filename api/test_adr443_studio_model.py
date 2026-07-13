@@ -47,9 +47,10 @@ def run() -> bool:
     )
 
     # ── 1. The vocabulary (D4) ───────────────────────────────────────────
-    _check("8 launch block kinds",
+    _check("12 block kinds (the 8 launch kinds + the ADR-456 W1 four)",
            set(STUDIO_BLOCKS) == {"prose", "callout", "quote", "checklist",
-                                  "table", "metrics", "chart", "figure"})
+                                  "table", "metrics", "chart", "figure",
+                                  "divider", "toggle", "button", "gallery"})
     for kind, b in STUDIO_BLOCKS.items():
         _check(f"block '{kind}': label/group/description/markup complete",
                all(b.get(k) for k in ("label", "group", "description", "markup")))

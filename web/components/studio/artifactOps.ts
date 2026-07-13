@@ -127,6 +127,30 @@ export function insertBlock(
   return { html: serialize(doc), landedId: el.getAttribute('data-block-id') };
 }
 
+/** Build a gallery fragment from the registry's base fragment + the picked
+ *  image paths (ADR-456 W1): the base's single <figure> is the prototype,
+ *  cloned once per path with its data-ref swapped. Registry-driven — the
+ *  wrapper (annotation, kind) always comes from the served vocabulary. */
+export function galleryFragment(base: string, paths: string[]): string | null {
+  if (!paths.length) return null;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = base.trim();
+  const root = tpl.content.firstElementChild;
+  const proto = root?.querySelector('figure');
+  if (!root || !proto) return null;
+  root.innerHTML = '';
+  for (const p of paths) {
+    const fig = proto.cloneNode(true) as Element;
+    const img = fig.querySelector('img');
+    if (!img) continue;
+    img.setAttribute('data-ref', p);
+    img.setAttribute('data-ref-rev', '');
+    img.setAttribute('alt', '');
+    root.appendChild(fig);
+  }
+  return root.outerHTML;
+}
+
 /** Insert a block into a NAMED slot (ADR-447 Phase 4 — the empty-slot
  *  "+ Add here"). Targets `[data-slot="<slot>"]` within the given slide (deck)
  *  or the first matching slot in the artifact. Appends the block there; a

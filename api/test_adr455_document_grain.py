@@ -52,9 +52,9 @@ def run() -> bool:
            and 'html[data-font="sans"]' in STUDIO_KERNEL_CSS
            and 'html[data-font="mono"]' in STUDIO_KERNEL_CSS
            and 'html[data-measure="wide"]' in STUDIO_KERNEL_CSS)
-    _check("kernel CSS version bumped to 2 (the retrofit carries v2 rules)",
-           STUDIO_KERNEL_CSS_VERSION == 2
-           and 'data-kernel-v="2"' in build_skeleton("document"))
+    _check("kernel CSS version >= 2 (the retrofit carries the v2 rules; ADR-456 bumped to 3)",
+           STUDIO_KERNEL_CSS_VERSION >= 2
+           and f'data-kernel-v="{STUDIO_KERNEL_CSS_VERSION}"' in build_skeleton("document"))
 
     # ── 2. The posture (one grammar, both hands) ─────────────────────────
     posture = build_studio_posture("/workspace/operation/x/doc.html", build_skeleton("document"))

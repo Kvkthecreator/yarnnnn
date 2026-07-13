@@ -245,6 +245,11 @@ const POINTER_SCRIPT = `
     var t = e.target;
     // The "+ Add here" button owns its click (its own handler posts).
     if (t && t.closest && t.closest('.yarnnn-add-here')) return;
+    // ADR-456 W1: a toggle block's <summary> opens natively on the SECOND
+    // click — the first click selects the block; once selected, the click
+    // passes through so <details> can do its platform thing (script-free).
+    var sum = t && t.closest ? t.closest('summary') : null;
+    if (sum && cur && sum.closest('[data-block="toggle"]') === cur) return;
     var el = t && t.closest ? t.closest(SEL) : null;
     e.preventDefault();
 

@@ -70,6 +70,25 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
         "description": "A list of discrete items or steps.",
         "markup": '<ul data-block="checklist" data-block-id="b4"><li>…</li></ul>',
     },
+    # ADR-456 Wave 1 — the builder/Notion registry growth (rows, not mechanisms).
+    "divider": {
+        "label": "Divider",
+        "group": "content",
+        "description": "A horizontal rule between sections of content.",
+        "markup": '<hr data-block="divider" data-block-id="b9">',
+    },
+    "toggle": {
+        "label": "Toggle",
+        "group": "content",
+        "description": "A collapsible section — a summary line that expands.",
+        "markup": '<details data-block="toggle" data-block-id="b10"><summary>Summary line</summary><p>…</p></details>',
+    },
+    "button": {
+        "label": "Button",
+        "group": "content",
+        "description": "A call-to-action link, styled by the palette.",
+        "markup": '<p data-block="button" data-block-id="b11"><a href="https://…">Call to action</a></p>',
+    },
     "table": {
         "label": "Table",
         "group": "data",
@@ -93,6 +112,12 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
         "group": "media",
         "description": "A workspace image CITED by reference, with a caption.",
         "markup": '<figure data-block="figure" data-block-id="b8"><img data-ref="operation/…/img.png" data-ref-rev="" alt="…"><figcaption>…</figcaption></figure>',
+    },
+    "gallery": {
+        "label": "Gallery",
+        "group": "media",
+        "description": "A grid of workspace images, each CITED by reference.",
+        "markup": '<div data-block="gallery" data-block-id="b12"><figure><img data-ref="operation/…/img.png" data-ref-rev="" alt=""><figcaption></figcaption></figure></div>',
     },
 }
 
@@ -330,6 +355,53 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
   <h1 data-block="heading" data-block-id="t1">Section title</h1>
 </section>""",
         },
+        # ADR-456 Wave 1 — the builder-class deck rows. Their CSS lives in the
+        # KERNEL stylesheet (not the layout skin) so they retrofit into
+        # existing decks via the versioned upsert.
+        "agenda": {
+            "label": "Agenda",
+            "description": "A heading over the run of topics.",
+            "grain": "page",
+            "slots": [{"name": "main", "role": "flow"}],
+            "fragment": """<section class="slide" data-arrange="agenda">
+  <h2 data-block="heading" data-block-id="t1">Agenda</h2>
+  <div data-slot="main">
+    <ul data-block="checklist" data-block-id="b1"><li>First topic</li><li>Second topic</li><li>Third topic</li></ul>
+  </div>
+</section>""",
+        },
+        "big-number": {
+            "label": "Big number",
+            "description": "One headline metric, front and center.",
+            "grain": "page",
+            "slots": [{"name": "main", "role": "flow"}],
+            "fragment": """<section class="slide" data-arrange="big-number">
+  <p class="kicker" data-block="heading" data-block-id="k1">The headline number</p>
+  <div data-slot="main">
+    <div data-block="metrics" data-block-id="b1"><div class="metric"><strong>42%</strong><span>what it measures</span></div></div>
+  </div>
+</section>""",
+        },
+        "full-bleed": {
+            "label": "Full-bleed image",
+            "description": "One cited image filling the whole slide.",
+            "grain": "page",
+            "slots": [{"name": "media", "role": "media"}],
+            "fragment": """<section class="slide" data-arrange="full-bleed">
+  <div data-slot="media"></div>
+</section>""",
+        },
+        "closing": {
+            "label": "Closing",
+            "description": "A full-tone thank-you slide with the next step.",
+            "grain": "page",
+            "slots": [{"name": "heading", "role": "heading"}],
+            "fragment": """<section class="slide" data-arrange="closing" data-tone="inverse">
+  <p class="kicker" data-block="heading" data-block-id="k1">Thank you</p>
+  <h1 data-block="heading" data-block-id="t1">The closing line.</h1>
+  <p data-block="heading" data-block-id="f1">Contact · next step</p>
+</section>""",
+        },
     },
     "document": {
         "title-lede": {
@@ -353,6 +425,31 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
   <div class="cols">
     <div class="col" data-slot="main"></div>
     <div class="col" data-slot="side"></div>
+  </div>
+</section>""",
+        },
+        # ADR-456 Wave 1 — the document rows.
+        "checklist-section": {
+            "label": "Checklist",
+            "description": "A heading over a list of items or steps.",
+            "grain": "page",
+            "slots": [{"name": "main", "role": "flow"}],
+            "fragment": """<section data-arrange="checklist-section">
+  <h2 data-block="heading" data-block-id="t1">Section title</h2>
+  <div data-slot="main">
+    <ul data-block="checklist" data-block-id="b1"><li>First item</li><li>Second item</li></ul>
+  </div>
+</section>""",
+        },
+        "metrics-band": {
+            "label": "Metrics",
+            "description": "A heading over a row of headline numbers.",
+            "grain": "page",
+            "slots": [{"name": "main", "role": "flow"}],
+            "fragment": """<section data-arrange="metrics-band">
+  <h2 data-block="heading" data-block-id="t1">Section title</h2>
+  <div data-slot="main">
+    <div data-block="metrics" data-block-id="b1"><div class="metric"><strong>42%</strong><span>label</span></div></div>
   </div>
 </section>""",
         },
@@ -410,10 +507,11 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
 #   document      — the artifact ROOT (<html>), all layouts (ADR-455)
 #   document-flow — the artifact root, document/article only (a deck is a
 #                   fixed 16:9 stage — measure does not apply)
+#   document-deck — the artifact root, deck only (slide numbers, ADR-456)
 # ---------------------------------------------------------------------------
 
 #: Block kinds the media-grain tokens (height/fit) apply to.
-MEDIA_BLOCK_KINDS = {"figure", "chart"}
+MEDIA_BLOCK_KINDS = {"figure", "chart", "gallery"}
 
 STUDIO_TOKENS: dict[str, dict] = {
     "align": {
@@ -473,6 +571,16 @@ STUDIO_TOKENS: dict[str, dict] = {
         ],
         "description": "where the slide's content sits (absence = centered)",
     },
+    # ADR-456 Wave 1: breathing room on a page/section — presets, never pixels.
+    "pad": {
+        "label": "Spacing",
+        "applies": ["page"],
+        "values": [
+            {"value": "s", "label": "Tight"},
+            {"value": "l", "label": "Airy"},
+        ],
+        "description": "the page/section's breathing room (absence = the layout default)",
+    },
     # ADR-455: document-grain tokens — set on the artifact ROOT. The Notion
     # page-menu affordances (typography, width) as tokens, never raw style.
     "font": {
@@ -493,6 +601,15 @@ STUDIO_TOKENS: dict[str, dict] = {
         ],
         "description": "the content column width on a document/article (absence = the layout default)",
     },
+    # ADR-456 Wave 1: slide numbers — CSS counters, script-free, opt-in.
+    "pagenum": {
+        "label": "Slide numbers",
+        "applies": ["document-deck"],
+        "values": [
+            {"value": "on", "label": "On"},
+        ],
+        "description": "slide numbers in the corner of every slide (deck; absence = off)",
+    },
 }
 
 #: The kernel CSS that interprets tokens — carried by every artifact in the
@@ -500,6 +617,35 @@ STUDIO_TOKENS: dict[str, dict] = {
 #: custom properties the layouts declare and a design system may override
 #: (cascade: unmarked layout style < data-kernel < data-skin).
 STUDIO_KERNEL_CSS = """
+/* Block-kind + arrangement CSS (ADR-456 W1) — lives in the KERNEL element,
+   not the layout skin, so new kinds/arrangements retrofit into existing
+   artifacts via the versioned upsert. Token rules come LAST in this sheet so
+   a token wins at equal specificity. */
+hr[data-block="divider"] { border: 0; border-top: 1px solid #ddd; margin: 2.25rem 0; }
+details[data-block="toggle"] { margin: 1rem 0; border: 1px solid #ddd;
+  border-radius: 6px; padding: 0.5rem 0.9rem; }
+details[data-block="toggle"] summary { cursor: pointer; font-weight: 600; }
+details[data-block="toggle"][open] summary { margin-bottom: 0.5rem; }
+p[data-block="button"] { margin: 1.5rem 0; }
+p[data-block="button"] a { display: inline-block; background: var(--accent, #b4540a);
+  color: var(--paper, #fdfcfa); padding: 0.55rem 1.2rem; border-radius: 6px;
+  text-decoration: none; font-weight: 600; }
+div[data-block="gallery"] { display: grid; gap: 0.75rem; margin: 1.5rem 0;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); }
+div[data-block="gallery"] figure { margin: 0; }
+div[data-block="gallery"] img { width: 100%; aspect-ratio: 4 / 3;
+  object-fit: cover; border-radius: 4px; }
+div[data-block="gallery"] figcaption { font-size: 0.75rem; }
+.slide[data-arrange="full-bleed"] { padding: 0; }
+.slide[data-arrange="full-bleed"] [data-slot="media"] { flex: 1; display: flex; min-height: 0; }
+.slide[data-arrange="full-bleed"] figure { flex: 1; margin: 0; min-width: 0; }
+.slide[data-arrange="full-bleed"] img { width: 100%; height: 100%;
+  object-fit: cover; max-height: none; }
+[data-arrange="big-number"] div[data-block="metrics"] { justify-content: center;
+  text-align: center; }
+[data-arrange="big-number"] div[data-block="metrics"] .metric strong {
+  font-size: 4rem; line-height: 1.1; }
+[data-arrange="big-number"] div[data-block="metrics"] .metric span { font-size: 1rem; }
 /* Property tokens (ADR-453) — interpreted here, themed by custom properties. */
 [data-align="center"] { text-align: center; }
 [data-align="center"] img { margin-inline: auto; }
@@ -523,17 +669,35 @@ STUDIO_KERNEL_CSS = """
 [data-ratio="1-2"] .cols .col:last-child { flex: 2; }
 .slide[data-valign="start"] { justify-content: flex-start; }
 .slide[data-valign="end"] { justify-content: flex-end; }
+.slide[data-pad="s"] { padding: 2rem 2.5rem; }
+.slide[data-pad="l"] { padding: 4.5rem 5.5rem; }
+[data-arrange][data-pad="s"]:not(.slide) { padding-block: 0.25rem; }
+[data-arrange][data-pad="l"]:not(.slide) { padding-block: 2.5rem; }
 /* Document-grain tokens (ADR-455) — on the artifact root. */
 html[data-font="serif"] body { font-family: Georgia, 'Times New Roman', serif; }
 html[data-font="sans"] body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
 html[data-font="mono"] body { font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
 html[data-measure="wide"] main, html[data-measure="wide"] article { max-width: 64rem; }
+/* Slide numbers (ADR-456 W1) — CSS counters, opt-in on the deck root. */
+html[data-pagenum="on"] body { counter-reset: slide; }
+html[data-pagenum="on"] .slide { counter-increment: slide; position: relative; }
+html[data-pagenum="on"] .slide::after { content: counter(slide); position: absolute;
+  right: 1.25rem; bottom: 0.9rem; font-size: 0.7rem; color: var(--muted, #6b6b6b); }
+/* Responsive stacking (ADR-456 W1): document/article multi-column bands stack
+   on narrow screens; a deck slide is a fixed 16:9 stage, exempt. */
+@media (max-width: 40rem) {
+  [data-arrange]:not(.slide) .cols { flex-direction: column; }
+  div[data-block="gallery"] { grid-template-columns: repeat(2, 1fr); }
+}
 """.strip("\n")
 
 #: Bump when STUDIO_KERNEL_CSS changes shape — the FE upserts any artifact
 #: carrying an older data-kernel-v on its next mechanical op (the retrofit).
 #: v2: document-grain font/measure rules (ADR-455).
-STUDIO_KERNEL_CSS_VERSION = 2
+#: v3: Wave-1 block/arrangement rules + pad/pagenum tokens + responsive
+#:     stacking (ADR-456) — block/arrangement CSS lives HERE, not the layout
+#:     skin, precisely so this retrofit carries it into existing artifacts.
+STUDIO_KERNEL_CSS_VERSION = 3
 
 
 def compose_kernel_style_element() -> str:
@@ -688,7 +852,7 @@ attributes with small named value sets, styled by the marked
 properties. Absence is the default: set a token by adding the attribute, clear
 it by removing the attribute. Never use inline style="" or raw colors for
 placement/emphasis — the token IS the edit. Document-grain tokens (font,
-measure) live on the <html> root element (ADR-455). The member also sets
+measure, pagenum) live on the <html> root element (ADR-455/456). The member also sets
 tokens from the Design tab; preserve tokens you didn't touch, and set them
 yourself when asked in plain words ("center that", "make it serif", "make the
 image smaller", "make this slide a dark divider"). Families:

@@ -55,7 +55,8 @@ def run() -> bool:
         {"align", "tone", "height", "fit", "ratio", "valign", "font", "measure"}
         <= set(STUDIO_TOKENS),
     )
-    valid_applies = {"block", "media", "page", "page-multicol", "page-deck", "document", "document-flow"}
+    valid_applies = {"block", "media", "page", "page-multicol", "page-deck", "document",
+                     "document-flow", "document-deck"}  # document-deck: ADR-456 W1
     _check(
         "token rows carry label/applies/values/description",
         all(
@@ -72,7 +73,8 @@ def run() -> bool:
         "absence is the default (no family declares a written default value)",
         all("default" not in t for t in STUDIO_TOKENS.values()),
     )
-    _check("media kinds = figure + chart", MEDIA_BLOCK_KINDS == {"figure", "chart"})
+    _check("media kinds = figure + chart (+ gallery, ADR-456 W1)",
+           MEDIA_BLOCK_KINDS == {"figure", "chart", "gallery"})
 
     # ── 2. The kernel CSS + the marked element (D2) ──────────────────────
     _check(

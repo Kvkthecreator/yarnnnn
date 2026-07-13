@@ -99,6 +99,8 @@ interface StudioToolbarProps {
   onInsertBlock: (fragment: string, label: string) => void;
   /** EXECUTE: insert a cited block (figure/table) for a picked workspace file. */
   onInsertCited: (kind: 'figure' | 'table', path: string) => void;
+  /** EXECUTE: insert a gallery block citing the picked images (ADR-456 W1). */
+  onInsertGallery: (paths: string[]) => void;
   /** EXECUTE: add a new page (slide/section) from the gallery. */
   onAddArrangement: (fragment: string, label: string) => void;
   /** The one generative ask (Chart) — seeds the lane. */
@@ -112,19 +114,23 @@ export function StudioToolbar({
   onClearSelection,
   onInsertBlock,
   onInsertCited,
+  onInsertGallery,
   onAddArrangement,
   onSeed,
 }: StudioToolbarProps) {
   // ADR-447/453: a deck's page is a "slide"; a document/article's is a
   // "section" — the operator word follows the layout.
   const pageNoun = layout === 'deck' ? 'slide' : 'section';
-  const [open, setOpen] = useState<null | 'insert' | 'new' | 'image' | 'table'>(null);
+  const [open, setOpen] = useState<null | 'insert' | 'new' | 'image' | 'table' | 'gallery'>(null);
   const [citable, setCitable] = useState<Citable | null>(null);
   const [loadingCitable, setLoadingCitable] = useState(false);
+  // The gallery picker's multi-select (ADR-456 W1) — N cited images, ONE block.
+  const [galleryPick, setGalleryPick] = useState<string[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const openPicker = (panel: 'image' | 'table') => {
+  const openPicker = (panel: 'image' | 'table' | 'gallery') => {
     setOpen(panel);
+    if (panel === 'gallery') setGalleryPick([]);
     if (!citable && !loadingCitable) {
       setLoadingCitable(true);
       api.studio
@@ -153,6 +159,7 @@ export function StudioToolbar({
 
   const pickBlock = (b: StudioVocabulary['blocks'][number]) => {
     if (b.kind === 'figure') return openPicker('image');
+    if (b.kind === 'gallery') return openPicker('gallery');
     if (b.kind === 'table') return openPicker('table');
     if (b.kind === 'chart') {
       onSeed('Create an SVG chart at ./assets/chart.svg, cite it in the document, showing: ');
@@ -163,7 +170,12 @@ export function StudioToolbar({
     setOpen(null);
   };
 
-  const items = open === 'image' ? citable?.images : open === 'table' ? citable?.tables : undefined;
+  const items =
+    open === 'image' || open === 'gallery'
+      ? citable?.images
+      : open === 'table'
+        ? citable?.tables
+        : undefined;
 
   const btn =
     'inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-40';
@@ -259,7 +271,7 @@ export function StudioToolbar({
         </div>
       )}
 
-      {(open === 'image' || open === 'table') && (
+      {(open === 'image' || open === 'table' || open === 'gallery') && (
         <div className={panel}>
           {loadingCitable && (
             <div className="flex items-center justify-center gap-2 p-3 text-xs text-muted-foreground">
@@ -268,28 +280,59 @@ export function StudioToolbar({
           )}
           {!loadingCitable && (!items || items.length === 0) && (
             <p className="p-3 text-xs text-muted-foreground">
-              {open === 'image'
-                ? 'No images in the workspace yet — drop one into Files, or ask the chat for an SVG.'
-                : 'No CSV files in the workspace yet.'}
+              {open === 'table'
+                ? 'No CSV files in the workspace yet.'
+                : 'No images in the workspace yet — drop one into Files, or ask the chat for an SVG.'}
             </p>
           )}
-          {!loadingCitable &&
-            items?.map((it) => (
+          {/* Gallery = multi-select: taps toggle, the button below commits ONE
+              block citing all picked images (ADR-456 W1). */}
+          {open === 'gallery' && !loadingCitable && items && items.length > 0 && (
+            <div className="sticky top-0 z-10 border-b border-border bg-background px-2 py-1.5">
               <button
-                key={it.path}
                 type="button"
+                disabled={galleryPick.length === 0}
                 onClick={() => {
-                  onInsertCited(open === 'image' ? 'figure' : 'table', it.path);
+                  onInsertGallery(galleryPick);
                   setOpen(null);
                 }}
-                className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left hover:bg-muted/40"
+                className={`${btn} w-full justify-center`}
               >
-                <span className="min-w-0">
-                  <span className="block truncate text-xs">{baseName(it.path)}</span>
-                  <span className="block truncate text-[10px] text-muted-foreground">{relPath(it.path)}</span>
-                </span>
+                Insert gallery ({galleryPick.length})
               </button>
-            ))}
+            </div>
+          )}
+          {!loadingCitable &&
+            items?.map((it) => {
+              const picked = open === 'gallery' && galleryPick.includes(it.path);
+              return (
+                <button
+                  key={it.path}
+                  type="button"
+                  onClick={() => {
+                    if (open === 'gallery') {
+                      setGalleryPick((cur) =>
+                        cur.includes(it.path)
+                          ? cur.filter((p) => p !== it.path)
+                          : [...cur, it.path],
+                      );
+                      return;
+                    }
+                    onInsertCited(open === 'image' ? 'figure' : 'table', it.path);
+                    setOpen(null);
+                  }}
+                  className={`flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left hover:bg-muted/40 ${
+                    picked ? 'bg-indigo-50/60 dark:bg-indigo-950/40' : ''
+                  }`}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs">{baseName(it.path)}</span>
+                    <span className="block truncate text-[10px] text-muted-foreground">{relPath(it.path)}</span>
+                  </span>
+                  {picked && <span className="shrink-0 text-[10px] text-indigo-600">✓</span>}
+                </button>
+              );
+            })}
         </div>
       )}
     </div>
