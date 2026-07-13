@@ -6,6 +6,12 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.13.2] - The deck recipe + the studio target-override (ADR-452)
+
+- `services/derive_recipes.py` — new `deck` recipe (content constraints for a source-grounded slide narrative: titles as claims, one idea per slide, evidence cited, 6–12 slides, anti-patterns for topic-word titles / wall-of-text / filler).
+- `services/derive_recipes.py::build_derive_section(..., artifact_path=)` — the studio mode (ADR-452 D3): a lane carrying BOTH bindings (artifact + derive — the landing's Learn-from flow) gets a TARGET OVERRIDE block — derive INTO the bound artifact, in the artifact's format (the authoring posture owns the grammar); any recipe instruction about a separate markdown file is superseded; content constraints + citation discipline stand.
+- Expected behavior change: a Studio Learn-from lane authors the derived content into its canvas artifact (document/deck) instead of a side markdown file, with the source cited via derived_from. Plain derive lanes (chat) unchanged.
+
 ## [2026.07.13.1] - The derive-recipe registry: "Learn from" lanes (ADR-450)
 
 - `services/derive_recipes.py` (new) — the kernel registry (`DERIVE_RECIPES`): three v1 recipes (context-brief · design-system · prd), each SKILL.md-grade constraint prose (steps, quality bar, anti-patterns). KERNEL-INTERNAL data — every future edit to a recipe's `instructions` is a new entry here (prompt change protocol), with per-recipe Hat-B eval probes as they mature.

@@ -23,9 +23,10 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Palette, Plus } from 'lucide-react';
+import { Loader2, Palette, Plus, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
+import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { SourcePickerModal } from './SourcePickerModal';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
@@ -46,6 +47,9 @@ interface LaneInfo {
   name: string;
   model: string;
   artifact_path?: string | null;
+  /** ADR-450/452 — the derive binding (a "Learn from" lane). */
+  derive_recipe?: string | null;
+  derive_source?: string | null;
   status: string;
 }
 
@@ -528,7 +532,16 @@ export function StudioSurface() {
                   </p>
                 </div>
               }
-              suggestions={TEMPLATE_SUGGESTIONS[template] ?? TEMPLATE_SUGGESTIONS.document}
+              suggestions={
+                // ADR-452 D2: a derive-bound lane (the landing's Learn-from
+                // flow) leads with its one job; the template chips follow.
+                boundLane.derive_source
+                  ? [
+                      `Learn from ${baseName(boundLane.derive_source)} — build this ${template} from it.`,
+                      ...(TEMPLATE_SUGGESTIONS[template] ?? TEMPLATE_SUGGESTIONS.document),
+                    ]
+                  : TEMPLATE_SUGGESTIONS[template] ?? TEMPLATE_SUGGESTIONS.document
+              }
             />
           ) : (
             <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -564,7 +577,72 @@ export function StudioSurface() {
   );
 }
 
-// ── The start state — template picker + meaning-placed creation ──────────
+// ── The start state — the Studio landing (ADR-452 D1) ────────────────────
+// Create (templates) · Learn from a source · Recents with real thumbnails.
+// No chat pre-artifact: the lane belongs to an OPEN artifact.
+
+/** The landing's Learn-from targets (ADR-452 D2) — studio-shaped only.
+ *  `recipe` names the kernel DERIVE_RECIPES row; `template` the artifact
+ *  skeleton (null → the target is a folder, not a canvas → chat lane). */
+const LEARN_TARGETS: Array<{
+  recipe: string;
+  template: 'document' | 'deck' | null;
+  label: string;
+  description: string;
+}> = [
+  {
+    recipe: 'prd',
+    template: 'document',
+    label: 'Document',
+    description: 'A grounded document (PRD-style) derived from the source.',
+  },
+  {
+    recipe: 'deck',
+    template: 'deck',
+    label: 'Deck',
+    description: 'Slides that argue the source’s claims, evidence cited.',
+  },
+  {
+    recipe: 'design-system',
+    template: null,
+    label: 'Design system',
+    description: 'Tokens-first CSS + manifest your artifacts can wear.',
+  },
+];
+
+/** A real render of the artifact, scaled down (the ADR-447 navigator
+ *  technique): sandboxed srcDoc iframe, display-only. */
+function ArtifactThumb({ path }: { path: string }) {
+  const [doc, setDoc] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.workspace
+      .getFile(path)
+      .then((f) => !cancelled && setDoc(f.content ?? null))
+      .catch(() => !cancelled && setDoc(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+  return (
+    <div className="relative aspect-[16/10] overflow-hidden rounded-md border border-border bg-muted/30">
+      {doc ? (
+        <iframe
+          sandbox=""
+          srcDoc={doc}
+          tabIndex={-1}
+          aria-hidden
+          title=""
+          className="pointer-events-none absolute left-0 top-0 h-[400%] w-[400%] origin-top-left scale-[0.25] border-0 bg-white"
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center">
+          <Palette className="h-5 w-5 text-muted-foreground/40" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
@@ -609,6 +687,60 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
       onOpen(res.path);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Creation failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ── Learn from a source (ADR-452 D2) ────────────────────────────────────
+  // Pick a target, then a source; the flow creates the artifact skeleton +
+  // ONE lane carrying BOTH bindings (artifact + derive) and opens the Studio.
+  // The design-system target has no canvas → a derive-bound chat lane.
+  const { navigateToSurface } = useSurfacePreferences();
+  const [learnTarget, setLearnTarget] = useState<(typeof LEARN_TARGETS)[number] | null>(null);
+  const [laneEnv, setLaneEnv] = useState<{ enabled: boolean; model: string } | null>(null);
+  useEffect(() => {
+    api.lanes
+      .list()
+      .then((d) => setLaneEnv({ enabled: d.enabled, model: d.models[0]?.id ?? '' }))
+      .catch(() => setLaneEnv({ enabled: false, model: '' }));
+  }, []);
+
+  const learnFrom = async (source: { path: string; name: string }) => {
+    const target = learnTarget;
+    setLearnTarget(null);
+    if (!target || !laneEnv?.enabled || !laneEnv.model) {
+      setError('Chat helpers aren’t enabled on this workspace.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      if (target.template) {
+        const sourceSlug = slugify(source.name.replace(/\.[a-z0-9]+$/i, ''));
+        const res = await api.studio.createArtifact(
+          `operation/${sourceSlug}/${target.template}.html`,
+          target.template,
+        );
+        await api.lanes.create({
+          name: `Learn: ${source.name}`.slice(0, 60),
+          model: laneEnv.model,
+          artifact_path: res.path,
+          derive_recipe: target.recipe,
+          derive_source: source.path,
+        });
+        onOpen(res.path);
+      } else {
+        const lane = await api.lanes.create({
+          name: `Learn: ${source.name}`.slice(0, 60),
+          model: laneEnv.model,
+          derive_recipe: target.recipe,
+          derive_source: source.path,
+        });
+        navigateToSurface('chat', { lane: lane.id });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not start the Learn-from flow.');
     } finally {
       setBusy(false);
     }
@@ -675,36 +807,63 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
           </button>
         </div>
 
+        {/* Learn from a source (ADR-452 D2) — the second creation path:
+            start FROM something instead of empty. */}
+        {laneEnv?.enabled !== false && (
+          <div className="space-y-2 border-t border-border pt-4">
+            <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              <Sparkles className="h-3 w-3" /> Learn from a source
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {LEARN_TARGETS.map((t) => (
+                <button
+                  key={t.recipe}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setLearnTarget(t)}
+                  className="rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/20 disabled:opacity-40"
+                >
+                  <p className="text-sm font-medium">{t.label}</p>
+                  <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                    {t.description}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {recents.length > 0 && (
           <div className="space-y-2 border-t border-border pt-4">
             <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
               Continue where you left off
             </p>
-            <ul className="space-y-1">
+            <div className="grid grid-cols-3 gap-2">
               {recents.slice(0, 6).map((r) => (
-                <li key={r.path}>
-                  <button
-                    type="button"
-                    onClick={() => onOpen(r.path)}
-                    className="flex w-full items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-left transition-colors hover:bg-muted/30"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm">{baseName(r.path)}</span>
-                      <span className="block truncate text-[11px] text-muted-foreground">
-                        {relPath(r.path)}
-                      </span>
-                    </span>
-                    {r.updated_at && (
-                      <span className="shrink-0 text-[10px] text-muted-foreground">
-                        {new Date(r.updated_at).toLocaleDateString()}
-                      </span>
-                    )}
-                  </button>
-                </li>
+                <button
+                  key={r.path}
+                  type="button"
+                  onClick={() => onOpen(r.path)}
+                  className="group rounded-lg border border-border p-2 text-left transition-colors hover:bg-muted/20"
+                >
+                  <ArtifactThumb path={r.path} />
+                  <span className="mt-1.5 block truncate text-xs font-medium">{baseName(r.path)}</span>
+                  <span className="block truncate text-[10px] text-muted-foreground">
+                    {r.updated_at
+                      ? new Date(r.updated_at).toLocaleDateString()
+                      : relPath(r.path)}
+                  </span>
+                </button>
               ))}
-            </ul>
+            </div>
           </div>
         )}
+
+        <SourcePickerModal
+          targetLabel={learnTarget?.label ?? null}
+          onClose={() => setLearnTarget(null)}
+          onSelect={(s) => void learnFrom(s)}
+        />
 
         <details className="border-t border-border pt-3">
           <summary className="cursor-pointer text-xs text-muted-foreground">

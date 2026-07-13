@@ -90,6 +90,33 @@ page-specific selectors (#hero-2024) in a system meant to be reusable;
 inventing a palette the source doesn't show; a manifest listing files you
 didn't write.""",
     },
+    "deck": {
+        "label": "Deck",
+        "description": "A slide deck where every slide earns its claim from the source.",
+        "accepts": ["file"],
+        "target": "A deck artifact — slides grounded in the source, titles as claims, evidence cited.",
+        "instructions": """Produce a DECK — a slide narrative a teammate could present, derived
+from the source. (Studio flow: the deck is the bound artifact; the authoring
+posture owns the slide/block format — these are the CONTENT constraints.)
+
+Steps:
+1. Read the source fully; list the 5–10 claims it actually supports.
+2. Shape the narrative: title slide (the thesis) · the claims, one per slide ·
+   a closing slide (so-what / next steps).
+3. Each slide: the TITLE is the claim (a sentence someone could disagree
+   with, never a topic word); the body is the evidence — figures, quotes,
+   comparisons from the source.
+
+Quality bar:
+- Every slide's claim traceable to the source; where you extrapolate, mark
+  the slide "(inferred)".
+- 6–12 slides. A slide that carries no evidence gets cut, not padded.
+- Prefer the source's own numbers and phrases over paraphrase mush.
+
+Anti-patterns: topic-word titles ("Market", "Team"); wall-of-text slides;
+agenda/divider filler; claims the source never makes; burying the thesis
+past slide one.""",
+    },
     "prd": {
         "label": "Product description (PRD)",
         "description": "A grounded product-requirements document derived from the source.",
@@ -135,12 +162,21 @@ def get_recipe(slug: str) -> Optional[dict]:
     return DERIVE_RECIPES.get((slug or "").strip())
 
 
-def build_derive_section(recipe_slug: str, source_path: str) -> str:
-    """The derive-bound lane's posture overlay (ADR-450 D3) — pure.
+def build_derive_section(
+    recipe_slug: str,
+    source_path: str,
+    artifact_path: Optional[str] = None,
+) -> str:
+    """The derive-bound lane's posture overlay (ADR-450 D3 + ADR-452 D3) — pure.
 
     Recipe instructions + the source + the two mechanics every recipe shares:
     read the projection for binary raws, and cite via derived_from (the
     ADR-448 edge — how the workspace knows what was made from what).
+
+    ``artifact_path`` (ADR-452 D3 — the studio mode): when the lane is ALSO
+    artifact-bound, a target-override block redirects the recipe's
+    file-creation mechanics to the bound artifact; the content constraints
+    and citation discipline stand unchanged.
     """
     recipe = get_recipe(recipe_slug)
     if not recipe:
@@ -150,20 +186,31 @@ def build_derive_section(recipe_slug: str, source_path: str) -> str:
         if source_path.startswith("/workspace/")
         else "/workspace/" + (source_path or "").lstrip("/")
     )
+    target_line = recipe["target"]
+    override = ""
+    if artifact_path:
+        target_line = f"the bound artifact at {artifact_path}"
+        override = f"""
+TARGET OVERRIDE (studio flow): your target is the bound artifact at
+{artifact_path} — author the derived content THERE, in the artifact's format
+(the authoring posture above owns the grammar: blocks, slides, layout). Any
+instruction below about creating a separate markdown file is superseded by
+this; the content constraints, quality bar, and citation discipline stand.
+"""
     return f"""## Learn from (this lane's job)
 This lane exists to derive from ONE source:
   SOURCE: {src}
-  TARGET: {recipe['target']}
+  TARGET: {target_line}
 
 Mechanics (apply to every step below):
 - If the source is a binary raw (its content is a one-line caption with an
   attachment), read its co-located text projection instead: the sibling file
   ending `.extracted.md`.
 - Every file you author from the source MUST pass
-  derived_from=["{src}"] on the WriteFile — that edge is how the workspace
+  derived_from=["{src}"] on the write — that edge is how the workspace
   shows what was made from what. Cite additional files you read the same way.
 - The source is retained and immutable — never edit it; derive beside it.
-
+{override}
 {recipe['instructions']}
 
 When done, tell the member what you created (paths) and what you could NOT

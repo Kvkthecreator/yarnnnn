@@ -137,6 +137,43 @@ export function resolveViewerApplication(
 }
 
 /**
+ * ADR-451 — the surface-owning app layer, ABOVE the viewer table.
+ *
+ * A row here claims a format for an app that owns a whole SURFACE: opening
+ * such a file from the Finder (the Files surface) routes to the app —
+ * `navigateToSurface(surface, {[param]: path})` — instead of rendering it
+ * flat in the inline viewer (which remains the Quick Look analog for
+ * everything unclaimed). One row in v1: the Studio owns its artifact format.
+ *
+ * The "Open with" picker stays deferred until a second installed app claims
+ * the same format (ADR-436 — the resolver-is-an-ordered-list stance).
+ */
+export interface SurfaceApplication {
+  /** The surface slug the app owns (navigateToSurface target). */
+  surface: string;
+  /** The window-namespaced param carrying the file path. */
+  param: string;
+  /** Operator-readable app name ("Opens in Studio"). */
+  label: string;
+}
+
+export function resolveSurfaceApplication(
+  path: string,
+  contentType?: string,
+): SurfaceApplication | null {
+  const p = path.toLowerCase();
+  const t = (contentType || '').toLowerCase();
+  // Studio claims html artifacts — EXCEPT arrivals (inbound/): a retained
+  // observation is a record to preview, not an authoring canvas (ADR-451 D1).
+  const isHtml = p.endsWith('.html') || p.endsWith('.htm') || t.includes('text/html');
+  const isArrival = p.includes('/inbound/') || p.startsWith('inbound/');
+  if (isHtml && !isArrival) {
+    return { surface: 'studio', param: 'file', label: 'Studio' };
+  }
+  return null;
+}
+
+/**
  * Does this viewer read the blob (`content_url`) rather than the `content`
  * text column? Mirrors the ADR-427 §8 read-side split: a binary revision's
  * text column is empty by construction.

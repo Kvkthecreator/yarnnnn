@@ -58,7 +58,7 @@ import { operatorCanOrganize, organizeBlockedReason } from '@/lib/workspace/owne
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { MoveToFolderModal } from '@/components/workspace/MoveToFolderModal';
 import { RenameModal } from '@/components/workspace/RenameModal';
-import { LearnFromModal } from '@/components/workspace/LearnFromModal';
+import { resolveSurfaceApplication } from '@/lib/file-types';
 import { NewFolderModal } from '@/components/workspace/NewFolderModal';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
@@ -322,6 +322,8 @@ export default function ContextPage() {
   // surface drives its live selection through internal `selectedPath` state
   // and deliberately does NOT write back to the URL (see the click handlers).
   const fp = useSurfaceParam('files');
+  // ADR-451: the Finder routes surface-owned formats to their app.
+  const { navigateToSurface } = useSurfacePreferences();
   const domainParam = fp.get('domain');
   const pathParam = fp.get('path');
 
@@ -590,11 +592,21 @@ export default function ContextPage() {
   // `_`-prefixed file hidden from the explorer); syntheticNodeForPath resolves
   // the viewer. Selecting via a folder-Details row also drops Details back to
   // the (newly-selected) node's own scope.
+  //
+  // ADR-451: the Finder's open verb consults the surface-owning app layer
+  // FIRST — a claimed format (a Studio artifact) opens in its APP, like a
+  // .pptx opening PowerPoint; the inline viewer stays the Quick Look analog
+  // for everything unclaimed.
   const handleExplorerSelect_byPath = useCallback((path: string) => {
+    const app = resolveSurfaceApplication(path);
+    if (app) {
+      navigateToSurface(app.surface, { [app.param]: path });
+      return;
+    }
     setShowTrash(false);
     setSelectedPath(path);
     activateBodyRef.current(); // narrow: drill into the viewer
-  }, []);
+  }, [navigateToSurface]);
 
   // ADR-329 (amended): right-click "Get Info" on a tree node → select it (so
   // Details scopes to it) and open the Details panel.
@@ -743,39 +755,12 @@ export default function ContextPage() {
     } catch { /* error toast already surfaced; stop */ }
   }, [runAction]);
 
-  // ADR-450 D5: "Learn from…" — the derive verb's contextual entrance. The
-  // chooser modal picks a kernel recipe; submit creates a derive-BOUND lane
-  // (the ADR-440 binding pattern, second kind) and lands the member in it on
-  // the chat surface. The lane does the work — nothing derives here.
-  const [learnTarget, setLearnTarget] = useState<{ path: string; name: string } | null>(null);
-  const { navigateToSurface } = useSurfacePreferences();
-  const handleLearnFrom = useCallback(async (recipeSlug: string, model: string) => {
-    const t = learnTarget;
-    if (!t) return;
-    try {
-      const lane = await runAction(
-        () => api.lanes.create({
-          name: `Learn: ${t.name}`.slice(0, 60),
-          model,
-          derive_recipe: recipeSlug,
-          derive_source: t.path,
-        }),
-        {
-          pending: 'Starting…',
-          success: 'Helper ready',
-          error: (e) => (e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Could not start' : 'Could not start'),
-        },
-      );
-      setLearnTarget(null);
-      if (lane?.id) navigateToSurface('chat', { lane: lane.id });
-    } catch { /* error toast already surfaced; keep the modal open */ }
-  }, [learnTarget, runAction, navigateToSurface]);
-
   // ADR-400: the operator's file verbs as one bundle, threaded to every file
   // surface (tree + RecentsView grid + ContentViewer folder listing) so the
   // right-click menu works on the MAIN PANEL, not only the left tree. Properties
   // + Open are the reads; rename/move/delete the organize verbs; share (ADR-437
-  // D4) mints a link to the artifact; learn-from (ADR-450) derives from it.
+  // D4) mints a link to the artifact. (Learn-from moved to the Studio landing
+  // — ADR-452 D5: a creation act, not a file operation.)
   const fileVerbs = useMemo(() => ({
     onOpen: (t: { path: string }) => handleExplorerSelect_byPath(t.path),
     onProperties: (t: { path: string }) => { setShowTrash(false); setSelectedPath(t.path); setDetailsOpen(true); },
@@ -783,7 +768,6 @@ export default function ContextPage() {
     onMove: openMove,
     onDelete: handleTreeDelete,
     onShare: handleShare,
-    onLearnFrom: (t: { path: string; name: string }) => setLearnTarget(t),
   }), [handleExplorerSelect_byPath, openRename, openMove, handleTreeDelete, handleShare]);
 
   // Upload success (2026-07-01): after files land in the Intake raw lane
@@ -805,6 +789,11 @@ export default function ContextPage() {
   // not of a file tile/row (those carry their own <FileContextMenu>); the row
   // handlers call stopPropagation, so a background contextmenu means empty space.
   const openCanvasMenu = useCallback((e: React.MouseEvent) => {
+    // ADR-452 D5 (Finder-flat): a tile/row's own context menu claims the event
+    // (preventDefault in useFileContextMenu.openMenu); the bubbled copy must
+    // NOT also open the canvas menu — that was the stacked-menus defect the
+    // operator observed (the canvas box covering the file menu's Open/Properties).
+    if (e.defaultPrevented) return;
     e.preventDefault();
     setCanvasMenu({ x: e.clientX, y: e.clientY });
   }, []);
@@ -1118,12 +1107,6 @@ export default function ContextPage() {
         onSubmit={commitNewFolder}
       />
 
-      {/* ADR-450 D5: Learn from… — the derive verb's recipe chooser. */}
-      <LearnFromModal
-        target={learnTarget}
-        onClose={() => setLearnTarget(null)}
-        onSubmit={handleLearnFrom}
-      />
     </>
   );
 }

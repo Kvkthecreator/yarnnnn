@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Info, ExternalLink, Pencil, FolderInput, Trash2, Share2, MoreVertical, Sparkles } from 'lucide-react';
+import { Info, ExternalLink, Pencil, FolderInput, Trash2, Share2, MoreVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 
@@ -45,8 +45,6 @@ export interface FileVerbs {
   onDelete?: (t: { path: string; name: string }) => void;
   /** Share a link to this artifact (ADR-437 D4 — the cockpit share origin). */
   onShare?: (t: { path: string; name: string }) => void;
-  /** Learn from this file — the derive verb's contextual entrance (ADR-450 D5). */
-  onLearnFrom?: (t: { path: string; name: string }) => void;
 }
 
 export interface FileContextMenuProps {
@@ -66,12 +64,10 @@ export interface FileContextMenuProps {
   onDelete?: (t: FileMenuTarget) => void;
   /** Share a link to the target (ADR-437 D4). */
   onShare?: (t: FileMenuTarget) => void;
-  /** Learn from this file (files only, ADR-450 D5). */
-  onLearnFrom?: (t: FileMenuTarget) => void;
 }
 
 export function FileContextMenu({
-  target, x, y, onClose, onOpen, onProperties, onRename, onMove, onDelete, onShare, onLearnFrom,
+  target, x, y, onClose, onOpen, onProperties, onRename, onMove, onDelete, onShare,
 }: FileContextMenuProps) {
   useEffect(() => {
     const close = () => onClose();
@@ -111,11 +107,6 @@ export function FileContextMenu({
       {onShare && (
         <MenuItem icon={<Share2 className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onShare)}>
           Share…
-        </MenuItem>
-      )}
-      {isFile && onLearnFrom && (
-        <MenuItem icon={<Sparkles className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onLearnFrom)}>
-          Learn from…
         </MenuItem>
       )}
       {isFile && (onRename || onMove || onDelete) && <div className="my-1 h-px bg-border/60" />}

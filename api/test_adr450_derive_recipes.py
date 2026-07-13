@@ -49,8 +49,8 @@ def run() -> int:
 
     # ── 1. the registry ───────────────────────────────────────────────────
     passed &= _check(
-        "the three v1 recipes",
-        set(DERIVE_RECIPES.keys()) == {"context-brief", "design-system", "prd"},
+        "the v1 recipes (ADR-452 added deck)",
+        set(DERIVE_RECIPES.keys()) == {"context-brief", "design-system", "prd", "deck"},
         detail=str(sorted(DERIVE_RECIPES.keys())),
     )
     for slug, r in DERIVE_RECIPES.items():
@@ -69,7 +69,7 @@ def run() -> int:
 
     # ── 2. the chooser payload is light ───────────────────────────────────
     payload = list_recipes()
-    passed &= _check("list_recipes has all 3", len(payload) == 3)
+    passed &= _check("list_recipes has all rows", len(payload) == len(DERIVE_RECIPES))
     passed &= _check(
         "chooser payload excludes instructions",
         all(set(p.keys()) == {"slug", "label", "description", "accepts"} for p in payload),
@@ -95,6 +95,17 @@ def run() -> int:
         "_design.yaml" in s and "ORDERED list" in s,
     )
     passed &= _check("unknown recipe → empty section", build_derive_section("nope", "x.md") == "")
+
+    # ADR-452 D3 — the studio mode: an artifact-bound derive lane gets the
+    # target override; a plain derive lane never does.
+    so = build_derive_section("prd", "inbound/uploads/operator/brief.pdf",
+                              artifact_path="/workspace/operation/brief/document.html")
+    passed &= _check(
+        "studio mode: target override names the bound artifact",
+        "TARGET OVERRIDE" in so and "/workspace/operation/brief/document.html" in so
+        and "TARGET: the bound artifact" in so,
+    )
+    passed &= _check("plain mode: no override", "TARGET OVERRIDE" not in s)
 
     # ── 5. the lane binding ───────────────────────────────────────────────
     import routes.lanes as lanes_mod

@@ -4,6 +4,11 @@
 highest-leverage wins while ensuring we can actually pull it off"). The operator-facing face of the
 ADR-448 derive step. Derivation: the [load-bearing-files note](../analysis/load-bearing-files-are-a-graph-fact-the-reference-edge-derive-step-and-design-system-2026-07-12.md) §4
 + the 2026-07-12→13 session discourse (verb-not-workflow; contracts + recipes, not sub-processes).
+> **D5 superseded same day by [ADR-452](ADR-452-the-studio-landing-learn-from-as-a-creation-path.md)**
+> (operator framing correction): Learn-from is a **creation act, not a file operation** — the Files
+> context-menu entrance was removed; the entrance is the **Studio landing** (+ a fourth `deck`
+> recipe and a studio target-override on `build_derive_section`). D1–D4 (the registry, the binding,
+> the recipes, the source sequencing) stand unchanged.
 **Date**: 2026-07-13
 **Dimension**: Mechanism (the recipe constrains judgment work) + Identity (the derive is the
 member's-hands act, under the member's grant) + Channel (the Files entrance, the lane).

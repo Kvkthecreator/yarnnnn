@@ -318,9 +318,13 @@ def build_lane_conventions(
 
     # ADR-450 D3 — the derive binding's recipe section (the "Learn from"
     # lane's job description; pure composition from the kernel registry).
+    # ADR-452 D3: a lane carrying BOTH bindings (the studio learn-from flow)
+    # gets the target-override — derive INTO the bound artifact.
     if derive_recipe and derive_source:
         from services.derive_recipes import build_derive_section
-        derive_section = build_derive_section(derive_recipe, derive_source)
+        derive_section = build_derive_section(
+            derive_recipe, derive_source, artifact_path=artifact_path
+        )
         if derive_section:
             posture_section += "\n" + derive_section + "\n"
 
