@@ -42,6 +42,11 @@ export type StructVerb = 'duplicate' | 'up' | 'down' | 'delete';
 
 const PAGE_SEL = 'section.slide, [data-arrange]';
 
+/** The TEXT kinds a block can turn into (ADR-456 W2) — text-shaped only:
+ *  structured/cited kinds (table/metrics/chart/figure/gallery) and headings
+ *  (they anchor pages) are not conversion targets. */
+const TURN_INTO_KINDS = ['prose', 'callout', 'quote', 'checklist', 'toggle'];
+
 function baseName(p: string): string {
   const parts = p.split('/');
   return parts[parts.length - 1] || p;
@@ -61,6 +66,9 @@ interface StudioDesignTabProps {
   onApplyArrangement: (fragment: string, label: string) => void;
   onBlockVerb: (verb: StructVerb) => void;
   onPageVerb: (verb: StructVerb) => void;
+  /** EXECUTE: turn the selected block into another TEXT kind (ADR-456 W2 —
+   *  convertBlock: id + tokens survive, text units rebuilt into the target). */
+  onTurnInto: (kind: string, label: string, fragment: string) => void;
   /** Seed the lane with the selection and flip to the Chat tab. */
   onAskAboutSelection: () => void;
   /** EXECUTE: apply a design system's composed skin element (resolve + write). */
@@ -215,6 +223,7 @@ export function StudioDesignTab({
   onApplyArrangement,
   onBlockVerb,
   onPageVerb,
+  onTurnInto,
   onAskAboutSelection,
   onApplyDesignSystem,
   onRemoveDesignSystem,
@@ -544,6 +553,29 @@ export function StudioDesignTab({
               Double-click the block on the canvas to edit its text in place.
             </p>
           </div>
+          {/* Turn into (ADR-456 W2) — text kinds only; the id and tokens
+              survive the conversion (a block with a citation refuses). */}
+          {selection?.blockKind && TURN_INTO_KINDS.includes(selection.blockKind) && (
+            <div className={SECTION}>
+              <p className={HEADING}>Turn into</p>
+              <div className="flex flex-wrap gap-1">
+                {TURN_INTO_KINDS.filter((k) => k !== selection.blockKind).map((k) => {
+                  const b = vocabulary?.blocks.find((vb) => vb.kind === k);
+                  if (!b) return null;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      className={askBtn}
+                      onClick={() => onTurnInto(b.kind, b.label, b.fragment)}
+                    >
+                      {b.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {applicable.length > 0 && (
             <div className={SECTION}>
               {applicable.map((t) => (

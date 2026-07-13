@@ -22,7 +22,7 @@
  * `reloadKey`, so the member watches the document change live.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Copy, Link2, Loader2, Palette, PanelLeft, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -35,12 +35,14 @@ import { FileContextMenu } from '@/components/workspace/FileContextMenu';
 import { MoreHorizontal } from 'lucide-react';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { StudioCanvas, type PointerEvent2 } from './StudioCanvas';
+import { StudioSlashPalette } from './StudioSlashPalette';
 import { StudioToolbar, type StudioSelection, type StudioVocabulary } from './StudioToolbar';
 import { StudioDesignTab, type StructVerb } from './StudioDesignTab';
 import { StudioNavigator } from './StudioNavigator';
 import {
   applyArrangement,
   applySkin,
+  convertBlock,
   deleteBlock,
   deletePage,
   duplicateBlock,
@@ -508,6 +510,68 @@ export function StudioSurface() {
     [applyOp, file],
   );
 
+  // ── ADR-456 W2: slash-insert + turn-into ─────────────────────────────────
+  // The edit runtime commits + exits on '/' in an empty context, then reports
+  // the block's rect; the palette renders in the canvas wrapper (the iframe
+  // fills it, so frame-viewport coordinates ≈ wrapper coordinates, clamped).
+  const canvasWrapRef = useRef<HTMLDivElement>(null);
+  const [slash, setSlash] = useState<{
+    blockId: string;
+    empty: boolean;
+    left: number;
+    top: number;
+  } | null>(null);
+  const onSlashOpen = useCallback(
+    (blockId: string, empty: boolean, rect: { left: number; top: number; bottom: number }) => {
+      const wrap = canvasWrapRef.current;
+      const maxLeft = Math.max(8, (wrap?.clientWidth ?? 640) - 272);
+      const maxTop = Math.max(8, (wrap?.clientHeight ?? 480) - 300);
+      setSlash({
+        blockId,
+        empty,
+        left: Math.max(8, Math.min(rect.left, maxLeft)),
+        top: Math.max(8, Math.min(rect.bottom + 6, maxTop)),
+      });
+    },
+    [],
+  );
+  const onSlashPick = useCallback(
+    (kind: string, label: string, fragment: string) => {
+      const s = slash;
+      setSlash(null);
+      if (!s) return;
+      if (kind === 'chart') {
+        seedComposer('Create an SVG chart at ./assets/chart.svg, cite it in the document, showing: ');
+        return;
+      }
+      if (s.empty) {
+        // An empty block CONVERTS in place — the Notion "empty line + /" gesture.
+        void applyOp(
+          (html) => convertBlock(html, s.blockId, kind, fragment),
+          `Studio: turn block into ${label}`,
+        );
+      } else {
+        void applyOp(
+          (html) => insertBlock(html, fragment, { blockId: s.blockId }),
+          `Studio: add ${label} block`,
+        );
+      }
+    },
+    [slash, applyOp, seedComposer],
+  );
+  // Turn-into from the Design tab (same op, selection-anchored).
+  const handleTurnInto = useCallback(
+    (kind: string, label: string, fragment: string) => {
+      const blockId = selection?.blockId;
+      if (!blockId) return;
+      void applyOp(
+        (html) => convertBlock(html, blockId, kind, fragment),
+        `Studio: turn block into ${label}`,
+      );
+    },
+    [applyOp, selection],
+  );
+
   // ADR-447: canvas view controls (view-only, never touch the file) + mobile
   // pane switching (below md, one pane at a time: nav · canvas · chat).
   const [zoom, setZoom] = useState(1);
@@ -725,20 +789,34 @@ export function StudioSurface() {
               {relPath(artifactPath)}.
             </div>
           ) : (
-            <StudioCanvas
-              file={file}
-              artifactPath={artifactPath}
-              onPoint={onPoint}
-              onPointClear={onPointClear}
-              editingBlockId={editingBlockId}
-              onEdit={onEdit}
-              onEditExited={() => setEditingBlockId(null)}
-              onEditEntered={(id) => setEditingBlockId(id)}
-              onAddHere={onAddHere}
-              scrollToSlide={scrollToSlide}
-              scrollToBlock={scrollToBlock}
-              zoom={zoom}
-            />
+            /* The wrapper is the slash palette's positioning context — the
+               iframe fills it, so frame coordinates map onto it directly. */
+            <div ref={canvasWrapRef} className="relative flex min-h-0 flex-1">
+              <StudioCanvas
+                file={file}
+                artifactPath={artifactPath}
+                onPoint={onPoint}
+                onPointClear={onPointClear}
+                editingBlockId={editingBlockId}
+                onEdit={onEdit}
+                onEditExited={() => setEditingBlockId(null)}
+                onEditEntered={(id) => setEditingBlockId(id)}
+                onAddHere={onAddHere}
+                onSlashOpen={onSlashOpen}
+                scrollToSlide={scrollToSlide}
+                scrollToBlock={scrollToBlock}
+                zoom={zoom}
+              />
+              {slash && (
+                <StudioSlashPalette
+                  vocabulary={vocabulary}
+                  left={slash.left}
+                  top={slash.top}
+                  onPick={onSlashPick}
+                  onClose={() => setSlash(null)}
+                />
+              )}
+            </div>
           )}
         </div>
 
@@ -830,6 +908,7 @@ export function StudioSurface() {
               onApplyArrangement={handleApplyArrangement}
               onBlockVerb={handleBlockVerb}
               onPageVerb={handlePageVerb}
+              onTurnInto={handleTurnInto}
               onAskAboutSelection={askAboutSelection}
               onApplyDesignSystem={handleApplyDesignSystem}
               onRemoveDesignSystem={handleRemoveDesignSystem}

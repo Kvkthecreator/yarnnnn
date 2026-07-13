@@ -218,6 +218,14 @@ function sanitizeInner(doc: Document, inner: string): string {
       }
     }
   });
+  // ADR-456 W2: the format bar rides execCommand, which emits <b>/<i> —
+  // normalize to the semantic tags the source speaks (strong/em).
+  holder.querySelectorAll('b, i').forEach((el) => {
+    const repl = doc.createElement(el.tagName === 'B' ? 'strong' : 'em');
+    for (const attr of Array.from(el.attributes)) repl.setAttribute(attr.name, attr.value);
+    while (el.firstChild) repl.appendChild(el.firstChild);
+    el.replaceWith(repl);
+  });
   return holder.innerHTML;
 }
 
@@ -239,6 +247,71 @@ export function editBlockText(
   const sanitized = sanitizeInner(doc, newInner);
   if (block.innerHTML === sanitized) return null; // no-op — no revision
   block.innerHTML = sanitized;
+  return { html: serialize(doc), landedId: blockId };
+}
+
+/** Turn a block into another TEXT kind (ADR-456 W2 "turn into"): the target
+ *  kind's registry fragment is the shell; the source block's text units
+ *  (li/p/heading/summary/cite, document order) are rebuilt into the target's
+ *  shape; the block's id and its property tokens survive. Blocks containing
+ *  citations refuse to convert (a data-ref must never flatten to text);
+ *  same-kind conversions no-op. */
+export function convertBlock(
+  html: string,
+  blockId: string,
+  kind: string,
+  fragment: string,
+): OpResult | null {
+  const doc = parse(html);
+  const block = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+  if (!block) return null;
+  if (block.getAttribute('data-block') === kind) return null; // no-op
+  if (block.querySelector('[data-ref]')) return null; // citations never flatten
+  const tpl = doc.createElement('template');
+  tpl.innerHTML = fragment.trim();
+  const shell = tpl.content.firstElementChild;
+  if (!shell) return null;
+  const units = Array.from(block.querySelectorAll('li, p, h1, h2, h3, h4, summary, cite'))
+    .map((el) => (el.textContent ?? '').trim())
+    .filter(Boolean);
+  if (!units.length) {
+    const whole = (block.textContent ?? '').trim();
+    if (whole) units.push(whole);
+  }
+  // Rebuild the content in the target's shape — text harvested, never markup
+  // (inline formatting inside a converted block is the one accepted loss).
+  const built: Array<[string, string]> = [];
+  if (kind === 'checklist') {
+    (units.length ? units : ['…']).forEach((u) => built.push(['li', u]));
+  } else if (kind === 'quote') {
+    built.push(['p', units[0] ?? '…']);
+    if (units.length > 1) built.push(['cite', units.slice(1).join(' — ')]);
+  } else if (kind === 'toggle') {
+    built.push(['summary', units[0] ?? 'Summary line']);
+    const rest = units.slice(1);
+    (rest.length ? rest : ['…']).forEach((u) => built.push(['p', u]));
+  } else {
+    (units.length ? units : ['…']).forEach((u) => built.push(['p', u]));
+  }
+  shell.innerHTML = '';
+  for (const [tag, text] of built) {
+    const child = doc.createElement(tag);
+    child.textContent = text;
+    shell.appendChild(child);
+  }
+  // Identity + tokens survive: same id; every data-* except the kind itself.
+  shell.setAttribute('data-block', kind);
+  shell.setAttribute('data-block-id', blockId);
+  for (const attr of Array.from(block.attributes)) {
+    if (
+      attr.name.startsWith('data-') &&
+      attr.name !== 'data-block' &&
+      attr.name !== 'data-block-id'
+    ) {
+      shell.setAttribute(attr.name, attr.value);
+    }
+  }
+  block.replaceWith(doc.importNode(shell, true));
   return { html: serialize(doc), landedId: blockId };
 }
 

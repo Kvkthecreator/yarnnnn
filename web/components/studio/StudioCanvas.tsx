@@ -74,6 +74,16 @@ interface StudioCanvasProps {
     pageIndex: number | null,
     arrange: string | null,
   ) => void;
+  /** ADR-456 W2: the member typed '/' in an empty context — the runtime
+   *  committed + exited the edit; the surface opens the block palette anchored
+   *  at the block's rect (frame-viewport coordinates ≈ iframe-box pixels).
+   *  `empty` = the whole block was empty (the palette converts it in place
+   *  instead of inserting after it). */
+  onSlashOpen?: (
+    blockId: string,
+    empty: boolean,
+    rect: { left: number; top: number; bottom: number; width: number },
+  ) => void;
   /** ADR-447: scroll the canvas to this slide (the navigator selected it). A
    *  monotonic nonce forces the scroll even when re-selecting the same slide. */
   scrollToSlide?: { index: number; nonce: number } | null;
@@ -102,6 +112,7 @@ export function StudioCanvas({
   onEditExited,
   onEditEntered,
   onAddHere,
+  onSlashOpen,
   scrollToSlide,
   scrollToBlock,
   zoom = 1,
@@ -244,11 +255,23 @@ export function StudioCanvas({
           typeof d.pageIndex === 'number' ? d.pageIndex : null,
           typeof d.arrange === 'string' ? d.arrange : null,
         );
+      } else if (
+        d.type === 'yarnnn-slash-open' &&
+        typeof d.blockId === 'string' &&
+        d.rect &&
+        typeof d.rect === 'object'
+      ) {
+        onSlashOpen?.(d.blockId, !!d.empty, {
+          left: Number(d.rect.left) || 0,
+          top: Number(d.rect.top) || 0,
+          bottom: Number(d.rect.bottom) || 0,
+          width: Number(d.rect.width) || 0,
+        });
       }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [onPoint, onPointClear, onEdit, onEditExited, onEditEntered, onAddHere]);
+  }, [onPoint, onPointClear, onEdit, onEditExited, onEditEntered, onAddHere, onSlashOpen]);
 
   return (
     <iframe

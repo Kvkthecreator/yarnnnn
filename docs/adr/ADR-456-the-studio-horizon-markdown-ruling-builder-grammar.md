@@ -4,6 +4,13 @@
 > "aligned in full … as you propose on the sequencing let's proceed"). The umbrella ADR for the
 > Studio's next horizon across its three formats; **Wave 1 ships with this ADR**, later waves land
 > as their own commits against the plan recorded here.
+>
+> **Wave 2 shipped** (2026-07-14, same-day): the Notion core — the inline format bar (B/I/code/link
+> on a selection, in-frame chrome, `b`/`i`→`strong`/`em` normalized at the write door), slash-insert
+> (`/` in an empty context → commit-exit → a filterable palette; empty block converts in place,
+> non-empty inserts after; picker-backed kinds stay in Insert ▾), and turn-into (`convertBlock` —
+> id + tokens survive, citations refuse to flatten, text kinds only). FE-only: the registries and
+> the posture are untouched. Gate `api/test_adr456_studio_wave2.py`.
 
 **Date**: 2026-07-14
 **Dimension**: Substrate (Axiom 1 — one canonical source format, projections at the boundary) +

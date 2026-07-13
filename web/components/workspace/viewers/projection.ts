@@ -245,6 +245,8 @@ const POINTER_SCRIPT = `
     var t = e.target;
     // The "+ Add here" button owns its click (its own handler posts).
     if (t && t.closest && t.closest('.yarnnn-add-here')) return;
+    // ADR-456 W2: the format bar owns its clicks (injected chrome, not content).
+    if (t && t.closest && t.closest('.yarnnn-fmt')) return;
     // ADR-456 W1: a toggle block's <summary> opens natively on the SECOND
     // click — the first click selects the block; once selected, the click
     // passes through so <details> can do its platform thing (script-free).
@@ -420,6 +422,22 @@ const EDIT_CSS = `
 [data-block][contenteditable="true"] [data-ref] {
   outline: 1px dashed rgba(99,102,241,0.5); cursor: default;
 }
+/* ADR-456 W2: the inline format bar — injected chrome, body-appended (never
+   inside a block, so it can never leak into a commit). */
+.yarnnn-fmt {
+  position: absolute; z-index: 9999; display: inline-flex; align-items: center;
+  gap: 2px; background: #1f2937; border-radius: 6px; padding: 3px 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.yarnnn-fmt button {
+  all: unset; cursor: pointer; color: #e5e7eb;
+  font: 600 12px/1 system-ui, sans-serif; padding: 4px 7px; border-radius: 4px;
+}
+.yarnnn-fmt button:hover { background: rgba(255,255,255,0.15); }
+.yarnnn-fmt input {
+  font: 12px system-ui, sans-serif; border: 0; border-radius: 4px;
+  padding: 4px 6px; width: 220px; outline: none;
+}
 `;
 
 const EDIT_SCRIPT = `
@@ -460,6 +478,8 @@ const EDIT_SCRIPT = `
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
     var el = editingEl;
     editingEl = null; editingId = null; // clear FIRST so any re-entry is a no-op
+    hideFmt();
+    if (el && el.__yarnnnBlur) { el.removeEventListener('blur', el.__yarnnnBlur); el.__yarnnnBlur = null; }
     if (el && el.querySelectorAll) {
       var innerNow = readSourceInner(el);
       if (innerNow) parent.postMessage({ type: 'yarnnn-edit', blockId: el.getAttribute('data-block-id'), newInner: innerNow }, '*');
@@ -487,8 +507,21 @@ const EDIT_SCRIPT = `
     var refs = el.querySelectorAll('[data-ref]');
     for (var i = 0; i < refs.length; i++) refs[i].setAttribute('contenteditable', 'false');
     el.setAttribute('contenteditable', 'true');
+    // Semantic tags from execCommand (b/i), normalized to strong/em at commit.
+    try { document.execCommand('styleWithCSS', false, 'false'); } catch (err) {}
     el.focus();
-    el.addEventListener('blur', function () { exit(true); }, { once: true });
+    // ADR-456 W2: the blur guard replaces the once-blur — focus moving INTO
+    // the format bar (the link input) must not end the edit session.
+    var onBlur = function () {
+      setTimeout(function () {
+        var a = document.activeElement;
+        if (a && a.closest && a.closest('.yarnnn-fmt')) return; // bar owns focus — stay
+        if (a === el) return; // focus bounced back (a bar action refocused)
+        exit(true);
+      }, 0);
+    };
+    el.__yarnnnBlur = onBlur;
+    el.addEventListener('blur', onBlur);
     el.addEventListener('input', function () {
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(commit, 2000); // idle-2s safety commit (D4)
@@ -502,6 +535,163 @@ const EDIT_SCRIPT = `
       }
     });
   }
+
+  // ── ADR-456 W2: the inline format bar ─────────────────────────────────
+  // Injected chrome, appended to <body> (never inside a block — commits read
+  // the block's inner, so the bar can never leak into the source). Shows on a
+  // non-collapsed selection inside the editing block. B/I ride execCommand
+  // (native toggle; b/i normalized to strong/em at the write door), code is a
+  // range wrap, link swaps the bar to a URL input (the blur guard keeps the
+  // edit session alive while it has focus).
+  var fmtBar = null, fmtBtns = null, fmtInput = null, savedRange = null;
+
+  function scheduleCommit() {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(commit, 2000);
+  }
+
+  function wrapSelection(tag) {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    var r = sel.getRangeAt(0);
+    if (r.collapsed) return;
+    var el = document.createElement(tag);
+    try { r.surroundContents(el); }
+    catch (err) { el.appendChild(r.extractContents()); r.insertNode(el); }
+    sel.removeAllRanges();
+  }
+
+  function hideFmt() {
+    if (fmtBar) fmtBar.style.display = 'none';
+    if (fmtInput) fmtInput.style.display = 'none';
+    if (fmtBtns) fmtBtns.style.display = 'inline-flex';
+  }
+
+  function openLink() {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.getRangeAt(0).collapsed) return;
+    savedRange = sel.getRangeAt(0).cloneRange();
+    fmtBtns.style.display = 'none';
+    fmtInput.style.display = 'inline-block';
+    fmtInput.value = '';
+    fmtInput.focus();
+  }
+
+  function closeLink() {
+    fmtInput.style.display = 'none';
+    fmtBtns.style.display = 'inline-flex';
+    if (editingEl) editingEl.focus();
+    if (savedRange) {
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+      savedRange = null;
+    }
+  }
+
+  function applyLink() {
+    var url = (fmtInput.value || '').trim();
+    closeLink(); // restores the saved selection + refocuses the block
+    if (!url) return;
+    document.execCommand('createLink', false, url); // javascript: stripped at the write door
+    scheduleCommit();
+  }
+
+  function applyFmt(op) {
+    if (!editingEl) return;
+    if (op === 'bold') document.execCommand('bold');
+    else if (op === 'italic') document.execCommand('italic');
+    else if (op === 'code') wrapSelection('code');
+    else if (op === 'link') { openLink(); return; }
+    scheduleCommit();
+  }
+
+  function buildFmtBar() {
+    if (fmtBar) return;
+    fmtBar = document.createElement('div');
+    fmtBar.className = 'yarnnn-fmt';
+    fmtBar.style.display = 'none';
+    fmtBtns = document.createElement('span');
+    fmtBtns.style.display = 'inline-flex';
+    fmtBtns.style.gap = '2px';
+    var defs = [['B', 'bold', 'Bold'], ['I', 'italic', 'Italic'],
+                ['<>', 'code', 'Code'], ['Link', 'link', 'Link']];
+    for (var i = 0; i < defs.length; i++) {
+      (function (d) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.textContent = d[0]; b.title = d[2];
+        if (d[1] === 'italic') b.style.fontStyle = 'italic';
+        // mousedown preventDefault keeps the selection AND the block's focus.
+        b.addEventListener('mousedown', function (e) { e.preventDefault(); });
+        b.addEventListener('click', function (e) {
+          e.preventDefault(); e.stopPropagation();
+          applyFmt(d[1]);
+        });
+        fmtBtns.appendChild(b);
+      })(defs[i]);
+    }
+    fmtInput = document.createElement('input');
+    fmtInput.type = 'text';
+    fmtInput.placeholder = 'https://… or a workspace path — Enter to apply';
+    fmtInput.style.display = 'none';
+    fmtInput.addEventListener('keydown', function (e) {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); applyLink(); }
+      else if (e.key === 'Escape') { e.preventDefault(); closeLink(); }
+    });
+    fmtBar.appendChild(fmtBtns);
+    fmtBar.appendChild(fmtInput);
+    document.body.appendChild(fmtBar);
+  }
+
+  document.addEventListener('selectionchange', function () {
+    if (!editingEl) { hideFmt(); return; }
+    if (fmtInput && fmtInput.style.display !== 'none') return; // typing a URL
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed) { hideFmt(); return; }
+    var r = sel.getRangeAt(0);
+    var anc = r.commonAncestorContainer;
+    var ancEl = anc && anc.nodeType === 1 ? anc : (anc ? anc.parentElement : null);
+    if (!ancEl || !editingEl.contains(ancEl)) { hideFmt(); return; }
+    buildFmtBar();
+    var rect = r.getBoundingClientRect();
+    if (!rect || (rect.width === 0 && rect.height === 0)) { hideFmt(); return; }
+    fmtBar.style.display = 'inline-flex';
+    fmtBar.style.left = Math.max(4, rect.left + window.scrollX) + 'px';
+    fmtBar.style.top = Math.max(4, rect.top + window.scrollY - 36) + 'px';
+  });
+
+  // ── ADR-456 W2: slash-insert ──────────────────────────────────────────
+  // '/' in an EMPTY context (an empty block, or an empty paragraph inside
+  // one) commits + exits the edit and asks the parent to open the block
+  // palette anchored at the block. A literal '/' in flowing text is untouched
+  // (the trigger never fires mid-sentence), so URLs and "and/or" still type.
+  function slashContextEmpty() {
+    if (!editingEl) return false;
+    if ((editingEl.textContent || '').trim() === '') return true;
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !sel.isCollapsed) return false;
+    var n = sel.anchorNode;
+    var p = n && n.nodeType === 1 ? n : (n ? n.parentElement : null);
+    while (p && p !== editingEl && !/^(P|LI|H1|H2|H3|H4|SUMMARY|DIV)$/.test(p.tagName)) {
+      p = p.parentElement;
+    }
+    if (!p || p === editingEl) return false;
+    return (p.textContent || '').trim() === '';
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== '/' || !editingEl) return;
+    if (fmtInput && document.activeElement === fmtInput) return;
+    if (!slashContextEmpty()) return;
+    e.preventDefault();
+    var id = editingId;
+    var rect = editingEl.getBoundingClientRect();
+    var empty = (editingEl.textContent || '').trim() === '';
+    exit(true); // commits current text + tells the parent editing ended
+    parent.postMessage({ type: 'yarnnn-slash-open', blockId: id, empty: empty,
+      rect: { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width } }, '*');
+  }, true);
 
   // ADR-447 Phase 4: DOUBLE-CLICK to edit — the natural gesture (every editor
   // since 1984), replacing the toolbar chip. A dblclick on a [data-block]
