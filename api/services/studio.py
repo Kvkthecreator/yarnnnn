@@ -306,6 +306,30 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
   </div>
 </section>""",
         },
+        # ADR-453: the two deck rows that make the media role + tone token real.
+        "picture-with-caption": {
+            "label": "Picture with caption",
+            "description": "A big cited image beside its commentary.",
+            "grain": "page",
+            "slots": [{"name": "media", "role": "media"}, {"name": "caption", "role": "flow"}],
+            "fragment": """<section class="slide" data-arrange="picture-with-caption">
+  <h2 data-block="heading" data-block-id="t1">Slide title</h2>
+  <div class="cols">
+    <div class="col" data-slot="media"></div>
+    <div class="col" data-slot="caption"><p>What this picture shows, and why it matters.</p></div>
+  </div>
+</section>""",
+        },
+        "section-header": {
+            "label": "Section header",
+            "description": "A full-tone divider slide that names the next part.",
+            "grain": "page",
+            "slots": [{"name": "heading", "role": "heading"}],
+            "fragment": """<section class="slide" data-arrange="section-header" data-tone="inverse">
+  <p class="kicker" data-block="heading" data-block-id="k1">Part</p>
+  <h1 data-block="heading" data-block-id="t1">Section title</h1>
+</section>""",
+        },
     },
     "document": {
         "title-lede": {
@@ -354,8 +378,145 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
   <div data-slot="main"></div>
 </section>""",
         },
+        "lead-image": {
+            "label": "Lead image",
+            "description": "A cited image leading into prose.",
+            "grain": "page",
+            "slots": [{"name": "media", "role": "media"}, {"name": "main", "role": "flow"}],
+            "fragment": """<section data-arrange="lead-image">
+  <div data-slot="media"></div>
+  <div data-slot="main"></div>
+</section>""",
+        },
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Property tokens (ADR-453 D1) — the third annotation family. Tokens, not
+# pixels: a token is a `data-*` attribute whose values are a small named set,
+# interpreted by the kernel CSS below and THEMED by the design system's custom
+# properties (ADR-449) — never raw geometry, never raw color. Absence is the
+# default (clearing a token removes the attribute; un-tokened artifacts stay
+# valid — grammar, not schema). One registry serves the Design tab's segmented
+# controls AND the lane's posture (R4: one grammar for both hands).
+#
+# `applies` vocabulary (the FE gates controls by it):
+#   block         — any [data-block]
+#   media         — media blocks only (MEDIA_BLOCK_KINDS)
+#   page          — any [data-arrange] page/slide
+#   page-multicol — pages whose arrangement has ≥2 flow slots
+#   page-deck     — deck slides only
+# ---------------------------------------------------------------------------
+
+#: Block kinds the media-grain tokens (height/fit) apply to.
+MEDIA_BLOCK_KINDS = {"figure", "chart"}
+
+STUDIO_TOKENS: dict[str, dict] = {
+    "align": {
+        "label": "Align",
+        "applies": ["block"],
+        "values": [
+            {"value": "start", "label": "Left"},
+            {"value": "center", "label": "Center"},
+            {"value": "end", "label": "Right"},
+        ],
+        "description": "content alignment within the block's region",
+    },
+    "tone": {
+        "label": "Tone",
+        "applies": ["block", "page"],
+        "values": [
+            {"value": "accent", "label": "Accent"},
+            {"value": "muted", "label": "Muted"},
+            {"value": "inverse", "label": "Inverse"},
+        ],
+        "description": "emphasis via the palette variables — never raw color",
+    },
+    "height": {
+        "label": "Height",
+        "applies": ["media"],
+        "values": [
+            {"value": "s", "label": "Small"},
+            {"value": "m", "label": "Medium"},
+            {"value": "l", "label": "Large"},
+        ],
+        "description": "image height preset on a figure/chart block",
+    },
+    "fit": {
+        "label": "Fit",
+        "applies": ["media"],
+        "values": [
+            {"value": "cover", "label": "Fill"},
+            {"value": "contain", "label": "Fit"},
+        ],
+        "description": "how the image fills its box",
+    },
+    "ratio": {
+        "label": "Columns",
+        "applies": ["page-multicol"],
+        "values": [
+            {"value": "2-1", "label": "Wide left"},
+            {"value": "1-2", "label": "Wide right"},
+        ],
+        "description": "column weighting on a multi-column page (absence = even)",
+    },
+    "valign": {
+        "label": "Vertical align",
+        "applies": ["page-deck"],
+        "values": [
+            {"value": "start", "label": "Top"},
+            {"value": "end", "label": "Bottom"},
+        ],
+        "description": "where the slide's content sits (absence = centered)",
+    },
+}
+
+#: The kernel CSS that interprets tokens — carried by every artifact in the
+#: MARKED, VERSIONED kernel style element (D2). Themed through the same
+#: custom properties the layouts declare and a design system may override
+#: (cascade: unmarked layout style < data-kernel < data-skin).
+STUDIO_KERNEL_CSS = """
+/* Property tokens (ADR-453) — interpreted here, themed by custom properties. */
+[data-align="center"] { text-align: center; }
+[data-align="center"] img { margin-inline: auto; }
+[data-align="end"] { text-align: right; }
+[data-align="end"] img { margin-inline-start: auto; }
+[data-tone="accent"] { color: var(--accent, #b4540a); }
+[data-tone="muted"] { color: var(--muted, #6b6b6b); }
+[data-block][data-tone="inverse"] { background: var(--ink, #1a1a1a);
+  color: var(--paper, #fdfcfa); padding: 1rem 1.25rem; border-radius: 6px; }
+.slide[data-tone="accent"], [data-arrange][data-tone="accent"] {
+  background: var(--accent, #b4540a); color: var(--paper, #fdfcfa); }
+.slide[data-tone="inverse"], [data-arrange][data-tone="inverse"] {
+  background: var(--ink, #1a1a1a); color: var(--paper, #fdfcfa); }
+.slide[data-tone] .kicker { color: inherit; opacity: 0.75; }
+[data-height="s"] img { max-height: 10rem; }
+[data-height="m"] img { max-height: 16rem; }
+[data-height="l"] img { max-height: 28rem; }
+[data-fit="cover"] img { width: 100%; object-fit: cover; }
+[data-fit="contain"] img { object-fit: contain; }
+[data-ratio="2-1"] .cols .col:first-child { flex: 2; }
+[data-ratio="1-2"] .cols .col:last-child { flex: 2; }
+.slide[data-valign="start"] { justify-content: flex-start; }
+.slide[data-valign="end"] { justify-content: flex-end; }
+""".strip("\n")
+
+#: Bump when STUDIO_KERNEL_CSS changes shape — the FE upserts any artifact
+#: carrying an older data-kernel-v on its next mechanical op (the retrofit).
+STUDIO_KERNEL_CSS_VERSION = 1
+
+
+def compose_kernel_style_element() -> str:
+    """The marked kernel style element (ADR-453 D2) — baked into skeletons,
+    upserted by the FE ops. Like data-skin (ADR-449): marked so switches
+    replace only the UNMARKED layout style; versioned so old artifacts
+    retrofit on first touch."""
+    return (
+        f'<style data-kernel="true" data-kernel-v="{STUDIO_KERNEL_CSS_VERSION}">\n'
+        f"{STUDIO_KERNEL_CSS}\n"
+        f"</style>"
+    )
 
 
 def build_skeleton(layout: str) -> str:
@@ -376,6 +537,7 @@ def build_skeleton(layout: str) -> str:
 {_SHARED_CSS}
 {lay['skin']}
 </style>
+{compose_kernel_style_element()}
 </head>
 <body>
 {lay['scaffold']}
@@ -422,6 +584,15 @@ def _arrangements_grammar(template: str) -> str:
     )
 
 
+def _tokens_grammar() -> str:
+    """The property-token roster (ADR-453) — one line per family, derived from
+    the registry so the posture and the Design tab never drift."""
+    return "\n".join(
+        f'  - data-{key}="' + "|".join(v["value"] for v in t["values"]) + f'" — {t["description"]}'
+        for key, t in STUDIO_TOKENS.items()
+    )
+
+
 _POSTURE_FRAME = """
 ## Studio: you are authoring one artifact
 This lane is bound to `{path}` (layout: {template}). Your job is to author
@@ -460,9 +631,12 @@ slide title. Kinds:
 ## Layout
 This artifact's layout is {template}: {flow}
 When the member asks to change the layout: preserve every block and its
-data-block-id, replace the <style> skin and the flow structure per the
-target layout's grammar, and update data-template on the root. A layout
-change is an ordinary edit — versioned and revertible like any other.
+data-block-id, replace the UNMARKED <style> skin and the flow structure per
+the target layout's grammar, and update data-template on the root. The MARKED
+style elements — <style data-kernel="true"> (kernel token CSS) and
+<style data-skin="true"> (the workspace's design system) — are not the layout
+skin: never edit or remove them; they survive every switch. A layout change is
+an ordinary edit — versioned and revertible like any other.
 
 ## Arrangements (where content goes on a page/section)
 Each page or section carries an ARRANGEMENT — data-arrange="<slug>" on the
@@ -477,6 +651,17 @@ member also re-arranges directly with the toolbar; treat the current
 arrangement as truth and re-read before editing. Arrangements for this
 layout:
 {arrangements_grammar}
+
+## Property tokens (placement + emphasis — tokens, never raw style)
+Blocks and pages may carry property TOKENS — data-* attributes with small
+named value sets, styled by the marked <style data-kernel="true"> element and
+themed by the design system's custom properties. Absence is the default: set a
+token by adding the attribute, clear it by removing the attribute. Never use
+inline style="" or raw colors for placement/emphasis — the token IS the edit.
+The member also sets tokens from the Design tab; preserve tokens you didn't
+touch, and set them yourself when asked in plain words ("center that", "make
+the image smaller", "make this slide a dark divider"). Families:
+{tokens_grammar}
 
 ## Citing workspace objects (references, never copies)
 - Embed a workspace file by REFERENCE, resolved live at render time:
@@ -547,5 +732,6 @@ def build_studio_posture(artifact_path: str, artifact_content: str) -> str:
         outline_section=outline_section,
         blocks_grammar=_blocks_grammar(),
         arrangements_grammar=_arrangements_grammar(template),
+        tokens_grammar=_tokens_grammar(),
         flow=layout["flow"],
     )

@@ -1,30 +1,32 @@
 'use client';
 
 /**
- * StudioToolbar (file keeps its historical name) — the EXECUTING toolbar
- * (ADR-444, superseding the v1.1 prompt-prefill strip).
+ * StudioToolbar — the DOCUMENT-grain toolbar (ADR-444 executing toolbar,
+ * grain-realigned by ADR-453 D3; renamed from StudioInsertMenu).
  *
- * Buttons here EXECUTE deterministic structural operations at the canvas
- * selection — the PowerPoint/Notion model: Add → a real block lands in the
- * document; pick an image → a cited figure block is INSERTED; Slide → add a
- * slide from a container layout or re-lay the SELECTED slide (slide master).
- * Each execution is one operator-attributed, CAS-guarded revision through
- * the Studio's mechanical write door — no LLM, no prompt.
+ * Verbs, in operator words:
+ *  - Insert ▾            — block-grain content units into the current
+ *                          flow/slot (the former "Add", honestly named).
+ *  - New slide/section ▾ — the page-grain structural act, first-class: an
+ *                          arrangement GALLERY with derived wireframe
+ *                          thumbnails (ADR-447 D7.1 lands here).
+ *  - a minimal selection chip — identity + clear (the acknowledgment; the
+ *                          selection's VERBS live in the Design tab).
  *
- * The ONE exception: Chart still asks the lane (authoring an SVG is
- * generative judgment, not a deterministic op).
- *
- * Renders from the served kernel vocabulary (GET /studio/vocabulary) — the
- * same source the lane's posture teaches from (ADR-443 R4).
+ * "Re-arrange" (change THIS page's arrangement) is selection-scoped and lives
+ * in the Design tab's page scope (ADR-453 D4) — the old mixed-grain
+ * "Arrange ▾" menu is deleted. Every button EXECUTES a deterministic op
+ * through the one mechanical write door; Chart stays the one generative ask
+ * (seeds the lane).
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, LayoutGrid, Loader2, MessageSquare, Plus, X } from 'lucide-react';
+import { ChevronDown, LayoutGrid, Loader2, Plus, X } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { ArrangementThumb } from './ArrangementThumb';
 
-/** An arrangement (ADR-447) — the composition shape of a page/slide. `grain`
- *  is 'page' in v1; `slots` carry the composition shape the FE will derive a
- *  wireframe thumbnail from (phase 2). */
+/** An arrangement (ADR-447) — the composition shape of a page/slide. `slots`
+ *  carry {name, role}; role gates what can land in a slot (ADR-453 D5). */
 export interface StudioArrangement {
   slug: string;
   label: string;
@@ -34,16 +36,36 @@ export interface StudioArrangement {
   fragment: string;
 }
 
+/** A property token family (ADR-453 D1) — tokens, not pixels. */
+export interface StudioToken {
+  key: string;
+  label: string;
+  applies: string[];
+  values: Array<{ value: string; label: string }>;
+  description: string;
+}
+
 export interface StudioVocabulary {
   blocks: Array<{ kind: string; label: string; description: string; group: string; fragment: string }>;
   layouts: Array<{ slug: string; label: string; description: string }>;
   arrangements: Record<string, StudioArrangement[]>;
+  tokens: StudioToken[];
+  media_kinds: string[];
+  kernel_css_version: number;
+  kernel_style_element: string;
+  design_systems: Array<{ name: string; manifest_path: string; folder: string; css: string[] }>;
 }
 
+/** The canvas selection (ADR-444/446, slot + page grains added by ADR-453):
+ *  blockId set → block grain; slot set (no block) → slot grain; otherwise a
+ *  page grain when slideIndex/pageIndex is known. */
 export interface StudioSelection {
   blockId: string | null;
   blockKind: string | null;
   slideIndex: number | null;
+  pageIndex: number | null;
+  slot: string | null;
+  arrange: string | null;
   text: string;
 }
 
@@ -77,18 +99,13 @@ interface StudioToolbarProps {
   onInsertBlock: (fragment: string, label: string) => void;
   /** EXECUTE: insert a cited block (figure/table) for a picked workspace file. */
   onInsertCited: (kind: 'figure' | 'table', path: string) => void;
-  /** ADR-447 EXECUTE: add an arrangement (a slide / a section) after the selection. */
+  /** EXECUTE: add a new page (slide/section) from the gallery. */
   onAddArrangement: (fragment: string, label: string) => void;
-  /** ADR-447 EXECUTE: re-lay the SELECTED page/slide to an arrangement. */
-  onApplyArrangement: (fragment: string, label: string) => void;
   /** The one generative ask (Chart) — seeds the lane. */
   onSeed: (text: string) => void;
-  /** ADR-446: bring the selection to the lane, one seed on purpose (replaces
-   *  the auto-seed spam). */
-  onAskAboutSelection: () => void;
 }
 
-export function StudioInsertMenu({
+export function StudioToolbar({
   vocabulary,
   layout,
   selection,
@@ -96,14 +113,12 @@ export function StudioInsertMenu({
   onInsertBlock,
   onInsertCited,
   onAddArrangement,
-  onApplyArrangement,
   onSeed,
-  onAskAboutSelection,
 }: StudioToolbarProps) {
-  // ADR-447: a deck's arrangement is a "slide"; a document/article's is a
+  // ADR-447/453: a deck's page is a "slide"; a document/article's is a
   // "section" — the operator word follows the layout.
-  const arrangeNoun = layout === 'deck' ? 'slide' : 'section';
-  const [open, setOpen] = useState<null | 'add' | 'arrange' | 'image' | 'table'>(null);
+  const pageNoun = layout === 'deck' ? 'slide' : 'section';
+  const [open, setOpen] = useState<null | 'insert' | 'new' | 'image' | 'table'>(null);
   const [citable, setCitable] = useState<Citable | null>(null);
   const [loadingCitable, setLoadingCitable] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -130,9 +145,6 @@ export function StudioInsertMenu({
   }, [open]);
 
   const blocks = vocabulary?.blocks ?? [];
-  // ADR-447: arrangements are per-layout and exist for every type (not deck
-  // only). The "Arrange" menu renders these; a deck arrangement is a slide, a
-  // document/article arrangement is a section.
   const arrangements = vocabulary?.arrangements?.[layout] ?? [];
   const grouped = blocks.reduce<Record<string, typeof blocks>>((acc, b) => {
     (acc[b.group] = acc[b.group] ?? []).push(b);
@@ -160,44 +172,31 @@ export function StudioInsertMenu({
 
   return (
     <div ref={rootRef} className="relative flex items-center gap-1 border-b border-border px-2 py-1.5">
-      <button type="button" className={btn} onClick={() => setOpen(open === 'add' ? null : 'add')}>
-        <Plus className="h-3 w-3" /> Add <ChevronDown className="h-3 w-3" />
+      <button type="button" className={btn} onClick={() => setOpen(open === 'insert' ? null : 'insert')}>
+        <Plus className="h-3 w-3" /> Insert <ChevronDown className="h-3 w-3" />
       </button>
       {arrangements.length > 0 && (
-        <button type="button" className={btn} onClick={() => setOpen(open === 'arrange' ? null : 'arrange')}>
-          <LayoutGrid className="h-3 w-3" /> Arrange <ChevronDown className="h-3 w-3" />
+        <button type="button" className={btn} onClick={() => setOpen(open === 'new' ? null : 'new')}>
+          <LayoutGrid className="h-3 w-3" /> New {pageNoun} <ChevronDown className="h-3 w-3" />
         </button>
       )}
 
-      {/* The selection chip + its verbs (ADR-446). Selecting a block no longer
-          seeds the chat automatically; the member acts on the selection here:
-          Edit (type in place) · Ask (bring it to the lane, one seed on
-          purpose). The chip is what the next Add/Slide op anchors to. */}
+      {/* The minimal selection chip (ADR-453 D3): identity + clear. It is the
+          acknowledgment and the anchor indicator — the selection's VERBS and
+          properties live in the Design tab. */}
       {selection && (
         <div className="ml-auto flex min-w-0 items-center gap-1">
-          {/* ADR-447 Phase 4: no Edit button — DOUBLE-CLICK a block on the
-              canvas to edit its text in place (the natural gesture). The chip
-              anchors Add/Arrange ops + the explicit "Ask about this". */}
-          {selection.blockId && (
-            <span className="text-[10px] text-muted-foreground/70" title="Double-click the block on the canvas to edit its text">
-              double-click to edit
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={onAskAboutSelection}
-            title="Ask the chat about this selection"
-            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
-          >
-            <MessageSquare className="h-3 w-3" /> Ask about this
-          </button>
           <span className="inline-flex min-w-0 items-center gap-1 rounded-full border border-indigo-300/60 bg-indigo-50/60 px-2 py-0.5 text-[10px] text-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200">
             <span className="truncate">
               {selection.blockKind
                 ? `${selection.blockKind}${selection.blockId ? ` · ${selection.blockId}` : ''}`
-                : selection.slideIndex != null
-                  ? `slide ${selection.slideIndex + 1}`
-                  : 'selection'}
+                : selection.slot
+                  ? `slot · ${selection.slot}`
+                  : selection.slideIndex != null
+                    ? `slide ${selection.slideIndex + 1}`
+                    : selection.pageIndex != null
+                      ? `${pageNoun} ${selection.pageIndex + 1}`
+                      : 'selection'}
             </span>
             <button type="button" onClick={onClearSelection} aria-label="Clear selection">
               <X className="h-3 w-3" />
@@ -206,7 +205,7 @@ export function StudioInsertMenu({
         </div>
       )}
 
-      {open === 'add' && (
+      {open === 'insert' && (
         <div className={panel}>
           {!vocabulary && (
             <div className="flex items-center justify-center gap-2 p-3 text-xs text-muted-foreground">
@@ -234,43 +233,29 @@ export function StudioInsertMenu({
         </div>
       )}
 
-      {open === 'arrange' && (
+      {/* The New ‹slide|section› gallery — arrangement wireframes (D7.1). */}
+      {open === 'new' && (
         <div className={panel}>
-          <p className="px-2 pb-0.5 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Add {arrangeNoun}
+          <p className="px-2 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            New {pageNoun}
           </p>
-          {arrangements.map((a) => (
-            <button
-              key={`add-${a.slug}`}
-              type="button"
-              onClick={() => {
-                onAddArrangement(a.fragment, a.label);
-                setOpen(null);
-              }}
-              className="flex w-full flex-col rounded px-2 py-1.5 text-left hover:bg-muted/40"
-            >
-              <span className="text-xs">{a.label}</span>
-              <span className="text-[10px] leading-snug text-muted-foreground">{a.description}</span>
-            </button>
-          ))}
-          <p className="px-2 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Change selected {arrangeNoun} to
-          </p>
-          {arrangements.map((a) => (
-            <button
-              key={`lay-${a.slug}`}
-              type="button"
-              disabled={!selection}
-              title={selection ? undefined : `Select a ${arrangeNoun} first`}
-              onClick={() => {
-                onApplyArrangement(a.fragment, a.label);
-                setOpen(null);
-              }}
-              className="flex w-full flex-col rounded px-2 py-1.5 text-left hover:bg-muted/40 disabled:opacity-40"
-            >
-              <span className="text-xs">{a.label}</span>
-            </button>
-          ))}
+          <div className="grid grid-cols-2 gap-1.5 p-1">
+            {arrangements.map((a) => (
+              <button
+                key={a.slug}
+                type="button"
+                onClick={() => {
+                  onAddArrangement(a.fragment, a.label);
+                  setOpen(null);
+                }}
+                title={a.description}
+                className="flex flex-col gap-1 rounded-md border border-transparent p-1.5 text-left hover:border-border hover:bg-muted/20"
+              >
+                <ArrangementThumb slots={a.slots} fragment={a.fragment} />
+                <span className="truncate text-[11px]">{a.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

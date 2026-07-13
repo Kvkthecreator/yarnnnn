@@ -78,16 +78,43 @@ async def list_artifacts(auth: UserClient) -> dict:
 
 @router.get("/studio/vocabulary")
 async def get_vocabulary(auth: UserClient) -> dict:
-    """The block + layout + arrangement registries (ADR-443 R4/D5 + ADR-447) —
-    the ONE kernel-seeded grammar, served so the FE palette, layout switcher,
-    and the Arrange menu render (and EXECUTE) from the same source the posture
-    teaches from. `fragment` is the deterministic insertion payload — the FE
-    stamps a fresh data-block-id and writes. `grain`/`slots` carry the
-    arrangement's composition shape (the FE derives a wireframe thumbnail from
-    them — ADR-447 D7.1). Grammar, not schema."""
-    from services.studio import STUDIO_ARRANGEMENTS, STUDIO_BLOCKS, STUDIO_LAYOUTS
+    """The block + layout + arrangement + TOKEN registries (ADR-443 R4/D5 +
+    ADR-447 + ADR-453) — the ONE kernel-seeded grammar, served so the FE
+    palette, the New/Re-arrange galleries, and the Design tab render (and
+    EXECUTE) from the same source the posture teaches from. `fragment` is the
+    deterministic insertion payload — the FE stamps a fresh data-block-id and
+    writes. `grain`/`slots` carry the arrangement's composition shape (the FE
+    derives a wireframe thumbnail from them — ADR-447 D7.1; slot `role` gates
+    what can land in a slot — ADR-453 D5). `tokens` + `kernel_style_element`
+    carry the property layer (the FE upserts the marked element on token ops —
+    the ADR-453 D2 retrofit). `design_systems` is ADR-449 discovery (the
+    Design tab's document scope). Grammar, not schema."""
+    from services.design_systems import find_design_systems
+    from services.studio import (
+        MEDIA_BLOCK_KINDS,
+        STUDIO_ARRANGEMENTS,
+        STUDIO_BLOCKS,
+        STUDIO_KERNEL_CSS_VERSION,
+        STUDIO_LAYOUTS,
+        STUDIO_TOKENS,
+        compose_kernel_style_element,
+    )
 
     return {
+        "tokens": [
+            {
+                "key": k,
+                "label": t["label"],
+                "applies": t["applies"],
+                "values": t["values"],
+                "description": t["description"],
+            }
+            for k, t in STUDIO_TOKENS.items()
+        ],
+        "media_kinds": sorted(MEDIA_BLOCK_KINDS),
+        "kernel_css_version": STUDIO_KERNEL_CSS_VERSION,
+        "kernel_style_element": compose_kernel_style_element(),
+        "design_systems": find_design_systems(auth.client, auth.user_id),
         "blocks": [
             {
                 "kind": k,
@@ -116,6 +143,24 @@ async def get_vocabulary(auth: UserClient) -> dict:
             ]
             for layout, arrangements in STUDIO_ARRANGEMENTS.items()
         },
+    }
+
+
+@router.get("/studio/design-systems/resolve")
+async def resolve_design_system_route(manifest: str, auth: UserClient) -> dict:
+    """Resolve one design system to its composed, MARKED skin element
+    (ADR-449 D2 via ADR-453 D4 — the Design tab's Apply). The FE lands it
+    through the one mechanical write door (`applySkin`, the FE mirror of
+    `apply_skin_to_html`); this endpoint only composes — it never writes."""
+    from services.design_systems import compose_skin_element, resolve_design_system
+
+    ds = resolve_design_system(auth.client, auth.user_id, manifest)
+    if not ds:
+        raise HTTPException(status_code=404, detail=f"Not a design system: {manifest}")
+    return {
+        "name": ds["name"],
+        "manifest_path": ds["manifest_path"],
+        "skin_element": compose_skin_element(ds["manifest_path"], ds["css_text"]),
     }
 
 

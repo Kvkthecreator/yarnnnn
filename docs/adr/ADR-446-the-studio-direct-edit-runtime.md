@@ -1,5 +1,9 @@
 # ADR-446 — The Studio direct-edit runtime: editing the projection, writing the source
 
+> **Amended by ADR-453** (2026-07-13): D6's deferred "style/geometry tweaks (the tweak-inspector,
+> now properly block-grained)" ARRIVES — as property tokens in the Design tab's block/page scopes
+> (tokens-not-pixels; the free-geometry variant stays refused).
+
 > **Status**: **Accepted** (2026-07-12, operator-commissioned as a full re-approach of the
 > selection→chat-seed model). The operator's verdict: the seed-the-chat model is "only partially
 > right… we need to think closer to a webpage editor like Wix — select and edit ON SCREEN, IN

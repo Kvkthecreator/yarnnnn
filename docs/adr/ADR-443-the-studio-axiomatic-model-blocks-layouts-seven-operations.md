@@ -1,5 +1,10 @@
 # ADR-443 — The Studio axiomatic model: blocks, layouts, and the seven operations
 
+> **Amended by ADR-453** (2026-07-13): the model gains the **property-token annotation family**
+> (`data-align`/`data-tone`/`data-height`/`data-fit`/`data-ratio`/`data-valign` — tokens, not
+> pixels) and a second MARKED head element, `<style data-kernel="true">` (versioned kernel token
+> CSS, self-retrofitting), joining ADR-449's `data-skin` in the switch-survival rule.
+
 > **Status**: **Accepted** (2026-07-12, operator-ratified; full-scope implementation delegated same-day). Ratifies the operator's six-axiom design philosophy for the Studio (HTML-native · component-native · layout-native · AI-native · format-agnostic · interoperable) **with the R1–R5 refinements** from the part-4 analysis, closes the universal feature set at **seven operations**, and flips the build sequence: the block/layout model lands **before** v1.2 tweak-gestures. Derivation: `docs/analysis/the-studio-axiomatic-model-components-and-layouts-2026-07-12.md` (part 4 of the probe series). Living design doc: `docs/design/STUDIO.md`.
 
 **Date**: 2026-07-12

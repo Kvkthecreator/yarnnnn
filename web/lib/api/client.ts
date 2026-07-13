@@ -295,11 +295,13 @@ export const api = {
         images: Array<{ path: string; updated_at: string | null }>;
         tables: Array<{ path: string; updated_at: string | null }>;
       }>("/api/studio/citable"),
-    // ADR-443 R4 + ADR-444 + ADR-447: the ONE kernel vocabulary (blocks +
-    // layouts + arrangements) — palette, layout switcher, and the Arrange menu
-    // render AND EXECUTE from the same source the posture teaches from.
-    // `fragment` is the deterministic insertion payload; `grain`/`slots` carry
-    // the arrangement's composition shape (the FE derives a thumbnail from them).
+    // ADR-443 R4 + ADR-444 + ADR-447 + ADR-453: the ONE kernel vocabulary
+    // (blocks + layouts + arrangements + property TOKENS + the marked kernel
+    // style element + design-system discovery) — palette, galleries, and the
+    // Design tab render AND EXECUTE from the same source the posture teaches
+    // from. `fragment` is the deterministic insertion payload; `grain`/`slots`
+    // carry the arrangement's composition shape (thumbnails derive from them;
+    // slot `role` gates what can land in a slot).
     vocabulary: () =>
       request<{
         blocks: Array<{ kind: string; label: string; description: string; group: string; fragment: string }>;
@@ -315,7 +317,25 @@ export const api = {
             fragment: string;
           }>
         >;
+        tokens: Array<{
+          key: string;
+          label: string;
+          applies: string[];
+          values: Array<{ value: string; label: string }>;
+          description: string;
+        }>;
+        media_kinds: string[];
+        kernel_css_version: number;
+        kernel_style_element: string;
+        design_systems: Array<{ name: string; manifest_path: string; folder: string; css: string[] }>;
       }>("/api/studio/vocabulary"),
+    // ADR-453 D4 (the Design tab's Apply): compose one design system's MARKED
+    // skin element server-side (ADR-449 contract); the FE lands it through the
+    // mechanical write door (applySkin) — the endpoint never writes.
+    resolveDesignSystem: (manifestPath: string) =>
+      request<{ name: string; manifest_path: string; skin_element: string }>(
+        `/api/studio/design-systems/resolve?manifest=${encodeURIComponent(manifestPath)}`,
+      ),
     // ADR-444/447: the mechanical write door — deterministic structural ops
     // (insert block / add arrangement / re-arrange) computed FE-side, landed
     // as ONE operator-attributed CAS-guarded revision (409 on a stale base).

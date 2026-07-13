@@ -67,18 +67,25 @@ export interface OpResult {
   landedId: string | null;
 }
 
-/** Where an operation anchors: the selected block and/or the selected slide
- *  (title slides carry no blocks, so slide ops need the index too). */
+/** Where an operation anchors: the selected block, the selected slide (deck),
+ *  and/or the selected page index (ADR-453 — index into the document-order
+ *  `section.slide, [data-arrange]` set, so document/article sections anchor
+ *  page ops too; the canvas runtime posts the same index). */
 export interface OpAnchor {
   blockId?: string | null;
   slideIndex?: number | null;
+  pageIndex?: number | null;
 }
+
+/** The selector that names a PAGE (a deck slide or an arranged section) —
+ *  must match the canvas runtime's pageSel so indices agree. */
+const PAGE_SEL = 'section.slide, [data-arrange]';
 
 /** The page-grain arrangement element enclosing the anchor (ADR-447). A
  *  deck slide (`section.slide[data-arrange]`) and a document/article section
  *  (`section[data-arrange]`) are both `[data-arrange]` — so this finds either.
  *  `slideIndex` (the pointer's enclosing-slide index) still resolves a deck
- *  slide with no block (a title slide). */
+ *  slide with no block (a title slide); `pageIndex` resolves any page. */
 function arrangedPageAt(doc: Document, anchor: OpAnchor): Element | null {
   if (anchor.blockId) {
     const viaBlock = doc
@@ -89,6 +96,10 @@ function arrangedPageAt(doc: Document, anchor: OpAnchor): Element | null {
   const slides = doc.querySelectorAll('section.slide');
   if (anchor.slideIndex != null && slides[anchor.slideIndex]) {
     return slides[anchor.slideIndex];
+  }
+  const pages = doc.querySelectorAll(PAGE_SEL);
+  if (anchor.pageIndex != null && pages[anchor.pageIndex]) {
+    return pages[anchor.pageIndex];
   }
   return null;
 }
@@ -126,6 +137,7 @@ export function insertBlockInSlot(
   fragment: string,
   slot: string,
   slideIndex: number | null,
+  pageIndex?: number | null,
 ): OpResult | null {
   const doc = parse(html);
   const el = materializeFragment(doc, fragment);
@@ -133,7 +145,9 @@ export function insertBlockInSlot(
   const scope =
     slideIndex != null
       ? (doc.querySelectorAll('section.slide')[slideIndex] ?? doc)
-      : doc;
+      : pageIndex != null
+        ? (doc.querySelectorAll(PAGE_SEL)[pageIndex] ?? doc)
+        : doc;
   const target =
     (scope as ParentNode).querySelector?.(`[data-slot="${CSS.escape(slot)}"]`) ?? null;
   if (!target) return null;
@@ -148,6 +162,7 @@ export function insertArrangement(
   html: string,
   fragment: string,
   anchor: OpAnchor,
+  kernelStyleElement?: string,
 ): OpResult | null {
   const doc = parse(html);
   const el = materializeFragment(doc, fragment);
@@ -156,6 +171,7 @@ export function insertArrangement(
   const after = arrangedPageAt(doc, anchor) ?? (pages.length ? pages[pages.length - 1] : null);
   if (after?.parentElement) after.insertAdjacentElement('afterend', el);
   else (doc.querySelector('main') ?? doc.querySelector('article') ?? doc.body).appendChild(el);
+  ensureKernelStyle(doc, kernelStyleElement); // fragments may carry tokens (ADR-453)
   return { html: serialize(doc), landedId: el.getAttribute('data-arrange') };
 }
 
@@ -202,6 +218,165 @@ export function editBlockText(
   return { html: serialize(doc), landedId: blockId };
 }
 
+// ── ADR-453: the property layer + the mechanical verb completion ──────────
+//
+// Tokens, not pixels: a property edit sets/clears a data-* attribute whose
+// values are a small named set (align/tone/height/fit/ratio/valign), styled
+// by the MARKED kernel style element (<style data-kernel="true">). Any token
+// op ENSURES that element exists at the served version — the retrofit path
+// for artifacts created before the property layer (ADR-453 D2). And the
+// editor's missing mechanical basics — delete/duplicate/move at block and
+// page grain, apply/remove a design system's skin — land here as the same
+// pure transforms through the same door.
+
+/** Upsert the marked kernel style element (ADR-453 D2). Inserted after the
+ *  unmarked layout style, BEFORE any data-skin element (cascade: layout <
+ *  kernel < skin); replaced in place when an older data-kernel-v is found. */
+function ensureKernelStyle(doc: Document, kernelStyleElement: string | undefined): void {
+  if (!kernelStyleElement) return;
+  const tpl = doc.createElement('template');
+  tpl.innerHTML = kernelStyleElement.trim();
+  const fresh = tpl.content.firstElementChild;
+  if (!fresh || !fresh.hasAttribute('data-kernel')) return;
+  const head = doc.querySelector('head');
+  if (!head) return;
+  const existing = head.querySelector('style[data-kernel]');
+  if (existing) {
+    const curV = parseInt(existing.getAttribute('data-kernel-v') ?? '0', 10);
+    const newV = parseInt(fresh.getAttribute('data-kernel-v') ?? '0', 10);
+    if (curV < newV) existing.replaceWith(doc.importNode(fresh, true));
+    return;
+  }
+  const skin = head.querySelector('style[data-skin]');
+  if (skin) head.insertBefore(doc.importNode(fresh, true), skin);
+  else head.appendChild(doc.importNode(fresh, true));
+}
+
+/** Set (value) or clear (null) a property token on the selected block or page
+ *  (ADR-453 D1). Absence is the default — the default value is never written.
+ *  A byte-identical set is a no-op (null → no revision). */
+export function setToken(
+  html: string,
+  target: { grain: 'block' | 'page'; anchor: OpAnchor },
+  key: string,
+  value: string | null,
+  kernelStyleElement?: string,
+): OpResult | null {
+  if (!/^[a-z-]+$/.test(key)) return null; // token keys are kernel-named
+  const doc = parse(html);
+  const el =
+    target.grain === 'block' && target.anchor.blockId
+      ? doc.querySelector(`[data-block-id="${CSS.escape(target.anchor.blockId)}"]`)
+      : arrangedPageAt(doc, target.anchor);
+  if (!el) return null;
+  const attr = `data-${key}`;
+  const current = el.getAttribute(attr);
+  if ((current ?? null) === (value ?? null)) return null; // no-op — no revision
+  if (value == null) el.removeAttribute(attr);
+  else el.setAttribute(attr, value);
+  ensureKernelStyle(doc, kernelStyleElement);
+  return { html: serialize(doc), landedId: el.getAttribute('data-block-id') };
+}
+
+/** Delete the selected block (the missing mechanical basic — a member should
+ *  never need a metered judgment turn to remove a block). */
+export function deleteBlock(html: string, blockId: string): OpResult | null {
+  const doc = parse(html);
+  const block = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+  if (!block) return null;
+  block.remove();
+  return { html: serialize(doc), landedId: null };
+}
+
+/** Duplicate the selected block in place (fresh ids on the copy). */
+export function duplicateBlock(html: string, blockId: string): OpResult | null {
+  const doc = parse(html);
+  const block = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+  if (!block) return null;
+  const copy = materializeFragment(doc, block.outerHTML);
+  if (!copy) return null;
+  block.insertAdjacentElement('afterend', copy);
+  return { html: serialize(doc), landedId: copy.getAttribute('data-block-id') };
+}
+
+/** Move the selected block up/down among its sibling blocks (same parent —
+ *  slot-crossing moves are the drag fast-follow). */
+export function moveBlock(html: string, blockId: string, dir: 'up' | 'down'): OpResult | null {
+  const doc = parse(html);
+  const block = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+  if (!block?.parentElement) return null;
+  let sib: Element | null = dir === 'up' ? block.previousElementSibling : block.nextElementSibling;
+  while (sib && !sib.hasAttribute('data-block')) {
+    sib = dir === 'up' ? sib.previousElementSibling : sib.nextElementSibling;
+  }
+  if (!sib) return null;
+  if (dir === 'up') sib.insertAdjacentElement('beforebegin', block);
+  else sib.insertAdjacentElement('afterend', block);
+  return { html: serialize(doc), landedId: blockId };
+}
+
+/** Delete the selected page (slide/section). */
+export function deletePage(html: string, anchor: OpAnchor): OpResult | null {
+  const doc = parse(html);
+  const page = arrangedPageAt(doc, anchor);
+  if (!page) return null;
+  page.remove();
+  return { html: serialize(doc), landedId: null };
+}
+
+/** Duplicate the selected page in place (fresh block ids throughout). */
+export function duplicatePage(html: string, anchor: OpAnchor): OpResult | null {
+  const doc = parse(html);
+  const page = arrangedPageAt(doc, anchor);
+  if (!page) return null;
+  const copy = materializeFragment(doc, page.outerHTML);
+  if (!copy) return null;
+  page.insertAdjacentElement('afterend', copy);
+  return { html: serialize(doc), landedId: copy.getAttribute('data-arrange') };
+}
+
+/** Move the selected page up/down among its sibling pages. */
+export function movePage(html: string, anchor: OpAnchor, dir: 'up' | 'down'): OpResult | null {
+  const doc = parse(html);
+  const page = arrangedPageAt(doc, anchor);
+  if (!page?.parentElement) return null;
+  let sib: Element | null = dir === 'up' ? page.previousElementSibling : page.nextElementSibling;
+  while (sib && !sib.matches(PAGE_SEL)) {
+    sib = dir === 'up' ? sib.previousElementSibling : sib.nextElementSibling;
+  }
+  if (!sib) return null;
+  if (dir === 'up') sib.insertAdjacentElement('beforebegin', page);
+  else sib.insertAdjacentElement('afterend', page);
+  return { html: serialize(doc), landedId: page.getAttribute('data-arrange') };
+}
+
+/** Apply a design system's composed, MARKED skin element (ADR-449 via the
+ *  Design tab — the FE mirror of apply_skin_to_html): replace the existing
+ *  data-skin element, else append LAST in head (cascade order makes the
+ *  workspace's identity win). The unmarked layout style is never touched. */
+export function applySkin(html: string, skinElement: string): OpResult | null {
+  const doc = parse(html);
+  const head = doc.querySelector('head');
+  if (!head) return null;
+  const tpl = doc.createElement('template');
+  tpl.innerHTML = skinElement.trim();
+  const fresh = tpl.content.firstElementChild;
+  if (!fresh || !fresh.hasAttribute('data-skin')) return null;
+  const existing = head.querySelector('style[data-skin]');
+  if (existing) existing.replaceWith(doc.importNode(fresh, true));
+  else head.appendChild(doc.importNode(fresh, true));
+  return { html: serialize(doc), landedId: null };
+}
+
+/** Remove the marked skin element (D3's inverse — an ordinary edit). */
+export function removeSkin(html: string): OpResult | null {
+  const doc = parse(html);
+  const existing = doc.querySelector('head style[data-skin]');
+  if (!existing) return null;
+  existing.remove();
+  return { html: serialize(doc), landedId: null };
+}
+
 /** Apply an arrangement to the selected page (a slide / a section): every
  *  existing [data-block] in the page moves INTACT (ids preserved) into the new
  *  arrangement's first [data-slot]; other slots keep their placeholders; the
@@ -211,12 +386,14 @@ export function applyArrangement(
   html: string,
   fragment: string,
   anchor: OpAnchor,
+  kernelStyleElement?: string,
 ): OpResult | null {
   const doc = parse(html);
   const page = arrangedPageAt(doc, anchor);
   if (!page) return null;
   const el = materializeFragment(doc, fragment);
   if (!el) return null;
+  ensureKernelStyle(doc, kernelStyleElement); // fragments may carry tokens (ADR-453)
   // Reflow moves CONTENT blocks into the new arrangement; heading blocks
   // (title/kicker/subtitle) belong to the page's own structure and the new
   // arrangement brings its own — so they are NOT swept (ADR-446: headings are

@@ -1,5 +1,13 @@
 # ADR-447 — The arrangement layer: composition as a first-class, per-type, nested grammar
 
+> **Amended by ADR-453** (2026-07-13): D7.2's "no inspector column" is revised — the inspector
+> returns as the right column's **Design tab** (Chat | Design; never a fourth column) because the
+> ratified scope grew to property editing; D7.1's derived wireframe thumbnails land (the New
+> ‹slide|section› flyout + the Design tab's Re-arrange gallery); D5's single "Arrange" operator
+> word splits by grain into **New ‹slide|section›** / **Re-arrange**; the registry becomes the
+> canvas's INTERACTION CONTRACT (slot roles gate adds; slots outline + select; the click-grain
+> ladder block → slot → page un-defers D7.3's drill in its minimal form).
+
 > **Status**: **Accepted** (2026-07-12, operator-ratified — "the model holds"; the operator then
 > widened v1 to include the **front-end UX** (D7). Doc-first; implementation delegated as ADR-447
 > v1 = model + UX together). The operator, from the Word / PowerPoint / Wix galleries, named a

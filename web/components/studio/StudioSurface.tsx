@@ -35,14 +35,24 @@ import { FileContextMenu } from '@/components/workspace/FileContextMenu';
 import { MoreHorizontal } from 'lucide-react';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { StudioCanvas, type PointerEvent2 } from './StudioCanvas';
-import { StudioInsertMenu, type StudioVocabulary } from './StudioInsertMenu';
+import { StudioToolbar, type StudioSelection, type StudioVocabulary } from './StudioToolbar';
+import { StudioDesignTab, type StructVerb } from './StudioDesignTab';
 import { StudioNavigator } from './StudioNavigator';
 import {
   applyArrangement,
+  applySkin,
+  deleteBlock,
+  deletePage,
+  duplicateBlock,
+  duplicatePage,
   editBlockText,
   insertArrangement,
   insertBlock,
   insertBlockInSlot,
+  moveBlock,
+  movePage,
+  removeSkin,
+  setToken,
   type OpResult,
 } from './artifactOps';
 
@@ -242,24 +252,27 @@ export function StudioSurface() {
     (text: string) => setSeed((s) => ({ text, nonce: (s?.nonce ?? 0) + 1 })),
     [],
   );
-  // ── The selection (ADR-444): held by the surface, it anchors the toolbar's
-  // deterministic ops AND informs the lane (via a visible composer seed). ──
-  const [selection, setSelection] = useState<{
-    blockId: string | null;
-    blockKind: string | null;
-    slideIndex: number | null;
-    text: string;
-  } | null>(null);
+  // ── The selection (ADR-444; slot + page grains ADR-453): held by the
+  // surface, it anchors the toolbar's deterministic ops, drives the Design
+  // tab's scope, AND informs the lane (via a visible composer seed). ──
+  const [selection, setSelection] = useState<StudioSelection | null>(null);
 
-  // ADR-446 D5: a click SELECTS a block (anchors Add/Slide ops + gates edit
-  // mode). It NO LONGER auto-seeds the composer — that produced the seed-append
-  // spam ("Selected the h2…: Selected the p…: "). The lane hears the selection
-  // only on the explicit "Ask about this" affordance below.
+  // ADR-453 D4: the right column's two tabs — Chat (the bound lane) | Design
+  // (the scope-switching inspector). The lane stays MOUNTED under either tab.
+  const [rightTab, setRightTab] = useState<'chat' | 'design'>('chat');
+
+  // ADR-446 D5: a click SELECTS (block → slot → page, the ADR-453 grain
+  // ladder; anchors ops + gates edit mode). It NO LONGER auto-seeds the
+  // composer — that produced the seed-append spam. The lane hears the
+  // selection only on the explicit "Ask about this" affordance below.
   const onPoint = useCallback((p: PointerEvent2) => {
     setSelection({
       blockId: p.blockId,
       blockKind: p.blockKind,
       slideIndex: p.slideIndex,
+      pageIndex: p.pageIndex,
+      slot: p.slot,
+      arrange: p.arrange,
       text: p.text,
     });
   }, []);
@@ -274,7 +287,8 @@ export function StudioSurface() {
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
 
   // The explicit ask (replaces the auto-seed): the member chose to bring the
-  // selection to the lane — one seed, on purpose, in operator words.
+  // selection to the lane — one seed, on purpose, in operator words. Lives in
+  // the Design tab (ADR-453 D4); it flips back to Chat so the seed is seen.
   const askAboutSelection = useCallback(() => {
     if (!selection) return;
     const s = selection;
@@ -287,6 +301,7 @@ export function StudioSurface() {
     } else {
       seedComposer(`About the selection${s.text ? ` "${s.text}"` : ''}: `);
     }
+    setRightTab('chat');
   }, [selection, seedComposer]);
 
   const template = useMemo(() => extractTemplate(file?.content ?? ''), [file]);
@@ -340,9 +355,14 @@ export function StudioSurface() {
   );
 
   const anchor = useMemo(
-    () => ({ blockId: selection?.blockId ?? null, slideIndex: selection?.slideIndex ?? null }),
+    () => ({
+      blockId: selection?.blockId ?? null,
+      slideIndex: selection?.slideIndex ?? null,
+      pageIndex: selection?.pageIndex ?? null,
+    }),
     [selection],
   );
+  const kernelStyle = vocabulary?.kernel_style_element;
 
   const handleInsertBlock = useCallback(
     (fragment: string, label: string) =>
@@ -364,16 +384,99 @@ export function StudioSurface() {
   );
   const handleAddArrangement = useCallback(
     (fragment: string, label: string) =>
-      applyOp((html) => insertArrangement(html, fragment, anchor), `Studio: add ${label}`),
-    [applyOp, anchor],
+      applyOp(
+        (html) => insertArrangement(html, fragment, anchor, kernelStyle),
+        `Studio: add ${label}`,
+      ),
+    [applyOp, anchor, kernelStyle],
   );
   const handleApplyArrangement = useCallback(
     (fragment: string, label: string) =>
       applyOp(
-        (html) => applyArrangement(html, fragment, anchor),
+        (html) => applyArrangement(html, fragment, anchor, kernelStyle),
         `Studio: change arrangement to ${label}`,
       ),
-    [applyOp, anchor],
+    [applyOp, anchor, kernelStyle],
+  );
+
+  // ── ADR-453: the property layer + the structural verbs (Design tab) ──────
+  const handleSetToken = useCallback(
+    (grain: 'block' | 'page', key: string, value: string | null) =>
+      applyOp(
+        (html) => setToken(html, { grain, anchor }, key, value, kernelStyle),
+        value == null ? `Studio: clear ${key}` : `Studio: set ${key} to ${value}`,
+      ),
+    [applyOp, anchor, kernelStyle],
+  );
+  const handleBlockVerb = useCallback(
+    (verb: StructVerb) => {
+      const id = selection?.blockId;
+      if (!id) return;
+      if (verb === 'delete') {
+        void applyOp((html) => deleteBlock(html, id), `Studio: delete ${id} block`);
+        onPointClear();
+      } else if (verb === 'duplicate') {
+        void applyOp((html) => duplicateBlock(html, id), `Studio: duplicate ${id} block`);
+      } else {
+        void applyOp((html) => moveBlock(html, id, verb), `Studio: move ${id} block ${verb}`);
+      }
+    },
+    [applyOp, selection, onPointClear],
+  );
+  const handlePageVerb = useCallback(
+    (verb: StructVerb) => {
+      const noun = template === 'deck' ? 'slide' : 'section';
+      if (verb === 'delete') {
+        void applyOp((html) => deletePage(html, anchor), `Studio: delete ${noun}`);
+        onPointClear();
+      } else if (verb === 'duplicate') {
+        void applyOp((html) => duplicatePage(html, anchor), `Studio: duplicate ${noun}`);
+      } else {
+        void applyOp((html) => movePage(html, anchor, verb), `Studio: move ${noun} ${verb}`);
+      }
+    },
+    [applyOp, anchor, template, onPointClear],
+  );
+  // The design-system Apply/Remove (ADR-449 D5 homed): resolve the composed
+  // MARKED skin element server-side, land it as ONE mechanical revision.
+  const handleApplyDesignSystem = useCallback(
+    async (manifestPath: string) => {
+      const res = await api.studio.resolveDesignSystem(manifestPath);
+      await applyOp(
+        (html) => applySkin(html, res.skin_element),
+        `Studio: apply design system ${res.name}`,
+      );
+    },
+    [applyOp],
+  );
+  const handleRemoveDesignSystem = useCallback(
+    () => void applyOp((html) => removeSkin(html), 'Studio: remove design system'),
+    [applyOp],
+  );
+  // Slot-scoped adds (the Design tab's slot scope + the role-gated add-here).
+  const insertProseInSlot = useCallback(
+    (slot: string, slideIndex: number | null, pageIndex: number | null) => {
+      const proseFragment = vocabulary?.blocks.find((b) => b.kind === 'prose')?.fragment;
+      if (!proseFragment) return;
+      void applyOp(
+        (html) => insertBlockInSlot(html, proseFragment, slot, slideIndex, pageIndex),
+        `Studio: add text to ${slot}`,
+      );
+    },
+    [applyOp, vocabulary],
+  );
+  const insertImageInSlot = useCallback(
+    (path: string, slot: string, slideIndex: number | null, pageIndex: number | null) => {
+      const base = vocabulary?.blocks.find((b) => b.kind === 'figure')?.fragment;
+      if (!base) return;
+      const rel = relPath(path);
+      const fragment = base.replace(/data-ref="[^"]*"/, `data-ref="${rel}"`);
+      void applyOp(
+        (html) => insertBlockInSlot(html, fragment, slot, slideIndex, pageIndex),
+        `Studio: insert image ${rel} into ${slot}`,
+      );
+    },
+    [applyOp, vocabulary],
   );
 
   // ADR-446: a block edit committed on the canvas (blur/idle) — the newInner is
@@ -396,28 +499,41 @@ export function StudioSurface() {
   const [mobilePane, setMobilePane] = useState<'nav' | 'canvas' | 'chat'>('canvas');
 
   // Selecting a slide in the left navigator sets the selection to that slide
-  // (no block; anchors Arrange ops) AND scrolls the center canvas to it.
+  // (no block; anchors page ops + the Design tab) AND scrolls the canvas to it.
   const [scrollToSlide, setScrollToSlide] = useState<{ index: number; nonce: number } | null>(null);
   const selectSlideFromNavigator = useCallback((index: number) => {
-    setSelection({ blockId: null, blockKind: null, slideIndex: index, text: '' });
+    setSelection({
+      blockId: null,
+      blockKind: null,
+      slideIndex: index,
+      pageIndex: null,
+      slot: null,
+      arrange: null,
+      text: '',
+    });
     setEditingBlockId(null);
     setScrollToSlide((s) => ({ index, nonce: (s?.nonce ?? 0) + 1 }));
     setMobilePane('canvas'); // on mobile, jump to the canvas to see the slide
   }, []);
 
-  // ADR-447 Phase 4: "+ Add here" in an empty slot — drop a text block into
-  // that slot. Prose is the sensible default; the member edits it in place
-  // (double-click) or asks the lane to fill it. Uses the served prose fragment.
+  // ADR-447 Phase 4 + ADR-453 D5: "+ Add here" in an empty slot, gated by the
+  // slot's ROLE from the vocabulary. A flow slot takes a prose block directly
+  // (the member edits it in place or asks the lane to fill it); a media slot
+  // takes a CITED image — select the slot and open the Design tab's picker.
   const onAddHere = useCallback(
-    (slot: string, slideIndex: number | null) => {
-      const proseFragment = vocabulary?.blocks.find((b) => b.kind === 'prose')?.fragment;
-      if (!proseFragment) return;
-      void applyOp(
-        (html) => insertBlockInSlot(html, proseFragment, slot, slideIndex),
-        `Studio: add text to ${slot}`,
-      );
+    (slot: string, slideIndex: number | null, pageIndex: number | null, arrange: string | null) => {
+      const role = vocabulary?.arrangements?.[template]
+        ?.find((a) => a.slug === arrange)
+        ?.slots.find((s) => s.name === slot)?.role;
+      if (role === 'media') {
+        setSelection({ blockId: null, blockKind: null, slideIndex, pageIndex, slot, arrange, text: '' });
+        setEditingBlockId(null);
+        setRightTab('design');
+        return;
+      }
+      insertProseInSlot(slot, slideIndex, pageIndex);
     },
-    [applyOp, vocabulary],
+    [vocabulary, template, insertProseInSlot],
   );
 
   // ── START STATE ─────────────────────────────────────────────────────────
@@ -460,7 +576,7 @@ export function StudioSurface() {
         <div className={`min-w-0 flex-1 flex-col md:flex ${canvasActive ? 'flex' : 'hidden'}`}>
           <div className="flex items-center gap-1 border-b border-border">
             <div className="min-w-0 flex-1">
-              <StudioInsertMenu
+              <StudioToolbar
                 vocabulary={vocabulary}
                 layout={template}
                 selection={selection}
@@ -468,9 +584,7 @@ export function StudioSurface() {
                 onInsertBlock={handleInsertBlock}
                 onInsertCited={handleInsertCited}
                 onAddArrangement={handleAddArrangement}
-                onApplyArrangement={handleApplyArrangement}
                 onSeed={seedComposer}
-                onAskAboutSelection={askAboutSelection}
               />
             </div>
             {/* Zoom — a VIEW control (doesn't touch the file). */}
@@ -532,57 +646,100 @@ export function StudioSurface() {
           )}
         </div>
 
-        {/* Right — the bound chat lane (drawer on mobile). */}
+        {/* Right — Chat | Design tabs (ADR-453 D4, the Canva model — never a
+            fourth column). Drawer on mobile. */}
         <div
           className={`w-full shrink-0 flex-col border-l border-border md:flex md:w-[380px] ${
             chatActive ? 'flex' : 'hidden'
           }`}
         >
-          {lanesEnabled === false ? (
-            <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-              Lanes are not enabled on this deployment — the Studio&apos;s authoring
-              chat needs the model router. The canvas still renders the artifact.
-            </div>
-          ) : boundLane ? (
-            <LanePanel
-              key={boundLane.id}
-              laneId={boundLane.id}
-              laneName={boundLane.name}
-              modelLabel={modelLabel}
-              onArtifactWrite={onArtifactWrite}
-              composerSeed={seed}
-              // ADR-443: the canvas (center) IS the artifact view — suppress
-              // the transcript's inline ArtifactCard so the lane doesn't render
-              // the very thing we're looking at twice. The authoring trail lives
-              // in the artifact's revision history (trace), not in breadcrumbs.
-              artifactWrite="none"
-              emptyState={
-                <div className="space-y-2 text-center text-xs text-muted-foreground">
-                  <p className="text-sm font-medium text-foreground/80">Tell it what to write.</p>
-                  <p>
-                    Ask in plain words — every reply becomes an edit to{' '}
-                    <span className="font-medium text-foreground/70">{baseName(artifactPath)}</span>,
-                    and the page updates as it works. It can also pull in your
-                    workspace files — images, tables, notes — as live references.
-                  </p>
-                </div>
-              }
-              suggestions={
-                // ADR-452 D2: a derive-bound lane (the landing's Learn-from
-                // flow) leads with its one job; the template chips follow.
-                boundLane.derive_source
-                  ? [
-                      `Learn from ${baseName(boundLane.derive_source)} — build this ${template} from it.`,
-                      ...(TEMPLATE_SUGGESTIONS[template] ?? TEMPLATE_SUGGESTIONS.document),
-                    ]
-                  : TEMPLATE_SUGGESTIONS[template] ?? TEMPLATE_SUGGESTIONS.document
-              }
+          <div className="flex shrink-0 border-b border-border">
+            {(
+              [
+                ['chat', 'Chat'],
+                ['design', 'Design'],
+              ] as const
+            ).map(([tab, label]) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setRightTab(tab)}
+                className={`flex-1 py-1.5 text-[11px] font-medium transition-colors ${
+                  rightTab === tab
+                    ? 'border-b-2 border-foreground text-foreground'
+                    : 'border-b-2 border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* The lane stays MOUNTED while the Design tab is up (CSS-hidden,
+              never unmounted) — a streaming turn survives the tab switch. */}
+          <div className={`min-h-0 flex-1 flex-col ${rightTab === 'chat' ? 'flex' : 'hidden'}`}>
+            {lanesEnabled === false ? (
+              <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
+                Lanes are not enabled on this deployment — the Studio&apos;s authoring
+                chat needs the model router. The canvas still renders the artifact.
+              </div>
+            ) : boundLane ? (
+              <LanePanel
+                key={boundLane.id}
+                laneId={boundLane.id}
+                laneName={boundLane.name}
+                modelLabel={modelLabel}
+                onArtifactWrite={onArtifactWrite}
+                composerSeed={seed}
+                // ADR-443: the canvas (center) IS the artifact view — suppress
+                // the transcript's inline ArtifactCard so the lane doesn't render
+                // the very thing we're looking at twice. The authoring trail lives
+                // in the artifact's revision history (trace), not in breadcrumbs.
+                artifactWrite="none"
+                emptyState={
+                  <div className="space-y-2 text-center text-xs text-muted-foreground">
+                    <p className="text-sm font-medium text-foreground/80">Tell it what to write.</p>
+                    <p>
+                      Ask in plain words — every reply becomes an edit to{' '}
+                      <span className="font-medium text-foreground/70">{baseName(artifactPath)}</span>,
+                      and the page updates as it works. It can also pull in your
+                      workspace files — images, tables, notes — as live references.
+                    </p>
+                  </div>
+                }
+                suggestions={
+                  // ADR-452 D2: a derive-bound lane (the landing's Learn-from
+                  // flow) leads with its one job; the template chips follow.
+                  boundLane.derive_source
+                    ? [
+                        `Learn from ${baseName(boundLane.derive_source)} — build this ${template} from it.`,
+                        ...(TEMPLATE_SUGGESTIONS[template] ?? TEMPLATE_SUGGESTIONS.document),
+                      ]
+                    : TEMPLATE_SUGGESTIONS[template] ?? TEMPLATE_SUGGESTIONS.document
+                }
+              />
+            ) : (
+              <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {laneError ?? 'Preparing the authoring lane…'}
+              </div>
+            )}
+          </div>
+          {rightTab === 'design' && (
+            <StudioDesignTab
+              vocabulary={vocabulary}
+              layout={template}
+              html={file?.content ?? ''}
+              selection={selection}
+              onSetToken={handleSetToken}
+              onApplyArrangement={handleApplyArrangement}
+              onBlockVerb={handleBlockVerb}
+              onPageVerb={handlePageVerb}
+              onAskAboutSelection={askAboutSelection}
+              onApplyDesignSystem={handleApplyDesignSystem}
+              onRemoveDesignSystem={handleRemoveDesignSystem}
+              onAddTextInSlot={insertProseInSlot}
+              onInsertImageInSlot={insertImageInSlot}
             />
-          ) : (
-            <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {laneError ?? 'Preparing the authoring lane…'}
-            </div>
           )}
         </div>
       </div>

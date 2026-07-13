@@ -33,6 +33,14 @@ export interface PointerEvent2 {
   blockKind: string | null;
   /** ADR-444 — the enclosing slide's index (deck layouts), for slide ops. */
   slideIndex: number | null;
+  /** ADR-453 D5 — the page index (document order over `section.slide,
+   *  [data-arrange]`), so document/article sections anchor page ops too. */
+  pageIndex: number | null;
+  /** ADR-453 D5 — the enclosing slot's name (a slot-padding click selects the
+   *  SLOT when no block encloses the hit; blockId null + slot set = slot grain). */
+  slot: string | null;
+  /** ADR-453 D5 — the enclosing page's arrangement slug (role lookups). */
+  arrange: string | null;
 }
 
 interface StudioCanvasProps {
@@ -57,9 +65,15 @@ interface StudioCanvasProps {
   /** ADR-447 Phase 4: the member DOUBLE-CLICKED a block — the runtime entered
    *  edit mode itself; the surface syncs its editingBlockId to match. */
   onEditEntered?: (blockId: string) => void;
-  /** ADR-447 Phase 4: the member clicked "+ Add here" in an empty slot — insert
-   *  a block into that slot (of that slide, for a deck). */
-  onAddHere?: (slot: string, slideIndex: number | null) => void;
+  /** ADR-447 Phase 4 + ADR-453 D5: the member clicked "+ Add here" in an empty
+   *  slot — the surface gates the add by the slot's ROLE (arrange + vocabulary
+   *  lookup) and targets the page (slideIndex for decks, pageIndex otherwise). */
+  onAddHere?: (
+    slot: string,
+    slideIndex: number | null,
+    pageIndex: number | null,
+    arrange: string | null,
+  ) => void;
   /** ADR-447: scroll the canvas to this slide (the navigator selected it). A
    *  monotonic nonce forces the scroll even when re-selecting the same slide. */
   scrollToSlide?: { index: number; nonce: number } | null;
@@ -193,6 +207,9 @@ export function StudioCanvas({
           blockId: typeof d.blockId === 'string' ? d.blockId : null,
           blockKind: typeof d.blockKind === 'string' ? d.blockKind : null,
           slideIndex: typeof d.slideIndex === 'number' ? d.slideIndex : null,
+          pageIndex: typeof d.pageIndex === 'number' ? d.pageIndex : null,
+          slot: typeof d.slot === 'string' ? d.slot : null,
+          arrange: typeof d.arrange === 'string' ? d.arrange : null,
         });
       } else if (d.type === 'yarnnn-point-clear') {
         onPointClear?.();
@@ -207,7 +224,12 @@ export function StudioCanvas({
       } else if (d.type === 'yarnnn-edit-entered' && typeof d.blockId === 'string') {
         onEditEntered?.(d.blockId);
       } else if (d.type === 'yarnnn-add-here' && typeof d.slot === 'string') {
-        onAddHere?.(d.slot, typeof d.slideIndex === 'number' ? d.slideIndex : null);
+        onAddHere?.(
+          d.slot,
+          typeof d.slideIndex === 'number' ? d.slideIndex : null,
+          typeof d.pageIndex === 'number' ? d.pageIndex : null,
+          typeof d.arrange === 'string' ? d.arrange : null,
+        );
       }
     };
     window.addEventListener('message', handler);

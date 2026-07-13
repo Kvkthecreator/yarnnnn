@@ -118,7 +118,9 @@ def run() -> bool:
     # (the Arrange menu). Guard the deletion.
     _check("Change-layout format-switcher is deleted (no type morph)",
            "Change layout" not in surface and "switchLayout" not in surface)
-    menu = (repo / "web/components/studio/StudioInsertMenu.tsx").read_text()
+    # ADR-453: the toolbar realigned to its grains (Insert · New ‹noun›) and
+    # the file took its honest name (StudioInsertMenu → StudioToolbar).
+    menu = (repo / "web/components/studio/StudioToolbar.tsx").read_text()
     _check("palette renders from the served vocabulary",
            "StudioVocabulary" in menu and "grouped" in menu)
 
@@ -185,11 +187,14 @@ def run() -> bool:
     _check("surface: selection no longer auto-seeds the composer (spam killed)",
            "no longer auto-seed" in surface.lower()
            and "seedComposer(`Selected the" not in surface)
+    # ADR-453: the selection's VERBS moved from the toolbar chip to the Design
+    # tab (the chip stays as identity + clear); the explicit-ask survives there.
+    design_tab = (repo / "web/components/studio/StudioDesignTab.tsx").read_text()
     _check("surface: explicit 'Ask about this' affordance replaces the auto-seed",
-           "askAboutSelection" in surface and "onAskAboutSelection" in menu)
-    _check("menu: Ask-about-this verb on the chip; Edit button DELETED (Phase 4)",
-           "Ask about this" in menu and "onToggleEdit" not in menu
-           and "double-click to edit" in menu)
+           "askAboutSelection" in surface and "onAskAboutSelection" in design_tab)
+    _check("Design tab: Ask-about-this verb; toolbar Edit button stays DELETED",
+           "Ask about this" in design_tab and "onToggleEdit" not in menu
+           and "Double-click the block" in design_tab)
     _check("canvas: renders in edit mode + forwards edit commits",
            "editingBlockId" in surface
            and "yarnnn-edit" in (repo / "web/components/studio/StudioCanvas.tsx").read_text())
@@ -232,10 +237,14 @@ def run() -> bool:
     _check("posture: Arrangements section composed from the registry",
            "Arrangements (where content goes" in posture
            and STUDIO_ARRANGEMENTS["deck"]["comparison"]["description"] in posture)
-    _check("the 'Arrange' menu replaces the deck-only 'Slide' menu (all types)",
-           "Arrange" in menu and "arrangements" in menu
-           and "onAddArrangement" in menu and "onApplyArrangement" in menu)
-    _check("arrange menu is not deck-gated (arrangements.length gate)",
+    # ADR-453: the mixed-grain 'Arrange' menu split by grain — 'New ‹noun›'
+    # (add a page, toolbar gallery) + 'Re-arrange' (this page, Design tab).
+    _check("toolbar: 'New ‹slide|section›' gallery (page-grain add, all types)",
+           "New {pageNoun}" in menu and "arrangements" in menu
+           and "onAddArrangement" in menu)
+    _check("Design tab: 'Re-arrange' gallery (selection-scoped re-lay)",
+           "Re-arrange" in design_tab and "onApplyArrangement" in design_tab)
+    _check("new-page gallery is not deck-gated (arrangements.length gate)",
            "arrangements.length > 0" in menu)
     _check("vocabulary endpoint serves arrangements with grain + slots",
            '"arrangements"' in src and '"grain"' in src and '"slots"' in src)
@@ -250,8 +259,10 @@ def run() -> bool:
            and 'sandbox=""' in nav)
     _check("surface mounts the navigator + selects slides from it",
            "StudioNavigator" in surface and "selectSlideFromNavigator" in surface)
+    # ADR-453 D4: the right column carries Chat | Design tabs (the lane stays
+    # the chat tab's body; the column itself is unchanged — right, border-l).
     _check("chat lane is the RIGHT column (border-l on the lane column)",
-           "the bound chat lane (drawer on mobile" in surface
+           "Chat | Design tabs" in surface
            and "border-l border-border" in surface)
     desktop = (repo / "web/components/shell/Desktop.tsx").read_text()
     _check("Freddie FAB suppressed on the studio surface (own-chat carve)",

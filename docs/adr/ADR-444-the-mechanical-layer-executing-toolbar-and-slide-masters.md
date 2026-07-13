@@ -1,5 +1,11 @@
 # ADR-444 — The mechanical layer: an executing toolbar, slide masters, and the two write paths
 
+> **Amended by ADR-453** (2026-07-13): the toolbar verbs realign to their grains (**Insert** ·
+> **New ‹slide|section›** with a wireframe gallery; "Re-arrange" moves to the Design tab), and
+> the mechanical op set completes — `setToken`, delete/duplicate/move at block AND page grain,
+> `applySkin`/`removeSkin`, the kernel-element upsert. The file renamed StudioInsertMenu →
+> StudioToolbar.
+
 > **Status**: **Accepted + Implemented** (2026-07-12, operator-corrected same-day as ADR-443). The operator's first-use verdict on the v1.1/443 toolbar was right: **prompt-prefill buttons were a timid half-implementation** ("quick prompt cheats"). This ADR ships what the benchmark class actually does — **selection-aware operations that EXECUTE**: Add inserts a real block at the canvas selection; picking an image inserts a cited figure block; a deck slide's layout is changed from a **container registry** (the slide-master grain). Deterministic member acts, no LLM, one attributed revision each.
 
 **Date**: 2026-07-12

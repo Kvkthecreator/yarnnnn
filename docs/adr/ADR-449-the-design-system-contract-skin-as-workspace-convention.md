@@ -1,5 +1,11 @@
 # ADR-449: The Design-System Contract — Skin as a Workspace Convention, Cited by Reference
 
+> **Amended by ADR-453** (2026-07-13): the D5 named handoff LANDS — the mechanical picker lives in
+> the Design tab's document scope (discovery on `GET /studio/vocabulary`, composition via
+> `GET /studio/design-systems/resolve`, apply/remove through the one mechanical door). The
+> cascade order gains a middle layer: unmarked layout style < `data-kernel` (ADR-453 tokens) <
+> `data-skin` (this ADR) — the skin still wins.
+
 **Status**: Accepted (2026-07-12, operator-ratified direction — the third step of the
 [load-bearing-files note](../analysis/load-bearing-files-are-a-graph-fact-the-reference-edge-derive-step-and-design-system-2026-07-12.md) §6,
 unblocked by ADR-447's ratification). Fills the **Skin** layer ADR-447 D1 explicitly named

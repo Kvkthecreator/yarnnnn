@@ -162,6 +162,17 @@ ${POINTABLE.split(',').map((s) => `${s}:hover`).join(',')} {
   outline: 1px dashed rgba(99,102,241,0.45); outline-offset: 2px; cursor: pointer;
 }
 .yarnnn-pointed { outline: 2px solid #6366f1 !important; outline-offset: 2px; }
+/* ADR-453 D5: slots are the interaction surface — outline + name on hover
+   (the Wix section-hover). position:relative only anchors the label. */
+[data-slot] { position: relative; }
+[data-slot]:hover {
+  outline: 1px dashed rgba(16,185,129,0.55); outline-offset: 2px;
+}
+[data-slot]:hover::after {
+  content: attr(data-slot); position: absolute; top: -1rem; left: 0;
+  font: 500 0.6rem system-ui, sans-serif; letter-spacing: 0.06em;
+  text-transform: uppercase; color: rgba(16,185,129,0.9); pointer-events: none;
+}
 /* ADR-447 Phase 4: empty-slot "+ Add here" affordance. */
 .yarnnn-add-here {
   display: block; width: 100%; margin: 0.5rem 0; padding: 0.6rem;
@@ -203,45 +214,93 @@ html[data-template="deck"] .slide {
 const POINTER_SCRIPT = `
 (function () {
   var SEL = ${JSON.stringify(POINTABLE)};
+  var PAGE_SEL = 'section.slide, [data-arrange]';
   var cur = null;
+
+  function slideIndexOf(el) {
+    var slide = el && el.closest ? el.closest('section.slide') : null;
+    if (!slide) return null;
+    var all = document.querySelectorAll('section.slide');
+    for (var i = 0; i < all.length; i++) { if (all[i] === slide) return i; }
+    return null;
+  }
+  // ADR-453: the page index — document order over PAGE_SEL, matching the
+  // parent's arrangedPageAt so ops anchor on the same element.
+  function pageIndexOf(el) {
+    var page = el && el.closest ? el.closest(PAGE_SEL) : null;
+    if (!page) return null;
+    var all = document.querySelectorAll(PAGE_SEL);
+    for (var i = 0; i < all.length; i++) { if (all[i] === page) return i; }
+    return null;
+  }
+  function arrangeOf(el) {
+    var page = el && el.closest ? el.closest('[data-arrange]') : null;
+    return page ? (page.getAttribute('data-arrange') || null) : null;
+  }
+
   document.addEventListener('click', function (e) {
     // ADR-446: while a block is being edited, clicks must place the caret, not
     // re-select — the edit runtime (if present) reports the editing block id.
     if (window.__yarnnnEditingId && window.__yarnnnEditingId() != null) return;
     var t = e.target;
+    // The "+ Add here" button owns its click (its own handler posts).
+    if (t && t.closest && t.closest('.yarnnn-add-here')) return;
     var el = t && t.closest ? t.closest(SEL) : null;
     e.preventDefault();
-    if (!el) {
+
+    // ADR-453 D5: the click-grain ladder — block (a pointable inside one) →
+    // slot (a slot's empty padding) → page (the page margin) → clear.
+    var mark = null;
+    var payload = null;
+    if (el) {
+      // ADR-443 D6: the selection UNIT is the block when one encloses the hit.
+      var blk = el.closest ? el.closest('[data-block]') : null;
+      mark = blk || el;
+      var text = (el.getAttribute('alt') || el.textContent || '')
+        .replace(/\\s+/g, ' ').trim().slice(0, 120);
+      var slotEl = el.closest ? el.closest('[data-slot]') : null;
+      payload = {
+        type: 'yarnnn-point',
+        tag: el.tagName.toLowerCase(),
+        text: text,
+        dataRef: el.getAttribute('data-ref') || (blk && blk.getAttribute('data-ref')) || null,
+        blockId: blk ? (blk.getAttribute('data-block-id') || null) : null,
+        blockKind: blk ? (blk.getAttribute('data-block') || null) : null,
+        slideIndex: slideIndexOf(el),
+        pageIndex: pageIndexOf(el),
+        slot: slotEl ? (slotEl.getAttribute('data-slot') || null) : null,
+        arrange: arrangeOf(el),
+      };
+    } else {
+      var slot = t && t.closest ? t.closest('[data-slot]') : null;
+      var page = t && t.closest ? t.closest(PAGE_SEL) : null;
+      var hit = slot || page;
+      if (hit) {
+        mark = hit;
+        payload = {
+          type: 'yarnnn-point',
+          tag: hit.tagName.toLowerCase(),
+          text: '',
+          dataRef: null,
+          blockId: null,
+          blockKind: null,
+          slideIndex: slideIndexOf(hit),
+          pageIndex: pageIndexOf(hit),
+          slot: slot ? (slot.getAttribute('data-slot') || null) : null,
+          arrange: arrangeOf(hit),
+        };
+      }
+    }
+
+    if (!payload) {
       if (cur) { cur.classList.remove('yarnnn-pointed'); cur = null; }
       parent.postMessage({ type: 'yarnnn-point-clear' }, '*');
       return;
     }
-    // ADR-443 D6: the selection UNIT is the block when one encloses the hit —
-    // the outline lands on the block, the payload carries its id + kind.
-    var blk = el.closest ? el.closest('[data-block]') : null;
-    var mark = blk || el;
     if (cur) cur.classList.remove('yarnnn-pointed');
     cur = mark;
     mark.classList.add('yarnnn-pointed');
-    var text = (el.getAttribute('alt') || el.textContent || '')
-      .replace(/\\s+/g, ' ').trim().slice(0, 120);
-    // ADR-444: slide-level anchor — which slide (if any) contains the hit,
-    // so slide ops work even where no block is annotated (e.g. title slides).
-    var slide = el.closest ? el.closest('section.slide') : null;
-    var slideIndex = null;
-    if (slide) {
-      var all = document.querySelectorAll('section.slide');
-      for (var i = 0; i < all.length; i++) { if (all[i] === slide) { slideIndex = i; break; } }
-    }
-    parent.postMessage({
-      type: 'yarnnn-point',
-      tag: el.tagName.toLowerCase(),
-      text: text,
-      dataRef: el.getAttribute('data-ref') || (blk && blk.getAttribute('data-ref')) || null,
-      blockId: blk ? (blk.getAttribute('data-block-id') || null) : null,
-      blockKind: blk ? (blk.getAttribute('data-block') || null) : null,
-      slideIndex: slideIndex,
-    }, '*');
+    parent.postMessage(payload, '*');
   }, true);
 
   // ADR-447 (2026-07-13): canvas commands — scroll to a slide (navigator
@@ -274,11 +333,19 @@ const POINTER_SCRIPT = `
 
 const ADD_HERE_SCRIPT = `
 (function () {
+  var PAGE_SEL = 'section.slide, [data-arrange]';
   function slideIndexOf(el) {
     var slide = el.closest ? el.closest('section.slide') : null;
     if (!slide) return null;
     var all = document.querySelectorAll('section.slide');
     for (var i = 0; i < all.length; i++) { if (all[i] === slide) return i; }
+    return null;
+  }
+  function pageIndexOf(el) {
+    var page = el.closest ? el.closest(PAGE_SEL) : null;
+    if (!page) return null;
+    var all = document.querySelectorAll(PAGE_SEL);
+    for (var i = 0; i < all.length; i++) { if (all[i] === page) return i; }
     return null;
   }
   function decorate() {
@@ -295,10 +362,15 @@ const ADD_HERE_SCRIPT = `
       btn.setAttribute('data-slot-name', slot.getAttribute('data-slot') || '');
       btn.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation();
+        // ADR-453 D5: arrange + pageIndex ride along so the parent can gate
+        // the add by the slot's ROLE (vocabulary lookup) and target the page.
+        var page = this.closest ? this.closest('[data-arrange]') : null;
         parent.postMessage({
           type: 'yarnnn-add-here',
           slot: this.getAttribute('data-slot-name'),
           slideIndex: slideIndexOf(this),
+          pageIndex: pageIndexOf(this),
+          arrange: page ? (page.getAttribute('data-arrange') || null) : null,
         }, '*');
       });
       slot.appendChild(btn);

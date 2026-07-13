@@ -6,6 +6,11 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.13.3] - Studio posture: property tokens + marked-element survival (ADR-453)
+
+- `services/studio.py::_POSTURE_FRAME` — a new **Property tokens** section (composed from `STUDIO_TOKENS` via `_tokens_grammar`, so the posture and the Design tab never drift): blocks/pages carry `data-align` / `data-tone` / `data-height` / `data-fit` / `data-ratio` / `data-valign` tokens; absence is the default; set/clear by adding/removing the attribute; never inline `style=""` or raw colors for placement/emphasis; preserve tokens you didn't touch; set them yourself when asked in plain words. The **Layout** section's switch rule tightens: replace the UNMARKED `<style>` only — the marked `<style data-kernel="true">` (kernel token CSS, new) and `<style data-skin="true">` (ADR-449) elements survive every switch, never edited or removed.
+- Expected behavior change: bound lanes express placement/emphasis edits as token attributes (the same grammar the member's Design tab writes), and no longer risk sweeping the kernel/skin style elements on a layout change. Posture grows ~0.5k chars on authoring turns only; plain chat lanes unchanged.
+
 ## [2026.07.13.2] - The deck recipe + the studio target-override (ADR-452)
 
 - `services/derive_recipes.py` — new `deck` recipe (content constraints for a source-grounded slide narrative: titles as claims, one idea per slide, evidence cited, 6–12 slides, anti-patterns for topic-word titles / wall-of-text / filler).
