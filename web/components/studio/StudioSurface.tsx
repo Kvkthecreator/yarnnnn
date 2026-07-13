@@ -23,10 +23,11 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Palette, Plus, Sparkles } from 'lucide-react';
+import { Loader2, Palette, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
-import { SourcePickerModal } from './SourcePickerModal';
+import { LearnFromFlowModal } from './LearnFromFlowModal';
+import { NewArtifactModal, slugify } from './NewArtifactModal';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
@@ -94,14 +95,6 @@ const TEMPLATE_SUGGESTIONS: Record<string, string[]> = {
     'Add a closing section with a call to action',
   ],
 };
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48) || 'untitled';
-}
 
 export function StudioSurface() {
   const { get: getParam, set: setParam } = useSurfaceParam('studio');
@@ -649,12 +642,7 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
   const [recents, setRecents] = useState<
     Array<{ path: string; updated_at: string | null; summary: string | null }>
   >([]);
-  const [selected, setSelected] = useState<string>('document');
-  const [name, setName] = useState('');
-  const [pathEdited, setPathEdited] = useState(false);
-  const [path, setPath] = useState('');
   const [existing, setExisting] = useState('');
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -670,34 +658,13 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
       });
   }, []);
 
-  // Meaning-placed default (D6): under operation/, named by the work — the
-  // member edits freely; the Studio never invents an app-named root.
-  useEffect(() => {
-    if (pathEdited) return;
-    const slug = slugify(name);
-    setPath(name ? `operation/${slug}/${selected}.html` : '');
-  }, [name, selected, pathEdited]);
+  // ── The two ways to begin (ADR-452 v2): start from scratch, or learn
+  // from a source. Both are peers in ONE grid; both nest their details in a
+  // focused modal — the landing shows choices and recents, never form fields.
+  const [scratchTemplate, setScratchTemplate] = useState<TemplateInfo | null>(null);
+  const [learnOpen, setLearnOpen] = useState(false);
 
-  const create = async () => {
-    if (!path || busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await api.studio.createArtifact(path, selected);
-      onOpen(res.path);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Creation failed.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // ── Learn from a source (ADR-452 D2) ────────────────────────────────────
-  // Pick a target, then a source; the flow creates the artifact skeleton +
-  // ONE lane carrying BOTH bindings (artifact + derive) and opens the Studio.
-  // The design-system target has no canvas → a derive-bound chat lane.
   const { navigateToSurface } = useSurfacePreferences();
-  const [learnTarget, setLearnTarget] = useState<(typeof LEARN_TARGETS)[number] | null>(null);
   const [laneEnv, setLaneEnv] = useState<{ enabled: boolean; model: string } | null>(null);
   useEffect(() => {
     api.lanes
@@ -706,43 +673,48 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
       .catch(() => setLaneEnv({ enabled: false, model: '' }));
   }, []);
 
-  const learnFrom = async (source: { path: string; name: string }) => {
-    const target = learnTarget;
-    setLearnTarget(null);
-    if (!target || !laneEnv?.enabled || !laneEnv.model) {
-      setError('Chat helpers aren’t enabled on this workspace.');
-      return;
+  // Scratch creation — invoked by the name-it modal; throws so the modal
+  // can show the failure inline.
+  const createScratch = async (templateSlug: string, path: string) => {
+    const res = await api.studio.createArtifact(path, templateSlug);
+    onOpen(res.path);
+  };
+
+  // Learn-from creation (ADR-452 D2, source-first) — invoked by the flow
+  // modal once BOTH source and target are chosen. A canvas target creates
+  // the artifact skeleton + ONE lane carrying both bindings; the
+  // design-system target (a folder, no canvas) routes to a chat lane.
+  const learnFrom = async (
+    source: { path: string; name: string },
+    target: (typeof LEARN_TARGETS)[number],
+  ) => {
+    if (!laneEnv?.enabled || !laneEnv.model) {
+      throw new Error('Chat helpers aren’t enabled on this workspace.');
     }
-    setBusy(true);
-    setError(null);
-    try {
-      if (target.template) {
-        const sourceSlug = slugify(source.name.replace(/\.[a-z0-9]+$/i, ''));
-        const res = await api.studio.createArtifact(
-          `operation/${sourceSlug}/${target.template}.html`,
-          target.template,
-        );
-        await api.lanes.create({
-          name: `Learn: ${source.name}`.slice(0, 60),
-          model: laneEnv.model,
-          artifact_path: res.path,
-          derive_recipe: target.recipe,
-          derive_source: source.path,
-        });
-        onOpen(res.path);
-      } else {
-        const lane = await api.lanes.create({
-          name: `Learn: ${source.name}`.slice(0, 60),
-          model: laneEnv.model,
-          derive_recipe: target.recipe,
-          derive_source: source.path,
-        });
-        navigateToSurface('chat', { lane: lane.id });
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not start the Learn-from flow.');
-    } finally {
-      setBusy(false);
+    if (target.template) {
+      const sourceSlug = slugify(source.name.replace(/\.[a-z0-9]+$/i, ''));
+      const res = await api.studio.createArtifact(
+        `operation/${sourceSlug}/${target.template}.html`,
+        target.template,
+      );
+      await api.lanes.create({
+        name: `Learn: ${source.name}`.slice(0, 60),
+        model: laneEnv.model,
+        artifact_path: res.path,
+        derive_recipe: target.recipe,
+        derive_source: source.path,
+      });
+      setLearnOpen(false);
+      onOpen(res.path);
+    } else {
+      const lane = await api.lanes.create({
+        name: `Learn: ${source.name}`.slice(0, 60),
+        model: laneEnv.model,
+        derive_recipe: target.recipe,
+        derive_source: source.path,
+      });
+      setLearnOpen(false);
+      navigateToSurface('chat', { lane: lane.id });
     }
   };
 
@@ -760,17 +732,16 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
+        {/* ADR-452 v2 — ONE creation grid: the type cards and Learn-from are
+            peers ("start from scratch, or learn from"); each nests its
+            details in a focused modal. */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {templates.map((t) => (
             <button
               key={t.slug}
               type="button"
-              onClick={() => setSelected(t.slug)}
-              className={`rounded-lg border p-3 text-left transition-colors ${
-                selected === t.slug
-                  ? 'border-foreground/60 bg-muted/40'
-                  : 'border-border hover:bg-muted/20'
-              }`}
+              onClick={() => setScratchTemplate(t)}
+              className="rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/20"
             >
               <p className="text-sm font-medium">{t.label}</p>
               <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
@@ -778,60 +749,21 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
               </p>
             </button>
           ))}
-        </div>
-
-        <div className="space-y-2">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Name it (e.g. IR deck v3)"
-            className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground/40"
-          />
-          <input
-            value={path}
-            onChange={(e) => {
-              setPathEdited(true);
-              setPath(e.target.value);
-            }}
-            placeholder="operation/…/artifact.html (meaning-placed)"
-            className="w-full rounded-md border border-border bg-transparent px-3 py-2 font-mono text-xs outline-none focus:border-foreground/40"
-          />
           <button
             type="button"
-            onClick={create}
-            disabled={!path || busy}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background disabled:opacity-40"
+            disabled={laneEnv?.enabled === false}
+            onClick={() => setLearnOpen(true)}
+            title={laneEnv?.enabled === false ? 'Chat helpers aren’t enabled on this workspace.' : undefined}
+            className="rounded-lg border border-dashed border-border p-3 text-left transition-colors hover:bg-muted/20 disabled:opacity-40"
           >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Create
+            <p className="flex items-center gap-1 text-sm font-medium">
+              <Sparkles className="h-3.5 w-3.5" /> Learn from
+            </p>
+            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+              Start from a file — yours or one you upload.
+            </p>
           </button>
         </div>
-
-        {/* Learn from a source (ADR-452 D2) — the second creation path:
-            start FROM something instead of empty. */}
-        {laneEnv?.enabled !== false && (
-          <div className="space-y-2 border-t border-border pt-4">
-            <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              <Sparkles className="h-3 w-3" /> Learn from a source
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              {LEARN_TARGETS.map((t) => (
-                <button
-                  key={t.recipe}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setLearnTarget(t)}
-                  className="rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/20 disabled:opacity-40"
-                >
-                  <p className="text-sm font-medium">{t.label}</p>
-                  <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                    {t.description}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {recents.length > 0 && (
           <div className="space-y-2 border-t border-border pt-4">
@@ -859,10 +791,17 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
           </div>
         )}
 
-        <SourcePickerModal
-          targetLabel={learnTarget?.label ?? null}
-          onClose={() => setLearnTarget(null)}
-          onSelect={(s) => void learnFrom(s)}
+        <NewArtifactModal
+          template={scratchTemplate}
+          onClose={() => setScratchTemplate(null)}
+          onCreate={createScratch}
+        />
+
+        <LearnFromFlowModal
+          open={learnOpen}
+          targets={LEARN_TARGETS}
+          onClose={() => setLearnOpen(false)}
+          onStart={learnFrom}
         />
 
         <details className="border-t border-border pt-3">

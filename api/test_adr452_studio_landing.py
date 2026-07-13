@@ -50,7 +50,8 @@ def run() -> int:
     files_page = _read("app/(authenticated)/files/page.tsx")
     ctx_menu = _read("components/workspace/FileContextMenu.tsx")
     studio = _read("components/studio/StudioSurface.tsx")
-    picker = _read("components/studio/SourcePickerModal.tsx")
+    flow = _read("components/studio/LearnFromFlowModal.tsx")
+    new_artifact = _read("components/studio/NewArtifactModal.tsx")
     open_modal = _read("components/chat-surface/FileOpenModal.tsx")
 
     # ── 1. the resolver ───────────────────────────────────────────────────
@@ -99,9 +100,25 @@ def run() -> int:
         and "recipe: 'deck'" in studio
         and "recipe: 'design-system'" in studio,
     )
+    # v2: ONE creation grid — type cards + Learn-from as peers; details nest in
+    # focused modals (scratch → name-it; learn-from → source-first flow with
+    # the upload leg). The target-first SourcePickerModal is superseded.
     passed &= _check(
-        "source picker exists and the landing mounts it",
-        "SourcePickerModal" in picker and "<SourcePickerModal" in studio,
+        "v2: learn-from flow modal exists (source-first) and the landing mounts it",
+        "LearnFromFlowModal" in flow and "<LearnFromFlowModal" in studio,
+    )
+    passed &= _check(
+        "v2: the source has two answers — workspace file OR upload",
+        "recentRevisions" in flow and "api.documents.upload" in flow,
+    )
+    passed &= _check(
+        "v2: scratch creation nests in the name-it modal (no landing form fields)",
+        "NewArtifactModal" in new_artifact and "<NewArtifactModal" in studio
+        and "Name it (e.g. IR deck v3)" not in studio,
+    )
+    passed &= _check(
+        "v2: SourcePickerModal superseded (deleted)",
+        not os.path.exists(os.path.join(_WEB, "components/studio/SourcePickerModal.tsx")),
     )
     passed &= _check(
         "thumbnail recents: sandboxed scaled srcDoc render",

@@ -5,6 +5,16 @@ review: *"it shouldn't be a right click on files… we should treat learn from e
 studio."*). Re-homes the Learn-from entrance from the Files context menu to the Studio's front
 door, and gives the Studio a real landing (the Claude-Design shape: create · learn from · recents
 with thumbnails · **no chat**).
+> **v2 same day (operator refinement)**: the landing collapses to **ONE creation grid** — the
+> type cards and a single **Learn from** card as peers ("start from scratch, or learn from") —
+> and both paths nest their details in focused modals (the landing shows choices and recents,
+> never form fields). Scratch → a name-it modal (`NewArtifactModal`). Learn-from → **source-first**
+> progressive disclosure (`LearnFromFlowModal`, superseding the target-first `SourcePickerModal`):
+> the source has exactly two answers — **a workspace file OR an upload** (the canonical "I have
+> this thing and it isn't in the workspace yet" case, landing through the ADR-395 lane) — then
+> the target cards activate. D2's flow mechanics (double binding, design-system → chat) are
+> unchanged. Also confirmed: **multiple design systems per workspace** is already the ADR-449
+> contract (N manifests; one per artifact via its marked style element) — no change needed.
 **Date**: 2026-07-13
 **Dimension**: Channel (where the verb lives) + Mechanism (the studio-bound derive).
 
