@@ -68,6 +68,14 @@ interface StudioCanvasProps {
   zoom?: number;
 }
 
+// A deck slide's natural landscape stage (ADR-447 D7.7) — the projection pins
+// deck slides to this fixed box in the canvas so a narrow column can't collapse
+// them (see DECK_STAGE_W in projection.ts). The canvas then AUTO-FITS: it scales
+// the stage down so the 992px-wide slide fits the actual column width, and the
+// operator's zoom rides on top of that fit. Documents/articles are fluid (no
+// fixed stage), so they get no fit — their base is 1.
+const DECK_STAGE_W = 992;
+
 export function StudioCanvas({
   file,
   artifactPath,
@@ -83,6 +91,32 @@ export function StudioCanvas({
 }: StudioCanvasProps) {
   const [projected, setProjected] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Is this a deck? (the projection pins deck slides to a fixed stage.) The root
+  // carries data-template="deck"; a cheap string test avoids re-parsing.
+  const isDeck = file.content?.includes('data-template="deck"') ?? false;
+
+  // The auto-fit scale: for a deck, shrink the 992px stage to the column width
+  // (never enlarge past 1); for fluid layouts, 1. Measured off the iframe's own
+  // width via ResizeObserver so it tracks the column (chat drawer, DevTools,
+  // window resize). The operator's `zoom` multiplies this base.
+  const [fitScale, setFitScale] = useState(1);
+  useEffect(() => {
+    const frame = iframeRef.current;
+    if (!frame || !isDeck) {
+      setFitScale(1);
+      return;
+    }
+    const measure = () => {
+      const w = frame.clientWidth;
+      if (w > 0) setFitScale(Math.min(1, w / DECK_STAGE_W));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(frame);
+    return () => ro.disconnect();
+  }, [isDeck]);
+  const effectiveZoom = fitScale * zoom;
 
   // Re-project on CONTENT change (not on file-object identity — useFileLoad
   // returns a fresh object on every reload even when content is byte-identical,
@@ -115,8 +149,8 @@ export function StudioCanvas({
   // load handler re-posts the current state without re-binding.
   const editingRef = useRef<string | null>(editingBlockId ?? null);
   editingRef.current = editingBlockId ?? null;
-  const zoomRef = useRef(zoom);
-  zoomRef.current = zoom;
+  const zoomRef = useRef(effectiveZoom);
+  zoomRef.current = effectiveZoom;
 
   const commandEdit = useCallback(() => {
     const win = iframeRef.current?.contentWindow;
@@ -133,10 +167,11 @@ export function StudioCanvas({
     commandEdit();
   }, [editingBlockId, commandEdit]);
 
-  // On zoom change, command it (no reload needed — view-only).
+  // On zoom change (operator zoom OR auto-fit rescale), command it (no reload
+  // needed — view-only).
   useEffect(() => {
-    iframeRef.current?.contentWindow?.postMessage({ type: 'yarnnn-zoom', scale: zoom }, '*');
-  }, [zoom]);
+    iframeRef.current?.contentWindow?.postMessage({ type: 'yarnnn-zoom', scale: effectiveZoom }, '*');
+  }, [effectiveZoom]);
 
   // ADR-447: when the navigator selects a slide, scroll the canvas to it (the
   // nonce re-fires even on re-selecting the same slide).

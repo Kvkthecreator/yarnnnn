@@ -172,6 +172,34 @@ ${POINTABLE.split(',').map((s) => `${s}:hover`).join(',')} {
 .yarnnn-add-here:hover { background: rgba(99,102,241,0.1); }
 `;
 
+// ── The deck STAGE (ADR-447 D7.7 canvas-side fix) ─────────────────────────
+//
+// A deck slide's baked skin is `.slide { width:min(100%,62rem); aspect-ratio:16/9 }`.
+// In the Studio's narrow center column that sizes the slide off the COLUMN
+// width — a ~390px column yields a ~220px-tall slide whose padded, centered
+// content overflows the `overflow:hidden` box and clips to visual emptiness
+// (the reported "middle not displaying"). The navigator already solved this
+// for thumbnails by pinning the slide to its natural 16:9 box and scaling the
+// whole doc; the canvas needs the same. This block (injected ONLY in the
+// canvas's `pointer` mode — the composed/export/thumbnail views keep the raw
+// skin) fixes each deck slide to its natural landscape box (SLIDE_W×SLIDE_H,
+// the navigator's numbers), so a slide is a STAGE that the zoom control scales
+// to fit, never a box that collapses with the column. The parent auto-fits the
+// initial zoom to the column width (StudioCanvas), so a deck fills the canvas
+// on open without the operator touching the zoom.
+const DECK_STAGE_W = 992; // 62rem — the slide's natural landscape width
+const DECK_STAGE_H = Math.round((DECK_STAGE_W * 9) / 16); // 16:9 → 558
+
+const DECK_STAGE_CSS = `
+html[data-template="deck"] body { display: flex; flex-direction: column; align-items: center; }
+html[data-template="deck"] .slide {
+  width: ${DECK_STAGE_W}px !important;
+  height: ${DECK_STAGE_H}px !important;
+  aspect-ratio: auto !important;
+  flex: 0 0 auto;
+}
+`;
+
 const POINTER_SCRIPT = `
 (function () {
   var SEL = ${JSON.stringify(POINTABLE)};
@@ -464,7 +492,9 @@ export async function resolveArtifactHtml(
   if (opts?.pointer) {
     stripExecutable(doc);
     const style = doc.createElement('style');
-    style.textContent = POINTER_CSS + (opts?.edit ? EDIT_CSS : '');
+    // DECK_STAGE_CSS self-gates on html[data-template="deck"] — harmless on
+    // document/article, load-bearing on decks (fixes the narrow-column collapse).
+    style.textContent = DECK_STAGE_CSS + POINTER_CSS + (opts?.edit ? EDIT_CSS : '');
     doc.head?.appendChild(style);
     if (opts?.edit) {
       // The edit runtime is injected FIRST so window.__yarnnnEditingId is
