@@ -6,6 +6,12 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.13.1] - The derive-recipe registry: "Learn from" lanes (ADR-450)
+
+- `services/derive_recipes.py` (new) — the kernel registry (`DERIVE_RECIPES`): three v1 recipes (context-brief · design-system · prd), each SKILL.md-grade constraint prose (steps, quality bar, anti-patterns). KERNEL-INTERNAL data — every future edit to a recipe's `instructions` is a new entry here (prompt change protocol), with per-recipe Hat-B eval probes as they mature.
+- `services/lane_runner.py::build_lane_conventions` — a derive-BOUND lane (`derive_recipe` + `derive_source` in lane_meta, the ADR-440 binding pattern) composes `build_derive_section` per turn: the recipe + the source path + the shared mechanics (read the `.extracted.md` projection for binary raws; cite every authored file via `derived_from=[source]`; never edit the source). Derive turns get the authoring token profile.
+- Expected behavior change: a lane created from the Files "Learn from…" chooser knows its job on every turn — it reads the source (or projection), authors the target (a context brief / an ADR-449-contract design system / a PRD) into a meaning-folder, cites via the ADR-448 edge, and reports what it could not evidence. Plain chat lanes and Studio-bound lanes unchanged.
+
 ## [2026.07.12.6] - Studio posture: the arrangement layer (ADR-447 v1 Phase 1)
 
 - `services/studio.py::_POSTURE_FRAME` — a new **Arrangements** section (composed per turn from `STUDIO_ARRANGEMENTS[layout]` via `_arrangements_grammar`): teaches that each page/section carries `data-arrange="<slug>"` with `data-slot` regions; the arrangement is the composition (grids/columns/slots), the block is the content, keep them distinct; annotate new pages, move blocks intact into slots on a re-lay (heading blocks anchor, not swept), treat the current arrangement as truth (concurrent-writer). The section lists the current layout's arrangements.

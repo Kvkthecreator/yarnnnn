@@ -43,6 +43,11 @@ class CreateLaneRequest(BaseModel):
     # A lane with a binding is a Studio lane; its turns carry the authoring
     # posture + token profile. Optional; plain chat lanes never set it.
     artifact_path: Optional[str] = None
+    # ADR-450 D3 — the derive binding (the "Learn from" verb): a kernel recipe
+    # slug + the workspace source path this lane derives from. Same lane_meta
+    # mechanism as the Studio binding; turns compose the recipe section.
+    derive_recipe: Optional[str] = None
+    derive_source: Optional[str] = None
 
 
 class LaneTurnRequest(BaseModel):
@@ -61,6 +66,9 @@ def _lane_row_to_dict(row: dict) -> dict:
         "model": lane_meta.get("model") or "",
         # ADR-440 D3 — the Studio binding (None for plain chat lanes).
         "artifact_path": lane_meta.get("artifact_path"),
+        # ADR-450 D3 — the derive binding (None for plain chat lanes).
+        "derive_recipe": lane_meta.get("derive_recipe"),
+        "derive_source": lane_meta.get("derive_source"),
         "status": row.get("status"),
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at"),
@@ -112,12 +120,17 @@ async def list_lanes(auth: UserClient) -> dict:
             q = q.eq("workspace_id", ws)
         lanes = [_lane_row_to_dict(r) for r in (q.execute().data or [])]
 
+    from services.derive_recipes import list_recipes
+
     return {
         "enabled": enabled,
         "models": [
             {"id": mid, "label": meta["label"]}
             for mid, meta in LANE_MODELS.items()
         ],
+        # ADR-450 D5: the Learn-from chooser payload — kernel recipes, served
+        # on the capability envelope (no new endpoint, no FE duplication).
+        "recipes": list_recipes(),
         "lanes": lanes,
     }
 
@@ -156,6 +169,26 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     artifact_path = (req.artifact_path or "").strip()
     if artifact_path:
         lane_meta["artifact_path"] = artifact_path
+
+    # ADR-450 D3 — the derive binding: validated against the kernel registry
+    # (an unknown recipe is a caller bug, not a lane), source normalized to
+    # the absolute form the posture + citations use.
+    derive_recipe = (req.derive_recipe or "").strip()
+    derive_source = (req.derive_source or "").strip()
+    if derive_recipe or derive_source:
+        from services.derive_recipes import get_recipe
+
+        if not (derive_recipe and derive_source):
+            raise HTTPException(
+                status_code=422,
+                detail="derive_recipe and derive_source must be passed together",
+            )
+        if not get_recipe(derive_recipe):
+            raise HTTPException(status_code=422, detail=f"Unknown derive recipe: {derive_recipe}")
+        if not derive_source.startswith("/workspace/"):
+            derive_source = "/workspace/" + derive_source.lstrip("/")
+        lane_meta["derive_recipe"] = derive_recipe
+        lane_meta["derive_source"] = derive_source
 
     row = {
         "user_id": auth.user_id,
@@ -282,6 +315,9 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
                 member_label=getattr(auth, "email", None) or None,
                 # ADR-440 D3 — a bound lane's turns carry the Studio posture.
                 artifact_path=lane_meta.get("artifact_path"),
+                # ADR-450 D3 — a derive-bound lane's turns carry the recipe.
+                derive_recipe=lane_meta.get("derive_recipe"),
+                derive_source=lane_meta.get("derive_source"),
             ):
                 if kind == "delta":
                     accumulated.append(payload)

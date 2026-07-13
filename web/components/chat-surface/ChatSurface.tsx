@@ -39,11 +39,16 @@ interface LaneInfo {
   model: string;
   updated_at?: string;
   created_at?: string;
+  /** ADR-450 D3 — the derive binding (null/absent for plain chat lanes). */
+  derive_recipe?: string | null;
+  derive_source?: string | null;
 }
 
 interface LaneData {
   enabled: boolean;
   models: Array<{ id: string; label: string }>;
+  /** ADR-450 D5 — kernel recipes (the Learn-from chooser payload). */
+  recipes?: Array<{ slug: string; label: string; description: string }>;
   lanes: LaneInfo[];
 }
 
@@ -100,6 +105,19 @@ export function ChatSurface() {
     () => (data?.lanes ?? []).find((l) => l.id === activeLaneId) ?? null,
     [data, activeLaneId],
   );
+
+  // ADR-450 D5: a derive-bound lane arrives with ONE starter chip — the
+  // suggested ask in the member's words (click fills the composer, the member
+  // sends — never auto-sent, the ADR-446 lesson). The recipe section on the
+  // lane's turns does the heavy lifting; the chip is just the door handle.
+  const deriveSuggestions = useMemo(() => {
+    if (!activeLane?.derive_recipe || !activeLane?.derive_source) return undefined;
+    const label =
+      data?.recipes?.find((r) => r.slug === activeLane.derive_recipe)?.label ??
+      activeLane.derive_recipe;
+    const leaf = activeLane.derive_source.slice(activeLane.derive_source.lastIndexOf('/') + 1);
+    return [`Learn from ${leaf} — create the ${label.toLowerCase()}.`];
+  }, [activeLane, data]);
 
   // ADR-442 D5: locator honesty — the active lane is the surface's crumb
   // (`Chat › ‹lane›`; the strip's root-click returns to the lane list). The
@@ -322,6 +340,7 @@ export function ChatSurface() {
               laneId={activeLane.id}
               laneName={activeLane.name}
               modelLabel={modelLabel(activeLane.model)}
+              suggestions={deriveSuggestions}
             />
           </>
         ) : (

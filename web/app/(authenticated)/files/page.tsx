@@ -50,7 +50,7 @@ import {
 import { SettingsPaneShell } from '@/components/settings/SettingsPaneShell';
 import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 import { useNarrative } from '@/contexts/NarrativeContext';
-import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
+import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import type { DeskSurface } from '@/types/desk';
 import { api, APIError } from '@/lib/api/client';
@@ -58,6 +58,7 @@ import { operatorCanOrganize, organizeBlockedReason } from '@/lib/workspace/owne
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { MoveToFolderModal } from '@/components/workspace/MoveToFolderModal';
 import { RenameModal } from '@/components/workspace/RenameModal';
+import { LearnFromModal } from '@/components/workspace/LearnFromModal';
 import { NewFolderModal } from '@/components/workspace/NewFolderModal';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
@@ -742,11 +743,39 @@ export default function ContextPage() {
     } catch { /* error toast already surfaced; stop */ }
   }, [runAction]);
 
+  // ADR-450 D5: "Learn from…" — the derive verb's contextual entrance. The
+  // chooser modal picks a kernel recipe; submit creates a derive-BOUND lane
+  // (the ADR-440 binding pattern, second kind) and lands the member in it on
+  // the chat surface. The lane does the work — nothing derives here.
+  const [learnTarget, setLearnTarget] = useState<{ path: string; name: string } | null>(null);
+  const { navigateToSurface } = useSurfacePreferences();
+  const handleLearnFrom = useCallback(async (recipeSlug: string, model: string) => {
+    const t = learnTarget;
+    if (!t) return;
+    try {
+      const lane = await runAction(
+        () => api.lanes.create({
+          name: `Learn: ${t.name}`.slice(0, 60),
+          model,
+          derive_recipe: recipeSlug,
+          derive_source: t.path,
+        }),
+        {
+          pending: 'Starting…',
+          success: 'Helper ready',
+          error: (e) => (e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Could not start' : 'Could not start'),
+        },
+      );
+      setLearnTarget(null);
+      if (lane?.id) navigateToSurface('chat', { lane: lane.id });
+    } catch { /* error toast already surfaced; keep the modal open */ }
+  }, [learnTarget, runAction, navigateToSurface]);
+
   // ADR-400: the operator's file verbs as one bundle, threaded to every file
   // surface (tree + RecentsView grid + ContentViewer folder listing) so the
   // right-click menu works on the MAIN PANEL, not only the left tree. Properties
   // + Open are the reads; rename/move/delete the organize verbs; share (ADR-437
-  // D4) mints a link to the artifact.
+  // D4) mints a link to the artifact; learn-from (ADR-450) derives from it.
   const fileVerbs = useMemo(() => ({
     onOpen: (t: { path: string }) => handleExplorerSelect_byPath(t.path),
     onProperties: (t: { path: string }) => { setShowTrash(false); setSelectedPath(t.path); setDetailsOpen(true); },
@@ -754,6 +783,7 @@ export default function ContextPage() {
     onMove: openMove,
     onDelete: handleTreeDelete,
     onShare: handleShare,
+    onLearnFrom: (t: { path: string; name: string }) => setLearnTarget(t),
   }), [handleExplorerSelect_byPath, openRename, openMove, handleTreeDelete, handleShare]);
 
   // Upload success (2026-07-01): after files land in the Intake raw lane
@@ -1086,6 +1116,13 @@ export default function ContextPage() {
         open={newFolderOpen}
         onClose={() => setNewFolderOpen(false)}
         onSubmit={commitNewFolder}
+      />
+
+      {/* ADR-450 D5: Learn from… — the derive verb's recipe chooser. */}
+      <LearnFromModal
+        target={learnTarget}
+        onClose={() => setLearnTarget(null)}
+        onSubmit={handleLearnFrom}
       />
     </>
   );

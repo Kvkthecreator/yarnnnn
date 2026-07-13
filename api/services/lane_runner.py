@@ -267,6 +267,8 @@ def build_lane_conventions(
     model: str,
     member_label: Optional[str] = None,
     artifact_path: Optional[str] = None,
+    derive_recipe: Optional[str] = None,
+    derive_source: Optional[str] = None,
 ) -> str:
     """Compose the AGENTS.md-shaped system prompt for one lane turn.
 
@@ -279,6 +281,11 @@ def build_lane_conventions(
     authoring posture as an additive section: the artifact's current head is
     read fresh here (derived, never stored) and ``services.studio`` composes
     the overlay purely.
+
+    ADR-450 D3: a DERIVE-bound lane (``derive_recipe`` + ``derive_source``
+    set — a "Learn from" lane) gains the kernel recipe as an additive section.
+    The two bindings may coexist; both are per-turn overlays over the same
+    conventions frame.
     """
     from services.workspace_paths import (
         CONSTITUTION_MANDATE_PATH,
@@ -308,6 +315,14 @@ def build_lane_conventions(
         ds_section = build_design_system_section(client, user_id)
         if ds_section:
             posture_section += "\n" + ds_section + "\n"
+
+    # ADR-450 D3 — the derive binding's recipe section (the "Learn from"
+    # lane's job description; pure composition from the kernel registry).
+    if derive_recipe and derive_source:
+        from services.derive_recipes import build_derive_section
+        derive_section = build_derive_section(derive_recipe, derive_source)
+        if derive_section:
+            posture_section += "\n" + derive_section + "\n"
 
     return _CONVENTIONS_FRAME.format(
         model_label=label,
@@ -340,6 +355,8 @@ async def run_lane_turn(
     user_message: str,
     member_label: Optional[str] = None,
     artifact_path: Optional[str] = None,
+    derive_recipe: Optional[str] = None,
+    derive_source: Optional[str] = None,
 ) -> dict:
     """Run one lane turn: bounded tool loop over the router.
 
@@ -377,9 +394,13 @@ async def run_lane_turn(
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,
+        derive_recipe=derive_recipe, derive_source=derive_source,
     )
-    # ADR-440 D3 — authoring turns need more room than chat turns.
-    max_tokens = _studio_max_tokens() if artifact_path else _LANE_MAX_TOKENS
+    # ADR-440 D3 — authoring turns need more room than chat turns. ADR-450:
+    # derive turns author whole files from a source — same profile.
+    max_tokens = (
+        _studio_max_tokens() if (artifact_path or derive_recipe) else _LANE_MAX_TOKENS
+    )
 
     messages: list[dict] = list(history) + [{"role": "user", "content": user_message}]
     tools_called: list[str] = []
@@ -494,6 +515,8 @@ async def run_lane_turn_stream(
     user_message: str,
     member_label: Optional[str] = None,
     artifact_path: Optional[str] = None,
+    derive_recipe: Optional[str] = None,
+    derive_source: Optional[str] = None,
 ):
     """Streaming sibling of ``run_lane_turn`` (ADR-412 D2 lane streaming).
 
@@ -542,9 +565,13 @@ async def run_lane_turn_stream(
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,
+        derive_recipe=derive_recipe, derive_source=derive_source,
     )
-    # ADR-440 D3 — authoring turns need more room than chat turns.
-    max_tokens = _studio_max_tokens() if artifact_path else _LANE_MAX_TOKENS
+    # ADR-440 D3 — authoring turns need more room than chat turns. ADR-450:
+    # derive turns author whole files from a source — same profile.
+    max_tokens = (
+        _studio_max_tokens() if (artifact_path or derive_recipe) else _LANE_MAX_TOKENS
+    )
 
     messages: list[dict] = list(history) + [{"role": "user", "content": user_message}]
     tools_called: list[str] = []

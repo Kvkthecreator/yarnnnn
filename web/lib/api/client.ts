@@ -187,19 +187,31 @@ export const api = {
       request<{
         enabled: boolean;
         models: Array<{ id: string; label: string }>;
+        /** ADR-450 D5 — the Learn-from chooser payload (kernel recipes). */
+        recipes: Array<{ slug: string; label: string; description: string; accepts: string[] }>;
         lanes: Array<{
           id: string;
           name: string;
           model: string;
           /** ADR-440 D3 — the Studio binding (null for plain chat lanes). */
           artifact_path?: string | null;
+          /** ADR-450 D3 — the derive binding (null for plain chat lanes). */
+          derive_recipe?: string | null;
+          derive_source?: string | null;
           status: string;
           created_at: string;
           updated_at: string;
           summary?: string | null;
         }>;
       }>("/api/lanes"),
-    create: (data: { name: string; model: string; artifact_path?: string }) =>
+    create: (data: {
+      name: string;
+      model: string;
+      artifact_path?: string;
+      /** ADR-450 D3 — the derive binding (pass both or neither). */
+      derive_recipe?: string;
+      derive_source?: string;
+    }) =>
       request<{ id: string; name: string; model: string; artifact_path?: string | null; status: string }>(
         "/api/lanes",
         { method: "POST", body: JSON.stringify(data) },
