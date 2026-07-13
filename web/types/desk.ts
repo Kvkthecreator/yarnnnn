@@ -65,8 +65,13 @@ export type KernelSurfaceSlug =
   | 'activity'
   | 'settings'
   | 'workspace-settings'  // ADR-341 — the second Settings door (the operation)
-  | 'system-agent'  // ADR-426 — the Freddie System Agent door (carved from Workspace Settings)
   | 'connectors';  // ADR-425 — the account door's Connections pane (pane_of: settings)
+  // ADR-454 D4 (2026-07-13): the ADR-426 system-agent slug LEFT the navigable
+  // allowlist — the door is reversed (the ambient steward); the registry row is
+  // `hidden` (hide-not-delete), the dials re-home pane_of → workspace-settings
+  // ("System" group), and /system-agent is an ADR-308 redirect stub. (Slug
+  // intentionally not written as a quoted literal here — the parity gate reads
+  // the union up to the first semicolon.)
   // ADR-425 D2 (2026-07-09): the `sources` slug LEFT the navigable allowlist — it
   // is `hidden` (no operator door; a bookmark-safe /sources → /home redirect stub
   // only). The backend row is retained (hide-not-delete) for a future first-class
@@ -109,7 +114,8 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   'chat', 'studio', 'recurrence', 'budget', 'autonomy',
   'files', 'agents', 'queue', 'notifications', 'activity',
   // ADR-425 D2: `sources` LEFT the allowlist (hidden, redirect-stub only).
-  'settings', 'workspace-settings', 'system-agent', 'connectors',
+  // ADR-454 D4: the system-agent slug LEFT too (door reversed; hidden row).
+  'settings', 'workspace-settings', 'connectors',
 ] as const;
 
 export function isKernelSurfaceSlug(s: string): s is KernelSurfaceSlug {

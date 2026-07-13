@@ -90,11 +90,10 @@ const KERNEL_TIER_GROUPS: { key: string; label: string; tier: string }[] = [
   // its label matches its billing/usage/account content + the UserMenu item).
   { key: 'kernel:primary', label: 'Workspace', tier: 'primary' },
   { key: 'kernel:workspace-config', label: 'Workspace Settings', tier: 'workspace-config' },
-  // ADR-426 (2026-07-09) — a THIRD settings door on the same plane: the system
-  // agent's own config, carved out of Workspace Settings. Ordered between the
-  // operation door and the human door — three altitudes: operation · system
-  // agent · human.
-  { key: 'kernel:system-agent-config', label: 'Freddie System Agent', tier: 'system-agent-config' },
+  // ADR-454 D4 (2026-07-13) — the ADR-426 third settings door ("Freddie System
+  // Agent", tier `system-agent-config`) is REVERSED (the ambient steward): the
+  // dials re-home to Workspace Settings → System; the registry row is hidden.
+  // Two settings doors again.
   { key: 'kernel:system-config', label: 'User Settings', tier: 'system-config' },
   // 2026-07-04 — Notifications' at-rest group (added 2026-07-01) is deleted:
   // the top-bar bell is the always-present door to that window on every
@@ -189,9 +188,10 @@ export function Launcher({
 
   // Filter out launcher-non-navigable surfaces (chrome: route="" per
   // D11+D12+D14). The Dock has its own entry; we shouldn't list itself
-  // as a navigation target.
+  // as a navigation target. Hidden rows (ADR-425 D2 sources, ADR-454 D4
+  // system-agent) render nowhere — not even in flat search.
   const navigableSurfaces = useMemo(
-    () => surfaces.filter((s) => s.route !== ''),
+    () => surfaces.filter((s) => s.route !== '' && !s.hidden),
     [surfaces]
   );
 

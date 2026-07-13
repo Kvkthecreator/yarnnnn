@@ -261,6 +261,14 @@ export interface Surface {
    */
   chrome_fronted?: boolean;
   /**
+   * Hidden registry rows (hide-not-delete): the row is retained backend-side
+   * for lineage/re-light but renders NOWHERE — no launcher tile, no flat-search
+   * result, no pane. `sources` (ADR-425 D2) and `system-agent` (ADR-454 D4 —
+   * the reversed Freddie door) carry it. The backend serializes the field;
+   * consumers filter on it (Launcher navigableSurfaces).
+   */
+  hidden?: boolean;
+  /**
    * ADR-340 P3 / ADR-341 / ADR-347 — the launcher's at-rest grouping,
    * derived from the operator's standing loop (NOT from the register):
    * `primary` (the loop compositions: Home/Operation + Files) · `configure`

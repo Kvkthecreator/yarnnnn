@@ -96,12 +96,14 @@ def test_pane_homing() -> None:
     # live on the Settings door as the System Agent group. ADR-418 (2026-07-08)
     # PURIFIED that group to what the STEWARD actually owns (ADR-414 D2): the
     # two dials only.
-    # ADR-426 (2026-07-09): the System Agent group carved out into its OWN door —
-    # budget/autonomy are pane_of system-agent now (the "Freddie System Agent"
-    # door), grouped "Freddie System Agent".
+    # ADR-426 (2026-07-09): the System Agent group carved out into its OWN door.
+    # ADR-454 D4 (2026-07-13): that door is REVERSED (the ambient steward) —
+    # budget/autonomy re-home pane_of → workspace-settings in the unbranded
+    # "System" group; the system-agent row goes hidden (hide-not-delete).
     for slug in ("autonomy", "budget"):
-        check(f"{slug} → the Freddie System Agent door (ADR-426)", by_slug[slug].get("pane_of") == "system-agent")
-        check(f"{slug} grouped Freddie System Agent (ADR-426)", by_slug[slug].get("pane_group") == "Freddie System Agent")
+        check(f"{slug} → Workspace Settings (ADR-454 D4)", by_slug[slug].get("pane_of") == "workspace-settings")
+        check(f"{slug} grouped System (ADR-454 D4)", by_slug[slug].get("pane_group") == "System")
+    check("system-agent row hidden (ADR-454 D4)", by_slug["system-agent"].get("hidden") is True)
     # ADR-421 — mandate/identity/principles are DORMANT: a workspace has no
     # constitution of its own (ADR-414 D6). They are per-agent concepts (surfaced
     # on the agent detail), so they leave the navigable set (no route, no pane_of).

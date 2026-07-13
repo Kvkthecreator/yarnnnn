@@ -77,11 +77,10 @@ import FilesPage from '@/app/(authenticated)/files/page';
 // window the UserMenu opens (billing/usage/account), kept as a windowed page.
 import SettingsPage from '@/app/(authenticated)/settings/page';
 import WorkspaceSettingsPage from '@/app/(authenticated)/workspace-settings/page';  // ADR-347 — the one Settings door
-// ADR-426 (2026-07-09) — the Freddie System Agent door: the System Agent group
-// (Autonomy · Budget · Capabilities · Activity) carved out of Workspace Settings
-// into its own window-grade surface. budget/autonomy re-point pane_of →
-// system-agent, so foregroundSurface('autonomy') resolves into this door.
-import SystemAgentPage from '@/app/(authenticated)/system-agent/page';
+// ADR-454 D4 (2026-07-13) — the ADR-426 "Freddie System Agent" door is
+// REVERSED (the ambient steward): the slug left the union (hidden registry
+// row backend-side); budget/autonomy re-point pane_of → workspace-settings
+// ("System" group); /system-agent is an ADR-308 redirect stub.
 
 export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, ComponentType>> = {
   // ADR-415 — the Channels surface is dissolved; no window component. Its
@@ -103,7 +102,7 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   // ADR-437 (2026-07-10) — `setup` deleted (dormant registry row backend-side).
   settings: SettingsPage,  // ADR-347 — the account window (UserMenu-reached: billing/usage/account)
   'workspace-settings': WorkspaceSettingsPage,  // ADR-347 — the ONE Settings door (the operation)
-  'system-agent': SystemAgentPage,  // ADR-426 — the Freddie System Agent door (Autonomy/Budget/Capabilities/Activity)
+  // ADR-454 D4 — 'system-agent' REMOVED (door reversed; hidden row + redirect stub).
 };
 
 export function resolveSurfaceComponent(slug: KernelSurfaceSlug): ComponentType | undefined {

@@ -101,9 +101,11 @@ export default function AgentsPage() {
   return (
     <div className="h-full overflow-auto p-6">
       <div className="max-w-3xl space-y-6">
+        {/* ADR-454 D4 — the dials' pointer follows the door reversal
+            (Workspace Settings → System, the ADR-426 door retired). */}
         <p className="text-xs text-muted-foreground/70">
-          Agents are created and governed by Freddie, the system agent —
-          its dials live in Workspace Settings → System Agent.
+          Agents are created and governed by the system agent —
+          its dials live in Workspace Settings → System.
         </p>
         {domainAgents.length > 0 && (
           <div>

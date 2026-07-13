@@ -135,11 +135,11 @@ def test_three_way_parity() -> None:
         f"pane slugs with window components: {sorted(reg & panes)}",
     )
     check(
-        "pane set is the live fold (ADR-426 System Agent door + ADR-425 sources hidden)",
+        "pane set is the live fold (ADR-454 D4 dials on Workspace Settings + ADR-425 sources hidden)",
         panes == {
-            # ADR-426 (2026-07-09): budget/autonomy are pane_of system-agent now
-            # (the Freddie System Agent door), NOT workspace-settings — they are
-            # still pane-grade, just under a different parent. ADR-418:
+            # ADR-454 D4 (2026-07-13): budget/autonomy are pane_of
+            # workspace-settings again ("System" group — the ADR-426 door
+            # reversed; the system-agent row is hidden). ADR-418:
             # expected-output LEFT (dormant). ADR-421: mandate/identity/principles
             # LEFT (dormant) — a workspace has no constitution of its own.
             "budget", "autonomy",

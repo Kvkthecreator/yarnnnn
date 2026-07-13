@@ -34,6 +34,7 @@ import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import { useShellChrome } from './ShellChromeContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { Z_FAB } from '@/lib/shell/z-tiers';
+import { STEWARD_CHROME_ENABLED } from '@/lib/steward-chrome';
 import { cn } from '@/lib/utils';
 
 interface DesktopProps {
@@ -192,6 +193,12 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
           children passed in by SurfaceViewport). */}
       {children}
 
+      {/* ADR-454 D3 (2026-07-13) — the ambient steward: the FAB (Freddie's
+          face, the persona-chrome summon) is gated off. The steward function
+          continues; its presence is the attributed ledger rows. One const
+          flip (steward-chrome.ts) re-lights this block. */}
+      {STEWARD_CHROME_ENABLED && (
+      <>
       {/* ChatFAB — D19.5.1 (2026-05-22):
             • Position: viewport-fixed bottom-RIGHT (was Desktop-fixed
               bottom-center pre-D19.5.1). macOS-faithful — matches the
@@ -240,6 +247,8 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
             Freddie is always working. */}
         <FreddieAvatar animate={false} className="h-8 w-8" />
       </button>
+      </>
+      )}
     </div>
   );
 }

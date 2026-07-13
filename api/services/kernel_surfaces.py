@@ -382,8 +382,12 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # and becomes its OWN door — re-homed pane_of workspace-settings →
         # system-agent (the "Freddie System Agent" door, same launcher plane as
         # Workspace Settings). foregroundSurface('budget') resolves there now.
-        "pane_of": "system-agent",
-        "pane_group": "Freddie System Agent",
+        # ADR-454 D4 (2026-07-13): the door is REVERSED (the ambient steward) —
+        # re-homed pane_of system-agent → workspace-settings, in an unbranded
+        # "System" pane group. Same pane body (SystemAgentPanes), third move,
+        # never duplicated. foregroundSurface('budget') resolves there now.
+        "pane_of": "workspace-settings",
+        "pane_group": "System",
         "title": "Budget",
         "archetype": "document",
         "substrate_paths": [
@@ -413,8 +417,10 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # ADR-426 (2026-07-09): re-homed pane_of workspace-settings → system-agent
         # (the "Freddie System Agent" door). foregroundSurface('autonomy') — the
         # Home autonomy badge deep-link — resolves there now, unchanged call site.
-        "pane_of": "system-agent",
-        "pane_group": "Freddie System Agent",
+        # ADR-454 D4 (2026-07-13): the door is REVERSED (the ambient steward) —
+        # re-homed pane_of system-agent → workspace-settings ("System" group).
+        "pane_of": "workspace-settings",
+        "pane_group": "System",
         "title": "Autonomy",
         "archetype": "document",
         "substrate_paths": [
@@ -733,8 +739,16 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # door carries the proper noun "Freddie System Agent" (ADR-426 D3 —
         # reverses ADR-412 D5's role-only label ruling now that the panes have
         # their own frame; the rail stays Freddie's conversational home, ADR-412 D1).
+        # ADR-454 D4 (2026-07-13) — the door is REVERSED (the ambient steward):
+        # the persona-fronting third settings door retires. hidden (hide-not-
+        # delete, the ADR-425 D2 sources precedent); launcher tier drops to
+        # search-only… and `hidden` keeps it out of route parity; the dials
+        # (autonomy/budget) re-home pane_of → workspace-settings ("System"
+        # group); /system-agent is a next.config redirect stub →
+        # /workspace-settings?pane=autonomy. Row retained for any re-light.
         "slug": "system-agent",
-        "launcher_tier": "system-agent-config",  # ADR-426 — a third settings door tier
+        "hidden": True,  # ADR-454 D4 — no operator door; renders in no pane
+        "launcher_tier": "search-only",  # ADR-454 D4 (was system-agent-config, ADR-426)
         "register": "application",  # a windowed app like workspace-settings / settings
         "title": "Freddie System Agent",
         "archetype": "dashboard",

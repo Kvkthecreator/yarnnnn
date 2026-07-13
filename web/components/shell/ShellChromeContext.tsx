@@ -52,6 +52,7 @@ import {
   type ReactNode,
 } from 'react';
 import { MOBILE_BREAKPOINT_PX } from '@/lib/shell/surface-preferences';
+import { STEWARD_CHROME_ENABLED } from '@/lib/steward-chrome';
 
 // ADR-316 posture-default tune: the rail's open/closed posture persists
 // here, mirroring ChatDrawer's rail-WIDTH persistence. Default is OPEN on
@@ -130,6 +131,12 @@ export function ShellChromeProvider({ userEmail, children }: ShellChromeProvider
         : DEFAULT_LAYOUT_MODE;
     if (mode !== DEFAULT_LAYOUT_MODE) setLayoutModeState(mode);
 
+    // ADR-454 D3 — the ambient steward: with the persona chrome gated off,
+    // the drawer never opens (neither the persisted posture nor the
+    // rail-mode default), so a returning operator with a persisted-open
+    // rail doesn't resurrect it.
+    if (!STEWARD_CHROME_ENABLED) return;
+
     let stored: string | null = null;
     try {
       stored = window.localStorage.getItem(DRAWER_OPEN_KEY);
@@ -154,6 +161,8 @@ export function ShellChromeProvider({ userEmail, children }: ShellChromeProvider
     try {
       window.localStorage.setItem(LAYOUT_MODE_KEY, next);
     } catch {}
+    // ADR-454 D3 — chrome gated: a mode switch never re-opens the rail.
+    if (!STEWARD_CHROME_ENABLED) return;
     const isMobile = window.innerWidth < MOBILE_BREAKPOINT_PX;
     const railMode = !isMobile && next === 'canvas';
     setDrawerOpen(railMode);
@@ -181,6 +190,9 @@ export function ShellChromeProvider({ userEmail, children }: ShellChromeProvider
   const closeLauncher = useCallback(() => setLauncherOpen(false), []);
 
   const openDrawer = useCallback(() => {
+    // ADR-454 D3 — persona chrome gated off: opening is a no-op (the
+    // machinery stays; nothing summons it).
+    if (!STEWARD_CHROME_ENABLED) return;
     setLauncherOpen(false);
     setDrawerOpen(true);
     persistDrawerOpen(true);
@@ -190,6 +202,7 @@ export function ShellChromeProvider({ userEmail, children }: ShellChromeProvider
     persistDrawerOpen(false);
   }, [persistDrawerOpen]);
   const toggleDrawer = useCallback(() => {
+    if (!STEWARD_CHROME_ENABLED) return;
     setDrawerOpen((wasOpen) => {
       const willOpen = !wasOpen;
       if (willOpen) setLauncherOpen(false);

@@ -26,12 +26,19 @@
  *   - ADR-426 (2026-07-09): the System Agent group (Freddie's dials +
  *     legibility — Autonomy · Budget · Capabilities · Activity) → its OWN
  *     window-grade door (/system-agent, "Freddie System Agent", same launcher
- *     plane). This door stops mixing the system agent's config with the
- *     operation's; SystemAgentPanes mounts on system-agent/page.tsx now.
+ *     plane). REVERSED by ADR-454 D4 (2026-07-13, the ambient steward): the
+ *     two dials came BACK as the unbranded System group below; the persona
+ *     panes stay dormant in SystemAgentPanes; /system-agent is a redirect stub.
  */
 
-import { Users } from "lucide-react";
+import { ShieldCheck, Users, Wallet } from "lucide-react";
 import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
+// ADR-454 D4 (2026-07-13) — the ambient steward: the ADR-426 "Freddie System
+// Agent" door is REVERSED. The steward's two operator-tunable dials come back
+// to this door as an unbranded SYSTEM group (same pane bodies, third move,
+// never duplicated); the persona panes (About · Activity) stay dormant in
+// SystemAgentPanes pending the narrative-posture regroup.
+import { renderSystemAgentPane } from "@/components/agents/SystemAgentPanes";
 // ADR-429 §13.3 (2026-07-09) — Billing + Usage LEFT this door for the account
 // door (User Settings, Vercel-style). The workspace-as-billing-unit data-model is
 // unchanged — only the door moved (see settings/page.tsx).
@@ -44,18 +51,15 @@ import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceM
 // Connectors → the account door (a credential is a human's account object),
 // Sources → hidden. ConnectedIntegrationsSection now mounts in settings/page.tsx;
 // SourcesCard is retained but has no operator mount (ADR-425 D2).
-// ADR-426 (2026-07-09) — the System Agent group (Freddie's dials + legibility)
-// LEFT this door and became its own window-grade surface (/system-agent, the
-// "Freddie System Agent" door on the same launcher plane). This door no longer
-// mixes the operation's config with the system agent's; SystemAgentPanes now
-// mounts on system-agent/page.tsx (Singular Implementation).
+// ADR-426 (2026-07-09) carved the System Agent group into its own door;
+// ADR-454 D4 (2026-07-13) reversed it — the two dials render here again via
+// renderSystemAgentPane (the System group), Singular Implementation.
 
 // ADR-341/347: pane keys match the kernel registry slugs for pane-grade
 // surfaces, so foregroundSurface(slug) → workspace-settings + ?pane=slug
 // resolves here. ADR-415: connectors/sources re-homed here (Channels dissolved).
-// ADR-426 (2026-07-09): the System Agent group LEFT this door for its own
-// surface (/system-agent). This door is now homogeneously about the operation +
-// the workspace: Operation (Brand · Program) · Access (Members) · Billing.
+// ADR-454 D4 (2026-07-13): the door set is Access (Members) · System
+// (Autonomy · Budget — back from the reversed ADR-426 door).
 const PANE_GROUPS: PaneGroup[] = [
   // ADR-421 (2026-07-08): the Constitution group is REMOVED. A workspace has no
   // constitution of its own — mandate/identity/principles are per-agent concepts
@@ -93,14 +97,23 @@ const PANE_GROUPS: PaneGroup[] = [
     label: "Access",
     panes: [{ key: "members", label: "Workspace Members", icon: Users }],
   },
+  {
+    // ADR-454 D4 — the SYSTEM group: the steward's two dials (the witness
+    // dial + the spend envelope), re-homed from the reversed ADR-426 door.
+    // Pane keys match the kernel registry slugs (pane_of: workspace-settings),
+    // so foregroundSurface('autonomy' | 'budget') resolves here.
+    label: "System",
+    panes: [
+      { key: "autonomy", label: "Autonomy", icon: ShieldCheck },
+      { key: "budget", label: "Budget", icon: Wallet },
+    ],
+  },
   // ADR-429 §13.3 — the Billing group LEFT this door for the account door (User
   // Settings, Vercel-style). See settings/page.tsx.
 ];
 
 export default function WorkspaceSettingsPage() {
   const renderPane = (pane: string) => {
-    // ADR-426 — the System Agent panes moved to their own door (/system-agent);
-    // they no longer render here.
     switch (pane) {
       // ADR-421 — Mandate/Identity/Principles cases REMOVED (workspace has no
       // constitution of its own; per-agent, ADR-419). ADR-432 D1c — `brand` case
@@ -115,6 +128,11 @@ export default function WorkspaceSettingsPage() {
             <WorkspaceMembersCard variant="full" />
           </section>
         );
+      // ADR-454 D4 — the steward's dials, back from the reversed ADR-426 door.
+      // Same bodies (SystemAgentPanes renders AutonomyCard / BudgetCard).
+      case "autonomy":
+      case "budget":
+        return <section className="mb-8">{renderSystemAgentPane(pane)}</section>;
       // ADR-429 §13.3 — the billing/usage cases LEFT this door for the account
       // door (settings/page.tsx). No cases here; nothing routes to them.
       default:

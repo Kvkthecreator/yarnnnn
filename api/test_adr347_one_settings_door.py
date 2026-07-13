@@ -84,12 +84,11 @@ def test_contract_group() -> None:
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
     # ADR-418: expected-output LEFT the Settings door (dormant — a hired agent's
-    # contract, no band door). budget/autonomy remain the System Agent dials.
-    # ADR-426 (2026-07-09): the System Agent group carved out into its OWN door —
-    # budget/autonomy are pane_of system-agent now (the Freddie System Agent door),
-    # not workspace-settings.
+    # contract, no band door). budget/autonomy remain the steward's dials.
+    # ADR-426 (2026-07-09) carved them onto their own door; ADR-454 D4
+    # (2026-07-13) reversed it — pane_of workspace-settings ("System" group).
     for slug in ("budget", "autonomy"):
-        check(f"{slug} → the Freddie System Agent door (ADR-426)", by_slug[slug].get("pane_of") == "system-agent")
+        check(f"{slug} → Workspace Settings (ADR-454 D4)", by_slug[slug].get("pane_of") == "workspace-settings")
     # Governance is no longer in the dissolved System Settings door, and no
     # longer a 'Governance' OR 'Contract'-in-workspace-settings group.
     check("no pane homes to a 'Governance' group anymore",
@@ -150,13 +149,19 @@ def test_redirect_stubs_point_to_one_door() -> None:
     # ADR-412 D5: the agent-scoped governance route stubs redirect into the
     # Settings door's System Agent group (the ADR-387 Freddie-pane targets
     # reversed).
-    print("\n[stubs] governance routes redirect into the Freddie System Agent door (ADR-426)")
-    # ADR-426: budget/autonomy deep-link to their pane on the new system-agent door.
+    print("\n[stubs] governance routes redirect into Workspace Settings → System (ADR-454 D4)")
+    # ADR-454 D4: budget/autonomy deep-link to their pane on Workspace Settings
+    # (the ADR-426 system-agent door reversed).
     for slug in ("budget", "autonomy"):
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
-        target = f"/system-agent?system-agent.pane={slug}"
+        target = f"/workspace-settings?workspace-settings.pane={slug}"
         check(f"/{slug} → {target}", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (ADR-308)", "'use client'" not in stub)
+    # ADR-454 D4: the /system-agent route itself is a bookmark-safety stub now.
+    sa_stub = _read("app/(authenticated)/system-agent/page.tsx")
+    check("/system-agent → Workspace Settings (ADR-454 D4)",
+          "redirect('/workspace-settings?workspace-settings.pane=autonomy')" in sa_stub)
+    check("/system-agent stub is server-side (ADR-308)", "'use client'" not in sa_stub)
     # ADR-418 — the /expected-output stub survives for BOOKMARK SAFETY only, but
     # the surface is dormant: it redirects to the Settings door WITHOUT a dead
     # pane param (its pane no longer exists), and stays server-side (ADR-308).
@@ -164,12 +169,9 @@ def test_redirect_stubs_point_to_one_door() -> None:
     check("/expected-output → /workspace-settings (no dead pane param)",
           "redirect('/workspace-settings')" in eo_stub)
     check("/expected-output stub is server-side (ADR-308)", "'use client'" not in eo_stub)
-    # The Home autonomy badge deep-links via the navigation-enactment verb
-    # (ADR-297 D19.5). foregroundSurface('autonomy') is UNCHANGED — the registry
-    # re-point (ADR-426: pane_of system-agent) makes it resolve to the new door.
-    home = _read("components/library/HomeHeader.tsx")
-    check("Home autonomy badge → foregroundSurface('autonomy')",
-          "foregroundSurface('autonomy')" in home)
+    # ADR-435 (2026-07-10): the Home surface (and HomeHeader's autonomy-badge
+    # deep-link) was DELETED — that check is retired. Pane deep-links resolve
+    # via the registry re-point (ADR-454 D4: pane_of workspace-settings).
 
 
 def test_expected_output_registered() -> None:

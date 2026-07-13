@@ -134,7 +134,10 @@ const LEGACY_SLUG_ALIASES: Record<string, string> = {
 // operator who had "Keep in Dock"-ed agents would otherwise keep a stale icon,
 // since the dock is kept ∪ open (TopBarSurface) and search-only doesn't touch
 // it. Re-surfacing A3 later = flip the tier back AND remove it from this set.
-const DOCK_RETIRED_SLUGS = new Set<string>(['agents']);
+// `system-agent` (ADR-454 D4, 2026-07-13): the ADR-426 door is reversed
+// (hidden registry row + redirect stub) — a persisted dock entry naming it
+// would render a dead icon (the ADR-385 ghost-icon lesson).
+const DOCK_RETIRED_SLUGS = new Set<string>(['agents', 'system-agent']);
 
 function normalizeSlug(slug: string): string {
   return LEGACY_SLUG_ALIASES[slug] ?? slug;

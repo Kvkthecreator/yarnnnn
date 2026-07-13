@@ -3,6 +3,14 @@
 /**
  * SystemAgentPanes — Freddie's inspection + dial panes.
  *
+ * ADR-454 D4 (2026-07-13, the ambient steward): the ADR-426 door this module
+ * mounted on is REVERSED. The two dial panes (autonomy · budget) now render
+ * inside Workspace Settings' unbranded "System" group
+ * (workspace-settings/page.tsx calls renderSystemAgentPane for those keys —
+ * same bodies, third move, never duplicated). The persona panes (About ·
+ * Health/Activity) and SYSTEM_AGENT_PANE_GROUP are DORMANT-RETAINED
+ * (unmounted) pending the narrative-posture regroup.
+ *
  * The system agent's legibility home. Lineage: ADR-387 §6.4 homed these on
  * the /agents roster as Freddie's pane; ADR-412 D5 reversed that — Freddie
  * left the roster (the Agents surface is Altitude 3), and the panes re-homed
