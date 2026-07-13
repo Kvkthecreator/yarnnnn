@@ -157,6 +157,16 @@ dropdowns, but composition is spatial." Four decisions:
   breakpoint the three columns collapse to **one pane at a time** (nav · canvas · chat) switched by
   a bottom tab bar; the canvas is primary (selecting a slide jumps to it). The Canva/Keynote-mobile
   pattern: canvas-first, navigator + chat as summonable panes.
+- **D7.7 fixes (2026-07-13, same-day):** first-use surfaced two regressions. (i) **Slide shape** —
+  the deck slide skin was `min-height: 92vh` (portrait/tall), so slides AND their previews looked
+  letter-size, not landscape. The skin is now a fixed **landscape 16:9** page (`aspect-ratio: 16/9`,
+  centered, boxed), and the navigator thumbnail renders the same markup at a 16:9 box — previews are
+  no longer distorted. (ii) **Blank canvas after an edit** — the projection effect keyed on the
+  whole `file` object, which `useFileLoad` returns fresh on every reload even when the content is
+  byte-identical, needlessly reloading the iframe and flashing it blank; it now keys on
+  `file.content`. (The content was verified valid in the DB — not a data corruption; the compact
+  16:9 slide + the edit runtime's focus-scroll-into-view keep the edited slide visible after a
+  reload.)
 
 The mutation contract is unchanged: every compositional act (re-lay, add band, fill slot) is a
 deterministic reflow through the ONE mechanical write door (ADR-444/446), free, CAS-guarded,

@@ -84,9 +84,13 @@ export function StudioCanvas({
   const [projected, setProjected] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  // Re-project on CONTENT change (not on file-object identity — useFileLoad
+  // returns a fresh object on every reload even when content is byte-identical,
+  // which would needlessly reload the iframe and flash it blank).
+  const content = file.content;
   useEffect(() => {
     let cancelled = false;
-    if (file.content == null) {
+    if (content == null) {
       setProjected(null);
       return;
     }
@@ -94,7 +98,7 @@ export function StudioCanvas({
     // (harmless when nothing is being edited; the runtime idles until the
     // parent commands enter). One render mode keeps the projection stable
     // across select→edit→select without reloading the frame.
-    resolveArtifactHtml(file.content, artifactPath, { pointer: true, edit: true })
+    resolveArtifactHtml(content, artifactPath, { pointer: true, edit: true })
       .then((html) => !cancelled && setProjected(html))
       // NEVER fall back to raw content: the iframe allows scripts, and only
       // the projection pass strips artifact-authored executables. A blank
@@ -103,7 +107,7 @@ export function StudioCanvas({
     return () => {
       cancelled = true;
     };
-  }, [file, artifactPath]);
+  }, [content, artifactPath]);
 
   // Command the iframe's edit runtime when the surface's editing state changes
   // AND on every fresh load (a reload after a commit reinjects the runtime; it

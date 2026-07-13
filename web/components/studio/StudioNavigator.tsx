@@ -27,10 +27,13 @@ interface OutlineEntry {
   text: string;
 }
 
-// A slide is authored at roughly this pixel box; the thumbnail scales it down.
-const SLIDE_W = 1280;
-const SLIDE_H = 720;
-const THUMB_W = 208; // matches the rail width (w-56 minus padding)
+// A deck slide is LANDSCAPE 16:9 (the skin: aspect-ratio 16/9). The thumbnail
+// renders the slide at a fixed landscape box and scales it down by width; the
+// height follows 16:9 so previews are never distorted (the bug: the old skin
+// was portrait/tall, so previews looked letter-size).
+const SLIDE_W = 992; // the slide's max width (62rem) — its natural landscape box
+const SLIDE_H = Math.round((SLIDE_W * 9) / 16); // 16:9 → 558
+const THUMB_W = 200; // the rail width (w-56 minus padding)
 const SCALE = THUMB_W / SLIDE_W;
 const THUMB_H = Math.round(SLIDE_H * SCALE);
 
@@ -59,15 +62,19 @@ async function buildSlidePreviews(html: string, artifactPath: string): Promise<S
   const slides = Array.from(doc.querySelectorAll('section.slide'));
   return slides.map((slide, index) => {
     const heading = slide.querySelector('h1, h2, h3, .kicker');
-    // Render the slide at authored dimensions, then scale the whole doc down.
+    // Render the slide in a fixed landscape box, then scale the whole doc down.
+    // The frame IS the slide's natural box; the slide's own aspect-ratio 16/9
+    // keeps it landscape. margin:0 override neutralizes the skin's centering
+    // margin so the preview fills the thumbnail edge-to-edge.
     const body = `<div class="yarnnn-thumb-frame">${slide.outerHTML}</div>`;
     const previewDoc =
       `<!doctype html><html><head>${headStyles}` +
       `<style>` +
       `html,body{margin:0;padding:0;background:#fff;overflow:hidden;}` +
-      `.yarnnn-thumb-frame{width:${SLIDE_W}px;min-height:${SLIDE_H}px;` +
+      `.yarnnn-thumb-frame{width:${SLIDE_W}px;height:${SLIDE_H}px;` +
       `transform:scale(${SCALE});transform-origin:top left;}` +
-      `.yarnnn-thumb-frame .slide{min-height:${SLIDE_H}px;}` +
+      `.yarnnn-thumb-frame .slide{width:${SLIDE_W}px;height:${SLIDE_H}px;` +
+      `aspect-ratio:auto;margin:0;box-shadow:none;}` +
       `</style></head><body>${body}</body></html>`;
     return {
       index,

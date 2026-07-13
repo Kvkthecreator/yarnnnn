@@ -165,11 +165,17 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
             "them annotated. Keep slide text sparse — a deck is spoken over, not read."
         ),
         "skin": """
-    .slide { min-height: 92vh; padding: 4rem 3.5rem; display: flex;
-             flex-direction: column; justify-content: center;
-             border-bottom: 2px solid #e8e4de; page-break-after: always; }
-    .slide h1 { font-size: 2.6rem; max-width: 34rem; }
-    .slide h2 { font-size: 1.9rem; margin-bottom: 1.25rem; }
+    body { background: #e8e4de; }
+    /* A deck slide is LANDSCAPE 16:9 — a fixed-aspect page, centered, one per
+       screen. aspect-ratio keeps it landscape in the canvas AND in a scaled
+       thumbnail (the navigator renders the same markup). */
+    .slide { width: min(100%, 62rem); aspect-ratio: 16 / 9; margin: 1.5rem auto;
+             padding: 3.5rem 4rem; display: flex; flex-direction: column;
+             justify-content: center; background: var(--paper);
+             box-shadow: 0 1px 6px rgba(0,0,0,0.08); overflow: hidden;
+             page-break-after: always; }
+    .slide h1 { font-size: 2.4rem; max-width: 34rem; }
+    .slide h2 { font-size: 1.7rem; margin-bottom: 1rem; }
     .slide .kicker { color: var(--accent); font-size: 0.85rem;
                      letter-spacing: 0.08em; text-transform: uppercase;
                      margin-bottom: 1rem; }
