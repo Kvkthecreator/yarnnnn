@@ -25,6 +25,9 @@ import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
 interface OutlineEntry {
   level: number;
   text: string;
+  /** The heading block's id (ADR-455) — present when the heading is annotated
+   *  (scaffolds + the posture stamp headings); makes the entry navigational. */
+  blockId: string | null;
 }
 
 // A deck slide is LANDSCAPE 16:9 (the skin: aspect-ratio 16/9). The thumbnail
@@ -93,6 +96,7 @@ function extractOutline(html: string): OutlineEntry[] {
     .map((h) => ({
       level: h.tagName === 'H1' ? 1 : 2,
       text: (h.textContent || '').replace(/\s+/g, ' ').trim(),
+      blockId: h.getAttribute('data-block-id'),
     }))
     .filter((h) => h.text)
     .slice(0, 40);
@@ -109,6 +113,9 @@ interface StudioNavigatorProps {
   selectedSlide: number | null;
   /** Select a slide by index (deck) — anchors the toolbar's Arrange ops. */
   onSelectSlide: (index: number) => void;
+  /** ADR-455: select a heading by block id (document/article outline) —
+   *  selects the heading block AND scrolls the canvas to it (deck parity). */
+  onSelectHeading?: (blockId: string) => void;
 }
 
 export function StudioNavigator({
@@ -117,6 +124,7 @@ export function StudioNavigator({
   artifactPath,
   selectedSlide,
   onSelectSlide,
+  onSelectHeading,
 }: StudioNavigatorProps) {
   const [previews, setPreviews] = useState<SlidePreview[] | null>(null);
 
@@ -189,7 +197,9 @@ export function StudioNavigator({
     );
   }
 
-  // document + article → the outline (a table of contents).
+  // document + article → the outline, NAVIGATIONAL (ADR-455): clicking a
+  // heading selects its block and scrolls the canvas to it — the Docs/Word
+  // nav-pane contract, via the same bridge the deck strip uses.
   const outline = extractOutline(html);
   return (
     <div className="flex h-full flex-col overflow-y-auto p-3">
@@ -199,18 +209,33 @@ export function StudioNavigator({
       {outline.length === 0 ? (
         <p className="text-[11px] text-muted-foreground">Headings appear here.</p>
       ) : (
-        <ul className="space-y-1">
-          {outline.map((h, i) => (
-            <li
-              key={i}
-              className={`truncate text-xs ${
-                h.level === 1 ? 'font-medium' : 'pl-3 text-muted-foreground'
-              }`}
-              title={h.text}
-            >
-              {h.text}
-            </li>
-          ))}
+        <ul className="space-y-0.5">
+          {outline.map((h, i) =>
+            h.blockId && onSelectHeading ? (
+              <li key={i}>
+                <button
+                  type="button"
+                  onClick={() => onSelectHeading(h.blockId!)}
+                  title={h.text}
+                  className={`block w-full truncate rounded px-1 py-0.5 text-left text-xs transition-colors hover:bg-muted/40 hover:text-foreground ${
+                    h.level === 1 ? 'font-medium' : 'pl-3 text-muted-foreground'
+                  }`}
+                >
+                  {h.text}
+                </button>
+              </li>
+            ) : (
+              <li
+                key={i}
+                className={`truncate px-1 py-0.5 text-xs ${
+                  h.level === 1 ? 'font-medium' : 'pl-3 text-muted-foreground'
+                }`}
+                title={h.text}
+              >
+                {h.text}
+              </li>
+            ),
+          )}
         </ul>
       )}
     </div>

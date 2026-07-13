@@ -54,8 +54,9 @@ interface StudioDesignTabProps {
   /** The artifact's SOURCE html — token values + skin ref parse from it. */
   html: string;
   selection: StudioSelection | null;
-  /** EXECUTE: set (value) / clear (null) a token on the selected block/page. */
-  onSetToken: (grain: 'block' | 'page', key: string, value: string | null) => void;
+  /** EXECUTE: set (value) / clear (null) a token on the selected block/page,
+   *  or on the artifact ROOT (document grain — ADR-455). */
+  onSetToken: (grain: 'block' | 'page' | 'document', key: string, value: string | null) => void;
   /** EXECUTE: re-lay the SELECTED page to this arrangement. */
   onApplyArrangement: (fragment: string, label: string) => void;
   onBlockVerb: (verb: StructVerb) => void;
@@ -120,6 +121,56 @@ function TokenControl({
             {v.label}
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/** The typography chips (ADR-455) — the Notion "Ag" affordance, our grammar:
+ *  each value previews in its own stack; Auto = the layout/skin default. */
+const FONT_STACKS: Record<string, string> = {
+  serif: "Georgia, 'Times New Roman', serif",
+  sans: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+  mono: "ui-monospace, 'SF Mono', Menlo, monospace",
+};
+
+function FontControl({
+  token,
+  current,
+  onSet,
+}: {
+  token: StudioToken;
+  current: string | null;
+  onSet: (value: string | null) => void;
+}) {
+  const chip = (value: string | null, label: string, stack?: string) => {
+    const active = (current ?? null) === value;
+    return (
+      <button
+        key={label}
+        type="button"
+        onClick={() => onSet(active && value != null ? null : value)}
+        className={`flex w-14 flex-col items-center gap-0.5 rounded-md border px-1 py-1.5 transition-colors ${
+          active
+            ? 'border-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/40'
+            : 'border-border hover:bg-muted/40'
+        }`}
+      >
+        <span className="text-lg leading-none" style={stack ? { fontFamily: stack } : undefined}>
+          Ag
+        </span>
+        <span className="text-[9px] text-muted-foreground">{label}</span>
+      </button>
+    );
+  };
+  return (
+    <div>
+      <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {token.label}
+      </p>
+      <div className="flex flex-wrap gap-1.5" title={token.description}>
+        {chip(null, 'Auto')}
+        {token.values.map((v) => chip(v.value, v.label, FONT_STACKS[v.value]))}
       </div>
     </div>
   );
@@ -230,7 +281,18 @@ export function StudioDesignTab({
     return [];
   }, [scope, tokens, mediaKinds, selection, selectedEl, arrangements, layout]);
 
-  // ── Document scope: the design-system picker (ADR-449 D5 homed) ─────────
+  // ── Document scope: root-grain tokens (ADR-455) + the design-system
+  // picker (ADR-449 D5 homed) ──────────────────────────────────────────────
+  const root = doc?.documentElement ?? null;
+  const docTokens = useMemo(
+    () =>
+      tokens.filter(
+        (t) =>
+          t.applies.includes('document') ||
+          (layout !== 'deck' && t.applies.includes('document-flow')),
+      ),
+    [tokens, layout],
+  );
   const skinRef = doc?.querySelector('head style[data-skin]')?.getAttribute('data-ref') ?? null;
   const designSystems = vocabulary?.design_systems ?? [];
   const [applying, setApplying] = useState<string | null>(null);
@@ -279,6 +341,32 @@ export function StudioDesignTab({
               {pageNoun} or a block on the canvas to shape it here.
             </p>
           </div>
+          {docTokens.length > 0 && (
+            <div className={SECTION}>
+              {docTokens.map((t) =>
+                t.key === 'font' ? (
+                  <FontControl
+                    key={t.key}
+                    token={t}
+                    current={root?.getAttribute(`data-${t.key}`) ?? null}
+                    onSet={(v) => onSetToken('document', t.key, v)}
+                  />
+                ) : (
+                  <TokenControl
+                    key={t.key}
+                    token={t}
+                    current={root?.getAttribute(`data-${t.key}`) ?? null}
+                    onSet={(v) => onSetToken('document', t.key, v)}
+                  />
+                ),
+              )}
+              {skinRef && (
+                <p className="text-[10px] text-muted-foreground">
+                  A design system is applied — its styles may override these.
+                </p>
+              )}
+            </div>
+          )}
           <div className={SECTION}>
             <p className={HEADING}>Design system</p>
             {designSystems.length === 0 ? (

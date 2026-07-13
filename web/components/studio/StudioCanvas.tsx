@@ -77,6 +77,8 @@ interface StudioCanvasProps {
   /** ADR-447: scroll the canvas to this slide (the navigator selected it). A
    *  monotonic nonce forces the scroll even when re-selecting the same slide. */
   scrollToSlide?: { index: number; nonce: number } | null;
+  /** ADR-455: scroll the canvas to this heading block (the outline navigates). */
+  scrollToBlock?: { blockId: string; nonce: number } | null;
   /** ADR-447: zoom the rendered document (a VIEW control — 1 = 100%). Never a
    *  file change; the artifact's real dimensions are untouched. */
   zoom?: number;
@@ -101,6 +103,7 @@ export function StudioCanvas({
   onEditEntered,
   onAddHere,
   scrollToSlide,
+  scrollToBlock,
   zoom = 1,
 }: StudioCanvasProps) {
   const [projected, setProjected] = useState<string | null>(null);
@@ -198,6 +201,13 @@ export function StudioCanvas({
     if (!win || !scrollToSlide) return;
     win.postMessage({ type: 'yarnnn-scroll-to-slide', index: scrollToSlide.index }, '*');
   }, [scrollToSlide]);
+
+  // ADR-455: when the outline selects a heading, scroll the canvas to it.
+  useEffect(() => {
+    const win = iframeRef.current?.contentWindow;
+    if (!win || !scrollToBlock) return;
+    win.postMessage({ type: 'yarnnn-scroll-to-block', blockId: scrollToBlock.blockId }, '*');
+  }, [scrollToBlock]);
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {

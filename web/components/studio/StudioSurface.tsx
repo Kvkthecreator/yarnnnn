@@ -23,7 +23,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Palette, Sparkles } from 'lucide-react';
+import { Copy, Link2, Loader2, Palette, PanelLeft, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { LearnFromFlowModal } from './LearnFromFlowModal';
@@ -401,7 +401,7 @@ export function StudioSurface() {
 
   // ── ADR-453: the property layer + the structural verbs (Design tab) ──────
   const handleSetToken = useCallback(
-    (grain: 'block' | 'page', key: string, value: string | null) =>
+    (grain: 'block' | 'page' | 'document', key: string, value: string | null) =>
       applyOp(
         (html) => setToken(html, { grain, anchor }, key, value, kernelStyle),
         value == null ? `Studio: clear ${key}` : `Studio: set ${key} to ${value}`,
@@ -498,6 +498,10 @@ export function StudioSurface() {
   const [zoom, setZoom] = useState(1);
   const [mobilePane, setMobilePane] = useState<'nav' | 'canvas' | 'chat'>('canvas');
 
+  // ADR-455: the navigator collapses (desktop) — a member reclaims the width
+  // when the outline/strip isn't earning it. Session-local state.
+  const [navCollapsed, setNavCollapsed] = useState(false);
+
   // Selecting a slide in the left navigator sets the selection to that slide
   // (no block; anchors page ops + the Design tab) AND scrolls the canvas to it.
   const [scrollToSlide, setScrollToSlide] = useState<{ index: number; nonce: number } | null>(null);
@@ -515,6 +519,63 @@ export function StudioSurface() {
     setScrollToSlide((s) => ({ index, nonce: (s?.nonce ?? 0) + 1 }));
     setMobilePane('canvas'); // on mobile, jump to the canvas to see the slide
   }, []);
+
+  // ADR-455: the outline navigates — selecting a heading selects its BLOCK
+  // (anchoring the Design tab) and scrolls the canvas to it (deck parity).
+  const [scrollToBlock, setScrollToBlock] = useState<{ blockId: string; nonce: number } | null>(
+    null,
+  );
+  const selectHeadingFromNavigator = useCallback((blockId: string) => {
+    setSelection({
+      blockId,
+      blockKind: 'heading',
+      slideIndex: null,
+      pageIndex: null,
+      slot: null,
+      arrange: null,
+      text: '',
+    });
+    setEditingBlockId(null);
+    setScrollToBlock((s) => ({ blockId, nonce: (s?.nonce ?? 0) + 1 }));
+    setMobilePane('canvas');
+  }, []);
+
+  // ── ADR-455: the file-verb completion (surface-bar ⋯) ────────────────────
+  // Copy link — the member-facing deep link to this artifact (the workspace
+  // is multi-member; distinct from the ADR-437 Share origin).
+  const copyArtifactLink = useCallback(() => {
+    if (!artifactPath) return;
+    const url = `${window.location.origin}/desktop?studio.file=${encodeURIComponent(relPath(artifactPath))}`;
+    void navigator.clipboard.writeText(url);
+  }, [artifactPath]);
+  // Duplicate — read the open artifact, write it at a -copy sibling through
+  // the one mechanical door (never overwrite an existing copy), open the copy.
+  const duplicateArtifact = useCallback(async () => {
+    if (!artifactPath || !file?.content) return;
+    const base = artifactPath.replace(/\.html$/, '');
+    for (let i = 1; i <= 5; i++) {
+      const target = i === 1 ? `${base}-copy.html` : `${base}-copy-${i}.html`;
+      try {
+        await api.workspace.getFile(target);
+        continue; // exists — try the next suffix
+      } catch {
+        /* free — create here */
+      }
+      try {
+        await api.studio.writeArtifact(
+          target,
+          file.content,
+          null,
+          `Studio: duplicate ${baseName(artifactPath)}`,
+        );
+        setParam({ file: relPath(target) });
+      } catch (e) {
+        setOpError(e instanceof Error ? e.message : 'Duplicate failed.');
+      }
+      return;
+    }
+    setOpError('Too many copies of this artifact already — rename one first.');
+  }, [artifactPath, file, setParam]);
 
   // ADR-447 Phase 4 + ADR-453 D5: "+ Add here" in an empty slot, gated by the
   // slot's ROLE from the vocabulary. A flow slot takes a prose block directly
@@ -564,9 +625,9 @@ export function StudioSurface() {
             the window and crush the flex-1 canvas to 0 — verified live at
             ~960px. Percentages yield gracefully; wide screens are unchanged. */}
         <div
-          className={`w-full shrink-0 border-r border-border md:flex md:w-56 md:max-w-[22%] ${
-            navActive ? 'flex' : 'hidden'
-          }`}
+          className={`w-full shrink-0 border-r border-border md:w-56 md:max-w-[22%] ${
+            navCollapsed ? 'md:hidden' : 'md:flex'
+          } ${navActive ? 'flex' : 'hidden'}`}
         >
           <StudioNavigator
             layout={template}
@@ -574,12 +635,25 @@ export function StudioSurface() {
             artifactPath={artifactPath}
             selectedSlide={selection?.slideIndex ?? null}
             onSelectSlide={selectSlideFromNavigator}
+            onSelectHeading={selectHeadingFromNavigator}
           />
         </div>
 
         {/* Center — the toolbar + zoom over the canvas (renders, edits in place). */}
         <div className={`min-w-0 flex-1 flex-col md:flex ${canvasActive ? 'flex' : 'hidden'}`}>
           <div className="flex items-center gap-1 border-b border-border">
+            {/* ADR-455: collapse/expand the navigator (desktop) — the outline
+                earns its width or gets out of the way. */}
+            <button
+              type="button"
+              onClick={() => setNavCollapsed((c) => !c)}
+              title={`${navCollapsed ? 'Show' : 'Hide'} the ${template === 'deck' ? 'slide strip' : 'outline'}`}
+              className={`ml-2 hidden shrink-0 rounded p-1 transition-colors hover:bg-muted/40 md:inline-flex ${
+                navCollapsed ? 'text-muted-foreground/60' : 'text-muted-foreground'
+              }`}
+            >
+              <PanelLeft className="h-3.5 w-3.5" />
+            </button>
             <div className="min-w-0 flex-1">
               <StudioToolbar
                 vocabulary={vocabulary}
@@ -646,6 +720,7 @@ export function StudioSurface() {
               onEditEntered={(id) => setEditingBlockId(id)}
               onAddHere={onAddHere}
               scrollToSlide={scrollToSlide}
+              scrollToBlock={scrollToBlock}
               zoom={zoom}
             />
           )}
@@ -784,6 +859,22 @@ export function StudioSurface() {
           onRename={(t) => organizeVerbs.onRename(t)}
           onMove={(t) => organizeVerbs.onMove(t)}
           onDelete={(t) => organizeVerbs.onDelete(t)}
+          // ADR-455: the file-verb completion — Studio-specific entries via
+          // the shared menu's extension point (Notion's menu, our grains).
+          extraItems={[
+            {
+              id: 'copy-link',
+              label: 'Copy link',
+              icon: <Link2 className="h-3.5 w-3.5 text-muted-foreground" />,
+              onClick: copyArtifactLink,
+            },
+            {
+              id: 'duplicate',
+              label: 'Duplicate',
+              icon: <Copy className="h-3.5 w-3.5 text-muted-foreground" />,
+              onClick: () => void duplicateArtifact(),
+            },
+          ]}
         />
       )}
       {organizeModals}

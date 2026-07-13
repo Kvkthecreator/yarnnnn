@@ -47,6 +47,17 @@ export interface FileVerbs {
   onShare?: (t: { path: string; name: string }) => void;
 }
 
+/** A caller-supplied menu entry (ADR-455) — the additive extension point so a
+ *  surface (the Studio's ⋯) can offer surface-specific verbs (Copy link,
+ *  Duplicate) without forking the shared menu. Rendered above the organize
+ *  group, in the given order. */
+export interface FileMenuExtraItem {
+  id: string;
+  label: string;
+  icon?: React.ReactNode;
+  onClick: () => void;
+}
+
 export interface FileContextMenuProps {
   target: FileMenuTarget;
   x: number;
@@ -64,10 +75,12 @@ export interface FileContextMenuProps {
   onDelete?: (t: FileMenuTarget) => void;
   /** Share a link to the target (ADR-437 D4). */
   onShare?: (t: FileMenuTarget) => void;
+  /** Surface-specific verbs (ADR-455) — rendered above the organize group. */
+  extraItems?: FileMenuExtraItem[];
 }
 
 export function FileContextMenu({
-  target, x, y, onClose, onOpen, onProperties, onRename, onMove, onDelete, onShare,
+  target, x, y, onClose, onOpen, onProperties, onRename, onMove, onDelete, onShare, extraItems,
 }: FileContextMenuProps) {
   useEffect(() => {
     const close = () => onClose();
@@ -109,6 +122,15 @@ export function FileContextMenu({
           Share…
         </MenuItem>
       )}
+      {extraItems?.map((it) => (
+        <MenuItem
+          key={it.id}
+          icon={it.icon ?? <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />}
+          onClick={() => { it.onClick(); onClose(); }}
+        >
+          {it.label}
+        </MenuItem>
+      ))}
       {isFile && (onRename || onMove || onDelete) && <div className="my-1 h-px bg-border/60" />}
       {isFile && onRename && (
         <MenuItem icon={<Pencil className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onRename)}>

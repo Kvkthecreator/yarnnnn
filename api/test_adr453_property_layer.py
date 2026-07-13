@@ -49,12 +49,13 @@ def run() -> bool:
         compose_kernel_style_element,
     )
 
-    # ── 1. The token registry (D1) ───────────────────────────────────────
+    # ── 1. The token registry (D1; document grain added by ADR-455) ──────
     _check(
-        "six v1 token families",
-        set(STUDIO_TOKENS) == {"align", "tone", "height", "fit", "ratio", "valign"},
+        "the ADR-453 six + the ADR-455 document families",
+        {"align", "tone", "height", "fit", "ratio", "valign", "font", "measure"}
+        <= set(STUDIO_TOKENS),
     )
-    valid_applies = {"block", "media", "page", "page-multicol", "page-deck"}
+    valid_applies = {"block", "media", "page", "page-multicol", "page-deck", "document", "document-flow"}
     _check(
         "token rows carry label/applies/values/description",
         all(

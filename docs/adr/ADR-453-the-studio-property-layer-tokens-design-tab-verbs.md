@@ -1,5 +1,10 @@
 # ADR-453 — The Studio property layer: tokens-not-pixels, the Design tab, and the grain-aligned verbs
 
+> **Amended by ADR-455** (2026-07-13): the token registry gains the **document grain** —
+> `data-font` / `data-measure` on the artifact ROOT (the Notion page-menu affordances as
+> tokens); the kernel element bumps to **v2** (the D2 retrofit carries the new rules);
+> `setToken` targets the root; the Design tab's document scope becomes a real panel.
+
 > **Status**: **Accepted** (2026-07-13, operator-ratified — "proceed in full"). The operator, from
 > the Figma inspector and then self-corrected to the Wix/Webflow family, named the missing
 > in-document layer: interactive control of *where things sit and how they read* — position,

@@ -6,6 +6,11 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.13.4] - Studio posture: document-grain tokens (ADR-455)
+
+- `services/studio.py::STUDIO_TOKENS` — two new families: `data-font="serif|sans|mono"` + `data-measure="wide"`, set on the artifact ROOT (`<html>`) — the Notion page-menu typography/width affordances as tokens. The posture's Property-tokens section (registry-derived) picks them up automatically and now names the root as a token carrier; kernel CSS bumps to v2 (the marked element self-retrofits on the next mechanical op).
+- Expected behavior change: bound lanes can honor "make it serif" / "make it full width" as one root-attribute edit instead of rewriting the layout `<style>` (which the switch rule already forbids for the marked elements). Plain chat lanes unchanged; posture grows two registry lines.
+
 ## [2026.07.13.3] - Studio posture: property tokens + marked-element survival (ADR-453)
 
 - `services/studio.py::_POSTURE_FRAME` — a new **Property tokens** section (composed from `STUDIO_TOKENS` via `_tokens_grammar`, so the posture and the Design tab never drift): blocks/pages carry `data-align` / `data-tone` / `data-height` / `data-fit` / `data-ratio` / `data-valign` tokens; absence is the default; set/clear by adding/removing the attribute; never inline `style=""` or raw colors for placement/emphasis; preserve tokens you didn't touch; set them yourself when asked in plain words. The **Layout** section's switch rule tightens: replace the UNMARKED `<style>` only — the marked `<style data-kernel="true">` (kernel token CSS, new) and `<style data-skin="true">` (ADR-449) elements survive every switch, never edited or removed.

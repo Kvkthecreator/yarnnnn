@@ -313,6 +313,13 @@ const POINTER_SCRIPT = `
       var slides = document.querySelectorAll('section.slide');
       var s = slides[d.index];
       if (s && s.scrollIntoView) s.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (d.type === 'yarnnn-scroll-to-block' && typeof d.blockId === 'string') {
+      // ADR-455: the outline navigates — scroll to a heading block by id.
+      try {
+        var blk = document.querySelector('[data-block-id="' +
+          (window.CSS && CSS.escape ? CSS.escape(d.blockId) : d.blockId) + '"]');
+        if (blk && blk.scrollIntoView) blk.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch (err) {}
     } else if (d.type === 'yarnnn-zoom' && typeof d.scale === 'number') {
       // zoom scales layout + scrollable area (unlike transform) — the honest
       // "make it bigger/smaller on screen" the operator asked for.

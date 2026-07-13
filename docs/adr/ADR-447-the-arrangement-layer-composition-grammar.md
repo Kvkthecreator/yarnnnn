@@ -1,5 +1,10 @@
 # ADR-447 — The arrangement layer: composition as a first-class, per-type, nested grammar
 
+> **Amended by ADR-455** (2026-07-13): the D7.2 navigator becomes **collapsible** (toolbar
+> toggle) and the document/article outline becomes **navigational** (click a heading → select
+> its block + scroll the canvas, via the D7.7 scroll bridge generalized to
+> `yarnnn-scroll-to-block`).
+
 > **Amended by ADR-453** (2026-07-13): D7.2's "no inspector column" is revised — the inspector
 > returns as the right column's **Design tab** (Chat | Design; never a fourth column) because the
 > ratified scope grew to property editing; D7.1's derived wireframe thumbnails land (the New

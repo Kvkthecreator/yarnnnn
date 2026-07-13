@@ -407,6 +407,9 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
 #   page          — any [data-arrange] page/slide
 #   page-multicol — pages whose arrangement has ≥2 flow slots
 #   page-deck     — deck slides only
+#   document      — the artifact ROOT (<html>), all layouts (ADR-455)
+#   document-flow — the artifact root, document/article only (a deck is a
+#                   fixed 16:9 stage — measure does not apply)
 # ---------------------------------------------------------------------------
 
 #: Block kinds the media-grain tokens (height/fit) apply to.
@@ -470,6 +473,26 @@ STUDIO_TOKENS: dict[str, dict] = {
         ],
         "description": "where the slide's content sits (absence = centered)",
     },
+    # ADR-455: document-grain tokens — set on the artifact ROOT. The Notion
+    # page-menu affordances (typography, width) as tokens, never raw style.
+    "font": {
+        "label": "Typography",
+        "applies": ["document"],
+        "values": [
+            {"value": "serif", "label": "Serif"},
+            {"value": "sans", "label": "Sans"},
+            {"value": "mono", "label": "Mono"},
+        ],
+        "description": "the artifact's typeface family (absence = the layout/design-system default)",
+    },
+    "measure": {
+        "label": "Width",
+        "applies": ["document-flow"],
+        "values": [
+            {"value": "wide", "label": "Wide"},
+        ],
+        "description": "the content column width on a document/article (absence = the layout default)",
+    },
 }
 
 #: The kernel CSS that interprets tokens — carried by every artifact in the
@@ -500,11 +523,17 @@ STUDIO_KERNEL_CSS = """
 [data-ratio="1-2"] .cols .col:last-child { flex: 2; }
 .slide[data-valign="start"] { justify-content: flex-start; }
 .slide[data-valign="end"] { justify-content: flex-end; }
+/* Document-grain tokens (ADR-455) — on the artifact root. */
+html[data-font="serif"] body { font-family: Georgia, 'Times New Roman', serif; }
+html[data-font="sans"] body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+html[data-font="mono"] body { font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
+html[data-measure="wide"] main, html[data-measure="wide"] article { max-width: 64rem; }
 """.strip("\n")
 
 #: Bump when STUDIO_KERNEL_CSS changes shape — the FE upserts any artifact
 #: carrying an older data-kernel-v on its next mechanical op (the retrofit).
-STUDIO_KERNEL_CSS_VERSION = 1
+#: v2: document-grain font/measure rules (ADR-455).
+STUDIO_KERNEL_CSS_VERSION = 2
 
 
 def compose_kernel_style_element() -> str:
@@ -653,14 +682,16 @@ layout:
 {arrangements_grammar}
 
 ## Property tokens (placement + emphasis — tokens, never raw style)
-Blocks and pages may carry property TOKENS — data-* attributes with small
-named value sets, styled by the marked <style data-kernel="true"> element and
-themed by the design system's custom properties. Absence is the default: set a
-token by adding the attribute, clear it by removing the attribute. Never use
-inline style="" or raw colors for placement/emphasis — the token IS the edit.
-The member also sets tokens from the Design tab; preserve tokens you didn't
-touch, and set them yourself when asked in plain words ("center that", "make
-the image smaller", "make this slide a dark divider"). Families:
+The artifact root, blocks, and pages may carry property TOKENS — data-*
+attributes with small named value sets, styled by the marked
+<style data-kernel="true"> element and themed by the design system's custom
+properties. Absence is the default: set a token by adding the attribute, clear
+it by removing the attribute. Never use inline style="" or raw colors for
+placement/emphasis — the token IS the edit. Document-grain tokens (font,
+measure) live on the <html> root element (ADR-455). The member also sets
+tokens from the Design tab; preserve tokens you didn't touch, and set them
+yourself when asked in plain words ("center that", "make it serif", "make the
+image smaller", "make this slide a dark divider"). Families:
 {tokens_grammar}
 
 ## Citing workspace objects (references, never copies)

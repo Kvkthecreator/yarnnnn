@@ -252,12 +252,13 @@ function ensureKernelStyle(doc: Document, kernelStyleElement: string | undefined
   else head.appendChild(doc.importNode(fresh, true));
 }
 
-/** Set (value) or clear (null) a property token on the selected block or page
- *  (ADR-453 D1). Absence is the default — the default value is never written.
- *  A byte-identical set is a no-op (null → no revision). */
+/** Set (value) or clear (null) a property token on the selected block, page,
+ *  or the artifact ROOT (ADR-453 D1; document grain ADR-455). Absence is the
+ *  default — the default value is never written. A byte-identical set is a
+ *  no-op (null → no revision). */
 export function setToken(
   html: string,
-  target: { grain: 'block' | 'page'; anchor: OpAnchor },
+  target: { grain: 'block' | 'page' | 'document'; anchor: OpAnchor },
   key: string,
   value: string | null,
   kernelStyleElement?: string,
@@ -265,9 +266,11 @@ export function setToken(
   if (!/^[a-z-]+$/.test(key)) return null; // token keys are kernel-named
   const doc = parse(html);
   const el =
-    target.grain === 'block' && target.anchor.blockId
-      ? doc.querySelector(`[data-block-id="${CSS.escape(target.anchor.blockId)}"]`)
-      : arrangedPageAt(doc, target.anchor);
+    target.grain === 'document'
+      ? doc.documentElement
+      : target.grain === 'block' && target.anchor.blockId
+        ? doc.querySelector(`[data-block-id="${CSS.escape(target.anchor.blockId)}"]`)
+        : arrangedPageAt(doc, target.anchor);
   if (!el) return null;
   const attr = `data-${key}`;
   const current = el.getAttribute(attr);
