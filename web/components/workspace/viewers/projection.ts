@@ -215,6 +215,23 @@ const POINTER_SCRIPT = `
       slideIndex: slideIndex,
     }, '*');
   }, true);
+
+  // ADR-447 (2026-07-13): canvas commands — scroll to a slide (navigator
+  // selection moves the center display) + zoom (a VIEW control; scales the
+  // rendered document via CSS zoom, never touches the file).
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (!d || typeof d !== 'object') return;
+    if (d.type === 'yarnnn-scroll-to-slide') {
+      var slides = document.querySelectorAll('section.slide');
+      var s = slides[d.index];
+      if (s && s.scrollIntoView) s.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (d.type === 'yarnnn-zoom' && typeof d.scale === 'number') {
+      // zoom scales layout + scrollable area (unlike transform) — the honest
+      // "make it bigger/smaller on screen" the operator asked for.
+      document.body.style.zoom = String(d.scale);
+    }
+  });
 })();
 `;
 

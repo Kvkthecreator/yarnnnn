@@ -250,12 +250,25 @@ def run() -> bool:
            and 'sandbox=""' in nav)
     _check("surface mounts the navigator + selects slides from it",
            "StudioNavigator" in surface and "selectSlideFromNavigator" in surface)
-    _check("chat lane moved to the RIGHT (border-l on the lane column)",
-           "the bound chat lane (the mind" in surface
+    _check("chat lane is the RIGHT column (border-l on the lane column)",
+           "the bound chat lane (drawer on mobile" in surface
            and "border-l border-border" in surface)
     desktop = (repo / "web/components/shell/Desktop.tsx").read_text()
     _check("Freddie FAB suppressed on the studio surface (own-chat carve)",
            "onOwnChatSurface" in desktop and "'studio'" in desktop)
+
+    # ── 12. ADR-447 canvas view controls + mobile (2026-07-13) ───────────
+    _check("navigator selection scrolls the canvas (yarnnn-scroll-to-slide)",
+           "yarnnn-scroll-to-slide" in projection
+           and "scrollToSlide" in surface and "scrollIntoView" in projection)
+    _check("canvas zoom is a VIEW control (yarnnn-zoom, not a file write)",
+           "yarnnn-zoom" in projection and "zoom={zoom}" in surface
+           and "style.zoom" in projection)
+    _check("mobile: pane switching (nav/canvas/chat) + a bottom tab bar",
+           "mobilePane" in surface and "md:hidden" in surface
+           and "setMobilePane" in surface)
+    _check("mobile: columns are responsive (hidden below md, flex at md+)",
+           "md:flex" in surface and "md:w-56" in surface and "md:w-[380px]" in surface)
 
     # ── 11. ADR-447 Phase 4: direct manipulation ─────────────────────────
     _check("double-click enters edit mode (runtime dblclick → yarnnn-edit-entered)",

@@ -351,11 +351,19 @@ export function StudioSurface() {
     [applyOp, file],
   );
 
-  // ADR-447: selecting a slide in the left navigator sets the selection to that
-  // slide (no block) — the toolbar's Arrange ops target it via slideIndex.
+  // ADR-447: canvas view controls (view-only, never touch the file) + mobile
+  // pane switching (below md, one pane at a time: nav · canvas · chat).
+  const [zoom, setZoom] = useState(1);
+  const [mobilePane, setMobilePane] = useState<'nav' | 'canvas' | 'chat'>('canvas');
+
+  // Selecting a slide in the left navigator sets the selection to that slide
+  // (no block; anchors Arrange ops) AND scrolls the center canvas to it.
+  const [scrollToSlide, setScrollToSlide] = useState<{ index: number; nonce: number } | null>(null);
   const selectSlideFromNavigator = useCallback((index: number) => {
     setSelection({ blockId: null, blockKind: null, slideIndex: index, text: '' });
     setEditingBlockId(null);
+    setScrollToSlide((s) => ({ index, nonce: (s?.nonce ?? 0) + 1 }));
+    setMobilePane('canvas'); // on mobile, jump to the canvas to see the slide
   }, []);
 
   // ADR-447 Phase 4: "+ Add here" in an empty slot — drop a text block into
@@ -383,17 +391,23 @@ export function StudioSurface() {
   }
 
   // ── WORKBENCH ───────────────────────────────────────────────────────────
-  // Three columns (ADR-447): the per-type NAVIGATOR (left — slide strip for a
-  // deck, outline for a doc/article) · the CANVAS (center — the artifact, edited
-  // in place) with the Add/Arrange toolbar over it · the bound CHAT LANE (right
-  // — the judgment path; Freddie's floating rail is suppressed here, so the
-  // Studio's own chat owns the right edge). Identity + the crumb live in the
-  // surface bar (ADR-442 D4).
+  // Desktop (md+): three columns — NAVIGATOR (left) · CANVAS (center, with the
+  // Add/Arrange toolbar + zoom control over it) · bound CHAT LANE (right).
+  // Mobile (< md): canvas-primary — one pane at a time (nav · canvas · chat)
+  // switched by a bottom tab bar; the navigator and chat are drawers over the
+  // canvas-first surface (ADR-447 mobile). Freddie's rail is suppressed here.
+  const navActive = mobilePane === 'nav';
+  const canvasActive = mobilePane === 'canvas';
+  const chatActive = mobilePane === 'chat';
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       <div className="flex min-h-0 flex-1">
-        {/* Left — the per-type navigator. */}
-        <div className="w-56 shrink-0 border-r border-border">
+        {/* Left — the per-type navigator (drawer on mobile). */}
+        <div
+          className={`w-full shrink-0 border-r border-border md:flex md:w-56 ${
+            navActive ? 'flex' : 'hidden'
+          }`}
+        >
           <StudioNavigator
             layout={template}
             html={file?.content ?? ''}
@@ -403,20 +417,51 @@ export function StudioSurface() {
           />
         </div>
 
-        {/* Center — the toolbar over the canvas (renders, edits in place). */}
-        <div className="flex min-w-0 flex-1 flex-col">
-          <StudioInsertMenu
-            vocabulary={vocabulary}
-            layout={template}
-            selection={selection}
-            onClearSelection={onPointClear}
-            onInsertBlock={handleInsertBlock}
-            onInsertCited={handleInsertCited}
-            onAddArrangement={handleAddArrangement}
-            onApplyArrangement={handleApplyArrangement}
-            onSeed={seedComposer}
-            onAskAboutSelection={askAboutSelection}
-          />
+        {/* Center — the toolbar + zoom over the canvas (renders, edits in place). */}
+        <div className={`min-w-0 flex-1 flex-col md:flex ${canvasActive ? 'flex' : 'hidden'}`}>
+          <div className="flex items-center gap-1 border-b border-border">
+            <div className="min-w-0 flex-1">
+              <StudioInsertMenu
+                vocabulary={vocabulary}
+                layout={template}
+                selection={selection}
+                onClearSelection={onPointClear}
+                onInsertBlock={handleInsertBlock}
+                onInsertCited={handleInsertCited}
+                onAddArrangement={handleAddArrangement}
+                onApplyArrangement={handleApplyArrangement}
+                onSeed={seedComposer}
+                onAskAboutSelection={askAboutSelection}
+              />
+            </div>
+            {/* Zoom — a VIEW control (doesn't touch the file). */}
+            <div className="flex shrink-0 items-center gap-0.5 px-2">
+              <button
+                type="button"
+                onClick={() => setZoom((z) => Math.max(0.25, Math.round((z - 0.1) * 100) / 100))}
+                className="rounded px-1.5 py-0.5 text-sm text-muted-foreground hover:bg-muted/40"
+                title="Zoom out"
+              >
+                −
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoom(1)}
+                className="min-w-[3ch] rounded px-1 py-0.5 text-[11px] tabular-nums text-muted-foreground hover:bg-muted/40"
+                title="Reset zoom to 100%"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoom((z) => Math.min(2, Math.round((z + 0.1) * 100) / 100))}
+                className="rounded px-1.5 py-0.5 text-sm text-muted-foreground hover:bg-muted/40"
+                title="Zoom in"
+              >
+                +
+              </button>
+            </div>
+          </div>
           {opError && (
             <p className="border-b border-border bg-red-50 px-3 py-1 text-[11px] text-red-700 dark:bg-red-950/30 dark:text-red-300">
               {opError}
@@ -442,12 +487,18 @@ export function StudioSurface() {
               onEditExited={() => setEditingBlockId(null)}
               onEditEntered={(id) => setEditingBlockId(id)}
               onAddHere={onAddHere}
+              scrollToSlide={scrollToSlide}
+              zoom={zoom}
             />
           )}
         </div>
 
-        {/* Right — the bound chat lane (the mind; the single judgment path). */}
-        <div className="flex w-[380px] shrink-0 flex-col border-l border-border">
+        {/* Right — the bound chat lane (drawer on mobile). */}
+        <div
+          className={`w-full shrink-0 flex-col border-l border-border md:flex md:w-[380px] ${
+            chatActive ? 'flex' : 'hidden'
+          }`}
+        >
           {lanesEnabled === false ? (
             <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
               Lanes are not enabled on this deployment — the Studio&apos;s authoring
@@ -487,6 +538,28 @@ export function StudioSurface() {
           )}
         </div>
       </div>
+
+      {/* Mobile-only bottom tab bar (< md): one pane at a time. */}
+      <nav className="flex shrink-0 border-t border-border md:hidden">
+        {([
+          ['nav', template === 'deck' ? 'Slides' : 'Outline'],
+          ['canvas', 'Canvas'],
+          ['chat', 'Chat'],
+        ] as const).map(([pane, label]) => (
+          <button
+            key={pane}
+            type="button"
+            onClick={() => setMobilePane(pane)}
+            className={`flex-1 py-2 text-xs font-medium transition-colors ${
+              mobilePane === pane
+                ? 'border-t-2 border-foreground text-foreground'
+                : 'border-t-2 border-transparent text-muted-foreground'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

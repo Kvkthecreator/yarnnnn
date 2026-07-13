@@ -147,6 +147,16 @@ dropdowns, but composition is spatial." Four decisions:
   ADR-412 own-chat carve (`Desktop.tsx`, `foregrounded === 'chat'`) generalizes to
   `foregrounded === 'chat' || 'studio'`. Freddie stays addressable from every other surface; only
   the redundant summon hides here. **SHIPPED.**
+- **D7.7 — Navigator→canvas scroll, canvas zoom, and mobile (operator, 2026-07-13; SHIPPED).**
+  (a) **Selecting a slide in the navigator scrolls the center canvas to it** — the pointer runtime
+  handles `yarnnn-scroll-to-slide` and `scrollIntoView`s the Nth slide (the earlier navigator only
+  set the Arrange anchor; it didn't move the display). (b) **Canvas zoom is a VIEW control** — a
+  −/%/+ control commands `yarnnn-zoom` and the runtime sets `document.body.style.zoom`; it scales
+  the rendered document on screen and **never touches the file** (artifact dimensions are unchanged;
+  aspect-ratio/page-width editing stays a separate later thing). (c) **Mobile** — below the `md`
+  breakpoint the three columns collapse to **one pane at a time** (nav · canvas · chat) switched by
+  a bottom tab bar; the canvas is primary (selecting a slide jumps to it). The Canva/Keynote-mobile
+  pattern: canvas-first, navigator + chat as summonable panes.
 
 The mutation contract is unchanged: every compositional act (re-lay, add band, fill slot) is a
 deterministic reflow through the ONE mechanical write door (ADR-444/446), free, CAS-guarded,

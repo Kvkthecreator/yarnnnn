@@ -60,6 +60,12 @@ interface StudioCanvasProps {
   /** ADR-447 Phase 4: the member clicked "+ Add here" in an empty slot — insert
    *  a block into that slot (of that slide, for a deck). */
   onAddHere?: (slot: string, slideIndex: number | null) => void;
+  /** ADR-447: scroll the canvas to this slide (the navigator selected it). A
+   *  monotonic nonce forces the scroll even when re-selecting the same slide. */
+  scrollToSlide?: { index: number; nonce: number } | null;
+  /** ADR-447: zoom the rendered document (a VIEW control — 1 = 100%). Never a
+   *  file change; the artifact's real dimensions are untouched. */
+  zoom?: number;
 }
 
 export function StudioCanvas({
@@ -72,6 +78,8 @@ export function StudioCanvas({
   onEditExited,
   onEditEntered,
   onAddHere,
+  scrollToSlide,
+  zoom = 1,
 }: StudioCanvasProps) {
   const [projected, setProjected] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -103,6 +111,8 @@ export function StudioCanvas({
   // load handler re-posts the current state without re-binding.
   const editingRef = useRef<string | null>(editingBlockId ?? null);
   editingRef.current = editingBlockId ?? null;
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
 
   const commandEdit = useCallback(() => {
     const win = iframeRef.current?.contentWindow;
@@ -110,12 +120,27 @@ export function StudioCanvas({
     const id = editingRef.current;
     if (id) win.postMessage({ type: 'yarnnn-edit-enter', blockId: id }, '*');
     else win.postMessage({ type: 'yarnnn-edit-exit' }, '*');
+    // Re-apply the current zoom on a fresh load (the runtime resets on reload).
+    win.postMessage({ type: 'yarnnn-zoom', scale: zoomRef.current }, '*');
   }, []);
 
   // On editing-state change, command immediately (the runtime is already live).
   useEffect(() => {
     commandEdit();
   }, [editingBlockId, commandEdit]);
+
+  // On zoom change, command it (no reload needed — view-only).
+  useEffect(() => {
+    iframeRef.current?.contentWindow?.postMessage({ type: 'yarnnn-zoom', scale: zoom }, '*');
+  }, [zoom]);
+
+  // ADR-447: when the navigator selects a slide, scroll the canvas to it (the
+  // nonce re-fires even on re-selecting the same slide).
+  useEffect(() => {
+    const win = iframeRef.current?.contentWindow;
+    if (!win || !scrollToSlide) return;
+    win.postMessage({ type: 'yarnnn-scroll-to-slide', index: scrollToSlide.index }, '*');
+  }, [scrollToSlide]);
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
