@@ -150,8 +150,12 @@ export function StudioCanvas({
       .then((html) => !cancelled && setProjected(html))
       // NEVER fall back to raw content: the iframe allows scripts, and only
       // the projection pass strips artifact-authored executables. A blank
-      // canvas beats an unstripped one.
-      .catch(() => !cancelled && setProjected(''));
+      // canvas beats an unstripped one — but leave a breadcrumb, because a
+      // silent catch here renders as an undiagnosable white canvas.
+      .catch((e) => {
+        console.error('[STUDIO] projection failed — canvas blanked:', e);
+        if (!cancelled) setProjected('');
+      });
     return () => {
       cancelled = true;
     };

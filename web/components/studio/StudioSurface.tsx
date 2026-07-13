@@ -557,9 +557,14 @@ export function StudioSurface() {
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       <div className="flex min-h-0 flex-1">
-        {/* Left — the per-type navigator (drawer on mobile). */}
+        {/* Left — the per-type navigator (drawer on mobile). The max-% caps
+            (here + the right column) are the anti-collapse guard: with a
+            fourth fixed-width sibling beside the workbench (e.g. the steward
+            rail when its ADR-454 chrome gate is on), fixed columns can exceed
+            the window and crush the flex-1 canvas to 0 — verified live at
+            ~960px. Percentages yield gracefully; wide screens are unchanged. */}
         <div
-          className={`w-full shrink-0 border-r border-border md:flex md:w-56 ${
+          className={`w-full shrink-0 border-r border-border md:flex md:w-56 md:max-w-[22%] ${
             navActive ? 'flex' : 'hidden'
           }`}
         >
@@ -649,7 +654,7 @@ export function StudioSurface() {
         {/* Right — Chat | Design tabs (ADR-453 D4, the Canva model — never a
             fourth column). Drawer on mobile. */}
         <div
-          className={`w-full shrink-0 flex-col border-l border-border md:flex md:w-[380px] ${
+          className={`w-full shrink-0 flex-col border-l border-border md:flex md:w-[380px] md:max-w-[45%] ${
             chatActive ? 'flex' : 'hidden'
           }`}
         >
