@@ -1,5 +1,7 @@
 # ADR-426: Freddie System Agent — Its Own Settings Door
 
+> **REVERSED by [ADR-454](ADR-454-the-two-verb-experience-converse-and-make-ambient-steward.md) D4 (2026-07-13, the ambient steward).** The third settings door was the persona-fronting shape; the two-verb census retires it. The two dials (Autonomy · Budget) re-home to Workspace Settings as an unbranded **System** pane group (the same `SystemAgentPanes` bodies — the group moves again, not duplicated); the `system-agent` registry row goes `hidden` (hide-not-delete, the ADR-425 D2 sources precedent); `/system-agent` becomes a redirect stub; the About/Health/Activity pane bodies are dormant-retained pending the narrative-posture regroup. This ADR's SettingsPaneShell reuse and pane-body extraction survive as the mechanism the reversal rides on.
+
 **Status**: Accepted (2026-07-09, operator-ratified — "separate carve out, same leveling plane as Workspace Settings, separately dedicated for Freddie System Agent"; label ruled "Freddie System Agent"). Doc-first with its code in the same pass; a single FE + registry + gate change pushed to main. **Amended same day (§7)**: the door wears Freddie's mascot mark; the Capabilities pane is retired and replaced by an About pane.
 **Date**: 2026-07-09
 **Dimension**: Channel (Axiom 6 — where the system agent's config lives in the shell) + Identity (Axiom 2 — the system agent given its own door, at the workspace-settings plane)

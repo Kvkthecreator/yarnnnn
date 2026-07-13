@@ -1,7 +1,7 @@
 # YARNNN Service Model
 
 > **Status**: Canonical
-> **Date**: 2026-03-29 (v1.6 revision 2026-04-20; taxonomy/autonomy hardening amended 2026-04-24; invocation/narrative amendment 2026-04-25; v1.7 OS framing canonized 2026-04-27; v1.8 ADR-296 v2 wake architecture amendments canonized 2026-05-20)
+> **Date**: 2026-03-29 (v1.6 revision 2026-04-20; taxonomy/autonomy hardening amended 2026-04-24; invocation/narrative amendment 2026-04-25; v1.7 OS framing canonized 2026-04-27; v1.8 ADR-296 v2 wake architecture amendments canonized 2026-05-20; v1.9 "What YARNNN Is" re-cut to the settlement + two-verb model per [ADR-454](../adr/ADR-454-the-two-verb-experience-converse-and-make-ambient-steward.md) 2026-07-13)
 > **Scope**: End-to-end service model — how the system works, from user intent to delivered output.
 > **Rule**: This is the single document that describes the complete system. Deep-dive docs are linked, not duplicated.
 
@@ -11,9 +11,13 @@
 
 ## What YARNNN Is
 
-YARNNN is an **autonomous agent platform for recurring knowledge work — operated from a cockpit, not consumed as reports.** Users describe their work, AI agents are assigned to tasks, and the system produces work on schedule. The operator works *inside* YARNNN — reviewing performance, deciding on proposals, authoring and supervising the team, auditing past decisions. External distribution (email to stakeholders, Slack posts, PDF exports) is a **derivative Channel**, not the primary output.
+> *Re-cut 2026-07-13 (v1.9, [ADR-454](../adr/ADR-454-the-two-verb-experience-converse-and-make-ambient-steward.md) D6). The prior cockpit-led statement ("operated from a cockpit, not consumed as reports") described the supervision-era product; it survives below as the Altitude-3 deepening, not the lead.*
 
-**The product thesis**: Accumulated attention compounds. Each execution cycle benefits from prior outputs, user feedback, and learned preferences. The system gets smarter the longer it runs. The cockpit is where the operator sees and steers that compounding in real time.
+YARNNN is **the system of record where human and AI work settles** (ESSENCE v15). A workspace is a multi-principal commons — the operator, invited members, their AI hands, and external LLMs over the interop face — where every contribution lands as an attributed, parent-pointered revision on one ledger. Engines are fungible; the accumulated, attributed memory is not.
+
+The operator experience is carried by **two acting surfaces** (FOUNDATIONS DP29 v9.17): **Converse** (`/chat` — the workspace's room, where the *asset* is worked: asking, deriving, organizing, remembering, multi-file operations) and **Make** (`/studio` — the artifact's bench, where the *dividends* are made: creation, learn-from, direct edit, the bound lane). They are one conversation substrate at two scopes, never two systems. Files (the Finder), Notifications, and Activity carry legibility; two settings doors carry configuration. The system agent (Freddie) stewards the substrate as an **ambient daemon** — it wakes, derives, places, and arbitrates, and the operator meets it as attributed rows in the ledger, not as fronted chrome (ADR-454 D3).
+
+**The product thesis**: work here is cumulative. Every correction, every authored file, every settled artifact raises the floor the next act starts from — and the judgment layer (hired Altitude-3 agents running operations under a witness dial, supervised from their own surfaces) is the deepening a workspace grows into, not the entry experience.
 
 ---
 
