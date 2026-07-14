@@ -556,6 +556,7 @@ const EDIT_CSS = `
 
 const EDIT_SCRIPT = `
 (function () {
+  var TEXT_KINDS = ${TEXT_KINDS_JS};
   var editingId = null;      // the block currently in edit mode
   var editingEl = null;
   var idleTimer = null;
@@ -875,6 +876,78 @@ const EDIT_SCRIPT = `
     parent.postMessage({ type: 'yarnnn-enter-block', afterBlockId: afterId }, '*');
   }, true);
 
+  // ── Cross-block ARROW traversal (ADR audit F6) ────────────────────────
+  // ArrowUp on the first visual line / ArrowDown on the last visual line exits
+  // this block and enters the adjacent TEXT block, placing the caret at the end
+  // (up) or start (down) — the document behaves as one continuous flow. Pure
+  // in-iframe caret motion (no write door). Mid-block arrows fall through to
+  // native line movement.
+  function caretRect() {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return null;
+    var r = sel.getRangeAt(0).getClientRects()[0];
+    if (r) return r;
+    // A collapsed caret at a boundary can yield no rect — probe a zero-range.
+    try {
+      var rng = sel.getRangeAt(0).cloneRange();
+      rng.collapse(true);
+      var rects = rng.getClientRects();
+      return rects[0] || editingEl.getBoundingClientRect();
+    } catch (err) { return editingEl ? editingEl.getBoundingClientRect() : null; }
+  }
+  function adjacentTextBlock(dir) {
+    if (!editingEl) return null;
+    var all = document.querySelectorAll('[data-block]');
+    var idx = -1;
+    for (var i = 0; i < all.length; i++) { if (all[i] === editingEl) { idx = i; break; } }
+    if (idx === -1) return null;
+    var step = dir === 'up' ? -1 : 1;
+    for (var j = idx + step; j >= 0 && j < all.length; j += step) {
+      var k = all[j].getAttribute('data-block');
+      if (k && TEXT_KINDS.indexOf(k) !== -1) return all[j];
+    }
+    return null;
+  }
+  document.addEventListener('keydown', function (e) {
+    if ((e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || !editingEl || e.shiftKey) return;
+    if (fmtInput && document.activeElement === fmtInput) return;
+    var sel = window.getSelection();
+    if (!sel || !sel.isCollapsed) return; // a selection: leave native
+    var cr = caretRect();
+    if (!cr) return;
+    var br = editingEl.getBoundingClientRect();
+    var LINE = 6; // tolerance (px) for "on the first/last visual line"
+    if (e.key === 'ArrowUp' && cr.top - br.top <= LINE) {
+      var prev = adjacentTextBlock('up');
+      if (!prev) return;
+      e.preventDefault();
+      var pid = prev.getAttribute('data-block-id');
+      exit(false); // commit silently (parent keeps editingBlockId in sync below)
+      enter(pid);
+      // caret to END of the previous block
+      try {
+        var r1 = document.createRange();
+        r1.selectNodeContents(prev); r1.collapse(false);
+        sel.removeAllRanges(); sel.addRange(r1);
+      } catch (err) {}
+      parent.postMessage({ type: 'yarnnn-edit-entered', blockId: pid }, '*');
+    } else if (e.key === 'ArrowDown' && br.bottom - cr.bottom <= LINE) {
+      var next = adjacentTextBlock('down');
+      if (!next) return;
+      e.preventDefault();
+      var nid = next.getAttribute('data-block-id');
+      exit(false);
+      enter(nid);
+      // caret to START of the next block
+      try {
+        var r2 = document.createRange();
+        r2.selectNodeContents(next); r2.collapse(true);
+        sel.removeAllRanges(); sel.addRange(r2);
+      } catch (err) {}
+      parent.postMessage({ type: 'yarnnn-edit-entered', blockId: nid }, '*');
+    }
+  }, true);
+
   // DOUBLE-CLICK is now a redundant fallback: since single-click enters TEXT
   // blocks at the caret (ADR audit F4, pointer runtime), a double-click on one
   // just re-enters idempotently (a no-op) and the native double-click word-
@@ -1132,14 +1205,26 @@ const GUTTER_SCRIPT = `
     handle.addEventListener('pointercancel', endDrag);
   }
 
-  function showFor(block) {
+  // F5: position the gutter beside the block, tracking the pointer VERTICALLY so
+  // it follows the mouse down a tall block (Notion) instead of pinning to the
+  // block top. pointerY (viewport) centers the bar on the cursor, clamped to
+  // the block's own top/bottom so it never floats past the block's edges.
+  function showFor(block, pointerY) {
     build();
     curBlock = block;
     var rect = block.getBoundingClientRect();
     bar.style.display = 'flex';
     var w = bar.offsetWidth || 42;
+    var h = bar.offsetHeight || 22;
     bar.style.left = Math.max(2, rect.left + window.scrollX - w - 4) + 'px';
-    bar.style.top = (rect.top + window.scrollY + 1) + 'px';
+    var topV;
+    if (pointerY != null) {
+      // center on the cursor, clamped inside [rect.top, rect.bottom - h]
+      topV = Math.min(Math.max(pointerY - h / 2, rect.top), rect.bottom - h);
+    } else {
+      topV = rect.top + 1;
+    }
+    bar.style.top = (topV + window.scrollY) + 'px';
   }
   function hide() {
     if (bar) bar.style.display = 'none';
@@ -1157,15 +1242,19 @@ const GUTTER_SCRIPT = `
       if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
       var editingId = window.__yarnnnEditingId ? window.__yarnnnEditingId() : null;
       if (editingId != null && blk.getAttribute('data-block-id') === editingId) { hide(); return; }
-      if (blk !== curBlock) showFor(blk);
+      // F5: reposition on EVERY move within the block (not only on a new block)
+      // so the gutter tracks the pointer vertically.
+      showFor(blk, e.clientY);
       return;
     }
-    // A grace delay bridges the gap between the block and the gutter.
-    if (!hideTimer) hideTimer = setTimeout(function () { hideTimer = null; hide(); }, 300);
+    // A short grace delay bridges the gap between the block and the gutter
+    // (F5: 150ms, down from 300 — the old lag read as sluggishness on exit).
+    if (!hideTimer) hideTimer = setTimeout(function () { hideTimer = null; hide(); }, 150);
   });
-  // Rects go stale on scroll — re-anchor (or hide if the block left the DOM).
+  // Rects go stale on scroll — re-anchor to the block top (no pointer during
+  // scroll), or hide if the block left the DOM.
   document.addEventListener('scroll', function () {
-    if (curBlock && curBlock.isConnected) showFor(curBlock);
+    if (curBlock && curBlock.isConnected) showFor(curBlock, null);
     else hide();
   }, true);
 })();
