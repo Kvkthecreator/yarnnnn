@@ -181,7 +181,15 @@ function MenuItem({
  * one place so the tree, RecentsView grid, and ContentViewer listing don't each
  * re-implement it. Returns null menu when no verbs are wired.
  */
-export function useFileContextMenu(verbs: FileVerbs | undefined) {
+export function useFileContextMenu(
+  verbs: FileVerbs | undefined,
+  /**
+   * Surface-specific verbs (ADR-455), built per-open so they can close over the
+   * target (e.g. the Studio's "Copy link" / "Duplicate" for THIS recent). The
+   * shared organize verbs stay in `verbs`; this is the additive extension point.
+   */
+  extraItemsFor?: (target: FileMenuTarget) => FileMenuExtraItem[],
+) {
   const [state, setState] = useState<{ target: FileMenuTarget; x: number; y: number } | null>(null);
   // Touch parity (2026-07-12): on a coarse pointer there is no right-click, so
   // the surfaces render a tappable kebab that opens this same menu. `coarse`
@@ -238,6 +246,7 @@ export function useFileContextMenu(verbs: FileVerbs | undefined) {
       onMove={verbs.onMove ? () => verbs.onMove!(state.target) : undefined}
       onDelete={verbs.onDelete ? () => verbs.onDelete!(state.target) : undefined}
       onShare={verbs.onShare ? () => verbs.onShare!(state.target) : undefined}
+      extraItems={extraItemsFor?.(state.target)}
     />
   ) : null;
 

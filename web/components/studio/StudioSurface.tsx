@@ -23,13 +23,16 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Palette, PanelLeft, Sparkles } from 'lucide-react';
+import { Copy, Link2, Loader2, MoreHorizontal, Palette, PanelLeft } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { LearnFromFlowModal } from './LearnFromFlowModal';
 import { NewArtifactModal, slugify } from './NewArtifactModal';
+import { StudioNewMenu } from './StudioNewMenu';
+import { studioShapeFromPath } from './studioShapes';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
-import { useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
+import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
+import { useSelfLocatedSurface, useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { StudioCanvas, type PointerEvent2 } from './StudioCanvas';
@@ -149,6 +152,11 @@ export function StudioSurface() {
   // deleted; the file verbs live in the Design tab's document scope (the one
   // settings home). Registering the empty set keeps the bar clean.
   useSurfaceActions('studio', []);
+  // 2026-07-14 (operator ruling): in the WORKBENCH the toolbar row renders the
+  // crumb itself (Studio · ‹artifact›), so the OS strip suppresses — one
+  // locator, never two, and the ~28px band is reclaimed for the canvas. The
+  // START state keeps the OS strip (it has no toolbar row of its own).
+  useSelfLocatedSurface('studio', Boolean(artifactPath));
 
   // ── Lane environment (models + existing lanes) ─────────────────────────
   const [lanesEnabled, setLanesEnabled] = useState<boolean | null>(null);
@@ -576,7 +584,31 @@ export function StudioSurface() {
 
   // ADR-455: the navigator collapses (desktop) — a member reclaims the width
   // when the outline/strip isn't earning it. Session-local state.
+  //
+  // DEFAULT BY LAYOUT (operator ruling 2026-07-14): a DECK's slide strip is its
+  // primary navigation (PowerPoint) → open by default. A DOCUMENT/ARTICLE
+  // outline is a thin table-of-contents that doesn't earn its width for the
+  // short-to-medium artifacts the Studio actually produces → COLLAPSED by
+  // default. The member can still show it (the PanelLeft toggle); once they
+  // touch the toggle their choice sticks for the session (`navUserSet`), so the
+  // per-layout default never fights a deliberate open/close. This is ADR-455 D4
+  // resolving toward "gets out of the way" for documents while the deck keeps
+  // its strip — the deletion ADR-455 deferred, taken as a default-hide instead.
   const [navCollapsed, setNavCollapsed] = useState(false);
+  const [navUserSet, setNavUserSet] = useState(false);
+  useEffect(() => {
+    if (navUserSet) return; // the member's choice wins over the per-layout default
+    // Gate on the artifact being LOADED: `template` reads 'document' from the
+    // extract-fallback before content arrives, so acting on it early would
+    // flash a deck's strip closed→open. Only seed the default once the real
+    // template is known.
+    if (!file?.content) return;
+    setNavCollapsed(template !== 'deck');
+  }, [template, navUserSet, file?.content]);
+  const toggleNav = useCallback(() => {
+    setNavUserSet(true);
+    setNavCollapsed((c) => !c);
+  }, []);
 
   // Selecting a slide in the left navigator sets the selection to that slide
   // (no block; anchors page ops + the Design tab) AND scrolls the canvas to it.
@@ -718,17 +750,48 @@ export function StudioSurface() {
         {/* Center — the toolbar + zoom over the canvas (renders, edits in place). */}
         <div className={`min-w-0 flex-1 flex-col md:flex ${canvasActive ? 'flex' : 'hidden'}`}>
           <div className="flex items-center gap-1 border-b border-border">
+            {/* The SELF-RENDERED locator (2026-07-14): the toolbar row carries
+                the crumb, so the OS surface bar suppresses (useSelfLocatedSurface
+                above) — one "you are here", and the ~28px OS band is reclaimed.
+                Root "Studio" → back to the start state (the OS strip's old
+                root-click). Shown on mobile too (the toolbar row is visible when
+                the Canvas pane is active), so suppressing the OS strip never
+                leaves the artifact unnamed. */}
+            <div className="ml-2 flex shrink-0 items-center gap-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setParam({ file: null })}
+                title="Back to Studio"
+                className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Studio
+              </button>
+              <span className="text-muted-foreground/40">/</span>
+              <span className="max-w-[16ch] truncate font-medium text-foreground/80" title={baseName(artifactPath)}>
+                {baseName(artifactPath)}
+              </span>
+              <span className="mx-1 h-4 w-px shrink-0 bg-border/60" aria-hidden />
+            </div>
             {/* ADR-455: collapse/expand the navigator (desktop) — the outline
                 earns its width or gets out of the way. */}
             <button
               type="button"
-              onClick={() => setNavCollapsed((c) => !c)}
+              onClick={toggleNav}
               title={`${navCollapsed ? 'Show' : 'Hide'} the ${template === 'deck' ? 'slide strip' : 'outline'}`}
-              className={`ml-2 hidden shrink-0 rounded p-1 transition-colors hover:bg-muted/40 md:inline-flex ${
+              aria-label={`${navCollapsed ? 'Show' : 'Hide'} the ${template === 'deck' ? 'slide strip' : 'outline'}`}
+              className={`ml-2 hidden shrink-0 items-center gap-1 rounded p-1 text-[11px] transition-colors hover:bg-muted/40 md:inline-flex ${
                 navCollapsed ? 'text-muted-foreground/60' : 'text-muted-foreground'
               }`}
             >
               <PanelLeft className="h-3.5 w-3.5" />
+              {/* When hidden, name what's hidden so the affordance is discoverable
+                  (a bare icon reads as noise; the label is the "clearly marked"
+                  part of the operator's hide ruling). Deck keeps the icon-only
+                  form — its strip is open by default, so the toggle is rarely the
+                  way back in. */}
+              {navCollapsed && template !== 'deck' && (
+                <span>Outline</span>
+              )}
             </button>
             <div className="min-w-0 flex-1">
               <StudioToolbar
@@ -1033,11 +1096,7 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
   const [existing, setExisting] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    api.studio
-      .templates()
-      .then((res) => setTemplates(res.templates))
-      .catch(() => setError('Could not load templates.'));
+  const loadRecents = useCallback(() => {
     api.studio
       .artifacts()
       .then((res) => setRecents(res.artifacts))
@@ -1045,6 +1104,68 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
         /* recents are a convenience — creation still works without them */
       });
   }, []);
+
+  useEffect(() => {
+    api.studio
+      .templates()
+      .then((res) => setTemplates(res.templates))
+      .catch(() => setError('Could not load templates.'));
+    loadRecents();
+  }, [loadRecents]);
+
+  // ── Organize a recent in place (rename / move / trash) — the SAME shared
+  // implementation the Files surface and the open-artifact Design tab use
+  // (useFileOrganizeVerbs). A ⋯ / right-click on a recent card reaches the same
+  // three verbs against the same backend. After a mutation, reload the recents
+  // (a rename re-titles the card; a trash drops it) — the recent is a pointer,
+  // not the open artifact, so we never re-point a surface, just refresh.
+  const { verbs: organizeVerbs, modals: organizeModals } = useFileOrganizeVerbs({
+    onAfterMutate: () => loadRecents(),
+  });
+  // Copy link / Duplicate are surface-specific extras (ADR-455 extraItems).
+  const copyRecentLink = useCallback((path: string) => {
+    const url = `${window.location.origin}/desktop?studio.file=${encodeURIComponent(relPath(path))}`;
+    void navigator.clipboard.writeText(url);
+  }, []);
+  const duplicateRecent = useCallback(
+    async (path: string) => {
+      try {
+        const f = await api.workspace.getFile(path);
+        const base = path.replace(/\.html$/, '');
+        for (let i = 1; i <= 5; i++) {
+          const target = i === 1 ? `${base}-copy.html` : `${base}-copy-${i}.html`;
+          try {
+            await api.workspace.getFile(target);
+            continue; // exists — next suffix
+          } catch {
+            /* free */
+          }
+          await api.studio.writeArtifact(target, f.content ?? '', null, `Studio: duplicate ${baseName(path)}`);
+          loadRecents();
+          return;
+        }
+      } catch {
+        /* best-effort — a failed duplicate leaves the recents untouched */
+      }
+    },
+    [loadRecents],
+  );
+
+  // The shared right-click / kebab menu (ADR-400 Amendment 1), wired to the
+  // organize verbs + the two Studio extras. `openMenu` fires on a card's
+  // onContextMenu AND on the hover ⋯ button (both anchor at the click point).
+  const { openMenu, menu: recentMenu } = useFileContextMenu(
+    {
+      onOpen: (t) => onOpen(t.path),
+      onRename: (t) => organizeVerbs.onRename(t),
+      onMove: (t) => organizeVerbs.onMove(t),
+      onDelete: (t) => organizeVerbs.onDelete(t),
+    },
+    (t) => [
+      { id: 'copy-link', label: 'Copy link', icon: <Link2 className="h-3.5 w-3.5 text-muted-foreground" />, onClick: () => copyRecentLink(t.path) },
+      { id: 'duplicate', label: 'Duplicate', icon: <Copy className="h-3.5 w-3.5 text-muted-foreground" />, onClick: () => void duplicateRecent(t.path) },
+    ],
+  );
 
   // ── The two ways to begin (ADR-452 v2): start from scratch, or learn
   // from a source. Both are peers in ONE grid; both nest their details in a
@@ -1106,76 +1227,95 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
     }
   };
 
+  const hasRecents = recents.length > 0;
   return (
-    <div className="flex h-full items-center justify-center overflow-y-auto p-8">
-      <div className="w-full max-w-lg space-y-6">
-        <div className="space-y-1 text-center">
-          <Palette className="mx-auto h-8 w-8 text-muted-foreground" />
-          <h1 className="text-lg font-semibold">Studio</h1>
-          <p className="text-sm text-muted-foreground">
-            Pick a shape, name it, then describe what you want in plain words.
-            The Studio writes it as a real document in your workspace — you
-            watch it take shape live, and it can pull in your files, images,
-            and data as it goes.
-          </p>
+    <div className="h-full overflow-y-auto p-6 sm:p-8">
+      <div className="mx-auto w-full max-w-4xl space-y-6">
+        {/* Header row — the title on the left, the ONE create entry on the
+            right. The old 5-card grid collapsed into "+ New" (2026-07-14): the
+            surface now leads with the member's own work, not a chooser. */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 space-y-1">
+            <div className="flex items-center gap-2">
+              <Palette className="h-5 w-5 text-muted-foreground" />
+              <h1 className="text-lg font-semibold">Studio</h1>
+            </div>
+            <p className="max-w-md text-sm text-muted-foreground">
+              Pick a shape, name it, then describe what you want in plain words —
+              it takes shape live, pulling in your files, images, and data as it
+              goes.
+            </p>
+          </div>
+          <div className="shrink-0">
+            <StudioNewMenu
+              templates={templates}
+              learnEnabled={laneEnv?.enabled !== false}
+              onPickTemplate={(t) => setScratchTemplate(t)}
+              onPickLearn={() => setLearnOpen(true)}
+            />
+          </div>
         </div>
 
-        {/* ADR-452 v2 — ONE creation grid: the type cards and Learn-from are
-            peers ("start from scratch, or learn from"); each nests its
-            details in a focused modal. */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {templates.map((t) => (
-            <button
-              key={t.slug}
-              type="button"
-              onClick={() => setScratchTemplate(t)}
-              className="rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/20"
-            >
-              <p className="text-sm font-medium">{t.label}</p>
-              <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                {t.description}
-              </p>
-            </button>
-          ))}
-          <button
-            type="button"
-            disabled={laneEnv?.enabled === false}
-            onClick={() => setLearnOpen(true)}
-            title={laneEnv?.enabled === false ? 'Chat helpers aren’t enabled on this workspace.' : undefined}
-            className="rounded-lg border border-dashed border-border p-3 text-left transition-colors hover:bg-muted/20 disabled:opacity-40"
-          >
-            <p className="flex items-center gap-1 text-sm font-medium">
-              <Sparkles className="h-3.5 w-3.5" /> Learn from
-            </p>
-            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-              Start from a file — yours or one you upload.
-            </p>
-          </button>
-        </div>
-
-        {recents.length > 0 && (
-          <div className="space-y-2 border-t border-border pt-4">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {/* Recents — the emphasis. Real thumbnails, per-SHAPE icon + label
+            (a deck reads as a Deck, not "deck.html"), and a ⋯ / right-click
+            menu per card (open · rename · duplicate · move · trash). */}
+        {hasRecents ? (
+          <div className="space-y-3">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               Continue where you left off
             </p>
-            <div className="grid grid-cols-3 gap-2">
-              {recents.slice(0, 6).map((r) => (
-                <button
-                  key={r.path}
-                  type="button"
-                  onClick={() => onOpen(r.path)}
-                  className="group rounded-lg border border-border p-2 text-left transition-colors hover:bg-muted/20"
-                >
-                  <ArtifactThumb path={r.path} />
-                  <span className="mt-1.5 block truncate text-xs font-medium">{baseName(r.path)}</span>
-                  <span className="block truncate text-[10px] text-muted-foreground">
-                    {r.updated_at
-                      ? new Date(r.updated_at).toLocaleDateString()
-                      : relPath(r.path)}
-                  </span>
-                </button>
-              ))}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {recents.map((r) => {
+                const shape = studioShapeFromPath(r.path);
+                const ShapeIcon = shape.icon;
+                const target = { path: r.path, name: baseName(r.path), isFile: true };
+                return (
+                  <div
+                    key={r.path}
+                    className="group relative rounded-lg border border-border p-2 transition-colors hover:bg-muted/20"
+                    onContextMenu={(e) => openMenu(target, e)}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onOpen(r.path)}
+                      className="block w-full text-left"
+                    >
+                      <ArtifactThumb path={r.path} />
+                      <span className="mt-2 flex items-center gap-1.5">
+                        <ShapeIcon className={`h-3.5 w-3.5 shrink-0 ${shape.color}`} />
+                        <span className="min-w-0 truncate text-xs font-medium">
+                          {baseName(r.path)}
+                        </span>
+                      </span>
+                      <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
+                        {shape.label}
+                        {r.updated_at ? ` · ${new Date(r.updated_at).toLocaleDateString()}` : ''}
+                      </span>
+                    </button>
+                    {/* The ⋯ — appears on hover (desktop) / always on touch; opens
+                        the SAME menu as right-click, anchored at the click point. */}
+                    <button
+                      type="button"
+                      aria-label={`Actions for ${baseName(r.path)}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openMenu(target, e);
+                      }}
+                      className="absolute right-1.5 top-1.5 rounded-md bg-background/80 p-1 text-muted-foreground opacity-0 shadow-sm backdrop-blur transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 group-hover:opacity-100"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border p-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              Nothing here yet — hit <span className="font-medium text-foreground/80">New</span>{' '}
+              to start your first document, deck, article, or page.
+            </p>
           </div>
         )}
 
@@ -1192,11 +1332,11 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
           onStart={learnFrom}
         />
 
-        <details className="border-t border-border pt-3">
+        <details className="pt-1">
           <summary className="cursor-pointer text-xs text-muted-foreground">
             Open by workspace path…
           </summary>
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 flex max-w-lg gap-2">
             <input
               value={existing}
               onChange={(e) => setExisting(e.target.value)}
@@ -1214,8 +1354,12 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
           </div>
         </details>
 
-        {error && <p className="text-center text-xs text-red-500">{error}</p>}
+        {error && <p className="text-xs text-red-500">{error}</p>}
       </div>
+
+      {/* The organize dialogs (rename/move/trash) + the shared context menu. */}
+      {organizeModals}
+      {recentMenu}
     </div>
   );
 }
