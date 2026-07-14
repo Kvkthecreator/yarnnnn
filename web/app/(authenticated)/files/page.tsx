@@ -215,9 +215,31 @@ function buildRootNodes(input: {
   // `group` is the singular backend signal (WORKSPACE_ROOTS); absent → 'work'.
   const zoneOf = (r: WorkspaceRoot): 'work' | 'arrival' | 'system' => r.group ?? 'work';
 
-  const workNodes = input.roots.filter((r) => zoneOf(r) === 'work').map(rootToNode);
-  const arrivalRoots = input.roots.filter((r) => zoneOf(r) === 'arrival');
-  const systemRoots = input.roots.filter((r) => zoneOf(r) === 'system');
+  // ADR-457 P3 (2026-07-14) — loose machine FILES at the workspace root
+  // (_captures.yaml, _capture_signal.yaml, _recurrences.yaml,
+  // _workspace_guide.md, …) arrive from the roots API as pseudo-roots named by
+  // the file. They are kernel state, not the operator's work — without this
+  // they render beside Documents as top-level "folders" (the stress-test
+  // wart). Fold them into the System files disclosure as FILE nodes. This is
+  // the display half of the root-directories invariant; the substrate half
+  // (re-homing them under system/) is P3's coherent migration, deliberately
+  // deferred to the next scheduler-touching pass so the move happens once,
+  // not piecemeal.
+  const isLooseMachineRoot = (r: WorkspaceRoot) => r.name.startsWith('_');
+  const looseFileNodes: TreeNode[] = input.roots
+    .filter(isLooseMachineRoot)
+    .map((r) => ({
+      name: r.name,
+      path: r.path, // /workspace/{name} IS the real file path for a loose root
+      type: 'file' as const,
+      summary: 'Workspace machine state (kernel-managed).',
+      icon_name: 'file-cog',
+    }));
+  const realRoots = input.roots.filter((r) => !isLooseMachineRoot(r));
+
+  const workNodes = realRoots.filter((r) => zoneOf(r) === 'work').map(rootToNode);
+  const arrivalRoots = realRoots.filter((r) => zoneOf(r) === 'arrival');
+  const systemRoots = realRoots.filter((r) => zoneOf(r) === 'system');
 
   const out: TreeNode[] = [...workNodes];
 
@@ -242,14 +264,16 @@ function buildRootNodes(input: {
   }
 
   // The one collapsed "System files" disclosure — virtual node, real children.
-  if (systemRoots.length > 0) {
+  // Loose machine files at the root (ADR-457 P3 display fold) render after the
+  // system roots, as plain file rows.
+  if (systemRoots.length > 0 || looseFileNodes.length > 0) {
     out.push({
       name: 'System files',
       path: SYSTEM_FILES_NODE_PATH,
       type: 'folder' as const,
       summary: 'Files the system uses to run your workspace — settings, agent homes, runtime state.',
       icon_name: 'settings',
-      children: systemRoots.map(rootToNode),
+      children: [...systemRoots.map(rootToNode), ...looseFileNodes],
     });
   }
 
