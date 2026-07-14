@@ -77,6 +77,11 @@ Steps:
    tailwind config values, brand-guideline values), recurring colors, type
    choices, spacing rhythms. Note each value's origin.
 2. Write the token css first, then a small rules layer, then `_design.yaml`.
+   Name the Studio's kernel-consumed variables when the source evidences
+   them — `--ink` (text), `--paper` (surface), `--muted`, `--accent`,
+   `--radius` (corner rounding) — the Studio's own chrome (buttons, galleries,
+   toggles, tone fills) themes through exactly these; additional variables
+   are welcome but those five are the contract (ADR-456 W3).
 3. Re-read `_design.yaml` and verify every listed file exists and the order
    is tokens-before-rules.
 

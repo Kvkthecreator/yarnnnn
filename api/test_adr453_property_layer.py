@@ -56,7 +56,8 @@ def run() -> bool:
         <= set(STUDIO_TOKENS),
     )
     valid_applies = {"block", "media", "page", "page-multicol", "page-deck", "document",
-                     "document-flow", "document-deck"}  # document-deck: ADR-456 W1
+                     "document-flow", "document-deck",  # document-deck: ADR-456 W1
+                     "page-bg"}  # page-bg: ADR-456 W3 (cited background present)
     _check(
         "token rows carry label/applies/values/description",
         all(

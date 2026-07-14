@@ -83,9 +83,9 @@ def run() -> bool:
            and "counter(slide)" in STUDIO_KERNEL_CSS)
 
     # ── 4. Kernel CSS v3 + the order/retrofit discipline ────────────────
-    _check("kernel CSS version bumped to 3 (skeletons bake v3)",
-           STUDIO_KERNEL_CSS_VERSION == 3
-           and 'data-kernel-v="3"' in build_skeleton("deck"))
+    _check("kernel CSS version >= 3 (skeletons bake the current version; W3 bumped to 4)",
+           STUDIO_KERNEL_CSS_VERSION >= 3
+           and f'data-kernel-v="{STUDIO_KERNEL_CSS_VERSION}"' in build_skeleton("deck"))
     _check("block/arrangement CSS lives in the KERNEL element (it retrofits)",
            'div[data-block="gallery"]' in STUDIO_KERNEL_CSS
            and '.slide[data-arrange="full-bleed"]' in STUDIO_KERNEL_CSS

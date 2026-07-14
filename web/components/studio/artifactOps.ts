@@ -415,6 +415,36 @@ export function moveBlock(html: string, blockId: string, dir: 'up' | 'down'): Op
   return { html: serialize(doc), landedId: blockId };
 }
 
+/** Set a cited BACKGROUND image on the selected page/section (ADR-456 W3):
+ *  data-ref + data-ref-kind="background" on the page element itself — the
+ *  projection materializes the pixels; the source stays citation + tokens. */
+export function setPageBackground(
+  html: string,
+  anchor: OpAnchor,
+  path: string,
+  kernelStyleElement?: string,
+): OpResult | null {
+  const doc = parse(html);
+  const page = arrangedPageAt(doc, anchor);
+  if (!page) return null;
+  page.setAttribute('data-ref', path);
+  page.setAttribute('data-ref-kind', 'background');
+  page.setAttribute('data-ref-rev', '');
+  ensureKernelStyle(doc, kernelStyleElement); // the bg/scrim rules live in v4
+  return { html: serialize(doc), landedId: page.getAttribute('data-arrange') };
+}
+
+/** Remove the page's cited background (and its bg-only tokens). */
+export function removePageBackground(html: string, anchor: OpAnchor): OpResult | null {
+  const doc = parse(html);
+  const page = arrangedPageAt(doc, anchor);
+  if (!page || page.getAttribute('data-ref-kind') !== 'background') return null;
+  ['data-ref', 'data-ref-kind', 'data-ref-rev', 'data-scrim', 'data-bg-pos'].forEach((a) =>
+    page.removeAttribute(a),
+  );
+  return { html: serialize(doc), landedId: page.getAttribute('data-arrange') };
+}
+
 /** Delete the selected page (slide/section). */
 export function deletePage(html: string, anchor: OpAnchor): OpResult | null {
   const doc = parse(html);

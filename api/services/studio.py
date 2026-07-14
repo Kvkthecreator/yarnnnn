@@ -252,6 +252,46 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
   </section>
 </article>""",
     },
+    # ADR-456 D4 (Wave 3): the fourth layout — the landing page. Full-width
+    # section BANDS (each an arrangement) with the content column centered
+    # inside; heroes carry a cited background (data-ref-kind="background").
+    "page": {
+        "label": "Page",
+        "description": "A landing page — hero, features, call to action.",
+        "flow": (
+            "one <main> of full-width section BANDS, each <section data-arrange=…> "
+            "stacked vertically: a hero (kicker + h1 promise + tagline + button), "
+            "then content/feature/testimonial bands, closing on a call-to-action. "
+            "Band content centers itself; a band may wear a cited background image "
+            "(data-ref + data-ref-kind=\"background\" on the section) with a "
+            "data-scrim for legibility. Written to convert a visitor, not to be "
+            "read top-to-bottom."
+        ),
+        "skin": """
+    section[data-arrange] { padding: 4rem 1.5rem; }
+    section[data-arrange] > * { max-width: 56rem; margin-left: auto; margin-right: auto; }
+    section[data-arrange="hero"] { padding: 6rem 1.5rem; text-align: center; }
+    h1 { font-size: 2.6rem; margin-bottom: 0.75rem; }
+    .kicker { color: var(--accent); font-size: 0.85rem; letter-spacing: 0.08em;
+              text-transform: uppercase; margin-bottom: 1rem; }
+    .tagline { font-size: 1.2rem; color: var(--muted); }
+    section[data-arrange] h2 { font-size: 1.8rem; margin-bottom: 1rem; }
+""".strip("\n"),
+        "scaffold": """<main>
+  <section data-arrange="hero">
+    <p class="kicker" data-block="heading" data-block-id="k1">Untitled page</p>
+    <h1 data-block="heading" data-block-id="t1">The headline promise.</h1>
+    <p class="tagline" data-block="heading" data-block-id="s1">One sentence expanding on it.</p>
+    <p data-block="button" data-block-id="c1"><a href="https://…">Call to action</a></p>
+  </section>
+  <section data-arrange="content">
+    <h2 data-block="heading" data-block-id="t2">First section</h2>
+    <div data-slot="main">
+      <div data-block="prose" data-block-id="b1"><p>Start here.</p></div>
+    </div>
+  </section>
+</main>""",
+    },
 }
 
 
@@ -486,6 +526,82 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
 </section>""",
         },
     },
+    # ADR-456 D4 (Wave 3): the page layout's band family — the builder-class
+    # section stack (hero · content · features · testimonial · CTA · footer).
+    "page": {
+        "hero": {
+            "label": "Hero",
+            "description": "The headline band — kicker, promise, tagline, button.",
+            "grain": "page",
+            "slots": [{"name": "heading", "role": "heading"}],
+            "fragment": """<section data-arrange="hero">
+  <p class="kicker" data-block="heading" data-block-id="k1">Kicker</p>
+  <h1 data-block="heading" data-block-id="t1">The headline promise.</h1>
+  <p class="tagline" data-block="heading" data-block-id="s1">One sentence expanding on it.</p>
+  <p data-block="button" data-block-id="c1"><a href="https://…">Call to action</a></p>
+</section>""",
+        },
+        "content": {
+            "label": "Content",
+            "description": "A heading with content below.",
+            "grain": "page",
+            "slots": [{"name": "main", "role": "flow"}],
+            "fragment": """<section data-arrange="content">
+  <h2 data-block="heading" data-block-id="t1">Section title</h2>
+  <div data-slot="main"></div>
+</section>""",
+        },
+        "feature-grid": {
+            "label": "Feature grid",
+            "description": "A heading over three side-by-side features.",
+            "grain": "page",
+            "slots": [
+                {"name": "a", "role": "flow"},
+                {"name": "b", "role": "flow"},
+                {"name": "c", "role": "flow"},
+            ],
+            "fragment": """<section data-arrange="feature-grid">
+  <h2 data-block="heading" data-block-id="t1">Section title</h2>
+  <div class="cols">
+    <div class="col" data-slot="a"><div data-block="prose" data-block-id="b1"><h3>Feature</h3><p>One sentence on it.</p></div></div>
+    <div class="col" data-slot="b"><div data-block="prose" data-block-id="b2"><h3>Feature</h3><p>One sentence on it.</p></div></div>
+    <div class="col" data-slot="c"><div data-block="prose" data-block-id="b3"><h3>Feature</h3><p>One sentence on it.</p></div></div>
+  </div>
+</section>""",
+        },
+        "testimonial": {
+            "label": "Testimonial",
+            "description": "One centered quote with attribution.",
+            "grain": "page",
+            "slots": [{"name": "main", "role": "flow"}],
+            "fragment": """<section data-arrange="testimonial">
+  <div data-slot="main">
+    <blockquote data-block="quote" data-block-id="q1"><p>What a customer said.</p><cite>Name, role</cite></blockquote>
+  </div>
+</section>""",
+        },
+        "cta": {
+            "label": "Call to action",
+            "description": "A closing ask — heading and button, centered.",
+            "grain": "page",
+            "slots": [{"name": "heading", "role": "heading"}],
+            "fragment": """<section data-arrange="cta" data-tone="accent">
+  <h2 data-block="heading" data-block-id="t1">The closing ask.</h2>
+  <p data-block="button" data-block-id="c1"><a href="https://…">Call to action</a></p>
+</section>""",
+        },
+        "footer": {
+            "label": "Footer",
+            "description": "A quiet closing band — fine print, contact.",
+            "grain": "page",
+            "slots": [{"name": "main", "role": "flow"}],
+            "fragment": """<section data-arrange="footer">
+  <div data-slot="main">
+    <div data-block="prose" data-block-id="b1"><p>Fine print · contact · attribution.</p></div>
+  </div>
+</section>""",
+        },
+    },
 }
 
 
@@ -506,8 +622,11 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
 #   page-deck     — deck slides only
 #   document      — the artifact ROOT (<html>), all layouts (ADR-455)
 #   document-flow — the artifact root, document/article only (a deck is a
-#                   fixed 16:9 stage — measure does not apply)
+#                   fixed 16:9 stage and a page is full-width bands — measure
+#                   applies to neither)
 #   document-deck — the artifact root, deck only (slide numbers, ADR-456)
+#   page-bg       — a page/section carrying a cited background image
+#                   (data-ref-kind="background" on the element, ADR-456 W3)
 # ---------------------------------------------------------------------------
 
 #: Block kinds the media-grain tokens (height/fit) apply to.
@@ -581,6 +700,26 @@ STUDIO_TOKENS: dict[str, dict] = {
         ],
         "description": "the page/section's breathing room (absence = the layout default)",
     },
+    # ADR-456 W3: the cited-background pair — a page/section wearing a
+    # data-ref-kind="background" citation styles it with these, never inline.
+    "scrim": {
+        "label": "Scrim",
+        "applies": ["page-bg"],
+        "values": [
+            {"value": "dark", "label": "Dark"},
+            {"value": "light", "label": "Light"},
+        ],
+        "description": "a legibility overlay on the page's cited background image",
+    },
+    "bg-pos": {
+        "label": "Focus",
+        "applies": ["page-bg"],
+        "values": [
+            {"value": "top", "label": "Top"},
+            {"value": "bottom", "label": "Bottom"},
+        ],
+        "description": "which part of the background image stays in view (absence = center)",
+    },
     # ADR-455: document-grain tokens — set on the artifact ROOT. The Notion
     # page-menu affordances (typography, width) as tokens, never raw style.
     "font": {
@@ -623,19 +762,43 @@ STUDIO_KERNEL_CSS = """
    a token wins at equal specificity. */
 hr[data-block="divider"] { border: 0; border-top: 1px solid #ddd; margin: 2.25rem 0; }
 details[data-block="toggle"] { margin: 1rem 0; border: 1px solid #ddd;
-  border-radius: 6px; padding: 0.5rem 0.9rem; }
+  border-radius: var(--radius, 6px); padding: 0.5rem 0.9rem; }
 details[data-block="toggle"] summary { cursor: pointer; font-weight: 600; }
 details[data-block="toggle"][open] summary { margin-bottom: 0.5rem; }
 p[data-block="button"] { margin: 1.5rem 0; }
 p[data-block="button"] a { display: inline-block; background: var(--accent, #b4540a);
-  color: var(--paper, #fdfcfa); padding: 0.55rem 1.2rem; border-radius: 6px;
-  text-decoration: none; font-weight: 600; }
+  color: var(--paper, #fdfcfa); padding: 0.55rem 1.2rem;
+  border-radius: var(--radius, 6px); text-decoration: none; font-weight: 600; }
 div[data-block="gallery"] { display: grid; gap: 0.75rem; margin: 1.5rem 0;
   grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); }
 div[data-block="gallery"] figure { margin: 0; }
 div[data-block="gallery"] img { width: 100%; aspect-ratio: 4 / 3;
-  object-fit: cover; border-radius: 4px; }
+  object-fit: cover; border-radius: var(--radius, 4px); }
 div[data-block="gallery"] figcaption { font-size: 0.75rem; }
+/* The generic multi-column band (ADR-456 W3) — document/article/page
+   arrangements use .cols but only the DECK skin ever defined it; this makes
+   the two-column/feature-grid rows real outside decks (which keep their own
+   .slide .cols rules — :not(.slide) leaves them untouched). */
+[data-arrange]:not(.slide) .cols { display: flex; gap: 2rem; align-items: flex-start; }
+[data-arrange]:not(.slide) .col { flex: 1; min-width: 0; }
+/* The cited page background (ADR-456 W3) — the SOURCE carries only the
+   citation (data-ref + data-ref-kind="background") and tokens; the projection
+   materializes background-image; these rules do the rest. */
+[data-ref-kind="background"] { position: relative; background-size: cover;
+  background-position: center; }
+[data-ref-kind="background"] > * { position: relative; }
+[data-bg-pos="top"] { background-position: top center; }
+[data-bg-pos="bottom"] { background-position: bottom center; }
+[data-scrim] { position: relative; }
+[data-scrim]::before { content: ""; position: absolute; inset: 0; pointer-events: none; }
+[data-scrim="dark"]::before { background: rgba(0,0,0,0.5); }
+[data-scrim="light"]::before { background: rgba(253,252,250,0.65); }
+[data-scrim="dark"] { color: var(--paper, #fdfcfa); }
+/* Page-band arrangement accents (kernel-owned so they retrofit). */
+[data-arrange="cta"], [data-arrange="testimonial"] { text-align: center; }
+[data-arrange="testimonial"] blockquote[data-block="quote"] { border-left: 0;
+  font-style: italic; font-size: 1.3rem; }
+[data-arrange="footer"] { font-size: 0.85rem; color: var(--muted, #6b6b6b); }
 .slide[data-arrange="full-bleed"] { padding: 0; }
 .slide[data-arrange="full-bleed"] [data-slot="media"] { flex: 1; display: flex; min-height: 0; }
 .slide[data-arrange="full-bleed"] figure { flex: 1; margin: 0; min-width: 0; }
@@ -660,6 +823,11 @@ div[data-block="gallery"] figcaption { font-size: 0.75rem; }
 .slide[data-tone="inverse"], [data-arrange][data-tone="inverse"] {
   background: var(--ink, #1a1a1a); color: var(--paper, #fdfcfa); }
 .slide[data-tone] .kicker { color: inherit; opacity: 0.75; }
+/* On a toned band (or a dark-scrimmed background) the button inverts so it
+   stays visible against the band's own accent/ink fill. */
+[data-arrange][data-tone] p[data-block="button"] a,
+[data-scrim="dark"] p[data-block="button"] a {
+  background: var(--paper, #fdfcfa); color: var(--ink, #1a1a1a); }
 [data-height="s"] img { max-height: 10rem; }
 [data-height="m"] img { max-height: 16rem; }
 [data-height="l"] img { max-height: 28rem; }
@@ -697,7 +865,10 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 #: v3: Wave-1 block/arrangement rules + pad/pagenum tokens + responsive
 #:     stacking (ADR-456) — block/arrangement CSS lives HERE, not the layout
 #:     skin, precisely so this retrofit carries it into existing artifacts.
-STUDIO_KERNEL_CSS_VERSION = 3
+#: v4: Wave-3 (ADR-456) — cited page backgrounds (data-ref-kind="background"
+#:     + scrim/bg-pos), the generic non-slide .cols (document/article
+#:     two-column made real), page-band accents, --radius adoption.
+STUDIO_KERNEL_CSS_VERSION = 4
 
 
 def compose_kernel_style_element() -> str:
@@ -875,6 +1046,11 @@ image smaller", "make this slide a dark divider"). Families:
   empty. The pin is the fallback if the path later moves or is deleted.
 - Never edit a cited object's content inside the artifact. If the member asks
   to change a cited source, edit the SOURCE file itself.
+- A page/section can wear a CITED BACKGROUND image: set data-ref="<image path>"
+  and data-ref-kind="background" (plus the data-ref-rev pin) on the page
+  element itself — the canvas renders it as a cover background. Pair it with
+  data-scrim="dark|light" for text legibility and data-bg-pos="top|bottom" for
+  focus. Never write inline style backgrounds — the citation IS the background.
 - You can CREATE visual assets too — vector graphics are plain text: author
   charts, diagrams, icons, and illustrations as `.svg` files into `./assets/`
   beside the artifact (WriteFile), then cite them (`data-ref="./assets/chart.svg"`).

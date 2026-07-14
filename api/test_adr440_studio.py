@@ -35,8 +35,8 @@ def run() -> bool:
         extract_template,
     )
 
-    _check("three templates: document/deck/article",
-           set(STUDIO_TEMPLATES) == {"document", "deck", "article"})
+    _check("four templates: document/deck/article + page (ADR-456 W3)",
+           set(STUDIO_TEMPLATES) == {"document", "deck", "article", "page"})
     for slug, t in STUDIO_TEMPLATES.items():
         _check(f"template '{slug}' has label/description/skeleton",
                all(t.get(k) for k in ("label", "description", "skeleton")))

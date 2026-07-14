@@ -83,6 +83,9 @@ interface StudioDesignTabProps {
     slideIndex: number | null,
     pageIndex: number | null,
   ) => void;
+  /** EXECUTE: set/remove the page's cited background image (ADR-456 W3). */
+  onSetPageBackground: (path: string) => void;
+  onRemovePageBackground: () => void;
 }
 
 /** One token family as a segmented control. "Auto" is the default (absence —
@@ -229,6 +232,8 @@ export function StudioDesignTab({
   onRemoveDesignSystem,
   onAddTextInSlot,
   onInsertImageInSlot,
+  onSetPageBackground,
+  onRemovePageBackground,
 }: StudioDesignTabProps) {
   const doc = useMemo(() => {
     if (typeof window === 'undefined' || !html) return null;
@@ -280,11 +285,13 @@ export function StudioDesignTab({
       const multicol = row
         ? row.slots.filter((s) => s.role !== 'heading').length >= 2
         : (selectedEl?.querySelectorAll('[data-slot]').length ?? 0) >= 2;
+      const hasBg = selectedEl?.getAttribute('data-ref-kind') === 'background';
       return tokens.filter(
         (t) =>
           t.applies.includes('page') ||
           (isSlide && t.applies.includes('page-deck')) ||
-          (multicol && t.applies.includes('page-multicol')),
+          (multicol && t.applies.includes('page-multicol')) ||
+          (hasBg && t.applies.includes('page-bg')),
       );
     }
     return [];
@@ -298,7 +305,10 @@ export function StudioDesignTab({
       tokens.filter(
         (t) =>
           t.applies.includes('document') ||
-          (layout !== 'deck' && t.applies.includes('document-flow')) ||
+          // document-flow = document/article only: a deck is a fixed stage and
+          // a page is full-width bands — measure applies to neither (W3).
+          ((layout === 'document' || layout === 'article') &&
+            t.applies.includes('document-flow')) ||
           (layout === 'deck' && t.applies.includes('document-deck')),
       ),
     [tokens, layout],
@@ -307,6 +317,39 @@ export function StudioDesignTab({
   const designSystems = vocabulary?.design_systems ?? [];
   const [applying, setApplying] = useState<string | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
+
+  // ADR-456 W3: the theme panel — the applied skin's custom properties,
+  // parsed from the artifact's own marked element (read legibility; the
+  // theme's FILES are the source of truth — mutation is the lane's verb for
+  // now, the mechanical var-editor is a named follow-on).
+  const skinVars = useMemo(() => {
+    const css = doc?.querySelector('head style[data-skin]')?.textContent ?? '';
+    const out: Array<{ name: string; value: string }> = [];
+    const rx = /--([a-z0-9-]+)\s*:\s*([^;}]+)[;}]/gi;
+    let m;
+    while ((m = rx.exec(css)) && out.length < 12) {
+      out.push({ name: m[1], value: m[2].trim() });
+    }
+    return out;
+  }, [doc]);
+
+  // ADR-456 W3: the page background — cited image on the page element.
+  const pageBgRef =
+    scope === 'page' && selectedEl?.getAttribute('data-ref-kind') === 'background'
+      ? selectedEl.getAttribute('data-ref')
+      : null;
+  const [bgPicking, setBgPicking] = useState(false);
+  const [bgImages, setBgImages] = useState<Array<{ path: string }> | null>(null);
+  useEffect(() => {
+    setBgPicking(false);
+  }, [selection]);
+  useEffect(() => {
+    if (!bgPicking || bgImages) return;
+    api.studio
+      .citable()
+      .then((c) => setBgImages(c.images))
+      .catch(() => setBgImages([]));
+  }, [bgPicking, bgImages]);
 
   const applyDs = async (manifestPath: string) => {
     setApplying(manifestPath);
@@ -430,6 +473,36 @@ export function StudioDesignTab({
               </div>
             )}
           </div>
+          {/* Theme (ADR-456 W3) — the applied skin's custom properties, read
+              from the artifact's marked element. The theme's FILES are the
+              source of truth: change a value through the chat, then Apply
+              again here to pick it up (the mechanical var-editor is a named
+              follow-on pending the file-edit permission surface). */}
+          {skinRef && skinVars.length > 0 && (
+            <div className={SECTION}>
+              <p className={HEADING}>Theme</p>
+              <div className="space-y-1">
+                {skinVars.map((v) => (
+                  <div key={v.name} className="flex items-center gap-2">
+                    {/^(#|rgb|hsl)/i.test(v.value) ? (
+                      <span
+                        className="h-3.5 w-3.5 shrink-0 rounded-sm border border-border"
+                        style={{ background: v.value }}
+                      />
+                    ) : (
+                      <span className="h-3.5 w-3.5 shrink-0" />
+                    )}
+                    <code className="text-[10px] text-muted-foreground">--{v.name}</code>
+                    <span className="ml-auto truncate text-[10px]">{v.value}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                The theme lives in its files — ask the chat to change a value,
+                then Apply again to pick it up.
+              </p>
+            </div>
+          )}
         </>
       )}
 
@@ -454,6 +527,52 @@ export function StudioDesignTab({
               ))}
             </div>
           )}
+          {/* Background (ADR-456 W3) — a CITED image on the page element; the
+              scrim/focus tokens light up above once one is set. */}
+          <div className={SECTION}>
+            <p className={HEADING}>Background</p>
+            {pageBgRef ? (
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate text-xs">{baseName(pageBgRef)}</span>
+                <button type="button" className={askBtn} onClick={onRemovePageBackground}>
+                  Remove
+                </button>
+              </div>
+            ) : bgPicking ? (
+              bgImages == null ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading images…
+                </div>
+              ) : bgImages.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No images in the workspace yet — drop one into Files first.
+                </p>
+              ) : (
+                <div className="max-h-40 space-y-1 overflow-y-auto">
+                  {bgImages.map((img) => (
+                    <button
+                      key={img.path}
+                      type="button"
+                      onClick={() => {
+                        setBgPicking(false);
+                        onSetPageBackground(img.path);
+                      }}
+                      className="flex w-full flex-col rounded px-2 py-1 text-left hover:bg-muted/40"
+                    >
+                      <span className="truncate text-xs">{baseName(img.path)}</span>
+                      <span className="truncate text-[10px] text-muted-foreground">
+                        {img.path.replace(/^\/workspace\//, '')}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )
+            ) : (
+              <button type="button" className={askBtn} onClick={() => setBgPicking(true)}>
+                Set background…
+              </button>
+            )}
+          </div>
           {arrangements.length > 0 && (
             <div className={SECTION}>
               <p className={HEADING}>Re-arrange</p>

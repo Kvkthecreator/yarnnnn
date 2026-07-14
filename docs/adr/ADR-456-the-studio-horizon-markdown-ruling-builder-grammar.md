@@ -10,7 +10,24 @@
 > (`/` in an empty context → commit-exit → a filterable palette; empty block converts in place,
 > non-empty inserts after; picker-backed kinds stay in Insert ▾), and turn-into (`convertBlock` —
 > id + tokens survive, citations refuse to flatten, text kinds only). FE-only: the registries and
-> the posture are untouched. Gate `api/test_adr456_studio_wave2.py`.
+> the posture are untouched. Gate `api/test_adr456_studio_wave2.py`. *Post-ship operator note: the
+> slash-insert interaction wants polish/refactor — named fast-follow, post-stabilization.*
+>
+> **Wave 3 shipped** (2026-07-14, same-day): the builder look. (1) **Cited backgrounds** —
+> `data-ref` + `data-ref-kind="background"` on the page element; the projection materializes
+> `background-image` (inline style never enters the source); `data-scrim`/`data-bg-pos` tokens
+> (new `page-bg` applies value); set/removed from the Design tab's page scope. (2) **The `page`
+> layout** (D4) + its band family (hero · content · feature-grid · testimonial · cta · footer).
+> (3) **The theme contract** — five kernel-consumed variables (`--ink`/`--paper`/`--muted`/
+> `--accent`/`--radius`), named in the derive recipe; a read-only theme panel in the Design tab.
+> The **mechanical var-editor is deferred by decision**: it requires widening the
+> `PATCH /workspace/file` editable-prefix allow-list to design-system folders — a permission-
+> surface change that gets its own discourse, not a wave rider. Kernel CSS **v4** also fixes two
+> pre-existing defects found in recon: the **skin-stomp** (the projection resolved INTO the marked
+> `<style data-skin data-ref>` element, replacing an applied design system's CSS with the
+> manifest's escaped text — latent since ADR-449) and the **phantom `.cols`** (document/article
+> two-column arrangements referenced a class only the deck skin defined — the generic non-slide
+> `.cols` now lives in the kernel element). Gate `api/test_adr456_studio_wave3.py`.
 
 **Date**: 2026-07-14
 **Dimension**: Substrate (Axiom 1 — one canonical source format, projections at the boundary) +

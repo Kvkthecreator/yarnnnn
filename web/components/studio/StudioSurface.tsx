@@ -54,7 +54,9 @@ import {
   insertBlockInSlot,
   moveBlock,
   movePage,
+  removePageBackground,
   removeSkin,
+  setPageBackground,
   setToken,
   type OpResult,
 } from './artifactOps';
@@ -559,6 +561,20 @@ export function StudioSurface() {
     },
     [slash, applyOp, seedComposer],
   );
+  // ADR-456 W3: the page background — a cited image on the page element.
+  const handleSetPageBackground = useCallback(
+    (path: string) =>
+      applyOp(
+        (html) => setPageBackground(html, anchor, relPath(path), kernelStyle),
+        `Studio: set page background ${relPath(path)}`,
+      ),
+    [applyOp, anchor, kernelStyle],
+  );
+  const handleRemovePageBackground = useCallback(
+    () => applyOp((html) => removePageBackground(html, anchor), 'Studio: remove page background'),
+    [applyOp, anchor],
+  );
+
   // Turn-into from the Design tab (same op, selection-anchored).
   const handleTurnInto = useCallback(
     (kind: string, label: string, fragment: string) => {
@@ -914,6 +930,8 @@ export function StudioSurface() {
               onRemoveDesignSystem={handleRemoveDesignSystem}
               onAddTextInSlot={insertProseInSlot}
               onInsertImageInSlot={insertImageInSlot}
+              onSetPageBackground={handleSetPageBackground}
+              onRemovePageBackground={handleRemovePageBackground}
             />
           )}
         </div>

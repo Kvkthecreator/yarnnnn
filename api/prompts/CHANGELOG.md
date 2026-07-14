@@ -6,6 +6,12 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.14.2] - Studio posture + design-system recipe: the Wave-3 builder look (ADR-456)
+
+- `services/studio.py` — the fourth layout **`page`** (landing: hero/content/feature-grid/testimonial/cta/footer bands — all registry rows, reaching the posture via the derived grammars) + two token families (`data-scrim="dark|light"` + `data-bg-pos="top|bottom"`, gated to pages carrying a cited background). The posture's citing section gains the **cited background** rule: a page/section wears `data-ref` + `data-ref-kind="background"` (+ pin) on the page element itself; pair with the scrim/focus tokens; never inline `style` backgrounds — the citation IS the background. Kernel CSS bumps to **v4** (background/scrim interpretation, the generic non-slide `.cols` that makes document/article/page multi-column bands real, page-band accents, `--radius` adoption).
+- `services/derive_recipes.py` — the design-system recipe now names the **five contract variables** the Studio's kernel chrome consumes (`--ink` / `--paper` / `--muted` / `--accent` / `--radius`), so a derived theme lands on the variables that actually theme buttons/galleries/toggles/tone fills.
+- Expected behavior change: bound lanes can author landing pages by band name, set cited backgrounds with legible scrims in one attribute edit, and derived design systems theme the mechanical chrome. Posture grows ~0.6k chars on authoring turns only; plain chat lanes unchanged.
+
 ## [2026.07.14.1] - Studio posture: the Wave-1 registry growth (ADR-456)
 
 - `services/studio.py` — registry rows, all reaching the posture via its derived grammars (no frame change): four new block kinds (`divider` `<hr>` · `toggle` native `<details>/<summary>` · `button` styled `<a>` · `gallery` a grid of CITED figures), six new arrangements (deck `agenda`/`big-number`/`full-bleed`/`closing`, document `checklist-section`/`metrics-band`), two new token families (`data-pad="s|l"` page breathing room · `data-pagenum="on"` deck slide numbers, on the `<html>` root — the root-carrier line now names font/measure/pagenum). Kernel CSS bumps to **v3**: the new block/arrangement rules live in the marked kernel element (NOT the layout skin) so the versioned retrofit carries them into existing artifacts; token rules stay last in the sheet (a token wins at equal specificity); responsive stacking added for document/article `.cols` (deck stage exempt).

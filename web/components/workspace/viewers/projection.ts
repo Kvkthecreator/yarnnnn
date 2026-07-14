@@ -81,6 +81,11 @@ function markBroken(el: Element, ref: string): void {
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|avif)$/i;
 
 async function resolveOne(el: Element, artifactPath: string): Promise<void> {
+  // The MARKED style elements (data-skin / data-kernel, ADR-449/453) carry
+  // data-ref as an EDGE citation (trace/dependents) — their CSS is already
+  // composed in place. Resolving "into" them would replace the skin's CSS
+  // with the manifest's text (ADR-456 W3 fix — never touch a style element).
+  if (el.tagName === 'STYLE') return;
   const ref = el.getAttribute('data-ref') || '';
   if (!ref) return;
   const pin = el.getAttribute('data-ref-rev') || '';
@@ -105,6 +110,23 @@ async function resolveOne(el: Element, artifactPath: string): Promise<void> {
       markBroken(el, ref); // a binary image with no serving handle yet (ADR-427 Ph1)
       return;
     }
+    // ADR-456 W3: a cited page BACKGROUND — the projection does the pixel
+    // work (backgroundImage on the projected DOM); the source stays a clean
+    // citation + tokens. Never innerHTML here — the band's content lives
+    // inside the element, and a failure just renders the band without the
+    // image (the tokens still style it).
+    if (kind === 'background') {
+      if (path.toLowerCase().endsWith('.svg') && file.content) {
+        (el as HTMLElement).style.backgroundImage =
+          `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}")`;
+        return;
+      }
+      if (file.content_url) {
+        const { url } = await api.documents.blobUrl(file.content_url);
+        (el as HTMLElement).style.backgroundImage = `url("${url}")`;
+      }
+      return;
+    }
     if (kind === 'table' || path.toLowerCase().endsWith('.csv')) {
       el.innerHTML = csvToTableHtml(file.content || '');
       return;
@@ -116,6 +138,9 @@ async function resolveOne(el: Element, artifactPath: string): Promise<void> {
     }
     markBroken(el, ref);
   } catch {
+    // A dangling BACKGROUND never falls to the text-pin path — the band's
+    // children are real content that must not be replaced (ADR-456 W3).
+    if (kind === 'background') return;
     // The living path dangled (moved/deleted) — fall back to the pin
     // (text-native only; binary pins harden at ADR-427 Phase 2).
     if (pin) {

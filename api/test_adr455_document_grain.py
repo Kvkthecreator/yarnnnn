@@ -72,8 +72,10 @@ def run() -> bool:
     design_tab = (web / "components/studio/StudioDesignTab.tsx").read_text()
     _check("Design tab: Ag-preview typography chips (FontControl)",
            "FontControl" in design_tab and "Ag" in design_tab and "FONT_STACKS" in design_tab)
-    _check("Design tab: document tokens gated by layout (measure not on decks)",
-           "document-flow" in design_tab and "layout !== 'deck'" in design_tab)
+    _check("Design tab: document tokens gated by layout (measure = document/article only; "
+           "ADR-456 W3 excluded page too)",
+           "document-flow" in design_tab
+           and "layout === 'document' || layout === 'article'" in design_tab)
     _check("Design tab: the skin-override hint (cascade stays honest)",
            "may override" in design_tab)
 
