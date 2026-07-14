@@ -74,6 +74,13 @@ interface StudioCanvasProps {
   /** F1: the member DRAGGED a block via the ⋮⋮ handle — move it before
    *  `beforeBlockId` (null = end of its parent). Lands one reorder revision. */
   onReorder?: (blockId: string, beforeBlockId: string | null) => void;
+  /** F6: the member pressed ENTER mid-block — the runtime split it optimistically
+   *  in-frame; land the source split (blockId keeps beforeInner, newId gets
+   *  afterInner) as a background revision with NO reload. */
+  onSplitBlock?: (blockId: string, newId: string, beforeInner: string, afterInner: string) => void;
+  /** F6: the member pressed BACKSPACE at a block start — the runtime merged it
+   *  into the previous block optimistically; land the source merge (no reload). */
+  onMergeBlock?: (blockId: string, prevBlockId: string, mergedInner: string) => void;
   /** ADR-447 Phase 4 + ADR-453 D5: the member clicked "+ Add here" in an empty
    *  slot — the surface gates the add by the slot's ROLE (arrange + vocabulary
    *  lookup) and targets the page (slideIndex for decks, pageIndex otherwise). */
@@ -122,6 +129,8 @@ export function StudioCanvas({
   onEditEntered,
   onEnterBlock,
   onReorder,
+  onSplitBlock,
+  onMergeBlock,
   onAddHere,
   onSlashOpen,
   scrollToSlide,
@@ -278,6 +287,18 @@ export function StudioCanvas({
         onEnterBlock?.(d.afterBlockId);
       } else if (d.type === 'yarnnn-reorder' && typeof d.blockId === 'string') {
         onReorder?.(d.blockId, typeof d.beforeBlockId === 'string' ? d.beforeBlockId : null);
+      } else if (
+        d.type === 'yarnnn-split-block' &&
+        typeof d.blockId === 'string' &&
+        typeof d.newId === 'string'
+      ) {
+        onSplitBlock?.(d.blockId, d.newId, String(d.beforeInner ?? ''), String(d.afterInner ?? ''));
+      } else if (
+        d.type === 'yarnnn-merge-block' &&
+        typeof d.blockId === 'string' &&
+        typeof d.prevBlockId === 'string'
+      ) {
+        onMergeBlock?.(d.blockId, d.prevBlockId, String(d.mergedInner ?? ''));
       } else if (d.type === 'yarnnn-add-here' && typeof d.slot === 'string') {
         onAddHere?.(
           d.slot,
@@ -301,7 +322,7 @@ export function StudioCanvas({
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [onPoint, onPointClear, onEdit, onEditExited, onEditEntered, onEnterBlock, onReorder, onAddHere, onSlashOpen]);
+  }, [onPoint, onPointClear, onEdit, onEditExited, onEditEntered, onEnterBlock, onReorder, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen]);
 
   return (
     <iframe

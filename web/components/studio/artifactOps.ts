@@ -458,6 +458,62 @@ export function moveBlock(html: string, blockId: string, dir: 'up' | 'down'): Op
   return moveBlockTo(html, blockId, after ? after.getAttribute('data-block-id') : null);
 }
 
+/** Split a text block at the caret (F6): the block keeps `beforeInner`, and a
+ *  fresh block (same kind, id = `newId`) carrying `afterInner` is inserted right
+ *  after it. The runtime computes both halves' SOURCE inner (citation islands
+ *  restored) and the caller passes them + the pre-generated id so the source op
+ *  matches the optimistic in-frame DOM exactly. Heading blocks split into a
+ *  heading + a prose block (the tail of a title is body, not another title). */
+export function splitBlock(
+  html: string,
+  blockId: string,
+  newId: string,
+  beforeInner: string,
+  afterInner: string,
+): OpResult | null {
+  const doc = parse(html);
+  const block = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+  if (!block?.parentElement) return null;
+  const kind = block.getAttribute('data-block') || 'prose';
+  // The block keeps the before-half.
+  block.innerHTML = beforeInner;
+  // The tail block: same kind, EXCEPT a heading's tail is prose (a split title
+  // continues as body). Clone the element shell so tag + skin attrs carry over
+  // for same-kind splits; for a heading tail, build a <p> prose block.
+  let tail: Element;
+  if (kind === 'heading' || /^h[1-6]$/i.test(block.tagName)) {
+    tail = doc.createElement('p');
+    tail.setAttribute('data-block', 'prose');
+  } else {
+    tail = block.cloneNode(false) as Element; // shell only (no children)
+    tail.removeAttribute('data-ref'); // never carry a citation ref to the tail
+  }
+  tail.setAttribute('data-block-id', newId);
+  tail.innerHTML = afterInner;
+  block.insertAdjacentElement('afterend', tail);
+  return { html: serialize(doc), landedId: newId };
+}
+
+/** Merge a block into the previous TEXT block (F6 — Backspace at block start):
+ *  the previous block's inner gains this block's inner (concatenated), and this
+ *  block is removed. The caller passes the previous block's id (the runtime
+ *  found it) + the merged source inner (islands restored). Returns the previous
+ *  block id as landedId (the caret lands there, at the join). */
+export function mergeBlock(
+  html: string,
+  blockId: string,
+  prevBlockId: string,
+  mergedInner: string,
+): OpResult | null {
+  const doc = parse(html);
+  const block = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+  const prev = doc.querySelector(`[data-block-id="${CSS.escape(prevBlockId)}"]`);
+  if (!block || !prev || block.parentElement !== prev.parentElement) return null;
+  prev.innerHTML = mergedInner;
+  block.remove();
+  return { html: serialize(doc), landedId: prevBlockId };
+}
+
 /** Set a cited BACKGROUND image on the selected page/section (ADR-456 W3):
  *  data-ref + data-ref-kind="background" on the page element itself — the
  *  projection materializes the pixels; the source stays citation + tokens. */

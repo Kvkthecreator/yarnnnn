@@ -862,18 +862,172 @@ const EDIT_SCRIPT = `
       (editingEl.closest('[data-block="checklist"]') ||
        editingEl.matches('ul,ol') || editingEl.querySelector('ul,ol')));
   }
+  // F6 — the caret is inside a citation island (contentEditable=false): a split
+  // or merge across it is refused (a data-ref can't be halved). Fall to native.
+  function caretInIsland() {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return false;
+    var n = sel.anchorNode;
+    var el = n && n.nodeType === 1 ? n : (n ? n.parentElement : null);
+    return !!(el && el.closest && el.closest('[contenteditable="false"]'));
+  }
+  function caretAtBlockStart() {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !sel.isCollapsed) return false;
+    var probe = document.createRange();
+    try {
+      probe.setStart(editingEl, 0);
+      probe.setEnd(sel.anchorNode, sel.anchorOffset);
+    } catch (err) { return false; }
+    return probe.toString().replace(/^\\s+/, '') === '';
+  }
+  // Partition the editing block at the caret into BEFORE / AFTER source-inner
+  // (citation islands restored via readSourceInner). Returns null if the caret
+  // sits in an island (refuse the split). Two clones are truncated by the caret
+  // range, then read source-mapped — the same proven path as a plain edit.
+  function splitHalves() {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !sel.isCollapsed) return null;
+    if (caretInIsland()) return null;
+    var caret = sel.getRangeAt(0);
+    var beforeClone = editingEl.cloneNode(true);
+    var afterClone = editingEl.cloneNode(true);
+    // Map the caret into each clone by walking the same node path.
+    function rangeInClone(clone, toEnd) {
+      var r = document.createRange();
+      // Locate the caret node inside the clone by index path from editingEl.
+      var path = [];
+      var node = caret.startContainer;
+      while (node && node !== editingEl) {
+        var p = node.parentNode;
+        if (!p) break;
+        path.unshift(Array.prototype.indexOf.call(p.childNodes, node));
+        node = p;
+      }
+      var target = clone;
+      for (var i = 0; i < path.length; i++) target = target.childNodes[path[i]];
+      if (!target) return null;
+      if (toEnd) { r.setStart(target, caret.startOffset); r.setEndAfter(clone.lastChild || clone); }
+      else { r.setStart(clone, 0); r.setEnd(target, caret.startOffset); }
+      return r;
+    }
+    var rBefore = rangeInClone(beforeClone, false);
+    var rAfter = rangeInClone(afterClone, true);
+    if (!rBefore || !rAfter) return null;
+    // Delete the OTHER half from each clone.
+    var delAfter = document.createRange();
+    delAfter.setStart(rBefore.endContainer, rBefore.endOffset);
+    delAfter.setEndAfter(beforeClone.lastChild || beforeClone);
+    delAfter.deleteContents();
+    var delBefore = document.createRange();
+    delBefore.setStart(afterClone, 0);
+    delBefore.setEnd(rAfter.startContainer, rAfter.startOffset);
+    delBefore.deleteContents();
+    return { before: readSourceInner(beforeClone), after: readSourceInner(afterClone) };
+  }
+  // A fresh block id checked against the CURRENT DOM (has every live id) — same
+  // shape as artifactOps.freshBlockId. Math.random is fine in the browser
+  // runtime; the source op re-checks uniqueness against the full document.
+  function freshId() {
+    for (var i = 0; i < 50; i++) {
+      var id = 'b' + Math.random().toString(36).slice(2, 6);
+      if (!document.querySelector('[data-block-id="' + id + '"]')) return id;
+    }
+    return 'b' + Math.random().toString(36).slice(2, 8);
+  }
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' || e.shiftKey || !editingEl) return;
     if (fmtInput && document.activeElement === fmtInput) return; // link input owns Enter
     if (inListBlock()) return; // native <li> creation is the right behavior
-    if (!caretAtBlockEnd()) return; // mid-block Enter → native (split lands in commit 6)
+    var id = editingId;
+    if (caretAtBlockEnd()) {
+      // At the END → append a fresh empty block after (F2, the common case).
+      e.preventDefault();
+      exit(true);
+      parent.postMessage({ type: 'yarnnn-enter-block', afterBlockId: id }, '*');
+      return;
+    }
+    // MID-BLOCK → SPLIT (F6). Optimistic: mutate the DOM in-frame FIRST (the
+    // caret lands in the new block instantly), then land the revision in the
+    // background WITHOUT a reload — no stutter. A caret inside a citation island
+    // refuses (splitHalves → null) and falls to native.
+    var halves = splitHalves();
+    if (!halves) return; // in-island / uncomputable → native newline
     e.preventDefault();
-    var afterId = editingId;
-    exit(true); // commit the current block + tell the parent editing ended
-    // The parent inserts a fresh empty prose block after afterId (always
-    // present — the editing block), then commands edit into the new one. Enter
-    // therefore NEVER hits the end-of-document append path.
-    parent.postMessage({ type: 'yarnnn-enter-block', afterBlockId: afterId }, '*');
+    var newId = freshId();
+    // ── Optimistic in-frame mutation ──
+    // Truncate the editing block to the BEFORE half, insert a tail block with
+    // the AFTER half, move the caret to its start, and re-enter it. A heading's
+    // tail becomes prose (matches splitBlock's source op).
+    var kind = editingEl.getAttribute('data-block') || 'prose';
+    var tail;
+    if (kind === 'heading' || /^h[1-6]$/i.test(editingEl.tagName)) {
+      tail = document.createElement('p'); tail.setAttribute('data-block', 'prose');
+    } else {
+      tail = editingEl.cloneNode(false);
+      tail.removeAttribute('data-ref');
+    }
+    tail.setAttribute('data-block-id', newId);
+    // The optimistic DOM uses the source-inner halves (re-projected on next load
+    // if needed; citations in the tail are rare and resolve on reload).
+    editingEl.innerHTML = halves.before;
+    tail.innerHTML = halves.after;
+    editingEl.insertAdjacentElement('afterend', tail);
+    exit(false); // silently detach from the old block (no parent notify yet)
+    enter(newId);
+    try {
+      var r = document.createRange();
+      r.selectNodeContents(tail); r.collapse(true);
+      var sel2 = window.getSelection(); sel2.removeAllRanges(); sel2.addRange(r);
+    } catch (err) {}
+    parent.postMessage({ type: 'yarnnn-edit-entered', blockId: newId }, '*');
+    // ── Background revision (no reload) ──
+    parent.postMessage({ type: 'yarnnn-split-block', blockId: id, newId: newId,
+      beforeInner: halves.before, afterInner: halves.after }, '*');
+  }, true);
+
+  // ── Backspace at block START → MERGE into the previous text block (F6) ──
+  // Optimistic: concatenate this block's inner onto the previous text block's,
+  // place the caret at the join, remove this block — then land the revision in
+  // the background (no reload). Refuses across a citation island.
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Backspace' || !editingEl) return;
+    if (fmtInput && document.activeElement === fmtInput) return;
+    if (!caretAtBlockStart() || caretInIsland()) return; // mid-text → native delete
+    var prev = adjacentTextBlock('up');
+    if (!prev) return; // no previous text block → native (nothing to merge into)
+    e.preventDefault();
+    var thisId = editingId;
+    var prevId = prev.getAttribute('data-block-id');
+    // The merged inner = prev's source inner + this block's source inner. The
+    // caret lands at the JOIN (end of prev's original content).
+    var prevInner = readSourceInner(prev);
+    var thisInner = readSourceInner(editingEl);
+    var joinLen = (prev.textContent || '').length;
+    // ── Optimistic in-frame ──
+    exit(false); // detach from this block
+    prev.innerHTML = prevInner + thisInner;
+    editingEl && editingEl.remove && editingEl.remove();
+    enter(prevId);
+    // caret at the join: walk to the joinLen-th character in prev.
+    try {
+      var sel3 = window.getSelection();
+      var walk = document.createTreeWalker(prev, NodeFilter.SHOW_TEXT, null);
+      var acc = 0, node2 = null, off = 0;
+      while (walk.nextNode()) {
+        var tn = walk.currentNode;
+        if (acc + tn.length >= joinLen) { node2 = tn; off = joinLen - acc; break; }
+        acc += tn.length;
+      }
+      var r3 = document.createRange();
+      if (node2) r3.setStart(node2, off); else { r3.selectNodeContents(prev); r3.collapse(false); }
+      r3.collapse(true);
+      sel3.removeAllRanges(); sel3.addRange(r3);
+    } catch (err) {}
+    parent.postMessage({ type: 'yarnnn-edit-entered', blockId: prevId }, '*');
+    // ── Background revision (no reload) ──
+    parent.postMessage({ type: 'yarnnn-merge-block', blockId: thisId, prevBlockId: prevId,
+      mergedInner: prevInner + thisInner }, '*');
   }, true);
 
   // ── Cross-block ARROW traversal (ADR audit F6) ────────────────────────

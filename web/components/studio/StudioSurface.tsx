@@ -55,9 +55,11 @@ import {
   insertArrangement,
   insertBlock,
   insertBlockInSlot,
+  mergeBlock,
   moveBlock,
   moveBlockTo,
   movePage,
+  splitBlock,
   removePageBackground,
   removeSkin,
   setPageBackground,
@@ -644,6 +646,38 @@ export function StudioSurface() {
     [applyOp],
   );
 
+  // F6 — Enter-split / Backspace-merge, the OPTIMISTIC path. The runtime already
+  // mutated the live DOM (split the block / merged into the previous) and moved
+  // the caret; here we land the matching SOURCE revision WITHOUT a reload
+  // (writeAndAdvance reload:false) — the canvas is already correct, so no
+  // stutter. The source op uses the SAME newId the runtime generated, so the
+  // written source matches the shown DOM exactly. A 409 (a lane wrote under us)
+  // falls back to a reload inside writeAndAdvance.
+  const handleSplitBlock = useCallback(
+    (blockId: string, newId: string, beforeInner: string, afterInner: string) => {
+      if (!file?.content) return;
+      const result = splitBlock(file.content, blockId, newId, beforeInner, afterInner);
+      if (!result) return;
+      // If a half carries a CITATION, the optimistic DOM shows it as unresolved
+      // SOURCE markup (the runtime put source-inner into the projected DOM) —
+      // so re-project (reload:true) to resolve it. Plain-text splits (the common
+      // case) stay optimistic (reload:false), no stutter.
+      const hasCitation = /data-ref=/.test(beforeInner) || /data-ref=/.test(afterInner);
+      void writeAndAdvance(file.head_version_id ?? null, result.html, `Studio: split block`, hasCitation);
+    },
+    [file, writeAndAdvance],
+  );
+  const handleMergeBlock = useCallback(
+    (blockId: string, prevBlockId: string, mergedInner: string) => {
+      if (!file?.content) return;
+      const result = mergeBlock(file.content, blockId, prevBlockId, mergedInner);
+      if (!result) return;
+      const hasCitation = /data-ref=/.test(mergedInner);
+      void writeAndAdvance(file.head_version_id ?? null, result.html, `Studio: merge block`, hasCitation);
+    },
+    [file, writeAndAdvance],
+  );
+
   // ── ADR-456 W2: slash-insert + turn-into ─────────────────────────────────
   // The edit runtime commits + exits on '/' in an empty context, then reports
   // the block's rect; the palette renders in the canvas wrapper (the iframe
@@ -1009,6 +1043,8 @@ export function StudioSurface() {
                 }}
                 onEnterBlock={onEnterBlock}
                 onReorder={handleReorder}
+                onSplitBlock={handleSplitBlock}
+                onMergeBlock={handleMergeBlock}
                 onAddHere={onAddHere}
                 onSlashOpen={onSlashOpen}
                 scrollToSlide={scrollToSlide}

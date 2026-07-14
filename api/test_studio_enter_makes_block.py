@@ -50,10 +50,11 @@ def run() -> bool:
         "if (e.key !== 'Enter' || e.shiftKey || !editingEl) return;" in proj,
     )
     _check(
-        "Enter only fires at the block END (caretAtBlockEnd range probe)",
+        "Enter at the block END appends a new block (caretAtBlockEnd range probe)",
         "function caretAtBlockEnd()" in proj
         and "setEndAfter(editingEl.lastChild" in proj
-        and "if (!caretAtBlockEnd()) return;" in proj,
+        # Commit 6 restructured this into if/else: END → append; mid → split.
+        and "if (caretAtBlockEnd()) {" in proj,
     )
     _check(
         "Shift+Enter is left native (never a new block)",
@@ -65,7 +66,7 @@ def run() -> bool:
     )
     _check(
         "Enter posts yarnnn-enter-block with the afterBlockId",
-        "type: 'yarnnn-enter-block', afterBlockId: afterId" in proj,
+        "type: 'yarnnn-enter-block', afterBlockId: id" in proj,
     )
     _check(
         "no stray backtick broke the EDIT_SCRIPT template (balanced backticks)",
