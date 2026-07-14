@@ -36,6 +36,11 @@ build/
 # remove` + branch delete; this entry prevents accidental re-tracking)
 .claude/worktrees/
 
+# Claude Code per-developer local state (session memory files under
+# .claude/projects/<cwd>/memory/*). These are machine-local, never shared —
+# they were showing up as untracked noise in every developer's Source Control.
+.claude/projects/
+
 # OS
 .DS_Store
 Thumbs.db
