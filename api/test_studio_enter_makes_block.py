@@ -1,0 +1,124 @@
+"""Regression gate — Studio Enter-makes-a-block + the bottom-append fix.
+
+The felt bug (ADR audit F2): "adding feels displaced." Studio had NO Enter
+handler, so Enter fell to native contentEditable and inserted a <br> INSIDE the
+block — there was NO keyboard path to a new block; every one needed a mouse
+trip. And with nothing selected, insertBlock appended to the END of the
+document (the literal "adding on the bottom").
+
+The fix:
+  1. EDIT_SCRIPT gains an Enter handler: Enter at a block's END inserts a fresh
+     empty prose block after it and moves the caret in (Notion's "writing is
+     adding"). Shift+Enter = native soft break; a list block keeps native <li>;
+     mid-block Enter falls through to native (split is commit 6). It posts
+     yarnnn-enter-block {afterBlockId}; the block-end guard uses a range probe.
+  2. The surface's onEnterBlock inserts prose after that block (always present,
+     so Enter never hits the end-append path), then sets editingBlockId to the
+     new block so the caret lands in it after the reload.
+  3. Bottom-append fix: lastCaretBlockId tracks the last block the caret
+     touched; the INSERT paths fall back to it (insertAnchor, read fresh at call
+     time) so a toolbar/slash insert with nothing selected lands after where the
+     member last was — never the document end.
+
+Static/structural checks (no DB, no LLM):
+
+Run:  cd api && python3 test_studio_enter_makes_block.py
+Exit code is authoritative (0 = pass).
+"""
+
+import re
+import sys
+from pathlib import Path
+
+_results: list[tuple[str, bool]] = []
+
+
+def _check(label: str, cond: bool) -> None:
+    _results.append((label, bool(cond)))
+    print(f"[{'PASS' if cond else 'FAIL'}] {label}")
+
+
+def run() -> bool:
+    web = Path(__file__).resolve().parent.parent / "web"
+    proj = (web / "components/workspace/viewers/projection.ts").read_text()
+    canvas = (web / "components/studio/StudioCanvas.tsx").read_text()
+    surface = (web / "components/studio/StudioSurface.tsx").read_text()
+
+    # ── 1. the Enter handler in the runtime ──────────────────────────────
+    _check(
+        "EDIT_SCRIPT has an Enter keydown handler",
+        "if (e.key !== 'Enter' || e.shiftKey || !editingEl) return;" in proj,
+    )
+    _check(
+        "Enter only fires at the block END (caretAtBlockEnd range probe)",
+        "function caretAtBlockEnd()" in proj
+        and "setEndAfter(editingEl.lastChild" in proj
+        and "if (!caretAtBlockEnd()) return;" in proj,
+    )
+    _check(
+        "Shift+Enter is left native (never a new block)",
+        "e.shiftKey" in proj,
+    )
+    _check(
+        "a list/checklist block keeps native <li> creation",
+        "function inListBlock()" in proj and "if (inListBlock()) return;" in proj,
+    )
+    _check(
+        "Enter posts yarnnn-enter-block with the afterBlockId",
+        "type: 'yarnnn-enter-block', afterBlockId: afterId" in proj,
+    )
+    _check(
+        "no stray backtick broke the EDIT_SCRIPT template (balanced backticks)",
+        proj.count("`") % 2 == 0,
+    )
+
+    # ── 2. the canvas forwards it ────────────────────────────────────────
+    _check(
+        "the canvas forwards yarnnn-enter-block → onEnterBlock",
+        "d.type === 'yarnnn-enter-block'" in canvas
+        and "onEnterBlock?.(d.afterBlockId)" in canvas
+        and "onEnterBlock," in canvas,  # destructured
+    )
+
+    # ── 3. the surface inserts + moves the caret in ──────────────────────
+    _check(
+        "onEnterBlock inserts prose after the block and enters the new one",
+        "const onEnterBlock = useCallback(" in surface
+        and "insertBlock(file.content, proseFragment, { blockId: afterBlockId })" in surface
+        and "setEditingBlockId(newId)" in surface,
+    )
+    _check(
+        "the new block is written as a structural op (reload:true) — landedId drives the caret",
+        bool(re.search(r"result\.html,\s*\n\s*`Studio: add block`,\s*\n\s*true", surface))
+        and "if (!result?.landedId) return;" in surface,
+    )
+
+    # ── 4. the bottom-append fix ─────────────────────────────────────────
+    _check(
+        "lastCaretBlockId tracks the caret block (ref, updated on point/enter)",
+        "const lastCaretBlockId = useRef<string | null>(null)" in surface
+        and "lastCaretBlockId.current = p.blockId" in surface,
+    )
+    _check(
+        "the INSERT anchor falls back to lastCaretBlockId (read fresh, not the document end)",
+        "const insertAnchor = useCallback(" in surface
+        and "selection?.blockId ?? lastCaretBlockId.current ?? null" in surface,
+    )
+    _check(
+        "the block-insert handlers use insertAnchor() (fresh), not the memoized anchor",
+        surface.count("insertBlock(html, fragment, insertAnchor())") >= 1
+        and "insertBlock(html, fragment, insertAnchor())" in surface,
+    )
+    _check(
+        "a real deselect (onPointClear) drops the implicit anchor",
+        "lastCaretBlockId.current = null" in surface,
+    )
+
+    ok = all(c for _, c in _results)
+    print()
+    print(f"{'PASS' if ok else 'FAIL'}: {sum(c for _, c in _results)}/{len(_results)} checks")
+    return ok
+
+
+if __name__ == "__main__":
+    sys.exit(0 if run() else 1)

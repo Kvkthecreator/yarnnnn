@@ -68,6 +68,9 @@ interface StudioCanvasProps {
   /** ADR-447 Phase 4: the member DOUBLE-CLICKED a block — the runtime entered
    *  edit mode itself; the surface syncs its editingBlockId to match. */
   onEditEntered?: (blockId: string) => void;
+  /** F2: the member pressed ENTER at a block's end — insert a fresh empty prose
+   *  block after `afterBlockId` and move the caret in ("writing is adding"). */
+  onEnterBlock?: (afterBlockId: string) => void;
   /** ADR-447 Phase 4 + ADR-453 D5: the member clicked "+ Add here" in an empty
    *  slot — the surface gates the add by the slot's ROLE (arrange + vocabulary
    *  lookup) and targets the page (slideIndex for decks, pageIndex otherwise). */
@@ -114,6 +117,7 @@ export function StudioCanvas({
   onEdit,
   onEditExited,
   onEditEntered,
+  onEnterBlock,
   onAddHere,
   onSlashOpen,
   scrollToSlide,
@@ -266,6 +270,8 @@ export function StudioCanvas({
         onEditExited?.();
       } else if (d.type === 'yarnnn-edit-entered' && typeof d.blockId === 'string') {
         onEditEntered?.(d.blockId);
+      } else if (d.type === 'yarnnn-enter-block' && typeof d.afterBlockId === 'string') {
+        onEnterBlock?.(d.afterBlockId);
       } else if (d.type === 'yarnnn-add-here' && typeof d.slot === 'string') {
         onAddHere?.(
           d.slot,
@@ -289,7 +295,7 @@ export function StudioCanvas({
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [onPoint, onPointClear, onEdit, onEditExited, onEditEntered, onAddHere, onSlashOpen]);
+  }, [onPoint, onPointClear, onEdit, onEditExited, onEditEntered, onEnterBlock, onAddHere, onSlashOpen]);
 
   return (
     <iframe

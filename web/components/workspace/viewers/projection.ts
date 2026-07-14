@@ -824,6 +824,47 @@ const EDIT_SCRIPT = `
       rect: { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width } }, '*');
   }, true);
 
+  // ── ENTER makes a new block (ADR audit F2 — "writing is adding") ───────
+  // The core Notion reflex: press Enter, get a fresh block below, keep typing.
+  // Studio had NO Enter handler, so Enter fell to native contentEditable and
+  // inserted a <br> INSIDE the block — every new block needed a mouse trip.
+  //
+  // Scope for THIS commit: Enter at the END of a block's text appends a new
+  // empty prose block after it and moves the caret in. Enter MID-block is a
+  // split (its own commit, with optimistic in-frame update) — until then a
+  // mid-block Enter falls through to native (a soft break), never losing text.
+  // Shift+Enter is always a native soft line break (never a new block). Inside
+  // a list/checklist, native Enter already makes a new <li> — leave it.
+  function caretAtBlockEnd() {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !sel.isCollapsed) return false;
+    // Range from the caret to the end of the block: empty ⇒ caret is at the end.
+    var probe = document.createRange();
+    try {
+      probe.setStart(sel.anchorNode, sel.anchorOffset);
+      probe.setEndAfter(editingEl.lastChild || editingEl);
+    } catch (err) { return false; }
+    return probe.toString().replace(/\\s+$/, '') === '';
+  }
+  function inListBlock() {
+    return !!(editingEl && editingEl.closest &&
+      (editingEl.closest('[data-block="checklist"]') ||
+       editingEl.matches('ul,ol') || editingEl.querySelector('ul,ol')));
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || e.shiftKey || !editingEl) return;
+    if (fmtInput && document.activeElement === fmtInput) return; // link input owns Enter
+    if (inListBlock()) return; // native <li> creation is the right behavior
+    if (!caretAtBlockEnd()) return; // mid-block Enter → native (split lands in commit 6)
+    e.preventDefault();
+    var afterId = editingId;
+    exit(true); // commit the current block + tell the parent editing ended
+    // The parent inserts a fresh empty prose block after afterId (always
+    // present — the editing block), then commands edit into the new one. Enter
+    // therefore NEVER hits the end-of-document append path.
+    parent.postMessage({ type: 'yarnnn-enter-block', afterBlockId: afterId }, '*');
+  }, true);
+
   // DOUBLE-CLICK is now a redundant fallback: since single-click enters TEXT
   // blocks at the caret (ADR audit F4, pointer runtime), a double-click on one
   // just re-enters idempotently (a no-op) and the native double-click word-

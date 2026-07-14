@@ -297,6 +297,14 @@ export function StudioSurface() {
   // (the scope-switching inspector). The lane stays MOUNTED under either tab.
   const [rightTab, setRightTab] = useState<'chat' | 'design'>('chat');
 
+  // F2 (bottom-append fix): the last block the caret touched — the IMPLICIT
+  // anchor for a toolbar/slash insert when nothing is explicitly selected. A
+  // ref (no re-render): it's an anchor hint, folded into `anchor` below so a
+  // no-selection insert lands after where the member last was, not at the END
+  // of the document (the "adding happens on the bottom" complaint). Cleared on
+  // a genuine deselect (click into empty margin).
+  const lastCaretBlockId = useRef<string | null>(null);
+
   // ADR-446 D5: a click SELECTS (block → slot → page, the ADR-453 grain
   // ladder; anchors ops + gates edit mode). It NO LONGER auto-seeds the
   // composer — that produced the seed-append spam. The lane hears the
@@ -311,12 +319,14 @@ export function StudioSurface() {
       arrange: p.arrange,
       text: p.text,
     });
+    if (p.blockId) lastCaretBlockId.current = p.blockId; // remember the anchor
     // ADR-458: the gutter's ⋮⋮ selects AND opens the Design tab (one home).
     if (p.design) setRightTab('design');
   }, []);
   const onPointClear = useCallback(() => {
     setSelection(null);
     setEditingBlockId(null);
+    lastCaretBlockId.current = null; // a real deselect drops the implicit anchor
   }, []);
 
   // ADR-446: which block is being edited in place (surface-held; the canvas
@@ -423,12 +433,25 @@ export function StudioSurface() {
     }),
     [selection],
   );
+  // The INSERT anchor (F2 bottom-append fix): blockId falls back to the last
+  // block the caret touched, resolved FRESH at call time (a ref, not a memo —
+  // so an Enter-then-Insert flow anchors on the just-created block, never the
+  // document end). Only block inserts use this; page/token/arrange ops keep the
+  // explicit-selection `anchor` above (an implicit page anchor would surprise).
+  const insertAnchor = useCallback(
+    () => ({
+      blockId: selection?.blockId ?? lastCaretBlockId.current ?? null,
+      slideIndex: selection?.slideIndex ?? null,
+      pageIndex: selection?.pageIndex ?? null,
+    }),
+    [selection],
+  );
   const kernelStyle = vocabulary?.kernel_style_element;
 
   const handleInsertBlock = useCallback(
     (fragment: string, label: string) =>
-      applyOp((html) => insertBlock(html, fragment, anchor), `Studio: add ${label} block`),
-    [applyOp, anchor],
+      applyOp((html) => insertBlock(html, fragment, insertAnchor()), `Studio: add ${label} block`),
+    [applyOp, insertAnchor],
   );
   const handleInsertCited = useCallback(
     (kind: 'figure' | 'table', path: string) => {
@@ -437,11 +460,11 @@ export function StudioSurface() {
       if (!base) return;
       const fragment = base.replace(/data-ref="[^"]*"/, `data-ref="${rel}"`);
       void applyOp(
-        (html) => insertBlock(html, fragment, anchor),
+        (html) => insertBlock(html, fragment, insertAnchor()),
         `Studio: insert ${kind === 'figure' ? 'image' : 'table'} ${rel}`,
       );
     },
-    [applyOp, anchor, vocabulary],
+    [applyOp, insertAnchor, vocabulary],
   );
   // ADR-456 W1: N cited images land as ONE gallery block, one revision.
   const handleInsertGallery = useCallback(
@@ -451,11 +474,11 @@ export function StudioSurface() {
       const fragment = galleryFragment(base, paths.map(relPath));
       if (!fragment) return;
       void applyOp(
-        (html) => insertBlock(html, fragment, anchor),
+        (html) => insertBlock(html, fragment, insertAnchor()),
         `Studio: insert gallery (${paths.length} images)`,
       );
     },
-    [applyOp, anchor, vocabulary],
+    [applyOp, insertAnchor, vocabulary],
   );
   const handleAddArrangement = useCallback(
     (fragment: string, label: string) =>
@@ -575,6 +598,36 @@ export function StudioSurface() {
       );
     },
     [file, writeAndAdvance],
+  );
+
+  // F2 — "writing is adding": ENTER at a block's end inserts a fresh empty prose
+  // block after it and moves the caret in. We compute the insert locally to get
+  // the NEW block's id (insertBlock returns landedId), write it (structural →
+  // reload), and set editingBlockId to the new block so the canvas re-commands
+  // edit INTO it after the reload — the caret lands in the empty block, ready to
+  // type. Enter always anchors on the editing block, so it never hits the
+  // end-of-document append path.
+  const onEnterBlock = useCallback(
+    (afterBlockId: string) => {
+      if (!file?.content) return;
+      const proseFragment = vocabulary?.blocks.find((b) => b.kind === 'prose')?.fragment;
+      if (!proseFragment) return;
+      const result = insertBlock(file.content, proseFragment, { blockId: afterBlockId });
+      if (!result?.landedId) return;
+      const newId = result.landedId;
+      void writeAndAdvance(
+        file.head_version_id ?? null,
+        result.html,
+        `Studio: add block`,
+        true, // structural — the DOM gains a block; reload, then re-enter below
+      ).then((ok) => {
+        if (ok) {
+          setEditingBlockId(newId); // caret into the new block after reload
+          lastCaretBlockId.current = newId; // the new block is now the anchor
+        }
+      });
+    },
+    [file, vocabulary, writeAndAdvance],
   );
 
   // ── ADR-456 W2: slash-insert + turn-into ─────────────────────────────────
@@ -936,7 +989,11 @@ export function StudioSurface() {
                 editingBlockId={editingBlockId}
                 onEdit={onEdit}
                 onEditExited={() => setEditingBlockId(null)}
-                onEditEntered={(id) => setEditingBlockId(id)}
+                onEditEntered={(id) => {
+                  setEditingBlockId(id);
+                  lastCaretBlockId.current = id; // entering a block anchors inserts here
+                }}
+                onEnterBlock={onEnterBlock}
                 onAddHere={onAddHere}
                 onSlashOpen={onSlashOpen}
                 scrollToSlide={scrollToSlide}
