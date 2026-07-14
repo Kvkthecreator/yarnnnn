@@ -86,6 +86,16 @@ interface StudioDesignTabProps {
   /** EXECUTE: set/remove the page's cited background image (ADR-456 W3). */
   onSetPageBackground: (path: string) => void;
   onRemovePageBackground: () => void;
+  /** ADR-458 D3: the artifact-as-file verbs — the SAME shared implementation
+   *  the Files surface uses, homed in the document scope (the surface-bar
+   *  "File actions" menu is deleted). Trash falls back to the landing. */
+  fileVerbs: {
+    copyLink: () => void;
+    duplicate: () => void;
+    rename: () => void;
+    move: () => void;
+    trash: () => void;
+  };
 }
 
 /** One token family as a segmented control. "Auto" is the default (absence —
@@ -234,6 +244,7 @@ export function StudioDesignTab({
   onInsertImageInSlot,
   onSetPageBackground,
   onRemovePageBackground,
+  fileVerbs,
 }: StudioDesignTabProps) {
   const doc = useMemo(() => {
     if (typeof window === 'undefined' || !html) return null;
@@ -503,6 +514,33 @@ export function StudioDesignTab({
               </p>
             </div>
           )}
+          {/* File (ADR-458 D3) — the artifact-as-file verbs, one settings home
+              (Notion's page ⋯ = typography + file verbs; both live HERE now). */}
+          <div className={SECTION}>
+            <p className={HEADING}>File</p>
+            <div className="flex flex-wrap gap-1">
+              <button type="button" className={askBtn} onClick={fileVerbs.copyLink}>
+                Copy link
+              </button>
+              <button type="button" className={askBtn} onClick={fileVerbs.duplicate}>
+                Duplicate
+              </button>
+              <button type="button" className={askBtn} onClick={fileVerbs.rename}>
+                Rename…
+              </button>
+              <button type="button" className={askBtn} onClick={fileVerbs.move}>
+                Move…
+              </button>
+              <button
+                type="button"
+                className={`${askBtn} hover:border-red-300 hover:text-red-600`}
+                onClick={fileVerbs.trash}
+                title="Move this artifact to Trash (revertible from Files)"
+              >
+                <Trash2 className="h-3 w-3" /> Trash
+              </button>
+            </div>
+          </div>
         </>
       )}
 

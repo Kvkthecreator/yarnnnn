@@ -41,6 +41,9 @@ export interface PointerEvent2 {
   slot: string | null;
   /** ADR-453 D5 — the enclosing page's arrangement slug (role lookups). */
   arrange: string | null;
+  /** ADR-458 — the hover gutter's ⋮⋮ asked for the Design tab (select AND
+   *  flip the right column; the verbs' one home). */
+  design?: boolean;
 }
 
 interface StudioCanvasProps {
@@ -235,6 +238,7 @@ export function StudioCanvas({
           pageIndex: typeof d.pageIndex === 'number' ? d.pageIndex : null,
           slot: typeof d.slot === 'string' ? d.slot : null,
           arrange: typeof d.arrange === 'string' ? d.arrange : null,
+          design: d.design === true,
         });
       } else if (d.type === 'yarnnn-point-clear') {
         onPointClear?.();

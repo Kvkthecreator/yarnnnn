@@ -84,9 +84,8 @@ def run() -> bool:
            "extraItems" in menu and "FileMenuExtraItem" in menu)
 
     surface = (web / "components/studio/StudioSurface.tsx").read_text()
-    _check("surface-bar ⋯: Copy link + Duplicate via extraItems",
-           "'copy-link'" in surface and "'duplicate'" in surface
-           and "copyArtifactLink" in surface and "duplicateArtifact" in surface)
+    _check("Copy link + Duplicate live on (re-homed to the Design tab by ADR-458)",
+           "copyArtifactLink" in surface and "duplicateArtifact" in surface)
     _check("Duplicate never overwrites an existing copy (probe-then-create)",
            "-copy.html" in surface and "continue; // exists" in surface)
 

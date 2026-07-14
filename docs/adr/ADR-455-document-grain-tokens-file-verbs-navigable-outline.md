@@ -1,5 +1,11 @@
 # ADR-455 — Document-grain tokens, the file-verb completion, and the navigator that earns its place
 
+> **Amended by ADR-458** (2026-07-14, placement reversal): the surface-bar ⋯ ("File actions" —
+> Copy link · Duplicate · Rename · Move · Trash) is DELETED; the file verbs move into the Design
+> tab's **document scope** (the one settings home — completing the consolidation this ADR started
+> when it moved Notion's typography half there). The verbs and the shared `useFileOrganizeVerbs`
+> implementation are unchanged; only the chrome moved.
+
 > **Status**: **Accepted** (2026-07-13, operator-ratified — "full aligned, lets proceed"). The
 > operator, from Notion's page menu (Ag Default/Serif/Mono · Copy link · Duplicate · Move to ·
 > Trash), asked whether the Studio can accommodate document-level design controls — and whether

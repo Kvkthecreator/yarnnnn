@@ -272,6 +272,10 @@ const POINTER_SCRIPT = `
     if (t && t.closest && t.closest('.yarnnn-add-here')) return;
     // ADR-456 W2: the format bar owns its clicks (injected chrome, not content).
     if (t && t.closest && t.closest('.yarnnn-fmt')) return;
+    // ADR-458: the hover gutter owns its clicks too (this listener runs in the
+    // CAPTURE phase — without the ignore it would clear the selection before
+    // the gutter button's own handler ever fires).
+    if (t && t.closest && t.closest('.yarnnn-gutter')) return;
     // ADR-456 W1: a toggle block's <summary> opens natively on the SECOND
     // click — the first click selects the block; once selected, the click
     // passes through so <details> can do its platform thing (script-free).
@@ -334,6 +338,15 @@ const POINTER_SCRIPT = `
     mark.classList.add('yarnnn-pointed');
     parent.postMessage(payload, '*');
   }, true);
+
+  // ADR-458: the hover gutter selects THROUGH this runtime's own selection
+  // state (one selection, not two) — exposed like __yarnnnEditingId.
+  window.__yarnnnSelect = function (el) {
+    if (!el || !el.classList) return;
+    if (cur) cur.classList.remove('yarnnn-pointed');
+    cur = el;
+    el.classList.add('yarnnn-pointed');
+  };
 
   // ADR-447 (2026-07-13): canvas commands — scroll to a slide (navigator
   // selection moves the center display) + zoom (a VIEW control; scales the
@@ -463,6 +476,17 @@ const EDIT_CSS = `
   font: 12px system-ui, sans-serif; border: 0; border-radius: 4px;
   padding: 4px 6px; width: 220px; outline: none;
 }
+/* ADR-458: the hover gutter — + and ⋮⋮ beside the hovered block (injected
+   chrome, body-appended; the pointer runtime ignores its clicks). */
+.yarnnn-gutter {
+  position: absolute; z-index: 9998; display: flex; align-items: center;
+}
+.yarnnn-gutter button {
+  all: unset; cursor: pointer; color: #9ca3af;
+  font: 600 14px/1 system-ui, sans-serif; padding: 2px 4px; border-radius: 4px;
+}
+.yarnnn-gutter button:hover { background: rgba(0,0,0,0.08); color: #4b5563; }
+.yarnnn-gutter .yg-handle { cursor: grab; font-size: 12px; letter-spacing: -3px; }
 `;
 
 const EDIT_SCRIPT = `
@@ -746,6 +770,123 @@ const EDIT_SCRIPT = `
 })();
 `;
 
+// ── The hover gutter (ADR-458) ────────────────────────────────────────────
+//
+// The layer Notion surfaces on hover: + (open the block palette here) and ⋮⋮
+// (select the block + open the Design tab — the verbs' one home) beside the
+// hovered block, NO selection needed. Injected chrome, body-appended (never
+// inside a block — commits can't see it). Desktop-pointer only; hides for the
+// block being edited (the format bar owns that space). The ⋮⋮ handle is where
+// in-frame block drag lands later (ADR-453 D7.4 — a named follow-on).
+
+const GUTTER_SCRIPT = `
+(function () {
+  if (!window.matchMedia || !window.matchMedia('(hover: hover)').matches) return;
+  var PAGE_SEL = 'section.slide, [data-arrange]';
+  var bar = null, plusBtn = null, curBlock = null, hideTimer = null;
+
+  function slideIndexOf(el) {
+    var slide = el.closest ? el.closest('section.slide') : null;
+    if (!slide) return null;
+    var all = document.querySelectorAll('section.slide');
+    for (var i = 0; i < all.length; i++) { if (all[i] === slide) return i; }
+    return null;
+  }
+  function pageIndexOf(el) {
+    var page = el.closest ? el.closest(PAGE_SEL) : null;
+    if (!page) return null;
+    var all = document.querySelectorAll(PAGE_SEL);
+    for (var i = 0; i < all.length; i++) { if (all[i] === page) return i; }
+    return null;
+  }
+
+  function build() {
+    if (bar) return;
+    bar = document.createElement('div');
+    bar.className = 'yarnnn-gutter';
+    bar.style.display = 'none';
+    plusBtn = document.createElement('button');
+    plusBtn.type = 'button'; plusBtn.textContent = '+'; plusBtn.title = 'Add a block';
+    plusBtn.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (!curBlock) return;
+      // The SAME palette the slash trigger opens (ADR-456 W2) — one palette,
+      // two entrances; the parent's routing (convert-on-empty / insert-after)
+      // is unchanged.
+      var rect = curBlock.getBoundingClientRect();
+      parent.postMessage({ type: 'yarnnn-slash-open',
+        blockId: curBlock.getAttribute('data-block-id'),
+        empty: (curBlock.textContent || '').trim() === '',
+        rect: { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width } }, '*');
+    });
+    var handle = document.createElement('button');
+    handle.type = 'button'; handle.className = 'yg-handle';
+    handle.textContent = '\\u22EE\\u22EE'; handle.title = 'Block options';
+    handle.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (!curBlock) return;
+      // Select in-frame through the pointer runtime's OWN selection state
+      // (one selection, not two), then tell the parent to select AND open
+      // the Design tab (design: true) — the verbs' one home.
+      if (window.__yarnnnSelect) window.__yarnnnSelect(curBlock);
+      var slotEl = curBlock.closest ? curBlock.closest('[data-slot]') : null;
+      var pageEl = curBlock.closest ? curBlock.closest('[data-arrange]') : null;
+      parent.postMessage({ type: 'yarnnn-point',
+        tag: curBlock.tagName.toLowerCase(),
+        text: (curBlock.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 120),
+        dataRef: curBlock.getAttribute('data-ref') || null,
+        blockId: curBlock.getAttribute('data-block-id') || null,
+        blockKind: curBlock.getAttribute('data-block') || null,
+        slideIndex: slideIndexOf(curBlock),
+        pageIndex: pageIndexOf(curBlock),
+        slot: slotEl ? (slotEl.getAttribute('data-slot') || null) : null,
+        arrange: pageEl ? (pageEl.getAttribute('data-arrange') || null) : null,
+        design: true }, '*');
+    });
+    bar.appendChild(plusBtn);
+    bar.appendChild(handle);
+    document.body.appendChild(bar);
+  }
+
+  function showFor(block) {
+    build();
+    curBlock = block;
+    var rect = block.getBoundingClientRect();
+    bar.style.display = 'flex';
+    var w = bar.offsetWidth || 42;
+    bar.style.left = Math.max(2, rect.left + window.scrollX - w - 4) + 'px';
+    bar.style.top = (rect.top + window.scrollY + 1) + 'px';
+  }
+  function hide() {
+    if (bar) bar.style.display = 'none';
+    curBlock = null;
+  }
+
+  document.addEventListener('mousemove', function (e) {
+    var t = e.target;
+    if (t && t.closest && t.closest('.yarnnn-gutter')) {
+      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+      return;
+    }
+    var blk = t && t.closest ? t.closest('[data-block]') : null;
+    if (blk) {
+      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+      var editingId = window.__yarnnnEditingId ? window.__yarnnnEditingId() : null;
+      if (editingId != null && blk.getAttribute('data-block-id') === editingId) { hide(); return; }
+      if (blk !== curBlock) showFor(blk);
+      return;
+    }
+    // A grace delay bridges the gap between the block and the gutter.
+    if (!hideTimer) hideTimer = setTimeout(function () { hideTimer = null; hide(); }, 300);
+  });
+  // Rects go stale on scroll — re-anchor (or hide if the block left the DOM).
+  document.addEventListener('scroll', function () {
+    if (curBlock && curBlock.isConnected) showFor(curBlock);
+    else hide();
+  }, true);
+})();
+`;
+
 /** Remove every artifact-authored executable: script/iframe/object/embed
  *  elements + inline on* handlers + javascript: URLs. The posture forbids
  *  them; this enforces the rule mechanically before allow-scripts renders. */
@@ -810,6 +951,13 @@ export async function resolveArtifactHtml(
     const addHere = doc.createElement('script');
     addHere.textContent = ADD_HERE_SCRIPT;
     doc.body?.appendChild(addHere);
+    if (opts?.edit) {
+      // ADR-458: the hover gutter (after the pointer — it uses the pointer's
+      // __yarnnnSelect + the edit runtime's __yarnnnEditingId).
+      const gutter = doc.createElement('script');
+      gutter.textContent = GUTTER_SCRIPT;
+      doc.body?.appendChild(gutter);
+    }
   }
   const doctype = '<!doctype html>\n';
   return doctype + (doc.documentElement?.outerHTML ?? html);

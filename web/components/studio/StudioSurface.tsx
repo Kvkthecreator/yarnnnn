@@ -23,7 +23,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, Link2, Loader2, Palette, PanelLeft, Sparkles } from 'lucide-react';
+import { Loader2, Palette, PanelLeft, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { LearnFromFlowModal } from './LearnFromFlowModal';
@@ -31,8 +31,6 @@ import { NewArtifactModal, slugify } from './NewArtifactModal';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
-import { FileContextMenu } from '@/components/workspace/FileContextMenu';
-import { MoreHorizontal } from 'lucide-react';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { StudioCanvas, type PointerEvent2 } from './StudioCanvas';
 import { StudioSlashPalette } from './StudioSlashPalette';
@@ -147,26 +145,10 @@ export function StudioSurface() {
   // action for the type.
 
   // ADR-446 surface-bar action: a single ⋯ that opens the organize menu
-  // (Rename / Move / Trash) for the open artifact. Only present in the
-  // workbench (an artifact is open) — the START state has no file to organize.
-  useSurfaceActions(
-    'studio',
-    artifactPath
-      ? [
-          {
-            id: 'organize',
-            label: 'File actions',
-            icon: MoreHorizontal,
-            onClick: () => {
-              // Anchor the menu under the strip's right edge (the SurfaceAction
-              // button lives there; FileContextMenu clamps within the viewport).
-              const x = typeof window !== 'undefined' ? window.innerWidth - 40 : 0;
-              setOrganizeMenu({ x, y: 52 });
-            },
-          },
-        ]
-      : [],
-  );
+  // ADR-458 D3: the surface bar is crumb-only — the "File actions" button is
+  // deleted; the file verbs live in the Design tab's document scope (the one
+  // settings home). Registering the empty set keeps the bar clean.
+  useSurfaceActions('studio', []);
 
   // ── Lane environment (models + existing lanes) ─────────────────────────
   const [lanesEnabled, setLanesEnabled] = useState<boolean | null>(null);
@@ -247,9 +229,6 @@ export function StudioSurface() {
       setParam({ file: newPath === null ? null : relPath(newPath) });
     },
   });
-  // The surface-bar ⋯ opens this menu (a SurfaceAction is a plain button, so the
-  // menu is Studio-owned, anchored under the strip's right edge).
-  const [organizeMenu, setOrganizeMenu] = useState<{ x: number; y: number } | null>(null);
 
   // ── Composer seeding (v1.1): pointing + the insert menu ────────────────
   const [seed, setSeed] = useState<{ text: string; nonce: number } | null>(null);
@@ -280,6 +259,8 @@ export function StudioSurface() {
       arrange: p.arrange,
       text: p.text,
     });
+    // ADR-458: the gutter's ⋮⋮ selects AND opens the Design tab (one home).
+    if (p.design) setRightTab('design');
   }, []);
   const onPointClear = useCallback(() => {
     setSelection(null);
@@ -932,6 +913,16 @@ export function StudioSurface() {
               onInsertImageInSlot={insertImageInSlot}
               onSetPageBackground={handleSetPageBackground}
               onRemovePageBackground={handleRemovePageBackground}
+              fileVerbs={{
+                copyLink: copyArtifactLink,
+                duplicate: () => void duplicateArtifact(),
+                rename: () =>
+                  organizeVerbs.onRename({ path: artifactPath, name: baseName(artifactPath) }),
+                move: () =>
+                  organizeVerbs.onMove({ path: artifactPath, name: baseName(artifactPath) }),
+                trash: () =>
+                  organizeVerbs.onDelete({ path: artifactPath, name: baseName(artifactPath) }),
+              }}
             />
           )}
         </div>
@@ -959,37 +950,9 @@ export function StudioSurface() {
         ))}
       </nav>
 
-      {/* ADR-446: the organize menu for the open artifact, opened by the
-          surface-bar ⋯. The SAME FileContextMenu + shared verbs the Files
-          surface uses — organize the artifact-as-file from the app that opened
-          it (the macOS window-titlebar model). */}
-      {organizeMenu && (
-        <FileContextMenu
-          target={{ path: artifactPath, name: baseName(artifactPath), isFile: true }}
-          x={organizeMenu.x}
-          y={organizeMenu.y}
-          onClose={() => setOrganizeMenu(null)}
-          onRename={(t) => organizeVerbs.onRename(t)}
-          onMove={(t) => organizeVerbs.onMove(t)}
-          onDelete={(t) => organizeVerbs.onDelete(t)}
-          // ADR-455: the file-verb completion — Studio-specific entries via
-          // the shared menu's extension point (Notion's menu, our grains).
-          extraItems={[
-            {
-              id: 'copy-link',
-              label: 'Copy link',
-              icon: <Link2 className="h-3.5 w-3.5 text-muted-foreground" />,
-              onClick: copyArtifactLink,
-            },
-            {
-              id: 'duplicate',
-              label: 'Duplicate',
-              icon: <Copy className="h-3.5 w-3.5 text-muted-foreground" />,
-              onClick: () => void duplicateArtifact(),
-            },
-          ]}
-        />
-      )}
+      {/* ADR-458 D3: the organize dialogs (rename/move/trash confirmations)
+          stay mounted — the entrances moved to the Design tab's File section;
+          the surface-bar menu is gone. */}
       {organizeModals}
     </div>
   );
