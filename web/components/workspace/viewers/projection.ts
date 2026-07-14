@@ -236,10 +236,17 @@ html[data-template="deck"] .slide {
 }
 `;
 
+// The TEXT-editable block kinds (ADR-456 W2's Turn-into set): a single click on
+// one of these enters edit-at-caret (F4); media/data/structured kinds
+// (figure/gallery/table/metrics/chart) stay select-only. Kept in sync with the
+// StudioDesignTab TURN_INTO_KINDS + the heading anchor kind.
+const TEXT_KINDS_JS = JSON.stringify(['prose', 'callout', 'quote', 'checklist', 'toggle', 'heading']);
+
 const POINTER_SCRIPT = `
 (function () {
   var SEL = ${JSON.stringify(POINTABLE)};
   var PAGE_SEL = 'section.slide, [data-arrange]';
+  var TEXT_KINDS = ${TEXT_KINDS_JS};
   var cur = null;
 
   function slideIndexOf(el) {
@@ -264,10 +271,21 @@ const POINTER_SCRIPT = `
   }
 
   document.addEventListener('click', function (e) {
-    // ADR-446: while a block is being edited, clicks must place the caret, not
-    // re-select — the edit runtime (if present) reports the editing block id.
-    if (window.__yarnnnEditingId && window.__yarnnnEditingId() != null) return;
     var t = e.target;
+    // ADR-446 + F4: while a block is being edited, a click INSIDE that same
+    // block just places the caret natively (return early). A click in a
+    // DIFFERENT block must switch the caret there (Notion: click any text moves
+    // the caret) — so fall through to the handler below, which enters the new
+    // block. The old behavior returned on ANY click while editing, which
+    // stranded the caret in the first block once single-click-to-edit landed.
+    var editingId = window.__yarnnnEditingId ? window.__yarnnnEditingId() : null;
+    if (editingId != null) {
+      var inSameBlock = t && t.closest
+        ? (t.closest('[data-block-id]') &&
+           t.closest('[data-block-id]').getAttribute('data-block-id') === editingId)
+        : false;
+      if (inSameBlock) return; // native caret placement inside the editing block
+    }
     // The "+ Add here" button owns its click (its own handler posts).
     if (t && t.closest && t.closest('.yarnnn-add-here')) return;
     // ADR-456 W2: the format bar owns its clicks (injected chrome, not content).
@@ -295,18 +313,37 @@ const POINTER_SCRIPT = `
       var text = (el.getAttribute('alt') || el.textContent || '')
         .replace(/\\s+/g, ' ').trim().slice(0, 120);
       var slotEl = el.closest ? el.closest('[data-slot]') : null;
+      var blkKind = blk ? (blk.getAttribute('data-block') || null) : null;
       payload = {
         type: 'yarnnn-point',
         tag: el.tagName.toLowerCase(),
         text: text,
         dataRef: el.getAttribute('data-ref') || (blk && blk.getAttribute('data-ref')) || null,
         blockId: blk ? (blk.getAttribute('data-block-id') || null) : null,
-        blockKind: blk ? (blk.getAttribute('data-block') || null) : null,
+        blockKind: blkKind,
         slideIndex: slideIndexOf(el),
         pageIndex: pageIndexOf(el),
         slot: slotEl ? (slotEl.getAttribute('data-slot') || null) : null,
         arrange: arrangeOf(el),
       };
+      // Single-click-to-edit (ADR audit F4): a click on a TEXT block enters
+      // edit with the caret at the click point — the Notion default (click =
+      // caret, no separate select step). Non-text blocks (media/structured/
+      // data) stay select-only. The click must NOT be on a citation island
+      // (contentEditable=false) — those select the block, never edit. We still
+      // post the point payload (drives the Design tab scope) and tell the
+      // parent editing began (yarnnn-edit-entered) so its state stays in sync.
+      var onIsland = t && t.closest ? t.closest('[data-ref]') : null;
+      if (blk && blkKind && TEXT_KINDS.indexOf(blkKind) !== -1 && !onIsland
+          && window.__yarnnnEnter) {
+        if (cur) cur.classList.remove('yarnnn-pointed');
+        cur = blk;
+        parent.postMessage(payload, '*');
+        var bid = blk.getAttribute('data-block-id');
+        window.__yarnnnEnter(bid, e.clientX, e.clientY);
+        parent.postMessage({ type: 'yarnnn-edit-entered', blockId: bid }, '*');
+        return;
+      }
     } else {
       var slot = t && t.closest ? t.closest('[data-slot]') : null;
       var page = t && t.closest ? t.closest(PAGE_SEL) : null;
@@ -557,7 +594,10 @@ const EDIT_SCRIPT = `
     if (notify) parent.postMessage({ type: 'yarnnn-edit-exited' }, '*');
   }
 
-  function enter(blockId) {
+  // caretX/caretY (optional): place the caret at that viewport point after
+  // focusing — the single-click-to-edit gesture (ADR audit F4). Absent (the
+  // dblclick / parent-command path) → the browser's default focus caret.
+  function enter(blockId, caretX, caretY) {
     // Idempotent: if this block is already being edited, do nothing. This
     // breaks the re-entrancy where a local dblclick enters, tells the parent,
     // and the parent echoes back 'yarnnn-edit-enter' for the SAME block —
@@ -577,6 +617,30 @@ const EDIT_SCRIPT = `
     // Semantic tags from execCommand (b/i), normalized to strong/em at commit.
     try { document.execCommand('styleWithCSS', false, 'false'); } catch (err) {}
     el.focus();
+    // Single-click-to-edit: land the caret WHERE the member clicked (not at the
+    // block start/end el.focus() gives), so click-to-type feels like a real
+    // editor. Guard the caret to inside the editable block (never into a
+    // contentEditable=false citation island).
+    if (caretX != null && caretY != null) {
+      try {
+        var range = null;
+        if (document.caretRangeFromPoint) {
+          range = document.caretRangeFromPoint(caretX, caretY);
+        } else if (document.caretPositionFromPoint) {
+          var pos = document.caretPositionFromPoint(caretX, caretY);
+          if (pos) { range = document.createRange(); range.setStart(pos.offsetNode, pos.offset); range.collapse(true); }
+        }
+        if (range) {
+          var node = range.startContainer;
+          var host = node && node.nodeType === 1 ? node : (node ? node.parentElement : null);
+          var island = host && host.closest ? host.closest('[contenteditable="false"]') : null;
+          if (!island && el.contains(range.startContainer)) {
+            var sel = window.getSelection();
+            sel.removeAllRanges(); sel.addRange(range);
+          }
+        }
+      } catch (err) {}
+    }
     // ADR-456 W2: the blur guard replaces the once-blur — focus moving INTO
     // the format bar (the link input) must not end the edit session.
     var onBlur = function () {
@@ -760,19 +824,53 @@ const EDIT_SCRIPT = `
       rect: { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width } }, '*');
   }, true);
 
-  // ADR-447 Phase 4: DOUBLE-CLICK to edit — the natural gesture (every editor
-  // since 1984), replacing the toolbar chip. A dblclick on a [data-block]
-  // enters edit mode HERE and tells the parent (yarnnn-edit-entered) so its
-  // editingBlockId stays in sync (the parent then won't re-command on reload).
+  // DOUBLE-CLICK is now a redundant fallback: since single-click enters TEXT
+  // blocks at the caret (ADR audit F4, pointer runtime), a double-click on one
+  // just re-enters idempotently (a no-op) and the native double-click word-
+  // selects — the expected "double-click selects a word" of every editor. We
+  // keep it only so a block whose kind the pointer's TEXT_KINDS set doesn't
+  // cover still has a way in — but guard it to blocks that actually hold text
+  // (never make a pure media/citation block contentEditable).
   document.addEventListener('dblclick', function (e) {
     var t = e.target;
     var blk = t && t.closest ? t.closest('[data-block]') : null;
     if (!blk) return;
     var id = blk.getAttribute('data-block-id');
     if (!id) return;
+    // Skip a block with no editable text of its own (e.g. figure/gallery whose
+    // only content is a citation island) — entering would orphan the caret.
+    var hasText = (blk.textContent || '').replace(/\\s+/g, '').length > 0;
+    var onlyRef = blk.querySelector('[data-ref]') && !hasText;
+    if (onlyRef) return;
     e.preventDefault();
     enter(id);
     parent.postMessage({ type: 'yarnnn-edit-entered', blockId: id }, '*');
+  }, true);
+
+  // Esc lifts the caret back to BLOCK-SELECT (ADR audit F4): single-click now
+  // enters edit directly, so Esc is the deliberate move UP to whole-block ops
+  // (the Notion model — caret is the default, block-select is the escape). It
+  // commits the edit, exits, and asks the parent to select the block (which
+  // re-outlines it via the pointer runtime + drives the Design tab scope).
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || !editingEl) return;
+    if (fmtInput && fmtInput.style.display !== 'none') return; // Esc closes the link input first
+    var el = editingEl;
+    var id = editingId;
+    e.preventDefault();
+    exit(true); // commit + tell the parent editing ended
+    if (window.__yarnnnSelect) window.__yarnnnSelect(el);
+    var slotEl = el.closest ? el.closest('[data-slot]') : null;
+    var pageEl = el.closest ? el.closest('[data-arrange]') : null;
+    parent.postMessage({ type: 'yarnnn-point',
+      tag: el.tagName.toLowerCase(),
+      text: (el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 120),
+      dataRef: el.getAttribute('data-ref') || null,
+      blockId: id,
+      blockKind: el.getAttribute('data-block') || null,
+      slideIndex: null, pageIndex: null,
+      slot: slotEl ? (slotEl.getAttribute('data-slot') || null) : null,
+      arrange: pageEl ? (pageEl.getAttribute('data-arrange') || null) : null }, '*');
   }, true);
 
   window.addEventListener('message', function (e) {
@@ -785,6 +883,9 @@ const EDIT_SCRIPT = `
   // Expose to the pointer runtime so it can suppress its click-to-select while
   // a block is being edited (the caret must land, not a new selection).
   window.__yarnnnEditingId = function () { return editingId; };
+  // Expose enter-at-point so the pointer runtime can turn a SINGLE click on a
+  // text block into caret placement (ADR audit F4 — click-to-type, no dblclick).
+  window.__yarnnnEnter = function (blockId, x, y) { enter(blockId, x, y); };
 })();
 `;
 
