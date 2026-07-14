@@ -589,15 +589,25 @@ const EDIT_SCRIPT = `
   // editingBlockId so it doesn't re-enter this block on the post-commit reload.
   // Internal exits (re-enter of another block, or the parent's explicit
   // edit-exit command) pass notify=false: the parent already owns that state.
-  function exit(notify) {
+  //
+  // silent=true detaches WITHOUT emitting the block's commit. Required by the
+  // split/merge paths: they mutate the DOM first, so a commit read here would
+  // describe a HALF of the result (the truncated before-half on a split; the
+  // about-to-be-removed block on a merge) while the op message that follows
+  // carries the WHOLE result. Both land through the write door anchored on the
+  // same head, so the stale half either clobbers the op or spuriously 409s it.
+  // The op message is the single source of truth for these transitions.
+  function exit(notify, silent) {
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
     var el = editingEl;
     editingEl = null; editingId = null; // clear FIRST so any re-entry is a no-op
     hideFmt();
     if (el && el.__yarnnnBlur) { el.removeEventListener('blur', el.__yarnnnBlur); el.__yarnnnBlur = null; }
     if (el && el.querySelectorAll) {
-      var innerNow = readSourceInner(el);
-      if (innerNow) parent.postMessage({ type: 'yarnnn-edit', blockId: el.getAttribute('data-block-id'), newInner: innerNow }, '*');
+      if (!silent) {
+        var innerNow = readSourceInner(el);
+        if (innerNow) parent.postMessage({ type: 'yarnnn-edit', blockId: el.getAttribute('data-block-id'), newInner: innerNow }, '*');
+      }
       el.removeAttribute('contenteditable');
       var refs = el.querySelectorAll('[data-ref]');
       for (var i = 0; i < refs.length; i++) refs[i].removeAttribute('contenteditable');
@@ -973,7 +983,10 @@ const EDIT_SCRIPT = `
     editingEl.innerHTML = halves.before;
     tail.innerHTML = halves.after;
     editingEl.insertAdjacentElement('afterend', tail);
-    exit(false); // silently detach from the old block (no parent notify yet)
+    // silent: the DOM is already truncated to the BEFORE half, so a commit here
+    // would post an edit that DROPS the after-half — racing the split message
+    // below (both anchored on the same head). The split op carries both halves.
+    exit(false, true);
     enter(newId);
     try {
       var r = document.createRange();
@@ -1005,7 +1018,10 @@ const EDIT_SCRIPT = `
     var thisInner = readSourceInner(editingEl);
     var joinLen = (prev.textContent || '').length;
     // ── Optimistic in-frame ──
-    exit(false); // detach from this block
+    // silent: this block is about to be REMOVED. A commit here would post an
+    // edit re-asserting it, racing the merge message below (same head anchor).
+    // The merge op carries the joined inner + the removal.
+    exit(false, true);
     prev.innerHTML = prevInner + thisInner;
     editingEl && editingEl.remove && editingEl.remove();
     enter(prevId);

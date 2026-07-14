@@ -147,6 +147,27 @@ def run() -> bool:
         "onSplitBlock={handleSplitBlock}" in surface
         and "onMergeBlock={handleMergeBlock}" in surface,
     )
+    # ── The stale-half race (the op-carrying exits must be SILENT) ──────────
+    # exit() commits the block it detaches from. On split/merge the DOM is
+    # already mutated when we exit, so that commit describes a HALF of the
+    # result and races the op message — both anchored on the same head, so it
+    # either clobbers the op (data loss) or spuriously 409s it (error flash).
+    _check(
+        "exit() supports a silent mode (detach without emitting a commit)",
+        "function exit(notify, silent) {" in proj and "if (!silent) {" in proj,
+    )
+    _check(
+        "the SPLIT detaches silently — the split op carries both halves",
+        "exit(false, true);\n    enter(newId);" in proj,
+    )
+    _check(
+        "the MERGE detaches silently — the merge op carries the joined inner",
+        "exit(false, true);\n    prev.innerHTML = prevInner + thisInner;" in proj,
+    )
+    _check(
+        "arrow traversal still COMMITS on exit (no op of its own carries the text)",
+        "exit(false); // commit silently (parent keeps editingBlockId in sync below)" in proj,
+    )
 
     ok = all(c for _, c in _results)
     print()
