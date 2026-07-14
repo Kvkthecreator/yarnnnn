@@ -192,7 +192,7 @@ async def write_artifact(req: WriteArtifactRequest, auth: UserClient) -> dict:
     if req.expected_head_version_id is not None:
         write_kwargs["expected_parent_version_id"] = req.expected_head_version_id
     try:
-        write_revision(
+        new_head_version_id = write_revision(
             auth.client,
             user_id=auth.user_id,
             path=path,
@@ -208,7 +208,11 @@ async def write_artifact(req: WriteArtifactRequest, auth: UserClient) -> dict:
             status_code=409,
             detail=f"The artifact changed under you (expected {e.expected_parent_version_id or '<none>'}) — it will reload.",
         )
-    return {"success": True, "path": path}
+    # Return the new head version so the FE can advance its CAS base WITHOUT a
+    # refetch — the invisible-save path: a member's own text edit lands silently
+    # (the canvas already shows the typed result), no iframe reload, no caret
+    # jump. The next write CAS-chains off this id.
+    return {"success": True, "path": path, "head_version_id": new_head_version_id}
 
 
 @router.get("/studio/citable")

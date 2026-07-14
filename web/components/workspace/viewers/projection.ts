@@ -369,8 +369,26 @@ const POINTER_SCRIPT = `
       // zoom scales layout + scrollable area (unlike transform) — the honest
       // "make it bigger/smaller on screen" the operator asked for.
       document.body.style.zoom = String(d.scale);
+    } else if (d.type === 'yarnnn-restore-scroll' && typeof d.y === 'number') {
+      // The parent captured the pre-reload scroll (the runtime reports it on
+      // scroll below) and restores it after a STRUCTURAL reload so the canvas
+      // doesn't jump to the top — the reloads that remain feel like nothing
+      // moved. Opaque origin means the parent can't read scrollTop directly,
+      // so this round-trips through the runtime.
+      try { window.scrollTo(0, d.y); } catch (err) {}
     }
   });
+
+  // Report the scroll position to the parent (throttled) so it can restore it
+  // across a structural reload. The parent keeps only the latest value.
+  var scrollReportTimer = null;
+  window.addEventListener('scroll', function () {
+    if (scrollReportTimer) return;
+    scrollReportTimer = setTimeout(function () {
+      scrollReportTimer = null;
+      parent.postMessage({ type: 'yarnnn-scroll-pos', y: window.scrollY || 0 }, '*');
+    }, 120);
+  }, true);
 })();
 `;
 

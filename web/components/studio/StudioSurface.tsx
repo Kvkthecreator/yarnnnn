@@ -18,8 +18,10 @@
  *    the Studio's own chat owns the right edge.
  *
  * Two write paths, one door (ADR-444/446): the lane writes judgment edits; the
- * member writes mechanical ones (toolbar ops + in-place text). Both bump
- * `reloadKey`, so the member watches the document change live.
+ * member writes mechanical ones (toolbar ops + in-place text). A member's own
+ * TEXT edit lands invisibly — the durable revision is POSTed but the canvas is
+ * NOT reloaded (it already shows the typed result), so save feels ambient.
+ * Structural ops + foreign (lane) writes reload, preserving scroll.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -212,12 +214,54 @@ export function StudioSurface() {
 
   // ── The artifact itself (the surface owns the load; canvas projects) ───
   const [reloadKey, setReloadKey] = useState(0);
-  const { file, loading, notFound } = useFileLoad(artifactPath ?? '', { reloadKey });
+  const { file: loadedFile, loading, notFound } = useFileLoad(artifactPath ?? '', { reloadKey });
+
+  // ── Invisible save (the local CAS-base override) ──────────────────────────
+  // A member's own edit lands as a revision, but the canvas ALREADY shows the
+  // typed result — reloading the iframe to re-display an identical DOM is what
+  // makes save feel like a jarring event (blank flash, caret jump, scroll
+  // reset). Instead we keep a LOCAL override of the artifact's content +
+  // head_version_id: an own-edit write advances both in place, WITHOUT a
+  // refetch or an iframe reload. `file` below is the merged view the rest of
+  // the surface reads.
+  //
+  // Validity anchor: an override descends from the loaded file it was FORKED
+  // from — captured as `anchorHead` (the loadedFile head at fork time). It stays
+  // valid as long as `loadedFile.head_version_id` still equals that anchor
+  // (text edits never refetch, so the loaded head is stable through a whole
+  // typing session — a chain of edits extends the SAME override, each advancing
+  // `headVersionId` while `anchorHead` is pinned). A foreign reload lands a new
+  // loadedFile with a DIFFERENT head → the anchor no longer matches → the
+  // override is dropped and the authoritative state wins.
+  const [localOverride, setLocalOverride] = useState<{
+    anchorHead: string | null; // the loadedFile head this override chain forked from
+    content: string;
+    headVersionId: string; // the current (advancing) head after N chained edits
+  } | null>(null);
+
+  const file = useMemo(() => {
+    if (!loadedFile) return loadedFile;
+    if (localOverride && localOverride.anchorHead === (loadedFile.head_version_id ?? null)) {
+      return {
+        ...loadedFile,
+        content: localOverride.content,
+        head_version_id: localOverride.headVersionId,
+      };
+    }
+    return loadedFile;
+  }, [loadedFile, localOverride]);
+
+  // A path change or a foreign reload (reloadKey bump) starts fresh — drop any
+  // override so it can't shadow the authoritative reload.
+  useEffect(() => {
+    setLocalOverride(null);
+  }, [artifactPath, reloadKey]);
 
   const onArtifactWrite = useCallback(
     (writtenPath: string) => {
       if (!artifactPath) return;
       if (relPath(writtenPath) === relPath(artifactPath)) {
+        // A FOREIGN write (the lane) genuinely changed the file — reload.
         setReloadKey((k) => k + 1);
       }
     },
@@ -322,6 +366,40 @@ export function StudioSurface() {
   // ── The mechanical executor (ADR-444): compute a deterministic op FE-side,
   // land it as ONE operator-attributed CAS-guarded revision, re-render. ──
   const [opError, setOpError] = useState<string | null>(null);
+
+  // The shared write core: POST the computed html, advance the local CAS base
+  // (content + head) so the NEXT write chains off it without a refetch. Returns
+  // true on success. `reload` decides whether the iframe re-projects: STRUCTURAL
+  // ops (insert/move/delete/arrange — the DOM shape changed) reload so the
+  // canvas shows the new shape; TEXT edits do NOT (the member already typed the
+  // result into the live DOM — reloading would only blank+reprint it and lose
+  // the caret). Either way the override advances, so save is durable + CAS-safe.
+  const writeAndAdvance = useCallback(
+    async (baseHead: string | null, html: string, message: string, reload: boolean): Promise<boolean> => {
+      if (!artifactPath) return false;
+      // Pin the chain's anchor to the LOADED head (stable through a typing
+      // session), not to `baseHead` — which advances as edits chain. The first
+      // edit forks from the loaded head; every subsequent edit keeps that same
+      // anchor so the override stays valid (the merge guard in `file`).
+      const anchorHead = loadedFile?.head_version_id ?? null;
+      try {
+        const res = await api.studio.writeArtifact(artifactPath, html, baseHead, message);
+        // Advance the local CAS base in place — the invisible-save spine.
+        setLocalOverride({ anchorHead, content: html, headVersionId: res.head_version_id });
+        if (reload) setReloadKey((k) => k + 1);
+        return true;
+      } catch (e) {
+        // A 409 = the lane (or another member) wrote under us — reload to the
+        // authoritative state and let the member retry against it.
+        setOpError(e instanceof Error ? e.message : 'The edit did not land — reloading.');
+        setLocalOverride(null);
+        setReloadKey((k) => k + 1);
+        return false;
+      }
+    },
+    [artifactPath, loadedFile],
+  );
+
   const applyOp = useCallback(
     async (compute: (html: string) => OpResult | null, message: string) => {
       if (!artifactPath || !file?.content) return;
@@ -331,21 +409,10 @@ export function StudioSurface() {
         setOpError('Could not apply that here — select something in the document first.');
         return;
       }
-      try {
-        await api.studio.writeArtifact(
-          artifactPath,
-          result.html,
-          file.head_version_id ?? null,
-          message,
-        );
-        setReloadKey((k) => k + 1);
-      } catch (e) {
-        // A 409 = the lane wrote under us — reload and let the member retry.
-        setOpError(e instanceof Error ? e.message : 'The edit did not land — reloading.');
-        setReloadKey((k) => k + 1);
-      }
+      // Structural op → reload so the canvas re-projects the new DOM shape.
+      await writeAndAdvance(file.head_version_id ?? null, result.html, message, true);
     },
-    [artifactPath, file],
+    [artifactPath, file, writeAndAdvance],
   );
 
   const anchor = useMemo(
@@ -495,10 +562,19 @@ export function StudioSurface() {
   const onEdit = useCallback(
     (blockId: string, newInner: string) => {
       if (!file?.content) return;
-      if (!editBlockText(file.content, blockId, newInner)) return; // no-op — no revision, no error
-      void applyOp((html) => editBlockText(html, blockId, newInner), `Studio: edit ${blockId} block`);
+      const result = editBlockText(file.content, blockId, newInner);
+      if (!result) return; // no-op — no revision, no reload, no error
+      // INVISIBLE SAVE: the member already typed the result into the live iframe
+      // DOM, so this durable revision lands WITHOUT reloading the canvas
+      // (reload: false) — no blank flash, no caret jump, no scroll reset.
+      void writeAndAdvance(
+        file.head_version_id ?? null,
+        result.html,
+        `Studio: edit ${blockId} block`,
+        false,
+      );
     },
-    [applyOp, file],
+    [file, writeAndAdvance],
   );
 
   // ── ADR-456 W2: slash-insert + turn-into ─────────────────────────────────

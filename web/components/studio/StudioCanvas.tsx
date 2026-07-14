@@ -187,6 +187,13 @@ export function StudioCanvas({
   const zoomRef = useRef(effectiveZoom);
   zoomRef.current = effectiveZoom;
 
+  // The latest scroll position the runtime reported (opaque origin — the parent
+  // can't read scrollTop, so the runtime posts it). Restored after a structural
+  // reload so the canvas doesn't jump to the top (the invisible-save follow-on:
+  // text edits no longer reload at all; the reloads that DO remain — structural
+  // ops, foreign writes — preserve the scroll).
+  const scrollYRef = useRef(0);
+
   const commandEdit = useCallback(() => {
     const win = iframeRef.current?.contentWindow;
     if (!win) return;
@@ -195,6 +202,10 @@ export function StudioCanvas({
     else win.postMessage({ type: 'yarnnn-edit-exit' }, '*');
     // Re-apply the current zoom on a fresh load (the runtime resets on reload).
     win.postMessage({ type: 'yarnnn-zoom', scale: zoomRef.current }, '*');
+    // Restore the pre-reload scroll (a no-op at y=0 / first load).
+    if (scrollYRef.current > 0) {
+      win.postMessage({ type: 'yarnnn-restore-scroll', y: scrollYRef.current }, '*');
+    }
   }, []);
 
   // On editing-state change, command immediately (the runtime is already live).
@@ -248,6 +259,9 @@ export function StudioCanvas({
         typeof d.newInner === 'string'
       ) {
         onEdit?.(d.blockId, d.newInner);
+      } else if (d.type === 'yarnnn-scroll-pos' && typeof d.y === 'number') {
+        // Keep the latest scroll so a structural reload can restore it.
+        scrollYRef.current = d.y;
       } else if (d.type === 'yarnnn-edit-exited') {
         onEditExited?.();
       } else if (d.type === 'yarnnn-edit-entered' && typeof d.blockId === 'string') {

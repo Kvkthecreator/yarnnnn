@@ -340,7 +340,7 @@ export const api = {
     // (insert block / add arrangement / re-arrange) computed FE-side, landed
     // as ONE operator-attributed CAS-guarded revision (409 on a stale base).
     writeArtifact: (path: string, content: string, expectedHeadVersionId: string | null, message: string) =>
-      request<{ success: boolean; path: string }>("/api/studio/artifacts/write", {
+      request<{ success: boolean; path: string; head_version_id: string }>("/api/studio/artifacts/write", {
         method: "POST",
         body: JSON.stringify({
           path,
