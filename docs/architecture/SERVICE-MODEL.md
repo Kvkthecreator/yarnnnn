@@ -1,7 +1,7 @@
 # YARNNN Service Model
 
 > **Status**: Canonical
-> **Date**: 2026-03-29 (v1.6 revision 2026-04-20; taxonomy/autonomy hardening amended 2026-04-24; invocation/narrative amendment 2026-04-25; v1.7 OS framing canonized 2026-04-27; v1.8 ADR-296 v2 wake architecture amendments canonized 2026-05-20; v1.9 "What YARNNN Is" re-cut to the settlement + two-verb model per [ADR-454](../adr/ADR-454-the-two-verb-experience-converse-and-make-ambient-steward.md) 2026-07-13)
+> **Date**: 2026-03-29 (v1.6 revision 2026-04-20; taxonomy/autonomy hardening amended 2026-04-24; invocation/narrative amendment 2026-04-25; v1.7 OS framing canonized 2026-04-27; v1.8 ADR-296 v2 wake architecture amendments canonized 2026-05-20; v1.9 "What YARNNN Is" re-cut to the settlement + two-verb model per [ADR-454](../adr/ADR-454-the-two-verb-experience-converse-and-make-ambient-steward.md) 2026-07-13; v2.0 the verb pair renames Think · Make + the desk/record two-layer statement per [ADR-457](../adr/ADR-457-think-and-make-the-service-model.md) 2026-07-14)
 > **Scope**: End-to-end service model — how the system works, from user intent to delivered output.
 > **Rule**: This is the single document that describes the complete system. Deep-dive docs are linked, not duplicated.
 
@@ -15,9 +15,11 @@
 
 YARNNN is **the system of record where human and AI work settles** (ESSENCE v15). A workspace is a multi-principal commons — the operator, invited members, their AI hands, and external LLMs over the interop face — where every contribution lands as an attributed, parent-pointered revision on one ledger. Engines are fungible; the accumulated, attributed memory is not.
 
-The operator experience is carried by **two acting surfaces** (FOUNDATIONS DP29 v9.17): **Converse** (`/chat` — the workspace's room, where the *asset* is worked: asking, deriving, organizing, remembering, multi-file operations) and **Make** (`/studio` — the artifact's bench, where the *dividends* are made: creation, learn-from, direct edit, the bound lane). They are one conversation substrate at two scopes, never two systems. Files (the Finder), Notifications, and Activity carry legibility; two settings doors carry configuration. The system agent (Freddie) stewards the substrate as an **ambient daemon** — it wakes, derives, places, and arbitrates, and the operator meets it as attributed rows in the ledger, not as fronted chrome (ADR-454 D3).
+The felt product is **a desk with two verbs over a commons that remembers** (FOUNDATIONS DP29 v9.18, ADR-457): **Think** (`/chat` — workspace-scoped, grounded, multi-engine dialogue: research, ideation, deciding — plus the member's-hands operations as means) and **Make** (`/studio` — artifact-scoped composition: creation, learn-from, direct edit, the bound lane). *Words for exploring, hands for shaping.* The two compose as a pipeline — **think → settle → make**: thinking distills into the commons (the settle act, ADR-457 D3), making learns from the distillates; multi-user, *diverge privately, settle publicly*. They are one conversation substrate at two scopes, never two systems. Files (the Finder), Notifications, and Activity carry legibility; two settings doors carry configuration. The system agent (Freddie) stewards the substrate as an **ambient daemon** — met as attributed rows in the ledger, not as fronted chrome (ADR-454 D3).
 
-**The product thesis**: work here is cumulative. Every correction, every authored file, every settled artifact raises the floor the next act starts from — and the judgment layer (hired Altitude-3 agents running operations under a witness dial, supervised from their own surfaces) is the deepening a workspace grows into, not the entry experience.
+**The two layers, kept deliberately distinct (ESSENCE v16)**: the record is the moat; the desk is the product. The ledger is felt at staged moments (trace · correct-once · leave-with-everything · settle), never as the ambient experience.
+
+**The product thesis**: work here is cumulative. Every correction, every authored file, every settled thought raises the floor the next act starts from — and the judgment layer (hired Altitude-3 agents running operations under a witness dial, supervised from their own surfaces) is the deepening a workspace grows into, not the entry experience.
 
 ---
 

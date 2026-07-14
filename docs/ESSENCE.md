@@ -7,6 +7,7 @@
 **v14.1 amendment** (2026-06-10, ADR-332): the cumulative asset's world-facing half — the workspace also accumulates the declared universe's distilled history (the perception field). One paragraph added to Core Thesis.
 **v14.2 amendment** (2026-06-29, ADR-380 §5 + ADR-381): **the vision/moat re-cut.** ADR-380 §5 (operator, 2026-06-29) closed two open items in the conservative direction: **(a) Rung-2 autonomous judgment is scoped OUT of the vision** — the vision is the **multi-principal substrate commons + Freddie (the context-management OS)**: the substrate floor (Rung 0) operated by humans and external agents, stewarded by **Freddie** (Rung 1, the 1st-order substrate steward); the judgment layer (Rung 2 / persona agents taking consequential action) is an **optional future capability, not the destination**; **(b) the moat stays at "durable attributed memory" with `trace`/provenance (the walkable revision chain) named as its defensible core** — NOT re-framed to the commons-altitude, NOT led by the judgment seat. **This reverses v14.0's "the judgment seat leads" external posture** (line 6/145): the external lead is now the **authored, attributed, portable substrate + `trace`** (the proven, defensible, red-ocean-surviving core); the judgment seat is named as the future Rung-2 deepening, not the systemic moat. **management role renamed Reviewer → Freddie** (asset/labor/**Freddie**/dividends) per [ADR-381](adr/ADR-381-freddie-the-rung-1-substrate-steward.md) D1 — a relabel-keep-slug (the internal `reviewer` slug + `reviewer:` prefix + `/workspace/persona/` path unchanged; ADR-251 precedent). See [ADR-380](adr/ADR-380-the-activation-ladder-and-the-judgment-deferral-line.md) §5 + [ADR-381](adr/ADR-381-freddie-the-rung-1-substrate-steward.md) + the [two-order direction](analysis/freddie-as-the-workspace-agent-and-the-two-order-agent-model-2026-06-27.md).
 **v15.0 amendment** (2026-07-07, [ADR-414](adr/ADR-414-the-pure-workspace-genesis-system-agent-program-as-hire.md) D1): **the moat re-cut — position over feature.** The prior statement ("the authored, attributed, portable substrate — defended by `trace`") named the artifact, not the position; §The Moat is rewritten to the ratified form: **YARNNN is the system of record where human and AI work settles** — the invocation contract (ADR-413: projection in, attributed revision out, one ledger) is the moat's *mechanism*; the engines are fungible precisely because the memory is not; portability/attribution/accumulation are the three wedges; **`trace` is the proof surface, not the moat**; and the moat is **anti-fragile to model churn** (every new frontier engine makes the vendor-neutral commons more necessary). No strategy change — the ADR-380 §5 conservative lead (substrate commons + Freddie; judgment defers) stands; the wording catches up to the architecture ADR-413 already made true. Companion: programs are re-cut as **Altitude-3 hires** (ADR-414 D5) — a program installs a persona agent with its own home; it never re-persons the steward; Layer-2 prose below reads through that lens.
+**v16.0 amendment** (2026-07-14, [ADR-457](adr/ADR-457-think-and-make-the-service-model.md)): **the desk and the record — the product and the moat are two layers.** Operator-ratified through a three-pass discourse (first-principles rederivation → adversarial re-check → live filesystem stress test). The v15 moat statement ("the system of record where human and AI work settles") **stands unchanged as the moat statement** — what v16 adds is the honest separation it always implied: **the record is the moat; the desk is the product.** The felt product is **a desk with two verbs — Think (`/chat`) and Make (`/studio`) — over a commons that remembers**; the ledger is felt at *staged moments* (trace/why · correct-once-everything-inherits · leave-with-everything · **settle**), never as the ambient experience itself — the OS pattern (the filesystem is invisible; the desk and the apps are felt). The era-1 posture (yarnnn as a Dropbox-like hum behind other AIs) is re-cut, not reversed: **the hum was demoted from product identity to product floor** — two doors, one moat (ADR-310) stands; investment priority moves to the desk, reversible against declared falsifiers (ADR-457 D8). New section §The Desk below; "What YARNNN Is Not" re-cut accordingly.
 **v15.1 amendment** (2026-07-13, [ADR-454](adr/ADR-454-the-two-verb-experience-converse-and-make-ambient-steward.md)): **the ambient steward — Freddie's posture resolved.** The product's two acting surfaces are Converse (`/chat`) and Make (`/studio`); Freddie's persona chrome (the summonable rail + FAB) is gated off. **Freddie remains the named management function** — in this narrative, on the brand surfaces (`/freddie`), and above all in the ledger (`freddie:` attribution, "Freddie derived…" activity rows — the derived form of the steward's presence, ADR-410) — but is **never a fronted chat character**: the operator meets Freddie in the record of his work, not in a conversation window. External copy keeps the name and the Rung-1 honesty band (ADR-380 D3) and must not promise an in-product "ask Freddie" chat affordance; the asset/labor/**Freddie**/dividends quad stands unchanged.
 **Prior**: v13.0 (2026-06-02 — substrate-first rewrite; grounded in THESIS four commitments, ADR-310/311 one-moat-two-faces, ADR-222 kernel/program framing, ADR-209 authored substrate, ADR-216 orchestration vs judgment.)
 
@@ -85,6 +86,32 @@ A **program** (alpha-trader, alpha-author, and future programs) is an applicatio
 
 This is where the operation runs in the operator's absence and improves through supervision. It is additive: a Layer-1 operator has portable context; a Layer-2 operator has *judged* portable context plus an operation that runs without them.
 
+## The Desk (v16 — the felt product)
+
+The moat above is structural and largely invisible — which is correct and normal for an
+OS-class product: nobody opens a settlement layer to work. The **felt product** is the desk:
+
+> **A desk with two verbs — Think and Make — over a commons that remembers.**
+
+- **Think — `/chat`.** Workspace-scoped, grounded, multi-engine dialogue: research, ideation,
+  weighing, deciding — over *your* authored commons rather than a vendor's memory-scrapings. Its
+  defining property is that thinking here **lands**: the settle act distills a conversation's
+  insight into the commons as an attributed, cited, retrievable file — the on-screen moment
+  where episodic becomes cumulative. (Chat also remains the member's hands — file operations,
+  uploads, organizing — as means to the thinking end.)
+- **Make — `/studio`.** Artifact-scoped composition with direct manipulation: documents, decks,
+  pages — shaped by hand and by a bound lane, every edit an attributed revision. *Words for
+  exploring, hands for shaping.*
+- **The pipeline.** The two verbs compose: think → settle → make. Thinking distills into the
+  commons; making learns from the distillates. Multi-user, the same principle reads: *diverge
+  privately, settle publicly.*
+
+The record beneath stays invisible until its **staged moments**: *why is this here* (`trace`),
+*correct once and everything after inherits it*, *leave with everything*, and *settle*. Those
+moments — not the ledger's ambient presence — are how the moat is felt. The interop face (the
+same commons reached from any LLM) remains the second door; the desk is where the product is
+experienced.
+
 ## The System Shape
 
 1. **Substrate** — the authored, attributed filesystem. The floor everything stands on. State lives in files; computation is stateless over them (FOUNDATIONS Axiom 1).
@@ -146,7 +173,7 @@ YARNNN is not:
 
 - **an inferred-memory feature** — context is authored and attributed, not scraped from activity.
 - **locked to one model** — the substrate is portable across every LLM; that is the point.
-- **a chat UI** — YARNNN the chat surface is how the operator drives a running system, not the whole product.
+- **a bare chat wrapper** *(re-cut v16, ADR-457)* — yarnnn deliberately *is* partly a chat product now: Think is one of the two verbs. What it is not is an **ungrounded** one — a conversation surface whose thinking evaporates when the session ends. Thinking here is grounded in an authored commons and lands back into it; a chat feature that doesn't exploit that floor is off-product (the floor-leverage test, ADR-457 D6).
 - **a safety-filter wrapper** — the Reviewer is an independent judgment seat that compounds in value, not a post-hoc guardrail bolted onto a producer.
 - **uncontrolled autonomous action** — the model is supervised autonomy: declared mandate, gated actions, a legible cockpit, and an operator who is never structurally absent.
 - **a money-making claim for every workspace** — money-truth is one program's flavor of ground truth (trading), not a universal product element. The universal is *authored, portable substrate*.

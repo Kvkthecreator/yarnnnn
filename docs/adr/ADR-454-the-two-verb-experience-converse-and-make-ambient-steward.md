@@ -1,5 +1,7 @@
 # ADR-454: The Two-Verb Experience — Converse and Make, and the Ambient Steward
 
+> **Verb pair renamed by [ADR-457](ADR-457-think-and-make-the-service-model.md) (2026-07-14): Converse · Make → Think · Make** — both verbs now name the job (this ADR's "Converse" named the medium). ADR-457 is the service-model capstone: it adds the five-act derivation, the pipeline (think → settle → make), the settle verb, the think-home convention, and the desk/record two-layer statement (ESSENCE v16). Everything else here — the census, the seam rule, the ambient steward — stands.
+
 **Status**: Accepted (2026-07-13, operator-ratified — "fully aligned… it's ratification of the
 subtraction arc"). This ADR names the experience model the 435→452 subtraction arc converged on,
 rather than deciding a new one: the shell has exactly **two acting surfaces** — chat (Converse)
