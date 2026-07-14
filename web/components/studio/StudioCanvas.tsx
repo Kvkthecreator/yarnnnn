@@ -71,6 +71,9 @@ interface StudioCanvasProps {
   /** F2: the member pressed ENTER at a block's end — insert a fresh empty prose
    *  block after `afterBlockId` and move the caret in ("writing is adding"). */
   onEnterBlock?: (afterBlockId: string) => void;
+  /** F1: the member DRAGGED a block via the ⋮⋮ handle — move it before
+   *  `beforeBlockId` (null = end of its parent). Lands one reorder revision. */
+  onReorder?: (blockId: string, beforeBlockId: string | null) => void;
   /** ADR-447 Phase 4 + ADR-453 D5: the member clicked "+ Add here" in an empty
    *  slot — the surface gates the add by the slot's ROLE (arrange + vocabulary
    *  lookup) and targets the page (slideIndex for decks, pageIndex otherwise). */
@@ -118,6 +121,7 @@ export function StudioCanvas({
   onEditExited,
   onEditEntered,
   onEnterBlock,
+  onReorder,
   onAddHere,
   onSlashOpen,
   scrollToSlide,
@@ -272,6 +276,8 @@ export function StudioCanvas({
         onEditEntered?.(d.blockId);
       } else if (d.type === 'yarnnn-enter-block' && typeof d.afterBlockId === 'string') {
         onEnterBlock?.(d.afterBlockId);
+      } else if (d.type === 'yarnnn-reorder' && typeof d.blockId === 'string') {
+        onReorder?.(d.blockId, typeof d.beforeBlockId === 'string' ? d.beforeBlockId : null);
       } else if (d.type === 'yarnnn-add-here' && typeof d.slot === 'string') {
         onAddHere?.(
           d.slot,
@@ -295,7 +301,7 @@ export function StudioCanvas({
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [onPoint, onPointClear, onEdit, onEditExited, onEditEntered, onEnterBlock, onAddHere, onSlashOpen]);
+  }, [onPoint, onPointClear, onEdit, onEditExited, onEditEntered, onEnterBlock, onReorder, onAddHere, onSlashOpen]);
 
   return (
     <iframe

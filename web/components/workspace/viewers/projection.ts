@@ -542,6 +542,16 @@ const EDIT_CSS = `
 }
 .yarnnn-gutter button:hover { background: rgba(0,0,0,0.08); color: #4b5563; }
 .yarnnn-gutter .yg-handle { cursor: grab; font-size: 12px; letter-spacing: -3px; }
+/* F1: the ⋮⋮ drag — the grabbed block dims, a drop-line follows the cursor
+   between blocks (Notion's blue indicator). Body-appended chrome, never in a
+   block, so it can't leak into a commit. */
+.yarnnn-gutter .yg-handle:active { cursor: grabbing; }
+.yarnnn-dragging { opacity: 0.4; }
+.yarnnn-dropline {
+  position: absolute; z-index: 9997; height: 2px; background: #6366f1;
+  border-radius: 2px; pointer-events: none; display: none;
+  box-shadow: 0 0 0 1px rgba(99,102,241,0.3);
+}
 `;
 
 const EDIT_SCRIPT = `
@@ -936,8 +946,9 @@ const EDIT_SCRIPT = `
 // (select the block + open the Design tab — the verbs' one home) beside the
 // hovered block, NO selection needed. Injected chrome, body-appended (never
 // inside a block — commits can't see it). Desktop-pointer only; hides for the
-// block being edited (the format bar owns that space). The ⋮⋮ handle is where
-// in-frame block drag lands later (ADR-453 D7.4 — a named follow-on).
+// block being edited (the format bar owns that space). The ⋮⋮ handle DRAGS the
+// block (F1 — pointer-events reorder with a drop-line, all in-frame; a click
+// without a drag still selects + opens the Design tab).
 
 const GUTTER_SCRIPT = `
 (function () {
@@ -981,9 +992,13 @@ const GUTTER_SCRIPT = `
     });
     var handle = document.createElement('button');
     handle.type = 'button'; handle.className = 'yg-handle';
-    handle.textContent = '\\u22EE\\u22EE'; handle.title = 'Block options';
+    handle.textContent = '\\u22EE\\u22EE'; handle.title = 'Drag to move · click for options';
+    // CLICK (no drag past threshold) → select + open the Design tab. The drag
+    // runtime below sets draggedPastThreshold; a click that WAS a drag is
+    // suppressed here so a drop never also opens the Design tab.
     handle.addEventListener('click', function (e) {
       e.preventDefault(); e.stopPropagation();
+      if (draggedPastThreshold) { draggedPastThreshold = false; return; }
       if (!curBlock) return;
       // Select in-frame through the pointer runtime's OWN selection state
       // (one selection, not two), then tell the parent to select AND open
@@ -1003,9 +1018,118 @@ const GUTTER_SCRIPT = `
         arrange: pageEl ? (pageEl.getAttribute('data-arrange') || null) : null,
         design: true }, '*');
     });
+    bindDrag(handle);
     bar.appendChild(plusBtn);
     bar.appendChild(handle);
     document.body.appendChild(bar);
+  }
+
+  // ── F1: the ⋮⋮ pointer-drag (real block reorder, all in-frame) ─────────
+  // Grab the handle, the block dims + a drop-line follows the cursor between
+  // its SAME-PARENT sibling blocks (v1 — cross-slot is the follow-on), release
+  // posts ONE yarnnn-reorder {blockId, beforeBlockId} → the parent lands one
+  // revision. Pointer Events (not HTML5 DnD — brittle under sandbox); geometry
+  // stays in-frame so the body.style.zoom transform never desyncs the coords.
+  var dropline = null;
+  var draggedPastThreshold = false;
+  function ensureDropline() {
+    if (dropline) return dropline;
+    dropline = document.createElement('div');
+    dropline.className = 'yarnnn-dropline';
+    document.body.appendChild(dropline);
+    return dropline;
+  }
+  // The same-parent sibling blocks, in document order (drop candidates).
+  function siblingBlocksOf(block) {
+    var out = [];
+    var p = block.parentElement;
+    if (!p) return out;
+    var kids = p.children;
+    for (var i = 0; i < kids.length; i++) {
+      if (kids[i].hasAttribute && kids[i].hasAttribute('data-block')) out.push(kids[i]);
+    }
+    return out;
+  }
+  function bindDrag(handle) {
+    var dragging = null;      // the block being dragged
+    var beforeId = null;      // the block id to drop before (null = end)
+    var startY = 0, armed = false;
+
+    handle.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0 || !curBlock) return;
+      dragging = curBlock; startY = e.clientY; armed = true;
+      draggedPastThreshold = false; beforeId = null;
+      try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+
+    handle.addEventListener('pointermove', function (e) {
+      if (!armed || !dragging) return;
+      if (!draggedPastThreshold) {
+        if (Math.abs(e.clientY - startY) < 5) return; // below threshold — still a click
+        draggedPastThreshold = true;
+        dragging.classList.add('yarnnn-dragging');
+        ensureDropline();
+      }
+      // Edge auto-scroll (in-frame — the iframe scrolls, never the parent).
+      var vh = window.innerHeight;
+      if (e.clientY < 48) window.scrollBy(0, -12);
+      else if (e.clientY > vh - 48) window.scrollBy(0, 12);
+      // Find the same-parent sibling the cursor is nearest to, and whether the
+      // drop lands ABOVE or BELOW it → the drop-line position + beforeId.
+      var sibs = siblingBlocksOf(dragging);
+      var placed = false;
+      for (var i = 0; i < sibs.length; i++) {
+        var s = sibs[i];
+        if (s === dragging) continue;
+        var r = s.getBoundingClientRect();
+        var mid = r.top + r.height / 2;
+        if (e.clientY < mid) {
+          // drop BEFORE s
+          dropline.style.display = 'block';
+          dropline.style.left = (r.left + window.scrollX) + 'px';
+          dropline.style.width = r.width + 'px';
+          dropline.style.top = (r.top + window.scrollY - 1) + 'px';
+          beforeId = s.getAttribute('data-block-id');
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        // Past every sibling → drop at the END (beforeId null); line under the
+        // last sibling that isn't the dragged block.
+        var last = null;
+        for (var j = sibs.length - 1; j >= 0; j--) { if (sibs[j] !== dragging) { last = sibs[j]; break; } }
+        if (last) {
+          var lr = last.getBoundingClientRect();
+          dropline.style.display = 'block';
+          dropline.style.left = (lr.left + window.scrollX) + 'px';
+          dropline.style.width = lr.width + 'px';
+          dropline.style.top = (lr.bottom + window.scrollY + 1) + 'px';
+        }
+        beforeId = null;
+      }
+    });
+
+    function endDrag(e) {
+      if (!dragging) return;
+      try { handle.releasePointerCapture(e.pointerId); } catch (err) {}
+      if (draggedPastThreshold) {
+        var id = dragging.getAttribute('data-block-id');
+        dragging.classList.remove('yarnnn-dragging');
+        if (dropline) dropline.style.display = 'none';
+        // Post the reorder — the parent computes moveBlockTo and lands ONE
+        // revision. A no-op drop (onto itself / already in place) is filtered
+        // parent-side (moveBlockTo returns null).
+        if (id && beforeId !== id) {
+          parent.postMessage({ type: 'yarnnn-reorder', blockId: id, beforeBlockId: beforeId }, '*');
+        }
+      }
+      // draggedPastThreshold stays true so the click handler suppresses; it
+      // resets on the next real click (a plain click never set it).
+      dragging = null; armed = false; beforeId = null;
+    }
+    handle.addEventListener('pointerup', endDrag);
+    handle.addEventListener('pointercancel', endDrag);
   }
 
   function showFor(block) {

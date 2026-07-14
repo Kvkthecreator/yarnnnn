@@ -399,20 +399,63 @@ export function duplicateBlock(html: string, blockId: string): OpResult | null {
   return { html: serialize(doc), landedId: copy.getAttribute('data-block-id') };
 }
 
-/** Move the selected block up/down among its sibling blocks (same parent —
- *  slot-crossing moves are the drag fast-follow). */
+/** Move a block so it sits immediately BEFORE `beforeBlockId`, or — when
+ *  `beforeBlockId` is null — to the END of its own parent. The general reorder
+ *  the ⋮⋮ drag posts on drop (F1). v1 keeps a move within the block's own
+ *  parent (same slot/flow); the runtime only offers same-parent siblings as
+ *  drop targets, so `beforeBlockId` (when set) is always a sibling. A no-op
+ *  (dropping a block onto itself or just before its current next sibling)
+ *  returns null so no empty revision lands. */
+export function moveBlockTo(
+  html: string,
+  blockId: string,
+  beforeBlockId: string | null,
+): OpResult | null {
+  const doc = parse(html);
+  const block = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+  if (!block?.parentElement) return null;
+  const parent = block.parentElement;
+  if (beforeBlockId) {
+    if (beforeBlockId === blockId) return null; // dropped on itself
+    const target = doc.querySelector(`[data-block-id="${CSS.escape(beforeBlockId)}"]`);
+    if (!target || target.parentElement !== parent) return null; // v1: same parent only
+    if (block.nextElementSibling === target) return null; // already immediately before it — no-op
+    parent.insertBefore(block, target);
+  } else {
+    if (parent.lastElementChild === block) return null; // already last — no-op
+    parent.appendChild(block);
+  }
+  return { html: serialize(doc), landedId: blockId };
+}
+
+/** Move the selected block up/down among its sibling blocks — the Design tab's
+ *  accessible verb, now expressed on top of moveBlockTo (Singular Implementation
+ *  with the drag). Up = before the previous block; down = before the block
+ *  AFTER the next (so it lands past the next), or to the end. */
 export function moveBlock(html: string, blockId: string, dir: 'up' | 'down'): OpResult | null {
   const doc = parse(html);
   const block = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
   if (!block?.parentElement) return null;
-  let sib: Element | null = dir === 'up' ? block.previousElementSibling : block.nextElementSibling;
-  while (sib && !sib.hasAttribute('data-block')) {
-    sib = dir === 'up' ? sib.previousElementSibling : sib.nextElementSibling;
+  const prevBlock = (el: Element): Element | null => {
+    let s = el.previousElementSibling;
+    while (s && !s.hasAttribute('data-block')) s = s.previousElementSibling;
+    return s;
+  };
+  const nextBlock = (el: Element): Element | null => {
+    let s = el.nextElementSibling;
+    while (s && !s.hasAttribute('data-block')) s = s.nextElementSibling;
+    return s;
+  };
+  if (dir === 'up') {
+    const prev = prevBlock(block);
+    if (!prev) return null;
+    return moveBlockTo(html, blockId, prev.getAttribute('data-block-id'));
   }
-  if (!sib) return null;
-  if (dir === 'up') sib.insertAdjacentElement('beforebegin', block);
-  else sib.insertAdjacentElement('afterend', block);
-  return { html: serialize(doc), landedId: blockId };
+  // down: land before the block after next, or at the end if next is last.
+  const next = nextBlock(block);
+  if (!next) return null;
+  const after = nextBlock(next);
+  return moveBlockTo(html, blockId, after ? after.getAttribute('data-block-id') : null);
 }
 
 /** Set a cited BACKGROUND image on the selected page/section (ADR-456 W3):

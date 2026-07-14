@@ -56,6 +56,7 @@ import {
   insertBlock,
   insertBlockInSlot,
   moveBlock,
+  moveBlockTo,
   movePage,
   removePageBackground,
   removeSkin,
@@ -630,6 +631,19 @@ export function StudioSurface() {
     [file, vocabulary, writeAndAdvance],
   );
 
+  // F1 — the ⋮⋮ drag dropped: move `blockId` before `beforeBlockId` (null =
+  // end of its parent) as ONE structural revision. moveBlockTo filters a no-op
+  // drop (onto itself / already in place) → null → applyOp stays silent.
+  const handleReorder = useCallback(
+    (blockId: string, beforeBlockId: string | null) => {
+      void applyOp(
+        (html) => moveBlockTo(html, blockId, beforeBlockId),
+        `Studio: move block`,
+      );
+    },
+    [applyOp],
+  );
+
   // ── ADR-456 W2: slash-insert + turn-into ─────────────────────────────────
   // The edit runtime commits + exits on '/' in an empty context, then reports
   // the block's rect; the palette renders in the canvas wrapper (the iframe
@@ -994,6 +1008,7 @@ export function StudioSurface() {
                   lastCaretBlockId.current = id; // entering a block anchors inserts here
                 }}
                 onEnterBlock={onEnterBlock}
+                onReorder={handleReorder}
                 onAddHere={onAddHere}
                 onSlashOpen={onSlashOpen}
                 scrollToSlide={scrollToSlide}
