@@ -102,6 +102,13 @@ interface WindowCrumbContextValue {
   setActions: (slug: string, actions: SurfaceAction[]) => void;
   /** Drop a surface's actions entirely (on unmount). */
   clearActions: (slug: string) => void;
+  /** True when THIS surface renders its own locator in its own chrome row —
+   *  the OS strip suppresses for it to avoid a doubled "you are here"
+   *  (2026-07-14; the native-app pattern — the app's window carries its own
+   *  title, the OS chrome doesn't duplicate it). */
+  isSelfLocated: (slug: string) => boolean;
+  /** Declare/withdraw THIS surface as self-located. */
+  setSelfLocated: (slug: string, on: boolean) => void;
 }
 
 const WindowCrumbCtx = createContext<WindowCrumbContextValue>({
@@ -112,11 +119,14 @@ const WindowCrumbCtx = createContext<WindowCrumbContextValue>({
   getActions: () => [],
   setActions: () => {},
   clearActions: () => {},
+  isSelfLocated: () => false,
+  setSelfLocated: () => {},
 });
 
 export function BreadcrumbProvider({ children }: { children: ReactNode }) {
   const [crumbs, setCrumbs] = useState<CrumbMap>({});
   const [actions, setActionsMap] = useState<ActionMap>({});
+  const [selfLocated, setSelfLocatedMap] = useState<Record<string, true>>({});
 
   const getCrumb = useCallback(
     (slug: string): BreadcrumbSegment[] => crumbs[slug] ?? [],
@@ -176,9 +186,45 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const isSelfLocated = useCallback(
+    (slug: string): boolean => Boolean(selfLocated[slug]),
+    [selfLocated]
+  );
+
+  const setSelfLocated = useCallback((slug: string, on: boolean) => {
+    setSelfLocatedMap((prev) => {
+      const has = Boolean(prev[slug]);
+      if (has === on) return prev; // no churn
+      const next = { ...prev };
+      if (on) next[slug] = true;
+      else delete next[slug];
+      return next;
+    });
+  }, []);
+
   const value = useMemo(
-    () => ({ crumbs, getCrumb, setCrumb, clearCrumb, getActions, setActions, clearActions }),
-    [crumbs, getCrumb, setCrumb, clearCrumb, getActions, setActions, clearActions]
+    () => ({
+      crumbs,
+      getCrumb,
+      setCrumb,
+      clearCrumb,
+      getActions,
+      setActions,
+      clearActions,
+      isSelfLocated,
+      setSelfLocated,
+    }),
+    [
+      crumbs,
+      getCrumb,
+      setCrumb,
+      clearCrumb,
+      getActions,
+      setActions,
+      clearActions,
+      isSelfLocated,
+      setSelfLocated,
+    ]
   );
 
   return <WindowCrumbCtx.Provider value={value}>{children}</WindowCrumbCtx.Provider>;
@@ -236,6 +282,33 @@ export function useSurfaceActions(slug: string, actions: SurfaceAction[]): void 
     return () => clearActions(slug);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, identityKey, setActions, clearActions]);
+}
+
+/**
+ * Surface-side hook: declare that THIS surface renders its own "you are here"
+ * locator in its own chrome row, so the OS surface bar (GlobalLocatorStrip)
+ * SUPPRESSES for it — one locator, never two (2026-07-14, operator ruling).
+ *
+ * The native-app pattern: an app's own window carries its title/location in
+ * its toolbar; the OS chrome doesn't repeat it. Studio (its workbench toolbar
+ * already spans a full row) and Chat (its lane-list + conversation headers
+ * already name the lane) both adopt this — the OS strip was a redundant
+ * ~28px band above a surface that already said where you are. Surfaces that
+ * do NOT self-locate keep the OS strip unchanged (Files, Channels, Settings…).
+ *
+ * The surface renders the crumb ITSELF from `useWindowCrumb`'s segments (or
+ * its own state) inside its chrome — this hook only governs the OS strip's
+ * visibility, it does not move the crumb. Auto-withdraws on unmount.
+ *
+ *   // StudioSurface, workbench state (start state passes false):
+ *   useSelfLocatedSurface('studio', Boolean(artifactPath));
+ */
+export function useSelfLocatedSurface(slug: string, on: boolean = true): void {
+  const { setSelfLocated } = useWindowCrumbRegistry();
+  useEffect(() => {
+    setSelfLocated(slug, on);
+    return () => setSelfLocated(slug, false);
+  }, [slug, on, setSelfLocated]);
 }
 
 /**
