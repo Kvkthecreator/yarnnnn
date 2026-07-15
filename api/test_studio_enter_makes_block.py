@@ -88,11 +88,24 @@ def run() -> bool:
         and "insertBlock(liveHtml, proseFragment, { blockId: afterBlockId })" in surface
         and "setEditingBlockId(newId)" in surface,
     )
+    # No reload (2026-07-15): the override carries the new block into `file`, the
+    # canvas re-projects on that content change, and srcDoc swaps ONCE instead of
+    # churning old→new through a refetch. The caret command races that swap
+    # (commandEdit fires on the [editingBlockId] render while the frame still
+    # holds the OLD document, so enter() finds no block and no-ops) — onLoad
+    # re-commands from editingRef once the new document parses, and THAT lands
+    # the caret. The race is identical under a reload; onLoad was always the
+    # backstop, which is why removing the reload does not break Enter.
     _check(
-        "the new block is written as a structural op (reload:true) — landedId drives the caret",
-        bool(re.search(r"`Studio: add block`,\s*\n\s*true", surface))
+        "the new block is written WITHOUT a reload — landedId still drives the caret",
+        bool(re.search(r"`Studio: add block`,\s*\n\s*false", surface))
         and "if (!r?.landedId) return null;" in surface
         and "newId = r.landedId;" in surface,
+    )
+    _check(
+        "onLoad re-commands the caret once the new document parses (the backstop)",
+        "onLoad={commandEdit}" in canvas
+        and "const editingRef = useRef<string | null>(editingBlockId ?? null);" in canvas,
     )
 
     # ── 4. the bottom-append fix ─────────────────────────────────────────

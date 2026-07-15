@@ -85,9 +85,27 @@ def run() -> bool:
         "TEXT edit (onEdit) writes with reload=false (no iframe reload)",
         bool(re.search(r"`Studio: edit \$\{blockId\} block`,\s*\n\s*false", surface)),
     )
+    # A STRUCTURAL op does NOT reload either (2026-07-15). The reload was
+    # redundant — the canvas re-projects on every CONTENT change and the
+    # override carries the new content — AND actively harmful: the [reloadKey]
+    # effect nulls the override, so `file` fell back to the PRE-EDIT content,
+    # the canvas re-projected the old shape, and the refetch re-applied the
+    # bytes we had computed locally a moment earlier. Every insert/move/delete
+    # flashed backwards and scrolled to the top. reloadKey now serves only the
+    # two cases that genuinely need authoritative server state: a FOREIGN (lane)
+    # write, and a 409.
     _check(
-        "STRUCTURAL op (applyOp) writes with reload=true",
-        bool(re.search(r"await writeAndAdvance\(\s*\n\s*\(liveHtml\) => compute\(liveHtml\)\?\.html \?\? null,\s*\n\s*message,\s*\n\s*true", surface)),
+        "STRUCTURAL op (applyOp) does NOT reload — the override IS the canvas",
+        bool(re.search(r"await writeAndAdvance\(\s*\n\s*\(liveHtml\) => compute\(liveHtml\)\?\.html \?\? null,\s*\n\s*message,\s*\n\s*false", surface)),
+    )
+    # Exactly three bump sites, each earned: the FOREIGN (lane) write, the 409
+    # resync, and the caller-gated `if (reload)` — which now only fires for a
+    # split/merge whose half carries a citation (it must re-project to resolve).
+    _check(
+        "reloadKey survives ONLY for a foreign write + a 409 + a citation re-project",
+        "// A FOREIGN write (the lane) genuinely changed the file — reload." in surface
+        and len(re.findall(r"setReloadKey\(\(k\) => k \+ 1\);", surface)) == 3
+        and "if (reload) setReloadKey((k) => k + 1);" in surface,
     )
     # The write QUEUE: two ops can be emitted from one gesture in the same tick
     # (a drag's handle-press blurs a live edit → blur-commit + reorder). Firing

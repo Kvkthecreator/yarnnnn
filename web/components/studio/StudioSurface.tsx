@@ -478,11 +478,23 @@ export function StudioSurface() {
         setOpError('Could not apply that here — select something in the document first.');
         return;
       }
-      // Structural op → reload so the canvas re-projects the new DOM shape.
+      // A structural op does NOT reload. The old comment here said it must
+      // "reload so the canvas re-projects the new DOM shape" — but the canvas
+      // already re-projects on every CONTENT change, and the override carries
+      // the new content into `file`. So the reload was redundant, and worse
+      // than redundant: the [reloadKey] effect nulls the override, so `file`
+      // fell back to the PRE-EDIT content, the canvas re-projected the old
+      // shape, and the refetch then re-applied the very bytes we had computed
+      // locally a moment earlier. Every insert/move/delete flashed backwards
+      // and scrolled to the top — "I don't know if it was reflected."
+      //
+      // Same contract as a text edit now: compute → write → the override IS
+      // the canvas. reloadKey stays for the two cases that genuinely need the
+      // authoritative server state — a FOREIGN (lane) write, and a 409.
       await writeAndAdvance(
         (liveHtml) => compute(liveHtml)?.html ?? null,
         message,
-        true,
+        false,
       );
     },
     [artifactPath, file, writeAndAdvance],
@@ -667,11 +679,18 @@ export function StudioSurface() {
 
   // F2 — "writing is adding": ENTER at a block's end inserts a fresh empty prose
   // block after it and moves the caret in. We compute the insert locally to get
-  // the NEW block's id (insertBlock returns landedId), write it (structural →
-  // reload), and set editingBlockId to the new block so the canvas re-commands
-  // edit INTO it after the reload — the caret lands in the empty block, ready to
-  // type. Enter always anchors on the editing block, so it never hits the
-  // end-of-document append path.
+  // the NEW block's id (insertBlock returns landedId), write it, and set
+  // editingBlockId to the new block so the canvas commands edit INTO it — the
+  // caret lands in the empty block, ready to type. Enter always anchors on the
+  // editing block, so it never hits the end-of-document append path.
+  //
+  // No reload (see applyOp): the override carries the new block into `file`,
+  // the canvas re-projects on that content change, and srcDoc swaps. The caret
+  // command races that swap — commandEdit fires on the [editingBlockId] render
+  // while the frame still holds the OLD document, so enter() finds no block and
+  // no-ops — but onLoad re-commands from editingRef once the new document
+  // parses, and that is what lands the caret. (The race is identical under a
+  // reload; onLoad has always been the backstop.)
   const onEnterBlock = useCallback(
     (afterBlockId: string) => {
       if (!file?.content) return;
@@ -689,10 +708,10 @@ export function StudioSurface() {
           return r.html;
         },
         `Studio: add block`,
-        true, // structural — the DOM gains a block; reload, then re-enter below
+        false, // the override re-projects; onLoad re-commands the caret
       ).then((ok) => {
         if (ok && newId) {
-          setEditingBlockId(newId); // caret into the new block after reload
+          setEditingBlockId(newId); // caret into the new block once it projects
           lastCaretBlockId.current = newId; // the new block is now the anchor
         }
       });
