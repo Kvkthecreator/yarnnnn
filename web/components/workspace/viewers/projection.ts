@@ -558,6 +558,15 @@ const EDIT_CSS = `
   background: transparent; transition: background 0.1s;
 }
 .yarnnn-coldiv:hover::before, .yarnnn-coldiv:active::before { background: #6366f1; }
+/* The resize handle (ADR-461 D4) — the corner grip on a MEASURABLE block (one
+   inside a frame: a slide, or a media block's own box). Body-appended chrome,
+   never in a block, so it can't leak into a commit. Its ABSENCE on an
+   unframed block is the D4 boundary made visible. */
+.yarnnn-rz {
+  position: absolute; display: none; width: 10px; height: 10px;
+  border: 1.5px solid #6366f1; background: #fff; border-radius: 2px;
+  cursor: nwse-resize; z-index: 2147483646;
+}
 .yarnnn-dragging { opacity: 0.4; }
 .yarnnn-dropline {
   position: absolute; z-index: 9997; height: 2px; background: #6366f1;
@@ -1749,6 +1758,88 @@ const GUTTER_SCRIPT = `
     var cols = t && t.closest ? t.closest('.cols') : null;
     if (cols && cols.querySelectorAll(':scope > .col').length === 2) showDivider(cols);
     else if (dividerCols && !divider.contains(t)) hideDivider();
+  });
+
+  // ── Resize handles (ADR-461 D4) — the measure gesture ───────────────────
+  // bindGesture's THIRD caller. A measured block gets corner/edge handles; the
+  // drag reports a PERCENTAGE OF ITS FRAME, never a pixel — which is what makes
+  // the value bounded rather than free. The parent clamps to the kernel's own
+  // declared min/max and lands setMeasure through the one door.
+  //
+  // MEASURABLE only where a frame bounds it (ADR-461 D4): a block on a slide
+  // (the 16:9 stage) or a media block (its intrinsic ratio is its frame). A
+  // block in a document/article/page reflows and has no frame — it gets no
+  // handles, which is the boundary made visible rather than merely documented.
+  var MEASURE_MEDIA = { figure: 1, chart: 1, gallery: 1 };
+  var rz = null;
+  var rzBlock = null;
+
+  function measurableFrame(block) {
+    if (!block) return null;
+    // A slide is a frame. So is a media block's own box.
+    var slide = block.closest ? block.closest('.slide') : null;
+    if (slide) return slide;
+    var kind = block.getAttribute('data-block');
+    if (kind && MEASURE_MEDIA[kind]) return block.parentElement;
+    return null;
+  }
+
+  function ensureResize() {
+    if (rz) return rz;
+    rz = document.createElement('div');
+    rz.className = 'yarnnn-rz';
+    document.body.appendChild(rz);
+    bindGesture(rz, function () { return rzBlock; }, {
+      axis: 'xy',
+      onEnd: function (block, moved) {
+        if (!moved) return;
+        var frame = measurableFrame(block);
+        if (!frame) return;
+        var br = block.getBoundingClientRect();
+        var fr = frame.getBoundingClientRect();
+        // A PERCENT OF THE FRAME — the bound is structural, not a clamp we
+        // chose: 100% is the frame's edge. The parent clamps to the kernel's
+        // declared min/max on top of this.
+        parent.postMessage({
+          type: 'yarnnn-measure',
+          blockId: block.getAttribute('data-block-id'),
+          w: Math.round((br.width / (fr.width || 1)) * 100),
+          h: Math.round((br.height / (fr.height || 1)) * 100),
+        }, '*');
+      },
+      onMove: function (block, e) {
+        var fr = measurableFrame(block);
+        if (!fr) return;
+        var br = block.getBoundingClientRect();
+        // Live preview in-frame only — the commit is onEnd. Width tracks the
+        // cursor; the block's own box is the feedback (no ghost overlay).
+        var w = Math.max(24, e.clientX - br.left);
+        block.style.width = w + 'px';
+        showResize(block);
+      },
+    });
+    return rz;
+  }
+
+  function showResize(block) {
+    ensureResize();
+    rzBlock = block;
+    var r = block.getBoundingClientRect();
+    rz.style.display = 'block';
+    rz.style.left = (r.right + window.scrollX - 5) + 'px';
+    rz.style.top = (r.bottom + window.scrollY - 5) + 'px';
+  }
+  function hideResize() {
+    if (rz) rz.style.display = 'none';
+    rzBlock = null;
+  }
+
+  document.addEventListener('pointermove', function (e) {
+    var t = e.target;
+    var blk = t && t.closest ? t.closest('[data-block-id]') : null;
+    // No frame → no handle. The boundary is felt, not just documented.
+    if (blk && measurableFrame(blk)) showResize(blk);
+    else if (rzBlock && rz && !rz.contains(t)) hideResize();
   });
 })();
 `;
