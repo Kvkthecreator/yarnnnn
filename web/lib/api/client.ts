@@ -5,6 +5,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { sseEvents } from "@/lib/sse";
+import type { StudioVocabulary } from "@/components/studio/StudioToolbar";
 import type {
   Memory,
   MemoryCreate,
@@ -387,33 +388,10 @@ export const api = {
     // from. `fragment` is the deterministic insertion payload; `grain`/`slots`
     // carry the arrangement's composition shape (thumbnails derive from them;
     // slot `role` gates what can land in a slot).
-    vocabulary: () =>
-      request<{
-        blocks: Array<{ kind: string; label: string; description: string; group: string; fragment: string }>;
-        layouts: Array<{ slug: string; label: string; description: string; mode: 'flow' | 'paged' }>;
-        arrangements: Record<
-          string,
-          Array<{
-            slug: string;
-            label: string;
-            description: string;
-            grain: string;
-            slots: Array<{ name: string; role: string }>;
-            fragment: string;
-          }>
-        >;
-        tokens: Array<{
-          key: string;
-          label: string;
-          applies: string[];
-          values: Array<{ value: string; label: string }>;
-          description: string;
-        }>;
-        media_kinds: string[];
-        kernel_css_version: number;
-        kernel_style_element: string;
-        design_systems: Array<{ name: string; manifest_path: string; folder: string; css: string[] }>;
-      }>("/api/studio/vocabulary"),
+    // The type is the ONE StudioVocabulary (ADR-461 D4 added `measures`) —
+    // hand-restating it here let the two drift, which is how a served field can
+    // exist on the endpoint and be invisible to its own consumer.
+    vocabulary: () => request<StudioVocabulary>("/api/studio/vocabulary"),
     // ADR-453 D4 (the Design tab's Apply): compose one design system's MARKED
     // skin element server-side (ADR-449 contract); the FE lands it through the
     // mechanical write door (applySkin) — the endpoint never writes.

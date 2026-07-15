@@ -1,6 +1,6 @@
 # ADR-461 — Bounded-continuous geometry: a slide has a frame, a page has a viewport
 
-- **Status**: Accepted (2026-07-15) — D1–D3 Implemented-ready (no code in this commit; §8 sequences them)
+- **Status**: Accepted + **Implemented** (2026-07-15) — D1–D4 all landed. Gate: `api/test_adr461_geometry.py` (47/47, breach-tested: widening a measure to a reflowing layout, or removing its bound, turns the build red).
 - **Dimension**: Channel (primary — how the member shapes) + Substrate (the value axis, no new storage)
 - **Supersedes**: nothing
 - **Amends**: ADR-453 D7 (the "never raw geometry" refusal is scoped, and its stated reason is honoured rather than overridden) · ADR-453 D1 ("tokens reference intent, never hex" gains a bounded exception) · ADR-456 D4 (the Wix answer is completed, not reversed)
@@ -126,6 +126,15 @@ Absent one of those, widening is drift with a good story.
 | 2 | Gesture layer (drag/resize handles) over existing ops | **No** — D2, ADR-440 D7 pre-authorizes |
 | 3 | Discrete stops + 9-position | **No** — ADR-453 D7's pre-authorized text (`:176`, `:183`) |
 | 4 | Bounded-continuous via `var()` on deck + media | **Yes** — D3; amends ADR-453 D7/D1 |
+
+**All four landed 2026-07-15.** Implementation notes worth carrying:
+
+- **The 9-position token was dropped from step 3.** D7 gates it on *"overlay-type arrangements, when those ship"* — there are none in the registry. Building it would have meant inventing the arrangement *and* the token. Deferred honestly.
+- **`ratio` was already complete.** D7's `2-1 → 1-1 → 1-2` reads like a missing middle stop; `1-1` is the ABSENCE (`.col { flex: 1 }`). D7 described a handle stepping through stops that already existed.
+- **The measure is `data-w` + `--yw`**, both in the one source file. `STUDIO_MEASURES` is a registry distinct from `STUDIO_TOKENS` — a token's values are enumerated and each gets a selector; a measure's are not, so the kernel pre-declares ONE rule reading a custom property. The invariant holds in substance: every selector the kernel matches is still pre-declared.
+- **`var(--yw, auto)`'s fallback is load-bearing** — a missing or garbage value degrades to the natural layout, never to zero.
+- **Two clamps, not one**: the FE clamps from the SERVED bound (the kernel names it; nothing downstream invents one), and `setMeasure` clamps again at the write, so a malformed message cannot author an unbounded value.
+- **`bindGesture` has three callers** (drag, divider, resize) — the extraction paid for itself twice.
 
 Steps 1–3 need **no permission from any ADR** and cover most of the observed inspector. Step 4 is the only amendment — and it is bounded by D4.
 

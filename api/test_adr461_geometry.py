@@ -152,15 +152,98 @@ def run() -> bool:
         "aspect-ratio: 16 / 9" in STUDIO_LAYOUTS["deck"]["skin"]
         and "overflow: hidden" in STUDIO_LAYOUTS["deck"]["skin"],
     )
-    # No continuous value has entered ANY token — D4's opt-out, mechanically.
+    # No continuous value has entered any TOKEN — a continuous value belongs to
+    # a MEASURE (below), which is a different mechanism with a different bound.
+    # A token smuggling `761px` is the boundary crossed without D4's argument.
     continuous = {
         k: t
         for k, t in STUDIO_TOKENS.items()
         if not all(re.fullmatch(r"[a-z0-9-]+", v["value"]) for v in t["values"])
     }
     _check(
-        "every token value is still an enumerable slug (no continuous value has landed)",
+        "every token value is still an enumerable slug (continuous belongs to a measure)",
         not continuous,
+    )
+
+    # ── D4: the measure — mechanism enumerable, value not ───────────────────
+    print("\n-- D4: the one continuous property, bounded by a frame --")
+    from services.studio import MEASURE_GRAINS, STUDIO_MEASURES
+
+    _check("the measures registry exists", bool(STUDIO_MEASURES))
+    for k, m in STUDIO_MEASURES.items():
+        # THE INVARIANT D4 PRESERVES IN SUBSTANCE: the kernel still pre-declares
+        # every selector it matches. It cannot pre-declare `[data-w="761"]` —
+        # which is why `Fixed` failed as a token — but it CAN pre-declare one
+        # rule reading a custom property. Mechanism enumerable, value not.
+        _check(
+            f"measure '{k}': its MECHANISM is pre-declared (var({m['css_var']}))",
+            f"var({m['css_var']}," in kernel,
+        )
+        _check(
+            f"measure '{k}': the var has a FALLBACK (garbage degrades to natural, never zero)",
+            f"var({m['css_var']}, auto)" in kernel,
+        )
+        _check(
+            f"measure '{k}': it is BOUNDED (free within its frame, never unbounded)",
+            isinstance(m["min"], int) and isinstance(m["max"], int) and m["min"] < m["max"],
+        )
+        # THE BOUNDARY. deck + media only. A page reflows and has no frame; a
+        # measure there would have no answer at 40rem, with per-breakpoint
+        # editing refused (ADR-456 D3). This check IS ADR-461 D4.
+        _check(
+            f"measure '{k}': applies ONLY where a frame bounds it (deck + media)",
+            set(m["applies"]) <= MEASURE_GRAINS and set(m["applies"]),
+        )
+        _check(
+            f"measure '{k}': no document/article/page grain has leaked in",
+            not any(g in str(m["applies"]) for g in ("document", "article", "page")),
+        )
+    _check(
+        "the kernel scopes measures to the frame (.slide / media blocks only)",
+        ".slide [data-w]" in kernel and '[data-block="figure"][data-w]' in kernel,
+    )
+    _check(
+        "the vocabulary serves measures WITH their bound (the FE invents nothing)",
+        '"measures"' in (ROOT / "api/routes/studio.py").read_text(),
+    )
+
+    # The op: writes both halves into the ONE source file, clamped.
+    ops = (WEB / "components/studio/artifactOps.ts").read_text()
+    sm = re.search(r"export function setMeasure\(([\s\S]*?)\n\}", ops)
+    sm_body = sm.group(1) if sm else ""
+    _check("setMeasure exists", bool(sm))
+    _check(
+        "it CLAMPS to the kernel's bound (a bad message cannot author unbounded)",
+        "Math.max(spec.min, Math.min(spec.max," in sm_body,
+    )
+    _check(
+        "it preserves the artifact's own style declarations (never stomps)",
+        "!d.startsWith(`${spec.cssVar}:`)" in sm_body,
+    )
+    _check(
+        "a byte-identical write produces NO revision (the setToken convention)",
+        "if (el.outerHTML === before) return null;" in sm_body,
+    )
+    _check(
+        "clearing removes BOTH halves (absence = the natural layout)",
+        "el.removeAttribute(attr)" in sm_body and "el.removeAttribute('style')" in sm_body,
+    )
+    # The gesture: third bindGesture caller, posts a PERCENT of the frame.
+    _check(
+        "resize is bindGesture's THIRD caller (one primitive, three gestures)",
+        "bindGesture(rz, function () { return rzBlock; }" in proj,
+    )
+    _check(
+        "it reports a PERCENT OF THE FRAME, not a pixel (the bound is structural)",
+        "br.width / (fr.width || 1)) * 100" in proj,
+    )
+    _check(
+        "an UNFRAMED block gets no handle (the boundary is felt, not just documented)",
+        "function measurableFrame(block)" in proj and "if (blk && measurableFrame(blk))" in proj,
+    )
+    _check(
+        "the surface clamps from the SERVED registry, never a hardcoded bound",
+        "vocabulary?.measures?.find" in surface and "min: spec.min" in surface,
     )
 
     ok = all(c for _, c in _results)

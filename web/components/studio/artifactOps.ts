@@ -410,6 +410,65 @@ export function setToken(
   return { html: serialize(doc), landedId: el.getAttribute('data-block-id') };
 }
 
+/** Set a MEASURE on a block — the one continuous property (ADR-461 D4).
+ *
+ *  A measure differs from a token in exactly one way: its VALUE is not
+ *  enumerable, so the kernel cannot pre-declare a selector per value. It
+ *  pre-declares the MECHANISM instead (`width: var(--yw, auto)`), and the value
+ *  rides in the element. This op writes both halves:
+ *    - `data-w` — the marker the kernel's selector matches
+ *    - `--yw`  — the value the kernel's `var()` reads
+ *
+ *  Both live in the ONE source file, so R1 is untouched: there is no second
+ *  model, no compile step, nothing HTML is generated FROM. The revision chain
+ *  sha256s the same string it always did, and `trace` still joins by
+ *  data-block-id (a measured block is addressed exactly as before).
+ *
+ *  CLAMPED to the kernel's declared bound — a measure is free WITHIN its frame,
+ *  never unbounded. That bound is the whole reason D4 is deck+media-scoped: a
+ *  slide has a frame to be bounded by; a page has only a viewport to guess at.
+ *
+ *  `value == null` clears BOTH halves — the absence is the natural layout, the
+ *  same convention every token uses. Existing style declarations are preserved:
+ *  the artifact's own `style` is not ours to stomp.
+ */
+export function setMeasure(
+  html: string,
+  blockId: string,
+  key: string,
+  value: number | null,
+  spec: { cssVar: string; unit: string; min: number; max: number },
+): OpResult | null {
+  if (!/^[a-z]{1,3}$/.test(key)) return null; // measure keys are kernel-named
+  const doc = parse(html);
+  const el = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+  if (!el) return null;
+  const attr = `data-${key}`;
+  const before = el.outerHTML;
+
+  // Every declaration EXCEPT ours — a measure never stomps what the artifact
+  // authored into its own style attribute.
+  const others = (el.getAttribute('style') || '')
+    .split(';')
+    .map((d) => d.trim())
+    .filter((d) => d && !d.startsWith(`${spec.cssVar}:`));
+
+  if (value == null) {
+    el.removeAttribute(attr);
+    if (others.length) el.setAttribute('style', others.join('; '));
+    else el.removeAttribute('style');
+  } else {
+    // Free WITHIN the frame, never unbounded — the kernel declares the bound.
+    const clamped = Math.max(spec.min, Math.min(spec.max, Math.round(value)));
+    el.setAttribute(attr, '');
+    el.setAttribute('style', [...others, `${spec.cssVar}: ${clamped}${spec.unit}`].join('; '));
+  }
+  // One honest no-op test: did the element actually change? (A byte-identical
+  // write must not produce a revision — the setToken convention.)
+  if (el.outerHTML === before) return null;
+  return { html: serialize(doc), landedId: blockId };
+}
+
 /** Delete the selected block (the missing mechanical basic — a member should
  *  never need a metered judgment turn to remove a block). */
 export function deleteBlock(html: string, blockId: string): OpResult | null {

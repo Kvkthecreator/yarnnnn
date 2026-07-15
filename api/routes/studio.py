@@ -122,6 +122,7 @@ async def get_vocabulary(auth: UserClient) -> dict:
         STUDIO_BLOCKS,
         STUDIO_KERNEL_CSS_VERSION,
         STUDIO_LAYOUTS,
+        STUDIO_MEASURES,
         STUDIO_TOKENS,
         compose_kernel_style_element,
     )
@@ -136,6 +137,23 @@ async def get_vocabulary(auth: UserClient) -> dict:
                 "description": t["description"],
             }
             for k, t in STUDIO_TOKENS.items()
+        ],
+        # ADR-461 D4 — the measures: a property whose MECHANISM is enumerable
+        # but whose VALUE is not. Served with its BOUND so the FE clamps from
+        # the kernel's declaration rather than a hardcoded guess (the kernel
+        # names the bound; nothing downstream invents one).
+        "measures": [
+            {
+                "key": k,
+                "label": m["label"],
+                "applies": m["applies"],
+                "unit": m["unit"],
+                "min": m["min"],
+                "max": m["max"],
+                "css_var": m["css_var"],
+                "description": m["description"],
+            }
+            for k, m in STUDIO_MEASURES.items()
         ],
         "media_kinds": sorted(MEDIA_BLOCK_KINDS),
         "kernel_css_version": STUDIO_KERNEL_CSS_VERSION,

@@ -809,6 +809,65 @@ STUDIO_TOKENS: dict[str, dict] = {
 #: The kernel CSS that interprets tokens — carried by every artifact in the
 #: MARKED, VERSIONED kernel style element (D2). Themed through the same
 #: custom properties the layouts declare and a design system may override
+# ---------------------------------------------------------------------------
+# MEASURES (ADR-461 D3/D4) — the one axis the token model gains.
+#
+# A token is `data-<key>="<one-of-an-enumerated-set>"`, and the kernel
+# pre-declares a selector per value. That is why Hug and Fill were free (D1)
+# and `Fixed: 761px` was not: a continuous value has no pre-declarable
+# selector — `[data-w="761"]` cannot be written in advance.
+#
+# A MEASURE is the answer: a property whose MECHANISM is enumerable but whose
+# VALUE is not. The kernel pre-declares ONE rule reading a custom property; the
+# element carries the value. `data-ref` already has this shape — the kernel
+# declares the mechanism, the element carries the referent — so this is a new
+# INSTANCE of an existing pattern, not a new pattern.
+#
+# The bound is the whole ruling (ADR-461 D4): a measure is admitted only where
+# a FRAME bounds it. A slide has one (16:9, overflow:hidden, no responsive
+# obligation — the kernel says so). A page has only a viewport to guess at, and
+# per-breakpoint editing is refused (ADR-456 D3), so a positioned hero on a
+# page has no answer at 40rem. Hence `applies` here is deck + media ONLY.
+#
+# Continuous-everywhere is OPTED OUT, not refused — see ADR-461 D4 for the
+# three conditions that would legitimately re-open it. The pressure will arrive
+# as "why can a deck do this and a page can't?"; the answer is that a slide has
+# a frame and a page has a viewport.
+#
+# `unit` + `min`/`max` are the kernel's bound on the value: a measure is
+# free WITHIN its frame, never unbounded. The FE clamps; the kernel's `var()`
+# fallback means a missing/garbage value degrades to the natural layout rather
+# than to zero.
+# ---------------------------------------------------------------------------
+
+STUDIO_MEASURES: dict[str, dict] = {
+    "w": {
+        "label": "Width",
+        # Deck + media only. NOT document/article/page — they reflow.
+        "applies": ["block-deck", "media"],
+        "unit": "%",
+        "min": 10,
+        "max": 100,
+        "css_var": "--yw",
+        "description": "the block's width inside its frame (absence = the flow's own width)",
+    },
+    "h": {
+        "label": "Height",
+        "applies": ["block-deck", "media"],
+        "unit": "%",
+        "min": 10,
+        "max": 100,
+        "css_var": "--yh",
+        "description": "the block's height inside its frame (absence = the content's own height)",
+    },
+}
+
+#: Measure grains → the `applies` vocabulary above. `block-deck` is a block on
+#: a deck slide (the frame); `media` is a media block anywhere (an image has an
+#: intrinsic ratio, which is its own frame — ADR-461 D4).
+MEASURE_GRAINS = {"block-deck", "media"}
+
+
 #: (cascade: unmarked layout style < data-kernel < data-skin).
 STUDIO_KERNEL_CSS = """
 /* Block-kind + arrangement CSS (ADR-456 W1) — lives in the KERNEL element,
@@ -886,6 +945,24 @@ div[data-block="gallery"] figcaption { font-size: 0.75rem; }
    than a fourth value on this row. Absence = the flow's own width. */
 [data-size="hug"] { width: fit-content; max-width: 100%; }
 [data-size="fill"] { width: 100%; }
+/* MEASURES (ADR-461 D4) — the one axis the token model gains: a property whose
+   MECHANISM is pre-declared here but whose VALUE rides in the element. Two
+   rules, any value — which is exactly why this preserves the invariant that
+   killed `Fixed: 761px` as a token ([data-w="761"] can never be pre-written,
+   but this can).
+
+   The `var()` FALLBACK is load-bearing: a missing or garbage value degrades to
+   the natural layout (auto), never to zero. An artifact whose measure was
+   dropped by a bad write still renders as itself.
+
+   Bounded by the FRAME, per D4: a slide has one (16:9, overflow:hidden, no
+   responsive obligation), and a media block's intrinsic ratio is its own. The
+   `.slide` scope is not decoration — it IS the boundary. Nothing here applies
+   to document/article/page, which reflow and would have no answer at 40rem. */
+.slide [data-w], [data-block="figure"][data-w], [data-block="chart"][data-w],
+[data-block="gallery"][data-w] { width: var(--yw, auto); max-width: 100%; }
+.slide [data-h], [data-block="figure"][data-h], [data-block="chart"][data-h],
+[data-block="gallery"][data-h] { height: var(--yh, auto); }
 [data-tone="accent"] { color: var(--accent, #b4540a); }
 [data-tone="muted"] { color: var(--muted, #6b6b6b); }
 [data-block][data-tone="inverse"] { background: var(--ink, #1a1a1a);
@@ -954,6 +1031,11 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 #: v4: Wave-3 (ADR-456) — cited page backgrounds (data-ref-kind="background"
 #:     + scrim/bg-pos), the generic non-slide .cols (document/article
 #:     two-column made real), page-band accents, --radius adoption.
+# v8 (2026-07-15, ADR-461 D4): MEASURES — two rules reading a custom property,
+# so a continuous value can ride in the element while the kernel still
+# pre-declares every selector it matches. Deck + media only: a slide has a
+# frame, a page has a viewport.
+#
 # v7 (2026-07-15, ADR-461 D1): the `size` token (Hug | Fill) — the block's
 # width as intent. Enumerated, so it needs no new mechanism.
 #
@@ -967,7 +1049,7 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 # layout. A pre-ADR-444 deck's baked skin has no `.slide .cols`, and the
 # kernel's `:not(.slide)` rule excluded it, so its two-column slides stacked
 # silently. Bumping the version is what makes the retrofit reach them.
-STUDIO_KERNEL_CSS_VERSION = 7
+STUDIO_KERNEL_CSS_VERSION = 8
 
 
 def compose_kernel_style_element() -> str:

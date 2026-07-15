@@ -74,6 +74,10 @@ interface StudioCanvasProps {
   /** F1: the member DRAGGED a block via the ⋮⋮ handle — move it before
    *  `beforeBlockId` (null = end of its parent). Lands one reorder revision. */
   onReorder?: (blockId: string, beforeBlockId: string | null) => void;
+  /** ADR-461 D4: the member resized a MEASURED block — w/h as a PERCENT of
+   *  its frame (a slide, or a media block's own box). The surface clamps to the
+   *  kernel's declared bound and lands setMeasure through the one door. */
+  onMeasure?: (blockId: string, w: number, h: number) => void;
   /** ADR-461 D3: the member dragged the column divider to a STOP. `value` is
    *  the ratio token's value, or null for the even default (which is written
    *  by CLEARING the attribute — 1-1 is the absence, not a third value). */
@@ -157,6 +161,7 @@ export function StudioCanvas({
   onEnterBlock,
   onReorder,
   onRatio,
+  onMeasure,
   onSplitBlock,
   onMergeBlock,
   onAddHere,
@@ -336,6 +341,8 @@ export function StudioCanvas({
         onEnterBlock?.(d.afterBlockId);
       } else if (d.type === 'yarnnn-reorder' && typeof d.blockId === 'string') {
         onReorder?.(d.blockId, typeof d.beforeBlockId === 'string' ? d.beforeBlockId : null);
+      } else if (d.type === 'yarnnn-measure' && typeof d.blockId === 'string') {
+        onMeasure?.(d.blockId, d.w as number, d.h as number);
       } else if (d.type === 'yarnnn-ratio' && typeof d.pageIndex === 'number') {
         // ADR-461 D3: the column divider dropped on a STOP. It carries the
         // token's value (or null = the even default), never a width — the

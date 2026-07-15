@@ -66,6 +66,7 @@ import {
   removeSkin,
   retrofitKernel,
   setPageBackground,
+  setMeasure,
   setToken,
   type OpResult,
 } from './artifactOps';
@@ -692,6 +693,28 @@ export function StudioSurface() {
         value == null ? 'Studio: even columns' : `Studio: columns ${value}`,
       ),
     [applyOp],
+  );
+  // ADR-461 D4: a measured block was resized. The bound comes from the KERNEL's
+  // served registry — the FE never invents one (setMeasure clamps again at the
+  // write, so a bad message can't author an unbounded value either). Width is
+  // the axis members reach for; height stays available to the registry but the
+  // corner grip drives w — one gesture, one intent.
+  const handleMeasure = useCallback(
+    (blockId: string, w: number) => {
+      const spec = vocabulary?.measures?.find((m) => m.key === 'w');
+      if (!spec) return;
+      void applyOp(
+        (html) =>
+          setMeasure(html, blockId, spec.key, w, {
+            cssVar: spec.css_var,
+            unit: spec.unit,
+            min: spec.min,
+            max: spec.max,
+          }),
+        `Studio: width ${Math.max(spec.min, Math.min(spec.max, Math.round(w)))}${spec.unit}`,
+      );
+    },
+    [applyOp, vocabulary],
   );
   const handleBlockVerb = useCallback(
     (verb: StructVerb) => {
@@ -1374,6 +1397,7 @@ export function StudioSurface() {
                 onEnterBlock={onEnterBlock}
                 onReorder={handleReorder}
                 onRatio={handleRatio}
+                onMeasure={(id, w) => handleMeasure(id, w)}
                 onSplitBlock={handleSplitBlock}
                 onMergeBlock={handleMergeBlock}
                 onAddHere={onAddHere}

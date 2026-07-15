@@ -48,11 +48,32 @@ export interface StudioToken {
   description: string;
 }
 
+/** A MEASURE (ADR-461 D4) — the one continuous property. A token's values are
+ *  enumerated and the kernel pre-declares a selector per value; a measure's are
+ *  not, so the kernel pre-declares the MECHANISM (`width: var(--yw, auto)`) and
+ *  the element carries the value. Bounded: free WITHIN its frame, never
+ *  unbounded — which is why `applies` is deck + media only (a slide has a
+ *  frame; a page has only a viewport to guess at). */
+export interface StudioMeasure {
+  key: string;
+  label: string;
+  applies: string[];
+  unit: string;
+  min: number;
+  max: number;
+  css_var: string;
+  description: string;
+}
+
 export interface StudioVocabulary {
   blocks: Array<{ kind: string; label: string; description: string; group: string; fragment: string }>;
   layouts: Array<{ slug: string; label: string; description: string; mode: 'flow' | 'paged' }>;
   arrangements: Record<string, StudioArrangement[]>;
   tokens: StudioToken[];
+  /** ADR-461 D4 — the measures: a property whose MECHANISM is enumerable but
+   *  whose VALUE is not (the kernel pre-declares `var()`, the element carries
+   *  the value). Served WITH its bound, so nothing downstream invents one. */
+  measures: StudioMeasure[];
   media_kinds: string[];
   kernel_css_version: number;
   kernel_style_element: string;
