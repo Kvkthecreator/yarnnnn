@@ -13,10 +13,13 @@
 > render: reading the asset inline IS thinking-work (the ADR-454 asset/dividend seam). The
 > dispatch lives at the file-TYPE altitude inside the card renderer — consistent with §3's
 > discipline (mounts declare card-vs-none; the card's internal depth per type is not a mount
-> concern, exactly as projection is a type property). **Implemented same day** —
-> `ArtifactCard.tsx` consults `resolveSurfaceApplication`: owned formats get the
-> QUICKLOOK_MAX_PX glance (no in-place expansion) + "Open in ‹app›" primary (header +
-> footer strip); unclaimed formats byte-identical. Capture:
+> concern, exactly as projection is a type property). **Implemented + operator-corrected
+> same day** — the first cut (a 240px partial render + two Open affordances) was corrected
+> to the **citation tile**: the Studio-recents form (scaled `ArtifactThumb` + name + meta),
+> the whole tile ONE click target — "Open in ‹app›". Zero ambient working render: chat
+> cites Studio's file; the glance is the thumbnail. Unclaimed formats byte-identical.
+> `components/shared/ArtifactThumb.tsx` is the thumb's shared home (StudioSurface's local
+> copy folds in when that lane's tree is quiet). Capture:
 > `docs/analysis/chat-think-three-axes-discourse-2026-07-15.md` §11.
 **Date**: 2026-07-12
 **Dimension**: Channel (Axiom 6 — how a conversation renders the artifacts it produces)

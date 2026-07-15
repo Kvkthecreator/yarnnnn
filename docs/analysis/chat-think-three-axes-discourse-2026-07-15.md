@@ -225,11 +225,14 @@ wordy dividends — the on-screen `.html` PRD is Studio's despite being words). 
 The five planks, with ruling state:
 1. **One substrate, two grips** (verbs, not silos) — RATIFIED (restates ADR-454/457 canon).
 2. **Preview depth follows ownership** — RATIFIED, doc-landed AND **code-shipped (2026-07-15,
-   same day)**: ADR-443 amendment (the `'card'` mode's type-dispatched depth: Quick-Look-grade
-   + open-in-owning-app primary for surface-owned formats; full render for asset-class),
-   ADR-451 amendment (one registry, one gesture vocabulary), ADR-454 D1 amendment (the seam
-   statement). `ArtifactCard.tsx` implements the dispatch at the file-type altitude — mounts
-   untouched.
+   same day; operator-corrected once)**: ADR-443 amendment (the `'card'` mode's
+   type-dispatched depth), ADR-451 amendment (one registry, one gesture vocabulary), ADR-454
+   D1 amendment (the seam statement). Final form after the operator's correction (the first
+   cut's partial render + double affordance read as neither succinct nor boundary-clear): the
+   **citation tile** — the Studio-recents form (scaled `ArtifactThumb` + name + meta), ONE
+   click target "Open in Studio", zero ambient working render. `ArtifactCard.tsx` dispatches
+   at the file-type altitude — mounts untouched; `shared/ArtifactThumb.tsx` created as the
+   thumb's shared home (StudioSurface's local copy folds in later).
 3. **Conversation follows scope** (bound lanes leave the `/chat` list — group vs deep-link into
    Studio) — direction agreed, **NOT ruled** (the fresh-cut discourse).
 4. **Interchange = derivation with provenance** (learn-from both directions; a product may

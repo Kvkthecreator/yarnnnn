@@ -35,16 +35,17 @@
  * `max-w-[85%]` is too narrow for a rendered document, and an artifact is not
  * speech.
  *
- * ── QUICK LOOK (ADR-443 amendment 2026-07-15 — the seam-contract spine) ────
+ * ── THE CITATION TILE (ADR-443 amendment 2026-07-15, operator-corrected) ───
  *
  * Preview depth follows ownership. A surface-owned format (ADR-451
- * `resolveSurfaceApplication` — .html → Studio, arrivals excepted) renders
- * Quick-Look-grade: a tighter bounded glance, no in-place expansion, and
- * "Open in Studio" as the celebrated primary action (header + footer strip).
- * Unclaimed formats (.md — the asset class chat itself works) keep the full
- * bounded render with Show more, byte-identical to pre-amendment. The
- * dispatch lives HERE at the file-type altitude — mounts still only declare
- * card-vs-none (ADR-443 §3).
+ * `resolveSurfaceApplication` — .html → Studio, arrivals excepted) does NOT
+ * get an inline working render: chat CITES Studio's file. The card is the
+ * Studio-recents tile (the operator's reference): a small scaled thumbnail
+ * (`ArtifactThumb`) + name + meta, the whole tile ONE click target — "Open in
+ * Studio". Succinct, minimal, the boundary legible. Unclaimed formats (.md —
+ * the asset class chat itself works) keep the full bounded render with Show
+ * more, byte-identical. The dispatch lives HERE at the file-type altitude —
+ * mounts still only declare card-vs-none (ADR-443 §3).
  */
 
 import { useState } from 'react';
@@ -62,15 +63,13 @@ import { FileBody } from '@/components/workspace/FileBody';
 import { FileIcon } from '@/components/workspace/FileIcon';
 import { FileOpenModal } from '@/components/chat-surface/FileOpenModal';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
+import { ArtifactThumb } from '@/components/shared/ArtifactThumb';
 import { describeViewerApplication, resolveSurfaceApplication } from '@/lib/file-types';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { cn } from '@/lib/utils';
 
 /** Collapsed height of the preview body before the fade + "Show more". */
 const COLLAPSED_MAX_PX = 360;
-/** Quick-Look height for a surface-owned file (ADR-443 amendment 2026-07-15):
- *  a glance at another app's file, never a full working render. */
-const QUICKLOOK_MAX_PX = 240;
 
 interface ArtifactCardProps {
   /** Absolute workspace path, as returned by the primitive (`/workspace/…`). */
@@ -95,16 +94,43 @@ export function ArtifactCard({ path, verb, attribution }: ArtifactCardProps) {
   const VerbIcon = verb === 'EditFile' ? PencilLine : Plus;
   const verbLabel = verb === 'EditFile' ? 'Revised' : 'Wrote';
 
-  // ADR-443 amendment (2026-07-15, the seam-contract spine): preview depth
-  // follows ownership. A surface-owned format (ADR-451 registry — .html →
-  // Studio, arrivals excepted) renders Quick-Look-grade: bounded glance, no
-  // expansion, the owning app as the celebrated primary action. Chat glances
-  // at another app's file; it doesn't bench it. Unclaimed formats (.md — the
-  // asset class chat itself works) keep the full render, byte-identical.
+  // The citation tile (see header): a surface-owned format is cited, not
+  // rendered — the ADR-451 registry decides (extension alone suffices before
+  // the file loads, so the tile shape never flickers).
   const owningApp = resolveSurfaceApplication(path, file?.content_type);
-  const openInOwningApp = () => {
-    if (owningApp) navigateToSurface(owningApp.surface, { [owningApp.param]: path });
-  };
+
+  if (owningApp) {
+    if (notFound) {
+      return (
+        <div className="max-w-[300px] rounded-xl border border-border bg-background/60 px-3 py-4 text-center text-xs text-muted-foreground">
+          <FileQuestion className="mx-auto mb-2 h-5 w-5 opacity-40" />
+          This file is no longer at {relPath}.
+        </div>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => navigateToSurface(owningApp.surface, { [owningApp.param]: path })}
+        title={`Open ${relPath} in ${owningApp.label}`}
+        className="group block w-full max-w-[300px] rounded-xl border border-border bg-background/60 p-2 text-left transition-colors hover:bg-muted/20"
+      >
+        <ArtifactThumb doc={file?.content} />
+        <span className="mt-2 flex items-center gap-1.5">
+          <FileIcon filename={filename} size="sm" />
+          <span className="min-w-0 truncate text-sm font-medium">{filename}</span>
+        </span>
+        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+          {verbLabel}
+          {attribution ? ` · ${attribution}` : ''}
+        </span>
+        <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-primary">
+          <ExternalLink className="h-3 w-3" />
+          Open in {owningApp.label}
+        </span>
+      </button>
+    );
+  }
 
   return (
     <div className="rounded-xl border border-border bg-background/60 overflow-hidden">
@@ -125,36 +151,14 @@ export function ArtifactCard({ path, verb, attribution }: ArtifactCardProps) {
             {attribution && <span>· {attribution}</span>}
           </div>
         </div>
-        {owningApp ? (
-          <div className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setOpenInModal(true)}
-              className="inline-flex items-center rounded-md border border-border p-1 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-              aria-label="Preview"
-              title="Preview"
-            >
-              <Maximize2 className="h-3 w-3" />
-            </button>
-            <button
-              type="button"
-              onClick={openInOwningApp}
-              className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              <ExternalLink className="h-3 w-3" />
-              Open in {owningApp.label}
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setOpenInModal(true)}
-            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-          >
-            <Maximize2 className="h-3 w-3" />
-            Open
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setOpenInModal(true)}
+          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+        >
+          <Maximize2 className="h-3 w-3" />
+          Open
+        </button>
       </div>
 
       {/* ── body: the one shared viewer, bounded ── */}
@@ -181,45 +185,25 @@ export function ArtifactCard({ path, verb, attribution }: ArtifactCardProps) {
       {!loading && !notFound && !error && file && (
         <>
           <div
-            className={cn(
-              'relative px-3 py-3',
-              (owningApp || !expanded) && 'overflow-hidden',
-            )}
-            style={
-              owningApp
-                ? { maxHeight: QUICKLOOK_MAX_PX }
-                : !expanded
-                  ? { maxHeight: COLLAPSED_MAX_PX }
-                  : undefined
-            }
+            className={cn('relative px-3 py-3', !expanded && 'overflow-hidden')}
+            style={!expanded ? { maxHeight: COLLAPSED_MAX_PX } : undefined}
           >
             <FileBody file={file} compact />
-            {(owningApp || !expanded) && (
+            {!expanded && (
               // The fade is decorative and must not eat clicks on the body.
               <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background to-transparent" />
             )}
           </div>
-          {owningApp ? (
-            // Quick Look never expands in place — the footer strip IS the
-            // handoff to the owning app (the celebrated affordance).
-            <button
-              onClick={openInOwningApp}
-              className="flex w-full items-center justify-center gap-1 border-t border-border/60 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-muted/30 hover:text-foreground"
-            >
-              <ExternalLink className="h-3 w-3" /> Open in {owningApp.label}
-            </button>
-          ) : (
-            <button
-              onClick={() => setExpanded((v) => !v)}
-              className="flex w-full items-center justify-center gap-1 border-t border-border/60 py-1.5 text-[11px] text-muted-foreground hover:bg-muted/30 hover:text-foreground"
-            >
-              {expanded ? (
-                <><ChevronUp className="h-3 w-3" /> Show less</>
-              ) : (
-                <><ChevronDown className="h-3 w-3" /> Show more</>
-              )}
-            </button>
-          )}
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="flex w-full items-center justify-center gap-1 border-t border-border/60 py-1.5 text-[11px] text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+          >
+            {expanded ? (
+              <><ChevronUp className="h-3 w-3" /> Show less</>
+            ) : (
+              <><ChevronDown className="h-3 w-3" /> Show more</>
+            )}
+          </button>
         </>
       )}
 
