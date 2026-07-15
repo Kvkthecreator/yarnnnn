@@ -140,7 +140,7 @@ def run() -> bool:
     _check(
         "a citation in a half forces a re-project (reload:true) so it resolves",
         "const hasCitation = /data-ref=/.test(beforeInner)" in surface
-        and "`Studio: split block`, hasCitation)" in surface,
+        and bool(re.search(r"`Studio: split block`,\s*\n\s*hasCitation", surface)),
     )
     _check(
         "both handlers are wired into the canvas mount",

@@ -254,6 +254,20 @@ export function StudioSurface() {
     return loadedFile;
   }, [loadedFile, localOverride]);
 
+  // The LIVE view of the artifact, readable inside a handler that fired in the
+  // same tick as a previous write — before React re-rendered `file`. Two ops can
+  // originate from one gesture (a drag's handle-press blurs a live edit: blur
+  // commits, then the drop reorders), and both closures capture the SAME stale
+  // `file`. The second then writes against a consumed head and 409s ("the edit
+  // did not land") on a perfectly good drag. The queue below chains off this ref
+  // so each op computes from the previous op's RESULT, not from a render.
+  const liveRef = useRef<{ content: string; head: string | null } | null>(null);
+  useEffect(() => {
+    liveRef.current = file
+      ? { content: file.content ?? '', head: file.head_version_id ?? null }
+      : null;
+  }, [file]);
+
   // A path change or a foreign reload (reloadKey bump) starts fresh — drop any
   // override so it can't shadow the authoritative reload.
   useEffect(() => {
@@ -387,28 +401,56 @@ export function StudioSurface() {
   // canvas shows the new shape; TEXT edits do NOT (the member already typed the
   // result into the live DOM — reloading would only blank+reprint it and lose
   // the caret). Either way the override advances, so save is durable + CAS-safe.
+  // Writes are SERIALIZED. Two ops can be emitted from one gesture in the same
+  // tick (see liveRef); firing them concurrently means both carry the same
+  // expected head, so the loser 409s even though nothing foreign happened. The
+  // tail chains them: each waits for the previous to land, then computes its
+  // html from the previous RESULT via liveRef.
+  const writeTail = useRef<Promise<boolean>>(Promise.resolve(true));
+
   const writeAndAdvance = useCallback(
-    async (baseHead: string | null, html: string, message: string, reload: boolean): Promise<boolean> => {
-      if (!artifactPath) return false;
-      // Pin the chain's anchor to the LOADED head (stable through a typing
-      // session), not to `baseHead` — which advances as edits chain. The first
-      // edit forks from the loaded head; every subsequent edit keeps that same
-      // anchor so the override stays valid (the merge guard in `file`).
-      const anchorHead = loadedFile?.head_version_id ?? null;
-      try {
-        const res = await api.studio.writeArtifact(artifactPath, html, baseHead, message);
-        // Advance the local CAS base in place — the invisible-save spine.
-        setLocalOverride({ anchorHead, content: html, headVersionId: res.head_version_id });
-        if (reload) setReloadKey((k) => k + 1);
-        return true;
-      } catch (e) {
-        // A 409 = the lane (or another member) wrote under us — reload to the
-        // authoritative state and let the member retry against it.
-        setOpError(e instanceof Error ? e.message : 'The edit did not land — reloading.');
-        setLocalOverride(null);
-        setReloadKey((k) => k + 1);
-        return false;
-      }
+    (
+      compute: (liveHtml: string) => string | null,
+      message: string,
+      reload: boolean,
+    ): Promise<boolean> => {
+      if (!artifactPath) return Promise.resolve(false);
+      const run = async (): Promise<boolean> => {
+        // Pin the chain's anchor to the LOADED head (stable through a typing
+        // session). The first edit forks from the loaded head; every subsequent
+        // edit keeps that same anchor so the override stays valid (the merge
+        // guard in `file`).
+        const anchorHead = loadedFile?.head_version_id ?? null;
+        // Read the base head FRESH — a previous write in this chain may have
+        // advanced it with no render in between. This ref, not a render
+        // closure, is what governs the CAS base.
+        const live = liveRef.current;
+        const baseHead = live ? live.head : null;
+        // Recompute against the LIVE content so an op that queued behind
+        // another applies to that op's result, not to a stale render.
+        const html = compute(live?.content ?? '');
+        if (html == null) return false; // the op no-ops against live state
+        try {
+          const res = await api.studio.writeArtifact(artifactPath, html, baseHead, message);
+          // Advance the CAS base BOTH synchronously (liveRef — the next queued
+          // op reads it this tick) and in React state (the invisible-save spine).
+          liveRef.current = { content: html, head: res.head_version_id };
+          setLocalOverride({ anchorHead, content: html, headVersionId: res.head_version_id });
+          if (reload) setReloadKey((k) => k + 1);
+          return true;
+        } catch (e) {
+          // A 409 here is now a genuinely foreign write (the lane / another
+          // member) — our own ops can no longer collide with each other.
+          setOpError(e instanceof Error ? e.message : 'The edit did not land — reloading.');
+          setLocalOverride(null);
+          setReloadKey((k) => k + 1);
+          return false;
+        }
+      };
+      // Chain, and keep the tail alive even if this link fails.
+      const next = writeTail.current.then(run, run);
+      writeTail.current = next.catch(() => false);
+      return next;
     },
     [artifactPath, loadedFile],
   );
@@ -417,13 +459,19 @@ export function StudioSurface() {
     async (compute: (html: string) => OpResult | null, message: string) => {
       if (!artifactPath || !file?.content) return;
       setOpError(null);
-      const result = compute(file.content);
-      if (!result) {
+      // Guard against the CURRENT render so a genuine miss still reports; the
+      // real computation re-runs against live state inside the write queue (an
+      // op queued behind another must apply to the previous op's result).
+      if (!compute(file.content)) {
         setOpError('Could not apply that here — select something in the document first.');
         return;
       }
       // Structural op → reload so the canvas re-projects the new DOM shape.
-      await writeAndAdvance(file.head_version_id ?? null, result.html, message, true);
+      await writeAndAdvance(
+        (liveHtml) => compute(liveHtml)?.html ?? null,
+        message,
+        true,
+      );
     },
     [artifactPath, file, writeAndAdvance],
   );
@@ -588,14 +636,12 @@ export function StudioSurface() {
   const onEdit = useCallback(
     (blockId: string, newInner: string) => {
       if (!file?.content) return;
-      const result = editBlockText(file.content, blockId, newInner);
-      if (!result) return; // no-op — no revision, no reload, no error
+      if (!editBlockText(file.content, blockId, newInner)) return; // no-op — no revision
       // INVISIBLE SAVE: the member already typed the result into the live iframe
       // DOM, so this durable revision lands WITHOUT reloading the canvas
       // (reload: false) — no blank flash, no caret jump, no scroll reset.
       void writeAndAdvance(
-        file.head_version_id ?? null,
-        result.html,
+        (liveHtml) => editBlockText(liveHtml, blockId, newInner)?.html ?? null,
         `Studio: edit ${blockId} block`,
         false,
       );
@@ -615,16 +661,21 @@ export function StudioSurface() {
       if (!file?.content) return;
       const proseFragment = vocabulary?.blocks.find((b) => b.kind === 'prose')?.fragment;
       if (!proseFragment) return;
-      const result = insertBlock(file.content, proseFragment, { blockId: afterBlockId });
-      if (!result?.landedId) return;
-      const newId = result.landedId;
+      // Recompute inside the queue so this insert applies to the live source
+      // (an Enter can queue behind the blur-commit of the very block it splits
+      // from). `landedId` is read from the computed result, not a stale probe.
+      let newId: string | null = null;
       void writeAndAdvance(
-        file.head_version_id ?? null,
-        result.html,
+        (liveHtml) => {
+          const r = insertBlock(liveHtml, proseFragment, { blockId: afterBlockId });
+          if (!r?.landedId) return null;
+          newId = r.landedId;
+          return r.html;
+        },
         `Studio: add block`,
         true, // structural — the DOM gains a block; reload, then re-enter below
       ).then((ok) => {
-        if (ok) {
+        if (ok && newId) {
           setEditingBlockId(newId); // caret into the new block after reload
           lastCaretBlockId.current = newId; // the new block is now the anchor
         }
@@ -656,24 +707,30 @@ export function StudioSurface() {
   const handleSplitBlock = useCallback(
     (blockId: string, newId: string, beforeInner: string, afterInner: string) => {
       if (!file?.content) return;
-      const result = splitBlock(file.content, blockId, newId, beforeInner, afterInner);
-      if (!result) return;
+      if (!splitBlock(file.content, blockId, newId, beforeInner, afterInner)) return;
       // If a half carries a CITATION, the optimistic DOM shows it as unresolved
       // SOURCE markup (the runtime put source-inner into the projected DOM) —
       // so re-project (reload:true) to resolve it. Plain-text splits (the common
       // case) stay optimistic (reload:false), no stutter.
       const hasCitation = /data-ref=/.test(beforeInner) || /data-ref=/.test(afterInner);
-      void writeAndAdvance(file.head_version_id ?? null, result.html, `Studio: split block`, hasCitation);
+      void writeAndAdvance(
+        (liveHtml) => splitBlock(liveHtml, blockId, newId, beforeInner, afterInner)?.html ?? null,
+        `Studio: split block`,
+        hasCitation,
+      );
     },
     [file, writeAndAdvance],
   );
   const handleMergeBlock = useCallback(
     (blockId: string, prevBlockId: string, mergedInner: string) => {
       if (!file?.content) return;
-      const result = mergeBlock(file.content, blockId, prevBlockId, mergedInner);
-      if (!result) return;
+      if (!mergeBlock(file.content, blockId, prevBlockId, mergedInner)) return;
       const hasCitation = /data-ref=/.test(mergedInner);
-      void writeAndAdvance(file.head_version_id ?? null, result.html, `Studio: merge block`, hasCitation);
+      void writeAndAdvance(
+        (liveHtml) => mergeBlock(liveHtml, blockId, prevBlockId, mergedInner)?.html ?? null,
+        `Studio: merge block`,
+        hasCitation,
+      );
     },
     [file, writeAndAdvance],
   );

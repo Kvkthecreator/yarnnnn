@@ -83,11 +83,34 @@ def run() -> bool:
     # TEXT edits: reload=false; STRUCTURAL ops: reload=true. Assert both calls.
     _check(
         "TEXT edit (onEdit) writes with reload=false (no iframe reload)",
-        bool(re.search(r"writeAndAdvance\([^)]*?`Studio: edit \$\{blockId\} block`,\s*\n\s*false", surface, re.DOTALL)),
+        bool(re.search(r"`Studio: edit \$\{blockId\} block`,\s*\n\s*false", surface)),
     )
     _check(
         "STRUCTURAL op (applyOp) writes with reload=true",
-        "await writeAndAdvance(file.head_version_id ?? null, result.html, message, true)" in surface,
+        bool(re.search(r"await writeAndAdvance\(\s*\n\s*\(liveHtml\) => compute\(liveHtml\)\?\.html \?\? null,\s*\n\s*message,\s*\n\s*true", surface)),
+    )
+    # The write QUEUE: two ops can be emitted from one gesture in the same tick
+    # (a drag's handle-press blurs a live edit → blur-commit + reorder). Firing
+    # them concurrently made both carry the same expected head, so the loser
+    # 409'd on a perfectly good gesture. Serialize + recompute off the result.
+    _check(
+        "writes are serialized through a tail promise (no same-tick collision)",
+        "const writeTail = useRef<Promise<boolean>>" in surface
+        and "writeTail.current.then(run, run)" in surface,
+    )
+    _check(
+        "the CAS base is read FRESH from a ref, not a render closure",
+        "const liveRef = useRef<{ content: string; head: string | null } | null>(null)" in surface
+        and "const live = liveRef.current;" in surface
+        and "const baseHead = live ? live.head : null;" in surface,
+    )
+    _check(
+        "a landed write advances the ref SYNCHRONOUSLY (the next queued op sees it)",
+        "liveRef.current = { content: html, head: res.head_version_id };" in surface,
+    )
+    _check(
+        "every op RECOMPUTES against live html (queued ops apply to the prior result)",
+        "const html = compute(live?.content ?? '');" in surface,
     )
     _check(
         "a foreign (lane) write still reloads (onArtifactWrite bumps reloadKey)",

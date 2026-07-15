@@ -85,13 +85,14 @@ def run() -> bool:
     _check(
         "onEnterBlock inserts prose after the block and enters the new one",
         "const onEnterBlock = useCallback(" in surface
-        and "insertBlock(file.content, proseFragment, { blockId: afterBlockId })" in surface
+        and "insertBlock(liveHtml, proseFragment, { blockId: afterBlockId })" in surface
         and "setEditingBlockId(newId)" in surface,
     )
     _check(
         "the new block is written as a structural op (reload:true) — landedId drives the caret",
-        bool(re.search(r"result\.html,\s*\n\s*`Studio: add block`,\s*\n\s*true", surface))
-        and "if (!result?.landedId) return;" in surface,
+        bool(re.search(r"`Studio: add block`,\s*\n\s*true", surface))
+        and "if (!r?.landedId) return null;" in surface
+        and "newId = r.landedId;" in surface,
     )
 
     # ── 4. the bottom-append fix ─────────────────────────────────────────
