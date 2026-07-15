@@ -1,8 +1,10 @@
 # Does a block have a size? — the geometry discourse
 
-**2026-07-15 · discourse, not canon.** Opened at the operator's direction: re-open the geometry axiom **fully**, one thread, cut by seam rather than by layout label. Companion to [the drift ledger](the-studio-drift-ledger-and-the-deck-question-2026-07-15.md).
+**2026-07-15 · discourse + the operator's ruling (§8). Not yet canon — the ADR that amends ADR-453 D7/D1 is step 4 of §9.** Opened at the operator's direction: re-open the geometry axiom **fully**, one thread, cut by seam rather than by layout label. Companion to [the drift ledger](the-studio-drift-ledger-and-the-deck-question-2026-07-15.md).
 
-This doc does not decide. It establishes **what is actually true** — with mechanism-level receipts — so the decision is made against evidence rather than against a remembered argument. The headline: **the argument that killed this twice is a category error, and ADR-453 D7 contradicts it in its own parenthesis.** But the objection that replaces it is real, coded, and enforced by a test.
+§§1–7 establish **what is actually true**, with mechanism-level receipts, so the decision is made against evidence rather than against a remembered argument. The headline: **the argument that killed this twice is a category error, and ADR-453 D7 contradicts it in its own parenthesis.** The objection that replaces it is real, coded, and enforced by a test — and it has an answer.
+
+**§8 is the ruling: bounded-continuous on deck + media; enumerated tokens everywhere else; continuous-everywhere OPTED OUT, not refused** — with the conditions that would legitimately re-open it recorded, so reconsideration is evidence-driven rather than fatigue-driven.
 
 ---
 
@@ -182,16 +184,71 @@ The honest case for (3) is **the deck and media**: a fixed 16:9 stage has no res
 
 ---
 
-## 8. What I'd want decided
+## 8. The ruling (operator, 2026-07-15)
 
-1. **Take (1) now?** It's free, it's most of the inspector, and it needs no permission from any ADR.
-2. **Is (2) sufficient in use?** Snap-stops + 9-position, deck-scoped. If yes, (3) never needs fighting.
-3. **If (3): what bounds it?** Continuous-but-bounded (a slide's own frame; a media block's intrinsic ratio) is arguable. Unbounded free x/y on flow content is the thing D7 refused **for a reason that survives** — responsiveness — and that reason still holds for article/page/document.
+> **Bounded-continuous, deck + media only.** Continuous-everywhere is **opted out, not refused** — recorded here as reconsiderable downstream.
 
-**The seam that answers all three is responsive obligation, not the layout's name.** Deck: no obligation, geometry coherent. Article/page/document: obligation real, geometry breaks at 40rem with per-breakpoint editing already refused (ADR-456 D3).
+### What was decided
+
+Free values are admitted **where there is a frame to be bounded by**:
+
+- **the deck** — a slide's own 16:9 stage (`aspect-ratio: 16/9` + `overflow: hidden`, which the kernel already calls *"a statement about what a slide IS"*, `studio.py:901`)
+- **media blocks** — an image's intrinsic ratio (`figure`, `gallery`, `full-bleed`, `picture-with-caption`)
+
+Everything else — `article`, `page`, `document` — keeps **enumerated tokens**. D7's stated reason (*"responsive HTML, not fixed frames"*) is undefeated there, and per-breakpoint editing is already refused (ADR-456 D3). A positioned hero on a page has no answer at 40rem.
+
+**The seam is responsive obligation, not the layout's name.** That is why "website" sits with `document` here and not with `deck`, despite the label intuition that groups them.
+
+### Why this is the future-proof line, not merely the cautious one
+
+The load-bearing point, and the reason this isn't "start small and widen later":
+
+**Bounded-continuous and continuous-everywhere are different features, not the same feature at two scales.** *Bounded* means the frame is what makes the value meaningful — `left: 40px` inside a fixed 16:9 stage is a determinate fact; `left: 40px` on a band that reflows at 40rem is a guess about a viewport. Continuous-everywhere isn't more of the first; it is the **removal of the bound**, applied to layouts that have no frame *because* they reflow.
+
+So the boundary is doing real work, not holding a place. Which makes the decision reversible in both directions:
+
+- if bounded proves **insufficient**, the extension arrives with a receipt instead of a prediction
+- if bounded proves **wrong**, the blast radius is the deck and media — the two surfaces that already opted out of responsiveness, so nothing that reflows was ever at risk
+
+### The cost, recorded honestly
+
+**Two sizing models is a real cost.** A member will hit the seam, and *"it depends which layout you're in"* is a worse explanation than one rule. This is paid deliberately: the alternative breaks `article`/`page` at 40rem with per-breakpoint editing already refused. It is a trade, not a free lunch.
+
+### The pressure to widen — how it will actually arrive
+
+**Not** as *"we want free geometry everywhere."* It will arrive as **"why can a deck do this and a page can't?"** — a *consistency* complaint, which feels like a bug report and is in fact the boundary working correctly.
+
+The answer, for whoever fields it: **because a slide has a frame and a page has a viewport.** The deck's geometry is bounded by something real and fixed; the page's would be bounded by a guess about a screen nobody has measured. The consistency is the seam, and the seam is the feature.
+
+If this is not answered in advance, the model gets widened **by attrition** — one reasonable-sounding request at a time, none of them individually wrong.
+
+### What would legitimately re-open continuous-everywhere
+
+Recorded so the reconsideration is evidence-driven rather than fatigue-driven. Any ONE of:
+
+1. **Per-breakpoint editing gets un-refused** (ADR-456 D3 reversed). Free placement plus authored breakpoints is coherent; free placement without them is not. This is the big one — it dissolves the entire objection.
+2. **A `page` artifact demonstrably needs placement no arrangement can express**, with the specific instance in hand. Not "Wix does it" — the artifact that failed.
+3. **The two-model seam produces more confusion in use than the reflow breakage it prevents.** That is measurable, and it is currently a prediction on both sides.
+
+Absent one of those, widening is drift with a good story.
 
 ---
 
-## 9. The one-line statement
+## 9. Sequence
 
-**The revision chain is `sha256` over a string and `difflib` over lines; `trace` joins by `data-block-id`. Neither can see a coordinate. R1 forbids a model HTML is *compiled from*, and an attribute on the one source file is not that — which is why D7's own parenthesis says positioned slots "doesn't break R1." The moat was never the objection. The objection is that kernel CSS must pre-declare its selectors, and a deck slide — a fixed 16:9 stage with `overflow:hidden` — is the one place D7's actual reason, responsiveness, does not reach.**
+Ascending cost; each step is independently shippable, and the earlier ones may make the later ones unnecessary.
+
+| # | Step | Argument needed |
+|---|---|---|
+| 1 | **`Hug` / `Fill` / `Inline` as tokens** | **None.** One-value tokens, direct precedent (`fit: {cover, contain}`). Three of the five things in the inspector, free. |
+| 2 | **Click / drag / drop / resize as GESTURES** | **None.** ADR-440 D7 already sanctions it: *"Direct manipulation, when it comes, is a **gesture-composer** — never a second write path."* A drag landing as an attributed revision is what the seven ops already do. |
+| 3 | **Discrete stops + 9-position** | **None** — D7's pre-authorized text (`:176`, `:183`). Arguing *with* D7's words. |
+| 4 | **Bounded-continuous (deck + media)** | **An ADR.** Amends ADR-453 D7 + D1. The token model gains one axis: a property whose *mechanism* is enumerable but whose *value* is not — carried by a CSS custom property (kernel pre-declares `var()`, the element carries the value), the same shape `data-ref` already uses. |
+
+Note steps 1–3 need **no permission from any ADR** and cover most of the observed inspector. Step 4 is the only one that amends canon.
+
+---
+
+## 10. The one-line statement
+
+**The revision chain is `sha256` over a string and `difflib` over lines; `trace` joins by `data-block-id`. Neither can see a coordinate. R1 forbids a model HTML is *compiled from*, and an attribute on the one source file is not that — which is why D7's own parenthesis says positioned slots "doesn't break R1." The moat was never the objection. The objection is that kernel CSS must pre-declare its selectors — and the answer is that a mechanism can be pre-declared while its value rides in the element. So: free values where there is a frame to be bounded by (the deck's 16:9 stage, a media block's ratio); enumerated tokens where there is only a viewport to guess at. A slide has a frame; a page has a viewport. That difference is the whole ruling.**
