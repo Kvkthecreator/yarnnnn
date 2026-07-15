@@ -286,10 +286,21 @@ export const api = {
       request<{ templates: Array<{ slug: string; label: string; description: string }> }>(
         "/api/studio/templates",
       ),
+    // ADR-459: `name` + `kind` are COMPUTED server-side, never stored — the
+    // kind lifted from the artifact's own `data-template`, the name titleized
+    // from its meaning folder. `kind` is an opaque slug (a bundle may ship one
+    // the FE has no icon for; `kind_label` still reads correctly).
     artifacts: () =>
-      request<{ artifacts: Array<{ path: string; updated_at: string | null; summary: string | null }> }>(
-        "/api/studio/artifacts",
-      ),
+      request<{
+        artifacts: Array<{
+          path: string;
+          updated_at: string | null;
+          summary: string | null;
+          name: string;
+          kind: string | null;
+          kind_label: string;
+        }>;
+      }>("/api/studio/artifacts"),
     citable: () =>
       request<{
         images: Array<{ path: string; updated_at: string | null }>;

@@ -31,7 +31,7 @@ import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePr
 import { LearnFromFlowModal } from './LearnFromFlowModal';
 import { NewArtifactModal, slugify } from './NewArtifactModal';
 import { StudioNewMenu } from './StudioNewMenu';
-import { studioShapeFromPath } from './studioShapes';
+import { studioShapeStyle } from './studioShapes';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
 import { useSelfLocatedSurface, useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
@@ -1347,8 +1347,10 @@ function ArtifactThumb({ path }: { path: string }) {
 
 function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
+  // Derived from the client's return type — never hand-restated, so a served
+  // field (ADR-459's computed `name`/`kind`/`kind_label`) can't drift.
   const [recents, setRecents] = useState<
-    Array<{ path: string; updated_at: string | null; summary: string | null }>
+    Awaited<ReturnType<typeof api.studio.artifacts>>['artifacts']
   >([]);
   const [existing, setExisting] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -1513,9 +1515,17 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
           </div>
         </div>
 
-        {/* Recents — the emphasis. Real thumbnails, per-SHAPE icon + label
-            (a deck reads as a Deck, not "deck.html"), and a ⋯ / right-click
-            menu per card (open · rename · duplicate · move · trash). */}
+        {/* Recents — the emphasis. Real thumbnails, per-SHAPE icon + label,
+            and a ⋯ / right-click menu per card (open · rename · duplicate ·
+            move · trash).
+
+            ADR-459: this list is a COMPOSITION (one operator act: reopen my
+            work), so it reads like a Mac, not a workbench — the member's own
+            name ("IR deck v3", titleized from the meaning folder they typed)
+            over the served kind. No path, no `.html`: the format is the
+            artifact's storage encoding, not its identity. The Files surface
+            (the MIRROR) still shows the raw leaf, and so does the editor
+            crumb — an app over one file names the file. */}
         {hasRecents ? (
           <div className="space-y-3">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -1523,8 +1533,10 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
             </p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {recents.map((r) => {
-                const shape = studioShapeFromPath(r.path);
+                const shape = studioShapeStyle(r.kind);
                 const ShapeIcon = shape.icon;
+                // The organize verbs act on the FILE — they get the raw leaf
+                // (Rename pre-fills the real name, the shared Files flow).
                 const target = { path: r.path, name: baseName(r.path), isFile: true };
                 return (
                   <div
@@ -1541,11 +1553,11 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
                       <span className="mt-2 flex items-center gap-1.5">
                         <ShapeIcon className={`h-3.5 w-3.5 shrink-0 ${shape.color}`} />
                         <span className="min-w-0 truncate text-xs font-medium">
-                          {baseName(r.path)}
+                          {r.name}
                         </span>
                       </span>
                       <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
-                        {shape.label}
+                        {r.kind_label}
                         {r.updated_at ? ` · ${new Date(r.updated_at).toLocaleDateString()}` : ''}
                       </span>
                     </button>
@@ -1553,7 +1565,7 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
                         the SAME menu as right-click, anchored at the click point. */}
                     <button
                       type="button"
-                      aria-label={`Actions for ${baseName(r.path)}`}
+                      aria-label={`Actions for ${r.name}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         openMenu(target, e);

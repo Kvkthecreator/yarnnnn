@@ -54,13 +54,32 @@ async def list_templates(auth: UserClient) -> dict:
 async def list_artifacts(auth: UserClient) -> dict:
     """Recent Studio-openable artifacts — .html files in the artifact region,
     newest first. The start state renders these as a clickable list (a member
-    should never have to type a path to reopen their own work)."""
-    from services.studio import STUDIO_ARTIFACT_REGION
+    should never have to type a path to reopen their own work).
+
+    ADR-459: each row carries `name` + `kind` so the landing (a COMPOSITION —
+    ADR-340 DP29) can read like a Mac rather than a workbench. Both are
+    computed, never stored:
+
+    - `kind` is LIFTED from the artifact's own ``data-template`` root attr
+      (ADR-443 R2 — the layout IS the file). Content stays the sole source
+      (ADR-456 D1); a layout switch is an attributed revision and the kind
+      follows for free. Survives rename — the kind was never in the name.
+    - `name` is the titleized meaning-folder the member already typed
+      (`operation/ir-deck-v3/deck.html` → "IR deck v3"). DP33: the namespace
+      carries meaning, so there is nothing to store.
+
+    The Files surface (the MIRROR) is untouched and still shows the raw leaf.
+    """
+    from services.studio import (
+        STUDIO_ARTIFACT_REGION,
+        artifact_kind,
+        artifact_name,
+    )
     from services.workspace_context import substrate_scope_filter
 
     rows = (
         auth.client.table("workspace_files")
-        .select("path, updated_at, summary")
+        .select("path, updated_at, summary, content")
         .eq(*substrate_scope_filter(auth.user_id))
         .like("path", f"{STUDIO_ARTIFACT_REGION}%")
         .like("path", "%.html")
@@ -70,7 +89,13 @@ async def list_artifacts(auth: UserClient) -> dict:
     ).data or []
     return {
         "artifacts": [
-            {"path": r["path"], "updated_at": r.get("updated_at"), "summary": r.get("summary")}
+            {
+                "path": r["path"],
+                "updated_at": r.get("updated_at"),
+                "summary": r.get("summary"),
+                "name": artifact_name(r["path"]),
+                **artifact_kind(r.get("content")),
+            }
             for r in rows
         ]
     }

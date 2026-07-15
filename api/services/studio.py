@@ -1068,6 +1068,101 @@ def extract_template(artifact_content: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
+# ---------------------------------------------------------------------------
+# ADR-459 — the artifact reads as what it is. Both helpers are PURE and
+# COMPUTED: the kind is lifted from content, the name from the namespace.
+# Neither is stored — the storage half of this design was deleted, not built
+# (a `kind` column would be a denormalized cache of `data-template`; a `title`
+# column a second source for the artifact's own <h1> — ADR-456 D1).
+# ---------------------------------------------------------------------------
+
+#: Fallback when an artifact declares no (or an unknown) layout. Honest rather
+#: than guessing — the same disposition the retired stem-matcher had.
+UNKNOWN_KIND_LABEL = "File"
+
+
+def artifact_kind(artifact_content: Optional[str]) -> dict[str, Optional[str]]:
+    """The artifact's kind — LIFTED from its own ``data-template`` (ADR-459 D1).
+
+    Returns ``{"kind": slug_or_None, "kind_label": label}``. The slug is an
+    OPAQUE STRING (ADR-459 D3, mirroring ``AppId = string`` per ADR-436): a
+    layout the kernel doesn't know still round-trips its slug, so a bundle can
+    ship one with zero kernel touches (ADR-222 — the kernel names the slot,
+    the program fills the value).
+
+    Unknown-but-declared beats blank: a `tearsheet` from a bundle reads
+    "Tearsheet" via titleize even before the kernel has a row for it.
+    """
+    slug = extract_template(artifact_content or "")
+    if not slug:
+        return {"kind": None, "kind_label": UNKNOWN_KIND_LABEL}
+    known = STUDIO_LAYOUTS.get(slug)
+    if not known:
+        # Deferred import: bundle_reader reads the program bundles off disk;
+        # the kernel four resolve without ever touching it.
+        from services.bundle_reader import list_bundle_layouts
+
+        known = list_bundle_layouts().get(slug)
+    label = known["label"] if known else _titleize(slug)
+    return {"kind": slug, "kind_label": label}
+
+
+def _titleize(slug: str) -> str:
+    """`ir-deck-v3` → `Ir deck v3`. The ADR-312 plain-language mechanic, in
+    SENTENCE case rather than Title Case.
+
+    Deliberately DUMB, and the dumbness is the point. The creation modal
+    lowercases the member's name into the slug (`slugify` in
+    NewArtifactModal), so the original casing is genuinely gone — every
+    reconstruction is a guess, and the only question is which guess reads
+    least wrong.
+
+    Sentence case (capitalize the first word, leave the rest) is the guess
+    that loses smallest: it's how a person names a document, and it's wrong
+    in ONE predictable way (an acronym reads "Ir" instead of "IR") rather
+    than wrong in every word the way `.title()` is ("Ir Deck V3").
+
+    An acronym heuristic was tried and rejected: "does it have vowels" makes
+    IR/KPI/PRD look like ordinary words while flagging "my"; no rule
+    distinguishes a typed "IR" from a typed "ir" once the case is gone. A
+    cleverer guess would be wrong less often but wrong less PREDICTABLY,
+    which is worse — the member can't learn it.
+
+    The ceiling is honest: a true round-trip needs the typed name stored, and
+    storing it is a second source for a fact the namespace already carries
+    (ADR-459 D2 — the trade this ADR took on purpose). If acronym fidelity
+    ever matters more than the storage cost, THAT is the ADR to write, not a
+    smarter regex here.
+    """
+    words = slug.replace("-", " ").replace("_", " ").split()
+    if not words:
+        return ""
+    return " ".join(w.capitalize() if i == 0 else w for i, w in enumerate(words))
+
+
+def artifact_name(path: str) -> str:
+    """The artifact's operator-facing name — the titleized MEANING FOLDER.
+
+    `operation/ir-deck-v3/deck.html` → "IR deck v3" (as the member typed it at
+    creation; the modal slugified it into the folder). DP33: the namespace
+    carries meaning, so the name needs no storage — it is already there.
+
+    Degrades honestly: an artifact sitting directly in the region with no
+    meaning folder falls back to its titleized stem rather than inventing one.
+    """
+    parts = [p for p in (path or "").split("/") if p]
+    if not parts:
+        return UNKNOWN_KIND_LABEL
+    region_tail = [p for p in STUDIO_ARTIFACT_REGION.split("/") if p]
+    # The meaning folder is the segment holding the artifact — unless that IS
+    # the region itself (a bare `operation/deck.html`), in which case use stem.
+    parent = parts[-2] if len(parts) >= 2 else None
+    if parent and parent not in region_tail:
+        return _titleize(parent)
+    stem = re.sub(r"\.[a-z0-9]+$", "", parts[-1], flags=re.IGNORECASE)
+    return _titleize(stem) or UNKNOWN_KIND_LABEL
+
+
 def extract_outline(artifact_content: str, limit: int = 24) -> list[str]:
     """Heading texts (h1/h2) in document order — the artifact's outline."""
     heads = re.findall(

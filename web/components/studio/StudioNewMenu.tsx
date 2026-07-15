@@ -17,7 +17,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { FilePlus, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { studioShapeFromPath } from './studioShapes';
+import { studioShapeStyle } from './studioShapes';
 
 interface TemplateInfo {
   slug: string;
@@ -80,7 +80,9 @@ export function StudioNewMenu({
           className="absolute right-0 z-30 mt-1.5 w-64 overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-lg animate-in fade-in zoom-in-95 duration-100"
         >
           {templates.map((t) => {
-            const shape = studioShapeFromPath(`${t.slug}.html`);
+            // ADR-459: the slug IS the kind — no fake filename to round-trip
+            // it through, and the label comes from the served registry.
+            const shape = studioShapeStyle(t.slug);
             const Icon = shape.icon;
             return (
               <button

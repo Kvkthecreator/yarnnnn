@@ -616,3 +616,45 @@ def _normalize_bundle_capability(cap: dict[str, Any], bundle: dict[str, Any]) ->
     if "tools" in cap:
         result["tools"] = cap["tools"]
     return result
+
+
+# ---------------------------------------------------------------------------
+# Studio layouts (ADR-459 D3) — the kernel names the SLOT, the program fills
+# the VALUE (ADR-222:117 "the kernel exposes the primitive; programs ship the
+# templates"). A bundle declaring a `studio_layouts` row can ship a new
+# artifact shape (e.g. alpha-trader's `tearsheet`) with ZERO kernel touches;
+# `STUDIO_LAYOUTS` seeds the four universal shapes and no longer bounds the set.
+# ---------------------------------------------------------------------------
+
+def _normalize_bundle_layout(lay: dict[str, Any], bundle: dict[str, Any]) -> dict[str, Any]:
+    """Shape a bundle layout row like a STUDIO_LAYOUTS entry.
+
+    `label` is the only field the serving path (ADR-459 `artifact_kind`)
+    requires; `flow`/`skin`/`scaffold` are needed only to CREATE from the
+    layout, so a bundle may declare a read-only shape (label alone) and still
+    have its artifacts read correctly. Missing keys degrade, never raise.
+    """
+    return {
+        "label": lay.get("label") or (lay.get("slug") or "").replace("-", " ").title(),
+        "description": lay.get("description", ""),
+        "flow": lay.get("flow", ""),
+        "skin": lay.get("skin", ""),
+        "scaffold": lay.get("scaffold", ""),
+        "_program_slug": bundle.get("slug"),
+    }
+
+
+def list_bundle_layouts() -> dict[str, dict[str, Any]]:
+    """The union of all active bundles' Studio layout declarations.
+
+    Kernel STUDIO_LAYOUTS + this union = the full artifact-shape surface.
+    First-declared wins on conflict (the ADR-224 §7 deferral, matching
+    `list_bundle_capabilities`).
+    """
+    result: dict[str, dict[str, Any]] = {}
+    for bundle in all_active_bundles():
+        for lay in bundle.get("studio_layouts", []) or []:
+            slug = lay.get("slug")
+            if slug and slug not in result:
+                result[slug] = _normalize_bundle_layout(lay, bundle)
+    return result

@@ -63,8 +63,11 @@ def run() -> bool:
            and './assets/' in STUDIO_BLOCKS["chart"]["markup"])
 
     # ── 2. Layouts + skeleton assembly (D5) ──────────────────────────────
-    _check("4 layouts: document/deck/article + page (ADR-456 W3)",
-           set(STUDIO_LAYOUTS) == {"document", "deck", "article", "page"})
+    # ADR-459 D3: the kernel SEEDS the four universal shapes; it does not BOUND
+    # the set. `⊇` not `==` — a bundle shipping a fifth (alpha-trader's
+    # `tearsheet`) must not turn this red (ADR-222: programs ship the templates).
+    _check("kernel seeds 4 layouts: document/deck/article + page (ADR-456 W3)",
+           set(STUDIO_LAYOUTS) >= {"document", "deck", "article", "page"})
     for slug, lay in STUDIO_LAYOUTS.items():
         _check(f"layout '{slug}': label/description/flow/skin/scaffold complete",
                all(lay.get(k) for k in ("label", "description", "flow", "skin", "scaffold")))
