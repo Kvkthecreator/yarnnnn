@@ -174,6 +174,25 @@ export function resolveSurfaceApplication(
 }
 
 /**
+ * Is this file chat's own working material (prose-substrate), rather than a
+ * thing chat MADE? — the ADR-443/454 asset-vs-dividend seam, answered once.
+ *
+ * The conversation renders its own material inline (reading a brief IS the
+ * thinking-work) and CITES everything else as a tile. Only `.md` qualifies
+ * today; the predicate exists so the card can ASK the question instead of
+ * resolving the viewer kind and switching on it — the mount-side branch that
+ * `test_lane_artifacts::test_the_file_body_is_the_only_kind_switch` forbids,
+ * and rightly: a re-derived kind is how `.mp4`-renders-as-text comes back in
+ * two places. Depth is a policy over the type; the type stays this table's.
+ */
+export function isConversationalSubstrate(
+  path: string,
+  contentType?: string,
+): boolean {
+  return resolveViewerApplication(path, contentType) === 'markdown';
+}
+
+/**
  * Does this viewer read the blob (`content_url`) rather than the `content`
  * text column? Mirrors the ADR-427 §8 read-side split: a binary revision's
  * text column is empty by construction.

@@ -42,10 +42,29 @@
  * get an inline working render: chat CITES Studio's file. The card is the
  * Studio-recents tile (the operator's reference): a small scaled thumbnail
  * (`ArtifactThumb`) + name + meta, the whole tile ONE click target — "Open in
- * Studio". Succinct, minimal, the boundary legible. Unclaimed formats (.md —
- * the asset class chat itself works) keep the full bounded render with Show
- * more, byte-identical. The dispatch lives HERE at the file-type altitude —
- * mounts still only declare card-vs-none (ADR-443 §3).
+ * Studio". Succinct, minimal, the boundary legible.
+ *
+ * ── THE TILE IS THE DEFAULT, THE RENDER IS THE EXCEPTION (2026-07-16) ─────
+ *
+ * The amendment's rule ("depth follows ownership") assumed *unclaimed* was one
+ * thing. It isn't: `.md` is chat's own prose-substrate, but `.svg`/`.png`/
+ * `.pdf`/`.csv` are unclaimed too, and they took the `.md` branch — a chart
+ * benched at full row width in a transcript (operator receipt, 2026-07-16).
+ *
+ * So the axis is restated one notch more precisely, in the amendment's own
+ * asset/dividend vocabulary: **the full render is for chat's own working
+ * material; everything else is CITED.** `.md` renders inline because reading it
+ * IS the thinking-work (ADR-454's asset class). Every other format — owned or
+ * not — is a thing chat MADE, and a made thing gets a tile: thumbnail, name,
+ * attribution, one click target. Ownership hasn't stopped mattering; it now
+ * decides the tile's DESTINATION ("Open in Studio" vs the chat-open modal),
+ * not whether there's a tile.
+ *
+ * That collapses the fall-through: the tile is the default and the render is
+ * the exception, so a new format lands as a tile rather than as a 360px
+ * surprise. The dispatch stays HERE at the file-type altitude — mounts still
+ * only declare card-vs-none (ADR-443 §3) — and the per-type thumb TECHNIQUE
+ * (iframe / img / glyph) lives in `ArtifactThumb`, not in this mount.
  */
 
 import { useState } from 'react';
@@ -64,7 +83,11 @@ import { FileIcon } from '@/components/workspace/FileIcon';
 import { FileOpenModal } from '@/components/chat-surface/FileOpenModal';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { ArtifactThumb } from '@/components/shared/ArtifactThumb';
-import { describeViewerApplication, resolveSurfaceApplication } from '@/lib/file-types';
+import {
+  describeViewerApplication,
+  isConversationalSubstrate,
+  resolveSurfaceApplication,
+} from '@/lib/file-types';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { cn } from '@/lib/utils';
 
@@ -94,12 +117,18 @@ export function ArtifactCard({ path, verb, attribution }: ArtifactCardProps) {
   const VerbIcon = verb === 'EditFile' ? PencilLine : Plus;
   const verbLabel = verb === 'EditFile' ? 'Revised' : 'Wrote';
 
-  // The citation tile (see header): a surface-owned format is cited, not
-  // rendered — the ADR-451 registry decides (extension alone suffices before
-  // the file loads, so the tile shape never flickers).
+  // The depth rule (see header). Chat's own working material renders inline;
+  // everything else is a made thing and is CITED as a tile. The card ASKS the
+  // predicate — it never resolves the viewer kind itself; that stays FileBody's
+  // (test_lane_artifacts::test_the_file_body_is_the_only_kind_switch). Both
+  // reads key off the extension, known before the file loads, so the card's
+  // shape never flickers on arrival.
+  const isChatsOwnMaterial = isConversationalSubstrate(path, file?.content_type);
+  // Ownership no longer decides IF there's a tile — it decides where the tile
+  // GOES: an owned format opens in its app, an unowned one in the chat frame.
   const owningApp = resolveSurfaceApplication(path, file?.content_type);
 
-  if (owningApp) {
+  if (!isChatsOwnMaterial) {
     if (notFound) {
       return (
         <div className="max-w-[300px] rounded-xl border border-border bg-background/60 px-3 py-4 text-center text-xs text-muted-foreground">
@@ -108,27 +137,36 @@ export function ArtifactCard({ path, verb, attribution }: ArtifactCardProps) {
         </div>
       );
     }
+    const openLabel = owningApp ? `Open in ${owningApp.label}` : 'Open';
     return (
-      <button
-        type="button"
-        onClick={() => navigateToSurface(owningApp.surface, { [owningApp.param]: path })}
-        title={`Open ${relPath} in ${owningApp.label}`}
-        className="group block w-full max-w-[300px] rounded-xl border border-border bg-background/60 p-2 text-left transition-colors hover:bg-muted/20"
-      >
-        <ArtifactThumb doc={file?.content} />
-        <span className="mt-2 flex items-center gap-1.5">
-          <FileIcon filename={filename} size="sm" />
-          <span className="min-w-0 truncate text-sm font-medium">{filename}</span>
-        </span>
-        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-          {verbLabel}
-          {attribution ? ` · ${attribution}` : ''}
-        </span>
-        <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-primary">
-          <ExternalLink className="h-3 w-3" />
-          Open in {owningApp.label}
-        </span>
-      </button>
+      <>
+        <button
+          type="button"
+          onClick={() =>
+            owningApp
+              ? navigateToSurface(owningApp.surface, { [owningApp.param]: path })
+              : setOpenInModal(true)
+          }
+          title={`${openLabel} — ${relPath}`}
+          className="group block w-full max-w-[300px] rounded-xl border border-border bg-background/60 p-2 text-left transition-colors hover:bg-muted/20"
+        >
+          <ArtifactThumb file={file} />
+          <span className="mt-2 flex items-center gap-1.5">
+            <FileIcon filename={filename} size="sm" />
+            <span className="min-w-0 truncate text-sm font-medium">{filename}</span>
+          </span>
+          <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+            {verbLabel}
+            {attribution ? ` · ${attribution}` : ''}
+          </span>
+          <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-primary">
+            <ExternalLink className="h-3 w-3" />
+            {openLabel}
+          </span>
+        </button>
+        {/* ADR-436 §7 — the chat-open mount, for a tile with no owning app. */}
+        {openInModal && <FileOpenModal path={path} onClose={() => setOpenInModal(false)} />}
+      </>
     );
   }
 
