@@ -384,6 +384,12 @@ const POINTER_SCRIPT = `
     cur = el;
     el.classList.add('yarnnn-pointed');
   };
+  // The READER half of the same one-selection rule. The resize handle follows
+  // the SELECTED block (ADR-461 D4's gesture needs a subject that outlives the
+  // pointer's journey to the corner), and it must read this runtime's own
+  // selection rather than track its own — a second selection state is exactly
+  // the cross-talk bindGesture's one-flag rule exists to prevent.
+  window.__yarnnnSelected = function () { return cur; };
 
   // ADR-447 (2026-07-13): canvas commands — scroll to a slide (navigator
   // selection moves the center display) + zoom (a VIEW control; scales the
@@ -1632,6 +1638,14 @@ const GUTTER_SCRIPT = `
     var best = null, bestDist = Infinity;
     for (var i = 0; i < blocks.length; i++) {
       var b = blocks[i];
+      // A ROW is a thing in FLOW. A block inside a frame (a slide, a media
+      // box) is placed, not stacked — it has no row above or below to be
+      // inserted between, and its gesture is the corner handle, not the
+      // gutter. One gate (measurableFrame) decides both affordances, so the
+      // two can never both appear on the same block: framed → handles,
+      // flowing → gutter. ADR-461 D4's "boundary made visible", applied to
+      // the gutter as well as to the handle it was already applied to.
+      if (measurableFrame(b)) continue;
       // Skip a block nested inside another annotated block: the ROW is the
       // outermost unit (a checklist's li is not its own row).
       if (b.parentElement && b.parentElement.closest && b.parentElement.closest('[data-block]')) continue;
@@ -1808,13 +1822,24 @@ const GUTTER_SCRIPT = `
         }, '*');
       },
       onMove: function (block, e) {
-        var fr = measurableFrame(block);
-        if (!fr) return;
+        var frame = measurableFrame(block);
+        if (!frame) return;
         var br = block.getBoundingClientRect();
-        // Live preview in-frame only — the commit is onEnd. Width tracks the
-        // cursor; the block's own box is the feedback (no ghost overlay).
-        var w = Math.max(24, e.clientX - br.left);
-        block.style.width = w + 'px';
+        var fr = frame.getBoundingClientRect();
+        // Live preview in-frame only — the commit is onEnd. The preview must
+        // speak the COMMIT's units: onEnd reports a percent of the frame, so a
+        // px preview would render one width during the drag and a different
+        // one on release (the block jumping under the cursor at the moment of
+        // the drop). Percent here, percent there.
+        //
+        // The clamp here is STRUCTURAL (the frame's own edge), not the kernel's
+        // min/max — the runtime is served no registry and must never invent a
+        // bound (ADR-461's two-clamp rule: the parent clamps from the SERVED
+        // spec, setMeasure clamps again at the write). A preview that ran
+        // slightly past the kernel's max simply lands on it.
+        var pct = ((e.clientX - br.left) / (fr.width || 1)) * 100;
+        pct = Math.max(1, Math.min(100, pct));
+        block.style.width = pct + '%';
         showResize(block);
       },
     });
@@ -1834,12 +1859,38 @@ const GUTTER_SCRIPT = `
     rzBlock = null;
   }
 
-  document.addEventListener('pointermove', function (e) {
-    var t = e.target;
-    var blk = t && t.closest ? t.closest('[data-block-id]') : null;
-    // No frame → no handle. The boundary is felt, not just documented.
-    if (blk && measurableFrame(blk)) showResize(blk);
-    else if (rzBlock && rz && !rz.contains(t)) hideResize();
+  // The handle follows the SELECTION, not the pointer.
+  //
+  // It was bound to hover, which cannot work: the handle draws at the block's
+  // bottom-right corner, so travelling to grab it moves the pointer out of the
+  // block that summoned it — the affordance disappeared exactly as it was
+  // reached for. (The gutter had the identical bug and was fixed the same way,
+  // by owning a band rather than a box; a placed block has no band, so it owns
+  // its SELECTION instead.) Claude Design's inspector shows handles on the
+  // selected object for the same reason: a grip must outlive the journey to it.
+  //
+  // Selection is read from the pointer runtime's own state — one selection, not
+  // two. Re-anchor on every relevant transition; the rect goes stale otherwise.
+  function syncResize() {
+    var sel = window.__yarnnnSelected ? window.__yarnnnSelected() : null;
+    if (sel && sel.isConnected && measurableFrame(sel)) showResize(sel);
+    else hideResize();
+  }
+  // A click lands selection in the pointer runtime's capture-phase listener;
+  // this runs after it (bubble), so the selection is already the new block.
+  // A click ON the grip is the grip's own (a press that never passed the
+  // gesture threshold) — it must not re-anchor the thing being grabbed.
+  document.addEventListener('click', function (e) {
+    if (rz && e.target === rz) return;
+    syncResize();
+  });
+  document.addEventListener('scroll', syncResize, true);
+  window.addEventListener('resize', syncResize);
+  // The parent may select (navigator, Design tab) without a click in-frame.
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (d && typeof d === 'object' && typeof d.type === 'string' &&
+        d.type.indexOf('yarnnn-') === 0) setTimeout(syncResize, 0);
   });
 })();
 `;

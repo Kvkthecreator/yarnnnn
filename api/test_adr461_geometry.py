@@ -239,7 +239,28 @@ def run() -> bool:
     )
     _check(
         "an UNFRAMED block gets no handle (the boundary is felt, not just documented)",
-        "function measurableFrame(block)" in proj and "if (blk && measurableFrame(blk))" in proj,
+        "function measurableFrame(block)" in proj
+        and "if (sel && sel.isConnected && measurableFrame(sel)) showResize(sel);" in proj,
+    )
+    # The handle follows the SELECTION, not the pointer: it draws at the block's
+    # corner, so a hover-scoped handle vanishes exactly as it is reached for.
+    # Selection is READ from the pointer runtime (one selection, never two).
+    _check(
+        "the handle follows the selection, not the pointer (a grip outlives the reach)",
+        "window.__yarnnnSelected = function () { return cur; };" in proj
+        and "window.__yarnnnSelected ? window.__yarnnnSelected() : null" in proj,
+    )
+    # The SAME gate decides both affordances, so a block can never show both:
+    # framed -> handles, flowing -> gutter. The gutter's own row hit-test skips
+    # any framed block (a placed thing has no row to be inserted between).
+    _check(
+        "a framed block gets no gutter (one gate, two affordances, never both)",
+        "if (measurableFrame(b)) continue;" in proj,
+    )
+    # The preview must speak the COMMIT's units, or the block jumps on release.
+    _check(
+        "the resize preview is a percent, not a pixel (no jump at the drop)",
+        "block.style.width = pct + '%';" in proj,
     )
     _check(
         "the surface clamps from the SERVED registry, never a hardcoded bound",
