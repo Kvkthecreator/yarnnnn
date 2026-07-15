@@ -86,9 +86,15 @@ def run() -> bool:
         "toolbar trigger LABELS never wrap (whitespace-nowrap)",
         "whitespace-nowrap" in btn_decl,
     )
+    # The selection chip was the elastic part of this row — it is GONE (2026-07-15,
+    # b5495fc): ADR-458 moved the entrance to hover, so the chip's one job (the
+    # receipt proving your click landed) lost its errand, and the navigator ring +
+    # canvas marking + Design-tab scope already tell that fact. Nothing in the row
+    # is elastic now; every trigger is shrink-0 + nowrap (checked above). The
+    # selection STATE is untouched — only its third rendering went.
     _check(
-        "the selection chip is the elastic part (min-w-0 + truncate yields first)",
-        'className="ml-auto flex min-w-0 items-center gap-1"' in toolbar,
+        "the selection chip stays deleted (hover is the entrance, not a receipt)",
+        "onClearSelection" not in toolbar,
     )
     # The row hosts absolute `top-full` panels — making it a scroll container
     # would clip every dropdown. This guards a tempting "fix" that breaks menus.

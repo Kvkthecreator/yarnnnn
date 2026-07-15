@@ -3,46 +3,98 @@
 /**
  * StudioSlashPalette — the '/' block palette (ADR-456 W2, the Notion gesture).
  *
- * Opens when the edit runtime reports a '/' typed in an empty context (the
- * runtime has already committed + exited the edit). Anchored at the block's
- * rect over the canvas; a filter input owns the keyboard (type to filter,
- * ↑/↓ to move, Enter to pick, Esc to dismiss).
+ * Opens when the edit runtime reports a '/' typed ANYWHERE — mid-sentence, mid-
+ * word, or on an empty line. The '/' lands as ordinary text and the caret never
+ * leaves the document: what the member types after it IS this palette's filter,
+ * mirrored in over `filter` (there is no input here to focus — stealing focus
+ * would end the edit the gesture depends on).
  *
- * v1 lists the PLAIN-INSERT kinds + chart (the generative ask). The cited
- * kinds (figure/table/gallery) need their pickers and stay in Insert ▾ — a
- * palette row that half-opens a different panel would be worse than absent.
+ * Because every typed '/' opens it, DISMISSAL is load-bearing: Esc, a click in
+ * either document (the runtime reports the in-frame one — this component's own
+ * document listener is blind to the iframe), a caret that leaves the run, and a
+ * filter that matches nothing all close it. Typing a URL must never strand a
+ * menu over the text.
  *
- * The palette EXECUTES nothing itself — the surface routes the pick: an empty
- * block CONVERTS in place (turn-into), a non-empty one gets the block
- * inserted after it. Same one door, one revision.
+ * v1 lists the PLAIN-INSERT kinds + chart (the generative ask). The cited kinds
+ * (figure/table/gallery) need their pickers and stay in Media ▾ — a palette row
+ * that half-opens a different panel would be worse than absent.
+ *
+ * The palette EXECUTES nothing itself — the surface routes the pick.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import {
+  AlignLeft,
+  BarChart3,
+  CheckSquare,
+  ChevronRight,
+  Code,
+  Heading1,
+  Image as ImageIcon,
+  List,
+  type LucideIcon,
+  Minus,
+  MessageSquareQuote,
+  Quote,
+  Table as TableIcon,
+  Type,
+} from 'lucide-react';
 import type { StudioVocabulary } from './StudioToolbar';
 
 /** Kinds the slash palette offers — everything except the picker-backed ones. */
 const SLASH_EXCLUDED = new Set(['figure', 'table', 'gallery']);
 
+/** kind → glyph. The kernel vocabulary ships no icon field (and shouldn't — an
+ *  icon is presentation), so the mapping lives here. An unmapped kind falls back
+ *  to the generic block glyph rather than rendering a hole. */
+const SLASH_ICONS: Record<string, LucideIcon> = {
+  prose: Type,
+  text: Type,
+  heading: Heading1,
+  callout: MessageSquareQuote,
+  quote: Quote,
+  checklist: CheckSquare,
+  list: List,
+  bullets: List,
+  divider: Minus,
+  toggle: ChevronRight,
+  code: Code,
+  chart: BarChart3,
+  figure: ImageIcon,
+  table: TableIcon,
+};
+const FALLBACK_ICON: LucideIcon = AlignLeft;
+
 interface StudioSlashPaletteProps {
   vocabulary: StudioVocabulary | null;
+  /** The run typed after the '/', mirrored from the in-document caret. */
+  filter: string;
   /** Anchor within the canvas wrapper (already clamped by the surface). */
   left: number;
   top: number;
+  /** Index of the highlighted row — owned by the surface, since the document
+   *  (not this component) has the keyboard while the palette is open. */
+  highlight: number;
+  onHighlight: (i: number) => void;
   onPick: (kind: string, label: string, fragment: string) => void;
   onClose: () => void;
+  /** Reports the filtered rows up so the surface's Enter can pick the
+   *  highlighted one without duplicating the filter logic. */
+  onItemsChange: (items: Array<{ kind: string; label: string; fragment: string }>) => void;
 }
 
 export function StudioSlashPalette({
   vocabulary,
+  filter,
   left,
   top,
+  highlight,
+  onHighlight,
   onPick,
   onClose,
+  onItemsChange,
 }: StudioSlashPaletteProps) {
-  const [filter, setFilter] = useState('');
-  const [highlight, setHighlight] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const items = useMemo(() => {
     const all = (vocabulary?.blocks ?? []).filter((b) => !SLASH_EXCLUDED.has(b.kind));
@@ -54,13 +106,18 @@ export function StudioSlashPalette({
   }, [vocabulary, filter]);
 
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-  useEffect(() => {
-    setHighlight(0);
-  }, [filter]);
+    onItemsChange(items);
+  }, [items, onItemsChange]);
 
-  // Click-away dismisses (the typed '/' never landed — nothing to undo).
+  // A filter that matches nothing is prose, not a gesture — dismiss so a typed
+  // URL ("http://…") never strands a menu over the text.
+  useEffect(() => {
+    if (filter.length > 0 && items.length === 0) onClose();
+  }, [filter, items.length, onClose]);
+
+  // Click-away in the PARENT document (the chrome around the canvas). A click on
+  // the content itself is reported by the runtime — this listener cannot hear it
+  // across the iframe boundary.
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) onClose();
@@ -69,59 +126,41 @@ export function StudioSlashPalette({
     return () => document.removeEventListener('mousedown', onDown);
   }, [onClose]);
 
-  const pick = (i: number) => {
-    const b = items[i];
-    if (b) onPick(b.kind, b.label, b.fragment);
-  };
+  if (items.length === 0) return null;
 
   return (
     <div
       ref={rootRef}
       style={{ left, top }}
-      className="absolute z-30 w-64 rounded-md border border-border bg-background p-1 shadow-lg"
+      className="absolute z-30 w-72 rounded-md border border-border bg-background p-1 shadow-lg"
     >
-      <input
-        ref={inputRef}
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            onClose();
-          } else if (e.key === 'Enter') {
-            e.preventDefault();
-            pick(highlight);
-          } else if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            setHighlight((h) => Math.min(h + 1, items.length - 1));
-          } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            setHighlight((h) => Math.max(h - 1, 0));
-          }
-        }}
-        placeholder="Filter blocks…"
-        className="mb-1 w-full rounded border border-border bg-transparent px-2 py-1 text-xs outline-none"
-      />
-      <div className="max-h-56 overflow-y-auto">
-        {items.length === 0 && (
-          <p className="p-2 text-[11px] text-muted-foreground">No matching block.</p>
-        )}
-        {items.map((b, i) => (
-          <button
-            key={b.kind}
-            type="button"
-            onClick={() => pick(i)}
-            onMouseEnter={() => setHighlight(i)}
-            className={`flex w-full flex-col rounded px-2 py-1.5 text-left ${
-              i === highlight ? 'bg-muted/50' : 'hover:bg-muted/30'
-            }`}
-          >
-            <span className="text-xs">{b.label}</span>
-            <span className="truncate text-[10px] leading-snug text-muted-foreground">
-              {b.description}
-            </span>
-          </button>
-        ))}
+      <div className="max-h-72 overflow-y-auto">
+        {items.map((b, i) => {
+          const Icon = SLASH_ICONS[b.kind] ?? FALLBACK_ICON;
+          return (
+            <button
+              key={b.kind}
+              type="button"
+              // mousedown would fire the runtime's click-away first and close us.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onPick(b.kind, b.label, b.fragment)}
+              onMouseEnter={() => onHighlight(i)}
+              className={`flex w-full items-start gap-2.5 rounded px-2 py-1.5 text-left ${
+                i === highlight ? 'bg-muted/60' : 'hover:bg-muted/30'
+              }`}
+            >
+              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-muted/30">
+                <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-medium">{b.label}</span>
+                <span className="block text-[10px] leading-snug text-muted-foreground">
+                  {b.description}
+                </span>
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

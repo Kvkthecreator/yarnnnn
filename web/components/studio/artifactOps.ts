@@ -520,6 +520,55 @@ export function splitBlock(
   return { html: serialize(doc), landedId: newId };
 }
 
+/** Split a block at the caret and drop a NEW block between the halves — the
+ *  mid-sentence '/' gesture. The block keeps the before-half, the new block
+ *  lands after it, and the after-half follows as a tail block of the same kind
+ *  (a heading's tail continues as prose, matching splitBlock).
+ *
+ *  This is splitBlock + insertBlock as ONE op because it is one gesture: two
+ *  ops would race on the same head (the parent applies both against the same
+ *  expected revision) and the second would lose. Returns the NEW block as the
+ *  landed id — the caret belongs in what the member just asked for.
+ */
+export function splitBlockAndInsert(
+  html: string,
+  blockId: string,
+  beforeInner: string,
+  afterInner: string,
+  fragment: string,
+): OpResult | null {
+  const doc = parse(html);
+  const block = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+  if (!block?.parentElement) return null;
+  const inserted = materializeFragment(doc, fragment);
+  if (!inserted) return null;
+  const kind = block.getAttribute('data-block') || 'prose';
+
+  // The block keeps the before-half; the new block goes directly after it.
+  block.innerHTML = beforeInner;
+  block.insertAdjacentElement('afterend', inserted);
+
+  // The after-half continues below the inserted block, same kind (a heading's
+  // tail becomes prose — a split title continues as body).
+  let tail: Element;
+  if (kind === 'heading' || /^h[1-6]$/i.test(block.tagName)) {
+    tail = doc.createElement('p');
+    tail.setAttribute('data-block', 'prose');
+  } else {
+    tail = block.cloneNode(false) as Element; // shell only (no children)
+    tail.removeAttribute('data-ref'); // never carry a citation ref to the tail
+  }
+  tail.setAttribute('data-block-id', freshBlockId(doc));
+  tail.innerHTML = afterInner;
+  inserted.insertAdjacentElement('afterend', tail);
+
+  // A block emptied by the split carries nothing — drop it rather than leave a
+  // blank line where the member's sentence used to start.
+  if ((beforeInner ?? '').trim() === '') block.remove();
+
+  return { html: serialize(doc), landedId: inserted.getAttribute('data-block-id') };
+}
+
 /** Merge a block into the previous TEXT block (F6 — Backspace at block start):
  *  the previous block's inner gains this block's inner (concatenated), and this
  *  block is removed. The caller passes the previous block's id (the runtime

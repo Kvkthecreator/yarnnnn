@@ -108,9 +108,13 @@ def run() -> bool:
     # "+ Insert" is gone as a GENERAL insert. It survives only as Media: the
     # picker-backed kinds open a file picker, so a located entrance can't serve
     # them — deleting the button outright would strand Image/Table/Gallery.
+    # The glyph is deliberately NOT pinned here: b5495fc moved ▾ → + ("a chevron
+    # promises a menu to pick among; a plus promises a thing appears"). What must
+    # hold is the SEAM — no general Insert, and Media still present as the
+    # picker-backed entrance.
     _check(
         "the general 'Insert' trigger is gone (every ordinary kind is located)",
-        "> Insert <" not in toolbar and "Media <ChevronDown" in toolbar,
+        "> Insert <" not in toolbar and re.search(r"Media <\w+\b", toolbar) is not None,
     )
     _check(
         "the Media panel carries ONLY the picker-backed kinds",

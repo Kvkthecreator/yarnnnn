@@ -813,37 +813,109 @@ const EDIT_SCRIPT = `
     fmtBar.style.top = Math.max(4, rect.top + window.scrollY - 36) + 'px';
   });
 
-  // ── ADR-456 W2: slash-insert ──────────────────────────────────────────
-  // '/' in an EMPTY context (an empty block, or an empty paragraph inside
-  // one) commits + exits the edit and asks the parent to open the block
-  // palette anchored at the block. A literal '/' in flowing text is untouched
-  // (the trigger never fires mid-sentence), so URLs and "and/or" still type.
-  function slashContextEmpty() {
-    if (!editingEl) return false;
-    if ((editingEl.textContent || '').trim() === '') return true;
+  // ── ADR-456 W2: slash-insert (the Notion gesture) ─────────────────────
+  // '/' ANYWHERE opens the block palette — mid-sentence, mid-word, on an empty
+  // line. The character LANDS as ordinary text (we never preventDefault) and
+  // the edit is NOT exited: the caret keeps typing, and what it types after the
+  // '/' is the palette's live filter. That is what makes "and/or" and URLs safe
+  // — the menu opens, matches nothing, and dismisses itself; the text is
+  // untouched either way. On a pick, the parent deletes the '/'+filter run it
+  // was told about (slashStart) and applies the block.
+  //
+  // The pre-2026-07-15 rule fired only in an EMPTY context and swallowed the
+  // key. It stranded text mid-sentence (an operator's '...' outlived the block
+  // it was typed in) and made the gesture unreachable exactly where writing
+  // happens.
+  var slashStart = -1; // caret offset of the '/' within its text node
+  var slashNode = null; // the text node the '/' landed in
+
+  function slashCaret() {
     var sel = window.getSelection();
-    if (!sel || !sel.rangeCount || !sel.isCollapsed) return false;
-    var n = sel.anchorNode;
-    var p = n && n.nodeType === 1 ? n : (n ? n.parentElement : null);
-    while (p && p !== editingEl && !/^(P|LI|H1|H2|H3|H4|SUMMARY|DIV)$/.test(p.tagName)) {
-      p = p.parentElement;
-    }
-    if (!p || p === editingEl) return false;
-    return (p.textContent || '').trim() === '';
+    if (!sel || !sel.rangeCount || !sel.isCollapsed) return null;
+    return sel.getRangeAt(0);
+  }
+
+  // Report the run typed since the '/' so the parent can filter + later delete
+  // it. Returns null when the caret has left the run (→ the palette closes).
+  function slashRun() {
+    if (slashStart < 0 || !slashNode) return null;
+    var caret = slashCaret();
+    if (!caret || caret.startContainer !== slashNode) return null;
+    if (caret.startOffset < slashStart + 1) return null; // caret moved before the '/'
+    var text = slashNode.textContent || '';
+    if (text.charAt(slashStart) !== '/') return null; // the '/' was deleted
+    return text.slice(slashStart + 1, caret.startOffset);
+  }
+
+  function closeSlash() {
+    if (slashStart < 0) return;
+    slashStart = -1;
+    slashNode = null;
+    parent.postMessage({ type: 'yarnnn-slash-close' }, '*');
   }
 
   document.addEventListener('keydown', function (e) {
     if (e.key !== '/' || !editingEl) return;
     if (fmtInput && document.activeElement === fmtInput) return;
-    if (!slashContextEmpty()) return;
-    e.preventDefault();
+    var caret = slashCaret();
+    if (!caret || caret.startContainer.nodeType !== 3) return; // not in a text node
+    if (caretInIsland()) return; // a citation island owns its own text
+    // NO preventDefault + NO exit: the '/' lands and the caret keeps typing.
     var id = editingId;
+    var node = caret.startContainer;
+    var at = caret.startOffset;
     var rect = editingEl.getBoundingClientRect();
     var empty = (editingEl.textContent || '').trim() === '';
-    exit(true); // commits current text + tells the parent editing ended
-    parent.postMessage({ type: 'yarnnn-slash-open', blockId: id, empty: empty,
-      rect: { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width } }, '*');
+    setTimeout(function () {
+      // Post-input: the '/' now sits at offset 'at' in that text node.
+      slashNode = node;
+      slashStart = at;
+      parent.postMessage({ type: 'yarnnn-slash-open', blockId: id, empty: empty,
+        rect: { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width } }, '*');
+    }, 0);
   }, true);
+
+  // While the palette is open the DOCUMENT still has the caret, so the palette's
+  // navigation keys must be intercepted here and forwarded — the palette has no
+  // input to focus (focusing one would end the edit the gesture depends on).
+  // stopImmediatePropagation, not just preventDefault: the Enter-split handler
+  // below is registered on the SAME element in the SAME phase, so preventDefault
+  // alone would still let it run and split the block we are picking into — one
+  // gesture, two ops, racing on one head.
+  document.addEventListener('keydown', function (e) {
+    if (slashStart < 0) return;
+    if (e.key === 'Escape') {
+      e.preventDefault(); e.stopImmediatePropagation();
+      closeSlash();
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault(); e.stopImmediatePropagation();
+      parent.postMessage({ type: 'yarnnn-slash-move', delta: e.key === 'ArrowDown' ? 1 : -1 }, '*');
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault(); e.stopImmediatePropagation();
+      parent.postMessage({ type: 'yarnnn-slash-enter' }, '*');
+      return;
+    }
+  }, true);
+
+  // The filter is typed INTO the document, so the runtime drives it. Every key
+  // that lands while the palette is open re-reports the run; leaving it closes.
+  document.addEventListener('keyup', function () {
+    if (slashStart < 0) return;
+    var run = slashRun();
+    if (run === null) { closeSlash(); return; }
+    // A run that grows a word with a space in it is prose, not a filter.
+    if (run.indexOf(' ') >= 0) { closeSlash(); return; }
+    parent.postMessage({ type: 'yarnnn-slash-filter', filter: run }, '*');
+  }, true);
+
+  // A click anywhere in the CONTENT dismisses. The palette lives in the parent
+  // document, whose mousedown listener never hears this frame — without this
+  // the menu only closed by clicking the thin chrome around the canvas.
+  document.addEventListener('mousedown', function () { closeSlash(); }, true);
 
   // ── ENTER makes a new block (ADR audit F2 — "writing is adding") ───────
   // The core Notion reflex: press Enter, get a fresh block below, keep typing.
@@ -1172,6 +1244,34 @@ const EDIT_SCRIPT = `
     if (!d || typeof d !== 'object') return;
     if (d.type === 'yarnnn-edit-enter' && typeof d.blockId === 'string') enter(d.blockId);
     else if (d.type === 'yarnnn-edit-exit') exit(false);
+    else if (d.type === 'yarnnn-slash-take') {
+      // A pick landed. Delete the '/'+filter run the member typed so the text
+      // the block keeps never contains the gesture, then hand the parent BOTH
+      // halves around the caret — it applies one op from them.
+      //
+      // Why the runtime computes this and not the parent: the run is a live-DOM
+      // fact (which text node, which offset) that the source HTML cannot name.
+      // We exit SILENT — the parent's op carries the whole result, and a commit
+      // of our own would race it on the same head (the one-gesture-two-ops trap).
+      if (slashStart < 0 || !slashNode || !editingEl) return;
+      var text = slashNode.textContent || '';
+      var end = slashStart + 1 + (typeof d.filterLen === 'number' ? d.filterLen : 0);
+      slashNode.textContent = text.slice(0, slashStart) + text.slice(end);
+      // Put the caret where the '/' was: the split point.
+      try {
+        var r = document.createRange();
+        r.setStart(slashNode, slashStart); r.collapse(true);
+        var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      } catch (err) {}
+      var halves = splitHalves(); // null inside an island → parent falls back
+      var id = editingId;
+      slashStart = -1;
+      slashNode = null;
+      exit(false, true); // silent — the parent's op is the sole writer
+      parent.postMessage({ type: 'yarnnn-slash-taken', blockId: id,
+        beforeInner: halves ? halves.before : null,
+        afterInner: halves ? halves.after : null }, '*');
+    }
   });
 
   // Expose to the pointer runtime so it can suppress its click-to-select while

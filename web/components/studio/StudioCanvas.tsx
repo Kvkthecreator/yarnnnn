@@ -100,6 +100,29 @@ interface StudioCanvasProps {
     empty: boolean,
     rect: { left: number; top: number; bottom: number; width: number },
   ) => void;
+  /** The '/' filter is typed INTO the document (the caret never leaves), so the
+   *  runtime reports the run after it — the palette's input is a mirror. */
+  onSlashFilter?: (filter: string) => void;
+  /** The caret left the run, the '/' was deleted, or the content was clicked.
+   *  The palette's own document-mousedown cannot hear a click in this frame. */
+  onSlashClose?: () => void;
+  /** ↑/↓ while the palette is open — the document has the caret, so the runtime
+   *  intercepts the key and the surface moves the highlight. */
+  onSlashMove?: (delta: number) => void;
+  /** Enter while the palette is open — pick the highlighted row. */
+  onSlashEnter?: () => void;
+  /** A pick was taken: the runtime removed the '/'+filter run and returns the
+   *  halves around it (null when the caret sat inside a citation island). */
+  onSlashTaken?: (
+    blockId: string,
+    beforeInner: string | null,
+    afterInner: string | null,
+  ) => void;
+  /** Commands the runtime to consume the '/'+filter run (a pick landed). The
+   *  nonce fires the same take twice when the member repeats the gesture. Only
+   *  the runtime knows which text node holds the run, so it does the deleting
+   *  and answers with onSlashTaken. */
+  slashTake?: { filterLen: number; nonce: number } | null;
   /** ADR-447: scroll the canvas to this slide (the navigator selected it). A
    *  monotonic nonce forces the scroll even when re-selecting the same slide. */
   scrollToSlide?: { index: number; nonce: number } | null;
@@ -133,7 +156,13 @@ export function StudioCanvas({
   onMergeBlock,
   onAddHere,
   onSlashOpen,
+  onSlashFilter,
+  onSlashClose,
+  onSlashMove,
+  onSlashEnter,
+  onSlashTaken,
   scrollToSlide,
+  slashTake,
   scrollToBlock,
   zoom = 1,
 }: StudioCanvasProps) {
@@ -251,6 +280,14 @@ export function StudioCanvas({
     win.postMessage({ type: 'yarnnn-scroll-to-slide', index: scrollToSlide.index }, '*');
   }, [scrollToSlide]);
 
+  // A slash pick landed: tell the runtime to consume the '/'+filter run and
+  // report the halves around it (only it can see which text node holds them).
+  useEffect(() => {
+    const win = iframeRef.current?.contentWindow;
+    if (!win || !slashTake) return;
+    win.postMessage({ type: 'yarnnn-slash-take', filterLen: slashTake.filterLen }, '*');
+  }, [slashTake]);
+
   // ADR-455: when the outline selects a heading, scroll the canvas to it.
   useEffect(() => {
     const win = iframeRef.current?.contentWindow;
@@ -325,11 +362,25 @@ export function StudioCanvas({
           bottom: Number(d.rect.bottom) || 0,
           width: Number(d.rect.width) || 0,
         });
+      } else if (d.type === 'yarnnn-slash-filter' && typeof d.filter === 'string') {
+        onSlashFilter?.(d.filter);
+      } else if (d.type === 'yarnnn-slash-close') {
+        onSlashClose?.();
+      } else if (d.type === 'yarnnn-slash-move' && typeof d.delta === 'number') {
+        onSlashMove?.(d.delta);
+      } else if (d.type === 'yarnnn-slash-enter') {
+        onSlashEnter?.();
+      } else if (d.type === 'yarnnn-slash-taken' && typeof d.blockId === 'string') {
+        onSlashTaken?.(
+          d.blockId,
+          typeof d.beforeInner === 'string' ? d.beforeInner : null,
+          typeof d.afterInner === 'string' ? d.afterInner : null,
+        );
       }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [onPoint, onPointClear, onEdit, onEditExited, onEditEntered, onEnterBlock, onReorder, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen]);
+  }, [onPoint, onPointClear, onEdit, onEditExited, onEditEntered, onEnterBlock, onReorder, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen, onSlashFilter, onSlashClose, onSlashMove, onSlashEnter, onSlashTaken]);
 
   return (
     <iframe

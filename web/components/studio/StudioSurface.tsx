@@ -61,6 +61,7 @@ import {
   moveBlockTo,
   movePage,
   splitBlock,
+  splitBlockAndInsert,
   removePageBackground,
   removeSkin,
   retrofitKernel,
@@ -854,53 +855,126 @@ export function StudioSurface() {
   );
 
   // ── ADR-456 W2: slash-insert + turn-into ─────────────────────────────────
-  // The edit runtime commits + exits on '/' in an empty context, then reports
-  // the block's rect; the palette renders in the canvas wrapper (the iframe
-  // fills it, so frame-viewport coordinates ≈ wrapper coordinates, clamped).
+  // The '/' lands as text and the caret keeps typing — the runtime mirrors the
+  // run after it as this palette's filter (the palette has no input of its own;
+  // focusing one would end the edit the gesture depends on). The palette renders
+  // in the canvas wrapper (the iframe fills it, so frame-viewport coordinates ≈
+  // wrapper coordinates, clamped).
   const canvasWrapRef = useRef<HTMLDivElement>(null);
   const [slash, setSlash] = useState<{
     blockId: string;
     empty: boolean;
     left: number;
     top: number;
+    filter: string;
+    highlight: number;
   } | null>(null);
+  // The rows the palette is currently showing — the surface needs them because
+  // the DOCUMENT owns the keyboard, so Enter/↑/↓ are handled here, not there.
+  const slashItemsRef = useRef<Array<{ kind: string; label: string; fragment: string }>>([]);
+  const onSlashItemsChange = useCallback(
+    (items: Array<{ kind: string; label: string; fragment: string }>) => {
+      slashItemsRef.current = items;
+    },
+    [],
+  );
   const onSlashOpen = useCallback(
     (blockId: string, empty: boolean, rect: { left: number; top: number; bottom: number }) => {
       const wrap = canvasWrapRef.current;
-      const maxLeft = Math.max(8, (wrap?.clientWidth ?? 640) - 272);
-      const maxTop = Math.max(8, (wrap?.clientHeight ?? 480) - 300);
+      const maxLeft = Math.max(8, (wrap?.clientWidth ?? 640) - 296);
+      const maxTop = Math.max(8, (wrap?.clientHeight ?? 480) - 320);
       setSlash({
         blockId,
         empty,
         left: Math.max(8, Math.min(rect.left, maxLeft)),
         top: Math.max(8, Math.min(rect.bottom + 6, maxTop)),
+        filter: '',
+        highlight: 0,
       });
     },
     [],
   );
+  const onSlashFilter = useCallback((filter: string) => {
+    setSlash((s) => (s ? { ...s, filter, highlight: 0 } : s));
+  }, []);
+  const onSlashClose = useCallback(() => setSlash(null), []);
+  const onSlashHighlight = useCallback((i: number) => {
+    setSlash((s) => (s ? { ...s, highlight: i } : s));
+  }, []);
+  const onSlashMove = useCallback((delta: number) => {
+    setSlash((s) => {
+      if (!s) return s;
+      const n = slashItemsRef.current.length;
+      if (n === 0) return s;
+      return { ...s, highlight: Math.min(Math.max(s.highlight + delta, 0), n - 1) };
+    });
+  }, []);
+
+  // The pick is a TWO-STEP handshake: tell the runtime to delete the '/'+filter
+  // run (only it knows which text node holds it) and hand back the halves around
+  // the caret; the op then lands from `onSlashTaken`. The pending pick parks here
+  // between the two — one gesture, ONE op (a commit of our own would race it on
+  // the same head).
+  const pendingPick = useRef<{ kind: string; label: string; fragment: string; empty: boolean } | null>(
+    null,
+  );
+  const [slashTake, setSlashTake] = useState<{ filterLen: number; nonce: number } | null>(null);
+  const slashNonce = useRef(0);
   const onSlashPick = useCallback(
     (kind: string, label: string, fragment: string) => {
       const s = slash;
       setSlash(null);
       if (!s) return;
-      if (kind === 'chart') {
-        seedComposer('Create an SVG chart at ./assets/chart.svg, cite it in the document, showing: ');
+      pendingPick.current = { kind, label, fragment, empty: s.empty };
+      slashNonce.current += 1;
+      setSlashTake({ filterLen: s.filter.length, nonce: slashNonce.current });
+    },
+    [slash],
+  );
+  // Enter picks the highlighted row. The runtime intercepted the key (the
+  // document owns the caret) and stopped it reaching the Enter-split handler.
+  const onSlashEnter = useCallback(() => {
+    const s = slash;
+    if (!s) return;
+    const item = slashItemsRef.current[s.highlight];
+    if (item) onSlashPick(item.kind, item.label, item.fragment);
+  }, [slash, onSlashPick]);
+  const onSlashTaken = useCallback(
+    (blockId: string, beforeInner: string | null, afterInner: string | null) => {
+      const p = pendingPick.current;
+      pendingPick.current = null;
+      if (!p) return;
+      if (p.kind === 'chart') {
+        seedComposer(
+          'Create an SVG chart at ./assets/chart.svg, cite it in the document, showing: ',
+        );
         return;
       }
-      if (s.empty) {
-        // An empty block CONVERTS in place — the Notion "empty line + /" gesture.
+      // An empty block CONVERTS in place — the Notion "empty line + /" gesture.
+      if (p.empty) {
         void applyOp(
-          (html) => convertBlock(html, s.blockId, kind, fragment),
-          `Studio: turn block into ${label}`,
+          (html) => convertBlock(html, blockId, p.kind, p.fragment),
+          `Studio: turn block into ${p.label}`,
         );
-      } else {
-        void applyOp(
-          (html) => insertBlock(html, fragment, { blockId: s.blockId }),
-          `Studio: add ${label} block`,
-        );
+        return;
       }
+      // MID-TEXT: split at the '/' and put the new block between the halves, so
+      // the sentence the member was writing keeps its tail. When the halves are
+      // uncomputable (a citation island) fall back to insert-after — the text is
+      // never lost, the block just lands below.
+      if (beforeInner !== null && afterInner !== null && afterInner.trim() !== '') {
+        void applyOp(
+          (html) => splitBlockAndInsert(html, blockId, beforeInner, afterInner, p.fragment),
+          `Studio: add ${p.label} block`,
+        );
+        return;
+      }
+      void applyOp(
+        (html) => insertBlock(html, p.fragment, { blockId }),
+        `Studio: add ${p.label} block`,
+      );
     },
-    [slash, applyOp, seedComposer],
+    [applyOp, seedComposer],
   );
   // ADR-456 W3: the page background — a cited image on the page element.
   const handleSetPageBackground = useCallback(
@@ -1266,6 +1340,12 @@ export function StudioSurface() {
                 onMergeBlock={handleMergeBlock}
                 onAddHere={onAddHere}
                 onSlashOpen={onSlashOpen}
+                onSlashFilter={onSlashFilter}
+                onSlashClose={onSlashClose}
+                onSlashMove={onSlashMove}
+                onSlashEnter={onSlashEnter}
+                onSlashTaken={onSlashTaken}
+                slashTake={slashTake}
                 scrollToSlide={scrollToSlide}
                 scrollToBlock={scrollToBlock}
                 zoom={zoom}
@@ -1273,10 +1353,14 @@ export function StudioSurface() {
               {slash && (
                 <StudioSlashPalette
                   vocabulary={vocabulary}
+                  filter={slash.filter}
                   left={slash.left}
                   top={slash.top}
+                  highlight={slash.highlight}
+                  onHighlight={onSlashHighlight}
+                  onItemsChange={onSlashItemsChange}
                   onPick={onSlashPick}
-                  onClose={() => setSlash(null)}
+                  onClose={onSlashClose}
                 />
               )}
             </div>
