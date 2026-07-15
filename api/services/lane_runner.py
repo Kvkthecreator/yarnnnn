@@ -63,7 +63,11 @@ LANE_MODELS: dict[str, dict[str, str]] = {
 }
 
 _LANE_MAX_ROUNDS = 8       # cost ceiling, not behavior (ADR-402 posture)
-_LANE_MAX_TOKENS = 2048
+#: The think profile (Phase-A chassis item 1, ADR-457 D6 as amended 2026-07-15).
+#: 2048 was a hands-profile that truncated thinking answers. Held below the
+#: 8192 authoring profile (ADR-440 D3: authoring > chat, gate-asserted); raise
+#: further against felt truncation, not speculation.
+_LANE_MAX_TOKENS = 4096
 _LANE_TIMEOUT_S = 120.0
 
 

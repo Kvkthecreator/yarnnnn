@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.15.1] - Lane think profile: response ceiling 2048 → 4096 (Phase-A chassis item 1)
+
+- `services/lane_runner.py::_LANE_MAX_TOKENS` — 2048 → 4096. Unbound (plain chat) lanes only;
+  bound/derive lanes keep the 8192 authoring profile (`_studio_max_tokens()`), preserving the
+  ADR-440 authoring > chat ordering. Rounds stay 8 (cost ceiling — tokens were the quality
+  lever). Canon: ADR-457 D6 as amended 2026-07-15 ("catch up to the bar") +
+  `docs/analysis/chat-think-three-axes-discourse-2026-07-15.md` §9.
+- Expected behavior change: thinking-length lane replies (research syntheses, weighing) stop
+  truncating mid-answer at ~1,500 words; per-turn output cost ceiling doubles accordingly
+  (metered per ADR-396, unchanged).
+
 ## [2026.07.14.2] - Studio posture + design-system recipe: the Wave-3 builder look (ADR-456)
 
 - `services/studio.py` — the fourth layout **`page`** (landing: hero/content/feature-grid/testimonial/cta/footer bands — all registry rows, reaching the posture via the derived grammars) + two token families (`data-scrim="dark|light"` + `data-bg-pos="top|bottom"`, gated to pages carrying a cited background). The posture's citing section gains the **cited background** rule: a page/section wears `data-ref` + `data-ref-kind="background"` (+ pin) on the page element itself; pair with the scrim/focus tokens; never inline `style` backgrounds — the citation IS the background. Kernel CSS bumps to **v4** (background/scrim interpretation, the generic non-slide `.cols` that makes document/article/page multi-column bands real, page-band accents, `--radius` adoption).

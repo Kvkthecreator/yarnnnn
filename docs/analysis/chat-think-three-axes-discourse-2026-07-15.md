@@ -162,10 +162,12 @@ QueryKnowledge/recall, no web); `_LANE_MAX_TOKENS = 2048` / `_LANE_MAX_ROUNDS = 
 get the 8192 authoring profile via `_studio_max_tokens()`; `LANE_MODELS` = 7 rows across 4
 providers.
 
-1. **Response ceiling** — ✅ **landed this pass**: `_LANE_MAX_TOKENS` 2048 → **4096** (the think
-   profile). 4096 preserves the ADR-440 "authoring profile (8192) > chat profile" ordering
-   asserted by `test_adr440_studio.py`; revisit upward against felt truncation, not speculation.
-   Rounds stay 8 (a cost ceiling — tokens were the quality lever, not rounds).
+1. **Response ceiling** — **open** (attempted 2026-07-15: applied + gate-passed, then reverted
+   in the shared working tree before commit; the tree stands at 2048 — re-apply only in a
+   coordinated pass). The standing recommendation: 2048 → **4096** (the think profile) — 4096
+   preserves the ADR-440 "authoring profile (8192) > chat profile" ordering asserted by
+   `test_adr440_studio.py`; revisit upward against felt truncation, not speculation. Rounds stay
+   8 (a cost ceiling — tokens were the quality lever, not rounds).
 2. **Turn controls** — stop generation, regenerate, edit-and-resend, copy. Stop requires the
    stream abort path; regenerate/edit are tail operations on `session_messages`.
 3. **Attachments** — **two items wearing one name**: (a) document attachments ride the built
