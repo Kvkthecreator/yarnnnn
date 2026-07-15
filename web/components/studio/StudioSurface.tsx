@@ -62,6 +62,7 @@ import {
   splitBlock,
   removePageBackground,
   removeSkin,
+  retrofitKernel,
   setPageBackground,
   setToken,
   type OpResult,
@@ -268,6 +269,11 @@ export function StudioSurface() {
       : null;
   }, [file]);
 
+  // Read through a ref for the same reason as liveRef: the write queue runs
+  // async, so a render closure could hand it a stale (or not-yet-loaded)
+  // vocabulary. Populated by the effect below, once the vocabulary lands.
+  const kernelStyleRef = useRef<string | undefined>(undefined);
+
   // A path change or a foreign reload (reloadKey bump) starts fresh — drop any
   // override so it can't shadow the authoritative reload.
   useEffect(() => {
@@ -428,8 +434,14 @@ export function StudioSurface() {
         const baseHead = live ? live.head : null;
         // Recompute against the LIVE content so an op that queued behind
         // another applies to that op's result, not to a stale render.
-        const html = compute(live?.content ?? '');
-        if (html == null) return false; // the op no-ops against live state
+        const computed = compute(live?.content ?? '');
+        if (computed == null) return false; // the op no-ops against live state
+        // ADR-453 D2: the kernel element retrofits on first touch. Applied HERE,
+        // at the one member write door, rather than op-by-op — only 5 of 21 ops
+        // threaded it through, so every other write left an old artifact stale.
+        // A no-op when the artifact is already current (byte-identical), so it
+        // never turns a no-op edit into a revision.
+        const html = retrofitKernel(computed, kernelStyleRef.current);
         try {
           const res = await api.studio.writeArtifact(artifactPath, html, baseHead, message);
           // Advance the CAS base BOTH synchronously (liveRef — the next queued
@@ -498,6 +510,10 @@ export function StudioSurface() {
     [selection],
   );
   const kernelStyle = vocabulary?.kernel_style_element;
+  // Mirror into the ref the async write queue reads (see kernelStyleRef).
+  useEffect(() => {
+    kernelStyleRef.current = kernelStyle;
+  }, [kernelStyle]);
 
   const handleInsertBlock = useCallback(
     (fragment: string, label: string) =>
@@ -534,28 +550,28 @@ export function StudioSurface() {
   const handleAddArrangement = useCallback(
     (fragment: string, label: string) =>
       applyOp(
-        (html) => insertArrangement(html, fragment, anchor, kernelStyle),
+        (html) => insertArrangement(html, fragment, anchor),
         `Studio: add ${label}`,
       ),
-    [applyOp, anchor, kernelStyle],
+    [applyOp, anchor],
   );
   const handleApplyArrangement = useCallback(
     (fragment: string, label: string) =>
       applyOp(
-        (html) => applyArrangement(html, fragment, anchor, kernelStyle),
+        (html) => applyArrangement(html, fragment, anchor),
         `Studio: change arrangement to ${label}`,
       ),
-    [applyOp, anchor, kernelStyle],
+    [applyOp, anchor],
   );
 
   // ── ADR-453: the property layer + the structural verbs (Design tab) ──────
   const handleSetToken = useCallback(
     (grain: 'block' | 'page' | 'document', key: string, value: string | null) =>
       applyOp(
-        (html) => setToken(html, { grain, anchor }, key, value, kernelStyle),
+        (html) => setToken(html, { grain, anchor }, key, value),
         value == null ? `Studio: clear ${key}` : `Studio: set ${key} to ${value}`,
       ),
-    [applyOp, anchor, kernelStyle],
+    [applyOp, anchor],
   );
   const handleBlockVerb = useCallback(
     (verb: StructVerb) => {
@@ -788,10 +804,10 @@ export function StudioSurface() {
   const handleSetPageBackground = useCallback(
     (path: string) =>
       applyOp(
-        (html) => setPageBackground(html, anchor, relPath(path), kernelStyle),
+        (html) => setPageBackground(html, anchor, relPath(path)),
         `Studio: set page background ${relPath(path)}`,
       ),
-    [applyOp, anchor, kernelStyle],
+    [applyOp, anchor],
   );
   const handleRemovePageBackground = useCallback(
     () => applyOp((html) => removePageBackground(html, anchor), 'Studio: remove page background'),

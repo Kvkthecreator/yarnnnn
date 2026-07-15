@@ -186,7 +186,6 @@ export function insertArrangement(
   html: string,
   fragment: string,
   anchor: OpAnchor,
-  kernelStyleElement?: string,
 ): OpResult | null {
   const doc = parse(html);
   const el = materializeFragment(doc, fragment);
@@ -195,7 +194,6 @@ export function insertArrangement(
   const after = arrangedPageAt(doc, anchor) ?? (pages.length ? pages[pages.length - 1] : null);
   if (after?.parentElement) after.insertAdjacentElement('afterend', el);
   else (doc.querySelector('main') ?? doc.querySelector('article') ?? doc.body).appendChild(el);
-  ensureKernelStyle(doc, kernelStyleElement); // fragments may carry tokens (ADR-453)
   return { html: serialize(doc), landedId: el.getAttribute('data-arrange') };
 }
 
@@ -349,6 +347,36 @@ function ensureKernelStyle(doc: Document, kernelStyleElement: string | undefined
   else head.appendChild(doc.importNode(fresh, true));
 }
 
+/** Upsert the kernel style element into an artifact's html, standalone.
+ *
+ *  ADR-453 D2 promises the marked kernel element "retrofits into existing
+ *  artifacts on first touch" — that is what lets a new block kind or
+ *  arrangement light up in an OLD artifact. But only a handful of ops passed
+ *  `kernelStyleElement` through, so the promise held for those paths and
+ *  silently failed for every other write (insert a block, type in one, split,
+ *  move, delete): an artifact could sit at an old version indefinitely.
+ *
+ *  This is benign only while kernel CSS is strictly ADDITIVE — a v3 artifact
+ *  lacks only rules it never invokes. It becomes a real defect the first time a
+ *  version CHANGES or REMOVES a rule an old artifact depends on, and the failure
+ *  is silent (a token renders wrong; nothing errors).
+ *
+ *  So the retrofit is applied ONCE at the member write door rather than
+ *  op-by-op — every mechanical write upgrades, none can forget. Returns the html
+ *  unchanged (byte-identical) when the artifact is already current, so it never
+ *  manufactures a revision on its own. */
+export function retrofitKernel(html: string, kernelStyleElement: string | undefined): string {
+  if (!kernelStyleElement) return html;
+  const doc = parse(html);
+  const head = doc.querySelector('head');
+  if (!head) return html; // not a full document — leave it alone
+  const before = head.querySelector('style[data-kernel]')?.outerHTML ?? '';
+  ensureKernelStyle(doc, kernelStyleElement);
+  const after = head.querySelector('style[data-kernel]')?.outerHTML ?? '';
+  if (before === after) return html; // already current — byte-identical, no churn
+  return serialize(doc);
+}
+
 /** Set (value) or clear (null) a property token on the selected block, page,
  *  or the artifact ROOT (ADR-453 D1; document grain ADR-455). Absence is the
  *  default — the default value is never written. A byte-identical set is a
@@ -358,7 +386,6 @@ export function setToken(
   target: { grain: 'block' | 'page' | 'document'; anchor: OpAnchor },
   key: string,
   value: string | null,
-  kernelStyleElement?: string,
 ): OpResult | null {
   if (!/^[a-z-]+$/.test(key)) return null; // token keys are kernel-named
   const doc = parse(html);
@@ -374,7 +401,6 @@ export function setToken(
   if ((current ?? null) === (value ?? null)) return null; // no-op — no revision
   if (value == null) el.removeAttribute(attr);
   else el.setAttribute(attr, value);
-  ensureKernelStyle(doc, kernelStyleElement);
   return { html: serialize(doc), landedId: el.getAttribute('data-block-id') };
 }
 
@@ -521,7 +547,6 @@ export function setPageBackground(
   html: string,
   anchor: OpAnchor,
   path: string,
-  kernelStyleElement?: string,
 ): OpResult | null {
   const doc = parse(html);
   const page = arrangedPageAt(doc, anchor);
@@ -529,7 +554,6 @@ export function setPageBackground(
   page.setAttribute('data-ref', path);
   page.setAttribute('data-ref-kind', 'background');
   page.setAttribute('data-ref-rev', '');
-  ensureKernelStyle(doc, kernelStyleElement); // the bg/scrim rules live in v4
   return { html: serialize(doc), landedId: page.getAttribute('data-arrange') };
 }
 
@@ -615,14 +639,12 @@ export function applyArrangement(
   html: string,
   fragment: string,
   anchor: OpAnchor,
-  kernelStyleElement?: string,
 ): OpResult | null {
   const doc = parse(html);
   const page = arrangedPageAt(doc, anchor);
   if (!page) return null;
   const el = materializeFragment(doc, fragment);
   if (!el) return null;
-  ensureKernelStyle(doc, kernelStyleElement); // fragments may carry tokens (ADR-453)
   // Reflow moves CONTENT blocks into the new arrangement; heading blocks
   // (title/kicker/subtitle) belong to the page's own structure and the new
   // arrangement brings its own — so they are NOT swept (ADR-446: headings are

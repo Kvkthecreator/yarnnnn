@@ -110,7 +110,7 @@ def run() -> bool:
     )
     _check(
         "every op RECOMPUTES against live html (queued ops apply to the prior result)",
-        "const html = compute(live?.content ?? '');" in surface,
+        "const computed = compute(live?.content ?? '');" in surface,
     )
     _check(
         "a foreign (lane) write still reloads (onArtifactWrite bumps reloadKey)",
