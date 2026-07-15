@@ -137,6 +137,36 @@ def run() -> bool:
         "the pick itself writes NOTHING (one gesture, one op — the take answers)",
         "applyOp" not in pick_body,
     )
+
+    # ── the click-pick race (fixed 2026-07-15) ──────────────────────────────
+    # The palette rendered and highlighted, but CLICKING a row inserted nothing
+    # (the keyboard path worked — the tell). The runtime's in-frame mousedown
+    # dismissal fires in the CAPTURE phase on the very press that IS the pick,
+    # and it used to null the anchor on both sides before the click resolved:
+    #   runtime: closeSlash() → slashStart=-1 → the take guard bails, SILENT
+    #   parent:  yarnnn-slash-close → setSlash(null) → `if (!s) return` swallows
+    # Both nulling paths are asserted dead here. A grep for the identifiers
+    # (above) passes on the broken code — these two are what actually bite.
+    _check(
+        "the pick survives the close that RACES it (reads the ref, not just state)",
+        "lastSlashRef" in pick_body,
+    )
+    press = re.search(
+        r"document\.addEventListener\('mousedown', function \(\) \{([\s\S]*?)\}, true\);",
+        proj,
+    )
+    press_body = press.group(1) if press else ""
+    _check("the runtime's in-frame mousedown dismissal is findable", bool(press))
+    _check(
+        "a pointer press HIDES the palette without forgetting the run",
+        "hideSlash()" in press_body and "closeSlash()" not in press_body,
+    )
+    hide = re.search(r"function hideSlash\(\) \{([\s\S]*?)\n  \}", proj)
+    hide_body = hide.group(1) if hide else ""
+    _check(
+        "hideSlash posts the close but keeps the anchor (the take re-validates)",
+        bool(hide) and "yarnnn-slash-close" in hide_body and "slashStart = -1" not in hide_body,
+    )
     _check(
         "a MID-TEXT pick SPLITS (the sentence keeps its tail)",
         "splitBlockAndInsert" in taken_body,

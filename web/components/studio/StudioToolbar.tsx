@@ -130,6 +130,9 @@ export function StudioToolbar({
   // The gallery picker's multi-select (ADR-456 W1) — N cited images, ONE block.
   const [galleryPick, setGalleryPick] = useState<string[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
+  // The trigger cluster (buttons + their panels) — the click-away boundary.
+  // Deliberately NOT rootRef, which spans the row's full flex-1 width.
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const openPicker = (panel: 'image' | 'table' | 'gallery') => {
     setOpen(panel);
@@ -144,13 +147,37 @@ export function StudioToolbar({
     }
   };
 
+  // Click-away + Escape. Two things this must get right, both learned the hard
+  // way (2026-07-15):
+  //
+  // 1. The listener anchors on `menuRef` (the trigger + its panel), NOT on the
+  //    whole toolbar row. `rootRef` is `flex-1`, so it spans the wide empty
+  //    stretch between the crumb and the zoom — clicking that apparently-blank
+  //    toolbar counted as "inside" and the panel never closed.
+  // 2. The canvas is an IFRAME: a mousedown on the document never reaches this
+  //    listener (the same boundary StudioSlashPalette documents). The canvas
+  //    bridges its in-frame presses out as `yarnnn-canvas-press`, so clicking
+  //    the artifact — the most natural "click outside" — closes the panel too.
   useEffect(() => {
     if (!open) return;
+    const close = () => setOpen(null);
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(null);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) close();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    const onFrame = (e: MessageEvent) => {
+      if ((e.data as { type?: string } | null)?.type === 'yarnnn-canvas-press') close();
     };
     document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('message', onFrame);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('message', onFrame);
+    };
   }, [open]);
 
   const blocks = vocabulary?.blocks ?? [];
@@ -197,17 +224,22 @@ export function StudioToolbar({
   // label is its meaning: it never wraps. The row scrolls instead (see the root).
   const btn =
     'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-40';
+  // Anchored to the TRIGGER CLUSTER (menuRef), not the row: `left-2` against a
+  // flex-1 row put both panels at the row's left edge regardless of which button
+  // opened them. `z-30` matches the sibling Studio popovers (StudioNewMenu,
+  // StudioSlashPalette) — `z-20` lost to them.
   const panel =
-    'absolute left-2 top-full z-20 mt-1 max-h-72 w-80 overflow-y-auto rounded-md border border-border bg-background p-1 shadow-md';
+    'absolute left-0 top-full z-30 mt-1 max-h-72 w-80 overflow-y-auto rounded-md border border-border bg-background p-1 shadow-md';
 
   return (
     // NOTE: this row must NOT become a scroll container (`overflow-x-auto`) —
-    // the dropdown panels are positioned `absolute top-full` against it, so any
-    // overflow clipping would cut them off below the row. The controls simply
-    // never shrink (`btn` carries shrink-0 + whitespace-nowrap); the row's own
-    // parent gives it the width, and the selection chip (`min-w-0` + truncate)
-    // is the elastic part that yields first.
-    <div ref={rootRef} className="relative flex items-center gap-1 border-b border-border px-2 py-1.5">
+    // the dropdown panels are positioned `absolute top-full`, so any overflow
+    // clipping would cut them off below the row. `min-w-0` lets the row yield
+    // width to its shrink-0 neighbours (the zoom cluster) instead of painting
+    // over them — it was the deleted selection chip that used to be the elastic
+    // element, and without a replacement the buttons overflowed onto the zoom.
+    <div ref={rootRef} className="relative flex min-w-0 items-center gap-1 border-b border-border px-2 py-1.5">
+      <div ref={menuRef} className="relative flex min-w-0 items-center gap-1">
       {/* "+ Insert" is GONE as a general insert (2026-07-15) — it was the one
           affordance with no LOCATION, falling back to the last block the caret
           touched or the document end, so where a block landed was effectively
@@ -374,6 +406,7 @@ export function StudioToolbar({
             })}
         </div>
       )}
+      </div>
     </div>
   );
 }

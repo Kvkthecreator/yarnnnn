@@ -847,6 +847,20 @@ const EDIT_SCRIPT = `
     return text.slice(slashStart + 1, caret.startOffset);
   }
 
+  // Hide the palette but KEEP the anchor (slashStart/slashNode). Dismissing is
+  // a UI fact; the run is a DOM fact, and the two are not the same event. The
+  // take (yarnnn-slash-take) re-validates the run against the live DOM anyway
+  // — slashRun() already returns null when the '/' was deleted or the caret
+  // walked off — so holding the anchor through a dismiss is safe, and dropping
+  // it is what made a click-pick a silent no-op (see the mousedown below).
+  function hideSlash() {
+    if (slashStart < 0) return;
+    parent.postMessage({ type: 'yarnnn-slash-close' }, '*');
+  }
+
+  // Hide AND forget. Only for the paths where the run itself is genuinely gone
+  // (the '/' deleted, a space typed, the caret moved away) — never for a mere
+  // pointer press, which may BE the pick.
   function closeSlash() {
     if (slashStart < 0) return;
     slashStart = -1;
@@ -915,7 +929,21 @@ const EDIT_SCRIPT = `
   // A click anywhere in the CONTENT dismisses. The palette lives in the parent
   // document, whose mousedown listener never hears this frame — without this
   // the menu only closed by clicking the thin chrome around the canvas.
-  document.addEventListener('mousedown', function () { closeSlash(); }, true);
+  //
+  // HIDE, never close: this fires on EVERY pointer press in the frame, in the
+  // capture phase — including the press that IS a palette pick. Forgetting the
+  // anchor here nulled slashStart before the pick's take arrived, so the take
+  // guard bailed and the block silently never landed (the keyboard path worked,
+  // because a keydown fires no mousedown — the tell). The run stays; the take
+  // re-validates it against the live DOM.
+  document.addEventListener('mousedown', function () {
+    hideSlash();
+    // The parent's chrome (the toolbar's Media/New-slide panels) listens on the
+    // PARENT document, which never hears a press inside this frame. Bridge it:
+    // clicking the artifact is the most natural "click outside" for those
+    // panels, and without this they stayed open over the canvas.
+    parent.postMessage({ type: 'yarnnn-canvas-press' }, '*');
+  }, true);
 
   // ── ENTER makes a new block (ADR audit F2 — "writing is adding") ───────
   // The core Notion reflex: press Enter, get a fresh block below, keep typing.

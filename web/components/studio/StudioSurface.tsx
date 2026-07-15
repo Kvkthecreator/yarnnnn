@@ -869,6 +869,17 @@ export function StudioSurface() {
     filter: string;
     highlight: number;
   } | null>(null);
+  // The LAST open run, mirrored into a ref. A pick must survive the close that
+  // races it: the runtime's in-frame mousedown fires (capture phase) on the very
+  // press that IS the pick, posting yarnnn-slash-close → setSlash(null) before
+  // React delivers the click. Reading `slash` from the closure then yields null
+  // and the pick is swallowed. The ref is not cleared by the close, so the pick
+  // still knows which run it belongs to; the runtime re-validates the run
+  // against the live DOM before applying, so a stale ref can't misfire.
+  const lastSlashRef = useRef<{ blockId: string; empty: boolean; filter: string } | null>(null);
+  useEffect(() => {
+    if (slash) lastSlashRef.current = { blockId: slash.blockId, empty: slash.empty, filter: slash.filter };
+  }, [slash]);
   // The rows the palette is currently showing — the surface needs them because
   // the DOCUMENT owns the keyboard, so Enter/↑/↓ are handled here, not there.
   const slashItemsRef = useRef<Array<{ kind: string; label: string; fragment: string }>>([]);
@@ -922,7 +933,9 @@ export function StudioSurface() {
   const slashNonce = useRef(0);
   const onSlashPick = useCallback(
     (kind: string, label: string, fragment: string) => {
-      const s = slash;
+      // The ref, not the state: the close that races this pick has already
+      // nulled `slash` (see lastSlashRef above).
+      const s = slash ?? lastSlashRef.current;
       setSlash(null);
       if (!s) return;
       pendingPick.current = { kind, label, fragment, empty: s.empty };
