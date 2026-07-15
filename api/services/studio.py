@@ -668,12 +668,20 @@ STUDIO_TOKENS: dict[str, dict] = {
     "align": {
         "label": "Align",
         "applies": ["block"],
+        # `start` is GONE (ADR-461 B1, 2026-07-15): it was declared here but no
+        # `[data-align="start"]` rule ever existed in the kernel, so picking
+        # "Left" wrote an attribute that rendered nothing — two UI states, one
+        # visual result, indistinguishable from Auto. Every sibling token
+        # expresses its default by OMISSION + an "absence = …" description
+        # (pad, valign, fit, ratio, measure…); align alone declared it. The
+        # convention is the siblings'. This matters beyond the bug: ADR-461 D1's
+        # `Position: Inline` IS an absence-default (position: static), so this
+        # row is the pattern it would have copied.
         "values": [
-            {"value": "start", "label": "Left"},
             {"value": "center", "label": "Center"},
             {"value": "end", "label": "Right"},
         ],
-        "description": "content alignment within the block's region",
+        "description": "content alignment within the block's region (absence = left)",
     },
     "tone": {
         "label": "Tone",
@@ -889,9 +897,18 @@ html[data-font="serif"] body { font-family: Georgia, 'Times New Roman', serif; }
 html[data-font="sans"] body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
 html[data-font="mono"] body { font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
 html[data-measure="wide"] main, html[data-measure="wide"] article { max-width: 64rem; }
+/* The slide IS the frame (ADR-461 D3/D4). `position: relative` makes it the
+   containing block, so anything positioned inside a slide resolves against the
+   16:9 stage rather than the viewport. Unconditional and kernel-owned:
+   `html[data-pagenum="on"] .slide` below used to be the ONLY rule that made a
+   slide positioned, which meant the frame existed only when slide numbers were
+   switched on — a silent, state-dependent difference, the exact class of the
+   `:not(.slide)` bug (8bc5384). ADR-461's premise is "a slide has a frame"; in
+   CSS that is this line, and it must not be conditional on an unrelated token. */
+.slide { position: relative; }
 /* Slide numbers (ADR-456 W1) — CSS counters, opt-in on the deck root. */
 html[data-pagenum="on"] body { counter-reset: slide; }
-html[data-pagenum="on"] .slide { counter-increment: slide; position: relative; }
+html[data-pagenum="on"] .slide { counter-increment: slide; }
 html[data-pagenum="on"] .slide::after { content: counter(slide); position: absolute;
   right: 1.25rem; bottom: 0.9rem; font-size: 0.7rem; color: var(--muted, #6b6b6b); }
 /* Responsive stacking (ADR-456 W1): document/article multi-column bands stack
@@ -916,11 +933,17 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 #: v4: Wave-3 (ADR-456) — cited page backgrounds (data-ref-kind="background"
 #:     + scrim/bg-pos), the generic non-slide .cols (document/article
 #:     two-column made real), page-band accents, --radius adoption.
-# v5 (2026-07-15): the .cols carve-out retired — the kernel owns the column band
-# for every layout. A pre-ADR-444 deck's baked skin has no `.slide .cols`, and
-# the kernel's `:not(.slide)` rule excluded it, so its two-column slides stacked
+# v6 (2026-07-15, ADR-461): `.slide { position: relative }` unconditionally —
+# the slide becomes the containing block, so ADR-461's premise ("a slide has a
+# frame") is true in CSS and not merely in prose. It was previously positioned
+# ONLY under html[data-pagenum="on"], i.e. the frame existed only when slide
+# numbers happened to be on.
+#
+# v5: the .cols carve-out retired — the kernel owns the column band for every
+# layout. A pre-ADR-444 deck's baked skin has no `.slide .cols`, and the
+# kernel's `:not(.slide)` rule excluded it, so its two-column slides stacked
 # silently. Bumping the version is what makes the retrofit reach them.
-STUDIO_KERNEL_CSS_VERSION = 5
+STUDIO_KERNEL_CSS_VERSION = 6
 
 
 def compose_kernel_style_element() -> str:

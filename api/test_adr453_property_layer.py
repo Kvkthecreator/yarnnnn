@@ -82,6 +82,28 @@ def run() -> bool:
         "every token family has an interpreting selector",
         all(f"[data-{key}=" in STUDIO_KERNEL_CSS for key in STUDIO_TOKENS),
     )
+    # Per-VALUE coverage (ADR-461 B1, 2026-07-15). The family check above passes
+    # if ONE value renders — which is how `align: start` survived: declared in
+    # the registry, no `[data-align="start"]` rule anywhere, so picking "Left"
+    # wrote an attribute that rendered nothing. Two UI states, one visual
+    # result. A token the Design tab OFFERS must do something when picked; a
+    # default belongs in the ABSENCE of the attribute (the pad/valign/fit
+    # convention), never as a declared-but-inert value.
+    unrendered = {
+        key: [
+            v["value"]
+            for v in t["values"]
+            if f'[data-{key}="{v["value"]}"]' not in STUDIO_KERNEL_CSS
+        ]
+        for key, t in STUDIO_TOKENS.items()
+    }
+    unrendered = {k: v for k, v in unrendered.items() if v}
+    _check(
+        "every OFFERED token value renders (no declared-but-inert values)",
+        not unrendered,
+    )
+    if unrendered:
+        print(f"       ↳ declared but never rendered: {unrendered}")
     _check(
         "tokens theme through custom properties, never raw-only color",
         "var(--accent" in STUDIO_KERNEL_CSS and "var(--ink" in STUDIO_KERNEL_CSS,
