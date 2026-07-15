@@ -85,9 +85,16 @@ function ActionChip({ action }: { action: SurfaceAction }) {
 
 export function GlobalLocatorStrip() {
   const { foregrounded } = useSurfacePreferences();
-  const { getCrumb, getActions } = useWindowCrumbRegistry();
+  const { getCrumb, getActions, isSelfLocated } = useWindowCrumbRegistry();
   const { data: composition } = useComposition();
   const viewport = useViewport();
+
+  // 2026-07-14: a surface that renders its OWN locator in its own chrome row
+  // (Studio's workbench toolbar, Chat's lane headers) suppresses the OS strip —
+  // one "you are here", never two (the native-app pattern; the strip was a
+  // redundant ~28px band above a surface that already names its location).
+  // Declared per-surface via useSelfLocatedSurface (no slug hardcoded here).
+  if (foregrounded && isSelfLocated(foregrounded)) return null;
 
   const title = surfaceTitleFor(composition.surfaces, foregrounded ?? null);
   const isEmpty = !foregrounded;

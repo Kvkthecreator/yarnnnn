@@ -54,6 +54,22 @@ export function useFileLoad(
 
   useEffect(() => {
     let cancelled = false;
+
+    // NO path = nothing to load — not a miss. Callers legitimately render this
+    // hook before a file is chosen (the Studio landing has no artifact; the file
+    // modal opens empty), and they pass '' for it. Fetching that asked the API
+    // for `?path=` and took a 404 on every mount — console noise that looks like
+    // a broken artifact, and a `notFound` that races the real load. Settle to
+    // the idle state instead: no file, not loading, not found=false.
+    if (!path) {
+      setFile(null);
+      setLoading(false);
+      setError(null);
+      setNotFound(false);
+      setHeadRevision(null);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setNotFound(false);

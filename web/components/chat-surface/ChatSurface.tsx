@@ -30,7 +30,7 @@ import { LanePanel } from './LanePanel';
 import { api } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
-import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
+import { useSelfLocatedSurface, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { cn } from '@/lib/utils';
 
 interface LaneInfo {
@@ -129,6 +129,13 @@ export function ChatSurface() {
       ? [{ label: activeLane.name, onClick: () => setParam({ lane: null }) }]
       : [],
   );
+  // 2026-07-14 (operator ruling): Chat renders its OWN locator in-body — the
+  // always-visible lane-list column names "Chat" + every lane (it IS the
+  // navigator), and the conversation header names the active lane + model. So
+  // the OS surface bar suppresses for Chat — one "you are here", never two, and
+  // the ~28px band is reclaimed. (The crumb still registers above so the mobile
+  // WindowFrame / any future consumer has the data; only the OS strip hides.)
+  useSelfLocatedSurface('chat', true);
 
   const createLane = useCallback(async () => {
     const name = newName.trim();

@@ -177,12 +177,23 @@ export function StudioToolbar({
         ? citable?.tables
         : undefined;
 
+  // shrink-0 + whitespace-nowrap: a flex child is shrinkable BY DEFAULT, so
+  // when the row ran out of width (the chat panel open on a narrow viewport)
+  // these triggers compressed below their text and the label wrapped mid-button
+  // — "New / — / slide" stacked three lines tall, buckling the row. A control's
+  // label is its meaning: it never wraps. The row scrolls instead (see the root).
   const btn =
-    'inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-40';
+    'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-40';
   const panel =
     'absolute left-2 top-full z-20 mt-1 max-h-72 w-80 overflow-y-auto rounded-md border border-border bg-background p-1 shadow-md';
 
   return (
+    // NOTE: this row must NOT become a scroll container (`overflow-x-auto`) —
+    // the dropdown panels are positioned `absolute top-full` against it, so any
+    // overflow clipping would cut them off below the row. The controls simply
+    // never shrink (`btn` carries shrink-0 + whitespace-nowrap); the row's own
+    // parent gives it the width, and the selection chip (`min-w-0` + truncate)
+    // is the elastic part that yields first.
     <div ref={rootRef} className="relative flex items-center gap-1 border-b border-border px-2 py-1.5">
       <button type="button" className={btn} onClick={() => setOpen(open === 'insert' ? null : 'insert')}>
         <Plus className="h-3 w-3" /> Insert <ChevronDown className="h-3 w-3" />
