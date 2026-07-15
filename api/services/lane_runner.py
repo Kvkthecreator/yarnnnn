@@ -31,6 +31,7 @@ steward's wake drain.
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import json
 import logging
@@ -485,7 +486,14 @@ async def run_lane_turn(
                 }
             else:
                 try:
-                    result = await execute_primitive(tool_auth, name, tc["arguments"])
+                    # Round-boundary abort discipline (Phase-A stop): a member
+                    # abort cancels the turn at any await — a STARTED primitive
+                    # completes whole (the ledger never holds half a revision).
+                    # The stopped transcript may omit a write that landed; the
+                    # ledger is truth (the no-rewind rule).
+                    result = await asyncio.shield(
+                        execute_primitive(tool_auth, name, tc["arguments"])
+                    )
                 except Exception as exc:
                     result = {"success": False, "error": "tool_raised", "message": str(exc)}
             produced = artifact_path_from(name, result)
@@ -660,7 +668,14 @@ async def run_lane_turn_stream(
                 }
             else:
                 try:
-                    result = await execute_primitive(tool_auth, name, tc["arguments"])
+                    # Round-boundary abort discipline (Phase-A stop): a member
+                    # abort cancels the turn at any await — a STARTED primitive
+                    # completes whole (the ledger never holds half a revision).
+                    # The stopped transcript may omit a write that landed; the
+                    # ledger is truth (the no-rewind rule).
+                    result = await asyncio.shield(
+                        execute_primitive(tool_auth, name, tc["arguments"])
+                    )
                 except Exception as exc:
                     result = {"success": False, "error": "tool_raised", "message": str(exc)}
             # The work landed in a file — say WHICH file, so the member's chat
