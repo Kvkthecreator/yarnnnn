@@ -25,13 +25,14 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, Link2, Loader2, MoreHorizontal, Palette, PanelLeft } from 'lucide-react';
+import { Copy, FolderOpen, Link2, Loader2, MoreHorizontal, Palette, PanelLeft } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { LearnFromFlowModal } from './LearnFromFlowModal';
 import { NewArtifactModal, slugify } from './NewArtifactModal';
 import { StudioNewMenu } from './StudioNewMenu';
 import { studioShapeStyle } from './studioShapes';
+import { OpenArtifactModal } from './OpenArtifactModal';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
 import { useSelfLocatedSurface, useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
@@ -1392,7 +1393,7 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
   const [recents, setRecents] = useState<
     Awaited<ReturnType<typeof api.studio.artifacts>>['artifacts']
   >([]);
-  const [existing, setExisting] = useState('');
+  const [openPickerOn, setOpenPickerOn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadRecents = useCallback(() => {
@@ -1591,14 +1592,22 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
                     >
                       <ArtifactThumb path={r.path} />
                       <span className="mt-2 flex items-center gap-1.5">
-                        <ShapeIcon className={`h-3.5 w-3.5 shrink-0 ${shape.color}`} />
-                        <span className="min-w-0 truncate text-xs font-medium">
+                        <ShapeIcon className={`h-4 w-4 shrink-0 ${shape.color}`} />
+                        <span className="min-w-0 truncate text-sm font-medium">
                           {r.name}
                         </span>
                       </span>
-                      <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
-                        {r.kind_label}
-                        {r.updated_at ? ` · ${new Date(r.updated_at).toLocaleDateString()}` : ''}
+                      {/* The kind carries the accent — it's the answer to "what
+                          IS this?", which the thumbnail alone can't give at a
+                          glance (a deck and a page both read as "a page of
+                          text" at 200px). Date stays quiet beside it. */}
+                      <span className="mt-1 block truncate text-[11px]">
+                        <span className={`font-medium ${shape.color}`}>{r.kind_label}</span>
+                        {r.updated_at ? (
+                          <span className="text-muted-foreground">
+                            {` · ${new Date(r.updated_at).toLocaleDateString()}`}
+                          </span>
+                        ) : null}
                       </span>
                     </button>
                     {/* The ⋯ — appears on hover (desktop) / always on touch; opens
@@ -1641,27 +1650,19 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
           onStart={learnFrom}
         />
 
-        <details className="pt-1">
-          <summary className="cursor-pointer text-xs text-muted-foreground">
-            Open by workspace path…
-          </summary>
-          <div className="mt-2 flex max-w-lg gap-2">
-            <input
-              value={existing}
-              onChange={(e) => setExisting(e.target.value)}
-              placeholder="operation/…/deck.html"
-              className="flex-1 rounded-md border border-border bg-transparent px-3 py-2 font-mono text-xs outline-none focus:border-foreground/40"
-            />
-            <button
-              type="button"
-              onClick={() => existing.trim() && onOpen(existing.trim())}
-              disabled={!existing.trim()}
-              className="rounded-md border border-border px-3 py-2 text-sm disabled:opacity-40"
-            >
-              Open
-            </button>
-          </div>
-        </details>
+        {/* Open… — the OS gesture. The member browses their work; they never
+            type a raw workspace path (the same refusal ADR-400 Q2 made for
+            Move: "move to shouldn't be a URL path input"). */}
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => setOpenPickerOn(true)}
+            className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            Open something else…
+          </button>
+        </div>
 
         {error && <p className="text-xs text-red-500">{error}</p>}
       </div>
@@ -1669,6 +1670,14 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
       {/* The organize dialogs (rename/move/trash) + the shared context menu. */}
       {organizeModals}
       {recentMenu}
+      <OpenArtifactModal
+        open={openPickerOn}
+        onClose={() => setOpenPickerOn(false)}
+        onOpen={(p) => {
+          setOpenPickerOn(false);
+          onOpen(p);
+        }}
+      />
     </div>
   );
 }
