@@ -21,6 +21,7 @@ via GET /api/workspace/file, and the powerbox gates every path.
 from __future__ import annotations
 
 import logging
+import re
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -250,6 +251,82 @@ async def write_artifact(req: WriteArtifactRequest, auth: UserClient) -> dict:
     return {"success": True, "path": path, "head_version_id": new_head_version_id}
 
 
+class RetitleArtifactRequest(BaseModel):
+    path: str  # the artifact's CURRENT path; its stem becomes the title
+
+
+@router.post("/studio/artifacts/retitle")
+async def retitle_artifact(req: RetitleArtifactRequest, auth: UserClient) -> dict:
+    """Retitle an artifact FROM its filename — the rename half of "the name is
+    one fact" (2026-07-15).
+
+    A rename used to move the file and leave the artifact's own <h1> saying the
+    old thing: two names for one thing, and only the filename real. The Studio
+    calls this after a rename so both names move together, as one ordinary
+    attributed revision.
+
+    Deliberately NOT folded into the generic move endpoint: that is every
+    surface's move (Files, the recents menu), and rewriting a document's title
+    because a file moved is Studio's opinion, not the filesystem's. The
+    knowledge that an h1 is a title lives here, with the layout registry.
+
+    No-ops (200, retitled=False) when nothing should change — a paged layout
+    (its h1 is a thesis, not a title), an already-authored title, or a
+    byte-identical result. A no-op writes NO revision.
+    """
+    from services.authored_substrate import write_revision
+    from services.studio import (
+        STUDIO_ARTIFACT_REGION,
+        STUDIO_LAYOUTS,
+        artifact_name,
+        set_artifact_title,
+    )
+    from services.workspace_context import substrate_scope_filter
+
+    raw = (req.path or "").strip()
+    path = raw if raw.startswith("/") else f"/workspace/{raw}"
+    if not path.endswith(".html") or ".." in path or not path.startswith(STUDIO_ARTIFACT_REGION):
+        raise HTTPException(status_code=403, detail=f"Not a Studio artifact path: {path}")
+
+    row = (
+        auth.client.table("workspace_files")
+        .select("content")
+        .eq(*substrate_scope_filter(auth.user_id))
+        .eq("path", path)
+        .limit(1)
+        .execute()
+    ).data
+    if not row:
+        raise HTTPException(status_code=404, detail=f"No artifact at {path}")
+    content = row[0].get("content") or ""
+
+    template = re.search(r'data-template="([^"]+)"', content)
+    layout = STUDIO_LAYOUTS.get(template.group(1)) if template else None
+    if not layout or layout["mode"] != "flow":
+        # A deck's h1 is its thesis; a page's is its headline. A filename does
+        # not get to dictate authored content.
+        return {"success": True, "retitled": False, "reason": "not_a_flow_layout"}
+
+    title = artifact_name(path)
+    updated = set_artifact_title(content, title, set_h1=True)
+    if updated == content:
+        # Already titled, or the member has authored their own title (the
+        # placeholder guard in set_artifact_title) — their words win.
+        return {"success": True, "retitled": False, "reason": "no_change"}
+
+    write_revision(
+        auth.client,
+        user_id=auth.user_id,
+        path=path,
+        content=updated,
+        authored_by="operator",
+        author_identity_uuid=auth.user_id,
+        message="Studio: retitle to match the filename",
+        summary=f"Titled '{title}' to match its filename",
+    )
+    return {"success": True, "retitled": True}
+
+
 @router.get("/studio/citable")
 async def list_citable(auth: UserClient) -> dict:
     """Citable workspace objects for the insert menu (ADR-440 v1.1) —
@@ -325,11 +402,31 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
             detail=f"{path} already exists — open it in the Studio instead.",
         )
 
+    # The name is ONE fact (2026-07-15): what the member typed names the FILE
+    # and titles the ARTIFACT. Creation used to name only the file and leave the
+    # h1 at "Untitled document", so the artifact said one thing and the
+    # substrate another — two names for one thing, only one of them real. The
+    # slug is the only surviving form of what they typed (the modal lowercases
+    # it), so the name is reconstructed from it — the same guess the landing
+    # already shows on its cards.
+    # Only a `flow` layout's h1 IS the title — a deck's h1 is the title slide's
+    # thesis, a page's is its headline, and a filename has no business
+    # dictating those (see set_artifact_title's guards).
+    # `artifact_name` is the SAME name the landing already shows (ADR-459): the
+    # titleized MEANING-FOLDER, not the leaf. That is the artifact's real name —
+    # `operation/prd-for-yarnnn/document.html` is "Prd for yarnnn", never
+    # "Document". One name resolver, so the title, the landing card, and the
+    # file can never disagree.
+    from services.studio import STUDIO_LAYOUTS, artifact_name, set_artifact_title
+
+    is_flow = STUDIO_LAYOUTS[req.template]["mode"] == "flow"
+    content = set_artifact_title(template["skeleton"], artifact_name(path), set_h1=is_flow)
+
     write_revision(
         auth.client,
         user_id=auth.user_id,
         path=path,
-        content=template["skeleton"],
+        content=content,
         authored_by="operator",
         author_identity_uuid=auth.user_id,
         message=f"Studio: create from template '{req.template}' (ADR-440)",

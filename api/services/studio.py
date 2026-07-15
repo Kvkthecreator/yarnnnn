@@ -27,6 +27,7 @@ be logged in ``api/prompts/CHANGELOG.md``.
 from __future__ import annotations
 
 import re
+from html import escape as html_escape
 from typing import Optional
 
 # Authoring turns rewrite/patch real documents — the chat-sized 2048 ceiling
@@ -914,20 +915,83 @@ def compose_kernel_style_element() -> str:
     )
 
 
-def build_skeleton(layout: str) -> str:
+#: Every layout's scaffolded h1 text — the ONLY strings `set_artifact_title`
+#: may overwrite. DERIVED from the registry, so editing a scaffold can never
+#: silently orphan this list and start overwriting a member's authored title.
+_SCAFFOLD_TITLES: frozenset[str] = frozenset(
+    re.sub(r"<[^>]+>", "", m.group(1)).strip()
+    for m in (
+        re.search(r"<h1\b[^>]*>(.*?)</h1>", lay["scaffold"], re.S)
+        for lay in STUDIO_LAYOUTS.values()
+    )
+    if m
+)
+
+
+def set_artifact_title(html: str, title: str, *, set_h1: bool = True) -> str:
+    """Retitle an artifact: the ``<title>`` AND the ``<h1>`` title block.
+
+    The name is ONE fact wearing two hats — the file's name and the artifact's
+    own title (2026-07-15). They used to drift: creation named the FILE from
+    what the member typed and left the h1 at "Untitled document", so the
+    artifact told you one thing and the substrate another, and only the
+    filename was real.
+
+    TWO guards, because an h1 is not always a title:
+
+    1. Only a `flow` layout's h1 IS the artifact's title. A `paged` layout's h1
+       is the title SLIDE's thesis / the landing page's headline — authored
+       content that a FILENAME has no business dictating. So `set_h1` is False
+       for paged layouts: the file is named, the thesis is left alone.
+    2. Even in `flow`, only the untouched scaffold placeholder is replaced.
+       Once the member has authored a title, their words win.
+
+    The `<title>` element is always set — it is metadata, never authored.
+
+    String-level on purpose: the kernel has no DOM, and the skeleton's shape is
+    ours (the `t1` title block is scaffolded by every layout). A member's
+    authored html is never reshaped here — only the placeholder is replaced.
+    """
+    safe = html_escape(title.strip()) if title and title.strip() else ""
+    if not safe:
+        return html
+    out = re.sub(r"<title>[^<]*</title>", f"<title>{safe}</title>", html, count=1)
+    if not set_h1:
+        return out  # paged: the h1 is a thesis/headline, not a title (guard 1)
+    # Only the scaffolded placeholder gets rewritten — never authored words.
+    def _h1(m: re.Match) -> str:
+        inner = m.group(2)
+        if not _is_placeholder_title(inner):
+            return m.group(0)
+        return f"{m.group(1)}{safe}{m.group(3)}"
+
+    out = re.sub(r'(<h1\b[^>]*data-block-id="t1"[^>]*>)(.*?)(</h1>)', _h1, out, count=1, flags=re.S)
+    return out
+
+
+def _is_placeholder_title(inner: str) -> bool:
+    """Is this h1 still the kernel's scaffolded placeholder (never authored)?"""
+    text = re.sub(r"<[^>]+>", "", inner).strip()
+    return text in _SCAFFOLD_TITLES
+
+
+def build_skeleton(layout: str, title: str | None = None) -> str:
     """Assemble a new artifact's first revision: layout × starter blocks.
 
     The skeleton is self-describing (``data-template`` on the root; blocks
     annotated ``data-block`` + ``data-block-id``) and script-free (the canvas
     strips executables anyway — defense in depth).
+
+    `title` (the name the member typed at creation) titles the artifact as well
+    as the file — see `set_artifact_title`. Absent, the placeholder stands.
     """
     lay = STUDIO_LAYOUTS[layout]
-    title = f"Untitled {lay['label'].lower()}"
-    return f"""<!doctype html>
+    placeholder = f"Untitled {lay['label'].lower()}"
+    html = f"""<!doctype html>
 <html data-template="{layout}">
 <head>
 <meta charset="utf-8">
-<title>{title}</title>
+<title>{placeholder}</title>
 <style>
 {_SHARED_CSS}
 {lay['skin']}
@@ -939,6 +1003,7 @@ def build_skeleton(layout: str) -> str:
 </body>
 </html>
 """
+    return set_artifact_title(html, title) if title else html
 
 
 #: The creation-time registry (API surface of routes/studio.py — shape kept

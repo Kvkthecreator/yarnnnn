@@ -98,14 +98,23 @@ def run() -> bool:
         "STRUCTURAL op (applyOp) does NOT reload — the override IS the canvas",
         bool(re.search(r"await writeAndAdvance\(\s*\n\s*\(liveHtml\) => compute\(liveHtml\)\?\.html \?\? null,\s*\n\s*message,\s*\n\s*false", surface)),
     )
-    # Exactly three bump sites, each earned: the FOREIGN (lane) write, the 409
-    # resync, and the caller-gated `if (reload)` — which now only fires for a
-    # split/merge whose half carries a citation (it must re-project to resolve).
+    # Exactly four bump sites, each EARNED — every one is a write the FE did not
+    # compute locally, so there is no override to show and the server's bytes
+    # are the only truth:
+    #   1. the FOREIGN (lane) write
+    #   2. the 409 resync
+    #   3. the caller-gated `if (reload)` — now only a split/merge whose half
+    #      carries a citation (it must re-project to resolve)
+    #   4. the retitle (2026-07-15) — a SERVER-side write (the h1-is-a-title
+    #      knowledge lives with the layout registry), so it is foreign-shaped
+    #      from the FE's point of view even though the member triggered it.
+    # A member's own computed op must never appear here — that was the flash.
     _check(
-        "reloadKey survives ONLY for a foreign write + a 409 + a citation re-project",
+        "reloadKey survives ONLY for writes the FE did not compute (4, each earned)",
         "// A FOREIGN write (the lane) genuinely changed the file — reload." in surface
-        and len(re.findall(r"setReloadKey\(\(k\) => k \+ 1\);", surface)) == 3
-        and "if (reload) setReloadKey((k) => k + 1);" in surface,
+        and len(re.findall(r"setReloadKey\(\(k\) => k \+ 1\);", surface)) == 4
+        and "if (reload) setReloadKey((k) => k + 1);" in surface
+        and "if (r.retitled) setReloadKey((k) => k + 1); // a foreign-shaped write" in surface,
     )
     # The write QUEUE: two ops can be emitted from one gesture in the same tick
     # (a drag's handle-press blurs a live edit → blur-commit + reorder). Firing

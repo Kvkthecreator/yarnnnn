@@ -96,6 +96,31 @@ function baseName(p: string): string {
   return parts[parts.length - 1] || p;
 }
 
+/** The artifact's operator-facing NAME — the titleized meaning folder.
+ *
+ *  `operation/prd-for-yarnnn/document.html` → "Prd for yarnnn". The leaf is a
+ *  TYPE marker (document/deck/article/page.html), not a name — which is why the
+ *  crumb used to say "document.html" while the landing card, correctly, said
+ *  "Prd for yarnnn". Three names for one artifact, and the two the member could
+ *  see were the two that weren't its name.
+ *
+ *  Mirrors `artifact_name` in services/studio.py (the same resolver ADR-459
+ *  already uses for the landing). Kept in sync by the layout-mode gate's
+ *  parity check — the FE needs it synchronously for the crumb, and the
+ *  workbench doesn't fetch the artifacts list. */
+function artifactName(p: string): string {
+  const parts = (p || '').split('/').filter(Boolean);
+  if (!parts.length) return p;
+  const parent = parts.length >= 2 ? parts[parts.length - 2] : null;
+  // 'workspace' + 'operation' are the region, never the name.
+  const stem =
+    parent && parent !== 'operation' && parent !== 'workspace'
+      ? parent
+      : parts[parts.length - 1].replace(/\.[a-z0-9]+$/i, '');
+  const spaced = stem.replace(/[-_]+/g, ' ').trim();
+  return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : p;
+}
+
 /** The artifact's declared template (data-template root attr). */
 function extractTemplate(html: string): string {
   const m = /data-template="([a-z-]+)"/.exec(html);
@@ -140,7 +165,7 @@ export function StudioSurface() {
     artifactPath
       ? [
           {
-            label: baseName(artifactPath),
+            label: artifactName(artifactPath),
             kind: 'artifact',
             onClick: () => setParam({ file: null }),
           },
@@ -301,8 +326,32 @@ export function StudioSurface() {
   // After the mutation: rename/move → re-point the surface at the new path;
   // trash → the artifact is gone, so fall to the Studio START state.
   const { verbs: organizeVerbs, modals: organizeModals } = useFileOrganizeVerbs({
-    onAfterMutate: (newPath) => {
+    onAfterMutate: (newPath, oldPath) => {
       setParam({ file: newPath === null ? null : relPath(newPath) });
+      // THE NAME IS ONE FACT (2026-07-15). A rename used to move the file and
+      // leave the artifact's own <h1> saying the old thing — two names for one
+      // thing, only the filename real. So a rename RETITLES too, as one
+      // ordinary attributed revision.
+      //
+      // Only a RENAME (same folder, new leaf), never a move: moving a file to
+      // another folder says nothing about what it's called. Only a `flow`
+      // layout, whose h1 IS the title — a deck's h1 is its thesis, and a
+      // FILENAME has no business dictating that. And only while the h1 is still
+      // the untouched scaffold placeholder (the server's second guard): once
+      // the member has authored a title, their words win.
+      if (!newPath || !oldPath) return;
+      const parentOf = (p: string) => p.slice(0, p.lastIndexOf('/'));
+      if (parentOf(newPath) !== parentOf(oldPath)) return; // a MOVE, not a rename
+      // The server owns the paged/authored guards (it has the layout registry
+      // and the artifact's content); this only decides that a rename happened.
+      void api.studio
+        .retitleArtifact(newPath)
+        .then((r) => {
+          if (r.retitled) setReloadKey((k) => k + 1); // a foreign-shaped write
+        })
+        .catch(() => {
+          /* best-effort: the file renamed; a stale title is not worth an error */
+        });
     },
   });
 
@@ -1063,8 +1112,8 @@ export function StudioSurface() {
                 Studio
               </button>
               <span className="text-muted-foreground/40">/</span>
-              <span className="max-w-[16ch] truncate font-medium text-foreground/80" title={baseName(artifactPath)}>
-                {baseName(artifactPath)}
+              <span className="max-w-[24ch] truncate font-medium text-foreground/80" title={relPath(artifactPath)}>
+                {artifactName(artifactPath)}
               </span>
               <span className="mx-1 h-4 w-px shrink-0 bg-border/60" aria-hidden />
             </div>

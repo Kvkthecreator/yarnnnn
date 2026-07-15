@@ -436,6 +436,15 @@ export const api = {
         "/api/studio/artifacts",
         { method: "POST", body: JSON.stringify({ path, template }) },
       ),
+    /** Retitle an artifact FROM its filename — the rename half of "the name is
+     *  one fact". Server-side because the knowledge that an h1 IS a title lives
+     *  with the layout registry. No-ops (retitled:false) on a paged layout or
+     *  an already-authored title; a no-op writes no revision. */
+    retitleArtifact: (path: string) =>
+      request<{ success: boolean; retitled: boolean; reason?: string }>(
+        "/api/studio/artifacts/retitle",
+        { method: "POST", body: JSON.stringify({ path }) },
+      ),
   },
 
   // ADR-108: User context entries (user-scoped, stored in /system/notes.md)
