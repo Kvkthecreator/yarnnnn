@@ -172,11 +172,18 @@ providers.
 2. **Turn controls** — stop generation, regenerate, edit-and-resend, copy. Stop requires the
    stream abort path; regenerate/edit are tail operations on `session_messages`.
 3. **Attachments** — **two items wearing one name**: (a) document attachments ride the built
-   ADR-395 intake + DP34 projection — clean; (b) **image input may collide with the D7 P1 media
-   gate** — no binary retention path (`storage_backend.py:191` utf-8 wall) and DP32 requires the
-   raw be retained; an image the model saw but the ledger never kept violates the intake axiom.
-   Probe what ADR-395 does with binary today before ruling; either a narrow retained path exists
-   or image input defers with media.
+   ADR-395 intake + DP34 projection — clean; (b) image input — **probed 2026-07-15, NOT gated on
+   ADR-427 Ph2/3**. Receipt: the ADR-395 raw lane already stores original BYTES out-of-band in
+   the private Supabase `documents` bucket (`services/documents.py` — `storage_path =
+   {user_id}/{document_id}/original.{ext}`, ledger row carries only the stable `content_url`
+   reference, signed URLs minted on read). The `storage_backend.py:191` utf-8 wall is the CAS
+   ledger path (`workspace_blobs`), which raw uploads never touch — the D7 P1 media gate is
+   about media blocks *in artifacts* (CAS + GC + pins), a different lane. DP32 is satisfied:
+   the raw is retained + attributed; the projection is the derived act. The gap is narrow:
+   `routes/documents.py` `_ALLOWED_EXTS = (pdf, docx, txt, md)` — no image types yet. Image
+   attachments = extend the accepted-types table + thread image content parts to the router
+   (LiteLLM vision format). Incremental extension of a built lane, not a storage-phase
+   dependency.
 4. **Rendering quality** — markdown/code-block polish, tables, latency-to-first-token feel.
 5. **Conversation hygiene** — auto-naming, search across lanes, pin/archive.
 
