@@ -105,16 +105,17 @@ def run() -> bool:
     #   2. the 409 resync
     #   3. the caller-gated `if (reload)` — now only a split/merge whose half
     #      carries a citation (it must re-project to resolve)
-    #   4. the retitle (2026-07-15) — a SERVER-side write (the h1-is-a-title
-    #      knowledge lives with the layout registry), so it is foreign-shaped
-    #      from the FE's point of view even though the member triggered it.
+    #   4. the RENAME (2026-07-15) — it renames the meaning folder and
+    #      retitles SERVER-side (that knowledge lives with the layout
+    #      registry), so the bytes are foreign-shaped from the FE's point of
+    #      view even though the member triggered the act.
     # A member's own computed op must never appear here — that was the flash.
     _check(
         "reloadKey survives ONLY for writes the FE did not compute (4, each earned)",
         "// A FOREIGN write (the lane) genuinely changed the file — reload." in surface
         and len(re.findall(r"setReloadKey\(\(k\) => k \+ 1\);", surface)) == 4
         and "if (reload) setReloadKey((k) => k + 1);" in surface
-        and "if (r.retitled) setReloadKey((k) => k + 1); // a foreign-shaped write" in surface,
+        and "setReloadKey((k) => k + 1); // the retitle is a server-side write" in surface,
     )
     # The write QUEUE: two ops can be emitted from one gesture in the same tick
     # (a drag's handle-press blurs a live edit → blur-commit + reorder). Firing

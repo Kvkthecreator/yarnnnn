@@ -251,6 +251,116 @@ async def write_artifact(req: WriteArtifactRequest, auth: UserClient) -> dict:
     return {"success": True, "path": path, "head_version_id": new_head_version_id}
 
 
+class RenameArtifactRequest(BaseModel):
+    path: str  # the artifact's CURRENT path
+    name: str  # the new operator-facing NAME (free text; slugified here)
+
+
+@router.post("/studio/artifacts/rename")
+async def rename_artifact(req: RenameArtifactRequest, auth: UserClient) -> dict:
+    """Rename an artifact by its NAME — which is its MEANING FOLDER.
+
+    `operation/prd-for-yarnnn/document.html` is named "Prd for yarnnn". The leaf
+    is a TYPE marker (document/deck/article/page.html) that names the layout, so
+    the generic file-rename was renaming the type, not the artifact — you could
+    rename `document.html` to `report.html` and the artifact's name would not
+    move at all (ADR-459's `artifact_name` reads the folder).
+
+    So renaming means moving the folder: every file under it, one MoveFile each
+    (assets, data, the artifact), then a retitle so the h1 follows. One member
+    act; the substrate sees N attributed moves + at most one retitle revision.
+
+    Not atomic — MoveFile is per-path and there is no multi-path transaction.
+    A partial failure stops and reports what moved, rather than pretending. In
+    practice an artifact folder holds one file (verified against the live
+    workspace), so N is 1 and the window is theoretical; the loop exists so a
+    folder that grows assets doesn't silently half-rename.
+    """
+    from services.studio import STUDIO_ARTIFACT_REGION, artifact_name
+    from services.workspace_context import substrate_scope_filter
+
+    raw = (req.path or "").strip()
+    path = raw if raw.startswith("/") else f"/workspace/{raw}"
+    if not path.endswith(".html") or ".." in path or not path.startswith(STUDIO_ARTIFACT_REGION):
+        raise HTTPException(status_code=403, detail=f"Not a Studio artifact path: {path}")
+
+    # The name → a folder slug. MIRRORS `slugify` in NewArtifactModal.tsx
+    # exactly (lowercase, non-alnum → '-', trim, cap 48) so the two entrances
+    # into a name — create and rename — can never disagree about what a name
+    # becomes. Server-side because rename must slugify even if a future caller
+    # isn't that modal.
+    slug = re.sub(r"[^a-z0-9]+", "-", (req.name or "").lower()).strip("-")[:48].strip("-")
+    if not slug:
+        raise HTTPException(status_code=422, detail="A name is required.")
+
+    parts = [p for p in path.split("/") if p]
+    region_tail = [p for p in STUDIO_ARTIFACT_REGION.split("/") if p]
+    parent = parts[-2] if len(parts) >= 2 else None
+    if not parent or parent in region_tail:
+        raise HTTPException(
+            status_code=422,
+            detail="This artifact has no meaning folder to rename — move it into one first.",
+        )
+    if parent == slug:
+        return {"success": True, "path": path, "renamed": False, "reason": "same_name"}
+
+    old_folder = "/" + "/".join(parts[:-1])
+    new_folder = "/" + "/".join(parts[:-2] + [slug])
+
+    # Refuse a collision: renaming ONTO another artifact's folder would merge
+    # two artifacts into one namespace (MoveFile is overwrite-safe per file, but
+    # the folder-level intent is what we guard here).
+    clash = (
+        auth.client.table("workspace_files")
+        .select("path")
+        .eq(*substrate_scope_filter(auth.user_id))
+        .like("path", f"{new_folder}/%")
+        .limit(1)
+        .execute()
+    ).data or []
+    if clash:
+        raise HTTPException(status_code=409, detail=f"'{req.name}' already exists — pick another name.")
+
+    rows = (
+        auth.client.table("workspace_files")
+        .select("path")
+        .eq(*substrate_scope_filter(auth.user_id))
+        .like("path", f"{old_folder}/%")
+        .execute()
+    ).data or []
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No artifact at {path}")
+
+    from services.primitives.registry import execute_primitive
+
+    moved: list[str] = []
+    new_path = path
+    for row in sorted(r["path"] for r in rows):
+        dst = new_folder + row[len(old_folder):]
+        result = await execute_primitive(
+            auth, "MoveFile", {"path": row, "new_path": dst, "scope": "workspace"}
+        )
+        if not (isinstance(result, dict) and result.get("success")):
+            detail = (result or {}).get("message", "Rename failed")
+            raise HTTPException(
+                status_code=400,
+                detail=(f"{detail} — {len(moved)} of {len(rows)} files moved."
+                        if moved else detail),
+            )
+        moved.append(dst)
+        if row == path:
+            new_path = dst
+
+    logger.info("[STUDIO] renamed folder %s -> %s (%d files)", old_folder, new_folder, len(moved))
+    return {
+        "success": True,
+        "path": new_path,
+        "renamed": True,
+        "moved": len(moved),
+        "name": artifact_name(new_path),
+    }
+
+
 class RetitleArtifactRequest(BaseModel):
     path: str  # the artifact's CURRENT path; its stem becomes the title
 

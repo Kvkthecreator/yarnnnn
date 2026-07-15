@@ -131,10 +131,39 @@ def run() -> bool:
         "retitle" not in (root / "api/routes/documents.py").read_text(),
     )
     _check("the client exposes retitleArtifact", "retitleArtifact: (path: string)" in client)
+    # RENAME renames the artifact's NAME = its MEANING FOLDER (moving every file
+    # under it), then retitles. The shared leaf-rename would rename the TYPE.
     _check(
-        "the Studio retitles after a RENAME only, never a move",
-        "if (parentOf(newPath) !== parentOf(oldPath)) return; // a MOVE, not a rename" in surface
-        and "api.studio\n        .retitleArtifact(newPath)" in surface,
+        "a rename endpoint exists and renames the FOLDER, not the leaf",
+        '@router.post("/studio/artifacts/rename")' in routes
+        and 'old_folder = "/" + "/".join(parts[:-1])' in routes,
+    )
+    _check(
+        "it refuses a collision rather than merging two artifacts' namespaces",
+        "already exists — pick another name." in routes,
+    )
+    _check(
+        "it refuses an artifact with no meaning folder (nothing to rename)",
+        "has no meaning folder to rename" in routes,
+    )
+    _check(
+        "the server slugifies (create + rename can't drift on what a name becomes)",
+        're.sub(r"[^a-z0-9]+", "-", (req.name or "").lower()).strip("-")[:48]' in routes,
+    )
+    _check(
+        "the Studio's rename is the CRUMB, committed on Enter/blur (never per-keystroke)",
+        "const commitRename = useCallback(" in surface
+        and "api.studio.renameArtifact(artifactPath, trimmed)" in surface
+        and "if (e.key === 'Enter') {" in surface,
+    )
+    _check(
+        "ONE rename path: the Design tab + the landing both reach the crumb",
+        "rename: () => setRenaming(true)," in surface
+        and "onRenameRequest: (path: string) => void;" in surface,
+    )
+    _check(
+        "the shared LEAF-rename modal is no longer wired for the Studio",
+        "organizeVerbs.onRename" not in surface,
     )
 
     # ── 5. the crumb shows the NAME ─────────────────────────────────────────
@@ -144,7 +173,7 @@ def run() -> bool:
     )
     _check(
         "both crumbs (the OS window crumb + the toolbar's own) show the NAME",
-        surface.count("artifactName(artifactPath)") == 2,
+        surface.count("artifactName(artifactPath)") >= 2,
     )
     _check(
         "the leaf is gone from the crumb (it named the TYPE, not the artifact)",

@@ -325,33 +325,52 @@ export function StudioSurface() {
   // artifact (or an uploaded file under inbound/uploads/) organizes cleanly.
   // After the mutation: rename/move → re-point the surface at the new path;
   // trash → the artifact is gone, so fall to the Studio START state.
+  // ── Rename (2026-07-15) ────────────────────────────────────────────────
+  // The artifact's NAME is its meaning folder — `operation/prd-for-yarnnn/
+  // document.html` is "Prd for yarnnn". The leaf is a TYPE marker naming the
+  // layout, so the shared file-rename was renaming the TYPE: you could rename
+  // `document.html` to `report.html` and the artifact's name would not move.
+  //
+  // So the Studio renames the FOLDER through its own endpoint (which moves
+  // every file under it, then retitles so the h1 follows). Committed on Enter
+  // or blur — never per-keystroke: a rename MOVES substrate identity, and each
+  // intermediate state would be a real move ("Q", "Q3", "Q3 "…).
+  const [renaming, setRenaming] = useState(false);
+  const [renameBusy, setRenameBusy] = useState(false);
+  const commitRename = useCallback(
+    async (next: string) => {
+      if (!artifactPath || renameBusy) return;
+      const trimmed = next.trim();
+      // No change / cleared → just close. Never rename to nothing.
+      if (!trimmed || trimmed === artifactName(artifactPath)) {
+        setRenaming(false);
+        return;
+      }
+      setRenameBusy(true);
+      setOpError(null);
+      try {
+        const r = await api.studio.renameArtifact(artifactPath, trimmed);
+        if (r.renamed) {
+          setParam({ file: relPath(r.path) }); // follow the artifact to its new path
+          setReloadKey((k) => k + 1); // the retitle is a server-side write
+        }
+      } catch (e) {
+        setOpError(e instanceof Error ? e.message : 'Rename failed.');
+      } finally {
+        setRenameBusy(false);
+        setRenaming(false);
+      }
+    },
+    [artifactPath, renameBusy, setParam],
+  );
+
   const { verbs: organizeVerbs, modals: organizeModals } = useFileOrganizeVerbs({
-    onAfterMutate: (newPath, oldPath) => {
+    onAfterMutate: (newPath) => {
       setParam({ file: newPath === null ? null : relPath(newPath) });
-      // THE NAME IS ONE FACT (2026-07-15). A rename used to move the file and
-      // leave the artifact's own <h1> saying the old thing — two names for one
-      // thing, only the filename real. So a rename RETITLES too, as one
-      // ordinary attributed revision.
-      //
-      // Only a RENAME (same folder, new leaf), never a move: moving a file to
-      // another folder says nothing about what it's called. Only a `flow`
-      // layout, whose h1 IS the title — a deck's h1 is its thesis, and a
-      // FILENAME has no business dictating that. And only while the h1 is still
-      // the untouched scaffold placeholder (the server's second guard): once
-      // the member has authored a title, their words win.
-      if (!newPath || !oldPath) return;
-      const parentOf = (p: string) => p.slice(0, p.lastIndexOf('/'));
-      if (parentOf(newPath) !== parentOf(oldPath)) return; // a MOVE, not a rename
-      // The server owns the paged/authored guards (it has the layout registry
-      // and the artifact's content); this only decides that a rename happened.
-      void api.studio
-        .retitleArtifact(newPath)
-        .then((r) => {
-          if (r.retitled) setReloadKey((k) => k + 1); // a foreign-shaped write
-        })
-        .catch(() => {
-          /* best-effort: the file renamed; a stale title is not worth an error */
-        });
+      // NOTE: no retitle here. These verbs are MOVE and TRASH only — the
+      // Studio's rename is `commitRename` (the crumb), which renames the
+      // meaning folder and retitles server-side in one act. A move says nothing
+      // about what an artifact is called, so nothing to retitle.
     },
   });
 
@@ -1049,6 +1068,10 @@ export function StudioSurface() {
     return (
       <StudioStart
         onOpen={(path) => setParam({ file: relPath(path) })}
+        onRenameRequest={(path) => {
+          setParam({ file: relPath(path) });
+          setRenaming(true); // the crumb arms as the workbench mounts
+        }}
       />
     );
   }
@@ -1112,9 +1135,39 @@ export function StudioSurface() {
                 Studio
               </button>
               <span className="text-muted-foreground/40">/</span>
-              <span className="max-w-[24ch] truncate font-medium text-foreground/80" title={relPath(artifactPath)}>
-                {artifactName(artifactPath)}
-              </span>
+              {/* The name is renamed WHERE IT IS SHOWN (the Finder/macOS model)
+                  — click it and type. It renames the MEANING FOLDER, which is
+                  the artifact's actual name; the h1 and the crumb follow. The
+                  Design tab's Rename row stays as the discoverable path for
+                  members who look for a menu. */}
+              {renaming ? (
+                <input
+                  autoFocus
+                  defaultValue={artifactName(artifactPath)}
+                  disabled={renameBusy}
+                  onBlur={(e) => void commitRename(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void commitRename(e.currentTarget.value);
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setRenaming(false);
+                    }
+                  }}
+                  className="w-[24ch] rounded border border-indigo-400/60 bg-background px-1 py-0.5 text-xs font-medium outline-none disabled:opacity-50"
+                  aria-label="Rename this artifact"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setRenaming(true)}
+                  title={`${relPath(artifactPath)} — click to rename`}
+                  className="max-w-[24ch] truncate rounded px-1 py-0.5 font-medium text-foreground/80 hover:bg-muted/50"
+                >
+                  {artifactName(artifactPath)}
+                </button>
+              )}
               <span className="mx-1 h-4 w-px shrink-0 bg-border/60" aria-hidden />
             </div>
             {/* ADR-455: collapse/expand the navigator (desktop). PAGED only —
@@ -1326,8 +1379,11 @@ export function StudioSurface() {
               fileVerbs={{
                 copyLink: copyArtifactLink,
                 duplicate: () => void duplicateArtifact(),
-                rename: () =>
-                  organizeVerbs.onRename({ path: artifactPath, name: baseName(artifactPath) }),
+                // Rename focuses the CRUMB rather than opening the shared
+                // leaf-rename modal: the artifact's name is its meaning folder,
+                // and the crumb is where that name is shown. One rename path,
+                // and the menu teaches where the name lives (the Finder model).
+                rename: () => setRenaming(true),
                 move: () =>
                   organizeVerbs.onMove({ path: artifactPath, name: baseName(artifactPath) }),
                 trash: () =>
@@ -1435,7 +1491,15 @@ function ArtifactThumb({ path }: { path: string }) {
   );
 }
 
-function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
+function StudioStart({
+  onOpen,
+  onRenameRequest,
+}: {
+  onOpen: (path: string) => void;
+  /** Open the artifact AND arm its crumb rename — the landing has no rename
+   *  UI of its own, because the name is renamed where the name is shown. */
+  onRenameRequest: (path: string) => void;
+}) {
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   // Derived from the client's return type — never hand-restated, so a served
   // field (ADR-459's computed `name`/`kind`/`kind_label`) can't drift.
@@ -1503,10 +1567,23 @@ function StudioStart({ onOpen }: { onOpen: (path: string) => void }) {
   // The shared right-click / kebab menu (ADR-400 Amendment 1), wired to the
   // organize verbs + the two Studio extras. `openMenu` fires on a card's
   // onContextMenu AND on the hover ⋯ button (both anchor at the click point).
+  // Renaming a recent means what it means in the workbench: the artifact's NAME
+  // (its meaning folder), never the leaf (a TYPE marker). The shared
+  // leaf-rename modal is leaf-bound by contract — it would rename
+  // `document.html` to `report.html` and leave the name untouched — and forking
+  // it for one caller would give the Studio two rename UIs.
+  //
+  // So the landing OPENS the artifact and focuses the crumb, which is the one
+  // rename affordance. The name is renamed where the name is shown.
+  const renameRecent = useCallback(
+    (path: string) => onRenameRequest(path),
+    [onRenameRequest],
+  );
+
   const { openMenu, menu: recentMenu } = useFileContextMenu(
     {
       onOpen: (t) => onOpen(t.path),
-      onRename: (t) => organizeVerbs.onRename(t),
+      onRename: (t) => renameRecent(t.path),
       onMove: (t) => organizeVerbs.onMove(t),
       onDelete: (t) => organizeVerbs.onDelete(t),
     },

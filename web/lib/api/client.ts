@@ -436,6 +436,15 @@ export const api = {
         "/api/studio/artifacts",
         { method: "POST", body: JSON.stringify({ path, template }) },
       ),
+    /** Rename an artifact by its NAME — which is its MEANING FOLDER, not the
+     *  leaf (the leaf is a TYPE marker naming the layout). Moves every file in
+     *  the folder, then retitles so the h1 follows. Server-side because the
+     *  folder-is-the-name knowledge lives with the layout registry. */
+    renameArtifact: (path: string, name: string) =>
+      request<{ success: boolean; path: string; renamed: boolean; moved?: number; name?: string }>(
+        "/api/studio/artifacts/rename",
+        { method: "POST", body: JSON.stringify({ path, name }) },
+      ),
     /** Retitle an artifact FROM its filename — the rename half of "the name is
      *  one fact". Server-side because the knowledge that an h1 IS a title lives
      *  with the layout registry. No-ops (retitled:false) on a paged layout or
