@@ -665,6 +665,21 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
 MEDIA_BLOCK_KINDS = {"figure", "chart", "gallery"}
 
 STUDIO_TOKENS: dict[str, dict] = {
+    # ADR-461 D1 — the block's width, as INTENT. The Claude Design inspector's
+    # Hug | Fixed | Fill, minus Fixed: Hug and Fill are enumerated values (one
+    # kernel rule each) and land here for free; `Fixed: 761px` is a CONTINUOUS
+    # value the kernel cannot pre-declare a selector for, and is D3's bounded
+    # exception (deck + media only), not this row's business.
+    # Absence = the flow's natural width — the pad/valign/fit convention.
+    "size": {
+        "label": "Width",
+        "applies": ["block"],
+        "values": [
+            {"value": "hug", "label": "Hug"},
+            {"value": "fill", "label": "Fill"},
+        ],
+        "description": "how wide the block sits (absence = the flow's own width)",
+    },
     "align": {
         "label": "Align",
         "applies": ["block"],
@@ -865,6 +880,12 @@ div[data-block="gallery"] figcaption { font-size: 0.75rem; }
 [data-align="center"] img { margin-inline: auto; }
 [data-align="end"] { text-align: right; }
 [data-align="end"] img { margin-inline-start: auto; }
+/* Width as intent (ADR-461 D1) — the inspector's Hug | Fill, enumerated.
+   `Fixed: 761px` is NOT here: a continuous value has no pre-declarable
+   selector, which is the whole reason it is D3's bounded exception rather
+   than a fourth value on this row. Absence = the flow's own width. */
+[data-size="hug"] { width: fit-content; max-width: 100%; }
+[data-size="fill"] { width: 100%; }
 [data-tone="accent"] { color: var(--accent, #b4540a); }
 [data-tone="muted"] { color: var(--muted, #6b6b6b); }
 [data-block][data-tone="inverse"] { background: var(--ink, #1a1a1a);
@@ -933,6 +954,9 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 #: v4: Wave-3 (ADR-456) — cited page backgrounds (data-ref-kind="background"
 #:     + scrim/bg-pos), the generic non-slide .cols (document/article
 #:     two-column made real), page-band accents, --radius adoption.
+# v7 (2026-07-15, ADR-461 D1): the `size` token (Hug | Fill) — the block's
+# width as intent. Enumerated, so it needs no new mechanism.
+#
 # v6 (2026-07-15, ADR-461): `.slide { position: relative }` unconditionally —
 # the slide becomes the containing block, so ADR-461's premise ("a slide has a
 # frame") is true in CSS and not merely in prose. It was previously positioned
@@ -943,7 +967,7 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 # layout. A pre-ADR-444 deck's baked skin has no `.slide .cols`, and the
 # kernel's `:not(.slide)` rule excluded it, so its two-column slides stacked
 # silently. Bumping the version is what makes the retrofit reach them.
-STUDIO_KERNEL_CSS_VERSION = 6
+STUDIO_KERNEL_CSS_VERSION = 7
 
 
 def compose_kernel_style_element() -> str:

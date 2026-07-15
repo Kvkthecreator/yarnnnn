@@ -13,8 +13,13 @@ The fix (all in-frame — the drag never crosses the sandbox boundary):
   2. GUTTER_SCRIPT: pointer-events drag on .yg-handle — threshold, the block dims
      (.yarnnn-dragging), a drop-line (.yarnnn-dropline) follows the cursor between
      same-parent siblings, release posts ONE yarnnn-reorder; edge auto-scroll;
-     a click WITHOUT a drag still selects + opens the Design tab (draggedPast-
-     Threshold disambiguates). cursor:grab → grabbing.
+     a click WITHOUT a drag still selects + opens the Design tab
+     (gestureSuppressClick disambiguates). cursor:grab → grabbing.
+
+  ADR-461 D2 (2026-07-15): the pointer plumbing moved into `bindGesture`, the
+  ONE gesture primitive — bindDrag is now its first caller and its proof. The
+  checks below assert INVARIANTS rather than the old inline spellings, so the
+  second caller (resize) inherits them.
   3. Canvas forwards yarnnn-reorder → surface handleReorder → applyOp(moveBlockTo)
      = ONE revision.
 
@@ -80,10 +85,19 @@ def run() -> bool:
         and "addEventListener('pointerdown'" in proj
         and "addEventListener('pointermove'" in proj,
     )
+    # ADR-461 D2: the threshold moved into `bindGesture`, the one pointer-gesture
+    # primitive — it is no longer inline in bindDrag. Assert the INVARIANT (a
+    # press under the threshold is still a click, and the axis decides what
+    # "movement" means), not the old spelling, so the next gesture caller
+    # inherits the check instead of breaking it.
     _check(
-        "a movement threshold separates a drag from a click",
-        "Math.abs(e.clientY - startY) < 5" in proj
-        and "draggedPastThreshold = true" in proj,
+        "a movement threshold separates a gesture from a click",
+        "var travel = axis === 'xy'" in proj and "if (travel < threshold) return;" in proj,
+    )
+    _check(
+        "the threshold lives in the ONE gesture primitive (not per-gesture)",
+        "function bindGesture(handle, subject, opts)" in proj
+        and "bindGesture(handle, function () { return curBlock; }" in proj,
     )
     _check(
         "the dragged block dims + a drop-line follows the cursor",
@@ -99,9 +113,18 @@ def run() -> bool:
         "release posts ONE yarnnn-reorder {blockId, beforeBlockId}",
         "type: 'yarnnn-reorder', blockId: id, beforeBlockId: beforeId" in proj,
     )
+    # The leak that made a second gesture source unsafe: the old flag stayed
+    # true after a drop and reset on the NEXT click, so two gesture sources
+    # sharing it would cross-talk ("resize sometimes eats a click"). One flag,
+    # one setter (the primitive), consumed on read.
+    _check(
+        "click-suppression is consumed on read, never left set for the next click",
+        "gestureSuppressClick = false; return; }" in proj
+        and "draggedPastThreshold" not in proj,
+    )
     _check(
         "a click WITHOUT a drag still selects + opens the Design tab (drag suppresses it)",
-        "if (draggedPastThreshold) { draggedPastThreshold = false; return; }" in proj
+        "if (gestureSuppressClick) { gestureSuppressClick = false; return; }" in proj
         and "design: true }" in proj,
     )
     _check(

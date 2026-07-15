@@ -1364,12 +1364,15 @@ const GUTTER_SCRIPT = `
     var handle = document.createElement('button');
     handle.type = 'button'; handle.className = 'yg-handle';
     handle.textContent = '\\u22EE\\u22EE'; handle.title = 'Drag to move · click for options';
-    // CLICK (no drag past threshold) → select + open the Design tab. The drag
-    // runtime below sets draggedPastThreshold; a click that WAS a drag is
-    // suppressed here so a drop never also opens the Design tab.
+    // CLICK (no gesture past threshold) → select + open the Design tab. Any
+    // bindGesture that passed its threshold sets gestureSuppressClick; a click
+    // that WAS a gesture is suppressed here so a drop never also opens the
+    // Design tab. Consumed on read — the flag never outlives the click it
+    // belongs to (it used to stay true until the NEXT click, which is exactly
+    // the leak a second gesture source would have tripped over).
     handle.addEventListener('click', function (e) {
       e.preventDefault(); e.stopPropagation();
-      if (draggedPastThreshold) { draggedPastThreshold = false; return; }
+      if (gestureSuppressClick) { gestureSuppressClick = false; return; }
       if (!curBlock) return;
       // Select in-frame through the pointer runtime's OWN selection state
       // (one selection, not two), then tell the parent to select AND open
@@ -1402,7 +1405,12 @@ const GUTTER_SCRIPT = `
   // revision. Pointer Events (not HTML5 DnD — brittle under sandbox); geometry
   // stays in-frame so the body.style.zoom transform never desyncs the coords.
   var dropline = null;
-  var draggedPastThreshold = false;
+  // The ONE click-suppression authority (ADR-461 D2). Every gesture bound via
+  // bindGesture sets this the moment it passes its threshold; the click handler
+  // consumes it. One flag, one setter (bindGesture), one consumer — so a second
+  // gesture source cannot cross-talk with the first, which is what a per-gesture
+  // flag would have produced.
+  var gestureSuppressClick = false;
   function ensureDropline() {
     if (dropline) return dropline;
     dropline = document.createElement('div');
@@ -1421,86 +1429,134 @@ const GUTTER_SCRIPT = `
     }
     return out;
   }
-  function bindDrag(handle) {
-    var dragging = null;      // the block being dragged
-    var beforeId = null;      // the block id to drop before (null = end)
-    var startY = 0, armed = false;
+  /** bindGesture — the ONE pointer-gesture primitive (ADR-461 D2).
+   *
+   *  D2 says gestures compose existing ops rather than becoming a second write
+   *  path. That was aspirational: the drag was bound to one handle, read a
+   *  module-global the gutter owns, and hard-coded the Y axis and reorder
+   *  semantics. A second gesture (resize) built beside it would have been a
+   *  second gesture SYSTEM, and the two would have shared one click-suppression flag
+   *  — a global that stays true after a drop and resets on the next click, so
+   *  cross-talk would read as "the UI sometimes eats a click".
+   *
+   *  What is genuinely shared: pointer capture, the arm/threshold state machine
+   *  (a press under the threshold is still a CLICK, never a gesture), in-frame
+   *  edge auto-scroll, and the click-suppression handshake. What is not: the
+   *  axis, the hit-test, the feedback, the message. Those are the caller's.
+   *
+   *  opts: { axis: 'y'|'xy', threshold, onStart(el,e), onMove(el,e,d), onEnd(el,moved) }
+   *  The move delta carries {dx, dy} from the press origin. Returns nothing; binds listeners.
+   */
+  function bindGesture(handle, subject, opts) {
+    var el = null, startX = 0, startY = 0, armed = false, moved = false;
+    var threshold = opts.threshold == null ? 5 : opts.threshold;
+    var axis = opts.axis || 'y';
 
     handle.addEventListener('pointerdown', function (e) {
-      if (e.button !== 0 || !curBlock) return;
-      dragging = curBlock; startY = e.clientY; armed = true;
-      draggedPastThreshold = false; beforeId = null;
+      if (e.button !== 0) return;
+      var s = subject();
+      if (!s) return;
+      el = s; startX = e.clientX; startY = e.clientY; armed = true; moved = false;
       try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+      if (opts.onStart) opts.onStart(el, e);
     });
 
     handle.addEventListener('pointermove', function (e) {
-      if (!armed || !dragging) return;
-      if (!draggedPastThreshold) {
-        if (Math.abs(e.clientY - startY) < 5) return; // below threshold — still a click
-        draggedPastThreshold = true;
-        dragging.classList.add('yarnnn-dragging');
-        ensureDropline();
+      if (!armed || !el) return;
+      var dx = e.clientX - startX, dy = e.clientY - startY;
+      if (!moved) {
+        // Below the threshold this is still a CLICK, not a gesture. The axis
+        // decides what "movement" even means — a resize that only moves in X
+        // must not be judged by Y.
+        var travel = axis === 'xy' ? Math.max(Math.abs(dx), Math.abs(dy)) : Math.abs(dy);
+        if (travel < threshold) return;
+        moved = true;
+        // The gesture has begun — suppress the click this press would fire.
+        gestureSuppressClick = true;
       }
       // Edge auto-scroll (in-frame — the iframe scrolls, never the parent).
       var vh = window.innerHeight;
       if (e.clientY < 48) window.scrollBy(0, -12);
       else if (e.clientY > vh - 48) window.scrollBy(0, 12);
-      // Find the same-parent sibling the cursor is nearest to, and whether the
-      // drop lands ABOVE or BELOW it → the drop-line position + beforeId.
-      var sibs = siblingBlocksOf(dragging);
-      var placed = false;
-      for (var i = 0; i < sibs.length; i++) {
-        var s = sibs[i];
-        if (s === dragging) continue;
-        var r = s.getBoundingClientRect();
-        var mid = r.top + r.height / 2;
-        if (e.clientY < mid) {
-          // drop BEFORE s
-          dropline.style.display = 'block';
-          dropline.style.left = (r.left + window.scrollX) + 'px';
-          dropline.style.width = r.width + 'px';
-          dropline.style.top = (r.top + window.scrollY - 1) + 'px';
-          beforeId = s.getAttribute('data-block-id');
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) {
-        // Past every sibling → drop at the END (beforeId null); line under the
-        // last sibling that isn't the dragged block.
-        var last = null;
-        for (var j = sibs.length - 1; j >= 0; j--) { if (sibs[j] !== dragging) { last = sibs[j]; break; } }
-        if (last) {
-          var lr = last.getBoundingClientRect();
-          dropline.style.display = 'block';
-          dropline.style.left = (lr.left + window.scrollX) + 'px';
-          dropline.style.width = lr.width + 'px';
-          dropline.style.top = (lr.bottom + window.scrollY + 1) + 'px';
-        }
-        beforeId = null;
-      }
+      if (opts.onMove) opts.onMove(el, e, { dx: dx, dy: dy });
     });
 
-    function endDrag(e) {
-      if (!dragging) return;
+    function end(e) {
+      if (!el) return;
       try { handle.releasePointerCapture(e.pointerId); } catch (err) {}
-      if (draggedPastThreshold) {
-        var id = dragging.getAttribute('data-block-id');
+      if (opts.onEnd) opts.onEnd(el, moved);
+      el = null; armed = false; moved = false;
+    }
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  }
+
+  /** The reorder gesture — the FIRST caller of bindGesture, and its proof.
+   *  What remains here is only what is genuinely the drag's own: the Y-axis
+   *  sibling hit-test, the drop-line, and the reorder message. Pointer capture,
+   *  the arm/threshold machine, edge-scroll and click-suppression all moved to
+   *  the primitive (ADR-461 D2 — "gestures over existing ops", now true rather
+   *  than aspirational). Behaviour is unchanged; that is the point. */
+  function bindDrag(handle) {
+    var beforeId = null;      // the block id to drop before (null = end)
+
+    bindGesture(handle, function () { return curBlock; }, {
+      axis: 'y',
+      onStart: function () { beforeId = null; },
+      onMove: function (dragging, e) {
+        if (!dragging.classList.contains('yarnnn-dragging')) {
+          dragging.classList.add('yarnnn-dragging');
+          ensureDropline();
+        }
+        // The same-parent sibling the cursor is nearest to, and whether the
+        // drop lands ABOVE or BELOW it → the drop-line position + beforeId.
+        var sibs = siblingBlocksOf(dragging);
+        var placed = false;
+        for (var i = 0; i < sibs.length; i++) {
+          var s = sibs[i];
+          if (s === dragging) continue;
+          var r = s.getBoundingClientRect();
+          var mid = r.top + r.height / 2;
+          if (e.clientY < mid) {
+            dropline.style.display = 'block';
+            dropline.style.left = (r.left + window.scrollX) + 'px';
+            dropline.style.width = r.width + 'px';
+            dropline.style.top = (r.top + window.scrollY - 1) + 'px';
+            beforeId = s.getAttribute('data-block-id');
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) {
+          // Past every sibling → drop at the END (beforeId null); line under
+          // the last sibling that isn't the dragged block.
+          var last = null;
+          for (var j = sibs.length - 1; j >= 0; j--) { if (sibs[j] !== dragging) { last = sibs[j]; break; } }
+          if (last) {
+            var lr = last.getBoundingClientRect();
+            dropline.style.display = 'block';
+            dropline.style.left = (lr.left + window.scrollX) + 'px';
+            dropline.style.width = lr.width + 'px';
+            dropline.style.top = (lr.bottom + window.scrollY + 1) + 'px';
+          }
+          beforeId = null;
+        }
+      },
+      onEnd: function (dragging, moved) {
         dragging.classList.remove('yarnnn-dragging');
         if (dropline) dropline.style.display = 'none';
-        // Post the reorder — the parent computes moveBlockTo and lands ONE
-        // revision. A no-op drop (onto itself / already in place) is filtered
-        // parent-side (moveBlockTo returns null).
-        if (id && beforeId !== id) {
-          parent.postMessage({ type: 'yarnnn-reorder', blockId: id, beforeBlockId: beforeId }, '*');
+        if (moved) {
+          var id = dragging.getAttribute('data-block-id');
+          // Post the reorder — the parent computes moveBlockTo and lands ONE
+          // revision. A no-op drop (onto itself / already in place) is filtered
+          // parent-side (moveBlockTo returns null).
+          if (id && beforeId !== id) {
+            parent.postMessage({ type: 'yarnnn-reorder', blockId: id, beforeBlockId: beforeId }, '*');
+          }
         }
-      }
-      // draggedPastThreshold stays true so the click handler suppresses; it
-      // resets on the next real click (a plain click never set it).
-      dragging = null; armed = false; beforeId = null;
-    }
-    handle.addEventListener('pointerup', endDrag);
-    handle.addEventListener('pointercancel', endDrag);
+        beforeId = null;
+      },
+    });
   }
 
   // F5: position the gutter beside the block, tracking the pointer VERTICALLY so
