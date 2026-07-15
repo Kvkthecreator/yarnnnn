@@ -70,6 +70,21 @@ async def extract_text(file_content: bytes, file_type: str) -> tuple[str, int]:
         return await extract_text_from_txt(file_content)
 
 
+# Phase-A chassis (ADR-457 D6 as amended): image uploads ride the SAME raw
+# lane (private bucket + content_url reference) with no text projection — a
+# vision model reads the bytes via a signed URL at turn time. NOT gated on
+# ADR-427 (the utf-8 wall is the CAS ledger path; raw uploads never touch it).
+IMAGE_TYPES = {"png", "jpg", "jpeg", "webp", "gif"}
+
+
+def upload_mime(file_type: str) -> str:
+    """The real MIME for a raw upload's revision row."""
+    ft = file_type.lower().strip(".")
+    if ft in IMAGE_TYPES:
+        return f"image/{'jpeg' if ft in ('jpg', 'jpeg') else ft}"
+    return f"application/{ft}"
+
+
 # =============================================================================
 # SLUG GENERATION
 # =============================================================================
@@ -183,9 +198,15 @@ async def process_document(
     #    a raw revision for something with no derivable projection). The SAME
     #    extraction the derive primitive runs — computed once here for the
     #    fast-fail, handed to the primitive so it isn't re-run.
-    text, unit_count = await extract_text(file_content, file_type)
-    if not text or len(text.strip()) < 50:
-        return {"success": False, "error": "No text could be extracted from document"}
+    is_image = file_type.lower().strip(".") in IMAGE_TYPES
+    if is_image:
+        # Images carry no text projection — the raw IS the substance; a
+        # vision model reads it via a signed URL at turn time (Phase A).
+        text, unit_count = "", 0
+    else:
+        text, unit_count = await extract_text(file_content, file_type)
+        if not text or len(text.strip()) < 50:
+            return {"success": False, "error": "No text could be extracted from document"}
 
     slug = _filename_to_slug(filename)
     # 2. RETAIN — land the raw blob (Piece A). principal defaults to "operator"
@@ -207,7 +228,7 @@ async def process_document(
             message=f"upload {filename}",
             lifecycle="active",
             content_url=content_url,
-            content_type=f"application/{file_type}",
+            content_type=upload_mime(file_type),
             # ADR-448 (closing the ADR-423 D3 gap): an inbound/ write is an
             # observation — the arrival badge on the ledger, not the path.
             revision_kind="observation",
@@ -215,6 +236,19 @@ async def process_document(
     except Exception as e:
         logger.error(f"[DOCUMENTS] Failed to write raw upload {raw_path}: {e}")
         return {"success": False, "error": f"Failed to write workspace file: {e}"}
+
+    if is_image:
+        # No projection to derive — the raw is retained + attributed (DP32);
+        # consumption is visual (vision content parts / the blob endpoint).
+        logger.info(f"[DOCUMENTS] Uploaded {raw_path} (raw image, no projection)")
+        return {
+            "success": True,
+            "workspace_path": raw_path,
+            "raw_path": raw_path,
+            "projection_path": None,
+            "word_count": 0,
+            "embed_pending": False,
+        }
 
     # 3. DERIVE — the text projection, inline + mechanical (Piece B / DP34).
     #    Runs the ExtractTextFromBlob primitive so upload + connector share ONE

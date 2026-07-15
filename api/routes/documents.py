@@ -117,10 +117,16 @@ ALLOWED_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
     "text/plain": "txt",
     "text/markdown": "md",
+    # Phase-A attachments: images ride the same raw lane, no projection
+    # (services/documents.py IMAGE_TYPES — vision models read via signed URL).
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+    "image/gif": "gif",
 }
 
 MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB per file
-_ALLOWED_EXTS = ("pdf", "docx", "txt", "md")
+_ALLOWED_EXTS = ("pdf", "docx", "txt", "md", "png", "jpg", "jpeg", "webp", "gif")
 
 
 def _resolve_file_type(content_type: str, filename: str) -> Optional[str]:

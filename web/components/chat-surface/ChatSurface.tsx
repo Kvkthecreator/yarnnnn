@@ -48,7 +48,7 @@ interface LaneInfo {
 
 interface LaneData {
   enabled: boolean;
-  models: Array<{ id: string; label: string }>;
+  models: Array<{ id: string; label: string; vision?: boolean }>;
   /** ADR-450 D5 — kernel recipes (the Learn-from chooser payload). */
   recipes?: Array<{ slug: string; label: string; description: string }>;
   lanes: LaneInfo[];
@@ -515,6 +515,11 @@ export function ChatSurface() {
               // Phase-A hygiene: the first turn auto-names a default-named
               // lane server-side; reflect it in the list + header.
               onLaneRenamed={(name) => updateLaneLocal(activeLane.id, { name })}
+              // Phase-A attachments: gate the image affordance on the lane
+              // model's vision flag (the server guards regardless).
+              visionCapable={
+                data.models.find((m) => m.id === activeLane.model)?.vision ?? true
+              }
             />
           </>
         ) : (

@@ -40,11 +40,14 @@ import {
   Check,
   Copy,
   FileText,
+  ImageIcon,
   Loader2,
+  Paperclip,
   Pencil,
   RefreshCw,
   Square,
   Wrench,
+  X,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatTimestamp } from '@/lib/formatting';
@@ -73,6 +76,18 @@ interface LaneMessage {
   tools_called?: string[];
   /** Persisted on the assistant row's metadata, so a reloaded lane keeps its cards. */
   artifacts?: LaneArtifact[];
+  /** Phase-A attachments: what this user turn carried (metadata, chips). */
+  attachments?: Array<{ path: string; kind: 'image' | 'file'; name?: string }>;
+}
+
+/** A composer attachment mid-flight: uploading → uploaded (path set) | failed. */
+interface PendingAttachment {
+  key: string;
+  name: string;
+  kind: 'image' | 'file';
+  path?: string;
+  uploading: boolean;
+  error?: boolean;
 }
 
 /** Metadata `artifacts` is a bare path list on the wire; the verb rides the
@@ -131,6 +146,9 @@ interface LanePanelProps extends LaneMountSlots {
   /** Phase-A hygiene: the turn auto-named a default-named lane (server truth
    *  rides the done frame) — the mount updates its list/header. */
   onLaneRenamed?: (name: string) => void;
+  /** Phase-A attachments: may this lane's model receive images? (LANE_MODELS
+   *  vision flag — the server guards regardless; this gates the affordance.) */
+  visionCapable?: boolean;
 }
 
 export function LanePanel({
@@ -143,6 +161,7 @@ export function LanePanel({
   composerSeed,
   artifactWrite = 'card',
   onLaneRenamed,
+  visionCapable = true,
 }: LanePanelProps) {
   const [messages, setMessages] = useState<LaneMessage[]>([]);
   const [input, setInput] = useState('');
@@ -154,7 +173,48 @@ export function LanePanel({
   const abortRef = useRef<AbortController | null>(null);
   const [editing, setEditing] = useState<{ id: string; original: string } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Phase-A attachments: composer chips (upload → send as turn refs).
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  /** Upload files into the raw lane (ADR-395) and track them as chips. */
+  const addFiles = useCallback(
+    (files: File[]) => {
+      for (const file of files) {
+        const kind: 'image' | 'file' = file.type.startsWith('image/') ? 'image' : 'file';
+        if (kind === 'image' && !visionCapable) {
+          setError(`${modelLabel} cannot see images — attach documents instead.`);
+          continue;
+        }
+        const key = `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        setAttachments((prev) => [
+          ...prev,
+          { key, name: file.name, kind, uploading: true },
+        ]);
+        api.documents
+          .upload(file)
+          .then((res) => {
+            const item = res.results?.[0];
+            setAttachments((prev) =>
+              prev.map((a) =>
+                a.key === key
+                  ? item?.success && item.workspace_path
+                    ? { ...a, uploading: false, path: item.workspace_path }
+                    : { ...a, uploading: false, error: true }
+                  : a,
+              ),
+            );
+          })
+          .catch(() =>
+            setAttachments((prev) =>
+              prev.map((a) => (a.key === key ? { ...a, uploading: false, error: true } : a)),
+            ),
+          );
+      }
+    },
+    [modelLabel, visionCapable],
+  );
 
   const mapMessages = (
     rows: Array<{
@@ -172,6 +232,8 @@ export function LanePanel({
       created_at: m.created_at,
       tools_called: (m.metadata?.tools_called as string[]) ?? undefined,
       artifacts: toArtifacts(m.metadata?.artifacts),
+      attachments:
+        (m.metadata?.attachments as LaneMessage['attachments']) ?? undefined,
     }));
 
   useEffect(() => {
@@ -222,7 +284,11 @@ export function LanePanel({
   const runStream = useCallback(
     async (
       kind: 'send' | 'regenerate',
-      opts: { content?: string; replaceFromMessageId?: string } = {},
+      opts: {
+        content?: string;
+        replaceFromMessageId?: string;
+        attachments?: Array<{ path: string; kind: 'image' | 'file'; name?: string }>;
+      } = {},
     ) => {
       if (sending) return;
       setError(null);
@@ -243,7 +309,12 @@ export function LanePanel({
           }
           return [
             ...base,
-            { id: userId, role: 'user', content: opts.content ?? '' },
+            {
+              id: userId,
+              role: 'user',
+              content: opts.content ?? '',
+              attachments: opts.attachments,
+            },
             { id: replyId, role: 'assistant', content: '' },
           ];
         });
@@ -357,6 +428,7 @@ export function LanePanel({
           await api.lanes.sendStream(laneId, opts.content ?? '', handlers, {
             signal: controller.signal,
             replaceFromMessageId: opts.replaceFromMessageId,
+            attachments: opts.attachments,
           });
         } else {
           await api.lanes.regenerateStream(laneId, handlers, {
@@ -387,11 +459,22 @@ export function LanePanel({
   const send = useCallback(async () => {
     const content = input.trim();
     if (!content || sending) return;
+    // Attachments still uploading hold the send (a ref without a path would
+    // silently drop); failed ones are skipped.
+    if (attachments.some((a) => a.uploading)) return;
+    const ready = attachments
+      .filter((a) => a.path && !a.error)
+      .map((a) => ({ path: a.path!, kind: a.kind, name: a.name }));
     setInput('');
+    setAttachments([]);
     const replaceFromMessageId = editing?.id;
     setEditing(null);
-    await runStream('send', { content, replaceFromMessageId });
-  }, [input, sending, editing, runStream]);
+    await runStream('send', {
+      content,
+      replaceFromMessageId,
+      attachments: ready.length ? ready : undefined,
+    });
+  }, [input, sending, editing, attachments, runStream]);
 
   /** Phase-A turn controls: stop — abort the stream; the server persists the
    *  partial reply (any writes that landed stand — the no-rewind rule). */
@@ -502,6 +585,26 @@ export function LanePanel({
                       </div>
                     ) : (
                       m.content
+                    )}
+                    {/* Phase-A attachments: what this user turn carried. */}
+                    {m.role === 'user' && m.attachments && m.attachments.length > 0 && (
+                      <div className="mt-1.5 pt-1.5 border-t border-primary-foreground/20 flex flex-wrap gap-1">
+                        {m.attachments.map((a) => (
+                          <span
+                            key={a.path}
+                            className="inline-flex items-center gap-1 rounded bg-primary-foreground/15 px-1.5 py-0.5 text-[10px]"
+                          >
+                            {a.kind === 'image' ? (
+                              <ImageIcon className="w-3 h-3" />
+                            ) : (
+                              <FileText className="w-3 h-3" />
+                            )}
+                            <span className="truncate max-w-[140px]">
+                              {a.name || a.path.split('/').pop()}
+                            </span>
+                          </span>
+                        ))}
+                      </div>
                     )}
                     {m.content && m.tools_called && m.tools_called.length > 0 && (
                       <div className="mt-1.5 pt-1.5 border-t border-border/40 flex items-center gap-1 text-[10px] text-muted-foreground">
@@ -617,7 +720,69 @@ export function LanePanel({
             </button>
           </div>
         )}
+        {/* Phase-A attachments: composer chips (uploading → ready | failed). */}
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-1 px-1 pb-1.5">
+            {attachments.map((a) => (
+              <span
+                key={a.key}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px]',
+                  a.error
+                    ? 'border-destructive/50 text-destructive'
+                    : 'border-border text-muted-foreground',
+                )}
+              >
+                {a.uploading ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : a.kind === 'image' ? (
+                  <ImageIcon className="w-3 h-3" />
+                ) : (
+                  <FileText className="w-3 h-3" />
+                )}
+                <span className="truncate max-w-[140px]">{a.name}</span>
+                {a.error && <span>failed</span>}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAttachments((prev) => prev.filter((p) => p.key !== a.key))
+                  }
+                  className="p-0.5 rounded hover:text-foreground"
+                  aria-label={`Remove ${a.name}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <div className="flex items-end gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={
+              visionCapable
+                ? 'image/png,image/jpeg,image/webp,image/gif,.pdf,.docx,.txt,.md'
+                : '.pdf,.docx,.txt,.md'
+            }
+            className="hidden"
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              if (files.length) addFiles(files);
+              e.target.value = '';
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending}
+            className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 shrink-0 transition-colors"
+            aria-label="Attach a file"
+            title="Attach"
+          >
+            <Paperclip className="w-4 h-4" />
+          </button>
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -629,6 +794,16 @@ export function LanePanel({
               if (e.key === 'Escape' && editing) {
                 e.preventDefault();
                 cancelEdit();
+              }
+            }}
+            onPaste={(e) => {
+              // Pasted images (screenshots) become attachments.
+              const files = Array.from(e.clipboardData?.files ?? []).filter((f) =>
+                f.type.startsWith('image/'),
+              );
+              if (files.length) {
+                e.preventDefault();
+                addFiles(files);
               }
             }}
             placeholder={editing ? 'Edit your message…' : `Message ${laneName}…`}
@@ -647,7 +822,7 @@ export function LanePanel({
           ) : (
             <button
               onClick={() => void send()}
-              disabled={!input.trim()}
+              disabled={!input.trim() || attachments.some((a) => a.uploading)}
               className="p-2 rounded-md bg-primary text-primary-foreground disabled:opacity-40 shrink-0"
               aria-label="Send"
             >

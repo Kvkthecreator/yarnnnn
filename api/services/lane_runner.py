@@ -48,19 +48,21 @@ logger = logging.getLogger(__name__)
 #: tested) — the D4 spike's rule: an unpriced model never routes in prod.
 #: This is DATA (ADR-402 pattern): adding a provider = a row here + a rate
 #: row + the provider key in env.
-LANE_MODELS: dict[str, dict[str, str]] = {
-    "anthropic/claude-sonnet-4-6": {"label": "Claude Sonnet"},
-    "anthropic/claude-haiku-4-5-20251001": {"label": "Claude Haiku"},
-    "openai/gpt-4o-mini": {"label": "GPT-4o mini"},
+LANE_MODELS: dict[str, dict[str, Any]] = {
+    "anthropic/claude-sonnet-4-6": {"label": "Claude Sonnet", "vision": True},
+    "anthropic/claude-haiku-4-5-20251001": {"label": "Claude Haiku", "vision": True},
+    "openai/gpt-4o-mini": {"label": "GPT-4o mini", "vision": True},
     # ADR-420 §10 seed set — "provide enough, not the most" (one lane per
     # reason a user would leave, not one per model that exists). Each row
     # is DATA: a _BILLING_RATES row (telemetry.py) + the provider key in env
     # (GEMINI_API_KEY / OPENAI_API_KEY / DEEPSEEK_API_KEY on API + Scheduler)
     # is all it costs. Lit dark until the key lands; MODEL_ROUTER_ENABLED gates.
-    "openai/gpt-5": {"label": "GPT-5"},                        # frontier OpenAI (completes mini→frontier)
-    "gemini/gemini-2.5-flash": {"label": "Gemini Flash"},      # the Google lane (fast/cheap)
-    "gemini/gemini-2.5-pro": {"label": "Gemini Pro"},          # frontier Google reasoning
-    "deepseek/deepseek-chat": {"label": "DeepSeek"},           # cost-floor / sovereign lane (compat alias → V4 Flash)
+    # `vision` (Phase-A attachments): may this model receive image content
+    # parts? Data, not capability-probing — a new row declares it.
+    "openai/gpt-5": {"label": "GPT-5", "vision": True},                        # frontier OpenAI (completes mini→frontier)
+    "gemini/gemini-2.5-flash": {"label": "Gemini Flash", "vision": True},      # the Google lane (fast/cheap)
+    "gemini/gemini-2.5-pro": {"label": "Gemini Pro", "vision": True},          # frontier Google reasoning
+    "deepseek/deepseek-chat": {"label": "DeepSeek", "vision": False},          # cost-floor / sovereign lane (compat alias → V4 Flash)
 }
 
 _LANE_MAX_ROUNDS = 8       # cost ceiling, not behavior (ADR-402 posture)
@@ -361,7 +363,9 @@ async def run_lane_turn(
     *,
     model: str,
     history: list[dict],
-    user_message: str,
+    # str, or OpenAI content-parts list when the turn carries image
+    # attachments (Phase A) — embedded into the messages verbatim either way.
+    user_message: Any,
     member_label: Optional[str] = None,
     artifact_path: Optional[str] = None,
     derive_recipe: Optional[str] = None,
@@ -528,7 +532,9 @@ async def run_lane_turn_stream(
     *,
     model: str,
     history: list[dict],
-    user_message: str,
+    # str, or OpenAI content-parts list when the turn carries image
+    # attachments (Phase A) — embedded into the messages verbatim either way.
+    user_message: Any,
     member_label: Optional[str] = None,
     artifact_path: Optional[str] = None,
     derive_recipe: Optional[str] = None,

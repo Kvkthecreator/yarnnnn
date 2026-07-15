@@ -251,7 +251,7 @@ export const api = {
     list: () =>
       request<{
         enabled: boolean;
-        models: Array<{ id: string; label: string }>;
+        models: Array<{ id: string; label: string; vision?: boolean }>;
         /** ADR-450 D5 — the Learn-from chooser payload (kernel recipes). */
         recipes: Array<{ slug: string; label: string; description: string; accepts: string[] }>;
         lanes: Array<{
@@ -304,7 +304,12 @@ export const api = {
       laneId: string,
       content: string,
       handlers: LaneStreamHandlers,
-      opts?: { signal?: AbortSignal; replaceFromMessageId?: string },
+      opts?: {
+        signal?: AbortSignal;
+        replaceFromMessageId?: string;
+        /** Phase-A attachments: raw upload refs this turn carries. */
+        attachments?: Array<{ path: string; kind: "image" | "file"; name?: string }>;
+      },
     ): Promise<void> =>
       streamLaneTurn(
         `/api/lanes/${laneId}/messages`,
@@ -313,6 +318,7 @@ export const api = {
           ...(opts?.replaceFromMessageId
             ? { replace_from_message_id: opts.replaceFromMessageId }
             : {}),
+          ...(opts?.attachments?.length ? { attachments: opts.attachments } : {}),
         },
         handlers,
         opts?.signal,
@@ -381,7 +387,7 @@ export const api = {
     vocabulary: () =>
       request<{
         blocks: Array<{ kind: string; label: string; description: string; group: string; fragment: string }>;
-        layouts: Array<{ slug: string; label: string; description: string }>;
+        layouts: Array<{ slug: string; label: string; description: string; mode: 'flow' | 'paged' }>;
         arrangements: Record<
           string,
           Array<{

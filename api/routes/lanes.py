@@ -56,6 +56,16 @@ class CreateLaneRequest(BaseModel):
     derive_source: Optional[str] = None
 
 
+class LaneAttachment(BaseModel):
+    # Phase-A attachments: a raw upload this turn references. `path` is the
+    # workspace raw path the upload route returned; `kind` decides consumption
+    # (image → vision content part via signed URL; file → the model reads the
+    # text projection with ReadFile).
+    path: str
+    kind: str  # "image" | "file"
+    name: Optional[str] = None
+
+
 class LaneTurnRequest(BaseModel):
     content: str
     # Phase-A turn controls: edit-and-resend. When set, the transcript tail is
@@ -64,6 +74,9 @@ class LaneTurnRequest(BaseModel):
     # substrate writes from discarded turns stand on the ledger; undoing them
     # is its own revert-as-write act (ADR-406).
     replace_from_message_id: Optional[str] = None
+    # Phase-A attachments (v1 scope: this turn only — history stays text, so
+    # a later turn or a regenerate does not re-see the image bytes).
+    attachments: Optional[list[LaneAttachment]] = None
 
 
 class LanePatchRequest(BaseModel):
@@ -145,7 +158,7 @@ async def list_lanes(auth: UserClient) -> dict:
     return {
         "enabled": enabled,
         "models": [
-            {"id": mid, "label": meta["label"]}
+            {"id": mid, "label": meta["label"], "vision": bool(meta.get("vision", True))}
             for mid, meta in LANE_MODELS.items()
         ],
         # ADR-450 D5: the Learn-from chooser payload — kernel recipes, served
@@ -287,6 +300,82 @@ def _delete_transcript_tail(auth: UserClient, lane_id: str, from_sequence: int) 
     )
 
 
+def _resolve_blob_storage_path(auth: UserClient, path: str) -> Optional[str]:
+    """A raw upload's private-bucket key, from its stable content_url
+    (`/api/documents/blob?storage_path=…`, ADR-395 Piece A)."""
+    from urllib.parse import parse_qs, urlparse
+
+    from services.workspace_context import substrate_scope_filter
+
+    res = (
+        auth.client.table("workspace_files")
+        .select("content_url")
+        .eq(*substrate_scope_filter(auth.user_id))
+        .eq("path", path)
+        .limit(1)
+        .execute()
+    )
+    row = (res.data or [None])[0]
+    url = (row or {}).get("content_url") or ""
+    vals = parse_qs(urlparse(url).query).get("storage_path")
+    return vals[0] if vals else None
+
+
+def _build_turn_message(
+    auth: UserClient,
+    content: str,
+    attachments: list[LaneAttachment],
+    model: str,
+):
+    """Phase-A attachments → the model-facing message.
+
+    Images become OpenAI vision content parts (fresh signed URL — the raw
+    stays in the private bucket, DP32-retained); files become a pointer note
+    (the lane reads the text projection with its own ReadFile — the
+    substrate-native move, no content injection). Returns
+    (model_message, attachments_meta) — the persisted user row keeps the
+    plain text + metadata, never the parts array.
+    """
+    from services.documents import (
+        create_signed_url_for_storage_path,
+        upload_projection_path,
+    )
+    from services.lane_runner import LANE_MODELS
+    from services.supabase import get_service_client
+
+    image_parts: list[dict] = []
+    notes: list[str] = []
+    meta: list[dict] = []
+    for att in attachments:
+        kind = "image" if att.kind == "image" else "file"
+        meta.append({"path": att.path, "kind": kind, "name": att.name or att.path.split("/")[-1]})
+        if kind == "image":
+            if not LANE_MODELS.get(model, {}).get("vision", True):
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"{LANE_MODELS.get(model, {}).get('label', model)} cannot see images — pick a vision-capable lane",
+                )
+            storage_path = _resolve_blob_storage_path(auth, att.path)
+            signed = (
+                create_signed_url_for_storage_path(get_service_client(), storage_path)
+                if storage_path
+                else None
+            )
+            if not signed:
+                raise HTTPException(status_code=404, detail=f"Attachment not found: {att.path}")
+            image_parts.append({"type": "image_url", "image_url": {"url": signed}})
+        else:
+            notes.append(
+                f"[Attached file: {att.path} — text projection at "
+                f"{upload_projection_path(att.path)}; read it with ReadFile]"
+            )
+
+    model_text = content + ("\n\n" + "\n".join(notes) if notes else "")
+    if image_parts:
+        return [{"type": "text", "text": model_text}, *image_parts], meta
+    return model_text, meta
+
+
 def _maybe_autoname(auth: UserClient, lane: dict, content: str) -> Optional[str]:
     """Phase-A hygiene: name a default-named lane from its first message's
     head (mechanical, zero-LLM — a metered naming call is not worth a title).
@@ -320,6 +409,11 @@ def _turn_stream_response(
     persist_user: bool,
     history_before_sequence: Optional[int] = None,
     renamed: Optional[str] = None,
+    # Phase-A attachments: what the MODEL sees this turn (content-parts list
+    # when images ride along; defaults to `content`). The persisted user row
+    # always keeps the plain text + attachments metadata.
+    model_message=None,
+    attachments_meta: Optional[list[dict]] = None,
 ) -> StreamingResponse:
     """The one streaming turn core — serves POST messages AND regenerate.
 
@@ -366,6 +460,9 @@ def _turn_stream_response(
             summary=content,
             pulse="addressed",
             authored_by="operator",
+            extra_metadata=(
+                {"attachments": attachments_meta} if attachments_meta else None
+            ),
         )
 
     async def event_stream():
@@ -418,7 +515,7 @@ def _turn_stream_response(
                 auth,
                 model=model,
                 history=history,
-                user_message=content,
+                user_message=model_message if model_message is not None else content,
                 member_label=getattr(auth, "email", None) or None,
                 # ADR-440 D3 — a bound lane's turns carry the Studio posture.
                 artifact_path=lane_meta.get("artifact_path"),
@@ -490,6 +587,16 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
     if lane.get("status") != "active":
         raise HTTPException(status_code=409, detail="Lane is archived")
 
+    # Phase-A attachments: build the model-facing message (vision parts /
+    # projection pointers) + the metadata the user row persists.
+    model_message = None
+    attachments_meta: Optional[list[dict]] = None
+    if req.attachments:
+        lane_meta = (lane.get("context_metadata") or {}).get("lane") or {}
+        model_message, attachments_meta = _build_turn_message(
+            auth, content, req.attachments, lane_meta.get("model") or ""
+        )
+
     # Edit-and-resend: truncate the tail from the edited USER message, then
     # run an ordinary turn with the edited content.
     if req.replace_from_message_id:
@@ -509,7 +616,15 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
         _delete_transcript_tail(auth, lane_id, int(row["sequence_number"]))
 
     renamed = _maybe_autoname(auth, lane, content)
-    return _turn_stream_response(auth, lane, content, persist_user=True, renamed=renamed)
+    return _turn_stream_response(
+        auth,
+        lane,
+        content,
+        persist_user=True,
+        renamed=renamed,
+        model_message=model_message,
+        attachments_meta=attachments_meta,
+    )
 
 
 @router.post("/lanes/{lane_id}/regenerate")
