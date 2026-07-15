@@ -370,6 +370,13 @@ async def run_lane_turn(
     artifact_path: Optional[str] = None,
     derive_recipe: Optional[str] = None,
     derive_source: Optional[str] = None,
+    # W0 / ADR-457 D8: the lane's session id — the falsifier join key. Passed
+    # to the cost ledger so a metered turn can be joined back to the surface
+    # that asked for it (the ledger writes slug="lane" for BOTH chat and Studio
+    # bound lanes; the discriminator is the session's binding). Optional: a
+    # caller that doesn't pass it still meters correctly, it is just
+    # unclassifiable in falsifier 1.
+    session_id: Optional[str] = None,
 ) -> dict:
     """Run one lane turn: bounded tool loop over the router.
 
@@ -466,6 +473,7 @@ async def run_lane_turn(
                 principal_id=getattr(auth, "principal_id", None) or auth.user_id,
                 workspace_id=getattr(auth, "workspace_id", None),
                 cost_override_usd=byok_cost_override,
+                session_id=session_id,  # W0 — the falsifier join key
                 **routed.usage,
             )
         except Exception as exc:
@@ -539,6 +547,8 @@ async def run_lane_turn_stream(
     artifact_path: Optional[str] = None,
     derive_recipe: Optional[str] = None,
     derive_source: Optional[str] = None,
+    # W0 / ADR-457 D8 — the falsifier join key; see ``run_lane_turn``.
+    session_id: Optional[str] = None,
 ):
     """Streaming sibling of ``run_lane_turn`` (ADR-412 D2 lane streaming).
 
@@ -650,6 +660,7 @@ async def run_lane_turn_stream(
                 principal_id=getattr(auth, "principal_id", None) or auth.user_id,
                 workspace_id=getattr(auth, "workspace_id", None),
                 cost_override_usd=byok_cost_override,
+                session_id=session_id,  # W0 — the falsifier join key
                 **routed.usage,
             )
         except Exception as exc:

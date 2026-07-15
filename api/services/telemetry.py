@@ -169,6 +169,7 @@ def record_execution_event(
     principal_id: Optional[str] = None,
     workspace_id: Optional[str] = None,
     cost_override_usd: Optional[float] = None,
+    session_id: Optional[str] = None,
 ) -> Optional[str]:
     """Write one row to execution_events. Never raises. Returns the row id on
     success, None on insert failure.
@@ -306,6 +307,13 @@ def record_execution_event(
             row["funnel_decision"] = funnel_decision
         if agent_run_id is not None:
             row["agent_run_id"] = agent_run_id
+        # W0 / ADR-457 D8 (migration 216): the session this metered turn served.
+        # The falsifier JOIN KEY — the surface class (think/make/derive) is
+        # DERIVED from the joined session's lane binding at read time (DP29),
+        # never stored here. NULL for non-session invocations (recurrences,
+        # sweeps, capture) and for pre-216 rows; never backfilled, never guessed.
+        if session_id is not None:
+            row["session_id"] = session_id
         # Capture-first (migration 192): attribute the row to the causing
         # PRINCIPAL. Explicit principal_id wins (the interop path passes the
         # foreign provider host-id); otherwise default to user_id — correct for

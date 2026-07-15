@@ -522,6 +522,10 @@ def _turn_stream_response(
                 # ADR-450 D3 — a derive-bound lane's turns carry the recipe.
                 derive_recipe=lane_meta.get("derive_recipe"),
                 derive_source=lane_meta.get("derive_source"),
+                # W0 / ADR-457 D8 — the falsifier join key: this turn's cost
+                # row carries the session it served, so the surface that asked
+                # (think / make / derive) is derivable at read time.
+                session_id=lane_id,
             ):
                 if kind == "delta":
                     accumulated.append(payload)
