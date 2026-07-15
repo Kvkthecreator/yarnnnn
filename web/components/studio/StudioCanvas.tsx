@@ -163,7 +163,14 @@ export function StudioCanvas({
     const ro = new ResizeObserver(measure);
     ro.observe(frame);
     return () => ro.disconnect();
-  }, [isDeck]);
+    // `projected` is a dependency, not decoration: on first mount the content
+    // has not loaded, so isDeck is false and this effect settles fitScale=1 and
+    // never re-runs — iframeRef is a ref, so the frame appearing re-renders
+    // nothing. A deck then rendered its 992px stage 1:1 inside a ~370px column
+    // (chat + DevTools open) and the member saw a slide's blank left margin: a
+    // "broken" white canvas that was really an unfitted one. Re-running once the
+    // projection lands measures the frame that now exists.
+  }, [isDeck, projected]);
   const effectiveZoom = fitScale * zoom;
 
   // Re-project on CONTENT change (not on file-object identity — useFileLoad

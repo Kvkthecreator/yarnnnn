@@ -112,6 +112,37 @@ def run() -> bool:
         loader.index("if (!path) {") < loader.index("api.workspace\n      .getFile(path)"),
     )
 
+    # ── 4. the deck auto-fit actually measures ──────────────────────────────
+    # A deck's stage is a fixed 992px. The canvas auto-fits it to the column by
+    # measuring the iframe's clientWidth — but the measuring effect keyed only on
+    # [isDeck], and on first mount the content hasn't loaded, so isDeck is false:
+    # the effect settled fitScale=1 and NEVER re-ran (iframeRef is a ref — the
+    # frame appearing re-renders nothing). The deck then drew its 992px stage 1:1
+    # inside a ~370px column and the member saw a slide's blank left margin — a
+    # canvas that reads as broken but is merely unfitted (the zoom chip still
+    # says 100%, the tell). Re-running once `projected` lands fixes it.
+    canvas = (web / "components/studio/StudioCanvas.tsx").read_text()
+    _check(
+        "the deck auto-fit re-measures once the projection lands (not [isDeck] alone)",
+        "}, [isDeck, projected]);" in canvas,
+    )
+    _check(
+        "the fit feeds the zoom the runtime applies (fitScale × zoom)",
+        "const effectiveZoom = fitScale * zoom;" in canvas
+        and "scale: effectiveZoom" in canvas,
+    )
+    _check(
+        "a fresh load re-posts the current zoom (the runtime resets on reload)",
+        "scale: zoomRef.current" in canvas and "onLoad={commandEdit}" in canvas,
+    )
+    # The projection must never fall back to raw content (the iframe allows
+    # scripts; only the projection strips artifact-authored executables) — but a
+    # silent blank is undiagnosable, so the failure path must leave a breadcrumb.
+    _check(
+        "a projection failure blanks the canvas AND logs (never falls back to raw)",
+        "console.error('[STUDIO] projection failed" in canvas and "setProjected('')" in canvas,
+    )
+
     ok = all(c for _, c in _results)
     print()
     print(f"{'PASS' if ok else 'FAIL'}: {sum(c for _, c in _results)}/{len(_results)} checks")
