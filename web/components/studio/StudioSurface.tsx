@@ -680,6 +680,19 @@ export function StudioSurface() {
       ),
     [applyOp, anchor],
   );
+  // ADR-461 D3: the column divider landed on a STOP. It carries its OWN anchor
+  // (the page it was dragged on), not the selection's — a divider drag is a
+  // located gesture and must not depend on what happens to be selected. `null`
+  // clears the token: 1-1 is the even DEFAULT, written by absence, never a
+  // third value. The gesture composes setToken; it is not a second write path.
+  const handleRatio = useCallback(
+    (pageIndex: number, value: string | null) =>
+      applyOp(
+        (html) => setToken(html, { grain: 'page', anchor: { pageIndex } }, 'ratio', value),
+        value == null ? 'Studio: even columns' : `Studio: columns ${value}`,
+      ),
+    [applyOp],
+  );
   const handleBlockVerb = useCallback(
     (verb: StructVerb) => {
       const id = selection?.blockId;
@@ -1360,6 +1373,7 @@ export function StudioSurface() {
                 }}
                 onEnterBlock={onEnterBlock}
                 onReorder={handleReorder}
+                onRatio={handleRatio}
                 onSplitBlock={handleSplitBlock}
                 onMergeBlock={handleMergeBlock}
                 onAddHere={onAddHere}

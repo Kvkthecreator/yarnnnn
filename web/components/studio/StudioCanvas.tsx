@@ -74,6 +74,10 @@ interface StudioCanvasProps {
   /** F1: the member DRAGGED a block via the ⋮⋮ handle — move it before
    *  `beforeBlockId` (null = end of its parent). Lands one reorder revision. */
   onReorder?: (blockId: string, beforeBlockId: string | null) => void;
+  /** ADR-461 D3: the member dragged the column divider to a STOP. `value` is
+   *  the ratio token's value, or null for the even default (which is written
+   *  by CLEARING the attribute — 1-1 is the absence, not a third value). */
+  onRatio?: (pageIndex: number, value: string | null) => void;
   /** F6: the member pressed ENTER mid-block — the runtime split it optimistically
    *  in-frame; land the source split (blockId keeps beforeInner, newId gets
    *  afterInner) as a background revision with NO reload. */
@@ -152,6 +156,7 @@ export function StudioCanvas({
   onEditEntered,
   onEnterBlock,
   onReorder,
+  onRatio,
   onSplitBlock,
   onMergeBlock,
   onAddHere,
@@ -331,6 +336,11 @@ export function StudioCanvas({
         onEnterBlock?.(d.afterBlockId);
       } else if (d.type === 'yarnnn-reorder' && typeof d.blockId === 'string') {
         onReorder?.(d.blockId, typeof d.beforeBlockId === 'string' ? d.beforeBlockId : null);
+      } else if (d.type === 'yarnnn-ratio' && typeof d.pageIndex === 'number') {
+        // ADR-461 D3: the column divider dropped on a STOP. It carries the
+        // token's value (or null = the even default), never a width — the
+        // gesture composes setToken, it is not a second write path.
+        onRatio?.(d.pageIndex, typeof d.value === 'string' ? d.value : null);
       } else if (
         d.type === 'yarnnn-split-block' &&
         typeof d.blockId === 'string' &&

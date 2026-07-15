@@ -546,6 +546,18 @@ const EDIT_CSS = `
    between blocks (Notion's blue indicator). Body-appended chrome, never in a
    block, so it can't leak into a commit. */
 .yarnnn-gutter .yg-handle:active { cursor: grabbing; }
+/* The column divider (ADR-461 D3) — a snap handle on the gap between two
+   columns. Body-appended chrome like the gutter, so it can never leak into a
+   commit. It drags through the ratio token's STOPS, never free pixels. */
+.yarnnn-coldiv {
+  position: absolute; display: none; width: 9px; margin-left: -4px;
+  cursor: col-resize; z-index: 2147483646;
+}
+.yarnnn-coldiv::before {
+  content: ''; position: absolute; inset: 0 4px; border-radius: 2px;
+  background: transparent; transition: background 0.1s;
+}
+.yarnnn-coldiv:hover::before, .yarnnn-coldiv:active::before { background: #6366f1; }
 .yarnnn-dragging { opacity: 0.4; }
 .yarnnn-dropline {
   position: absolute; z-index: 9997; height: 2px; background: #6366f1;
@@ -1656,6 +1668,88 @@ const GUTTER_SCRIPT = `
     if (curBlock && curBlock.isConnected) showFor(curBlock, null);
     else hide();
   }, true);
+
+  // ── The column divider (ADR-461 D3) — snap-handle resize ────────────────
+  // ADR-453 D7 named this exactly: "column-divider ... handles that step
+  // through token stops (2-1 -> 1-1 -> 1-2), NEVER free pixels". So the drag
+  // does not write a width — it picks which STOP the ratio token names, and the
+  // kernel's existing [data-ratio] rules do the rest. Nothing continuous enters
+  // the artifact; this is why D3 needs no amendment to the token model.
+  //
+  // The SECOND bindGesture caller, and the reason the primitive was extracted:
+  // this is X-axis with no drop target and no sibling list, sharing only what
+  // is genuinely common (capture, threshold, click-suppression).
+  //
+  // 1-1 is the ABSENCE of the token (.col { flex: 1 } is the default), so the
+  // middle stop is written by REMOVING the attribute — the pad/valign/fit
+  // convention, not a third value.
+  var divider = null;
+  var dividerCols = null;
+
+  function ensureDivider() {
+    if (divider) return divider;
+    divider = document.createElement('div');
+    divider.className = 'yarnnn-coldiv';
+    document.body.appendChild(divider);
+    bindGesture(divider, function () { return dividerCols; }, {
+      axis: 'xy',
+      onMove: function (cols, e) {
+        // Which stop is the cursor nearest? The gap centre is 1-1; left of it
+        // weights the right column, right of it weights the left.
+        var r = cols.getBoundingClientRect();
+        var frac = (e.clientX - r.left) / (r.width || 1);
+        var stop = frac < 0.42 ? '1-2' : frac > 0.58 ? '2-1' : null;
+        // Preview live, in-frame only — the commit happens on release.
+        var page = cols.closest('[data-arrange]');
+        if (!page) return;
+        if (stop) page.setAttribute('data-ratio', stop);
+        else page.removeAttribute('data-ratio');
+      },
+      onEnd: function (cols, moved) {
+        if (!moved) return;
+        var page = cols.closest('[data-arrange]');
+        if (!page) return;
+        // Post the STOP, not a width. The parent lands it through the one door
+        // as an attributed revision (setToken / clearToken) — the gesture
+        // composes an existing op, it is not a second write path (ADR-461 D2).
+        parent.postMessage({
+          type: 'yarnnn-ratio',
+          pageIndex: pageIndexOf(page),
+          value: page.getAttribute('data-ratio'),
+        }, '*');
+      },
+    });
+    return divider;
+  }
+
+  function showDivider(cols) {
+    ensureDivider();
+    dividerCols = cols;
+    var r = cols.getBoundingClientRect();
+    // The gap between the two columns — the divider sits on it.
+    var kids = cols.querySelectorAll(':scope > .col');
+    if (kids.length !== 2) { hideDivider(); return; }
+    var a = kids[0].getBoundingClientRect();
+    divider.style.display = 'block';
+    divider.style.left = (a.right + window.scrollX) + 'px';
+    divider.style.top = (r.top + window.scrollY) + 'px';
+    divider.style.height = r.height + 'px';
+  }
+  function hideDivider() {
+    if (divider) divider.style.display = 'none';
+    dividerCols = null;
+  }
+
+  document.addEventListener('pointermove', function (e) {
+    // Only a 2-column region gets a divider, and only when the pointer is in
+    // it. A slide is exempt from the ratio token today (it applies to
+    // page-multicol), so this follows the token's own scope rather than
+    // inventing a second one.
+    var t = e.target;
+    var cols = t && t.closest ? t.closest('.cols') : null;
+    if (cols && cols.querySelectorAll(':scope > .col').length === 2) showDivider(cols);
+    else if (dividerCols && !divider.contains(t)) hideDivider();
+  });
 })();
 `;
 
