@@ -178,6 +178,71 @@ async function request<T>(
   return response.json();
 }
 
+/** The lane SSE event vocabulary's handler set (ADR-441 D1 — deliberately
+ *  separate from the steward's). Shared by send and regenerate (Phase A). */
+type LaneStreamHandlers = {
+  onDelta: (text: string) => void;
+  onTool?: (name: string) => void;
+  /** A WriteFile/EditFile landed — render the file inline (artifact card). */
+  onArtifact?: (a: { path: string; verb: string }) => void;
+  onDone?: (info: {
+    rounds: number;
+    tools_called: string[];
+    artifacts: string[];
+    /** Present when the turn auto-named a default-named lane (Phase A). */
+    lane_name?: string;
+  }) => void;
+  onError?: (message: string) => void;
+};
+
+/** One lane-turn SSE reader over the shared transport (lib/sse, ADR-441 D4)
+ *  — POST, dispatch the lane vocabulary, swallow member aborts (stop is a
+ *  control act, not an error; the server persists the partial). */
+async function streamLaneTurn(
+  path: string,
+  body: Record<string, unknown> | null,
+  handlers: LaneStreamHandlers,
+  signal?: AbortSignal,
+): Promise<void> {
+  const headers = await getAuthHeaders();
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal,
+    });
+  } catch (err) {
+    if ((err as Error)?.name === "AbortError") return; // member hit stop
+    throw err;
+  }
+  if (!res.ok || !res.body) {
+    handlers.onError?.(`Lane turn failed (${res.status})`);
+    return;
+  }
+  try {
+    for await (const evt of sseEvents(res.body)) {
+      if (typeof evt.text_delta === "string") handlers.onDelta(evt.text_delta);
+      else if (typeof evt.tool === "string") handlers.onTool?.(evt.tool);
+      else if (evt.artifact && typeof evt.artifact === "object") {
+        handlers.onArtifact?.(evt.artifact as { path: string; verb: string });
+      } else if (typeof evt.error === "string") handlers.onError?.(evt.error);
+      else if (evt.done) {
+        handlers.onDone?.({
+          rounds: (evt.rounds as number) ?? 0,
+          tools_called: (evt.tools_called as string[]) ?? [],
+          artifacts: (evt.artifacts as string[]) ?? [],
+          lane_name: typeof evt.lane_name === "string" ? evt.lane_name : undefined,
+        });
+      }
+    }
+  } catch (err) {
+    if ((err as Error)?.name === "AbortError") return; // stopped mid-read
+    throw err;
+  }
+}
+
 export const api = {
   // ADR-411 (ADR-408 D6): chat lanes — model-pinned helper threads per
   // member over the shared workspace. `enabled` reflects MODEL_ROUTER_ENABLED
@@ -193,6 +258,8 @@ export const api = {
           id: string;
           name: string;
           model: string;
+          /** Phase-A hygiene: pinned lanes sort first. */
+          pinned?: boolean;
           /** ADR-440 D3 — the Studio binding (null for plain chat lanes). */
           artifact_path?: string | null;
           /** ADR-450 D3 — the derive binding (null for plain chat lanes). */
@@ -205,7 +272,8 @@ export const api = {
         }>;
       }>("/api/lanes"),
     create: (data: {
-      name: string;
+      /** Optional since Phase A — a nameless lane auto-names on first turn. */
+      name?: string;
       model: string;
       artifact_path?: string;
       /** ADR-450 D3 — the derive binding (pass both or neither). */
@@ -227,50 +295,47 @@ export const api = {
         }>;
       }>(`/api/lanes/${laneId}/messages`),
     /**
-     * Streaming lane turn (ADR-412 D2). Bypasses request() (which parses
-     * JSON) to read the SSE stream over the shared transport (`lib/sse`,
-     * ADR-441 D4). The LANE event vocabulary dispatched here is deliberately
-     * separate from the steward's (ADR-441 D1 — the altitude seam is a
-     * wire-protocol seam). Callbacks accumulate on the FE.
+     * Streaming lane turn (ADR-412 D2), over the shared reader (ADR-441 D4).
+     * Phase-A turn controls: `opts.signal` aborts the stream (stop — the
+     * server persists the partial); `opts.replaceFromMessageId` is
+     * edit-and-resend (transcript-tail truncate before the turn).
      */
-    sendStream: async (
+    sendStream: (
       laneId: string,
       content: string,
-      handlers: {
-        onDelta: (text: string) => void;
-        onTool?: (name: string) => void;
-        /** A WriteFile/EditFile landed — render the file inline (artifact card). */
-        onArtifact?: (a: { path: string; verb: string }) => void;
-        onDone?: (info: { rounds: number; tools_called: string[]; artifacts: string[] }) => void;
-        onError?: (message: string) => void;
-      },
-    ): Promise<void> => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`${API_BASE_URL}/api/lanes/${laneId}/messages`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ content }),
-      });
-      if (!res.ok || !res.body) {
-        handlers.onError?.(`Lane turn failed (${res.status})`);
-        return;
-      }
-      for await (const evt of sseEvents(res.body)) {
-        if (typeof evt.text_delta === "string") handlers.onDelta(evt.text_delta);
-        else if (typeof evt.tool === "string") handlers.onTool?.(evt.tool);
-        else if (evt.artifact && typeof evt.artifact === "object") {
-          handlers.onArtifact?.(evt.artifact as { path: string; verb: string });
-        }
-        else if (typeof evt.error === "string") handlers.onError?.(evt.error);
-        else if (evt.done) {
-          handlers.onDone?.({
-            rounds: (evt.rounds as number) ?? 0,
-            tools_called: (evt.tools_called as string[]) ?? [],
-            artifacts: (evt.artifacts as string[]) ?? [],
-          });
-        }
-      }
-    },
+      handlers: LaneStreamHandlers,
+      opts?: { signal?: AbortSignal; replaceFromMessageId?: string },
+    ): Promise<void> =>
+      streamLaneTurn(
+        `/api/lanes/${laneId}/messages`,
+        {
+          content,
+          ...(opts?.replaceFromMessageId
+            ? { replace_from_message_id: opts.replaceFromMessageId }
+            : {}),
+        },
+        handlers,
+        opts?.signal,
+      ),
+    /** Phase-A turn controls: re-run the last user message's turn (the
+     *  discarded reply's substrate writes stand — the no-rewind rule). */
+    regenerateStream: (
+      laneId: string,
+      handlers: LaneStreamHandlers,
+      opts?: { signal?: AbortSignal },
+    ): Promise<void> =>
+      streamLaneTurn(`/api/lanes/${laneId}/regenerate`, null, handlers, opts?.signal),
+    /** Phase-A hygiene: rename / pin. */
+    patch: (laneId: string, data: { name?: string; pinned?: boolean }) =>
+      request<{ id: string; name: string; pinned: boolean }>(`/api/lanes/${laneId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    /** Phase-A hygiene: transcript search across the member's active lanes. */
+    search: (q: string) =>
+      request<{ matches: Array<{ lane_id: string; snippet: string }> }>(
+        `/api/lanes/search?q=${encodeURIComponent(q)}`,
+      ),
     archive: (laneId: string) =>
       request<{ success: boolean }>(`/api/lanes/${laneId}/archive`, {
         method: "POST",

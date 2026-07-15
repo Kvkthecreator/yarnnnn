@@ -35,7 +35,17 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowUp, Loader2, Wrench, FileText } from 'lucide-react';
+import {
+  ArrowUp,
+  Check,
+  Copy,
+  FileText,
+  Loader2,
+  Pencil,
+  RefreshCw,
+  Square,
+  Wrench,
+} from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatTimestamp } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
@@ -118,6 +128,9 @@ interface LanePanelProps extends LaneMountSlots {
   laneId: string;
   laneName: string;
   modelLabel: string;
+  /** Phase-A hygiene: the turn auto-named a default-named lane (server truth
+   *  rides the done frame) — the mount updates its list/header. */
+  onLaneRenamed?: (name: string) => void;
 }
 
 export function LanePanel({
@@ -129,13 +142,37 @@ export function LanePanel({
   suggestions,
   composerSeed,
   artifactWrite = 'card',
+  onLaneRenamed,
 }: LanePanelProps) {
   const [messages, setMessages] = useState<LaneMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Phase-A turn controls: the in-flight stream's abort handle (stop), the
+  // user message being edited (edit-and-resend), copy feedback.
+  const abortRef = useRef<AbortController | null>(null);
+  const [editing, setEditing] = useState<{ id: string; original: string } | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const mapMessages = (
+    rows: Array<{
+      id: string;
+      role: 'user' | 'assistant';
+      content: string;
+      created_at: string;
+      metadata: Record<string, unknown>;
+    }>,
+  ): LaneMessage[] =>
+    rows.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      created_at: m.created_at,
+      tools_called: (m.metadata?.tools_called as string[]) ?? undefined,
+      artifacts: toArtifacts(m.metadata?.artifacts),
+    }));
 
   useEffect(() => {
     let cancelled = false;
@@ -146,22 +183,25 @@ export function LanePanel({
       .messages(laneId)
       .then((res) => {
         if (cancelled) return;
-        setMessages(
-          res.messages.map((m) => ({
-            id: m.id,
-            role: m.role,
-            content: m.content,
-            created_at: m.created_at,
-            tools_called: (m.metadata?.tools_called as string[]) ?? undefined,
-            artifacts: toArtifacts(m.metadata?.artifacts),
-          })),
-        );
+        setMessages(mapMessages(res.messages));
       })
       .catch(() => !cancelled && setError('Could not load this lane.'))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
+  }, [laneId]);
+
+  /** Silent transcript resync — swaps optimistic local ids for DB ids (edit/
+   *  regenerate need them) and picks up a server-persisted partial after a
+   *  stop. The mount stays put (`key={laneId}` remounts on lane switch). */
+  const resyncMessages = useCallback(async () => {
+    try {
+      const res = await api.lanes.messages(laneId);
+      setMessages(mapMessages(res.messages));
+    } catch {
+      /* non-fatal — the optimistic view stands */
+    }
   }, [laneId]);
 
   useEffect(() => {
@@ -176,35 +216,68 @@ export function LanePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composerSeed?.nonce]);
 
-  const send = useCallback(async () => {
-    const content = input.trim();
-    if (!content || sending) return;
-    setInput('');
-    setError(null);
-    setSending(true);
+  /** The one streaming-turn runner — send, edit-and-resend, and regenerate
+   *  share it (Phase-A turn controls). Optimistic transcript surgery up
+   *  front, the shared handler set during, a silent resync after. */
+  const runStream = useCallback(
+    async (
+      kind: 'send' | 'regenerate',
+      opts: { content?: string; replaceFromMessageId?: string } = {},
+    ) => {
+      if (sending) return;
+      setError(null);
+      setSending(true);
+      const controller = new AbortController();
+      abortRef.current = controller;
 
-    const userId = `local-${Date.now()}`;
-    const replyId = `local-r-${Date.now()}`;
-    // Optimistic user row + an empty assistant row the stream fills in place.
-    setMessages((prev) => [
-      ...prev,
-      { id: userId, role: 'user', content },
-      { id: replyId, role: 'assistant', content: '' },
-    ]);
+      const replyId = `local-r-${Date.now()}`;
+      if (kind === 'send') {
+        const userId = `local-${Date.now()}`;
+        // Optimistic: (on edit) truncate from the edited row, then the user
+        // row + an empty assistant row the stream fills in place.
+        setMessages((prev) => {
+          let base = prev;
+          if (opts.replaceFromMessageId) {
+            const idx = base.findIndex((m) => m.id === opts.replaceFromMessageId);
+            if (idx >= 0) base = base.slice(0, idx);
+          }
+          return [
+            ...base,
+            { id: userId, role: 'user', content: opts.content ?? '' },
+            { id: replyId, role: 'assistant', content: '' },
+          ];
+        });
+      } else {
+        // Regenerate: drop the tail after the last user row, add the placeholder.
+        setMessages((prev) => {
+          let lastUser = -1;
+          for (let i = prev.length - 1; i >= 0; i--) {
+            if (prev[i].role === 'user') {
+              lastUser = i;
+              break;
+            }
+          }
+          if (lastUser < 0) return prev;
+          return [...prev.slice(0, lastUser + 1), { id: replyId, role: 'assistant', content: '' }];
+        });
+      }
 
-    const appendDelta = (text: string) =>
-      setMessages((prev) =>
-        prev.map((m) => (m.id === replyId ? { ...m, content: m.content + text } : m)),
-      );
+      const appendDelta = (text: string) =>
+        setMessages((prev) =>
+          prev.map((m) => (m.id === replyId ? { ...m, content: m.content + text } : m)),
+        );
 
-    let sawDelta = false;
-    try {
-      await api.lanes.sendStream(laneId, content, {
-        onDelta: (text) => {
+      let sawDelta = false;
+      const dropEmptyPlaceholder = () =>
+        setMessages((prev) =>
+          prev.filter((m) => !(m.id === replyId && !m.content && !m.artifacts?.length)),
+        );
+      const handlers = {
+        onDelta: (text: string) => {
           sawDelta = true;
           appendDelta(text);
         },
-        onTool: (name) =>
+        onTool: (name: string) =>
           setMessages((prev) =>
             prev.map((m) =>
               m.id === replyId
@@ -214,7 +287,7 @@ export function LanePanel({
           ),
         // A write landed. Show the file as soon as it exists — mid-turn, before
         // the model has finished narrating it.
-        onArtifact: ({ path, verb }) => {
+        onArtifact: ({ path, verb }: { path: string; verb: string }) => {
           onArtifactWrite?.(path);
           setMessages((prev) =>
             prev.map((m) => {
@@ -225,20 +298,27 @@ export function LanePanel({
             }),
           );
         },
-        onDone: ({ tools_called, artifacts }) => {
+        onDone: ({
+          tools_called,
+          artifacts,
+          lane_name,
+        }: {
+          rounds: number;
+          tools_called: string[];
+          artifacts: string[];
+          lane_name?: string;
+        }) => {
+          // Phase-A hygiene: the server auto-named this lane on first turn.
+          if (lane_name) onLaneRenamed?.(lane_name);
           if (tools_called?.length) {
             setMessages((prev) =>
-              prev.map((m) =>
-                m.id === replyId ? { ...m, tools_called } : m,
-              ),
+              prev.map((m) => (m.id === replyId ? { ...m, tools_called } : m)),
             );
           }
           // The terminal list is authoritative (it survives a dropped frame).
           // Union by path, keeping the streamed entries first — they carry the
           // verb, which the terminal list does not.
           const finalArtifacts = toArtifacts(artifacts);
-          // The terminal list survives dropped frames — notify the mount for
-          // any write the mid-turn stream may have missed (idempotent hook).
           finalArtifacts?.forEach((a) => onArtifactWrite?.(a.path));
           if (finalArtifacts) {
             setMessages((prev) =>
@@ -259,33 +339,82 @@ export function LanePanel({
           if (!sawDelta && !finalArtifacts) {
             setMessages((prev) =>
               prev.map((m) =>
-                m.id === replyId && !m.content
-                  ? { ...m, content: '[no reply]' }
-                  : m,
+                m.id === replyId && !m.content ? { ...m, content: '[no reply]' } : m,
               ),
             );
           }
         },
-        onError: (message) => {
+        onError: (message: string) => {
           setError(message || 'The lane turn failed — try again.');
           // Papercut fix: preserve the user's text so it isn't lost.
-          setInput((cur) => cur || content);
-          // Drop the empty assistant placeholder on a hard error.
-          setMessages((prev) =>
-            prev.filter((m) => !(m.id === replyId && !m.content && !m.artifacts?.length)),
-          );
+          if (kind === 'send' && opts.content) setInput((cur) => cur || opts.content!);
+          dropEmptyPlaceholder();
         },
-      });
-    } catch {
-      setError('The lane turn failed — try again.');
-      setInput((cur) => cur || content);
-      setMessages((prev) =>
-        prev.filter((m) => !(m.id === replyId && !m.content && !m.artifacts?.length)),
-      );
-    } finally {
-      setSending(false);
-    }
-  }, [input, laneId, sending, onArtifactWrite]);
+      };
+
+      try {
+        if (kind === 'send') {
+          await api.lanes.sendStream(laneId, opts.content ?? '', handlers, {
+            signal: controller.signal,
+            replaceFromMessageId: opts.replaceFromMessageId,
+          });
+        } else {
+          await api.lanes.regenerateStream(laneId, handlers, {
+            signal: controller.signal,
+          });
+        }
+      } catch {
+        setError('The lane turn failed — try again.');
+        if (kind === 'send' && opts.content) setInput((cur) => cur || opts.content!);
+        dropEmptyPlaceholder();
+      } finally {
+        const stopped = controller.signal.aborted;
+        abortRef.current = null;
+        setSending(false);
+        if (stopped) {
+          // Stopped: drop a text-less placeholder, then resync once the server
+          // has persisted the partial (it does so on disconnect — give it a beat).
+          dropEmptyPlaceholder();
+          setTimeout(() => void resyncMessages(), 600);
+        } else {
+          void resyncMessages();
+        }
+      }
+    },
+    [laneId, sending, onArtifactWrite, onLaneRenamed, resyncMessages],
+  );
+
+  const send = useCallback(async () => {
+    const content = input.trim();
+    if (!content || sending) return;
+    setInput('');
+    const replaceFromMessageId = editing?.id;
+    setEditing(null);
+    await runStream('send', { content, replaceFromMessageId });
+  }, [input, sending, editing, runStream]);
+
+  /** Phase-A turn controls: stop — abort the stream; the server persists the
+   *  partial reply (any writes that landed stand — the no-rewind rule). */
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
+  const startEdit = useCallback((m: LaneMessage) => {
+    setEditing({ id: m.id, original: m.content });
+    setInput(m.content);
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    setEditing(null);
+    setInput('');
+  }, []);
+
+  const copyMessage = useCallback((m: LaneMessage) => {
+    void navigator.clipboard?.writeText(m.content).then(() => {
+      setCopiedId(m.id);
+      setTimeout(() => setCopiedId((cur) => (cur === m.id ? null : cur)), 1500);
+    });
+  }, []);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -329,8 +458,9 @@ export function LanePanel({
           const prevDay = i > 0 ? dayKey(messages[i - 1].created_at) : '';
           const thisDay = dayKey(m.created_at);
           const showDay = thisDay !== '' && thisDay !== prevDay;
+          const isLast = i === messages.length - 1;
           return (
-            <div key={m.id}>
+            <div key={m.id} className="group">
               {showDay && (
                 <div className="flex items-center gap-2 my-3">
                   <div className="flex-1 h-px bg-border" />
@@ -383,6 +513,54 @@ export function LanePanel({
                 </div>
               )}
 
+              {/* Phase-A turn controls: hover actions under the bubble — copy
+                  everywhere; edit-and-resend on persisted user rows; regenerate
+                  on the trailing assistant row. Hidden mid-stream. */}
+              {!sending && m.content && (
+                <div
+                  className={cn(
+                    'flex gap-0.5 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity',
+                    m.role === 'user' ? 'justify-end' : 'justify-start',
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => copyMessage(m)}
+                    className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    aria-label="Copy message"
+                    title="Copy"
+                  >
+                    {copiedId === m.id ? (
+                      <Check className="w-3 h-3" />
+                    ) : (
+                      <Copy className="w-3 h-3" />
+                    )}
+                  </button>
+                  {m.role === 'user' && !m.id.startsWith('local-') && (
+                    <button
+                      type="button"
+                      onClick={() => startEdit(m)}
+                      className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      aria-label="Edit and resend"
+                      title="Edit & resend"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  )}
+                  {m.role === 'assistant' && isLast && (
+                    <button
+                      type="button"
+                      onClick={() => void runStream('regenerate')}
+                      className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      aria-label="Regenerate reply"
+                      title="Regenerate"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* ADR-443: how artifact writes render is a MOUNT concern the
                   mount declares via the `artifactWrite` slot. 'card' (default,
                   /chat) = full preview; 'link' = a compact citation line; 'none'
@@ -421,6 +599,24 @@ export function LanePanel({
       </div>
 
       <div className="border-t border-border p-2 shrink-0">
+        {/* Phase-A edit-and-resend: the banner names the mode; Esc cancels.
+            Sending replaces the tail from the edited message (transcript
+            only — the ledger keeps what already landed). */}
+        {editing && (
+          <div className="flex items-center justify-between px-2 pb-1.5 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Pencil className="w-3 h-3" />
+              Editing — sending replaces this message and everything after it
+            </span>
+            <button
+              type="button"
+              onClick={cancelEdit}
+              className="px-1.5 py-0.5 rounded hover:bg-muted hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
         <div className="flex items-end gap-2">
           <textarea
             value={input}
@@ -430,19 +626,34 @@ export function LanePanel({
                 e.preventDefault();
                 void send();
               }
+              if (e.key === 'Escape' && editing) {
+                e.preventDefault();
+                cancelEdit();
+              }
             }}
-            placeholder={`Message ${laneName}…`}
+            placeholder={editing ? 'Edit your message…' : `Message ${laneName}…`}
             rows={1}
             className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring min-h-[38px] max-h-32"
           />
-          <button
-            onClick={() => void send()}
-            disabled={!input.trim() || sending}
-            className="p-2 rounded-md bg-primary text-primary-foreground disabled:opacity-40 shrink-0"
-            aria-label="Send"
-          >
-            <ArrowUp className="w-4 h-4" />
-          </button>
+          {sending ? (
+            <button
+              onClick={stop}
+              className="p-2 rounded-md border border-border text-foreground hover:bg-muted shrink-0 transition-colors"
+              aria-label="Stop generating"
+              title="Stop"
+            >
+              <Square className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              onClick={() => void send()}
+              disabled={!input.trim()}
+              className="p-2 rounded-md bg-primary text-primary-foreground disabled:opacity-40 shrink-0"
+              aria-label="Send"
+            >
+              <ArrowUp className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>

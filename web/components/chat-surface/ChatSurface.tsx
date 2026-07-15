@@ -25,7 +25,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Archive, Loader2, MessageCircle, Plus } from 'lucide-react';
+import { Archive, Loader2, MessageCircle, Pencil, Pin, Plus, Search, X } from 'lucide-react';
 import { LanePanel } from './LanePanel';
 import { api } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
@@ -37,6 +37,8 @@ interface LaneInfo {
   id: string;
   name: string;
   model: string;
+  /** Phase-A hygiene: pinned lanes sort first. */
+  pinned?: boolean;
   updated_at?: string;
   created_at?: string;
   /** ADR-450 D3 — the derive binding (null/absent for plain chat lanes). */
@@ -60,8 +62,30 @@ export function ChatSurface() {
   const [newModel, setNewModel] = useState('');
   // D4 — the model FILTER facet (null = all lanes, the default view).
   const [modelFilter, setModelFilter] = useState<string | null>(null);
+  // Phase-A hygiene: search (name locally + transcript content server-side,
+  // debounced) and inline rename state.
+  const [query, setQuery] = useState('');
+  const [contentHits, setContentHits] = useState<Set<string> | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameText, setRenameText] = useState('');
   const { get: getParam, set: setParam } = useSurfaceParam('chat');
   const activeLaneId = getParam('lane');
+
+  // Debounced transcript search — content matches union with name matches.
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setContentHits(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      api.lanes
+        .search(q)
+        .then((res) => setContentHits(new Set(res.matches.map((m) => m.lane_id))))
+        .catch(() => setContentHits(null));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,16 +108,23 @@ export function ChatSurface() {
     [data],
   );
 
-  // Flat recents — updated_at desc (falls back to created_at). Work-first:
-  // the sort key is activity, never the model (D4).
+  // Flat recents — pinned first (Phase-A hygiene), then updated_at desc
+  // (falls back to created_at). Work-first: the sort key is activity, never
+  // the model (D4).
   const lanes = useMemo(() => {
     const all = [...(data?.lanes ?? [])].sort((a, b) => {
+      if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
       const ta = new Date(a.updated_at ?? a.created_at ?? 0).getTime();
       const tb = new Date(b.updated_at ?? b.created_at ?? 0).getTime();
       return tb - ta;
     });
-    return modelFilter ? all.filter((l) => l.model === modelFilter) : all;
-  }, [data, modelFilter]);
+    const byModel = modelFilter ? all.filter((l) => l.model === modelFilter) : all;
+    const q = query.trim().toLowerCase();
+    if (!q) return byModel;
+    return byModel.filter(
+      (l) => l.name.toLowerCase().includes(q) || contentHits?.has(l.id),
+    );
+  }, [data, modelFilter, query, contentHits]);
 
   // The filter facet only offers models actually present in the list.
   const presentModels = useMemo(
@@ -138,10 +169,15 @@ export function ChatSurface() {
   useSelfLocatedSurface('chat', true);
 
   const createLane = useCallback(async () => {
+    // Phase-A hygiene: the name is optional — a nameless lane auto-names
+    // from its first message (server-side, mechanical).
     const name = newName.trim();
-    if (!name || !newModel) return;
+    if (!newModel) return;
     try {
-      const lane = await api.lanes.create({ name, model: newModel });
+      const lane = await api.lanes.create({
+        ...(name ? { name } : {}),
+        model: newModel,
+      });
       const info: LaneInfo = {
         id: lane.id,
         name: lane.name,
@@ -169,6 +205,42 @@ export function ChatSurface() {
     },
     [activeLaneId, setParam],
   );
+
+  // Phase-A hygiene: pin toggle + rename (lane_meta writes via PATCH).
+  const updateLaneLocal = useCallback((laneId: string, patch: Partial<LaneInfo>) => {
+    setData((d) =>
+      d
+        ? { ...d, lanes: d.lanes.map((l) => (l.id === laneId ? { ...l, ...patch } : l)) }
+        : d,
+    );
+  }, []);
+
+  const togglePin = useCallback(
+    async (lane: LaneInfo) => {
+      const next = !lane.pinned;
+      updateLaneLocal(lane.id, { pinned: next });
+      try {
+        await api.lanes.patch(lane.id, { pinned: next });
+      } catch {
+        updateLaneLocal(lane.id, { pinned: lane.pinned });
+      }
+    },
+    [updateLaneLocal],
+  );
+
+  const commitRename = useCallback(async () => {
+    const laneId = renamingId;
+    const name = renameText.trim();
+    setRenamingId(null);
+    if (!laneId || !name) return;
+    const prev = data?.lanes.find((l) => l.id === laneId)?.name;
+    updateLaneLocal(laneId, { name });
+    try {
+      await api.lanes.patch(laneId, { name });
+    } catch {
+      if (prev) updateLaneLocal(laneId, { name: prev });
+    }
+  }, [renamingId, renameText, data, updateLaneLocal]);
 
   if (loading) {
     return (
@@ -205,7 +277,7 @@ export function ChatSurface() {
           if (e.key === 'Enter') void createLane();
           if (e.key === 'Escape') setCreating(false);
         }}
-        placeholder="Lane name (e.g. Docs)"
+        placeholder="Name (optional — set from first message)"
         className="flex-1 min-w-0 rounded border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
         autoFocus
       />
@@ -222,7 +294,7 @@ export function ChatSurface() {
       </select>
       <button
         onClick={() => void createLane()}
-        disabled={!newName.trim()}
+        disabled={!newModel}
         className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs disabled:opacity-40"
       >
         Create
@@ -246,6 +318,32 @@ export function ChatSurface() {
           </button>
         </div>
         {createForm}
+
+        {/* Phase-A hygiene: search — lane names locally + transcript content
+            server-side (debounced), one filter over the same list. */}
+        <div className="px-2 py-1.5 border-b border-border shrink-0">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/60" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setQuery('');
+              }}
+              placeholder="Search chats…"
+              className="w-full rounded border border-input bg-background pl-7 pr-6 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground hover:text-foreground"
+                aria-label="Clear search"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* Model filter facet — the by-engine view on demand, never the
             default grouping (D4). Renders only when ≥2 models are in play. */}
@@ -291,7 +389,32 @@ export function ChatSurface() {
               </p>
             </div>
           )}
-          {lanes.map((lane) => (
+          {lanes.length === 0 && query.trim() && (
+            <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+              No chats match “{query.trim()}”.
+            </div>
+          )}
+          {lanes.map((lane) =>
+            renamingId === lane.id ? (
+              // Rename mode replaces the row — an input can't nest inside the
+              // row <button> (invalid interactive nesting).
+              <div
+                key={lane.id}
+                className="px-3 py-2.5 border-b border-border/50 bg-muted"
+              >
+                <input
+                  value={renameText}
+                  onChange={(e) => setRenameText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void commitRename();
+                    if (e.key === 'Escape') setRenamingId(null);
+                  }}
+                  onBlur={() => void commitRename()}
+                  className="w-full rounded border border-input bg-background px-1.5 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  autoFocus
+                />
+              </div>
+            ) : (
             <button
               key={lane.id}
               onClick={() => setParam({ lane: lane.id })}
@@ -300,20 +423,60 @@ export function ChatSurface() {
                 activeLaneId === lane.id ? 'bg-muted' : 'hover:bg-muted/50',
               )}
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium truncate">{lane.name}</span>
-                <span
-                  role="button"
-                  tabIndex={-1}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void archiveLane(lane.id);
-                  }}
-                  className="p-1 rounded text-muted-foreground/0 group-hover:text-muted-foreground hover:!text-foreground transition-colors"
-                  aria-label="Archive lane"
-                  title="Archive lane"
-                >
-                  <Archive className="w-3.5 h-3.5" />
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-sm font-medium truncate flex items-center gap-1">
+                  {lane.pinned && (
+                    <Pin className="w-3 h-3 shrink-0 text-muted-foreground rotate-45" />
+                  )}
+                  {lane.name}
+                </span>
+                {/* Phase-A hygiene: pin / rename / archive on hover. */}
+                <span className="flex items-center shrink-0">
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void togglePin(lane);
+                    }}
+                    className={cn(
+                      'p-1 rounded transition-colors hover:!text-foreground',
+                      lane.pinned
+                        ? 'text-muted-foreground'
+                        : 'text-muted-foreground/0 group-hover:text-muted-foreground',
+                    )}
+                    aria-label={lane.pinned ? 'Unpin lane' : 'Pin lane'}
+                    title={lane.pinned ? 'Unpin' : 'Pin'}
+                  >
+                    <Pin className={cn('w-3.5 h-3.5', lane.pinned && 'rotate-45')} />
+                  </span>
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRenamingId(lane.id);
+                      setRenameText(lane.name);
+                    }}
+                    className="p-1 rounded text-muted-foreground/0 group-hover:text-muted-foreground hover:!text-foreground transition-colors"
+                    aria-label="Rename lane"
+                    title="Rename"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </span>
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void archiveLane(lane.id);
+                    }}
+                    className="p-1 rounded text-muted-foreground/0 group-hover:text-muted-foreground hover:!text-foreground transition-colors"
+                    aria-label="Archive lane"
+                    title="Archive lane"
+                  >
+                    <Archive className="w-3.5 h-3.5" />
+                  </span>
                 </span>
               </div>
               <div className="flex items-center gap-2 mt-0.5">
@@ -328,7 +491,8 @@ export function ChatSurface() {
                 )}
               </div>
             </button>
-          ))}
+            ),
+          )}
         </div>
       </div>
 
@@ -348,6 +512,9 @@ export function ChatSurface() {
               laneName={activeLane.name}
               modelLabel={modelLabel(activeLane.model)}
               suggestions={deriveSuggestions}
+              // Phase-A hygiene: the first turn auto-names a default-named
+              // lane server-side; reflect it in the list + header.
+              onLaneRenamed={(name) => updateLaneLocal(activeLane.id, { name })}
             />
           </>
         ) : (
