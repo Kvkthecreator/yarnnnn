@@ -16,6 +16,15 @@ named) · ADR-441 (chat's artifact cards/mounts unchanged — the in-conversatio
 Finder's open verb) · the inline viewers (they remain the **Quick Look analog** for passive
 formats — preview-in-place is a feature, not the bug; the bug was preview standing in for open).
 
+> **Amended (2026-07-15, the seam-contract spine):** the "chat's artifact cards/mounts
+> unchanged" line above is refined. An in-conversation card is still a citation preview and
+> never the open verb — but the card now consults THIS registry for its **depth and primary
+> affordance**: a surface-owned format renders Quick-Look-grade with "Open in ‹app›" as the
+> primary action; an unclaimed format keeps its full inline render. The Quick Look analog
+> extends from Files' inline viewers into conversation previews — one registry, one gesture
+> vocabulary. Mechanics on ADR-443 (amendment); rationale in
+> `docs/analysis/chat-think-three-axes-discourse-2026-07-15.md` §11.
+
 ---
 
 ## D1 — A registry layer above the viewer table: the surface-owning app

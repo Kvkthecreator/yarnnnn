@@ -1,6 +1,21 @@
 # ADR-443 — The artifact-write render slot: a mount declares how a lane's writes render
 
 **Status**: **Accepted + Implemented** (2026-07-12, operator-ratified — "studio is none because we're looking at the very thing we're working on"). A one-slot extension to the ADR-441 `LaneMountSlots` contract. Doc-first with its code in the same pass.
+
+> **Amended (2026-07-15, the seam-contract spine — operator-ratified in the chat(think)
+> three-axes discourse):** the `'card'` mode gains a TYPE-dispatched depth rule — **preview
+> depth follows ownership**. For a file whose format is claimed by a surface-owning app
+> (ADR-451 `resolveSurfaceApplication` — v1: `.html` → Studio), the card renders
+> **Quick-Look-grade**: title, bounded first-viewport preview, attribution, and the owning
+> app as the celebrated primary action ("Open in Studio") — never a full working render.
+> Chat *glances* at another app's file; it doesn't bench it. Files with no surface-owning
+> claimant (`.md` briefs, notes, distillates — chat's own working material) keep the full
+> render: reading the asset inline IS thinking-work (the ADR-454 asset/dividend seam). The
+> dispatch lives at the file-TYPE altitude inside the card renderer — consistent with §3's
+> discipline (mounts declare card-vs-none; the card's internal depth per type is not a mount
+> concern, exactly as projection is a type property). Doc-first; the card change ships with
+> the chat-seam pass. Capture:
+> `docs/analysis/chat-think-three-axes-discourse-2026-07-15.md` §11.
 **Date**: 2026-07-12
 **Dimension**: Channel (Axiom 6 — how a conversation renders the artifacts it produces)
 **Extends / amends**: **ADR-441 D2** (the lane mount contract — this adds the fifth named slot it pre-authorized: "new mount need → new named slot, never a branch inside LanePanel"). Builds on ADR-436 (renderer/mount split), ADR-440 (the Studio — the mount that fully owns the artifact view), ADR-408 D2 (A1/A2 altitudes).

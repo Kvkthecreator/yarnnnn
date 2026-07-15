@@ -206,3 +206,40 @@ The operator holds further consideration points; these are queued, not blocking 
 Sequencing 2a→2b was confirmed *as re-labeled* in §8 (single-user orchestrated conversation
 before the scope flip). Invocation semantics are settled at the invariant level (§3.3) and open
 at the ladder level (b).
+
+## 11. The seam contract — Quick Look + owning apps (2026-07-15 follow-on; spine RATIFIED)
+
+Opened by the operator off a live screenshot with three receipts: (1) the `/chat` list
+colonized by artifact-bound lanes (`deck.html` ×3, `page.html`, `document.html`) — the ADR-454
+D1 seam leaking at the IA layer; (2) full `FileBody` renders inside transcripts — chat acting
+as a second bench for dividend-class artifacts; (3) a chat-authored artifact not born
+Studio-editable (missing `data-block-id`), repaired by the member *asking the lane* to rewrite
+it — pure seam tax.
+
+**The spine (operator-ratified: "your framing is more accurate… quick look plus owning apps"):**
+the seam's operator-facing form is **Quick Look + owning apps over one filesystem** — NOT
+Notion-vs-PowerPoint (two silos, copy-paste interchange, provenance lost; and it mis-assigns
+wordy dividends — the on-screen `.html` PRD is Studio's despite being words). The split axis is
+**prose-substrate vs composition-grammar** (asset/dividend), never words-vs-visuals.
+
+The five planks, with ruling state:
+1. **One substrate, two grips** (verbs, not silos) — RATIFIED (restates ADR-454/457 canon).
+2. **Preview depth follows ownership** — RATIFIED, doc-landed: ADR-443 amendment (the `'card'`
+   mode's type-dispatched depth: Quick-Look-grade + open-in-owning-app primary for
+   surface-owned formats; full render for asset-class), ADR-451 amendment (one registry, one
+   gesture vocabulary), ADR-454 D1 amendment (the seam statement). Card code ships with the
+   chat-seam pass, not this doc pass.
+3. **Conversation follows scope** (bound lanes leave the `/chat` list — group vs deep-link into
+   Studio) — direction agreed, **NOT ruled** (the fresh-cut discourse).
+4. **Interchange = derivation with provenance** (learn-from both directions; a product may
+   GRADUATE thinking-form `.md` → presentation-form `.html` via one cited derive; one source of
+   truth at any moment) — direction agreed; contains the **unruled `prd` landing-format
+   question** (md-first graduation would amend ADR-452's landing table; deck stays html-first).
+5. **Born-openable** (artifacts born in their owning app's grammar wherever authored — extend
+   the ADR-456 kernel-retrofit pattern to block annotation; the member never repairs grammar by
+   asking an LLM) — direction agreed, binds code, ships with the seam pass.
+
+Feeds the axes: sharpens D8 falsifier 1 (chat stops carrying mis-homed Make-work); plank 3 is
+the unified-Conversation object's "binding decides the home surface" restated; the horizon ADR
+gains its seam-contract section. Pending rulings appended to §10: **(f)** bound-lane homing
+(group vs deep-link), **(g)** `prd` md-first graduation vs ADR-452 html-first.

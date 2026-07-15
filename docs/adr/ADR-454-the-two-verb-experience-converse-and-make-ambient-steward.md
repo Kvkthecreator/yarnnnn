@@ -74,6 +74,22 @@ else lives in `/chat`.* Entry points compose (creation grid and Files' open verb
 learn-from recipes land by target class; deep-links between the two), but the scope decides the
 surface, not the feature.
 
+> **Amendment (2026-07-15, the seam-contract spine — operator-ratified in the chat(think)
+> three-axes discourse):** the seam gains its operator-facing form — **Quick Look + owning
+> apps over one filesystem** (the macOS gesture). Explicitly NOT a Notion-vs-PowerPoint silo
+> split: those are two stores with interchange-by-copy-paste and provenance lost; here there
+> is one substrate and two grips, and the split axis is **prose-substrate vs
+> composition-grammar** (this ADR's asset/dividend seam), never words-vs-visuals — a composed
+> `.html` PRD is Studio's *despite* being wordy. In conversation surfaces, **preview depth
+> follows ownership** (ADR-443 amendment carries the mechanics; ADR-451's registry is the
+> dispatch): dividend-class files Quick-Look with open-in-owning-app primary; asset-class
+> files render in full — chat works the asset. Cross-flow between the verbs is **derivation
+> with provenance** (learn-from in either direction, ADR-448/450), never in-place conversion
+> or sync. Named-open companions, deliberately NOT ruled here: bound lanes presenting as
+> ordinary `/chat` rows (the D1 seam leaking at the IA layer), the born-openable guarantee
+> (artifacts born in their owning app's grammar wherever authored), and the `prd` recipe's
+> landing format. Capture: `docs/analysis/chat-think-three-axes-discourse-2026-07-15.md` §11.
+
 ## D2 — The census, re-derived (DP29 third amendment)
 
 DP29's standing loop (Decide · Read · Dwell · Tune · Amend · Setup) was derived for the
