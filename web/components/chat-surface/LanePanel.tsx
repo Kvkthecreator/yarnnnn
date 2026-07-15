@@ -35,6 +35,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useAutoResize, COMPOSER_MAX_PX } from '@/hooks/useAutoResize';
 import {
   ArrowUp,
   Check,
@@ -177,6 +178,12 @@ export function LanePanel({
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // The composer grows with what you're writing, then holds and scrolls — the
+  // CLI gesture. `rows={1}` alone pins it at one line forever (a CSS max-h is
+  // only a ceiling; nothing pushes the box up to it), so the height is written
+  // from scrollHeight. Shared with the shell drawer's composer — one rule.
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useAutoResize(textareaRef, input);
 
   /** Upload files into the raw lane (ADR-395) and track them as chips. */
   const addFiles = useCallback(
@@ -784,6 +791,7 @@ export function LanePanel({
             <Paperclip className="w-4 h-4" />
           </button>
           <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -808,7 +816,8 @@ export function LanePanel({
             }}
             placeholder={editing ? 'Edit your message…' : `Message ${laneName}…`}
             rows={1}
-            className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring min-h-[38px] max-h-32"
+            style={{ maxHeight: COMPOSER_MAX_PX }}
+            className="flex-1 resize-none overflow-y-auto rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring min-h-[38px]"
           />
           {sending ? (
             <button

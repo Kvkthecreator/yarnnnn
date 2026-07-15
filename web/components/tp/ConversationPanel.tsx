@@ -21,6 +21,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useAutoResize, COMPOSER_MAX_PX } from '@/hooks/useAutoResize';
 import {
   Loader2,
   X,
@@ -181,11 +182,9 @@ export function ConversationPanel({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, status]);
 
-  const adjustHeight = useCallback(() => {
-    const ta = textareaRef.current;
-    if (ta) { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 150)}px`; }
-  }, []);
-  useEffect(() => { adjustHeight(); }, [input, adjustHeight]);
+  // The composer auto-grow rule, shared with LanePanel (/chat + the Studio
+  // lane) — this panel's local copy was the original; the hook is it, lifted.
+  useAutoResize(textareaRef, input);
 
   // Built-in attach action — owned by ConversationPanel because it
   // references fileInputRef. Prepended to whatever plusMenuActions the
@@ -360,7 +359,8 @@ export function ConversationPanel({
               enterKeyHint="send"
               placeholder={placeholder}
               rows={1}
-              className="flex-1 min-w-0 px-1 py-1.5 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[150px]"
+              style={{ maxHeight: COMPOSER_MAX_PX }}
+              className="flex-1 min-w-0 px-1 py-1.5 text-sm bg-transparent resize-none overflow-y-auto focus:outline-none disabled:opacity-50"
             />
 
             {/* send toggles to stop while a Reviewer Loop is in flight
