@@ -104,6 +104,38 @@ def run() -> bool:
         not re.search(r"\w+\(html,[^)]*,\s*kernelStyle\)", surface),
     )
 
+    # ── 4. the kernel may not depend on skin state it cannot retrofit ───────
+    # The docstring above says the retrofit is "benign only while kernel CSS
+    # stays strictly ADDITIVE". This is the check for the first violation
+    # (found 2026-07-15): the kernel carved out `[data-arrange]:not(.slide)
+    # .cols` on the reasoning that "decks keep their own .slide .cols rules" —
+    # true of the deck skin as of ADR-444, false of every deck created BEFORE
+    # it, because the LAYOUT SKIN is baked once at build_skeleton and is never
+    # versioned or retrofitted. Those decks matched neither rule and stacked
+    # their columns silently. Live receipt: yarrnnnn-decl (kvk, 2026-07-15).
+    #
+    # The invariant: a kernel rule may not be predicated on the presence of a
+    # skin rule. The skin is frozen at creation; the kernel is not.
+    from services.studio import STUDIO_KERNEL_CSS_VERSION, compose_kernel_style_element
+
+    kernel_css = compose_kernel_style_element()
+    _check(
+        "the kernel owns .cols for EVERY layout (no :not(.slide) placement carve-out)",
+        "[data-arrange] .cols { display: flex" in kernel_css
+        and "[data-arrange]:not(.slide) .cols { display: flex" not in kernel_css,
+    )
+    # The ONE legitimate :not(.slide) — a difference in KIND, not an assumption
+    # about CSS that may not be there. A slide is a fixed 16:9 stage with no
+    # responsive obligation; a page has one.
+    _check(
+        "the responsive-stacking exemption SURVIVES (a slide is a fixed stage)",
+        "[data-arrange]:not(.slide) .cols { flex-direction: column; }" in kernel_css,
+    )
+    _check(
+        "the kernel CSS version was bumped past v4 (the retrofit must REACH the stranded decks)",
+        STUDIO_KERNEL_CSS_VERSION >= 5,
+    )
+
     ok = all(c for _, c in _results)
     print()
     print(f"{'PASS' if ok else 'FAIL'}: {sum(c for _, c in _results)}/{len(_results)} checks")

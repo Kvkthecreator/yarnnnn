@@ -807,12 +807,23 @@ div[data-block="gallery"] figure { margin: 0; }
 div[data-block="gallery"] img { width: 100%; aspect-ratio: 4 / 3;
   object-fit: cover; border-radius: var(--radius, 4px); }
 div[data-block="gallery"] figcaption { font-size: 0.75rem; }
-/* The generic multi-column band (ADR-456 W3) — document/article/page
-   arrangements use .cols but only the DECK skin ever defined it; this makes
-   the two-column/feature-grid rows real outside decks (which keep their own
-   .slide .cols rules — :not(.slide) leaves them untouched). */
-[data-arrange]:not(.slide) .cols { display: flex; gap: 2rem; align-items: flex-start; }
-[data-arrange]:not(.slide) .col { flex: 1; min-width: 0; }
+/* The multi-column band — kernel-owned for EVERY layout, slides included.
+   It used to carve out `:not(.slide)` on the reasoning that "decks keep their
+   own .slide .cols rules". That was true of the deck skin as of ADR-444 — and
+   false of every deck created BEFORE it, because the layout skin is baked once
+   at build_skeleton and never retrofitted (only style[data-kernel] is versioned
+   + upserted). Those decks match neither rule, fall back to display:block, and
+   silently stack their columns — exactly the silent-defect class the retrofit
+   comment in artifactOps.ts predicts ("a version CHANGES or REMOVES a rule an
+   old artifact depends on... nothing errors").
+   The kernel may not depend on skin state it cannot retrofit. It owns .cols.
+   The deck skin's identical rule is harmless duplication (same declarations,
+   later in the cascade); the gap is what mattered. */
+[data-arrange] .cols { display: flex; gap: 2rem; align-items: flex-start; }
+[data-arrange] .col { flex: 1; min-width: 0; }
+/* The deck's own gap is wider (a slide breathes) — restored here so retiring
+   the carve-out doesn't quietly re-space every existing slide. */
+.slide .cols { gap: 2.5rem; }
 /* The cited page background (ADR-456 W3) — the SOURCE carries only the
    citation (data-ref + data-ref-kind="background") and tokens; the projection
    materializes background-image; these rules do the rest. */
@@ -884,7 +895,12 @@ html[data-pagenum="on"] .slide { counter-increment: slide; position: relative; }
 html[data-pagenum="on"] .slide::after { content: counter(slide); position: absolute;
   right: 1.25rem; bottom: 0.9rem; font-size: 0.7rem; color: var(--muted, #6b6b6b); }
 /* Responsive stacking (ADR-456 W1): document/article multi-column bands stack
-   on narrow screens; a deck slide is a fixed 16:9 stage, exempt. */
+   on narrow screens; a deck slide is a fixed 16:9 stage, exempt.
+   This `:not(.slide)` STAYS — unlike the one retired above, it does not depend
+   on skin state. It encodes a real difference in kind: a slide has no
+   responsive obligation (fixed stage, overflow:hidden), a page does. The other
+   carve-out was an assumption about CSS that might not be there; this one is a
+   statement about what a slide IS. */
 @media (max-width: 40rem) {
   [data-arrange]:not(.slide) .cols { flex-direction: column; }
   div[data-block="gallery"] { grid-template-columns: repeat(2, 1fr); }
@@ -900,7 +916,11 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 #: v4: Wave-3 (ADR-456) — cited page backgrounds (data-ref-kind="background"
 #:     + scrim/bg-pos), the generic non-slide .cols (document/article
 #:     two-column made real), page-band accents, --radius adoption.
-STUDIO_KERNEL_CSS_VERSION = 4
+# v5 (2026-07-15): the .cols carve-out retired — the kernel owns the column band
+# for every layout. A pre-ADR-444 deck's baked skin has no `.slide .cols`, and
+# the kernel's `:not(.slide)` rule excluded it, so its two-column slides stacked
+# silently. Bumping the version is what makes the retrofit reach them.
+STUDIO_KERNEL_CSS_VERSION = 5
 
 
 def compose_kernel_style_element() -> str:

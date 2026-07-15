@@ -159,9 +159,16 @@ def main() -> int:
         "RenameModal still pre-fills the full extension (shared verb unforked)",
         "lastIndexOf('.')" in (ws / "RenameModal.tsx").read_text(),
     )
+    # The editor crumb names the ARTIFACT — an app over one file says which file
+    # it has open. It read `baseName(artifactPath)` when this gate was written;
+    # ADR-459's rule then landed there too (899afd8 made the crumb the rename
+    # affordance, so it shows the artifact's name, not its leaf). Assert the
+    # INTENT (the crumb is named from the open artifact's path), not the
+    # spelling — either helper satisfies it.
     _check(
-        "the Studio EDITOR crumb still names the file (app over one file)",
-        "label: baseName(artifactPath)" in surface,
+        "the Studio EDITOR crumb names the open artifact (app over one file)",
+        "label: artifactName(artifactPath)" in surface
+        or "label: baseName(artifactPath)" in surface,
     )
 
     print()
