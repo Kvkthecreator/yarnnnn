@@ -133,6 +133,19 @@ The guards, held as discipline (not doubt):
 - **The floor-leverage test**: every chat(think) feature must exploit the floor — grounding,
   settling, provenance, multi-engine. Generic chat-parity features are refused; that treadmill
   is unwinnable and off-moat (engines are rented, ADR-417/420).
+
+  > **Amendment (2026-07-15, operator-ratified in the chat(think) three-axes discourse):** the
+  > test as written over-rotated — there is a minimum chassis below which the surface is not
+  > usable daily, and no differentiation lands on an unusable chassis. Refined guard: **catch up
+  > to the bar, differentiate above it; never compete ON the bar.** The cut is *mechanics vs
+  > features*: turn mechanics (stop/regenerate/edit/copy), attachments, rendering quality, and
+  > conversation hygiene are what a chat **is** — owed as a one-time enumerated debt (the
+  > Phase-A chassis five), not tracked against competitors' release notes. Features chat
+  > products *compete on* (voice, GPT-store analogs, image generation, canvas, memory-settings
+  > UI) stay refused behind the floor-leverage test. A bar item enters the debt list only when
+  > its absence blocks daily use or contaminates D8 (an unusable chassis makes falsifier 1 fire
+  > for the wrong reason). Discourse capture:
+  > `docs/analysis/chat-think-three-axes-discourse-2026-07-15.md`.
 - **The two-front guard**: chat's waves stay *shallow* — framing plus floor-riding features
   (grounding UX, the settle verb, research-as-rented-tool, multi-engine polish). Studio carries
   the deep-editor investment (the ADR-455/456 waves). If a chat feature needs a new axiomatic
@@ -199,7 +212,13 @@ Deliberately small — the doc hardening is the deliverable; the code is the saf
 
 1. **The chat(think) wave scoping** — the next discourse: grounding UX (scoped sources +
    citations), the settle verb spec, research-as-rented-tool, multi-engine polish. Waves mirror
-   the Studio session's pattern.
+   the Studio session's pattern. *Discourse opened 2026-07-14→15 and captured (not yet locked —
+   the operator holds further consideration points) in
+   `docs/analysis/chat-think-three-axes-discourse-2026-07-15.md`: three axes (chassis / rooms /
+   axiomatic uniques), the orchestration re-cut (designation resolves invocation; the unified
+   Conversation object), the Phase-A chassis greenlit unconditionally. The D6 guard amendment
+   above is the one ratified doc change; the horizon ADR takes the next free number at draft
+   time (459 was taken by the Studio lane).*
 2. **The comments ADR** (the shared-discussion object; shape agreed in the 2026-07-13 discourse).
 3. **NARRATIVE/GTM lead re-cut** — external copy shifts from substrate-portability-led to
    desk-led-with-mechanism; its own pass, operator eyes on wording (ESSENCE v16 lands the
