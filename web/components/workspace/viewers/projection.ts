@@ -1401,19 +1401,64 @@ const GUTTER_SCRIPT = `
     curBlock = null;
   }
 
+  // ── The ROW BAND (2026-07-15) ────────────────────────────────────────────
+  // Resolve the pointer to a row by GEOMETRY, not by hit-testing e.target.
+  //
+  // The old rule was e.target.closest('[data-block]') — the gutter appeared
+  // only while the pointer was literally inside a block's text box. But the bar
+  // DRAWS in the left margin (rect.left - w - 4), which is OUTSIDE that box: to
+  // reach the +, you had to leave the region that summoned it, and a 150ms
+  // timer began hiding it. The affordance lived outside the area that kept it
+  // alive, with dead space between. Hence "sometimes it's there, sometimes it
+  // isn't" — it depended on pixel-exact containment.
+  //
+  // Notion owns the whole ROW: a horizontal band spanning the content column,
+  // top-to-bottom of the block, INCLUDING the left lane where the handles sit.
+  // Hover anywhere in the band and the row is yours; travelling to the + never
+  // leaves it. That is what this does — find the block whose vertical extent
+  // contains the pointer (nearest, if between blocks), and claim it as long as
+  // the pointer is within the band's horizontal reach (the content column plus
+  // the gutter lane to its left).
+  var BAND_LEFT_REACH = 64;  // px left of the block box — the gutter lane
+  var BAND_RIGHT_REACH = 24; // px right — a little forgiveness, no dead edge
+
+  function rowAt(x, y) {
+    var blocks = document.querySelectorAll('[data-block]');
+    var best = null, bestDist = Infinity;
+    for (var i = 0; i < blocks.length; i++) {
+      var b = blocks[i];
+      // Skip a block nested inside another annotated block: the ROW is the
+      // outermost unit (a checklist's li is not its own row).
+      if (b.parentElement && b.parentElement.closest && b.parentElement.closest('[data-block]')) continue;
+      var r = b.getBoundingClientRect();
+      if (r.height === 0) continue;
+      if (x < r.left - BAND_LEFT_REACH || x > r.right + BAND_RIGHT_REACH) continue;
+      // Inside the block's vertical extent → this row, unambiguously.
+      if (y >= r.top && y <= r.bottom) return b;
+      // Otherwise remember the nearest, so the gaps BETWEEN blocks still
+      // resolve to a row (no flicker crossing a margin).
+      var d = y < r.top ? r.top - y : y - r.bottom;
+      if (d < bestDist) { bestDist = d; best = b; }
+    }
+    // Only claim a near-miss if it is genuinely close — past that, the pointer
+    // is in open space (below the last block, in a page margin) and no row owns
+    // it. 24px ≈ one line's leading.
+    return bestDist <= 24 ? best : null;
+  }
+
   document.addEventListener('mousemove', function (e) {
     var t = e.target;
     if (t && t.closest && t.closest('.yarnnn-gutter')) {
       if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
       return;
     }
-    var blk = t && t.closest ? t.closest('[data-block]') : null;
+    var blk = rowAt(e.clientX, e.clientY);
     if (blk) {
       if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
       var editingId = window.__yarnnnEditingId ? window.__yarnnnEditingId() : null;
       if (editingId != null && blk.getAttribute('data-block-id') === editingId) { hide(); return; }
-      // F5: reposition on EVERY move within the block (not only on a new block)
-      // so the gutter tracks the pointer vertically.
+      // F5: reposition on EVERY move within the row so the gutter tracks the
+      // pointer vertically (Notion) instead of pinning to the block top.
       showFor(blk, e.clientY);
       return;
     }

@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, LayoutGrid, Loader2, Plus, X } from 'lucide-react';
+import { ChevronDown, Image as ImageIcon, LayoutGrid, Loader2, X } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { ArrangementThumb } from './ArrangementThumb';
 
@@ -47,7 +47,7 @@ export interface StudioToken {
 
 export interface StudioVocabulary {
   blocks: Array<{ kind: string; label: string; description: string; group: string; fragment: string }>;
-  layouts: Array<{ slug: string; label: string; description: string }>;
+  layouts: Array<{ slug: string; label: string; description: string; mode: 'flow' | 'paged' }>;
   arrangements: Record<string, StudioArrangement[]>;
   tokens: StudioToken[];
   media_kinds: string[];
@@ -93,6 +93,9 @@ interface StudioToolbarProps {
   vocabulary: StudioVocabulary | null;
   /** The artifact's current layout slug — selects the arrangement set + noun. */
   layout: string;
+  /** The layout's composition mode (kernel-named). `paged` gets the New-‹noun›
+   *  gallery; `flow` has no page unit to offer. */
+  isPaged: boolean;
   selection: StudioSelection | null;
   onClearSelection: () => void;
   /** EXECUTE: insert this block fragment at the selection. */
@@ -110,6 +113,7 @@ interface StudioToolbarProps {
 export function StudioToolbar({
   vocabulary,
   layout,
+  isPaged,
   selection,
   onClearSelection,
   onInsertBlock,
@@ -152,10 +156,20 @@ export function StudioToolbar({
 
   const blocks = vocabulary?.blocks ?? [];
   const arrangements = vocabulary?.arrangements?.[layout] ?? [];
-  const grouped = blocks.reduce<Record<string, typeof blocks>>((acc, b) => {
-    (acc[b.group] = acc[b.group] ?? []).push(b);
-    return acc;
-  }, {});
+  // The Media panel carries ONLY the picker-backed kinds — the ones a located
+  // entrance (the gutter's +, or `/`) cannot serve because they open a file
+  // picker instead of dropping a fragment. They are exactly the slash palette's
+  // SLASH_EXCLUDED set, kept in sync by construction: everything else is
+  // reachable at the pointer, and only these would be stranded without a home.
+  // `chart` rides along — it seeds the lane rather than inserting, so it has no
+  // located gesture either.
+  const MEDIA_KINDS = new Set(['figure', 'table', 'gallery', 'chart']);
+  const grouped = blocks
+    .filter((b) => MEDIA_KINDS.has(b.kind))
+    .reduce<Record<string, typeof blocks>>((acc, b) => {
+      (acc[b.group] = acc[b.group] ?? []).push(b);
+      return acc;
+    }, {});
 
   const pickBlock = (b: StudioVocabulary['blocks'][number]) => {
     if (b.kind === 'figure') return openPicker('image');
@@ -195,10 +209,27 @@ export function StudioToolbar({
     // parent gives it the width, and the selection chip (`min-w-0` + truncate)
     // is the elastic part that yields first.
     <div ref={rootRef} className="relative flex items-center gap-1 border-b border-border px-2 py-1.5">
+      {/* "+ Insert" is GONE as a general insert (2026-07-15) — it was the one
+          affordance with no LOCATION, falling back to the last block the caret
+          touched or the document end, so where a block landed was effectively
+          arbitrary. Every ordinary block kind is now inserted from a LOCATED
+          entrance: the gutter's + at the hovered row, or `/` in an empty block.
+
+          It survives ONLY as "Media" — the picker-backed kinds (Image / Table /
+          Gallery, SLASH_EXCLUDED in the slash palette because they open a file
+          picker rather than drop a fragment). Deleting the button outright
+          would strand them with no way in. Routing them through the located
+          palette is the right end state and its own change; this narrows the
+          button to exactly what nothing else can reach, rather than shipping a
+          hole. Tracked as the follow-on in docs/design/STUDIO.md.
+
+          "New ‹noun›" is PAGED-only. In a flow artifact there is no section to
+          insert — blocks flow — so the gallery was offering a page unit to a
+          model that has no pages. */}
       <button type="button" className={btn} onClick={() => setOpen(open === 'insert' ? null : 'insert')}>
-        <Plus className="h-3 w-3" /> Insert <ChevronDown className="h-3 w-3" />
+        <ImageIcon className="h-3 w-3" /> Media <ChevronDown className="h-3 w-3" />
       </button>
-      {arrangements.length > 0 && (
+      {isPaged && arrangements.length > 0 && (
         <button type="button" className={btn} onClick={() => setOpen(open === 'new' ? null : 'new')}>
           <LayoutGrid className="h-3 w-3" /> New {pageNoun} <ChevronDown className="h-3 w-3" />
         </button>

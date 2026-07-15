@@ -151,7 +151,17 @@ async def get_vocabulary(auth: UserClient) -> dict:
             for k, b in STUDIO_BLOCKS.items()
         ],
         "layouts": [
-            {"slug": s, "label": l["label"], "description": l["description"]}
+            {
+                "slug": s,
+                "label": l["label"],
+                "description": l["description"],
+                # The composition seam (see STUDIO_LAYOUT_MODES). The chrome
+                # derives from it: `paged` gets the New-‹noun› gallery + the
+                # navigator strip; `flow` gets neither — insert is located at
+                # the pointer. Served so the kernel names the category once and
+                # the FE never hardcodes a layout slug.
+                "mode": l["mode"],
+            }
             for s, l in STUDIO_LAYOUTS.items()
         ],
         "arrangements": {

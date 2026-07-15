@@ -386,6 +386,20 @@ export function StudioSurface() {
   // same source. One fetch per open. (Layouts are served too but the Studio no
   // longer switches type — ADR-447 deleted the format-switcher.) ──
   const [vocabulary, setVocabulary] = useState<StudioVocabulary | null>(null);
+
+  // The composition seam (kernel-named; see STUDIO_LAYOUT_MODES in
+  // services/studio.py). `paged` (deck, page) = the CONTAINER is the unit, so
+  // the New-‹noun› gallery and the navigator strip are native. `flow`
+  // (document, article) = BLOCKS are the unit and they flow — there is no
+  // section to insert, and insert is located at the pointer. The chrome derives
+  // from this rather than testing for 'deck', so a new layout declares its mode
+  // once in the kernel and the FE never learns another slug.
+  //
+  // Defaults to 'flow' until the vocabulary lands: the safe direction is the
+  // one that shows LESS chrome, so nothing flashes in and back out.
+  const layoutMode: 'flow' | 'paged' =
+    vocabulary?.layouts.find((l) => l.slug === template)?.mode ?? 'flow';
+  const isPaged = layoutMode === 'paged';
   useEffect(() => {
     if (!artifactPath || vocabulary) return;
     api.studio
@@ -872,8 +886,14 @@ export function StudioSurface() {
     // flash a deck's strip closed→open. Only seed the default once the real
     // template is known.
     if (!file?.content) return;
-    setNavCollapsed(template !== 'deck');
-  }, [template, navUserSet, file?.content]);
+    // PAGED artifacts navigate by container — the strip IS the navigation, so
+    // it opens. FLOW artifacts have no navigator at all now (the outline was a
+    // derived table of contents that, per the 2026-07-14 ruling, "doesn't earn
+    // its width" — an affordance defaulted off was the tell that it didn't
+    // belong). Kept collapsed here as belt-and-braces; the toggle + the whole
+    // navigator column are mode-gated below.
+    setNavCollapsed(!isPaged);
+  }, [isPaged, navUserSet, file?.content]);
   const toggleNav = useCallback(() => {
     setNavUserSet(true);
     setNavCollapsed((c) => !c);
@@ -1001,20 +1021,26 @@ export function StudioSurface() {
             rail when its ADR-454 chrome gate is on), fixed columns can exceed
             the window and crush the flex-1 canvas to 0 — verified live at
             ~960px. Percentages yield gracefully; wide screens are unchanged. */}
-        <div
-          className={`w-full shrink-0 border-r border-border md:w-56 md:max-w-[22%] ${
-            navCollapsed ? 'md:hidden' : 'md:flex'
-          } ${navActive ? 'flex' : 'hidden'}`}
-        >
-          <StudioNavigator
-            layout={template}
-            html={file?.content ?? ''}
-            artifactPath={artifactPath}
-            selectedSlide={selection?.slideIndex ?? null}
-            onSelectSlide={selectSlideFromNavigator}
-            onSelectHeading={selectHeadingFromNavigator}
-          />
-        </div>
+        {/* PAGED only: the navigator is container navigation (a slide strip),
+            which only exists where the container IS the unit. A flow artifact's
+            outline was a derived table of contents wearing a navigator's
+            clothes — deleted with the mode split. */}
+        {isPaged && (
+          <div
+            className={`w-full shrink-0 border-r border-border md:w-56 md:max-w-[22%] ${
+              navCollapsed ? 'md:hidden' : 'md:flex'
+            } ${navActive ? 'flex' : 'hidden'}`}
+          >
+            <StudioNavigator
+              layout={template}
+              html={file?.content ?? ''}
+              artifactPath={artifactPath}
+              selectedSlide={selection?.slideIndex ?? null}
+              onSelectSlide={selectSlideFromNavigator}
+              onSelectHeading={selectHeadingFromNavigator}
+            />
+          </div>
+        )}
 
         {/* Center — the toolbar + zoom over the canvas (renders, edits in place). */}
         <div className={`min-w-0 flex-1 flex-col md:flex ${canvasActive ? 'flex' : 'hidden'}`}>
@@ -1041,31 +1067,26 @@ export function StudioSurface() {
               </span>
               <span className="mx-1 h-4 w-px shrink-0 bg-border/60" aria-hidden />
             </div>
-            {/* ADR-455: collapse/expand the navigator (desktop) — the outline
-                earns its width or gets out of the way. */}
-            <button
-              type="button"
-              onClick={toggleNav}
-              title={`${navCollapsed ? 'Show' : 'Hide'} the ${template === 'deck' ? 'slide strip' : 'outline'}`}
-              aria-label={`${navCollapsed ? 'Show' : 'Hide'} the ${template === 'deck' ? 'slide strip' : 'outline'}`}
-              className={`ml-2 hidden shrink-0 items-center gap-1 rounded p-1 text-[11px] transition-colors hover:bg-muted/40 md:inline-flex ${
-                navCollapsed ? 'text-muted-foreground/60' : 'text-muted-foreground'
-              }`}
-            >
-              <PanelLeft className="h-3.5 w-3.5" />
-              {/* When hidden, name what's hidden so the affordance is discoverable
-                  (a bare icon reads as noise; the label is the "clearly marked"
-                  part of the operator's hide ruling). Deck keeps the icon-only
-                  form — its strip is open by default, so the toggle is rarely the
-                  way back in. */}
-              {navCollapsed && template !== 'deck' && (
-                <span>Outline</span>
-              )}
-            </button>
+            {/* ADR-455: collapse/expand the navigator (desktop). PAGED only —
+                with no navigator in flow mode, the toggle toggles nothing. */}
+            {isPaged && (
+              <button
+                type="button"
+                onClick={toggleNav}
+                title={`${navCollapsed ? 'Show' : 'Hide'} the slide strip`}
+                aria-label={`${navCollapsed ? 'Show' : 'Hide'} the slide strip`}
+                className={`ml-2 hidden shrink-0 items-center gap-1 rounded p-1 text-[11px] transition-colors hover:bg-muted/40 md:inline-flex ${
+                  navCollapsed ? 'text-muted-foreground/60' : 'text-muted-foreground'
+                }`}
+              >
+                <PanelLeft className="h-3.5 w-3.5" />
+              </button>
+            )}
             <div className="min-w-0 flex-1">
               <StudioToolbar
                 vocabulary={vocabulary}
                 layout={template}
+                isPaged={isPaged}
                 selection={selection}
                 onClearSelection={onPointClear}
                 onInsertBlock={handleInsertBlock}

@@ -153,9 +153,37 @@ _SHARED_CSS = """
     div[data-block="metrics"] .metric span { font-size: 0.8rem; color: var(--muted); }
 """.strip("\n")
 
+#: A layout's **mode** — the composition seam (2026-07-15). Two honest kinds of
+#: artifact were wearing one workbench:
+#:
+#:   paged (deck, page) — the CONTAINER is the unit. A slide IS a page; a
+#:     landing band IS a section. "New slide/section" is the primary authoring
+#:     act, and a navigator strip is real navigation (PowerPoint/Keynote).
+#:
+#:   flow  (document, article) — BLOCKS are the unit and they flow. There is no
+#:     section to insert; the outline is a derived table of contents, not
+#:     structure. Insert is located at the pointer, never at "the document"
+#:     (Notion/Docs).
+#:
+#: The chrome DERIVES from this: the paged affordances (the New-‹noun› gallery,
+#: the navigator strip) are native to `paged` and were bolted onto `flow`, where
+#: they fight the model — the tell was the 2026-07-14 ruling that a document's
+#: outline "doesn't earn its width" and ships collapsed. An affordance defaulted
+#: off is usually one that does not belong.
+#:
+#: Arrangements survive in `flow` — but as a BLOCK the pointer inserts (a
+#: two-column band, a metrics band), never as a page unit. That reframing is
+#: what keeps the capability without the collision.
+#:
+#: NB: distinct from each layout's `flow` KEY below, which is prose describing
+#: the layout's markup shape to the lane. `mode` is the machine seam; `flow` is
+#: pedagogy.
+STUDIO_LAYOUT_MODES = ("flow", "paged")
+
 STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     "document": {
         "label": "Document",
+        "mode": "flow",
         "description": "An internal working document — sections under one title.",
         "flow": (
             "one <main> holding an <h1> title and a short lede <p>, then blocks "
@@ -180,6 +208,7 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     },
     "deck": {
         "label": "Deck",
+        "mode": "paged",
         "description": "A slide deck — one idea per slide, spoken over.",
         "flow": (
             "each slide is <section class=\"slide\"> (a flow container, not a "
@@ -222,6 +251,7 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     },
     "article": {
         "label": "Article",
+        "mode": "flow",
         "description": "A publishing shape — blog post, essay, announcement.",
         "flow": (
             "one <article> with a <header> (h1 title, .subtitle promise, .byline "
@@ -257,6 +287,7 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     # inside; heroes carry a cited background (data-ref-kind="background").
     "page": {
         "label": "Page",
+        "mode": "paged",
         "description": "A landing page — hero, features, call to action.",
         "flow": (
             "one <main> of full-width section BANDS, each <section data-arrange=…> "
