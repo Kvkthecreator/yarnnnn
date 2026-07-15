@@ -38,6 +38,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAutoResize, COMPOSER_MAX_PX } from '@/hooks/useAutoResize';
 import {
   ArrowUp,
+  BookmarkPlus,
   Check,
   Copy,
   FileText,
@@ -174,6 +175,12 @@ export function LanePanel({
   const abortRef = useRef<AbortController | null>(null);
   const [editing, setEditing] = useState<{ id: string; original: string } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Settle (ADR-457 D3): the "keep this" act + the note it lands. `settled`
+  // holds the landed note so the moment is SHOWN, not toasted away — this is
+  // the on-screen instant where episodic becomes cumulative, and a toast that
+  // vanishes is exactly the wrong shape for it.
+  const [settling, setSettling] = useState(false);
+  const [settled, setSettled] = useState<{ path: string; title: string } | null>(null);
   // Phase-A attachments: composer chips (upload → send as turn refs).
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -489,6 +496,21 @@ export function LanePanel({
     abortRef.current?.abort();
   }, []);
 
+  /** "Keep this" — settle the conversation into record (ADR-457 D3).
+   *  Fires only from the member's click: a settle is a gesture, never ambient. */
+  const settle = useCallback(async () => {
+    setSettling(true);
+    setError(null);
+    try {
+      const res = await api.lanes.settle(laneId);
+      setSettled({ path: res.path, title: res.title });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not settle this conversation');
+    } finally {
+      setSettling(false);
+    }
+  }, [laneId]);
+
   const startEdit = useCallback((m: LaneMessage) => {
     setEditing({ id: m.id, original: m.content });
     setInput(m.content);
@@ -702,6 +724,31 @@ export function LanePanel({
             </div>
           );
         })}
+        {/* The settled note (ADR-457 D3) — the felt moment: the conversation
+            BECOMES a thing that stays. It lands at the transcript's end, in the
+            same ArtifactCard the lane's own writes use (a .md note is chat's
+            own material, so the card renders it inline — you SEE what you kept,
+            you don't get told it happened). Dismissible, not sticky: the note
+            is in the commons now; this frame is just the moment. */}
+        {settled && (
+          <div className="rounded-md border border-border bg-muted/30 p-2 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <BookmarkPlus className="w-3 h-3" />
+                Kept — this conversation is now record
+              </span>
+              <button
+                type="button"
+                onClick={() => setSettled(null)}
+                className="p-0.5 rounded hover:bg-muted hover:text-foreground transition-colors"
+                aria-label="Dismiss"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+            <ArtifactCard path={settled.path} verb="WriteFile" attribution="you" />
+          </div>
+        )}
         {error && (
           <div className="text-xs text-destructive text-center">{error}</div>
         )}
@@ -790,6 +837,26 @@ export function LanePanel({
           >
             <Paperclip className="w-4 h-4" />
           </button>
+          {/* "Keep this" (ADR-457 D3) — the settle gesture. Sits beside the
+              composer because it is an act ON the conversation, not a message
+              in it. Hidden until there is something to settle: an empty lane
+              has no understanding to distill. */}
+          {messages.length > 0 && (
+            <button
+              type="button"
+              onClick={() => void settle()}
+              disabled={sending || settling}
+              className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 shrink-0 transition-colors"
+              aria-label="Keep this — settle the conversation into a note"
+              title="Keep this"
+            >
+              {settling ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <BookmarkPlus className="w-4 h-4" />
+              )}
+            </button>
+          )}
           <textarea
             ref={textareaRef}
             value={input}

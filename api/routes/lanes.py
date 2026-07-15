@@ -669,6 +669,63 @@ async def regenerate_lane_turn(lane_id: str, auth: UserClient):
     )
 
 
+@router.post("/lanes/{lane_id}/settle")
+async def settle_lane_route(lane_id: str, auth: UserClient) -> dict:
+    """"Keep this" — turn this conversation into record (ADR-457 D3).
+
+    The member's gesture, NOT a model capability: it fires only on this call
+    (the never-ambient invariant), and the lane's model is the transport, not
+    the actor. Deliberately not a primitive — in CHAT_PRIMITIVES a model could
+    settle its own conversation unasked.
+
+    One bounded turn distills; the KERNEL places (ADR-457 D4), cites
+    (ADR-448/423), embeds (the retrieval fix), and meters (falsifier 2's
+    instrument). Returns the landed note so the FE can show the moment.
+    """
+    lane = _get_lane(auth, lane_id)
+    lane_meta = (lane.get("context_metadata") or {}).get("lane") or {}
+
+    from services.lane_runner import LANE_MODELS, unpriced_lane_model
+    from services.model_router import model_router_enabled
+    from services.settle import settle_lane
+
+    if not model_router_enabled():
+        raise HTTPException(status_code=503, detail="the model router is not enabled")
+    model = lane_meta.get("model") or ""
+    if model not in LANE_MODELS:
+        raise HTTPException(status_code=422, detail=f"lane model not routable: {model}")
+    # ADR-439 §4 — the PRE-CALL check: an unpriced model never routes in prod.
+    if unpriced_lane_model(model):
+        raise HTTPException(
+            status_code=422,
+            detail="this model has no billing rate configured and cannot run (ADR-439 §4)",
+        )
+
+    # The full conversation, oldest-first — a settle reads the whole thing,
+    # not the turn window (_fetch_history caps at _HISTORY_WINDOW for cost;
+    # settling half a conversation would distill half an understanding).
+    msgs = (
+        auth.client.table("session_messages")
+        .select("role, content, sequence_number")
+        .eq("session_id", lane_id)
+        .order("sequence_number")
+        .execute()
+    ).data or []
+
+    try:
+        result = await settle_lane(
+            auth,
+            lane_id=lane_id,
+            lane_meta=lane_meta,
+            messages=[{"role": m["role"], "content": m.get("content") or ""} for m in msgs],
+            member_label=getattr(auth, "email", None) or None,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    return result
+
+
 @router.patch("/lanes/{lane_id}")
 async def patch_lane(lane_id: str, req: LanePatchRequest, auth: UserClient) -> dict:
     """Phase-A hygiene: rename + pin. lane_meta-only writes."""

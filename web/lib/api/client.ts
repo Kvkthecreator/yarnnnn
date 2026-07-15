@@ -296,6 +296,17 @@ export const api = {
         }>;
       }>(`/api/lanes/${laneId}/messages`),
     /**
+     * "Keep this" — settle the conversation into record (ADR-457 D3).
+     * The member's gesture: one bounded turn distills, the kernel places it at
+     * the think-home, cites, and embeds. Returns the landed note so the caller
+     * can SHOW the moment (the felt beat of the moat — never toast-and-vanish).
+     */
+    settle: (laneId: string) =>
+      request<{ path: string; title: string; revision_id: string; model: string }>(
+        `/api/lanes/${laneId}/settle`,
+        { method: "POST" },
+      ),
+    /**
      * Streaming lane turn (ADR-412 D2), over the shared reader (ADR-441 D4).
      * Phase-A turn controls: `opts.signal` aborts the stream (stop — the
      * server persists the partial); `opts.replaceFromMessageId` is
