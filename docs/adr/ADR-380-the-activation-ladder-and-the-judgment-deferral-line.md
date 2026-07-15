@@ -53,6 +53,8 @@ Once the [two-order model](../analysis/freddie-as-the-workspace-agent-and-the-tw
 
 ### D1 — Reason about the steward as a three-rung ladder, not a binary
 
+> **AMENDED by [ADR-460](ADR-460-agents-one-concept-independent-facts-one-gate.md) (2026-07-15): the rung ladder retires as an *Identity taxonomy*.** D1's correction of ADR-375's binary was right — one switch was too coarse — but the replacement over-corrected into an ordinal, and an ordinal bundles four independently-varying facts (attribution · configuration · standing intent · consequential authority). ADR-460 keeps the granularity and drops the ladder: one concept (Agent), independent facts. **D2 below is PRESERVED EXACTLY and promoted** — it was always a statement about the [ADR-307](ADR-307-unified-permission-taxonomy.md) consequential gate, not about a class of entity, and it is now the load-bearing survivor of this ADR. **D4's exogenous-clock dogfood discipline is preserved**: the clock attaches to the *authority*, not to a rung. §5's vision boundary is untouched.
+
 `AGENT_ENABLED` (ADR-375 §6) stays exactly as built — one flag, default ON, dormant-not-deleted. This ADR adds no code. It **refines the model the flag is reasoned through**: Rung 0 (flag off) is the wedge; Rung 1 (Freddie) and Rung 2 (persona judgment) are distinct activations that 375's binary fused. Future per-workspace / per-order gating (forward-compatible per ADR-375 D4) should branch on **rung**, not on a single "steward" boolean. *Naming the ladder is the decision; building a second flag is not — it is demand-gated.*
 
 ### D2 — The launch deferral line is autonomy-over-consequential-action (the Rung-1 → Rung-2 boundary)

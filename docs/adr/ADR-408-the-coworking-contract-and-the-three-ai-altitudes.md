@@ -57,6 +57,8 @@ the other model by accident:
 
 ## 3. D2 — The three AI altitudes (the boundary cleanup)
 
+> **AMENDED by [ADR-460](ADR-460-agents-one-concept-independent-facts-one-gate.md) (2026-07-15): the three-altitude table below is RETIRED.** "Altitude" bundles four independently-varying facts (attribution · configuration · standing intent · consequential authority) into one ordinal, and ordinals do not compose (there is no A2.5 for "a named preset with a persona but no mandate"). The runtime never had altitudes: `_caller_class` branches on the **author prefix**, and maps `member:` → `operator` — A2 was always the member, not a class. **What this section got RIGHT and ADR-460 preserves + strengthens**: the load-bearing simplification that a member's helper is **not a principal** (it attributes as `member:{id} via {model}`, holds no grant, no persona, no dial). That fact survives as a *fact on the vector*, not a rung on a ladder. Read the table below as a **historical snapshot of three sample configurations**, not as a taxonomy. The live model: one concept (Agent), five independent facts, one gate (ADR-307).
+
 The walk's ambiguity is resolved by naming three distinct kinds of AI, each
 with a different relationship to identity, autonomy, persona, and budget.
 Today's code trans-fuses machinery across them (ADR-383 gave every agent the

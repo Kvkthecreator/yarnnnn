@@ -24,6 +24,8 @@ follows the spike.
 
 ## 2. D1 — Lane encoding: no new tables, no migration
 
+> **AMENDED by [ADR-460](ADR-460-agents-one-concept-independent-facts-one-gate.md) (2026-07-15)**: the lane's `model` is re-read as one value of the **configuration** fact, not a property of the container. `lane_meta` currently bags three dimensions — `model` (Mechanism), `artifact_path` (Substrate/Purpose, ADR-440 D3), `derive_recipe`/`derive_source` (Purpose, ADR-450 D3) — on a Channel-dimension object; ADR-460 D5 separates them (configuration · Agent · room). `LANE_MODELS` (D5) is named the **seed of the kernel Agent registry** — the third instance of the ADR-402/450 registries-are-kernel-data pattern. **No change to this ADR's mechanics**: the session-row-plus-metadata encoding stands and is explicitly *not* replaced by a unified Conversation object (ADR-460 §7) — it gets amended in place, as ADR-412 and ADR-413 already did, when `cast` and `scope` are specifiable from evidence.
+
 A lane is a `chat_sessions` row: `session_type='lane'`,
 `context_metadata.lane = {name, model}` (the D6 "session metadata" model
 binding), scoped (workspace, principal) exactly like every session post

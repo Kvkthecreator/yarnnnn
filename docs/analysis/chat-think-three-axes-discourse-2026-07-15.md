@@ -193,15 +193,38 @@ substrate).
 
 ## 10. Pending rulings (open when the discourse resumes)
 
+> **RULED 2026-07-15 (§12) — (e) was stated and it re-cut the board.** The operator's consideration
+> points landed as two corrections (LLM-routing-isn't-a-layman-concept → pre-configured **Agents**;
+> then *dissolve the altitudes*), ratified as **[ADR-460](../adr/ADR-460-agents-one-concept-independent-facts-one-gate.md)**.
+> Consequences below; §12 has the full record. Live status: **(a) DEFER** · **(b) largely
+> DISSOLVED** · **(c) still open** · **(d) RULED — settle first** · **(e) CLOSED → ADR-460** ·
+> **(f)/(g) still open**.
+
 The operator holds further consideration points; these are queued, not blocking Phase A:
 
 - **(a)** The unified-object re-cut — one Conversation (`scope · cast · bindings`), subsuming
   ADR-411's lane rather than siblinging it.
+  → **RULED: DEFER** (ADR-460 §7). Neither subsume nor sibling. `lane_meta` already carries
+  bindings and has absorbed two extensions (ADR-440, ADR-450) without a migration; the pin is
+  JSON metadata, not schema. `cast` can't be specified before the registry exists; `scope: shared`
+  can't before rooms. The object is the right *end-state description* — declaring it now buys a
+  migration you can't fill in. Amend ADR-411 in place a third time, from evidence.
 - **(b)** The routing ladder stop-point — v1 stops at gestures (a→c), or does the "singular
   cohesive experience" want auto-routing (d) in scope now, accepting the opacity trade?
+  → **LARGELY DISSOLVED** (ADR-460 D4). **The Agent *is* the designation.** Rung (b)
+  remembered-designations and rung (d) auto-routing mostly evaporate: nobody routes, you talk to
+  someone. Survivors: (a) pick who answers, (c) gestures ("have them cross-check"). The ladder's
+  own guard — *deterministic before intelligent* — is satisfied by a registry, not a classifier.
 - **(c)** The comments inversion (§7) — binding-capable from birth vs hold-until-Phase-D.
+  → **STILL OPEN.** Unaffected by ADR-460 (it's a Channel/binding question, not an Identity one).
+  The Studio D7-P2 timing conflict stands.
 - **(d)** Settle's phase — B (as proposed) or pulled forward to A/A.5 (§8).
+  → **RULED: PULLED FORWARD — settle is first** (ADR-460 §8). Four things converge and one accrues
+  cost daily (P4). The Agent registry is cheap, intuitive, and crosses no gate — and is still *not*
+  next: a room of named Agents whose transcripts never become record is a better-decorated parity
+  trap. Settle-then-Agents makes the second more valuable; reversed, the first is decorative.
 - **(e)** The operator's further consideration points, to be stated.
+  → **CLOSED — stated 2026-07-15, ratified as ADR-460.** See §12.
 
 Sequencing 2a→2b was confirmed *as re-labeled* in §8 (single-user orchestrated conversation
 before the scope flip). Invocation semantics are settled at the invariant level (§3.3) and open
@@ -247,3 +270,50 @@ Feeds the axes: sharpens D8 falsifier 1 (chat stops carrying mis-homed Make-work
 the unified-Conversation object's "binding decides the home surface" restated; the horizon ADR
 gains its seam-contract section. Pending rulings appended to §10: **(f)** bound-lane homing
 (group vs deep-link), **(g)** `prd` md-first graduation vs ADR-452 html-first.
+
+## 12. Ruling (e) — the Agent re-cut (2026-07-15; ratified as ADR-460)
+
+The operator's held-open consideration points landed as two corrections, in sequence. Together
+they closed (e), re-cut (a)/(b)/(d), and produced
+**[ADR-460](../adr/ADR-460-agents-one-concept-independent-facts-one-gate.md)**.
+
+**Correction 1 — the layman cut.** *"LLM-routing is simply NOT a laymen intuitive concept.
+Pre-configured Agents IS... Agents are agents, chat rooms are chat rooms, Agent configurations are
+separate. I think i was diluting the concerns and creating gray, ambiguous interpretations of that
+which should be clearly separated and gated."* This is an Axiom-0 diagnosis, not a preference — the
+live `lane_meta` bag carries `model` (Mechanism) + `artifact_path` (Substrate/Purpose) +
+`derive_recipe` (Purpose) on a Channel object. Three dimensions in one bag; the muddiness is
+structural. The UX half is independently true: "route this turn to Gemini" is a spec-sheet
+concept; "invite the image person to the room" is one a child holds.
+
+**The guard that had to be narrowed.** §5.1 said *"designations are routing facts, never
+identities — anything more backdoors A3."* The narrow version: **a designation may carry a name
+and a configuration without carrying standing intent and accountability.** A named preset is not a
+seat. The seam is the ADR-307 consequential gate, not the presence of a proper noun. **But the
+word "principal" stays gated** — in this codebase a principal is a `principal_grants` row
+(attributes as itself, holds a grant, subject to the powerbox); ADR-431 is explicit the chat model
+is never one. Agents are **named hands**: the face is an Agent, the ledger says
+`member:kvk via gemini/gemini-2.5-pro`. That's the hinge, and the operator took it.
+
+**Correction 2 — dissolve the altitudes.** *"is that separation and altitude necessary now? A2, A3,
+can they be dissolved? and thus, we have Agents (that's it), and they may or may not have personas,
+they may or may not have other governance files."* **Yes — with one exception.** The decisive
+receipt: `_caller_class` doesn't know what an altitude is; it branches on the author prefix and
+maps `member:` → `operator`. **A2 was already dissolved in the gate** — a lane helper isn't a class,
+it *is* the member. The runtime always had two things distinguished by one question: *does this
+write attribute to a human, or to itself?* Precedent: ADR-383 (Freddie and persona agents are the
+same construct — one file structure, different content) and ADR-380 D2 (narrowed "judgment" →
+"autonomy over consequential action" because the coarse word deferred safe things). ADR-460 is the
+third instance of a move made twice and right both times.
+
+**The exception — the cliff.** Four facts are dials; one is a cliff: *may this Agent take
+consequential action without a witness?* Every other fact ships on engineering time; that one ships
+on a clock we don't own and **can come out negative**. So: **dissolve the ladder, keep the cliff,
+relocate it to the ADR-307 gate where it's already enforced** — the altitude was a shadow that gate
+cast on the Identity dimension. Delete the shadow, not the gate. Cost paid explicitly (ADR-460
+D3.a): the ladder made the cliff *visible in the vocabulary*, so the flat model buys that back
+**structurally** — the kernel Agent registry row has **no field** for consequential authority; it
+is unrepresentable, not merely unset.
+
+**Net:** three ADRs' worth of taxonomy → one entity plus one gate that already exists. Sequence
+(ADR-460 §8): **W0 falsifiers → settle → the Agent registry → cast in a room → the object ADR.**
