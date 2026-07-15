@@ -13,8 +13,10 @@
 > render: reading the asset inline IS thinking-work (the ADR-454 asset/dividend seam). The
 > dispatch lives at the file-TYPE altitude inside the card renderer — consistent with §3's
 > discipline (mounts declare card-vs-none; the card's internal depth per type is not a mount
-> concern, exactly as projection is a type property). Doc-first; the card change ships with
-> the chat-seam pass. Capture:
+> concern, exactly as projection is a type property). **Implemented same day** —
+> `ArtifactCard.tsx` consults `resolveSurfaceApplication`: owned formats get the
+> QUICKLOOK_MAX_PX glance (no in-place expansion) + "Open in ‹app›" primary (header +
+> footer strip); unclaimed formats byte-identical. Capture:
 > `docs/analysis/chat-think-three-axes-discourse-2026-07-15.md` §11.
 **Date**: 2026-07-12
 **Dimension**: Channel (Axiom 6 — how a conversation renders the artifacts it produces)
