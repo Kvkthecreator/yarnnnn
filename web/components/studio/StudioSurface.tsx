@@ -1125,7 +1125,27 @@ export function StudioSurface() {
                 root-click). Shown on mobile too (the toolbar row is visible when
                 the Canvas pane is active), so suppressing the OS strip never
                 leaves the artifact unnamed. */}
-            <div className="ml-2 flex shrink-0 items-center gap-1 text-xs">
+            {/* The navigator toggle sits at the FAR LEFT, on the edge of the
+                panel it governs — the macOS/VS Code placement. It was floating
+                mid-row after the artifact name, where it read as a third
+                crumb-adjacent action rather than as the left panel's handle: a
+                control for a panel belongs on that panel's side, not in the
+                middle of the row. PAGED only — with no navigator in flow mode,
+                the toggle toggles nothing (ADR-455). */}
+            {isPaged && (
+              <button
+                type="button"
+                onClick={toggleNav}
+                title={`${navCollapsed ? 'Show' : 'Hide'} the slide strip`}
+                aria-label={`${navCollapsed ? 'Show' : 'Hide'} the slide strip`}
+                className={`ml-2 hidden shrink-0 items-center gap-1 rounded p-1 text-[11px] transition-colors hover:bg-muted/40 md:inline-flex ${
+                  navCollapsed ? 'text-muted-foreground/60' : 'text-muted-foreground'
+                }`}
+              >
+                <PanelLeft className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <div className={`flex shrink-0 items-center gap-1 text-xs ${isPaged ? 'ml-1 md:ml-2' : 'ml-2'}`}>
               <button
                 type="button"
                 onClick={() => setParam({ file: null })}
@@ -1170,28 +1190,11 @@ export function StudioSurface() {
               )}
               <span className="mx-1 h-4 w-px shrink-0 bg-border/60" aria-hidden />
             </div>
-            {/* ADR-455: collapse/expand the navigator (desktop). PAGED only —
-                with no navigator in flow mode, the toggle toggles nothing. */}
-            {isPaged && (
-              <button
-                type="button"
-                onClick={toggleNav}
-                title={`${navCollapsed ? 'Show' : 'Hide'} the slide strip`}
-                aria-label={`${navCollapsed ? 'Show' : 'Hide'} the slide strip`}
-                className={`ml-2 hidden shrink-0 items-center gap-1 rounded p-1 text-[11px] transition-colors hover:bg-muted/40 md:inline-flex ${
-                  navCollapsed ? 'text-muted-foreground/60' : 'text-muted-foreground'
-                }`}
-              >
-                <PanelLeft className="h-3.5 w-3.5" />
-              </button>
-            )}
             <div className="min-w-0 flex-1">
               <StudioToolbar
                 vocabulary={vocabulary}
                 layout={template}
                 isPaged={isPaged}
-                selection={selection}
-                onClearSelection={onPointClear}
                 onInsertBlock={handleInsertBlock}
                 onInsertCited={handleInsertCited}
                 onInsertGallery={handleInsertGallery}

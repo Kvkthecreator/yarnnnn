@@ -5,13 +5,16 @@
  * grain-realigned by ADR-453 D3; renamed from StudioInsertMenu).
  *
  * Verbs, in operator words:
- *  - Insert ▾            — block-grain content units into the current
- *                          flow/slot (the former "Add", honestly named).
- *  - New slide/section ▾ — the page-grain structural act, first-class: an
+ *  - Media +             — the picker-backed block kinds (Image/Table/Gallery)
+ *                          that the located palette cannot serve, plus Chart.
+ *  - New slide/section + — the page-grain structural act, first-class: an
  *                          arrangement GALLERY with derived wireframe
  *                          thumbnails (ADR-447 D7.1 lands here).
- *  - a minimal selection chip — identity + clear (the acknowledgment; the
- *                          selection's VERBS live in the Design tab).
+ *
+ * The selection chip is GONE (2026-07-15) — ADR-453 D3's "acknowledgment" was
+ * the receipt for a selection-gated world that ADR-458 replaced with hover.
+ * The navigator's ring + the canvas marking + the Design tab's scope already
+ * say it; the chip was the third telling. The selection STATE is untouched.
  *
  * "Re-arrange" (change THIS page's arrangement) is selection-scoped and lives
  * in the Design tab's page scope (ADR-453 D4) — the old mixed-grain
@@ -21,7 +24,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Image as ImageIcon, LayoutGrid, Loader2, X } from 'lucide-react';
+import { Image as ImageIcon, LayoutGrid, Loader2, Plus } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { ArrangementThumb } from './ArrangementThumb';
 
@@ -96,8 +99,6 @@ interface StudioToolbarProps {
   /** The layout's composition mode (kernel-named). `paged` gets the New-‹noun›
    *  gallery; `flow` has no page unit to offer. */
   isPaged: boolean;
-  selection: StudioSelection | null;
-  onClearSelection: () => void;
   /** EXECUTE: insert this block fragment at the selection. */
   onInsertBlock: (fragment: string, label: string) => void;
   /** EXECUTE: insert a cited block (figure/table) for a picked workspace file. */
@@ -114,8 +115,6 @@ export function StudioToolbar({
   vocabulary,
   layout,
   isPaged,
-  selection,
-  onClearSelection,
   onInsertBlock,
   onInsertCited,
   onInsertGallery,
@@ -226,38 +225,36 @@ export function StudioToolbar({
           "New ‹noun›" is PAGED-only. In a flow artifact there is no section to
           insert — blocks flow — so the gallery was offering a page unit to a
           model that has no pages. */}
+      {/* `+` not `▾`: these ADD something. A chevron promises a menu of
+          options to pick among (a filter, a view); a plus promises a thing
+          appears. Both open a panel — the glyph should say what the panel is
+          FOR, and the OS teaches `+` as "insert" everywhere else (the gutter's
+          + is the same promise at the row grain). */}
       <button type="button" className={btn} onClick={() => setOpen(open === 'insert' ? null : 'insert')}>
-        <ImageIcon className="h-3 w-3" /> Media <ChevronDown className="h-3 w-3" />
+        <ImageIcon className="h-3 w-3" /> Media <Plus className="h-3 w-3" />
       </button>
       {isPaged && arrangements.length > 0 && (
         <button type="button" className={btn} onClick={() => setOpen(open === 'new' ? null : 'new')}>
-          <LayoutGrid className="h-3 w-3" /> New {pageNoun} <ChevronDown className="h-3 w-3" />
+          <LayoutGrid className="h-3 w-3" /> New {pageNoun} <Plus className="h-3 w-3" />
         </button>
       )}
 
-      {/* The minimal selection chip (ADR-453 D3): identity + clear. It is the
-          acknowledgment and the anchor indicator — the selection's VERBS and
-          properties live in the Design tab. */}
-      {selection && (
-        <div className="ml-auto flex min-w-0 items-center gap-1">
-          <span className="inline-flex min-w-0 items-center gap-1 rounded-full border border-indigo-300/60 bg-indigo-50/60 px-2 py-0.5 text-[10px] text-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200">
-            <span className="truncate">
-              {selection.blockKind
-                ? `${selection.blockKind}${selection.blockId ? ` · ${selection.blockId}` : ''}`
-                : selection.slot
-                  ? `slot · ${selection.slot}`
-                  : selection.slideIndex != null
-                    ? `slide ${selection.slideIndex + 1}`
-                    : selection.pageIndex != null
-                      ? `${pageNoun} ${selection.pageIndex + 1}`
-                      : 'selection'}
-            </span>
-            <button type="button" onClick={onClearSelection} aria-label="Clear selection">
-              <X className="h-3 w-3" />
-            </button>
-          </span>
-        </div>
-      )}
+      {/* The selection chip is DELETED (2026-07-15). ADR-453 D3 gave it one
+          job — "the acknowledgment" — for a world where every affordance was
+          selection-gated (ADR-458 §1: "click → toolbar chip + Design tab"), so
+          the chip was the receipt proving the click landed. ADR-458 moved the
+          entrance to HOVER (the gutter's + / ⋮⋮ need no selection), and the
+          receipt lost its errand: there is no longer a gated act it unlocks.
+
+          What remained was a third rendering of one fact — the navigator
+          already rings the slide indigo, the canvas already marks it, and the
+          Design tab already flips to page scope. Its ✕ was the only live
+          affordance, and clicking the canvas margin already clears the same
+          selection through the same handler (the ADR-453 grain ladder).
+
+          The STATE (`selection`) is untouched and still load-bearing: it
+          anchors every op and scopes the Design tab. Only its third display
+          is gone. */}
 
       {open === 'insert' && (
         <div className={panel}>
