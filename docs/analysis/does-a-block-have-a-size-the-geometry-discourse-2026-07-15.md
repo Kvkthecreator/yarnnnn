@@ -1,6 +1,6 @@
 # Does a block have a size? — the geometry discourse
 
-**2026-07-15 · discourse + the operator's ruling (§8). Not yet canon — the ADR that amends ADR-453 D7/D1 is step 4 of §9.** Opened at the operator's direction: re-open the geometry axiom **fully**, one thread, cut by seam rather than by layout label. Companion to [the drift ledger](the-studio-drift-ledger-and-the-deck-question-2026-07-15.md).
+**2026-07-15 · discourse + the operator's ruling (§8). RATIFIED as [ADR-461](../adr/ADR-461-bounded-continuous-geometry-a-slide-has-a-frame.md) — read the ADR for the decisions; this doc is the evidence they rest on.** Opened at the operator's direction: re-open the geometry axiom **fully**, one thread, cut by seam rather than by layout label. Companion to [the drift ledger](the-studio-drift-ledger-and-the-deck-question-2026-07-15.md).
 
 §§1–7 establish **what is actually true**, with mechanism-level receipts, so the decision is made against evidence rather than against a remembered argument. The headline: **the argument that killed this twice is a category error, and ADR-453 D7 contradicts it in its own parenthesis.** The objection that replaces it is real, coded, and enforced by a test — and it has an answer.
 
