@@ -131,7 +131,11 @@ export function insertBlock(
  *  image paths (ADR-456 W1): the base's single <figure> is the prototype,
  *  cloned once per path with its data-ref swapped. Registry-driven — the
  *  wrapper (annotation, kind) always comes from the served vocabulary. */
-export function galleryFragment(base: string, paths: string[]): string | null {
+export function galleryFragment(
+  base: string,
+  paths: string[],
+  pins?: Record<string, string | null>,
+): string | null {
   if (!paths.length) return null;
   const tpl = document.createElement('template');
   tpl.innerHTML = base.trim();
@@ -144,7 +148,9 @@ export function galleryFragment(base: string, paths: string[]): string | null {
     const img = fig.querySelector('img');
     if (!img) continue;
     img.setAttribute('data-ref', p);
-    img.setAttribute('data-ref-rev', '');
+    // The PIN (ADR-440 D5), stamped at the moment of citation. Empty only when
+    // the cited file predates the ADR-209 chain and truly has no head revision.
+    img.setAttribute('data-ref-rev', pins?.[p] ?? '');
     img.setAttribute('alt', '');
     root.appendChild(fig);
   }

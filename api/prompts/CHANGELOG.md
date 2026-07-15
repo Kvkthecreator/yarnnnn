@@ -6,6 +6,29 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.15.2] - Studio posture: the citation pin is stamped, not optional
+
+- `services/studio.py` — the `data-ref-rev` instruction was "stamp it when you have
+  the cited file's head revision id (from reading it this turn); **otherwise leave it
+  empty**". That trailing clause was a self-fulfilling opt-out, and every example the
+  posture showed the model (`STUDIO_BLOCKS` chart/figure/gallery `markup` + the citing
+  section's own `<img>` sample) carried `data-ref-rev=""` — **the examples taught the
+  opposite of the instruction, and an example outweighs a sentence.**
+  Now: "ALWAYS stamp it: read the cited file this turn (ReadFile reports its head
+  revision) and put that id in the attribute... An empty pin is a citation that can
+  only ever dangle — leave it empty ONLY if the file genuinely has no revision. When
+  you rewrite a citation you already have, refresh its pin." All four examples show
+  `data-ref-rev="<head-rev-id>"`.
+- Expected behavior change: the lane stamps a real revision id on citations it writes,
+  instead of `""`. The pin is what lets a citation survive its path moving or being
+  deleted (`projection.ts` resolves it in the dangle path) — ADR-440 D5's founding
+  structural bet, which had **0 populated pins across the live workspace** before this.
+- Non-prompt companion (same commit): the mechanical insert path now stamps
+  deterministically — `/studio/citable` serves `head_version_id`, and the Media+
+  figure/table/gallery inserts carry it into the fragment. The lane's judgment is now
+  the exception, not the only path. Gated by `api/test_studio_citation_pin.py` (17/17,
+  verified to fail when the empty-pin example is restored).
+
 ## [2026.07.15.1] - Lane think profile: response ceiling 2048 → 4096 (Phase-A chassis item 1)
 
 - `services/lane_runner.py::_LANE_MAX_TOKENS` — 2048 → 4096. Unbound (plain chat) lanes only;

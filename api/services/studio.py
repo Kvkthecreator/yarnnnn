@@ -106,19 +106,19 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
         "label": "Chart",
         "group": "data",
         "description": "An authored SVG chart in ./assets/, cited by reference.",
-        "markup": '<figure data-block="chart" data-block-id="b7"><img data-ref="./assets/chart.svg" data-ref-rev="" alt="…"><figcaption>…</figcaption></figure>',
+        "markup": '<figure data-block="chart" data-block-id="b7"><img data-ref="./assets/chart.svg" data-ref-rev="<head-rev-id>" alt="…"><figcaption>…</figcaption></figure>',
     },
     "figure": {
         "label": "Image",
         "group": "media",
         "description": "A workspace image CITED by reference, with a caption.",
-        "markup": '<figure data-block="figure" data-block-id="b8"><img data-ref="operation/…/img.png" data-ref-rev="" alt="…"><figcaption>…</figcaption></figure>',
+        "markup": '<figure data-block="figure" data-block-id="b8"><img data-ref="operation/…/img.png" data-ref-rev="<head-rev-id>" alt="…"><figcaption>…</figcaption></figure>',
     },
     "gallery": {
         "label": "Gallery",
         "group": "media",
         "description": "A grid of workspace images, each CITED by reference.",
-        "markup": '<div data-block="gallery" data-block-id="b12"><figure><img data-ref="operation/…/img.png" data-ref-rev="" alt=""><figcaption></figcaption></figure></div>',
+        "markup": '<div data-block="gallery" data-block-id="b12"><figure><img data-ref="operation/…/img.png" data-ref-rev="<head-rev-id>" alt=""><figcaption></figcaption></figure></div>',
     },
 }
 
@@ -1147,7 +1147,7 @@ image smaller", "make this slide a dark divider"). Families:
 
 ## Citing workspace objects (references, never copies)
 - Embed a workspace file by REFERENCE, resolved live at render time:
-  `<img data-ref="operation/brand/logo.png" data-ref-rev="" alt="...">` for
+  `<img data-ref="operation/brand/logo.png" data-ref-rev="<head-rev-id>" alt="...">` for
   images, `<div data-ref="operation/metrics/summary.csv" data-ref-kind="table"></div>`
   for a CSV rendered as a table. NEVER paste base64 or copy a cited file's
   bytes/contents into the artifact — the reference IS the point: when the
@@ -1157,9 +1157,13 @@ image smaller", "make this slide a dark divider"). Families:
   artifact's folder, so the project moves as a unit); shared workspace objects
   are cited by their workspace path (`data-ref="operation/..."`) and stay
   where they live — do not move or duplicate them.
-- `data-ref-rev` is the citation's pin: when you have the cited file's head
-  revision id (from reading it this turn), stamp it there; otherwise leave it
-  empty. The pin is the fallback if the path later moves or is deleted.
+- `data-ref-rev` is the citation's PIN — the cited file's head revision id.
+  ALWAYS stamp it: read the cited file this turn (ReadFile reports its head
+  revision) and put that id in the attribute. The pin is what lets the
+  citation survive the path moving or being deleted, and it is the artifact's
+  whole difference from a tool that bakes a copy. An empty pin is a citation
+  that can only ever dangle — leave it empty ONLY if the file genuinely has no
+  revision. When you rewrite a citation you already have, refresh its pin.
 - Never edit a cited object's content inside the artifact. If the member asks
   to change a cited source, edit the SOURCE file itself.
 - A page/section can wear a CITED BACKGROUND image: set data-ref="<image path>"

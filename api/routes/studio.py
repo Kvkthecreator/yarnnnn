@@ -442,13 +442,21 @@ async def list_citable(auth: UserClient) -> dict:
     """Citable workspace objects for the insert menu (ADR-440 v1.1) —
     images + tables the member can reference into an artifact. Workspace-wide
     (citations reach anywhere the member may read; the powerbox gates reads
-    downstream), newest first."""
+    downstream), newest first.
+
+    Carries `head_version_id` so a citation can be PINNED at the moment it is
+    made (ADR-440 D5). The pin was delegated to the lane ("stamp it when you
+    have the head revision id... otherwise leave it empty") and consequently
+    never got written — 0 populated pins across the live workspace, because a
+    mechanical insert never had the rev to stamp. Serving it here makes the
+    deterministic path the default and the lane's judgment the exception.
+    """
     from services.workspace_context import substrate_scope_filter
 
     def _q():
         return (
             auth.client.table("workspace_files")
-            .select("path, updated_at")
+            .select("path, updated_at, head_version_id")
             .eq(*substrate_scope_filter(auth.user_id))
             .order("updated_at", desc=True)
             .limit(24)
@@ -463,9 +471,20 @@ async def list_citable(auth: UserClient) -> dict:
         .execute()
     ).data or []
     tables = (_q().ilike("path", "%.csv").execute()).data or []
+
+    def _row(r: dict) -> dict:
+        return {
+            "path": r["path"],
+            "updated_at": r.get("updated_at"),
+            # The pin. May be None for a file predating ADR-209's chain — the
+            # citation still works (the pin is a fallback for a moved/deleted
+            # path, never the happy-path resolver), it just can't be pinned.
+            "head_version_id": r.get("head_version_id"),
+        }
+
     return {
-        "images": [{"path": r["path"], "updated_at": r.get("updated_at")} for r in images],
-        "tables": [{"path": r["path"], "updated_at": r.get("updated_at")} for r in tables],
+        "images": [_row(r) for r in images],
+        "tables": [_row(r) for r in tables],
     }
 
 

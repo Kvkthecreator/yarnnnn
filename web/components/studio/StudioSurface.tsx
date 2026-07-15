@@ -617,11 +617,18 @@ export function StudioSurface() {
     [applyOp, insertAnchor],
   );
   const handleInsertCited = useCallback(
-    (kind: 'figure' | 'table', path: string) => {
+    (kind: 'figure' | 'table', path: string, pin?: string | null) => {
       const rel = relPath(path);
       const base = vocabulary?.blocks.find((b) => b.kind === kind)?.fragment;
       if (!base) return;
-      const fragment = base.replace(/data-ref="[^"]*"/, `data-ref="${rel}"`);
+      // The citation carries its PIN (ADR-440 D5) — the cited file's head
+      // revision at the moment of citation. This used to be the lane's job
+      // ("stamp it when you have the head revision id... otherwise leave it
+      // empty") and so was never done: 0 populated pins across the live
+      // workspace. A mechanical insert knows the rev; it stamps it.
+      const fragment = base
+        .replace(/data-ref="[^"]*"/, `data-ref="${rel}"`)
+        .replace(/data-ref-rev="[^"]*"/, `data-ref-rev="${pin ?? ''}"`);
       void applyOp(
         (html) => insertBlock(html, fragment, insertAnchor()),
         `Studio: insert ${kind === 'figure' ? 'image' : 'table'} ${rel}`,
@@ -631,10 +638,14 @@ export function StudioSurface() {
   );
   // ADR-456 W1: N cited images land as ONE gallery block, one revision.
   const handleInsertGallery = useCallback(
-    (paths: string[]) => {
+    (paths: string[], pins?: Record<string, string | null>) => {
       const base = vocabulary?.blocks.find((b) => b.kind === 'gallery')?.fragment;
       if (!base) return;
-      const fragment = galleryFragment(base, paths.map(relPath));
+      // Pins are keyed by the RELATIVE path the fragment will carry, so the
+      // lookup inside galleryFragment matches what it stamps.
+      const relPins: Record<string, string | null> = {};
+      for (const p of paths) relPins[relPath(p)] = pins?.[p] ?? null;
+      const fragment = galleryFragment(base, paths.map(relPath), relPins);
       if (!fragment) return;
       void applyOp(
         (html) => insertBlock(html, fragment, insertAnchor()),

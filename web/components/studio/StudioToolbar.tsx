@@ -73,8 +73,10 @@ export interface StudioSelection {
 }
 
 interface Citable {
-  images: Array<{ path: string; updated_at: string | null }>;
-  tables: Array<{ path: string; updated_at: string | null }>;
+  // `head_version_id` is the citation's PIN (ADR-440 D5) — served so the
+  // insert can stamp it at the moment the citation is made.
+  images: Array<{ path: string; updated_at: string | null; head_version_id: string | null }>;
+  tables: Array<{ path: string; updated_at: string | null; head_version_id: string | null }>;
 }
 
 const GROUP_LABELS: Record<string, string> = {
@@ -102,9 +104,11 @@ interface StudioToolbarProps {
   /** EXECUTE: insert this block fragment at the selection. */
   onInsertBlock: (fragment: string, label: string) => void;
   /** EXECUTE: insert a cited block (figure/table) for a picked workspace file. */
-  onInsertCited: (kind: 'figure' | 'table', path: string) => void;
+  /** EXECUTE: insert a cited block (figure/table), PINNED to the cited file's
+   *  head revision at the moment of citation (ADR-440 D5). */
+  onInsertCited: (kind: 'figure' | 'table', path: string, pin?: string | null) => void;
   /** EXECUTE: insert a gallery block citing the picked images (ADR-456 W1). */
-  onInsertGallery: (paths: string[]) => void;
+  onInsertGallery: (paths: string[], pins?: Record<string, string | null>) => void;
   /** EXECUTE: add a new page (slide/section) from the gallery. */
   onAddArrangement: (fragment: string, label: string) => void;
   /** The one generative ask (Chart) — seeds the lane. */
@@ -364,7 +368,10 @@ export function StudioToolbar({
                 type="button"
                 disabled={galleryPick.length === 0}
                 onClick={() => {
-                  onInsertGallery(galleryPick);
+                  // Pins, keyed by path — the picked rows carry their head rev.
+                  const pins: Record<string, string | null> = {};
+                  for (const it of items ?? []) pins[it.path] = it.head_version_id;
+                  onInsertGallery(galleryPick, pins);
                   setOpen(null);
                 }}
                 className={`${btn} w-full justify-center`}
@@ -389,7 +396,11 @@ export function StudioToolbar({
                       );
                       return;
                     }
-                    onInsertCited(open === 'image' ? 'figure' : 'table', it.path);
+                    onInsertCited(
+                      open === 'image' ? 'figure' : 'table',
+                      it.path,
+                      it.head_version_id,
+                    );
                     setOpen(null);
                   }}
                   className={`flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left hover:bg-muted/40 ${

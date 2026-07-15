@@ -372,10 +372,13 @@ export const api = {
           kind_label: string;
         }>;
       }>("/api/studio/artifacts"),
+    // `head_version_id` is the citation's PIN (ADR-440 D5) — carried here so a
+    // mechanical insert can stamp it at the moment the citation is made. Null
+    // for a file predating the ADR-209 chain.
     citable: () =>
       request<{
-        images: Array<{ path: string; updated_at: string | null }>;
-        tables: Array<{ path: string; updated_at: string | null }>;
+        images: Array<{ path: string; updated_at: string | null; head_version_id: string | null }>;
+        tables: Array<{ path: string; updated_at: string | null; head_version_id: string | null }>;
       }>("/api/studio/citable"),
     // ADR-443 R4 + ADR-444 + ADR-447 + ADR-453: the ONE kernel vocabulary
     // (blocks + layouts + arrangements + property TOKENS + the marked kernel
