@@ -170,6 +170,8 @@ it is recorded here so it reads as design rather than as a surprise.
 9. Changing a slide's arrangement preserves every content block, or refuses and says why. No
    arrangement in the registry can silently eat a page.
 10. "+ Add" into an empty text slot yields an empty paragraph, not a heading.
+11. Every shortcut the menu renders has a handler; no row advertises a key that does nothing.
+12. A verb key on a selected block and its menu row run the SAME function.
 
 ### D8 — A measure names the frame it is a percent OF (and the frame is the nearest layout parent)
 
@@ -249,6 +251,32 @@ target; the kernel carries content into it), whereas tidy-up would be **a judgme
 decides what "tidy" means for this content) — which puts it under WRITE WITH AI with a badge (D4),
 not beside the thumbnail gallery. Conflating them would put an un-badged metered act in the middle
 of the free rows and break the badge's meaning. Not taken until asked for.
+
+### D10 — The selected block has a keyboard
+
+Reported the day the menu shipped: *"the keyboard commands don't work — clicking the delete button
+doesn't delete selected."* Correct, and the menu was the one lying: it rendered `⌘C` / `⌘V` / `⌘D` /
+`⌫` as row hints and **nothing listened**. Shortcut labels are a promise; these were decoration.
+
+The gap has a shape worth naming. The runtime already had **seven** keydown handlers — and every one
+guards on a live editing element: slash-open, slash-nav, Enter-split, Backspace-merge, arrow-nav,
+Esc-to-select. They all serve the **caret**. The **selected** state — the one Esc deliberately lifts
+you *into* ("caret is the default, block-select is the escape") — had no keyboard at all. Selection
+could be *reached* and could not *act*.
+
+- **Where it lives**: the runtime, posting `yarnnn-key-verb` out. Not a choice — the canvas is a
+  sandboxed iframe, so keys land in its document or nowhere. Same shape as every other gesture
+  (D1): the key composes an existing verb, never a new op.
+- **The guards**: never while a caret is live (editing owns its keys — that is why the seven
+  handlers' own guard is inverted here); never inside injected chrome; and **⌘C over selected text
+  still copies the text** — the platform's job, claimed only when nothing is selected.
+- **One body, two entrances**: `copyBlock`/`pasteAfter` take an explicit id, so the menu (which
+  knows the right-clicked block) and the keyboard (which carries the selected block's id) share one
+  implementation. Duplicating them would have been the second write path D1 refuses, arriving by the
+  back door.
+
+`Delete`/`Backspace` on a selected block deletes it; with a caret the existing merge handler keeps
+the key. That asymmetry is the model working, not an inconsistency.
 
 ## 4a. Implementation notes (what the build changed about the design)
 

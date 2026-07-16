@@ -769,25 +769,52 @@ export function StudioSurface() {
     },
     [applyOp, selection, onPointClear],
   );
-  const menuCopy = useCallback(() => {
-    const id = ctxMenu?.blockId;
-    if (!id || !file?.content) return;
-    const doc = new DOMParser().parseFromString(file.content, 'text/html');
-    const el = doc.querySelector(`[data-block-id="${CSS.escape(id)}"]`);
-    if (el) blockClip.current = el.outerHTML;
-  }, [ctxMenu, file]);
+  // Copy/paste take an explicit id rather than reading ctxMenu, because they
+  // have TWO callers: the menu (which knows the right-clicked block) and the
+  // keyboard (D10 — which carries the selected block's id in its message). One
+  // implementation, two entrances — the same rule the verbs themselves follow.
+  const copyBlock = useCallback(
+    (id: string | null) => {
+      if (!id || !file?.content) return;
+      const doc = new DOMParser().parseFromString(file.content, 'text/html');
+      const el = doc.querySelector(`[data-block-id="${CSS.escape(id)}"]`);
+      if (el) blockClip.current = el.outerHTML;
+    },
+    [file],
+  );
 
-  const menuPaste = useCallback(() => {
-    const html = blockClip.current;
-    const after = ctxMenu?.blockId ?? null;
-    if (!html) return;
-    // Through the SAME door as every other insert — a fresh id is stamped so a
-    // paste is a new block, never a second element wearing one address.
-    void applyOp(
-      (src) => pasteBlock(src, html, after),
-      `Studio: paste block${after ? ` after ${after}` : ''}`,
-    );
-  }, [applyOp, ctxMenu]);
+  const pasteAfter = useCallback(
+    (after: string | null) => {
+      const html = blockClip.current;
+      if (!html) return;
+      // Through the SAME door as every other insert — a fresh id is stamped so
+      // a paste is a new block, never a second element wearing one address.
+      void applyOp(
+        (src) => pasteBlock(src, html, after),
+        `Studio: paste block${after ? ` after ${after}` : ''}`,
+      );
+    },
+    [applyOp],
+  );
+
+  const menuCopy = useCallback(() => copyBlock(ctxMenu?.blockId ?? null), [copyBlock, ctxMenu]);
+  const menuPaste = useCallback(() => pasteAfter(ctxMenu?.blockId ?? null), [pasteAfter, ctxMenu]);
+
+  // D10: the selected block's keyboard. Every verb already exists — the key is
+  // a third entrance (after the menu and the Design tab), never a new op.
+  const handleKeyVerb = useCallback(
+    (verb: 'copy' | 'paste' | 'duplicate' | 'delete', blockId: string) => {
+      if (verb === 'copy') return copyBlock(blockId);
+      if (verb === 'paste') return pasteAfter(blockId);
+      if (verb === 'duplicate') {
+        void applyOp((html) => duplicateBlock(html, blockId), `Studio: duplicate ${blockId} block`);
+        return;
+      }
+      void applyOp((html) => deleteBlock(html, blockId), `Studio: delete ${blockId} block`);
+      onPointClear();
+    },
+    [copyBlock, pasteAfter, applyOp, onPointClear],
+  );
 
   // Turn into / Re-arrange have HOMES already (the Design tab's block + page
   // scopes). The menu row is a doorway to them, not a second implementation —
@@ -1507,6 +1534,7 @@ export function StudioSurface() {
                 onRatio={handleRatio}
                 onMeasure={(id, w) => handleMeasure(id, w)}
                 onContextMenu={setCtxMenu}
+                onKeyVerb={handleKeyVerb}
                 onSplitBlock={handleSplitBlock}
                 onMergeBlock={handleMergeBlock}
                 onAddHere={onAddHere}

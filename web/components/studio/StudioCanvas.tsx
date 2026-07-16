@@ -105,6 +105,10 @@ interface StudioCanvasProps {
    *  `framed` is the runtime's answer to the ADR-461 D4 gate — only it can see
    *  the DOM, so it reports rather than letting the surface guess. */
   onContextMenu?: (m: StudioContextTarget) => void;
+  /** ADR-462 D10: a keyboard verb on the SELECTED block. The canvas is a
+   *  sandboxed iframe — keys land in its document or nowhere — so the runtime
+   *  hears them and posts an existing verb out. Never a new op. */
+  onKeyVerb?: (verb: 'copy' | 'paste' | 'duplicate' | 'delete', blockId: string) => void;
   /** ADR-461 D3: the member dragged the column divider to a STOP. `value` is
    *  the ratio token's value, or null for the even default (which is written
    *  by CLEARING the attribute — 1-1 is the absence, not a third value). */
@@ -190,6 +194,7 @@ export function StudioCanvas({
   onRatio,
   onMeasure,
   onContextMenu,
+  onKeyVerb,
   onSplitBlock,
   onMergeBlock,
   onAddHere,
@@ -371,6 +376,8 @@ export function StudioCanvas({
         onReorder?.(d.blockId, typeof d.beforeBlockId === 'string' ? d.beforeBlockId : null);
       } else if (d.type === 'yarnnn-measure' && typeof d.blockId === 'string') {
         onMeasure?.(d.blockId, d.w as number, d.h as number);
+      } else if (d.type === 'yarnnn-key-verb' && typeof d.blockId === 'string') {
+        onKeyVerb?.(d.verb as 'copy' | 'paste' | 'duplicate' | 'delete', d.blockId);
       } else if (d.type === 'yarnnn-context-menu' && typeof d.x === 'number') {
         // The runtime reports FRAME-local coordinates; the menu draws in the
         // page. Mapping belongs here — the canvas owns the iframe, so the

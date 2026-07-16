@@ -2023,6 +2023,61 @@ const GUTTER_SCRIPT = `
   //
   // Selection is read from the pointer runtime's own state — one selection, not
   // two. Re-anchor on every relevant transition; the rect goes stale otherwise.
+  // ── The selected block's keyboard (ADR-462 D10) ─────────────────────────
+  //
+  // The menu shipped ⌘C / ⌘V / ⌘D / ⌫ as row hints and NOTHING listened. Seven
+  // keydown handlers existed in this runtime and every one guards on
+  // a live editingEl — they all serve the EDITING caret (slash, Enter-split,
+  // Backspace-merge, arrows, Esc). The SELECTED state, which Esc deliberately
+  // lifts you into, had no keyboard at all. So the hints were decoration.
+  //
+  // This is the missing half, and it is the same shape as every other gesture:
+  // the runtime hears the key and posts an existing verb — no new op, no second
+  // write path (D1). The parent is unreachable by keyboard here anyway: the
+  // canvas is a sandboxed iframe, so keys land in THIS document or nowhere.
+  //
+  // Guards, in order: never when a caret is live (editing owns its own keys),
+  // never inside injected chrome, and never when the member is selecting text.
+  function selectedBlock() {
+    if (window.__yarnnnEditingId && window.__yarnnnEditingId() != null) return null;
+    var sel = window.__yarnnnSelected ? window.__yarnnnSelected() : null;
+    return sel && sel.isConnected ? sel : null;
+  }
+
+  document.addEventListener('keydown', function (e) {
+    var blk = selectedBlock();
+    if (!blk) return;
+    var t = e.target;
+    if (t && t.closest && (t.closest('.yarnnn-gutter') || t.closest('.yarnnn-fmt'))) return;
+    var id = blk.getAttribute('data-block-id');
+    if (!id) return;
+    var mod = e.metaKey || e.ctrlKey;
+
+    // Delete / Backspace on a SELECTED block removes it. (With a caret, the
+    // existing Backspace handler owns the key and merges — that guard is why
+    // selectedBlock() refuses while editing.)
+    if (!mod && (e.key === 'Delete' || e.key === 'Backspace')) {
+      e.preventDefault();
+      parent.postMessage({ type: 'yarnnn-key-verb', verb: 'delete', blockId: id }, '*');
+      return;
+    }
+    if (!mod) return;
+    var k = (e.key || '').toLowerCase();
+    if (k === 'c' || k === 'd' || k === 'v') {
+      // The member may be copying TEXT they selected inside the block — that is
+      // the platform's job, not ours. Only claim the key when nothing is
+      // selected, so ⌘C over a highlighted phrase still copies the phrase.
+      var s = window.getSelection();
+      if (k === 'c' && s && !s.isCollapsed && String(s)) return;
+      e.preventDefault();
+      parent.postMessage({
+        type: 'yarnnn-key-verb',
+        verb: k === 'c' ? 'copy' : k === 'd' ? 'duplicate' : 'paste',
+        blockId: id,
+      }, '*');
+    }
+  });
+
   function syncResize() {
     var sel = window.__yarnnnSelected ? window.__yarnnnSelected() : null;
     if (sel && sel.isConnected && isMeasurable(sel)) showResize(sel);

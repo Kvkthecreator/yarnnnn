@@ -37,6 +37,24 @@ def _read(rel: str) -> str:
     return (_ROOT / rel).read_text()
 
 
+def _backtick_in_scripts(src: str) -> list:
+    """Script/CSS bodies whose text contains a raw backtick.
+
+    Each `const NAME_SCRIPT = \`…\`;` is a template literal: one backtick in a
+    comment inside it ends the template early and the file stops parsing. The
+    nested `${…}` interpolations are legitimate and stay — only a BARE backtick
+    is the bug.
+    """
+    bad = []
+    for m in re.finditer(r"const ([A-Z_]+(?:_SCRIPT|_CSS)) = `(.*?)\n`;", src, re.S):
+        body = m.group(2)
+        # Strip legitimate nested template literals before looking for strays.
+        stripped = re.sub(r"`[^`]*\$\{[^`]*`", "", body)
+        if "`" in stripped:
+            bad.append(m.group(1))
+    return bad
+
+
 def _fn(src: str, name: str) -> str:
     """One exported function's body — so a ban means "not in THIS function"
     rather than "not in this file". `el.querySelector('[data-slot]')` is wrong
@@ -220,6 +238,40 @@ def main() -> bool:
         "adding text to a slot adds TEXT, not a heading nobody asked for "
         "(the registry markup keeps its h2 — this is the GESTURE's business)",
         "const bare = proseFragment.replace(/<h[1-6][^>]*>.*?<\\/h[1-6]>/i, '');" in surface,
+    )
+
+    print("\n── D10: the selected block has a keyboard ──")
+    _check(
+        "the runtime listens for verb keys on the SELECTED block (the menu "
+        "shipped shortcut hints and NOTHING listened — pure decoration)",
+        "type: 'yarnnn-key-verb'" in proj and "function selectedBlock()" in proj,
+    )
+    _check(
+        "it refuses while a caret is live (editing owns its own keys — the "
+        "seven existing keydown handlers all guard on the editing element)",
+        "if (window.__yarnnnEditingId && window.__yarnnnEditingId() != null) return null;" in proj,
+    )
+    _check(
+        "Cmd/Ctrl-C over selected TEXT still copies the text (the platform's "
+        "job; we only claim the key when nothing is selected)",
+        "if (k === 'c' && s && !s.isCollapsed && String(s)) return;" in proj,
+    )
+    _check(
+        "the key verbs dispatch the SAME implementation the menu uses (one "
+        "body, two entrances — copyBlock/pasteAfter take an explicit id)",
+        "const copyBlock = useCallback(" in surface
+        and "const menuCopy = useCallback(() => copyBlock(ctxMenu?.blockId ?? null)" in surface
+        and "if (verb === 'copy') return copyBlock(blockId);" in surface,
+    )
+
+    print("\n── The runtime is a template string, not a file ──")
+    # The backtick trap bit FOUR times in this arc: a literal backtick in a
+    # comment inside a `const X_SCRIPT = \`…\`` body terminates the template
+    # early (TS1005). tsc catches it, but only after a build; this catches it
+    # at gate time, and names the rule so the next author doesn't rediscover it.
+    _check(
+        "no stray backtick inside any injected script/CSS body",
+        not _backtick_in_scripts(proj),
     )
 
     print("\n── The honesty checks ──")
