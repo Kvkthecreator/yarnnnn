@@ -233,17 +233,32 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     name = (req.name or "").strip()[:_MAX_NAME_LEN] or _DEFAULT_LANE_NAME
 
     ws = _acting_workspace(auth)
+    artifact_path_req = (req.artifact_path or "").strip()
+    # The cap counts CHAT lanes only — a bound (Studio) lane is not one of the
+    # member's conversations, it is an artifact's authoring thread, and Studio
+    # opens one PER ARTIFACT without asking. Counting them here was a live bug
+    # (2026-07-16): 7 bound + 1 chat = 8 = the cap, so "New chat" 409'd while
+    # the list showed ONE lane — the member is told to "archive one first" with
+    # nothing visible to archive. The same ruling as the list itself (a bound
+    # lane isn't in the Think surface, so it isn't Think's budget either); the
+    # cap is a UX bound on the member's own conversations (ADR-408 D6), never a
+    # ceiling on how many artifacts they may author.
     active = (
         auth.client.table("chat_sessions")
-        .select("id", count="exact")
+        .select("id, context_metadata")
         .eq("user_id", auth.user_id)
         .eq("session_type", "lane")
         .eq("status", "active")
     )
     if ws:
         active = active.eq("workspace_id", ws)
-    count = active.execute().count or 0
-    if count >= _MAX_ACTIVE_LANES:
+    chat_lanes = [
+        r for r in (active.execute().data or [])
+        if not ((r.get("context_metadata") or {}).get("lane") or {}).get("artifact_path")
+    ]
+    # A bound lane is exempt from the cap in BOTH directions: it does not count
+    # against it, and creating one is never refused by it.
+    if not artifact_path_req and len(chat_lanes) >= _MAX_ACTIVE_LANES:
         raise HTTPException(
             status_code=409,
             detail=f"Lane limit reached ({_MAX_ACTIVE_LANES}) — archive one first",
@@ -256,7 +271,7 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     # guessing (the W0 lesson: an unclassifiable row says so).
     if agent_slug:
         lane_meta["agent"] = agent_slug
-    artifact_path = (req.artifact_path or "").strip()
+    artifact_path = artifact_path_req  # parsed once, above (the cap exempts it)
     if artifact_path:
         lane_meta["artifact_path"] = artifact_path
 

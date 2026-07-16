@@ -445,9 +445,24 @@ def run() -> bool:
         "the chat row leads with the face, then name, then role · engine",
         "<AgentFace" in chat and "laneSubLabel(lane)" in chat,
     )
+    modal = (web / "components" / "chat-surface" / "NewChatModal.tsx").read_text()
     _check(
-        "the create form asks WHO (the faces ARE the form — no name field)",
-        "Who do you want to talk to?" in chat and "newName" not in chat,
+        "the new-chat flow is a MODAL, not inline (the faces ARE the form)",
+        "Who do you want to talk to?" in modal
+        and 'role="dialog"' in modal
+        and "createPortal" in modal,
+    )
+    _check(
+        "…and the inline form is DELETED, not hidden (Singular Implementation)",
+        "createForm" not in chat and "newName" not in chat,
+    )
+    _check(
+        "the 409 SURFACES — a click that fails must say why",
+        "throw e instanceof Error" in chat and "role=\"alert\"" in modal,
+    )
+    _check(
+        "a bound (Studio) lane does not count against the CHAT cap",
+        "if not artifact_path_req and len(chat_lanes) >= _MAX_ACTIVE_LANES:" in routes,
     )
     _check(
         "BOUND lanes leave the /chat list (the seam's plank 3, ruled)",

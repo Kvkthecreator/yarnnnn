@@ -28,6 +28,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Archive, Loader2, MessageCircle, Pencil, Pin, Plus, Search, X } from 'lucide-react';
 import { LanePanel } from './LanePanel';
 import { AgentFace } from '@/components/agents/AgentFace';
+import { NewChatModal } from './NewChatModal';
 import { api } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
@@ -237,8 +238,11 @@ export function ChatSurface() {
       setData((d) => (d ? { ...d, lanes: [...d.lanes, info] } : d));
       setParam({ lane: info.id });
       setCreating(false);
-    } catch {
-      // Creation failure (limit, router off) — keep the form open.
+    } catch (e) {
+      // SHOW it. This swallowed a live 409 ("Lane limit reached") and the
+      // member saw a click that did nothing, with no reason given. The modal
+      // renders what we throw.
+      throw e instanceof Error ? e : new Error('Could not start this chat');
     }
   }, [setParam]);
 
@@ -317,51 +321,19 @@ export function ChatSurface() {
     );
   }
 
-  // Starting a chat = choosing WHO to talk to. This replaced an inline row — a
-  // name input, chips, and a Create button crammed side by side in a toolbar
-  // (the pre-registry create form with new words in it). Fresh eyes: the
-  // question is "who do you want to talk to?", so THE FACES ARE THE FORM. The
-  // name field is dropped entirely — a lane auto-names from its first message
-  // (Phase-A hygiene), so asking for one up front was a field the member had
-  // no answer to yet.
-  const createForm = creating && (
-    <div className="p-3 border-b border-border bg-muted/30 shrink-0 space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium">Who do you want to talk to?</span>
-        <button
-          type="button"
-          onClick={() => setCreating(false)}
-          className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
-          aria-label="Cancel"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
-      </div>
-      <div className="space-y-1">
-        {(data?.agents ?? []).map((a) => (
-          <button
-            key={a.slug}
-            type="button"
-            onClick={() => void createLane(a.slug)}
-            className="w-full flex items-center gap-2.5 p-1.5 rounded-md hover:bg-background text-left transition-colors"
-          >
-            <AgentFace name={a.name} avatarUrl={a.avatar_url} size="sm" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-xs">{a.name}</span>
-              <span className="block text-[10px] text-muted-foreground truncate">
-                {a.kernel === false
-                  ? [a.role, a.engine].filter(Boolean).join(' · ')
-                  : a.blurb}
-              </span>
-            </span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+  // The new-chat flow is a MODAL (NewChatModal) — choosing a colleague is a
+  // deliberate act with its own moment, not a drawer that shoves the lane
+  // list around. The inline panel that lived here is deleted, not hidden.
 
   return (
     <div className="h-full flex min-h-0">
+      {creating && (
+        <NewChatModal
+          agents={data?.agents ?? []}
+          onPick={createLane}
+          onClose={() => setCreating(false)}
+        />
+      )}
       {/* Lane list — flat recents, work-first (D4). */}
       <div className="w-72 shrink-0 border-r border-border flex flex-col min-h-0">
         <div className="flex items-center justify-between px-3 py-2.5 border-b border-border shrink-0">
@@ -375,7 +347,6 @@ export function ChatSurface() {
             <Plus className="w-4 h-4" />
           </button>
         </div>
-        {createForm}
 
         {/* Phase-A hygiene: search — lane names locally + transcript content
             server-side (debounced), one filter over the same list. */}
