@@ -162,7 +162,15 @@ AGENT_MANIFEST_BASENAME = "_agent.yaml"
 #: member's side. `parse_agent_manifest` REJECTS a manifest carrying anything
 #: else — loudly, not silently — so an attempt to grow the vocabulary (tools,
 #: authority, a wake source) is VISIBLE rather than quietly dropped.
-AGENT_MANIFEST_KEYS = frozenset({"based_on", "name", "tone", "model", "color"})
+#: `avatar` (2026-07-16, the hiring card): a workspace path to an uploaded
+#: image — IDENTITY-class, like a user's profile picture. Added DELIBERATELY:
+#: the parser refusing `avatar:` before this line was the guard working as
+#: designed. Widening the vocabulary is an explicit act, and every key added
+#: here must be identity (costs nothing, gates nothing, routes nothing) —
+#: never capability, never authority.
+AGENT_MANIFEST_KEYS = frozenset(
+    {"based_on", "name", "tone", "model", "color", "avatar"}
+)
 
 
 def parse_agent_manifest(content: Optional[str]) -> Optional[dict]:
@@ -216,6 +224,7 @@ def parse_agent_manifest(content: Optional[str]) -> Optional[dict]:
         "tone": str(data.get("tone") or "").strip(),
         "model": model,
         "color": str(data.get("color") or "").strip(),
+        "avatar": str(data.get("avatar") or "").strip(),
     }
 
 
@@ -262,6 +271,7 @@ def find_member_agents(client: Any, user_id: str) -> list[dict]:
                 "blurb": base["blurb"],
                 "icon": base["icon"],
                 "color": manifest["color"],
+                "avatar": manifest["avatar"],
                 "model": manifest["model"],
                 "based_on": manifest["based_on"],
                 "tone": manifest["tone"],
@@ -306,14 +316,25 @@ def list_agents(member_agents: Optional[list[dict]] = None) -> list[dict]:
     colleagues; the kernel three are the floor beneath. `kernel: true|false`
     lets the UI mark which are theirs (and which can be renamed/edited).
     """
+    # NOTE what is served and what is NOT. `based_on` + `tone` + `avatar` +
+    # `color` ride along because the hiring card pre-fills an EDIT from them —
+    # they are the member's own identity choices, theirs to see. `model` does
+    # NOT: the chooser's whole point is that the member is never asked an
+    # engine question, and a field the card never renders is a field that
+    # leaks. (The engine stays legible where it is a FACT — the lane reports
+    # what it ran on. The card reaches for it through its own door if the
+    # "Details" disclosure ever lands.)
     mine = [
         {"slug": a["slug"], "name": a["name"], "blurb": a["blurb"],
-         "icon": a["icon"], "color": a.get("color") or "", "kernel": False}
+         "icon": a["icon"], "color": a.get("color") or "",
+         "avatar": a.get("avatar") or "", "based_on": a.get("based_on") or "",
+         "tone": a.get("tone") or "", "kernel": False}
         for a in (member_agents or [])
     ]
     theirs = [
         {"slug": a["slug"], "name": a["name"], "blurb": a["blurb"],
-         "icon": a["icon"], "color": "", "kernel": True}
+         "icon": a["icon"], "color": "", "avatar": "", "based_on": a["slug"],
+         "tone": "", "kernel": True}
         for a in KERNEL_AGENTS.values()
     ]
     return mine + theirs

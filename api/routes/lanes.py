@@ -729,11 +729,12 @@ class CreateAgentRequest(BaseModel):
     tone: Optional[str] = None         # their manner, in their words
     model: Optional[str] = None        # the engine override (§4: available, never asked)
     color: Optional[str] = None
+    avatar: Optional[str] = None       # a workspace image path (the ADR-395 bucket lane)
 
 
-@router.post("/agents")
+@router.post("/lane-agents")
 async def create_member_agent(req: CreateAgentRequest, auth: UserClient) -> dict:
-    """Make an Agent of your own — "Lisa", not "Sonnet" (spec §7).
+    """Make an Agent of your own — "Lisa", not "Sonnet".
 
     The UI is a DOOR, not a database: this validates and writes
     `/workspace/agents/{slug}/_agent.yaml` through the ordinary authored-write
@@ -741,6 +742,18 @@ async def create_member_agent(req: CreateAgentRequest, auth: UserClient) -> dict
     inspectable in Files, versioned on the ledger, revertible. (The ADR-449
     posture: no write path in the registry module; applies go through the
     ordinary doors.)
+    """
+    return await _write_member_agent(req, auth, slug=None, verb="made")
+
+
+async def _write_member_agent(
+    req: "CreateAgentRequest", auth: UserClient, *, slug: Optional[str], verb: str
+) -> dict:
+    """The one write body for make + edit (Singular Implementation).
+
+    `slug=None` mints one from the name (create); a slug edits that folder.
+    Every validation below holds on BOTH doors — an edit must not be a way to
+    reach what a create refuses.
     """
     import re as _re
 
@@ -772,15 +785,18 @@ async def create_member_agent(req: CreateAgentRequest, auth: UserClient) -> dict
                 detail="this model has no billing rate configured and cannot run (ADR-439 §4)",
             )
 
-    slug = _re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "agent"
-    if slug in KERNEL_AGENTS:
-        # A member folder may not shadow a kernel slug — "sonnet" must not mean
-        # two different things depending on the workspace.
-        raise HTTPException(
-            status_code=409, detail=f"'{slug}' is a built-in agent's name — pick another"
-        )
-    if any(a["slug"] == slug for a in find_member_agents(auth.client, auth.user_id)):
-        raise HTTPException(status_code=409, detail=f"You already have an agent called '{name}'")
+    if slug is None:
+        slug = _re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "agent"
+        if slug in KERNEL_AGENTS:
+            # A member folder may not shadow a kernel slug — "sonnet" must not
+            # mean two different things depending on the workspace.
+            raise HTTPException(
+                status_code=409, detail=f"'{slug}' is a built-in agent's name — pick another"
+            )
+        if any(a["slug"] == slug for a in find_member_agents(auth.client, auth.user_id)):
+            raise HTTPException(
+                status_code=409, detail=f"You already have an agent called '{name}'"
+            )
 
     lines = [f"based_on: {based_on}", f"name: {name}"]
     tone = (req.tone or "").strip()
@@ -793,6 +809,9 @@ async def create_member_agent(req: CreateAgentRequest, auth: UserClient) -> dict
     color = (req.color or "").strip()
     if color:
         lines.append(f"color: {color}")
+    avatar = (req.avatar or "").strip()
+    if avatar:
+        lines.append(f"avatar: {avatar}")
 
     path = f"/workspace/agents/{slug}/{AGENT_MANIFEST_BASENAME}"
     write_revision(
@@ -801,10 +820,33 @@ async def create_member_agent(req: CreateAgentRequest, auth: UserClient) -> dict
         path=path,
         content="\n".join(lines) + "\n",
         authored_by="operator",
-        message=f"made an agent: {name}",
+        message=f"{verb} an agent: {name}",
         workspace_id=_acting_workspace(auth),
     )
     return {"slug": slug, "name": name, "based_on": based_on, "path": path}
+
+
+@router.patch("/lane-agents/{slug}")
+async def patch_member_agent(slug: str, req: CreateAgentRequest, auth: UserClient) -> dict:
+    """Edit one of your Agents — the same card, over an existing folder.
+
+    A second revision on the ledger, not an overwrite of history: the file
+    stays the source of truth, versioned and revertible (ADR-449's posture —
+    the UI is a door, not a database). A kernel Agent cannot be edited: it is
+    the capability, not a colleague you named. To change what Lisa IS, hire
+    someone else — which is what making another Agent is.
+    """
+    from services.agents_registry import KERNEL_AGENTS, find_member_agents
+
+    if slug in KERNEL_AGENTS:
+        raise HTTPException(
+            status_code=409,
+            detail=f"'{slug}' is built in — make your own agent to change it",
+        )
+    mine = find_member_agents(auth.client, auth.user_id)
+    if not any(a["slug"] == slug for a in mine):
+        raise HTTPException(status_code=404, detail=f"No agent called '{slug}'")
+    return await _write_member_agent(req, auth, slug=slug, verb="updated")
 
 
 @router.post("/lanes/{lane_id}/settle")

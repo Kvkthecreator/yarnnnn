@@ -27,6 +27,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Archive, Loader2, MessageCircle, Pencil, Pin, Plus, Search, X } from 'lucide-react';
 import { LanePanel } from './LanePanel';
+import { AgentCard } from './AgentCard';
 import { api } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
@@ -54,7 +55,12 @@ interface LaneData {
   enabled: boolean;
   /** ADR-460 D4 — the chooser: named colleagues, not a spec sheet. The member
    *  picks WHO; the engine rides behind the name. */
-  agents?: Array<{ slug: string; name: string; blurb: string; icon: string }>;
+  agents?: Array<{
+    slug: string; name: string; blurb: string; icon: string;
+    color?: string; avatar?: string; based_on?: string; tone?: string;
+    /** kernel = a built-in capability; false = one the member hired + named. */
+    kernel?: boolean;
+  }>;
   /** Still served: every model stays routable (Studio/derive bind one
    *  directly, and the lane filter facet reads it). The registry changes what
    *  the CHOOSER asks, not what the system can run. */
@@ -70,6 +76,8 @@ export function ChatSurface() {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newAgent, setNewAgent] = useState('');
+  // The hiring card: null = closed; {} = hiring; {slug} = editing theirs.
+  const [hiring, setHiring] = useState<{ slug?: string } | null>(null);
   // D4 — the model FILTER facet (null = all lanes, the default view).
   const [modelFilter, setModelFilter] = useState<string | null>(null);
   // Phase-A hygiene: search (name locally + transcript content server-side,
@@ -291,6 +299,38 @@ export function ChatSurface() {
     );
   }
 
+  // The hiring card — a member makes/edits a colleague of their own. Reloads
+  // the envelope on save so the new Agent appears in the picker immediately.
+  const hiringCard = hiring && (
+    <div className="p-2 border-b border-border bg-muted/30 shrink-0">
+      <AgentCard
+        choices={(data?.agents ?? []).filter((a) => a.kernel !== false)}
+        existing={
+          hiring.slug
+            ? (() => {
+                const a = data?.agents?.find((x) => x.slug === hiring.slug);
+                return a
+                  ? {
+                      slug: a.slug,
+                      name: a.name,
+                      based_on: a.based_on ?? '',
+                      tone: a.tone,
+                      color: a.color,
+                      avatar: a.avatar,
+                    }
+                  : null;
+              })()
+            : null
+        }
+        onCancel={() => setHiring(null)}
+        onDone={() => {
+          setHiring(null);
+          void api.lanes.list().then((res) => setData(res as LaneData));
+        }}
+      />
+    </div>
+  );
+
   const createForm = creating && (
     <div className="flex items-center gap-1.5 p-2 border-b border-border bg-muted/30 shrink-0">
       <input
@@ -325,6 +365,16 @@ export function ChatSurface() {
           {a.name}
         </button>
       ))}
+      {/* The hiring door — "you're bringing a Critic to life and calling her
+          Lisa" (agent-hiring-card spec §2). */}
+      <button
+        type="button"
+        onClick={() => setHiring({})}
+        title="Make an agent of your own"
+        className="px-2 py-1 rounded border border-dashed border-input text-xs text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
+      >
+        + Make your own
+      </button>
       <button
         onClick={() => void createLane()}
         disabled={!newAgent}
@@ -350,6 +400,7 @@ export function ChatSurface() {
             <Plus className="w-4 h-4" />
           </button>
         </div>
+        {hiringCard}
         {createForm}
 
         {/* Phase-A hygiene: search — lane names locally + transcript content

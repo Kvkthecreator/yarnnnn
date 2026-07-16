@@ -264,9 +264,18 @@ def run() -> bool:
     )
 
     print("\n── 10. the write door (the UI is a door, not a database) ──")
+    # NOT /api/agents — routes/agents.py already owns that namespace (the
+    # ADR-251 roster: the workspace's own entities). The build caught the
+    # collision; these are a different thing (the member's lane colleagues) and
+    # they say so.
     _check(
-        "POST /api/agents exists",
-        '@router.post("/agents")' in routes,
+        "POST /api/lane-agents exists (own namespace — /agents is the roster's)",
+        '@router.post("/lane-agents")' in routes,
+    )
+    _check(
+        "…and does NOT squat the ADR-251 roster's namespace",
+        '@router.post("/agents")' not in routes
+        and '@router.patch("/agents/{slug}")' not in routes,
     )
     _check(
         "it writes the manifest through the authored path (attributed, versioned)",
@@ -286,6 +295,52 @@ def run() -> bool:
     _check(
         "an unpriced engine override is refused at the door too (ADR-439 §4)",
         "unpriced_lane_model(model)" in routes,
+    )
+
+    print("\n── 11. ⚠️  THE CLIFF ON THE SURFACE (the hiring card) ──")
+    # The ChatGPT business-agent editor — this card's benchmark for FORM — sells
+    # the ADR-307 gate as a dropdown: "Write action safety: Never ask". That is
+    # consequential authority, settable by anyone in one click, with no mandate,
+    # no witness, no track record. Our card must contain NO authority control in
+    # ANY state: not enabled, not disabled, not "upgrade to unlock". A
+    # greyed-out switch invites "how do I turn this on?" and would degrade
+    # D3.a's structural guarantee into a CSS property.
+    card = (
+        Path(__file__).parent.parent
+        / "web" / "components" / "chat-surface" / "AgentCard.tsx"
+    ).read_text()
+    # Strip the header comment: it NAMES the anti-pattern (deliberately, so the
+    # next reader knows why the control is absent). The check is on the code.
+    body = card.split("*/", 1)[-1]
+    for word in ("authority", "autonomy", "consequential", "mandate", "scopes", "never ask"):
+        _check(
+            f"the hiring card has no `{word}` control",
+            word not in body.lower(),
+        )
+    _check(
+        "…and states what they CAN'T do as prose (a fact, not a switch)",
+        "can&apos;t send" in card and "answer when you ask" in card,
+    )
+    _check(
+        "the card's header names the anti-pattern for the next reader",
+        "Never ask" in card.split("*/", 1)[0] and "D3.a" in card,
+    )
+    _check(
+        "the capability is FIXED on edit (to change what they ARE, hire another)",
+        "disabled={!!existing}" in card,
+    )
+    _check(
+        "the avatar rides the built upload lane (no new storage)",
+        "api.documents.upload" in card,
+    )
+    _check(
+        "a kernel Agent cannot be edited (it is the capability, not a colleague)",
+        "is built in — make your own agent to change it" in routes,
+    )
+    _check(
+        "make + edit share ONE write body (Singular Implementation)",
+        "_write_member_agent(req, auth, slug=None" in routes
+        and "_write_member_agent(req, auth, slug=slug" in routes,
     )
 
     ok = all(c for _, c in _results)
