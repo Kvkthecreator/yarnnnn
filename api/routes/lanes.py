@@ -44,7 +44,13 @@ class CreateLaneRequest(BaseModel):
     # Optional since Phase A: absent/blank → _DEFAULT_LANE_NAME + auto-name on
     # the first turn (conversation hygiene — the ChatGPT-bar naming behavior).
     name: Optional[str] = None
-    model: str
+    # ADR-460 D4: `agent` is the member-facing choice (a name, not an engine);
+    # `model` is the engine. Pass EITHER — an agent resolves to its model
+    # server-side and BOTH land on the lane. `model` stays optional-but-live
+    # because the Studio/derive paths bind a model directly and never pick a
+    # character (a bound lane's job is the artifact, not the colleague).
+    agent: Optional[str] = None
+    model: Optional[str] = None
     # ADR-440 D3 — the Studio binding: a workspace path this lane authors.
     # A lane with a binding is a Studio lane; its turns carry the authoring
     # posture + token profile. Optional; plain chat lanes never set it.
@@ -95,6 +101,10 @@ def _lane_row_to_dict(row: dict) -> dict:
         "id": row["id"],
         "name": lane_meta.get("name") or "Lane",
         "model": lane_meta.get("model") or "",
+        # ADR-460 D4 — WHO this lane talks to. None for every pre-registry lane
+        # and every Studio/derive lane: the FE falls back to the model label,
+        # which is honest (that IS what those lanes are) rather than guessed.
+        "agent": lane_meta.get("agent"),
         # Phase-A hygiene: pinned lanes sort first in the workbench list.
         "pinned": bool(lane_meta.get("pinned")),
         # ADR-440 D3 — the Studio binding (None for plain chat lanes).
@@ -155,8 +165,17 @@ async def list_lanes(auth: UserClient) -> dict:
 
     from services.derive_recipes import list_recipes
 
+    from services.agents_registry import list_agents
+
     return {
         "enabled": enabled,
+        # ADR-460 D4 — the chooser: named colleagues, not a spec sheet. The
+        # member picks WHO; the engine rides behind the name.
+        "agents": list_agents(),
+        # `models` STAYS: every LANE_MODELS row is still routable (the Studio +
+        # derive paths bind a model directly, and the lane list's model filter
+        # facet reads it). The registry changes what the CHOOSER asks, not what
+        # the system can run.
         "models": [
             {"id": mid, "label": meta["label"], "vision": bool(meta.get("vision", True))}
             for mid, meta in LANE_MODELS.items()
@@ -170,13 +189,30 @@ async def list_lanes(auth: UserClient) -> dict:
 
 @router.post("/lanes")
 async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
+    from services.agents_registry import get_agent
     from services.lane_runner import LANE_MODELS
     from services.model_router import model_router_enabled
 
     if not model_router_enabled():
         raise HTTPException(status_code=403, detail="Lanes are not enabled (router off)")
-    if req.model not in LANE_MODELS:
-        raise HTTPException(status_code=422, detail=f"Unknown lane model: {req.model}")
+
+    # ADR-460 D4 — the member picks WHO, not which engine. An agent resolves to
+    # its model here, server-side; the model stays authoritative on the lane
+    # (spec §6: the slug is the face, the model is the fact, and the fact is
+    # what actually ran — deriving it at turn time would let a registry edit
+    # retroactively lie about a past lane's engine).
+    agent_slug = (req.agent or "").strip()
+    model = (req.model or "").strip()
+    if agent_slug:
+        agent = get_agent(agent_slug)
+        if not agent:
+            # The ADR-450 precedent: an unknown recipe is a caller bug, not a lane.
+            raise HTTPException(status_code=422, detail=f"Unknown agent: {agent_slug}")
+        model = agent["model"]
+    if not model:
+        raise HTTPException(status_code=422, detail="agent or model is required")
+    if model not in LANE_MODELS:
+        raise HTTPException(status_code=422, detail=f"Unknown lane model: {model}")
     # Phase-A hygiene: a nameless lane is fine — it auto-names on first turn.
     name = (req.name or "").strip()[:_MAX_NAME_LEN] or _DEFAULT_LANE_NAME
 
@@ -197,7 +233,13 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
             detail=f"Lane limit reached ({_MAX_ACTIVE_LANES}) — archive one first",
         )
 
-    lane_meta: dict = {"name": name, "model": req.model}
+    lane_meta: dict = {"name": name, "model": model}
+    # ADR-460 D4 — the face, beside the fact. Absent on Studio/derive lanes and
+    # on every lane created before this registry: they resolve by `model`
+    # exactly as before and simply render an engine label. No backfill, no
+    # guessing (the W0 lesson: an unclassifiable row says so).
+    if agent_slug:
+        lane_meta["agent"] = agent_slug
     artifact_path = (req.artifact_path or "").strip()
     if artifact_path:
         lane_meta["artifact_path"] = artifact_path
@@ -522,6 +564,9 @@ def _turn_stream_response(
                 # ADR-450 D3 — a derive-bound lane's turns carry the recipe.
                 derive_recipe=lane_meta.get("derive_recipe"),
                 derive_source=lane_meta.get("derive_source"),
+                # ADR-460 D4 — WHO the member is talking to: the Agent's
+                # posture composes at turn time from this slug.
+                agent=lane_meta.get("agent"),
                 # W0 / ADR-457 D8 — the falsifier join key: this turn's cost
                 # row carries the session it served, so the surface that asked
                 # (think / make / derive) is derivable at read time.

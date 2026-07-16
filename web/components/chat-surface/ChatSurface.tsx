@@ -29,14 +29,18 @@ import { Archive, Loader2, MessageCircle, Pencil, Pin, Plus, Search, X } from 'l
 import { LanePanel } from './LanePanel';
 import { api } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
+import { cn } from '@/lib/utils';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useSelfLocatedSurface, useWindowCrumb } from '@/contexts/BreadcrumbContext';
-import { cn } from '@/lib/utils';
 
 interface LaneInfo {
   id: string;
   name: string;
   model: string;
+  /** ADR-460 D4 — WHO this lane talks to. Absent on pre-registry lanes and on
+   *  Studio/derive lanes: the UI falls back to the model label, which is
+   *  honest (that IS what those lanes are) rather than guessed. */
+  agent?: string | null;
   /** Phase-A hygiene: pinned lanes sort first. */
   pinned?: boolean;
   updated_at?: string;
@@ -48,6 +52,12 @@ interface LaneInfo {
 
 interface LaneData {
   enabled: boolean;
+  /** ADR-460 D4 — the chooser: named colleagues, not a spec sheet. The member
+   *  picks WHO; the engine rides behind the name. */
+  agents?: Array<{ slug: string; name: string; blurb: string; icon: string }>;
+  /** Still served: every model stays routable (Studio/derive bind one
+   *  directly, and the lane filter facet reads it). The registry changes what
+   *  the CHOOSER asks, not what the system can run. */
   models: Array<{ id: string; label: string; vision?: boolean }>;
   /** ADR-450 D5 — kernel recipes (the Learn-from chooser payload). */
   recipes?: Array<{ slug: string; label: string; description: string }>;
@@ -59,7 +69,7 @@ export function ChatSurface() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newModel, setNewModel] = useState('');
+  const [newAgent, setNewAgent] = useState('');
   // D4 — the model FILTER facet (null = all lanes, the default view).
   const [modelFilter, setModelFilter] = useState<string | null>(null);
   // Phase-A hygiene: search (name locally + transcript content server-side,
@@ -94,7 +104,7 @@ export function ChatSurface() {
       .then((res) => {
         if (cancelled) return;
         setData(res as LaneData);
-        if (res.models.length > 0) setNewModel((m) => m || res.models[0].id);
+        if (res.agents?.length) setNewAgent((a) => a || res.agents![0].slug);
       })
       .catch(() => !cancelled && setData(null))
       .finally(() => !cancelled && setLoading(false));
@@ -106,6 +116,16 @@ export function ChatSurface() {
   const modelLabel = useCallback(
     (modelId: string) => data?.models.find((m) => m.id === modelId)?.label ?? modelId,
     [data],
+  );
+
+  // ADR-460 D4 — a lane is named by WHO it talks to. Falls back to the engine
+  // label for pre-registry lanes and Studio/derive lanes: those genuinely ARE
+  // a model doing a job, so naming them by their engine is honest, not a gap.
+  const laneLabel = useCallback(
+    (lane: { agent?: string | null; model: string }) =>
+      (lane.agent && data?.agents?.find((a) => a.slug === lane.agent)?.name) ||
+      modelLabel(lane.model),
+    [data, modelLabel],
   );
 
   // Flat recents — pinned first (Phase-A hygiene), then updated_at desc
@@ -172,16 +192,19 @@ export function ChatSurface() {
     // Phase-A hygiene: the name is optional — a nameless lane auto-names
     // from its first message (server-side, mechanical).
     const name = newName.trim();
-    if (!newModel) return;
+    if (!newAgent) return;
     try {
+      // ADR-460 D4 — send WHO. The engine resolves server-side (the slug is
+      // the face, the model is the fact; the fact comes back on the response).
       const lane = await api.lanes.create({
         ...(name ? { name } : {}),
-        model: newModel,
+        agent: newAgent,
       });
       const info: LaneInfo = {
         id: lane.id,
         name: lane.name,
         model: lane.model,
+        agent: lane.agent ?? newAgent,
         updated_at: new Date().toISOString(),
       };
       setData((d) => (d ? { ...d, lanes: [...d.lanes, info] } : d));
@@ -191,7 +214,7 @@ export function ChatSurface() {
     } catch {
       // Creation failure (limit, router off) — keep the form open.
     }
-  }, [newName, newModel, setParam]);
+  }, [newName, newAgent, setParam]);
 
   const archiveLane = useCallback(
     async (laneId: string) => {
@@ -281,20 +304,30 @@ export function ChatSurface() {
         className="flex-1 min-w-0 rounded border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
         autoFocus
       />
-      <select
-        value={newModel}
-        onChange={(e) => setNewModel(e.target.value)}
-        className="rounded border border-input bg-background px-1.5 py-1 text-xs max-w-[130px]"
-      >
-        {data.models.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.label}
-          </option>
-        ))}
-      </select>
+      {/* ADR-460 D4 — the chooser asks WHO, not which engine. This replaced a
+          <select> of "Claude Sonnet | GPT-5 | Gemini Flash…" — a spec sheet
+          that asked the member to know which engine is good at what, before
+          the first message, when they know least. The blurb is the title: the
+          answer to "who should I pick?" is readable on hover, not learned. */}
+      {(data.agents ?? []).map((a) => (
+        <button
+          key={a.slug}
+          type="button"
+          onClick={() => setNewAgent(a.slug)}
+          title={a.blurb}
+          className={cn(
+            'px-2 py-1 rounded border text-xs transition-colors shrink-0',
+            newAgent === a.slug
+              ? 'border-primary bg-primary/10 text-foreground'
+              : 'border-input text-muted-foreground hover:text-foreground hover:bg-muted',
+          )}
+        >
+          {a.name}
+        </button>
+      ))}
       <button
         onClick={() => void createLane()}
-        disabled={!newModel}
+        disabled={!newAgent}
         className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs disabled:opacity-40"
       >
         Create
@@ -480,9 +513,10 @@ export function ChatSurface() {
                 </span>
               </div>
               <div className="flex items-center gap-2 mt-0.5">
-                {/* D4 — the model is a chip on the row, never the namespace. */}
+                {/* D4 — the helper is a chip on the row, never the namespace.
+                    ADR-460: it names WHO (the Agent), falling back to the engine. */}
                 <span className="px-1.5 py-px rounded-full bg-muted text-[10px] text-muted-foreground">
-                  {modelLabel(lane.model)}
+                  {laneLabel(lane)}
                 </span>
                 {(lane.updated_at ?? lane.created_at) && (
                   <span className="text-[10px] text-muted-foreground/60">

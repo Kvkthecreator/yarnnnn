@@ -276,6 +276,7 @@ def build_lane_conventions(
     artifact_path: Optional[str] = None,
     derive_recipe: Optional[str] = None,
     derive_source: Optional[str] = None,
+    agent: Optional[str] = None,
 ) -> str:
     """Compose the AGENTS.md-shaped system prompt for one lane turn.
 
@@ -310,6 +311,18 @@ def build_lane_conventions(
     )
 
     posture_section = ""
+
+    # ADR-460 D4 — WHO this lane's helper is, composed at turn time from the
+    # slug (the ADR-411 D6 derived-never-stored pattern: a posture is not a
+    # historical fact about what ran, it is how this Agent works NOW, so it
+    # must follow the registry — unlike `model`, which IS such a fact and is
+    # persisted on the lane). Composed FIRST: the Agent's character precedes
+    # what it is working on; the binding postures below are the JOB, this is
+    # the colleague. Empty string for a lane with no agent (every pre-registry
+    # lane, and every Studio/derive lane) — byte-identical to today.
+    if agent:
+        from services.agents_registry import build_agent_posture
+        posture_section += build_agent_posture(agent)
     if artifact_path:
         from services.studio import build_studio_posture
         artifact = _read_workspace_file(client, user_id, artifact_path)
@@ -370,6 +383,10 @@ async def run_lane_turn(
     artifact_path: Optional[str] = None,
     derive_recipe: Optional[str] = None,
     derive_source: Optional[str] = None,
+    # ADR-460 D4 — WHO the member is talking to: the kernel Agent slug whose
+    # posture this turn composes. None on Studio/derive lanes and every
+    # pre-registry lane (they run byte-identically).
+    agent: Optional[str] = None,
     # W0 / ADR-457 D8: the lane's session id — the falsifier join key. Passed
     # to the cost ledger so a metered turn can be joined back to the surface
     # that asked for it (the ledger writes slug="lane" for BOTH chat and Studio
@@ -415,6 +432,7 @@ async def run_lane_turn(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,
         derive_recipe=derive_recipe, derive_source=derive_source,
+        agent=agent,
     )
     # ADR-440 D3 — authoring turns need more room than chat turns. ADR-450:
     # derive turns author whole files from a source — same profile.
@@ -547,6 +565,8 @@ async def run_lane_turn_stream(
     artifact_path: Optional[str] = None,
     derive_recipe: Optional[str] = None,
     derive_source: Optional[str] = None,
+    # ADR-460 D4 — the Agent slug; see ``run_lane_turn``.
+    agent: Optional[str] = None,
     # W0 / ADR-457 D8 — the falsifier join key; see ``run_lane_turn``.
     session_id: Optional[str] = None,
 ):
@@ -598,6 +618,7 @@ async def run_lane_turn_stream(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,
         derive_recipe=derive_recipe, derive_source=derive_source,
+        agent=agent,
     )
     # ADR-440 D3 — authoring turns need more room than chat turns. ADR-450:
     # derive turns author whole files from a source — same profile.

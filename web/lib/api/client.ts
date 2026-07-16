@@ -252,6 +252,8 @@ export const api = {
     list: () =>
       request<{
         enabled: boolean;
+        /** ADR-460 D4 — the chooser: named colleagues, not a spec sheet. */
+        agents: Array<{ slug: string; name: string; blurb: string; icon: string }>;
         models: Array<{ id: string; label: string; vision?: boolean }>;
         /** ADR-450 D5 — the Learn-from chooser payload (kernel recipes). */
         recipes: Array<{ slug: string; label: string; description: string; accepts: string[] }>;
@@ -259,6 +261,9 @@ export const api = {
           id: string;
           name: string;
           model: string;
+          /** ADR-460 D4 — WHO this lane talks to (absent on pre-registry and
+           *  Studio/derive lanes; the UI falls back to the model label). */
+          agent?: string | null;
           /** Phase-A hygiene: pinned lanes sort first. */
           pinned?: boolean;
           /** ADR-440 D3 — the Studio binding (null for plain chat lanes). */
@@ -275,16 +280,25 @@ export const api = {
     create: (data: {
       /** Optional since Phase A — a nameless lane auto-names on first turn. */
       name?: string;
-      model: string;
+      /** ADR-460 D4 — WHO to talk to (a kernel Agent slug). The engine
+       *  resolves server-side. Pass this OR `model`, not both. */
+      agent?: string;
+      /** The engine directly — Studio/derive lanes bind one and never pick a
+       *  character (a bound lane's job is the artifact, not the colleague). */
+      model?: string;
       artifact_path?: string;
       /** ADR-450 D3 — the derive binding (pass both or neither). */
       derive_recipe?: string;
       derive_source?: string;
     }) =>
-      request<{ id: string; name: string; model: string; artifact_path?: string | null; status: string }>(
-        "/api/lanes",
-        { method: "POST", body: JSON.stringify(data) },
-      ),
+      request<{
+        id: string;
+        name: string;
+        model: string;
+        agent?: string | null;
+        artifact_path?: string | null;
+        status: string;
+      }>("/api/lanes", { method: "POST", body: JSON.stringify(data) }),
     messages: (laneId: string) =>
       request<{
         messages: Array<{
