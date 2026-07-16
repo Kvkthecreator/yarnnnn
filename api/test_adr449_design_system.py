@@ -126,6 +126,51 @@ def run() -> int:
     # EXPECTED to wire these functions into studio-side files — the collision
     # carve was a session-scoped discipline, not durable canon.)
 
+    # ── 5b. the flatten contract (ADR-462 D11) ───────────────────────────
+    # v1 concatenated the manifest's `css:` list VERBATIM. Every real export
+    # (the live YARNNN + Concorn folders both) makes its entry point an
+    # @import manifest and nothing else — so v1 would have inlined five dead
+    # import lines and styled NOTHING, silently. These pin the fix.
+    FOLDER = "/workspace/ds"
+    tree = {
+        f"{FOLDER}/styles.css": '/* it is an @import manifest; prose */\n@import "./tokens/a.css";\n',
+        f"{FOLDER}/tokens/a.css": '@font-face { src: url("../assets/f.ttf"); }\n.a { color: red }\n',
+    }
+    css, srcs, warns = ds_mod.flatten_css("styles.css", tree.get, FOLDER)
+    passed &= _check(
+        "flatten: a relative @import is INLINED (an inline <style> cannot resolve one)",
+        css.count("@import") == 0 and ".a { color: red }" in css and len(srcs) == 2,
+    )
+    passed &= _check(
+        "flatten: a url() resolves against ITS OWN file's dir, not the entry's",
+        f'url("{FOLDER}/assets/f.ttf")' in css,
+    )
+    passed &= _check(
+        "flatten: prose mentioning @import in a COMMENT is not an import",
+        not any("manifest" in w for w in warns),
+    )
+    cyc = {f"{FOLDER}/a.css": '@import "./b.css";', f"{FOLDER}/b.css": '@import "./a.css";.b{}'}
+    c2, _s2, _w2 = ds_mod.flatten_css("a.css", cyc.get, FOLDER)
+    passed &= _check("flatten: an @import cycle terminates", ".b{}" in c2)
+    ext = {f"{FOLDER}/e.css": '@font-face { src: url("https://cdn/x.woff2"); }'}
+    c3, _s3, w3 = ds_mod.flatten_css("e.css", ext.get, FOLDER)
+    passed &= _check(
+        "flatten: an EXTERNAL url is kept + WARNED, never silently faked "
+        "(a CDN font is a real third-party dep in a self-contained artifact)",
+        "https://cdn/x.woff2" in c3 and any("external" in w for w in w3),
+    )
+    passed &= _check(
+        "import: the manifest we write round-trips through our own parser",
+        (ds_mod.parse_design_manifest(ds_mod.build_manifest_yaml("X", ["styles.css"])) or {})
+        .get("css") == ["styles.css"],
+    )
+    passed &= _check(
+        "import: the display name prefers the FOLDER over a vendor id "
+        "(the live export's only name field is `namespace: YARNNNDesignSystem_36fab3`)",
+        ds_mod.plan_import({"_ds_manifest.json": '{"namespace":"X_36fab3"}'},
+                           folder_name="My System")["name"] == "My System",
+    )
+
     # ── 6. purity: no write path in the module ────────────────────────────
     mod_src = inspect.getsource(ds_mod)
     passed &= _check(
