@@ -118,15 +118,34 @@ The operator's ask: *"mark the technical, architectural debt in documentation."*
 
 ## 6.1 Nothing built this week has been touched by a human
 
-**Five commits shipped** (W0 · settle · registry · personified · hiring card). **Every one is gate-green and prod-probed; NONE has been clicked.** Specifically unverified:
+**Eight commits shipped** (W0 · settle · registry · personified · hiring card · the surface · face/row/modal · the D8/D9 fixes). **Every one is gate-green and prod-probed; NONE has been clicked.** Specifically unverified:
 - settle's felt beat (the note landing in the transcript)
-- the picker chips + the hiring card form + **the avatar upload round-trip**
-- Phase-A's live SSE abort + a real vision call (owed since `4c6c56d`)
+- the picker chips + the hiring card form + **the avatar upload round-trip** (the 415 wall is now down — §6.2a — so this is *testable* for the first time; still untested)
+- Phase-A's live SSE abort + a real vision call (owed since `4c6c56d`; **could not have worked until 2026-07-16** — §6.2a)
 
 **This is the largest debt on the board** and it is not code — it is that the whole point of these features is *felt*, and nobody has felt them.
 
-## 6.2 The avatar is stored but never rendered
-The manifest carries `avatar: /workspace/uploads/…`; the card renders a **colour swatch**. The signed-URL read (`api.documents.blobUrl`) is a follow-on. **A picture you upload and never see is worse than no picture** — either render it or drop the field until it renders.
+> **The operator's single click on 2026-07-16 found what 111 gates could not** (the bucket 415). That is the ledger's own thesis, demonstrated: **a gate proves the code path; only a human proves the product.** When a feature crosses into Supabase/RLS/env, the honest report is *"needs a human click"* — never *"prod-probed ✅"*.
+
+## 6.2 The avatar is stored but never rendered — ✅ **RESOLVED** (`4742a2c`)
+~~The manifest carries `avatar: /workspace/uploads/…`; the card renders a **colour swatch**.~~
+
+**Closed by "a face, a name" (`4742a2c`), which post-dates this ledger's drafting.** `AgentFace.tsx` resolves the signed URL via `api.documents.blobUrl` (passing through `https:|data:|blob:` untouched) and falls back to the colour swatch only when there is no avatar. Wired at all three call sites (`AgentsSurface` detail + both list rows). Backend emits `avatar_url` at four sites in `routes/agents.py`. **The chain is whole: upload → manifest → `avatar_url` → signed URL → `<img>`.**
+
+## 6.2a The bucket that took no images — ✅ **RESOLVED** (migration 217 applied 2026-07-16)
+
+The blocker under §6.2 and, far more seriously, under **Phase-A image attachments** (broken since `4c6c56d` shipped "gate-green"). The `documents` bucket's `allowed_mime_types` predated image support and Supabase Storage rejected every image with a 415 before our code ever ran.
+
+**Applied receipts** (not a config read — a real Storage round-trip):
+- `UPDATE 1`, then `UPDATE 0` on re-run — the `NOT (@> image/png)` guard makes it idempotent.
+- `documents` now carries `{…, image/png, image/jpeg, image/webp, image/gif}`.
+- Probed live: **png · jpeg · webp · gif all accepted**; negative control (`application/x-msdownload`) **still refused** — the bucket was widened, not thrown open.
+- Invariant holds: the four MIMEs are exactly what `IMAGE_TYPES` {png,jpg,jpeg,webp,gif} produces through `upload_mime`'s jpg→jpeg normalization. No gap between what the API accepts and what the bucket takes.
+
+**What this does NOT prove** (per §6.1's own discipline): that a *member's* upload renders, or that a real vision call round-trips. It proves the wall is down. **Still needs a human click.**
+
+## 6.3 `/agents` is an empty page over an empty table — ✅ **RESOLVED** (`3c29bed`)
+Closed by "the surface comes home" — the page is §2's list+detail surface over `KERNEL_AGENTS` + the member's own hires (the `agents` *table* was never the roster's source; the folder pattern is). The `[id]` route and the rebuilt `page.tsx` are live.
 
 ## 6.3 `/agents` is an empty page over an empty table
 `SELECT … FROM agents` → 0 rows. The page renders `AgentContentView` for a roster that cannot populate. **`web/app/(authenticated)/agents/` is dead code today** — it must either become §2's surface or be deleted. It has been "URL-reachable" for 8 days and reaches nothing.
@@ -160,6 +179,10 @@ The gate caught `model` entering the chooser payload while `avatar` was added. *
 ---
 
 ## 7. Build order (FE + wiring, per the operator's "double our efforts")
+
+> **STATUS 2026-07-16 — steps 1–7 are DONE; step 8 is the frontier.** Receipts: `agents` is `launcher_tier: primary` with the inversion reasoning recorded in-comment (`kernel_surfaces.py:547`) · the surface is list+detail (`3c29bed`) · the dead roster is re-pointed, not both-and-neither · the hiring door left the picker and `NewChatModal` links out to `/agents` · the `presentModels` facet is **gone** (grep: zero hits) · the avatar renders (§6.2) · the D3.a ratchet is green at **111/111**.
+>
+> **Step 8 (§4b) is the only build-order item left**, and `StudioSurface.tsx:241` still reads `model: models[0].id` — the accident named in §6.7, exactly where it was left. **The two things standing between here and it are not code**: migration 217's human click (§6.2a) and §6.1's felt beat.
 
 1. **`/agents` → `launcher_tier: "primary"`** + the dock. The one-word revert its own comment names — with §1's reasoning recorded so it does not read as re-opening Rung 2.
 2. **The surface**: list mode = your agents + "who you can hire" (the kernel three) + the hiring card inline. Detail mode = `?agent={slug}` → Identity + Capability panes (the card, re-homed).
