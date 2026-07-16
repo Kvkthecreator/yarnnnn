@@ -6,6 +6,13 @@
 - **Preserves**: ADR-443 D2 (no eighth operation — every row is an existing op) · ADR-443 R1 (the DOM is the model) · ADR-461 D4 (the frame gate — now `isMeasurable`, driving a third affordance) · ADR-440 D7 (gestures compose ops) · ADR-367 D3 (deliberate tiered redundancy) · ADR-456 D5 (mechanical is free; judgment is metered)
 - **Derivation**: the 2026-07-16 discourse (Figma / Notion / PowerPoint menus scored against the shipped stack)
 
+> **Scope note**: this ADR grew past its title. D1–D10 are the right-click menu; **D11–D14 are
+> the design-system flatten + binary lane + import door**, surfaced by the same session's testing
+> and appended here rather than split into their own ADR. Their canonical, consolidated home is
+> **[docs/design/DESIGN-SYSTEMS.md](../design/DESIGN-SYSTEMS.md)** — read that, not these
+> decisions, for the design-system arc, and especially its §5 (the apply question is parked for
+> revision). The D11–D14 blocks below stay as the decision record; the design doc is the map.
+
 ---
 
 ## 1. The question
