@@ -165,13 +165,14 @@ async def list_lanes(auth: UserClient) -> dict:
 
     from services.derive_recipes import list_recipes
 
-    from services.agents_registry import list_agents
+    from services.agents_registry import find_member_agents, list_agents
 
     return {
         "enabled": enabled,
         # ADR-460 D4 — the chooser: named colleagues, not a spec sheet. The
-        # member picks WHO; the engine rides behind the name.
-        "agents": list_agents(),
+        # member picks WHO; the engine rides behind the name. The member's own
+        # Agents (their `_agent.yaml` folders) come first — they named them.
+        "agents": list_agents(find_member_agents(auth.client, auth.user_id)),
         # `models` STAYS: every LANE_MODELS row is still routable (the Studio +
         # derive paths bind a model directly, and the lane list's model filter
         # facet reads it). The registry changes what the CHOOSER asks, not what
@@ -189,7 +190,7 @@ async def list_lanes(auth: UserClient) -> dict:
 
 @router.post("/lanes")
 async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
-    from services.agents_registry import get_agent
+    from services.agents_registry import find_member_agents, resolve_agent
     from services.lane_runner import LANE_MODELS
     from services.model_router import model_router_enabled
 
@@ -204,7 +205,8 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     agent_slug = (req.agent or "").strip()
     model = (req.model or "").strip()
     if agent_slug:
-        agent = get_agent(agent_slug)
+        # Member-first: their named colleagues, then the kernel three.
+        agent = resolve_agent(agent_slug, find_member_agents(auth.client, auth.user_id))
         if not agent:
             # The ADR-450 precedent: an unknown recipe is a caller bug, not a lane.
             raise HTTPException(status_code=422, detail=f"Unknown agent: {agent_slug}")
@@ -712,6 +714,97 @@ async def regenerate_lane_turn(lane_id: str, auth: UserClient):
         # as the turn's user_message, not repeated from history.
         history_before_sequence=seq,
     )
+
+
+class CreateAgentRequest(BaseModel):
+    """The "make your own" form (personified-agents spec §7).
+
+    Deliberately NO tools/authority field — not omitted from the model, but
+    absent from the vocabulary: an Agent a member names is a member-named HAND,
+    not a seat (ADR-460 D3.a). The manifest parser refuses them too, on the
+    other side of the door.
+    """
+    name: str
+    based_on: str                      # the kernel capability this wears
+    tone: Optional[str] = None         # their manner, in their words
+    model: Optional[str] = None        # the engine override (§4: available, never asked)
+    color: Optional[str] = None
+
+
+@router.post("/agents")
+async def create_member_agent(req: CreateAgentRequest, auth: UserClient) -> dict:
+    """Make an Agent of your own — "Lisa", not "Sonnet" (spec §7).
+
+    The UI is a DOOR, not a database: this validates and writes
+    `/workspace/agents/{slug}/_agent.yaml` through the ordinary authored-write
+    path, attributed like any member act. The FILE stays the source of truth —
+    inspectable in Files, versioned on the ledger, revertible. (The ADR-449
+    posture: no write path in the registry module; applies go through the
+    ordinary doors.)
+    """
+    import re as _re
+
+    from services.agents_registry import (
+        AGENT_MANIFEST_BASENAME,
+        KERNEL_AGENTS,
+        find_member_agents,
+    )
+    from services.authored_substrate import write_revision
+    from services.lane_runner import LANE_MODELS, unpriced_lane_model
+
+    name = (req.name or "").strip()[:_MAX_NAME_LEN]
+    if not name:
+        raise HTTPException(status_code=422, detail="name is required")
+    based_on = (req.based_on or "").strip()
+    if based_on not in KERNEL_AGENTS:
+        raise HTTPException(status_code=422, detail=f"Unknown based_on: {based_on}")
+
+    # The engine override — available, never asked (spec §4). A member's file
+    # may not route an unpriced engine: the ADR-439 §4 rule holds on this side
+    # of the door too.
+    model = (req.model or "").strip()
+    if model:
+        if model not in LANE_MODELS:
+            raise HTTPException(status_code=422, detail=f"Unknown model: {model}")
+        if unpriced_lane_model(model):
+            raise HTTPException(
+                status_code=422,
+                detail="this model has no billing rate configured and cannot run (ADR-439 §4)",
+            )
+
+    slug = _re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "agent"
+    if slug in KERNEL_AGENTS:
+        # A member folder may not shadow a kernel slug — "sonnet" must not mean
+        # two different things depending on the workspace.
+        raise HTTPException(
+            status_code=409, detail=f"'{slug}' is a built-in agent's name — pick another"
+        )
+    if any(a["slug"] == slug for a in find_member_agents(auth.client, auth.user_id)):
+        raise HTTPException(status_code=409, detail=f"You already have an agent called '{name}'")
+
+    lines = [f"based_on: {based_on}", f"name: {name}"]
+    tone = (req.tone or "").strip()
+    if tone:
+        # Block scalar — a member's tone is prose and may carry any punctuation.
+        lines.append("tone: |")
+        lines.extend(f"  {ln}" for ln in tone.splitlines())
+    if model:
+        lines.append(f"model: {model}")
+    color = (req.color or "").strip()
+    if color:
+        lines.append(f"color: {color}")
+
+    path = f"/workspace/agents/{slug}/{AGENT_MANIFEST_BASENAME}"
+    write_revision(
+        auth.client,
+        user_id=auth.user_id,
+        path=path,
+        content="\n".join(lines) + "\n",
+        authored_by="operator",
+        message=f"made an agent: {name}",
+        workspace_id=_acting_workspace(auth),
+    )
+    return {"slug": slug, "name": name, "based_on": based_on, "path": path}
 
 
 @router.post("/lanes/{lane_id}/settle")

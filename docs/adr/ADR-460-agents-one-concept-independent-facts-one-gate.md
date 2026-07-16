@@ -134,14 +134,16 @@ The operator's cut, mapped to the axioms and to what exists:
 |---|---|---|
 | **Agent configuration** | Mechanism (Axiom 5) | a registry row — engine, tools, posture, token profile |
 | **Agent** | Identity (Axiom 2) | a named, addressable entity — a row instance |
-| **Room** (conversation) | Channel (Axiom 6) | the meeting. Its `cast` = which Agents are in it |
+| **Room** (conversation) | Channel (Axiom 6) | the meeting. Its **members** = which Agents are in it |
 
-**The Conversation object gains justification, and a cleaner field.** The capture's proposed `{scope, cast, bindings}` re-reads as: `cast` is **a list of Agent ids**, not an inline `model → designation` map — an id into a registry beats a map in a bag. **But this ADR does not create that object** (§7): `lane_meta` already carries bindings and has absorbed two extensions (ADR-440, ADR-450) without a migration. The object is the correct end-state *description*; `cast` cannot be specified before the registry exists and `scope: shared` cannot be specified before rooms. **Concrete before abstract** — the deterministic-before-intelligent guard applied to schema.
+**The Conversation object gains justification, and a cleaner field.** The capture's proposed `{scope, cast, bindings}` re-reads as: **`members`** is **a list of Agent ids**, not an inline `model → designation` map — an id into a registry beats a map in a bag. **But this ADR does not create that object** (§7): `lane_meta` already carries bindings and has absorbed two extensions (ADR-440, ADR-450) without a migration. The object is the correct end-state *description*; `members` cannot be specified before the registry exists and `scope: shared` cannot be specified before rooms. **Concrete before abstract** — the deterministic-before-intelligent guard applied to schema.
+
+> **Vocabulary amendment (2026-07-16, operator-ratified).** "Cast" is retired — inherited jargon from the three-axes capture, and a description of the implementation leaked into the product. The live words are the conventional ones (WhatsApp/Telegram/Slack): a **room**, its **members**, and you **invite** them. This is not merely friendlier, it is more accurate — a room you invite Lisa into *is* what this is. The one honest asymmetry, carried rather than papered over: an invited Agent **only speaks when addressed** (the never-ambient invariant). A member says *"I asked Lisa"*, never *"Lisa piped up."* If the room must explain itself: **"they answer when you ask"** — a promise, not an apology. See `docs/analysis/personified-agents-spec-2026-07-16.md` §11.
 
 ## 7. What this ADR does NOT do
 
 - **No code, no schema, no migration.** It retires a taxonomy and relocates a boundary. Both are doc-layer facts.
-- **It does not create the unified Conversation object.** ADR-411's session-row-plus-metadata is the conversation substrate; it gets amended in place a third time (as ADR-412 and ADR-413 already amended it), when and if `cast` and `scope` are specifiable from evidence.
+- **It does not create the unified Conversation object.** ADR-411's session-row-plus-metadata is the conversation substrate; it gets amended in place a third time (as ADR-412 and ADR-413 already amended it), when and if `members` and `scope` are specifiable from evidence.
 - **It does not build the Agent registry.** §5 makes it buildable and names its shape; the build is its own commit, sequenced in §8.
 - **It does not move the ADR-307 gate**, weaken the witness dial (ADR-405), or grant any Agent consequential authority. It makes that authority *unrepresentable* in the kernel registry (D3.a).
 - **It does not make any Agent a principal.** No `principal_grants` change; the ADR-431 roster is untouched.
@@ -160,8 +162,8 @@ The order:
 1. **W0 — instrument the ADR-457 D8 falsifiers.** The chassis no longer contaminates them, and instrumenting *after* settle ships destroys the pre-settle baseline for falsifier 2 ("settle unused → don't GTM-lead with it"). An unbuilt verb reads null; null is not evidence of non-adoption.
 2. **Settle** (ADR-457 D3/D4) — the flagship, the derive organ, the P4 fix.
 3. **The Agent registry** (§5) — kernel constants, addressed-only, `member:` attribution, no authority field.
-4. **Cast in a room** — private scope first (the operator's "single user's cohesive experience"); rooms are the same grammar at shared scope, rehearsed solo.
-5. **The Conversation object ADR** — written from evidence, with `cast: [agent_id]`.
+4. **Rooms** — invite your Agents; private scope first (the operator's "single user's cohesive experience"); rooms are the same grammar at shared scope, rehearsed solo.
+5. **The Conversation object ADR** — written from evidence, with `members: [agent_id]`.
 
 ## 9. Consequences
 

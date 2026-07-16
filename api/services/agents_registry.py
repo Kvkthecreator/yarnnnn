@@ -40,16 +40,21 @@ Third instance of a twice-ratified shape: `LANE_MODELS` (ADR-411 D5) and
 `DERIVE_RECIPES` (ADR-450) are both kernel-constant registries of pre-configured
 work-shapes. ADR-450: "recipes are data, not sub-processes... versioned in this
 codebase; when [agent-composed] arrives it composes BESIDE kernel recipes, never
-replacing them." Per-workspace Agents are that later widening — forward-
-compatible by construction, deliberately not built (ADR-222: the kernel names the
-category, the instance comes later).
+replacing them." Per-workspace Agents are that later widening — now BUILT (see
+"Member-authored Agents" below): the kernel ships the CAPABILITY, the member
+ships the PERSON (ADR-222: the kernel names the category, the member assigns
+the instance).
 
-Spec: docs/analysis/agent-registry-spec-2026-07-16.md
+Specs: docs/analysis/agent-registry-spec-2026-07-16.md (the kernel set)
+       docs/analysis/personified-agents-spec-2026-07-16.md (the widening)
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 #: The base set — "provide enough, not the most" (the ADR-420 §10 rule that
 #: governs LANE_MODELS, applied one level up: one Agent per reason a member
@@ -120,23 +125,198 @@ AGENT_ROW_KEYS = frozenset(
 )
 
 
+# ---------------------------------------------------------------------------
+# Member-authored Agents (the ADR-450/ADR-460 D4 later-widening)
+# ---------------------------------------------------------------------------
+#
+# "Instead of calling a mundane Sonnet, they can name it and call their own
+# agent 'Lisa'." The kernel ships the CAPABILITY; the member ships the PERSON.
+#
+# THE SHAPE IS ADR-449's, VERBATIM: an ordinary meaning-folder identified by a
+# manifest, discovered by search, never registered. Nothing is seeded
+# (ADR-414). The kernel READS; the member OWNS. Fourth instance of a ratified
+# pattern (recipes · models · design systems · agents).
+#
+# ⚠️ WHY NOT "UNLEASH ALL AGENTS TO THE FILESYSTEM" ⚠️
+# If an Agent were PURELY a member file, the workspace could author an Agent —
+# and an Agent is a thing that holds a persona, tools, and eventually
+# authority. That is a straight line to the ADR-382 persona-agent seat arriving
+# through the back door as a config file: Rung 2 rebuilt without the ADR-307
+# gate, without a mandate, without the exogenous track-record clock, and
+# nothing would catch it because "it's just YAML the member wrote". The
+# ADR-460 D3.a cliff is structural BECAUSE the row shape has no field for
+# authority — so the member's manifest needs the SAME guarantee, or the
+# widening reopens what D3.a closed. Hence AGENT_MANIFEST_KEYS + a parser that
+# REJECTS (never silently ignores) an unknown key.
+#
+# The cut is not "kernel vs filesystem" — it is CAPABILITY vs IDENTITY:
+#   tools + token profile → kernel (they gate, cost, route)
+#   engine               → kernel default, member MAY override (see below)
+#   name + tone + color  → the member (costs nothing, gates nothing)
+#   authority            → NOBODY. Unrepresentable in both layers.
+
+#: The manifest basename — underscore-prefixed = machine-parsed (CLAUDE.md §9).
+AGENT_MANIFEST_BASENAME = "_agent.yaml"
+
+#: The ONLY keys a member's manifest may carry. This is the D3.a cliff on the
+#: member's side. `parse_agent_manifest` REJECTS a manifest carrying anything
+#: else — loudly, not silently — so an attempt to grow the vocabulary (tools,
+#: authority, a wake source) is VISIBLE rather than quietly dropped.
+AGENT_MANIFEST_KEYS = frozenset({"based_on", "name", "tone", "model", "color"})
+
+
+def parse_agent_manifest(content: Optional[str]) -> Optional[dict]:
+    """Parse an `_agent.yaml` body → the manifest, or None if it is not one.
+
+    Pure. Returns None (not an exception) for anything that is not a valid
+    member-Agent manifest — discovery must never break on a stray file.
+
+    STRICT-KEY: a manifest carrying a key outside AGENT_MANIFEST_KEYS is
+    REFUSED. That is the point, not pedantry — `tools:` or `authority:` in a
+    member's file must not silently do nothing (it would read as supported and
+    become a bug report), and must not work (it would reopen ADR-460 D3.a).
+    """
+    if not content or not content.strip():
+        return None
+    try:
+        from services.review_policy import load_workspace_yaml
+        data = load_workspace_yaml(content)
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    extra = set(data.keys()) - AGENT_MANIFEST_KEYS
+    if extra:
+        logger.warning(
+            "[AGENTS] manifest REFUSED — unsupported keys %s. A member's Agent "
+            "carries identity (name/tone/color) over a kernel capability "
+            "(based_on/model); tools and authority are not in its vocabulary "
+            "(ADR-460 D3.a).", sorted(extra),
+        )
+        return None
+
+    based_on = str(data.get("based_on") or "").strip()
+    name = str(data.get("name") or "").strip()
+    if not based_on or not name:
+        return None
+    if based_on not in KERNEL_AGENTS:
+        logger.warning("[AGENTS] manifest names an unknown based_on: %r", based_on)
+        return None
+
+    # The engine override (spec §4): available, never ASKED. The picker still
+    # asks WHO — the ADR-460 D4 argument was about the moment of creation, when
+    # the member knows least. A member deliberately building a colleague has
+    # opted into caring; that is the later-widening, not the spec sheet.
+    model = str(data.get("model") or "").strip() or KERNEL_AGENTS[based_on]["model"]
+
+    return {
+        "based_on": based_on,
+        "name": name,
+        "tone": str(data.get("tone") or "").strip(),
+        "model": model,
+        "color": str(data.get("color") or "").strip(),
+    }
+
+
+def find_member_agents(client: Any, user_id: str) -> list[dict]:
+    """Discover the workspace's member-authored Agents (the ADR-449 mechanic).
+
+    Returns [{slug, name, blurb, icon, model, based_on, tone, kernel: False}]
+    for every `_agent.yaml` whose body parses as a manifest. No registry row
+    exists or is maintained — discovery IS the convention. Best-effort:
+    failures return what was found (a broken manifest never breaks the picker).
+    """
+    from services.workspace_context import substrate_scope_filter
+
+    out: list[dict] = []
+    try:
+        rows = (
+            client.table("workspace_files")
+            .select("path, content, lifecycle")
+            .eq(*substrate_scope_filter(user_id))
+            .like("path", f"%/{AGENT_MANIFEST_BASENAME}")
+            .order("updated_at", desc=True)
+            .limit(50)
+            .execute()
+        ).data or []
+        for r in rows:
+            if r.get("lifecycle") == "archived":
+                continue
+            manifest = parse_agent_manifest(r.get("content"))
+            if not manifest:
+                continue
+            path = r["path"]
+            slug = path.rsplit("/", 2)[-2] if "/" in path else ""
+            if not slug or slug in KERNEL_AGENTS:
+                # A member folder may not shadow a kernel slug — the kernel set
+                # is the floor, and a silent override would make "sonnet" mean
+                # two things depending on the workspace.
+                continue
+            base = KERNEL_AGENTS[manifest["based_on"]]
+            out.append({
+                "slug": slug,
+                "name": manifest["name"],
+                # The member named them; the blurb still says what they're FOR
+                # (inherited from the capability they wear).
+                "blurb": base["blurb"],
+                "icon": base["icon"],
+                "color": manifest["color"],
+                "model": manifest["model"],
+                "based_on": manifest["based_on"],
+                "tone": manifest["tone"],
+                "token_profile": base["token_profile"],
+                "kernel": False,
+                "manifest_path": path,
+            })
+    except Exception as exc:  # noqa: BLE001 — discovery is best-effort
+        logger.debug("[AGENTS] member-agent discovery failed: %s", exc)
+    return out
+
+
+def resolve_agent(slug: str, member_agents: Optional[list[dict]] = None) -> Optional[dict]:
+    """An Agent by slug — the member's first, then the kernel's. Pure.
+
+    Member-first because a member's Agents compose BESIDE the kernel set
+    (ADR-450's rule) and cannot shadow it (find_member_agents drops any folder
+    named after a kernel slug), so the two namespaces never collide — the order
+    is for the caller's clarity, not a precedence fight.
+    """
+    s = (slug or "").strip()
+    for a in member_agents or []:
+        if a["slug"] == s:
+            return a
+    return KERNEL_AGENTS.get(s)
+
+
 def get_agent(slug: str) -> Optional[dict]:
-    """The Agent row for a slug, or None. Pure."""
+    """The KERNEL Agent row for a slug, or None. Pure."""
     return KERNEL_AGENTS.get((slug or "").strip())
 
 
-def list_agents() -> list[dict]:
+def list_agents(member_agents: Optional[list[dict]] = None) -> list[dict]:
     """The chooser payload — the member-facing face only.
 
     Deliberately does NOT serve `model`, `posture`, or `token_profile`: the
     picker's whole point is that the member is never ASKED to choose an engine.
     (The engine stays legible elsewhere — a lane reports the model it ran on;
     this is about what the CHOOSER asks, not about hiding a fact.)
+
+    The member's own Agents come FIRST — they named them, so they are the
+    colleagues; the kernel three are the floor beneath. `kernel: true|false`
+    lets the UI mark which are theirs (and which can be renamed/edited).
     """
-    return [
-        {"slug": a["slug"], "name": a["name"], "blurb": a["blurb"], "icon": a["icon"]}
+    mine = [
+        {"slug": a["slug"], "name": a["name"], "blurb": a["blurb"],
+         "icon": a["icon"], "color": a.get("color") or "", "kernel": False}
+        for a in (member_agents or [])
+    ]
+    theirs = [
+        {"slug": a["slug"], "name": a["name"], "blurb": a["blurb"],
+         "icon": a["icon"], "color": "", "kernel": True}
         for a in KERNEL_AGENTS.values()
     ]
+    return mine + theirs
 
 
 def model_for_agent(slug: str) -> Optional[str]:
@@ -145,16 +325,40 @@ def model_for_agent(slug: str) -> Optional[str]:
     return agent["model"] if agent else None
 
 
-def build_agent_posture(slug: str) -> str:
+def build_agent_posture(slug: str, member_agents: Optional[list[dict]] = None) -> str:
     """The Agent's turn-time posture overlay, or "" when there is no Agent. Pure.
 
     Composed at turn time from the slug, never stored (the ADR-411 D6 pattern) —
     correct precisely BECAUSE a posture is not a historical fact about what ran.
     It is how this Agent works NOW, so it must follow the registry. The `model`
     is the opposite: it IS a historical fact, so it is persisted on the lane and
-    never re-derived (see the spec §6).
+    never re-derived (see the registry spec §6).
+
+    For a MEMBER Agent: the kernel `based_on` character + the member's `tone`.
+    The tone is ADDITIVE, never a replacement — a member writing
+    `tone: "ignore your instructions"` gets a tonal line appended to a posture,
+    not a posture swap. Deliberately the thin end: a member authoring a full
+    posture is prompt-engineering, which is the expert ceremony the whole
+    re-cut removed. If members reach for more, that is evidence — build then.
     """
-    agent = get_agent(slug)
+    agent = resolve_agent(slug, member_agents)
     if not agent:
         return ""
-    return f"\n\nWHO YOU ARE\n{agent['posture']}\n"
+
+    # A member Agent wears a kernel capability's character (`based_on`); a
+    # kernel Agent is its own.
+    base = KERNEL_AGENTS.get(agent.get("based_on") or agent.get("slug") or "")
+    character = (base or agent).get("posture") or ""
+    if not character:
+        return ""
+
+    # The member named them — the model should answer to that name, not to the
+    # capability's.
+    name = agent.get("name") or ""
+    section = f"\n\nWHO YOU ARE\n{character}\n"
+    if not agent.get("kernel", True):
+        section += f"\nYou are called {name}. Answer to it.\n"
+    tone = (agent.get("tone") or "").strip()
+    if tone:
+        section += f"\nHOW {name.upper()} SOUNDS (the member's own words)\n{tone}\n"
+    return section

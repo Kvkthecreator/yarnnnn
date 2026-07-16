@@ -321,8 +321,13 @@ def build_lane_conventions(
     # the colleague. Empty string for a lane with no agent (every pre-registry
     # lane, and every Studio/derive lane) — byte-identical to today.
     if agent:
-        from services.agents_registry import build_agent_posture
-        posture_section += build_agent_posture(agent)
+        from services.agents_registry import build_agent_posture, find_member_agents
+        # Member-first (the later-widening): a named colleague ("Lisa") wears a
+        # kernel capability's character plus the member's own tone. Discovery
+        # is a read; a broken manifest never breaks a turn (best-effort).
+        posture_section += build_agent_posture(
+            agent, find_member_agents(client, user_id)
+        )
     if artifact_path:
         from services.studio import build_studio_posture
         artifact = _read_workspace_file(client, user_id, artifact_path)

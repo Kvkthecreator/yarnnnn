@@ -149,7 +149,10 @@ def run() -> bool:
 
     print("\n── 7. the route wiring ──")
     routes = (Path(__file__).parent / "routes" / "lanes.py").read_text()
-    _check("the envelope serves `agents`", '"agents": list_agents()' in routes)
+    # Assert the INTENT (the envelope serves the chooser), not the spelling —
+    # the personified-agents widening changed the call's arguments, and a gate
+    # that pins an exact string fails on its own successor.
+    _check("the envelope serves `agents`", '"agents": list_agents(' in routes)
     _check(
         "`models` STAYS (every model is still routable — Studio/derive bind directly)",
         '"models": [' in routes,
@@ -167,6 +170,122 @@ def run() -> bool:
     _check(
         "the model stays authoritative on the lane (a registry edit can't rewrite history)",
         'lane_meta: dict = {"name": name, "model": model}' in routes,
+    )
+
+    print("\n── 8. ⚠️  THE CLIFF ON THE MEMBER'S SIDE (personified agents) ──")
+    from services.agents_registry import (
+        AGENT_MANIFEST_KEYS,
+        parse_agent_manifest,
+        resolve_agent,
+    )
+
+    # The widening's whole risk: if a member's file could grow any key, then
+    # "unrepresentable" (D3.a) degrades to "we didn't put it in the template",
+    # and ADR-382's persona-agent seat arrives through the back door as YAML.
+    _check(
+        "the manifest vocabulary carries no authority-shaped key",
+        not any(w in " ".join(AGENT_MANIFEST_KEYS).lower() for w in banned),
+    )
+    for danger in ("tools", "authority", "autonomy", "mandate", "wake", "standing_intent"):
+        _check(
+            f"a manifest carrying `{danger}:` is REFUSED (not silently ignored)",
+            parse_agent_manifest(
+                f"based_on: sonnet\nname: Lisa\n{danger}: whatever\n"
+            ) is None,
+        )
+    _check(
+        "…and a clean manifest parses",
+        (parse_agent_manifest("based_on: sonnet\nname: Lisa\ntone: Warm.\n") or {}).get("name")
+        == "Lisa",
+    )
+    _check(
+        "an unknown based_on is refused (a member cannot invent a capability)",
+        parse_agent_manifest("based_on: nope\nname: Lisa\n") is None,
+    )
+    _check(
+        "a manifest with no name is refused",
+        parse_agent_manifest("based_on: sonnet\n") is None,
+    )
+    _check(
+        "no based_on → refused (identity always wears a kernel capability)",
+        parse_agent_manifest("name: Lisa\n") is None,
+    )
+    _check(
+        "junk/non-dict content never breaks discovery",
+        parse_agent_manifest("just some prose") is None
+        and parse_agent_manifest("") is None,
+    )
+
+    print("\n── 9. the member's Agent: identity over a kernel capability ──")
+    _check(
+        "an Agent with no `model` inherits its based_on's engine (never asked)",
+        (parse_agent_manifest("based_on: scout\nname: Lisa\n") or {})["model"]
+        == KERNEL_AGENTS["scout"]["model"],
+    )
+    _check(
+        "…and MAY override the engine (available, never asked — spec §4)",
+        (parse_agent_manifest("based_on: sonnet\nname: Lisa\nmodel: openai/gpt-5\n") or {})["model"]
+        == "openai/gpt-5",
+    )
+    lisa = {
+        "slug": "lisa", "name": "Lisa", "based_on": "critic", "kernel": False,
+        "tone": "Warm and direct. Calls me Kev.", "model": "openai/gpt-5",
+        "blurb": KERNEL_AGENTS["critic"]["blurb"], "icon": "swords",
+    }
+    posture = build_agent_posture("lisa", [lisa])
+    _check(
+        "a member Agent's posture carries the KERNEL character (based_on)",
+        "adversary" in posture,
+    )
+    _check(
+        "…AND the member's tone, additively (never a posture swap)",
+        "Calls me Kev" in posture,
+    )
+    _check(
+        "…AND answers to the name the member gave",
+        "You are called Lisa" in posture,
+    )
+    _check(
+        "a kernel Agent's posture has no 'you are called' line (it IS its name)",
+        "You are called" not in build_agent_posture("critic"),
+    )
+    _check(
+        "member-first resolution",
+        (resolve_agent("lisa", [lisa]) or {}).get("name") == "Lisa"
+        and (resolve_agent("critic", [lisa]) or {}).get("slug") == "critic",
+    )
+    _check(
+        "the chooser lists the member's Agents FIRST, tagged kernel:false",
+        [a["kernel"] for a in list_agents([lisa])][0] is False,
+    )
+    _check(
+        "…and still lists the kernel three beneath (composes BESIDE — ADR-450)",
+        len(list_agents([lisa])) == len(KERNEL_AGENTS) + 1,
+    )
+
+    print("\n── 10. the write door (the UI is a door, not a database) ──")
+    _check(
+        "POST /api/agents exists",
+        '@router.post("/agents")' in routes,
+    )
+    _check(
+        "it writes the manifest through the authored path (attributed, versioned)",
+        "write_revision(" in routes and "_agent.yaml" in reg_src,
+    )
+    _check(
+        "the form carries NO tools/authority field",
+        not any(
+            f"    {w}:" in routes.split("class CreateAgentRequest")[1].split("@router")[0]
+            for w in banned
+        ),
+    )
+    _check(
+        "a member may not shadow a kernel slug",
+        "is a built-in agent's name" in routes,
+    )
+    _check(
+        "an unpriced engine override is refused at the door too (ADR-439 §4)",
+        "unpriced_lane_model(model)" in routes,
     )
 
     ok = all(c for _, c in _results)
