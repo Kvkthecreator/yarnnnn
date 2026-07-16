@@ -496,15 +496,29 @@ export function StudioSurface() {
   const layoutMode: 'flow' | 'paged' =
     vocabulary?.layouts.find((l) => l.slug === template)?.mode ?? 'flow';
   const isPaged = layoutMode === 'paged';
+  // One payload, two lifetimes — and that was the bug (ADR-462 D12). Blocks /
+  // arrangements / tokens are KERNEL CONSTANTS: fetch once, cache forever,
+  // correct. `design_systems` is WORKSPACE STATE that changes while the member
+  // is looking at it. The `|| vocabulary` guard cached both together, so a
+  // design system imported during a session stayed invisible until a full
+  // reload — the picker said "No design system in this workspace yet" while
+  // the endpoint served one. Re-fetch when the ARTIFACT changes: cheap (one
+  // read), and it makes the workspace half honest without a poll.
   useEffect(() => {
-    if (!artifactPath || vocabulary) return;
+    if (!artifactPath) return;
+    let live = true;
     api.studio
       .vocabulary()
-      .then(setVocabulary)
+      .then((v) => {
+        if (live) setVocabulary(v);
+      })
       .catch(() => {
         /* toolbar menus stay empty — chat authoring unaffected */
       });
-  }, [artifactPath, vocabulary]);
+    return () => {
+      live = false;
+    };
+  }, [artifactPath]);
 
   // ── The mechanical executor (ADR-444): compute a deterministic op FE-side,
   // land it as ONE operator-attributed CAS-guarded revision, re-render. ──
