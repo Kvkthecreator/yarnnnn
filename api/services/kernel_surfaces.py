@@ -546,16 +546,31 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     {
         "slug": "agents",
         # ADR-349 D3 made the roster Workspace-tier first-class (A3 the judgment
-        # seat). Demoted to search-only (2026-07-08): Altitude-3 "hire an agent"
-        # is the deferred horizon (ADR-380 Rung-2 launch line; ADR-414 already
-        # removed Freddie from this roster). The launch focus is the user's
-        # HANDS — the A2 chat lanes — not the user's HIRE. The roster stays
-        # URL-reachable (/agents) + searchable; it just leaves the launcher's
-        # browse tiles + the dock so it isn't a second, confusing AI door
-        # beside /chat. One-word revert (→ "primary") re-surfaces A3 when the
-        # Rung-2 track-record clock says it's time. Freddie's own dials live at
-        # Workspace Settings → System Agent (ADR-412 D5), not here.
-        "launcher_tier": "search-only",
+        # seat). Demoted to search-only (2026-07-08) because Altitude-3 "hire an
+        # agent" was the deferred horizon: the launch focus was the user's HANDS
+        # (the A2 chat lanes), not the user's HIRE, and a roster beside /chat
+        # would be "a second, confusing AI door". That comment predicted a
+        # one-word revert when "the Rung-2 track-record clock says it's time."
+        #
+        # RE-SURFACED 2026-07-16 — and NOT by that clock. Both clauses of the
+        # demotion inverted by a different route:
+        #   1. HANDS-not-HIRE: hiring IS the launch focus now. Sonnet/Scout/
+        #      Critic are hired today; a member names their own (ADR-460 D4 +
+        #      the personified widening).
+        #   2. "a second, confusing AI door": that fear was A2-vs-A3 — two KINDS
+        #      of AI needing two doors. ADR-460 D1 DISSOLVED that ladder. There
+        #      is one kind, and its door was a <select> inside a form.
+        # This does NOT re-open Rung 2. Consequential authority is still
+        # unrepresentable (ADR-460 D3.a) and /agents must never become the
+        # persona-seat surface by accident — every pane here is identity or
+        # capability, never authority.
+        # Receipt: the `agents` TABLE is empty (ADR-414 retired the last row);
+        # this surface now mirrors the workspace's Agent FOLDERS + the kernel
+        # set, not that table.
+        # Derivation: docs/analysis/agents-surface-and-debt-2026-07-16.md
+        # Freddie's own dials stay at Workspace Settings → System Agent
+        # (ADR-412 D5), not here.
+        "launcher_tier": "primary",
         "register": "application",  # ADR-309 two-register model
         "title": "Agents",
         "archetype": "roster",

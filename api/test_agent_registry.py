@@ -343,6 +343,71 @@ def run() -> bool:
         and "_write_member_agent(req, auth, slug=slug" in routes,
     )
 
+    print("\n── 12. the /agents surface (the re-surface + the chat re-align) ──")
+    surfaces = (Path(__file__).parent / "services" / "kernel_surfaces.py").read_text()
+    agents_block = surfaces.split('"slug": "agents",', 1)[1].split("},", 1)[0]
+    _check(
+        "/agents is a PRIMARY launcher surface again",
+        '"launcher_tier": "primary"' in agents_block,
+    )
+    _check(
+        "…and the re-surface records WHY (not a Rung-2 re-open)",
+        "DISSOLVED that ladder" in agents_block and "does NOT re-open Rung 2" in agents_block,
+    )
+
+    web = Path(__file__).parent.parent / "web"
+    surface = (web / "components" / "agents" / "AgentsSurface.tsx").read_text()
+    # The same cliff, on the new surface. This is where a persona-seat pane
+    # would arrive by accident.
+    body = surface.split("*/", 1)[-1]
+    for word in ("authority", "autonomy", "consequential", "mandate", "scopes", "never ask"):
+        _check(f"the /agents surface has no `{word}` control", word not in body.lower())
+    _check(
+        "…and states the limit as prose (a fact about a colleague, not a switch)",
+        "can&apos;t send email" in surface,
+    )
+    _check(
+        "ONE surface, two modes — detail is ?agent= (window state, not a route)",
+        "useSurfaceParam('agents')" in surface and "setParam({ agent:" in surface,
+    )
+    _check(
+        "discovery IS the base set (no separate browse)",
+        "Who you can hire" in surface,
+    )
+    # The dead roster is REPLACED, not siblinged (Singular Implementation).
+    # Scan the CODE, not the docstring — the docstring NAMES what it replaced,
+    # deliberately, so the next reader knows why the table isn't read here.
+    page = (web / "app" / "(authenticated)" / "agents" / "page.tsx").read_text()
+    page_code = page.split("*/", 1)[-1]
+    legacy = (web / "app" / "(authenticated)" / "agents" / "[id]" / "page.tsx").read_text()
+    legacy_code = legacy.split("*/", 1)[-1]
+    _check(
+        "the dead roster over the EMPTY agents table is gone",
+        "useAgentsAndRecurrences" not in page_code
+        and "AgentContentView" not in page_code
+        # …including the legacy /agents/[id] stub, whose id→slug lookup against
+        # that table could only ever miss.
+        and "useAgentsAndRecurrences" not in legacy_code,
+    )
+    _check(
+        "the legacy stub still uses navigateToSurface (no ADR-308 orphaned frame)",
+        "navigateToSurface('agents'" in legacy_code,
+    )
+    _check(
+        "…and the page mounts the new surface",
+        "AgentsSurface" in page,
+    )
+
+    chat = (web / "components" / "chat-surface" / "ChatSurface.tsx").read_text()
+    _check(
+        "the hiring door LEFT the chat picker (it lives on /agents)",
+        "AgentCard" not in chat and "Make your own" not in chat,
+    )
+    _check(
+        "the lane facet filters by WHO, not by engine (the last spec-sheet surface)",
+        "whoFilter" in chat and "modelFilter" not in chat,
+    )
+
     ok = all(c for _, c in _results)
     print()
     print(f"{'PASS' if ok else 'FAIL'}: {sum(c for _, c in _results)}/{len(_results)} checks")

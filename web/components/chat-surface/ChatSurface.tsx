@@ -27,7 +27,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Archive, Loader2, MessageCircle, Pencil, Pin, Plus, Search, X } from 'lucide-react';
 import { LanePanel } from './LanePanel';
-import { AgentCard } from './AgentCard';
 import { api } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
@@ -76,10 +75,12 @@ export function ChatSurface() {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newAgent, setNewAgent] = useState('');
-  // The hiring card: null = closed; {} = hiring; {slug} = editing theirs.
-  const [hiring, setHiring] = useState<{ slug?: string } | null>(null);
-  // D4 — the model FILTER facet (null = all lanes, the default view).
-  const [modelFilter, setModelFilter] = useState<string | null>(null);
+  // D4 — the FILTER facet (null = all lanes, the default view). ADR-460: it
+  // filters by WHO you talked to, not by which engine ran — the last
+  // spec-sheet surface in chat, re-axed. A lane with no agent (pre-registry,
+  // Studio/derive) files under its engine label, which is honest: that IS
+  // what those lanes are.
+  const [whoFilter, setWhoFilter] = useState<string | null>(null);
   // Phase-A hygiene: search (name locally + transcript content server-side,
   // debounced) and inline rename state.
   const [query, setQuery] = useState('');
@@ -146,18 +147,20 @@ export function ChatSurface() {
       const tb = new Date(b.updated_at ?? b.created_at ?? 0).getTime();
       return tb - ta;
     });
-    const byModel = modelFilter ? all.filter((l) => l.model === modelFilter) : all;
+    const byModel = whoFilter
+      ? all.filter((l) => laneLabel(l) === whoFilter)
+      : all;
     const q = query.trim().toLowerCase();
     if (!q) return byModel;
     return byModel.filter(
       (l) => l.name.toLowerCase().includes(q) || contentHits?.has(l.id),
     );
-  }, [data, modelFilter, query, contentHits]);
+  }, [data, whoFilter, query, contentHits, laneLabel]);
 
-  // The filter facet only offers models actually present in the list.
-  const presentModels = useMemo(
-    () => Array.from(new Set((data?.lanes ?? []).map((l) => l.model))),
-    [data],
+  // The facet only offers colleagues actually present in the list.
+  const presentWho = useMemo(
+    () => Array.from(new Set((data?.lanes ?? []).map((l) => laneLabel(l)))),
+    [data, laneLabel],
   );
 
   const activeLane = useMemo(
@@ -299,38 +302,6 @@ export function ChatSurface() {
     );
   }
 
-  // The hiring card — a member makes/edits a colleague of their own. Reloads
-  // the envelope on save so the new Agent appears in the picker immediately.
-  const hiringCard = hiring && (
-    <div className="p-2 border-b border-border bg-muted/30 shrink-0">
-      <AgentCard
-        choices={(data?.agents ?? []).filter((a) => a.kernel !== false)}
-        existing={
-          hiring.slug
-            ? (() => {
-                const a = data?.agents?.find((x) => x.slug === hiring.slug);
-                return a
-                  ? {
-                      slug: a.slug,
-                      name: a.name,
-                      based_on: a.based_on ?? '',
-                      tone: a.tone,
-                      color: a.color,
-                      avatar: a.avatar,
-                    }
-                  : null;
-              })()
-            : null
-        }
-        onCancel={() => setHiring(null)}
-        onDone={() => {
-          setHiring(null);
-          void api.lanes.list().then((res) => setData(res as LaneData));
-        }}
-      />
-    </div>
-  );
-
   const createForm = creating && (
     <div className="flex items-center gap-1.5 p-2 border-b border-border bg-muted/30 shrink-0">
       <input
@@ -365,16 +336,6 @@ export function ChatSurface() {
           {a.name}
         </button>
       ))}
-      {/* The hiring door — "you're bringing a Critic to life and calling her
-          Lisa" (agent-hiring-card spec §2). */}
-      <button
-        type="button"
-        onClick={() => setHiring({})}
-        title="Make an agent of your own"
-        className="px-2 py-1 rounded border border-dashed border-input text-xs text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
-      >
-        + Make your own
-      </button>
       <button
         onClick={() => void createLane()}
         disabled={!newAgent}
@@ -400,7 +361,6 @@ export function ChatSurface() {
             <Plus className="w-4 h-4" />
           </button>
         </div>
-        {hiringCard}
         {createForm}
 
         {/* Phase-A hygiene: search — lane names locally + transcript content
@@ -429,33 +389,33 @@ export function ChatSurface() {
           </div>
         </div>
 
-        {/* Model filter facet — the by-engine view on demand, never the
-            default grouping (D4). Renders only when ≥2 models are in play. */}
-        {presentModels.length > 1 && (
+        {/* The filter facet — by WHO, on demand, never the default grouping
+            (D4). Renders only when ≥2 colleagues are in play. */}
+        {presentWho.length > 1 && (
           <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border shrink-0 overflow-x-auto">
             <button
-              onClick={() => setModelFilter(null)}
+              onClick={() => setWhoFilter(null)}
               className={cn(
                 'px-2 py-0.5 rounded-full text-[11px] whitespace-nowrap transition-colors',
-                modelFilter === null
+                whoFilter === null
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:text-foreground',
               )}
             >
               All
             </button>
-            {presentModels.map((m) => (
+            {presentWho.map((m) => (
               <button
                 key={m}
-                onClick={() => setModelFilter((cur) => (cur === m ? null : m))}
+                onClick={() => setWhoFilter((cur) => (cur === m ? null : m))}
                 className={cn(
                   'px-2 py-0.5 rounded-full text-[11px] whitespace-nowrap transition-colors',
-                  modelFilter === m
+                  whoFilter === m
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground hover:text-foreground',
                 )}
               >
-                {modelLabel(m)}
+                {m}
               </button>
             ))}
           </div>

@@ -5,38 +5,36 @@
  *
  * ADR-167 made `?agent={slug}` the canonical agent detail surface.
  * ADR-214 (2026-04-23) reversed ADR-201 — `/agents` is canonical again.
- * This route resolves the requested agent id and redirects into
- * `/agents?agent={slug}` so the product keeps one agent-detail implementation.
+ * This route forwards the requested agent into `/agents?agent={slug}` so the
+ * product keeps one agent-detail implementation.
+ *
+ * SIMPLIFIED 2026-07-16. This stub used to resolve the id → a slug against the
+ * `agents` DB table (via `useAgentsAndRecurrences`). That table is EMPTY
+ * (ADR-414 retired the last row), so the lookup could only ever miss — it was a
+ * spinner that always fell through. The param now passes STRAIGHT THROUGH: the
+ * surface matches it against the workspace's Agent folders + the kernel set and
+ * falls back to list mode when it matches nothing, which is the honest
+ * behaviour for a legacy id that no longer names anything.
+ * (The hook itself stays — /recurrence and /notifications are live consumers.)
+ *
+ * Preserved: `navigateToSurface` with the `agents.`-namespaced param — it keeps
+ * the OS shell on /desktop. A bare `router.replace('?agent=')` would be a
+ * pathname flip + an un-namespaced param: the ADR-308 orphaned-frame
+ * anti-pattern.
  */
 
 import { useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
-import { getAgentSlug } from '@/lib/agent-identity';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 
 export default function AgentIdRedirectPage() {
   const params = useParams<{ id: string }>();
-  // ADR-358 (2026-06-25): resolve the legacy id → slug client-side (we need
-  // the agent list to map it), then foreground the Agents window with the
-  // `agents.`-namespaced param via navigateToSurface — keeps the OS shell on
-  // /desktop. Pre-fix this router.replace-d a BARE `?agent=` (pathname flip +
-  // un-namespaced), the ADR-308 orphaned-frame anti-pattern.
   const { navigateToSurface } = useSurfacePreferences();
-  const { agents, loading } = useAgentsAndRecurrences({ pollInterval: 0, refreshOnFocus: false });
 
   useEffect(() => {
-    if (loading) return;
-
-    const agent = agents.find((item) => item.id === params.id || getAgentSlug(item) === params.id);
-    if (agent) {
-      navigateToSurface('agents', { agent: getAgentSlug(agent) });
-      return;
-    }
-
-    navigateToSurface('agents');
-  }, [agents, loading, params.id, navigateToSurface]);
+    navigateToSurface('agents', params.id ? { agent: params.id } : undefined);
+  }, [params.id, navigateToSurface]);
 
   return (
     <div className="h-full flex items-center justify-center">

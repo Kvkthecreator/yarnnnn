@@ -128,16 +128,22 @@ const LEGACY_SLUG_ALIASES: Record<string, string> = {
 // Slugs retired from the DOCK (kept/open/foregrounded) but NOT deleted as
 // surfaces — still URL-reachable + searchable. Unlike an alias (which remaps
 // to a live slug), a retired slug is DROPPED from persisted dock lists so a
-// stale pin stops rendering an icon. `agents` (2026-07-08): the A3 roster was
-// demoted to search-only (launch focus = the A2 chat lanes, the user's hands,
-// not the user's hire — ADR-380 Rung-2 deferral / ADR-414). A returning
-// operator who had "Keep in Dock"-ed agents would otherwise keep a stale icon,
-// since the dock is kept ∪ open (TopBarSurface) and search-only doesn't touch
-// it. Re-surfacing A3 later = flip the tier back AND remove it from this set.
+// stale pin stops rendering an icon.
+//
+// `agents` WAS here (2026-07-08 → 2026-07-16): the A3 roster was demoted to
+// search-only (launch focus = the A2 chat lanes, the user's hands, not the
+// user's hire — ADR-380 Rung-2 deferral / ADR-414), and that note said
+// "re-surfacing A3 later = flip the tier back AND remove it from this set."
+// REMOVED 2026-07-16 — the second half of that instruction, and the reason
+// the tier flip alone would have half-worked (a primary surface silently
+// dropped from every dock). Not the Rung-2 clock: hiring became the launch
+// focus at Rung 1, and ADR-460 dissolved the A2/A3 ladder that made a roster
+// "a second AI door". See docs/analysis/agents-surface-and-debt-2026-07-16.md.
+//
 // `system-agent` (ADR-454 D4, 2026-07-13): the ADR-426 door is reversed
 // (hidden registry row + redirect stub) — a persisted dock entry naming it
 // would render a dead icon (the ADR-385 ghost-icon lesson).
-const DOCK_RETIRED_SLUGS = new Set<string>(['agents', 'system-agent']);
+const DOCK_RETIRED_SLUGS = new Set<string>(['system-agent']);
 
 function normalizeSlug(slug: string): string {
   return LEGACY_SLUG_ALIASES[slug] ?? slug;
