@@ -1,6 +1,6 @@
 # ADR-463 — Capability, not Vendor: the model-agnostic carve
 
-> **Status**: **Accepted** (2026-07-16, operator-ratified). Implemented in phases P0–P2 (see §9); P3 is direction, gated on evidence.
+> **Status**: **Accepted + P0–P2 Implemented** (2026-07-16, operator-ratified). P3 is direction, gated on evidence (§6).
 > **Date**: 2026-07-16
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Mechanism** (Axiom 5 — which engine serves a capability) with a **Substrate** consequence (the tool surface an Agent reaches). The correction is Axiom-0-shaped: a single name (`WebSearch`) currently spans *capability* and *vendor*, and the fix is to cleave it.
@@ -132,12 +132,22 @@ Two honesty notes carried rather than papered over:
 
 ## 9. Sequencing
 
-1. **P0 — the dial is real.** Prefix `DEFAULT_ROUTES`; `model_routing.py` → `model_selection.py`; selection composes with transport.
-2. **P1 — capability, not vendor.** `services/capabilities.py` resolves search → a server. `WebSearch` asks for search.
-3. **P2 — `tools` is a field.** Scout gains `QueryKnowledge` + `WebSearch`. D4.a gated.
+1. **P0 — the dial is real.** ✅ **Implemented 2026-07-16.** Prefix `DEFAULT_ROUTES`; `model_routing.py` → `model_selection.py`; selection composes with transport.
+2. **P1 — capability, not vendor.** ✅ **Implemented 2026-07-16.** `services/capabilities.py` resolves search → a server. `WebSearch` asks for search.
+3. **P2 — `tools` is a field.** ✅ **Implemented 2026-07-16.** Scout gains `QueryKnowledge` + `WebSearch`. D4.a gated and **proven to bite**.
 4. **P3 — the biased wiring.** Direction only; **gated on evidence** of a real per-Agent output difference (§6).
 
 Cleanup ships **inside** each phase, never after (Singular Implementation): the migrated caller's direct import is **deleted in the same commit**, not left beside its replacement.
+
+### 9a. What implementation found that the audit did not
+
+Recorded because each was a decision, not a detail:
+
+- **The vendor weld had reached the COST layer.** The ledger hardcoded `model="claude-haiku-4-5-20251001"` at the `WebSearch` call site — true only while one vendor could ever serve a search. A second server would have priced Brave's search at Haiku's rate and nobody would have noticed. Fixed by the server reporting its own `ledger_model`. **The same id was repeated at three call sites plus that fourth copy: four answers to "which model serves a search" that happened to agree.**
+- **Two gates were enforcing the bug.** `assert route.model.startswith("claude-")` (in `test_adr402` and again in `test_adr408`'s flag test) would have failed the day someone routed a shape to Gemini — *the one thing the ADR-402 dial exists to allow*. `claude-` was never the rule; it was the current answer. Replaced with the real invariants: the table must carry a provider prefix; the steward's model must be `anthropic/*` (D3).
+- **A gate was reading its own documentation.** `test_adr408`'s boundary check grepped raw source with a `.replace("model_routing","")` hack to dodge the old module name. The rename killed the collision but not the flaw: these modules *discuss* the router in prose, so a text guard fires on the documentation of the rule it enforces. Replaced with an **AST import walk** — prose may explain the boundary, code may not cross it. Strictly stronger: it catches a real import at any depth.
+- **Singular Implementation vs the altitude boundary, in collision.** The first cut of `strip_provider` duplicated `model_router.ledger_model_name` (a dual implementation); the fix — re-export — put `model_router` on Freddie's import path and crossed ADR-408 D4 ("Altitude 1 never routes"). **The boundary wins**: the splitter lives in `model_selection`, and `ledger_model_name` delegates to it. One implementation, no crossing, dependency pointing the way the altitudes already do (transport may know selection; selection must not know transport).
+- **One server, one home.** `capabilities.py` names the seam; the Anthropic search body stays in `web_search.py`. Giving one server its own module to be lonely in would be architecture ahead of evidence (ADR-450: servers are data). The seam that matters is `serve_search`, not the file boundary.
 
 ## 10. One-line statement
 
