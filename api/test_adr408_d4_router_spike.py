@@ -27,6 +27,7 @@ route_completion's lazy import is part of what makes that possible).
 """
 from __future__ import annotations
 
+import ast
 import asyncio
 import os
 import sys
@@ -328,18 +329,41 @@ def test_flag_off_takes_legacy_anthropic_path():
 # ---------------------------------------------------------------------------
 
 def test_steward_path_is_router_free():
-    """Altitude 1 (Freddie) stays on services/model_routing.py (ADR-402,
+    """Altitude 1 (Freddie) stays on services/model_selection.py (ADR-402,
     Anthropic-only). The router is Altitude-2 machinery."""
-    for rel in ("agents/freddie_agent.py", "services/model_routing.py",
+    for rel in ("agents/freddie_agent.py", "services/model_selection.py",
                 "services/anthropic.py", "agents/occupant_contract.py"):
         src = (_API_ROOT / rel).read_text()
-        assert "model_router" not in src.replace("model_routing", ""), (
-            f"{rel} references the seat-level router — the steward never routes"
+        # Assert on IMPORTS, not on a substring of the file.
+        #
+        # This used to grep the raw source with a `.replace("model_routing", "")`
+        # hack to dodge a false match on the old module name. ADR-463 D1.a
+        # renamed that module to `model_selection`, so the collision is gone —
+        # but the deeper flaw remained: these modules DISCUSS the router in prose
+        # (model_selection.py's header now explains at length WHY Freddie does
+        # not route), so a text guard fires on the documentation of the very rule
+        # it enforces. Stripping comments line-by-line does not help either —
+        # module docstrings are multi-line.
+        #
+        # The rule was always about the DEPENDENCY, so read the dependency: parse
+        # the module and look at what it actually imports. Prose is free to
+        # explain the boundary; code may not cross it.
+        tree = ast.parse(src)
+        imported: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported.update(a.name for a in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported.add(node.module)
+        offenders = {m for m in imported if "model_router" in m}
+        assert not offenders, (
+            f"{rel} imports the seat-level router {offenders} — the steward never "
+            "routes (ADR-408 D4)"
         )
 
 
 def test_steward_routing_ignores_the_router_flag():
-    from services.model_routing import resolve_route
+    from services.model_selection import resolve_route
     _clear_flag()
     before = resolve_route("addressed", False)
     try:
@@ -347,7 +371,16 @@ def test_steward_routing_ignores_the_router_flag():
         assert resolve_route("addressed", False) == before
     finally:
         _clear_flag()
-    assert before.model.startswith("claude-")
+    # The test's point is the two asserts above: the flag does not move the
+    # steward's selection. This line asserted `startswith("claude-")` — a
+    # vendor assumption riding along on a flag test, and the second gate in this
+    # arc to encode the lock ADR-463 D1 removes. What belongs here is the
+    # steward's real invariant: whatever it selects, it is served DIRECTLY by
+    # Anthropic (ADR-463 D3 — prompt caching the transport cannot carry), so the
+    # provider half of the name is the thing to pin, not the model half.
+    assert before.model.startswith("anthropic/"), (
+        f"the steward's model is Anthropic-direct by ADR-463 D3, got {before.model!r}"
+    )
 
 
 # ---------------------------------------------------------------------------

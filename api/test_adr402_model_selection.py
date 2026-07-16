@@ -30,7 +30,7 @@ _API_ROOT = Path(__file__).resolve().parent
 if str(_API_ROOT) not in sys.path:
     sys.path.insert(0, str(_API_ROOT))
 
-from services.model_routing import (
+from services.model_selection import (
     DEFAULT_ROUTES,
     SHAPE_ADDRESSED,
     SHAPE_PROPOSAL,
@@ -66,17 +66,23 @@ def test_no_model_ids_in_occupant_contract():
     # name, not a model id — the regex targets real API model ids.
     hits = _MODEL_ID_RE.findall(src)
     assert not hits, f"raw model ids in occupant_contract.py: {hits}"
-    assert "model_routing" not in src, (
-        "occupant_contract.py must not import the routing module (pure data, "
+    assert "model_selection" not in src, (
+        "occupant_contract.py must not import the selection module (pure data, "
         "typing-only — ADR-315)"
     )
 
 
 def test_occupant_consumes_the_table():
     src = (_API_ROOT / "agents" / "freddie_agent.py").read_text()
-    assert "from services.model_routing import resolve_route" in src
+    assert "from services.model_selection import resolve_route" in src
     assert "route = resolve_route(trigger, is_recurrence_fire)" in src
-    assert "model = route.model" in src
+    # The occupant takes the table's model and its ceiling. It reads
+    # `route.model` (through strip_provider since ADR-463 D1 — the table names
+    # `provider/model`, the Anthropic SDK wants the bare id); what this asserts
+    # is that the value COMES FROM the route, not that it is spelled a
+    # particular way. The prior `"model = route.model" in src` failed on its own
+    # successor the moment the strip landed.
+    assert "route.model" in src
     assert "max_rounds = route.max_rounds" in src
     # The dead pre-ADR-402 constants stay deleted.
     for banned in ("_SONNET =", "_HAIKU =", "_CALLER_SONNET", "_CALLER_HAIKU",
@@ -87,7 +93,18 @@ def test_occupant_consumes_the_table():
 def test_table_covers_exactly_the_three_shapes():
     assert set(DEFAULT_ROUTES) == {SHAPE_ADDRESSED, SHAPE_PROPOSAL, SHAPE_RECURRENCE}
     for shape, route in DEFAULT_ROUTES.items():
-        assert route.model.startswith("claude-"), (shape, route.model)
+        # This asserted `route.model.startswith("claude-")` until ADR-463 D1 —
+        # a gate ENFORCING the vendor lock the ADR removes. It would have failed
+        # the day someone tried to route a shape to Gemini, which is the one
+        # thing the ADR-402 dial exists to allow.
+        #
+        # What is actually invariant: every value carries a provider prefix, so
+        # the table always says WHO serves a shape. That is what makes the dial
+        # real; `claude-` was never the rule, it was the current answer.
+        assert "/" in route.model, (
+            f"{shape}: {route.model!r} has no provider prefix — the table must be "
+            "able to name a foreign model (ADR-463 D1)"
+        )
         assert route.max_rounds >= 1, (shape, route.max_rounds)
 
 

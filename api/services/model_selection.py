@@ -1,4 +1,14 @@
-"""Model routing — the single model-selection site for the Freddie occupant (ADR-402).
+"""Model SELECTION — which model serves each Freddie trigger shape (ADR-402).
+
+⚠️ TWO MODULES, ONE JOB EACH (ADR-463 D1.a — this file was `model_routing.py`
+until 2026-07-16, one letter from `model_router.py` and never touching it):
+
+    services/model_selection.py  (this file) — WHICH model, for which wake.
+    services/model_router.py                 — HOW to call any model (LiteLLM
+                                               transport, provider-blind).
+
+They COMPOSE: selection names, transport calls. The old name made them read as
+rivals; a session reaching for one kept landing in the other.
 
 Which model tier + round budget serves each trigger shape is a routing
 DECISION — kernel config (data), not behavior scattered through the occupant's
@@ -16,6 +26,22 @@ table so:
   (`agents/occupant_contract.py`) remains the seam a future non-Anthropic
   occupant implements — this is deliberately a TABLE, not a provider
   abstraction.
+
+WHY THE VALUES CARRY PROVIDER PREFIXES (ADR-463 D1). They were bare Anthropic
+ids (`claude-sonnet-4-6`) — so the module whose ADR says "model routing is
+kernel DATA" could not spell a foreign model, and `YARNNN_MODEL_ADDRESSED=
+gemini/gemini-2.5-pro` would have been read from env and handed to the Anthropic
+SDK. **A dial whose every position is the same vendor is not a dial.** The
+prefix is the `provider/model` form LiteLLM and `LANE_MODELS` already speak.
+
+⚠️ AND WHAT IT DOES *NOT* MEAN. Freddie still calls Anthropic DIRECTLY, by
+decision, not by debt (ADR-463 D3): it uses `cache_control: ephemeral` (prompt
+caching — the saving accrues as platform margin, ADR-363) and beta
+`context_management`, and `model_router.py` carries NEITHER. Routing Freddie
+through the transport today would silently drop prompt caching on the system's
+most frequent LLM call — a cost regression wearing an architecture win. The
+prefix makes the table HONEST and the dial REAL; `strip_provider` is what keeps
+the Anthropic SDK fed until the transport can serve this caller without loss.
 
 Trigger shapes (the routing key — ADR-263's two triggers, with reactive split
 by its two context sub-shapes exactly as `invoke_freddie` differentiates them):
@@ -69,7 +95,7 @@ SHAPE_PROPOSAL = "proposal"
 SHAPE_RECURRENCE = "recurrence"
 
 #: The production routing table — the ONLY place model ids appear on the
-#: Freddie occupant path (gate: test_adr402_model_routing.py).
+#: Freddie occupant path (gate: test_adr402_model_selection.py).
 #:
 #: ADR-402 Part B decision (2026-07-03, stabilization prior): ONE model for
 #: all shapes. Evidence (docs/evaluations/2026-07-03-rung4-part{A,B}-*):
@@ -82,11 +108,44 @@ SHAPE_RECURRENCE = "recurrence"
 #: 3-round cap was a behavioral constraint contradicting trust-the-model —
 #: the ceiling is now uniform (the verdict-early ask rule is the proposal
 #: behavior control, ADR-403).
+#:
+#: ADR-463 D1: values are `provider/model` — the form LiteLLM, `LANE_MODELS`,
+#: and the Agent registry already speak. At N=1 this is byte-identical
+#: (`strip_provider` feeds the Anthropic SDK the same id it got before); what
+#: changes is that the table can now NAME a model it does not yet call.
 DEFAULT_ROUTES: dict[str, ModelRoute] = {
-    SHAPE_ADDRESSED: ModelRoute(model="claude-sonnet-4-6", max_rounds=20),
-    SHAPE_PROPOSAL: ModelRoute(model="claude-sonnet-4-6", max_rounds=20),
-    SHAPE_RECURRENCE: ModelRoute(model="claude-sonnet-4-6", max_rounds=20),
+    SHAPE_ADDRESSED: ModelRoute(model="anthropic/claude-sonnet-4-6", max_rounds=20),
+    SHAPE_PROPOSAL: ModelRoute(model="anthropic/claude-sonnet-4-6", max_rounds=20),
+    SHAPE_RECURRENCE: ModelRoute(model="anthropic/claude-sonnet-4-6", max_rounds=20),
 }
+
+
+#: `anthropic/claude-sonnet-4-6` → `claude-sonnet-4-6` — the seam between the
+#: table's honest name and a provider SDK that wants its own bare id. Freddie
+#: calls Anthropic directly (ADR-463 D3: prompt caching the transport cannot
+#: carry), so it selects a prefixed id and strips it at the call.
+#:
+#: WHERE THIS LIVES, AND WHY NOT IN model_router.py. `ledger_model_name` there
+#: does the identical split, and re-exporting it was the first attempt — it is
+#: the Singular-Implementation move. It was REVERSED: it puts
+#: `services.model_router` on Freddie's import path, and ADR-408 D4 is explicit
+#: that **Altitude 1 never routes** (model_router.py's own header: "freddie_agent
+#: must never import this module"). An architectural boundary outranks
+#: de-duplicating a one-line string split.
+#:
+#: So the split lives HERE, in the module both sides already depend on for the
+#: prefix convention, and `model_router.ledger_model_name` delegates to it —
+#: one implementation, no boundary crossed, and the dependency points the way
+#: the altitudes already do (transport may know selection; selection must not
+#: know transport).
+#:
+#: NOT a shim to remove later: a vendor SDK naming its own models without a
+#: prefix is correct on its side of the seam.
+def strip_provider(model: str) -> str:
+    """`anthropic/claude-sonnet-4-6` → `claude-sonnet-4-6`; bare names pass
+    through. The seam between the table's honest name and a provider SDK that
+    wants its own bare id. Pure."""
+    return model.split("/", 1)[1] if "/" in model else model
 
 
 def classify_shape(trigger: str, is_recurrence_fire: bool) -> str:

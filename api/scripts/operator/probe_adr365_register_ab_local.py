@@ -151,7 +151,7 @@ async def _run_arm(arm: str, system_prompt_blocks: list, user_msg: str) -> dict:
     """One model call. Returns the agent's text + tool calls (the prose to judge)."""
     from services.anthropic import chat_completion_with_tools
     from agents.freddie_agent import RETURN_VERDICT_TOOL
-    from services.model_routing import DEFAULT_ROUTES, SHAPE_ADDRESSED, SHAPE_PROPOSAL
+    from services.model_selection import DEFAULT_ROUTES, SHAPE_ADDRESSED, SHAPE_PROPOSAL
 
     # Minimal tool surface for the probe: just ReturnVerdict + WriteFile, so the
     # agent can close with a verdict and optionally write standing_intent — the

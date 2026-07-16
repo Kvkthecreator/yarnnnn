@@ -37,7 +37,7 @@ Per FOUNDATIONS v8.4:
   block. Alpha-author's instance is multi-signal corpus-coherence (ADR-283).
 
 Model selection by trigger sub-shape is kernel DATA (ADR-402): the routing
-table in `services/model_routing.py` is the single model-selection site —
+table in `services/model_selection.py` is the single model-selection site —
 no model ids or tier branches live in this module.
 """
 
@@ -49,7 +49,7 @@ import re
 from typing import Any, Literal, Optional, TypedDict
 
 from services.anthropic import chat_completion_with_tools, chat_completion_with_tools_stream
-from services.model_routing import resolve_route
+from services.model_selection import resolve_route, strip_provider
 # ADR-291: token_usage substrate sunset — cost ledger writes flow through
 # `record_execution_event()` in the dispatcher, fed by FreddieOutput fields.
 
@@ -72,7 +72,7 @@ logger = logging.getLogger(__name__)
 #: and imported + re-exported above. The occupant self-identity belongs with
 #: the published contract, not buried in the impl.
 #:
-#: ADR-402: model ids live in services/model_routing.py (the single
+#: ADR-402: model ids live in services/model_selection.py (the single
 #: model-selection site) — NOT here. The former per-tier model constants and
 #: the dead token-caller pair (assigned, never consumed — attribution flows
 #: through caller_identity, ADR-288 D1) are deleted.
@@ -868,7 +868,7 @@ async def invoke_freddie(
     from types import SimpleNamespace
 
     # ADR-402: model + round-ceiling selection is kernel data — the routing
-    # table in services/model_routing.py (single model-selection site,
+    # table in services/model_selection.py (single model-selection site,
     # env-overridable per deployment). Shape key: addressed | proposal |
     # recurrence. Sub-shape detection mirrors the pattern in
     # `_build_user_message`: presence of `recurrence_prompt`/`recurrence_slug`
@@ -878,7 +878,16 @@ async def invoke_freddie(
     ) if isinstance(context, dict) else False
 
     route = resolve_route(trigger, is_recurrence_fire)
-    model = route.model
+    # ADR-463 D1: the table names `provider/model` so it can spell a foreign
+    # model; the Anthropic SDK wants its own bare id. Stripped at the one seam
+    # (this is the sole assignment; three call sites read it).
+    #
+    # Freddie does NOT route through model_router — by decision, not debt
+    # (ADR-463 D3): this loop uses `cache_control: ephemeral` (prompt caching,
+    # ADR-363) and beta `context_management`, and the transport carries
+    # neither. Routing it today would silently drop caching on the system's
+    # most frequent LLM call. ADR-408 D4 holds: Altitude 1 never routes.
+    model = strip_provider(route.model)
 
     # Build auth namespace with freddie_caller flag — handlers consult this
     # for ADR-258 D9 lock enforcement on operator-shared substrate.
@@ -944,7 +953,7 @@ async def invoke_freddie(
         # model — a COST CEILING, not a behavioral constraint (trust-the-model:
         # the model decides when it's done via ReturnVerdict; the budget caps
         # cost-per-wake). Per-shape values + their population-audit history
-        # live with the table in services/model_routing.py. The fallback below
+        # live with the table in services/model_selection.py. The fallback below
         # (verdict_raw is None) is the safety net for the rare case the model
         # truly can't synthesize within budget.
         max_rounds = route.max_rounds

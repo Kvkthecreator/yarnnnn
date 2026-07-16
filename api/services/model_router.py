@@ -8,7 +8,7 @@ plumbing exists — call sites stay provider-blind by passing a
 Scope discipline (the altitude boundary):
 
 - **Altitude 1 (the steward) never routes.** Freddie's model selection is
-  ``services/model_routing.py`` (ADR-402, Anthropic-only) and the occupant
+  ``services/model_selection.py`` (ADR-402; Anthropic-direct by ADR-463 D3) and the occupant
   contract seam (ADR-315). ``agents/freddie_agent.py`` must never import
   this module — the gate test enforces it.
 - **Altitude 2 (seat-level helpers) routes here.** First call site:
@@ -62,7 +62,7 @@ logger = logging.getLogger(__name__)
 
 def model_router_enabled() -> bool:
     """Read the flag at call time (no import-time freeze — same pattern as
-    model_routing.py env overrides and CONNECTOR_CAPTURE_ENABLED)."""
+    model_selection.py env overrides and CONNECTOR_CAPTURE_ENABLED)."""
     return os.environ.get("MODEL_ROUTER_ENABLED", "").strip().lower() in (
         "1", "true", "yes", "on",
     )
@@ -100,8 +100,15 @@ def ledger_model_name(model: str) -> str:
 
     ``anthropic/claude-haiku-4-5-20251001`` → ``claude-haiku-4-5-20251001``
     (hits the existing _BILLING_RATES row); bare names pass through.
+
+    ONE splitter (ADR-463 D1.a): the implementation lives in
+    ``services/model_selection.py`` because Freddie needs it and must not import
+    THIS module (ADR-408 D4 — Altitude 1 never routes). Transport may depend on
+    selection; selection may not depend on transport. This name stays because
+    the ledger's reason to strip is its own (it records a model, not a route).
     """
-    return model.split("/", 1)[1] if "/" in model else model
+    from services.model_selection import strip_provider
+    return strip_provider(model)
 
 
 def _usage_int(usage: Any, key: str) -> int:

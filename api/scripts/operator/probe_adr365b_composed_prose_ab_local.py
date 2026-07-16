@@ -111,7 +111,7 @@ async def _compose(arm: str, system_text: str) -> dict:
     """One model call → the composed standing_intent text."""
     from services.anthropic import chat_completion_with_tools
     from agents.freddie_agent import RETURN_VERDICT_TOOL
-    from services.model_routing import DEFAULT_ROUTES, SHAPE_ADDRESSED, SHAPE_PROPOSAL
+    from services.model_selection import DEFAULT_ROUTES, SHAPE_ADDRESSED, SHAPE_PROPOSAL
 
     write_tool = {
         "name": "WriteFile",
@@ -166,7 +166,7 @@ Document to score:
 
 async def _judge(text: str) -> dict:
     from services.anthropic import chat_completion_with_tools
-    from services.model_routing import DEFAULT_ROUTES, SHAPE_PROPOSAL
+    from services.model_selection import DEFAULT_ROUTES, SHAPE_PROPOSAL
 
     resp = await chat_completion_with_tools(
         model=DEFAULT_ROUTES[SHAPE_PROPOSAL].model,  # stronger model judges
