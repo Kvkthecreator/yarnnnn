@@ -228,6 +228,45 @@ def parse_agent_manifest(content: Optional[str]) -> Optional[dict]:
     }
 
 
+def _engine_label(model: str) -> str:
+    """The engine's human label ("GPT-5"), or "" — pure.
+
+    The operator's rule (2026-07-16): a nickname must still say what it IS —
+    "at the minimum the model and agent role". So the technical fact stays
+    VISIBLE, it just stops being the headline: identity leads, `role · engine`
+    rides quietly behind it. This is not a re-opening of the spec sheet — the
+    chooser still never ASKS an engine question (ADR-460 D4); it reports one.
+    """
+    from services.lane_runner import LANE_MODELS
+    return (LANE_MODELS.get(model) or {}).get("label", "")
+
+
+def _resolve_avatar_url(client: Any, user_id: str, avatar_path: str) -> str:
+    """The avatar's `content_url` — the FE resolves it to a signed URL.
+
+    The manifest stores a workspace PATH (what the member uploaded); the image
+    BYTES live out-of-band in the ADR-395 bucket, reachable through the file
+    row's `content_url`. The FE can't send a Bearer header from an <img src>,
+    so it exchanges this reference for a fresh signed URL
+    (`api.documents.blobUrl` — the FileTile pattern). Read-only, best-effort:
+    a missing avatar is a fallback initial, never a broken card.
+    """
+    if not avatar_path:
+        return ""
+    try:
+        rows = (
+            client.table("workspace_files")
+            .select("content_url")
+            .eq("path", avatar_path)
+            .limit(1)
+            .execute()
+        ).data or []
+        return (rows[0].get("content_url") or "") if rows else ""
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("[AGENTS] avatar resolve failed for %s: %s", avatar_path, exc)
+        return ""
+
+
 def find_member_agents(client: Any, user_id: str) -> list[dict]:
     """Discover the workspace's member-authored Agents (the ADR-449 mechanic).
 
@@ -272,6 +311,8 @@ def find_member_agents(client: Any, user_id: str) -> list[dict]:
                 "icon": base["icon"],
                 "color": manifest["color"],
                 "avatar": manifest["avatar"],
+                # The image reference the FE trades for a signed URL.
+                "avatar_url": _resolve_avatar_url(client, user_id, manifest["avatar"]),
                 "model": manifest["model"],
                 "based_on": manifest["based_on"],
                 "tone": manifest["tone"],
@@ -327,14 +368,24 @@ def list_agents(member_agents: Optional[list[dict]] = None) -> list[dict]:
     mine = [
         {"slug": a["slug"], "name": a["name"], "blurb": a["blurb"],
          "icon": a["icon"], "color": a.get("color") or "",
-         "avatar": a.get("avatar") or "", "based_on": a.get("based_on") or "",
-         "tone": a.get("tone") or "", "kernel": False}
+         "avatar": a.get("avatar") or "",
+         "avatar_url": a.get("avatar_url") or "",
+         "based_on": a.get("based_on") or "",
+         "tone": a.get("tone") or "",
+         # The operator's ask: a nickname must still say what it IS. `role` is
+         # the capability's name (Critic); `engine` is the model's label
+         # (GPT-5). Identity leads, the technical fact rides quietly behind it.
+         "role": (KERNEL_AGENTS.get(a.get("based_on") or "") or {}).get("name", ""),
+         "engine": _engine_label(a.get("model") or ""),
+         "kernel": False}
         for a in (member_agents or [])
     ]
     theirs = [
         {"slug": a["slug"], "name": a["name"], "blurb": a["blurb"],
-         "icon": a["icon"], "color": "", "avatar": "", "based_on": a["slug"],
-         "tone": "", "kernel": True}
+         "icon": a["icon"], "color": "", "avatar": "", "avatar_url": "",
+         "based_on": a["slug"], "tone": "",
+         "role": a["name"], "engine": _engine_label(a["model"]),
+         "kernel": True}
         for a in KERNEL_AGENTS.values()
     ]
     return mine + theirs

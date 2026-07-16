@@ -14,6 +14,7 @@ What it protects, in priority order:
 Spec: docs/analysis/agent-registry-spec-2026-07-16.md
 """
 
+import re
 import sys
 from pathlib import Path
 
@@ -311,11 +312,15 @@ def run() -> bool:
     ).read_text()
     # Strip the header comment: it NAMES the anti-pattern (deliberately, so the
     # next reader knows why the control is absent). The check is on the code.
-    body = card.split("*/", 1)[-1]
+    # Strip EVERY comment, not just the header: the file legitimately discusses
+    # the anti-pattern in prose ("the chooser never ASKS an engine question"
+    # matched the `never ask` needle — a substring guard over-matching innocent
+    # words, the known trap). Assert on CODE.
+    body = re.sub(r"/\*.*?\*/|//[^\n]*", "", card, flags=re.DOTALL).lower()
     for word in ("authority", "autonomy", "consequential", "mandate", "scopes", "never ask"):
         _check(
             f"the hiring card has no `{word}` control",
-            word not in body.lower(),
+            word not in body,
         )
     _check(
         "…and states what they CAN'T do as prose (a fact, not a switch)",
@@ -359,9 +364,9 @@ def run() -> bool:
     surface = (web / "components" / "agents" / "AgentsSurface.tsx").read_text()
     # The same cliff, on the new surface. This is where a persona-seat pane
     # would arrive by accident.
-    body = surface.split("*/", 1)[-1]
+    sbody = re.sub(r"/\*.*?\*/|//[^\n]*", "", surface, flags=re.DOTALL).lower()
     for word in ("authority", "autonomy", "consequential", "mandate", "scopes", "never ask"):
-        _check(f"the /agents surface has no `{word}` control", word not in body.lower())
+        _check(f"the /agents surface has no `{word}` control", word not in sbody)
     _check(
         "…and states the limit as prose (a fact about a colleague, not a switch)",
         "can&apos;t send email" in surface,
@@ -406,6 +411,51 @@ def run() -> bool:
     _check(
         "the lane facet filters by WHO, not by engine (the last spec-sheet surface)",
         "whoFilter" in chat and "modelFilter" not in chat,
+    )
+
+    print("\n── 13. the face is a PICTURE; the row says WHO, then what ──")
+    face = (web / "components" / "agents" / "AgentFace.tsx").read_text()
+    _check(
+        "the face renders an uploaded image (not a colour swatch)",
+        "blobUrl" in face and "<img" in face,
+    )
+    _check(
+        "…falling back to an initial, never a broken image",
+        "onError={() => setFailed(true)}" in face,
+    )
+    card = (web / "components" / "chat-surface" / "AgentCard.tsx").read_text()
+    _check(
+        "the hiring card has NO colour picker (a face is a picture)",
+        "SWATCH" not in card and "Colour" not in card,
+    )
+    _check(
+        "…and previews the picture the member just chose",
+        "URL.createObjectURL(file)" in card,
+    )
+    _check(
+        "the capability REPORTS its engine (a nickname must say what it IS)",
+        "runs on {hired.engine}" in card,
+    )
+    _check(
+        "the registry serves role + engine + avatar_url",
+        '"role":' in reg_src and '"engine": _engine_label' in reg_src
+        and '"avatar_url"' in reg_src,
+    )
+    _check(
+        "the chat row leads with the face, then name, then role · engine",
+        "<AgentFace" in chat and "laneSubLabel(lane)" in chat,
+    )
+    _check(
+        "the create form asks WHO (the faces ARE the form — no name field)",
+        "Who do you want to talk to?" in chat and "newName" not in chat,
+    )
+    _check(
+        "BOUND lanes leave the /chat list (the seam's plank 3, ruled)",
+        "if not include_bound:" in routes,
+    )
+    _check(
+        "…and Studio still sees its own",
+        "api.lanes.list(true)" in (web / "components" / "studio" / "StudioSurface.tsx").read_text(),
     )
 
     ok = all(c for _, c in _results)

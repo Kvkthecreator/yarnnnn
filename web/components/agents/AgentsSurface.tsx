@@ -35,6 +35,7 @@ import { Loader2, Pencil, Plus, Users } from 'lucide-react';
 import { AgentCard } from '@/components/chat-surface/AgentCard';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { AgentFace } from './AgentFace';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 
@@ -43,35 +44,16 @@ interface AgentInfo {
   name: string;
   blurb: string;
   icon: string;
-  color?: string;
   avatar?: string;
+  /** The image reference the FE trades for a signed URL (ADR-395). */
+  avatar_url?: string;
+  /** The capability's name + the engine's label — the technical fact, visible. */
+  role?: string;
+  engine?: string;
   based_on?: string;
   tone?: string;
   /** kernel = a built-in capability you can hire; false = one you named. */
   kernel?: boolean;
-}
-
-const SWATCH: Record<string, string> = {
-  violet: 'bg-violet-500',
-  blue: 'bg-blue-500',
-  emerald: 'bg-emerald-500',
-  amber: 'bg-amber-500',
-  rose: 'bg-rose-500',
-};
-
-function Face({ agent, size = 'md' }: { agent: AgentInfo; size?: 'md' | 'lg' }) {
-  const px = size === 'lg' ? 'w-12 h-12 text-base' : 'w-9 h-9 text-xs';
-  return (
-    <span
-      className={cn(
-        'rounded-full grid place-items-center shrink-0 font-medium text-white',
-        px,
-        SWATCH[agent.color ?? ''] ?? 'bg-muted-foreground/40',
-      )}
-    >
-      {agent.name.slice(0, 1).toUpperCase()}
-    </span>
-  );
 }
 
 export function AgentsSurface() {
@@ -135,7 +117,7 @@ export function AgentsSurface() {
           </button>
 
           <div className="flex items-center gap-3">
-            <Face agent={active} size="lg" />
+            <AgentFace name={active.name} avatarUrl={active.avatar_url} size="lg" />
             <div className="min-w-0">
               <h2 className="text-lg font-medium">{active.name}</h2>
               <p className="text-xs text-muted-foreground">{active.blurb}</p>
@@ -160,8 +142,8 @@ export function AgentsSurface() {
                 name: active.name,
                 based_on: active.based_on ?? '',
                 tone: active.tone,
-                color: active.color,
                 avatar: active.avatar,
+                avatar_url: active.avatar_url,
               }}
               onCancel={() => setHiring(null)}
               onDone={() => {
@@ -188,6 +170,10 @@ export function AgentsSurface() {
                   {active.kernel === false ? (base?.name ?? active.based_on) : active.name}
                   {base && active.kernel === false ? ` — ${base.blurb}` : ''}
                 </p>
+                {/* The technical fact — visible, never the headline. */}
+                {active.engine && (
+                  <p className="text-xs text-muted-foreground/70">Runs on {active.engine}</p>
+                )}
               </section>
 
               {/* What they CAN'T do — prose, never a switch (spec §5). A true
@@ -250,7 +236,7 @@ export function AgentsSurface() {
                   onClick={() => setParam({ agent: a.slug })}
                   className="w-full flex items-center gap-3 p-2 rounded-md border border-border hover:bg-muted/50 text-left transition-colors"
                 >
-                  <Face agent={a} />
+                  <AgentFace name={a.name} avatarUrl={a.avatar_url} />
                   <span className="min-w-0">
                     <span className="block text-sm">{a.name}</span>
                     <span className="block text-xs text-muted-foreground truncate">
@@ -278,10 +264,15 @@ export function AgentsSurface() {
                 onClick={() => setParam({ agent: a.slug })}
                 className="w-full flex items-center gap-3 p-2 rounded-md border border-border hover:bg-muted/50 text-left transition-colors"
               >
-                <Face agent={a} />
+                <AgentFace name={a.name} avatarUrl={a.avatar_url} />
                 <span className="min-w-0">
                   <span className="block text-sm">{a.name}</span>
                   <span className="block text-xs text-muted-foreground">{a.blurb}</span>
+                  {a.engine && (
+                    <span className="block text-[10px] text-muted-foreground/60">
+                      {a.engine}
+                    </span>
+                  )}
                 </span>
               </button>
             ))}

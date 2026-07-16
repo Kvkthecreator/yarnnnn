@@ -30,11 +30,17 @@ import { useState } from 'react';
 import { Loader2, Upload, X } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { AgentFace } from '@/components/agents/AgentFace';
 
 interface KernelChoice {
   slug: string;
   name: string;
   blurb: string;
+  /** The engine's label (e.g. "GPT-5") — the technical fact, kept VISIBLE.
+   *  The operator's rule: a nickname must still say what it IS, at minimum
+   *  the model and the role. The chooser still never ASKS an engine question
+   *  (ADR-460 D4); it REPORTS one. */
+  engine?: string;
   /** Optional to match the envelope's shape; the caller filters to kernel rows. */
   kernel?: boolean;
 }
@@ -48,29 +54,21 @@ interface AgentCardProps {
     name: string;
     based_on: string;
     tone?: string;
-    color?: string;
     avatar?: string;
+    /** The resolved image reference, for the preview well. */
+    avatar_url?: string;
   } | null;
   onDone: () => void;
   onCancel: () => void;
 }
 
-const COLORS = ['violet', 'blue', 'emerald', 'amber', 'rose'];
-
-const SWATCH: Record<string, string> = {
-  violet: 'bg-violet-500',
-  blue: 'bg-blue-500',
-  emerald: 'bg-emerald-500',
-  amber: 'bg-amber-500',
-  rose: 'bg-rose-500',
-};
-
 export function AgentCard({ choices, existing, onDone, onCancel }: AgentCardProps) {
   const [name, setName] = useState(existing?.name ?? '');
   const [basedOn, setBasedOn] = useState(existing?.based_on ?? choices[0]?.slug ?? '');
   const [tone, setTone] = useState(existing?.tone ?? '');
-  const [color, setColor] = useState(existing?.color ?? COLORS[0]);
   const [avatar, setAvatar] = useState(existing?.avatar ?? '');
+  // The uploaded image, resolved for preview (the picture, not a swatch).
+  const [avatarUrl, setAvatarUrl] = useState(existing?.avatar_url ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,6 +88,9 @@ export function AgentCard({ choices, existing, onDone, onCancel }: AgentCardProp
         return;
       }
       setAvatar(first.workspace_path);
+      // Preview immediately from the local file — the member SEES the picture
+      // they picked, without waiting for a round-trip through the bucket.
+      setAvatarUrl(URL.createObjectURL(file));
     } catch {
       setError('That image could not be uploaded');
     }
@@ -104,7 +105,6 @@ export function AgentCard({ choices, existing, onDone, onCancel }: AgentCardProp
         name: name.trim(),
         based_on: basedOn,
         ...(tone.trim() ? { tone: tone.trim() } : {}),
-        ...(color ? { color } : {}),
         ...(avatar ? { avatar } : {}),
       };
       if (existing) await api.lanes.editAgent(existing.slug, body);
@@ -141,8 +141,8 @@ export function AgentCard({ choices, existing, onDone, onCancel }: AgentCardProp
           )}
           title="Upload a picture"
         >
-          {avatar ? (
-            <span className={cn('w-full h-full', SWATCH[color] ?? 'bg-muted')} />
+          {avatarUrl ? (
+            <AgentFace name={name || '?'} avatarUrl={avatarUrl} size="lg" />
           ) : (
             <Upload className="w-4 h-4 text-muted-foreground" />
           )}
@@ -191,7 +191,14 @@ export function AgentCard({ choices, existing, onDone, onCancel }: AgentCardProp
             </button>
           ))}
         </div>
-        {hired && <p className="text-xs text-muted-foreground">{hired.blurb}</p>}
+        {hired && (
+          <p className="text-xs text-muted-foreground">
+            {hired.blurb}
+            {hired.engine && (
+              <span className="text-muted-foreground/60"> · runs on {hired.engine}</span>
+            )}
+          </p>
+        )}
       </div>
 
       {/* Tone — theirs, in their own words. */}
@@ -204,23 +211,6 @@ export function AgentCard({ choices, existing, onDone, onCancel }: AgentCardProp
           placeholder="Warm and direct. Skips preamble. Calls me Kev."
           className="w-full resize-none rounded border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
         />
-      </div>
-
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">Colour</span>
-        {COLORS.map((c) => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => setColor(c)}
-            aria-label={c}
-            className={cn(
-              'w-4 h-4 rounded-full transition-transform',
-              SWATCH[c],
-              color === c && 'ring-2 ring-offset-1 ring-foreground/40 scale-110',
-            )}
-          />
-        ))}
       </div>
 
       {/* WHAT THEY CAN'T DO — prose, not a switch. This is the ADR-460 D3.a

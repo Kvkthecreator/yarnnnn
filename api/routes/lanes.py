@@ -141,7 +141,7 @@ def _get_lane(auth: UserClient, lane_id: str) -> dict:
 
 
 @router.get("/lanes")
-async def list_lanes(auth: UserClient) -> dict:
+async def list_lanes(auth: UserClient, include_bound: bool = False) -> dict:
     """The lane list + capability envelope. `enabled` gates the FE strip —
     lanes exist only where the ADR-408 D4 router is live."""
     from services.lane_runner import LANE_MODELS
@@ -161,7 +161,21 @@ async def list_lanes(auth: UserClient) -> dict:
         ws = _acting_workspace(auth)
         if ws:
             q = q.eq("workspace_id", ws)
-        lanes = [_lane_row_to_dict(r) for r in (q.execute().data or [])]
+        rows = q.execute().data or []
+        # The seam-contract's plank 3, RULED 2026-07-16: a BOUND lane leaves
+        # the /chat list. /chat is Think; a lane bound to an artifact is
+        # Make-work with a text interface, and it lives where the artifact
+        # does (Studio opens it by artifact_path). Live receipt for why: all 7
+        # active lanes were bound, so the Think surface was a list of six
+        # deck.html/page.html rows and one actual conversation. Grouping them
+        # under a header would be the seam leak wearing a hat.
+        # `?include_bound=1` serves Studio's own reads unchanged.
+        if not include_bound:
+            rows = [
+                r for r in rows
+                if not ((r.get("context_metadata") or {}).get("lane") or {}).get("artifact_path")
+            ]
+        lanes = [_lane_row_to_dict(r) for r in rows]
 
     from services.derive_recipes import list_recipes
 

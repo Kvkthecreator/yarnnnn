@@ -249,7 +249,10 @@ export const api = {
   // member over the shared workspace. `enabled` reflects MODEL_ROUTER_ENABLED
   // server-side; the drawer shows the lane strip only when true.
   lanes: {
-    list: () =>
+    /** `includeBound` (2026-07-16): bound (Studio) lanes leave the /chat list —
+     *  /chat is Think; a bound lane is Make-work with a text interface and
+     *  lives where its artifact does. Studio passes true to see its own. */
+    list: (includeBound = false) =>
       request<{
         enabled: boolean;
         /** ADR-460 D4 — the chooser: named colleagues, not a spec sheet. */

@@ -27,6 +27,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Archive, Loader2, MessageCircle, Pencil, Pin, Plus, Search, X } from 'lucide-react';
 import { LanePanel } from './LanePanel';
+import { AgentFace } from '@/components/agents/AgentFace';
 import { api } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
@@ -57,6 +58,11 @@ interface LaneData {
   agents?: Array<{
     slug: string; name: string; blurb: string; icon: string;
     color?: string; avatar?: string; based_on?: string; tone?: string;
+    /** The image reference the FE trades for a signed URL (ADR-395). */
+    avatar_url?: string;
+    /** The capability's name (Critic) + the engine's label (GPT-5) — the
+     *  technical fact stays VISIBLE, it just isn't the headline. */
+    role?: string; engine?: string;
     /** kernel = a built-in capability; false = one the member hired + named. */
     kernel?: boolean;
   }>;
@@ -73,8 +79,6 @@ export function ChatSurface() {
   const [data, setData] = useState<LaneData | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newAgent, setNewAgent] = useState('');
   // D4 — the FILTER facet (null = all lanes, the default view). ADR-460: it
   // filters by WHO you talked to, not by which engine ran — the last
   // spec-sheet surface in chat, re-axed. A lane with no agent (pre-registry,
@@ -113,7 +117,6 @@ export function ChatSurface() {
       .then((res) => {
         if (cancelled) return;
         setData(res as LaneData);
-        if (res.agents?.length) setNewAgent((a) => a || res.agents![0].slug);
       })
       .catch(() => !cancelled && setData(null))
       .finally(() => !cancelled && setLoading(false));
@@ -128,13 +131,31 @@ export function ChatSurface() {
   );
 
   // ADR-460 D4 — a lane is named by WHO it talks to. Falls back to the engine
-  // label for pre-registry lanes and Studio/derive lanes: those genuinely ARE
-  // a model doing a job, so naming them by their engine is honest, not a gap.
+  // label for pre-registry lanes: those genuinely ARE a model doing a job, so
+  // naming them by their engine is honest, not a gap.
+  const laneAgent = useCallback(
+    (lane: { agent?: string | null }) =>
+      (lane.agent && data?.agents?.find((a) => a.slug === lane.agent)) || null,
+    [data],
+  );
   const laneLabel = useCallback(
     (lane: { agent?: string | null; model: string }) =>
-      (lane.agent && data?.agents?.find((a) => a.slug === lane.agent)?.name) ||
-      modelLabel(lane.model),
-    [data, modelLabel],
+      laneAgent(lane)?.name || modelLabel(lane.model),
+    [laneAgent, modelLabel],
+  );
+  // The second line: `role · engine`. The operator's rule — a nickname must
+  // still say what it IS, at minimum the model and the role. Identity leads;
+  // the technical fact rides quietly behind it. A lane with no agent shows its
+  // engine alone, which is honest: that IS what it is.
+  const laneSubLabel = useCallback(
+    (lane: { agent?: string | null; model: string }) => {
+      const a = laneAgent(lane);
+      if (!a) return modelLabel(lane.model);
+      return [a.kernel === false ? a.role : null, a.engine || modelLabel(lane.model)]
+        .filter(Boolean)
+        .join(' · ');
+    },
+    [laneAgent, modelLabel],
   );
 
   // Flat recents — pinned first (Phase-A hygiene), then updated_at desc
@@ -199,33 +220,27 @@ export function ChatSurface() {
   // WindowFrame / any future consumer has the data; only the OS strip hides.)
   useSelfLocatedSurface('chat', true);
 
-  const createLane = useCallback(async () => {
-    // Phase-A hygiene: the name is optional — a nameless lane auto-names
-    // from its first message (server-side, mechanical).
-    const name = newName.trim();
-    if (!newAgent) return;
+  const createLane = useCallback(async (agentSlug: string) => {
+    if (!agentSlug) return;
     try {
       // ADR-460 D4 — send WHO. The engine resolves server-side (the slug is
       // the face, the model is the fact; the fact comes back on the response).
-      const lane = await api.lanes.create({
-        ...(name ? { name } : {}),
-        agent: newAgent,
-      });
+      // No name: a lane auto-names from its first message (Phase-A hygiene).
+      const lane = await api.lanes.create({ agent: agentSlug });
       const info: LaneInfo = {
         id: lane.id,
         name: lane.name,
         model: lane.model,
-        agent: lane.agent ?? newAgent,
+        agent: lane.agent ?? agentSlug,
         updated_at: new Date().toISOString(),
       };
       setData((d) => (d ? { ...d, lanes: [...d.lanes, info] } : d));
       setParam({ lane: info.id });
       setCreating(false);
-      setNewName('');
     } catch {
       // Creation failure (limit, router off) — keep the form open.
     }
-  }, [newName, newAgent, setParam]);
+  }, [setParam]);
 
   const archiveLane = useCallback(
     async (laneId: string) => {
@@ -302,47 +317,46 @@ export function ChatSurface() {
     );
   }
 
+  // Starting a chat = choosing WHO to talk to. This replaced an inline row — a
+  // name input, chips, and a Create button crammed side by side in a toolbar
+  // (the pre-registry create form with new words in it). Fresh eyes: the
+  // question is "who do you want to talk to?", so THE FACES ARE THE FORM. The
+  // name field is dropped entirely — a lane auto-names from its first message
+  // (Phase-A hygiene), so asking for one up front was a field the member had
+  // no answer to yet.
   const createForm = creating && (
-    <div className="flex items-center gap-1.5 p-2 border-b border-border bg-muted/30 shrink-0">
-      <input
-        value={newName}
-        onChange={(e) => setNewName(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') void createLane();
-          if (e.key === 'Escape') setCreating(false);
-        }}
-        placeholder="Name (optional — set from first message)"
-        className="flex-1 min-w-0 rounded border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-        autoFocus
-      />
-      {/* ADR-460 D4 — the chooser asks WHO, not which engine. This replaced a
-          <select> of "Claude Sonnet | GPT-5 | Gemini Flash…" — a spec sheet
-          that asked the member to know which engine is good at what, before
-          the first message, when they know least. The blurb is the title: the
-          answer to "who should I pick?" is readable on hover, not learned. */}
-      {(data.agents ?? []).map((a) => (
+    <div className="p-3 border-b border-border bg-muted/30 shrink-0 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium">Who do you want to talk to?</span>
         <button
-          key={a.slug}
           type="button"
-          onClick={() => setNewAgent(a.slug)}
-          title={a.blurb}
-          className={cn(
-            'px-2 py-1 rounded border text-xs transition-colors shrink-0',
-            newAgent === a.slug
-              ? 'border-primary bg-primary/10 text-foreground'
-              : 'border-input text-muted-foreground hover:text-foreground hover:bg-muted',
-          )}
+          onClick={() => setCreating(false)}
+          className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+          aria-label="Cancel"
         >
-          {a.name}
+          <X className="w-3.5 h-3.5" />
         </button>
-      ))}
-      <button
-        onClick={() => void createLane()}
-        disabled={!newAgent}
-        className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs disabled:opacity-40"
-      >
-        Create
-      </button>
+      </div>
+      <div className="space-y-1">
+        {(data?.agents ?? []).map((a) => (
+          <button
+            key={a.slug}
+            type="button"
+            onClick={() => void createLane(a.slug)}
+            className="w-full flex items-center gap-2.5 p-1.5 rounded-md hover:bg-background text-left transition-colors"
+          >
+            <AgentFace name={a.name} avatarUrl={a.avatar_url} size="sm" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs">{a.name}</span>
+              <span className="block text-[10px] text-muted-foreground truncate">
+                {a.kernel === false
+                  ? [a.role, a.engine].filter(Boolean).join(' · ')
+                  : a.blurb}
+              </span>
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 
@@ -464,9 +478,21 @@ export function ChatSurface() {
               onClick={() => setParam({ lane: lane.id })}
               className={cn(
                 'w-full text-left px-3 py-2.5 border-b border-border/50 transition-colors group',
+                'flex items-start gap-2.5',
                 activeLaneId === lane.id ? 'bg-muted' : 'hover:bg-muted/50',
               )}
             >
+              {/* The colleague's face leads the row — you scan for WHO, not for
+                  which engine ran (the shipped list showed "Claude Sonnet" on
+                  every row: the spec sheet, surviving where it was least
+                  visible). */}
+              <AgentFace
+                name={laneLabel(lane)}
+                avatarUrl={laneAgent(lane)?.avatar_url}
+                size="md"
+                className="mt-0.5"
+              />
+              <span className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-1">
                 <span className="text-sm font-medium truncate flex items-center gap-1">
                   {lane.pinned && (
@@ -524,10 +550,15 @@ export function ChatSurface() {
                 </span>
               </div>
               <div className="flex items-center gap-2 mt-0.5">
-                {/* D4 — the helper is a chip on the row, never the namespace.
-                    ADR-460: it names WHO (the Agent), falling back to the engine. */}
-                <span className="px-1.5 py-px rounded-full bg-muted text-[10px] text-muted-foreground">
+                {/* The colleague, then the technical fact — "Lisa · Critic ·
+                    GPT-5". The operator's rule: a nickname must still say what
+                    it IS (at minimum the role + the model). Identity leads; the
+                    spec rides quietly behind it. */}
+                <span className="text-[11px] text-foreground/70 truncate">
                   {laneLabel(lane)}
+                </span>
+                <span className="text-[10px] text-muted-foreground/70 truncate">
+                  {laneSubLabel(lane)}
                 </span>
                 {(lane.updated_at ?? lane.created_at) && (
                   <span className="text-[10px] text-muted-foreground/60">
@@ -535,6 +566,7 @@ export function ChatSurface() {
                   </span>
                 )}
               </div>
+              </span>
             </button>
             ),
           )}

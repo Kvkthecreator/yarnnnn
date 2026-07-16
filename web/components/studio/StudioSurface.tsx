@@ -202,7 +202,8 @@ export function StudioSurface() {
 
   const refreshLanes = useCallback(async () => {
     try {
-      const res = await api.lanes.list();
+      // Studio's lanes ARE the bound ones — they left the /chat list, not this one.
+      const res = await api.lanes.list(true);
       setLanesEnabled(res.enabled);
       setModels(res.models);
       setLanes(res.lanes as LaneInfo[]);
