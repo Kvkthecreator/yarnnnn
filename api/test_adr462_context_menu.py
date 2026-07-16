@@ -92,6 +92,29 @@ def main() -> bool:
         "background: #6366f1;\n  border-radius: 2px; pointer-events: none;" in proj,
     )
 
+    print("\n── D8: the frame is NAMED while it is being measured against ──")
+    _check(
+        "a frame indicator exists (a measure is a percent OF something, and "
+        "that something was invisible)",
+        ".yarnnn-frame {" in proj and "showFrame(frame, Math.round(pct));" in proj,
+    )
+    _check(
+        "it is shown only DURING the drag (hidden on release, never chrome "
+        "that lingers)",
+        "hideFrame();" in proj and "function hideFrame()" in proj,
+    )
+    _check(
+        "the label speaks the frame's OWN name, in operator words (never a "
+        "class name or a selector — ADR-443 D3)",
+        "var slot = frame.getAttribute && frame.getAttribute('data-slot');" in proj
+        and "return 'column';" in proj and "return 'slide';" in proj,
+    )
+    _check(
+        "it borrows the slot label's grammar rather than inventing a second "
+        "vocabulary for the same idea",
+        "rgba(16,185,129" in proj,
+    )
+
     print("\n── D4: the metered badge ──")
     _check(
         "the badge renders on metered rows",

@@ -239,8 +239,8 @@ def run() -> bool:
     )
     _check(
         "an UNFRAMED block gets no handle (the boundary is felt, not just documented)",
-        "function measurableFrame(block)" in proj
-        and "if (sel && sel.isConnected && measurableFrame(sel)) showResize(sel);" in proj,
+        "function isMeasurable(block)" in proj
+        and "if (sel && sel.isConnected && isMeasurable(sel)) showResize(sel);" in proj,
     )
     # The handle follows the SELECTION, not the pointer: it draws at the block's
     # corner, so a hover-scoped handle vanishes exactly as it is reached for.
@@ -255,9 +255,23 @@ def run() -> bool:
     # any framed block (a placed thing has no row to be inserted between).
     _check(
         "a framed block gets no gutter (one gate, two affordances, never both)",
-        "if (measurableFrame(b)) continue;" in proj,
+        "if (isMeasurable(b)) continue;" in proj,
     )
     # The preview must speak the COMMIT's units, or the block jumps on release.
+    # The two questions are separate functions on purpose: "is this measurable?"
+    # (responsive obligation — the D4 gate) vs "which rectangle is it a percent
+    # OF?". Conflating them made every deck block measure against the SLIDE even
+    # when a half-width column laid it out.
+    _check(
+        "the GATE and the RECTANGLE are different questions (isMeasurable vs "
+        "measurableFrame) — conflating them was the frame bug",
+        "function isMeasurable(block)" in proj and "function measurableFrame(block)" in proj
+        and "if (!isMeasurable(block)) return null;" in proj,
+    )
+    _check(
+        "the frame is the NEAREST layout parent, not always the slide",
+        "block.closest('.col, [data-slot]')" in proj,
+    )
     _check(
         "the resize preview is a percent, not a pixel (no jump at the drop)",
         "block.style.width = pct + '%';" in proj,

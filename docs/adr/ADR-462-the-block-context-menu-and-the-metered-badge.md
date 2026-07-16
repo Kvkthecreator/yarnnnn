@@ -2,8 +2,8 @@
 
 - **Status**: **Accepted** (2026-07-16, operator-ratified through the 2026-07-16 right-click discourse — "think now we can implement, while documenting in process")
 - **Dimension**: Channel (primary — where the member reaches) + Mechanism (the free/metered line made visible)
-- **Amends**: ADR-458 D4 (the "one home for verbs" clause is narrowed to *settings*) · ADR-453 D7 (the accent inventory — selection goes neutral)
-- **Preserves**: ADR-443 D2 (no eighth operation — every row is an existing op) · ADR-443 R1 (the DOM is the model) · ADR-461 D4 (the frame gate, now driving a third affordance) · ADR-440 D7 (gestures compose ops) · ADR-367 D3 (deliberate tiered redundancy) · ADR-456 D5 (mechanical is free; judgment is metered)
+- **Amends**: ADR-458 D4 (the "one home for verbs" clause is narrowed to *settings*) · ADR-453 D7 (the accent inventory — selection goes neutral) · ADR-461 D3/D4 (D8 — the frame is the nearest layout parent, not always the slide; the gate and the resolver split)
+- **Preserves**: ADR-443 D2 (no eighth operation — every row is an existing op) · ADR-443 R1 (the DOM is the model) · ADR-461 D4 (the frame gate — now `isMeasurable`, driving a third affordance) · ADR-440 D7 (gestures compose ops) · ADR-367 D3 (deliberate tiered redundancy) · ADR-456 D5 (mechanical is free; judgment is metered)
 - **Derivation**: the 2026-07-16 discourse (Figma / Notion / PowerPoint menus scored against the shipped stack)
 
 ---
@@ -63,9 +63,9 @@ where dwell is the posture, and set aside for verbs, where it never applied.
 
 ### D3 — The compact set (~10 rows), scored against the reference wall
 
-**Copy · Paste here** — *(sep)* — **Duplicate · Delete** — *(sep)* — **Turn into ▸ ·
-Re-arrange slide ▸ · Bring forward** *(frame-gated)* — *(sep)* — **WRITE WITH AI: Rewrite… ·
-Check this…** — *(sep)* — **THIS BLOCK: Copy link to block · History ▸**
+**Copy · Paste here** — *(sep)* — **Duplicate · Delete** — *(sep)* — **Turn into… ·
+Re-arrange… · Move up · Move down** — *(sep)* — **WRITE WITH AI: Rewrite… · Check this…** —
+*(sep)* — **THIS BLOCK: Copy link to block · History**
 
 Refused, with reasons (the inclusion test, so the next request is answered in advance):
 
@@ -78,7 +78,7 @@ Refused, with reasons (the inclusion test, so the next request is answered in ad
 | Flatten / Outline stroke / Use as mask | **No** | Raster/vector ops on shapes; we author blocks. |
 | Add auto layout | **No** | Arrangements *are* auto-layout. |
 | Font… / Paragraph… / Format Shape… (PowerPoint) | **No** | Dialogs onto a property inspector — that is the Design tab. Copying them yields two inspectors. |
-| Bring to front / Send to back | **Frame-gated** | Z-order is geometry (ADR-461 D3/D4). On a reflowing layout it is the `left:40px`-at-40rem problem. Reuses `measurableFrame` — the **third** affordance on that one gate. |
+| Bring to front / Send to back | **Deferred** | Z-order is geometry (ADR-461 D3/D4) and would be frame-gated — but the kernel ships no stacking token, so the row could not be built honestly. `Move up`/`Move down` (flow order) ship instead. See §4a. |
 
 **Copy link to block** and **History** are the two rows no reference can ship: `data-block-id` is
 a durable address in a file on a real filesystem, and the revision chain joins by that same id
@@ -158,10 +158,51 @@ it is recorded here so it reads as design rather than as a surprise.
 1. Every menu row resolves to an op that existed before this ADR (no eighth operation).
 2. No metered row is unbadged, and no free row is badged.
 3. `grep` shows no saturated accent on a selection outline; the editing state keeps its accent.
-4. `Bring forward` is absent on `document`/`article`/`page` and present on a slide — the same
-   `measurableFrame` gate that decides handles-vs-gutter.
+4. No row claims z-order: the menu says `Move up`/`Move down`, which is what `moveBlock`
+   actually performs (flow order). The `framed` flag rides the payload, so the gate is wired
+   ahead of the row that will need it.
 5. An AI row seeds the composer and sends nothing; the lane fires only on the member's enter.
 6. Right-click on an unselected block selects it (one gesture, not two).
+7. A block in a column measures against the COLUMN, not the slide — and the frame it measures
+   against is named on screen while the drag is happening.
+8. `isMeasurable` (the gate) and `measurableFrame` (the resolver) stay separate functions; no
+   caller uses one for the other's question.
+
+### D8 — A measure names the frame it is a percent OF (and the frame is the nearest layout parent)
+
+Surfaced by the operator resizing a block inside a two-column slide: *"it's hard to tell what I'm
+resizing against."* Not a perception problem — **the code was measuring against the wrong
+rectangle.**
+
+`measurableFrame` did `block.closest('.slide')`, which answers *"is there a frame?"* correctly and
+*"which frame?"* wrongly. For a block nested in `.cols > .col[data-slot="side"]`, it returned the
+**slide**, so the runtime wrote a percent of the slide while the member dragged a box that
+`.col { flex: 1 }` lays out at **half that width**. The number and the rectangle referred to
+different things. (Root cause worth naming: `measurableFrame` was written as the ADR-461 D4
+*gate* — a yes/no about responsive obligation — and then reused as a *resolver*. Those are
+different questions, and the reuse is what produced the bug.)
+
+- **The two questions split into two functions.** `isMeasurable(block)` = the D4 gate (does a
+  frame exist? — still asks about `.slide`, because a column inside a *document* reflows exactly
+  as its page does; being a column does not create a frame). `measurableFrame(block)` = which
+  rectangle? — **nearest-first**: a media block's own box, else the nearest `.col`/`[data-slot]`,
+  else the slide.
+- **The frame is NAMED during the drag.** A dashed outline over the frame plus a label —
+  `SIDE · 60%` — shown only while resizing. It reuses the slot label's existing grammar (the green
+  uppercase tag already on the canvas) rather than inventing a second vocabulary for the same
+  idea, and it speaks the frame's own name (`data-slot` → SIDE; else COLUMN; else SLIDE) — never a
+  class name or a selector (ADR-443 D3).
+
+**Why naming beats a number field**: *"60% of SIDE"* is a sentence a layman reads without being
+taught. The second rectangle was always there; it was simply invisible, and the member was asked
+to infer it.
+
+**The inspector question stays OPEN** (operator, 2026-07-16): concepts like Fill and direction may
+be extremely powerful for decks and articles, and the existing Design-tab UI is itself due a pass.
+This ADR takes no position beyond D5's refusal to import the *box-model inspector wholesale*
+(Display/Justify/Gap restate what `data-arrange` already encodes — two layout authorities in one
+artifact). A narrower, layman-shaped subset is a live question, not a closed one. `size:
+{hug, fill}` already ships as a token (ADR-461 D1) and is the proof the shape can work.
 
 ## 4a. Implementation notes (what the build changed about the design)
 

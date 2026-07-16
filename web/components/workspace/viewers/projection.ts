@@ -630,6 +630,23 @@ const EDIT_CSS = `
   box-shadow: 0 0 0 0.5px rgba(255,255,255,0.9);
   cursor: nwse-resize; z-index: 2147483646;
 }
+/* The frame indicator (ADR-462 D8) — shown ONLY while resizing. A measure is
+   a percent of SOMETHING, and that something was invisible: the member saw one
+   rectangle (their block) and had to infer the second (what it is a percent
+   of). Naming it during the drag is the whole fix — "60% of SIDE" is a
+   sentence a layman reads without being taught. It borrows the slot label's
+   own grammar (the green uppercase tag already on the canvas) rather than
+   inventing a second vocabulary for the same idea. */
+.yarnnn-frame {
+  position: absolute; display: none; pointer-events: none; z-index: 2147483645;
+  outline: 1px dashed rgba(16,185,129,0.7); outline-offset: 0;
+  background: rgba(16,185,129,0.04); border-radius: 2px;
+}
+.yarnnn-frame::after {
+  content: attr(data-label); position: absolute; top: -1.05rem; left: 0;
+  font: 600 0.6rem system-ui, sans-serif; letter-spacing: 0.06em;
+  text-transform: uppercase; color: rgba(16,185,129,0.95); white-space: nowrap;
+}
 .yarnnn-dragging { opacity: 0.4; }
 .yarnnn-dropline {
   position: absolute; z-index: 9997; height: 2px; background: #6366f1;
@@ -1702,7 +1719,7 @@ const GUTTER_SCRIPT = `
       // two can never both appear on the same block: framed → handles,
       // flowing → gutter. ADR-461 D4's "boundary made visible", applied to
       // the gutter as well as to the handle it was already applied to.
-      if (measurableFrame(b)) continue;
+      if (isMeasurable(b)) continue;
       // Skip a block nested inside another annotated block: the ROW is the
       // outermost unit (a checklist's li is not its own row).
       if (b.parentElement && b.parentElement.closest && b.parentElement.closest('[data-block]')) continue;
@@ -1845,14 +1862,51 @@ const GUTTER_SCRIPT = `
   var rz = null;
   var rzBlock = null;
 
+  /** The frame a block's measure is a PERCENT OF — the nearest thing that
+   *  actually bounds its box, which is not always the slide.
+   *
+   *  This asks a different question than "is this measurable at all?" (the
+   *  ADR-461 D4 gate). That one is a yes/no about responsive obligation; this
+   *  one is "which rectangle?" — and reusing the gate's answer for it was the
+   *  bug: closest('.slide') returns the slide for a block nested three deep
+   *  in '.cols > .col[data-slot]', so the runtime wrote a percent of the SLIDE
+   *  while the member dragged a box laid out inside a HALF-WIDTH COLUMN. The
+   *  number and the rectangle referred to different things.
+   *
+   *  The .col rule (flex: 1, studio.py) is what genuinely bounds a block in a
+   *  column, so the column is the frame. The slide is the frame only for a
+   *  block the slide itself lays out. Nearest-first, always.  */
+  /** IS this block measurable? — the ADR-461 D4 gate. A yes/no about
+   *  RESPONSIVE OBLIGATION: a slide has a fixed 16:9 stage, a media block has
+   *  its intrinsic ratio; a document/article/page block has only a viewport to
+   *  guess at. This is what decides handles-vs-gutter, and it must keep asking
+   *  about the SLIDE (a column inside a document reflows just as its page
+   *  does — being a column does not create a frame). */
+  function isMeasurable(block) {
+    if (!block) return false;
+    var kind = block.getAttribute('data-block');
+    if (kind && MEASURE_MEDIA[kind]) return true;
+    return !!(block.closest && block.closest('.slide'));
+  }
+
+  /** WHICH rectangle is the measure a percent of? — a different question, and
+   *  conflating it with the gate above was the bug. 'closest('.slide')'
+   *  answers "is there a frame" correctly and "which frame" wrongly: for a
+   *  block nested in '.cols > .col[data-slot]', it returned the SLIDE, so the
+   *  runtime wrote a percent of the slide while the member dragged a box laid
+   *  out inside a HALF-WIDTH COLUMN — the number and the rectangle meant
+   *  different things.
+   *
+   *  '.col { flex: 1 }' (studio.py) is what actually bounds a block in a
+   *  column, so the column is the frame. The slide is the frame only for a
+   *  block it lays out directly. Nearest-first, always. */
   function measurableFrame(block) {
-    if (!block) return null;
-    // A slide is a frame. So is a media block's own box.
-    var slide = block.closest ? block.closest('.slide') : null;
-    if (slide) return slide;
+    if (!isMeasurable(block)) return null;
     var kind = block.getAttribute('data-block');
     if (kind && MEASURE_MEDIA[kind]) return block.parentElement;
-    return null;
+    var col = block.closest ? block.closest('.col, [data-slot]') : null;
+    if (col && col !== block) return col;
+    return block.closest ? block.closest('.slide') : null;
   }
 
   function ensureResize() {
@@ -1863,6 +1917,7 @@ const GUTTER_SCRIPT = `
     bindGesture(rz, function () { return rzBlock; }, {
       axis: 'xy',
       onEnd: function (block, moved) {
+        hideFrame();
         if (!moved) return;
         var frame = measurableFrame(block);
         if (!frame) return;
@@ -1898,9 +1953,44 @@ const GUTTER_SCRIPT = `
         pct = Math.max(1, Math.min(100, pct));
         block.style.width = pct + '%';
         showResize(block);
+        // Name what the percent is OF, while it is being chosen (D8).
+        showFrame(frame, Math.round(pct));
       },
     });
     return rz;
+  }
+
+  /** Name the frame, while the member is choosing a percent of it (D8).
+   *
+   *  The label prefers the frame's OWN name — '[data-slot="side"]' is already
+   *  shown on the canvas as SIDE, so a resize inside it reads "SIDE · 60%"
+   *  using the vocabulary the member has already met. An unnamed column falls
+   *  back to COLUMN, and the slide itself to SLIDE: never a class name, never
+   *  a selector — the label is operator words (ADR-443 D3). */
+  var frameEl = null;
+  function frameLabel(frame) {
+    var slot = frame.getAttribute && frame.getAttribute('data-slot');
+    if (slot) return slot;
+    if (frame.classList && frame.classList.contains('col')) return 'column';
+    if (frame.classList && frame.classList.contains('slide')) return 'slide';
+    return 'frame';
+  }
+  function showFrame(frame, pct) {
+    if (!frameEl) {
+      frameEl = document.createElement('div');
+      frameEl.className = 'yarnnn-frame';
+      document.body.appendChild(frameEl);
+    }
+    var r = frame.getBoundingClientRect();
+    frameEl.setAttribute('data-label', frameLabel(frame) + ' · ' + pct + '%');
+    frameEl.style.display = 'block';
+    frameEl.style.left = (r.left + window.scrollX) + 'px';
+    frameEl.style.top = (r.top + window.scrollY) + 'px';
+    frameEl.style.width = r.width + 'px';
+    frameEl.style.height = r.height + 'px';
+  }
+  function hideFrame() {
+    if (frameEl) frameEl.style.display = 'none';
   }
 
   function showResize(block) {
@@ -1930,7 +2020,7 @@ const GUTTER_SCRIPT = `
   // two. Re-anchor on every relevant transition; the rect goes stale otherwise.
   function syncResize() {
     var sel = window.__yarnnnSelected ? window.__yarnnnSelected() : null;
-    if (sel && sel.isConnected && measurableFrame(sel)) showResize(sel);
+    if (sel && sel.isConnected && isMeasurable(sel)) showResize(sel);
     else hideResize();
   }
   // A click lands selection in the pointer runtime's capture-phase listener;
