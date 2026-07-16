@@ -62,10 +62,24 @@ def run() -> bool:
         "the allowed row shape itself contains no authority-shaped key",
         not any(w in " ".join(AGENT_ROW_KEYS).lower() for w in banned),
     )
-    _check(
-        "EVERY row carries ONLY the allowed keys (a new key is a deliberate act)",
-        all(set(a.keys()) == AGENT_ROW_KEYS for a in KERNEL_AGENTS.values()),
-    )
+    # The load-bearing half: no row may carry a key OUTSIDE the whitelist. A
+    # subset test, not equality — `bound_only` is optional (2026-07-16), and
+    # equality would have forced every optional field onto every row, which
+    # conflates "this key is allowed" with "this key is required". The cliff
+    # guard is unweakened: an unlisted key still fails, and adding one to
+    # AGENT_ROW_KEYS still trips the banned-word check above.
+    for a in KERNEL_AGENTS.values():
+        _check(
+            f"'{a['slug']}' carries no key outside the allowed shape",
+            set(a.keys()) <= AGENT_ROW_KEYS,
+        )
+    # The required core: every row must be a complete, routable Agent.
+    _required = {"slug", "name", "blurb", "icon", "model", "token_profile", "posture"}
+    for a in KERNEL_AGENTS.values():
+        _check(
+            f"'{a['slug']}' carries every required key",
+            _required <= set(a.keys()),
+        )
 
     print("\n── 2. every Agent's engine is real and PRICED (ADR-439 §4) ──")
     for slug, agent in KERNEL_AGENTS.items():
@@ -85,7 +99,20 @@ def run() -> bool:
         _check(f"billing-rate probe ran ({exc})", False)
 
     print("\n── 3. the base set is a TEAM, not a spec sheet ──")
-    _check("three Agents (provide enough, not the most — ADR-420 §10)", len(KERNEL_AGENTS) == 3)
+    # Counted over the CHOOSABLE set, not the table. The rule is about what the
+    # member is ASKED to pick between ("provide enough, not the most") — a
+    # `bound_only` capability is never picked, so it was never part of that
+    # count. Designer's arrival (2026-07-16) is not a fourth choice; it is the
+    # default a binding reaches for.
+    _choosable = [a for a in KERNEL_AGENTS.values() if not a.get("bound_only")]
+    _check(
+        "three CHOOSABLE Agents (provide enough, not the most — ADR-420 §10)",
+        len(_choosable) == 3,
+    )
+    _check(
+        "a bound-only capability is never offered as a choice (Designer is met, not picked)",
+        all(not a.get("bound_only") for a in list_agents()),
+    )
     # The value of a second vendor is the DISAGREEMENT — if every Agent ran on
     # one provider, "Critic" would be the same lineage arguing with itself.
     providers = {a["model"].split("/")[0] for a in KERNEL_AGENTS.values()}
@@ -100,6 +127,42 @@ def run() -> bool:
     _check(
         "each Agent has a posture (a character, not just a label on an engine)",
         all(len(a.get("posture", "")) > 40 for a in KERNEL_AGENTS.values()),
+    )
+
+    print("\n── 3b. no conversation answers 'who?' with an array index (ADR-460 §4b) ──")
+    # The accident this section exists to prevent: `StudioSurface` created its
+    # authoring lane with `model: models[0].id` — whatever engine happened to be
+    # FIRST in the array. Nobody chose it; nobody named it. It was the last
+    # place in the OS that answered "who am I talking to?" with an index, which
+    # is the same incoherence the <select> had, surviving where nobody looked.
+    _designer = KERNEL_AGENTS.get("designer")
+    _check("a bound lane HAS a colleague to default to (Designer exists)", bool(_designer))
+    if _designer:
+        _check(
+            "Designer is bound_only (met by opening something, never picked)",
+            _designer.get("bound_only") is True,
+        )
+        from services.lane_runner import _LANE_MAX_TOKENS
+        _check(
+            "Designer authors at the ADR-440 D3 profile (authoring > chat)",
+            _designer["token_profile"] > _LANE_MAX_TOKENS,
+        )
+    _studio = (
+        Path(__file__).parent.parent / "web" / "components" / "studio" / "StudioSurface.tsx"
+    )
+    _check("StudioSurface.tsx is where we think it is", _studio.exists())
+    _src = _studio.read_text() if _studio.exists() else ""
+    _code = "\n".join(
+        l for l in _src.splitlines()
+        if not l.lstrip().startswith(("//", "*", "/*"))
+    )
+    _check(
+        "StudioSurface names its colleague (agent: 'designer')",
+        "agent: 'designer'" in _code,
+    )
+    _check(
+        "…and no longer binds an engine by array index (`models[0].id`)",
+        "models[0].id" not in _code,
     )
 
     print("\n── 4. the chooser asks WHO, never which engine ──")
@@ -261,7 +324,7 @@ def run() -> bool:
     )
     _check(
         "…and still lists the kernel three beneath (composes BESIDE — ADR-450)",
-        len(list_agents([lisa])) == len(KERNEL_AGENTS) + 1,
+        len(list_agents([lisa])) == len(_choosable) + 1,
     )
 
     print("\n── 10. the write door (the UI is a door, not a database) ──")

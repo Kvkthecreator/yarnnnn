@@ -6,6 +6,30 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.16.1] - Designer: a bound lane gets a colleague, and the job stops eating them
+
+- `services/agents_registry.py` — new kernel Agent **Designer** (`bound_only: True`,
+  claude-sonnet-4-6, 8192 authoring profile). The fourth capability, and the one a
+  BOUND (Studio) lane defaults to. Not a fourth choice: `bound_only` rows are absent
+  from `list_agents()` (the chooser) and rejected at the hiring door — you meet
+  Designer by opening an artifact, never by picking it from a list.
+- `services/lane_runner.py` — **the Studio posture now `+=` instead of `=`** (line 334).
+  It had been an assignment since the overlay landed, which was latent only because no
+  bound lane carried an agent. The moment Studio's lane got a Designer, an `=` here
+  would have silently eaten the colleague's character and left only the job. The rule
+  the surrounding comment already stated ("the binding postures below are the JOB, this
+  is the colleague") is now what the code does. **Three overlays, one rule: every
+  binding APPENDS to the character.**
+- `web/components/studio/StudioSurface.tsx` — `model: models[0].id` → `agent: 'designer'`.
+  It was binding whatever engine happened to be first in the array; nobody chose it,
+  nobody named it. Designer's engine IS what `models[0]` resolved to, so every bound
+  lane runs exactly what it ran before.
+- **Expected behavior**: a Studio lane's turns are prefixed with Designer's character
+  (a maker: works in the member's material, makes the smallest honest version and names
+  its assumptions) BEFORE the artifact job. A settle from a Studio lane now attributes
+  to a person. No engine change, no new env var, no migration. Ledger attribution is
+  unchanged (`member:{id} via {model}` — the face is an Agent, the fact is your hands).
+
 ## [2026.07.15.2] - Studio posture: the citation pin is stamped, not optional
 
 - `services/studio.py` — the `data-ref-rev` instruction was "stamp it when you have

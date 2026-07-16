@@ -331,7 +331,14 @@ def build_lane_conventions(
     if artifact_path:
         from services.studio import build_studio_posture
         artifact = _read_workspace_file(client, user_id, artifact_path)
-        posture_section = "\n" + build_studio_posture(artifact_path, artifact) + "\n"
+        # `+=`, NOT `=`. This was an assignment until 2026-07-16, which was
+        # latent-only because no bound lane carried an agent — the moment
+        # Studio's lane got a Designer (ADR-460 §4b), an `=` here would have
+        # silently eaten the colleague's character and left only the job. The
+        # rule the comment above states ("the binding postures below are the
+        # JOB, this is the colleague") is now what the code does. Three
+        # overlays, one rule: every binding APPENDS to the character.
+        posture_section += "\n" + build_studio_posture(artifact_path, artifact) + "\n"
         # ADR-449 D4: when the workspace has a design system, the bound lane
         # learns the Skin contract as an ADDITIVE section (composed here, not
         # in build_studio_posture — the studio posture frame is the ADR-447

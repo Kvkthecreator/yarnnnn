@@ -112,6 +112,44 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
             "name what would still falsify it. Never flatter."
         ),
     },
+    # The fourth capability — the one a BOUND (Studio) lane defaults to.
+    #
+    # WHY IT EXISTS: before this row, `StudioSurface` created its authoring lane
+    # with `model: models[0].id` — whatever engine happened to be FIRST in the
+    # array. Nobody chose it and nobody named it. It was the last place in the
+    # OS that answered "who am I talking to?" with an array index, which is the
+    # same incoherence the <select> had, surviving where nobody looked.
+    #
+    # WHY IT IS A RE-HOME, NOT A NEW MECHANISM: the ADR-440 D3 Studio overlay is
+    # ALREADY a posture (`build_studio_posture`) — the JOB (this artifact, its
+    # head, the block grammar). Designer is the COLLEAGUE who does that job. The
+    # two compose exactly like every other binding: character first, job second.
+    # `models[0]` resolved to anthropic/claude-sonnet-4-6, so a Designer on the
+    # same engine keeps every bound lane running what it runs today — the member
+    # gains a name and a character, the runtime gains nothing to regress.
+    #
+    # This row is why the deck in a Studio lane can be settled as "Maya made it"
+    # rather than "gemini-2.5-flash made it": the attribution the member reads
+    # is a person, and the ledger underneath still says `member:{id} via {model}`
+    # (ADR-460 D2 — the face is an Agent, the fact is your hands).
+    "designer": {
+        "slug": "designer",
+        "name": "Designer",
+        "blurb": "Builds the artifact with you — decks, docs, the thing itself.",
+        "icon": "pen-tool",
+        "model": "anthropic/claude-sonnet-4-6",
+        "token_profile": 8192,  # authoring > chat (ADR-440 D3, gate-asserted)
+        # You meet Designer by OPENING something, never by picking from a list:
+        # absent from the chat picker and from the hireable set. Where the
+        # capability is offered, not what it may do (see AGENT_ROW_KEYS).
+        "bound_only": True,
+        "posture": (
+            "You are Designer — the member's maker. You build the thing itself: "
+            "decks, documents, the artifact in front of you. Work in their material "
+            "rather than describing what you would do; when the ask is ambiguous, "
+            "make the smallest honest version and say what you assumed."
+        ),
+    },
 }
 
 #: The keys a registry row may carry. The gate asserts rows carry ONLY these —
@@ -120,8 +158,17 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
 #: five file verbs (ADR-411 D3), and a per-Agent tool scope with exactly one
 #: possible value is a field that lies about being a choice. It lands when a
 #: second value exists.
+#: `bound_only` (optional, default False): is this capability offered as a
+#: COLLEAGUE you start a conversation with, or only as the default a BINDING
+#: reaches for? Designer is the latter — you get it by opening an artifact, not
+#: by picking it from a list, so it is absent from the chat picker and from the
+#: hireable set. This is a **Mechanism** fact (WHERE the capability is offered),
+#: never an authority fact — a bound-only Agent has exactly the same powers as
+#: every other row: the five file verbs, addressed-only, `member:` attribution.
+#: Read the cliff warning in the module header before adding any field here.
 AGENT_ROW_KEYS = frozenset(
-    {"slug", "name", "blurb", "icon", "model", "token_profile", "posture"}
+    {"slug", "name", "blurb", "icon", "model", "token_profile", "posture",
+     "bound_only"}
 )
 
 
@@ -356,6 +403,11 @@ def list_agents(member_agents: Optional[list[dict]] = None) -> list[dict]:
     The member's own Agents come FIRST — they named them, so they are the
     colleagues; the kernel three are the floor beneath. `kernel: true|false`
     lets the UI mark which are theirs (and which can be renamed/edited).
+
+    `bound_only` rows (Designer) are NOT served: this is the CHOOSER, and you
+    do not choose Designer — you meet it by opening an artifact. Filtered here,
+    at the one source both the picker and /agents read, rather than at each
+    call site (the scattered-alias shape this codebase keeps deleting).
     """
     # NOTE what is served and what is NOT. `based_on` + `tone` + `avatar` +
     # `color` ride along because the hiring card pre-fills an EDIT from them —
@@ -387,6 +439,7 @@ def list_agents(member_agents: Optional[list[dict]] = None) -> list[dict]:
          "role": a["name"], "engine": _engine_label(a["model"]),
          "kernel": True}
         for a in KERNEL_AGENTS.values()
+        if not a.get("bound_only")
     ]
     return mine + theirs
 

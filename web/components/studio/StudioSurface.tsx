@@ -233,19 +233,30 @@ export function StudioSurface() {
 
   const [creatingLane, setCreatingLane] = useState(false);
   useEffect(() => {
-    if (!artifactPath || !lanesEnabled || boundLane || creatingLane || !models.length) return;
+    // `!models.length` was part of this guard until 2026-07-16 — a proxy for
+    // "the router has an engine to bind", which was only ever true because the
+    // next line reached into the array. The engine now resolves server-side
+    // from the Agent, so `lanesEnabled` (the router-on signal) is the honest
+    // condition and the array's contents are none of this surface's business.
+    if (!artifactPath || !lanesEnabled || boundLane || creatingLane) return;
     setCreatingLane(true);
     api.lanes
       .create({
         name: baseName(artifactPath),
-        model: models[0].id,
+        // ADR-460 §4b — a bound lane carries an Agent like every other lane.
+        // This was `model: models[0].id`: whatever engine happened to be FIRST
+        // in the array. Nobody chose it; nobody named it. The Designer's engine
+        // resolves server-side and IS models[0]'s engine (claude-sonnet-4-6),
+        // so every bound lane runs exactly what it ran before — it just has a
+        // colleague now, and a settle from here attributes to a person.
+        agent: 'designer',
         artifact_path: artifactPath,
       })
       .then(() => refreshLanes())
       .catch(() => setLaneError('Could not create the authoring lane.'))
       .finally(() => setCreatingLane(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artifactPath, lanesEnabled, boundLane, models.length]);
+  }, [artifactPath, lanesEnabled, boundLane]);
 
   // ── The artifact itself (the surface owns the load; canvas projects) ───
   const [reloadKey, setReloadKey] = useState(0);
@@ -1868,12 +1879,16 @@ function StudioStart({
   const [learnOpen, setLearnOpen] = useState(false);
 
   const { navigateToSurface } = useSurfacePreferences();
-  const [laneEnv, setLaneEnv] = useState<{ enabled: boolean; model: string } | null>(null);
+  // ADR-460 §4b — the landing only needs to know whether lanes RUN. It used to
+  // also carry `model: d.models[0]?.id` so `learnFrom` could bind an engine;
+  // that was the same array-index accident as the bound-lane create, in two
+  // more places. The Agent resolves the engine server-side now.
+  const [laneEnv, setLaneEnv] = useState<{ enabled: boolean } | null>(null);
   useEffect(() => {
     api.lanes
       .list()
-      .then((d) => setLaneEnv({ enabled: d.enabled, model: d.models[0]?.id ?? '' }))
-      .catch(() => setLaneEnv({ enabled: false, model: '' }));
+      .then((d) => setLaneEnv({ enabled: d.enabled }))
+      .catch(() => setLaneEnv({ enabled: false }));
   }, []);
 
   // Scratch creation — invoked by the name-it modal; throws so the modal
@@ -1891,7 +1906,7 @@ function StudioStart({
     source: { path: string; name: string },
     target: (typeof LEARN_TARGETS)[number],
   ) => {
-    if (!laneEnv?.enabled || !laneEnv.model) {
+    if (!laneEnv?.enabled) {
       throw new Error('Chat helpers aren’t enabled on this workspace.');
     }
     if (target.template) {
@@ -1902,7 +1917,9 @@ function StudioStart({
       );
       await api.lanes.create({
         name: `Learn: ${source.name}`.slice(0, 60),
-        model: laneEnv.model,
+        // A canvas target IS an authoring lane (it carries `artifact_path`), so
+        // it gets the same colleague the bound-lane create does.
+        agent: 'designer',
         artifact_path: res.path,
         derive_recipe: target.recipe,
         derive_source: source.path,
@@ -1912,7 +1929,10 @@ function StudioStart({
     } else {
       const lane = await api.lanes.create({
         name: `Learn: ${source.name}`.slice(0, 60),
-        model: laneEnv.model,
+        // The design-system target has NO canvas — it lands in /chat as an
+        // ordinary conversation, so it gets an ordinary colleague. Scout is the
+        // fast reader, which is what "learn from this source" asks for.
+        agent: 'scout',
         derive_recipe: target.recipe,
         derive_source: source.path,
       });

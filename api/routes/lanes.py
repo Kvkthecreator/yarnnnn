@@ -798,7 +798,12 @@ async def _write_member_agent(
     if not name:
         raise HTTPException(status_code=422, detail="name is required")
     based_on = (req.based_on or "").strip()
-    if based_on not in KERNEL_AGENTS:
+    # `bound_only` capabilities (Designer) are not hireable: you meet them by
+    # opening an artifact, never by picking from a list. Checked HERE and not
+    # only in `list_agents` — hiding a row from the chooser is a UI fact, and a
+    # hand-written `based_on` would walk straight past it. The chooser and the
+    # door must agree, or the door is the truth and the chooser is decoration.
+    if based_on not in KERNEL_AGENTS or KERNEL_AGENTS[based_on].get("bound_only"):
         raise HTTPException(status_code=422, detail=f"Unknown based_on: {based_on}")
 
     # The engine override — available, never asked (spec §4). A member's file
