@@ -87,8 +87,22 @@ class LaneTurnRequest(BaseModel):
 
 class LanePatchRequest(BaseModel):
     # Phase-A conversation hygiene: rename + pin (lane_meta fields).
+    # (`pinned` here = sorts-first in the list. NOT the Agent binding — see the
+    # note below, which uses "bound" for that to keep the two words apart.)
     name: Optional[str] = None
     pinned: Optional[bool] = None
+    # ⚠️ `agent` is deliberately ABSENT and must stay absent (2026-07-16).
+    # A lane's Agent is chosen at creation and never changes: it is WHO this
+    # conversation has been with, and every turn already on the transcript was
+    # theirs. Re-pointing a lane mid-thread would retroactively misattribute a
+    # history that is on the ledger (the ADR-406 no-rewind rule, one object
+    # over) — you start a new conversation with someone else instead.
+    #
+    # This is also what "Studio's lane is pinned to Designer" MEANS in code:
+    # `StudioSurface` creates with `agent: 'designer'` and no door exists to
+    # change it. The pin is the absence of this field, not a lock on top of one.
+    # A future session adding `agent` here unpins Studio without touching
+    # Studio — `test_agent_registry.py` gates it.
 
 
 def _acting_workspace(auth: UserClient) -> Optional[str]:
@@ -219,7 +233,7 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     agent_slug = (req.agent or "").strip()
     model = (req.model or "").strip()
     if agent_slug:
-        # Member-first: their named colleagues, then the kernel three.
+        # Member-first: their named colleagues, then the kernel set.
         agent = resolve_agent(agent_slug, find_member_agents(auth.client, auth.user_id))
         if not agent:
             # The ADR-450 precedent: an unknown recipe is a caller bug, not a lane.
@@ -798,12 +812,12 @@ async def _write_member_agent(
     if not name:
         raise HTTPException(status_code=422, detail="name is required")
     based_on = (req.based_on or "").strip()
-    # `bound_only` capabilities (Designer) are not hireable: you meet them by
-    # opening an artifact, never by picking from a list. Checked HERE and not
-    # only in `list_agents` — hiding a row from the chooser is a UI fact, and a
-    # hand-written `based_on` would walk straight past it. The chooser and the
-    # door must agree, or the door is the truth and the chooser is decoration.
-    if based_on not in KERNEL_AGENTS or KERNEL_AGENTS[based_on].get("bound_only"):
+    # EVERY kernel Agent is hireable, Designer included — "my designer is Maya,
+    # she's playful" is the same widening as "my critic is Lisa". (A one-commit
+    # `bound_only` block lived here on 2026-07-16 and was removed the same day:
+    # it made Designer a different KIND of Agent, which is the taxonomy ADR-460
+    # D1 dissolved.)
+    if based_on not in KERNEL_AGENTS:
         raise HTTPException(status_code=422, detail=f"Unknown based_on: {based_on}")
 
     # The engine override — available, never asked (spec §4). A member's file

@@ -12,11 +12,20 @@
  * owner, and — per DP29 "mirror once, compose few" — a second surface over one
  * substrate concern.
  *
- * DISCOVERY IS THE BASE SET. There is no separate "browse": the kernel three
- * (Sonnet · Scout · Critic) ARE the catalogue, and the catalogue is three items
- * long. What grows is CAPABILITY (skills, connections — spec §5), attaching to
- * a base agent's class; never a fourth/fifth/sixth preset. Seven presets would
- * be the spec sheet with makeup on.
+ * DISCOVERY IS THE BASE SET. There is no separate "browse": the kernel agents
+ * (Sonnet · Scout · Critic · Designer) ARE the catalogue, and it is short. What
+ * grows is CAPABILITY (skills, connections — spec §5), attaching to a base
+ * agent's class; a new row needs a new REASON a member reaches for a different
+ * colleague — think · read · pressure-test · make — never a row per engine.
+ * Seven presets would be the spec sheet with makeup on.
+ *
+ * EVERY AGENT IS THE SAME KIND OF THING (ADR-460 D1, operator-corrected
+ * 2026-07-16). Designer is listed, chatted with, and hired exactly like the
+ * others — every agent can make artifacts; Designer is the one whose CHARACTER
+ * is making. That Studio's lane pins Designer is a fact about the BOUND LANE,
+ * not about the agent, and it is not this surface's business. A row rendered
+ * here as a different KIND (un-hireable, "system", greyed) is the altitude
+ * ladder growing back.
  *
  * ⚠️ EVERY PANE HERE IS IDENTITY OR CAPABILITY — NEVER AUTHORITY. This surface
  * must not become the persona-seat surface by accident (ADR-460 D3.a; the
@@ -224,7 +233,7 @@ export function AgentsSurface() {
           </div>
           {mine.length === 0 ? (
             <p className="text-xs text-muted-foreground py-3">
-              You haven&apos;t made any yet. Hire one of the three below, give them a
+              You haven&apos;t made any yet. Hire one of the agents below, give them a
               name and a manner, and they&apos;ll show up here.
             </p>
           ) : (

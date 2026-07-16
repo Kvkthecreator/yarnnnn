@@ -8,11 +8,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ## [2026.07.16.1] - Designer: a bound lane gets a colleague, and the job stops eating them
 
-- `services/agents_registry.py` — new kernel Agent **Designer** (`bound_only: True`,
-  claude-sonnet-4-6, 8192 authoring profile). The fourth capability, and the one a
-  BOUND (Studio) lane defaults to. Not a fourth choice: `bound_only` rows are absent
-  from `list_agents()` (the chooser) and rejected at the hiring door — you meet
-  Designer by opening an artifact, never by picking it from a list.
+- `services/agents_registry.py` — new kernel Agent **Designer** (claude-sonnet-4-6,
+  8192 authoring profile). The fourth character, for the fourth reason a member
+  reaches for a colleague: think · read · pressure-test · **make**.
+  - ⚠️ **Corrected same-day (operator)**: this row shipped for one commit with a
+    `bound_only: True` field that hid it from the chooser and the hiring door. That
+    was a **taxonomy wearing a field's clothes** — it made Designer a different KIND
+    of Agent, which is exactly what ADR-460 D1 dissolved. Removed. **Designer is an
+    ordinary Agent**: chat with it, hire your own based on it, same five verbs.
+    **Every Agent can make artifacts** — nothing is restricted; Designer is the one
+    whose CHARACTER is making. The fact the field was reaching for ("Studio always
+    talks to Designer") is a property of the **bound lane**, and it lives where every
+    other binding fact already lives.
 - `services/lane_runner.py` — **the Studio posture now `+=` instead of `=`** (line 334).
   It had been an assignment since the overlay landed, which was latent only because no
   bound lane carried an agent. The moment Studio's lane got a Designer, an `=` here
@@ -24,10 +31,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
   It was binding whatever engine happened to be first in the array; nobody chose it,
   nobody named it. Designer's engine IS what `models[0]` resolved to, so every bound
   lane runs exactly what it ran before.
+- **The pin** — chat is FLEXIBLE (any Agent, Designer included); Studio is FIXED (its
+  lane is Designer's). The lock is the **absence of a door**, not a flag: a lane's
+  `agent` is set at creation and `LanePatchRequest` has no `agent` field, because
+  re-pointing a lane mid-thread would retroactively misattribute turns already on the
+  ledger (ADR-406's no-rewind rule, one object over). You start a new conversation
+  with someone else instead. Gate-asserted (and the guard was proven to bite).
 - **Expected behavior**: a Studio lane's turns are prefixed with Designer's character
   (a maker: works in the member's material, makes the smallest honest version and names
   its assumptions) BEFORE the artifact job. A settle from a Studio lane now attributes
-  to a person. No engine change, no new env var, no migration. Ledger attribution is
+  to a person. Designer also appears on `/agents` and in the chat picker as a fourth
+  colleague. No engine change, no new env var, no migration. Ledger attribution is
   unchanged (`member:{id} via {model}` — the face is an Agent, the fact is your hands).
 
 ## [2026.07.15.2] - Studio posture: the citation pin is stamped, not optional

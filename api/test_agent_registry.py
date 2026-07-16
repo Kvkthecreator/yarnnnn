@@ -99,19 +99,21 @@ def run() -> bool:
         _check(f"billing-rate probe ran ({exc})", False)
 
     print("\n── 3. the base set is a TEAM, not a spec sheet ──")
-    # Counted over the CHOOSABLE set, not the table. The rule is about what the
-    # member is ASKED to pick between ("provide enough, not the most") — a
-    # `bound_only` capability is never picked, so it was never part of that
-    # count. Designer's arrival (2026-07-16) is not a fourth choice; it is the
-    # default a binding reaches for.
-    _choosable = [a for a in KERNEL_AGENTS.values() if not a.get("bound_only")]
+    # FOUR, not three (2026-07-16 — Designer). The rule is "provide enough, not
+    # the most": one Agent per REASON a member reaches for a different
+    # colleague. Think · read · pressure-test · MAKE is four reasons, and making
+    # was always one of them — it was just unnamed, happening under whatever
+    # engine sat at models[0]. This is the number growing by a reason, which the
+    # rule allows; it is not the spec sheet returning (that would be a row per
+    # ENGINE). The ceiling is judgment, not arithmetic — but it is LOW, and a
+    # fifth row wants a reason a member would say out loud.
     _check(
-        "three CHOOSABLE Agents (provide enough, not the most — ADR-420 §10)",
-        len(_choosable) == 3,
+        "four Agents (provide enough, not the most — ADR-420 §10)",
+        len(KERNEL_AGENTS) == 4,
     )
     _check(
-        "a bound-only capability is never offered as a choice (Designer is met, not picked)",
-        all(not a.get("bound_only") for a in list_agents()),
+        "every kernel Agent is offered — no row is hidden from the chooser",
+        {a["slug"] for a in list_agents() if a["kernel"]} == set(KERNEL_AGENTS),
     )
     # The value of a second vendor is the DISAGREEMENT — if every Agent ran on
     # one provider, "Critic" would be the same lineage arguing with itself.
@@ -136,16 +138,26 @@ def run() -> bool:
     # place in the OS that answered "who am I talking to?" with an index, which
     # is the same incoherence the <select> had, surviving where nobody looked.
     _designer = KERNEL_AGENTS.get("designer")
-    _check("a bound lane HAS a colleague to default to (Designer exists)", bool(_designer))
+    _check("a bound lane HAS a colleague to pin (Designer exists)", bool(_designer))
     if _designer:
-        _check(
-            "Designer is bound_only (met by opening something, never picked)",
-            _designer.get("bound_only") is True,
-        )
         from services.lane_runner import _LANE_MAX_TOKENS
         _check(
-            "Designer authors at the ADR-440 D3 profile (authoring > chat)",
+            "Designer writes long (the authoring profile rides with the maker)",
             _designer["token_profile"] > _LANE_MAX_TOKENS,
+        )
+        # Designer is an ORDINARY Agent — the operator's correction, 2026-07-16.
+        # A one-commit `bound_only` field made it un-chooseable + un-hireable,
+        # which is a TAXONOMY wearing a field's clothes: it made Designer a
+        # different KIND of Agent, which is exactly what ADR-460 D1 dissolved.
+        # The fact it tried to express ("Studio always talks to Designer") is a
+        # property of the BOUND LANE and lives in lane_meta beside artifact_path.
+        _check(
+            "…and carries no field marking it a different KIND of Agent",
+            "bound_only" not in _designer and "bound_only" not in AGENT_ROW_KEYS,
+        )
+        _check(
+            "…is chooseable in chat like any colleague",
+            "designer" in {a["slug"] for a in list_agents()},
         )
     _studio = (
         Path(__file__).parent.parent / "web" / "components" / "studio" / "StudioSurface.tsx"
@@ -163,6 +175,33 @@ def run() -> bool:
     _check(
         "…and no longer binds an engine by array index (`models[0].id`)",
         "models[0].id" not in _code,
+    )
+    # THE PIN (the operator's cut, 2026-07-16): chat is FLEXIBLE — any Agent,
+    # including Designer. Studio is FIXED — its lane is Designer's, and that is
+    # locked by the ABSENCE of a door, not by a flag. A lane's `agent` is set at
+    # creation and never patched: re-pointing mid-thread would retroactively
+    # misattribute turns already on the ledger (ADR-406's no-rewind rule, one
+    # object over). Adding `agent` to LanePatchRequest unpins Studio without
+    # touching Studio — this is that catch.
+    # Scoped to the class BODY: split-on-"class " ran to EOF and swallowed the
+    # whole module (every `lane_meta.get("agent")` in it), so the guard fired on
+    # code it was never about. Take the indented field lines only, drop comments.
+    _lanes_src = (Path(__file__).parent / "routes" / "lanes.py").read_text()
+    _after = _lanes_src.split("class LanePatchRequest")[1].splitlines()[1:]
+    _fields = []
+    for _l in _after:
+        if _l.strip() and not _l.startswith((" ", "\t")):
+            break  # dedent = the class body ended
+        if _l.strip() and not _l.lstrip().startswith("#"):
+            _fields.append(_l)
+    _patch_code = "\n".join(_fields)
+    _check(
+        "LanePatchRequest has fields to check (the guard is reading something)",
+        bool(_fields),
+    )
+    _check(
+        "a lane's Agent is not patchable (the pin IS the absent door)",
+        "agent" not in _patch_code,
     )
 
     print("\n── 4. the chooser asks WHO, never which engine ──")
@@ -324,7 +363,7 @@ def run() -> bool:
     )
     _check(
         "…and still lists the kernel three beneath (composes BESIDE — ADR-450)",
-        len(list_agents([lisa])) == len(_choosable) + 1,
+        len(list_agents([lisa])) == len(KERNEL_AGENTS) + 1,
     )
 
     print("\n── 10. the write door (the UI is a door, not a database) ──")

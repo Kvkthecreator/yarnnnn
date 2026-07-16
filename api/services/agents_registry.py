@@ -59,7 +59,8 @@ logger = logging.getLogger(__name__)
 #: The base set — "provide enough, not the most" (the ADR-420 §10 rule that
 #: governs LANE_MODELS, applied one level up: one Agent per reason a member
 #: would reach for a different colleague, NOT one per model that exists).
-#: Seven engines is a spec sheet; three characters is a team.
+#: Seven engines is a spec sheet; a handful of characters is a team. The unit
+#: of growth is a REASON (think · read · pressure-test · make), never an engine.
 #:
 #: Agents are named for the WORK, never for the engine — the engine is the fact
 #: BEHIND the name. (The one wart: "Sonnet" is an engine name. It stays as the
@@ -114,6 +115,10 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
     },
     # The fourth capability — the one a BOUND (Studio) lane defaults to.
     #
+    # The maker. An ORDINARY Agent — chat with it, hire your own based on it,
+    # same five verbs, same scope as every row here. Studio's lane happens to
+    # pin it (see below), but that is a fact about the LANE, not about Designer.
+    #
     # WHY IT EXISTS: before this row, `StudioSurface` created its authoring lane
     # with `model: models[0].id` — whatever engine happened to be FIRST in the
     # array. Nobody chose it and nobody named it. It was the last place in the
@@ -125,8 +130,15 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
     # head, the block grammar). Designer is the COLLEAGUE who does that job. The
     # two compose exactly like every other binding: character first, job second.
     # `models[0]` resolved to anthropic/claude-sonnet-4-6, so a Designer on the
-    # same engine keeps every bound lane running what it runs today — the member
-    # gains a name and a character, the runtime gains nothing to regress.
+    # same engine keeps every bound lane running what it runs today.
+    #
+    # ⚠️ EVERY AGENT CAN MAKE THINGS. Designer is not the one with permission to
+    # write artifacts — every row here has the same WriteFile. It is the one
+    # whose CHARACTER is making, so the member has an obvious colleague to ask
+    # and Studio has an obvious one to pin. Capability is uniform; character is
+    # the differentiator. A `designer_only` restriction anywhere is this row
+    # being misread. (A `bound_only` field lived here for one commit and was
+    # removed the same day — see AGENT_ROW_KEYS.)
     #
     # This row is why the deck in a Studio lane can be settled as "Maya made it"
     # rather than "gemini-2.5-flash made it": the attribution the member reads
@@ -135,14 +147,16 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
     "designer": {
         "slug": "designer",
         "name": "Designer",
-        "blurb": "Builds the artifact with you — decks, docs, the thing itself.",
+        "blurb": "Makes the thing itself — decks, docs, the artifact in front of you.",
         "icon": "pen-tool",
         "model": "anthropic/claude-sonnet-4-6",
-        "token_profile": 8192,  # authoring > chat (ADR-440 D3, gate-asserted)
-        # You meet Designer by OPENING something, never by picking from a list:
-        # absent from the chat picker and from the hireable set. Where the
-        # capability is offered, not what it may do (see AGENT_ROW_KEYS).
-        "bound_only": True,
+        # The AUTHORING profile, and it rides with the Agent rather than with the
+        # binding — because making is what Designer DOES, in a Studio lane or in
+        # /chat. (`_studio_max_tokens` still raises a BOUND lane's ceiling
+        # regardless of who is in it: the binding's job is heavy for anyone.
+        # Both are true and neither is redundant — one says "this colleague
+        # writes long", the other says "this job runs long".)
+        "token_profile": 8192,
         "posture": (
             "You are Designer — the member's maker. You build the thing itself: "
             "decks, documents, the artifact in front of you. Work in their material "
@@ -158,17 +172,17 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
 #: five file verbs (ADR-411 D3), and a per-Agent tool scope with exactly one
 #: possible value is a field that lies about being a choice. It lands when a
 #: second value exists.
-#: `bound_only` (optional, default False): is this capability offered as a
-#: COLLEAGUE you start a conversation with, or only as the default a BINDING
-#: reaches for? Designer is the latter — you get it by opening an artifact, not
-#: by picking it from a list, so it is absent from the chat picker and from the
-#: hireable set. This is a **Mechanism** fact (WHERE the capability is offered),
-#: never an authority fact — a bound-only Agent has exactly the same powers as
-#: every other row: the five file verbs, addressed-only, `member:` attribution.
-#: Read the cliff warning in the module header before adding any field here.
+#: (A `bound_only` key lived here for one commit on 2026-07-16 and was removed
+#: the same day, operator-corrected. It marked Designer as un-chooseable +
+#: un-hireable — which is a TAXONOMY wearing a field's clothes: it made Designer
+#: a different KIND of Agent, which is exactly what ADR-460 D1 dissolved. The
+#: fact it was trying to express — "Studio's lane always talks to Designer" — is
+#: a property of the BOUND LANE, not of the Agent, and it belongs beside
+#: `artifact_path` in `lane_meta` where every other binding fact already lives.
+#: An Agent is an Agent: you can chat with Designer, hire your own based on it,
+#: and every Agent can make artifacts. Nothing here is restricted.)
 AGENT_ROW_KEYS = frozenset(
-    {"slug", "name", "blurb", "icon", "model", "token_profile", "posture",
-     "bound_only"}
+    {"slug", "name", "blurb", "icon", "model", "token_profile", "posture"}
 )
 
 
@@ -401,13 +415,14 @@ def list_agents(member_agents: Optional[list[dict]] = None) -> list[dict]:
     this is about what the CHOOSER asks, not about hiding a fact.)
 
     The member's own Agents come FIRST — they named them, so they are the
-    colleagues; the kernel three are the floor beneath. `kernel: true|false`
+    colleagues; the kernel set is the floor beneath. `kernel: true|false`
     lets the UI mark which are theirs (and which can be renamed/edited).
 
-    `bound_only` rows (Designer) are NOT served: this is the CHOOSER, and you
-    do not choose Designer — you meet it by opening an artifact. Filtered here,
-    at the one source both the picker and /agents read, rather than at each
-    call site (the scattered-alias shape this codebase keeps deleting).
+    EVERY kernel Agent is served, Designer included. It is an Agent like any
+    other: you can start a chat with it and hire your own based on it. That
+    Studio's lane pins it is a fact about the BOUND LANE, not about Designer,
+    and a chooser that hid it would be describing the lane's binding in the
+    Agent's row — the muddiness ADR-460 D1 exists to refuse.
     """
     # NOTE what is served and what is NOT. `based_on` + `tone` + `avatar` +
     # `color` ride along because the hiring card pre-fills an EDIT from them —
@@ -439,7 +454,6 @@ def list_agents(member_agents: Optional[list[dict]] = None) -> list[dict]:
          "role": a["name"], "engine": _engine_label(a["model"]),
          "kernel": True}
         for a in KERNEL_AGENTS.values()
-        if not a.get("bound_only")
     ]
     return mine + theirs
 
