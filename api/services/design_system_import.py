@@ -105,11 +105,13 @@ def binary_mime(rel_path: str) -> str:
     return "application/octet-stream"
 
 
-#: The bucket's allow-list has no font types (verified live: pdf, docx, plain,
-#: markdown, png, jpeg, webp, gif). A font upload is a 415 — infrastructure, not
-#: code. Named here so the import REFUSES loudly rather than half-landing a
-#: design system whose @font-face points at nothing (ADR-462 D13).
-FONT_UPLOAD_SUPPORTED = False
+#: The `documents` bucket accepts font types (operator added font/woff2, woff,
+#: ttf, otf on 2026-07-16; verified live — 12 types, the original 8 intact).
+#: Kept as a named constant rather than deleted: it is the one line that says
+#: whether the binary lane is open, and if the bucket policy ever narrows the
+#: import must go back to warning instead of half-landing a design system whose
+#: @font-face points at nothing (ADR-462 D13).
+FONT_UPLOAD_SUPPORTED = True
 
 
 def import_design_system(

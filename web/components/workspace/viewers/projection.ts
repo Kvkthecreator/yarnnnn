@@ -80,12 +80,61 @@ function markBroken(el: Element, ref: string): void {
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|avif)$/i;
 
+/** A workspace-absolute `url("/workspace/…")` inside a stylesheet's text. */
+const CSS_WORKSPACE_URL = /url\(\s*["']?(\/workspace\/[^"')]+)["']?\s*\)/g;
+
+/** Resolve the skin's cited binaries (ADR-462 D13) — url()s in the TEXT.
+ *
+ *  A design system's @font-face points at its own font, and the flatten made
+ *  that path workspace-absolute. A browser cannot fetch a workspace path, so
+ *  each one is swapped for a signed blob URL — exactly what an <img
+ *  data-ref> already gets, just reached through CSS instead of an element.
+ *
+ *  An SVG resolves to a data: URI (it is text substrate, no bucket); a binary
+ *  resolves through content_url. A miss leaves the url() alone: the @font-face
+ *  simply fails and the font-family falls back to the stack beside it, which
+ *  is what a missing font should do.
+ */
+async function resolveStyleUrls(el: HTMLStyleElement): Promise<void> {
+  const css = el.textContent || '';
+  const paths = Array.from(new Set(Array.from(css.matchAll(CSS_WORKSPACE_URL), (m) => m[1])));
+  if (!paths.length) return;
+  const resolved = new Map<string, string>();
+  await Promise.all(
+    paths.map(async (p) => {
+      try {
+        const file = await api.workspace.getFile(p);
+        if (p.toLowerCase().endsWith('.svg') && file.content) {
+          resolved.set(p, `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`);
+        } else if (file.content_url) {
+          const { url } = await api.documents.blobUrl(file.content_url);
+          resolved.set(p, url);
+        }
+      } catch {
+        /* a missing cited asset degrades to the fallback — never a broken skin */
+      }
+    }),
+  );
+  if (!resolved.size) return;
+  el.textContent = css.replace(CSS_WORKSPACE_URL, (whole, p) =>
+    resolved.has(p) ? `url("${resolved.get(p)}")` : whole,
+  );
+}
+
 async function resolveOne(el: Element, artifactPath: string): Promise<void> {
   // The MARKED style elements (data-skin / data-kernel, ADR-449/453) carry
   // data-ref as an EDGE citation (trace/dependents) — their CSS is already
   // composed in place. Resolving "into" them would replace the skin's CSS
   // with the manifest's text (ADR-456 W3 fix — never touch a style element).
-  if (el.tagName === 'STYLE') return;
+  //
+  // But a skin's CSS can CITE binaries its @font-face needs (ADR-462 D13): the
+  // flatten rewrites `url("../assets/fonts/X.ttf")` to an absolute workspace
+  // path, and a workspace path is not a URL a browser can fetch. So the skin
+  // gets its own resolution — url()s INSIDE the text, never the text itself.
+  if (el.tagName === 'STYLE') {
+    if (el.hasAttribute('data-skin')) await resolveStyleUrls(el as HTMLStyleElement);
+    return;
+  }
   const ref = el.getAttribute('data-ref') || '';
   if (!ref) return;
   const pin = el.getAttribute('data-ref-rev') || '';
@@ -2141,7 +2190,16 @@ export async function resolveArtifactHtml(
   // is otherwise unrecoverable. On edit-commit the runtime restores islands
   // from data-src-html so a text edit never bakes a reference.
   if (opts?.edit) {
-    cited.forEach((el) => el.setAttribute('data-src-html', encodeURIComponent(el.outerHTML)));
+    cited.forEach((el) => {
+      // NEVER a style element (ADR-462 D13). The stamp exists so an edited
+      // block's citation ISLANDS restore to their source form; a marked skin
+      // is not an island and is never inside an edited block. Stamping it
+      // would URI-encode the whole composed skin (5.7KB on the live YARNNN
+      // system) into an attribute — and worse, hand the restore path a
+      // snapshot containing signed blob URLs to write back to source.
+      if (el.tagName === 'STYLE') return;
+      el.setAttribute('data-src-html', encodeURIComponent(el.outerHTML));
+    });
   }
   await Promise.all(cited.map((el) => resolveOne(el, artifactPath)));
   if (opts?.pointer) {

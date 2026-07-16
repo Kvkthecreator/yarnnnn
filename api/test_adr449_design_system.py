@@ -174,6 +174,7 @@ def run() -> int:
     # ── 5c. the import (ADR-462 D13) ─────────────────────────────────────
     import services.design_system_import as imp
 
+    imp_src = inspect.getsource(imp)
     passed &= _check(
         "import: an SVG is TEXT, not a bucket binary (the bucket rejects "
         "image/svg+xml — verified live — and an svg needs no bucket)",
@@ -192,11 +193,16 @@ def run() -> int:
         imp.binary_mime("a/b.png") == "image/png"
         and imp.binary_mime("a/b.woff2") == "font/woff2",
     )
+    # The INVARIANT, not the state: whichever way the flag sits, an unsupported
+    # font must WARN rather than half-land a design system whose @font-face
+    # points at nothing. (The flag flipped True on 2026-07-16 when the operator
+    # opened the bucket; a gate pinned to `is False` would have gone red on a
+    # correct change — the ADR-461 lesson, one arc later.)
     passed &= _check(
-        "import: the font gap is NAMED in code, not discovered at runtime",
-        imp.FONT_UPLOAD_SUPPORTED is False,
+        "import: a font the lane cannot take is WARNED, never silently dropped",
+        "fonts_deferred" in imp_src and "font not uploaded" in imp_src
+        and "FONT_UPLOAD_SUPPORTED" in imp_src,
     )
-    imp_src = inspect.getsource(imp)
     passed &= _check(
         "import: a folder with no CSS entry point REFUSES (half-writing one "
         "would make the picker offer what cannot resolve)",

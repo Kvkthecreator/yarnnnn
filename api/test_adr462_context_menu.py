@@ -274,6 +274,28 @@ def main() -> bool:
         not _backtick_in_scripts(proj),
     )
 
+    print("\n── D13: the skin's cited binaries resolve ──")
+    _check(
+        "a marked skin's url()s are resolved (a workspace path is not a URL a "
+        "browser can fetch)",
+        "async function resolveStyleUrls" in proj
+        and "if (el.hasAttribute('data-skin')) await resolveStyleUrls" in proj,
+    )
+    _check(
+        "it rewrites the TEXT's url()s, never resolves INTO the element "
+        "(that was the ADR-456 W3 skin-stomp)",
+        "el.textContent = css.replace(CSS_WORKSPACE_URL" in proj,
+    )
+    _check(
+        "a style element is never data-src-html stamped (it would URI-encode "
+        "the whole skin, and hand signed URLs to the restore path)",
+        "if (el.tagName === 'STYLE') return;\n      el.setAttribute('data-src-html'" in proj,
+    )
+    _check(
+        "a missing cited asset degrades to the font's own fallback",
+        "/* a missing cited asset degrades to the fallback — never a broken skin */" in proj,
+    )
+
     print("\n── The honesty checks ──")
     _check(
         "no row claims z-order the kernel cannot do (moveBlock is FLOW order, "
