@@ -38,7 +38,8 @@ import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
 import { useSelfLocatedSurface, useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
-import { StudioCanvas, type PointerEvent2 } from './StudioCanvas';
+import { StudioCanvas, type PointerEvent2, type StudioContextTarget } from './StudioCanvas';
+import { StudioBlockMenu } from './StudioBlockMenu';
 import { StudioSlashPalette } from './StudioSlashPalette';
 import { StudioToolbar, type StudioSelection, type StudioVocabulary } from './StudioToolbar';
 import { StudioDesignTab, type StructVerb } from './StudioDesignTab';
@@ -50,6 +51,7 @@ import {
   deleteBlock,
   deletePage,
   duplicateBlock,
+  pasteBlock,
   duplicatePage,
   editBlockText,
   galleryFragment,
@@ -446,6 +448,17 @@ export function StudioSurface() {
     setRightTab('chat');
   }, [selection, seedComposer]);
 
+  // ── The canvas context menu (ADR-462) ──────────────────────────────────
+  // The runtime has already SELECTED the block under the cursor (D7), so this
+  // holds only the anchor + the grain. Every row dispatches an op that already
+  // exists — a second entrance, never a second write path (D1).
+  const [ctxMenu, setCtxMenu] = useState<StudioContextTarget | null>(null);
+  // Copy/paste is a BLOCK clipboard, not the OS text one: the unit is a block's
+  // source HTML, so a paste can reconstruct it whole (kind + tokens + citations)
+  // rather than smearing its text into another block. Session-scoped by design —
+  // a cross-artifact block clipboard is a substrate question, not a menu one.
+  const blockClip = useRef<string | null>(null);
+
   const template = useMemo(() => extractTemplate(file?.content ?? ''), [file]);
   const modelLabel = useMemo(
     () => models.find((m) => m.id === boundLane?.model)?.label ?? boundLane?.model ?? '',
@@ -731,6 +744,66 @@ export function StudioSurface() {
     },
     [applyOp, selection, onPointClear],
   );
+  const menuCopy = useCallback(() => {
+    const id = ctxMenu?.blockId;
+    if (!id || !file?.content) return;
+    const doc = new DOMParser().parseFromString(file.content, 'text/html');
+    const el = doc.querySelector(`[data-block-id="${CSS.escape(id)}"]`);
+    if (el) blockClip.current = el.outerHTML;
+  }, [ctxMenu, file]);
+
+  const menuPaste = useCallback(() => {
+    const html = blockClip.current;
+    const after = ctxMenu?.blockId ?? null;
+    if (!html) return;
+    // Through the SAME door as every other insert — a fresh id is stamped so a
+    // paste is a new block, never a second element wearing one address.
+    void applyOp(
+      (src) => pasteBlock(src, html, after),
+      `Studio: paste block${after ? ` after ${after}` : ''}`,
+    );
+  }, [applyOp, ctxMenu]);
+
+  // Turn into / Re-arrange have HOMES already (the Design tab's block + page
+  // scopes). The menu row is a doorway to them, not a second implementation —
+  // which is exactly ADR-462 D1, and why neither needs new logic here.
+  const menuOpenDesign = useCallback(() => setRightTab('design'), []);
+
+  // D6: both AI rows SEED and send nothing. The seeds differ only in how much
+  // they pre-fill; the member finishes the sentence and presses enter.
+  const menuRewrite = useCallback(() => {
+    const t = ctxMenu;
+    if (!t) return;
+    const kind = t.blockKind ?? 'content';
+    const id = t.blockId ? ` (id: ${t.blockId})` : '';
+    seedComposer(`Rewrite the ${kind} block${id}${t.text ? ` — "${t.text}"` : ''}: `);
+    setRightTab('chat');
+  }, [ctxMenu, seedComposer]);
+
+  const menuCheck = useCallback(() => {
+    const t = ctxMenu;
+    if (!t) return;
+    const kind = t.blockKind ?? 'content';
+    const id = t.blockId ? ` (id: ${t.blockId})` : '';
+    // Trailing "for" on purpose: "check for WHAT" is the member's question to
+    // answer, and a complete sentence here would answer it for them.
+    seedComposer(`Check the ${kind} block${id}${t.text ? ` — "${t.text}"` : ''} for `);
+    setRightTab('chat');
+  }, [ctxMenu, seedComposer]);
+
+  // The two rows no reference can ship (D3): a block has a durable address, and
+  // the revision chain joins by that same id.
+  const menuCopyBlockLink = useCallback(() => {
+    const id = ctxMenu?.blockId;
+    if (!id || !artifactPath) return;
+    const url = `${window.location.origin}/desktop?studio.file=${encodeURIComponent(
+      relPath(artifactPath),
+    )}&studio.block=${encodeURIComponent(id)}`;
+    void navigator.clipboard.writeText(url);
+  }, [ctxMenu, artifactPath]);
+
+  const menuHistory = useCallback(() => setRightTab('design'), []);
+
   const handlePageVerb = useCallback(
     (verb: StructVerb) => {
       const noun = template === 'deck' ? 'slide' : 'section';
@@ -1398,6 +1471,7 @@ export function StudioSurface() {
                 onReorder={handleReorder}
                 onRatio={handleRatio}
                 onMeasure={(id, w) => handleMeasure(id, w)}
+                onContextMenu={setCtxMenu}
                 onSplitBlock={handleSplitBlock}
                 onMergeBlock={handleMergeBlock}
                 onAddHere={onAddHere}
@@ -1423,6 +1497,27 @@ export function StudioSurface() {
                   onItemsChange={onSlashItemsChange}
                   onPick={onSlashPick}
                   onClose={onSlashClose}
+                />
+              )}
+              {/* ADR-462: the canvas right-click menu. Fixed-positioned at the
+                  page-mapped anchor, so it renders beside the canvas rather
+                  than inside the iframe (chrome never enters the artifact). */}
+              {ctxMenu && (
+                <StudioBlockMenu
+                  target={ctxMenu}
+                  onClose={() => setCtxMenu(null)}
+                  onCopy={menuCopy}
+                  onPaste={menuPaste}
+                  onDuplicate={() => handleBlockVerb('duplicate')}
+                  onDelete={() => handleBlockVerb('delete')}
+                  onTurnInto={menuOpenDesign}
+                  onRearrange={menuOpenDesign}
+                  onMoveUp={() => handleBlockVerb('up')}
+                  onMoveDown={() => handleBlockVerb('down')}
+                  onRewrite={menuRewrite}
+                  onCheck={menuCheck}
+                  onCopyLink={menuCopyBlockLink}
+                  onHistory={menuHistory}
                 />
               )}
             </div>

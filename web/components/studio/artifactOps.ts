@@ -490,6 +490,31 @@ export function duplicateBlock(html: string, blockId: string): OpResult | null {
   return { html: serialize(doc), landedId: copy.getAttribute('data-block-id') };
 }
 
+/** Paste a copied block's SOURCE after `afterBlockId` (or into the default
+ *  flow when nothing was under the cursor). ADR-462 D1: a second entrance to
+ *  the insert that already exists, never a new op — `materializeFragment`
+ *  stamps fresh ids, so a paste is a NEW block rather than a second element
+ *  wearing an address the trace already knows.
+ *
+ *  The clipboard unit is a block's outerHTML, not its text: a pasted block
+ *  arrives whole (kind + tokens + citation islands intact) instead of smearing
+ *  its characters into whatever block received it. */
+export function pasteBlock(
+  html: string,
+  fragment: string,
+  afterBlockId: string | null,
+): OpResult | null {
+  const doc = parse(html);
+  const copy = materializeFragment(doc, fragment);
+  if (!copy) return null;
+  const anchor = afterBlockId
+    ? doc.querySelector(`[data-block-id="${CSS.escape(afterBlockId)}"]`)
+    : null;
+  if (anchor) anchor.insertAdjacentElement('afterend', copy);
+  else defaultFlow(doc).appendChild(copy);
+  return { html: serialize(doc), landedId: copy.getAttribute('data-block-id') };
+}
+
 /** Move a block so it sits immediately BEFORE `beforeBlockId`, or — when
  *  `beforeBlockId` is null — to the END of its own parent. The general reorder
  *  the ⋮⋮ drag posts on drop (F1). v1 keeps a move within the block's own

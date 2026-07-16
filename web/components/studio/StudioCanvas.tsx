@@ -24,6 +24,27 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceFile } from '@/types';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
 
+/** ADR-462 D7: a right-click's report. The runtime has already selected the
+ *  block under the cursor; this carries the anchor + the grain the menu builds
+ *  its rows from. It is PointerEvent2's shape plus the two things only a
+ *  right-click needs: where to draw, and whether a frame bounds the subject. */
+export interface StudioContextTarget {
+  x: number;
+  y: number;
+  tag: string | null;
+  text: string;
+  dataRef: string | null;
+  blockId: string | null;
+  blockKind: string | null;
+  slideIndex: number | null;
+  pageIndex: number | null;
+  slot: string | null;
+  arrange: string | null;
+  /** ADR-461 D4's gate, answered by the only side that can see the DOM. Gates
+   *  the geometry rows (Bring forward) — never guessed from the layout name. */
+  framed: boolean;
+}
+
 export interface PointerEvent2 {
   tag: string;
   text: string;
@@ -78,6 +99,12 @@ interface StudioCanvasProps {
    *  its frame (a slide, or a media block's own box). The surface clamps to the
    *  kernel's declared bound and lands setMeasure through the one door. */
   onMeasure?: (blockId: string, w: number, h: number) => void;
+  /** ADR-462 D7: the member right-clicked the canvas. The runtime has ALREADY
+   *  selected the block under the cursor (right-click selects), so this only
+   *  carries where to anchor + the grain the menu builds its rows from.
+   *  `framed` is the runtime's answer to the ADR-461 D4 gate — only it can see
+   *  the DOM, so it reports rather than letting the surface guess. */
+  onContextMenu?: (m: StudioContextTarget) => void;
   /** ADR-461 D3: the member dragged the column divider to a STOP. `value` is
    *  the ratio token's value, or null for the even default (which is written
    *  by CLEARING the attribute — 1-1 is the absence, not a third value). */
@@ -162,6 +189,7 @@ export function StudioCanvas({
   onReorder,
   onRatio,
   onMeasure,
+  onContextMenu,
   onSplitBlock,
   onMergeBlock,
   onAddHere,
@@ -343,6 +371,20 @@ export function StudioCanvas({
         onReorder?.(d.blockId, typeof d.beforeBlockId === 'string' ? d.beforeBlockId : null);
       } else if (d.type === 'yarnnn-measure' && typeof d.blockId === 'string') {
         onMeasure?.(d.blockId, d.w as number, d.h as number);
+      } else if (d.type === 'yarnnn-context-menu' && typeof d.x === 'number') {
+        // The runtime reports FRAME-local coordinates; the menu draws in the
+        // page. Mapping belongs here — the canvas owns the iframe, so the
+        // surface never learns iframe geometry. Zoom scales the frame's box,
+        // and getBoundingClientRect already reflects it.
+        const r = iframeRef.current?.getBoundingClientRect();
+        // zoomRef, not effectiveZoom: this listener is bound once, so reading
+        // the value directly would close over the zoom at mount time.
+        const z = zoomRef.current || 1;
+        onContextMenu?.({
+          ...(d as unknown as StudioContextTarget),
+          x: (r?.left ?? 0) + (d.x as number) * z,
+          y: (r?.top ?? 0) + (d.y as number) * z,
+        });
       } else if (d.type === 'yarnnn-ratio' && typeof d.pageIndex === 'number') {
         // ADR-461 D3: the column divider dropped on a STOP. It carries the
         // token's value (or null = the even default), never a width — the

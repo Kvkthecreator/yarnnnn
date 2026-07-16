@@ -184,9 +184,17 @@ const POINTABLE =
 
 const POINTER_CSS = `
 ${POINTABLE.split(',').map((s) => `${s}:hover`).join(',')} {
-  outline: 1px dashed rgba(99,102,241,0.45); outline-offset: 2px; cursor: pointer;
+  outline: 1px dashed rgba(120,115,107,0.4); outline-offset: 2px; cursor: pointer;
 }
-.yarnnn-pointed { outline: 2px solid #6366f1 !important; outline-offset: 2px; }
+/* Selection is NEUTRAL (ADR-462 D5). A saturated outline reads as the app
+   asserting itself over the member's page — PowerPoint/Keynote/Figma all draw
+   selection as a thin neutral rule, and reserve colour for what is NOT your
+   content. The accent survives where it means something the page cannot say
+   for itself: the editing state (you are typing into this), and the transient
+   gesture chrome (drop-line, divider). */
+.yarnnn-pointed {
+  outline: 1px solid rgba(60,58,54,0.5) !important; outline-offset: 2px;
+}
 /* ADR-453 D5: slots are the interaction surface — outline + name on hover
    (the Wix section-hover). position:relative only anchors the label. */
 [data-slot] { position: relative; }
@@ -201,11 +209,14 @@ ${POINTABLE.split(',').map((s) => `${s}:hover`).join(',')} {
 /* ADR-447 Phase 4: empty-slot "+ Add here" affordance. */
 .yarnnn-add-here {
   display: block; width: 100%; margin: 0.5rem 0; padding: 0.6rem;
-  border: 1px dashed rgba(99,102,241,0.5); border-radius: 6px;
-  background: rgba(99,102,241,0.04); color: #6366f1;
+  border: 1px dashed rgba(120,115,107,0.45); border-radius: 6px;
+  background: rgba(120,115,107,0.03); color: rgba(90,86,80,0.85);
   font: 500 0.8rem system-ui, sans-serif; cursor: pointer; text-align: center;
 }
-.yarnnn-add-here:hover { background: rgba(99,102,241,0.1); }
+.yarnnn-add-here:hover {
+  background: rgba(99,102,241,0.06); border-color: rgba(99,102,241,0.45);
+  color: #6366f1;
+}
 `;
 
 // ── The deck STAGE (ADR-447 D7.7 canvas-side fix) ─────────────────────────
@@ -375,6 +386,51 @@ const POINTER_SCRIPT = `
     mark.classList.add('yarnnn-pointed');
     parent.postMessage(payload, '*');
   }, true);
+
+  // ── Right-click (ADR-462 D7) — selects, then menus ──────────────────────
+  // Every reference (Figma, PowerPoint, Notion, Finder) selects on right-click:
+  // the menu acts on the thing under the cursor, and requiring left-then-right
+  // would be two gestures for one intent.
+  //
+  // The grain is the CLICK LADDER's, not a second one: walk to the enclosing
+  // [data-block], else the page. The parent decides which rows that grain earns
+  // (ADR-462 D3) — the runtime reports, it never curates.
+  document.addEventListener('contextmenu', function (e) {
+    var t = e.target;
+    // Injected chrome owns its own context menu (i.e. none) — never the page's.
+    if (t && t.closest && (t.closest('.yarnnn-gutter') || t.closest('.yarnnn-fmt')
+        || t.closest('.yarnnn-add-here'))) return;
+    e.preventDefault();
+    var el = t && t.closest ? t.closest(SEL) : null;
+    var blk = el && el.closest ? el.closest('[data-block]') : null;
+    var mark = blk || el;
+    if (mark) {
+      if (cur) cur.classList.remove('yarnnn-pointed');
+      cur = mark;
+      mark.classList.add('yarnnn-pointed');
+    } else if (cur) {
+      cur.classList.remove('yarnnn-pointed');
+      cur = null;
+    }
+    var slotEl = el && el.closest ? el.closest('[data-slot]') : null;
+    parent.postMessage({
+      type: 'yarnnn-context-menu',
+      x: e.clientX, y: e.clientY,
+      tag: el ? el.tagName.toLowerCase() : null,
+      text: mark ? (mark.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 120) : '',
+      dataRef: (el && el.getAttribute('data-ref')) || (blk && blk.getAttribute('data-ref')) || null,
+      blockId: blk ? (blk.getAttribute('data-block-id') || null) : null,
+      blockKind: blk ? (blk.getAttribute('data-block') || null) : null,
+      slideIndex: el ? slideIndexOf(el) : null,
+      pageIndex: el ? pageIndexOf(el) : null,
+      slot: slotEl ? (slotEl.getAttribute('data-slot') || null) : null,
+      arrange: el ? arrangeOf(el) : null,
+      // The frame gate (ADR-461 D4) travels WITH the payload: the runtime is
+      // the only side that can see the DOM, so it answers "is this framed?"
+      // rather than making the parent guess from the layout name.
+      framed: mark ? !!(mark.closest && mark.closest('.slide')) : false,
+    }, '*');
+  });
 
   // ADR-458: the hover gutter selects THROUGH this runtime's own selection
   // state (one selection, not two) — exposed like __yarnnnEditingId.
@@ -569,8 +625,9 @@ const EDIT_CSS = `
    never in a block, so it can't leak into a commit. Its ABSENCE on an
    unframed block is the D4 boundary made visible. */
 .yarnnn-rz {
-  position: absolute; display: none; width: 10px; height: 10px;
-  border: 1.5px solid #6366f1; background: #fff; border-radius: 2px;
+  position: absolute; display: none; width: 8px; height: 8px;
+  border: 1px solid rgba(60,58,54,0.55); background: #fff; border-radius: 1px;
+  box-shadow: 0 0 0 0.5px rgba(255,255,255,0.9);
   cursor: nwse-resize; z-index: 2147483646;
 }
 .yarnnn-dragging { opacity: 0.4; }
