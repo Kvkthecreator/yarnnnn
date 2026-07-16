@@ -167,6 +167,9 @@ it is recorded here so it reads as design rather than as a surprise.
    against is named on screen while the drag is happening.
 8. `isMeasurable` (the gate) and `measurableFrame` (the resolver) stay separate functions; no
    caller uses one for the other's question.
+9. Changing a slide's arrangement preserves every content block, or refuses and says why. No
+   arrangement in the registry can silently eat a page.
+10. "+ Add" into an empty text slot yields an empty paragraph, not a heading.
 
 ### D8 — A measure names the frame it is a percent OF (and the frame is the nearest layout parent)
 
@@ -203,6 +206,49 @@ This ADR takes no position beyond D5's refusal to import the *box-model inspecto
 (Display/Justify/Gap restate what `data-arrange` already encodes — two layout authorities in one
 artifact). A narrower, layman-shaped subset is a live question, not a closed one. `size:
 {hug, fill}` already ships as a token (ADR-461 D1) and is the proof the shape can work.
+
+### D9 — A layout change never destroys content; and the add gesture says what it does
+
+Two operator reports, one session apart from D8, both about acts that *looked* mechanical and
+free (§2's finding) and therefore had to be trustworthy. They were not.
+
+**"Re-arrange seems to wipe out the existing content on the slide."** It did. `applyArrangement`
+read `const slot = el.querySelector('[data-slot]')`, guarded the carry with
+`if (slot && blocks.length)`, and then ran `page.replaceWith(el)` **unconditionally**. Two silent
+losses:
+
+- **5 of the arrangements carry no `data-slot` at all** — `title`, `section-header`, `closing`,
+  `hero`, `cta`. `slot` was null, the carry was skipped, and `replaceWith` destroyed every content
+  block on the page.
+- **6 carry more than one** — `two-column`, `comparison`, `picture-with-caption`, `lead-image`,
+  `feature-grid`. `querySelector` returns the FIRST, so a two-column slide's `side` content
+  collapsed into `main`.
+
+The invariant, now enforced: **content is never destroyed by a layout change.** The carry sweeps
+every target slot, distributes by SOURCE slot name (`side` → `side`) with the first flow slot as
+the fallback, and **refuses** (returns null) when the target has nowhere to put content — a layout
+with no content area cannot receive content, and saying so is the honest act. The refusal reaches
+the member in their own words rather than through `applyOp`'s generic *"select something first"*,
+which would have been both wrong and unhelpful about work it had just protected.
+
+**"'+ Add here' is not intuitive — it leads to a header, and I can't tell if that was the initial
+or it's defaulting to a specific format."** It is a default, and it was wrong twice over:
+
+- The `prose` block's registry markup is `<h2>Heading</h2><p>…</p>` — the right default for the
+  *palette* (the member picked "Text" as a section unit) and the wrong one for an empty slot the
+  member just clicked. So the add gesture strips the heading. **The registry is unchanged** — the
+  lane and the palette share that markup; this is a property of the GESTURE, not of the block.
+- **"+ Add here" named the PLACE but not the ACT**, so whatever arrived was a surprise. It becomes
+  **"+ Add"** — the runtime does not know slot roles (the parent does that vocabulary lookup and
+  routes media slots to a picker), so the honest label promises a choice rather than a block.
+
+**The operator's two scenarios, recorded**: (1) *real re-arrange for existing content* — this D9,
+now correct. (2) *"tidy-up" / auto-arrange* — a DIFFERENT act, and deliberately not built here.
+The distinction is worth keeping sharp: re-arrange is **mechanical and free** (the member names the
+target; the kernel carries content into it), whereas tidy-up would be **a judgment** (something
+decides what "tidy" means for this content) — which puts it under WRITE WITH AI with a badge (D4),
+not beside the thumbnail gallery. Conflating them would put an un-badged metered act in the middle
+of the free rows and break the badge's meaning. Not taken until asked for.
 
 ## 4a. Implementation notes (what the build changed about the design)
 

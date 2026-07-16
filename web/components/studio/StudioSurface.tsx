@@ -678,12 +678,25 @@ export function StudioSurface() {
     [applyOp, anchor],
   );
   const handleApplyArrangement = useCallback(
-    (fragment: string, label: string) =>
-      applyOp(
+    (fragment: string, label: string) => {
+      // D9: applyArrangement REFUSES rather than deleting when the target has
+      // nowhere to put the page's content (title/section-header/closing/hero/
+      // cta carry no slot). applyOp's generic miss message would say "select
+      // something first", which is wrong and unhelpful — a refusal that
+      // protected the member's work should say so in their words.
+      if (file?.content && !applyArrangement(file.content, fragment, anchor)) {
+        setOpError(
+          `"${label}" has no place for this slide's content — move or delete the blocks first, ` +
+            `or pick a layout with a content area.`,
+        );
+        return Promise.resolve();
+      }
+      return applyOp(
         (html) => applyArrangement(html, fragment, anchor),
         `Studio: change arrangement to ${label}`,
-      ),
-    [applyOp, anchor],
+      );
+    },
+    [applyOp, anchor, file],
   );
 
   // ── ADR-453: the property layer + the structural verbs (Design tab) ──────
@@ -840,8 +853,18 @@ export function StudioSurface() {
     (slot: string, slideIndex: number | null, pageIndex: number | null) => {
       const proseFragment = vocabulary?.blocks.find((b) => b.kind === 'prose')?.fragment;
       if (!proseFragment) return;
+      // "+ Add text" adds TEXT. The prose block's registry markup is
+      // `<h2>Heading</h2><p>…</p>` — the right default for the palette (where
+      // the member picked "Text" as a section unit) and the wrong one here:
+      // clicking an empty slot produced a heading nobody asked for, and it read
+      // as the slot "defaulting to a specific format". Strip the heading for
+      // the slot-add; the member can Turn into / type one if they want it.
+      //
+      // The registry is NOT changed — the lane and the palette share that
+      // markup, and this is a property of the ADD GESTURE, not of the block.
+      const bare = proseFragment.replace(/<h[1-6][^>]*>.*?<\/h[1-6]>/i, '');
       void applyOp(
-        (html) => insertBlockInSlot(html, proseFragment, slot, slideIndex, pageIndex),
+        (html) => insertBlockInSlot(html, bare, slot, slideIndex, pageIndex),
         `Studio: add text to ${slot}`,
       );
     },

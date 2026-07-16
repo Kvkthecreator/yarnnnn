@@ -37,6 +37,17 @@ def _read(rel: str) -> str:
     return (_ROOT / rel).read_text()
 
 
+def _fn(src: str, name: str) -> str:
+    """One exported function's body — so a ban means "not in THIS function"
+    rather than "not in this file". `el.querySelector('[data-slot]')` is wrong
+    inside applyArrangement and perfectly correct inside defaultFlow."""
+    i = src.find(f"export function {name}(")
+    if i < 0:
+        return ""
+    j = src.find("\nexport ", i + 1)
+    return src[i : j if j > 0 else len(src)]
+
+
 def main() -> bool:
     proj = _read("web/components/workspace/viewers/projection.ts")
     menu_src = _read("web/components/studio/StudioBlockMenu.tsx")
@@ -170,6 +181,45 @@ def main() -> bool:
     _check(
         "Turn into / Re-arrange are DOORWAYS to their existing homes",
         "onTurnInto={menuOpenDesign}" in surface and "onRearrange={menuOpenDesign}" in surface,
+    )
+
+    print("\n── D9: a layout change never destroys content ──")
+    _check(
+        "the carry sweeps EVERY target slot, not querySelector's first "
+        "(a two-column's `side` used to collapse into `main`)",
+        "const targetSlots = Array.from(el.querySelectorAll('[data-slot]'));" in _fn(ops, "applyArrangement")
+        and "const slot = el.querySelector('[data-slot]');" not in _fn(ops, "applyArrangement"),
+    )
+    _check(
+        "content is distributed by SOURCE slot name (side → side)",
+        "const from = b.closest('[data-slot]')?.getAttribute('data-slot') ?? null;" in ops
+        and "byName.get(from)" in ops,
+    )
+    _check(
+        "a slotless target REFUSES rather than deleting (title/section-header/"
+        "closing/hero/cta carry no slot — replaceWith used to eat the page)",
+        "if (carried.length && !targetSlots.length) return null;" in ops,
+    )
+    _check(
+        "the refusal reaches the member in THEIR words, not applyOp's generic "
+        "'select something first'",
+        "has no place for this slide's content" in surface,
+    )
+    _check(
+        "placeholders yield only in a slot that actually receives",
+        "if (!receiving.has(target)) {" in ops,
+    )
+
+    print("\n── The add gesture says what it does ──")
+    _check(
+        "'+ Add' names a choice, not a place ('+ Add here' promised nothing "
+        "about what would arrive)",
+        "btn.textContent = '+ Add';" in proj,
+    )
+    _check(
+        "adding text to a slot adds TEXT, not a heading nobody asked for "
+        "(the registry markup keeps its h2 — this is the GESTURE's business)",
+        "const bare = proseFragment.replace(/<h[1-6][^>]*>.*?<\\/h[1-6]>/i, '');" in surface,
     )
 
     print("\n── The honesty checks ──")

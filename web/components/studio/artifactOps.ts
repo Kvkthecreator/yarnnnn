@@ -784,18 +784,45 @@ export function applyArrangement(
   if (!page) return null;
   const el = materializeFragment(doc, fragment);
   if (!el) return null;
-  // Reflow moves CONTENT blocks into the new arrangement; heading blocks
-  // (title/kicker/subtitle) belong to the page's own structure and the new
-  // arrangement brings its own — so they are NOT swept (ADR-446: headings are
-  // editable blocks, but they anchor the page, they don't flow into a slot).
-  const blocks = Array.from(page.querySelectorAll('[data-block]')).filter(
+
+  // THE INVARIANT: a layout change never destroys content (ADR-462 D9).
+  //
+  // This used to read `const slot = el.querySelector('[data-slot]')` and then
+  // `if (slot && blocks.length) {…}` — followed unconditionally by
+  // `page.replaceWith(el)`. Two silent losses fell out of that:
+  //   · 5 arrangements carry NO data-slot (title, section-header, closing,
+  //     hero, cta). `slot` was null, the carry was skipped, and replaceWith
+  //     DESTROYED every content block on the page.
+  //   · 6 carry MORE than one. querySelector took the first, so a two-column
+  //     slide's `side` content collapsed into `main`.
+  // Both read as "re-arrange wiped my slide", because that is what happened.
+  //
+  // Now: sweep every non-heading block, distribute by SOURCE SLOT where the
+  // target has a same-named slot (side → side), and land the remainder in the
+  // first flow slot. If the target has no slot at all, REFUSE (return null) —
+  // a layout with nowhere to put content cannot receive content, and saying so
+  // is the honest act. The caller surfaces the refusal.
+  const carried = Array.from(page.querySelectorAll('[data-block]')).filter(
     (b) => b.getAttribute('data-block') !== 'heading',
   );
-  const slot = el.querySelector('[data-slot]');
-  if (slot && blocks.length) {
-    // Placeholder fragment blocks in the target slot yield to the real ones.
-    slot.querySelectorAll('[data-block]').forEach((p) => p.remove());
-    blocks.forEach((b) => slot.appendChild(b));
+  const targetSlots = Array.from(el.querySelectorAll('[data-slot]'));
+
+  if (carried.length && !targetSlots.length) return null; // refuse, never delete
+
+  if (targetSlots.length) {
+    // Placeholders yield to real content — but only in a slot that receives.
+    const byName = new Map(targetSlots.map((s) => [s.getAttribute('data-slot'), s]));
+    const fallback = targetSlots[0];
+    const receiving = new Set<Element>();
+    carried.forEach((b) => {
+      const from = b.closest('[data-slot]')?.getAttribute('data-slot') ?? null;
+      const target = (from && byName.get(from)) || fallback;
+      if (!receiving.has(target)) {
+        target.querySelectorAll('[data-block]').forEach((p) => p.remove());
+        receiving.add(target);
+      }
+      target.appendChild(b);
+    });
   }
   page.replaceWith(el);
   return { html: serialize(doc), landedId: el.getAttribute('data-arrange') };

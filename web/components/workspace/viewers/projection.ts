@@ -527,7 +527,12 @@ const ADD_HERE_SCRIPT = `
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'yarnnn-add-here';
-      btn.textContent = '+ Add here';
+      // "+ Add here" named the PLACE but not the ACT, so what arrived was a
+      // surprise (it read as the slot defaulting to a format). The runtime
+      // does not know slot ROLES — the parent does that vocabulary lookup and
+      // routes media slots to a picker — so the honest label is the one that
+      // promises a choice rather than a specific block.
+      btn.textContent = '+ Add';
       btn.setAttribute('data-slot-name', slot.getAttribute('data-slot') || '');
       btn.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation();
