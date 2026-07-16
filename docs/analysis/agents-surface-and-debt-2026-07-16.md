@@ -99,6 +99,8 @@ api.lanes.create({
 
 **Sequenced after §7's steps 1–5** (the surface must exist before Studio points at it), and the Designer capability is its own small commit — a `KERNEL_AGENTS` row + re-homing the ADR-440 posture. **Named here so it is not lost; deliberately not swept into this pass.**
 
+> ✅ **SHIPPED 2026-07-16** (§6.7). It landed as predicted — a `KERNEL_AGENTS` row + the posture re-homed — plus one field this section did not foresee (`bound_only`: a fourth row must not become a fourth *choice*), and it uncovered a latent `=`-instead-of-`+=` that would have silently eaten the colleague's character the moment a bound lane got one. **The prize this section named is now live**: a settle from a Studio lane attributes to a person, and rooms inherit it for free.
+
 ## 5. D4 — Skills · Connections: the detail pane's future, stated not built
 
 Detail mode's panes, when they come:
@@ -118,10 +120,15 @@ The operator's ask: *"mark the technical, architectural debt in documentation."*
 
 ## 6.1 Nothing built this week has been touched by a human
 
-**Eight commits shipped** (W0 · settle · registry · personified · hiring card · the surface · face/row/modal · the D8/D9 fixes). **Every one is gate-green and prod-probed; NONE has been clicked.** Specifically unverified:
+**Nine commits shipped** (W0 · settle · registry · personified · hiring card · the surface · face/row/modal · the D8/D9 fixes · Designer). **Nearly all are gate-green and prod-probed; ONE has been clicked.**
+
+✅ **Clicked 2026-07-16**: the avatar round-trip. The operator uploaded Lisa's picture, hit the 415 (§6.2a), and after migration 217 it renders in the lane list — face, name, `Lisa · Critic · GPT-5`. **That click found the bucket bug that 111 gates could not.**
+
+Still unverified:
 - settle's felt beat (the note landing in the transcript)
-- the picker chips + the hiring card form + **the avatar upload round-trip** (the 415 wall is now down — §6.2a — so this is *testable* for the first time; still untested)
-- Phase-A's live SSE abort + a real vision call (owed since `4c6c56d`; **could not have worked until 2026-07-16** — §6.2a)
+- the picker chips + the hiring card form end-to-end
+- **Designer** — open an artifact, confirm the lane says Designer and the character survives alongside the job (§6.7a is probed, not felt)
+- Phase-A's live SSE abort + a real vision call (owed since `4c6c56d`; **could not have worked until 2026-07-16** — §6.2a, and still untested *through the browser*)
 
 **This is the largest debt on the board** and it is not code — it is that the whole point of these features is *felt*, and nobody has felt them.
 
@@ -163,15 +170,26 @@ The gate caught `model` entering the chooser payload while `avatar` was added. *
 
 `falsifier_2.settles = 2` is **two probe settles, not two felt ones.** Clear before the falsifier window is read, or accept with this note as provenance.
 
-## 6.7 Studio's bound lane picks `models[0]` — an accident, not a design
-`StudioSurface.tsx:240` binds **whatever engine is first in the array**. Nobody chose it; nobody named it. It is the last place in the OS that answers "who am I talking to?" with an array index. §4b rules it: a bound lane carries an Agent (a **Designer**), like every other lane. **Named as debt because the fix is sequenced AFTER the surface lands, not swept into it.**
+## 6.7 Studio's bound lane picks `models[0]` — ✅ **RESOLVED** (step 8, 2026-07-16)
+~~`StudioSurface.tsx:240` binds whatever engine is first in the array.~~
+
+**Closed.** Designer joins `KERNEL_AGENTS` (`bound_only: True`, claude-sonnet-4-6 — the engine `models[0]` actually resolved to, so every bound lane runs exactly what it ran before) and all three of Studio's `lanes.create` calls now name a colleague. `models[0]` is gone from source. The §3b ratchet pins it: it cannot come back.
+
+**Three things the fix surfaced that the ledger had not predicted:**
+
+**(a) ⭐ A latent clobber, one commit from shipping.** `lane_runner.py:334` was `posture_section = ` where every sibling is `+=`. Harmless only because no bound lane carried an agent — the moment Studio's lane got a Designer, the assignment would have **silently eaten the colleague's character and left only the job**. The comment four lines above already stated the correct rule; the code did the opposite. Probed both ways: character+job compose ✓, the old `=` drops the character ✗. *A latent bug in a code path nothing exercises is invisible until the feature that exercises it lands — the fix and the bug arrive in the same commit or neither does.*
+
+**(b) The accident was in three places, not one.** The Studio **landing** carried `model: d.models[0]?.id` so `learnFrom` could bind an engine — the same array-index accident, twice more. Fixing only the create site would have left two-thirds of Studio's lanes engine-bound. A canvas target → Designer; a design-system target (no canvas, lands in `/chat`) → Scout.
+
+**(c) A fourth row is not a fourth choice.** `list_agents()` iterates `KERNEL_AGENTS`, so Designer would have leaked into the chat picker *and* the hireable set. Hence `bound_only` — filtered at the one source both surfaces read, **and** rejected at the hiring door (hiding a row from the chooser is a UI fact; a hand-written `based_on` walks past it). It is a **Mechanism** fact (WHERE a capability is offered), never authority — D3.a is untouched.
 
 ## 6.8 Pre-existing, NOT ours (reproduced on clean HEAD)
 - `test_adr412_chat_surface`: *"the Brand pane still gates on operation/ coverage"* — another lane's.
 - `test_adr388_files` ×3 — long-standing (memory).
+- **`test_adr456_studio_wave1/2/3` + `test_adr458_studio_hover_layer`** (21/23 · 16/20 · 20/22 · 14/16) — the parallel Studio lane's gallery/palette work. **Reproduced on a clean stash** during step 8, byte-identical, before claiming they were not ours.
 
 ## 6.9 Deferred by decision, not by accident
-- **Rooms** — the multi-agent conversation (the next wave; vocabulary now correct).
+- **Rooms** — the multi-agent conversation. **Operator-ruled 2026-07-16: build it from evidence, not now.** The instinct to "set it up for multi-room anyway since we're going there" was raised and declined, on the receipts: the runtime is *already* what a room needs — `run_lane_turn_stream` takes `model=` and `agent=` as **per-turn parameters** read fresh from `lane_meta` each turn, and attribution is already per-turn correct. What is singular is one field (`agent` scalar vs `members` list) in a **JSON bag that has absorbed two extensions with zero migrations** (ADR-440, ADR-450). There is no future cost to pay down, so widening later is the same edit as widening now — and at N=1 with one agent, `members: ["lisa"]` rehearses none of a room's actual questions (who answers when two are present; does Lisa see Scout's turn as history; what the composer looks like with two faces). **Concrete before abstract** (ADR-460 §7, re-ratified).
 - **Skills machinery** — dead since ADR-417; a spec, not a field (§5).
 - **Connections** — dormant lane + the cliff question (§5).
 - **Per-turn engine override in a lane** — the routing ladder's rung (a). Free (five lines; attribution is already per-turn correct) and **not built**: the Agent IS the designation, so switching mid-thread is a different gesture than picking a colleague. Wants evidence first.
@@ -180,9 +198,11 @@ The gate caught `model` entering the chooser payload while `avatar` was added. *
 
 ## 7. Build order (FE + wiring, per the operator's "double our efforts")
 
-> **STATUS 2026-07-16 — steps 1–7 are DONE; step 8 is the frontier.** Receipts: `agents` is `launcher_tier: primary` with the inversion reasoning recorded in-comment (`kernel_surfaces.py:547`) · the surface is list+detail (`3c29bed`) · the dead roster is re-pointed, not both-and-neither · the hiring door left the picker and `NewChatModal` links out to `/agents` · the `presentModels` facet is **gone** (grep: zero hits) · the avatar renders (§6.2) · the D3.a ratchet is green at **111/111**.
+> **STATUS 2026-07-16 — ALL EIGHT STEPS DONE. The build order is closed.** Receipts: `agents` is `launcher_tier: primary` with the inversion reasoning recorded in-comment (`kernel_surfaces.py:547`) · the surface is list+detail (`3c29bed`) · the dead roster is re-pointed, not both-and-neither · the hiring door left the picker and `NewChatModal` links out to `/agents` · the `presentModels` facet is **gone** (grep: zero hits) · the avatar renders and has been **clicked** (§6.2) · migration 217 applied (§6.2a) · **step 8 landed** — Designer exists, all three Studio `lanes.create` calls name a colleague, `models[0]` is gone from source (§6.7).
 >
-> **Step 8 (§4b) is the only build-order item left**, and `StudioSurface.tsx:241` still reads `model: models[0].id` — the accident named in §6.7, exactly where it was left. **The two things standing between here and it are not code**: migration 217's human click (§6.2a) and §6.1's felt beat.
+> **The D3.a ratchet is green at 127/127** (was 111 — the §3b section pins step 8's invariants). Every conversation in the OS now answers "who am I talking to?" with a name.
+>
+> **What remains is not a build-order item — it is §6.1**: eight commits, one clicked. The next thing this board wants is a human, not a commit.
 
 1. **`/agents` → `launcher_tier: "primary"`** + the dock. The one-word revert its own comment names — with §1's reasoning recorded so it does not read as re-opening Rung 2.
 2. **The surface**: list mode = your agents + "who you can hire" (the kernel three) + the hiring card inline. Detail mode = `?agent={slug}` → Identity + Capability panes (the card, re-homed).
@@ -196,3 +216,16 @@ The gate caught `model` entering the chooser payload while `avatar` was added. *
 ## 8. One-line statement
 
 **The `/agents` surface was demoted eight days ago for two reasons that have both inverted — hiring is now the launch focus, and the A2/A3 ladder that made a roster a "confusing second door" no longer exists — so the re-surface is that decision's own condition being met: one surface, list plus detail, where discovery IS the base set of three, the hiring card comes home, and every future pane is identity or capability because none of them may ever be authority.**
+
+**And the closing line, earned by step 8**: the last place in the OS that answered *"who am I talking to?"* with an array index now answers with a name — which is the whole re-cut in one sentence, because `models[0]` was never a design, it was the `<select>`'s ghost living where nobody looked.
+
+---
+
+## 9. What this board wants next
+
+**Not a commit — a human.** Nine shipped, one clicked (§6.1). The click that happened found what 111 gates could not.
+
+Then, in order:
+1. **The felt beat** — settle, the picker, Designer, a real vision call.
+2. **The agents discourse itself** (the operator's cut, 2026-07-16): with the chassis closed and the vocabulary correct, the open question is no longer *where do agents live* but *what an agent IS* — §5's panes (Skills is dead machinery, Connections is where **the cliff gets tested**: a connection that writes outward IS consequential action).
+3. **Rooms**, from evidence (§6.9).
