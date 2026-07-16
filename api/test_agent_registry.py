@@ -27,6 +27,7 @@ from services.agents_registry import (  # noqa: E402
     get_agent,
     list_agents,
     model_for_agent,
+    resolve_agent_tools,
 )
 from services.lane_runner import LANE_MODELS  # noqa: E402
 
@@ -202,6 +203,69 @@ def run() -> bool:
     _check(
         "a lane's Agent is not patchable (the pin IS the absent door)",
         "agent" not in _patch_code,
+    )
+
+    print("\n── 3c. tools: reach differs, authority cannot (ADR-463 D4) ──")
+    # `tools` was deliberately absent in v1 on a STATED condition: "a per-Agent
+    # tool scope with exactly one possible value is a field that lies about
+    # being a choice — it lands when a second value exists." QueryKnowledge +
+    # WebSearch are that second value: both implemented, both classed
+    # non-consequential READS by permission.py, both unreachable by any Agent.
+    from services.primitives.permission import READ_ONLY_PRIMITIVES
+    _check(
+        "an Agent with no `tools` gets exactly the five file verbs (byte-identical)",
+        resolve_agent_tools("sonnet") == () and resolve_agent_tools(None) == (),
+    )
+    _check(
+        "Scout reaches past grep — it has the tools its blurb promises",
+        set(resolve_agent_tools("scout")) == {"QueryKnowledge", "WebSearch"},
+    )
+    _check(
+        "an unknown slug grants nothing (no reach by typo)",
+        resolve_agent_tools("nope") == (),
+    )
+    # ⚠️ THE CEILING (D4.a). Every declared tool must be non-consequential —
+    # and the check is a DERIVATION from permission.py's own set, not a
+    # deny-list beside it: the day a primitive stops being a read it stops being
+    # grantable, in the same edit, with nobody remembering to.
+    for _slug, _a in KERNEL_AGENTS.items():
+        for _t in (_a.get("tools") or ()):
+            _check(
+                f"'{_slug}' tool {_t!r} is a non-consequential read (ADR-463 D4.a)",
+                _t in READ_ONLY_PRIMITIVES,
+            )
+    # The ceiling must BITE, not merely be documented. A gate that cannot fail
+    # is worthless — so grant a consequential primitive and prove it is refused.
+    _saved = KERNEL_AGENTS["scout"].get("tools")
+    try:
+        KERNEL_AGENTS["scout"]["tools"] = ("QueryKnowledge", "Embed", "Schedule")
+        _granted = set(resolve_agent_tools("scout"))
+        _check(
+            "a consequential tool in a list is REFUSED, not served (the cliff, not a scope)",
+            "Embed" not in _granted and "Schedule" not in _granted,
+        )
+        _check("…and the reads beside it still survive", "QueryKnowledge" in _granted)
+    finally:
+        if _saved is None:
+            KERNEL_AGENTS["scout"].pop("tools", None)
+        else:
+            KERNEL_AGENTS["scout"]["tools"] = _saved
+    # A member may NAME a colleague; naming is not granting.
+    from services.agents_registry import AGENT_MANIFEST_KEYS
+    _check(
+        "a member's manifest cannot declare tools (identity is not reach)",
+        "tools" not in AGENT_MANIFEST_KEYS,
+    )
+    # The turn's actual payload — resolution is worthless if it never ships.
+    from services.lane_runner import lane_tools_openai
+    _scout_tools = {t["function"]["name"] for t in lane_tools_openai(resolve_agent_tools("scout"))}
+    _check(
+        "the tools REACH the model (Scout's turn carries 7, not 5)",
+        {"QueryKnowledge", "WebSearch"} <= _scout_tools and len(_scout_tools) == 7,
+    )
+    _check(
+        "a lane with no agent sends the five verbs, unchanged",
+        len(lane_tools_openai()) == 5,
     )
 
     print("\n── 4. the chooser asks WHO, never which engine ──")

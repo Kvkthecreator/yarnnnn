@@ -161,12 +161,22 @@ def _anthropic_to_openai_tool(tool: dict) -> dict:
     }
 
 
-def lane_tools_openai() -> list[dict]:
+def lane_tools_openai(extra: tuple = ()) -> list[dict]:
     """The lane tool surface in OpenAI format, derived from the registry's
-    own definitions (no parallel schemas — Singular Implementation)."""
+    own definitions (no parallel schemas — Singular Implementation).
+
+    `extra` (ADR-463 D4): primitives this turn's Agent reaches beyond the five
+    file verbs, from `resolve_agent_tools` — which has ALREADY enforced the D4.a
+    ceiling (reads and our own primitives only; never an outward write). This
+    function composes definitions; it does not authorize. Two jobs, two homes:
+    passing a name here that resolve_agent_tools would refuse is a bug in the
+    caller, not a hole here.
+    """
+    from services.primitives.web_search import WEB_SEARCH_PRIMITIVE
     from services.primitives.workspace import (
         EDIT_FILE_TOOL,
         LIST_FILES_TOOL,
+        QUERY_KNOWLEDGE_TOOL,
         READ_FILE_TOOL,
         SEARCH_FILES_TOOL,
         WRITE_FILE_TOOL,
@@ -175,9 +185,11 @@ def lane_tools_openai() -> list[dict]:
     by_name = {
         t["name"]: t
         for t in (READ_FILE_TOOL, WRITE_FILE_TOOL, EDIT_FILE_TOOL,
-                  SEARCH_FILES_TOOL, LIST_FILES_TOOL)
+                  SEARCH_FILES_TOOL, LIST_FILES_TOOL,
+                  QUERY_KNOWLEDGE_TOOL, WEB_SEARCH_PRIMITIVE)
     }
-    return [_anthropic_to_openai_tool(by_name[n]) for n in LANE_TOOL_NAMES]
+    names = LANE_TOOL_NAMES + tuple(n for n in extra if n not in LANE_TOOL_NAMES)
+    return [_anthropic_to_openai_tool(by_name[n]) for n in names if n in by_name]
 
 
 # ---------------------------------------------------------------------------
@@ -439,7 +451,13 @@ async def run_lane_turn(
     from services.primitives.registry import execute_primitive
 
     tool_auth = _lane_auth(auth, model)
-    tools = lane_tools_openai()
+    # ADR-463 D4: the Agent's own reach, beyond the five file verbs. Empty for
+    # every lane without an agent and every Agent that declares none — the
+    # pre-463 surface, byte-identical. resolve_agent_tools enforces the D4.a
+    # ceiling (reads only; never an outward write) before a name gets here.
+    from services.agents_registry import find_member_agents, resolve_agent_tools
+    _extra = resolve_agent_tools(agent, find_member_agents(auth.client, auth.user_id)) if agent else ()
+    tools = lane_tools_openai(_extra)
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,
@@ -625,7 +643,13 @@ async def run_lane_turn_stream(
     from services.primitives.registry import execute_primitive
 
     tool_auth = _lane_auth(auth, model)
-    tools = lane_tools_openai()
+    # ADR-463 D4: the Agent's own reach, beyond the five file verbs. Empty for
+    # every lane without an agent and every Agent that declares none — the
+    # pre-463 surface, byte-identical. resolve_agent_tools enforces the D4.a
+    # ceiling (reads only; never an outward write) before a name gets here.
+    from services.agents_registry import find_member_agents, resolve_agent_tools
+    _extra = resolve_agent_tools(agent, find_member_agents(auth.client, auth.user_id)) if agent else ()
+    tools = lane_tools_openai(_extra)
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,

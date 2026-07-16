@@ -89,13 +89,27 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
     "scout": {
         "slug": "scout",
         "name": "Scout",
-        "blurb": "Digs through material fast — lookups, quick reads, what does this say?",
+        "blurb": "Digs through material fast — the workspace and the web, with sources.",
         "icon": "compass",
         "model": "gemini/gemini-2.5-flash",
         "token_profile": 4096,
+        # ADR-463 D4 — the first Agent to reach past the five file verbs, and
+        # the reason `tools` exists. Scout's blurb promised digging while it had
+        # only SearchFiles (exact match) and ListFiles: a researcher with no
+        # research tools, doing grep and calling it research. Worse,
+        # QueryKnowledge is the semantic recall we SHIP TO STRANGERS over MCP
+        # (ADR-368) — ChatGPT could search this workspace by meaning and Scout
+        # could not.
+        #
+        # Both are non-consequential READS in permission.py — the same class as
+        # ReadFile, which every lane already holds. They were withheld by an
+        # allowlist, not by a gate.
+        "tools": ("QueryKnowledge", "WebSearch"),
         "posture": (
             "You are Scout — the member's fast reader. Find what they asked for and "
-            "report it plainly, with the exact source. Volume is your job; do not "
+            "report it plainly, with the exact source. Search the workspace by "
+            "meaning (QueryKnowledge) before reading files, and the web (WebSearch) "
+            "when the answer is not in the workspace. Volume is your job; do not "
             "editorialize, and say 'not here' rather than guessing."
         ),
     },
@@ -168,10 +182,19 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
 
 #: The keys a registry row may carry. The gate asserts rows carry ONLY these —
 #: which is what makes the cliff structural rather than documentary (see the
-#: module header). `tools` is deliberately absent in v1: every lane gets the same
-#: five file verbs (ADR-411 D3), and a per-Agent tool scope with exactly one
-#: possible value is a field that lies about being a choice. It lands when a
-#: second value exists.
+#: module header).
+#:
+#: `tools` (optional, ADR-463 D4): extra primitives this Agent reaches, BEYOND
+#: the five file verbs every lane holds (ADR-411 D3). Absent → the five verbs,
+#: byte-identical to every pre-463 lane. It was deliberately absent in v1 on the
+#: stated condition that "a per-Agent tool scope with exactly one possible value
+#: is a field that lies about being a choice — it lands when a second value
+#: exists." QueryKnowledge and WebSearch are that second value.
+#:
+#: ⚠️ ITS RANGE IS READS AND OUR OWN PRIMITIVES. NEVER AN OUTWARD WRITE.
+#: See `resolve_agent_tools` — the ceiling is DERIVED from permission.py's own
+#: classification, not declared here, so it cannot drift out of agreement with
+#: the gate that enforces it.
 #: (A `bound_only` key lived here for one commit on 2026-07-16 and was removed
 #: the same day, operator-corrected. It marked Designer as un-chooseable +
 #: un-hireable — which is a TAXONOMY wearing a field's clothes: it made Designer
@@ -182,8 +205,56 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
 #: An Agent is an Agent: you can chat with Designer, hire your own based on it,
 #: and every Agent can make artifacts. Nothing here is restricted.)
 AGENT_ROW_KEYS = frozenset(
-    {"slug", "name", "blurb", "icon", "model", "token_profile", "posture"}
+    {"slug", "name", "blurb", "icon", "model", "token_profile", "posture", "tools"}
 )
+
+
+def resolve_agent_tools(slug: Optional[str], member_agents: Optional[list[dict]] = None) -> tuple:
+    """The extra primitives this Agent reaches, beyond the five file verbs.
+
+    Empty for no agent, an unknown slug, or an Agent that declares none — the
+    pre-ADR-463 surface, byte-identical.
+
+    ⚠️ THE CEILING (ADR-463 D4.a — the ADR-460 D3.a pattern, second instance).
+    A tool here MUST be non-consequential. The check is a DERIVATION from
+    `permission.py::READ_ONLY_PRIMITIVES` — the very set the ADR-307 gate
+    classifies with — not a deny-list maintained beside it. A deny-list would
+    drift; a derivation cannot: the day a primitive stops being a read, it stops
+    being grantable here, in the same edit, with nobody remembering to.
+
+    WHY THIS IS THE CLIFF AND NOT A SCOPE. "Give an Agent a Slack connection" is
+    two asks wearing one word. A connection that READS is an ADR-401 peripheral
+    — mechanical, no judgment. A connection that WRITES OUTWARD is consequential
+    external action: the one fact that is not a dial (ADR-460 D3), gated by a
+    track record on a clock we do not own (ADR-380 D2). An outward write
+    reachable from a tools list is Rung 2 arriving through config — the exact
+    back door D3.a closed in the row shape, reopened one field over.
+
+    A member Agent inherits its `based_on` kernel Agent's tools and cannot
+    declare its own (AGENT_MANIFEST_KEYS has no `tools`): naming a colleague is
+    an identity act, and granting reach is not.
+    """
+    from services.primitives.permission import READ_ONLY_PRIMITIVES
+
+    agent = resolve_agent(slug or "", member_agents)
+    if not agent:
+        return ()
+    base = KERNEL_AGENTS.get(agent.get("based_on") or agent.get("slug") or "")
+    tools = tuple((base or agent).get("tools") or ())
+
+    grantable = tuple(t for t in tools if t in READ_ONLY_PRIMITIVES)
+    if len(grantable) != len(tools):
+        # Loud, and it drops the offender rather than serving it. A consequential
+        # primitive in a tools list is a bug in the registry, not a member's
+        # problem — but it must never reach a model while we argue about it.
+        refused = [t for t in tools if t not in READ_ONLY_PRIMITIVES]
+        logger.error(
+            "[AGENTS] REFUSED non-read tools %s for agent %r — ADR-463 D4.a: a "
+            "tools list may name reads and our own primitives, never an outward "
+            "write. This is the ADR-307 gate, not a scope.",
+            refused, agent.get("slug"),
+        )
+    return grantable
 
 
 # ---------------------------------------------------------------------------

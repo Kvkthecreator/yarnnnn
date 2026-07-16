@@ -6,6 +6,37 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.16.2] - Scout stops lying: capability, not vendor (ADR-463)
+
+- `services/capabilities.py` (new) — the capability-server seam. `WebSearch` used
+  to BE "Anthropic's web_search tool" (the vendor welded into the primitive's
+  identity), so "give Scout web search" silently meant "make Gemini call Claude".
+  Now the primitive asks for a **search** and the kernel names the server. Swapping
+  in Gemini grounding / Brave / Tavily is an edit there — no primitive, agent, or
+  prompt changes. An unknown server raises rather than silently falling back
+  (a deployment must never believe it switched vendors while the bill says otherwise).
+- `services/primitives/web_search.py` — asks for the capability; the Anthropic model
+  id is ONE constant (it was repeated at 3 call sites + a 4th hardcoded copy in the
+  ledger write — four answers to "which model serves a search" that happened to
+  agree). `WebSearchResult.ledger_model` is reported BY the server, so the cost
+  ledger stays honest when a second one arrives.
+- `services/agents_registry.py` — **`tools` is a field** (ADR-463 D4). Absent → the
+  five file verbs, byte-identical to every pre-463 lane. **Scout gains
+  `QueryKnowledge` + `WebSearch`** and stops lying: its blurb promised digging while
+  it had only exact-match `SearchFiles` — a researcher doing grep and calling it
+  research. Worse, `QueryKnowledge` is the semantic recall we SHIP TO STRANGERS over
+  MCP (ADR-368): ChatGPT could search this workspace by meaning and Scout could not.
+  - ⚠️ **The ceiling (D4.a)**: a `tools` value may name ONLY a primitive
+    `permission.py` classes non-consequential. **Never an outward write.** The check
+    is DERIVED from `READ_ONLY_PRIMITIVES` — the gate's own set — not a deny-list
+    beside it: a deny-list drifts, a derivation cannot. "Give an Agent a Slack
+    connection" is two asks in one word; the write half is the ADR-307 cliff arriving
+    through config, the exact back door ADR-460 D3.a closed one field over.
+- **Expected behavior**: a Scout turn carries 7 tools instead of 5 and can search the
+  workspace by meaning and the web. Every other Agent's turn is unchanged. A member's
+  manifest still cannot declare tools (naming a colleague is identity; granting reach
+  is not). No new env var required (`YARNNN_SEARCH_SERVER` is optional), no migration.
+
 ## [2026.07.16.1] - Designer: a bound lane gets a colleague, and the job stops eating them
 
 - `services/agents_registry.py` — new kernel Agent **Designer** (claude-sonnet-4-6,

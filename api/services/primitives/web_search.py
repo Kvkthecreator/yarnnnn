@@ -1,11 +1,27 @@
 """
-WebSearch Primitive
+WebSearch Primitive — ADR-045, re-cut by ADR-463 D2.
 
-ADR-045 + TP Enhancement: Web search and URL fetch capability for Thinking Partner.
+Two modes:
+1. Search (`query`) — asks the kernel for a SEARCH. Which server performs it
+   (`services/capabilities.py::serve_search`) is not this module's business and
+   not the calling agent's. Anthropic serves it today.
+2. URL fetch (`url`) — plain httpx + stdlib HTML extraction. Never was
+   vendor-bound; we are the server.
 
-This primitive provides two modes:
-1. Web search: Uses Anthropic's native web_search tool to find information
-2. URL fetch: Directly fetches and extracts text content from a specific URL
+⚠️ THIS MODULE ALSO *IS* THE ANTHROPIC SEARCH SERVER (`_execute_web_search`),
+which reads oddly and is deliberate: one server exists, and giving it its own
+module to be lonely in would be architecture ahead of evidence (ADR-450's rule
+— servers are data, a second one is a row and a function). The seam that matters
+is `serve_search`, not the file boundary. A second server moves this body out;
+until then the honest state is one server, one home, one named seam.
+
+WHY THE SEAM EXISTS AT ALL: before it, `WebSearch` *was* "Anthropic's
+web_search" — the vendor welded into the primitive's identity — so "give Scout
+web search" silently meant "make Gemini call Claude". Model-agnostic does not
+mean vendor-capability-free; it means the agent asks for a capability and the
+KERNEL decides who serves it. Anthropic's server-side web_search has no LiteLLM
+equivalent (it is a service, not a completion), so this is exactly the class of
+thing that CANNOT be solved by routing and needs a resolver instead.
 
 Usage:
   WebSearch(query="latest React 19 features")
@@ -25,6 +41,13 @@ from services.anthropic import get_anthropic_client
 
 logger = logging.getLogger(__name__)
 
+
+#: The model driving Anthropic's server-side web_search tool. ADR-463 D2:
+#: ONE constant — it was repeated at three call sites plus a fourth hardcoded
+#: copy in the ledger write, so "which model serves a search" had four
+#: answers that happened to agree. It is reported on the result now, not
+#: assumed by the caller.
+_ANTHROPIC_SEARCH_MODEL = "claude-haiku-4-5-20251001"
 
 # Anthropic's native web_search tool definition (server-side)
 WEB_SEARCH_TOOL = {
@@ -86,7 +109,8 @@ Note: For user's own data (Slack, documents), use Search() instead.""",
 
 @dataclass
 class WebSearchResult:
-    """Result from web search."""
+    """Result from web search. The contract every search server returns
+    (ADR-463 D2) — the caller is blind to which one ran."""
     query: str
     results: list[dict]  # [{title, url, snippet}]
     success: bool
@@ -96,6 +120,14 @@ class WebSearchResult:
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_create_tokens: int = 0
+    # ADR-463 D2: the model the SERVER actually burned, reported by the server.
+    # The ledger hardcoded `claude-haiku-4-5-20251001` at the call site, which
+    # was true only because one vendor could ever serve a search — the vendor
+    # weld showing up in the COST layer. A server that reports its own model is
+    # what lets the ledger stay honest when a second one arrives; a hardcoded
+    # model would price Brave's search at Haiku's rate and nobody would notice.
+    # Empty for a server that burns no tokens of ours (a REST search API).
+    ledger_model: str = ""
 
 
 @dataclass
@@ -297,7 +329,7 @@ async def _execute_web_search(
         # not generate a prose summary. Server-side tool result arrives in the
         # response content regardless of text output length.
         response = await client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model=_ANTHROPIC_SEARCH_MODEL,
             max_tokens=50,
             system="Search the web and return results.",
             tools=[WEB_SEARCH_TOOL],
@@ -315,7 +347,7 @@ async def _execute_web_search(
         while response.stop_reason == "tool_use" and not search_results:
             messages.append({"role": "assistant", "content": response.content})
             response = await client.messages.create(
-                model="claude-haiku-4-5-20251001",
+                model=_ANTHROPIC_SEARCH_MODEL,
                 max_tokens=50,
                 system="Search the web and return results.",
                 tools=[WEB_SEARCH_TOOL],
@@ -346,6 +378,7 @@ async def _execute_web_search(
             output_tokens=total_output_tokens,
             cache_read_tokens=total_cache_read,
             cache_create_tokens=total_cache_create,
+            ledger_model=_ANTHROPIC_SEARCH_MODEL,
         )
 
     except Exception as e:
@@ -418,11 +451,19 @@ async def handle_web_search(auth: Any, input: dict) -> dict:
             "message": "Provide either 'query' (to search) or 'url' (to fetch a page)",
         }
 
-    result = await _execute_web_search(query, context, max_results)
+    # ADR-463 D2: ASK FOR THE CAPABILITY, not the vendor. This called
+    # `_execute_web_search` directly — i.e. "do an Anthropic search" — so the
+    # vendor was welded into the primitive's identity and "give Scout web
+    # search" silently meant "make Gemini call Claude". The kernel names the
+    # server now (services/capabilities.py); this primitive asks for a search
+    # and never learns who answered.
+    from services.capabilities import serve_search
+    result = await serve_search(query, context=context, max_results=max_results)
 
     # ADR-291: unified cost ledger — write directly to execution_events.
-    # Note: web_search uses Haiku internally (`claude-haiku-4-5-20251001`),
-    # so model="claude-haiku-4-5-20251001" for accurate cost computation.
+    # The model comes from the RESULT (ADR-463 D2): the server reports what it
+    # burned. This used to hardcode Haiku's id, which was true only while one
+    # vendor could ever serve a search.
     if result.input_tokens or result.output_tokens:
         try:
             from services.telemetry import record_execution_event
@@ -438,7 +479,7 @@ async def handle_web_search(auth: Any, input: dict) -> dict:
                 output_tokens=result.output_tokens,
                 cache_read_tokens=result.cache_read_tokens,
                 cache_create_tokens=result.cache_create_tokens,
-                model="claude-haiku-4-5-20251001",
+                model=result.ledger_model,
             )
         except Exception as _e:
             logger.warning(f"[TELEMETRY] web_search record failed: {_e}")
