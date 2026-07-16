@@ -171,6 +171,43 @@ def run() -> int:
                            folder_name="My System")["name"] == "My System",
     )
 
+    # ── 5c. the import (ADR-462 D13) ─────────────────────────────────────
+    import services.design_system_import as imp
+
+    passed &= _check(
+        "import: an SVG is TEXT, not a bucket binary (the bucket rejects "
+        "image/svg+xml — verified live — and an svg needs no bucket)",
+        imp.classify("assets/logos/mark.svg") == "doc"
+        and imp.classify("assets/logos/mark.png") == "image",
+    )
+    passed &= _check(
+        "import: a font is named as a font, a bundle is vendor",
+        imp.classify("assets/fonts/X.ttf") == "font"
+        and imp.classify("_ds_bundle.js") == "vendor"
+        and imp.classify("components/forms/Input.prompt.md") == "vendor",
+    )
+    passed &= _check(
+        "import: the mime is the BUCKET's, not a guess (an octet-stream PNG "
+        "is a 415, which is how the first real import lost five logos)",
+        imp.binary_mime("a/b.png") == "image/png"
+        and imp.binary_mime("a/b.woff2") == "font/woff2",
+    )
+    passed &= _check(
+        "import: the font gap is NAMED in code, not discovered at runtime",
+        imp.FONT_UPLOAD_SUPPORTED is False,
+    )
+    imp_src = inspect.getsource(imp)
+    passed &= _check(
+        "import: a folder with no CSS entry point REFUSES (half-writing one "
+        "would make the picker offer what cannot resolve)",
+        '"ok": False' in imp_src and "No CSS entry point found" in imp_src,
+    )
+    passed &= _check(
+        "import: every write is the ONE door (write_revision), never a second",
+        "write_revision" in imp_src
+        and ".table(\"workspace_files\").insert" not in imp_src,
+    )
+
     # ── 6. purity: no write path in the module ────────────────────────────
     mod_src = inspect.getsource(ds_mod)
     passed &= _check(
