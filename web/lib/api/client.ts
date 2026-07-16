@@ -279,7 +279,13 @@ export const api = {
           updated_at: string;
           summary?: string | null;
         }>;
-      }>("/api/lanes"),
+        // The param has to REACH the server. It was accepted, typed, and
+        // dropped — so Studio asked for its bound lanes, the API filtered
+        // every one of them out, `boundLane` stayed null, and the create
+        // effect fired again on each refresh: six duplicate lanes for one
+        // document and a spinner that said "Preparing the authoring lane…"
+        // forever, while six prepared lanes sat in the table.
+      }>(`/api/lanes${includeBound ? '?include_bound=1' : ''}`),
     create: (data: {
       /** Optional since Phase A — a nameless lane auto-names on first turn. */
       name?: string;

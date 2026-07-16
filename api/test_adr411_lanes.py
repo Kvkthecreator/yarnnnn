@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import pathlib
 import sys
 import types
 from pathlib import Path
@@ -274,6 +275,30 @@ def test_conventions_projection_carries_the_contract():
     assert "seul" in text
     assert "Ship the weekly memo." in text          # mandate head injected
     assert "transcript is not shared memory" in text  # the D6 contract line
+
+
+def test_include_bound_param_reaches_the_server():
+    """The Studio's bound lanes must actually come back (2026-07-16).
+
+    `list(includeBound)` accepted the flag, typed it, documented it — and
+    dropped it on the floor: the URL was a bare "/api/lanes". So Studio asked
+    for its bound lanes, the server's default filtered every one of them out,
+    `boundLane` stayed null, and the create effect fired again on each refresh.
+    Sixteen duplicate lanes across four artifacts, and a spinner reading
+    "Preparing the authoring lane..." forever while eight prepared lanes for
+    that one document sat in the table.
+
+    A dropped query param is invisible to tsc and to every type in the chain —
+    both sides compile, both sides are wrong together. So it gets a gate.
+    """
+    root = pathlib.Path(__file__).resolve().parent.parent
+    client = (root / "web/lib/api/client.ts").read_text()
+    routes = (root / "api/routes/lanes.py").read_text()
+    assert "include_bound=1" in client, "the FE never sends include_bound"
+    assert "include_bound: bool = False" in routes, "the API's param name moved"
+    assert 'request<{' in client and '/api/lanes${includeBound' in client, (
+        "the list URL no longer interpolates the flag"
+    )
 
 
 if __name__ == "__main__":
