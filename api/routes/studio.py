@@ -23,7 +23,7 @@ from __future__ import annotations
 import logging
 import re
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from typing import Optional
 
@@ -216,6 +216,121 @@ async def resolve_design_system_route(manifest: str, auth: UserClient) -> dict:
         "manifest_path": ds["manifest_path"],
         "skin_element": compose_skin_element(ds["manifest_path"], ds["css_text"]),
     }
+
+
+@router.post("/studio/design-systems/import")
+async def import_design_system_route(
+    auth: UserClient,
+    file: UploadFile = File(...),
+    name: Optional[str] = Form(None),
+) -> dict:
+    """Import a design-system export (.zip) → a conforming meaning-folder.
+
+    The door for the mechanism ADR-449 D1 assumed and never built. A ZIP
+    because that is what a design system IS on the way over — every export
+    (Claude Design, Figma, a repo's tokens/) ships a folder, and a folder
+    reaches a browser as an archive. The member picks one file; the flatten,
+    the manifest, and the binary lane are the server's job.
+
+    Returns the receipt, warnings included: what landed, what was skipped as
+    vendor material, and anything the flatten could not resolve. A warning is
+    the product here — an import that half-lands silently is the failure this
+    whole arc exists to prevent.
+    """
+    import io
+    import zipfile
+
+    from services.design_system_import import import_design_system
+
+    raw = await file.read()
+    if len(raw) > _MAX_IMPORT_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"That archive is larger than {_MAX_IMPORT_BYTES // 1_000_000}MB.",
+        )
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(raw))
+    except zipfile.BadZipFile:
+        raise HTTPException(
+            status_code=400,
+            detail="That file is not a .zip — export the design-system folder as an archive.",
+        )
+
+    files: dict = {}
+    for info in zf.infolist():
+        if info.is_dir() or info.file_size > _MAX_MEMBER_FILE_BYTES:
+            continue
+        rel = info.filename
+        # A real export zips the FOLDER, so every path carries its name as a
+        # prefix ("YARNNN Design System/tokens/colors.css"). Strip one leading
+        # segment when every entry shares it — otherwise the manifest's
+        # folder-relative `css:` paths would never resolve.
+        files[rel] = zf.read(info)
+    files = _strip_common_root(files)
+    if not files:
+        raise HTTPException(status_code=400, detail="That archive is empty.")
+
+    # The name a member recognises, best evidence first: what they typed, then
+    # the archive's own wrapper folder, then the FILE they picked. The live
+    # YARNNN export zips its contents at the ROOT (no wrapper), so root_name is
+    # None and the filename is the only thing left carrying "YARNNN Design
+    # System" — without it every import would be called "Design system".
+    display = (
+        (name or "").strip()
+        or _zip_root_name(raw)
+        or re.sub(r"\.zip$", "", (file.filename or ""), flags=re.I).strip()
+        or "Design system"
+    )
+    folder = f"/workspace/design-system/{_slugify(display)}"
+    result = import_design_system(
+        auth.client, user_id=auth.user_id, folder=folder,
+        display_name=display, files=files,
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Import failed."))
+    return result
+
+
+#: A design-system archive is tokens + a few assets. The live YARNNN export is
+#: 2MB with a 508KB vendor bundle inside it; 25MB is the bucket's own file
+#: ceiling and a generous roof for a folder of CSS.
+_MAX_IMPORT_BYTES = 25_000_000
+_MAX_MEMBER_FILE_BYTES = 10_000_000
+
+
+def _slugify(name: str) -> str:
+    s = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return s or "design-system"
+
+
+def _zip_root_name(raw: bytes) -> Optional[str]:
+    """The archive's own folder name — the display name a member recognises."""
+    import io
+    import zipfile
+
+    try:
+        names = [n for n in zipfile.ZipFile(io.BytesIO(raw)).namelist() if not n.startswith("__")]
+    except Exception:  # noqa: BLE001
+        return None
+    roots = {n.split("/")[0] for n in names if "/" in n}
+    return roots.pop() if len(roots) == 1 else None
+
+
+def _strip_common_root(files: dict) -> dict:
+    """Drop the shared top folder every zipped export carries.
+
+    Without this, `styles.css` lands at `<folder>/YARNNN Design System/
+    styles.css` while the manifest says `css: [styles.css]` — the resolve
+    would find nothing and the picker would offer a skin that styles nothing.
+    """
+    real = {k: v for k, v in files.items() if not k.startswith("__MACOSX/")}
+    if not real:
+        return {}
+    roots = {k.split("/")[0] for k in real if "/" in k}
+    if len(roots) != 1 or any("/" not in k for k in real):
+        return real
+    root = roots.pop() + "/"
+    return {k[len(root):]: v for k, v in real.items() if k != root}
 
 
 class WriteArtifactRequest(BaseModel):

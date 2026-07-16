@@ -214,6 +214,40 @@ def run() -> int:
         and ".table(\"workspace_files\").insert" not in imp_src,
     )
 
+    # ── 5d. the import DOOR (ADR-462 D14) ────────────────────────────────
+    import routes.studio as studio_routes
+
+    passed &= _check(
+        "the zip's wrapper folder is stripped (a manifest saying `css: "
+        "[styles.css]` cannot resolve `<folder>/My System/styles.css`)",
+        list(studio_routes._strip_common_root(
+            {"My System/styles.css": b"a", "My System/tokens/c.css": b"b"}
+        ).keys()) == ["styles.css", "tokens/c.css"],
+    )
+    passed &= _check(
+        "macOS resource forks never reach the workspace",
+        "__MACOSX" not in str(studio_routes._strip_common_root(
+            {"x/styles.css": b"a", "__MACOSX/._styles.css": b"junk"}
+        )),
+    )
+    passed &= _check(
+        "a FLAT zip (no wrapper) is left alone — the live export is exactly "
+        "this shape, and stripping a non-existent root would eat a real file",
+        set(studio_routes._strip_common_root(
+            {"styles.css": b"a", "tokens/c.css": b"b"}
+        )) == {"styles.css", "tokens/c.css"},
+    )
+    routes_src = inspect.getsource(studio_routes)
+    passed &= _check(
+        "the display name falls back to the FILENAME (the live export zips "
+        "at the root, so there is no wrapper folder to name it)",
+        're.sub(r"\\.zip$", "", (file.filename or "")' in routes_src,
+    )
+    passed &= _check(
+        "a non-zip is refused in the member's words, not a stack trace",
+        "is not a .zip" in routes_src and "BadZipFile" in routes_src,
+    )
+
     # ── 6. purity: no write path in the module ────────────────────────────
     mod_src = inspect.getsource(ds_mod)
     passed &= _check(

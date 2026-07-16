@@ -471,6 +471,39 @@ export const api = {
       request<{ name: string; manifest_path: string; skin_element: string }>(
         `/api/studio/design-systems/resolve?manifest=${encodeURIComponent(manifestPath)}`,
       ),
+    /** ADR-462 D14 — import a design-system export (.zip) → a conforming
+     *  meaning-folder. Multipart, so it cannot ride `request` (which sets a
+     *  JSON content-type); the boundary must be the browser's own. Returns
+     *  the receipt WITH its warnings — an import that half-lands silently is
+     *  the failure this arc exists to prevent, so the caller shows them. */
+    importDesignSystem: async (file: File, name?: string) => {
+      const headers = await getAuthHeaders();
+      delete (headers as Record<string, string>)["Content-Type"];
+      const formData = new FormData();
+      formData.append("file", file);
+      if (name) formData.append("name", name);
+      const response = await fetch(`${API_BASE_URL}/api/studio/design-systems/import`, {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: formData,
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new APIError(response.status, response.statusText, data);
+      }
+      return response.json() as Promise<{
+        ok: boolean;
+        name: string;
+        manifest_path: string;
+        entry: string;
+        written: string[];
+        sources: string[];
+        fonts: string[];
+        skipped: string[];
+        warnings: string[];
+      }>;
+    },
     // ADR-444/447: the mechanical write door — deterministic structural ops
     // (insert block / add arrangement / re-arrange) computed FE-side, landed
     // as ONE operator-attributed CAS-guarded revision (409 on a stale base).

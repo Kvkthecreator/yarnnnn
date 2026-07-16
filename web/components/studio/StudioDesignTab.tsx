@@ -23,7 +23,7 @@
  * parsed from the artifact SOURCE at render (derived, never stored).
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -75,6 +75,10 @@ interface StudioDesignTabProps {
   onApplyDesignSystem: (manifestPath: string) => Promise<void>;
   /** EXECUTE: remove the marked skin element. */
   onRemoveDesignSystem: () => void;
+  /** ADR-462 D14: a design system was imported — the surface refetches the
+   *  served vocabulary so the picker sees it (the payload carries kernel
+   *  constants AND workspace state; only the second half goes stale). */
+  onImported?: () => void;
   /** EXECUTE: role-gated slot adds (ADR-453 D5). */
   onAddTextInSlot: (slot: string, slideIndex: number | null, pageIndex: number | null) => void;
   onInsertImageInSlot: (
@@ -240,6 +244,7 @@ export function StudioDesignTab({
   onAskAboutSelection,
   onApplyDesignSystem,
   onRemoveDesignSystem,
+  onImported,
   onAddTextInSlot,
   onInsertImageInSlot,
   onSetPageBackground,
@@ -328,6 +333,37 @@ export function StudioDesignTab({
   const designSystems = vocabulary?.design_systems ?? [];
   const [applying, setApplying] = useState<string | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importReceipt, setImportReceipt] = useState<{
+    name: string;
+    written: string[];
+    sources: string[];
+    skipped: string[];
+    warnings: string[];
+  } | null>(null);
+
+  const runImport = useCallback(
+    async (f: File) => {
+      setImporting(true);
+      setImportError(null);
+      setImportReceipt(null);
+      try {
+        const r = await api.studio.importDesignSystem(f);
+        setImportReceipt(r);
+        // The picker reads the served vocabulary, so the new system is
+        // invisible until it refetches — the exact staleness that made the
+        // picker deny a design system that already existed (2026-07-16).
+        onImported?.();
+      } catch (e) {
+        setImportError(e instanceof Error ? e.message : 'Import failed.');
+      } finally {
+        setImporting(false);
+      }
+    },
+    [onImported],
+  );
 
   // ADR-456 W3: the theme panel — the applied skin's custom properties,
   // parsed from the artifact's own marked element (read legibility; the
@@ -435,10 +471,8 @@ export function StudioDesignTab({
             <p className={HEADING}>Design system</p>
             {designSystems.length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                No design system in this workspace yet — create one with{' '}
-                <span className="font-medium text-foreground/70">Learn from</span> (a folder with a{' '}
-                <code className="text-[10px]">_design.yaml</code> manifest), and artifacts can wear
-                it.
+                No design system yet. Import your brand&apos;s export — tokens, styles, fonts —
+                and every artifact can wear it.
               </p>
             ) : (
               <div className="space-y-1">
@@ -481,6 +515,60 @@ export function StudioDesignTab({
                   );
                 })}
                 {applyError && <p className="text-[10px] text-red-500">{applyError}</p>}
+              </div>
+            )}
+            {/* The import (ADR-462 D14). A .zip because that is what a design
+                system IS on the way over: every export ships a FOLDER, and a
+                folder reaches a browser as an archive. One file, one act — the
+                flatten, the manifest, and the binary lane are the server's. */}
+            <input
+              ref={importRef}
+              type="file"
+              accept=".zip,application/zip"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void runImport(f);
+                e.target.value = '';
+              }}
+            />
+            <button
+              type="button"
+              disabled={importing}
+              onClick={() => importRef.current?.click()}
+              className={`${askBtn} mt-1.5 w-full justify-center`}
+            >
+              {importing ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Importing…
+                </span>
+              ) : designSystems.length ? (
+                'Import another…'
+              ) : (
+                'Import a design system…'
+              )}
+            </button>
+            {importError && <p className="mt-1 text-[10px] text-red-500">{importError}</p>}
+            {importReceipt && (
+              // The receipt, warnings included. An import that half-lands
+              // SILENTLY is the failure this whole arc exists to prevent — so
+              // what the flatten could not resolve is shown, not swallowed.
+              <div className="mt-1.5 space-y-1 rounded-md border border-border bg-muted/20 p-2">
+                <p className="text-[11px] font-medium">
+                  {importReceipt.name} — {importReceipt.written.length} files
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {importReceipt.sources.length} stylesheets flattened
+                  {importReceipt.skipped.length
+                    ? ` · ${importReceipt.skipped.length} vendor files skipped`
+                    : ''}
+                </p>
+                {importReceipt.warnings.map((w) => (
+                  <p key={w} className="text-[10px] text-amber-700 dark:text-amber-500">
+                    {w}
+                  </p>
+                ))}
               </div>
             )}
           </div>
