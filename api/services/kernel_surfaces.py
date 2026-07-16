@@ -575,10 +575,20 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "title": "Agents",
         "archetype": "roster",
         "substrate_paths": [],  # agents DB table + per-agent substrate
-        "icon_key": "users",
+        # `users` (the multi-human glyph) was the icon until 2026-07-16 — it named
+        # the wrong noun. A crowd of people is the MEMBERS concept (the humans in
+        # the commons — WorkspaceMembersCard, `user-circle` for the account/identity
+        # door). These are colleagues you HIRE, not people who joined. `sparkles`
+        # collides with nothing in the registry, and `users` is now free for the
+        # members surface that should own it.
+        "icon_key": "sparkles",
         "default_pinned": False,
         "route": "/agents",  # _route_status: EXISTING — hired-agent detail + roster live here
-        "summary": "Agent roster — hired Altitude-3 persona agents (the deferred horizon; A2 chat lanes are the launch AI surface).",
+        # Summary rewritten 2026-07-16 with the re-surface: the old line described
+        # the A3-deferred world the comment above just inverted ("hired Altitude-3
+        # persona agents (the deferred horizon; A2 chat lanes are the launch AI
+        # surface)") — ADR-460 D1 dissolved that ladder. One kind of agent.
+        "summary": "Your colleagues — the agents you've hired and named, and the ones you can hire.",
     },
     {
         # ADR-437 (2026-07-10): DORMANT — the guided first-boot SEQUENCE surface

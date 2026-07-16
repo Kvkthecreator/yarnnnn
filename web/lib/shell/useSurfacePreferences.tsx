@@ -56,6 +56,7 @@ import {
   hasLocalShellState,
   hydrateShellState,
   keepSurface as keepSurfaceWrite,
+  normalizeWindowParams,
   openSurface as openSurfaceWrite,
   releaseSurface as releaseSurfaceWrite,
   setForegroundedSurface as setForegroundedWrite,
@@ -526,8 +527,20 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
 
       // Priority (low→high): incoming URL deep-link < remembered (WindowState)
       // < just-delivered (this navigation's params).
+      //
+      // 2026-07-16 — the merged set is filtered to the keys the surface OWNS
+      // (normalizeWindowParams). getWindowStates already scrubs `remembered` on
+      // read, but `incoming` is a second source: pasting a stale link (the
+      // observed `?agents.pane=autonomy`, from when `autonomy` was pane_of:
+      // agents) would re-adopt the dead param and re-persist it, resurrecting it
+      // from a clean localStorage. Both sources pass the same allowlist.
       const remembered = windowStatesRef.current[foregroundSlug]?.params ?? {};
-      const merged: Record<string, string> = { ...incoming, ...remembered, ...(deliverParams || {}) };
+      const merged: Record<string, string> =
+        normalizeWindowParams(foregroundSlug, {
+          ...incoming,
+          ...remembered,
+          ...(deliverParams || {}),
+        }) ?? {};
       for (const [k, v] of Object.entries(merged)) {
         if (v != null && v !== '') url.searchParams.set(scopeParamKey(foregroundSlug, k), v);
       }

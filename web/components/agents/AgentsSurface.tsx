@@ -40,7 +40,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Pencil, Plus, Users } from 'lucide-react';
+import { Loader2, Pencil, Plus, Sparkles } from 'lucide-react';
 import { AgentCard } from '@/components/chat-surface/AgentCard';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -289,7 +289,7 @@ export function AgentsSurface() {
         </section>
 
         <p className="text-[11px] text-muted-foreground/70 flex items-start gap-1.5 border-t border-border pt-4">
-          <Users className="w-3 h-3 mt-0.5 shrink-0" />
+          <Sparkles className="w-3 h-3 mt-0.5 shrink-0" />
           Your agents work on your files, as you — every edit they make is
           attributed to you and kept in the file&apos;s history.
         </p>

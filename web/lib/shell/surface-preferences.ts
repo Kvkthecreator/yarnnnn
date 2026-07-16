@@ -278,9 +278,10 @@ export function getForegroundedSurface(userId: string): string | null {
     const raw = localStorage.getItem(key(FOREGROUND_KEY_PREFIX, userId));
     if (!raw) return DEFAULT_FOREGROUNDED_SURFACE;
     const n = normalizeSlug(raw);
-    // A dock-retired slug (agents) that was the foregrounded surface falls back
-    // to the default rather than landing the operator on a de-emphasized
-    // surface at cold-load — it's still reachable by direct URL.
+    // A dock-retired slug (today: system-agent) that was the foregrounded
+    // surface falls back to the default rather than landing the operator on a
+    // de-emphasized surface at cold-load — it's still reachable by direct URL.
+    // (Named `agents` until 2026-07-16, when that surface was re-surfaced.)
     if (DOCK_RETIRED_SLUGS.has(n)) return DEFAULT_FOREGROUNDED_SURFACE;
     // Normalize a stale legacy foregrounded slug (context/feed → channels).
     return n;
@@ -401,6 +402,52 @@ export interface WindowState {
 
 export type WindowStateMap = Record<string, WindowState>;
 
+// ----------------------------------------------------------------------------
+// Window-param normalization (2026-07-16)
+// ----------------------------------------------------------------------------
+//
+// The slug-normalization above (LEGACY_SLUG_ALIASES / DOCK_RETIRED_SLUGS) has a
+// twin gap: WindowState.params is a free-form Record<string,string> that is
+// never checked against the keys its surface actually reads. reconcileUrl
+// re-applies the remembered params to the URL VERBATIM on every foreground, so
+// a param key written under an old topology outlives it forever.
+//
+// The observed bug: `?agents.pane=autonomy`. `autonomy` was `pane_of: agents`
+// until 2026-07-06 (ADR-412 D5 re-homed it to workspace-settings, then ADR-426
+// → system-agent, then ADR-454 D4 → back to workspace-settings). A member who
+// opened that pane before the first move has `{pane:'autonomy'}` persisted on
+// the agents window. AgentsSurface never reads `pane` — its only depth is
+// `?agents.agent={slug}` — so the param is INERT, but it is replayed into the
+// address bar on every foreground. The URL claims a depth the surface has no
+// concept of, which is exactly the dishonest-address-bar class reconcileUrl was
+// written to end.
+//
+// Declare the param keys each surface OWNS. A key not listed is dropped on read.
+// This is an allowlist, not an alias map: a stale param has no live equivalent
+// to remap to (unlike a renamed slug, which still names a real surface).
+// Surfaces absent from this map are unconstrained — only surfaces whose param
+// vocabulary is settled need pinning down, and a wrong entry here would silently
+// eat live deep-links.
+const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
+  // ADR-167 list/detail: `?agents.agent={slug}`. There are no panes here.
+  agents: ['agent'],
+};
+
+/** Drop persisted param keys a surface doesn't own (see SURFACE_PARAM_KEYS). */
+export function normalizeWindowParams(
+  slug: string,
+  params: Record<string, string> | undefined
+): Record<string, string> | undefined {
+  if (!params) return params;
+  const allowed = SURFACE_PARAM_KEYS[slug];
+  if (!allowed) return params; // unconstrained surface — leave as-is
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (allowed.includes(k)) out[k] = v;
+  }
+  return out;
+}
+
 export function getWindowStates(userId: string): WindowStateMap {
   if (!isBrowser() || !userId) return {};
   try {
@@ -408,7 +455,16 @@ export function getWindowStates(userId: string): WindowStateMap {
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as WindowStateMap;
+      const states = parsed as WindowStateMap;
+      // Strip stale param keys on READ, mirroring normalizeSlugList — the same
+      // boundary, for the same reason: persisted shell state can name a topology
+      // that no longer exists.
+      for (const [slug, state] of Object.entries(states)) {
+        if (state?.params) {
+          states[slug] = { ...state, params: normalizeWindowParams(slug, state.params) };
+        }
+      }
+      return states;
     }
     return {};
   } catch {

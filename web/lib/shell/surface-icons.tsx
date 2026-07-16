@@ -32,10 +32,10 @@ import {
   ScrollText,
   Settings,
   ShieldCheck,
+  Sparkles,
   Target,
   User,
   UserCircle,
-  Users,
   Wallet,
 } from 'lucide-react';
 
@@ -106,12 +106,16 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   'scroll-text': ScrollText,
   settings: Settings,
   'shield-check': ShieldCheck,
+  // 2026-07-16: the `agents` roster glyph. Was `users` — the multi-human crowd,
+  // which names MEMBERS (the humans in the commons), not the colleagues you hire.
+  // `users` is deliberately NOT retained as an orphan mapping (Singular
+  // Implementation); it returns when a members surface declares it.
+  sparkles: Sparkles,
   target: Target,
   // ADR-347: user glyph for the account window (the `settings` slug,
   // UserMenu-reached — billing/usage/privacy, the human/principal).
   user: User,
   'user-circle': UserCircle,
-  users: Users,
 };
 
 export function resolveSurfaceIcon(iconKey: string): SurfaceIcon {
