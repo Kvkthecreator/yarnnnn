@@ -176,7 +176,7 @@ async def create_agent_record(
                 from services.workspace import AgentWorkspace, get_agent_slug
                 ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
                 # ADR-417: asset-generation capability injection retired with
-                # the render service (has_asset_capabilities now returns False
+                # the render service (asset generation is retired outright
                 # universally). Agents produce text substrate; generation, when
                 # it returns, is a member-attached connector (ADR-413), not an
                 # in-house agent capability.

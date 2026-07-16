@@ -53,7 +53,7 @@ async def resync_persona(slug: str, role_filter: str | None, dry_run: bool) -> i
     service_key = os.environ["SUPABASE_SERVICE_KEY"]
     client = create_client(supabase_url, service_key)
 
-    from services.orchestration import ALL_ROLES, has_asset_capabilities, get_type_playbook
+    from services.orchestration import ALL_ROLES, get_type_playbook
     from services.workspace import AgentWorkspace, get_agent_slug
 
     agents_q = (
@@ -83,13 +83,6 @@ async def resync_persona(slug: str, role_filter: str | None, dry_run: bool) -> i
 
         # Build the canonical AGENT.md content the same way agent_creation.py does.
         canonical = template.get("default_instructions", "")
-        if has_asset_capabilities(role):
-            canonical += (
-                "\n\n## Available Capabilities\nThis agent can produce rich outputs "
-                "via RuntimeDispatch: PNG/SVG charts, diagrams, and images. "
-                "Use these when visual data or formatted reports would serve the "
-                "recipient better than plain text."
-            )
 
         slug_str = get_agent_slug(agent)
         ws = AgentWorkspace(client, persona.user_id, slug_str)

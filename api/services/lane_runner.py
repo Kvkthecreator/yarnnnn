@@ -333,13 +333,26 @@ def build_lane_conventions(
     # the colleague. Empty string for a lane with no agent (every pre-registry
     # lane, and every Studio/derive lane) — byte-identical to today.
     if agent:
-        from services.agents_registry import build_agent_posture, find_member_agents
+        from services.agents_registry import (
+            build_agent_posture,
+            find_agent_skills,
+            find_member_agents,
+        )
         # Member-first (the later-widening): a named colleague ("Lisa") wears a
         # kernel capability's character plus the member's own tone. Discovery
         # is a read; a broken manifest never breaks a turn (best-effort).
-        posture_section += build_agent_posture(
-            agent, find_member_agents(client, user_id)
-        )
+        _mine = find_member_agents(client, user_id)
+        # ADR-464 — the skills the member taught THIS colleague. The folder comes
+        # free from the manifest the discovery above already read; a kernel agent
+        # has no folder, so it has no skills (a kernel skill would be a kernel
+        # edit, and the kernel corpus is code — the DERIVE_RECIPES pattern).
+        _skills: list = []
+        _me = next((a for a in _mine if a["slug"] == agent), None)
+        if _me and _me.get("manifest_path"):
+            _skills = find_agent_skills(
+                client, user_id, _me["manifest_path"].rsplit("/", 1)[0]
+            )
+        posture_section += build_agent_posture(agent, _mine, _skills)
     if artifact_path:
         from services.studio import build_studio_posture
         artifact = _read_workspace_file(client, user_id, artifact_path)

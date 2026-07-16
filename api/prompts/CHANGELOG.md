@@ -6,6 +6,37 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.16.3] - Skills return — the convention, without the engine that killed it
+
+- `services/agents_registry.py` — **`agents/{slug}/skills/*.md`**. ADR-118 adopted
+  SKILL.md explicitly (*"no yarnnn-specific terminology where Claude conventions
+  exist"*) and named its own missing leg: *"yarnnn already has the instructions and
+  the filesystem; **the missing primitive is the compute environment**."* ADR-417
+  retired that engine — **not the convention**. A skill as PROSE has no vendor
+  problem: it needs a file and a model that reads, which is every model. The
+  ADR-463 model-agnostic discipline is free here; only compute ever bound us.
+  - `find_agent_skills` (discovery, never registration — the ADR-449 mechanic the
+    manifest already uses, one level down) + `build_skills_section` (pure).
+  - Composed **last**: character → name → tone → skills. A skill is what this
+    colleague was *taught*, read in the voice of who they are.
+  - **Bounded**: 8 files / 12K chars, trimmed by **whole skills** — half an
+    instruction is worse than none, because the model acts on the half it can see.
+    Skills ride every turn, so an unbounded folder is an unbounded bill.
+  - ⚠️ **Prose is not permission.** A skill saying *"you may post to Slack"* grants
+    nothing: tools resolve from the KERNEL row via `based_on`, and the gate branches
+    on `caller_identity`, which the runtime stamps from (user_id, model). Neither is
+    reachable from a file. The D3.a cliff was never held by the file format — it is
+    held by what the runtime stamps and the gate derives. Gate-proven.
+- **Expected behavior**: an agent with no `skills/` folder takes a byte-identical
+  turn (empty section, zero prompt cost). A member who writes
+  `agents/lisa/skills/house-style.md` has Lisa follow it on every turn.
+- **Cleanup (ADR-417's unfinished deletion)**: `has_asset_capabilities()` deleted —
+  a predicate that could only return `False`, kept alive "so those call sites need no
+  change". Its three consumers were a dead branch appending prose about the deleted
+  `RuntimeDispatch`, and two payload fields nothing read. Its gate asserted a
+  tautology; the real invariant is checked at the source (`CAPABILITIES` carries no
+  `category=="asset"`).
+
 ## [2026.07.16.2] - Scout stops lying: capability, not vendor (ADR-463)
 
 - `services/capabilities.py` (new) — the capability-server seam. `WebSearch` used

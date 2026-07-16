@@ -1362,8 +1362,16 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     # -- Asset production (RETIRED — ADR-417) --
     # The chart/mermaid/image/video_render capabilities backed by the
     # in-house render service are retired. Generation is rented, not owned:
-    # yarnnn hosts no generation engine. has_asset_capabilities() now
-    # returns False universally; no SKILL.md injection, no RuntimeDispatch.
+    # yarnnn hosts no generation engine. Asset capabilities are gone, and so is
+    # RuntimeDispatch — the primitive that dispatched to the render service.
+    #
+    # NOTE (ADR-464, 2026-07-16): this comment used to end "no SKILL.md
+    # injection", which was true of THIS path and became a misreading of the
+    # whole system. ADR-417 retired the ENGINE (ADR-118's third leg — the
+    # compute environment it had named as the missing one). It never retired the
+    # CONVENTION. Skills are back as `agents/{slug}/skills/*.md` — instructions,
+    # not engines, and vendor-free by construction because prose is what every
+    # model reads. See services/agents_registry.py::find_agent_skills.
 
     # -- Composition (post-generation pipeline step) --
     "compose_html": {
@@ -1422,19 +1430,16 @@ def has_capability(agent_type: str, capability: str) -> bool:
     return capability in get_type_capabilities(agent_type)
 
 
-def has_asset_capabilities(agent_type: str) -> bool:
-    """ADR-417: asset generation is retired — yarnnn hosts no generation engine.
-
-    No capability carries category=="asset" any longer, so this returns False
-    universally. Retained as a stable predicate (consumed by working_memory,
-    agent_creation, resync_agents) so those call sites need no change; it now
-    simply reports "no agent produces assets."
-    """
-    caps = get_type_capabilities(agent_type)
-    return any(
-        CAPABILITIES.get(c, {}).get("category") == "asset"
-        for c in caps
-    )
+# ADR-417 retired asset generation; `has_asset_capabilities()` survived it as a
+# predicate that could only ever return False, kept alive "so those call sites
+# need no change". DELETED 2026-07-16 (ADR-464 cleanup): its three consumers were
+# a dead branch appending prose about the deleted RuntimeDispatch primitive, and
+# two payload fields nothing read. A predicate with one possible value is not an
+# abstraction, it is a fact with a function around it — the same shape as the
+# `tools` field that "lies about being a choice" (agents_registry). The invariant
+# it stood for is asserted where it is TRUE, at the source:
+# test_adr417::test_asset_capabilities_removed_from_registry checks CAPABILITIES
+# itself carries no category=="asset".
 
 
 def get_type_skill_docs(agent_type: str) -> list[str]:
@@ -1727,7 +1732,6 @@ def list_agent_types(include_pm: bool = False) -> list[dict]:
             "display_name": tdef["display_name"],
             "tagline": tdef["tagline"],
             "capabilities": tdef["capabilities"],
-            "has_assets": has_asset_capabilities(key),
         })
     return types
 

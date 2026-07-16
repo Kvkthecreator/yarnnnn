@@ -981,7 +981,7 @@ def _build_system_reference(platforms: list) -> dict:
       - agent_framework.py (ALL_ROLES — capability bundles per type)
       - Connected platforms (from working memory query)
     """
-    from services.orchestration import ALL_ROLES, has_asset_capabilities
+    from services.orchestration import ALL_ROLES
 
     # --- Agent types (ADR-130: deterministic capability bundles) ---
     roles = []
@@ -991,7 +991,6 @@ def _build_system_reference(platforms: list) -> dict:
         roles.append({
             "role": type_name,
             "capabilities": type_def["capabilities"],
-            "has_asset_capabilities": has_asset_capabilities(type_name),
             "description": type_def.get("description", ""),
         })
 

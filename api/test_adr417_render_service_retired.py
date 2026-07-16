@@ -6,7 +6,9 @@ Permanent guard that the render-service teardown stays torn down:
   2. No live import of the deleted modules (`runtime_dispatch`, `render_assets`).
   3. No live `RENDER_SERVICE_URL` / `RENDER_SERVICE_SECRET` reference in service
      or route code (env-var strings are gone; nothing POSTs to the dead service).
-  4. `has_asset_capabilities()` returns False for every role (no asset caps).
+  4. no capability carries category=="asset" (the predicate that asserted this
+     per-role was deleted with its callers, ADR-464 cleanup — a tautology once
+     the source is checked directly).
   5. Compose resolves in-API (`services.compose.engine.compose_html`), no HTTP.
   6. `render_usage` appears only in migrations + historical docs, never live code.
 
@@ -74,14 +76,6 @@ def test_no_import_of_deleted_modules():
             if imp.search(line):
                 offenders.append(f"{p.relative_to(API.parent)}:{i}: {line.strip()}")
     assert not offenders, "live import of a deleted module:\n" + "\n".join(offenders)
-
-
-def test_no_agent_has_asset_capabilities():
-    from services.orchestration import has_asset_capabilities, ALL_ROLES
-
-    for role in ALL_ROLES:
-        assert has_asset_capabilities(role) is False, \
-            f"role {role!r} still reports asset capabilities (ADR-417 retired generation)"
 
 
 def test_asset_capabilities_removed_from_registry():

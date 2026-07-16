@@ -457,6 +457,126 @@ def find_member_agents(client: Any, user_id: str) -> list[dict]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# Skills — the market's convention, without the engine that killed it (ADR-464)
+# ---------------------------------------------------------------------------
+#
+# ADR-118 (2026-03) adopted SKILL.md EXPLICITLY: "Adopt Claude Code's naming
+# conventions (skills, SKILL.md) directly — no yarnnn-specific terminology where
+# Claude conventions exist." It also named its own missing leg: "yarnnn already
+# has the instructions and the filesystem; THE MISSING PRIMITIVE IS THE COMPUTE
+# ENVIRONMENT."
+#
+# ADR-417 retired the compute environment (the yarnnn-render service) and asset
+# generation. It did NOT rule that structured instructions in a file were wrong
+# — it retired the ENGINE. The convention was orphaned by a decision about
+# hosting, and "skills are dead" has been a misreading of that ever since.
+#
+# ⭐ A SKILL AS INSTRUCTIONS HAS NO VENDOR PROBLEM AT ALL. This is the whole
+# reason it can come back now. ADR-118 needed a render service because it wanted
+# skills to EXECUTE (matplotlib, PDF). A skill that is PROSE needs a file and a
+# model that can read — which is every model. The ADR-463 model-agnostic
+# discipline is free here: only compute ever bound us to a vendor, and we
+# already stopped hosting compute.
+#
+# THE SHAPE IS THE ONE THIS CODEBASE AND THE MARKET ALREADY AGREE ON:
+#
+#     agents/{slug}/_agent.yaml     ← identity (machine-parsed, §9)
+#     agents/{slug}/skills/*.md     ← instructions (LLM-read prose, §9)
+#
+# Discovery, never registration — the ADR-449 mechanic the manifest already
+# uses, one level down. No new table, no new registry, no seeding (ADR-414).
+#
+# ⚠️ WHY THIS DOES NOT REOPEN THE D3.a CLIFF. A skill is PROSE composed into a
+# prompt. It cannot grant a tool: `resolve_agent_tools` reads the KERNEL row via
+# `based_on` and a member's file is not consulted. It cannot grant authority:
+# the gate branches on `caller_identity`, which the RUNTIME stamps from
+# (user_id, model) — unreachable from any file. A skill that SAYS "you may post
+# to Slack" is a lie the gate refuses, exactly as it refuses the same words typed
+# in chat. **Prose is not permission.** The cliff was never held by the file
+# format; it is held by what the runtime stamps and the gate derives.
+
+#: Skill files live here, under the member's agent folder. `skills/` (not
+#: `_skills/`) because these are LLM-read prose, not machine config — CLAUDE.md
+#: §9: format follows the consumer.
+AGENT_SKILLS_DIRNAME = "skills"
+
+#: A bound on what one agent's skills may inject. Skills compose into every turn
+#: this agent takes, so an unbounded corpus is an unbounded per-turn bill —
+#: cost is why this is a ceiling and not a preference. Generous enough that a
+#: real skill set fits; low enough that a runaway folder cannot quietly triple
+#: a member's token cost. Trimmed by whole skills, never mid-sentence: half an
+#: instruction is worse than none.
+_MAX_SKILL_FILES = 8
+_MAX_SKILL_CHARS = 12_000
+
+
+def find_agent_skills(client: Any, user_id: str, folder: str) -> list[dict]:
+    """The skills under one agent's folder — [{name, content}]. Best-effort.
+
+    `folder` is the agent's directory (e.g. `/workspace/agents/lisa`). Reads
+    `{folder}/skills/*.md`. A member with no skills folder gets [] and a turn
+    byte-identical to a pre-ADR-464 one.
+    """
+    from services.workspace_context import substrate_scope_filter
+
+    prefix = f"{folder.rstrip('/')}/{AGENT_SKILLS_DIRNAME}/"
+    out: list[dict] = []
+    try:
+        rows = (
+            client.table("workspace_files")
+            .select("path, content, lifecycle")
+            .eq(*substrate_scope_filter(user_id))
+            .like("path", f"{prefix}%")
+            .order("path")
+            .limit(_MAX_SKILL_FILES * 2)  # headroom: archived rows filter below
+            .execute()
+        ).data or []
+        for r in rows:
+            if r.get("lifecycle") == "archived":
+                continue
+            path = r.get("path") or ""
+            if not path.endswith(".md"):
+                continue
+            body = (r.get("content") or "").strip()
+            if not body:
+                continue
+            out.append({"name": path.rsplit("/", 1)[-1][:-3], "content": body})
+    except Exception as exc:  # noqa: BLE001 — discovery is best-effort
+        logger.debug("[AGENTS] skill discovery failed for %s: %s", folder, exc)
+    return out[:_MAX_SKILL_FILES]
+
+
+def build_skills_section(skills: list[dict]) -> str:
+    """Skills → the prompt section, or "" when there are none. Pure.
+
+    Trimmed to `_MAX_SKILL_CHARS` by dropping WHOLE skills from the end — a
+    truncated instruction is worse than an absent one, because the model acts on
+    the half it can see.
+    """
+    if not skills:
+        return ""
+    kept: list[dict] = []
+    used = 0
+    for s in skills:
+        cost = len(s["content"]) + len(s["name"]) + 16
+        if used + cost > _MAX_SKILL_CHARS:
+            logger.info(
+                "[AGENTS] skill %r dropped — the %d-char budget is full (%d kept)",
+                s["name"], _MAX_SKILL_CHARS, len(kept),
+            )
+            break
+        kept.append(s)
+        used += cost
+    if not kept:
+        return ""
+    body = "\n\n".join(f"### {s['name']}\n{s['content']}" for s in kept)
+    return (
+        "\n\nSKILLS (the member taught you these — follow them as written)\n"
+        f"{body}\n"
+    )
+
+
 def resolve_agent(slug: str, member_agents: Optional[list[dict]] = None) -> Optional[dict]:
     """An Agent by slug — the member's first, then the kernel's. Pure.
 
@@ -535,7 +655,11 @@ def model_for_agent(slug: str) -> Optional[str]:
     return agent["model"] if agent else None
 
 
-def build_agent_posture(slug: str, member_agents: Optional[list[dict]] = None) -> str:
+def build_agent_posture(
+    slug: str,
+    member_agents: Optional[list[dict]] = None,
+    skills: Optional[list[dict]] = None,
+) -> str:
     """The Agent's turn-time posture overlay, or "" when there is no Agent. Pure.
 
     Composed at turn time from the slug, never stored (the ADR-411 D6 pattern) —
@@ -550,6 +674,12 @@ def build_agent_posture(slug: str, member_agents: Optional[list[dict]] = None) -
     not a posture swap. Deliberately the thin end: a member authoring a full
     posture is prompt-engineering, which is the expert ceremony the whole
     re-cut removed. If members reach for more, that is evidence — build then.
+
+    `skills` (ADR-464): the agent's SKILL.md-shaped instructions, read by the
+    caller (this function stays PURE — the read is the caller's, the composition
+    is ours). Appended LAST: character → name → tone → skills, because a skill is
+    what this colleague was TAUGHT, and it is read in the voice of who they are.
+    Empty list → byte-identical to a pre-464 turn.
     """
     agent = resolve_agent(slug, member_agents)
     if not agent:
@@ -571,4 +701,7 @@ def build_agent_posture(slug: str, member_agents: Optional[list[dict]] = None) -
     tone = (agent.get("tone") or "").strip()
     if tone:
         section += f"\nHOW {name.upper()} SOUNDS (the member's own words)\n{tone}\n"
+    # ADR-464 — what the member TAUGHT them. Last, and in the voice of who they
+    # are: a skill is instructions this colleague follows, not a second identity.
+    section += build_skills_section(skills or [])
     return section

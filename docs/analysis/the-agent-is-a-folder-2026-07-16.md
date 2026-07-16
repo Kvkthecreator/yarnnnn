@@ -1,6 +1,19 @@
 # The agent is a folder — converging on the market's conventions
 
-**Status**: Analysis + direction. **The upstream question the operator named**: *"we need to start from even more upstream considerations… concepts like skills and connections should not be on legacy, but similarly how to treat conventional concepts that are more agent harness, readily available in the market… not only model agnostic (thus following similar discipline we made for the llm routing themselves), but more market-wide conventional known approaches."*
+> ## ⚠️ SUPERSEDED IN PART by [ADR-464](../adr/ADR-464-skills-the-convention-without-the-engine.md) (2026-07-16, same day)
+>
+> **§1 (the ADR-118/417 misreading) and §3 (the wall is about authority, not files) are RATIFIED — they are ADR-464's §1 and §3.**
+>
+> **§5's "kernel agents ship as folder CONTENT, not as a dict" is WRONG, and the check I flagged as the open question is what refuted it.** I asked *"where do kernel agents live before a member touches them?"* (ADR-414 seeds nothing) and went looking. The answer was already ratified, twice, in two different shapes:
+>
+> - **`DERIVE_RECIPES` (ADR-450)** — prose instructions in a *kernel dict*, no member folder. Nobody calls it misfiled, because **the kernel corpus is code**.
+> - **Design systems (ADR-449)** — a *member folder*, no kernel set at all. Present iff the member made one.
+>
+> `KERNEL_AGENTS` is already the correct composition of both: kernel corpus in code + member folder via `based_on`, composing beside each other. **The architecture was right; I mistook "not a file" for "not a convention."** The real gap was narrower and is what ADR-464 fixes: the *member's* folder had no room for prose or skills (`tone` — LLM-read prose — sat in a `_.yaml`, and `skills/` didn't exist).
+>
+> Kept unedited below as the reasoning trail, because the wrong turn is instructive: **the upstream check I nearly skipped is the one that saved the build.**
+
+**Status**: Analysis + direction. **§5 partially superseded — see the banner above.** **The upstream question the operator named**: *"we need to start from even more upstream considerations… concepts like skills and connections should not be on legacy, but similarly how to treat conventional concepts that are more agent harness, readily available in the market… not only model agnostic (thus following similar discipline we made for the llm routing themselves), but more market-wide conventional known approaches."*
 **Date**: 2026-07-16
 **Relates to**: ADR-118 (skills as capability layer — the convention this codebase adopted first) · ADR-417 (what actually died) · ADR-449 (the meaning-folder) · ADR-460 D3.a (the cliff) · ADR-463 (capability-not-vendor — the discipline this extends) · ADR-373/386/434 (grants + powerbox — the auth the operator says is already resolved, and is)
 
