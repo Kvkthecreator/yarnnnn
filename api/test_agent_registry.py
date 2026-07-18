@@ -23,6 +23,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 from services.agents_registry import (  # noqa: E402
     AGENT_ROW_KEYS,
     KERNEL_AGENTS,
+    KERNEL_POSTURES,
+    POSTURE_ROW_KEYS,
+    _kernel_character,
     build_agent_posture,
     get_agent,
     list_agents,
@@ -54,7 +57,10 @@ def run() -> bool:
         "autonomous", "unattended", "standing_intent", "mandate", "wake",
         "principal", "grant", "scopes",
     )
-    for agent in KERNEL_AGENTS.values():
+    # The cliff holds on BOTH keyspaces — base agents AND postures. A posture
+    # (Critic) carries identity + a capability pointer + an engine, never
+    # authority, exactly like a base agent.
+    for agent in (*KERNEL_AGENTS.values(), *KERNEL_POSTURES.values()):
         keys = " ".join(agent.keys()).lower()
         for word in banned:
             _check(
@@ -63,30 +69,68 @@ def run() -> bool:
             )
         break  # the row-shape check below covers all rows exhaustively
     _check(
-        "the allowed row shape itself contains no authority-shaped key",
+        "the allowed AGENT row shape contains no authority-shaped key",
         not any(w in " ".join(AGENT_ROW_KEYS).lower() for w in banned),
     )
-    # The load-bearing half: no row may carry a key OUTSIDE the whitelist. A
-    # subset test, not equality — `bound_only` is optional (2026-07-16), and
-    # equality would have forced every optional field onto every row, which
-    # conflates "this key is allowed" with "this key is required". The cliff
-    # guard is unweakened: an unlisted key still fails, and adding one to
-    # AGENT_ROW_KEYS still trips the banned-word check above.
+    _check(
+        "the allowed POSTURE row shape contains no authority-shaped key",
+        not any(w in " ".join(POSTURE_ROW_KEYS).lower() for w in banned),
+    )
+    # The load-bearing half: no row may carry a key OUTSIDE its whitelist. A
+    # subset test, not equality (an optional field like `tools` is not required
+    # on every row). The cliff guard is unweakened: an unlisted key still fails,
+    # and adding one to a whitelist still trips the banned-word check above.
     for a in KERNEL_AGENTS.values():
         _check(
-            f"'{a['slug']}' carries no key outside the allowed shape",
+            f"agent '{a['slug']}' carries no key outside the allowed shape",
             set(a.keys()) <= AGENT_ROW_KEYS,
         )
-    # The required core: every row must be a complete, routable Agent.
+    for p in KERNEL_POSTURES.values():
+        _check(
+            f"posture '{p['slug']}' carries no key outside the allowed shape",
+            set(p.keys()) <= POSTURE_ROW_KEYS,
+        )
+    # ⚠️ A posture declares NO `tools` of its own — it inherits its base agent's
+    # reach (a stance is not a grant, ADR-463 D4.a). `tools` is absent from
+    # POSTURE_ROW_KEYS, and no posture row carries it.
+    _check(
+        "`tools` is not in the posture vocabulary (a stance inherits reach, never grants)",
+        "tools" not in POSTURE_ROW_KEYS
+        and all("tools" not in p for p in KERNEL_POSTURES.values()),
+    )
+    # The required core: every base agent must be a complete, routable Agent.
     _required = {"slug", "name", "blurb", "icon", "model", "token_profile", "posture"}
     for a in KERNEL_AGENTS.values():
         _check(
-            f"'{a['slug']}' carries every required key",
+            f"agent '{a['slug']}' carries every required key",
             _required <= set(a.keys()),
         )
+    # A posture requires the same core PLUS `based_on` — it is a stance over an
+    # operation, so it must name which operation.
+    for p in KERNEL_POSTURES.values():
+        _check(
+            f"posture '{p['slug']}' carries every required key + based_on",
+            (_required | {"based_on"}) <= set(p.keys()),
+        )
+    # The two keyspaces are DISJOINT — resolution folds them into one namespace
+    # (`_kernel_character`), so a shared slug would make a slug ambiguous.
+    _check(
+        "base agents and postures share no slug (one namespace, no collisions)",
+        not (set(KERNEL_AGENTS) & set(KERNEL_POSTURES)),
+    )
+    # Every posture's `based_on` is a real base OPERATION (a posture is a stance
+    # over an addressed operation, not over thin air or another posture).
+    for p in KERNEL_POSTURES.values():
+        _check(
+            f"posture '{p['slug']}' is based_on a base agent ({p['based_on']})",
+            p["based_on"] in KERNEL_AGENTS,
+        )
 
-    print("\n── 2. every Agent's engine is real and PRICED (ADR-439 §4) ──")
-    for slug, agent in KERNEL_AGENTS.items():
+    print("\n── 2. every character's engine is real and PRICED (ADR-439 §4) ──")
+    # Base agents AND postures route — Critic (a posture) runs on gpt-5, so it
+    # must be priced too. `_kernel_character` folds both keyspaces.
+    _all_characters = {**KERNEL_AGENTS, **KERNEL_POSTURES}
+    for slug, agent in _all_characters.items():
         _check(
             f"'{slug}' → {agent['model']} is a LANE_MODELS key",
             agent["model"] in LANE_MODELS,
@@ -94,7 +138,7 @@ def run() -> bool:
     try:
         from services.model_router import ledger_model_name
         from services.telemetry import has_billing_rate
-        for slug, agent in KERNEL_AGENTS.items():
+        for slug, agent in _all_characters.items():
             _check(
                 f"'{slug}' → {agent['model']} has a billing rate (never routes unpriced)",
                 has_billing_rate(ledger_model_name(agent["model"])),
@@ -102,37 +146,51 @@ def run() -> bool:
     except Exception as exc:  # pragma: no cover
         _check(f"billing-rate probe ran ({exc})", False)
 
-    print("\n── 3. the base set is a TEAM, not a spec sheet ──")
-    # FOUR, not three (2026-07-16 — Designer). The rule is "provide enough, not
-    # the most": one Agent per REASON a member reaches for a different
-    # colleague. Think · read · pressure-test · MAKE is four reasons, and making
-    # was always one of them — it was just unnamed, happening under whatever
-    # engine sat at models[0]. This is the number growing by a reason, which the
-    # rule allows; it is not the spec sheet returning (that would be a row per
-    # ENGINE). The ceiling is judgment, not arithmetic — but it is LOW, and a
-    # fifth row wants a reason a member would say out loud.
+    print("\n── 3. the base set is the ADDRESSED OPERATIONS, not a spec sheet ──")
+    # THREE base agents — the ADDRESSED OPERATIONS, derived from the axioms
+    # (the-base-agent-roster-from-axioms-2026-07-18.md): ACQUIRE (Researcher) ·
+    # REASON (Thinker) · PRODUCE (Designer). A base agent is an ADDRESSED,
+    # member-attributed hand; those are the three addressed operations over the
+    # commons. The fourth operation, DERIVE, is un-addressed (the `settle`
+    # gesture), so it is NOT an agent. Critic is NOT a fourth operation either —
+    # it is a POSTURE over Reason (a stance, not an operation), and it lives in
+    # KERNEL_POSTURES. Assert the INTENT (which slugs are the base operations),
+    # never the display strings — a gate pinning "Sonnet" fails on "Thinker".
     _check(
-        "four Agents (provide enough, not the most — ADR-420 §10)",
-        len(KERNEL_AGENTS) == 4,
+        "THREE addressed base operations (Acquire/Reason/Produce)",
+        len(KERNEL_AGENTS) == 3,
     )
     _check(
-        "every kernel Agent is offered — no row is hidden from the chooser",
-        {a["slug"] for a in list_agents() if a["kernel"]} == set(KERNEL_AGENTS),
+        "the base slugs are exactly the three addressed operations",
+        set(KERNEL_AGENTS) == {"scout", "sonnet", "designer"},
     )
-    # The value of a second vendor is the DISAGREEMENT — if every Agent ran on
-    # one provider, "Critic" would be the same lineage arguing with itself.
-    providers = {a["model"].split("/")[0] for a in KERNEL_AGENTS.values()}
     _check(
-        "spanning ≥2 providers (a cross-vendor desk is the point)",
+        "Critic is a POSTURE over Reason, not a base operation",
+        "critic" in KERNEL_POSTURES
+        and KERNEL_POSTURES["critic"]["based_on"] == "sonnet"
+        and "critic" not in KERNEL_AGENTS,
+    )
+    # The chooser offers who you can talk to — base agents AND postures. Nothing
+    # is hidden: every kernel character (base op or stance) is on the roster.
+    _check(
+        "every kernel character is offered — no character is hidden from the chooser",
+        {a["slug"] for a in list_agents() if a["kernel"]}
+        == set(KERNEL_AGENTS) | set(KERNEL_POSTURES),
+    )
+    # The value of a second vendor is the DISAGREEMENT — if every character ran
+    # on one provider, "Critic" would be the same lineage arguing with itself.
+    providers = {a["model"].split("/")[0] for a in _all_characters.values()}
+    _check(
+        "the desk spans ≥2 providers (a cross-vendor desk is the point)",
         len(providers) >= 2,
     )
     _check(
-        "each Agent has a one-line blurb (the answer to 'who do I pick?')",
-        all(a.get("blurb") and len(a["blurb"]) < 120 for a in KERNEL_AGENTS.values()),
+        "each character has a one-line blurb (the answer to 'who do I pick?')",
+        all(a.get("blurb") and len(a["blurb"]) < 120 for a in _all_characters.values()),
     )
     _check(
-        "each Agent has a posture (a character, not just a label on an engine)",
-        all(len(a.get("posture", "")) > 40 for a in KERNEL_AGENTS.values()),
+        "each character has a posture (a character, not just a label on an engine)",
+        all(len(a.get("posture", "")) > 40 for a in _all_characters.values()),
     )
 
     print("\n── 3b. no conversation answers 'who?' with an array index (ADR-460 §4b) ──")
@@ -231,7 +289,7 @@ def run() -> bool:
     # and the check is a DERIVATION from permission.py's own set, not a
     # deny-list beside it: the day a primitive stops being a read it stops being
     # grantable, in the same edit, with nobody remembering to.
-    for _slug, _a in KERNEL_AGENTS.items():
+    for _slug, _a in {**KERNEL_AGENTS, **KERNEL_POSTURES}.items():
         for _t in (_a.get("tools") or ()):
             _check(
                 f"'{_slug}' tool {_t!r} is a non-consequential read (ADR-463 D4.a)",
@@ -448,14 +506,17 @@ def run() -> bool:
         (parse_agent_manifest("based_on: sonnet\nname: Lisa\nmodel: openai/gpt-5\n") or {})["model"]
         == "openai/gpt-5",
     )
+    # Lisa is based_on `critic` — a POSTURE, not a base agent. A member may name
+    # a colleague after a stance ("my adversarial one, Lisa") exactly as after
+    # an operation. Her posture carries Critic's adversarial character.
     lisa = {
         "slug": "lisa", "name": "Lisa", "based_on": "critic", "kernel": False,
         "tone": "Warm and direct. Calls me Kev.", "model": "openai/gpt-5",
-        "blurb": KERNEL_AGENTS["critic"]["blurb"], "icon": "swords",
+        "blurb": KERNEL_POSTURES["critic"]["blurb"], "icon": "swords",
     }
     posture = build_agent_posture("lisa", [lisa])
     _check(
-        "a member Agent's posture carries the KERNEL character (based_on)",
+        "a member Agent's posture carries the KERNEL character (based_on a posture)",
         "adversary" in posture,
     )
     _check(
@@ -480,8 +541,8 @@ def run() -> bool:
         [a["kernel"] for a in list_agents([lisa])][0] is False,
     )
     _check(
-        "…and still lists the kernel three beneath (composes BESIDE — ADR-450)",
-        len(list_agents([lisa])) == len(KERNEL_AGENTS) + 1,
+        "…and still lists the kernel characters beneath (composes BESIDE — ADR-450)",
+        len(list_agents([lisa])) == len(KERNEL_AGENTS) + len(KERNEL_POSTURES) + 1,
     )
 
     print("\n── 10. the write door (the UI is a door, not a database) ──")

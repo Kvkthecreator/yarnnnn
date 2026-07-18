@@ -51,6 +51,7 @@ A different tier entirely — persona-bearing seats, not member hands.
 ### Axis 6 — REASON / VERB ("why do I reach for this colleague?") — ADR-460, current
 `Sonnet` (think) · `Scout` (read) · `Critic` (pressure-test) · `Designer` (make). Plus member-named instances (`Lisa` based_on a kernel reason).
 **Why it holds where the others didn't**: it is Axis 4's invariant (cognitive function) re-cut into the layman's question — *"who do I want to work with?"* rather than *"what worker contributes what?"* — AND it ships with the structural ratchet the earlier eras lacked: `AGENT_ROW_KEYS` has no authority field, `test_agent_registry.py` fails if one is added (ADR-460 D3.a). The vocabulary is fixed; the roster is the vocabulary; there is nothing to re-instantiate and nothing to ladder.
+> **Refined (2026-07-18, shipped)**: the four names above were the snapshot; the first-principles derivation sharpened the cut. A base agent is an *addressed* operation, so the base roster is **three** (Researcher/Thinker/Designer); `Critic` moved to a **posture** over reason (`KERNEL_POSTURES`, still on the roster, not a base row) and display names landed (Sonnet→Thinker, Scout→Researcher, slugs unchanged). Derive is the `settle` gesture, never an agent. See §4–§5 for the current rule.
 
 ## 3. The two arcs that prove the invariant
 
@@ -65,30 +66,39 @@ The codebase named its own oscillation in-canon, three years before the resoluti
 
 When someone proposes a new agent, run it through this before building:
 
+> **Refinement (2026-07-18, shipped)**: Axis 6's cut is sharper than "verb". A base agent is an **ADDRESSED** member-hand, so the base roster is the **addressed OPERATIONS** over the commons — three, not four. A **posture** (Critic) is a stance over an operation, on the roster but not a base row; a **gesture** (settle → Derive) is un-addressed and not an agent at all. The rule below is the refined one. Derivation: `docs/analysis/the-base-agent-roster-from-axioms-2026-07-18.md`.
+
 | The idea is really about… | …which is axis | Verdict |
 |---|---|---|
 | a new output ("a deck agent", "a report agent") | Output shape (Axis 1) | ❌ Modality lives *inside* an agent, not as one. A deck is something **Designer makes**. |
 | a new platform ("a Slack agent") | Platform source (Axis 2) | ❌ Platform is a *connection*, capability-gated. Not a kind. |
 | a new place it delivers to | Destination (Axis 3) | ❌ Channel, a task property. Not a kind. |
-| a new **reason a member reaches for a colleague** | Reason/verb (Axis 6) | ✅ **The only valid axis for a base agent.** And only if a member's unmet reach names it. |
+| a new **addressed OPERATION a member reaches for** | Reason/verb (Axis 6) | ✅ **The only valid axis for a base agent.** And only if the operation is *addressed* (you talk to it) and irreducible to the existing three. |
+| a new **stance** ("an editor", "a skeptic") | Posture over an operation | ⚠️ NOT a base agent — a posture. Ships as a kernel `KERNEL_POSTURES` row (Critic) or a member-authored skill (ADR-464). It touches nothing its base operation doesn't. |
+| a new **un-addressed sense-making** ("distill this") | Gesture, not an agent | ⚠️ NOT an agent — a gesture the member performs ON substrate (`settle`, ADR-457 D3). You don't address it; you invoke it on a lane. |
 | a new **judgment accountability** | Persona (Axis 5) | ⚠️ A different **tier** (systemic seat or hired persona), gated by the ADR-380 clock — not a base-agent addition. |
 | the ability to take consequential external action | — | ⛔ Not a type at all. The ADR-307 gate. Unrepresentable in the registry (D3.a). |
 
-**The single question for a base agent**: *"Is this a new VERB — a distinct reason a member addresses a colleague — or is it a modality/output/platform of an existing verb?"* If the latter, it is a capability of an existing agent, never a new one.
+**The single question for a base agent**: *"Is this a new ADDRESSED OPERATION — a distinct reason a member addresses a colleague, irreducible to acquire/reason/produce — or is it a stance (posture), an un-addressed sense-making (gesture), or a modality/output/platform of an existing operation?"* Only the first is a base agent.
 
 ## 5. What this makes the base set
 
-The base ("scaffolding") agents are the **verbs**, and every modality is a capability *within* a verb:
+The base ("scaffolding") agents are the **addressed operations** — three — and every modality is a capability *within* an operation:
 
-- **think** (Sonnet) — reasoning, judgment, hard calls
-- **read** (Scout) — search the workspace + web, with sources
-- **pressure-test** (Critic) — find the hole
-- **make** (Designer) — produce the artifact, *in every modality*: prose, decks, docs, and — when it returns rented (ADR-417 §2a) — charts and images
+- **acquire / read** (Researcher, slug `scout`) — search the workspace + web, with sources
+- **reason / think** (Thinker, slug `sonnet`) — reasoning, judgment, hard calls
+- **produce / make** (Designer) — produce the artifact, *in every modality*: prose, decks, docs, and — when it returns rented (ADR-417 §2a) — charts and images
 
-**"Image maker" is not a base agent.** It is a *modality of `make`*, i.e. a capability that belongs to Designer. Typing it as its own agent would be Axis-1 thinking (output shape) — the very first axis the codebase abandoned. (Note: image generation does not currently *exist* — ADR-417 retired the render service; it returns as a rented capability under the ADR-463 §3 resolver, attached to `make`, never as a fifth character.)
+Beside them, **not as base rows**:
+- **Critic** = a POSTURE over reason (`based_on: sonnet`) — Reason pointed adversarially. On the roster (a member reaches for "break this"), structurally a stance. Kernel-shipped in `KERNEL_POSTURES`.
+- **Derive** = a GESTURE (`settle`) — make sense of raw arrivals, cited. Un-addressed; you invoke it on a lane, you don't talk to it. Covered without an agent.
 
-The open question the vocabulary has never answered from first principles: **is the set of verbs complete at four?** ADR-176 asserted six cognitive roles; the current registry ships four reasons. Neither derived the set. The rule for closing it: a fifth agent is warranted **only** when a member's unmet reach names a fifth VERB — not a fifth engine, not a fifth persona, not a fifth output format.
+**Display vs slug**: the display names are Researcher/Thinker/Designer/Critic; the persisted slugs stay `scout`/`sonnet`/`designer`/`critic` (data-compat with live lanes — a rename would orphan them, the reviewer→Freddie precedent). Resolution keys on slug; the member reads the name.
+
+**"Image maker" is not a base agent.** It is a *modality of `make`*, a capability that belongs to Designer. Typing it as its own agent would be Axis-1 thinking (output shape) — the very first axis the codebase abandoned. (Note: image generation does not currently *exist* — ADR-417 retired the render service; it returns as a rented capability under the ADR-463 §3 resolver, attached to `make`, never as a fifth character.)
+
+**The completeness question, now answered from first principles**: the base AGENT set is **closed at three** — the addressed operations acquire/reason/produce, derived (not asserted) from "a base agent is an addressed member-hand" × the substrate's three revision-kinds. Postures are **open-ended** (Critic + member skills); gestures are **their own category** (settle). A fourth base agent is warranted **only** when a member's unmet reach names a fourth ADDRESSED OPERATION — not a stance (that's a posture), not a sense-making gesture (that's settle), not an engine, not a persona, not an output format.
 
 ## 6. One-line statement
 
-**YARNNN typed agents on six different axes — output shape, platform, destination, cognitive function, judgment persona, and reason/verb — and the durable lesson is that only the last is a valid axis for a base agent: a base agent is a VERB (think/read/pressure-test/make), every modality (prose, decks, images) is a capability *within* a verb, persona is a different *tier*, and consequential authority is not a type at all but the ADR-307 gate — so the roster grows by depth (deeper hands for the verbs) and adds a character only when a member's unmet reach names a genuinely new verb.**
+**YARNNN typed agents on six different axes — output shape, platform, destination, cognitive function, judgment persona, and reason/verb — and the durable lesson is that only the last is valid AND it cuts on *addressed operation*: the base AGENT roster is the three addressed operations (acquire/reason/produce → Researcher/Thinker/Designer), a posture (Critic = reason adversarially postured) is on the roster but not a base row, a gesture (settle → derive) is not an agent at all, every modality (prose, decks, images) is a capability *within* an operation, persona is a different *tier*, and consequential authority is not a type but the ADR-307 gate — so the roster grows by depth, adds a base agent only when a member's unmet reach names a fourth addressed operation, and adds a character freely as a posture.**

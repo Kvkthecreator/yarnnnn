@@ -56,18 +56,33 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-#: The base set — "provide enough, not the most" (the ADR-420 §10 rule that
-#: governs LANE_MODELS, applied one level up: one Agent per reason a member
-#: would reach for a different colleague, NOT one per model that exists).
-#: Seven engines is a spec sheet; a handful of characters is a team. The unit
-#: of growth is a REASON (think · read · pressure-test · make), never an engine.
+#: THE BASE SET = the ADDRESSED OPERATIONS, derived from the axioms
+#: (docs/analysis/the-base-agent-roster-from-axioms-2026-07-18.md). A base agent
+#: is an ADDRESSED, member-attributed hand, so the base roster is exactly the
+#: addressed operations over the commons:
+#:   ACQUIRE (read the world/commons in)  → Researcher
+#:   REASON  (turn state into judgment)   → Thinker
+#:   PRODUCE (land authored revisions)    → Designer
+#: That is THREE — not four. The fourth operation, DERIVE (make sense of what
+#: came in, cited), is REAL but UN-ADDRESSED: it is the `settle` GESTURE
+#: (POST /lanes/{id}/settle), not a colleague you talk to — so it is not an
+#: agent (see the module's "Postures" section for where Critic went, and
+#: settle.py for the gesture). "Image maker" is not a fourth agent either: it is
+#: a MODALITY of Designer's make (Axis-1 output-shape thinking, the first axis
+#: the codebase abandoned — AGENT-TAXONOMY §4).
+#:
+#: The unit of growth is a REASON a member reaches for a colleague — never an
+#: engine (seven engines is a spec sheet) and never an output shape. A fifth
+#: base row wants a new ADDRESSED OPERATION a member names out loud; a new stance
+#: is a POSTURE (below), a new output is a capability of PRODUCE.
 #:
 #: Agents are named for the WORK, never for the engine — the engine is the fact
-#: BEHIND the name. (The one wart: "Sonnet" is an engine name. It stays as the
-#: default's name because it is the workspace's incumbent default and the
-#: operator already talks to it; renaming what you already know is a cost with
-#: no payoff. Named as a wart, not defended — if a rename pass runs, this is
-#: the row to fix.)
+#: BEHIND the name (Thinker runs on Sonnet; the member picks Thinker).
+#:
+#: SLUGS ARE DATA-COMPAT, NOT DISPLAY. `sonnet`/`scout` are persisted on live
+#: lanes (like reviewer→Freddie): the DISPLAY name changed (→ Thinker/Researcher)
+#: but the slug stays, or every existing lane orphans. Resolution keys on slug;
+#: the member reads `name`.
 #:
 #: Adding an Agent = a row here. Its `model` MUST be a LANE_MODELS key with a
 #: billing rate (gate-asserted — the ADR-439 §4 rule: an unpriced model never
@@ -75,20 +90,20 @@ logger = logging.getLogger(__name__)
 KERNEL_AGENTS: dict[str, dict[str, Any]] = {
     "sonnet": {
         "slug": "sonnet",
-        "name": "Sonnet",
+        "name": "Thinker",
         "blurb": "Thinks a problem through with you — writing, judgment, hard calls.",
         "icon": "brain",
         "model": "anthropic/claude-sonnet-4-6",
         "token_profile": 4096,
         "posture": (
-            "You are Sonnet — the member's thinking partner. Reason carefully and "
+            "You are Thinker — the member's thinking partner. Reason carefully and "
             "say what you actually think, including when it cuts against what they "
             "hoped. Prefer the shortest honest answer over a complete one."
         ),
     },
     "scout": {
         "slug": "scout",
-        "name": "Scout",
+        "name": "Researcher",
         "blurb": "Digs through material fast — the workspace and the web, with sources.",
         "icon": "compass",
         "model": "gemini/gemini-2.5-flash",
@@ -106,28 +121,14 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
         # allowlist, not by a gate.
         "tools": ("QueryKnowledge", "WebSearch"),
         "posture": (
-            "You are Scout — the member's fast reader. Find what they asked for and "
-            "report it plainly, with the exact source. Search the workspace by "
+            "You are Researcher — the member's fast reader. Find what they asked for "
+            "and report it plainly, with the exact source. Search the workspace by "
             "meaning (QueryKnowledge) before reading files, and the web (WebSearch) "
             "when the answer is not in the workspace. Volume is your job; do not "
             "editorialize, and say 'not here' rather than guessing."
         ),
     },
-    "critic": {
-        "slug": "critic",
-        "name": "Critic",
-        "blurb": "Pressure-tests an idea — finds the hole before it costs you.",
-        "icon": "swords",
-        "model": "openai/gpt-5",
-        "token_profile": 4096,
-        "posture": (
-            "You are Critic — the member's adversary, on their side. Your job is the "
-            "strongest objection, not a balanced view: find the assumption that would "
-            "sink this if it were wrong. If the idea survives, say so in one line and "
-            "name what would still falsify it. Never flatter."
-        ),
-    },
-    # The fourth capability — the one a BOUND (Studio) lane defaults to.
+    # The third capability — the one a BOUND (Studio) lane defaults to.
     #
     # The maker. An ORDINARY Agent — chat with it, hire your own based on it,
     # same five verbs, same scope as every row here. Studio's lane happens to
@@ -209,6 +210,85 @@ AGENT_ROW_KEYS = frozenset(
 )
 
 
+# ---------------------------------------------------------------------------
+# Postures — a STANCE over a base operation, not an operation of its own (ADR-460
+# + the axiom derivation, 2026-07-18)
+# ---------------------------------------------------------------------------
+#
+# WHY THIS LAYER EXISTS. Critic was a KERNEL_AGENTS row, and it was mis-typed.
+# "Pressure-test" is not an addressed OPERATION — it decomposes into REASON
+# (judgment) with a STANCE (find the hole). It touches nothing Thinker doesn't,
+# produces nothing Thinker doesn't; it is Reason pointed adversarially. A stance
+# is a posture, exactly as "researcher who knows my book" is a posture over read
+# — NOT a base agent. Listing Critic among the base OPERATIONS was the same
+# category error as Axis-1 output-shape typing (AGENT-TAXONOMY §4): a character
+# wearing a base-row's clothes.
+#
+# So Critic moves here. It STAYS on the roster — a member reaches for "break
+# this" as readily as "think this" — but it is structurally a posture over a base
+# agent (`based_on`), never a fourth operation. The next "should we add X?" is
+# then asked correctly: is X an addressed OPERATION (a base row), an un-addressed
+# GESTURE (settle), or a POSTURE over an operation (a row here / a member skill)?
+#
+# THE SHAPE IS A MEMBER AGENT'S, KERNEL-SIDE. A posture is `based_on` a base
+# agent + a stance (its own `posture` text) + optionally its own engine — which
+# is EXACTLY the member-agent manifest shape (based_on + name + tone + model),
+# one level up. That is not a coincidence: a kernel posture is what a member
+# posture would be if the kernel shipped it. Resolution folds base agents and
+# postures into ONE character namespace (`_kernel_character`), so a lane pinning
+# `critic` resolves, carries its model + posture, and runs byte-identically to
+# the pre-move Critic row. Nothing about a live Critic lane changes.
+#
+# ⚠️ THE D3.a CLIFF HOLDS ON THIS LAYER TOO. A posture carries identity + a
+# capability pointer (`based_on`) + an engine — never authority. `POSTURE_ROW_KEYS`
+# has no authority-shaped field, and the gate asserts it, the same ratchet that
+# guards KERNEL_AGENTS. A posture also declares NO `tools` of its own: it INHERITS
+# its `based_on` base agent's reach (resolve_agent_tools follows `based_on`),
+# because a stance is not a grant.
+KERNEL_POSTURES: dict[str, dict[str, Any]] = {
+    "critic": {
+        "slug": "critic",
+        "name": "Critic",
+        "based_on": "sonnet",  # Reason (Thinker) — Critic is Reason, adversarially postured
+        "blurb": "Pressure-tests an idea — finds the hole before it costs you.",
+        "icon": "swords",
+        "model": "openai/gpt-5",
+        "token_profile": 4096,
+        "posture": (
+            "You are Critic — the member's adversary, on their side. Your job is the "
+            "strongest objection, not a balanced view: find the assumption that would "
+            "sink this if it were wrong. If the idea survives, say so in one line and "
+            "name what would still falsify it. Never flatter."
+        ),
+    },
+}
+
+#: The keys a posture row may carry. `based_on` (its base operation) is required
+#: and is the one field an agent row lacks; `tools` is DELIBERATELY absent — a
+#: posture inherits its base agent's reach, never declares its own (a stance is
+#: not a grant, ADR-463 D4.a). No authority-shaped key, ever — the cliff.
+POSTURE_ROW_KEYS = frozenset(
+    {"slug", "name", "based_on", "blurb", "icon", "model", "token_profile", "posture"}
+)
+
+
+def _kernel_character(slug: str) -> Optional[dict]:
+    """The kernel character for a slug — a base AGENT or a POSTURE. Pure.
+
+    ONE namespace for resolution: base agents (the addressed operations) and
+    postures (stances over them) both resolve here, so a lane pinning `critic`
+    (now a posture) resolves exactly as it did when Critic was a base row. The
+    two dicts are kept SEPARATE for the roster/cliff distinction — KERNEL_AGENTS
+    is the base OPERATIONS the chooser leads with, KERNEL_POSTURES the stances —
+    but resolution does not care which one a slug came from.
+
+    Base agents take precedence on a slug collision (there is none by
+    construction — the gate asserts the two keyspaces are disjoint).
+    """
+    s = (slug or "").strip()
+    return KERNEL_AGENTS.get(s) or KERNEL_POSTURES.get(s)
+
+
 def resolve_agent_tools(slug: Optional[str], member_agents: Optional[list[dict]] = None) -> tuple:
     """The extra primitives this Agent reaches, beyond the five file verbs.
 
@@ -239,7 +319,15 @@ def resolve_agent_tools(slug: Optional[str], member_agents: Optional[list[dict]]
     agent = resolve_agent(slug or "", member_agents)
     if not agent:
         return ()
-    base = KERNEL_AGENTS.get(agent.get("based_on") or agent.get("slug") or "")
+    # Follow the character chain: a member Agent → its `based_on` kernel
+    # character (a base agent OR a posture) → and a POSTURE inherits its OWN
+    # `based_on` base agent's tools (a posture declares none). `tools` lives only
+    # on base agents, so a posture in the middle contributes nothing and defers
+    # to its base — the chain resolves to whatever base row (if any) carries a
+    # `tools` key, which is the correct ceiling for every case.
+    base = _kernel_character(agent.get("based_on") or agent.get("slug") or "")
+    while base is not None and base.get("tools") is None and base.get("based_on"):
+        base = _kernel_character(base["based_on"])
     tools = tuple((base or agent).get("tools") or ())
 
     grantable = tuple(t for t in tools if t in READ_ONLY_PRIMITIVES)
@@ -340,7 +428,12 @@ def parse_agent_manifest(content: Optional[str]) -> Optional[dict]:
     name = str(data.get("name") or "").strip()
     if not based_on or not name:
         return None
-    if based_on not in KERNEL_AGENTS:
+    base = _kernel_character(based_on)
+    if base is None:
+        # A member may base on any kernel CHARACTER — a base agent (Thinker,
+        # Researcher, Designer) or a posture (Critic). "My adversarial colleague
+        # Lisa" is `based_on: critic`; naming a stance is as valid as naming an
+        # operation. Unknown → refused (a member cannot invent a capability).
         logger.warning("[AGENTS] manifest names an unknown based_on: %r", based_on)
         return None
 
@@ -348,7 +441,7 @@ def parse_agent_manifest(content: Optional[str]) -> Optional[dict]:
     # asks WHO — the ADR-460 D4 argument was about the moment of creation, when
     # the member knows least. A member deliberately building a colleague has
     # opted into caring; that is the later-widening, not the spec sheet.
-    model = str(data.get("model") or "").strip() or KERNEL_AGENTS[based_on]["model"]
+    model = str(data.get("model") or "").strip() or base["model"]
 
     return {
         "based_on": based_on,
@@ -428,12 +521,16 @@ def find_member_agents(client: Any, user_id: str) -> list[dict]:
                 continue
             path = r["path"]
             slug = path.rsplit("/", 2)[-2] if "/" in path else ""
-            if not slug or slug in KERNEL_AGENTS:
-                # A member folder may not shadow a kernel slug — the kernel set
-                # is the floor, and a silent override would make "sonnet" mean
-                # two things depending on the workspace.
+            if not slug or _kernel_character(slug) is not None:
+                # A member folder may not shadow a kernel slug — base agent OR
+                # posture. The kernel set is the floor, and a silent override
+                # would make "critic" mean two things depending on the workspace.
                 continue
-            base = KERNEL_AGENTS[manifest["based_on"]]
+            base = _kernel_character(manifest["based_on"])
+            if base is None:
+                # The manifest parsed (based_on was known then); a race deleted
+                # the character since. Skip rather than crash — best-effort.
+                continue
             out.append({
                 "slug": slug,
                 "name": manifest["name"],
@@ -578,23 +675,27 @@ def build_skills_section(skills: list[dict]) -> str:
 
 
 def resolve_agent(slug: str, member_agents: Optional[list[dict]] = None) -> Optional[dict]:
-    """An Agent by slug — the member's first, then the kernel's. Pure.
+    """A character by slug — the member's first, then the kernel's. Pure.
 
     Member-first because a member's Agents compose BESIDE the kernel set
     (ADR-450's rule) and cannot shadow it (find_member_agents drops any folder
     named after a kernel slug), so the two namespaces never collide — the order
     is for the caller's clarity, not a precedence fight.
+
+    The kernel side is base agents AND postures (`_kernel_character`): a lane
+    pinning `critic` (now a posture) resolves exactly as it did when Critic was
+    a base row.
     """
     s = (slug or "").strip()
     for a in member_agents or []:
         if a["slug"] == s:
             return a
-    return KERNEL_AGENTS.get(s)
+    return _kernel_character(s)
 
 
 def get_agent(slug: str) -> Optional[dict]:
-    """The KERNEL Agent row for a slug, or None. Pure."""
-    return KERNEL_AGENTS.get((slug or "").strip())
+    """The kernel character (base agent or posture) for a slug, or None. Pure."""
+    return _kernel_character(slug)
 
 
 def list_agents(member_agents: Optional[list[dict]] = None) -> list[dict]:
@@ -609,11 +710,13 @@ def list_agents(member_agents: Optional[list[dict]] = None) -> list[dict]:
     colleagues; the kernel set is the floor beneath. `kernel: true|false`
     lets the UI mark which are theirs (and which can be renamed/edited).
 
-    EVERY kernel Agent is served, Designer included. It is an Agent like any
-    other: you can start a chat with it and hire your own based on it. That
-    Studio's lane pins it is a fact about the BOUND LANE, not about Designer,
-    and a chooser that hid it would be describing the lane's binding in the
-    Agent's row — the muddiness ADR-460 D1 exists to refuse.
+    EVERY kernel character is served — the base agents (the addressed
+    operations) FIRST, then the postures (stances over them, e.g. Critic). A
+    member reaches for "break this" as readily as "think this", so Critic is on
+    the roster like any colleague; it is structurally a posture over Reason, not
+    a fourth operation, but the chooser does not draw that line — it offers who
+    you can talk to. Designer is served too: that Studio's lane pins it is a fact
+    about the BOUND LANE, not about the agent (ADR-460 D1).
     """
     # NOTE what is served and what is NOT. `based_on` + `tone` + `avatar` +
     # `color` ride along because the hiring card pre-fills an EDIT from them —
@@ -631,20 +734,24 @@ def list_agents(member_agents: Optional[list[dict]] = None) -> list[dict]:
          "based_on": a.get("based_on") or "",
          "tone": a.get("tone") or "",
          # The operator's ask: a nickname must still say what it IS. `role` is
-         # the capability's name (Critic); `engine` is the model's label
+         # the character's name (Critic); `engine` is the model's label
          # (GPT-5). Identity leads, the technical fact rides quietly behind it.
-         "role": (KERNEL_AGENTS.get(a.get("based_on") or "") or {}).get("name", ""),
+         # `based_on` may name a base agent or a posture — either way its own
+         # display name is the role.
+         "role": (_kernel_character(a.get("based_on") or "") or {}).get("name", ""),
          "engine": _engine_label(a.get("model") or ""),
          "kernel": False}
         for a in (member_agents or [])
     ]
+    # Base OPERATIONS lead (Thinker/Researcher/Designer), then POSTURES over them
+    # (Critic) — the roster reads "who you can talk to", operations first.
     theirs = [
         {"slug": a["slug"], "name": a["name"], "blurb": a["blurb"],
          "icon": a["icon"], "color": "", "avatar": "", "avatar_url": "",
          "based_on": a["slug"], "tone": "",
          "role": a["name"], "engine": _engine_label(a["model"]),
          "kernel": True}
-        for a in KERNEL_AGENTS.values()
+        for a in (*KERNEL_AGENTS.values(), *KERNEL_POSTURES.values())
     ]
     return mine + theirs
 
@@ -685,10 +792,17 @@ def build_agent_posture(
     if not agent:
         return ""
 
-    # A member Agent wears a kernel capability's character (`based_on`); a
-    # kernel Agent is its own.
-    base = KERNEL_AGENTS.get(agent.get("based_on") or agent.get("slug") or "")
-    character = (base or agent).get("posture") or ""
+    # A KERNEL character (base agent OR posture) is its OWN character — Critic's
+    # `based_on: sonnet` says it is Reason postured, but the posture the model
+    # wears is CRITIC's adversarial text, not Thinker's. Only a MEMBER agent
+    # defers to its `based_on` kernel character. The `kernel` flag is the cut:
+    # kernel characters carry no such flag (default True), member agents set it
+    # False. So resolve the character from the base ONLY for a member agent.
+    if agent.get("kernel", True):
+        character = agent.get("posture") or ""
+    else:
+        base = _kernel_character(agent.get("based_on") or "")
+        character = (base or agent).get("posture") or ""
     if not character:
         return ""
 

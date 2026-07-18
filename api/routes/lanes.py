@@ -802,7 +802,7 @@ async def _write_member_agent(
 
     from services.agents_registry import (
         AGENT_MANIFEST_BASENAME,
-        KERNEL_AGENTS,
+        _kernel_character,
         find_member_agents,
     )
     from services.authored_substrate import write_revision
@@ -812,12 +812,12 @@ async def _write_member_agent(
     if not name:
         raise HTTPException(status_code=422, detail="name is required")
     based_on = (req.based_on or "").strip()
-    # EVERY kernel Agent is hireable, Designer included — "my designer is Maya,
-    # she's playful" is the same widening as "my critic is Lisa". (A one-commit
+    # EVERY kernel character is hireable — a base agent (Designer, "my designer
+    # is Maya") OR a posture (Critic, "my critic is Lisa"). (A one-commit
     # `bound_only` block lived here on 2026-07-16 and was removed the same day:
     # it made Designer a different KIND of Agent, which is the taxonomy ADR-460
     # D1 dissolved.)
-    if based_on not in KERNEL_AGENTS:
+    if _kernel_character(based_on) is None:
         raise HTTPException(status_code=422, detail=f"Unknown based_on: {based_on}")
 
     # The engine override — available, never asked (spec §4). A member's file
@@ -835,9 +835,9 @@ async def _write_member_agent(
 
     if slug is None:
         slug = _re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "agent"
-        if slug in KERNEL_AGENTS:
-            # A member folder may not shadow a kernel slug — "sonnet" must not
-            # mean two different things depending on the workspace.
+        if _kernel_character(slug) is not None:
+            # A member folder may not shadow a kernel slug — base agent OR
+            # posture. "critic" must not mean two things by workspace.
             raise HTTPException(
                 status_code=409, detail=f"'{slug}' is a built-in agent's name — pick another"
             )
@@ -884,9 +884,9 @@ async def patch_member_agent(slug: str, req: CreateAgentRequest, auth: UserClien
     the capability, not a colleague you named. To change what Lisa IS, hire
     someone else — which is what making another Agent is.
     """
-    from services.agents_registry import KERNEL_AGENTS, find_member_agents
+    from services.agents_registry import _kernel_character, find_member_agents
 
-    if slug in KERNEL_AGENTS:
+    if _kernel_character(slug) is not None:
         raise HTTPException(
             status_code=409,
             detail=f"'{slug}' is built in — make your own agent to change it",

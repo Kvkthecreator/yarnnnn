@@ -12,12 +12,14 @@
  * owner, and — per DP29 "mirror once, compose few" — a second surface over one
  * substrate concern.
  *
- * DISCOVERY IS THE BASE SET. There is no separate "browse": the kernel agents
- * (Sonnet · Scout · Critic · Designer) ARE the catalogue, and it is short. What
- * grows is CAPABILITY (skills, connections — spec §5), attaching to a base
- * agent's class; a new row needs a new REASON a member reaches for a different
- * colleague — think · read · pressure-test · make — never a row per engine.
- * Seven presets would be the spec sheet with makeup on.
+ * DISCOVERY IS THE BASE SET. There is no separate "browse": the kernel
+ * characters ARE the catalogue, and it is short — three addressed base agents
+ * (Thinker · Researcher · Designer, the operations acquire/reason/produce) plus
+ * postures over them (Critic = Reason adversarially postured). What grows is
+ * CAPABILITY (skills, connections — spec §5), attaching to a base agent's class;
+ * a new base row needs a new addressed OPERATION a member reaches for — never a
+ * row per engine, never a new output shape. Seven presets would be the spec
+ * sheet with makeup on.
  *
  * EVERY AGENT IS THE SAME KIND OF THING (ADR-460 D1, operator-corrected
  * 2026-07-16). Designer is listed, chatted with, and hired exactly like the

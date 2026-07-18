@@ -454,8 +454,8 @@ export function ChatSurface() {
               )}
             >
               {/* The colleague's face leads the row — you scan for WHO, not for
-                  which engine ran (the shipped list showed "Claude Sonnet" on
-                  every row: the spec sheet, surviving where it was least
+                  which engine ran (the shipped list once showed the raw engine
+                  name on every row: the spec sheet, surviving where it was least
                   visible). */}
               <AgentFace
                 name={laneLabel(lane)}

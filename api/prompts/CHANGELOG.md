@@ -6,6 +6,46 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.18.1] - The base roster, from the axioms — three addressed operations + Critic as a posture
+
+The first-principles derivation (`docs/analysis/the-base-agent-roster-from-axioms-2026-07-18.md`)
+sharpened Axis 6's cut: a base agent is an **addressed** member-hand, so the base
+roster is the **addressed operations** — Acquire · Reason · Produce — which is
+**three**, not four. Two consequences, both shipped:
+
+- `services/agents_registry.py` — **display renames (slug-safe)**: `Sonnet`→**Thinker**,
+  `Scout`→**Researcher**. The slugs (`sonnet`/`scout`) are UNCHANGED — they are
+  persisted on live lanes (the reviewer→Freddie precedent); a slug rename would
+  orphan every existing lane. Resolution keys on slug; the member reads the name.
+  Postures rewritten to self-name correctly ("You are Thinker/Researcher…"). The
+  "one wart: Sonnet is an engine name" comment is DELETED — the wart is fixed
+  (Singular Implementation).
+- `services/agents_registry.py` — **Critic re-typed as a POSTURE, not a base agent**
+  (operator's call — the cleaner canon). "Pressure-test" is not an addressed
+  operation; it decomposes into Reason (judgment) + a stance (find the hole). So
+  Critic moved from `KERNEL_AGENTS` to a new **`KERNEL_POSTURES`** layer
+  (`based_on: sonnet`, its own gpt-5 engine + adversarial posture). It STAYS on
+  the roster — a member reaches for "break this" as readily as "think this" — but
+  is structurally a stance over an operation, never a fourth operation.
+  - Resolution folds both keyspaces into ONE namespace (`_kernel_character`): a
+    lane pinning `critic` resolves exactly as before (same model, same posture,
+    same attribution). **Nothing about a live Critic lane changes.**
+  - A member may base an agent on a posture (`based_on: critic`) as readily as on
+    an operation — "my adversarial colleague Lisa" inherits Critic's character.
+  - A posture declares NO `tools` of its own — it inherits its base operation's
+    reach (a stance is not a grant, ADR-463 D4.a). `POSTURE_ROW_KEYS` carries no
+    authority-shaped field: **the D3.a cliff holds on the posture layer too**,
+    gate-asserted.
+- **Derive stays a GESTURE, not an agent** — `settle` (ADR-457 D3) covers it; no
+  Distiller colleague was added (that would violate the addressed-only base-agent
+  definition). Doc-flagged, no code.
+- **Expected behavior**: the chooser now shows Thinker · Researcher · Designer
+  (operations) then Critic (a posture); a member who had a `critic` lane sees the
+  same colleague running the same engine with the same voice — byte-identical.
+- **Impact**: display names change in the picker and chat rows; no lane orphans;
+  the base-agent cardinality is now honestly 3-operations + open-ended postures.
+  Gate `test_agent_registry.py` 155/155 (was 149 — the posture layer added checks).
+
 ## [2026.07.16.3] - Skills return — the convention, without the engine that killed it
 
 - `services/agents_registry.py` — **`agents/{slug}/skills/*.md`**. ADR-118 adopted
