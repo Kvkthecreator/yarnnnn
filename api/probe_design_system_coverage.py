@@ -39,10 +39,23 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.expanduser("~/Downloads/YARNNN Design System")
 FOLDER = "/workspace/design-system/yarnnn"
 
-# The five the kernel chrome consumes (grepped from studio.py STUDIO_KERNEL_CSS +
-# the layout skins: `var(--ink|paper|muted|accent|radius)`). --yw/--yh are
-# per-block inline sizing tokens, not skin-themable; excluded on purpose.
-KERNEL_VARS = {"ink", "paper", "muted", "accent", "radius"}
+# The widened contract the kernel chrome consumes (DESIGN-SYSTEMS.md §5 Move 1;
+# grepped from studio.py STUDIO_KERNEL_CSS v9 + the layout skins). --yw/--yh are
+# per-block inline sizing tokens, not skin-themable; excluded on purpose. Derived
+# live below so the probe cannot drift from the kernel it measures.
+def _kernel_consumed_vars() -> set[str]:
+    """Every `var(--NAME` the kernel + layout skins read — the live contract."""
+    from services import studio
+
+    blobs = [studio.STUDIO_KERNEL_CSS, studio._SHARED_CSS]
+    blobs += [lay.get("skin", "") for lay in studio.STUDIO_LAYOUTS.values()]
+    consumed = set(re.findall(r"var\(\s*--([a-zA-Z0-9-]+)", "\n".join(blobs)))
+    # --yw/--yh ride inline per block; --radius is the legacy fallback inside the
+    # radius-scale var()s, not a skin slot. Everything else is a real theme slot.
+    return consumed - {"yw", "yh", "radius"}
+
+
+KERNEL_VARS = _kernel_consumed_vars()
 
 # (b) ALIAS heuristics — a defined name a trivial adapter could map onto a kernel
 # var. Deliberately conservative: a human confirms before any adapter ships. The

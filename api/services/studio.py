@@ -137,21 +137,21 @@ _SHARED_CSS = """
     h1, h2, h3 { font-weight: 600; line-height: 1.2; }
     img { max-width: 100%; height: auto; }
     figure { margin: 1.5rem 0; }
-    figcaption { font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem; }
-    table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
-    th, td { border: 1px solid #ddd; padding: 0.4rem 0.6rem; text-align: left; }
+    figcaption { font-size: var(--text-sm, 0.85rem); color: var(--muted); margin-top: 0.5rem; }
+    table { border-collapse: collapse; width: 100%; font-size: var(--text-sm, 0.9rem); }
+    th, td { border: 1px solid var(--ink-10, #ddd); padding: 0.4rem 0.6rem; text-align: left; }
     aside[data-block="callout"] { border-left: 3px solid var(--accent);
         background: rgba(180,84,10,0.06); padding: 0.75rem 1rem; margin: 1.25rem 0; }
-    blockquote[data-block="quote"] { border-left: 3px solid #ddd; padding: 0.5rem 1rem;
+    blockquote[data-block="quote"] { border-left: 3px solid var(--ink-10, #ddd); padding: 0.5rem 1rem;
         margin: 1.25rem 0; font-style: italic; }
     blockquote[data-block="quote"] cite { display: block; margin-top: 0.5rem;
-        font-size: 0.85rem; color: var(--muted); font-style: normal; }
+        font-size: var(--text-sm, 0.85rem); color: var(--muted); font-style: normal; }
     ul[data-block="checklist"] { list-style: none; margin: 1rem 0; }
     ul[data-block="checklist"] li { padding-left: 1.5rem; position: relative; margin: 0.35rem 0; }
     ul[data-block="checklist"] li::before { content: "☐"; position: absolute; left: 0; }
     div[data-block="metrics"] { display: flex; gap: 1.5rem; flex-wrap: wrap; margin: 1.25rem 0; }
-    div[data-block="metrics"] .metric strong { display: block; font-size: 1.6rem; }
-    div[data-block="metrics"] .metric span { font-size: 0.8rem; color: var(--muted); }
+    div[data-block="metrics"] .metric strong { display: block; font-size: var(--text-2xl, 1.6rem); }
+    div[data-block="metrics"] .metric span { font-size: var(--text-xs, 0.8rem); color: var(--muted); }
 """.strip("\n")
 
 #: A layout's **mode** — the composition seam (2026-07-15). Two honest kinds of
@@ -192,9 +192,9 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
         ),
         "skin": """
     main { max-width: 46rem; margin: 0 auto; padding: 3rem 1.5rem; }
-    h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+    h1 { font-size: var(--text-3xl, 2rem); margin-bottom: 0.5rem; }
     section[data-block] { margin-top: 2rem; }
-    section[data-block] h2 { font-size: 1.3rem; margin-bottom: 0.75rem; }
+    section[data-block] h2 { font-size: var(--text-xl, 1.3rem); margin-bottom: 0.75rem; }
 """.strip("\n"),
         "scaffold": """<main>
   <h1 data-block="heading" data-block-id="t1">Untitled document</h1>
@@ -220,7 +220,7 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
             "them annotated. Keep slide text sparse — a deck is spoken over, not read."
         ),
         "skin": """
-    body { background: #e8e4de; }
+    body { background: var(--deck-stage, #e8e4de); }
     /* A deck slide is LANDSCAPE 16:9 — a fixed-aspect page, centered, one per
        screen. aspect-ratio keeps it landscape in the canvas AND in a scaled
        thumbnail (the navigator renders the same markup). */
@@ -229,9 +229,9 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
              justify-content: center; background: var(--paper);
              box-shadow: 0 1px 6px rgba(0,0,0,0.08); overflow: hidden;
              page-break-after: always; }
-    .slide h1 { font-size: 2.4rem; max-width: 34rem; }
-    .slide h2 { font-size: 1.7rem; margin-bottom: 1rem; }
-    .slide .kicker { color: var(--accent); font-size: 0.85rem;
+    .slide h1 { font-size: var(--text-4xl, 2.4rem); max-width: 34rem; }
+    .slide h2 { font-size: var(--text-2xl, 1.7rem); margin-bottom: 1rem; }
+    .slide .kicker { color: var(--accent); font-size: var(--text-sm, 0.85rem);
                      letter-spacing: 0.08em; text-transform: uppercase;
                      margin-bottom: 1rem; }
     .slide p { max-width: 36rem; }
@@ -264,9 +264,9 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
         "skin": """
     article { max-width: 42rem; margin: 0 auto; padding: 3.5rem 1.5rem; }
     header { margin-bottom: 2.5rem; }
-    header h1 { font-size: 2.2rem; margin-bottom: 0.75rem; }
-    header .subtitle { font-size: 1.15rem; color: var(--muted); }
-    header .byline { font-size: 0.85rem; color: var(--muted); margin-top: 1rem;
+    header h1 { font-size: var(--text-3xl, 2.2rem); margin-bottom: 0.75rem; }
+    header .subtitle { font-size: var(--text-lg, 1.15rem); color: var(--muted); }
+    header .byline { font-size: var(--text-sm, 0.85rem); color: var(--muted); margin-top: 1rem;
                      letter-spacing: 0.02em; }
     article [data-block="prose"] p { margin: 1rem 0; }
 """.strip("\n"),
@@ -303,11 +303,11 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     section[data-arrange] { padding: 4rem 1.5rem; }
     section[data-arrange] > * { max-width: 56rem; margin-left: auto; margin-right: auto; }
     section[data-arrange="hero"] { padding: 6rem 1.5rem; text-align: center; }
-    h1 { font-size: 2.6rem; margin-bottom: 0.75rem; }
-    .kicker { color: var(--accent); font-size: 0.85rem; letter-spacing: 0.08em;
+    h1 { font-size: var(--text-4xl, 2.6rem); margin-bottom: 0.75rem; }
+    .kicker { color: var(--accent); font-size: var(--text-sm, 0.85rem); letter-spacing: 0.08em;
               text-transform: uppercase; margin-bottom: 1rem; }
-    .tagline { font-size: 1.2rem; color: var(--muted); }
-    section[data-arrange] h2 { font-size: 1.8rem; margin-bottom: 1rem; }
+    .tagline { font-size: var(--text-lg, 1.2rem); color: var(--muted); }
+    section[data-arrange] h2 { font-size: var(--text-2xl, 1.8rem); margin-bottom: 1rem; }
 """.strip("\n"),
         "scaffold": """<main>
   <section data-arrange="hero">
@@ -874,21 +874,21 @@ STUDIO_KERNEL_CSS = """
    not the layout skin, so new kinds/arrangements retrofit into existing
    artifacts via the versioned upsert. Token rules come LAST in this sheet so
    a token wins at equal specificity. */
-hr[data-block="divider"] { border: 0; border-top: 1px solid #ddd; margin: 2.25rem 0; }
-details[data-block="toggle"] { margin: 1rem 0; border: 1px solid #ddd;
-  border-radius: var(--radius, 6px); padding: 0.5rem 0.9rem; }
+hr[data-block="divider"] { border: 0; border-top: 1px solid var(--ink-10, #ddd); margin: 2.25rem 0; }
+details[data-block="toggle"] { margin: 1rem 0; border: 1px solid var(--ink-10, #ddd);
+  border-radius: var(--radius-md, var(--radius, 6px)); padding: 0.5rem 0.9rem; }
 details[data-block="toggle"] summary { cursor: pointer; font-weight: 600; }
 details[data-block="toggle"][open] summary { margin-bottom: 0.5rem; }
 p[data-block="button"] { margin: 1.5rem 0; }
 p[data-block="button"] a { display: inline-block; background: var(--accent, #b4540a);
   color: var(--paper, #fdfcfa); padding: 0.55rem 1.2rem;
-  border-radius: var(--radius, 6px); text-decoration: none; font-weight: 600; }
+  border-radius: var(--radius-pill, var(--radius, 6px)); text-decoration: none; font-weight: 600; }
 div[data-block="gallery"] { display: grid; gap: 0.75rem; margin: 1.5rem 0;
   grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); }
 div[data-block="gallery"] figure { margin: 0; }
 div[data-block="gallery"] img { width: 100%; aspect-ratio: 4 / 3;
-  object-fit: cover; border-radius: var(--radius, 4px); }
-div[data-block="gallery"] figcaption { font-size: 0.75rem; }
+  object-fit: cover; border-radius: var(--radius-sm, var(--radius, 4px)); }
+div[data-block="gallery"] figcaption { font-size: var(--text-xs, 0.75rem); }
 /* The multi-column band — kernel-owned for EVERY layout, slides included.
    It used to carve out `:not(.slide)` on the reasoning that "decks keep their
    own .slide .cols rules". That was true of the deck skin as of ADR-444 — and
@@ -922,7 +922,7 @@ div[data-block="gallery"] figcaption { font-size: 0.75rem; }
 /* Page-band arrangement accents (kernel-owned so they retrofit). */
 [data-arrange="cta"], [data-arrange="testimonial"] { text-align: center; }
 [data-arrange="testimonial"] blockquote[data-block="quote"] { border-left: 0;
-  font-style: italic; font-size: 1.3rem; }
+  font-style: italic; font-size: var(--text-xl, 1.3rem); }
 [data-arrange="footer"] { font-size: 0.85rem; color: var(--muted, #6b6b6b); }
 .slide[data-arrange="full-bleed"] { padding: 0; }
 .slide[data-arrange="full-bleed"] [data-slot="media"] { flex: 1; display: flex; min-height: 0; }
@@ -932,8 +932,8 @@ div[data-block="gallery"] figcaption { font-size: 0.75rem; }
 [data-arrange="big-number"] div[data-block="metrics"] { justify-content: center;
   text-align: center; }
 [data-arrange="big-number"] div[data-block="metrics"] .metric strong {
-  font-size: 4rem; line-height: 1.1; }
-[data-arrange="big-number"] div[data-block="metrics"] .metric span { font-size: 1rem; }
+  font-size: var(--text-5xl, 4rem); line-height: 1.1; }
+[data-arrange="big-number"] div[data-block="metrics"] .metric span { font-size: var(--text-base, 1rem); }
 /* Property tokens (ADR-453) — interpreted here, themed by custom properties. */
 [data-align="center"] { text-align: center; }
 [data-align="center"] img { margin-inline: auto; }
@@ -966,7 +966,7 @@ div[data-block="gallery"] figcaption { font-size: 0.75rem; }
 [data-tone="accent"] { color: var(--accent, #b4540a); }
 [data-tone="muted"] { color: var(--muted, #6b6b6b); }
 [data-block][data-tone="inverse"] { background: var(--ink, #1a1a1a);
-  color: var(--paper, #fdfcfa); padding: 1rem 1.25rem; border-radius: 6px; }
+  color: var(--paper, #fdfcfa); padding: 1rem 1.25rem; border-radius: var(--radius-md, 6px); }
 .slide[data-tone="accent"], [data-arrange][data-tone="accent"] {
   background: var(--accent, #b4540a); color: var(--paper, #fdfcfa); }
 .slide[data-tone="inverse"], [data-arrange][data-tone="inverse"] {
@@ -1008,7 +1008,7 @@ html[data-measure="wide"] main, html[data-measure="wide"] article { max-width: 6
 html[data-pagenum="on"] body { counter-reset: slide; }
 html[data-pagenum="on"] .slide { counter-increment: slide; }
 html[data-pagenum="on"] .slide::after { content: counter(slide); position: absolute;
-  right: 1.25rem; bottom: 0.9rem; font-size: 0.7rem; color: var(--muted, #6b6b6b); }
+  right: 1.25rem; bottom: 0.9rem; font-size: var(--text-xs, 0.7rem); color: var(--muted, #6b6b6b); }
 /* Responsive stacking (ADR-456 W1): document/article multi-column bands stack
    on narrow screens; a deck slide is a fixed 16:9 stage, exempt.
    This `:not(.slide)` STAYS — unlike the one retired above, it does not depend
@@ -1031,6 +1031,23 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 #: v4: Wave-3 (ADR-456) — cited page backgrounds (data-ref-kind="background"
 #:     + scrim/bg-pos), the generic non-slide .cols (document/article
 #:     two-column made real), page-band accents, --radius adoption.
+# v9 (2026-07-16, DESIGN-SYSTEMS.md §5): the WIDENED theme contract. The
+# coverage probe measured that the five point-vars (--ink/--paper/--muted/
+# --accent/--radius) paint ~3% of a real design system and miss the GEOMETRY —
+# hairlines, pill radii, the type scale. This bump gives every hard literal a
+# themable slot with its EXACT current value as the fallback, so a skin-less
+# artifact is byte-identical and a skin that ships the slot themes it:
+#   ink RAMP    --ink-10 (fallback #ddd) — the hairline the brand's built on
+#   RADIUS scale --radius-sm|md|pill (fallbacks 4px/6px/6px) — the pill bites now
+#   TYPE scale  --text-xs…5xl (fallbacks are the 15 literals, mapped to steps)
+#   deck stage  --deck-stage (fallback #e8e4de)
+# The kernel names CATEGORIES (a radius scale, a type scale), never instances
+# (--radius-pill: 9999px is the SKIN's value). Semantic --fresh/--danger/--warn
+# are named in the contract (derive recipe) but wire no selector yet — no kernel
+# chrome reads status color, and inventing one would be behavior, not a widen.
+# Retrofit is byte-identical on a skin-less artifact (every var() falls back),
+# so this bump never manufactures a visible change on its own.
+#
 # v8 (2026-07-15, ADR-461 D4): MEASURES — two rules reading a custom property,
 # so a continuous value can ride in the element while the kernel still
 # pre-declares every selector it matches. Deck + media only: a slide has a
@@ -1049,7 +1066,7 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 # layout. A pre-ADR-444 deck's baked skin has no `.slide .cols`, and the
 # kernel's `:not(.slide)` rule excluded it, so its two-column slides stacked
 # silently. Bumping the version is what makes the retrofit reach them.
-STUDIO_KERNEL_CSS_VERSION = 8
+STUDIO_KERNEL_CSS_VERSION = 9
 
 
 def compose_kernel_style_element() -> str:

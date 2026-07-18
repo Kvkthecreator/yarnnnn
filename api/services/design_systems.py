@@ -174,11 +174,31 @@ def rewrite_urls(css: str, css_abs_path: str, warn: list[str]) -> str:
     return _URL_RX.sub(_sub, css)
 
 
+#: The kernel token CATEGORIES a `maps:` block may bridge onto (DESIGN-SYSTEMS.md
+#: §5, Move 2). A vendor's private name → one of these. The kernel names
+#: categories, never instances: a map targets `accent`, never `--yarn-orange`.
+#: Kept in sync with the widened contract (studio.py STUDIO_KERNEL_CSS v9); the
+#: scale families are named by their step so a map may target any of them.
+KERNEL_MAP_TARGETS = {
+    "ink", "ink-06", "ink-10", "paper", "muted", "accent",
+    "radius-sm", "radius-md", "radius-lg", "radius-pill",
+    "text-xs", "text-sm", "text-base", "text-lg", "text-xl",
+    "text-2xl", "text-3xl", "text-4xl", "text-5xl",
+    "deck-stage", "fresh", "danger", "warn",
+}
+
+
 def parse_design_manifest(content: Optional[str]) -> Optional[dict]:
-    """Parse a `_design.yaml` body → {name, css} or None if not a manifest.
+    """Parse a `_design.yaml` body → {name, css, maps} or None if not a manifest.
 
     Tolerant (load_workspace_yaml never raises); strict on shape — a manifest
     without a non-empty `css` list is not a design system yet.
+
+    `maps:` (optional, DESIGN-SYSTEMS.md §5) is the synonym bridge: a mapping of
+    kernel category → the skin's own custom-property name, e.g.
+    `{accent: --yarn-orange}`. Parsed defensively — a map onto an unknown kernel
+    category is DROPPED (it cannot bridge anything), a value without a leading
+    `--` is normalised to one. Absent/garbage `maps:` → no bridge, never a raise.
     """
     from services.review_policy import load_workspace_yaml
 
@@ -194,7 +214,31 @@ def parse_design_manifest(content: Optional[str]) -> Optional[dict]:
     return {
         "name": str(data.get("name") or "").strip() or "Design system",
         "css": sources,
+        "maps": _parse_maps(data.get("maps")),
     }
+
+
+def _parse_maps(raw: Any) -> dict:
+    """Normalise a raw `maps:` value → {kernel_category: "--skin-var"}.
+
+    Drops entries whose target is not a known kernel category (a map onto a name
+    the kernel never reads is dead), and coerces the source name to `--name`
+    shape. Pure; tolerant of a non-dict (→ {}).
+    """
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for target, source in raw.items():
+        key = str(target or "").strip().lstrip("-")
+        if key not in KERNEL_MAP_TARGETS:
+            continue
+        val = str(source or "").strip()
+        if not val:
+            continue
+        if not val.startswith("--"):
+            val = "--" + val.lstrip("-")
+        out[key] = val
+    return out
 
 
 def find_design_systems(client: Any, user_id: str) -> list[dict]:
@@ -278,6 +322,18 @@ def resolve_design_system(client: Any, user_id: str, manifest_path: str) -> Opti
     sources: list[str] = []
     warnings: list[str] = []
     seen: set = set()
+
+    # The synonym bridge (DESIGN-SYSTEMS.md §5, Move 2) goes FIRST — a :root
+    # block flowing the skin's private names into the kernel categories. It is
+    # prepended, so a skin that ALSO sets a kernel name directly (a later :root)
+    # wins by cascade order; the bridge only supplies categories the skin names
+    # under its own vocabulary. var() resolves at USE time, so
+    # `--accent: var(--yarn-orange)` works even though --yarn-orange is defined
+    # by a source flattened AFTER this block.
+    bridge = compose_maps_bridge(manifest.get("maps") or {})
+    if bridge:
+        parts.append(bridge)
+
     for rel in manifest["css"]:
         # ADR-462 D11: each declared source is FLATTENED, not read. Every real
         # export makes its entry an @import manifest (the live YARNNN
@@ -301,11 +357,66 @@ def resolve_design_system(client: Any, user_id: str, manifest_path: str) -> Opti
         "manifest_path": abs_manifest,
         "css_text": css_text,
         "sources": sources,
+        "maps": manifest.get("maps") or {},
         # Surfaced, not swallowed: an external font URL is a real third-party
         # dependency in a "self-contained" artifact (ADR-456 D3). The importer
         # and the picker both show these rather than pretend they resolved.
         "warnings": warnings,
     }
+
+
+#: Conservative synonym evidence for SEEDING a `maps:` at import (never a silent
+#: auto-map — the seed is written to the yaml where a human confirms it). Each
+#: kernel category lists the skin names that are UNAMBIGUOUS synonyms. Kept
+#: tight on purpose: a wrong bridge is worse than none, so a fuzzy match
+#: (anything with "blue" in it → accent) is deliberately NOT here. Ordered by
+#: confidence — the first defined match wins.
+_SEED_SYNONYMS = {
+    "accent": ("--yarn-orange", "--brand", "--primary", "--accent-color"),
+    "paper": ("--background", "--bg", "--surface", "--canvas", "--paper-color"),
+    "ink": ("--foreground", "--fg", "--text-color", "--ink-color"),
+    "muted": ("--muted-foreground", "--text-muted", "--secondary"),
+    "radius-pill": ("--radius-pill", "--radius-full"),
+    "radius-md": ("--radius-md", "--radius-base"),
+    "radius-sm": ("--radius-sm",),
+    "deck-stage": ("--deck-bg", "--stage"),
+}
+
+
+def seed_maps(css_text: str) -> dict:
+    """Seed a `maps:` from a flattened skin's DEFINED custom properties — pure.
+
+    The import writes what this returns into `_design.yaml` so a human can read
+    and correct it. Conservative: only a name in `_SEED_SYNONYMS` seeds a bridge,
+    and only when the skin does NOT already define the kernel category directly
+    (bridging `--accent` onto itself is noise). Every seed is EVIDENCE, never a
+    silent decision — an unseeded synonym is a picker warning, not a failure.
+    """
+    defined = set(re.findall(r"(--[a-zA-Z0-9-]+)\s*:", css_text))
+    out: dict[str, str] = {}
+    for target, candidates in _SEED_SYNONYMS.items():
+        if f"--{target}" in defined:
+            continue  # the skin already names the kernel category — no bridge
+        for cand in candidates:
+            if cand in defined:
+                out[target] = cand
+                break
+    return out
+
+
+def compose_maps_bridge(maps: dict) -> str:
+    """The synonym bridge → a `:root` block, or "" when there is nothing to map.
+
+    `{accent: "--yarn-orange"}` → `:root { --accent: var(--yarn-orange); }`. The
+    kernel category becomes an alias of the skin's own name. Pure; the keys are
+    already normalised + kernel-validated by `_parse_maps`, so this only formats.
+    """
+    if not maps:
+        return ""
+    decls = "\n".join(
+        f"  --{target}: var({source});" for target, source in sorted(maps.items())
+    )
+    return f"/* maps: synonym bridge (DESIGN-SYSTEMS.md §5) */\n:root {{\n{decls}\n}}"
 
 
 #: Files an import ignores outright — a design-system export ships a lot that
@@ -381,16 +492,23 @@ def plan_import(files: dict, folder_name: Optional[str] = None) -> dict:
     }
 
 
-def build_manifest_yaml(name: str, css: list) -> str:
+def build_manifest_yaml(name: str, css: list, maps: Optional[dict] = None) -> str:
     """The `_design.yaml` an import writes (D1's contract, authored by us).
 
-    Deliberately minimal and OURS: `{name, css[]}`. A vendor manifest
+    Deliberately minimal and OURS: `{name, css[], maps?}`. A vendor manifest
     (`_ds_manifest.json`, with namespace/components/themes/startingPoints/…)
     is richer, and adopting it would make the kernel parse one schema per
     vendor forever. We read it for evidence and write our own contract.
+
+    `maps:` (DESIGN-SYSTEMS.md §5) is the synonym bridge — written only when the
+    import SEEDED one from the skin's own token names. It is the operator-legible
+    surface: a human can read and correct `accent: --yarn-orange` in the yaml.
     """
     lines = [f"name: {name}", "css:"]
     lines.extend(f"  - {c}" for c in css)
+    if maps:
+        lines.append("maps:")
+        lines.extend(f"  {target}: {source}" for target, source in sorted(maps.items()))
     return "\n".join(lines) + "\n"
 
 

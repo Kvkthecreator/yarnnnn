@@ -135,7 +135,12 @@ def import_design_system(
     the picker offer something that cannot resolve.
     """
     from services.authored_substrate import write_revision
-    from services.design_systems import build_manifest_yaml, flatten_css, plan_import
+    from services.design_systems import (
+        build_manifest_yaml,
+        flatten_css,
+        plan_import,
+        seed_maps,
+    )
 
     text: dict = {}
     for rel, data in files.items():
@@ -206,10 +211,17 @@ def import_design_system(
     _css, sources, flat_warnings = flatten_css(entry, _read, folder)
     warnings.extend(flat_warnings)
 
+    # Seed the synonym bridge (DESIGN-SYSTEMS.md §5, Move 2) from the flattened
+    # skin's own token names — so a system whose accent is `--yarn-orange`
+    # themes the kernel chrome without hand-authoring. EVIDENCE, not a decision:
+    # the seed is written into the yaml where a human confirms it, and it is
+    # surfaced in the receipt so a wrong bridge is visible, not silent.
+    seeded_maps = seed_maps(_css)
+
     manifest_path = f"{folder}/_design.yaml"
     write_revision(
         db_client, user_id=user_id, path=manifest_path,
-        content=build_manifest_yaml(display_name, [entry]),
+        content=build_manifest_yaml(display_name, [entry], maps=seeded_maps),
         authored_by="operator", message=f"Import {display_name}: the manifest",
     )
     written.append(manifest_path)
@@ -223,6 +235,7 @@ def import_design_system(
         "sources": sources,
         "fonts": fonts,
         "fonts_deferred": fonts_deferred,
+        "maps": seeded_maps,
         "skipped": sorted({r for r in files if classify(r) == "vendor"}),
         "warnings": warnings,
     }

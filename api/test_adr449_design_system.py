@@ -25,6 +25,7 @@ Asserts:
 """
 
 import inspect
+import re
 import sys
 
 
@@ -49,7 +50,21 @@ def run() -> int:
     m = parse_design_manifest("name: Acme DS\ncss:\n  - styles.css\n  - tokens/colors.css\n")
     passed &= _check(
         "manifest parses: name + ordered css",
-        m == {"name": "Acme DS", "css": ["styles.css", "tokens/colors.css"]},
+        # Invariant, not exact-dict: name + ordered css parse, and a manifest
+        # with no maps: block defaults maps to {} (the §5 field is optional).
+        m is not None
+        and m["name"] == "Acme DS"
+        and m["css"] == ["styles.css", "tokens/colors.css"]
+        and m["maps"] == {},
+    )
+    # ── the §5 synonym bridge (maps:) ─────────────────────────────────────
+    mm = parse_design_manifest(
+        "name: Y\ncss:\n  - s.css\nmaps:\n  accent: --yarn-orange\n  bogus: --x\n  radius-pill: radius-full\n"
+    )
+    passed &= _check(
+        "manifest parses maps:, drops unknown targets, normalises bare names",
+        mm is not None
+        and mm["maps"] == {"accent": "--yarn-orange", "radius-pill": "--radius-full"},
     )
     passed &= _check("css-less yaml is not a design system", parse_design_manifest("name: X\n") is None)
     passed &= _check("junk content is not a design system", parse_design_manifest("{{nope") is None)
@@ -169,6 +184,58 @@ def run() -> int:
         "(the live export's only name field is `namespace: YARNNNDesignSystem_36fab3`)",
         ds_mod.plan_import({"_ds_manifest.json": '{"namespace":"X_36fab3"}'},
                            folder_name="My System")["name"] == "My System",
+    )
+
+    # ── 5b′. the widened theme contract (DESIGN-SYSTEMS.md §5 Move 1) ─────
+    # The one invariant that must not break: a skin-LESS artifact is
+    # byte-identical after the widen. Every literal became var(--slot, LITERAL),
+    # so with no skin every slot falls back to its original value. This asserts
+    # the property that guarantees it: no widened slot appears BARE (only ever
+    # inside a var() with a fallback) in any layout's rendered CSS.
+    from services.studio import STUDIO_LAYOUTS, build_skeleton
+
+    WIDENED = ("--text-xs", "--text-sm", "--text-base", "--text-lg", "--text-xl",
+               "--text-2xl", "--text-3xl", "--text-4xl", "--text-5xl",
+               "--ink-10", "--radius-sm", "--radius-md", "--radius-pill", "--deck-stage")
+    bare_offenders = []
+    for layout in STUDIO_LAYOUTS:
+        html = build_skeleton(layout, "T")
+        for slot in WIDENED:
+            for mm2 in re.finditer(re.escape(slot), html):
+                # every occurrence must be preceded by `var(` within the rule
+                if "var(" not in html[max(0, mm2.start() - 6):mm2.start()]:
+                    bare_offenders.append((layout, slot))
+    passed &= _check(
+        "widen: every themable slot is var()-guarded — a skin-less artifact "
+        "falls back to its exact prior literal (byte-identical)",
+        not bare_offenders,
+        f"bare: {bare_offenders[:3]}",
+    )
+
+    # ── 5b″. the synonym bridge (DESIGN-SYSTEMS.md §5 Move 2) ─────────────
+    bridge = ds_mod.compose_maps_bridge({"accent": "--yarn-orange", "paper": "--bg"})
+    passed &= _check(
+        "bridge: a maps: block composes a :root aliasing the kernel category "
+        "onto the skin's own name",
+        ":root" in bridge
+        and "--accent: var(--yarn-orange)" in bridge
+        and "--paper: var(--bg)" in bridge,
+    )
+    passed &= _check(
+        "bridge: nothing to map → empty string (zero cost, no dead :root)",
+        ds_mod.compose_maps_bridge({}) == "",
+    )
+    # seed_maps is EVIDENCE, not a decision: it only seeds a category the skin
+    # does NOT already name directly (bridging --accent onto itself is noise).
+    passed &= _check(
+        "seed: a --brand accent with no direct --accent SEEDS a bridge",
+        ds_mod.seed_maps(":root{--brand:#f05;--background:#fff}") == {
+            "accent": "--brand", "paper": "--background"},
+    )
+    passed &= _check(
+        "seed: a skin that already names --accent directly seeds NO accent bridge "
+        "(the real YARNNN export is exactly this — Move 1 is its whole fix)",
+        "accent" not in ds_mod.seed_maps(":root{--accent:#f05;--yarn-orange:#f05}"),
     )
 
     # ── 5c. the import (ADR-462 D13) ─────────────────────────────────────
