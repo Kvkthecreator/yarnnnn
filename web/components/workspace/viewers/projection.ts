@@ -517,24 +517,65 @@ const POINTER_SCRIPT = `
       // zoom scales layout + scrollable area (unlike transform) — the honest
       // "make it bigger/smaller on screen" the operator asked for.
       document.body.style.zoom = String(d.scale);
-    } else if (d.type === 'yarnnn-restore-scroll' && typeof d.y === 'number') {
-      // The parent captured the pre-reload scroll (the runtime reports it on
+    } else if (d.type === 'yarnnn-restore-scroll') {
+      // The parent captured the pre-reload position (the runtime reports it on
       // scroll below) and restores it after a STRUCTURAL reload so the canvas
       // doesn't jump to the top — the reloads that remain feel like nothing
       // moved. Opaque origin means the parent can't read scrollTop directly,
-      // so this round-trips through the runtime.
-      try { window.scrollTo(0, d.y); } catch (err) {}
+      // so this round-trips through the runtime, which owns the anchoring UNIT:
+      //   · a DECK anchors on the slide INDEX — zoom-independent and stable
+      //     under a re-arrange (a raw pixel y lands on the wrong slide once the
+      //     re-fit changes the scroll metric or a slide's height changes).
+      //   · a fluid document anchors on the pixel y (no slide unit to hold).
+      try {
+        var restored = false;
+        if (typeof d.slide === 'number' && d.slide >= 0) {
+          var target = document.querySelectorAll('section.slide')[d.slide];
+          if (target && target.scrollIntoView) {
+            target.scrollIntoView({ block: 'start' });
+            restored = true;
+          }
+        }
+        if (!restored && typeof d.y === 'number') window.scrollTo(0, d.y);
+      } catch (err) {}
     }
   });
 
-  // Report the scroll position to the parent (throttled) so it can restore it
-  // across a structural reload. The parent keeps only the latest value.
+  // The nearest slide to the current scroll (deck only) — the anchoring unit the
+  // parent stores and hands back on restore. Null for a fluid document.
+  var currentSlideIndex = function () {
+    var slides = document.querySelectorAll('section.slide');
+    if (!slides.length) return null;
+    var mid = (window.scrollY || 0) + (window.innerHeight || 0) / 2;
+    var best = 0;
+    var bestDist = Infinity;
+    for (var i = 0; i < slides.length; i++) {
+      var r = slides[i].getBoundingClientRect();
+      var center = r.top + (window.scrollY || 0) + r.height / 2;
+      var dist = Math.abs(center - mid);
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    }
+    return best;
+  };
+
+  // Report the scroll position to the parent so it can restore it across a
+  // structural reload. The parent keeps only the latest value. Throttled on the
+  // leading edge, and re-reported on the TRAILING edge too — so the final resting
+  // position (the one that matters for restore) is never the value that got
+  // dropped by the throttle window.
   var scrollReportTimer = null;
+  var reportScroll = function () {
+    parent.postMessage(
+      { type: 'yarnnn-scroll-pos', y: window.scrollY || 0, slide: currentSlideIndex() },
+      '*',
+    );
+  };
   window.addEventListener('scroll', function () {
     if (scrollReportTimer) return;
+    reportScroll();
     scrollReportTimer = setTimeout(function () {
       scrollReportTimer = null;
-      parent.postMessage({ type: 'yarnnn-scroll-pos', y: window.scrollY || 0 }, '*');
+      reportScroll(); // trailing: capture where the scroll actually settled
     }, 120);
   }, true);
 })();

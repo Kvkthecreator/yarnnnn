@@ -283,12 +283,15 @@ export function StudioCanvas({
   const zoomRef = useRef(effectiveZoom);
   zoomRef.current = effectiveZoom;
 
-  // The latest scroll position the runtime reported (opaque origin — the parent
-  // can't read scrollTop, so the runtime posts it). Restored after a structural
-  // reload so the canvas doesn't jump to the top (the invisible-save follow-on:
-  // text edits no longer reload at all; the reloads that DO remain — structural
-  // ops, foreign writes — preserve the scroll).
-  const scrollYRef = useRef(0);
+  // The latest position the runtime reported (opaque origin — the parent can't
+  // read scrollTop, so the runtime posts it). Restored after a structural reload
+  // so the canvas doesn't jump to the top (the invisible-save follow-on: text
+  // edits no longer reload at all; the reloads that DO remain — structural ops,
+  // foreign/AI writes — preserve the position). The runtime owns the anchoring
+  // UNIT: `slide` (deck) is zoom-independent and survives a re-arrange; `y`
+  // (fluid document) is the pixel fallback. We hand back BOTH; the runtime
+  // prefers the slide.
+  const scrollPosRef = useRef<{ y: number; slide: number | null }>({ y: 0, slide: null });
 
   const commandEdit = useCallback(() => {
     const win = iframeRef.current?.contentWindow;
@@ -298,9 +301,10 @@ export function StudioCanvas({
     else win.postMessage({ type: 'yarnnn-edit-exit' }, '*');
     // Re-apply the current zoom on a fresh load (the runtime resets on reload).
     win.postMessage({ type: 'yarnnn-zoom', scale: zoomRef.current }, '*');
-    // Restore the pre-reload scroll (a no-op at y=0 / first load).
-    if (scrollYRef.current > 0) {
-      win.postMessage({ type: 'yarnnn-restore-scroll', y: scrollYRef.current }, '*');
+    // Restore the pre-reload position (a no-op at slide 0 / y=0 / first load).
+    const pos = scrollPosRef.current;
+    if (pos.slide != null || pos.y > 0) {
+      win.postMessage({ type: 'yarnnn-restore-scroll', y: pos.y, slide: pos.slide }, '*');
     }
   }, []);
 
@@ -364,8 +368,12 @@ export function StudioCanvas({
       ) {
         onEdit?.(d.blockId, d.newInner);
       } else if (d.type === 'yarnnn-scroll-pos' && typeof d.y === 'number') {
-        // Keep the latest scroll so a structural reload can restore it.
-        scrollYRef.current = d.y;
+        // Keep the latest position so a structural reload can restore it — the
+        // slide index (deck) alongside the pixel y (fluid fallback).
+        scrollPosRef.current = {
+          y: d.y,
+          slide: typeof d.slide === 'number' ? d.slide : null,
+        };
       } else if (d.type === 'yarnnn-edit-exited') {
         onEditExited?.();
       } else if (d.type === 'yarnnn-edit-entered' && typeof d.blockId === 'string') {

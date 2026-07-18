@@ -17,8 +17,10 @@ Static/structural checks (no DB, no LLM):
      longer discarded) + the client type carries it.
   B. The surface holds a local CAS-base override; the shared writeAndAdvance
      core advances it; TEXT edits pass reload=false, STRUCTURAL ops reload=true.
-  C. Scroll preservation: the runtime reports yarnnn-scroll-pos + accepts
-     yarnnn-restore-scroll; the canvas tracks the latest and restores on load.
+  C. Position preservation: the runtime reports yarnnn-scroll-pos (slide index
+     for a deck + pixel y for a fluid doc) with a trailing re-report, and
+     restores by SLIDE first (zoom-independent, survives a re-arrange) with the
+     pixel y as fallback; the canvas tracks the latest and restores on load.
 
 Run:  cd api && python3 test_studio_invisible_save.py
 Exit code is authoritative (0 = pass).
@@ -150,19 +152,35 @@ def run() -> bool:
         and "[artifactPath, reloadKey]" in surface,
     )
 
-    # ── C. scroll preservation across the reloads that remain ────────────
+    # ── C. position preservation across the reloads that remain ──────────
+    # The anchoring unit is the runtime's to choose: a DECK anchors on the slide
+    # INDEX (zoom-independent, stable under a re-arrange — a raw pixel y lands on
+    # the wrong slide once the re-fit changes the scroll metric); a fluid
+    # document falls back to the pixel y. Reported with a TRAILING re-report so
+    # the settled position (the one restore uses) can't be the throttle's dropped
+    # value.
     _check(
-        "the runtime reports its scroll (yarnnn-scroll-pos, throttled)",
-        "yarnnn-scroll-pos" in proj and "window.scrollY" in proj,
+        "the runtime reports its position (yarnnn-scroll-pos with slide + y)",
+        "yarnnn-scroll-pos" in proj
+        and "window.scrollY" in proj
+        and "slide: currentSlideIndex()" in proj,
     )
     _check(
-        "the runtime accepts yarnnn-restore-scroll",
-        "yarnnn-restore-scroll" in proj and "window.scrollTo(0, d.y)" in proj,
+        "the runtime re-reports on the trailing edge (settled position wins)",
+        "reportScroll()" in proj and proj.count("reportScroll()") >= 2,
     )
     _check(
-        "the canvas tracks the latest scroll + restores it on (re)load",
-        "scrollYRef" in canvas
+        "the runtime restores by SLIDE first, pixel y only as fallback",
+        "yarnnn-restore-scroll" in proj
+        and "d.slide" in proj
+        and "scrollIntoView" in proj
+        and "window.scrollTo(0, d.y)" in proj,
+    )
+    _check(
+        "the canvas tracks the latest position + restores it on (re)load",
+        "scrollPosRef" in canvas
         and "yarnnn-restore-scroll" in canvas
+        and "slide: pos.slide" in canvas
         and "d.type === 'yarnnn-scroll-pos'" in canvas,
     )
 
