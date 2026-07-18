@@ -1081,6 +1081,50 @@ def compose_kernel_style_element() -> str:
     )
 
 
+#: The marked kernel style, for find-replace (mirror of design_systems'
+#: `_SKIN_ELEMENT_RX`). Matched regardless of version so a stale one is replaced.
+_KERNEL_ELEMENT_RX = re.compile(
+    r'<style\s+[^>]*data-kernel="true"[^>]*>.*?</style>', re.DOTALL
+)
+#: The version currently ON a kernel element, for the retrofit's version gate.
+_KERNEL_VERSION_RX = re.compile(r'data-kernel="true"[^>]*data-kernel-v="(\d+)"')
+
+
+def ensure_kernel_style_in_html(artifact_html: str) -> str:
+    """Retrofit the marked kernel style into an artifact — the SERVER mirror of
+    the FE `ensureKernelStyle`/`retrofitKernel` (artifactOps.ts).
+
+    ADR-453 D2 promises the kernel element "retrofits on first touch" so a new
+    block kind / arrangement / token lights up in an OLD artifact. The FE
+    mechanical door does this on every member write — but an artifact authored
+    or rewritten ENTIRELY through the chat lane (a WriteFile that rebuilds the
+    whole document) never passes through that door, so it could ship with NO
+    marked kernel style and its property tokens (align / width / size) would be
+    inert. This closes that path: the lane write retrofits too.
+
+    Version-gated and marked-style-aware, like `apply_skin_to_html`:
+      · no `</head>` (not a full-document artifact) → unchanged.
+      · an existing kernel element at an OLDER version → replaced in place.
+      · at the SAME-or-newer version → unchanged (byte-identical, no revision).
+      · none present → inserted before the marked skin element if there is one
+        (cascade: layout < kernel < skin), else before </head>.
+    """
+    if "</head>" not in artifact_html:
+        return artifact_html  # not a full-document artifact — leave it alone
+    fresh = compose_kernel_style_element()
+    existing = _KERNEL_ELEMENT_RX.search(artifact_html)
+    if existing:
+        m = _KERNEL_VERSION_RX.search(existing.group(0))
+        cur_v = int(m.group(1)) if m else 0
+        if cur_v >= STUDIO_KERNEL_CSS_VERSION:
+            return artifact_html  # already current — no churn
+        return _KERNEL_ELEMENT_RX.sub(lambda _m: fresh, artifact_html, count=1)
+    # None present — insert before the skin element (kernel < skin), else </head>.
+    skin = re.search(r'<style\s+[^>]*data-skin="true"', artifact_html)
+    anchor = skin.start() if skin else artifact_html.find("</head>")
+    return artifact_html[:anchor] + fresh + "\n" + artifact_html[anchor:]
+
+
 #: Every layout's scaffolded h1 text — the ONLY strings `set_artifact_title`
 #: may overwrite. DERIVED from the registry, so editing a scaffold can never
 #: silently orphan this list and start overwriting a member's authored title.

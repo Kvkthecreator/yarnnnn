@@ -811,6 +811,23 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
         else:
             new_content = content
 
+        # Retrofit the marked kernel style when the lane rewrites a Studio
+        # artifact (ADR-453 D2). The FE mechanical door retrofits on every member
+        # write, but an artifact authored ENTIRELY through the chat lane never
+        # passes through that door — so a deck built by chat could ship with no
+        # kernel style and its property tokens (align/width/size) would be inert.
+        # Gate tightly on the artifact signature (operation/*.html + data-template)
+        # so no other HTML write is touched; a no-op when already current.
+        if (
+            mode != "append"
+            and path.endswith(".html")
+            and path.startswith("operation/")
+            and "data-template=" in new_content
+        ):
+            from services.studio import ensure_kernel_style_in_html
+
+            new_content = ensure_kernel_style_in_html(new_content)
+
         # ADR-288 D2: default authored_by from the auth's caller_identity.
         # Every auth-construction site (yarnnn.py operator-chat, freddie_agent
         # wake, HeadlessAuth specialist dispatch, _MechanicalAuth recurrence,

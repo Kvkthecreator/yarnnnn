@@ -387,18 +387,19 @@ export function StudioCanvas({
       } else if (d.type === 'yarnnn-key-verb' && typeof d.blockId === 'string') {
         onKeyVerb?.(d.verb as 'copy' | 'paste' | 'duplicate' | 'delete', d.blockId);
       } else if (d.type === 'yarnnn-context-menu' && typeof d.x === 'number') {
-        // The runtime reports FRAME-local coordinates; the menu draws in the
-        // page. Mapping belongs here — the canvas owns the iframe, so the
-        // surface never learns iframe geometry. Zoom scales the frame's box,
-        // and getBoundingClientRect already reflects it.
+        // The runtime reports the pointer's iframe-VIEWPORT coordinates
+        // (e.clientX/Y). The menu draws in the parent page, so we offset by the
+        // iframe element's page position. NO zoom multiply: the canvas zooms the
+        // artifact via `body.style.zoom`, which rescales the document's LAYOUT
+        // but not the iframe element's own viewport — a pointer's clientX stays
+        // in [0, iframeWidth] at every zoom. Multiplying by the zoom put the
+        // menu at ~37% of the offset on a deck (whose auto-fit zoom is ~0.37),
+        // landing it up-left of the cursor. d.x already IS the iframe-box pixel.
         const r = iframeRef.current?.getBoundingClientRect();
-        // zoomRef, not effectiveZoom: this listener is bound once, so reading
-        // the value directly would close over the zoom at mount time.
-        const z = zoomRef.current || 1;
         onContextMenu?.({
           ...(d as unknown as StudioContextTarget),
-          x: (r?.left ?? 0) + (d.x as number) * z,
-          y: (r?.top ?? 0) + (d.y as number) * z,
+          x: (r?.left ?? 0) + (d.x as number),
+          y: (r?.top ?? 0) + (d.y as number),
         });
       } else if (d.type === 'yarnnn-ratio' && typeof d.pageIndex === 'number') {
         // ADR-461 D3: the column divider dropped on a STOP. It carries the

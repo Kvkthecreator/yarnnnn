@@ -146,6 +146,22 @@ def run() -> bool:
         "it refuses an artifact with no meaning folder (nothing to rename)",
         "has no meaning folder to rename" in routes,
     )
+    # THE REGRESSION GUARD (fixed 2026-07-18): the rename docstring + the FE
+    # comment ("the retitle is a server-side write") both promised the h1
+    # follows a rename — but rename_artifact only MoveFile'd and returned, so a
+    # renamed document kept its old <h1>: two names for one thing, exactly the
+    # desync this whole arc claims to have closed. The retitle logic is now a
+    # SHARED helper both endpoints call (Singular Implementation).
+    _check(
+        "the retitle body is a shared helper (both /retitle and rename call it)",
+        "def _retitle_to_match_filename(" in routes
+        and routes.count("_retitle_to_match_filename(auth,") >= 2,
+    )
+    _check(
+        "rename_artifact actually folds in the retitle (the h1 follows the name)",
+        "_retitle_to_match_filename(auth, new_path)" in routes
+        and '"retitled": retitled' in routes,
+    )
     _check(
         "the server slugifies (create + rename can't drift on what a name becomes)",
         're.sub(r"[^a-z0-9]+", "-", (req.name or "").lower()).strip("-")[:48]' in routes,

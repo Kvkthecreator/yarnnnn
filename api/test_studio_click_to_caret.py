@@ -104,6 +104,35 @@ def run() -> bool:
         "var onlyRef = blk.querySelector('[data-ref]') && !hasText;" in proj,
     )
 
+    # ── 6. no edit-listener leak (fixed 2026-07-18) ──────────────────────────
+    # enter()/exit() run on every click, arrow-traversal, split, merge — the
+    # SAME nodes re-entered across a load. The input/paste listeners were
+    # anonymous and never removed, so they stacked unbounded (N idle-timers per
+    # keystroke). Now stored on the element and removed in exit(), like blur.
+    _check(
+        "the input + paste listeners are STORED for removal (not anonymous)",
+        "el.__yarnnnInput = onInput;" in proj and "el.__yarnnnPaste = onPaste;" in proj,
+    )
+    _check(
+        "exit() removes the input + paste listeners (no leak on re-entry)",
+        "removeEventListener('input', el.__yarnnnInput)" in proj
+        and "removeEventListener('paste', el.__yarnnnPaste)" in proj,
+    )
+
+    # ── 7. a right-click INSIDE the edited block yields to the native menu ────
+    # An editor user expects spellcheck/cut/copy/paste mid-edit; the Studio
+    # block menu is for a SELECTED block, not a live caret. Mirrors the click
+    # handler's in-edit early-return.
+    _check(
+        "contextmenu returns early inside the editing block (native menu wins)",
+        bool(
+            re.search(
+                r"contextmenu[\s\S]*?__yarnnnEditingId[\s\S]*?getAttribute\('data-block-id'\) === editingId\) return",
+                proj,
+            )
+        ),
+    )
+
     ok = all(c for _, c in _results)
     print()
     print(f"{'PASS' if ok else 'FAIL'}: {sum(c for _, c in _results)}/{len(_results)} checks")

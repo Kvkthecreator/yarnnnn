@@ -136,6 +136,47 @@ def run() -> bool:
         STUDIO_KERNEL_CSS_VERSION >= 5,
     )
 
+    # ── 5. the LANE write door retrofits too (the AI-authored gap) ──────────
+    # The FE door retrofits every MEMBER write — but an artifact authored
+    # ENTIRELY through the chat lane (a WriteFile that rebuilds the whole
+    # document) never passes through it, so a deck built by chat could ship
+    # with NO kernel style and its property tokens (align/width/size) inert.
+    # Live receipt: ir-deck-yarnnn-march-2026-v5 (kvk) — a full lane-built deck
+    # with zero data-kernel. The server mirror closes the path. Singular: the
+    # server helper is the ONE server-side retrofit, mirroring ensureKernelStyle.
+    from services.studio import ensure_kernel_style_in_html
+
+    no_kernel = '<html data-template="deck"><head><style>skin</style></head><body></body></html>'
+    retro = ensure_kernel_style_in_html(no_kernel)
+    _check(
+        "ensure_kernel_style_in_html retrofits an artifact with no kernel style",
+        'data-kernel="true"' in retro
+        and retro.find("data-kernel") < retro.find("</head>"),
+    )
+    _check(
+        "ensure_kernel_style_in_html is idempotent (byte-identical when current)",
+        ensure_kernel_style_in_html(retro) == retro,
+    )
+    _check(
+        "ensure_kernel_style_in_html leaves a non-artifact (no </head>) untouched",
+        ensure_kernel_style_in_html("<section>x</section>") == "<section>x</section>",
+    )
+    old_v = '<html data-template="deck"><head><style data-kernel="true" data-kernel-v="1">.o{}</style></head></html>'
+    _check(
+        "ensure_kernel_style_in_html replaces an OLDER kernel version in place",
+        f'data-kernel-v="{STUDIO_KERNEL_CSS_VERSION}"' in ensure_kernel_style_in_html(old_v)
+        and ".o{}" not in ensure_kernel_style_in_html(old_v),
+    )
+    workspace_prim = (
+        Path(__file__).resolve().parent / "services/primitives/workspace.py"
+    ).read_text()
+    _check(
+        "the lane write door calls the server retrofit for Studio artifacts",
+        "ensure_kernel_style_in_html(new_content)" in workspace_prim
+        and 'path.startswith("operation/")' in workspace_prim
+        and '"data-template=" in new_content' in workspace_prim,
+    )
+
     ok = all(c for _, c in _results)
     print()
     print(f"{'PASS' if ok else 'FAIL'}: {sum(c for _, c in _results)}/{len(_results)} checks")

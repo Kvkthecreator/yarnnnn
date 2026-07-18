@@ -449,6 +449,17 @@ const POINTER_SCRIPT = `
     // Injected chrome owns its own context menu (i.e. none) — never the page's.
     if (t && t.closest && (t.closest('.yarnnn-gutter') || t.closest('.yarnnn-fmt')
         || t.closest('.yarnnn-add-here'))) return;
+    // While a block is being edited, a right-click INSIDE that same block yields
+    // to the browser's NATIVE menu (spellcheck suggestions, cut/copy/paste) —
+    // exactly what an editor user expects mid-edit (mirrors the click handler's
+    // in-edit early-return). The Studio block menu is for a SELECTED block, not
+    // a live caret; stealing the native menu here would drop the caret and hide
+    // spellcheck.
+    var editingId = window.__yarnnnEditingId ? window.__yarnnnEditingId() : null;
+    if (editingId && t && t.closest) {
+      var host = t.closest('[data-block-id]');
+      if (host && host.getAttribute('data-block-id') === editingId) return;
+    }
     e.preventDefault();
     var el = t && t.closest ? t.closest(SEL) : null;
     var blk = el && el.closest ? el.closest('[data-block]') : null;
@@ -799,6 +810,8 @@ const EDIT_SCRIPT = `
     editingEl = null; editingId = null; // clear FIRST so any re-entry is a no-op
     hideFmt();
     if (el && el.__yarnnnBlur) { el.removeEventListener('blur', el.__yarnnnBlur); el.__yarnnnBlur = null; }
+    if (el && el.__yarnnnInput) { el.removeEventListener('input', el.__yarnnnInput); el.__yarnnnInput = null; }
+    if (el && el.__yarnnnPaste) { el.removeEventListener('paste', el.__yarnnnPaste); el.__yarnnnPaste = null; }
     if (el && el.querySelectorAll) {
       if (!silent) {
         var innerNow = readSourceInner(el);
@@ -868,20 +881,31 @@ const EDIT_SCRIPT = `
         exit(true);
       }, 0);
     };
-    el.__yarnnnBlur = onBlur;
-    el.addEventListener('blur', onBlur);
-    el.addEventListener('input', function () {
+    // Store EVERY listener ref on the element so exit() can remove all three —
+    // enter()/exit() run on every single-click, arrow-traversal, split, and
+    // merge, re-entering the SAME physical nodes across one document load. An
+    // anonymous listener that exit() couldn't remove would stack per re-entry
+    // (unbounded within a session): N idle-timers armed per keystroke, N paste
+    // handlers. The blur listener was already stored + removed; these two were
+    // the leak.
+    var onInput = function () {
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(commit, 2000); // idle-2s safety commit (D4)
-    });
+    };
     // Sanitize paste to plain text — no HTML injection through the clipboard.
-    el.addEventListener('paste', function (e) {
+    var onPaste = function (e) {
       e.preventDefault();
       var text = (e.clipboardData || window.clipboardData).getData('text/plain');
       if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
         document.execCommand('insertText', false, text);
       }
-    });
+    };
+    el.__yarnnnBlur = onBlur;
+    el.__yarnnnInput = onInput;
+    el.__yarnnnPaste = onPaste;
+    el.addEventListener('blur', onBlur);
+    el.addEventListener('input', onInput);
+    el.addEventListener('paste', onPaste);
   }
 
   // ── ADR-456 W2: the inline format bar ─────────────────────────────────

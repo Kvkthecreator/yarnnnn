@@ -95,8 +95,17 @@ def main() -> bool:
     _check(
         "frame-local coords are mapped to the page by the CANVAS (the surface "
         "never learns iframe geometry)",
-        "const r = iframeRef.current?.getBoundingClientRect();" in canvas
-        and "zoomRef.current || 1" in canvas,
+        "const r = iframeRef.current?.getBoundingClientRect();" in canvas,
+    )
+    # REGRESSION GUARD (fixed 2026-07-18): the menu mapping multiplied d.x by the
+    # zoom. But `body.style.zoom` rescales the artifact's LAYOUT, not the iframe
+    # element's viewport — a pointer's clientX stays in [0, iframeWidth] at every
+    # zoom. The multiply put the menu at ~37% of the offset on a deck (auto-fit
+    # zoom ~0.37), landing it up-left of the cursor. The offset is now 1:1.
+    _check(
+        "the context-menu coord is NOT re-scaled by zoom (clientX is already iframe-box px)",
+        "(r?.left ?? 0) + (d.x as number)," in canvas
+        and "(d.x as number) * z" not in canvas,
     )
 
     print("\n── D5: the page is the member's; the accent is the system's ──")
@@ -226,6 +235,22 @@ def main() -> bool:
     _check(
         "placeholders yield only in a slot that actually receives",
         "if (!receiving.has(target)) {" in ops,
+    )
+    _check(
+        "the carry sweeps only TOP-LEVEL blocks (a nested block rides its parent, "
+        "never torn out and appended as a sibling)",
+        "!b.parentElement?.closest('[data-block]')" in _fn(ops, "applyArrangement"),
+    )
+
+    print("\n── Turn-into never flattens a citation ──")
+    # REGRESSION GUARD (fixed 2026-07-18): the citation-refusal used
+    # querySelector (DESCENDANTS only). A figure/table wears data-ref on its OWN
+    # root, so it slipped past and the attribute-carry copied the live pin onto
+    # a flattened text shell — a text block dangling a reference. The guard now
+    # checks the block's own ref too.
+    _check(
+        "convertBlock refuses a block wearing data-ref on its OWN root, not just a descendant",
+        "block.hasAttribute('data-ref') || block.querySelector('[data-ref]')" in _fn(ops, "convertBlock"),
     )
 
     print("\n── The add gesture says what it does ──")

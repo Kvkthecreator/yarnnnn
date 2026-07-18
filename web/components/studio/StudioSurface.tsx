@@ -401,6 +401,26 @@ export function StudioSurface() {
   // tab's scope, AND informs the lane (via a visible composer seed). ──
   const [selection, setSelection] = useState<StudioSelection | null>(null);
 
+  // Reconcile a stale page selection against the live content: if a slide/page
+  // is deleted (on the canvas, via the Design tab, or by a lane write) the
+  // selected index can point PAST the end — the navigator ring silently
+  // vanishes and every page-scope op resolves `querySelectorAll(...)[i]` to
+  // null, so Duplicate/Delete/Re-arrange become no-ops with no feedback. When
+  // the count shrinks below the selected index, drop the selection so the
+  // grain ladder falls back cleanly rather than pointing at nothing.
+  const content = file?.content;
+  useEffect(() => {
+    setSelection((sel) => {
+      if (!sel || (sel.slideIndex == null && sel.pageIndex == null) || !content) return sel;
+      const doc = new DOMParser().parseFromString(content, 'text/html');
+      const slideCount = doc.querySelectorAll('section.slide').length;
+      const pageCount = doc.querySelectorAll('section.slide, [data-arrange]').length;
+      const staleSlide = sel.slideIndex != null && sel.slideIndex >= slideCount;
+      const stalePage = sel.pageIndex != null && sel.pageIndex >= pageCount;
+      return staleSlide || stalePage ? null : sel;
+    });
+  }, [content]);
+
   // ADR-453 D4: the right column's two tabs — Chat (the bound lane) | Design
   // (the scope-switching inspector). The lane stays MOUNTED under either tab.
   const [rightTab, setRightTab] = useState<'chat' | 'design'>('chat');

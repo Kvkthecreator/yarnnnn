@@ -270,7 +270,11 @@ export function convertBlock(
   const block = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
   if (!block) return null;
   if (block.getAttribute('data-block') === kind) return null; // no-op
-  if (block.querySelector('[data-ref]')) return null; // citations never flatten
+  // Citations never flatten — check the block's OWN ref (figure/table wear
+  // data-ref on their root) as well as any descendant. A root-ref block that
+  // slipped past a descendant-only check would keep its live citation pin on
+  // the flattened text shell below — a text block dangling a reference.
+  if (block.hasAttribute('data-ref') || block.querySelector('[data-ref]')) return null;
   const tpl = doc.createElement('template');
   tpl.innerHTML = fragment.trim();
   const shell = tpl.content.firstElementChild;
@@ -803,7 +807,12 @@ export function applyArrangement(
   // a layout with nowhere to put content cannot receive content, and saying so
   // is the honest act. The caller surfaces the refusal.
   const carried = Array.from(page.querySelectorAll('[data-block]')).filter(
-    (b) => b.getAttribute('data-block') !== 'heading',
+    (b) =>
+      b.getAttribute('data-block') !== 'heading' &&
+      // Only TOP-LEVEL blocks — a block nested inside another carried block (a
+      // registry block never nests, but an AI-authored one can) must ride with
+      // its parent, not be torn out and appended as a sibling.
+      !b.parentElement?.closest('[data-block]'),
   );
   const targetSlots = Array.from(el.querySelectorAll('[data-slot]'));
 

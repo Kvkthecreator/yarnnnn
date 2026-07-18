@@ -215,6 +215,13 @@ async def resolve_design_system_route(manifest: str, auth: UserClient) -> dict:
         "name": ds["name"],
         "manifest_path": ds["manifest_path"],
         "skin_element": compose_skin_element(ds["manifest_path"], ds["css_text"]),
+        # DESIGN-SYSTEMS.md §6 — the manage panel reads these (already computed
+        # by resolve; additive, so Apply which only wants skin_element is
+        # unaffected): the flattened sources (the files), the synonym bridge,
+        # and any warnings (an external font URL the picker must surface).
+        "sources": ds.get("sources", []),
+        "maps": ds.get("maps", {}),
+        "warnings": ds.get("warnings", []),
     }
 
 
@@ -485,12 +492,24 @@ async def rename_artifact(req: RenameArtifactRequest, auth: UserClient) -> dict:
             new_path = dst
 
     logger.info("[STUDIO] renamed folder %s -> %s (%d files)", old_folder, new_folder, len(moved))
+
+    # The retitle so the h1 follows (the docstring's promise, the FE's
+    # expectation at commitRename's "the retitle is a server-side write"). One
+    # member act moves BOTH names. A no-op on paged layouts / authored titles —
+    # and best-effort: a retitle failure must not undo a successful rename.
+    retitled = False
+    try:
+        retitled = _retitle_to_match_filename(auth, new_path).get("retitled", False)
+    except Exception:
+        logger.warning("[STUDIO] rename succeeded but retitle failed for %s", new_path)
+
     return {
         "success": True,
         "path": new_path,
         "renamed": True,
         "moved": len(moved),
         "name": artifact_name(new_path),
+        "retitled": retitled,
     }
 
 
@@ -498,38 +517,25 @@ class RetitleArtifactRequest(BaseModel):
     path: str  # the artifact's CURRENT path; its stem becomes the title
 
 
-@router.post("/studio/artifacts/retitle")
-async def retitle_artifact(req: RetitleArtifactRequest, auth: UserClient) -> dict:
-    """Retitle an artifact FROM its filename — the rename half of "the name is
-    one fact" (2026-07-15).
+def _retitle_to_match_filename(auth: UserClient, path: str) -> dict:
+    """Retitle an artifact FROM its filename — the shared body behind BOTH the
+    explicit /retitle endpoint AND the rename endpoint (which folds it in so a
+    rename is one member act that moves both names together).
 
-    A rename used to move the file and leave the artifact's own <h1> saying the
-    old thing: two names for one thing, and only the filename real. The Studio
-    calls this after a rename so both names move together, as one ordinary
-    attributed revision.
+    The rename half of "the name is one fact" (2026-07-15): a rename used to
+    move the file and leave the artifact's own <h1> saying the old thing — two
+    names for one thing, only the filename real. This is Studio's opinion (an
+    h1 IS a title), so it lives here with the layout registry, deliberately NOT
+    in the generic move endpoint that every surface shares.
 
-    Deliberately NOT folded into the generic move endpoint: that is every
-    surface's move (Files, the recents menu), and rewriting a document's title
-    because a file moved is Studio's opinion, not the filesystem's. The
-    knowledge that an h1 is a title lives here, with the layout registry.
-
-    No-ops (200, retitled=False) when nothing should change — a paged layout
-    (its h1 is a thesis, not a title), an already-authored title, or a
-    byte-identical result. A no-op writes NO revision.
+    No-ops (retitled=False) when nothing should change — a paged layout (its h1
+    is a thesis, not a title), an already-authored title, or a byte-identical
+    result. A no-op writes NO revision. Returns a result dict; raises only on a
+    genuinely missing artifact.
     """
     from services.authored_substrate import write_revision
-    from services.studio import (
-        STUDIO_ARTIFACT_REGION,
-        STUDIO_LAYOUTS,
-        artifact_name,
-        set_artifact_title,
-    )
+    from services.studio import STUDIO_LAYOUTS, artifact_name, set_artifact_title
     from services.workspace_context import substrate_scope_filter
-
-    raw = (req.path or "").strip()
-    path = raw if raw.startswith("/") else f"/workspace/{raw}"
-    if not path.endswith(".html") or ".." in path or not path.startswith(STUDIO_ARTIFACT_REGION):
-        raise HTTPException(status_code=403, detail=f"Not a Studio artifact path: {path}")
 
     row = (
         auth.client.table("workspace_files")
@@ -568,6 +574,19 @@ async def retitle_artifact(req: RetitleArtifactRequest, auth: UserClient) -> dic
         summary=f"Titled '{title}' to match its filename",
     )
     return {"success": True, "retitled": True}
+
+
+@router.post("/studio/artifacts/retitle")
+async def retitle_artifact(req: RetitleArtifactRequest, auth: UserClient) -> dict:
+    """Retitle an artifact FROM its filename (explicit endpoint; the shared body
+    is `_retitle_to_match_filename`). See that helper for the full contract."""
+    from services.studio import STUDIO_ARTIFACT_REGION
+
+    raw = (req.path or "").strip()
+    path = raw if raw.startswith("/") else f"/workspace/{raw}"
+    if not path.endswith(".html") or ".." in path or not path.startswith(STUDIO_ARTIFACT_REGION):
+        raise HTTPException(status_code=403, detail=f"Not a Studio artifact path: {path}")
+    return _retitle_to_match_filename(auth, path)
 
 
 @router.get("/studio/citable")
@@ -681,7 +700,13 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     # file can never disagree.
     from services.studio import STUDIO_LAYOUTS, artifact_name, set_artifact_title
 
-    is_flow = STUDIO_LAYOUTS[req.template]["mode"] == "flow"
+    # `.get`, not a bare subscript: creation validates `req.template` against
+    # STUDIO_TEMPLATES (which is derived 1:1 from STUDIO_LAYOUTS today), but a
+    # future bundle-shipped template could live in one and not the other — a
+    # bare `STUDIO_LAYOUTS[req.template]` would then 500. An unknown layout is
+    # not flow (its h1 stays authored), matching artifact_kind's own fallback.
+    _layout = STUDIO_LAYOUTS.get(req.template)
+    is_flow = bool(_layout and _layout["mode"] == "flow")
     content = set_artifact_title(template["skeleton"], artifact_name(path), set_h1=is_flow)
 
     write_revision(
