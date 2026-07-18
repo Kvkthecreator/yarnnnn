@@ -1,10 +1,10 @@
-# Layer Mapping — The Three Altitudes and Orchestration
+# Layer Mapping — Agents as a Fact-Vector, and Orchestration
 
 > **Status**: Canonical (internal)
-> **Date**: 2026-04-24; **rewritten 2026-07-07 (ADR-414, per ADR-408 D2 + ADR-381 D4 + ADR-382 §3)** — the two-class Agent/Orchestration taxonomy is re-instantiated as the **three AI altitudes**; the ADR-216 orchestration-surface seam is collapsed (ADR-414 D3). Prior amendment chain: ADR-216 → 217 → 247 → 249 → 251 → 272 (all folded; the pre-rewrite doc with its implementation-planning history is preserved in git history at commit ac85b35 and earlier).
+> **Date**: 2026-04-24; **rewritten 2026-07-18 (ADR-460)** — the three-AI-altitude *ladder* is dissolved into a **fact-vector**: one concept (Agent) whose facts vary independently, with the one non-dial fact (consequential authority) relocated to the ADR-307 gate. The three *distinctions* the altitude table drew (management / member-hands / judgment) are **preserved and strengthened** — as fact-clusters, not rungs (ADR-460:9). Prior amendment chain: ADR-216 → 217 → 247 → 249 → 251 → 272 → 414 (three altitudes, folded) → 460 (this rewrite). The pre-460 three-altitude version is preserved in git history.
 > **Authors**: KVK, Claude
 > **Scope**: The authoritative taxonomy for every acting entity in YARNNN. Names each, classifies it, and specifies where it lives in code and substrate.
-> **Audience**: Internal. The philosophical claim behind the taxonomy lives in [THESIS.md](THESIS.md) §Vocabulary; the altitude/chrome pairing lives in [ADR-412](../adr/ADR-412-three-altitudes-three-chromes.md); the coworking contract in [ADR-408](../adr/ADR-408-the-coworking-contract-and-the-three-ai-altitudes.md).
+> **Audience**: Internal. The philosophical claim behind the taxonomy lives in [THESIS.md](THESIS.md) §Vocabulary; the axes-of-classification history lives in [AGENT-TAXONOMY.md](AGENT-TAXONOMY.md); the model itself in [ADR-460](../adr/ADR-460-agents-one-concept-independent-facts-one-gate.md).
 
 ---
 
@@ -16,62 +16,87 @@ The workspace itself is the **commons** — the authored, attributed, portable s
 
 ---
 
-## The Three AI Altitudes (ADR-408 D2)
+## There is one concept: an Agent. Its facts are independent. (ADR-460)
 
-One table, three kinds, each with exactly one chrome home (ADR-412 — "placement is the pedagogy"):
+**The three-altitude ladder is retired** (ADR-460 D1). "Altitude" was never a dimension — it was a *bundle* of facts that vary independently, and reasoning about the ordinal (A1 < A2 < A3) instead of the facts was the drift Axiom 0 names. The runtime never had altitudes: the gate branches on one question — *does this write attribute to a human, or to itself?* — and that is a two-valued fact, not a three-rung ladder.
 
-| Altitude | Entity | Cardinality | Identity & attribution | Persona? | Dial? | Substrate home | Chrome home |
-|---|---|---|---|---|---|---|---|
-| **1 — the system agent** | **Freddie** (operator-relabelable) | Exactly one per workspace, serving N member sessions | `agent:system-agent` / `freddie:` attribution prefix; internal `reviewer` slug retained (data-compat) | **No** — steward role; identity/mandate/principles are **kernel constants** (ADR-414 D2) | Own witness dial (`governance/_autonomy.yaml`; substrate family autonomous per ADR-408 D3) + budget allocation | Kernel constants + the two dial files; **no persona files** | **The rail only** (chat drawer); inspection at Workspace Settings → System Agent. Never a window, launcher tile, roster card, or chat-among-chats |
-| **2 — seat-level helpers (lanes)** | The member's model-pinned helper threads | Zero-to-many per member | **The member's** — `member:{user_id} via {model}` (ADR-411 D4); **not principals**, no principal machinery | No — and the mount never carries behavior (ADR-413 D3) | **No dial of its own** — acts under the member's grant, binds after-witness like the member | None (transcripts are member-experience scope; work lands in the commons) | **The Chat surface** (`/chat`) |
-| **3 — judgment agents** | **Persona agents** (program hires) + **user-authored domain Agents** | Zero-to-many per workspace; each recorded as a **grant row** (ADR-414 D5) | Own principal; own attribution (`agent:{slug}`) | **Yes** — the full ADR-383 file set lives HERE (IDENTITY, MANDATE, principles, governance sidecars) | Own witness dial, per-family; Rung-2 clock for consequential action (ADR-380) | `agents/{slug}/` — the agent's home | **`/agents`** — the roster is Altitude 3 only (ADR-412 D5) |
+> **An Agent is a named, configured entity. Its facts are independent and optional: it may or may not carry a persona; may or may not carry governance files; may or may not hold standing intent. There is no ordinal. Configuration is a vector, not a rung.** (ADR-460:72)
 
-**The sharp word "Agent" lands at Altitude 3** — judgment-bearing, fiduciary, standing intent, tenure-accumulating (THESIS §Vocabulary's claim, unchanged). Altitude 1 is management infrastructure with a voice; Altitude 2 is the member's hands. Same chrome must never imply same kind.
+### The five facts (the vector)
 
-### Where the four commitments attach (THESIS two-order re-derivation)
+| Fact | Dimension | Range | Where it lives |
+|---|---|---|---|
+| **Attribution** | Identity (Axiom 2) | `member:{id} via {model}` **or** `agent:{slug}` | `VALID_AUTHOR_PREFIXES`; branched by `_caller_class` |
+| **Configuration** | Mechanism (Axiom 5) | engine · tools · posture · token profile | the Agent registry (`agents_registry.py`) |
+| **Standing intent** | Trigger (Axiom 4) | none (addressed-only) → wake sources | ADR-296 wake sources |
+| **Governance files** | Substrate (Axiom 1) | none → persona/mandate/principles | ADR-383 (same schema, different content) |
+| **Consequential authority** | **the gate, NOT the entity** | witness-first → autonomous | **[ADR-307](../adr/ADR-307-unified-permission-taxonomy.md) `execute_primitive()`** |
 
-- **Authored accumulation** → the **workspace commons** (the floor; the moat).
-- **Declared intent, independent judgment, ground-truth evaluation** → the **hired Altitude-3 agent's operation** (DP24/DP30/Axiom 8 relocated per ADR-382 §3 / FOUNDATIONS v9.16).
-- The **system agent** carries the stewardship standing-obligation only (substrate coherent, attributed, placed, legible) — never a production obligation, never a ground-truth loop.
+**Four are dials. One is a cliff** — consequential authority — and it is not a property of the entity at all. It is the ADR-307 gate, and it is **unrepresentable** in the kernel Agent registry by construction (ADR-460 D3.a; `test_agent_registry.py` fails if a field for it is added). This is the anti-oscillation ratchet the pre-460 eras lacked: the one boundary that must never become a "kind" cannot be expressed as one.
 
-### Accountability, two orders (ADR-382 §3)
+---
+
+## The three fact-clusters (what the altitudes were pointing at)
+
+The altitude table drew three real distinctions. They survive — as **recurring clusters of fact-values**, the shapes an Agent commonly takes — not as ranked kinds. "Same chrome must never imply same kind" holds exactly as before; what changes is that "kind" is now *read off the facts*, not asserted by an ordinal.
+
+| Cluster (the shape) | Attribution | Standing intent | Governance | Consequential authority | Cardinality | Chrome home |
+|---|---|---|---|---|---|---|
+| **The system agent** — Freddie | `agent:system-agent` / `freddie:` (internal `reviewer` slug, data-compat) | steward wake sources | **kernel constants** (no persona files, ADR-414 D2) | the steward dial (`governance/_autonomy.yaml`); substrate-family autonomous (ADR-408 D3) | exactly one per workspace | **the rail only** (chat drawer) + Workspace Settings → System Agent. Never a roster card |
+| **Member hands** — kernel agents + lanes | **`member:{id} via {model}`** (ADR-411 D4) — *not a principal* | **none** (addressed-only) | none | **none** — binds after-witness *as the member*, under the member's grant | zero-to-many per member | **`/chat`** (the lane) + **`/agents`** (the roster of who you can address) |
+| **Judgment agents** — hired persona / domain Agents | `agent:{slug}` — own principal, own grant row (ADR-414 D5) | own wake sources | the full ADR-383 file set (IDENTITY, MANDATE, principles) lives here | own witness dial; the Rung-2 exogenous clock for consequential action (ADR-380) | zero-to-many per workspace | **`/agents`** (as tenure-bearing, fiduciary Agents) |
+
+**Reading the clusters as facts, not rungs:**
+- Freddie is *management* — accountable for the desk running clean, never for a production outcome. It is **judgment-free and kernel-constituted**; rendering it as a roster peer or auditing it against a production obligation are category errors (ADR-380 D3, ADR-412 D5).
+- **Member hands** attribute *as the member* — the load-bearing fact ADR-408 D2 established, now *strengthened* (ADR-460:9): a lane helper is not a class of caller, it resolves to `operator` because it **is** the member. A named kernel agent (`Sonnet`) running as the member's hands **does not become a principal by acquiring a name** — the face is an Agent, the ledger says the member's hands.
+- **Judgment agents** attribute *as themselves* and carry the four commitments of the operation (declared intent · independent judgment · ground-truth evaluation — DP24/DP30/Axiom 8, ADR-382 §3). This is where the *sharp* word "Agent" (fiduciary, tenure-accumulating) is heaviest — but it is a **cluster of fact-values**, not a floor an entity must reach to be called an Agent.
+
+### The `/agents` roster holds member hands AND judgment agents (corrected)
+
+> ⚠️ **Correction (ADR-460, 2026-07-18).** The pre-460 doc said *"the roster is Altitude 3 only."* **That is now false.** The kernel Agent registry (`Sonnet · Scout · Critic · Designer`) ships on `/agents`, and those are **member hands** (`member:` attribution, no standing intent) — a member-hands cluster, not a judgment cluster. `/agents` is *"who you can address / hire"* — it spans the member-hands cluster (the base agents + a member's own named instances) and, when hired, the judgment cluster (persona agents). Freddie is the one thing that is **never** on the roster (it is the rail, not a colleague). The industry-`agent` note stands but re-reads: what the operator sees on `/agents` are Agents in the *addressable-colleague* sense, of which the *judgment* cluster is the sharpest but not the only, kind.
+
+### Accountability, two orders (ADR-382 §3, preserved verbatim — a mandate-holding fact, never an altitude fact)
 
 | Accountability | Holder | Example |
 |---|---|---|
-| **Judgment** — the operation's calls, its mandate's reachability | The Altitude-3 persona agent | The trader answers for the trades |
-| **System** — the desk, who was hired, substrate integrity, arbitration | Freddie | The manager answers for the workspace running clean |
+| **Judgment** — the operation's calls, its mandate's reachability | the judgment-cluster agent | the trader answers for the trades |
+| **System** — the desk, who was hired, substrate integrity, arbitration | Freddie | the manager answers for the workspace running clean |
 
 ---
 
 ## Orchestration (unchanged class, collapsed surface)
 
-**Orchestration** remains the non-Identity-bearing machinery: primitive dispatch, the wake funnel + queue + drainer (ADR-296/298), scheduler, capability bundles (production roles: researcher/analyst/writer/tracker/designer/reporting; platform integrations: Slack/Notion/GitHub/Commerce/Trading), the compositor, protocol drivers (ADR-413). Stateless per Axiom 1; configurations to tune, never occupants to rotate; writes carry the invoking principal's identity, never their own.
+**Orchestration** remains the non-Identity-bearing machinery: primitive dispatch, the wake funnel + queue + drainer (ADR-296/298), scheduler, the compositor, protocol drivers (ADR-413). Stateless per Axiom 1; configurations to tune, never occupants to rotate; writes carry the invoking principal's identity, never their own.
 
-**The ADR-216 seam is collapsed (ADR-414 D3).** "YARNNN the orchestration chat surface" as an entity distinct from the agent is retired: there is **one system agent, and the rail is its voice**. The seam ADR-216 drew separated orchestration from *judgment* — and judgment moved to Altitude 3, so the seam now runs between Altitude 1 and Altitude 3, not through the chat surface. The `thinking_partner` agents-table row is retired (ADR-414 D3 migration); `session_type='thinking_partner'` survives as a data-compat slug (GLOSSARY exception). **YARNNN is the brand and the system's name**, not an entity in this table.
+> **Note on production roles.** The historical capability bundles (`researcher/analyst/writer/tracker/designer/reporting`) survive in canon as orchestration vocabulary, but the live `PRODUCTION_ROLES` registry is **empty** (collapsed 6→1→0 across ADR-272→ADR-417); `DispatchSpecialist` is a dormant seam. The current agent *capability* axis is the kernel registry's `tools` field (ADR-463) + skills (ADR-464), not a role catalogue. See [AGENT-TAXONOMY.md](AGENT-TAXONOMY.md) §2 Axis-4 for why the role *roster* dissolved while the cognitive-function *vocabulary* survived.
+
+**The ADR-216 seam is collapsed (ADR-414 D3).** "YARNNN the orchestration chat surface" as an entity distinct from the agent is retired: there is **one system agent, and the rail is its voice**. The `thinking_partner` agents-table row is retired; `session_type='thinking_partner'` survives as a data-compat slug (GLOSSARY exception). **YARNNN is the brand and the system's name**, not an entity in this table.
 
 ---
 
 ## Specific clarifications (to prevent drift)
 
-1. **Agents use tools; that doesn't make them orchestration.** A judge uses court records. The persona agent calls primitives through the same `execute_primitive` gate as everyone; that's Agents-using-tools.
-2. **Lane helpers are not junior agents.** They have no standing intent, no home, no dial, no principal-hood — widening the lane tool surface beyond the five file verbs is a policy change with its own ADR (ADR-411 D3 / ADR-413 D5).
-3. **The steward is not a persona agent with an empty persona.** It is a different kind: kernel-constituted, judgment-free, one-per-workspace. Rendering it as a roster peer, giving it a persona editor, or auditing it against a production obligation are all category errors (ADR-380 D3, ADR-412 D5, DP30 two-order annotation).
-4. **Programs are hires, not types** (ADR-414 D5). Activation mints an Altitude-3 grant row and installs the bundle into the agent's home. The workspace is never typed; `parse_active_program_slug` and the MANDATE prose marker are deleted vocabulary.
-5. **External LLM callers (MCP) are the member's embodiment**, not a fourth altitude — the same principal through the interop face (DP17 two-embodiments, generalized).
-6. **Industry "agent" vocabulary** (LLM + tools + loop) maps closest to Altitude-2 helpers and orchestration capability bundles. YARNNN's sharp usage reserves the word for Altitude 3. External UI aligns naturally: what the operator sees on `/agents` ARE Agents in the sharp sense.
+1. **Agents use tools; that doesn't make them orchestration.** A judge uses court records. Every actor calls primitives through the same `execute_primitive` gate.
+2. **Lane helpers / base agents are not junior judgment agents.** They have no standing intent, no home, no dial, no principal-hood — they are the member's hands. This is a *fact difference* (empty standing-intent, `member:` attribution), not a rank.
+3. **The steward is not a persona agent with an empty persona.** It is a different fact-cluster: kernel-constituted, judgment-free, one-per-workspace. Roster-peer / persona-editor / production-audit are all category errors.
+4. **Programs are hires, not types** (ADR-414 D5). Activation mints a judgment-cluster grant row and installs the bundle into the agent's home. The workspace is never typed.
+5. **External LLM callers (MCP) are the member's embodiment**, not a separate kind — the same principal through the interop face (DP17 two-embodiments).
+6. **The base agents (`Sonnet/Scout/Critic/Designer`) are the member-hands cluster**, typed by the *reason a member reaches for a colleague* (a verb: think/read/pressure-test/make — [AGENT-TAXONOMY.md](AGENT-TAXONOMY.md) Axis 6). **Whether that roster is complete or representative is an OPEN question, not settled canon** — see the note below.
+
+> **Open: is the base roster complete/representative?** (flagged 2026-07-18) The four base agents are the current member-hands roster, but the *vocabulary of reasons* has never been derived from first principles — ADR-176 asserted six cognitive roles, the kernel ships four verbs, and neither proved its set. A recommendation exists (`docs/analysis/the-recommended-agent-set-2026-07-18.md`) arguing four is complete *by construction* for the addressed-no-standing-intent space; **that argument is contested and not ratified.** This doc records the roster as *current*, never as *complete*. A fifth base agent is a live possibility; the discipline (AGENT-TAXONOMY §4) is only that it must be a new **verb**, not a modality/output/platform/domain of an existing one.
 
 ---
 
 ## The filesystem rule
 
-| Entity class | Cardinality | Path shape |
+| Fact-cluster | Cardinality | Path shape |
 |---|---|---|
-| System agent (Altitude 1) | one per workspace | **No persona path** — kernel constants + `governance/_autonomy.yaml` + `governance/_budget.yaml` (ADR-414 D2) |
-| Persona agent / domain Agent (Altitude 3) | zero-to-many | `agents/{slug}/` — home carries the full file set (ADR-414 D6) |
-| Lane helper (Altitude 2) | zero-to-many per member | none — transcripts are member-experience scope (`chat_sessions`), work lands in the commons |
+| System agent (Freddie) | one per workspace | **No persona path** — kernel constants + `governance/_autonomy.yaml` + `governance/_budget.yaml` (ADR-414 D2) |
+| Judgment agent / domain Agent | zero-to-many | `agents/{slug}/` — home carries the full ADR-383 file set (+ `skills/*.md`, ADR-464) |
+| Member hands — base agents | fixed kernel set | **kernel constants** (`KERNEL_AGENTS`) — not member-owned |
+| Member hands — named instances | zero-to-many per member | `agents/{slug}/_agent.yaml` (+ `skills/`) — a member's own colleague, `based_on` a kernel verb (ADR-449/460) |
+| Member hands — lanes | zero-to-many per member | none — transcripts are member-experience scope (`chat_sessions`); work lands in the commons |
 | Orchestration | n/a | `system/` accumulation only; never Identity-bearing |
-
-The pre-2026-07 systemic path (`/workspace/persona/` — the six seat files) was the one-judgment-seat world's home; its contents re-home per ADR-414 D5/D6 (the operation persona to the hired agent's home; the steward's to kernel constants). The path-named-by-role convention survives only in the minimized DP25 residue (principal-homes).
 
 ---
 
@@ -79,6 +104,7 @@ The pre-2026-07 systemic path (`/workspace/persona/` — the six seat files) was
 
 | Date | Change |
 |------|--------|
-| 2026-04-23/24 | v1/v1.1 — the sharp Agent/Orchestration split (ADR-212/216); registry restructure; six-commit landing plan (see git history for the full planning record) |
+| 2026-04-23/24 | v1/v1.1 — the sharp Agent/Orchestration split (ADR-212/216) |
 | 2026-05-04→14 | ADR-249 operator-runtime amendment; ADR-251 System Agent label; ADR-272 System-Agent-as-cockpit-entity dissolved |
-| 2026-07-07 | **v2 — rewritten to the three-altitudes taxonomy (ADR-414).** Two classes → three altitudes + orchestration; ADR-216 seam collapsed (one system agent, the rail is its voice); four commitments re-attached (commons vs hired agent); accountability two-order table added; filesystem rule updated to kernel-constants + agent-homes; programs = hires. |
+| 2026-07-07 | v2 — the three-altitudes taxonomy (ADR-414) |
+| 2026-07-18 | **v3 — the ladder dissolves into a fact-vector (ADR-460).** Three ranked altitudes → one concept + five independent facts + one gate. The three distinctions preserved as fact-clusters, not rungs. Corrected the false *"roster is Altitude 3 only"* line (the base agents are member-hands on `/agents`). Roster-completeness flagged as an OPEN, contested question, not settled canon. Cross-linked AGENT-TAXONOMY.md. |
