@@ -1,13 +1,16 @@
-# Design systems in the Studio — the housing, the import, and the apply model
+# Design systems in the Studio — the housing, the import, the apply model, and the surface
 
-**Status**: the housing + import are live (ADR-449 + ADR-462 D11/D13/D14, 2026-07-16).
-**The apply model is DECIDED AND BUILT (§5, 2026-07-16)** — a coverage probe turned the "why
-does a correct apply barely change anything" question into a measurement, and the measurement
-drew and then landed the fix: the kernel token contract widened from five point-vars to a
-~14-slot *families* vocabulary (Move 1), a declarative `maps:` synonym bridge (Move 2), and the
-`PATCH` editability the mechanical var-editor needs (Move 3). Acceptance: the coverage probe's
-"paints today" bucket went **4 → 17**, now holding the pill, the hairline, and the type scale.
-Read §5 for what shipped; §3 has the receipts.
+**Status**: the housing + import + apply are live (ADR-449 + ADR-462 D11/D13/D14 + §5, 2026-07-16).
+**The apply model is DECIDED AND BUILT (§5)** — a coverage probe turned the "why does a correct
+apply barely change anything" question into a measurement, and the measurement drew and then
+landed the fix: the kernel token contract widened from five point-vars to a ~14-slot *families*
+vocabulary (Move 1), a declarative `maps:` synonym bridge (Move 2), and the `PATCH` editability
+the mechanical var-editor needs (Move 3). Acceptance: the coverage probe's "paints today" bucket
+went **4 → 17**, now holding the pill, the hairline, and the type scale.
+**The FE surface is DECIDED, not yet built (§6, 2026-07-18)** — design systems become first-order
+on the Studio landing; a third render state (`studio.system=`) holds the manage panel; the three
+operations split by shape (import = modal, derive = learn-from, manage = panel). Read §5 for what
+shipped, §6 for what's next; §3 has the receipts.
 
 > One-line map: a design system is an ordinary meaning-folder identified by `_design.yaml`;
 > an artifact wears it as a marked, cited `<style>` element; the import is a flatten + a
@@ -363,7 +366,101 @@ and it now does, measured the same way the gap was.
 
 ---
 
-## 6. File map
+## 6. THE SURFACE — where design-system UI lives (decided 2026-07-18, not yet built)
+
+The apply model (§5) got the skin *into* the workspace and *onto* the pixels. This section is the
+front-end question that follows: **where does a member see, create, and manage a design system?**
+Decided as a shape here; built against this doc, not ahead of it.
+
+### The problem the audit found
+
+Today all design-system UI is trapped **inside an open artifact** — the right column's Design
+tab (document scope) holds the picker (apply/remove), the import button, and the read-only theme
+panel. But a design system is a **workspace-level identity worn by many artifacts** (§4), not an
+artifact-scoped setting. So the Studio landing (`StudioStart`) shows recents and templates and
+**zero design-system UI** — to import or even *see* the workspace's systems, a member must first
+open some artifact, find the Design tab, and scroll. The identity that should greet them is three
+clicks deep inside one deck. This is a mirror/composition mismatch in DP29 terms: a workspace
+concern surfaced only as an artifact affordance.
+
+### The decision: first-order on the landing, split by job
+
+A design system is a **first-order Studio object**, co-equal with artifacts, surfaced on the
+landing. But two distinct *jobs* pull toward two placements, and forcing them into one is the
+mistake the Claude Design reference avoids (it has both a `Design systems` tab AND a composer
+selector):
+
+- **Job A — "wear our style"** (frequent, per-artifact, authoring-time). **Stays where it is**:
+  the open-artifact Design tab's picker. The artifact *applies* the identity. Optionally surfaced
+  earlier (at create-time, like a composer selector) so a new artifact is born wearing it.
+- **Job B — "manage our identity"** (rare, workspace-level). **Gets the new landing home.** This
+  is the surface that has no home today.
+
+### The landing section ("Design systems", first-order, below recents)
+
+- **Empty** → one card, two create paths (below).
+- **Populated** → one card per system (name · an `--accent` swatch · "worn by N artifacts"),
+  plus a quiet **"+ Import / Derive"** affordance. Clicking a card opens the **manage panel**.
+
+### The three operations, and their distinct shapes
+
+The operations are NOT one shape — the honest cut (measured against the learn-from flow, which is
+a *source→target→lane creation modal*):
+
+| Operation | Shape | Why this shape |
+|---|---|---|
+| **Create — import a `.zip`** | a **modal** (upload + receipt) | Bounded, one-shot, deterministic (flatten/classify/write → "15 files · 5 stylesheets · 61 skipped"). The existing Design-tab import, **promoted to the landing**. Not learn-from — there is no source to choose and no lane to run. |
+| **Create — derive from a source** | **learn-from itself** (already wired) | It *is* source→target→lane: a brand guide → "Design system" → the ADR-450 `design-system` derive recipe on a chat lane. `LEARN_TARGETS` **already carries** `{recipe: 'design-system', template: null}` — the derive path exists; the landing just needs to route to it. |
+| **Manage — the overview** | a **dedicated Studio panel** (not a modal, not a canvas) | Reading a thing that *exists* — dependents, files, re-import, the theme panel, and the future token-editor. Revisit-able and roomy; a modal is a poor home for it and cannot hold the inline var-editor. |
+
+**The empty→populated toggle resolves the "manage or create" question**: empty section = the two
+create paths; a populated card = a click into the manage panel. Create is a modal-or-learn-from;
+manage is a view.
+
+### The manage panel — a THIRD Studio state (the honest surface cost)
+
+The Studio has two render states today, keyed on the `studio.file` param: **absent → the landing**
+(`StudioStart`), **set → the artifact workbench** (canvas + Chat/Design tabs). The manage panel is
+a deliberate **third state** — not the landing, not an artifact workbench — keyed on a **new
+sibling param** (proposed `studio.system=<manifest-path>`, mirroring `studio.file=`). It needs its
+own render branch in `StudioSurface` and its own crumb (`Studio › ‹System Name›`).
+
+This **grows Studio's surface by one state** — the cost "mirror once, compose few" usually
+resists. It is accepted here deliberately: a first-order object earns a composed act-surface, and
+the panel is the only clean home for the deferred token-editor (a modal is not). Recorded as a
+choice, not an accident.
+
+**What the panel shows** (all data already exists):
+
+- **Worn by N artifacts** — the ADR-448 reference edge (`GET /api/workspace/file/dependents` on
+  the manifest), each openable. This is the payoff the whole citation contract was built for.
+- **The files** — manifest + stylesheets + fonts/images (the import receipt, persisted).
+- **The theme panel** — the §5 widened vocabulary, kernel-consumed slots first, read-only for now
+  (the same `skinVars` parse the Design tab already does, relocated/shared).
+- **Re-import** — the same import modal, re-run against the folder (ADR-292 reapply shape).
+- **The token-editor slot** — the deferred var-editor lands here (the §5 Q4 `PATCH` permission is
+  already shipped; the UI needs the var→owning-source design pass named in §5 Move 3).
+
+### What is decided vs still open
+
+- **Decided**: first-order landing section; Job A stays in the Design tab; the three operation
+  shapes (import=modal, derive=learn-from, manage=panel); the manage panel as a third Studio state
+  on a new param.
+- **Still open (do not build ahead of it)**: the token-editor UI (its var→source mapping); whether
+  the create-time "wear this" selector (Job A at creation) ships with this or later; the exact
+  card visual. These are named so the build stops at the decided line.
+
+### The build order the decision implies (each its own commit + gate)
+
+1. **The landing section** — list systems (`find_design_systems` via a `GET`), the empty/populated
+   states, the "+ Import / Derive" affordance. Reuses the existing import endpoint + learn-from.
+2. **The manage panel** — the third render state on `studio.system=`, composing dependents + files
+   + the shared theme panel + re-import. No new backend (all endpoints exist).
+3. **(Deferred)** the inline token-editor, against the shipped `PATCH` permission.
+
+---
+
+## 7. File map
 
 | Concern | Location |
 |---|---|
@@ -373,7 +470,9 @@ and it now does, measured the same way the gap was.
 | Import door (zip → folder) | `api/routes/studio.py::import_design_system_route` |
 | The bound-lane posture section | `api/services/lane_runner.py` (the `artifact_path` branch) |
 | The derive recipe (AI authors one) | `api/services/derive_recipes.py::DERIVE_RECIPES["design-system"]` |
-| FE picker + import UI | `web/components/studio/StudioDesignTab.tsx` (document scope) |
+| FE picker + import UI (Job A — apply, in an open artifact) | `web/components/studio/StudioDesignTab.tsx` (document scope) |
+| FE landing + render states (Job B home — §6, to build) | `web/components/studio/StudioSurface.tsx` (`StudioStart` = landing; `studio.file` = workbench; `studio.system` = the new manage state) |
+| FE learn-from (the derive-create path) | `web/components/studio/LearnFromFlowModal.tsx` + `LEARN_TARGETS` in `StudioSurface.tsx` (already carries `design-system`) |
 | FE skin url() resolution | `web/components/workspace/viewers/projection.ts::resolveStyleUrls` |
 | The theme contract (the apply seam) | `docs/design/STUDIO.md` §Theme + the layer table |
 | The apply-gap coverage probe (§5 evidence) | `api/probe_design_system_coverage.py` |
