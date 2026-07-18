@@ -1,8 +1,11 @@
-# Design systems in the Studio — the housing, the import, and the open apply question
+# Design systems in the Studio — the housing, the import, and the apply model
 
 **Status**: the housing + import are live (ADR-449 + ADR-462 D11/D13/D14, 2026-07-16).
-**The apply half is under active reconsideration** — this doc parks what is built so the
-apply discourse has a clean record to revise against. Read §5 before proposing changes.
+**The apply model is decided (§5, 2026-07-16) and not yet built** — a coverage probe turned
+the "why does a correct apply barely change anything" question into a measurement, and the
+measurement drew the fix: widen the kernel token contract from five point-vars to a small
+*families* vocabulary, plus a declarative `maps:` synonym bridge. Read §5 for the decision;
+§3 has the receipts.
 
 > One-line map: a design system is an ordinary meaning-folder identified by `_design.yaml`;
 > an artifact wears it as a marked, cited `<style>` element; the import is a flatten + a
@@ -173,6 +176,38 @@ Gates: `test_adr449_design_system.py` (housing + flatten + import, 36 checks),
 Probes (Hat-B, receipts in-file): `probe_design_system_import.py` (import, 11/11),
 `probe_studio_deck_quality.py` (the lane that authors artifacts to wear a skin).
 
+### The apply-gap coverage probe (2026-07-16 — the measurement §5 rests on)
+
+`probe_design_system_coverage.py` flattens the real YARNNN export (the same bytes the live
+import consumed) and classifies every custom property the skin **defines** against the five the
+kernel chrome **consumes**. It is the honest first move the apply question demanded — a
+histogram, not a prediction:
+
+```
+flattened skin        5,687 bytes, 6 sources
+kernel consumes       --ink --paper --muted --accent --radius
+custom properties defined by the skin        119
+  (a) paints today                             4  (3%)   --ink --paper --muted --accent
+  (b) 1:1 synonym, an adapter bridges         10 (→11%)  --yarn-orange --background --primary …
+  (c) needs a wider contract slot             89         the type SCALE, the --ink-NN ramp,
+                                                          --radius-* family, --space-*, --surface-*,
+                                                          semantic --fresh/--danger/--warn
+  (d) never consumable (component/util)       16         --shadow-* --ease-* --tracking-* --leading-*
+```
+
+Two facts the probe made concrete, both verified against code:
+
+- **The skin defines a `--radius` *family* (`--radius-sm|md|lg|xl|pill`) and no bare `--radius`.**
+  So the kernel's single `--radius` slot is fed *nothing* — every kernel button falls back to its
+  hard-coded `6px`, while the `9999px` pill that defines every YARNNN button sits unconsumed.
+- **The kernel hard-codes ~15 distinct font-size literals** (`0.85rem` … `4rem`) — none themable.
+
+The decisive read: a 1:1 adapter bridges only **11%**, and that 11% is color-at-full-strength —
+it does **not** include the geometry (hairline borders, pill radii, type rhythm) that makes an
+artifact *look* like YARNNN. That differentiating brand is **75% of the tokens, and it lives in
+(c)** — the bucket the five-var contract has no slots for. This is why §5 grows the contract
+rather than shipping an adapter alone.
+
 ---
 
 ## 4. The division of labor (why this shape)
@@ -192,52 +227,114 @@ would fight the skin.
 
 ---
 
-## 5. THE OPEN QUESTION — how a skin reaches the pixels (parked for revision)
+## 5. THE APPLY MODEL — how a skin reaches the pixels (decided, not yet built)
 
-Everything above is about getting a design system *into* the workspace and *cited by* an
-artifact. **Whether it visibly changes anything is a separate, still-open question**, and it
-is why this discourse is parked rather than closed.
+Everything above gets a design system *into* the workspace and *cited by* an artifact.
+**Whether it visibly changes anything** was the open question. The coverage probe (§3) answered
+it by measurement: the five-var contract paints 3% of the brand and misses the geometry.
+**The decision below follows from that histogram, not from prediction.**
 
-### The theme contract, and the gap it leaves
+### The decision, in one line
 
-The kernel chrome (buttons, galleries, toggles, tone fills) themes through **five custom
-properties** (STUDIO.md §Theme, ADR-456 W3): `--ink` · `--paper` · `--muted` · `--accent` ·
-`--radius`. The derive recipe names them; the Design tab shows the applied skin's variables
-read-only.
+**Widen the kernel token contract from five point-vars to a small *families* vocabulary, and add
+a declarative `maps:` synonym bridge in the manifest.** The kernel still names *categories, never
+instances* (ADR-222) — it gains slots for a type scale, a radius scale, and an ink ramp, but it
+never learns a vendor's private names. The `maps:` block is where a vendor's private name
+(`--yarn-orange`) is declared to *be* a kernel category (`--accent`).
 
-**A design system's tokens only paint where its names match those five.** The imported YARNNN
-system defines `--ink` (so that one bites) but also `--yarn-orange`, `--cream`, an entire
-`--c-*` palette — none of which the kernel consumes. So a correct apply can land 5.7 KB of
-valid CSS and leave a deck looking almost unchanged. **This is not a bug in the import; it is
-the apply model being thinner than the systems it now accepts.**
+### Move 1 — the widened contract (the (c)-bucket fix)
 
-### The questions the apply discourse must answer
+The kernel chrome CSS references its theme vars with hard-coded fallbacks (`var(--radius, 6px)`,
+15 literal font-sizes). Widening = **giving those literals a themable slot**, chosen so the
+*geometry* the eye reads (hairlines, pill buttons, type rhythm) themes — not so that all 119
+tokens do. The vocabulary the kernel consumes grows to roughly:
 
-1. **Whose names win?** Does the kernel keep a fixed five-variable contract and expect design
-   systems to map onto it (an *adapter* at import: "this system's `--yarn-orange` is your
-   `--accent`")? Or does the kernel consume more of what a real system ships?
-2. **Does the skin restyle blocks, or only the chrome?** Today the marked element overrides by
-   cascade, but the block/arrangement CSS lives in the `data-kernel` element with its own
-   variables. How much of a block's look is a design system *allowed* to reach?
-3. **Where does the mapping live if there is one?** An import-time adapter (rewrite the CSS),
-   a manifest field (`maps: {accent: --yarn-orange}`), or a lane judgment (Freddie authors the
-   bridge)? Each has a different cost and a different owner.
-4. **The mechanical var-editor** (STUDIO.md §Theme, named-deferred) — editing a theme value
-   from the Design tab needs the `PATCH /workspace/file` editable-prefix surface widened to
-   design-system folders. A permission decision that the apply model may force.
+| Category | Slots the kernel consumes | What it themes today (hard-coded) |
+|---|---|---|
+| Ink + ramp | `--ink`, `--ink-06`, `--ink-10` (a **ramp convention**, not every step) | hairline borders — the brand's *entire* structural signature |
+| Surfaces | `--paper`, `--muted`, `--accent` | already the five; unchanged |
+| Radius | `--radius-sm \| md \| lg \| pill` (a **scale**, replacing the lone `--radius`) | every button/card corner — the `9999px` pill |
+| Type | `--text-sm \| base \| lg \| xl \| 2xl \| 3xl` (a **scale**) | the 15 hard-coded `font-size` literals |
+| Semantic | `--fresh`, `--danger`, `--warn` | status color (fresh green / danger red) |
 
-### What is safe to build on, and what is not
+Slot count goes from 5 → ~14, still a *category* contract: the kernel names a radius *scale*, it
+does not name `--radius-pill: 9999px` (that is the skin's instance of the category). A skin that
+ships none of these still renders — every slot keeps its fallback (the skin-agnostic default is
+preserved; a plain artifact is byte-identical). **This is the load-bearing move**: it is what
+takes a correct apply from "4 colors change" to "the deck reads as YARNNN."
 
-- **Safe** (the housing + import are settled): the `_design.yaml` convention, the marked
-  cited element, the cascade order, the flatten, the binary lane, the import door. Downstream
-  work can assume a design system arrives correctly and is cited correctly.
-- **Not settled** (do not build on): the five-variable theme contract as the *final* apply
-  surface, and the assumption that a well-formed skin visibly restyles an artifact. The
-  apply discourse may revise `resolve`/`compose`/`apply_skin_to_html`, add an import-time
-  adapter, or widen the theme contract — any of which reshapes what "apply" means.
+The `--ink-NN` ramp is named as a **convention, not an enumeration** — the kernel consumes a
+small fixed set (`06`, `10` — the two that draw hairlines), not the skin's full `02…90`. Naming
+the whole ramp would drift toward consuming an instance; naming the two the chrome reads keeps it
+a category. (The (d) bucket — `--shadow-*`, `--ease-*`, `--tracking-*` — stays dead, correctly:
+component/util scaffolding has no artifact chrome to paint.)
 
-**When the apply discourse opens, start here** and at STUDIO.md §Theme. The receipts in §3
-are the ground truth to revise against.
+### Move 2 — the `maps:` synonym bridge (the (b)-bucket fix)
+
+Even a wider contract cannot guess that `--yarn-orange` means `--accent`. The 11% of tokens that
+are 1:1 synonyms get an **explicit, declarative bridge in the manifest** — versioned,
+operator-legible, no CSS rewrite:
+
+```yaml
+name: YARNNN Design System
+css:
+  - styles.css
+maps:              # a vendor's private name → a kernel category
+  accent: --yarn-orange
+  paper:  --background
+  ink:    --foreground
+```
+
+- **The importer seeds it** by matching defined names against the kernel categories (the same
+  synonym heuristic the coverage probe uses), and **a human confirms** — the seed is evidence,
+  never a silent auto-map. An unmapped synonym is a warning in the import receipt, not a failure.
+- **`resolve` emits the bridge** as a `:root { --accent: var(--yarn-orange); … }` block **prepended**
+  to the composed skin, so it sits *before* the skin's own declarations and *after* nothing —
+  the vendor's value flows into the kernel category, and the skin's later rules still win where
+  they set the kernel name directly. No `!important`, cascade order only, consistent with the
+  marked-element contract.
+- **Why the manifest, not an import-time byte rewrite or a lane turn**: a `maps:` block is a fact
+  the operator can read and correct; a byte rewrite is invisible after import; a lane turn is
+  non-deterministic and costs a metered turn per apply. The declarative field is the
+  mirror-once, legible-owner choice (DP29).
+
+### Move 3 — the mechanical var-editor + its permission decision (§Q4)
+
+Editing a theme value from the Design tab (STUDIO.md §Theme, named-deferred) writes to a
+design-system folder, which the `PATCH /workspace/file` editable-prefix surface does not currently
+admit. **The apply model forces the decision: design-system folders become an editable prefix**
+for the mechanical var-editor — the same two-write-path shape the Studio already uses (edit the
+projection, write the source). This is a *permission* widening, not a new write path; it rides the
+existing mechanical door. Scoped here, built with the var-editor, not before.
+
+### The two questions this does NOT reopen
+
+- **Does the skin restyle blocks, or only chrome?** (former Q2) — **Only through the token
+  vocabulary.** The block/arrangement CSS lives in the versioned `data-kernel` element and reads
+  the same themable slots; a skin reaches a block's *look* exactly as far as the block's CSS reads
+  a contract var, never by the skin selecting block elements directly. The marked skin sets
+  *values*; the kernel owns *which selectors read them*. This keeps the retrofit story intact (a
+  block kind lights up in old artifacts because the kernel element is versioned, ADR-456 W1) — a
+  design system cannot fork it.
+- **Supply vs select** (§4) — unchanged. Widening the type-*scale* contract does not merge with
+  the ADR-455 `font` token: the scale sizes text; the token selects a face. A skin supplies faces
+  and sizes; the per-artifact `font` token still selects among them.
+
+### What is safe to build on, and what to build next
+
+- **Safe** (housing + import, settled): the `_design.yaml` convention, the marked cited element,
+  the cascade order, the flatten, the binary lane, the import door. Unchanged by this decision.
+- **The build order** the decision implies (each its own ADR/commit, breach-tested gate,
+  named gap): **(1)** widen `STUDIO_KERNEL_CSS` + the layout skins to the ~14-slot vocabulary,
+  fallbacks preserved (prove byte-identical on a skin-less artifact); **(2)** the `maps:` field —
+  parse in `parse_design_manifest`, seed in `plan_import`, emit in `resolve_design_system`;
+  **(3)** the var-editor + the editable-prefix widening. Re-run the coverage probe after (1)+(2)
+  as the acceptance receipt — the (a) bucket should absorb most of (b) and the geometry rows of
+  (c).
+
+**The ground truth to build against is §3's coverage histogram.** The acceptance test is not
+"does it apply" (it always did) but "does the (a) bucket now hold the pill, the hairline, and the
+type scale" — measured, the same way the gap was.
 
 ---
 
@@ -254,4 +351,5 @@ are the ground truth to revise against.
 | FE picker + import UI | `web/components/studio/StudioDesignTab.tsx` (document scope) |
 | FE skin url() resolution | `web/components/workspace/viewers/projection.ts::resolveStyleUrls` |
 | The theme contract (the apply seam) | `docs/design/STUDIO.md` §Theme + the layer table |
+| The apply-gap coverage probe (§5 evidence) | `api/probe_design_system_coverage.py` |
 | Gates | `api/test_adr449_design_system.py` · `api/test_adr462_context_menu.py` (D13) |
