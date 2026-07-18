@@ -468,7 +468,16 @@ export const api = {
     // skin element server-side (ADR-449 contract); the FE lands it through the
     // mechanical write door (applySkin) — the endpoint never writes.
     resolveDesignSystem: (manifestPath: string) =>
-      request<{ name: string; manifest_path: string; skin_element: string }>(
+      request<{
+        name: string;
+        manifest_path: string;
+        skin_element: string;
+        // DESIGN-SYSTEMS.md §6 — the manage panel reads these (additive; Apply
+        // only uses skin_element).
+        sources: string[];
+        maps: Record<string, string>;
+        warnings: string[];
+      }>(
         `/api/studio/design-systems/resolve?manifest=${encodeURIComponent(manifestPath)}`,
       ),
     /** ADR-462 D14 — import a design-system export (.zip) → a conforming

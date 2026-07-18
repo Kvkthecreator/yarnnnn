@@ -25,7 +25,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, FolderOpen, Link2, Loader2, MoreHorizontal, Palette, PanelLeft } from 'lucide-react';
+import { ArrowLeft, Copy, FileText, FolderOpen, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, Plus, Upload } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { LearnFromFlowModal } from './LearnFromFlowModal';
@@ -158,6 +158,15 @@ export function StudioSurface() {
     ? artifactParam.startsWith('/')
       ? artifactParam
       : `/workspace/${artifactParam}`
+    : null;
+  // DESIGN-SYSTEMS.md §6 — the THIRD render state: manage a design system.
+  // Keyed on `studio.system=<manifest-path>`, sibling to `studio.file`. Not the
+  // landing, not an artifact workbench.
+  const systemParam = getParam('system');
+  const systemPath = systemParam
+    ? systemParam.startsWith('/')
+      ? systemParam
+      : `/workspace/${systemParam}`
     : null;
 
   // ADR-442 D4: the Studio declares its surface chrome into the surface bar
@@ -1366,11 +1375,27 @@ export function StudioSurface() {
     [vocabulary, template, insertProseInSlot],
   );
 
+  // ── MANAGE STATE (DESIGN-SYSTEMS.md §6) ─────────────────────────────────
+  // The third render state — a design system opened for management. Checked
+  // BEFORE the landing so `studio.system` wins on its own. Step 1 is a minimal
+  // panel (name · files · worn-by · Re-import); step 2 makes the dependents
+  // openable and adds the theme panel + the token-editor slot.
+  if (systemPath) {
+    return (
+      <StudioManage
+        manifestPath={systemPath}
+        onBack={() => setParam({ system: null })}
+        onOpenArtifact={(path) => setParam({ system: null, file: relPath(path) })}
+      />
+    );
+  }
+
   // ── START STATE ─────────────────────────────────────────────────────────
   if (!artifactPath) {
     return (
       <StudioStart
         onOpen={(path) => setParam({ file: relPath(path) })}
+        onOpenSystem={(manifestPath) => setParam({ system: relPath(manifestPath) })}
         onRenameRequest={(path) => {
           setParam({ file: relPath(path) });
           setRenaming(true); // the crumb arms as the workbench mounts
@@ -1834,9 +1859,13 @@ function ArtifactThumb({ path }: { path: string }) {
 
 function StudioStart({
   onOpen,
+  onOpenSystem,
   onRenameRequest,
 }: {
   onOpen: (path: string) => void;
+  /** Open a design system's manage state (DESIGN-SYSTEMS.md §6 — the third
+   *  render state, keyed on studio.system=). */
+  onOpenSystem: (manifestPath: string) => void;
   /** Open the artifact AND arm its crumb rename — the landing has no rename
    *  UI of its own, because the name is renamed where the name is shown. */
   onRenameRequest: (path: string) => void;
@@ -1847,6 +1876,13 @@ function StudioStart({
   const [recents, setRecents] = useState<
     Awaited<ReturnType<typeof api.studio.artifacts>>['artifacts']
   >([]);
+  // DESIGN-SYSTEMS.md §6 — the workspace's design systems (first-order on the
+  // landing). Fetched via the vocabulary (already carries `design_systems`);
+  // worn-by counts are enriched per-system after the list lands.
+  const [systems, setSystems] = useState<
+    Awaited<ReturnType<typeof api.studio.vocabulary>>['design_systems']
+  >([]);
+  const [wornBy, setWornBy] = useState<Record<string, number>>({});
   const [openPickerOn, setOpenPickerOn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1859,13 +1895,36 @@ function StudioStart({
       });
   }, []);
 
+  // DESIGN-SYSTEMS.md §6 — load the workspace's design systems + enrich each
+  // with its worn-by count (the ADR-448 edge on the manifest). Best-effort:
+  // the section just stays empty if discovery fails.
+  const loadSystems = useCallback(() => {
+    api.studio
+      .vocabulary()
+      .then((v) => {
+        setSystems(v.design_systems);
+        for (const s of v.design_systems) {
+          api.documents
+            .dependents(s.manifest_path)
+            .then((d) => setWornBy((w) => ({ ...w, [s.manifest_path]: d.count })))
+            .catch(() => {
+              /* a missing count is shown as '—', never an error */
+            });
+        }
+      })
+      .catch(() => {
+        /* design systems are additive — the rest of the landing still works */
+      });
+  }, []);
+
   useEffect(() => {
     api.studio
       .templates()
       .then((res) => setTemplates(res.templates))
       .catch(() => setError('Could not load templates.'));
     loadRecents();
-  }, [loadRecents]);
+    loadSystems();
+  }, [loadRecents, loadSystems]);
 
   // ── Organize a recent in place (rename / move / trash) — the SAME shared
   // implementation the Files surface and the open-artifact Design tab use
@@ -1939,6 +1998,32 @@ function StudioStart({
   // focused modal — the landing shows choices and recents, never form fields.
   const [scratchTemplate, setScratchTemplate] = useState<TemplateInfo | null>(null);
   const [learnOpen, setLearnOpen] = useState(false);
+  // The learn-from modal is shared: the "New ▾ · Learn from" entry offers ALL
+  // targets; the Design-systems section opens it scoped to the design-system
+  // target alone (DESIGN-SYSTEMS.md §6 — "derive from a source" means derive a
+  // design system there, not any artifact). Default = all.
+  const [learnTargets, setLearnTargets] = useState<typeof LEARN_TARGETS>(LEARN_TARGETS);
+  // DESIGN-SYSTEMS.md §6 — the two design-system create paths. Import is a
+  // one-shot .zip (a file input, no modal of its own — the receipt lands as the
+  // section refreshing + any warning). Derive reuses the learn-from flow,
+  // opened pre-scoped to the design-system target.
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const dsFileInputRef = useRef<HTMLInputElement>(null);
+  const importSystem = async (file: File) => {
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const r = await api.studio.importDesignSystem(file);
+      loadSystems();
+      const warns = r.warnings?.length ? ` · ${r.warnings.length} warning(s)` : '';
+      setImportMsg(`Imported “${r.name}” — ${r.written.length} files${warns}.`);
+    } catch (e) {
+      setImportMsg(e instanceof Error ? e.message : 'Import failed.');
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const { navigateToSurface } = useSurfacePreferences();
   // ADR-460 §4b — the landing only needs to know whether lanes RUN. It used to
@@ -2027,7 +2112,10 @@ function StudioStart({
               templates={templates}
               learnEnabled={laneEnv?.enabled !== false}
               onPickTemplate={(t) => setScratchTemplate(t)}
-              onPickLearn={() => setLearnOpen(true)}
+              onPickLearn={() => {
+                setLearnTargets(LEARN_TARGETS); // the general entry offers all
+                setLearnOpen(true);
+              }}
             />
           </div>
         </div>
@@ -2113,6 +2201,115 @@ function StudioStart({
           </div>
         )}
 
+        {/* ── Design systems (DESIGN-SYSTEMS.md §6, first-order on the landing) ──
+            The workspace's visual identity, worn by many artifacts. Empty → the
+            two create paths (Import a .zip · Derive from a source); populated →
+            a card per system that opens the manage state. Job B (manage the
+            identity); Job A (wear it) stays in the open-artifact Design tab. */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Design systems
+            </p>
+            {systems.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={importing}
+                  onClick={() => dsFileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
+                >
+                  {importing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                  Import
+                </button>
+                <button
+                  type="button"
+                  disabled={laneEnv?.enabled === false}
+                  onClick={() => {
+                    setLearnTargets(LEARN_TARGETS.filter((t) => t.recipe === 'design-system'));
+                    setLearnOpen(true);
+                  }}
+                  title={laneEnv?.enabled === false ? 'Chat helpers aren’t enabled on this workspace.' : undefined}
+                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
+                >
+                  <Plus className="h-3 w-3" />
+                  Derive
+                </button>
+              </div>
+            )}
+          </div>
+
+          <input
+            ref={dsFileInputRef}
+            type="file"
+            accept=".zip"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void importSystem(f);
+              e.target.value = '';
+            }}
+          />
+
+          {systems.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border p-6">
+              <p className="text-sm text-muted-foreground">
+                No design system yet. Give your artifacts one look — import your
+                brand’s export, or derive one from a style guide.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={importing}
+                  onClick={() => dsFileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60 disabled:opacity-50"
+                >
+                  {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                  Import a design system…
+                </button>
+                <button
+                  type="button"
+                  disabled={laneEnv?.enabled === false}
+                  onClick={() => {
+                    setLearnTargets(LEARN_TARGETS.filter((t) => t.recipe === 'design-system'));
+                    setLearnOpen(true);
+                  }}
+                  title={laneEnv?.enabled === false ? 'Chat helpers aren’t enabled on this workspace.' : undefined}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60 disabled:opacity-50"
+                >
+                  <Palette className="h-3.5 w-3.5" />
+                  Derive from a source…
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {systems.map((s) => (
+                <button
+                  key={s.manifest_path}
+                  type="button"
+                  onClick={() => onOpenSystem(s.manifest_path)}
+                  className="group flex flex-col items-start rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/20"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Palette className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 truncate text-sm font-medium">{s.name}</span>
+                  </span>
+                  <span className="mt-1 text-[11px] text-muted-foreground">
+                    {wornBy[s.manifest_path] === undefined
+                      ? '—'
+                      : wornBy[s.manifest_path] === 0
+                        ? 'Not worn yet'
+                        : `Worn by ${wornBy[s.manifest_path]} ${wornBy[s.manifest_path] === 1 ? 'artifact' : 'artifacts'}`}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {importMsg && <p className="text-[11px] text-muted-foreground">{importMsg}</p>}
+        </div>
+
         <NewArtifactModal
           template={scratchTemplate}
           onClose={() => setScratchTemplate(null)}
@@ -2121,7 +2318,7 @@ function StudioStart({
 
         <LearnFromFlowModal
           open={learnOpen}
-          targets={LEARN_TARGETS}
+          targets={learnTargets}
           onClose={() => setLearnOpen(false)}
           onStart={learnFrom}
         />
@@ -2154,6 +2351,186 @@ function StudioStart({
           onOpen(p);
         }}
       />
+    </div>
+  );
+}
+
+// ── The manage state (DESIGN-SYSTEMS.md §6, the third render state) ──────────
+// A design system opened for management: name · worn-by-N (the ADR-448 edge on
+// the manifest) · its files (the flattened sources) · Re-import. NOT a canvas,
+// NOT a modal — a dedicated panel, the deferred token-editor's future home.
+//
+// Step 1 (this): the panel + Re-import + the dependent COUNT. Step 2 makes the
+// dependents an OPENABLE list, folds in the read-only theme panel (the §5
+// widened vocabulary), and adds the token-editor slot. Named so the boundary
+// is honest.
+function StudioManage({
+  manifestPath,
+  onBack,
+  onOpenArtifact,
+}: {
+  manifestPath: string;
+  onBack: () => void;
+  /** Open one of the artifacts that wear this system (step 2 makes the list
+   *  clickable; step 1 wires the handler so the enrichment is drop-in). */
+  onOpenArtifact: (path: string) => void;
+}) {
+  const [detail, setDetail] = useState<Awaited<
+    ReturnType<typeof api.studio.resolveDesignSystem>
+  > | null>(null);
+  const [wornBy, setWornBy] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reimporting, setReimporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const load = useCallback(() => {
+    setError(null);
+    api.studio
+      .resolveDesignSystem(manifestPath)
+      .then(setDetail)
+      .catch(() => setError('This design system could not be read.'));
+    // Worn-by: the ADR-448 reference edge, read outward from the manifest. The
+    // backend returns {count: 0} on any failure, so this never throws.
+    api.documents
+      .dependents(manifestPath)
+      .then((d) => setWornBy(d.count))
+      .catch(() => setWornBy(null));
+  }, [manifestPath]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Re-import runs the SAME import against this folder (ADR-292 reapply shape) —
+  // a refreshed export overwrites through the one door; the manifest path is
+  // stable, so worn-by and citations survive.
+  const reimport = async (file: File) => {
+    setReimporting(true);
+    setError(null);
+    try {
+      await api.studio.importDesignSystem(file, detail?.name);
+      load(); // pick up the new sources/warnings
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Re-import failed.');
+    } finally {
+      setReimporting(false);
+    }
+  };
+
+  const folder = manifestPath.replace(/\/_design\.yaml$/, '');
+  const leafOf = (p: string) => p.slice(p.lastIndexOf('/') + 1);
+
+  return (
+    <div className="h-full overflow-y-auto p-6 sm:p-8">
+      <div className="mx-auto w-full max-w-3xl space-y-6">
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" /> Design systems
+        </button>
+
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 space-y-1">
+            <div className="flex items-center gap-2">
+              <Palette className="h-5 w-5 text-muted-foreground" />
+              <h1 className="min-w-0 truncate text-lg font-semibold">
+                {detail?.name ?? 'Design system'}
+              </h1>
+            </div>
+            <p className="truncate text-[11px] text-muted-foreground">
+              {folder.replace(/^\/workspace\//, '')}
+            </p>
+          </div>
+          <div className="shrink-0">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void reimport(f);
+                e.target.value = '';
+              }}
+            />
+            <button
+              type="button"
+              disabled={reimporting}
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60 disabled:opacity-50"
+            >
+              {reimporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+              Re-import
+            </button>
+          </div>
+        </div>
+
+        {error && <p className="text-xs text-red-500">{error}</p>}
+
+        {/* Worn by — the ADR-448 reference edge. Step 2 makes this an openable
+            list; step 1 shows the count (the payoff the citation contract was
+            built for, surfaced at last). */}
+        <div className="rounded-lg border border-border p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Worn by
+          </p>
+          <p className="mt-1 text-sm">
+            {wornBy === null ? (
+              <span className="text-muted-foreground">—</span>
+            ) : wornBy === 0 ? (
+              <span className="text-muted-foreground">
+                No artifacts wear this yet. Apply it from an artifact’s Design tab.
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onOpenArtifact(folder)}
+                className="text-foreground underline-offset-2 hover:underline"
+                title="Open the artifacts that cite this design system (Files shows the full list)"
+              >
+                {wornBy} {wornBy === 1 ? 'artifact' : 'artifacts'}
+              </button>
+            )}
+          </p>
+        </div>
+
+        {/* The files — the flattened sources the skin is composed from. */}
+        <div className="rounded-lg border border-border p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Files
+          </p>
+          {detail === null ? (
+            <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : detail.sources.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">No stylesheets found.</p>
+          ) : (
+            <ul className="mt-2 space-y-1">
+              {detail.sources.map((s) => (
+                <li key={s} className="flex items-center gap-2 text-sm">
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 truncate">{leafOf(s)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {detail && detail.warnings.length > 0 && (
+            <ul className="mt-2 space-y-1 border-t border-border pt-2">
+              {detail.warnings.map((w, i) => (
+                <li key={i} className="text-[11px] text-amber-600">
+                  {w}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* The theme panel + the token-editor slot are step 2 (they reuse the
+            Design tab's skinVars parse + the shipped §5 Q4 PATCH permission). */}
+      </div>
     </div>
   );
 }
