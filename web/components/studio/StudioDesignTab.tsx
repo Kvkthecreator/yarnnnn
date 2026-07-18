@@ -365,19 +365,33 @@ export function StudioDesignTab({
     [onImported],
   );
 
-  // ADR-456 W3: the theme panel — the applied skin's custom properties,
-  // parsed from the artifact's own marked element (read legibility; the
-  // theme's FILES are the source of truth — mutation is the lane's verb for
-  // now, the mechanical var-editor is a named follow-on).
+  // ADR-456 W3 + DESIGN-SYSTEMS.md §5: the theme panel — the applied skin's
+  // custom properties, parsed from the artifact's own marked element (read
+  // legibility; the theme's FILES are the source of truth). The kernel now
+  // consumes a widened vocabulary (an ink ramp, a radius scale, a type scale)
+  // so more of a real system's tokens paint; the ones that theme the chrome
+  // are surfaced first. The mechanical var-editor is unblocked (the §5 Q4
+  // PATCH permission shipped) but still a named follow-on — it needs a design
+  // pass for WHICH flattened source a value writes back to.
   const skinVars = useMemo(() => {
     const css = doc?.querySelector('head style[data-skin]')?.textContent ?? '';
     const out: Array<{ name: string; value: string }> = [];
     const rx = /--([a-z0-9-]+)\s*:\s*([^;}]+)[;}]/gi;
     let m;
-    while ((m = rx.exec(css)) && out.length < 12) {
+    while ((m = rx.exec(css)) && out.length < 40) {
       out.push({ name: m[1], value: m[2].trim() });
     }
-    return out;
+    // Surface the kernel-consumed vocabulary first — those are the tokens that
+    // actually theme the chrome (§5 Move 1). The rest follow, still legible.
+    const consumed = new Set([
+      'ink', 'ink-06', 'ink-10', 'paper', 'muted', 'accent', 'deck-stage',
+      'radius-sm', 'radius-md', 'radius-lg', 'radius-pill',
+      'text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl',
+      'text-2xl', 'text-3xl', 'text-4xl', 'text-5xl', 'fresh', 'danger', 'warn',
+    ]);
+    return out
+      .sort((a, b) => Number(consumed.has(b.name)) - Number(consumed.has(a.name)))
+      .slice(0, 12);
   }, [doc]);
 
   // ADR-456 W3: the page background — cited image on the page element.

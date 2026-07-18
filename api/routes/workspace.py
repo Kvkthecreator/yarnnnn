@@ -1945,6 +1945,39 @@ async def get_recent_revisions(
 # PATCH /workspace/file — Edit file content
 # =============================================================================
 
+def _is_design_system_editable(client, user_id: str, path: str) -> bool:
+    """Is `path` a design-system token/manifest file the var-editor may edit?
+
+    DESIGN-SYSTEMS.md §5 Q4. True iff the file is a `.css` or `_design.yaml`
+    AND its folder contains a `_design.yaml` (the ADR-449 manifest convention
+    that makes a folder a design system). Best-effort: a lookup failure denies
+    (falls through to the fixed-prefix check), never raises. The binary lane
+    (fonts/images) is deliberately NOT editable this way — a var-editor writes
+    text tokens, not bytes.
+    """
+    leaf = path.rsplit("/", 1)[-1]
+    if not (leaf.endswith(".css") or leaf == "_design.yaml"):
+        return False
+    folder = path.rsplit("/", 1)[0]
+    if not folder:
+        return False
+    try:
+        from services.workspace_context import substrate_scope_filter
+
+        res = (
+            client.table("workspace_files")
+            .select("path")
+            .eq(*substrate_scope_filter(user_id))
+            .eq("path", f"{folder}/_design.yaml")
+            .limit(1)
+            .execute()
+        )
+        return bool(res.data)
+    except Exception as exc:  # noqa: BLE001 — deny on lookup failure
+        logger.debug("[WORKSPACE_API] design-system editability check failed: %s", exc)
+        return False
+
+
 @router.patch("/workspace/file")
 async def edit_workspace_file(
     auth: UserClient,
@@ -1988,7 +2021,17 @@ async def edit_workspace_file(
         "/workspace/operation/reports/",    # per-recurrence outputs + _feedback.md + _run_log.md (ADR-231 D2)
         "/workspace/context/",    # accumulated context domains (entities, _tracker.md, _feedback.md)
     ]
-    if not any(path.startswith(p) or path == p for p in editable_prefixes):
+    # DESIGN-SYSTEMS.md §5 Q4 — the permission decision the apply model forces.
+    # A design system lives at an operator-chosen path (design-system/yarnnn/,
+    # or inside a project), so it has no FIXED prefix. The manifest convention
+    # is the identity: a .css or _design.yaml file is editable iff its folder
+    # holds a _design.yaml. This is the same discovery contract find_design_
+    # systems uses (ADR-449 D1) — the topology is "meaning-folder", not a root.
+    # Scoped to the token/manifest text the mechanical var-editor writes; the
+    # binary lane (fonts/images) is never edited this way.
+    editable_ds = _is_design_system_editable(auth.client, auth.user_id, path)
+
+    if not editable_ds and not any(path.startswith(p) or path == p for p in editable_prefixes):
         raise HTTPException(
             status_code=403,
             detail=f"File not editable via API: {path}. Only workspace config and recurrence files are editable.",

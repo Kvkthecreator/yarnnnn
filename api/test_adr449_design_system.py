@@ -315,6 +315,35 @@ def run() -> int:
         "is not a .zip" in routes_src and "BadZipFile" in routes_src,
     )
 
+    # ── 5e. the var-editor permission (DESIGN-SYSTEMS.md §5 Q4) ──────────
+    # The apply model forces one permission decision: a design-system token
+    # file becomes editable via PATCH. The identity is the MANIFEST convention
+    # (a folder with a _design.yaml), not a fixed prefix — a design system
+    # lives at an operator-chosen path. These pin the two safety invariants of
+    # the helper: only .css/_design.yaml leaves qualify (a binary/other file
+    # never does), and the check is folder-manifest-gated (not a blanket allow).
+    import routes.workspace as ws_routes
+
+    ws_src = inspect.getsource(ws_routes._is_design_system_editable)
+    passed &= _check(
+        "var-editor permission: only a .css or _design.yaml leaf qualifies "
+        "(a font/image/other file is never design-system-editable this way)",
+        '.endswith(".css")' in ws_src and 'leaf == "_design.yaml"' in ws_src
+        and "return False" in ws_src,
+    )
+    passed &= _check(
+        "var-editor permission: editability is gated on the FOLDER's "
+        "_design.yaml (the ADR-449 manifest convention, not a fixed prefix)",
+        '_design.yaml"' in ws_src and 'folder' in ws_src,
+    )
+    edit_src = inspect.getsource(ws_routes.edit_workspace_file)
+    passed &= _check(
+        "var-editor permission: the design-system check is ADDITIVE — it does "
+        "not replace the fixed editable_prefixes safety list",
+        "editable_ds" in edit_src and "editable_prefixes" in edit_src
+        and "not editable_ds and not any" in edit_src,
+    )
+
     # ── 6. purity: no write path in the module ────────────────────────────
     mod_src = inspect.getsource(ds_mod)
     passed &= _check(

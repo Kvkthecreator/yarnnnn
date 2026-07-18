@@ -77,11 +77,25 @@ Steps:
    tailwind config values, brand-guideline values), recurring colors, type
    choices, spacing rhythms. Note each value's origin.
 2. Write the token css first, then a small rules layer, then `_design.yaml`.
-   Name the Studio's kernel-consumed variables when the source evidences
-   them — `--ink` (text), `--paper` (surface), `--muted`, `--accent`,
-   `--radius` (corner rounding) — the Studio's own chrome (buttons, galleries,
-   toggles, tone fills) themes through exactly these; additional variables
-   are welcome but those five are the contract (ADR-456 W3).
+   Name the Studio's kernel-consumed variables when the source evidences them
+   — the chrome (buttons, galleries, toggles, tone fills, headings, hairlines)
+   themes through exactly this vocabulary (DESIGN-SYSTEMS.md §5), so hitting
+   these names is what makes an artifact visibly wear the system:
+     • color     --ink (text) · --paper (surface) · --muted · --accent
+     • ink ramp  --ink-06 · --ink-10 (the hairline borders — the structural
+                 signature of a restrained system; set them and every rule/
+                 divider/table-border themes)
+     • radius    --radius-sm · --radius-md · --radius-lg · --radius-pill (a
+                 SCALE; --radius-pill: 9999px is what makes buttons pills)
+     • type      --text-xs · --text-sm · --text-base · --text-lg · --text-xl ·
+                 --text-2xl · --text-3xl · --text-4xl · --text-5xl (a SCALE;
+                 headings + captions read these)
+     • semantic  --fresh · --danger · --warn (status color)
+   Additional variables are welcome, but a value the source shows that maps
+   onto one of these names should USE that name — a `--brand` orange the chrome
+   never reads themes nothing. If the source names its accent something else
+   (`--yarn-orange`), either name it `--accent` too OR add a `maps:` block to
+   `_design.yaml` bridging it: `maps:\n  accent: --yarn-orange`.
 3. Re-read `_design.yaml` and verify every listed file exists and the order
    is tokens-before-rules.
 

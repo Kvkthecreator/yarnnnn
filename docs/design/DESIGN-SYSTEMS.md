@@ -1,11 +1,13 @@
 # Design systems in the Studio — the housing, the import, and the apply model
 
 **Status**: the housing + import are live (ADR-449 + ADR-462 D11/D13/D14, 2026-07-16).
-**The apply model is decided (§5, 2026-07-16) and not yet built** — a coverage probe turned
-the "why does a correct apply barely change anything" question into a measurement, and the
-measurement drew the fix: widen the kernel token contract from five point-vars to a small
-*families* vocabulary, plus a declarative `maps:` synonym bridge. Read §5 for the decision;
-§3 has the receipts.
+**The apply model is DECIDED AND BUILT (§5, 2026-07-16)** — a coverage probe turned the "why
+does a correct apply barely change anything" question into a measurement, and the measurement
+drew and then landed the fix: the kernel token contract widened from five point-vars to a
+~14-slot *families* vocabulary (Move 1), a declarative `maps:` synonym bridge (Move 2), and the
+`PATCH` editability the mechanical var-editor needs (Move 3). Acceptance: the coverage probe's
+"paints today" bucket went **4 → 17**, now holding the pill, the hairline, and the type scale.
+Read §5 for what shipped; §3 has the receipts.
 
 > One-line map: a design system is an ordinary meaning-folder identified by `_design.yaml`;
 > an artifact wears it as a marked, cited `<style>` element; the import is a flatten + a
@@ -227,12 +229,12 @@ would fight the skin.
 
 ---
 
-## 5. THE APPLY MODEL — how a skin reaches the pixels (decided, not yet built)
+## 5. THE APPLY MODEL — how a skin reaches the pixels (decided and built)
 
 Everything above gets a design system *into* the workspace and *cited by* an artifact.
 **Whether it visibly changes anything** was the open question. The coverage probe (§3) answered
 it by measurement: the five-var contract paints 3% of the brand and misses the geometry.
-**The decision below follows from that histogram, not from prediction.**
+**The model below follows from that histogram, not from prediction — and it is now built.**
 
 ### The decision, in one line
 
@@ -298,14 +300,27 @@ maps:              # a vendor's private name → a kernel category
   non-deterministic and costs a metered turn per apply. The declarative field is the
   mirror-once, legible-owner choice (DP29).
 
-### Move 3 — the mechanical var-editor + its permission decision (§Q4)
+### Move 3 — the var-editor's permission decision (§Q4 — the permission SHIPPED)
 
-Editing a theme value from the Design tab (STUDIO.md §Theme, named-deferred) writes to a
-design-system folder, which the `PATCH /workspace/file` editable-prefix surface does not currently
-admit. **The apply model forces the decision: design-system folders become an editable prefix**
-for the mechanical var-editor — the same two-write-path shape the Studio already uses (edit the
-projection, write the source). This is a *permission* widening, not a new write path; it rides the
-existing mechanical door. Scoped here, built with the var-editor, not before.
+Editing a theme value from the Design tab writes to a design-system folder, which the
+`PATCH /workspace/file` editable-prefix surface did not admit. **The apply model forced the
+decision, and it is made: a design-system token file is editable via `PATCH`.** The identity is
+the *manifest convention*, not a fixed prefix — a design system lives at an operator-chosen path,
+so the check (`_is_design_system_editable`, `routes/workspace.py`) allows a `.css` or
+`_design.yaml` leaf **iff its folder holds a `_design.yaml`** (the same discovery contract
+`find_design_systems` uses). It is *additive* to the fixed `editable_prefixes` safety list, gated
+on the folder manifest, and scoped to text tokens — the binary lane (fonts/images) is never
+editable this way. This is a permission widening, not a new write path; it rides the existing
+mechanical door.
+
+**What this does NOT include** (the honest gap): the var-editor *UI* is unblocked but not built.
+The theme panel (STUDIO.md §Theme) shows the applied skin's variables read-only, now with the
+kernel-consumed vocabulary surfaced first. Making a value *editable inline* needs a design pass
+for one unresolved question the flatten creates: **which of the N flattened source files does a
+value write back to?** A skin is composed from 6 sources (`fonts → colors → typography → …`); an
+edit to `--accent` must land in the file that *defines* it, and the projection reads the flattened
+result. That mapping (var → owning source) is the var-editor's real design problem, deferred to
+its own pass rather than guessed here.
 
 ### The two questions this does NOT reopen
 
@@ -320,21 +335,31 @@ existing mechanical door. Scoped here, built with the var-editor, not before.
   the ADR-455 `font` token: the scale sizes text; the token selects a face. A skin supplies faces
   and sizes; the per-artifact `font` token still selects among them.
 
-### What is safe to build on, and what to build next
+### What shipped, and what remains
 
 - **Safe** (housing + import, settled): the `_design.yaml` convention, the marked cited element,
-  the cascade order, the flatten, the binary lane, the import door. Unchanged by this decision.
-- **The build order** the decision implies (each its own ADR/commit, breach-tested gate,
-  named gap): **(1)** widen `STUDIO_KERNEL_CSS` + the layout skins to the ~14-slot vocabulary,
-  fallbacks preserved (prove byte-identical on a skin-less artifact); **(2)** the `maps:` field —
-  parse in `parse_design_manifest`, seed in `plan_import`, emit in `resolve_design_system`;
-  **(3)** the var-editor + the editable-prefix widening. Re-run the coverage probe after (1)+(2)
-  as the acceptance receipt — the (a) bucket should absorb most of (b) and the geometry rows of
-  (c).
+  the cascade order, the flatten, the binary lane, the import door. Unchanged.
+- **Shipped (2026-07-16)**: **(1)** `STUDIO_KERNEL_CSS` v9 + the layout skins widened to the
+  ~14-slot vocabulary, every literal now `var(--slot, LITERAL)` — byte-identical on a skin-less
+  artifact (gate + probe verified); **(2)** the `maps:` field — parsed in `parse_design_manifest`,
+  seeded conservatively in the import, emitted as a prepended `:root` bridge in
+  `resolve_design_system`; **(3)** the `PATCH` editability decision (`_is_design_system_editable`).
+  The derive recipe (`derive_recipes.py`) now names the full vocabulary so Freddie authors systems
+  that hit the new slots.
+- **The acceptance receipt** (the same measurement that found the gap): the coverage probe's (a)
+  "paints today" bucket went **4 → 17**, and it holds `--ink-10` (hairline), `--radius-pill`
+  (pill), and the full `--text-xs…5xl` scale — the geometry that makes an artifact read as its
+  brand. A finding the build surfaced: the real YARNNN export *already* names `--accent`/`--paper`/
+  `--radius-*` directly, so `seed_maps` returns empty for it — **Move 1 is its whole fix**; the
+  bridge is for the export that names its accent `--brand` without also defining `--accent`.
+- **Remaining** (named, deferred): the var-editor *UI* (unblocked, needs the var→owning-source
+  design pass, above); semantic `--fresh/--danger/--warn` are in the contract but wire no kernel
+  selector yet (no chrome reads status color — inventing one would be behavior, not a widen); and
+  **no browser render of a themed deck yet** — the probe proves the *contract*, not the pixels.
 
-**The ground truth to build against is §3's coverage histogram.** The acceptance test is not
-"does it apply" (it always did) but "does the (a) bucket now hold the pill, the hairline, and the
-type scale" — measured, the same way the gap was.
+**The ground truth remains §3's coverage histogram.** The acceptance test was never "does it
+apply" (it always did) but "does the (a) bucket hold the pill, the hairline, and the type scale" —
+and it now does, measured the same way the gap was.
 
 ---
 
