@@ -1,6 +1,6 @@
 # The recommended agent set — from first principles, against the current code
 
-> **Status**: Recommendation. Builds on `docs/architecture/AGENT-TAXONOMY.md` (the six axes) + the current-state receipts below.
+> **Status**: Recommendation — **§5's "complete at four" claim is CONTESTED and NOT ratified** (operator pushback, 2026-07-18: *"I push back that the existing agent roster is complete or representative"*). The load-bearing correction is at the top of §5. The rest of the doc — verbs-not-modalities, image-maker-is-Designer's-capability, growth-by-depth — stands. Builds on `docs/architecture/AGENT-TAXONOMY.md` (the six axes).
 > **The operator's frame**: *"the current agent line-up of scaffolding will be our base agents, meaning, most primitive agents related to different modality like image maker (absorb into designer?), researcher, or alike… from first principles and given our current state of code, what is your recommendation."*
 > **Date**: 2026-07-18
 
@@ -8,7 +8,7 @@
 
 ## 1. The recommendation in one paragraph
 
-**Keep the four base agents exactly as they are — `Sonnet` (think), `Scout` (read), `Critic` (pressure-test), `Designer` (make) — as the permanent base tier, and grow them by DEPTH, never by adding a fifth character for a modality.** "Image maker" is not a base agent; it is a *modality of `make`*, and it belongs *inside* Designer — some of it (SVG charts/diagrams) is already there, the rest (raster images) attaches as a rented capability when it returns. The base tier is the *verbs*; modality lives within a verb; a fifth base agent is warranted only when a member's unmet reach names a genuinely new **verb**, which — from first principles — there is a strong case is **already complete at four**. Above the base tier sit two *different tiers* that are not base agents and must not be confused with them: the **systemic seat** (Freddie, live) and **hired persona agents** (Rung-2, doc-only, deferred).
+**Keep the four base agents exactly as they are — `Sonnet` (think), `Scout` (read), `Critic` (pressure-test), `Designer` (make) — as the permanent base tier, and grow them by DEPTH, never by adding a fifth character for a modality.** "Image maker" is not a base agent; it is a *modality of `make`*, and it belongs *inside* Designer — some of it (SVG charts/diagrams) is already there, the rest (raster images) attaches as a rented capability when it returns. The base tier is the *verbs*; modality lives within a verb; a fifth base agent is warranted only when a member's unmet reach names a genuinely new **verb**. **Whether four is the complete set is OPEN** (§5 — I originally argued "complete by construction" and withdraw it; the roster is *current*, not *proven complete*). Above the base tier sit two *different tiers* that are not base agents and must not be confused with them: the **systemic seat** (Freddie, live) and **hired persona agents** (Rung-2, doc-only, deferred).
 
 ## 2. Current state — what actually exists (receipts)
 
@@ -46,9 +46,20 @@ So the precise picture:
 
 **Do NOT** create an "Image Agent." It would be the output-shape axis returning, and it would strand raster-making in a silo while SVG-making stays in Designer — the same modality split across two agents, which is incoherent.
 
-## 5. Is the verb set complete at four? — the one genuine open question
+## 5. Is the verb set complete at four? — OPEN, and I over-argued it
 
-This is the only real first-principles decision left, and the honest answer is: **four is defensible as complete, and the burden of proof is on adding a fifth.**
+> **⚠ Correction (2026-07-18, operator pushback).** The original version of this section concluded *"the base set is complete at four by construction."* **That was an overreach and is withdrawn.** The operator's pushback is correct: I proved a *narrower* thing — that four verbs fill the space *given the axes I chose to test* — and dressed it as *"complete by construction,"* which it is not. The honest status: **the roster is CURRENT, not COMPLETE; the vocabulary of reasons has never been derived from first principles, and a fifth (or different) base agent is a live, unresolved possibility.** What survives below is a *method for testing a candidate*, not a proof that the search is over.
+
+**Why "by construction" was wrong.** The argument assumed the classifying axis (reason/verb) and the tier boundary (addressed + member-attributed + no-standing-intent) as *given*, then showed four verbs fill *that* box. But:
+- **The axis itself is not proven exhaustive.** AGENT-TAXONOMY names *six* axes YARNNN has used; "reason/verb" is the current one, not a demonstrated-final one. A future member need may reveal the roster should be cut on a dimension the verb-axis doesn't capture (e.g. *tenure/relationship* — "my analyst who knows my book" vs "a fresh reader" — is arguably a real distinction the four verbs flatten).
+- **"The four verbs I could name" is not "the complete set of verbs."** The table below tests *candidates I generated*. Absence of a fifth in my list is not proof one does not exist — it is the limit of my enumeration. The ADR-176 authors made exactly this error asserting *six*; I made it asserting *four*.
+- **The tier boundary is a choice, not a law.** "No standing intent" excludes `monitor` — but that boundary is itself a design decision (base agents are addressed-only *because we decided lanes are*), not a natural kind. Move the boundary and the count moves.
+
+So the section below is retained as a **candidate-screening method** — useful for evaluating any *proposed* fifth agent — with its false conclusion struck.
+
+---
+
+The method (not a proof): screen each candidate with *"is this a distinct REACH, or a modality/domain of an existing one?"*
 
 The candidate verbs, tested against "is this a distinct REACH, or a modality/domain of an existing one?":
 
@@ -64,7 +75,7 @@ The candidate verbs, tested against "is this a distinct REACH, or a modality/dom
 | ~~plan / coordinate~~ | ❌ | This is `think` applied to a sequence. ADR-138 deleted `pm` outright for exactly this. |
 | ~~monitor / track~~ | ⚠️ | The one *arguable* fifth verb — "watch this and tell me when it changes" is a distinct reach (standing attention, not addressed). BUT: it requires **standing intent** (a wake source), which base agents deliberately do NOT have (they are addressed-only, `member:` hands). A watching agent is therefore **not a base agent** — it is closer to the systemic/judgment tier. So even the strongest candidate resolves *out* of the base set. |
 
-**Conclusion**: the four verbs are the complete set of *addressed member-hand reaches*. Every proposed fifth either (a) composes from the four, (b) is a modality of `make`, or (c) requires standing intent and thus belongs to a different tier. **The base set is complete at four by construction** — not by taste, but because "addressed + member-attributed + no-standing-intent" is a bounded space and these four fill it.
+**What the method shows** (NOT a completeness proof): every candidate fifth *I could enumerate* either (a) composes from the four, (b) is a modality of `make`, or (c) requires standing intent and belongs to a different tier. That is evidence the four are *well-chosen*, not proof the set is *closed* — the enumeration is mine, the axis is assumed, and the tier boundary is a design choice (see §5's correction). A fifth verb that survives this screen is a real possibility; the method tells you how to test one, not that none exists.
 
 The operator's "researcher, or alike" is the proof of the method working: *researcher* felt like a fifth agent, and on inspection it is `read` (Scout, already web-enabled). The instinct to name it was Axis-4 muscle memory (the ADR-176 roster); the taxonomy resolves it into an existing verb.
 
@@ -85,7 +96,7 @@ Not by new characters. By making the four verbs *deeper*:
 
 ## 8. The recommended set, stated as canon
 
-**Base tier (member hands, addressed-only, `member:` attribution) — COMPLETE at four:**
+**Base tier (member hands, addressed-only, `member:` attribution) — CURRENT roster of four (completeness OPEN, §5):**
 - `Sonnet` — **think**
 - `Scout` — **read** (the "researcher" reach, web-enabled)
 - `Critic` — **pressure-test**
@@ -101,4 +112,4 @@ Not by new characters. By making the four verbs *deeper*:
 
 ## 9. One-line statement
 
-**Keep the four verbs as the permanent base tier and grow them by depth — "image maker" is a modality of `make` that belongs inside Designer (SVG already there, raster as a rented capability under the ADR-463 resolver when it returns), "researcher" is `read` and already lives in Scout, and the base set is complete at four not by taste but by construction, because "addressed member-hand with no standing intent" is a bounded space these four verbs fill — while Freddie and hired persona agents remain deliberately above the base tier, different kinds the same chrome must never imply.**
+**Grow the base tier by depth, not breadth — "image maker" is a modality of `make` that belongs inside Designer (SVG already there, raster as a rented capability under the ADR-463 resolver when it returns), and "researcher" is `read` and already lives in Scout — while whether the roster of four is COMPLETE stays open (the vocabulary of reasons was never derived from first principles; a fifth verb is a live possibility, and §5 gives the method to test one rather than a proof the search is over), and Freddie and hired persona agents remain deliberately above the base tier, different kinds the same chrome must never imply.**
