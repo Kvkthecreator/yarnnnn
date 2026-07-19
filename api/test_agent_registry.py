@@ -45,6 +45,42 @@ def _check(label: str, cond: bool) -> None:
     print(f"  {'✓' if cond else '✗'} {label}")
 
 
+class _EmptyResp:
+    data: list = []
+
+
+class _EmptyQuery:
+    """A supabase query chain that returns no rows — for building the lane
+    conventions frame with no mandate + no member agents (pure, offline)."""
+    def select(self, *a, **k): return self
+    def eq(self, *a, **k): return self
+    def like(self, *a, **k): return self
+    def order(self, *a, **k): return self
+    def limit(self, *a, **k): return self
+    def execute(self): return _EmptyResp()
+
+
+class _EmptyClient:
+    def table(self, *a, **k): return _EmptyQuery()
+
+
+def _prompt_tools_line_matches(agent, expected_extras: set) -> bool:
+    """True iff the frame's `## Your tools` section names the five verbs plus
+    exactly `expected_extras` — the prose-half of the three-way agreement.
+
+    Offline: an empty stub client (no mandate, no member agents), so the tool
+    line reflects only the kernel agent's `resolve_agent_tools`.
+    """
+    from services.lane_runner import build_lane_conventions
+    model = "gemini/gemini-2.5-flash" if agent else "anthropic/claude-sonnet-4-6"
+    frame = build_lane_conventions(_EmptyClient(), "u_test", model=model, agent=agent)
+    section = frame.split("## Your tools", 1)[1].split("## Format discipline", 1)[0]
+    five = {"ReadFile", "WriteFile", "EditFile", "SearchFiles", "ListFiles"}
+    want = five | expected_extras
+    unwanted = {"QueryKnowledge", "WebSearch"} - expected_extras
+    return all(t in section for t in want) and not any(t in section for t in unwanted)
+
+
 def run() -> bool:
     print("\n── 1. ⚠️  THE CLIFF (ADR-460 D3.a) — authority is UNREPRESENTABLE ──")
     # The whole point of D3.a: an Agent that takes consequential action is not
@@ -318,8 +354,9 @@ def run() -> bool:
         "tools" not in AGENT_MANIFEST_KEYS,
     )
     # The turn's actual payload — resolution is worthless if it never ships.
-    from services.lane_runner import lane_tools_openai
-    _scout_tools = {t["function"]["name"] for t in lane_tools_openai(resolve_agent_tools("scout"))}
+    from services.lane_runner import LANE_TOOL_NAMES, lane_tool_names, lane_tools_openai
+    _scout_extra = resolve_agent_tools("scout")
+    _scout_tools = {t["function"]["name"] for t in lane_tools_openai(_scout_extra)}
     _check(
         "the tools REACH the model (Scout's turn carries 7, not 5)",
         {"QueryKnowledge", "WebSearch"} <= _scout_tools and len(_scout_tools) == 7,
@@ -327,6 +364,30 @@ def run() -> bool:
     _check(
         "a lane with no agent sends the five verbs, unchanged",
         len(lane_tools_openai()) == 5,
+    )
+    # ⚠️ THE INVARIANT WHOSE ABSENCE SHIPPED A BUG (2026-07-19). Three things
+    # must name the SAME tool set: the DECLARED payload (above), the EXECUTION
+    # allowlist the loop dispatches against (`lane_tool_names`), and the PROMPT
+    # prose (`build_lane_conventions` `## Your tools`). Pre-fix the loop checked
+    # bare LANE_TOOL_NAMES, so Scout's QueryKnowledge/WebSearch reached the model
+    # and were REFUSED (`tool_not_on_lane_surface`) when called — declared but
+    # un-dispatchable. `lane_tool_names` is now the single source all three read;
+    # this asserts the allowlist and the payload agree, for scout and for a plain
+    # lane. (A live Gemini call confirmed the model CALLS QueryKnowledge and the
+    # fixed guard dispatches it — the LLM half a pure gate can't prove.)
+    _check(
+        "the EXECUTION allowlist == the DECLARED payload for Scout (the bug's invariant)",
+        set(lane_tool_names(_scout_extra)) == _scout_tools,
+    )
+    _check(
+        "…and for a plain lane (both are the five verbs)",
+        set(lane_tool_names(())) == set(LANE_TOOL_NAMES)
+        == {t["function"]["name"] for t in lane_tools_openai(())},
+    )
+    _check(
+        "the prompt's ## Your tools names the SAME set (no hardcoded 'five, complete surface')",
+        _prompt_tools_line_matches("scout", {"QueryKnowledge", "WebSearch"})
+        and _prompt_tools_line_matches(None, set()),
     )
 
     print("\n── 3d. skills: the convention we adopted first (ADR-464) ──")

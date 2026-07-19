@@ -161,6 +161,27 @@ def _anthropic_to_openai_tool(tool: dict) -> dict:
     }
 
 
+def lane_tool_names(extra: tuple = ()) -> tuple:
+    """THE lane's tool-name set for a turn: the five file verbs + this Agent's
+    `extra` reach (ADR-463 D4), deduped, order-stable.
+
+    ⚠️ SINGULAR SOURCE. Three things must agree about which tools a turn has:
+    the DECLARED payload the model receives (`lane_tools_openai`), the EXECUTION
+    allowlist the tool loop dispatches against, and the PROMPT prose that tells
+    the model what it holds. Before this function they were computed in three
+    places that disagreed — the payload carried the extras, the loop's guard
+    checked bare `LANE_TOOL_NAMES` (so a called extra returned
+    `tool_not_on_lane_surface` and never dispatched), and the prompt hardcoded
+    "the five file verbs — the complete surface". Scout's tools reached the model
+    and could not run. This is the one computation all three now read.
+
+    `extra` has ALREADY passed the D4.a ceiling in `resolve_agent_tools` (reads +
+    our own primitives; never an outward write) — this function composes, it does
+    not authorize.
+    """
+    return LANE_TOOL_NAMES + tuple(n for n in extra if n not in LANE_TOOL_NAMES)
+
+
 def lane_tools_openai(extra: tuple = ()) -> list[dict]:
     """The lane tool surface in OpenAI format, derived from the registry's
     own definitions (no parallel schemas — Singular Implementation).
@@ -188,8 +209,7 @@ def lane_tools_openai(extra: tuple = ()) -> list[dict]:
                   SEARCH_FILES_TOOL, LIST_FILES_TOOL,
                   QUERY_KNOWLEDGE_TOOL, WEB_SEARCH_PRIMITIVE)
     }
-    names = LANE_TOOL_NAMES + tuple(n for n in extra if n not in LANE_TOOL_NAMES)
-    return [_anthropic_to_openai_tool(by_name[n]) for n in names if n in by_name]
+    return [_anthropic_to_openai_tool(by_name[n]) for n in lane_tool_names(extra) if n in by_name]
 
 
 # ---------------------------------------------------------------------------
@@ -250,9 +270,9 @@ cannot. The system's own settings + runtime state are owner-and-steward
 territory — read them to understand intent, don't author there.
 
 ## Your tools
-ReadFile · WriteFile · EditFile · SearchFiles · ListFiles — the complete
-surface. You cannot schedule work, dispatch agents, or reach external
-platforms; you are hands on the filesystem for this member.
+{tools_line} — the complete surface. You cannot schedule work, dispatch
+agents, or write out to external platforms; your reach is reading and writing
+this member's commons.
 
 ## Format discipline
 Prose documents are .md. Machine config is _*.yaml (don't author these
@@ -315,6 +335,21 @@ def build_lane_conventions(
     label = LANE_MODELS.get(model, {}).get("label", model)
     member = member_label or "the member"
 
+    # This turn's member-authored Agents, read ONCE for the whole frame — the
+    # tool line, the posture, and the skills all consume it (best-effort; a
+    # broken manifest never breaks a turn). Empty for a lane with no agent.
+    from services.agents_registry import find_member_agents, resolve_agent_tools
+    _mine = find_member_agents(client, user_id) if agent else []
+
+    # The tool line MUST name this turn's actual surface — the five verbs plus
+    # the Agent's `extra` reach (ADR-463 D4). Derived from the same
+    # `resolve_agent_tools`/`lane_tool_names` the payload + the loop's allowlist
+    # read, so the prose can never again claim "five, the complete surface" while
+    # the model was handed seven (the Scout bug). No agent → the five verbs,
+    # byte-identical prose.
+    _prompt_extra = resolve_agent_tools(agent, _mine) if agent else ()
+    tools_line = " · ".join(lane_tool_names(_prompt_extra))
+
     mandate = _read_workspace_file(client, user_id, CONSTITUTION_MANDATE_PATH)
     mandate_head = "\n".join(mandate.strip().splitlines()[:40]).strip()
     mandate_section = (
@@ -333,15 +368,10 @@ def build_lane_conventions(
     # the colleague. Empty string for a lane with no agent (every pre-registry
     # lane, and every Studio/derive lane) — byte-identical to today.
     if agent:
-        from services.agents_registry import (
-            build_agent_posture,
-            find_agent_skills,
-            find_member_agents,
-        )
+        from services.agents_registry import build_agent_posture, find_agent_skills
         # Member-first (the later-widening): a named colleague ("Lisa") wears a
-        # kernel capability's character plus the member's own tone. Discovery
-        # is a read; a broken manifest never breaks a turn (best-effort).
-        _mine = find_member_agents(client, user_id)
+        # kernel capability's character plus the member's own tone. `_mine` was
+        # read once at the top of the frame (shared with the tool line).
         # ADR-464 — the skills the member taught THIS colleague. The folder comes
         # free from the manifest the discovery above already read; a kernel agent
         # has no folder, so it has no skills (a kernel skill would be a kernel
@@ -390,6 +420,7 @@ def build_lane_conventions(
         member=member,
         model=label,
         filesystem_model=PARTICIPANT_FILESYSTEM_MODEL,
+        tools_line=tools_line,
         mandate_section=mandate_section,
         posture_section=posture_section,
     )
@@ -471,6 +502,12 @@ async def run_lane_turn(
     from services.agents_registry import find_member_agents, resolve_agent_tools
     _extra = resolve_agent_tools(agent, find_member_agents(auth.client, auth.user_id)) if agent else ()
     tools = lane_tools_openai(_extra)
+    # THE execution allowlist for this turn — the SAME set the payload above was
+    # built from (Singular Implementation, lane_tool_names). Before this, the
+    # guard below checked bare LANE_TOOL_NAMES, so a called `extra` (Scout's
+    # QueryKnowledge/WebSearch) returned tool_not_on_lane_surface and never
+    # dispatched: declared to the model, refused by the loop.
+    _allowed = lane_tool_names(_extra)
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,
@@ -552,10 +589,10 @@ async def run_lane_turn(
         for tc in routed.tool_calls:
             name = tc["name"]
             tools_called.append(name)
-            if name not in LANE_TOOL_NAMES:
+            if name not in _allowed:
                 result: Any = {
                     "success": False, "error": "tool_not_on_lane_surface",
-                    "message": f"lane tools: {', '.join(LANE_TOOL_NAMES)}",
+                    "message": f"lane tools: {', '.join(_allowed)}",
                 }
             else:
                 try:
@@ -663,6 +700,12 @@ async def run_lane_turn_stream(
     from services.agents_registry import find_member_agents, resolve_agent_tools
     _extra = resolve_agent_tools(agent, find_member_agents(auth.client, auth.user_id)) if agent else ()
     tools = lane_tools_openai(_extra)
+    # THE execution allowlist for this turn — the SAME set the payload above was
+    # built from (Singular Implementation, lane_tool_names). Before this, the
+    # guard below checked bare LANE_TOOL_NAMES, so a called `extra` (Scout's
+    # QueryKnowledge/WebSearch) returned tool_not_on_lane_surface and never
+    # dispatched: declared to the model, refused by the loop.
+    _allowed = lane_tool_names(_extra)
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,
@@ -748,10 +791,10 @@ async def run_lane_turn_stream(
             name = tc["name"]
             tools_called.append(name)
             yield ("tool", {"name": name})
-            if name not in LANE_TOOL_NAMES:
+            if name not in _allowed:
                 result: Any = {
                     "success": False, "error": "tool_not_on_lane_surface",
-                    "message": f"lane tools: {', '.join(LANE_TOOL_NAMES)}",
+                    "message": f"lane tools: {', '.join(_allowed)}",
                 }
             else:
                 try:

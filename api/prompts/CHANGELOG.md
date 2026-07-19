@@ -6,6 +6,36 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.19.1] - The lane tool surface is ONE computation (the Scout capability bug)
+
+The base-agent hardening audit (`docs/analysis/base-agent-hardening-audit-and-discourse-2026-07-18.md`)
+found a live ship-broken bug: Researcher (Scout) declared `QueryKnowledge` +
+`WebSearch` (ADR-463 P2) but a live turn could not execute either. The tool
+surface was computed in THREE places that disagreed.
+
+- `services/lane_runner.py` — **`lane_tool_names(extra)` is the single source.**
+  - The DECLARED payload (`lane_tools_openai`) now derives from it (was inline).
+  - The EXECUTION allowlist in both turn loops (`run_lane_turn` + `_stream`) now
+    checks `_allowed = lane_tool_names(_extra)` instead of the bare
+    `LANE_TOOL_NAMES` — so a called extra dispatches to its real handler instead
+    of returning `tool_not_on_lane_surface`.
+  - The PROMPT prose (`build_lane_conventions` `## Your tools`) is now a
+    `{tools_line}` slot naming the turn's actual surface — was hardcoded
+    *"ReadFile · WriteFile · EditFile · SearchFiles · ListFiles — the complete
+    surface"*, which lied to Scout (its posture said use QueryKnowledge while the
+    frame said it had five tools).
+  - `_mine` (member agents) is now read ONCE per frame and shared by the tool
+    line, the posture, and the skills (was two reads).
+- **Behavior**: Scout's turn declares 7 tools, allows 7, and its system prompt
+  names 7. A plain lane (no agent) is byte-identical — five verbs everywhere.
+  The prohibition prose ("cannot schedule, dispatch, or write out to external
+  platforms") is unchanged and still true (the D4.a ceiling is reads-only).
+- **Impact**: Researcher can finally do the digging its blurb promises.
+- **Verified**: `test_agent_registry.py` 158/158 (adds the three-way-agreement
+  invariant whose absence shipped the bug); `test_adr411_lanes.py` +
+  `test_lane_artifacts.py` green; a live Gemini call confirmed the model CALLS
+  QueryKnowledge on Scout's surface and the fixed guard dispatches it.
+
 ## [2026.07.18.1] - The base roster, from the axioms — three addressed operations + Critic as a posture
 
 The first-principles derivation (`docs/analysis/the-base-agent-roster-from-axioms-2026-07-18.md`)
