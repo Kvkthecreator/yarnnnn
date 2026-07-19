@@ -40,7 +40,6 @@ interface OutlineEntry {
 // the 16:9 preview always fits edge-to-edge, undistorted.
 const SLIDE_W = 992; // the slide's max width (62rem) — its natural landscape box
 const SLIDE_H = Math.round((SLIDE_W * 9) / 16); // 16:9 → 558
-const ASPECT = SLIDE_H / SLIDE_W; // 0.5625
 
 interface SlidePreview {
   index: number;
@@ -88,27 +87,33 @@ async function buildSlidePreviews(html: string, artifactPath: string): Promise<S
   });
 }
 
-/** A single slide preview card: measures its own width and scales the iframe
- *  (rendered at the slide's natural 992px box) down to fit, so the 16:9 preview
- *  is always undistorted and never clipped. */
+/** A single slide preview card: a fixed 16:9 box (CSS aspect-ratio — no
+ *  measurement feedback, no SSR/hydration style swap) whose iframe renders the
+ *  slide at its natural 992×558 box and is scaled to fill via a ResizeObserver-
+ *  measured factor. The box height comes from `aspect-ratio`, so the scale never
+ *  drives the height (the old code set height FROM the measured width, a loop
+ *  that could settle small); the scale only sizes the iframe INSIDE a box that
+ *  is already the right shape. */
 function SlideThumb({ doc, index }: { doc: string; index: number }) {
   const boxRef = useRef<HTMLSpanElement>(null);
-  const [w, setW] = useState(0);
+  const [scale, setScale] = useState(0);
   useEffect(() => {
     const box = boxRef.current;
     if (!box) return;
-    const measure = () => setW(box.clientWidth);
+    const measure = () => {
+      const w = box.clientWidth;
+      if (w > 0) setScale(w / SLIDE_W);
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(box);
     return () => ro.disconnect();
   }, []);
-  const scale = w > 0 ? w / SLIDE_W : 0;
   return (
     <span
       ref={boxRef}
       className="relative block w-full overflow-hidden rounded-sm border border-border/60 bg-white"
-      style={{ height: w > 0 ? Math.round(w * ASPECT) : undefined, aspectRatio: w > 0 ? undefined : '16 / 9' }}
+      style={{ aspectRatio: `${SLIDE_W} / ${SLIDE_H}` }}
     >
       {scale > 0 && (
         <iframe
@@ -117,6 +122,7 @@ function SlideThumb({ doc, index }: { doc: string; index: number }) {
           sandbox=""
           tabIndex={-1}
           scrolling="no"
+          aria-hidden="true"
           className="pointer-events-none absolute left-0 top-0 border-0"
           style={{
             width: SLIDE_W,
@@ -207,24 +213,41 @@ export function StudioNavigator({
     return items.length;
   }, []);
 
-  const onDragMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (dragIndex == null) return;
-      setDropAt(gapAtPointer(e.clientY));
-    },
-    [dragIndex, gapAtPointer],
-  );
-
-  const endDrag = useCallback(() => {
-    if (dragIndex != null && dropAt != null && onReorderSlide) {
-      // The drop gap is an index in the ORIGINAL order; landing after our own
-      // slot is a no-op (from → from or from → from+1 both mean "stay put").
-      const to = dropAt > dragIndex ? dropAt - 1 : dropAt;
-      if (to !== dragIndex) onReorderSlide(dragIndex, to);
-    }
-    setDragIndex(null);
-    setDropAt(null);
-  }, [dragIndex, dropAt, onReorderSlide]);
+  // The drag lives on WINDOW listeners, not on the <ul>'s React handlers — a
+  // pointerdown on the grip must NOT setPointerCapture (that would route every
+  // subsequent move to the grip element, so the list never hears them and the
+  // drag appears dead). window listeners see the moves wherever the pointer
+  // goes, including off the strip. `dropAtRef` mirrors the state so the up
+  // handler reads the final gap synchronously. Bound only while a drag is live.
+  const dropAtRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (dragIndex == null) return;
+    const onMove = (e: PointerEvent) => {
+      const gap = gapAtPointer(e.clientY);
+      dropAtRef.current = gap;
+      setDropAt(gap);
+    };
+    const onUp = () => {
+      const gap = dropAtRef.current;
+      if (gap != null && onReorderSlide) {
+        // The drop gap is an index in the ORIGINAL order; landing in our own
+        // slot or just after it is a no-op.
+        const to = gap > dragIndex ? gap - 1 : gap;
+        if (to !== dragIndex) onReorderSlide(dragIndex, to);
+      }
+      setDragIndex(null);
+      setDropAt(null);
+      dropAtRef.current = null;
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [dragIndex, gapAtPointer, onReorderSlide]);
 
   if (layout === 'deck') {
     return (
@@ -232,13 +255,7 @@ export function StudioNavigator({
         <p className="px-1 pb-2 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           Slides
         </p>
-        <ul
-          ref={listRef}
-          className="relative space-y-2"
-          onPointerMove={dragIndex != null ? onDragMove : undefined}
-          onPointerUp={dragIndex != null ? endDrag : undefined}
-          onPointerCancel={dragIndex != null ? endDrag : undefined}
-        >
+        <ul ref={listRef} className="relative space-y-2">
           {(previews ?? []).map((s) => (
             <li key={s.index} data-slide-card className="relative">
               {/* The drop-line: a prediction of where the dragged slide will
@@ -271,9 +288,12 @@ export function StudioNavigator({
                   <span
                     onPointerDown={(e) => {
                       if (!onReorderSlide) return;
+                      // Do NOT setPointerCapture — window listeners own the drag
+                      // (capture would starve them). Stop propagation so the
+                      // card's onClick/select doesn't also fire on the press.
                       e.preventDefault();
                       e.stopPropagation();
-                      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+                      dropAtRef.current = s.index;
                       setDragIndex(s.index);
                       setDropAt(s.index);
                     }}

@@ -116,6 +116,16 @@ def run() -> bool:
         "the thumbnail measures its own width (ResizeObserver), no hardcoded THUMB_W",
         "new ResizeObserver(measure)" in navigator and "const THUMB_W = 200" not in navigator,
     )
+    # The box shape is a STABLE CSS aspect-ratio — NOT height derived from the
+    # measured width (which set height from width, a feedback loop that could
+    # settle small — the "previews too small" report) and NOT an undefined→number
+    # style swap (a hydration mismatch). The scale only sizes the iframe INSIDE
+    # an already-correct box.
+    _check(
+        "the thumbnail box is a stable CSS aspect-ratio (no width→height loop, no hydration swap)",
+        "aspectRatio: `${SLIDE_W} / ${SLIDE_H}`" in navigator
+        and "height: w > 0 ? Math.round" not in navigator,
+    )
     _check(
         "the preview scales the natural slide box to the measured width",
         "w / SLIDE_W" in navigator and "transform: `scale(${scale})`" in navigator,
@@ -127,6 +137,14 @@ def run() -> bool:
         "onReorderSlide" in navigator
         and "setDragIndex" in navigator
         and "bg-indigo-500" in navigator,  # the drop-line prediction
+    )
+    # The drag lives on WINDOW listeners, NOT setPointerCapture on the grip —
+    # capture would route every move to the grip element so the list never hears
+    # them and the drag appears dead (the "drag doesn't work" report).
+    _check(
+        "the drag uses window pointer listeners, never setPointerCapture on the grip",
+        "window.addEventListener('pointermove', onMove)" in navigator
+        and ".setPointerCapture(" not in navigator,  # the CALL, not the cautionary comment
     )
     _check(
         "the reorder rides the ONE write door (applyOp → movePageTo)",
