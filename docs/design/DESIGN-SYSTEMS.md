@@ -7,10 +7,12 @@ landed the fix: the kernel token contract widened from five point-vars to a ~14-
 vocabulary (Move 1), a declarative `maps:` synonym bridge (Move 2), and the `PATCH` editability
 the mechanical var-editor needs (Move 3). Acceptance: the coverage probe's "paints today" bucket
 went **4 → 17**, now holding the pill, the hairline, and the type scale.
-**The FE surface is DECIDED, not yet built (§6, 2026-07-18)** — design systems become first-order
-on the Studio landing; a third render state (`studio.system=`) holds the manage panel; the three
-operations split by shape (import = modal, derive = learn-from, manage = panel). Read §5 for what
-shipped, §6 for what's next; §3 has the receipts.
+**The FE surface (§6): step 1 SHIPPED, the creation regroup building (2026-07-18→19)** — design
+systems are first-order on the Studio landing; a third render state (`studio.system=`) holds the
+manage panel. **Creation is ONE `+ New design system` entry → ONE modal** owning both shapes
+(import a `.zip` with a pre-picker explanation · derive from a **type-filtered** source), after the
+first two-button cut proved to split one intent, upload blind, and leave the derive source open to
+pollution. Read §5 for what shipped, §6 for the surface; §3 has the receipts.
 
 > One-line map: a design system is an ordinary meaning-folder identified by `_design.yaml`;
 > an artifact wears it as a marked, cited `<style>` element; the import is a flatten + a
@@ -398,24 +400,48 @@ selector):
 
 ### The landing section ("Design systems", first-order, below recents)
 
-- **Empty** → one card, two create paths (below).
-- **Populated** → one card per system (name · an `--accent` swatch · "worn by N artifacts"),
-  plus a quiet **"+ Import / Derive"** affordance. Clicking a card opens the **manage panel**.
+- **Empty** → a short teaching line + the **same one `+ New design system`** button (no separate
+  two-button card — one entry everywhere).
+- **Populated** → one card per system (name · "worn by N artifacts") + a compact
+  **`+ New design system`** in the header. Clicking a card opens the **manage panel**.
 
-### The three operations, and their distinct shapes
+### Creation is ONE intent, ONE modal (revised 2026-07-19 — the operator's regroup)
 
-The operations are NOT one shape — the honest cut (measured against the learn-from flow, which is
-a *source→target→lane creation modal*):
+The first cut split creation into two buttons — **Import** and **Derive** — sitting beside each
+other on the landing. Live use surfaced three flaws (operator, seeing it built):
 
-| Operation | Shape | Why this shape |
+1. **Two buttons for one intent.** "I want a new design system" is the intent; *how* (I have a
+   zip / I have a style guide) is a detail. Splitting at the button forces the member to
+   pre-decide the how before the what.
+2. **Blind upload.** The Import button fired a file picker with **no explanation** of what a
+   design-system export is; a random file failed opaquely.
+3. **Redundant target step + pollution.** Derive reused the generic `LearnFromFlowModal` — so it
+   showed a "What should it make?" step with a single greyed "Design system" card (theatre, since
+   the section already means design system), AND its source list was **unconstrained**
+   (`accepts: ["file"]`) — a font or an existing deck was a selectable "source," nonsense-in.
+
+**The regroup: one `+ New design system` entry → one dedicated modal that already knows it is
+making a design system.** No target step. The modal asks the one real question — *where does this
+look come from?* — with two source shapes:
+
+| Source shape | What happens | The guardrail |
 |---|---|---|
-| **Create — import a `.zip`** | a **modal** (upload + receipt) | Bounded, one-shot, deterministic (flatten/classify/write → "15 files · 5 stylesheets · 61 skipped"). The existing Design-tab import, **promoted to the landing**. Not learn-from — there is no source to choose and no lane to run. |
-| **Create — derive from a source** | **learn-from itself** (already wired) | It *is* source→target→lane: a brand guide → "Design system" → the ADR-450 `design-system` derive recipe on a chat lane. `LEARN_TARGETS` **already carries** `{recipe: 'design-system', template: null}` — the derive path exists; the landing just needs to route to it. |
-| **Manage — the overview** | a **dedicated Studio panel** (not a modal, not a canvas) | Reading a thing that *exists* — dependents, files, re-import, the theme panel, and the future token-editor. Revisit-able and roomy; a modal is a poor home for it and cannot hold the inline var-editor. |
+| **"I have an export"** | the `.zip` import (flatten/classify/write → the receipt: "15 files · 5 stylesheets · 61 skipped"). Deterministic, no lane. | The modal **explains before the picker** ("a `.zip` of tokens, styles, and fonts — e.g. from Claude Design"); the picker is `.zip`-scoped. No more blind upload. |
+| **"Derive from a source"** | pick evidence-of-a-look → the ADR-450 `design-system` recipe on a chat lane. | The "From your files" list **and** upload are **filtered to look-carrying types** (`.md`/`.html`/`.pdf`/`.png`/`.jpg`/`.webp`/`.css`) — fonts, decks, data files are hidden and rejected. The workspace can't be polluted with nonsense-derived systems. |
 
-**The empty→populated toggle resolves the "manage or create" question**: empty section = the two
-create paths; a populated card = a click into the manage panel. Create is a modal-or-learn-from;
-manage is a view.
+The filter is a **guardrail, not a guarantee** — a `.md` could be a grocery list. It blocks the
+absurd (a font as a "source") and trusts the plausible; the member can still pick a bad-but-allowed
+file. That trade is deliberate.
+
+**This means a new dedicated modal (`NewDesignSystemModal`), not the reused learn-from flow.** The
+generic `LearnFromFlowModal` stays for its own general use (the `New ▾ · Learn from` entry, which
+offers all targets). The design-system section stops calling it. Net-new UI, but the shared modal
+cannot cleanly (a) drop the target step, (b) offer import-vs-derive as its first choice, and
+(c) type-filter the derive list — contorting it for one caller would give the Studio two
+half-modals.
+
+> **The regroup touches only creation.** The manage panel below (`studio.system=`, step 1 as
+> shipped) is unchanged — a populated card opens it; the `+ New design system` modal never does.
 
 ### The manage panel — a THIRD Studio state (the honest surface cost)
 
@@ -443,19 +469,25 @@ choice, not an accident.
 
 ### What is decided vs still open
 
-- **Decided**: first-order landing section; Job A stays in the Design tab; the three operation
-  shapes (import=modal, derive=learn-from, manage=panel); the manage panel as a third Studio state
-  on a new param.
+- **Decided**: first-order landing section; Job A stays in the Design tab; **one `+ New design
+  system` entry → one dedicated modal** owning both create shapes (import = the modal's `.zip`
+  path with pre-picker explanation, derive = the modal's type-filtered source → the ADR-450 lane);
+  the derive source **filtered to look-carrying types**; the manage panel as a third Studio state
+  on `studio.system=`.
 - **Still open (do not build ahead of it)**: the token-editor UI (its var→source mapping); whether
   the create-time "wear this" selector (Job A at creation) ships with this or later; the exact
   card visual. These are named so the build stops at the decided line.
 
 ### The build order the decision implies (each its own commit + gate)
 
-1. **The landing section** — list systems (`find_design_systems` via a `GET`), the empty/populated
-   states, the "+ Import / Derive" affordance. Reuses the existing import endpoint + learn-from.
+1. **The landing section** — SHIPPED (main `0535cb4`): list systems, empty/populated states, cards
+   that open the manage state. *(Shipped with the two-button Import/Derive; superseded by step 1b.)*
+1b. **The creation regroup** — `NewDesignSystemModal`: one `+ New design system` entry, the
+   import-vs-derive first choice inside, the `.zip` pre-picker explanation, the type-filtered derive
+   source. The section stops calling `LearnFromFlowModal`. (This section, 2026-07-19.)
 2. **The manage panel** — the third render state on `studio.system=`, composing dependents + files
-   + the shared theme panel + re-import. No new backend (all endpoints exist).
+   + the shared theme panel + re-import. No new backend (all endpoints exist). Step-1 minimal panel
+   shipped; the openable-dependents + theme-panel + editor-slot body remains.
 3. **(Deferred)** the inline token-editor, against the shipped `PATCH` permission.
 
 ---
@@ -471,8 +503,9 @@ choice, not an accident.
 | The bound-lane posture section | `api/services/lane_runner.py` (the `artifact_path` branch) |
 | The derive recipe (AI authors one) | `api/services/derive_recipes.py::DERIVE_RECIPES["design-system"]` |
 | FE picker + import UI (Job A — apply, in an open artifact) | `web/components/studio/StudioDesignTab.tsx` (document scope) |
-| FE landing + render states (Job B home — §6, to build) | `web/components/studio/StudioSurface.tsx` (`StudioStart` = landing; `studio.file` = workbench; `studio.system` = the new manage state) |
-| FE learn-from (the derive-create path) | `web/components/studio/LearnFromFlowModal.tsx` + `LEARN_TARGETS` in `StudioSurface.tsx` (already carries `design-system`) |
+| FE landing + render states (Job B home — §6) | `web/components/studio/StudioSurface.tsx` (`StudioStart` = landing; `studio.file` = workbench; `studio.system` = the manage state) |
+| FE creation modal (§6, the regroup — one entry, import+derive) | `web/components/studio/NewDesignSystemModal.tsx` (to build); the section stops calling `LearnFromFlowModal` |
+| FE learn-from (the GENERAL create path — all targets) | `web/components/studio/LearnFromFlowModal.tsx` + `LEARN_TARGETS` (`New ▾ · Learn from`; no longer the design-system entry) |
 | FE skin url() resolution | `web/components/workspace/viewers/projection.ts::resolveStyleUrls` |
 | The theme contract (the apply seam) | `docs/design/STUDIO.md` §Theme + the layer table |
 | The apply-gap coverage probe (§5 evidence) | `api/probe_design_system_coverage.py` |
