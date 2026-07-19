@@ -29,6 +29,7 @@ import { ArrowLeft, Copy, FileText, FolderOpen, Link2, Loader2, MoreHorizontal, 
 import { api } from '@/lib/api/client';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { LearnFromFlowModal } from './LearnFromFlowModal';
+import { NewDesignSystemModal } from './NewDesignSystemModal';
 import { NewArtifactModal, slugify } from './NewArtifactModal';
 import { StudioNewMenu } from './StudioNewMenu';
 import { studioShapeStyle } from './studioShapes';
@@ -2025,32 +2026,13 @@ function StudioStart({
   // focused modal — the landing shows choices and recents, never form fields.
   const [scratchTemplate, setScratchTemplate] = useState<TemplateInfo | null>(null);
   const [learnOpen, setLearnOpen] = useState(false);
-  // The learn-from modal is shared: the "New ▾ · Learn from" entry offers ALL
-  // targets; the Design-systems section opens it scoped to the design-system
-  // target alone (DESIGN-SYSTEMS.md §6 — "derive from a source" means derive a
-  // design system there, not any artifact). Default = all.
-  const [learnTargets, setLearnTargets] = useState<typeof LEARN_TARGETS>(LEARN_TARGETS);
-  // DESIGN-SYSTEMS.md §6 — the two design-system create paths. Import is a
-  // one-shot .zip (a file input, no modal of its own — the receipt lands as the
-  // section refreshing + any warning). Derive reuses the learn-from flow,
-  // opened pre-scoped to the design-system target.
-  const [importing, setImporting] = useState(false);
-  const [importMsg, setImportMsg] = useState<string | null>(null);
-  const dsFileInputRef = useRef<HTMLInputElement>(null);
-  const importSystem = async (file: File) => {
-    setImporting(true);
-    setImportMsg(null);
-    try {
-      const r = await api.studio.importDesignSystem(file);
-      loadSystems();
-      const warns = r.warnings?.length ? ` · ${r.warnings.length} warning(s)` : '';
-      setImportMsg(`Imported “${r.name}” — ${r.written.length} files${warns}.`);
-    } catch (e) {
-      setImportMsg(e instanceof Error ? e.message : 'Import failed.');
-    } finally {
-      setImporting(false);
-    }
-  };
+  // DESIGN-SYSTEMS.md §6 (the 2026-07-19 regroup) — creating a design system is
+  // ONE intent through ONE dedicated modal (NewDesignSystemModal), not two
+  // landing buttons routing to a blind file picker + the generic learn-from
+  // flow. The modal owns the import-vs-derive choice + the source guardrails;
+  // the section just opens it. On a successful import it refreshes the list;
+  // derive navigates to the lane (see the handlers below).
+  const [newSystemOpen, setNewSystemOpen] = useState(false);
 
   const { navigateToSurface } = useSurfacePreferences();
   // ADR-460 §4b — the landing only needs to know whether lanes RUN. It used to
@@ -2115,6 +2097,26 @@ function StudioStart({
     }
   };
 
+  // DESIGN-SYSTEMS.md §6 — the two terminal actions the NewDesignSystemModal
+  // calls. IMPORT writes the folder (the modal shows the receipt; we refresh the
+  // list). DERIVE creates the design-system lane (same shape learnFrom uses for
+  // the no-template target) and navigates to chat — the modal just closes.
+  const importNewSystem = async (file: File) => {
+    const r = await api.studio.importDesignSystem(file);
+    loadSystems();
+    return { name: r.name, written: r.written.length, warnings: r.warnings?.length ?? 0 };
+  };
+  const deriveNewSystem = async (source: { path: string; name: string }) => {
+    const lane = await api.lanes.create({
+      name: `Design system: ${source.name}`.slice(0, 60),
+      agent: 'scout',
+      derive_recipe: 'design-system',
+      derive_source: source.path,
+    });
+    setNewSystemOpen(false);
+    navigateToSurface('chat', { lane: lane.id });
+  };
+
   const hasRecents = recents.length > 0;
   return (
     <div className="h-full overflow-y-auto p-6 sm:p-8">
@@ -2139,10 +2141,7 @@ function StudioStart({
               templates={templates}
               learnEnabled={laneEnv?.enabled !== false}
               onPickTemplate={(t) => setScratchTemplate(t)}
-              onPickLearn={() => {
-                setLearnTargets(LEARN_TARGETS); // the general entry offers all
-                setLearnOpen(true);
-              }}
+              onPickLearn={() => setLearnOpen(true)}
             />
           </div>
         </div>
@@ -2229,9 +2228,11 @@ function StudioStart({
         )}
 
         {/* ── Design systems (DESIGN-SYSTEMS.md §6, first-order on the landing) ──
-            The workspace's visual identity, worn by many artifacts. Empty → the
-            two create paths (Import a .zip · Derive from a source); populated →
-            a card per system that opens the manage state. Job B (manage the
+            The workspace's visual identity, worn by many artifacts. ONE
+            `+ New design system` entry everywhere (empty + populated) → the ONE
+            dedicated modal that owns import-vs-derive (the 2026-07-19 regroup —
+            one intent, not two buttons; the modal explains the .zip and filters
+            the derive source). A card opens the manage state. Job B (manage the
             identity); Job A (wear it) stays in the open-artifact Design tab. */}
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
@@ -2239,44 +2240,16 @@ function StudioStart({
               Design systems
             </p>
             {systems.length > 0 && (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  disabled={importing}
-                  onClick={() => dsFileInputRef.current?.click()}
-                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
-                >
-                  {importing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-                  Import
-                </button>
-                <button
-                  type="button"
-                  disabled={laneEnv?.enabled === false}
-                  onClick={() => {
-                    setLearnTargets(LEARN_TARGETS.filter((t) => t.recipe === 'design-system'));
-                    setLearnOpen(true);
-                  }}
-                  title={laneEnv?.enabled === false ? 'Chat helpers aren’t enabled on this workspace.' : undefined}
-                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
-                >
-                  <Plus className="h-3 w-3" />
-                  Derive
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setNewSystemOpen(true)}
+                className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+              >
+                <Plus className="h-3 w-3" />
+                New design system
+              </button>
             )}
           </div>
-
-          <input
-            ref={dsFileInputRef}
-            type="file"
-            accept=".zip"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void importSystem(f);
-              e.target.value = '';
-            }}
-          />
 
           {systems.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border p-6">
@@ -2284,30 +2257,14 @@ function StudioStart({
                 No design system yet. Give your artifacts one look — import your
                 brand’s export, or derive one from a style guide.
               </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={importing}
-                  onClick={() => dsFileInputRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60 disabled:opacity-50"
-                >
-                  {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                  Import a design system…
-                </button>
-                <button
-                  type="button"
-                  disabled={laneEnv?.enabled === false}
-                  onClick={() => {
-                    setLearnTargets(LEARN_TARGETS.filter((t) => t.recipe === 'design-system'));
-                    setLearnOpen(true);
-                  }}
-                  title={laneEnv?.enabled === false ? 'Chat helpers aren’t enabled on this workspace.' : undefined}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60 disabled:opacity-50"
-                >
-                  <Palette className="h-3.5 w-3.5" />
-                  Derive from a source…
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setNewSystemOpen(true)}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New design system
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -2333,8 +2290,6 @@ function StudioStart({
               ))}
             </div>
           )}
-
-          {importMsg && <p className="text-[11px] text-muted-foreground">{importMsg}</p>}
         </div>
 
         <NewArtifactModal
@@ -2345,9 +2300,17 @@ function StudioStart({
 
         <LearnFromFlowModal
           open={learnOpen}
-          targets={learnTargets}
+          targets={LEARN_TARGETS}
           onClose={() => setLearnOpen(false)}
           onStart={learnFrom}
+        />
+
+        <NewDesignSystemModal
+          open={newSystemOpen}
+          deriveEnabled={laneEnv?.enabled !== false}
+          onClose={() => setNewSystemOpen(false)}
+          onImport={importNewSystem}
+          onDerive={deriveNewSystem}
         />
 
         {/* Open… — the OS gesture. The member browses their work; they never
