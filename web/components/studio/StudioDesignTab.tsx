@@ -99,6 +99,10 @@ interface StudioDesignTabProps {
     rename: () => void;
     move: () => void;
     trash: () => void;
+    /** ADR-437 D4 / ADR-465: mint a /s/{token} share link for this artifact and
+     *  copy it. Resolves on success, rejects on failure (the tab surfaces the
+     *  transient copied/error state). Runs in the parent (artifactPath + api). */
+    share: () => Promise<void>;
   };
 }
 
@@ -424,6 +428,27 @@ export function StudioDesignTab({
     }
   };
 
+  // ── Share (ADR-437 D4 wedge, surfaced in the Properties document scope) ────
+  // The mint-and-copy runs in the PARENT (fileVerbs.share) where artifactPath +
+  // api live, matching the file-verb threading. This holds only the button's
+  // transient copied/error state. Distinct from fileVerbs.copyLink (the in-app
+  // member deep-link): a share link makes the recipient a broad member of the
+  // commons on accept (the Figma default, ADR-437 D4.2 / ADR-465 D3).
+  const [sharing, setSharing] = useState(false);
+  const [shareState, setShareState] = useState<'idle' | 'copied' | 'error'>('idle');
+  const runShare = useCallback(async () => {
+    setSharing(true);
+    setShareState('idle');
+    try {
+      await fileVerbs.share();
+      setShareState('copied');
+    } catch {
+      setShareState('error');
+    } finally {
+      setSharing(false);
+    }
+  }, [fileVerbs]);
+
   // ── Slot scope: role-gated quick-add (media → the image picker) ─────────
   const slotRole = useMemo(() => {
     if (scope !== 'slot' || !selection?.slot) return null;
@@ -642,6 +667,28 @@ export function StudioDesignTab({
                 <Trash2 className="h-3 w-3" /> Trash
               </button>
             </div>
+          </div>
+          {/* Share (ADR-437 D4 wedge / ADR-465 — the membership act, distinct
+              from Copy link's in-app member deep-link). A share link makes the
+              recipient a member of this workspace on accept. */}
+          <div className={SECTION}>
+            <p className={HEADING}>Share</p>
+            <button
+              type="button"
+              className={askBtn}
+              onClick={runShare}
+              disabled={sharing}
+              title="Create a link that lets someone open this artifact and join your workspace"
+            >
+              {sharing ? 'Creating link…' : shareState === 'copied' ? 'Link copied ✓' : 'Share…'}
+            </button>
+            <p className="text-[10px] leading-snug text-muted-foreground">
+              {shareState === 'error'
+                ? 'Could not create the share link. Try again.'
+                : shareState === 'copied'
+                  ? 'Anyone with the link can open this and join your workspace with full access. Manage or revoke shares from Files.'
+                  : 'Creates a link. Whoever opens it joins your workspace with full access — narrow it later.'}
+            </p>
           </div>
         </>
       )}

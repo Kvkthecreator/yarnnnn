@@ -430,9 +430,13 @@ export function StudioSurface() {
     });
   }, [content]);
 
-  // ADR-453 D4: the right column's two tabs — Chat (the bound lane) | Design
-  // (the scope-switching inspector). The lane stays MOUNTED under either tab.
-  const [rightTab, setRightTab] = useState<'chat' | 'design'>('chat');
+  // ADR-453 D4: the right column's two tabs — Properties (the scope-switching
+  // inspector, 'design' slug) | Chat (the bound lane). The lane stays MOUNTED
+  // under either tab. Default is Properties (the 2026-07-19 realignment): Make
+  // is this surface's verb (ADR-457), so the artifact's inspector is the resting
+  // state; the lane surfaces on demand (a lane seed / "ask about this" flips to
+  // Chat — see the setRightTab('chat') calls below).
+  const [rightTab, setRightTab] = useState<'chat' | 'design'>('design');
 
   // F2 (bottom-append fix): the last block the caret touched — the IMPLICIT
   // anchor for a toolbar/slash insert when nothing is explicitly selected. A
@@ -1326,6 +1330,22 @@ export function StudioSurface() {
     const url = `${window.location.origin}/desktop?studio.file=${encodeURIComponent(relPath(artifactPath))}`;
     void navigator.clipboard.writeText(url);
   }, [artifactPath]);
+  // Share — mint a /s/{token} grant link for THIS artifact and copy it
+  // (ADR-437 D4 / ADR-465). Unlike copyArtifactLink (the in-app member
+  // deep-link), the recipient becomes a broad member of the commons on accept.
+  // Throws on failure so the Properties tab's Share button surfaces the error.
+  const shareArtifact = useCallback(async () => {
+    if (!artifactPath) throw new Error('No artifact open');
+    const res = await api.workspace.createShare(relPath(artifactPath));
+    if (!res.share_link) throw new Error('No share link returned');
+    // Clipboard may be denied in a non-secure context; the link still exists
+    // (listed under Files/Shares), so a copy failure is not a share failure.
+    try {
+      await navigator.clipboard.writeText(res.share_link);
+    } catch {
+      /* link minted; copy denied — the caller still reports success */
+    }
+  }, [artifactPath]);
   // Duplicate — read the open artifact, write it at a -copy sibling through
   // the one mechanical door (never overwrite an existing copy), open the copy.
   const duplicateArtifact = useCallback(async () => {
@@ -1656,8 +1676,14 @@ export function StudioSurface() {
           <div className="flex shrink-0 border-b border-border">
             {(
               [
+                // ADR-453 D4 + the 2026-07-19 realignment: Make is the verb of
+                // this surface (ADR-457) — the artifact is the object of work and
+                // Properties is its resting inspector; Chat (the bound lane) is the
+                // on-demand helper. Properties leads; the label reads Properties
+                // (the scope-switching inspector + settings home, ADR-455/458), the
+                // internal 'design' slug is unchanged (relabel-keep-slug).
+                ['design', 'Properties'],
                 ['chat', 'Chat'],
-                ['design', 'Design'],
               ] as const
             ).map(([tab, label]) => (
               <button
@@ -1754,6 +1780,7 @@ export function StudioSurface() {
                   organizeVerbs.onMove({ path: artifactPath, name: baseName(artifactPath) }),
                 trash: () =>
                   organizeVerbs.onDelete({ path: artifactPath, name: baseName(artifactPath) }),
+                share: shareArtifact,
               }}
             />
           )}
