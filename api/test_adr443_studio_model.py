@@ -259,7 +259,7 @@ def run() -> bool:
            "buildSlidePreviews" in nav and "extractOutline" in nav
            and "layout === 'deck'" in nav)
     _check("deck slides render as VISUAL previews (scaled projected iframe)",
-           "resolveArtifactHtml" in nav and "transform:scale" in nav
+           "resolveArtifactHtml" in nav and "transform: `scale(${scale})`" in nav
            and 'sandbox=""' in nav)
     _check("surface mounts the navigator + selects slides from it",
            "StudioNavigator" in surface and "selectSlideFromNavigator" in surface)

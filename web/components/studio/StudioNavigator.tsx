@@ -19,7 +19,7 @@
  * (no scripts); selecting a slide is a parent click on the card, not in-frame.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
 
 interface OutlineEntry {
@@ -30,27 +30,31 @@ interface OutlineEntry {
   blockId: string | null;
 }
 
-// A deck slide is LANDSCAPE 16:9 (the skin: aspect-ratio 16/9). The thumbnail
-// renders the slide at a fixed landscape box and scales it down by width; the
-// height follows 16:9 so previews are never distorted (the bug: the old skin
-// was portrait/tall, so previews looked letter-size).
+// A deck slide is LANDSCAPE 16:9 (the skin: aspect-ratio 16/9). The preview
+// iframe renders the slide at its NATURAL landscape box (SLIDE_W×SLIDE_H) and
+// the whole document is scaled to whatever width the rail gives us — measured,
+// never hardcoded. The old code pinned THUMB_W=200 while the rail (w-56 minus
+// its padding + the number column) is only ~176px wide, so the 200px iframe was
+// CLIPPED on the right by its overflow-hidden parent and read as a squished,
+// portrait-ish strip. Now the scale is derived from the real container width so
+// the 16:9 preview always fits edge-to-edge, undistorted.
 const SLIDE_W = 992; // the slide's max width (62rem) — its natural landscape box
 const SLIDE_H = Math.round((SLIDE_W * 9) / 16); // 16:9 → 558
-const THUMB_W = 200; // the rail width (w-56 minus padding)
-const SCALE = THUMB_W / SLIDE_W;
-const THUMB_H = Math.round(SLIDE_H * SCALE);
+const ASPECT = SLIDE_H / SLIDE_W; // 0.5625
 
 interface SlidePreview {
   index: number;
   arrange: string | null;
   title: string;
-  /** The full mini-document for this slide's preview iframe (srcDoc). */
+  /** The full mini-document for this slide's preview iframe (srcDoc). The
+   *  preview renders at the slide's NATURAL box; the parent scales it to fit. */
   doc: string;
 }
 
 /** Project the artifact once, then slice it into per-slide preview documents.
  *  Each preview doc = the artifact's <head> (styles) + one slide's <body>
- *  markup, wrapped so a scaled iframe renders it like the real slide. */
+ *  markup at the slide's natural box; the card scales the iframe to fit its
+ *  measured width (so a preview is never clipped or distorted). */
 async function buildSlidePreviews(html: string, artifactPath: string): Promise<SlidePreview[]> {
   if (typeof window === 'undefined' || !html) return [];
   // Project citations to displayable content (no pointer/edit runtime — these
@@ -65,19 +69,15 @@ async function buildSlidePreviews(html: string, artifactPath: string): Promise<S
   const slides = Array.from(doc.querySelectorAll('section.slide'));
   return slides.map((slide, index) => {
     const heading = slide.querySelector('h1, h2, h3, .kicker');
-    // Render the slide in a fixed landscape box, then scale the whole doc down.
-    // The frame IS the slide's natural box; the slide's own aspect-ratio 16/9
-    // keeps it landscape. margin:0 override neutralizes the skin's centering
-    // margin so the preview fills the thumbnail edge-to-edge.
-    const body = `<div class="yarnnn-thumb-frame">${slide.outerHTML}</div>`;
+    // Render the slide at its natural landscape box; margin:0 override
+    // neutralizes the skin's centering margin so the preview fills edge-to-edge.
+    const body = slide.outerHTML;
     const previewDoc =
       `<!doctype html><html><head>${headStyles}` +
       `<style>` +
-      `html,body{margin:0;padding:0;background:#fff;overflow:hidden;}` +
-      `.yarnnn-thumb-frame{width:${SLIDE_W}px;height:${SLIDE_H}px;` +
-      `transform:scale(${SCALE});transform-origin:top left;}` +
-      `.yarnnn-thumb-frame .slide{width:${SLIDE_W}px;height:${SLIDE_H}px;` +
-      `aspect-ratio:auto;margin:0;box-shadow:none;}` +
+      `html,body{margin:0;padding:0;background:#fff;overflow:hidden;width:${SLIDE_W}px;height:${SLIDE_H}px;}` +
+      `.slide{width:${SLIDE_W}px !important;height:${SLIDE_H}px !important;` +
+      `aspect-ratio:auto !important;margin:0 !important;box-shadow:none !important;}` +
       `</style></head><body>${body}</body></html>`;
     return {
       index,
@@ -86,6 +86,48 @@ async function buildSlidePreviews(html: string, artifactPath: string): Promise<S
       doc: previewDoc,
     };
   });
+}
+
+/** A single slide preview card: measures its own width and scales the iframe
+ *  (rendered at the slide's natural 992px box) down to fit, so the 16:9 preview
+ *  is always undistorted and never clipped. */
+function SlideThumb({ doc, index }: { doc: string; index: number }) {
+  const boxRef = useRef<HTMLSpanElement>(null);
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return;
+    const measure = () => setW(box.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, []);
+  const scale = w > 0 ? w / SLIDE_W : 0;
+  return (
+    <span
+      ref={boxRef}
+      className="relative block w-full overflow-hidden rounded-sm border border-border/60 bg-white"
+      style={{ height: w > 0 ? Math.round(w * ASPECT) : undefined, aspectRatio: w > 0 ? undefined : '16 / 9' }}
+    >
+      {scale > 0 && (
+        <iframe
+          title={`Slide ${index + 1}`}
+          srcDoc={doc}
+          sandbox=""
+          tabIndex={-1}
+          scrolling="no"
+          className="pointer-events-none absolute left-0 top-0 border-0"
+          style={{
+            width: SLIDE_W,
+            height: SLIDE_H,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+          }}
+        />
+      )}
+    </span>
+  );
 }
 
 /** Extract h1/h2 outline from source html (document/article rail). */
@@ -113,6 +155,9 @@ interface StudioNavigatorProps {
   selectedSlide: number | null;
   /** Select a slide by index (deck) — anchors the toolbar's Arrange ops. */
   onSelectSlide: (index: number) => void;
+  /** Reorder a slide by dragging it in the strip (PowerPoint) — move the slide
+   *  at `from` to sit at `to` in document order. One mechanical revision. */
+  onReorderSlide?: (from: number, to: number) => void;
   /** ADR-455: select a heading by block id (document/article outline) —
    *  selects the heading block AND scrolls the canvas to it (deck parity). */
   onSelectHeading?: (blockId: string) => void;
@@ -124,9 +169,15 @@ export function StudioNavigator({
   artifactPath,
   selectedSlide,
   onSelectSlide,
+  onReorderSlide,
   onSelectHeading,
 }: StudioNavigatorProps) {
   const [previews, setPreviews] = useState<SlidePreview[] | null>(null);
+  // Drag-to-reorder (PowerPoint): the index being dragged, and the gap the drop
+  // would land in (0..N — a drop BEFORE slide `dropAt`, or after the last).
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropAt, setDropAt] = useState<number | null>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     if (layout !== 'deck') {
@@ -142,50 +193,113 @@ export function StudioNavigator({
     };
   }, [layout, html, artifactPath]);
 
+  // Which gap does the pointer sit over? Walk the rendered cards, compare the
+  // pointer-Y to each card's vertical midpoint — the first card whose midpoint
+  // is below the pointer is the insertion point (drop BEFORE it); past the last
+  // card, drop at the end (N).
+  const gapAtPointer = useCallback((clientY: number): number => {
+    const items = listRef.current?.querySelectorAll('[data-slide-card]');
+    if (!items || !items.length) return 0;
+    for (let i = 0; i < items.length; i++) {
+      const r = items[i].getBoundingClientRect();
+      if (clientY < r.top + r.height / 2) return i;
+    }
+    return items.length;
+  }, []);
+
+  const onDragMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (dragIndex == null) return;
+      setDropAt(gapAtPointer(e.clientY));
+    },
+    [dragIndex, gapAtPointer],
+  );
+
+  const endDrag = useCallback(() => {
+    if (dragIndex != null && dropAt != null && onReorderSlide) {
+      // The drop gap is an index in the ORIGINAL order; landing after our own
+      // slot is a no-op (from → from or from → from+1 both mean "stay put").
+      const to = dropAt > dragIndex ? dropAt - 1 : dropAt;
+      if (to !== dragIndex) onReorderSlide(dragIndex, to);
+    }
+    setDragIndex(null);
+    setDropAt(null);
+  }, [dragIndex, dropAt, onReorderSlide]);
+
   if (layout === 'deck') {
     return (
       <div className="flex h-full flex-col overflow-y-auto p-2">
         <p className="px-1 pb-2 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           Slides
         </p>
-        <ul className="space-y-2">
+        <ul
+          ref={listRef}
+          className="relative space-y-2"
+          onPointerMove={dragIndex != null ? onDragMove : undefined}
+          onPointerUp={dragIndex != null ? endDrag : undefined}
+          onPointerCancel={dragIndex != null ? endDrag : undefined}
+        >
           {(previews ?? []).map((s) => (
-            <li key={s.index}>
-              <button
-                type="button"
+            <li key={s.index} data-slide-card className="relative">
+              {/* The drop-line: a prediction of where the dragged slide will
+                  land (above this card when the gap === this index). */}
+              {dragIndex != null && dropAt === s.index && (
+                <span className="pointer-events-none absolute -top-1 left-0 right-0 z-10 h-0.5 rounded bg-indigo-500" />
+              )}
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => onSelectSlide(s.index)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectSlide(s.index);
+                  }
+                }}
                 title={s.title}
-                className={`block w-full rounded-md border text-left transition-colors ${
+                className={`block w-full cursor-pointer rounded-md border text-left transition-colors ${
+                  dragIndex === s.index ? 'opacity-40' : ''
+                } ${
                   selectedSlide === s.index
                     ? 'border-indigo-400 ring-1 ring-indigo-400'
                     : 'border-border hover:border-foreground/30'
                 }`}
               >
                 <div className="flex items-stretch gap-1.5 p-1">
-                  <span className="mt-0.5 w-3 shrink-0 text-right text-[10px] font-medium text-muted-foreground">
+                  {/* The grip: press to drag-reorder (PowerPoint). The number
+                      doubles as the grab handle so the strip stays compact. */}
+                  <span
+                    onPointerDown={(e) => {
+                      if (!onReorderSlide) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+                      setDragIndex(s.index);
+                      setDropAt(s.index);
+                    }}
+                    title="Drag to reorder"
+                    className={`mt-0.5 w-3 shrink-0 select-none text-right text-[10px] font-medium text-muted-foreground ${
+                      onReorderSlide ? 'cursor-grab active:cursor-grabbing' : ''
+                    }`}
+                  >
                     {s.index + 1}
                   </span>
-                  <span
-                    className="relative block flex-1 overflow-hidden rounded-sm border border-border/60 bg-white"
-                    style={{ height: THUMB_H }}
-                  >
-                    <iframe
-                      title={`Slide ${s.index + 1}`}
-                      srcDoc={s.doc}
-                      sandbox=""
-                      tabIndex={-1}
-                      scrolling="no"
-                      className="pointer-events-none absolute left-0 top-0 border-0"
-                      style={{ width: THUMB_W, height: THUMB_H }}
-                    />
+                  <span className="min-w-0 flex-1">
+                    <SlideThumb doc={s.doc} index={s.index} />
                   </span>
                 </div>
                 <span className="block truncate px-1.5 pb-1 text-[10px] text-muted-foreground">
                   {s.title}
                 </span>
-              </button>
+              </div>
             </li>
           ))}
+          {/* The trailing drop-line — a drop AFTER the last slide. */}
+          {dragIndex != null && dropAt === (previews?.length ?? 0) && (previews?.length ?? 0) > 0 && (
+            <li className="pointer-events-none relative h-0">
+              <span className="absolute -top-1 left-0 right-0 h-0.5 rounded bg-indigo-500" />
+            </li>
+          )}
           {previews === null && (
             <li className="px-1 text-[11px] text-muted-foreground">Loading previews…</li>
           )}

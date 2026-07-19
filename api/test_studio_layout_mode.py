@@ -52,7 +52,13 @@ def run() -> bool:
     surface = (web / "components/studio/StudioSurface.tsx").read_text()
     toolbar = (web / "components/studio/StudioToolbar.tsx").read_text()
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
+    ops = (web / "components/studio/artifactOps.ts").read_text()
     routes = (root / "api/routes/studio.py").read_text()
+
+    def _fn(src: str, name: str) -> str:
+        """The body of `export function <name>(` up to the next top-level close."""
+        i = src.find(f"export function {name}(")
+        return src[i : src.find("\n}", i)] if i >= 0 else ""
 
     # ── 1. the kernel names the seam ────────────────────────────────────────
     _check("the mode vocabulary is exactly (flow, paged)", STUDIO_LAYOUT_MODES == ("flow", "paged"))
@@ -97,6 +103,40 @@ def run() -> bool:
     _check(
         "the nav default derives from mode, not from template === 'deck'",
         "setNavCollapsed(!isPaged);" in surface and "template !== 'deck'" not in surface,
+    )
+
+    # ── 2b. the slide thumbnail is RESPONSIVE (fixed 2026-07-20) ─────────────
+    # The old preview pinned THUMB_W=200 while the rail (w-56 minus its padding +
+    # the number column) is only ~176px — so the 200px iframe was CLIPPED on the
+    # right by its overflow-hidden parent and read as a squished portrait strip.
+    # The thumbnail now MEASURES its container and scales the natural 992px slide
+    # to fit, so the 16:9 preview is undistorted and never clipped.
+    navigator = (web / "components/studio/StudioNavigator.tsx").read_text()
+    _check(
+        "the thumbnail measures its own width (ResizeObserver), no hardcoded THUMB_W",
+        "new ResizeObserver(measure)" in navigator and "const THUMB_W = 200" not in navigator,
+    )
+    _check(
+        "the preview scales the natural slide box to the measured width",
+        "w / SLIDE_W" in navigator and "transform: `scale(${scale})`" in navigator,
+    )
+
+    # ── 2c. drag-to-reorder in the strip (PowerPoint) ───────────────────────
+    _check(
+        "the navigator drags a slide to a new position (onReorderSlide + drop-line)",
+        "onReorderSlide" in navigator
+        and "setDragIndex" in navigator
+        and "bg-indigo-500" in navigator,  # the drop-line prediction
+    )
+    _check(
+        "the reorder rides the ONE write door (applyOp → movePageTo)",
+        "movePageTo(html, from, to)" in surface and "reorderSlideFromNavigator" in surface,
+    )
+    _check(
+        "movePageTo moves the slide NODE intact and no-ops on same/out-of-bounds",
+        "export function movePageTo(html: string, from: number, to: number)" in ops
+        and "from === to" in _fn(ops, "movePageTo")
+        and "insertAdjacentElement('afterend', moving)" in _fn(ops, "movePageTo"),
     )
     _check(
         "New ‹noun› is PAGED-only (flow has no page unit to offer)",

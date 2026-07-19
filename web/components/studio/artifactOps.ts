@@ -746,6 +746,28 @@ export function movePage(html: string, anchor: OpAnchor, dir: 'up' | 'down'): Op
   return { html: serialize(doc), landedId: page.getAttribute('data-arrange') };
 }
 
+/** Move the slide at `from` to sit at position `to` in document order — the
+ *  navigator's drag-to-reorder (PowerPoint). Indices are into the deck's
+ *  `section.slide` set (the same index space the navigator + selection use).
+ *  Moves the whole slide node INTACT (content preserved); a no-op when the
+ *  target equals the source. The reflow is by NODE, so ids/blocks are untouched. */
+export function movePageTo(html: string, from: number, to: number): OpResult | null {
+  const doc = parse(html);
+  const slides = Array.from(doc.querySelectorAll('section.slide'));
+  if (from < 0 || from >= slides.length || to < 0 || to >= slides.length || from === to) {
+    return null;
+  }
+  const moving = slides[from];
+  const ref = slides[to];
+  if (!moving.parentElement || !ref.parentElement) return null;
+  // Moving DOWN (to > from): land after the target. Moving UP: land before it.
+  // Because `to` names the slide currently at the destination index, "after"
+  // when descending and "before" when ascending places `moving` exactly at `to`.
+  if (to > from) ref.insertAdjacentElement('afterend', moving);
+  else ref.insertAdjacentElement('beforebegin', moving);
+  return { html: serialize(doc), landedId: moving.getAttribute('data-arrange') };
+}
+
 /** Apply a design system's composed, MARKED skin element (ADR-449 via the
  *  Design tab — the FE mirror of apply_skin_to_html): replace the existing
  *  data-skin element, else append LAST in head (cascade order makes the

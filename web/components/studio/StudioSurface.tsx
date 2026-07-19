@@ -63,6 +63,7 @@ import {
   moveBlock,
   moveBlockTo,
   movePage,
+  movePageTo,
   splitBlock,
   splitBlockAndInsert,
   removePageBackground,
@@ -1303,6 +1304,20 @@ export function StudioSurface() {
     setMobilePane('canvas'); // on mobile, jump to the canvas to see the slide
   }, []);
 
+  // Drag-to-reorder a slide in the navigator (PowerPoint). One mechanical
+  // revision through the same write door as every op; the selection follows the
+  // slide to its new index so the Design tab stays anchored to it.
+  const reorderSlideFromNavigator = useCallback(
+    (from: number, to: number) => {
+      void applyOp((html) => movePageTo(html, from, to), `Studio: move slide ${from + 1} → ${to + 1}`);
+      setSelection((sel) =>
+        sel?.slideIndex === from ? { ...sel, slideIndex: to } : sel,
+      );
+      setScrollToSlide((s) => ({ index: to, nonce: (s?.nonce ?? 0) + 1 }));
+    },
+    [applyOp],
+  );
+
   // ADR-455: the outline navigates — selecting a heading selects its BLOCK
   // (anchoring the Design tab) and scrolls the canvas to it (deck parity).
   const [scrollToBlock, setScrollToBlock] = useState<{ blockId: string; nonce: number } | null>(
@@ -1459,6 +1474,7 @@ export function StudioSurface() {
               artifactPath={artifactPath}
               selectedSlide={selection?.slideIndex ?? null}
               onSelectSlide={selectSlideFromNavigator}
+              onReorderSlide={reorderSlideFromNavigator}
               onSelectHeading={selectHeadingFromNavigator}
             />
           </div>
