@@ -2152,7 +2152,18 @@ function StudioStart({
               goes.
             </p>
           </div>
-          <div className="shrink-0">
+          {/* The New / Open pair (the File-menu convention). Open browses an
+              existing artifact; it belongs beside New, not below the Design
+              systems section where it read as "…else besides design systems". */}
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setOpenPickerOn(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60"
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              Open
+            </button>
             <StudioNewMenu
               templates={templates}
               learnEnabled={laneEnv?.enabled !== false}
@@ -2329,19 +2340,9 @@ function StudioStart({
           onDerive={deriveNewSystem}
         />
 
-        {/* Open… — the OS gesture. The member browses their work; they never
-            type a raw workspace path (the same refusal ADR-400 Q2 made for
-            Move: "move to shouldn't be a URL path input"). */}
-        <div className="pt-1">
-          <button
-            type="button"
-            onClick={() => setOpenPickerOn(true)}
-            className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-          >
-            <FolderOpen className="h-3.5 w-3.5" />
-            Open something else…
-          </button>
-        </div>
+        {/* Open… is the OS gesture (browse an existing artifact, never a raw
+            path — ADR-400 Q2). It now lives in the header's New/Open pair, not
+            here below the Design systems section. */}
 
         {error && <p className="text-xs text-red-500">{error}</p>}
       </div>
