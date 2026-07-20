@@ -166,7 +166,7 @@ async def process_document(
     file_type: str,
     filename: str,
     file_size: int,
-    storage_path: str,
+    storage_path: Optional[str],
     user_id: str,
     db_client,
 ) -> dict:
@@ -176,10 +176,11 @@ async def process_document(
     DP34 / DP32: an uploaded file enters as an IMMUTABLE attributed RAW
     observation, and the searchable text is a SEPARATE derived act that cites
     the raw. Concretely:
-      1. Land the RAW blob at inbound/uploads/{principal}/{slug}.{ext} —
-         content EMPTY, content_url = the stable blob endpoint, the real MIME.
-         The original bytes are the substrate object (via reference), never a
-         derived .md masquerading as the upload.
+      1. Land the RAW as a VERSIONED BINARY revision (ADR-427 Phase 3) at
+         inbound/uploads/{principal}/{slug}.{ext} — bytes in the CAS behind
+         the storage seam, type derived (D5), serving minted at read (D4).
+         (`storage_path` is a legacy parameter; the un-versioned bucket copy
+         is retired — pass None.)
       2. Derive the TEXT PROJECTION inline (Piece B) via the ExtractTextFromBlob
          primitive — a co-located `.extracted.md` sibling carrying
          `derived_from: <raw path>`, embedded for search. Model-consumable
@@ -198,10 +199,16 @@ async def process_document(
     #    a raw revision for something with no derivable projection). The SAME
     #    extraction the derive primitive runs — computed once here for the
     #    fast-fail, handed to the primitive so it isn't re-run.
-    is_image = file_type.lower().strip(".") in IMAGE_TYPES
-    if is_image:
-        # Images carry no text projection — the raw IS the substance; a
-        # vision model reads it via a signed URL at turn time (Phase A).
+    from services.content_types import conforms_to, derive_content_type
+
+    mime = derive_content_type(filename, file_content[:64])
+    is_media = any(
+        conforms_to(mime, b) for b in ("public.image", "public.movie", "public.audio")
+    )
+    if is_media:
+        # Media carries no text projection — the raw IS the substance; a
+        # vision model reads an image via a minted URL at turn time (Phase A);
+        # movie/audio are retained-not-yet-consumable (DP34).
         text, unit_count = "", 0
     else:
         text, unit_count = await extract_text(file_content, file_type)
@@ -209,26 +216,23 @@ async def process_document(
             return {"success": False, "error": "No text could be extracted from document"}
 
     slug = _filename_to_slug(filename)
-    # 2. RETAIN — land the raw blob (Piece A). principal defaults to "operator"
-    #    (ADR-373: the uploading principal; N=1 today).
+    # 2. RETAIN — land the raw as a VERSIONED BINARY revision (ADR-427 Phase 3):
+    #    the bytes enter the content-addressed store behind the storage seam —
+    #    attributed, parent-pointered, revertible; type derived at the door
+    #    (D5); serving minted at read (D4). No un-versioned bucket copy, no
+    #    stored content_url. principal defaults to "operator" (ADR-373).
     principal = "operator"
     raw_path = _unique_raw_path(resolve_upload_raw_path(principal, slug, file_type), db_client, user_id)
-    content_url = blob_content_url(storage_path)
     try:
         from services.authored_substrate import write_revision
         write_revision(
             db_client,
             user_id=user_id,
             path=raw_path,
-            # Raw blob: no inline text body — the bytes live in storage, reached
-            # via content_url. A one-line caption keeps the file legible when
-            # opened before its projection renders.
-            content=f"Uploaded file: {filename}",
+            content_bytes=file_content,
             authored_by=principal,
             message=f"upload {filename}",
             lifecycle="active",
-            content_url=content_url,
-            content_type=upload_mime(file_type),
             # ADR-448 (closing the ADR-423 D3 gap): an inbound/ write is an
             # observation — the arrival badge on the ledger, not the path.
             revision_kind="observation",
@@ -237,10 +241,11 @@ async def process_document(
         logger.error(f"[DOCUMENTS] Failed to write raw upload {raw_path}: {e}")
         return {"success": False, "error": f"Failed to write workspace file: {e}"}
 
-    if is_image:
+    if is_media:
         # No projection to derive — the raw is retained + attributed (DP32);
-        # consumption is visual (vision content parts / the blob endpoint).
-        logger.info(f"[DOCUMENTS] Uploaded {raw_path} (raw image, no projection)")
+        # consumption is visual (vision content parts / a minted URL) or
+        # retained-not-yet-consumable for movie/audio (DP34).
+        logger.info(f"[DOCUMENTS] Uploaded {raw_path} (raw media {mime}, no projection)")
         return {
             "success": True,
             "workspace_path": raw_path,

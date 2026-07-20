@@ -112,29 +112,52 @@ class DownloadResponse(BaseModel):
 # UPLOAD (ADR-249 persistent path)
 # =============================================================================
 
-ALLOWED_TYPES = {
+# ADR-427 Phase 3: the intake gate is a CONFORMANCE question (D5), not a
+# stored-MIME allowlist. The type is DERIVED from magic bytes + extension
+# (services/content_types.py — the single source), and acceptance asks "does
+# the derived type conform to a base yarnnn declares?" — public.image /
+# public.movie / public.audio / public.text, plus the concrete document set.
+_DOC_MIMES = {
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+_MEDIA_BASES = ("public.image", "public.movie", "public.audio")
+
+MAX_FILE_SIZE = 25 * 1024 * 1024        # 25MB — documents/images
+MAX_MEDIA_SIZE = 100 * 1024 * 1024      # 100MB — movie/audio (versioned binary)
+                                        # NOTE: the effective ceiling is ALSO
+                                        # gated by the Supabase project's
+                                        # global upload limit — infra config a
+                                        # gate cannot see; verify in dashboard.
+
+# Extension resolution for the EXTRACTOR (which parser reads the bytes) —
+# derived-type-first, filename fallback. Not a gate.
+_MIME_EXTS = {
     "application/pdf": "pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
     "text/plain": "txt",
     "text/markdown": "md",
-    # Phase-A attachments: images ride the same raw lane, no projection
-    # (services/documents.py IMAGE_TYPES — vision models read via signed URL).
-    "image/png": "png",
-    "image/jpeg": "jpg",
-    "image/webp": "webp",
-    "image/gif": "gif",
+    "text/csv": "csv",
+    "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif",
+    "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm",
+    "audio/mpeg": "mp3", "audio/wav": "wav", "audio/mp4": "m4a", "audio/ogg": "ogg",
 }
 
-MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB per file
-_ALLOWED_EXTS = ("pdf", "docx", "txt", "md", "png", "jpg", "jpeg", "webp", "gif")
 
+def _intake_verdict(filename: str, head: bytes) -> tuple[Optional[str], Optional[str], bool]:
+    """The conformance-DAG intake check (ADR-427 D5 / Phase 3).
 
-def _resolve_file_type(content_type: str, filename: str) -> Optional[str]:
-    """Resolve a file to its processing type, or None if unsupported."""
-    if content_type in ALLOWED_TYPES:
-        return ALLOWED_TYPES[content_type]
-    ext = (filename or "").rsplit(".", 1)[-1].lower()
-    return ext if ext in _ALLOWED_EXTS else None
+    Returns (mime, file_type, is_media) — mime None means rejected."""
+    from services.content_types import conforms_to, derive_content_type
+
+    mime = derive_content_type(filename, head)
+    is_media = any(conforms_to(mime, b) for b in _MEDIA_BASES)
+    accepted = is_media or mime in _DOC_MIMES or conforms_to(mime, "public.text")
+    if not accepted:
+        return None, None, False
+    ext = (filename or "").rsplit(".", 1)[-1].lower() if "." in (filename or "") else ""
+    file_type = _MIME_EXTS.get(mime) or ext or "bin"
+    return mime, file_type, is_media
 
 
 async def _embed_projection_deferred(user_id: str, projection_path: str) -> None:
@@ -187,48 +210,36 @@ async def _process_single_upload(
     def _fail(error: str) -> tuple[UploadResultItem, Optional[str]]:
         return UploadResultItem(filename=filename, success=False, error=error), None
 
-    file_type = _resolve_file_type(content_type, filename)
-    if file_type is None:
-        return _fail(f"Unsupported file type. Allowed: {', '.join(t.upper() for t in _ALLOWED_EXTS)}")
-    if len(content) > MAX_FILE_SIZE:
-        return _fail(f"File too large. Max {MAX_FILE_SIZE // (1024*1024)}MB")
+    # ADR-427 Phase 3: derive the type from the bytes + name (D5) and gate by
+    # conformance, never by the caller-declared content_type.
+    mime, file_type, is_media = _intake_verdict(filename, content[:64])
+    if mime is None:
+        return _fail("Unsupported file type — images, video, audio, PDF, DOCX, and text conform")
+    from services.content_types import conforms_to
+    cap = MAX_MEDIA_SIZE if conforms_to(mime, "public.movie") or conforms_to(mime, "public.audio") else MAX_FILE_SIZE
+    if len(content) > cap:
+        return _fail(f"File too large. Max {cap // (1024*1024)}MB")
     if len(content) < 10:
         return _fail("File is empty or too small")
 
     import uuid
     document_id = str(uuid.uuid4())
-    storage_path = f"{user_id}/{document_id}/original.{file_type}"
 
-    # Store binary in Supabase Storage
-    try:
-        storage_result = service.storage.from_("documents").upload(
-            path=storage_path,
-            file=content,
-            file_options={"content-type": content_type or f"application/{file_type}"},
-        )
-        if hasattr(storage_result, "error") and storage_result.error:
-            return _fail(f"Storage error: {storage_result.error}")
-    except Exception as e:  # noqa: BLE001 — per-file isolation, batch must not abort
-        logger.error(f"[DOCUMENTS] Storage upload error for {filename}: {e}", exc_info=True)
-        return _fail(f"Failed to upload file: {e}")
-
-    # Retain the raw blob + derive the text projection (ADR-395)
+    # ADR-427 Phase 3: the bytes land as a VERSIONED binary revision in the
+    # CAS (workspace-cas bucket behind the storage seam) — attributed,
+    # parent-pointered, revertible. The un-versioned documents-bucket copy is
+    # retired for new uploads; legacy rows keep serving via /documents/blob.
     result = await process_document(
         document_id=document_id,
         file_content=content,
         file_type=file_type,
         filename=filename,
         file_size=len(content),
-        storage_path=storage_path,
+        storage_path=None,
         user_id=user_id,
         db_client=service,
     )
     if not result.get("success"):
-        # Clean up storage on processing failure
-        try:
-            service.storage.from_("documents").remove([storage_path])
-        except Exception:
-            pass
         return _fail(result.get("error", "Processing failed"))
 
     # Deferred embed: hand the projection path up to the route to schedule as a
@@ -264,11 +275,14 @@ def _expand_zip(content: bytes) -> List[tuple]:
                 # Skip hidden / macOS resource-fork / system entries
                 if not base or base.startswith(".") or name.startswith("__MACOSX/"):
                     continue
+                # ADR-427 Phase 3: entries face the same conformance verdict
+                # as direct uploads (extension-only here — bytes are checked
+                # again in _process_single_upload after read).
                 ext = base.rsplit(".", 1)[-1].lower() if "." in base else ""
-                if ext not in _ALLOWED_EXTS:
+                if ext not in _MIME_EXTS.values():
                     continue
                 # Guard against zip-bomb single entries before reading.
-                if info.file_size > MAX_FILE_SIZE:
+                if info.file_size > MAX_MEDIA_SIZE:
                     continue
                 try:
                     out.append((base, zf.read(info)))
@@ -545,6 +559,28 @@ async def download_document(auth: UserClient, document_path: str):
 from services.workspace_paths import operator_can_organize
 
 
+def _content_form_for_head(auth: UserClient, row: dict) -> dict:
+    """The write_revision content form that preserves a file's head blob
+    verbatim (ADR-427 Phase 2): {'content_ref': <head blob sha>} when the
+    chain exists (text and binary both round-trip), falling back to the text
+    denorm re-write for chainless legacy rows."""
+    head_id = row.get("head_version_id")
+    if head_id:
+        try:
+            head = (
+                auth.client.table("workspace_file_versions")
+                .select("blob_sha")
+                .eq("id", head_id)
+                .limit(1)
+                .execute()
+            ).data
+            if head and head[0].get("blob_sha"):
+                return {"content_ref": head[0]["blob_sha"]}
+        except Exception as exc:  # noqa: BLE001 — fall back to the denorm
+            logger.warning("[DOCUMENTS] head blob lookup failed: %s", exc)
+    return {"content": row.get("content", "") or ""}
+
+
 @router.delete("/documents/{document_path:path}")
 async def delete_document(auth: UserClient, document_path: str):
     """Move a workspace file to Trash (the operator-facing 'Delete' verb).
@@ -572,7 +608,7 @@ async def delete_document(auth: UserClient, document_path: str):
         )
 
     result = auth.client.table("workspace_files") \
-        .select("content") \
+        .select("content, head_version_id") \
         .eq(*substrate_scope_filter(auth.user_id)) \
         .eq("path", document_path) \
         .execute()
@@ -580,19 +616,19 @@ async def delete_document(auth: UserClient, document_path: str):
     if not result.data:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    content = result.data[0].get("content", "") or ""
-
     # Archive = new revision, lifecycle='archived', operator-attributed.
-    # Retains the row + revision chain (ADR-209); storage binary untouched
-    # so an un-archive can fully restore. Content preserved verbatim.
+    # ADR-427 Phase 2: re-reference the head's BLOB (content_ref) instead of
+    # re-writing the text denorm — a binary file's denorm is '' and re-writing
+    # it would put an empty TEXT revision at the head of a binary chain.
+    # Text files behave byte-identically through content_ref.
     service = get_service_client()
     write_revision(
         db_client=service,
         user_id=auth.user_id,
         path=document_path,
-        content=content,
+        **_content_form_for_head(auth, result.data[0]),
         authored_by="operator",
-            author_identity_uuid=auth.user_id,  # ADR-410/412 viewer pass — which human
+        author_identity_uuid=auth.user_id,  # ADR-410/412 viewer pass — which human
         message="Archived by operator (removed from active workspace)",
         lifecycle="archived",
     )
@@ -682,7 +718,7 @@ async def restore_document(body: RestoreRequest, auth: UserClient):
         )
 
     result = auth.client.table("workspace_files") \
-        .select("content, lifecycle") \
+        .select("content, lifecycle, head_version_id") \
         .eq(*substrate_scope_filter(auth.user_id)) \
         .eq("path", path) \
         .execute()
@@ -693,13 +729,15 @@ async def restore_document(body: RestoreRequest, auth: UserClient):
         raise HTTPException(status_code=409, detail="File is not in the trash")
 
     service = get_service_client()
+    # ADR-427 Phase 2: content_ref preserves the head blob (text OR binary)
+    # verbatim — see delete_document.
     write_revision(
         db_client=service,
         user_id=auth.user_id,
         path=path,
-        content=row.get("content", "") or "",
+        **_content_form_for_head(auth, row),
         authored_by="operator",
-            author_identity_uuid=auth.user_id,  # ADR-410/412 viewer pass — which human
+        author_identity_uuid=auth.user_id,  # ADR-410/412 viewer pass — which human
         message="Restored from trash",
         lifecycle="active",
     )

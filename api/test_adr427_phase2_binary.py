@@ -82,10 +82,12 @@ def cleanup(client) -> None:
     assertions are deterministic. Blobs are CAS — left in place (dedup makes
     re-runs re-reference them)."""
     for p in (BIN_PATH, TXT_PATH, DEL_PATH):
-        client.table("workspace_file_versions").delete().eq(
+        # Live row first — workspace_files.head_version_id FK-references the
+        # version rows, so the reverse order violates the constraint.
+        client.table("workspace_files").delete().eq(
             "user_id", TEST_USER_ID
         ).eq("path", p).execute()
-        client.table("workspace_files").delete().eq(
+        client.table("workspace_file_versions").delete().eq(
             "user_id", TEST_USER_ID
         ).eq("path", p).execute()
 

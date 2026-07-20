@@ -611,6 +611,7 @@ def write_revision(
     path: str,
     content: Optional[str] = None,
     content_bytes: Optional[bytes] = None,
+    content_ref: Optional[str] = None,
     authored_by: str,
     message: str,
     author_identity_uuid: Optional[str] = None,
@@ -701,11 +702,49 @@ def write_revision(
     # is the binary lane: bytes go through the seam's CAS, the TEXT denorm
     # stays '' (Category-2 cache, text-only by contract — D4), the type is
     # DERIVED from the bytes (D5), and no content_url is ever stored (D4).
+    # `content_ref` (ADR-427 §4c) re-references an EXISTING blob by sha —
+    # the revert/archive/restore form that must not round-trip bytes: an
+    # inline-text blob resolves to the text lane; an external blob to the
+    # binary lane, no upload.
+    supplied = [v is not None for v in (content, content_bytes, content_ref)]
+    if sum(supplied) != 1:
+        raise ValueError(
+            "pass exactly one of content (text), content_bytes (binary), "
+            "or content_ref (existing blob sha)"
+        )
     is_binary = content_bytes is not None
-    if is_binary and content is not None:
-        raise ValueError("pass content OR content_bytes, not both")
-    if not is_binary and content is None:
-        raise ValueError("content (text) or content_bytes (binary) is required")
+    if content_bytes is not None:
+        # Text-shaped bytes normalize to the TEXT lane (ADR-427 D1: text is
+        # the utf-8 case of the bytes-addressed CAS). An uploaded .md/.txt
+        # arriving as bytes lands exactly like a text write — inline denorm,
+        # FTS, the derived_from lift — instead of a binary marker whose
+        # denorm reads as an empty file.
+        try:
+            decoded = content_bytes.decode("utf-8")
+            if "\x00" not in decoded:
+                content = decoded
+                content_bytes = None
+                is_binary = False
+        except UnicodeDecodeError:
+            pass
+    ref_sha: Optional[str] = None
+    if content_ref is not None:
+        blob_row = (
+            db_client.table("workspace_blobs")
+            .select("content, storage_key")
+            .eq("sha256", content_ref)
+            .limit(1)
+            .execute()
+        ).data
+        if not blob_row:
+            raise ValueError(f"content_ref blob not found: {content_ref}")
+        if blob_row[0].get("storage_key"):
+            is_binary = True
+            ref_sha = content_ref
+        else:
+            # Inline text blob — continue down the text lane verbatim (the
+            # derived_from lift and denorm behave exactly as a content= write).
+            content = blob_row[0].get("content") or ""
 
     # ADR-373: key the write to the workspace. The caller may pass workspace_id
     # explicitly (e.g. resolved once on AuthenticatedClient); if not, resolve it
@@ -736,10 +775,15 @@ def write_revision(
     if is_binary:
         # The seam routes placement (inline vs object store) and returns the
         # bytes-addressed sha (ADR-427 D1). Type is derived, never trusted
-        # (D5); the capability is minted at read, never stored (D4).
-        sha = get_storage_backend(db_client).put_blob(content_bytes)
+        # (D5); the capability is minted at read, never stored (D4). A
+        # content_ref to an external blob reuses the sha with NO upload.
+        if ref_sha is not None:
+            sha = ref_sha
+            content_type = derive_content_type(path, None)
+        else:
+            sha = get_storage_backend(db_client).put_blob(content_bytes)
+            content_type = derive_content_type(path, content_bytes[:64])
         content = ""
-        content_type = derive_content_type(path, content_bytes[:64])
         content_url = None
     else:
         sha = _sha256(content)

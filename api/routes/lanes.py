@@ -408,6 +408,45 @@ def _resolve_blob_storage_path(auth: UserClient, path: str) -> Optional[str]:
     return vals[0] if vals else None
 
 
+def _mint_cas_url_for_path(auth: UserClient, path: str) -> Optional[str]:
+    """Mint a serving URL for a CAS-backed binary file (ADR-427 Phase 3).
+
+    Resolves the file's head revision → blob sha → the seam's minted, TTL'd
+    signed URL (D4 — capability minted per-request, never stored). Returns
+    None when the path has no binary head (the caller 404s)."""
+    from services.storage_backend import get_storage_backend
+    from services.supabase import get_service_client
+    from services.workspace_context import substrate_scope_filter
+
+    try:
+        row = (
+            auth.client.table("workspace_files")
+            .select("head_version_id")
+            .eq(*substrate_scope_filter(auth.user_id))
+            .eq("path", path)
+            .limit(1)
+            .execute()
+        ).data
+        head_id = (row or [{}])[0].get("head_version_id")
+        if not head_id:
+            return None
+        head = (
+            auth.client.table("workspace_file_versions")
+            .select("blob_sha")
+            .eq("id", head_id)
+            .limit(1)
+            .execute()
+        ).data
+        if not head:
+            return None
+        return get_storage_backend(get_service_client()).mint_serving_url(
+            head[0]["blob_sha"], expires_in=3600
+        )
+    except Exception as exc:  # noqa: BLE001 — the caller surfaces a 404
+        logger.warning("[LANE] CAS mint failed for %s: %s", path, exc)
+        return None
+
+
 def _build_turn_message(
     auth: UserClient,
     content: str,
@@ -442,11 +481,14 @@ def _build_turn_message(
                     status_code=422,
                     detail=f"{LANE_MODELS.get(model, {}).get('label', model)} cannot see images — pick a vision-capable lane",
                 )
+            # Legacy raw lane: content_url → documents-bucket signed URL.
+            # ADR-427 Phase 3 lane: the image is a CAS binary revision — mint
+            # the serving URL from the head blob through the storage seam.
             storage_path = _resolve_blob_storage_path(auth, att.path)
             signed = (
                 create_signed_url_for_storage_path(get_service_client(), storage_path)
                 if storage_path
-                else None
+                else _mint_cas_url_for_path(auth, att.path)
             )
             if not signed:
                 raise HTTPException(status_code=404, detail=f"Attachment not found: {att.path}")
