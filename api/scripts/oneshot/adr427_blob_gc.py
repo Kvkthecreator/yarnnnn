@@ -42,7 +42,12 @@ if env_path.exists():
             os.environ.setdefault(k, v)
 
 SAFETY_WINDOW_HOURS = 24
-BATCH = 500
+# A sha256 is 64 chars; PostgREST puts `in_()` filters in the URL, so 500 of
+# them is ~34KB of query string and the server answers 400 "JSON could not be
+# generated" (observed 2026-07-20 on the first sweep attempt — it deleted
+# nothing and died on batch 0). 100 keeps the URL near 7KB, comfortably inside
+# the limit, at a negligible cost in round-trips.
+BATCH = 100
 
 
 def get_client():
@@ -147,7 +152,14 @@ def main() -> int:
                 print(f"  bucket remove failed (continuing, rows kept): {exc}")
                 continue
         shas = [s for s, _ in chunk]
-        client.table("workspace_blobs").delete().in_("sha256", shas).execute()
+        try:
+            client.table("workspace_blobs").delete().in_("sha256", shas).execute()
+        except Exception as exc:  # noqa: BLE001
+            # A referenced blob cannot be deleted (blob_sha FK is NO ACTION), so
+            # a failure here is transport-shaped, not a safety breach. Report the
+            # batch and keep going rather than dying mid-sweep with a traceback.
+            print(f"  batch {i//BATCH} failed ({len(shas)} shas kept): {exc}")
+            continue
         deleted += len(shas)
         print(f"  {deleted}/{len(to_delete)}")
     print(f"swept {deleted} blobs.")
