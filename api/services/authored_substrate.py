@@ -45,6 +45,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Optional
 
+from services.content_types import derive_content_type
 from services.storage_backend import get_storage_backend, sha256_bytes
 
 logger = logging.getLogger(__name__)
@@ -219,6 +220,12 @@ class Revision:
     content: Optional[str] = None  # populated when joined with workspace_blobs
     revision_kind: str = "authored"  # ADR-423: authored | observation | derivation
     derived_from: Optional[list] = None  # ADR-448: workspace paths this was made from
+    # ADR-427 Phase 2: binary awareness. is_binary=True means the bytes live in
+    # the object store (content is '' by contract); read them through the seam
+    # (get_storage_backend().open_read_stream(blob_sha)) or serve via
+    # mint_serving_url(blob_sha).
+    is_binary: bool = False
+    byte_size: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -602,7 +609,8 @@ def write_revision(
     *,
     user_id: str,
     path: str,
-    content: str,
+    content: Optional[str] = None,
+    content_bytes: Optional[bytes] = None,
     authored_by: str,
     message: str,
     author_identity_uuid: Optional[str] = None,
@@ -688,6 +696,16 @@ def write_revision(
         raise ValueError("authored_by is required and must be non-empty")
     if not message or not message.strip():
         raise ValueError("message is required and must be non-empty")
+    # ADR-427 Phase 2: exactly one content form. `content` (str, possibly "")
+    # is the text lane — every pre-Phase-2 caller, unchanged. `content_bytes`
+    # is the binary lane: bytes go through the seam's CAS, the TEXT denorm
+    # stays '' (Category-2 cache, text-only by contract — D4), the type is
+    # DERIVED from the bytes (D5), and no content_url is ever stored (D4).
+    is_binary = content_bytes is not None
+    if is_binary and content is not None:
+        raise ValueError("pass content OR content_bytes, not both")
+    if not is_binary and content is None:
+        raise ValueError("content (text) or content_bytes (binary) is required")
 
     # ADR-373: key the write to the workspace. The caller may pass workspace_id
     # explicitly (e.g. resolved once on AuthenticatedClient); if not, resolve it
@@ -709,12 +727,23 @@ def write_revision(
 
     # ADR-448: resolve the reference edge (explicit param, or lifted from the
     # content conventions) + the effective provenance-kind, once, at the door.
+    # Binary has no content conventions to lift from — only an explicit
+    # derived_from param rides (passing content="" skips the lift branches).
     derived_from, revision_kind = _resolve_derived_from(
-        path, content, derived_from, revision_kind
+        path, content or "", derived_from, revision_kind
     )
 
-    sha = _sha256(content)
-    _upsert_blob(db_client, sha, content)
+    if is_binary:
+        # The seam routes placement (inline vs object store) and returns the
+        # bytes-addressed sha (ADR-427 D1). Type is derived, never trusted
+        # (D5); the capability is minted at read, never stored (D4).
+        sha = get_storage_backend(db_client).put_blob(content_bytes)
+        content = ""
+        content_type = derive_content_type(path, content_bytes[:64])
+        content_url = None
+    else:
+        sha = _sha256(content)
+        _upsert_blob(db_client, sha, content)
 
     parent_version_id = _read_head_revision_id(db_client, user_id, path, workspace_id)
 
@@ -846,12 +875,32 @@ def delete_live_file(
     if not live:
         return None
 
-    current_content = live[0].get("content") or ""
-    sha = _sha256(current_content)
-    # The blob almost certainly exists (it backs the head revision), but
-    # upsert is idempotent and covers legacy rows that predate the chain.
-    _upsert_blob(db_client, sha, current_content)
-    parent_version_id = _read_head_revision_id(db_client, user_id, path, workspace_id)
+    # ADR-427 Phase 2: the tombstone carries the file's CURRENT blob. Reuse the
+    # head revision's blob_sha — re-hashing the TEXT denorm would point a
+    # binary file's tombstone at the empty-string blob (the denorm is '' for
+    # binary; Category-2 cache, not authoritative). Text and binary both take
+    # this path; the legacy fallback (no chain yet) hashes the denorm as before.
+    ws = _effective_ws(user_id, workspace_id)
+    head_rows = (
+        _substrate_scope(
+            db_client.table("workspace_file_versions").select("id, blob_sha"),
+            user_id,
+            ws,
+        )
+        .eq("path", path)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    ).data or []
+    if head_rows:
+        sha = head_rows[0]["blob_sha"]
+        parent_version_id = head_rows[0]["id"]
+    else:
+        current_content = live[0].get("content") or ""
+        sha = _sha256(current_content)
+        # Legacy row that predates the chain — retain its content as a blob.
+        _upsert_blob(db_client, sha, current_content)
+        parent_version_id = None
 
     tombstone_id = _insert_revision(
         db_client,
@@ -975,7 +1024,8 @@ def read_revision(
             db_client.table("workspace_file_versions").select(
                 "id, user_id, path, blob_sha, parent_version_id, "
                 "authored_by, author_identity_uuid, message, created_at, "
-                "revision_kind, derived_from, workspace_blobs(content)"
+                "revision_kind, derived_from, "
+                "workspace_blobs(content, storage_key, byte_size)"
             ),
             user_id,
             ws,
@@ -989,7 +1039,14 @@ def read_revision(
 
     row = result.data[0]
     blob = row.get("workspace_blobs") or {}
-    content = blob.get("content") if isinstance(blob, dict) else None
+    if not isinstance(blob, dict):
+        blob = {}
+    content = blob.get("content")
+    is_binary = bool(blob.get("storage_key"))
+    if is_binary:
+        # Binary revision: the TEXT join reads '' by contract; the bytes live
+        # behind the seam (ADR-427 Phase 2). Surface None, not ''.
+        content = None
 
     return Revision(
         id=row["id"],
@@ -1004,6 +1061,8 @@ def read_revision(
         content=content,
         revision_kind=row.get("revision_kind") or "authored",
         derived_from=row.get("derived_from") or None,
+        is_binary=is_binary,
+        byte_size=blob.get("byte_size"),
     )
 
 
