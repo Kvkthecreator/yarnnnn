@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.20.1] - The deck object layer: measures gain position (ADR-466 D2)
+
+- `services/studio.py`: the authoring posture's Property-tokens section gains a
+  MEASURES paragraph — blocks may carry member-authored geometry (`data-w/h`
+  with `--yw/--yh`; on a deck slide `data-x/y` with `--yx/--yy`, the positioned
+  state), and the lane must preserve those attributes + `style="--y*"`
+  declarations exactly when editing block content. Re-laying the page (an
+  arrangement change) is the act that returns a positioned block to flow.
+- Expected behavior: a lane edit to a member-positioned/resized block keeps the
+  block where the member put it; the lane never strips geometry it didn't
+  author and never "cleans up" the style custom properties.
+- Registry (served, not prompt): `STUDIO_MEASURES` += `x`/`y` (deck-only,
+  0–95%); kernel CSS v10 adds the position mechanism rule.
+
+---
+
 ## [2026.07.19.1] - The lane tool surface is ONE computation (the Scout capability bug)
 
 The base-agent hardening audit (`docs/analysis/base-agent-hardening-audit-and-discourse-2026-07-18.md`)

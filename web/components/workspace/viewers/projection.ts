@@ -354,6 +354,11 @@ const POINTER_SCRIPT = `
     // CAPTURE phase — without the ignore it would clear the selection before
     // the gutter button's own handler ever fires).
     if (t && t.closest && t.closest('.yarnnn-gutter')) return;
+    // The grips own their presses (move/resize/divider — body-appended
+    // chrome): a press that never became a gesture must NOT read as a margin
+    // click and clear the very selection the grip belongs to.
+    if (t && t.closest && (t.closest('.yarnnn-rz') || t.closest('.yarnnn-mv')
+        || t.closest('.yarnnn-coldiv'))) return;
     // ADR-456 W1: a toggle block's <summary> opens natively on the SECOND
     // click — the first click selects the block; once selected, the click
     // passes through so <details> can do its platform thing (script-free).
@@ -735,6 +740,19 @@ const EDIT_CSS = `
   border: 1px solid rgba(60,58,54,0.55); background: #fff; border-radius: 1px;
   box-shadow: 0 0 0 0.5px rgba(255,255,255,0.9);
   cursor: nwse-resize; z-index: 2147483646;
+}
+/* The move grip (ADR-466 D2) — the object chrome's second handle: shown with
+   the corner grip on a SELECTED block inside a slide frame; dragging it
+   positions the block (x/y measures). Body-appended chrome like every grip —
+   it can never leak into a commit. Its absence outside a slide is the
+   ADR-461 boundary made visible, same as the corner grip. */
+.yarnnn-mv {
+  position: absolute; display: none; align-items: center; justify-content: center;
+  width: 15px; height: 15px;
+  border: 1px solid rgba(60,58,54,0.55); background: #fff; border-radius: 3px;
+  box-shadow: 0 0 0 0.5px rgba(255,255,255,0.9);
+  color: #6b7280; font: 600 9px/1 system-ui, sans-serif; letter-spacing: -1px;
+  cursor: move; z-index: 2147483646; user-select: none;
 }
 /* The frame indicator (ADR-462 D8) — shown ONLY while resizing. A measure is
    a percent of SOMETHING, and that something was invisible: the member saw one
@@ -2073,7 +2091,7 @@ const GUTTER_SCRIPT = `
         block.style.width = pct + '%';
         showResize(block);
         // Name what the percent is OF, while it is being chosen (D8).
-        showFrame(frame, Math.round(pct));
+        showFrame(frame, Math.round(pct) + '%');
       },
     });
     return rz;
@@ -2094,14 +2112,14 @@ const GUTTER_SCRIPT = `
     if (frame.classList && frame.classList.contains('slide')) return 'slide';
     return 'frame';
   }
-  function showFrame(frame, pct) {
+  function showFrame(frame, txt) {
     if (!frameEl) {
       frameEl = document.createElement('div');
       frameEl.className = 'yarnnn-frame';
       document.body.appendChild(frameEl);
     }
     var r = frame.getBoundingClientRect();
-    frameEl.setAttribute('data-label', frameLabel(frame) + ' · ' + pct + '%');
+    frameEl.setAttribute('data-label', frameLabel(frame) + ' · ' + txt);
     frameEl.style.display = 'block';
     frameEl.style.left = (r.left + window.scrollX) + 'px';
     frameEl.style.top = (r.top + window.scrollY) + 'px';
@@ -2112,16 +2130,92 @@ const GUTTER_SCRIPT = `
     if (frameEl) frameEl.style.display = 'none';
   }
 
+  // ── The move grip (ADR-466 D2) — drag-to-position within the frame ──────
+  // bindGesture's FOURTH caller. Dragging the grip places the block at a point
+  // in its frame; the commit is x/y as PERCENTS of the frame (the parent
+  // clamps to the kernel's served bound, setPosition clamps again at the
+  // write — the two-clamp rule). Deck only: position needs the fixed stage,
+  // so the grip appears only inside a slide (a media block in a document
+  // keeps its resize grip but never a move grip).
+  var mv = null;
+  var grabDX = 0, grabDY = 0;
+
+  function positionable(block) {
+    return !!(block && block.closest && block.closest('.slide'));
+  }
+
+  function ensureMove() {
+    if (mv) return mv;
+    mv = document.createElement('div');
+    mv.className = 'yarnnn-mv';
+    mv.textContent = '\\u283F';
+    mv.style.display = 'none';
+    document.body.appendChild(mv);
+    bindGesture(mv, function () { return rzBlock; }, {
+      axis: 'xy',
+      onStart: function (block, e) {
+        var br = block.getBoundingClientRect();
+        grabDX = e.clientX - br.left;
+        grabDY = e.clientY - br.top;
+        // A v9-kernel artifact has no positioning context yet (the retrofit
+        // lands with the commit) — give the PREVIEW one, in-frame only.
+        var frame = measurableFrame(block);
+        if (frame && getComputedStyle(frame).position === 'static') {
+          frame.style.position = 'relative';
+        }
+      },
+      onMove: function (block, e) {
+        var frame = measurableFrame(block);
+        if (!frame) return;
+        var fr = frame.getBoundingClientRect();
+        // STRUCTURAL clamp only (the frame's own box) — the kernel's min/max
+        // is the parent's clamp, never invented here.
+        var xPct = Math.max(0, Math.min(100, ((e.clientX - grabDX - fr.left) / (fr.width || 1)) * 100));
+        var yPct = Math.max(0, Math.min(100, ((e.clientY - grabDY - fr.top) / (fr.height || 1)) * 100));
+        block.style.position = 'absolute';
+        block.style.left = xPct + '%';
+        block.style.top = yPct + '%';
+        block.style.margin = '0';
+        showResize(block);
+        showFrame(frame, 'x ' + Math.round(xPct) + '% · y ' + Math.round(yPct) + '%');
+      },
+      onEnd: function (block, moved) {
+        hideFrame();
+        if (!moved) return;
+        var frame = measurableFrame(block);
+        if (!frame) return;
+        var br = block.getBoundingClientRect();
+        var fr = frame.getBoundingClientRect();
+        parent.postMessage({
+          type: 'yarnnn-position',
+          blockId: block.getAttribute('data-block-id'),
+          x: Math.round(((br.left - fr.left) / (fr.width || 1)) * 100),
+          y: Math.round(((br.top - fr.top) / (fr.height || 1)) * 100),
+        }, '*');
+      },
+    });
+    return mv;
+  }
+
   function showResize(block) {
     ensureResize();
+    ensureMove();
     rzBlock = block;
     var r = block.getBoundingClientRect();
     rz.style.display = 'block';
     rz.style.left = (r.right + window.scrollX - 5) + 'px';
     rz.style.top = (r.bottom + window.scrollY - 5) + 'px';
+    if (positionable(block)) {
+      mv.style.display = 'flex';
+      mv.style.left = (r.left + window.scrollX - 8) + 'px';
+      mv.style.top = (r.top + window.scrollY - 8) + 'px';
+    } else {
+      mv.style.display = 'none';
+    }
   }
   function hideResize() {
     if (rz) rz.style.display = 'none';
+    if (mv) mv.style.display = 'none';
     rzBlock = null;
   }
 
@@ -2202,7 +2296,7 @@ const GUTTER_SCRIPT = `
   // A click ON the grip is the grip's own (a press that never passed the
   // gesture threshold) — it must not re-anchor the thing being grabbed.
   document.addEventListener('click', function (e) {
-    if (rz && e.target === rz) return;
+    if ((rz && e.target === rz) || (mv && e.target === mv)) return;
     syncResize();
   });
   document.addEventListener('scroll', syncResize, true);

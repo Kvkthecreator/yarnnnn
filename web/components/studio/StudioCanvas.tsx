@@ -99,6 +99,10 @@ interface StudioCanvasProps {
    *  its frame (a slide, or a media block's own box). The surface clamps to the
    *  kernel's declared bound and lands setMeasure through the one door. */
   onMeasure?: (blockId: string, w: number, h: number) => void;
+  /** ADR-466 D2: the member dragged a deck block's move grip — its top-left as
+   *  a PERCENT of its frame. The surface clamps to the kernel's served bound
+   *  and lands setPosition (both measures, one revision) through the one door. */
+  onPosition?: (blockId: string, x: number, y: number) => void;
   /** ADR-462 D7: the member right-clicked the canvas. The runtime has ALREADY
    *  selected the block under the cursor (right-click selects), so this only
    *  carries where to anchor + the grain the menu builds its rows from.
@@ -193,6 +197,7 @@ export function StudioCanvas({
   onReorder,
   onRatio,
   onMeasure,
+  onPosition,
   onContextMenu,
   onKeyVerb,
   onSplitBlock,
@@ -384,6 +389,8 @@ export function StudioCanvas({
         onReorder?.(d.blockId, typeof d.beforeBlockId === 'string' ? d.beforeBlockId : null);
       } else if (d.type === 'yarnnn-measure' && typeof d.blockId === 'string') {
         onMeasure?.(d.blockId, d.w as number, d.h as number);
+      } else if (d.type === 'yarnnn-position' && typeof d.blockId === 'string') {
+        onPosition?.(d.blockId, d.x as number, d.y as number);
       } else if (d.type === 'yarnnn-key-verb' && typeof d.blockId === 'string') {
         onKeyVerb?.(d.verb as 'copy' | 'paste' | 'duplicate' | 'delete', d.blockId);
       } else if (d.type === 'yarnnn-context-menu' && typeof d.x === 'number') {

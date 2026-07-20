@@ -860,6 +860,32 @@ STUDIO_MEASURES: dict[str, dict] = {
         "css_var": "--yh",
         "description": "the block's height inside its frame (absence = the content's own height)",
     },
+    # Bounded POSITION (ADR-466 D2, enacting ADR-461 D3's remaining half): x/y
+    # place a deck block at a point IN ITS FRAME — `left`/`top` as a percent of
+    # the frame's box. Deck ONLY (not `media`): a media block in a FLOW layout
+    # must never exit the flow (it has an intrinsic-ratio frame for SIZE, but
+    # position needs the fixed stage). The presence of BOTH measures is the
+    # positioned state; absence = in flow. A positioned block exits the slot
+    # contract (the ADR-461 honest remainder) and re-enters flow when an
+    # arrangement re-lays the page (applyArrangement clears x/y).
+    "x": {
+        "label": "X",
+        "applies": ["block-deck"],
+        "unit": "%",
+        "min": 0,
+        "max": 95,
+        "css_var": "--yx",
+        "description": "the block's left edge as a percent of its frame (with y, positions the block; absence = in flow)",
+    },
+    "y": {
+        "label": "Y",
+        "applies": ["block-deck"],
+        "unit": "%",
+        "min": 0,
+        "max": 95,
+        "css_var": "--yy",
+        "description": "the block's top edge as a percent of its frame (with x, positions the block; absence = in flow)",
+    },
 }
 
 #: Measure grains → the `applies` vocabulary above. `block-deck` is a block on
@@ -963,6 +989,15 @@ div[data-block="gallery"] figcaption { font-size: var(--text-xs, 0.75rem); }
 [data-block="gallery"][data-w] { width: var(--yw, auto); max-width: 100%; }
 .slide [data-h], [data-block="figure"][data-h], [data-block="chart"][data-h],
 [data-block="gallery"][data-h] { height: var(--yh, auto); }
+/* Bounded POSITION (ADR-466 D2) — x/y measures place a deck block at a point
+   in its frame. The frame is the positioning context (the slide, a column, a
+   slot); presence of BOTH measures is the positioned state, and the `auto`
+   fallback means a missing/garbage value degrades to the natural layout,
+   never to zero (the ADR-461 fallback rule). A positioned block exits the
+   slot's flow (the honest remainder) — margin drops so the point is exact. */
+section.slide, .slide .col, .slide [data-slot] { position: relative; }
+.slide [data-block][data-x][data-y] { position: absolute;
+  left: var(--yx, auto); top: var(--yy, auto); margin: 0; max-width: 100%; }
 [data-tone="accent"] { color: var(--accent, #b4540a); }
 [data-tone="muted"] { color: var(--muted, #6b6b6b); }
 [data-block][data-tone="inverse"] { background: var(--ink, #1a1a1a);
@@ -1066,7 +1101,7 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 # layout. A pre-ADR-444 deck's baked skin has no `.slide .cols`, and the
 # kernel's `:not(.slide)` rule excluded it, so its two-column slides stacked
 # silently. Bumping the version is what makes the retrofit reach them.
-STUDIO_KERNEL_CSS_VERSION = 9
+STUDIO_KERNEL_CSS_VERSION = 10
 
 
 def compose_kernel_style_element() -> str:
@@ -1334,6 +1369,12 @@ tokens from the Design tab; preserve tokens you didn't touch, and set them
 yourself when asked in plain words ("center that", "make it serif", "make the
 image smaller", "make this slide a dark divider"). Families:
 {tokens_grammar}
+Blocks may also carry MEASURES — member-authored geometry from the canvas
+gestures: data-w/data-h with style="--yw/--yh" (size in a frame), and on a
+deck slide data-x/data-y with --yx/--yy (a positioned block). When editing a
+block's content, preserve its measure attributes and its style="--y*"
+declarations exactly; a re-laid page (arrangement change) is the act that
+returns a positioned block to flow, never a content edit.
 
 ## Citing workspace objects (references, never copies)
 - Embed a workspace file by REFERENCE, resolved live at render time:

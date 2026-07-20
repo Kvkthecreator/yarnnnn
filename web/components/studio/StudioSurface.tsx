@@ -80,6 +80,7 @@ import {
   retrofitKernel,
   setPageBackground,
   setMeasure,
+  setPosition,
   setToken,
   type OpResult,
 } from './artifactOps';
@@ -801,6 +802,39 @@ export function StudioSurface() {
     },
     [applyOp, vocabulary],
   );
+  // ADR-466 D2: the move grip landed — both position measures as ONE revision,
+  // clamped from the SERVED bound (setPosition clamps again at the write).
+  const positionSpecs = useCallback(() => {
+    const sx = vocabulary?.measures?.find((m) => m.key === 'x');
+    const sy = vocabulary?.measures?.find((m) => m.key === 'y');
+    if (!sx || !sy) return null;
+    return {
+      x: { cssVar: sx.css_var, unit: sx.unit, min: sx.min, max: sx.max },
+      y: { cssVar: sy.css_var, unit: sy.unit, min: sy.min, max: sy.max },
+    };
+  }, [vocabulary]);
+  const handlePosition = useCallback(
+    (blockId: string, x: number, y: number) => {
+      const specs = positionSpecs();
+      if (!specs) return;
+      void applyOp(
+        (html) => setPosition(html, blockId, x, y, specs),
+        `Studio: position ${blockId} at ${Math.round(x)}%, ${Math.round(y)}%`,
+      );
+    },
+    [applyOp, positionSpecs],
+  );
+  // The escape hatch (Properties block scope): a positioned block returns to
+  // the page's flow — both measures cleared, one revision.
+  const handleReturnToFlow = useCallback(() => {
+    const id = selection?.blockId;
+    const specs = positionSpecs();
+    if (!id || !specs) return;
+    void applyOp(
+      (html) => setPosition(html, id, null, null, specs),
+      `Studio: return ${id} to flow`,
+    );
+  }, [applyOp, selection, positionSpecs]);
   const handleBlockVerb = useCallback(
     (verb: StructVerb) => {
       const id = selection?.blockId;
@@ -1780,6 +1814,7 @@ export function StudioSurface() {
                 onReorder={handleReorder}
                 onRatio={handleRatio}
                 onMeasure={(id, w) => handleMeasure(id, w)}
+                onPosition={handlePosition}
                 onContextMenu={setCtxMenu}
                 onKeyVerb={handleKeyVerb}
                 onSplitBlock={handleSplitBlock}
@@ -1943,6 +1978,7 @@ export function StudioSurface() {
               onBlockVerb={handleBlockVerb}
               onPageVerb={handlePageVerb}
               onTurnInto={handleTurnInto}
+              onReturnToFlow={handleReturnToFlow}
               onAskAboutSelection={askAboutSelection}
               onApplyDesignSystem={handleApplyDesignSystem}
               onRemoveDesignSystem={handleRemoveDesignSystem}
@@ -2230,8 +2266,10 @@ function StudioStart({
 
   // Scratch creation — invoked by the name-it modal; throws so the modal
   // can show the failure inline.
-  const createScratch = async (templateSlug: string, path: string) => {
-    const res = await api.studio.createArtifact(path, templateSlug);
+  //  `name` is the member's typed name, carried alongside the slugified path
+  //  so the artifact's <title> gets the real thing (ADR-462).
+  const createScratch = async (templateSlug: string, path: string, name?: string) => {
+    const res = await api.studio.createArtifact(path, templateSlug, name);
     onOpen(res.path);
   };
 

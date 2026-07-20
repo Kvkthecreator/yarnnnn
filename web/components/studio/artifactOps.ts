@@ -473,6 +473,48 @@ export function setMeasure(
   return { html: serialize(doc), landedId: blockId };
 }
 
+/** ADR-466 D2 — bounded position: place a deck block at a point in its frame.
+ *  Writes BOTH x/y measures as one revision (`data-x`/`data-y` + `--yx`/`--yy`
+ *  — presence of both is the positioned state); `x == null` clears both (the
+ *  block returns to flow). Clamped twice per ADR-461: here from the SERVED
+ *  specs, and structurally by the kernel rule's frame. */
+export function setPosition(
+  html: string,
+  blockId: string,
+  x: number | null,
+  y: number | null,
+  specs: {
+    x: { cssVar: string; unit: string; min: number; max: number };
+    y: { cssVar: string; unit: string; min: number; max: number };
+  },
+): OpResult | null {
+  const doc = parse(html);
+  const el = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+  if (!el) return null;
+  const before = el.outerHTML;
+  const others = (el.getAttribute('style') || '')
+    .split(';')
+    .map((d) => d.trim())
+    .filter((d) => d && !d.startsWith(`${specs.x.cssVar}:`) && !d.startsWith(`${specs.y.cssVar}:`));
+  if (x == null || y == null) {
+    el.removeAttribute('data-x');
+    el.removeAttribute('data-y');
+    if (others.length) el.setAttribute('style', others.join('; '));
+    else el.removeAttribute('style');
+  } else {
+    const cx = Math.max(specs.x.min, Math.min(specs.x.max, Math.round(x)));
+    const cy = Math.max(specs.y.min, Math.min(specs.y.max, Math.round(y)));
+    el.setAttribute('data-x', '');
+    el.setAttribute('data-y', '');
+    el.setAttribute(
+      'style',
+      [...others, `${specs.x.cssVar}: ${cx}${specs.x.unit}`, `${specs.y.cssVar}: ${cy}${specs.y.unit}`].join('; '),
+    );
+  }
+  if (el.outerHTML === before) return null;
+  return { html: serialize(doc), landedId: blockId };
+}
+
 /** Delete the selected block (the missing mechanical basic — a member should
  *  never need a metered judgment turn to remove a block). */
 export function deleteBlock(html: string, blockId: string): OpResult | null {
@@ -875,11 +917,27 @@ export function applyArrangement(
         target.querySelectorAll('[data-block]').forEach((p) => p.remove());
         receiving.add(target);
       }
+      returnToFlow(b);
       target.appendChild(b);
     });
   }
   page.replaceWith(el);
   return { html: serialize(doc), landedId: el.getAttribute('data-arrange') };
+}
+
+/** ADR-466 D2 (the ADR-461 honest remainder, closed): re-laying a page is the
+ *  act that returns a POSITIONED block to flow — the arrangement's slots are
+ *  about to lay it out, so its x/y measures are cleared as it is carried. */
+function returnToFlow(b: Element): void {
+  if (!b.hasAttribute('data-x') && !b.hasAttribute('data-y')) return;
+  b.removeAttribute('data-x');
+  b.removeAttribute('data-y');
+  const kept = (b.getAttribute('style') || '')
+    .split(';')
+    .map((d) => d.trim())
+    .filter((d) => d && !d.startsWith('--yx:') && !d.startsWith('--yy:'));
+  if (kept.length) b.setAttribute('style', kept.join('; '));
+  else b.removeAttribute('style');
 }
 
 /** The blocks an arrangement change must carry: every top-level non-heading
@@ -925,7 +983,10 @@ export function applyArrangementMovingContent(
   const carried = carriedBlocksOf(page);
   if (!carried.length) return applyArrangement(html, fragment, anchor);
   slot.querySelectorAll('[data-block]').forEach((p) => p.remove());
-  carried.forEach((b) => slot.appendChild(b));
+  carried.forEach((b) => {
+    returnToFlow(b);
+    slot.appendChild(b);
+  });
   page.replaceWith(el);
   el.insertAdjacentElement('afterend', overflow);
   return { html: serialize(doc), landedId: el.getAttribute('data-arrange') };

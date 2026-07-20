@@ -79,6 +79,9 @@ interface StudioDesignTabProps {
   /** EXECUTE: turn the selected block into another TEXT kind (ADR-456 W2 —
    *  convertBlock: id + tokens survive, text units rebuilt into the target). */
   onTurnInto: (kind: string, label: string, fragment: string) => void;
+  /** ADR-466 D2: clear the selected block's x/y measures — the positioned
+   *  block returns to the page's flow (one revision). */
+  onReturnToFlow: () => void;
   /** Seed the lane with the selection and flip to the Chat tab. */
   onAskAboutSelection: () => void;
   /** EXECUTE: apply a design system's composed skin element (resolve + write). */
@@ -256,6 +259,7 @@ export function StudioDesignTab({
   onBlockVerb,
   onPageVerb,
   onTurnInto,
+  onReturnToFlow,
   onAskAboutSelection,
   onApplyDesignSystem,
   onRemoveDesignSystem,
@@ -915,6 +919,21 @@ export function StudioDesignTab({
                   onSet={(v) => onSetToken('block', t.key, v)}
                 />
               ))}
+            </div>
+          )}
+          {/* ADR-466 D2 — the positioned state's escape hatch. A block the
+              member dragged to a point (x/y measures) sits outside the page's
+              flow; this returns it (re-arranging the page also does). */}
+          {selectedEl?.hasAttribute('data-x') && (
+            <div className={SECTION}>
+              <p className={HEADING}>Position</p>
+              <button type="button" className={askBtn} onClick={onReturnToFlow}>
+                Return to flow
+              </button>
+              <p className="text-[10px] text-muted-foreground">
+                Dragged to a point on this slide — it no longer follows the
+                slide&apos;s layout. Re-arranging the slide also returns it.
+              </p>
             </div>
           )}
         </>
