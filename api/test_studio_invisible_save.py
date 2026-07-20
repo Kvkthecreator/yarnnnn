@@ -113,9 +113,11 @@ def run() -> bool:
     #      view even though the member triggered the act.
     # A member's own computed op must never appear here — that was the flash.
     _check(
-        "reloadKey survives ONLY for writes the FE did not compute (4, each earned)",
+        # 4 → 5 with the courteous 409 (ADR-466 D7): the retry path earned its
+        # own `if (reload)` bump (same contract as the first-attempt success).
+        "reloadKey survives ONLY for writes the FE did not compute (5, each earned)",
         "// A FOREIGN write (the lane) genuinely changed the file — reload." in surface
-        and len(re.findall(r"setReloadKey\(\(k\) => k \+ 1\);", surface)) == 4
+        and len(re.findall(r"setReloadKey\(\(k\) => k \+ 1\);", surface)) == 5
         and "if (reload) setReloadKey((k) => k + 1);" in surface
         and "setReloadKey((k) => k + 1); // the retitle is a server-side write" in surface,
     )

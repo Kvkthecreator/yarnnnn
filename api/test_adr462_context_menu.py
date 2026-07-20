@@ -134,7 +134,9 @@ def main() -> bool:
     _check(
         "a frame indicator exists (a measure is a percent OF something, and "
         "that something was invisible)",
-        ".yarnnn-frame {" in proj and "showFrame(frame, Math.round(pct));" in proj,
+        # showFrame's 2nd arg became TEXT (ADR-466 D2 — the move grip shows
+        # "x 24% · y 38%"); the resize caller now passes the % itself.
+        ".yarnnn-frame {" in proj and "showFrame(frame, Math.round(pct) + '%');" in proj,
     )
     _check(
         "it is shown only DURING the drag (hidden on release, never chrome "

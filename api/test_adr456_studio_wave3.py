@@ -88,8 +88,12 @@ def run() -> bool:
     _check("feature-grid declares three flow slots",
            [s["role"] for s in STUDIO_ARRANGEMENTS["page"]["feature-grid"]["slots"]]
            == ["flow", "flow", "flow"])
-    _check("the generic non-slide .cols (document/article/page multi-column made real)",
-           "[data-arrange]:not(.slide) .cols { display: flex" in STUDIO_KERNEL_CSS)
+    # The base rule later widened to all [data-arrange] (kernel evolution); the
+    # deck exemption lives in the responsive STACKING rule, which is the part
+    # that must stay non-slide (a deck slide is a fixed stage, never stacks).
+    _check("the generic .cols is real + deck exempt from responsive stacking",
+           "[data-arrange] .cols { display: flex" in STUDIO_KERNEL_CSS
+           and "[data-arrange]:not(.slide) .cols { flex-direction: column; }" in STUDIO_KERNEL_CSS)
 
     # ── 4. The theme contract ────────────────────────────────────────────
     _check("kernel chrome consumes --radius (with fallbacks)",
@@ -108,9 +112,13 @@ def run() -> bool:
            and "Set background…" in design)
 
     # ── 5. Version + ops + posture ───────────────────────────────────────
-    _check("kernel CSS version bumped to 4 (the retrofit carries the W3 rules)",
-           STUDIO_KERNEL_CSS_VERSION == 4
-           and 'data-kernel-v="4"' in build_skeleton("page"))
+    # Pinned `== 4` when W3 shipped; the version kept moving (design systems v9,
+    # the position layer v10) and this stale pin made the gate red since. What
+    # W3 actually needs: the version is AT LEAST its own bump, and the skeleton
+    # bakes whatever the current version is (the retrofit contract).
+    _check("kernel CSS version >= 4 and the skeleton bakes the CURRENT version",
+           STUDIO_KERNEL_CSS_VERSION >= 4
+           and f'data-kernel-v="{STUDIO_KERNEL_CSS_VERSION}"' in build_skeleton("page"))
     ops = (web / "components/studio/artifactOps.ts").read_text()
     _check("setPageBackground/removePageBackground land through the one door",
            "export function setPageBackground" in ops
