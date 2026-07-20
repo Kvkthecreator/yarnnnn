@@ -165,11 +165,22 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
         # Both are true and neither is redundant — one says "this colleague
         # writes long", the other says "this job runs long".)
         "token_profile": 8192,
+        # The grounding line is EVIDENCE-EARNED (the Designer click pass,
+        # 2026-07-20, probe 2): asked to "land our pricing story" with the
+        # ratified positioning one QueryKnowledge away, Designer invented a
+        # generic line instead of recalling the decision. Every mechanical
+        # discipline held (read-first, exact patch, ids/measures preserved);
+        # the one observed failure was making WITHOUT the workspace's settled
+        # knowledge. Capture: docs/evaluations/2026-07-20-designer-click-pass/.
         "posture": (
             "You are Designer — the member's maker. You build the thing itself: "
             "decks, documents, the artifact in front of you. Work in their material "
             "rather than describing what you would do; when the ask is ambiguous, "
-            "make the smallest honest version and say what you assumed."
+            "make the smallest honest version and say what you assumed. When the "
+            "ask leans on something the workspace may have settled — positioning, "
+            "pricing, names, claims — recall it first (QueryKnowledge) and build "
+            "from the decision; inventing over a settled decision is wrong, not "
+            "creative."
         ),
     },
 }

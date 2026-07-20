@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.20.3] - Designer grounds before inventing (the click-pass finding)
+
+### Changed
+- `services/agents_registry.py`: Designer's posture gains one evidence-earned
+  line — when the ask leans on settled workspace knowledge (positioning,
+  pricing, names, claims), recall it first (QueryKnowledge) and build from the
+  decision. Earned by the first observed bound-Studio turn: unprompted,
+  Designer invented a generic headline while the ratified positioning sat one
+  QueryKnowledge away; with the line, the confirm run recalled unprompted.
+  Capture: docs/evaluations/2026-07-20-designer-click-pass/.
+- Expected behavior: Designer (in Studio and in chat) checks the workspace
+  before writing lines that a decision may already govern; asks that don't
+  touch settled territory are unaffected.
+
 ## [2026.07.20.2] - The lane tool surface goes uniform (ADR-467 D4)
 
 ### Changed

@@ -63,15 +63,14 @@ For each agent, in this order. Do not move to the next step until the current on
 - **Applied**: —
 - **Regression**: —
 
-### 3.3 Designer (`designer`) — PRODUCE
+### 3.3 Designer (`designer`) — PRODUCE — ✅ PASS COMPLETE (2026-07-20)
 
-- **JOB**: turn judgment into an artifact in the commons — "make the deck / write the doc / build the thing."
-- **Current capability**: 5 verbs only (writes to the commons via WriteFile/EditFile — the baseline, correct for a maker).
-- **Capability candidates**: weaker than Thinker's. Possible: `QueryKnowledge` / revision reads to pull prior artifacts + their history before composing (a maker that reads what came before). But Designer mostly works in the artifact in front of it (bound Studio lane, where the studio posture supplies the target). **Verdict: likely no grant; click-pass-gated.** Do not grant reflexively.
-- **Current posture** (`agents_registry.py:175-180`): thin (3 sentences, one discipline: smallest-honest-version + state assumptions). Parallel with Thinker. The bound-lane case adds the studio posture on top, so Designer's character is thinner *by design* (the JOB comes from the binding). **Probably correct** — confirm in a bound turn.
-- **Click pass**: — (drive a bound Studio make turn; watch character + studio-posture composition).
-- **Applied**: —
-- **Regression**: —
+- **JOB**: turn judgment into an artifact in the commons — "make the deck / write the doc / build the thing." As ADR-467's resident of Studio (and IMAGES-on-arrival), the pass ran against the COMPOSED Studio mind: Designer character + studio posture + uniform surface.
+- **Capability (step 2)**: walked the pool post-ADR-467 (surface now the uniform seven). **Verdict: no addition.** Three observed turns used ReadFile/QueryKnowledge/EditFile only; revision reads were never reached for. `QueryKnowledge` proved load-bearing for the make job — the D4 uniformity delivered exactly the read the job needed.
+- **Posture (step 3)**: thin-by-design held for mechanics (the studio posture carries the JOB disciplines, and every one held under observation). The named gap: nothing steered grounding — making from the workspace's settled knowledge.
+- **Click pass (step 4)**: DONE — the first observed turn in the codebase's history. Harness + full capture: `docs/evaluations/2026-07-20-designer-click-pass/`. Run 1 (prompted): 8/8 — read+recall → one exact EditFile; ids, ADR-466 measures, style elements preserved. Run 2 (**unprompted**): mechanics all held, but Designer **invented** a generic headline while the ratified positioning sat one QueryKnowledge away — the one observed failure. (Run 0 was a harness bug worth reading: truncated tool results made rational behavior look like spinning; the real lane never truncates.)
+- **Applied (step 5)**: ONE grounding line in the Designer character (recall-before-inventing, citing the observation). Nothing else — no capability change, no studio-posture change. Confirm run: 8/8 with **unprompted** QueryKnowledge-then-edit.
+- **Regression (step 6)**: two gate checks added (`test_agent_registry.py`, 157/157): the grounding-discipline intent assertion + the composed-mind two-limb frame assertion (guards the historical `+=` bug class).
 
 ### 3.4 Critic (`critic`, posture over Reason)
 

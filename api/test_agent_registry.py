@@ -251,6 +251,33 @@ def run() -> bool:
             "…is chooseable in chat like any colleague",
             "designer" in {a["slug"] for a in list_agents()},
         )
+    # ⚠️ EVIDENCE-EARNED (the Designer click pass, 2026-07-20 — the worksheet's
+    # first observed turn). Probe 2: asked to "land our pricing story"
+    # unprompted, Designer INVENTED a generic line while the ratified
+    # positioning sat one QueryKnowledge away; with the grounding line, the
+    # confirm run recalled it first and landed the decision. This asserts the
+    # discipline stays in the posture — an intent assertion per worksheet
+    # step 6, not prose preference.
+    _check(
+        "Designer's posture carries the grounding discipline (recall before inventing)",
+        "QueryKnowledge" in KERNEL_AGENTS["designer"]["posture"]
+        and "recall" in KERNEL_AGENTS["designer"]["posture"],
+    )
+    # ⚠️ THE COMPOSED MIND — both limbs, one frame. A bound lane with an Agent
+    # must compose the COLLEAGUE (WHO YOU ARE) and the JOB (the studio posture).
+    # This was an `=` instead of `+=` until 2026-07-16 — latent-only because no
+    # bound lane carried an agent; Designer made it live. Nothing gated it
+    # until this line (the click-pass harness asserted it first).
+    from services.lane_runner import build_lane_conventions
+    _bound_frame = build_lane_conventions(
+        _EmptyClient(), "u_test", model="anthropic/claude-sonnet-4-6",
+        artifact_path="operation/x/deck.html", agent="designer",
+    )
+    _check(
+        "a bound lane with an Agent composes BOTH the colleague and the job",
+        "WHO YOU ARE" in _bound_frame
+        and "Studio: you are authoring one artifact" in _bound_frame,
+    )
     _studio = (
         Path(__file__).parent.parent / "web" / "components" / "studio" / "StudioSurface.tsx"
     )
