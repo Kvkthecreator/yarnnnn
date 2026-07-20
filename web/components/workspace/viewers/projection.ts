@@ -511,6 +511,14 @@ const POINTER_SCRIPT = `
   // selection rather than track its own — a second selection state is exactly
   // the cross-talk bindGesture's one-flag rule exists to prevent.
   window.__yarnnnSelected = function () { return cur; };
+  // ADR-466 P9: the ONE zoom accessor. body.style.zoom rescales the document's
+  // LAYOUT, not the viewport — rects and pointer clientX/Y come back in visual
+  // px, while style.left/top on body-appended chrome land in the zoomed layout
+  // space. Every chrome positioner divides its visual coordinates by this.
+  window.__yarnnnZf = function () {
+    var v = document.body && document.body.style ? document.body.style.zoom : '';
+    return parseFloat(v) || 1;
+  };
 
   // ADR-447 (2026-07-13): canvas commands — scroll to a slide (navigator
   // selection moves the center display) + zoom (a VIEW control; scales the
@@ -533,6 +541,15 @@ const POINTER_SCRIPT = `
       // zoom scales layout + scrollable area (unlike transform) — the honest
       // "make it bigger/smaller on screen" the operator asked for.
       document.body.style.zoom = String(d.scale);
+    } else if (d.type === 'yarnnn-select-block' && typeof d.blockId === 'string') {
+      // ADR-466 P9: the parent re-commands selection after a re-projection.
+      // Every optimistic op swaps srcdoc, which resets this runtime's state —
+      // without this, the bounding box vanished mid-flow on every write.
+      try {
+        var selTarget = document.querySelector('[data-block-id="' +
+          (window.CSS && CSS.escape ? CSS.escape(d.blockId) : d.blockId) + '"]');
+        if (selTarget) window.__yarnnnSelect(selTarget);
+      } catch (err) {}
     } else if (d.type === 'yarnnn-restore-scroll') {
       // The parent captured the pre-reload position (the runtime reports it on
       // scroll below) and restores it after a STRUCTURAL reload so the canvas
@@ -1061,8 +1078,11 @@ const EDIT_SCRIPT = `
     var rect = r.getBoundingClientRect();
     if (!rect || (rect.width === 0 && rect.height === 0)) { hideFmt(); return; }
     fmtBar.style.display = 'inline-flex';
-    fmtBar.style.left = Math.max(4, rect.left + window.scrollX) + 'px';
-    fmtBar.style.top = Math.max(4, rect.top + window.scrollY - 36) + 'px';
+    // Visual → layout: the bar is body-appended chrome inside the zoomed
+    // document (ADR-466 P9 — see __yarnnnZf).
+    var fz = window.__yarnnnZf ? window.__yarnnnZf() : 1;
+    fmtBar.style.left = Math.max(4, (rect.left + window.scrollX) / fz) + 'px';
+    fmtBar.style.top = Math.max(4, (rect.top + window.scrollY) / fz - 36) + 'px';
   });
 
   // ── ADR-456 W2: slash-insert (the Notion gesture) ─────────────────────
@@ -1579,6 +1599,14 @@ const GUTTER_SCRIPT = `
   var PAGE_SEL = 'section.slide, [data-arrange]';
   var bar = null, plusBtn = null, curBlock = null, hideTimer = null;
 
+  // ADR-466 P9: every piece of body-appended chrome here (gutter, dropline,
+  // divider, frame label, bounding box) positions from getBoundingClientRect,
+  // which reports VISUAL px — but its own style.left/top land in the zoomed
+  // LAYOUT space (body.style.zoom = deck fit-scale × member zoom). Divide, or
+  // the box draws at the wrong scale and drifts off the block it claims to
+  // bound (the operator's screenshot: a box spanning past the slide's edge).
+  function zf() { return window.__yarnnnZf ? window.__yarnnnZf() : 1; }
+
   function slideIndexOf(el) {
     var slide = el.closest ? el.closest('section.slide') : null;
     if (!slide) return null;
@@ -1770,10 +1798,11 @@ const GUTTER_SCRIPT = `
           var r = s.getBoundingClientRect();
           var mid = r.top + r.height / 2;
           if (e.clientY < mid) {
+            var dz = zf();
             dropline.style.display = 'block';
-            dropline.style.left = (r.left + window.scrollX) + 'px';
-            dropline.style.width = r.width + 'px';
-            dropline.style.top = (r.top + window.scrollY - 1) + 'px';
+            dropline.style.left = ((r.left + window.scrollX) / dz) + 'px';
+            dropline.style.width = (r.width / dz) + 'px';
+            dropline.style.top = ((r.top + window.scrollY) / dz - 1) + 'px';
             beforeId = s.getAttribute('data-block-id');
             placed = true;
             break;
@@ -1786,10 +1815,11 @@ const GUTTER_SCRIPT = `
           for (var j = sibs.length - 1; j >= 0; j--) { if (sibs[j] !== dragging) { last = sibs[j]; break; } }
           if (last) {
             var lr = last.getBoundingClientRect();
+            var lz = zf();
             dropline.style.display = 'block';
-            dropline.style.left = (lr.left + window.scrollX) + 'px';
-            dropline.style.width = lr.width + 'px';
-            dropline.style.top = (lr.bottom + window.scrollY + 1) + 'px';
+            dropline.style.left = ((lr.left + window.scrollX) / lz) + 'px';
+            dropline.style.width = (lr.width / lz) + 'px';
+            dropline.style.top = ((lr.bottom + window.scrollY) / lz + 1) + 'px';
           }
           beforeId = null;
         }
@@ -1820,17 +1850,25 @@ const GUTTER_SCRIPT = `
     curBlock = block;
     var rect = block.getBoundingClientRect();
     bar.style.display = 'flex';
+    // The bar's own offsetWidth/Height are already LAYOUT px; the rect and
+    // pointerY are visual. Convert the rect into layout space first, then do
+    // all the math in one coordinate system (ADR-466 P9).
+    var z = zf();
     var w = bar.offsetWidth || 42;
     var h = bar.offsetHeight || 22;
-    bar.style.left = Math.max(2, rect.left + window.scrollX - w - 4) + 'px';
+    var left = (rect.left + window.scrollX) / z;
+    var top = (rect.top + window.scrollY) / z;
+    var bottom = (rect.bottom + window.scrollY) / z;
+    bar.style.left = Math.max(2, left - w - 4) + 'px';
     var topV;
     if (pointerY != null) {
-      // center on the cursor, clamped inside [rect.top, rect.bottom - h]
-      topV = Math.min(Math.max(pointerY - h / 2, rect.top), rect.bottom - h);
+      // center on the cursor, clamped inside [top, bottom - h]
+      var py = (pointerY + window.scrollY) / z;
+      topV = Math.min(Math.max(py - h / 2, top), bottom - h);
     } else {
-      topV = rect.top + 1;
+      topV = top + 1;
     }
-    bar.style.top = (topV + window.scrollY) + 'px';
+    bar.style.top = topV + 'px';
   }
   function hide() {
     if (bar) bar.style.display = 'none';
@@ -1978,10 +2016,11 @@ const GUTTER_SCRIPT = `
     var kids = cols.querySelectorAll(':scope > .col');
     if (kids.length !== 2) { hideDivider(); return; }
     var a = kids[0].getBoundingClientRect();
+    var z = zf();
     divider.style.display = 'block';
-    divider.style.left = (a.right + window.scrollX) + 'px';
-    divider.style.top = (r.top + window.scrollY) + 'px';
-    divider.style.height = r.height + 'px';
+    divider.style.left = ((a.right + window.scrollX) / z) + 'px';
+    divider.style.top = ((r.top + window.scrollY) / z) + 'px';
+    divider.style.height = (r.height / z) + 'px';
   }
   function hideDivider() {
     if (divider) divider.style.display = 'none';
@@ -2034,6 +2073,13 @@ const GUTTER_SCRIPT = `
    *  does — being a column does not create a frame). */
   function isMeasurable(block) {
     if (!block) return false;
+    // ADR-466 P9 grain gate: only a BLOCK is measurable. Selection can also
+    // land on a slot or a page (the pointer ladder's coarser grains) and both
+    // pass closest('.slide') — which put the bounding box on a SLOT and sent
+    // geometry ops with no data-block-id (the red "Could not apply that here").
+    // A slot keeps its own affordances (persistent dashed bound, add-here);
+    // the object chrome is the block's alone.
+    if (!block.hasAttribute || !block.hasAttribute('data-block')) return false;
     var kind = block.getAttribute('data-block');
     if (kind && MEASURE_MEDIA[kind]) return true;
     return !!(block.closest && block.closest('.slide'));
@@ -2085,12 +2131,13 @@ const GUTTER_SCRIPT = `
       document.body.appendChild(frameEl);
     }
     var r = frame.getBoundingClientRect();
+    var z = zf();
     frameEl.setAttribute('data-label', frameLabel(frame) + ' · ' + txt);
     frameEl.style.display = 'block';
-    frameEl.style.left = (r.left + window.scrollX) + 'px';
-    frameEl.style.top = (r.top + window.scrollY) + 'px';
-    frameEl.style.width = r.width + 'px';
-    frameEl.style.height = r.height + 'px';
+    frameEl.style.left = ((r.left + window.scrollX) / z) + 'px';
+    frameEl.style.top = ((r.top + window.scrollY) / z) + 'px';
+    frameEl.style.width = (r.width / z) + 'px';
+    frameEl.style.height = (r.height / z) + 'px';
   }
   function hideFrame() {
     if (frameEl) frameEl.style.display = 'none';
@@ -2126,8 +2173,17 @@ const GUTTER_SCRIPT = `
     var frame = measurableFrame(block);
     if (!frame) return;
     var fr = frame.getBoundingClientRect();
-    var xPct = Math.max(0, Math.min(100, ((e.clientX - grabDX - fr.left) / (fr.width || 1)) * 100));
-    var yPct = Math.max(0, Math.min(100, ((e.clientY - grabDY - fr.top) / (fr.height || 1)) * 100));
+    var br = block.getBoundingClientRect();
+    // Frame-aware clamp (ADR-466 P9): the block's TRAILING edge is bounded
+    // too — x may reach only (100 − width%), so a wide block can never be
+    // dragged past the frame it is a percent of. Percent math itself is
+    // zoom-invariant (visual/visual), so no zf() here.
+    var wPct = (br.width / (fr.width || 1)) * 100;
+    var hPct = (br.height / (fr.height || 1)) * 100;
+    var xMax = Math.max(0, 100 - wPct);
+    var yMax = Math.max(0, 100 - hPct);
+    var xPct = Math.max(0, Math.min(xMax, ((e.clientX - grabDX - fr.left) / (fr.width || 1)) * 100));
+    var yPct = Math.max(0, Math.min(yMax, ((e.clientY - grabDY - fr.top) / (fr.height || 1)) * 100));
     block.style.position = 'absolute';
     block.style.left = xPct + '%';
     block.style.top = yPct + '%';
@@ -2139,15 +2195,21 @@ const GUTTER_SCRIPT = `
   function moveEnd(block, moved) {
     hideFrame();
     if (!moved) return;
+    var id = block.getAttribute('data-block-id');
     var frame = measurableFrame(block);
-    if (!frame) return;
+    if (!id || !frame) return;
     var br = block.getBoundingClientRect();
     var fr = frame.getBoundingClientRect();
+    // Commit the same clamped value the preview painted (trailing edge bound).
+    var wPct = (br.width / (fr.width || 1)) * 100;
+    var hPct = (br.height / (fr.height || 1)) * 100;
     parent.postMessage({
       type: 'yarnnn-geometry',
-      blockId: block.getAttribute('data-block-id'),
-      x: Math.round(((br.left - fr.left) / (fr.width || 1)) * 100),
-      y: Math.round(((br.top - fr.top) / (fr.height || 1)) * 100),
+      blockId: id,
+      x: Math.max(0, Math.min(Math.max(0, 100 - Math.round(wPct)),
+        Math.round(((br.left - fr.left) / (fr.width || 1)) * 100))),
+      y: Math.max(0, Math.min(Math.max(0, 100 - Math.round(hPct)),
+        Math.round(((br.top - fr.top) / (fr.height || 1)) * 100))),
     }, '*');
   }
 
@@ -2156,19 +2218,26 @@ const GUTTER_SCRIPT = `
     if (!frame) return;
     var br = block.getBoundingClientRect();
     var fr = frame.getBoundingClientRect();
-    var pct;
+    var pct, maxPct;
     if (side.indexOf('w') >= 0 && positionable(block) && block.hasAttribute('data-x')) {
       // West handle on a POSITIONED block: the right edge stays anchored —
       // origin and width change together (ONE geometry revision on release).
+      // Width may grow only until the left edge meets the frame (ADR-466 P9).
       var right = br.right;
-      var newLeft = Math.min(e.clientX, right - 8);
+      var newLeft = Math.max(fr.left, Math.min(e.clientX, right - 8));
       pct = ((right - newLeft) / (fr.width || 1)) * 100;
+      maxPct = ((right - fr.left) / (fr.width || 1)) * 100;
       var xPct = Math.max(0, Math.min(100, ((newLeft - fr.left) / (fr.width || 1)) * 100));
       block.style.left = xPct + '%';
     } else {
       pct = ((e.clientX - br.left) / (fr.width || 1)) * 100;
+      // A positioned block's width is bounded by the room to its right —
+      // (100 − x%); a flow block by the frame itself (100%).
+      maxPct = positionable(block) && block.hasAttribute('data-x')
+        ? 100 - ((br.left - fr.left) / (fr.width || 1)) * 100
+        : 100;
     }
-    pct = Math.max(1, Math.min(100, pct));
+    pct = Math.max(1, Math.min(Math.max(1, maxPct), pct));
     block.style.width = pct + '%';
     showBox(block);
     // Name what the percent is OF, while it is being chosen (D8).
@@ -2178,13 +2247,14 @@ const GUTTER_SCRIPT = `
   function resizeEnd(block, moved, side) {
     hideFrame();
     if (!moved) return;
+    var id = block.getAttribute('data-block-id');
     var frame = measurableFrame(block);
-    if (!frame) return;
+    if (!id || !frame) return;
     var br = block.getBoundingClientRect();
     var fr = frame.getBoundingClientRect();
     var msg = {
       type: 'yarnnn-geometry',
-      blockId: block.getAttribute('data-block-id'),
+      blockId: id,
       w: Math.round((br.width / (fr.width || 1)) * 100),
     };
     if (side.indexOf('w') >= 0 && positionable(block) && block.hasAttribute('data-x')) {
@@ -2242,11 +2312,12 @@ const GUTTER_SCRIPT = `
     ensureBox();
     selBlock = block;
     var r = block.getBoundingClientRect();
+    var z = zf();
     box.style.display = 'block';
-    box.style.left = (r.left + window.scrollX - 1) + 'px';
-    box.style.top = (r.top + window.scrollY - 1) + 'px';
-    box.style.width = (r.width + 2) + 'px';
-    box.style.height = (r.height + 2) + 'px';
+    box.style.left = ((r.left + window.scrollX) / z - 1) + 'px';
+    box.style.top = ((r.top + window.scrollY) / z - 1) + 'px';
+    box.style.width = (r.width / z + 2) + 'px';
+    box.style.height = (r.height / z + 2) + 'px';
     box.style.cursor = positionable(block) ? 'move' : 'default';
   }
   function hideBox() {

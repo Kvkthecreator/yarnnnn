@@ -1902,6 +1902,7 @@ export function StudioSurface() {
                 onPoint={onPoint}
                 onPointClear={onPointClear}
                 editingBlockId={editingBlockId}
+                selectedBlockId={selection?.blockId ?? null}
                 onEdit={onEdit}
                 onEditExited={() => setEditingBlockId(null)}
                 onEditEntered={(id) => setEditingBlockId(id)}

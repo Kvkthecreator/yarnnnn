@@ -79,6 +79,11 @@ interface StudioCanvasProps {
   /** ADR-446: the block currently being edited in place (null = none). The
    *  surface holds this state; the canvas commands the iframe runtime. */
   editingBlockId?: string | null;
+  /** ADR-466 P9: the block currently SELECTED (the surface's grain-ladder
+   *  state). Every optimistic op swaps srcdoc, which resets the runtime's own
+   *  selection — the load handler re-commands it by id so the bounding box
+   *  survives a write (the editingBlockId pattern, applied to selection). */
+  selectedBlockId?: string | null;
   /** ADR-446: a block edit committed (blur/idle) — {blockId, newInner} mapped
    *  to the SOURCE (citation islands already restored). The surface lands it
    *  through the mechanical write door. */
@@ -188,6 +193,7 @@ export function StudioCanvas({
   onPoint,
   onPointClear,
   editingBlockId,
+  selectedBlockId,
   onEdit,
   onEditExited,
   onEditEntered,
@@ -282,6 +288,8 @@ export function StudioCanvas({
   // load handler re-posts the current state without re-binding.
   const editingRef = useRef<string | null>(editingBlockId ?? null);
   editingRef.current = editingBlockId ?? null;
+  const selectedRef = useRef<string | null>(selectedBlockId ?? null);
+  selectedRef.current = selectedBlockId ?? null;
   const zoomRef = useRef(effectiveZoom);
   zoomRef.current = effectiveZoom;
 
@@ -301,6 +309,12 @@ export function StudioCanvas({
     const id = editingRef.current;
     if (id) win.postMessage({ type: 'yarnnn-edit-enter', blockId: id }, '*');
     else win.postMessage({ type: 'yarnnn-edit-exit' }, '*');
+    // ADR-466 P9: restore the SELECTION too — a fresh load (optimistic-op
+    // re-projection, foreign write) reset the runtime's state, so the bounding
+    // box vanished the moment any gesture committed.
+    if (!id && selectedRef.current) {
+      win.postMessage({ type: 'yarnnn-select-block', blockId: selectedRef.current }, '*');
+    }
     // Re-apply the current zoom on a fresh load (the runtime resets on reload).
     win.postMessage({ type: 'yarnnn-zoom', scale: zoomRef.current }, '*');
     // Restore the pre-reload position (a no-op at slide 0 / y=0 / first load).

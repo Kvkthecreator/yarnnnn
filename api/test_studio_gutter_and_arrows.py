@@ -52,14 +52,18 @@ def run() -> bool:
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
 
     # ── F5: gutter tracks the pointer vertically ─────────────────────────
+    # (Re-pinned for ADR-466 P9: showFor converts visual→layout coordinates
+    #  first — pointerY becomes `py = (pointerY + scrollY) / z` and the clamp
+    #  runs against the converted `top`/`bottom` — same centering + clamping
+    #  behavior, now honest under body.style.zoom.)
     _check(
         "showFor takes a pointerY and centers the bar on the cursor",
         "function showFor(block, pointerY)" in proj
-        and "pointerY - h / 2" in proj,
+        and "py - h / 2" in proj,
     )
     _check(
         "the bar is clamped to the block's own top/bottom",
-        "Math.max(pointerY - h / 2, rect.top), rect.bottom - h" in proj,
+        "Math.max(py - h / 2, top), bottom - h" in proj,
     )
     _check(
         "mousemove repositions on EVERY move within the block (not only a new block)",

@@ -200,6 +200,37 @@ def run() -> bool:
         "data-x/data-y" in flat and "--yx/--yy" in flat and "preserve" in flat.lower(),
     )
 
+    # ── P9: the chrome made grain- and coordinate-honest ─────────────────
+    # The operator's live read of P8: the box anchored on a SLOT, drifted past
+    # the slide's edge under the deck's fit-zoom, and vanished after every
+    # optimistic write. Three structural fixes, each a falsifiable pin.
+    _check(
+        "P9 grain gate: only a [data-block] is measurable — never a slot/page",
+        "if (!block.hasAttribute || !block.hasAttribute('data-block')) return false;" in proj,
+    )
+    _check(
+        "P9 geometry senders refuse a missing data-block-id (no dead red banner)",
+        proj.count("if (!id || !frame) return;") >= 2,
+    )
+    _check(
+        "P9 one zoom accessor: chrome divides visual rects by body.style.zoom",
+        "window.__yarnnnZf = function ()" in proj
+        and "function zf() { return window.__yarnnnZf ? window.__yarnnnZf() : 1; }" in proj
+        and "(r.left + window.scrollX) / z" in proj,
+    )
+    _check(
+        "P9 selection survives re-projection (parent re-commands by id on load)",
+        "yarnnn-select-block" in proj
+        and "selectedRef" in canvas
+        and "yarnnn-select-block" in canvas
+        and "selectedBlockId={selection?.blockId ?? null}" in surface,
+    )
+    _check(
+        "P9 frame-aware clamp: the trailing edge is bounded too (x ≤ 100 − w%)",
+        "var xMax = Math.max(0, 100 - wPct);" in proj
+        and "Math.min(Math.max(1, maxPct), pct)" in proj,
+    )
+
     ok = all(c for _, c in _results)
     print()
     print(f"{'PASS' if ok else 'FAIL'}: {sum(c for _, c in _results)}/{len(_results)} checks")
