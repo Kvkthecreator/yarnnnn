@@ -104,6 +104,19 @@ def run() -> bool:
         "the nav default derives from mode, not from template === 'deck'",
         "setNavCollapsed(!isPaged);" in surface and "template !== 'deck'" not in surface,
     )
+    # ── 2a2. the strip is RESIZABLE (drag its divider), width persisted ──────
+    _check(
+        "the strip width is state-driven + clamped + persisted (not a fixed w-56)",
+        "const [navWidth, setNavWidth] = useState(224)" in surface
+        and "localStorage.setItem('studio.navWidth'" in surface
+        and "Math.min(NAV_MAX, Math.max(NAV_MIN," in surface,
+    )
+    _check(
+        "a resize divider drives it (cursor-col-resize, window pointer listeners)",
+        "cursor-col-resize" in surface
+        and "onPointerDown={startNavResize}" in surface
+        and "window.addEventListener('pointermove', onMove)" in surface,
+    )
 
     # ── 2b. the slide thumbnail is RESPONSIVE (fixed 2026-07-20) ─────────────
     # The old preview pinned THUMB_W=200 while the rail (w-56 minus its padding +

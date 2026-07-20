@@ -251,11 +251,11 @@ export function StudioNavigator({
 
   if (layout === 'deck') {
     return (
-      <div className="flex h-full flex-col overflow-y-auto p-2">
+      <div className="flex h-full w-full flex-col overflow-y-auto p-2">
         <p className="px-1 pb-2 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           Slides
         </p>
-        <ul ref={listRef} className="relative space-y-2">
+        <ul ref={listRef} className="relative w-full space-y-2">
           {(previews ?? []).map((s) => (
             <li key={s.index} data-slide-card className="relative">
               {/* The drop-line: a prediction of where the dragged slide will
@@ -336,7 +336,7 @@ export function StudioNavigator({
   // nav-pane contract, via the same bridge the deck strip uses.
   const outline = extractOutline(html);
   return (
-    <div className="flex h-full flex-col overflow-y-auto p-3">
+    <div className="flex h-full w-full flex-col overflow-y-auto p-3">
       <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
         Outline
       </p>

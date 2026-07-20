@@ -25,6 +25,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 import { ArrowLeft, Copy, FileText, FolderOpen, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, Plus, Upload } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -1266,6 +1267,38 @@ export function StudioSurface() {
   // its strip — the deletion ADR-455 deferred, taken as a default-hide instead.
   const [navCollapsed, setNavCollapsed] = useState(false);
   const [navUserSet, setNavUserSet] = useState(false);
+  // The slide strip is RESIZABLE (drag its right divider). Width persists across
+  // sessions so a member's chosen strip stays put. Clamped to a sane band so a
+  // drag can neither hide the strip nor crush the canvas.
+  const NAV_MIN = 140;
+  const NAV_MAX = 520;
+  const [navWidth, setNavWidth] = useState(224); // ~w-56, the prior fixed width
+  useEffect(() => {
+    const saved = Number(localStorage.getItem('studio.navWidth'));
+    if (saved >= NAV_MIN && saved <= NAV_MAX) setNavWidth(saved);
+  }, []);
+  const startNavResize = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startW = navWidth;
+      const onMove = (ev: PointerEvent) => {
+        const w = Math.min(NAV_MAX, Math.max(NAV_MIN, startW + (ev.clientX - startX)));
+        setNavWidth(w);
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        setNavWidth((w) => {
+          localStorage.setItem('studio.navWidth', String(w));
+          return w;
+        });
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    },
+    [navWidth],
+  );
   useEffect(() => {
     if (navUserSet) return; // the member's choice wins over the per-layout default
     // Gate on the artifact being LOADED: `template` reads 'document' from the
@@ -1464,9 +1497,10 @@ export function StudioSurface() {
             clothes — deleted with the mode split. */}
         {isPaged && (
           <div
-            className={`w-full shrink-0 border-r border-border md:w-56 md:max-w-[22%] ${
+            className={`relative shrink-0 flex-col border-r border-border max-md:!w-full ${
               navCollapsed ? 'md:hidden' : 'md:flex'
-            } ${navActive ? 'flex' : 'hidden'}`}
+            } ${navActive ? 'flex w-full' : 'hidden'}`}
+            style={{ width: navWidth }}
           >
             <StudioNavigator
               layout={template}
@@ -1476,6 +1510,14 @@ export function StudioSurface() {
               onSelectSlide={selectSlideFromNavigator}
               onReorderSlide={reorderSlideFromNavigator}
               onSelectHeading={selectHeadingFromNavigator}
+            />
+            {/* The resize divider — drag to set the strip width (persisted). A
+                hair-wide hit target over the right border; md+ only (on mobile
+                the strip is a full-pane view, nothing to resize against). */}
+            <div
+              onPointerDown={startNavResize}
+              title="Drag to resize the slide strip"
+              className="absolute right-0 top-0 z-10 hidden h-full w-1.5 translate-x-1/2 cursor-col-resize hover:bg-indigo-400/40 md:block"
             />
           </div>
         )}
@@ -2221,8 +2263,8 @@ function StudioStart({
                       <span className="mt-1 block truncate text-[11px]">
                         <span className={`font-medium ${shape.color}`}>{r.kind_label}</span>
                         {r.updated_at ? (
-                          <span className="text-muted-foreground">
-                            {` · ${new Date(r.updated_at).toLocaleDateString()}`}
+                          <span className="text-muted-foreground" title={formatAbsolute(r.updated_at)}>
+                            {` · ${formatRelativeTime(r.updated_at, { rollToDate: true })}`}
                           </span>
                         ) : null}
                       </span>

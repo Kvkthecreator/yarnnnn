@@ -283,7 +283,10 @@ def run() -> bool:
            "mobilePane" in surface and "md:hidden" in surface
            and "setMobilePane" in surface)
     _check("mobile: columns are responsive (hidden below md, flex at md+)",
-           "md:flex" in surface and "md:w-56" in surface and "md:w-[380px]" in surface)
+           # The slide strip moved from a fixed md:w-56 to a RESIZABLE width
+           # (drag its divider; persisted) — mobile full-width via max-md:!w-full,
+           # md+ via the navWidth inline style. The chat column stays md:w-[380px].
+           "md:flex" in surface and "max-md:!w-full" in surface and "md:w-[380px]" in surface)
 
     # ── 11. ADR-447 Phase 4: direct manipulation ─────────────────────────
     _check("double-click enters edit mode (runtime dblclick → yarnnn-edit-entered)",
