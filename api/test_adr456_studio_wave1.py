@@ -108,12 +108,14 @@ def run() -> bool:
     # ── 5. The FE half (source checks) ───────────────────────────────────
     web = Path(__file__).resolve().parent.parent / "web"
     toolbar = (web / "components/studio/StudioToolbar.tsx").read_text()
+    # The callsites later grew the citation PIN argument (test_studio_citation_pin
+    # covers it) — these match the call prefix, not the full arg list.
     _check("palette routes gallery to the multi-select picker",
            "openPicker('gallery')" in toolbar and "galleryPick" in toolbar
-           and "onInsertGallery(galleryPick)" in toolbar)
+           and "onInsertGallery(galleryPick" in toolbar)
     surface = (web / "components/studio/StudioSurface.tsx").read_text()
     _check("gallery insert = ONE block from the registry fragment (one revision)",
-           "galleryFragment(base, paths.map(relPath))" in surface)
+           "galleryFragment(base, paths.map(relPath)" in surface)
     ops = (web / "components/studio/artifactOps.ts").read_text()
     _check("galleryFragment clones the registry prototype per picked path",
            "export function galleryFragment" in ops

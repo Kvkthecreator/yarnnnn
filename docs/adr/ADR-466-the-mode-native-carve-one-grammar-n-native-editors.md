@@ -182,7 +182,7 @@ Docs: this ADR · STUDIO.md (mode contracts) · the derivation analysis.
 | # | Phase | Workstream | Status |
 |---|---|---|---|
 | 1 | Docs — derivation + this ADR | — | **Done** (2026-07-20) |
-| 2 | Arrangement intelligence (pre-filter · resolution · role mapping · Layout ▾) | C | Pending |
+| 2 | Arrangement intelligence (pre-filter · resolution · role mapping · Layout ▾) | C | **Done** (2026-07-20) — implementation refinement on D5: the gallery does not *disable* a slotless thumb; it forewarns (amber note) and the click performs the move-content resolution directly — never a disabled dead-end, never a post-hoc banner |
 | 3 | Palette hosts pickers; `Media ▾` deleted | B/D4 | Pending |
 | 4 | Flow slimming (two grains) | A/D3 | Pending |
 | 5 | Deck object layer (selection box · drag-position · two-axis resize) | A/D2 | Pending |

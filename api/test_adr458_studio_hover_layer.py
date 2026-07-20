@@ -72,17 +72,25 @@ def run() -> bool:
     _check("Design tab: the File section (Copy link/Duplicate/Rename/Move/Trash)",
            "Copy link" in design and "Rename…" in design and "Move…" in design
            and "Trash" in design and "fileVerbs" in design)
+    # Rename left the shared leaf-rename modal by DESIGN (ADR-459: the artifact's
+    # name is its meaning folder; the rename affordance is the CRUMB) — the verb
+    # focuses the crumb instead. Move/Trash still ride the shared implementation.
     _check("the File verbs ride the SHARED implementation (useFileOrganizeVerbs)",
-           "organizeVerbs.onRename({ path: artifactPath" in surface
+           "organizeVerbs.onMove({ path: artifactPath" in surface
            and "organizeVerbs.onDelete({ path: artifactPath" in surface
-           and "useFileOrganizeVerbs" in surface)
+           and "useFileOrganizeVerbs" in surface
+           and "rename: () => setRenaming(true)" in surface)
     _check("the Design tab makes no organize API calls of its own (no fork)",
            "api.workspace" not in design and "api.files" not in design)
     _check("the surface-bar 'File actions' button is deleted (crumb-only bar)",
            "'File actions'" not in surface
            and "useSurfaceActions('studio', [])" in surface)
-    _check("the Studio's FileContextMenu mount is deleted",
-           "FileContextMenu" not in surface)
+    # The WORKBENCH mount stays deleted; the LANDING's recents later gained a
+    # legitimate per-card context menu (one hook call, one mount). The check
+    # guards against the workbench menu returning, not against the landing's.
+    _check("the Studio's workbench FileContextMenu mount is deleted",
+           surface.count("useFileContextMenu(") == 1
+           and "recentMenu" in surface)
     _check("the organize dialogs stay mounted (trash → landing via onAfterMutate)",
            "{organizeModals}" in surface
            and "newPath === null ? null : relPath(newPath)" in surface)

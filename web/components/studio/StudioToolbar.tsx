@@ -24,7 +24,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Image as ImageIcon, LayoutGrid, Loader2, Plus } from 'lucide-react';
+import { Image as ImageIcon, LayoutGrid, LayoutTemplate, Loader2, Plus } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { ArrangementThumb } from './ArrangementThumb';
 
@@ -93,6 +93,23 @@ export interface StudioSelection {
   text: string;
 }
 
+/** ADR-466 D5 — the galleries forewarn instead of post-failing: a slotless
+ *  arrangement applied to a page that holds content MOVES that content to a
+ *  new content page (the handler's resolution). The note says so where the
+ *  choice is made. Shared by the toolbar's Layout gallery and the Properties
+ *  page scope's Re-arrange gallery. */
+export function arrangementCarryNote(
+  a: Pick<StudioArrangement, 'slots'>,
+  carriedCount: number | null,
+  pageNoun: string,
+): string | null {
+  const n = carriedCount ?? 0;
+  if (n > 0 && a.slots.length === 0) {
+    return `content → new ${pageNoun}`;
+  }
+  return null;
+}
+
 interface Citable {
   // `head_version_id` is the citation's PIN (ADR-440 D5) — served so the
   // insert can stamp it at the moment the citation is made.
@@ -132,6 +149,17 @@ interface StudioToolbarProps {
   onInsertGallery: (paths: string[], pins?: Record<string, string | null>) => void;
   /** EXECUTE: add a new page (slide/section) from the gallery. */
   onAddArrangement: (fragment: string, label: string) => void;
+  /** EXECUTE: re-lay the CURRENT page (ADR-466 D5 — the PowerPoint pair: Layout
+   *  beside New slide; same gallery as the Properties page scope, two mounts). */
+  onApplyArrangement: (a: StudioArrangement) => void;
+  /** Blocks the anchored page would carry through an arrangement change —
+   *  drives the carry note on slotless thumbs. */
+  carriedCount: number | null;
+  /** The anchored page's current arrangement slug (highlighted in Layout). */
+  currentArrange: string | null;
+  /** Whether a page can be resolved from the selection — Layout disables
+   *  (with a teaching title) when nothing anchors it. */
+  hasPageAnchor: boolean;
   /** The one generative ask (Chart) — seeds the lane. */
   onSeed: (text: string) => void;
 }
@@ -144,12 +172,16 @@ export function StudioToolbar({
   onInsertCited,
   onInsertGallery,
   onAddArrangement,
+  onApplyArrangement,
+  carriedCount,
+  currentArrange,
+  hasPageAnchor,
   onSeed,
 }: StudioToolbarProps) {
   // ADR-447/453: a deck's page is a "slide"; a document/article's is a
   // "section" — the operator word follows the layout.
   const pageNoun = layout === 'deck' ? 'slide' : 'section';
-  const [open, setOpen] = useState<null | 'insert' | 'new' | 'image' | 'table' | 'gallery'>(null);
+  const [open, setOpen] = useState<null | 'insert' | 'new' | 'layout' | 'image' | 'table' | 'gallery'>(null);
   const [citable, setCitable] = useState<Citable | null>(null);
   const [loadingCitable, setLoadingCitable] = useState(false);
   // The gallery picker's multi-select (ADR-456 W1) — N cited images, ONE block.
@@ -295,6 +327,24 @@ export function StudioToolbar({
           <LayoutGrid className="h-3 w-3" /> New {pageNoun} <Plus className="h-3 w-3" />
         </button>
       )}
+      {/* Layout — re-lay the CURRENT page (ADR-466 D5): the PowerPoint pair,
+          New slide beside Layout. Same gallery as the Properties page scope
+          (one component grammar, two mounts); needs an anchored page. */}
+      {isPaged && arrangements.length > 0 && (
+        <button
+          type="button"
+          className={btn}
+          disabled={!hasPageAnchor}
+          title={
+            hasPageAnchor
+              ? `Change this ${pageNoun}'s layout`
+              : `Select a ${pageNoun} first — click it on the canvas or in the strip`
+          }
+          onClick={() => setOpen(open === 'layout' ? null : 'layout')}
+        >
+          <LayoutTemplate className="h-3 w-3" /> Layout
+        </button>
+      )}
 
       {/* The selection chip is DELETED (2026-07-15). ADR-453 D3 gave it one
           job — "the acknowledgment" — for a world where every affordance was
@@ -363,6 +413,49 @@ export function StudioToolbar({
                 <span className="truncate text-[11px]">{a.label}</span>
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* The Layout gallery — re-lay the current page (ADR-466 D5). Slotless
+          thumbs carry the amber note: applying one moves this page's content
+          to a new content page (the handler's resolution), never a dead-end. */}
+      {open === 'layout' && (
+        <div className={panel}>
+          <p className="px-2 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Change this {pageNoun} to
+          </p>
+          <div className="grid grid-cols-2 gap-1.5 p-1">
+            {arrangements.map((a) => {
+              const note = arrangementCarryNote(a, carriedCount, pageNoun);
+              const current = currentArrange === a.slug;
+              return (
+                <button
+                  key={a.slug}
+                  type="button"
+                  title={
+                    note
+                      ? `${a.description} — this ${pageNoun}'s content moves to a new content ${pageNoun} after it.`
+                      : a.description
+                  }
+                  onClick={() => {
+                    onApplyArrangement(a);
+                    setOpen(null);
+                  }}
+                  className={`flex flex-col gap-1 rounded-md border p-1.5 text-left hover:bg-muted/20 ${
+                    current ? 'border-indigo-400' : 'border-transparent hover:border-border'
+                  }`}
+                >
+                  <ArrangementThumb slots={a.slots} fragment={a.fragment} />
+                  <span className="truncate text-[11px]">{a.label}</span>
+                  {note && (
+                    <span className="truncate text-[9px] leading-tight text-amber-600 dark:text-amber-500">
+                      {note}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

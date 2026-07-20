@@ -36,7 +36,13 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { ArrangementThumb } from './ArrangementThumb';
-import type { StudioSelection, StudioToken, StudioVocabulary } from './StudioToolbar';
+import {
+  arrangementCarryNote,
+  type StudioArrangement,
+  type StudioSelection,
+  type StudioToken,
+  type StudioVocabulary,
+} from './StudioToolbar';
 
 export type StructVerb = 'duplicate' | 'up' | 'down' | 'delete';
 
@@ -59,11 +65,15 @@ interface StudioDesignTabProps {
   /** The artifact's SOURCE html — token values + skin ref parse from it. */
   html: string;
   selection: StudioSelection | null;
+  /** ADR-466 D5 — blocks the selected page would carry through an arrangement
+   *  change; drives the carry note on slotless thumbs. */
+  carriedCount: number | null;
   /** EXECUTE: set (value) / clear (null) a token on the selected block/page,
    *  or on the artifact ROOT (document grain — ADR-455). */
   onSetToken: (grain: 'block' | 'page' | 'document', key: string, value: string | null) => void;
-  /** EXECUTE: re-lay the SELECTED page to this arrangement. */
-  onApplyArrangement: (fragment: string, label: string) => void;
+  /** EXECUTE: re-lay the SELECTED page to this arrangement (role-aware; a
+   *  slotless target resolves by moving content to a new content page). */
+  onApplyArrangement: (a: StudioArrangement) => void;
   onBlockVerb: (verb: StructVerb) => void;
   onPageVerb: (verb: StructVerb) => void;
   /** EXECUTE: turn the selected block into another TEXT kind (ADR-456 W2 —
@@ -240,6 +250,7 @@ export function StudioDesignTab({
   layout,
   html,
   selection,
+  carriedCount,
   onSetToken,
   onApplyArrangement,
   onBlockVerb,
@@ -766,18 +777,30 @@ export function StudioDesignTab({
               <div className="grid grid-cols-2 gap-1.5">
                 {arrangements.map((a) => {
                   const current = selectedEl?.getAttribute('data-arrange') === a.slug;
+                  // ADR-466 D5 — forewarn, never dead-end: a slotless target
+                  // moves this page's content to a new content page.
+                  const note = arrangementCarryNote(a, carriedCount, pageNoun);
                   return (
                     <button
                       key={a.slug}
                       type="button"
-                      title={a.description}
-                      onClick={() => onApplyArrangement(a.fragment, a.label)}
+                      title={
+                        note
+                          ? `${a.description} — this ${pageNoun}'s content moves to a new content ${pageNoun} after it.`
+                          : a.description
+                      }
+                      onClick={() => onApplyArrangement(a)}
                       className={`flex flex-col gap-1 rounded-md border p-1.5 text-left hover:bg-muted/20 ${
                         current ? 'border-indigo-400' : 'border-transparent hover:border-border'
                       }`}
                     >
                       <ArrangementThumb slots={a.slots} fragment={a.fragment} />
                       <span className="truncate text-[11px]">{a.label}</span>
+                      {note && (
+                        <span className="truncate text-[9px] leading-tight text-amber-600 dark:text-amber-500">
+                          {note}
+                        </span>
+                      )}
                     </button>
                   );
                 })}

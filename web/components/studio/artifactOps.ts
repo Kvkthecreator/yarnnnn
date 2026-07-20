@@ -804,6 +804,11 @@ export function applyArrangement(
   html: string,
   fragment: string,
   anchor: OpAnchor,
+  /** ADR-466 D5: the target arrangement's slot roles, keyed by slot name (from
+   *  the served registry). With roles, distribution is ROLE-AWARE: media blocks
+   *  seek a media slot, flow content never lands in one. Optional — without it
+   *  the name/first-slot ladder still applies. */
+  slotRoles?: Record<string, string>,
 ): OpResult | null {
   const doc = parse(html);
   const page = arrangedPageAt(doc, anchor);
@@ -828,14 +833,7 @@ export function applyArrangement(
   // first flow slot. If the target has no slot at all, REFUSE (return null) —
   // a layout with nowhere to put content cannot receive content, and saying so
   // is the honest act. The caller surfaces the refusal.
-  const carried = Array.from(page.querySelectorAll('[data-block]')).filter(
-    (b) =>
-      b.getAttribute('data-block') !== 'heading' &&
-      // Only TOP-LEVEL blocks — a block nested inside another carried block (a
-      // registry block never nests, but an AI-authored one can) must ride with
-      // its parent, not be torn out and appended as a sibling.
-      !b.parentElement?.closest('[data-block]'),
-  );
+  const carried = carriedBlocksOf(page);
   const targetSlots = Array.from(el.querySelectorAll('[data-slot]'));
 
   if (carried.length && !targetSlots.length) return null; // refuse, never delete
@@ -843,11 +841,36 @@ export function applyArrangement(
   if (targetSlots.length) {
     // Placeholders yield to real content — but only in a slot that receives.
     const byName = new Map(targetSlots.map((s) => [s.getAttribute('data-slot'), s]));
-    const fallback = targetSlots[0];
+    // ADR-466 D5 — the role ladder. With roles served, the fallback for FLOW
+    // content is the first flow-role slot (never a media/heading slot), and a
+    // media block (figure/gallery) seeks the media slot first — the "smarter
+    // role-based slot-mapping" ADR-453 D7 named.
+    const roleOf = (name: string | null) => (name && slotRoles ? (slotRoles[name] ?? null) : null);
+    const mediaSlot = slotRoles
+      ? targetSlots.find((s) => roleOf(s.getAttribute('data-slot')) === 'media')
+      : undefined;
+    const flowFallback = slotRoles
+      ? targetSlots.find((s) => {
+          const r = roleOf(s.getAttribute('data-slot'));
+          return r !== 'media' && r !== 'heading';
+        })
+      : undefined;
+    const fallback = flowFallback ?? targetSlots[0];
     const receiving = new Set<Element>();
     carried.forEach((b) => {
+      const kind = b.getAttribute('data-block');
       const from = b.closest('[data-slot]')?.getAttribute('data-slot') ?? null;
-      const target = (from && byName.get(from)) || fallback;
+      const named = from ? byName.get(from) : undefined;
+      let target: Element;
+      if ((kind === 'figure' || kind === 'gallery') && mediaSlot) {
+        target = mediaSlot;
+      } else if (named && roleOf(from) !== 'media') {
+        // A same-named slot preserves position intent (side → side) — unless
+        // it is a media slot, which flow content must not fill.
+        target = named;
+      } else {
+        target = fallback;
+      }
       if (!receiving.has(target)) {
         target.querySelectorAll('[data-block]').forEach((p) => p.remove());
         receiving.add(target);
@@ -856,5 +879,54 @@ export function applyArrangement(
     });
   }
   page.replaceWith(el);
+  return { html: serialize(doc), landedId: el.getAttribute('data-arrange') };
+}
+
+/** The blocks an arrangement change must carry: every top-level non-heading
+ *  [data-block] on the page (headings anchor; nested blocks ride with their
+ *  parent). Shared by applyArrangement / countCarriedBlocks / the resolution. */
+function carriedBlocksOf(page: Element): Element[] {
+  return Array.from(page.querySelectorAll('[data-block]')).filter(
+    (b) =>
+      b.getAttribute('data-block') !== 'heading' &&
+      !b.parentElement?.closest('[data-block]'),
+  );
+}
+
+/** ADR-466 D5 — the galleries pre-filter instead of post-failing: how many
+ *  blocks would an arrangement change on this page have to carry? null when
+ *  the anchor resolves to no page. */
+export function countCarriedBlocks(html: string, anchor: OpAnchor): number | null {
+  const doc = parse(html);
+  const page = arrangedPageAt(doc, anchor);
+  if (!page) return null;
+  return carriedBlocksOf(page).length;
+}
+
+/** ADR-466 D5 — the refusal's RESOLUTION: apply a slotless arrangement (title /
+ *  section-header / closing / hero / cta) by moving the page's content to a NEW
+ *  content page inserted right after it. One compound act, one revision, never
+ *  a dead-end. `contentFragment` is the layout's content arrangement (the
+ *  caller picks it from the served registry). */
+export function applyArrangementMovingContent(
+  html: string,
+  fragment: string,
+  anchor: OpAnchor,
+  contentFragment: string,
+): OpResult | null {
+  const doc = parse(html);
+  const page = arrangedPageAt(doc, anchor);
+  if (!page) return null;
+  const el = materializeFragment(doc, fragment);
+  const overflow = materializeFragment(doc, contentFragment);
+  if (!el || !overflow) return null;
+  const slot = overflow.querySelector('[data-slot]');
+  if (!slot) return null; // the resolution needs a receiving slot
+  const carried = carriedBlocksOf(page);
+  if (!carried.length) return applyArrangement(html, fragment, anchor);
+  slot.querySelectorAll('[data-block]').forEach((p) => p.remove());
+  carried.forEach((b) => slot.appendChild(b));
+  page.replaceWith(el);
+  el.insertAdjacentElement('afterend', overflow);
   return { html: serialize(doc), landedId: el.getAttribute('data-arrange') };
 }

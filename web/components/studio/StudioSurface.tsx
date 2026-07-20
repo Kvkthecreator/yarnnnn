@@ -43,12 +43,19 @@ import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { StudioCanvas, type PointerEvent2, type StudioContextTarget } from './StudioCanvas';
 import { StudioBlockMenu } from './StudioBlockMenu';
 import { StudioSlashPalette } from './StudioSlashPalette';
-import { StudioToolbar, type StudioSelection, type StudioVocabulary } from './StudioToolbar';
+import {
+  StudioToolbar,
+  type StudioArrangement,
+  type StudioSelection,
+  type StudioVocabulary,
+} from './StudioToolbar';
 import { StudioDesignTab, type StructVerb } from './StudioDesignTab';
 import { StudioNavigator } from './StudioNavigator';
 import {
   applyArrangement,
+  applyArrangementMovingContent,
   applySkin,
+  countCarriedBlocks,
   convertBlock,
   deleteBlock,
   deletePage,
@@ -739,25 +746,47 @@ export function StudioSurface() {
     [applyOp, anchor],
   );
   const handleApplyArrangement = useCallback(
-    (fragment: string, label: string) => {
-      // D9: applyArrangement REFUSES rather than deleting when the target has
-      // nowhere to put the page's content (title/section-header/closing/hero/
-      // cta carry no slot). applyOp's generic miss message would say "select
-      // something first", which is wrong and unhelpful — a refusal that
-      // protected the member's work should say so in their words.
-      if (file?.content && !applyArrangement(file.content, fragment, anchor)) {
+    (a: Pick<StudioArrangement, 'fragment' | 'label' | 'slots'>) => {
+      // ADR-466 D5. Two intelligences over the old refusal:
+      //  · ROLE-AWARE distribution — the target's slot roles ride into the op,
+      //    so media blocks seek media slots and flow content never fills one.
+      //  · RESOLUTION instead of a dead-end — a slotless arrangement (title /
+      //    section-header / closing / hero / cta) applied to a page that holds
+      //    content moves that content to a NEW content page right after it
+      //    (one compound revision; the galleries forewarn with an inline note).
+      //    The old red banner ("has no place for this slide's content") remains
+      //    only for the layout with no slotted arrangement at all.
+      const slotRoles = Object.fromEntries(a.slots.map((s) => [s.name, s.role]));
+      const pageNoun = template === 'deck' ? 'slide' : 'section';
+      if (file?.content && !applyArrangement(file.content, a.fragment, anchor, slotRoles)) {
+        const set = vocabulary?.arrangements?.[template] ?? [];
+        const receiver =
+          set.find((x) => x.slug === 'content' && x.slots.length > 0) ??
+          set.find((x) => x.slots.length > 0);
+        if (receiver) {
+          return applyOp(
+            (html) => applyArrangementMovingContent(html, a.fragment, anchor, receiver.fragment),
+            `Studio: change to ${a.label} — content moved to a new ${receiver.label.toLowerCase()} ${pageNoun}`,
+          );
+        }
         setOpError(
-          `"${label}" has no place for this slide's content — move or delete the blocks first, ` +
-            `or pick a layout with a content area.`,
+          `"${a.label}" has no place for this ${pageNoun}'s content — move or delete the blocks first.`,
         );
         return Promise.resolve();
       }
       return applyOp(
-        (html) => applyArrangement(html, fragment, anchor),
-        `Studio: change arrangement to ${label}`,
+        (html) => applyArrangement(html, a.fragment, anchor, slotRoles),
+        `Studio: change arrangement to ${a.label}`,
       );
     },
-    [applyOp, anchor, file],
+    [applyOp, anchor, file, vocabulary, template],
+  );
+
+  // ADR-466 D5 — the galleries forewarn: how many blocks would an arrangement
+  // change on the anchored page carry? (null → no page anchored yet)
+  const carriedCount = useMemo(
+    () => (file?.content ? countCarriedBlocks(file.content, anchor) : null),
+    [file, anchor],
   );
 
   // ── ADR-453: the property layer + the structural verbs (Design tab) ──────
@@ -1606,6 +1635,15 @@ export function StudioSurface() {
                 onInsertCited={handleInsertCited}
                 onInsertGallery={handleInsertGallery}
                 onAddArrangement={handleAddArrangement}
+                onApplyArrangement={handleApplyArrangement}
+                carriedCount={carriedCount}
+                currentArrange={selection?.arrange ?? null}
+                hasPageAnchor={
+                  !!selection &&
+                  (selection.blockId != null ||
+                    selection.slideIndex != null ||
+                    selection.pageIndex != null)
+                }
                 onSeed={seedComposer}
               />
             </div>
@@ -1815,6 +1853,7 @@ export function StudioSurface() {
               layout={template}
               html={file?.content ?? ''}
               selection={selection}
+              carriedCount={carriedCount}
               onSetToken={handleSetToken}
               onApplyArrangement={handleApplyArrangement}
               onBlockVerb={handleBlockVerb}

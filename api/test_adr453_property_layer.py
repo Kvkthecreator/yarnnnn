@@ -212,8 +212,15 @@ def run() -> bool:
 
     toolbar = (web / "components/studio/StudioToolbar.tsx").read_text()
     _check(
-        "toolbar: the realigned verbs (Insert · New ‹noun›), no mixed-grain Arrange",
-        "Insert" in toolbar and "New {pageNoun}" in toolbar and "onApplyArrangement" not in toolbar,
+        # ADR-466 D5 amends ADR-453 D3: the toolbar pairs the page verbs —
+        # New ‹noun› beside Layout (re-lay the CURRENT page), the PowerPoint
+        # pair. The old single mixed-grain "Arrange ▾" menu stays deleted; the
+        # Layout gallery is the same grammar as the Properties page scope
+        # (arrangementCarryNote is the shared forewarning).
+        "toolbar: the page-verb pair (New ‹noun› · Layout), carry-note shared (ADR-466 D5)",
+        "New {pageNoun}" in toolbar
+        and "onApplyArrangement" in toolbar
+        and "arrangementCarryNote" in toolbar,
     )
     _check(
         "toolbar: the gallery renders derived wireframes",
