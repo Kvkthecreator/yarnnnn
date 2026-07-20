@@ -32,10 +32,10 @@ import {
   ScrollText,
   Settings,
   ShieldCheck,
-  Sparkles,
   Target,
   User,
   UserCircle,
+  UsersRound,
   Wallet,
 } from 'lucide-react';
 
@@ -106,11 +106,17 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   'scroll-text': ScrollText,
   settings: Settings,
   'shield-check': ShieldCheck,
-  // 2026-07-16: the `agents` roster glyph. Was `users` — the multi-human crowd,
-  // which names MEMBERS (the humans in the commons), not the colleagues you hire.
-  // `users` is deliberately NOT retained as an orphan mapping (Singular
-  // Implementation); it returns when a members surface declares it.
-  sparkles: Sparkles,
+  // 2026-07-20: the `agents` roster glyph — a pair of ROUNDED people = the
+  // colleagues you've hired and named. Object-like, so it sits in the family
+  // (Chat bubble / Studio palette / Files folder), rounded to match
+  // MessageCircle + UserCircle. Distinct from `users` (the reserved MEMBERS
+  // crowd — humans who joined the commons) and from `user-circle`/`user` (the
+  // single-principal account door). Was `sparkles` (2026-07-16), which read as
+  // generic "AI magic" and broke the concrete-object family; and `users`
+  // before that, which named the wrong noun. Neither is retained as an orphan
+  // mapping (Singular Implementation); `users` returns when a members surface
+  // declares it.
+  'users-round': UsersRound,
   target: Target,
   // ADR-347: user glyph for the account window (the `settings` slug,
   // UserMenu-reached — billing/usage/privacy, the human/principal).

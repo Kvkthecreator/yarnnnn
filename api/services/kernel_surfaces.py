@@ -575,13 +575,14 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "title": "Agents",
         "archetype": "roster",
         "substrate_paths": [],  # agents DB table + per-agent substrate
-        # `users` (the multi-human glyph) was the icon until 2026-07-16 — it named
-        # the wrong noun. A crowd of people is the MEMBERS concept (the humans in
-        # the commons — WorkspaceMembersCard, `user-circle` for the account/identity
-        # door). These are colleagues you HIRE, not people who joined. `sparkles`
-        # collides with nothing in the registry, and `users` is now free for the
-        # members surface that should own it.
-        "icon_key": "sparkles",
+        # A pair of ROUNDED people = the colleagues you've hired and named.
+        # Object-like, so it sits in the concrete-glyph family (Chat/Studio/Files)
+        # rather than reading as generic "AI magic". Distinct from `users` (the
+        # reserved MEMBERS crowd — humans who joined the commons) and from
+        # `user-circle` (the single-principal account door). History: `users`
+        # until 2026-07-16 (named the wrong noun) → `sparkles` (too abstract,
+        # broke the family) → `users-round` (2026-07-20).
+        "icon_key": "users-round",
         "default_pinned": False,
         "route": "/agents",  # _route_status: EXISTING — hired-agent detail + roster live here
         # Summary rewritten 2026-07-16 with the re-surface: the old line described
