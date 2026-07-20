@@ -98,21 +98,21 @@ def run() -> bool:
     )
 
     # ── D2: the object layer (staged frames) ─────────────────────────────
-    # ADR-471 D-a redefined the grain: `block-deck` = a block on a STAGED
+    # ADR-472 D2 renamed the grain: `block-staged` = a block on a STAGED
     # frame (the `.slide` class — a deck slide OR a canvas artboard). The
     # string is unchanged (FE compat); the falsifier now guards that position
     # stays confined to the ONE staged grain — never media, never flow.
     _check(
         "x/y measures exist and are STAGED-FRAME-only (the ADR-461 boundary, ADR-471 grain)",
-        STUDIO_MEASURES.get("x", {}).get("applies") == ["block-deck"]
-        and STUDIO_MEASURES.get("y", {}).get("applies") == ["block-deck"]
+        STUDIO_MEASURES.get("x", {}).get("applies") == ["block-staged"]
+        and STUDIO_MEASURES.get("y", {}).get("applies") == ["block-staged"]
         and STUDIO_MEASURES["x"]["css_var"] == "--yx"
         and STUDIO_MEASURES["y"]["css_var"] == "--yy",
     )
     _check(
         "no continuous position admitted outside the staged frame",
         all(
-            g == "block-deck"
+            g == "block-staged"
             for key in ("x", "y")
             for g in STUDIO_MEASURES[key]["applies"]
         ),
@@ -283,7 +283,7 @@ def run() -> bool:
     _z = STUDIO_MEASURES.get("z", {})
     _check(
         "the z measure exists — staged-frame, integer band, --yz",
-        _z.get("applies") == ["block-deck"] and _z.get("css_var") == "--yz"
+        _z.get("applies") == ["block-staged"] and _z.get("css_var") == "--yz"
         and _z.get("unit") == "" and _z.get("min") == 0 and isinstance(_z.get("max"), int),
     )
     _check(

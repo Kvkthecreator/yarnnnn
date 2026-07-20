@@ -928,7 +928,7 @@ STUDIO_MEASURES: dict[str, dict] = {
     "w": {
         "label": "Width",
         # Deck + media only. NOT document/article/page — they reflow.
-        "applies": ["block-deck", "media"],
+        "applies": ["block-staged", "media"],
         "unit": "%",
         "min": 10,
         "max": 100,
@@ -937,7 +937,7 @@ STUDIO_MEASURES: dict[str, dict] = {
     },
     "h": {
         "label": "Height",
-        "applies": ["block-deck", "media"],
+        "applies": ["block-staged", "media"],
         "unit": "%",
         "min": 10,
         "max": 100,
@@ -946,10 +946,14 @@ STUDIO_MEASURES: dict[str, dict] = {
     },
     # Bounded POSITION (ADR-466 D2, enacting ADR-461 D3's remaining half): x/y
     # place a block at a point IN ITS FRAME — `left`/`top` as a percent of the
-    # frame's box. STAGED frames only (not `media`): the `block-deck` grain is
-    # REDEFINED by ADR-471 D-a as "a block on a staged frame" — the `.slide`
-    # class, which a deck slide AND a canvas artboard both carry (the string
-    # stays for FE compat; the frame class IS the grain's boundary). A media
+    # frame's box. STAGED frames only (not `media`): the `block-staged` grain
+    # is a block on a STAGED FRAME — the `.slide` class, carried by a deck
+    # slide and by an IMAGES stage (the frame class IS the grain's boundary).
+    # ADR-472 D2 renamed it from `block-deck`, paying ADR-471 D-a's debt: the
+    # grain was already redefined to mean "staged frame" while keeping the
+    # deck-shaped name, and exporting that lie into a second app was not an
+    # option. This is the SHARED OBJECT LAYER — Studio consumes it for decks,
+    # IMAGES for stages; one implementation, two consumers. A media
     # block in a FLOW layout must never exit the flow (it has an
     # intrinsic-ratio frame for SIZE, but position needs the fixed stage). The
     # presence of BOTH measures is the positioned state; absence = in flow. A
@@ -958,7 +962,7 @@ STUDIO_MEASURES: dict[str, dict] = {
     # (applyArrangement clears x/y).
     "x": {
         "label": "X",
-        "applies": ["block-deck"],
+        "applies": ["block-staged"],
         "unit": "%",
         "min": 0,
         "max": 95,
@@ -967,7 +971,7 @@ STUDIO_MEASURES: dict[str, dict] = {
     },
     "y": {
         "label": "Y",
-        "applies": ["block-deck"],
+        "applies": ["block-staged"],
         "unit": "%",
         "min": 0,
         "max": 95,
@@ -982,7 +986,7 @@ STUDIO_MEASURES: dict[str, dict] = {
     # StudioBlockMenu's Bring forward/backward verbs write this token.
     "z": {
         "label": "Z",
-        "applies": ["block-deck"],
+        "applies": ["block-staged"],
         "unit": "",
         "min": 0,
         "max": 20,
@@ -991,12 +995,12 @@ STUDIO_MEASURES: dict[str, dict] = {
     },
 }
 
-#: Measure grains → the `applies` vocabulary above. `block-deck` is a block on
-#: a STAGED frame — the `.slide` class, carried by a deck slide and (ADR-471
-#: D-a) a canvas artboard; the string predates the canvas and stays for FE
-#: compat, the frame class is the boundary. `media` is a media block anywhere
+#: Measure grains → the `applies` vocabulary above. `block-staged` is a block
+#: on a STAGED frame — the `.slide` class, carried by a deck slide and by an
+#: IMAGES stage; the frame class is the grain's boundary (ADR-472 D2, renamed
+#: from the deck-shaped `block-deck`). `media` is a media block anywhere
 #: (an image has an intrinsic ratio, which is its own frame — ADR-461 D4).
-MEASURE_GRAINS = {"block-deck", "media"}
+MEASURE_GRAINS = {"block-staged", "media"}
 
 
 #: (cascade: unmarked layout style < data-kernel < data-skin).
