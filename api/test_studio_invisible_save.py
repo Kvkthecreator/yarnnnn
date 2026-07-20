@@ -134,11 +134,16 @@ def run() -> bool:
         "the CAS base is read FRESH from a ref, not a render closure",
         "const liveRef = useRef<{ content: string; head: string | null } | null>(null)" in surface
         and "const live = liveRef.current;" in surface
-        and "const baseHead = live ? live.head : null;" in surface,
+        # ADR-466 P8 (optimistic writes): the base head is read INSIDE the
+        # queued write — the head the previous write acked.
+        and "const baseHead = liveRef.current?.head ?? null;" in surface,
     )
     _check(
-        "a landed write advances the ref SYNCHRONOUSLY (the next queued op sees it)",
-        "liveRef.current = { content: html, head: res.head_version_id };" in surface,
+        # ADR-466 P8: pixels never wait for the network — CONTENT advances
+        # optimistically this tick; the HEAD advances on the server ack.
+        "optimistic content now, acked head later (the two-stage advance)",
+        "liveRef.current = { content: html, head: live?.head ?? null };" in surface
+        and "? { ...liveRef.current, head: res.head_version_id }" in surface,
     )
     _check(
         "every op RECOMPUTES against live html (queued ops apply to the prior result)",

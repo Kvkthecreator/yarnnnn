@@ -230,17 +230,20 @@ def run() -> bool:
     )
     # The gesture: third bindGesture caller, posts a PERCENT of the frame.
     _check(
-        "resize is bindGesture's THIRD caller (one primitive, three gestures)",
-        "bindGesture(rz, function () { return rzBlock; }" in proj,
+        # ADR-466 P8: the lone grip grew into the bounding box — body drag +
+        # corner handles, every one riding the SAME gesture primitive.
+        "the bounding box rides the ONE gesture primitive (body + handles)",
+        "bindGesture(box, function () { return selBlock && positionable(selBlock) ? selBlock : null; }" in proj
+        and "bindGesture(h, function () { return selBlock; }" in proj,
     )
     _check(
         "it reports a PERCENT OF THE FRAME, not a pixel (the bound is structural)",
         "br.width / (fr.width || 1)) * 100" in proj,
     )
     _check(
-        "an UNFRAMED block gets no handle (the boundary is felt, not just documented)",
+        "an UNFRAMED block gets no box (the boundary is felt, not just documented)",
         "function isMeasurable(block)" in proj
-        and "if (sel && sel.isConnected && isMeasurable(sel)) showResize(sel);" in proj,
+        and "if (editing == null && sel && sel.isConnected && isMeasurable(sel)) showBox(sel);" in proj,
     )
     # The handle follows the SELECTION, not the pointer: it draws at the block's
     # corner, so a hover-scoped handle vanishes exactly as it is reached for.
@@ -278,7 +281,7 @@ def run() -> bool:
     )
     _check(
         "the surface clamps from the SERVED registry, never a hardcoded bound",
-        "vocabulary?.measures?.find" in surface and "min: spec.min" in surface,
+        "vocabulary?.measures?.find" in surface and "min: s.min" in surface,
     )
 
     ok = all(c for _, c in _results)

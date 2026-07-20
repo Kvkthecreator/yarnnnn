@@ -80,8 +80,8 @@ import {
   removePageBackground,
   removeSkin,
   retrofitKernel,
+  setGeometry,
   setPageBackground,
-  setMeasure,
   setPosition,
   setToken,
   type OpResult,
@@ -584,34 +584,48 @@ export function StudioSurface() {
       reload: boolean,
     ): Promise<boolean> => {
       if (!artifactPath) return Promise.resolve(false);
+      // ── STAGE 1 — OPTIMISTIC, this tick (ADR-466 P8): pixels never wait for
+      // the network. Compute against the live view NOW, paint the override
+      // NOW; the durable write queues behind. Before this, the override was
+      // set only after the API ack — every reorder/insert/re-arrange sat on a
+      // full round-trip before the canvas moved ("performative slow"). The
+      // revision is still the atom and the queue still serializes writes; the
+      // only thing that changed is that durability stopped gating the pixels.
+      const anchorHead = loadedFile?.head_version_id ?? null;
+      const live = liveRef.current;
+      const computed = compute(live?.content ?? '');
+      if (computed == null) return Promise.resolve(false); // no-op against live state
+      // ADR-453 D2: the kernel element retrofits on first touch, at the one
+      // member write door. Byte-identical when current — never manufactures a
+      // revision on its own.
+      const html = retrofitKernel(computed, kernelStyleRef.current);
+      // Advance the live CONTENT now (the next op computes off this); the HEAD
+      // advances only on ack (the queued write below reads it fresh).
+      liveRef.current = { content: html, head: live?.head ?? null };
+      setLocalOverride((cur) => ({
+        anchorHead,
+        content: html,
+        headVersionId: cur?.headVersionId ?? live?.head ?? '',
+      }));
+      if (reload) setReloadKey((k) => k + 1);
+
+      // ── STAGE 2 — DURABILITY, queued: one attributed CAS revision. ──
       const run = async (): Promise<boolean> => {
-        // Pin the chain's anchor to the LOADED head (stable through a typing
-        // session). The first edit forks from the loaded head; every subsequent
-        // edit keeps that same anchor so the override stays valid (the merge
-        // guard in `file`).
-        const anchorHead = loadedFile?.head_version_id ?? null;
-        // Read the base head FRESH — a previous write in this chain may have
-        // advanced it with no render in between. This ref, not a render
-        // closure, is what governs the CAS base.
-        const live = liveRef.current;
-        const baseHead = live ? live.head : null;
-        // Recompute against the LIVE content so an op that queued behind
-        // another applies to that op's result, not to a stale render.
-        const computed = compute(live?.content ?? '');
-        if (computed == null) return false; // the op no-ops against live state
-        // ADR-453 D2: the kernel element retrofits on first touch. Applied HERE,
-        // at the one member write door, rather than op-by-op — only 5 of 21 ops
-        // threaded it through, so every other write left an old artifact stale.
-        // A no-op when the artifact is already current (byte-identical), so it
-        // never turns a no-op edit into a revision.
-        const html = retrofitKernel(computed, kernelStyleRef.current);
+        // The CAS base is the head the PREVIOUS queued write acked — read
+        // inside the queue, never from a render closure.
+        const baseHead = liveRef.current?.head ?? null;
         try {
           const res = await api.studio.writeArtifact(artifactPath, html, baseHead, message);
-          // Advance the CAS base BOTH synchronously (liveRef — the next queued
-          // op reads it this tick) and in React state (the invisible-save spine).
-          liveRef.current = { content: html, head: res.head_version_id };
-          setLocalOverride({ anchorHead, content: html, headVersionId: res.head_version_id });
-          if (reload) setReloadKey((k) => k + 1);
+          liveRef.current = liveRef.current
+            ? { ...liveRef.current, head: res.head_version_id }
+            : { content: html, head: res.head_version_id };
+          // Stamp the acked head WITHOUT clobbering a newer optimistic
+          // content a queued-behind op may already have painted.
+          setLocalOverride((cur) =>
+            cur && cur.content === html
+              ? { ...cur, headVersionId: res.head_version_id }
+              : cur,
+          );
           return true;
         } catch (e) {
           // Courteous 409 (ADR-466 D7): a conflict here means a genuinely
@@ -817,61 +831,55 @@ export function StudioSurface() {
       ),
     [applyOp],
   );
-  // ADR-461 D4: a measured block was resized. The bound comes from the KERNEL's
-  // served registry — the FE never invents one (setMeasure clamps again at the
-  // write, so a bad message can't author an unbounded value either). Width is
-  // the axis members reach for; height stays available to the registry but the
-  // corner grip drives w — one gesture, one intent.
-  const handleMeasure = useCallback(
-    (blockId: string, w: number) => {
-      const spec = vocabulary?.measures?.find((m) => m.key === 'w');
-      if (!spec) return;
-      void applyOp(
-        (html) =>
-          setMeasure(html, blockId, spec.key, w, {
-            cssVar: spec.css_var,
-            unit: spec.unit,
-            min: spec.min,
-            max: spec.max,
-          }),
-        `Studio: width ${Math.max(spec.min, Math.min(spec.max, Math.round(w)))}${spec.unit}`,
-      );
-    },
-    [applyOp, vocabulary],
-  );
-  // ADR-466 D2: the move grip landed — both position measures as ONE revision,
-  // clamped from the SERVED bound (setPosition clamps again at the write).
-  const positionSpecs = useCallback(() => {
+  // ADR-466 P8: a bounding-box gesture landed — any mix of position (body
+  // drag) and width (corner handle; a west handle on a positioned block moves
+  // origin AND width together) as ONE geometry revision. The bound comes from
+  // the KERNEL's served registry — the FE never invents one (setGeometry
+  // clamps again at the write, so a bad message can't author an unbounded
+  // value either).
+  const geometrySpecs = useCallback(() => {
     const sx = vocabulary?.measures?.find((m) => m.key === 'x');
     const sy = vocabulary?.measures?.find((m) => m.key === 'y');
-    if (!sx || !sy) return null;
-    return {
-      x: { cssVar: sx.css_var, unit: sx.unit, min: sx.min, max: sx.max },
-      y: { cssVar: sy.css_var, unit: sy.unit, min: sy.min, max: sy.max },
-    };
+    const sw = vocabulary?.measures?.find((m) => m.key === 'w');
+    if (!sx || !sy || !sw) return null;
+    const spec = (s: NonNullable<typeof sx>) => ({
+      cssVar: s.css_var,
+      unit: s.unit,
+      min: s.min,
+      max: s.max,
+    });
+    return { x: spec(sx), y: spec(sy), w: spec(sw) };
   }, [vocabulary]);
-  const handlePosition = useCallback(
-    (blockId: string, x: number, y: number) => {
-      const specs = positionSpecs();
+  const handleGeometry = useCallback(
+    (blockId: string, geo: { x?: number; y?: number; w?: number }) => {
+      const specs = geometrySpecs();
       if (!specs) return;
+      const parts = [
+        geo.w != null ? `width ${Math.round(geo.w)}%` : null,
+        geo.x != null && geo.y != null
+          ? `at ${Math.round(geo.x)}%, ${Math.round(geo.y)}%`
+          : geo.x != null
+            ? `x ${Math.round(geo.x)}%`
+            : null,
+      ].filter(Boolean);
       void applyOp(
-        (html) => setPosition(html, blockId, x, y, specs),
-        `Studio: position ${blockId} at ${Math.round(x)}%, ${Math.round(y)}%`,
+        (html) => setGeometry(html, blockId, geo, specs),
+        `Studio: ${blockId} ${parts.join(' ') || 'geometry'}`,
       );
     },
-    [applyOp, positionSpecs],
+    [applyOp, geometrySpecs],
   );
   // The escape hatch (Properties block scope): a positioned block returns to
   // the page's flow — both measures cleared, one revision.
   const handleReturnToFlow = useCallback(() => {
     const id = selection?.blockId;
-    const specs = positionSpecs();
+    const specs = geometrySpecs();
     if (!id || !specs) return;
     void applyOp(
-      (html) => setPosition(html, id, null, null, specs),
+      (html) => setPosition(html, id, null, null, { x: specs.x, y: specs.y }),
       `Studio: return ${id} to flow`,
     );
-  }, [applyOp, selection, positionSpecs]);
+  }, [applyOp, selection, geometrySpecs]);
   const handleBlockVerb = useCallback(
     (verb: StructVerb) => {
       const id = selection?.blockId;
@@ -1900,8 +1908,7 @@ export function StudioSurface() {
                 onEnterBlock={onEnterBlock}
                 onReorder={handleReorder}
                 onRatio={handleRatio}
-                onMeasure={(id, w) => handleMeasure(id, w)}
-                onPosition={handlePosition}
+                onGeometry={handleGeometry}
                 onContextMenu={setCtxMenu}
                 onKeyVerb={handleKeyVerb}
                 onSplitBlock={handleSplitBlock}

@@ -118,8 +118,12 @@ def main() -> bool:
         "outline: 2px solid #6366f1 !important; outline-offset: 2px;" not in proj,
     )
     _check(
-        "the grip matches the selection it belongs to (neutral, square)",
-        "border: 1px solid rgba(60,58,54,0.55); background: #fff;" in proj,
+        # ADR-466 P8 supersedes the neutral-GRIP ruling for FRAMED blocks: an
+        # object wears an accented bounding box (the PowerPoint read). The
+        # FLOW selection outline stays neutral — that half of D5 stands.
+        "framed selection = the accented box; flow selection stays neutral",
+        ".yarnnn-selbox {" in proj
+        and "outline: 1px solid rgba(60,58,54,0.5) !important" in proj,
     )
     _check(
         "the EDITING state keeps its accent (typing-into-this is a different fact)",

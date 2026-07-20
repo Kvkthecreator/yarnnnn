@@ -357,7 +357,7 @@ const POINTER_SCRIPT = `
     // The grips own their presses (move/resize/divider — body-appended
     // chrome): a press that never became a gesture must NOT read as a margin
     // click and clear the very selection the grip belongs to.
-    if (t && t.closest && (t.closest('.yarnnn-rz') || t.closest('.yarnnn-mv')
+    if (t && t.closest && (t.closest('.yarnnn-selbox')
         || t.closest('.yarnnn-coldiv'))) return;
     // ADR-456 W1: a toggle block's <summary> opens natively on the SECOND
     // click — the first click selects the block; once selected, the click
@@ -628,7 +628,13 @@ const ADD_HERE_SCRIPT = `
     for (var i = 0; i < slots.length; i++) {
       var slot = slots[i];
       // Empty = no block inside AND no existing affordance.
-      if (slot.querySelector('[data-block]')) continue;
+      if (slot.querySelector('[data-block]')) {
+        slot.classList.remove('yarnnn-slot-open'); // filled — bounds retire
+        continue;
+      }
+      // ADR-466 P8: an empty slot shows its dashed bounds ALWAYS on a deck
+      // (the PowerPoint placeholder grammar) — the class is styling-only.
+      slot.classList.add('yarnnn-slot-open');
       if (slot.querySelector('.yarnnn-add-here')) continue;
       var btn = document.createElement('button');
       btn.type = 'button';
@@ -735,24 +741,32 @@ const EDIT_CSS = `
    inside a frame: a slide, or a media block's own box). Body-appended chrome,
    never in a block, so it can't leak into a commit. Its ABSENCE on an
    unframed block is the D4 boundary made visible. */
-.yarnnn-rz {
-  position: absolute; display: none; width: 8px; height: 8px;
-  border: 1px solid rgba(60,58,54,0.55); background: #fff; border-radius: 1px;
-  box-shadow: 0 0 0 0.5px rgba(255,255,255,0.9);
-  cursor: nwse-resize; z-index: 2147483646;
+/* The bounding box (ADR-466 P8) — the object chrome: a SELECTED framed block
+   wears a solid box (grab anywhere to move — deck only; double-click passes
+   through to edit) with corner handles (resize). Body-appended chrome, never
+   serialized; hidden while editing. Its ABSENCE on an unframed block is the
+   ADR-461 boundary made visible. */
+.yarnnn-selbox {
+  position: absolute; display: none; z-index: 2147483645;
+  border: 1.5px solid #6366f1; border-radius: 1px;
+  background: transparent; box-sizing: border-box;
 }
-/* The move grip (ADR-466 D2) — the object chrome's second handle: shown with
-   the corner grip on a SELECTED block inside a slide frame; dragging it
-   positions the block (x/y measures). Body-appended chrome like every grip —
-   it can never leak into a commit. Its absence outside a slide is the
-   ADR-461 boundary made visible, same as the corner grip. */
-.yarnnn-mv {
-  position: absolute; display: none; align-items: center; justify-content: center;
-  width: 15px; height: 15px;
-  border: 1px solid rgba(60,58,54,0.55); background: #fff; border-radius: 3px;
-  box-shadow: 0 0 0 0.5px rgba(255,255,255,0.9);
-  color: #6b7280; font: 600 9px/1 system-ui, sans-serif; letter-spacing: -1px;
-  cursor: move; z-index: 2147483646; user-select: none;
+.yarnnn-selh {
+  position: absolute; width: 10px; height: 10px;
+  border: 1.5px solid #6366f1; background: #fff; border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.yarnnn-selh-nw { left: -6px; top: -6px; cursor: nwse-resize; }
+.yarnnn-selh-ne { right: -6px; top: -6px; cursor: nesw-resize; }
+.yarnnn-selh-sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
+.yarnnn-selh-se { right: -6px; bottom: -6px; cursor: nwse-resize; }
+/* PowerPoint's placeholder grammar (ADR-466 P8): an EMPTY slot on a deck
+   slide shows its dashed bounds ALWAYS, not only on hover — the member sees
+   where content goes before they reach for it. The add-here runtime stamps
+   the class when it decorates an empty slot. */
+.slide [data-slot].yarnnn-slot-open {
+  outline: 1.5px dashed rgba(120,115,107,0.45); outline-offset: 2px;
+  min-height: 2.5rem;
 }
 /* The frame indicator (ADR-462 D8) — shown ONLY while resizing. A measure is
    a percent of SOMETHING, and that something was invisible: the member saw one
@@ -1996,8 +2010,7 @@ const GUTTER_SCRIPT = `
   // block in a document/article/page reflows and has no frame — it gets no
   // handles, which is the boundary made visible rather than merely documented.
   var MEASURE_MEDIA = { figure: 1, chart: 1, gallery: 1 };
-  var rz = null;
-  var rzBlock = null;
+  var selBlock = null; // the block the bounding box is anchored on
 
   /** The frame a block's measure is a PERCENT OF — the nearest thing that
    *  actually bounds its box, which is not always the slide.
@@ -2046,56 +2059,9 @@ const GUTTER_SCRIPT = `
     return block.closest ? block.closest('.slide') : null;
   }
 
-  function ensureResize() {
-    if (rz) return rz;
-    rz = document.createElement('div');
-    rz.className = 'yarnnn-rz';
-    document.body.appendChild(rz);
-    bindGesture(rz, function () { return rzBlock; }, {
-      axis: 'xy',
-      onEnd: function (block, moved) {
-        hideFrame();
-        if (!moved) return;
-        var frame = measurableFrame(block);
-        if (!frame) return;
-        var br = block.getBoundingClientRect();
-        var fr = frame.getBoundingClientRect();
-        // A PERCENT OF THE FRAME — the bound is structural, not a clamp we
-        // chose: 100% is the frame's edge. The parent clamps to the kernel's
-        // declared min/max on top of this.
-        parent.postMessage({
-          type: 'yarnnn-measure',
-          blockId: block.getAttribute('data-block-id'),
-          w: Math.round((br.width / (fr.width || 1)) * 100),
-          h: Math.round((br.height / (fr.height || 1)) * 100),
-        }, '*');
-      },
-      onMove: function (block, e) {
-        var frame = measurableFrame(block);
-        if (!frame) return;
-        var br = block.getBoundingClientRect();
-        var fr = frame.getBoundingClientRect();
-        // Live preview in-frame only — the commit is onEnd. The preview must
-        // speak the COMMIT's units: onEnd reports a percent of the frame, so a
-        // px preview would render one width during the drag and a different
-        // one on release (the block jumping under the cursor at the moment of
-        // the drop). Percent here, percent there.
-        //
-        // The clamp here is STRUCTURAL (the frame's own edge), not the kernel's
-        // min/max — the runtime is served no registry and must never invent a
-        // bound (ADR-461's two-clamp rule: the parent clamps from the SERVED
-        // spec, setMeasure clamps again at the write). A preview that ran
-        // slightly past the kernel's max simply lands on it.
-        var pct = ((e.clientX - br.left) / (fr.width || 1)) * 100;
-        pct = Math.max(1, Math.min(100, pct));
-        block.style.width = pct + '%';
-        showResize(block);
-        // Name what the percent is OF, while it is being chosen (D8).
-        showFrame(frame, Math.round(pct) + '%');
-      },
-    });
-    return rz;
-  }
+  // (The lone corner grip + ⠿ move grip were replaced by the bounding box
+  //  below — ADR-466 P8. Same gestures, same messages' semantics, one honest
+  //  object chrome.)
 
   /** Name the frame, while the member is choosing a percent of it (D8).
    *
@@ -2130,93 +2096,162 @@ const GUTTER_SCRIPT = `
     if (frameEl) frameEl.style.display = 'none';
   }
 
-  // ── The move grip (ADR-466 D2) — drag-to-position within the frame ──────
-  // bindGesture's FOURTH caller. Dragging the grip places the block at a point
-  // in its frame; the commit is x/y as PERCENTS of the frame (the parent
-  // clamps to the kernel's served bound, setPosition clamps again at the
-  // write — the two-clamp rule). Deck only: position needs the fixed stage,
-  // so the grip appears only inside a slide (a media block in a document
-  // keeps its resize grip but never a move grip).
-  var mv = null;
+  // ── The bounding box (ADR-466 P8) — the object chrome, made honest ──────
+  // The PowerPoint/Fabric grammar: a SELECTED framed block wears a solid box
+  // you can GRAB — drag anywhere on it to move (deck only: position needs the
+  // fixed stage), pull a corner handle to resize, double-click straight
+  // through into text editing. Replaces the lone corner grip + ⠿ move grip
+  // (document furniture where an object was expected). Body-appended chrome,
+  // never serialized; hidden while editing. Commits stay percents of the
+  // frame (structural clamp here; the parent clamps from the SERVED bound;
+  // the op clamps again at the write — the two-clamp rule, unchanged).
+  var box = null;
   var grabDX = 0, grabDY = 0;
 
   function positionable(block) {
     return !!(block && block.closest && block.closest('.slide'));
   }
 
-  function ensureMove() {
-    if (mv) return mv;
-    mv = document.createElement('div');
-    mv.className = 'yarnnn-mv';
-    mv.textContent = '\\u283F';
-    mv.style.display = 'none';
-    document.body.appendChild(mv);
-    bindGesture(mv, function () { return rzBlock; }, {
+  function previewContext(block) {
+    // A pre-v10-kernel artifact has no positioning context yet (the retrofit
+    // lands with the commit) — give the PREVIEW one, in-frame only.
+    var frame = measurableFrame(block);
+    if (frame && getComputedStyle(frame).position === 'static') {
+      frame.style.position = 'relative';
+    }
+    return frame;
+  }
+
+  function moveMove(block, e) {
+    var frame = measurableFrame(block);
+    if (!frame) return;
+    var fr = frame.getBoundingClientRect();
+    var xPct = Math.max(0, Math.min(100, ((e.clientX - grabDX - fr.left) / (fr.width || 1)) * 100));
+    var yPct = Math.max(0, Math.min(100, ((e.clientY - grabDY - fr.top) / (fr.height || 1)) * 100));
+    block.style.position = 'absolute';
+    block.style.left = xPct + '%';
+    block.style.top = yPct + '%';
+    block.style.margin = '0';
+    showBox(block);
+    showFrame(frame, 'x ' + Math.round(xPct) + '% · y ' + Math.round(yPct) + '%');
+  }
+
+  function moveEnd(block, moved) {
+    hideFrame();
+    if (!moved) return;
+    var frame = measurableFrame(block);
+    if (!frame) return;
+    var br = block.getBoundingClientRect();
+    var fr = frame.getBoundingClientRect();
+    parent.postMessage({
+      type: 'yarnnn-geometry',
+      blockId: block.getAttribute('data-block-id'),
+      x: Math.round(((br.left - fr.left) / (fr.width || 1)) * 100),
+      y: Math.round(((br.top - fr.top) / (fr.height || 1)) * 100),
+    }, '*');
+  }
+
+  function resizeMove(block, e, side) {
+    var frame = measurableFrame(block);
+    if (!frame) return;
+    var br = block.getBoundingClientRect();
+    var fr = frame.getBoundingClientRect();
+    var pct;
+    if (side.indexOf('w') >= 0 && positionable(block) && block.hasAttribute('data-x')) {
+      // West handle on a POSITIONED block: the right edge stays anchored —
+      // origin and width change together (ONE geometry revision on release).
+      var right = br.right;
+      var newLeft = Math.min(e.clientX, right - 8);
+      pct = ((right - newLeft) / (fr.width || 1)) * 100;
+      var xPct = Math.max(0, Math.min(100, ((newLeft - fr.left) / (fr.width || 1)) * 100));
+      block.style.left = xPct + '%';
+    } else {
+      pct = ((e.clientX - br.left) / (fr.width || 1)) * 100;
+    }
+    pct = Math.max(1, Math.min(100, pct));
+    block.style.width = pct + '%';
+    showBox(block);
+    // Name what the percent is OF, while it is being chosen (D8).
+    showFrame(frame, Math.round(pct) + '%');
+  }
+
+  function resizeEnd(block, moved, side) {
+    hideFrame();
+    if (!moved) return;
+    var frame = measurableFrame(block);
+    if (!frame) return;
+    var br = block.getBoundingClientRect();
+    var fr = frame.getBoundingClientRect();
+    var msg = {
+      type: 'yarnnn-geometry',
+      blockId: block.getAttribute('data-block-id'),
+      w: Math.round((br.width / (fr.width || 1)) * 100),
+    };
+    if (side.indexOf('w') >= 0 && positionable(block) && block.hasAttribute('data-x')) {
+      msg.x = Math.round(((br.left - fr.left) / (fr.width || 1)) * 100);
+    }
+    parent.postMessage(msg, '*');
+  }
+
+  function ensureBox() {
+    if (box) return box;
+    box = document.createElement('div');
+    box.className = 'yarnnn-selbox';
+    box.style.display = 'none';
+    document.body.appendChild(box);
+    // BODY DRAG = move. The subject gate makes the box inert (no drag) where
+    // position has no frame to be bounded by — a media block in a document
+    // still gets the box + corner resize, never a move.
+    bindGesture(box, function () { return selBlock && positionable(selBlock) ? selBlock : null; }, {
       axis: 'xy',
       onStart: function (block, e) {
         var br = block.getBoundingClientRect();
         grabDX = e.clientX - br.left;
         grabDY = e.clientY - br.top;
-        // A v9-kernel artifact has no positioning context yet (the retrofit
-        // lands with the commit) — give the PREVIEW one, in-frame only.
-        var frame = measurableFrame(block);
-        if (frame && getComputedStyle(frame).position === 'static') {
-          frame.style.position = 'relative';
-        }
+        previewContext(block);
       },
-      onMove: function (block, e) {
-        var frame = measurableFrame(block);
-        if (!frame) return;
-        var fr = frame.getBoundingClientRect();
-        // STRUCTURAL clamp only (the frame's own box) — the kernel's min/max
-        // is the parent's clamp, never invented here.
-        var xPct = Math.max(0, Math.min(100, ((e.clientX - grabDX - fr.left) / (fr.width || 1)) * 100));
-        var yPct = Math.max(0, Math.min(100, ((e.clientY - grabDY - fr.top) / (fr.height || 1)) * 100));
-        block.style.position = 'absolute';
-        block.style.left = xPct + '%';
-        block.style.top = yPct + '%';
-        block.style.margin = '0';
-        showResize(block);
-        showFrame(frame, 'x ' + Math.round(xPct) + '% · y ' + Math.round(yPct) + '%');
-      },
-      onEnd: function (block, moved) {
-        hideFrame();
-        if (!moved) return;
-        var frame = measurableFrame(block);
-        if (!frame) return;
-        var br = block.getBoundingClientRect();
-        var fr = frame.getBoundingClientRect();
-        parent.postMessage({
-          type: 'yarnnn-position',
-          blockId: block.getAttribute('data-block-id'),
-          x: Math.round(((br.left - fr.left) / (fr.width || 1)) * 100),
-          y: Math.round(((br.top - fr.top) / (fr.height || 1)) * 100),
-        }, '*');
-      },
+      onMove: moveMove,
+      onEnd: moveEnd,
     });
-    return mv;
+    // Double-click passes THROUGH to the block's own edit gesture — the box
+    // must never cost the member the editor.
+    box.addEventListener('dblclick', function (e) {
+      var b = selBlock;
+      if (!b) return;
+      e.preventDefault();
+      hideBox();
+      b.dispatchEvent(new MouseEvent('dblclick', {
+        bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY,
+      }));
+    });
+    ['nw', 'ne', 'sw', 'se'].forEach(function (side) {
+      var h = document.createElement('div');
+      h.className = 'yarnnn-selh yarnnn-selh-' + side;
+      box.appendChild(h);
+      bindGesture(h, function () { return selBlock; }, {
+        axis: 'xy',
+        onStart: function (block) { previewContext(block); },
+        onMove: function (block, ev) { resizeMove(block, ev, side); },
+        onEnd: function (block, moved) { resizeEnd(block, moved, side); },
+      });
+    });
+    return box;
   }
 
-  function showResize(block) {
-    ensureResize();
-    ensureMove();
-    rzBlock = block;
+  function showBox(block) {
+    ensureBox();
+    selBlock = block;
     var r = block.getBoundingClientRect();
-    rz.style.display = 'block';
-    rz.style.left = (r.right + window.scrollX - 5) + 'px';
-    rz.style.top = (r.bottom + window.scrollY - 5) + 'px';
-    if (positionable(block)) {
-      mv.style.display = 'flex';
-      mv.style.left = (r.left + window.scrollX - 8) + 'px';
-      mv.style.top = (r.top + window.scrollY - 8) + 'px';
-    } else {
-      mv.style.display = 'none';
-    }
+    box.style.display = 'block';
+    box.style.left = (r.left + window.scrollX - 1) + 'px';
+    box.style.top = (r.top + window.scrollY - 1) + 'px';
+    box.style.width = (r.width + 2) + 'px';
+    box.style.height = (r.height + 2) + 'px';
+    box.style.cursor = positionable(block) ? 'move' : 'default';
   }
-  function hideResize() {
-    if (rz) rz.style.display = 'none';
-    if (mv) mv.style.display = 'none';
-    rzBlock = null;
+  function hideBox() {
+    if (box) box.style.display = 'none';
+    selBlock = null;
   }
 
   // The handle follows the SELECTION, not the pointer.
@@ -2286,26 +2321,29 @@ const GUTTER_SCRIPT = `
     }
   });
 
-  function syncResize() {
+  function syncBox() {
+    // Hidden while EDITING — a live caret owns the block; an overlay box
+    // would intercept the very clicks the editor needs.
+    var editing = window.__yarnnnEditingId ? window.__yarnnnEditingId() : null;
     var sel = window.__yarnnnSelected ? window.__yarnnnSelected() : null;
-    if (sel && sel.isConnected && isMeasurable(sel)) showResize(sel);
-    else hideResize();
+    if (editing == null && sel && sel.isConnected && isMeasurable(sel)) showBox(sel);
+    else hideBox();
   }
   // A click lands selection in the pointer runtime's capture-phase listener;
   // this runs after it (bubble), so the selection is already the new block.
   // A click ON the grip is the grip's own (a press that never passed the
   // gesture threshold) — it must not re-anchor the thing being grabbed.
   document.addEventListener('click', function (e) {
-    if ((rz && e.target === rz) || (mv && e.target === mv)) return;
-    syncResize();
+    if (box && box.contains(e.target)) return;
+    syncBox();
   });
-  document.addEventListener('scroll', syncResize, true);
-  window.addEventListener('resize', syncResize);
+  document.addEventListener('scroll', syncBox, true);
+  window.addEventListener('resize', syncBox);
   // The parent may select (navigator, Design tab) without a click in-frame.
   window.addEventListener('message', function (e) {
     var d = e.data;
     if (d && typeof d === 'object' && typeof d.type === 'string' &&
-        d.type.indexOf('yarnnn-') === 0) setTimeout(syncResize, 0);
+        d.type.indexOf('yarnnn-') === 0) setTimeout(syncBox, 0);
   });
 })();
 `;

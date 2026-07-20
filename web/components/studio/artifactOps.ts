@@ -473,6 +473,47 @@ export function setMeasure(
   return { html: serialize(doc), landedId: blockId };
 }
 
+/** ADR-466 P8 — ONE geometry revision: any combination of position (x/y) and
+ *  width (w), written together. The bounding-box gestures need this because a
+ *  west-handle resize moves the origin AND the width in one act — two separate
+ *  ops would mean two revisions for one gesture. Values clamp from the SERVED
+ *  specs; an axis passed as undefined is left untouched. */
+export function setGeometry(
+  html: string,
+  blockId: string,
+  geo: { x?: number; y?: number; w?: number },
+  specs: Record<'x' | 'y' | 'w', { cssVar: string; unit: string; min: number; max: number }>,
+): OpResult | null {
+  const doc = parse(html);
+  const el = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+  if (!el) return null;
+  const before = el.outerHTML;
+  const vars = Object.values(specs).map((s) => s.cssVar);
+  const decls = (el.getAttribute('style') || '')
+    .split(';')
+    .map((d) => d.trim())
+    .filter((d) => d && !vars.some((v) => d.startsWith(`${v}:`)));
+  // Preserve untouched axes' existing declarations.
+  const keep = (el.getAttribute('style') || '')
+    .split(';')
+    .map((d) => d.trim())
+    .filter((d) => d && vars.some((v) => d.startsWith(`${v}:`)));
+  const next = new Map(keep.map((d) => [d.split(':')[0].trim(), d]));
+  (['x', 'y', 'w'] as const).forEach((key) => {
+    const v = geo[key];
+    if (v == null) return;
+    const s = specs[key];
+    const clamped = Math.max(s.min, Math.min(s.max, Math.round(v)));
+    el.setAttribute(`data-${key}`, '');
+    next.set(s.cssVar, `${s.cssVar}: ${clamped}${s.unit}`);
+  });
+  const style = [...decls, ...Array.from(next.values())];
+  if (style.length) el.setAttribute('style', style.join('; '));
+  else el.removeAttribute('style');
+  if (el.outerHTML === before) return null;
+  return { html: serialize(doc), landedId: blockId };
+}
+
 /** ADR-466 D2 — bounded position: place a deck block at a point in its frame.
  *  Writes BOTH x/y measures as one revision (`data-x`/`data-y` + `--yx`/`--yy`
  *  — presence of both is the positioned state); `x == null` clears both (the

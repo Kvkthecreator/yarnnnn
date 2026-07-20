@@ -132,20 +132,34 @@ def run() -> bool:
         "re-arranging returns a positioned block to flow (both carry paths)",
         "function returnToFlow" in ops and ops.count("returnToFlow(b)") >= 2,
     )
+    # P8: the grips grew into the BOUNDING BOX (body-drag move, corner-handle
+    # resize, dblclick passes through to edit, hidden while editing) and every
+    # gesture posts ONE yarnnn-geometry message → ONE setGeometry revision.
     _check(
-        "the move grip: deck-gated, posts percents, structural clamp only",
-        "yarnnn-mv" in proj
-        and "positionable(block)" in proj
-        and "'yarnnn-position'" in proj
+        "the bounding box: body-drag deck-gated, corner handles, dblclick-through",
+        "yarnnn-selbox" in proj
+        and "positionable(selBlock)" in proj
+        and "'yarnnn-geometry'" in proj
+        and "dispatchEvent(new MouseEvent('dblclick'" in proj
         and "closest('.slide')" in proj,
     )
     _check(
-        "the grips never read as a margin click (selection survives a press)",
-        ".yarnnn-rz') || t.closest('.yarnnn-mv')" in proj,
+        "the box never reads as a margin click (selection survives a press)",
+        ".yarnnn-selbox')" in proj,
     )
     _check(
-        "the parent clamps from the SERVED bound (two-clamp rule)",
-        "positionSpecs" in surface and "onPosition={handlePosition}" in surface,
+        "one gesture = one geometry revision, clamped from the SERVED bound",
+        "geometrySpecs" in surface
+        and "onGeometry={handleGeometry}" in surface
+        and "export function setGeometry" in ops,
+    )
+    _check(
+        "empty deck slots wear their bounds always (the placeholder grammar)",
+        "yarnnn-slot-open" in proj,
+    )
+    _check(
+        "the box hides while editing (a live caret owns the block)",
+        "if (editing == null && sel && sel.isConnected && isMeasurable(sel)) showBox(sel);" in proj,
     )
     _check(
         "the Properties escape hatch: a positioned block can return to flow",

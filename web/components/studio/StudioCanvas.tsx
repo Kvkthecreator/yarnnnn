@@ -95,14 +95,12 @@ interface StudioCanvasProps {
   /** F1: the member DRAGGED a block via the ⋮⋮ handle — move it before
    *  `beforeBlockId` (null = end of its parent). Lands one reorder revision. */
   onReorder?: (blockId: string, beforeBlockId: string | null) => void;
-  /** ADR-461 D4: the member resized a MEASURED block — w/h as a PERCENT of
-   *  its frame (a slide, or a media block's own box). The surface clamps to the
-   *  kernel's declared bound and lands setMeasure through the one door. */
-  onMeasure?: (blockId: string, w: number, h: number) => void;
-  /** ADR-466 D2: the member dragged a deck block's move grip — its top-left as
-   *  a PERCENT of its frame. The surface clamps to the kernel's served bound
-   *  and lands setPosition (both measures, one revision) through the one door. */
-  onPosition?: (blockId: string, x: number, y: number) => void;
+  /** ADR-466 P8: a bounding-box gesture landed — any combination of position
+   *  (x/y, a body drag) and width (w, a corner handle; a west handle on a
+   *  positioned block moves origin AND width together), all as PERCENTS of
+   *  the block's frame. The surface clamps from the kernel's served bound and
+   *  lands setGeometry (ONE revision per gesture) through the one door. */
+  onGeometry?: (blockId: string, geo: { x?: number; y?: number; w?: number }) => void;
   /** ADR-462 D7: the member right-clicked the canvas. The runtime has ALREADY
    *  selected the block under the cursor (right-click selects), so this only
    *  carries where to anchor + the grain the menu builds its rows from.
@@ -196,8 +194,7 @@ export function StudioCanvas({
   onEnterBlock,
   onReorder,
   onRatio,
-  onMeasure,
-  onPosition,
+  onGeometry,
   onContextMenu,
   onKeyVerb,
   onSplitBlock,
@@ -387,10 +384,12 @@ export function StudioCanvas({
         onEnterBlock?.(d.afterBlockId);
       } else if (d.type === 'yarnnn-reorder' && typeof d.blockId === 'string') {
         onReorder?.(d.blockId, typeof d.beforeBlockId === 'string' ? d.beforeBlockId : null);
-      } else if (d.type === 'yarnnn-measure' && typeof d.blockId === 'string') {
-        onMeasure?.(d.blockId, d.w as number, d.h as number);
-      } else if (d.type === 'yarnnn-position' && typeof d.blockId === 'string') {
-        onPosition?.(d.blockId, d.x as number, d.y as number);
+      } else if (d.type === 'yarnnn-geometry' && typeof d.blockId === 'string') {
+        onGeometry?.(d.blockId, {
+          x: typeof d.x === 'number' ? d.x : undefined,
+          y: typeof d.y === 'number' ? d.y : undefined,
+          w: typeof d.w === 'number' ? d.w : undefined,
+        });
       } else if (d.type === 'yarnnn-key-verb' && typeof d.blockId === 'string') {
         onKeyVerb?.(d.verb as 'copy' | 'paste' | 'duplicate' | 'delete', d.blockId);
       } else if (d.type === 'yarnnn-context-menu' && typeof d.x === 'number') {
