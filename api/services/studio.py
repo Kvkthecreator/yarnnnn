@@ -955,6 +955,21 @@ STUDIO_MEASURES: dict[str, dict] = {
         "css_var": "--yy",
         "description": "the block's top edge as a percent of its frame (with x, positions the block; absence = in flow)",
     },
+    # Stacking (ADR-471 D-d): z earned its token when composed visuals made
+    # blocks OVERLAP on purpose. Integer index, not a percent — order among
+    # positioned siblings; absence = document order (the pre-471 behavior,
+    # unchanged). On a non-positioned block z-index is inert by CSS — the
+    # fallback philosophy (a garbage measure degrades to natural behavior).
+    # StudioBlockMenu's Bring forward/backward verbs write this token.
+    "z": {
+        "label": "Z",
+        "applies": ["block-deck"],
+        "unit": "",
+        "min": 0,
+        "max": 20,
+        "css_var": "--yz",
+        "description": "stacking order among positioned blocks (higher = in front; absence = document order)",
+    },
 }
 
 #: Measure grains → the `applies` vocabulary above. `block-deck` is a block on
@@ -1071,6 +1086,9 @@ div[data-block="gallery"] figcaption { font-size: var(--text-xs, 0.75rem); }
 section.slide, .slide .col, .slide [data-slot] { position: relative; }
 .slide [data-block][data-x][data-y] { position: absolute;
   left: var(--yx, auto); top: var(--yy, auto); margin: 0; max-width: 100%; }
+/* Stacking (ADR-471 D-d) — z orders positioned blocks; on a static block
+   z-index is inert by CSS, which is the fallback rule doing its job. */
+.slide [data-block][data-z] { z-index: var(--yz, auto); }
 [data-tone="accent"] { color: var(--accent, #b4540a); }
 [data-tone="muted"] { color: var(--muted, #6b6b6b); }
 [data-block][data-tone="inverse"] { background: var(--ink, #1a1a1a);
@@ -1161,6 +1179,11 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 # pre-declares every selector it matches. Deck + media only: a slide has a
 # frame, a page has a viewport.
 #
+# v11 (2026-07-20, ADR-471 D-d): the `z` stacking rule —
+# `.slide [data-block][data-z] { z-index: var(--yz, auto) }`. The bump is what
+# lights stacking up in every existing deck's positioned blocks, not only new
+# canvases (the retrofit is the mechanism, as ever).
+#
 # v7 (2026-07-15, ADR-461 D1): the `size` token (Hug | Fill) — the block's
 # width as intent. Enumerated, so it needs no new mechanism.
 #
@@ -1174,7 +1197,7 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 # layout. A pre-ADR-444 deck's baked skin has no `.slide .cols`, and the
 # kernel's `:not(.slide)` rule excluded it, so its two-column slides stacked
 # silently. Bumping the version is what makes the retrofit reach them.
-STUDIO_KERNEL_CSS_VERSION = 10
+STUDIO_KERNEL_CSS_VERSION = 11
 
 
 def compose_kernel_style_element() -> str:

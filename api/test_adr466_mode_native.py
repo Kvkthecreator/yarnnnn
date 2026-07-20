@@ -265,6 +265,22 @@ def run() -> bool:
         "the canvas scaffold title participates in the derived overwrite set",
         "The visual statement." in _SCAFFOLD_TITLES,
     )
+    # D-d: z earned its token (StudioBlockMenu's own comment was the
+    # pre-written justification — "z-order arrives with a token").
+    _z = STUDIO_MEASURES.get("z", {})
+    _check(
+        "the z measure exists — staged-frame, integer band, --yz",
+        _z.get("applies") == ["block-deck"] and _z.get("css_var") == "--yz"
+        and _z.get("unit") == "" and _z.get("min") == 0 and isinstance(_z.get("max"), int),
+    )
+    _check(
+        "the kernel pre-declares the ONE stacking rule (mechanism, not values)",
+        ".slide [data-block][data-z] { z-index: var(--yz, auto); }" in STUDIO_KERNEL_CSS,
+    )
+    _check(
+        "kernel CSS bumped for the z retrofit (v11+ — existing decks light up too)",
+        STUDIO_KERNEL_CSS_VERSION >= 11,
+    )
 
     ok = all(c for _, c in _results)
     print()
