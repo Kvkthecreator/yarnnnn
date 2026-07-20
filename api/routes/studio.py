@@ -36,6 +36,12 @@ from services.supabase import UserClient
 # must not be pruned as "unused".
 import services.images  # noqa: F401  (import for registration side-effect)
 
+# The cross-app layout resolver (ADR-472 D2). Module-level: the endpoints below
+# use these at request time, so a function-local import in ONE handler would
+# leave the others with a NameError — which is exactly what shipped and broke
+# /studio/templates + /studio/vocabulary in prod (2026-07-20).
+from services.studio import all_layouts, all_templates, resolve_layout
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -96,9 +102,6 @@ async def list_artifacts(auth: UserClient) -> dict:
     The Files surface (the MIRROR) is untouched and still shows the raw leaf.
     """
     from services.studio import (
-    all_layouts,
-    all_templates,
-    resolve_layout,
         STUDIO_ARTIFACT_REGION,
         artifact_kind,
         artifact_name,
