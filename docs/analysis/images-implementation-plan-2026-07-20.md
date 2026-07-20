@@ -32,7 +32,7 @@ Runs exactly ADR-427 §10's own sequencing — this plan adds no design, only th
 3. **GC — pins as roots.** Root set = HEAD revisions + `data-ref`/`data-ref-rev` citations + `derived_from` edges; sweep reclaims unreferenced blobs (the 34,698 orphans measured 2026-07-14). Its own commit + a dry-run receipt BEFORE the destructive sweep (operator sees the count/pathology first — deletion discipline).
 4. **Doc cascade** per ADR-427 §10.4.
 
-**Discipline notes**: this arc gets dedicated sessions (not ridden alongside surface work); every gate that crosses Supabase/storage proves the code path only — the upload/serve smoke needs a human click, and the plan says so rather than claiming prod-proven.
+**Discipline notes**: this arc runs in an **isolated worktree** (the repo's concurrent-lane discipline) — the reader-classification pass touches 30+ `api/services/` files, and worktree isolation is what lets other lanes keep working; the earlier "owns the tree" phrasing was a git-hygiene fact, not an architectural one (P2 is kernel/substrate work with zero Studio coupling — the seam question is §The-seam below). Every gate that crosses Supabase/storage proves the code path only — the upload/serve smoke needs a human click, and the plan says so rather than claiming prod-proven. The GC sweep gets a DRY-RUN receipt the operator sees before anything is deleted.
 
 ## Phase 3 — The generation workflow (WS-C; gated on Phase 2)
 
@@ -42,8 +42,17 @@ Runs exactly ADR-427 §10's own sequencing — this plan adds no design, only th
 4. **`feat(posture)`: the decompose discipline.** The canvas posture gains the D3 workflow: one prompt → named layer plan → route by kind (text→text blocks, shapes→SVG/CSS, subjects→cut-out leaves) → generate per object → compose positioned. CHANGELOG entry.
 5. **Click passes (the soul's evaluation).** The decompose eval: one live turn, one composite ask ("a launch ad: headline, product hero, warm background") → observe the layer plan, the per-object calls, the landed object tree. Then the re-roll eval: "make the background warmer" → exactly one leaf regenerates, provenance updated, siblings untouched. Both captured to `docs/evaluations/`; both are ADR-468 §9 falsifier-1 instruments. Apply-only-what-observed governs posture tuning.
 
+## The seam question (operator-raised 2026-07-20, assessed first-principles)
+
+Is shared machinery in tension with IMAGES as a *dedicated* app? Split verdict, recorded so the arc doesn't re-derive it:
+
+- **Sharing the machinery is correct** — block grammar, measures/tokens, kernel CSS, citations, bound lanes, the object-layer chrome are *platform facilities* (the AppKit under Pages and Keynote). Duplicating them per-app would be the architectural error. P2 and P3 are already app-independent (substrate + primitive layers; zero Studio coupling).
+- **The HOUSING is the true smell**: the shared grammar lives in Studio-*named* homes (`services/studio.py`, `web/components/studio/*`). An `/images` surface importing another app's internals violates the repo's own kernel-ABI-vs-app-behavior discipline (ADR-457 D6).
+- **Timing**: extract at the second consumer, not before (ADR-427 §10.5's forcing-function rule — you cannot design the ABI in the abstract). Hence P4 step 0 below, not a P1.5.
+
 ## Phase 4 — The /images surface (WS-D; the unveil)
 
+0. **`refactor(kernel)`: the grammar extraction — the seam lands with its second consumer.** The artifact-grammar layer (`STUDIO_LAYOUTS`/`STUDIO_ARRANGEMENTS`/`STUDIO_TOKENS`/`STUDIO_MEASURES`/kernel CSS + the posture builder + the projection object-layer runtime) re-homes under app-neutral kernel names; Studio and IMAGES both import it; nothing app-specific (surfaces, entry points, residents) moves. Mechanical, gate-covered by the existing studio gates (they assert behavior, and behavior is unchanged). This is the operator's future-proofing concern landed as a scheduled step.
 1. **`feat(web)`: the surface shell.** Route `/images`; the canvas-mode editor full-frame; entry points (New canvas · from-prompt [the decompose flow as the front door] · from-upload); `AUTHORING_APPS.images = { id: 'images', resident: 'designer' }` (the ADR-467 declaration's second row — the registry comment already reserves it); LaunchServices routing (ADR-451 pattern) for canvas artifacts opening into IMAGES.
 2. **Export**: flat PNG/JPEG as a projection of the tree (ADR-468 D2's export rule) — rides the ADR-466 P6 Export machinery precedent.
 3. **The unveil gate (the D1 rule, per the scoping recommendation)**: this phase ships **only after Phase 3's click passes are green** — the app named IMAGES is AI-native from its first pixel.
