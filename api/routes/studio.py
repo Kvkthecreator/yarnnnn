@@ -93,6 +93,13 @@ async def list_artifacts(auth: UserClient) -> dict:
         .eq(*substrate_scope_filter(auth.user_id))
         .like("path", f"{STUDIO_ARTIFACT_REGION}%")
         .like("path", "%.html")
+        # A trashed artifact leaves Recents. `lifecycle` is NULL on rows written
+        # before the column had a default, so `.neq` alone would drop them —
+        # match the Files tree's own predicate (routes/workspace.py:587).
+        # Load-bearing since ADR-470 D5: untitled artifacts are `active` and
+        # Trash is their ONLY cleanup, so without this a member who trashes
+        # three abandoned "Untitled document"s still sees all three here.
+        .or_("lifecycle.is.null,lifecycle.neq.archived")
         .order("updated_at", desc=True)
         .limit(20)
         .execute()
