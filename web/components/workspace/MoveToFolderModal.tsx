@@ -30,8 +30,11 @@ import { WorkspacePickerModal } from './WorkspacePicker';
 interface MoveToFolderModalProps {
   /** The file being moved (null = closed). */
   target: { path: string; name: string } | null;
-  /** The workspace root nodes (same tree the explorer renders). */
-  roots: WorkspaceTreeNode[];
+  /** The workspace root nodes (same tree the explorer renders). Omit it and the
+   *  picker lazy-fetches its own — the surface that holds no tree (Studio) pays
+   *  nothing until the first Move-open, and gets an honest "Looking…" while it
+   *  loads instead of a premature "no folders". */
+  roots?: WorkspaceTreeNode[];
   /** True iff the operator may organize into this destination path. */
   canOrganize: (path: string) => boolean;
   onClose: () => void;

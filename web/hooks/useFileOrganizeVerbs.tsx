@@ -87,33 +87,13 @@ export function useFileOrganizeVerbs(
   const [moveTarget, setMoveTarget] = useState<FileOrganizeTarget | null>(null);
 
   // The Move picker needs the workspace folder tree (WorkspaceTreeNode[]). When
-  // the surface already holds it (Files explorer via `moveRoots`), use that; else
-  // lazy-fetch our own lean tree on the first Move-open — a surface (e.g. Studio)
-  // that never moves never pays for it. The modal lazy-navigates these nodes.
-  const [fetchedRoots, setFetchedRoots] = useState<WorkspaceTreeNode[] | null>(null);
-  const loadMoveRoots = useCallback(async () => {
-    try {
-      const roots = await api.workspace.getRoots();
-      const subtrees = await Promise.all(
-        roots.map(async (r) => {
-          if (!r.exists) return { root: r, tree: [] as WorkspaceTreeNode[] };
-          const tree = await api.workspace.getTree(r.path).catch(() => [] as WorkspaceTreeNode[]);
-          return { root: r, tree };
-        }),
-      );
-      // Present each real root as a folder node carrying its subtree — enough for
-      // the picker to navigate into (it only walks folder children).
-      const nodes: WorkspaceTreeNode[] = subtrees.map(({ root, tree }) => ({
-        name: root.display_name || root.name,
-        path: root.path,
-        type: 'folder',
-        children: tree,
-      }));
-      setFetchedRoots(nodes);
-    } catch {
-      setFetchedRoots([]); // an empty picker still lets the operator cancel cleanly
-    }
-  }, []);
+  // the surface already holds it (Files explorer via `moveRoots`), pass it down so
+  // we don't double-fetch. Otherwise pass NOTHING and let `WorkspacePicker` do its
+  // own lazy fetch — it owns that grammar once (2026-07-20 collapse). This hook
+  // used to carry a second, byte-identical copy of the getRoots+getTree walk; it
+  // also handed the modal a non-undefined `[]` while that fetch was in flight,
+  // which read as "No folders to move into." instead of the picker's "Looking…".
+  // Deleting the copy fixes both.
 
   // Pre-empt the obvious carve (system/ + machine-config) with a plain,
   // macOS-style modal before we call the backend. Returns true if blocked.
@@ -159,11 +139,9 @@ export function useFileOrganizeVerbs(
   const onMove = useCallback(
     async (t: FileOrganizeTarget) => {
       if (await carveGuard(t.path)) return;
-      // Fetch our own tree only if the surface didn't provide one.
-      if (!providedRoots && fetchedRoots === null) void loadMoveRoots();
       setMoveTarget(t);
     },
-    [carveGuard, providedRoots, fetchedRoots, loadMoveRoots],
+    [carveGuard],
   );
 
   const commitMove = useCallback(
@@ -231,7 +209,7 @@ export function useFileOrganizeVerbs(
     <>
       <MoveToFolderModal
         target={moveTarget}
-        roots={providedRoots ?? fetchedRoots ?? []}
+        roots={providedRoots}
         canOrganize={operatorCanOrganize}
         onClose={() => setMoveTarget(null)}
         onMove={async (destFolder) => {

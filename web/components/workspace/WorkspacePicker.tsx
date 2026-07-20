@@ -28,7 +28,7 @@
  * Callers that need the whole shell use `WorkspacePickerModal` below.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronRight, ChevronDown, Folder, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -105,19 +105,28 @@ export function WorkspacePickerBody({
   onCommit,
   emptyMessage,
 }: WorkspacePickerBodyProps) {
-  const [fetched, setFetched] = useState<WorkspaceTreeNode[] | null>(providedRoots ? providedRoots : null);
-
-  const load = useCallback(async () => {
-    setFetched(await fetchRoots());
-  }, []);
+  // `null` = still looking. A surface that already holds the tree passes `roots`
+  // and we never fetch; a surface that doesn't (Studio) omits it and we fetch
+  // once, showing "Looking…" meanwhile. Note the test is `!== undefined`, not
+  // truthiness — a deliberately-empty `[]` is an ANSWER ("no folders"), not a
+  // missing one, and must not trigger a fetch behind the caller's back.
+  const [fetched, setFetched] = useState<WorkspaceTreeNode[] | null>(providedRoots ?? null);
+  const requested = useRef(false);
 
   useEffect(() => {
-    if (providedRoots) {
+    if (providedRoots !== undefined) {
       setFetched(providedRoots);
-    } else if (fetched === null) {
-      void load();
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (requested.current) return; // fetch exactly once per mount
+    requested.current = true;
+    let alive = true;
+    void fetchRoots().then((rs) => {
+      if (alive) setFetched(rs);
+    });
+    return () => {
+      alive = false;
+    };
   }, [providedRoots]);
 
   // File mode prunes roots with nothing openable inside; folder mode shows all
