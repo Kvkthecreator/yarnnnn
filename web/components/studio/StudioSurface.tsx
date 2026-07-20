@@ -28,6 +28,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 import { ArrowLeft, Copy, FileText, FolderOpen, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, Plus, Upload } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
+import { AUTHORING_APPS } from '@/lib/apps/authoring';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { LearnFromFlowModal } from './LearnFromFlowModal';
 import { NewDesignSystemModal } from './NewDesignSystemModal';
@@ -265,13 +266,11 @@ export function StudioSurface() {
     api.lanes
       .create({
         name: baseName(artifactPath),
-        // ADR-460 §4b — a bound lane carries an Agent like every other lane.
-        // This was `model: models[0].id`: whatever engine happened to be FIRST
-        // in the array. Nobody chose it; nobody named it. The Designer's engine
-        // resolves server-side and IS models[0]'s engine (claude-sonnet-4-6),
-        // so every bound lane runs exactly what it ran before — it just has a
-        // colleague now, and a settle from here attributes to a person.
-        agent: 'designer',
+        // ADR-467 D1 — the app's declared RESIDENT (Studio→Designer), read
+        // from the authoring-app registration rather than a string literal.
+        // The lane stays the mind (ADR-440 D3); residency is the creation-time
+        // default made legible, and a settle from here attributes to a person.
+        agent: AUTHORING_APPS.studio.resident,
         artifact_path: artifactPath,
       })
       .then(() => refreshLanes())
@@ -2399,8 +2398,8 @@ function StudioStart({
       await api.lanes.create({
         name: `Learn: ${source.name}`.slice(0, 60),
         // A canvas target IS an authoring lane (it carries `artifact_path`), so
-        // it gets the same colleague the bound-lane create does.
-        agent: 'designer',
+        // it gets the app's same declared resident (ADR-467 D1).
+        agent: AUTHORING_APPS.studio.resident,
         artifact_path: res.path,
         derive_recipe: target.recipe,
         derive_source: source.path,

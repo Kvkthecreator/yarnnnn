@@ -70,11 +70,16 @@ def test_lane_models_are_provider_prefixed():
 # 2. D3 — tool surface derived from the registry
 # ---------------------------------------------------------------------------
 
-def test_lane_tools_are_exactly_the_five_file_verbs():
+def test_lane_tools_are_the_uniform_surface():
+    # ADR-467 D4: the five file verbs + the two uniform reads, every lane.
+    from services.lane_runner import LANE_SURFACE_EXTRA
     tools = lane_tools_openai()
     names = [t["function"]["name"] for t in tools]
-    assert names == list(LANE_TOOL_NAMES)
-    assert set(names) == {"ReadFile", "WriteFile", "EditFile", "SearchFiles", "ListFiles"}
+    assert names == list(LANE_TOOL_NAMES) + list(LANE_SURFACE_EXTRA)
+    assert set(names) == {
+        "ReadFile", "WriteFile", "EditFile", "SearchFiles", "ListFiles",
+        "QueryKnowledge", "WebSearch",
+    }
 
 
 def test_lane_tools_reuse_registry_schemas():

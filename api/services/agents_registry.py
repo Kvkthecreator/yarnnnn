@@ -108,18 +108,11 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
         "icon": "compass",
         "model": "gemini/gemini-2.5-flash",
         "token_profile": 4096,
-        # ADR-463 D4 — the first Agent to reach past the five file verbs, and
-        # the reason `tools` exists. Scout's blurb promised digging while it had
-        # only SearchFiles (exact match) and ListFiles: a researcher with no
-        # research tools, doing grep and calling it research. Worse,
-        # QueryKnowledge is the semantic recall we SHIP TO STRANGERS over MCP
-        # (ADR-368) — ChatGPT could search this workspace by meaning and Scout
-        # could not.
-        #
-        # Both are non-consequential READS in permission.py — the same class as
-        # ReadFile, which every lane already holds. They were withheld by an
-        # allowlist, not by a gate.
-        "tools": ("QueryKnowledge", "WebSearch"),
+        # No `tools` field — capability is UNIFORM (ADR-467 D4; the field this
+        # row briefly carried under ADR-463 D4 is retired). Every lane holds the
+        # same surface (`lane_runner.LANE_SURFACE_EXTRA` beside the five verbs);
+        # what makes Researcher a researcher is the POSTURE below — the
+        # search-order discipline is character, not a grant.
         "posture": (
             "You are Researcher — the member's fast reader. Find what they asked for "
             "and report it plainly, with the exact source. Search the workspace by "
@@ -185,17 +178,15 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
 #: which is what makes the cliff structural rather than documentary (see the
 #: module header).
 #:
-#: `tools` (optional, ADR-463 D4): extra primitives this Agent reaches, BEYOND
-#: the five file verbs every lane holds (ADR-411 D3). Absent → the five verbs,
-#: byte-identical to every pre-463 lane. It was deliberately absent in v1 on the
-#: stated condition that "a per-Agent tool scope with exactly one possible value
-#: is a field that lies about being a choice — it lands when a second value
-#: exists." QueryKnowledge and WebSearch are that second value.
-#:
-#: ⚠️ ITS RANGE IS READS AND OUR OWN PRIMITIVES. NEVER AN OUTWARD WRITE.
-#: See `resolve_agent_tools` — the ceiling is DERIVED from permission.py's own
-#: classification, not declared here, so it cannot drift out of agreement with
-#: the gate that enforces it.
+#: NO `tools` key — REACH IS UNREPRESENTABLE HERE (ADR-467 D4, the D3.a
+#: pattern's third instance). The per-Agent `tools` field (ADR-463 D4, lived
+#: 2026-07-16→20) is retired: every lane serves ONE uniform surface
+#: (`lane_runner.LANE_SURFACE_EXTRA` beside the five verbs). The variance was a
+#: bug factory with no safety payoff — the ADR-307 gate, not the allowlist, was
+#: always the boundary (every grantable name is derived non-consequential in
+#: `permission.py::READ_ONLY_PRIMITIVES`, and the gate asserts the uniform
+#: surface stays inside that ceiling). An Agent row carries IDENTITY + ENGINE +
+#: CHARACTER; never reach, never authority.
 #: (A `bound_only` key lived here for one commit on 2026-07-16 and was removed
 #: the same day, operator-corrected. It marked Designer as un-chooseable +
 #: un-hireable — which is a TAXONOMY wearing a field's clothes: it made Designer
@@ -206,7 +197,7 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
 #: An Agent is an Agent: you can chat with Designer, hire your own based on it,
 #: and every Agent can make artifacts. Nothing here is restricted.)
 AGENT_ROW_KEYS = frozenset(
-    {"slug", "name", "blurb", "icon", "model", "token_profile", "posture", "tools"}
+    {"slug", "name", "blurb", "icon", "model", "token_profile", "posture"}
 )
 
 
@@ -240,11 +231,10 @@ AGENT_ROW_KEYS = frozenset(
 # the pre-move Critic row. Nothing about a live Critic lane changes.
 #
 # ⚠️ THE D3.a CLIFF HOLDS ON THIS LAYER TOO. A posture carries identity + a
-# capability pointer (`based_on`) + an engine — never authority. `POSTURE_ROW_KEYS`
-# has no authority-shaped field, and the gate asserts it, the same ratchet that
-# guards KERNEL_AGENTS. A posture also declares NO `tools` of its own: it INHERITS
-# its `based_on` base agent's reach (resolve_agent_tools follows `based_on`),
-# because a stance is not a grant.
+# capability pointer (`based_on`) + an engine — never authority, and (ADR-467
+# D4) never reach: the lane surface is uniform kernel code, so neither layer
+# has a `tools` vocabulary at all. `POSTURE_ROW_KEYS` has no authority-shaped
+# field, and the gate asserts it, the same ratchet that guards KERNEL_AGENTS.
 KERNEL_POSTURES: dict[str, dict[str, Any]] = {
     "critic": {
         "slug": "critic",
@@ -264,9 +254,8 @@ KERNEL_POSTURES: dict[str, dict[str, Any]] = {
 }
 
 #: The keys a posture row may carry. `based_on` (its base operation) is required
-#: and is the one field an agent row lacks; `tools` is DELIBERATELY absent — a
-#: posture inherits its base agent's reach, never declares its own (a stance is
-#: not a grant, ADR-463 D4.a). No authority-shaped key, ever — the cliff.
+#: and is the one field an agent row lacks. No `tools` (reach is uniform,
+#: ADR-467 D4) and no authority-shaped key, ever — the cliff.
 POSTURE_ROW_KEYS = frozenset(
     {"slug", "name", "based_on", "blurb", "icon", "model", "token_profile", "posture"}
 )
@@ -289,60 +278,13 @@ def _kernel_character(slug: str) -> Optional[dict]:
     return KERNEL_AGENTS.get(s) or KERNEL_POSTURES.get(s)
 
 
-def resolve_agent_tools(slug: Optional[str], member_agents: Optional[list[dict]] = None) -> tuple:
-    """The extra primitives this Agent reaches, beyond the five file verbs.
-
-    Empty for no agent, an unknown slug, or an Agent that declares none — the
-    pre-ADR-463 surface, byte-identical.
-
-    ⚠️ THE CEILING (ADR-463 D4.a — the ADR-460 D3.a pattern, second instance).
-    A tool here MUST be non-consequential. The check is a DERIVATION from
-    `permission.py::READ_ONLY_PRIMITIVES` — the very set the ADR-307 gate
-    classifies with — not a deny-list maintained beside it. A deny-list would
-    drift; a derivation cannot: the day a primitive stops being a read, it stops
-    being grantable here, in the same edit, with nobody remembering to.
-
-    WHY THIS IS THE CLIFF AND NOT A SCOPE. "Give an Agent a Slack connection" is
-    two asks wearing one word. A connection that READS is an ADR-401 peripheral
-    — mechanical, no judgment. A connection that WRITES OUTWARD is consequential
-    external action: the one fact that is not a dial (ADR-460 D3), gated by a
-    track record on a clock we do not own (ADR-380 D2). An outward write
-    reachable from a tools list is Rung 2 arriving through config — the exact
-    back door D3.a closed in the row shape, reopened one field over.
-
-    A member Agent inherits its `based_on` kernel Agent's tools and cannot
-    declare its own (AGENT_MANIFEST_KEYS has no `tools`): naming a colleague is
-    an identity act, and granting reach is not.
-    """
-    from services.primitives.permission import READ_ONLY_PRIMITIVES
-
-    agent = resolve_agent(slug or "", member_agents)
-    if not agent:
-        return ()
-    # Follow the character chain: a member Agent → its `based_on` kernel
-    # character (a base agent OR a posture) → and a POSTURE inherits its OWN
-    # `based_on` base agent's tools (a posture declares none). `tools` lives only
-    # on base agents, so a posture in the middle contributes nothing and defers
-    # to its base — the chain resolves to whatever base row (if any) carries a
-    # `tools` key, which is the correct ceiling for every case.
-    base = _kernel_character(agent.get("based_on") or agent.get("slug") or "")
-    while base is not None and base.get("tools") is None and base.get("based_on"):
-        base = _kernel_character(base["based_on"])
-    tools = tuple((base or agent).get("tools") or ())
-
-    grantable = tuple(t for t in tools if t in READ_ONLY_PRIMITIVES)
-    if len(grantable) != len(tools):
-        # Loud, and it drops the offender rather than serving it. A consequential
-        # primitive in a tools list is a bug in the registry, not a member's
-        # problem — but it must never reach a model while we argue about it.
-        refused = [t for t in tools if t not in READ_ONLY_PRIMITIVES]
-        logger.error(
-            "[AGENTS] REFUSED non-read tools %s for agent %r — ADR-463 D4.a: a "
-            "tools list may name reads and our own primitives, never an outward "
-            "write. This is the ADR-307 gate, not a scope.",
-            refused, agent.get("slug"),
-        )
-    return grantable
+# NOTE: `resolve_agent_tools` (ADR-463 D4's per-Agent reach resolution) was
+# DELETED by ADR-467 D4 — the lane surface is uniform (`lane_runner.
+# lane_tool_names`), so there is nothing per-Agent to resolve. The D4.a ceiling
+# survives where it always actually lived: the gate asserts
+# `LANE_SURFACE_EXTRA` ⊆ `permission.py::READ_ONLY_PRIMITIVES` (reads and our
+# own primitives; never an outward write — an outward write reachable from a
+# tool surface would be Rung 2 arriving through config, ADR-460 D3.a).
 
 
 # ---------------------------------------------------------------------------
@@ -370,7 +312,8 @@ def resolve_agent_tools(slug: Optional[str], member_agents: Optional[list[dict]]
 # REJECTS (never silently ignores) an unknown key.
 #
 # The cut is not "kernel vs filesystem" — it is CAPABILITY vs IDENTITY:
-#   tools + token profile → kernel (they gate, cost, route)
+#   tool surface         → kernel, UNIFORM (ADR-467 D4 — lane_runner, not rows)
+#   token profile        → kernel (it costs and routes)
 #   engine               → kernel default, member MAY override (see below)
 #   name + tone + color  → the member (costs nothing, gates nothing)
 #   authority            → NOBODY. Unrepresentable in both layers.
@@ -585,8 +528,8 @@ def find_member_agents(client: Any, user_id: str) -> list[dict]:
 # uses, one level down. No new table, no new registry, no seeding (ADR-414).
 #
 # ⚠️ WHY THIS DOES NOT REOPEN THE D3.a CLIFF. A skill is PROSE composed into a
-# prompt. It cannot grant a tool: `resolve_agent_tools` reads the KERNEL row via
-# `based_on` and a member's file is not consulted. It cannot grant authority:
+# prompt. It cannot grant a tool: the lane surface is uniform kernel code
+# (ADR-467 D4) and a member's file is not consulted. It cannot grant authority:
 # the gate branches on `caller_identity`, which the RUNTIME stamps from
 # (user_id, model) — unreachable from any file. A skill that SAYS "you may post
 # to Slack" is a lie the gate refuses, exactly as it refuses the same words typed

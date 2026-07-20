@@ -87,6 +87,17 @@ def _studio_max_tokens() -> int:
 #: verbs, no Schedule, no DispatchSpecialist, no platform tools.
 LANE_TOOL_NAMES = ("ReadFile", "WriteFile", "EditFile", "SearchFiles", "ListFiles")
 
+#: The two reads beyond the five verbs — UNIFORM for every lane (ADR-467 D4).
+#: Capability stopped being a per-Agent fact: the per-row `tools` field was a
+#: bug factory with no safety payoff (the gate, not the allowlist, was always
+#: the boundary — both names are derived non-consequential in
+#: `permission.py::READ_ONLY_PRIMITIVES`, the D4.a ceiling, gate-asserted).
+#: Character is the differentiator; reach is not. Any FUTURE addition here is a
+#: uniform addition, evidence-gated, and must be in READ_ONLY_PRIMITIVES (the
+#: gate asserts this) AND have a schema in `lane_tools_openai` (which fails
+#: loud, not silent, on a missing one).
+LANE_SURFACE_EXTRA = ("QueryKnowledge", "WebSearch")
+
 #: The subset of the lane surface that PRODUCES substrate. A successful call
 #: to one of these lands an attributed revision, and the member should SEE what
 #: their lane made — not just the verb's name (2026-07-09, the artifact card).
@@ -161,37 +172,32 @@ def _anthropic_to_openai_tool(tool: dict) -> dict:
     }
 
 
-def lane_tool_names(extra: tuple = ()) -> tuple:
-    """THE lane's tool-name set for a turn: the five file verbs + this Agent's
-    `extra` reach (ADR-463 D4), deduped, order-stable.
+def lane_tool_names() -> tuple:
+    """THE lane's tool-name set: the five file verbs + the uniform reads
+    (ADR-467 D4). One set, every lane, every Agent.
 
     ⚠️ SINGULAR SOURCE. Three things must agree about which tools a turn has:
     the DECLARED payload the model receives (`lane_tools_openai`), the EXECUTION
     allowlist the tool loop dispatches against, and the PROMPT prose that tells
-    the model what it holds. Before this function they were computed in three
-    places that disagreed — the payload carried the extras, the loop's guard
-    checked bare `LANE_TOOL_NAMES` (so a called extra returned
-    `tool_not_on_lane_surface` and never dispatched), and the prompt hardcoded
-    "the five file verbs — the complete surface". Scout's tools reached the model
-    and could not run. This is the one computation all three now read.
-
-    `extra` has ALREADY passed the D4.a ceiling in `resolve_agent_tools` (reads +
-    our own primitives; never an outward write) — this function composes, it does
-    not authorize.
+    the model what it holds. When they were computed separately they disagreed
+    and shipped a bug (Scout's declared-but-undispatchable tools, `5ba26e1`);
+    when the set varied per Agent, the variance itself was the bug surface
+    (ADR-467 §1). This is the one computation all three read, and it no longer
+    takes an argument to disagree about.
     """
-    return LANE_TOOL_NAMES + tuple(n for n in extra if n not in LANE_TOOL_NAMES)
+    return LANE_TOOL_NAMES + LANE_SURFACE_EXTRA
 
 
-def lane_tools_openai(extra: tuple = ()) -> list[dict]:
+def lane_tools_openai() -> list[dict]:
     """The lane tool surface in OpenAI format, derived from the registry's
     own definitions (no parallel schemas — Singular Implementation).
 
-    `extra` (ADR-463 D4): primitives this turn's Agent reaches beyond the five
-    file verbs, from `resolve_agent_tools` — which has ALREADY enforced the D4.a
-    ceiling (reads and our own primitives only; never an outward write). This
-    function composes definitions; it does not authorize. Two jobs, two homes:
-    passing a name here that resolve_agent_tools would refuse is a bug in the
-    caller, not a hole here.
+    Composes definitions; it does not authorize — the D4.a ceiling is asserted
+    in the gate (`LANE_SURFACE_EXTRA` ⊆ `READ_ONLY_PRIMITIVES`). A surface name
+    with no schema here is an ERROR, never a silent drop: the pre-ADR-467 code
+    filtered `if n in by_name`, which would have shipped the Scout bug mirrored
+    (prompt + allowlist claiming a tool the payload never carried) on the next
+    surface addition.
     """
     from services.primitives.web_search import WEB_SEARCH_PRIMITIVE
     from services.primitives.workspace import (
@@ -209,7 +215,13 @@ def lane_tools_openai(extra: tuple = ()) -> list[dict]:
                   SEARCH_FILES_TOOL, LIST_FILES_TOOL,
                   QUERY_KNOWLEDGE_TOOL, WEB_SEARCH_PRIMITIVE)
     }
-    return [_anthropic_to_openai_tool(by_name[n]) for n in lane_tool_names(extra) if n in by_name]
+    missing = [n for n in lane_tool_names() if n not in by_name]
+    if missing:
+        raise ValueError(
+            f"lane surface names {missing} have no tool schema — a surface "
+            "addition must land its schema in the same edit (ADR-467 D4)"
+        )
+    return [_anthropic_to_openai_tool(by_name[n]) for n in lane_tool_names()]
 
 
 # ---------------------------------------------------------------------------
@@ -271,8 +283,9 @@ territory — read them to understand intent, don't author there.
 
 ## Your tools
 {tools_line} — the complete surface. You cannot schedule work, dispatch
-agents, or write out to external platforms; your reach is reading and writing
-this member's commons.
+agents, or write out to external platforms; you read this member's commons
+(QueryKnowledge searches it by meaning) and the open web (WebSearch), and you
+write only to the commons.
 
 ## Format discipline
 Prose documents are .md. Machine config is _*.yaml (don't author these
@@ -336,19 +349,16 @@ def build_lane_conventions(
     member = member_label or "the member"
 
     # This turn's member-authored Agents, read ONCE for the whole frame — the
-    # tool line, the posture, and the skills all consume it (best-effort; a
-    # broken manifest never breaks a turn). Empty for a lane with no agent.
-    from services.agents_registry import find_member_agents, resolve_agent_tools
+    # posture and the skills consume it (best-effort; a broken manifest never
+    # breaks a turn). Empty for a lane with no agent.
+    from services.agents_registry import find_member_agents
     _mine = find_member_agents(client, user_id) if agent else []
 
-    # The tool line MUST name this turn's actual surface — the five verbs plus
-    # the Agent's `extra` reach (ADR-463 D4). Derived from the same
-    # `resolve_agent_tools`/`lane_tool_names` the payload + the loop's allowlist
-    # read, so the prose can never again claim "five, the complete surface" while
-    # the model was handed seven (the Scout bug). No agent → the five verbs,
-    # byte-identical prose.
-    _prompt_extra = resolve_agent_tools(agent, _mine) if agent else ()
-    tools_line = " · ".join(lane_tool_names(_prompt_extra))
+    # The tool line names the lane surface — UNIFORM for every lane (ADR-467
+    # D4). Derived from the same `lane_tool_names` the payload + the loop's
+    # allowlist read, so the prose can never claim a surface the model wasn't
+    # handed (the Scout bug's prose half).
+    tools_line = " · ".join(lane_tool_names())
 
     mandate = _read_workspace_file(client, user_id, CONSTITUTION_MANDATE_PATH)
     mandate_head = "\n".join(mandate.strip().splitlines()[:40]).strip()
@@ -495,19 +505,11 @@ async def run_lane_turn(
     from services.primitives.registry import execute_primitive
 
     tool_auth = _lane_auth(auth, model)
-    # ADR-463 D4: the Agent's own reach, beyond the five file verbs. Empty for
-    # every lane without an agent and every Agent that declares none — the
-    # pre-463 surface, byte-identical. resolve_agent_tools enforces the D4.a
-    # ceiling (reads only; never an outward write) before a name gets here.
-    from services.agents_registry import find_member_agents, resolve_agent_tools
-    _extra = resolve_agent_tools(agent, find_member_agents(auth.client, auth.user_id)) if agent else ()
-    tools = lane_tools_openai(_extra)
-    # THE execution allowlist for this turn — the SAME set the payload above was
-    # built from (Singular Implementation, lane_tool_names). Before this, the
-    # guard below checked bare LANE_TOOL_NAMES, so a called `extra` (Scout's
-    # QueryKnowledge/WebSearch) returned tool_not_on_lane_surface and never
-    # dispatched: declared to the model, refused by the loop.
-    _allowed = lane_tool_names(_extra)
+    # ADR-467 D4: ONE surface, every lane — payload and execution allowlist
+    # from the same computation (Singular Implementation, lane_tool_names), so
+    # the declared-but-undispatchable bug class is unrepresentable.
+    tools = lane_tools_openai()
+    _allowed = lane_tool_names()
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,
@@ -693,19 +695,11 @@ async def run_lane_turn_stream(
     from services.primitives.registry import execute_primitive
 
     tool_auth = _lane_auth(auth, model)
-    # ADR-463 D4: the Agent's own reach, beyond the five file verbs. Empty for
-    # every lane without an agent and every Agent that declares none — the
-    # pre-463 surface, byte-identical. resolve_agent_tools enforces the D4.a
-    # ceiling (reads only; never an outward write) before a name gets here.
-    from services.agents_registry import find_member_agents, resolve_agent_tools
-    _extra = resolve_agent_tools(agent, find_member_agents(auth.client, auth.user_id)) if agent else ()
-    tools = lane_tools_openai(_extra)
-    # THE execution allowlist for this turn — the SAME set the payload above was
-    # built from (Singular Implementation, lane_tool_names). Before this, the
-    # guard below checked bare LANE_TOOL_NAMES, so a called `extra` (Scout's
-    # QueryKnowledge/WebSearch) returned tool_not_on_lane_surface and never
-    # dispatched: declared to the model, refused by the loop.
-    _allowed = lane_tool_names(_extra)
+    # ADR-467 D4: ONE surface, every lane — payload and execution allowlist
+    # from the same computation (Singular Implementation, lane_tool_names), so
+    # the declared-but-undispatchable bug class is unrepresentable.
+    tools = lane_tools_openai()
+    _allowed = lane_tool_names()
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,
@@ -842,6 +836,7 @@ async def run_lane_turn_stream(
 __all__ = [
     "LANE_MODELS",
     "LANE_TOOL_NAMES",
+    "LANE_SURFACE_EXTRA",
     "lane_tools_openai",
     "lane_caller_identity",
     "build_lane_conventions",

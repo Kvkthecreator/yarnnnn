@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.20.2] - The lane tool surface goes uniform (ADR-467 D4)
+
+### Changed
+- `services/lane_runner.py`: the conventions frame's `## Your tools` line now
+  names the uniform seven (five file verbs + QueryKnowledge + WebSearch) for
+  EVERY lane — previously five for all lanes except scout's seven. The reach
+  sentence updates to match: the lane reads the member's commons (QueryKnowledge
+  by meaning) and the open web (WebSearch), and writes only to the commons.
+- `services/agents_registry.py`: the per-Agent `tools` field is deleted (scout's
+  row no longer declares reach); Researcher's search-order discipline stays in
+  its posture unchanged.
+- Expected behavior: Thinker, Designer, Critic, and every member-authored
+  colleague gain semantic recall + web search on their turns (previously
+  Researcher-only). No prompt claims a surface the payload doesn't carry — all
+  three (payload, executor allowlist, prompt line) read `lane_tool_names()`.
+
 ## [2026.07.20.1] - The deck object layer: measures gain position (ADR-466 D2)
 
 - `services/studio.py`: the authoring posture's Property-tokens section gains a
