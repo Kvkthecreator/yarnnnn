@@ -535,7 +535,18 @@ export const api = {
      *  `name` is what they TYPED (ADR-469): it becomes the <title> verbatim, so
      *  `IR deck v3` and `한글 문서` read back exactly as typed while the path
      *  stays an ASCII key. */
-    createArtifact: (template: string, opts?: { path?: string; name?: string }) =>
+    /** ADR-472 D3: a stage carries real dimensions at birth (preset OR explicit
+     *  W×H). Ignored by flow/paged document layouts, which have no pixel box. */
+    createArtifact: (
+      template: string,
+      opts?: {
+        path?: string;
+        name?: string;
+        preset?: string;
+        width?: number;
+        height?: number;
+      },
+    ) =>
       request<{ success: boolean; path: string; template: string }>(
         "/api/studio/artifacts",
         { method: "POST", body: JSON.stringify({ template, ...opts }) },

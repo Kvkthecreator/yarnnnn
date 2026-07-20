@@ -2447,8 +2447,14 @@ function StudioStart({
   // name-it modal owns this; it throws so the failure shows inline there.
   // `name` travels beside the slugified path so the <title> gets what they
   // actually typed (ADR-469).
-  const createScratch = async (templateSlug: string, path: string, name?: string) => {
-    const res = await api.studio.createArtifact(templateSlug, { path, name });
+  const createScratch = async (
+    templateSlug: string,
+    path: string,
+    name?: string,
+    dims?: { width: number; height: number },
+  ) => {
+    // ADR-472 D3: a stage is born at its real size; a document ignores dims.
+    const res = await api.studio.createArtifact(templateSlug, { path, name, ...(dims ?? {}) });
     onOpen(res.path);
   };
 
@@ -2711,6 +2717,7 @@ function StudioStart({
           templates={namingOpen ? templates : null}
           onClose={() => setNamingOpen(false)}
           onCreate={createScratch}
+          dimensionsFirst={app.dimensionsFirst}
         />
 
         <LearnFromFlowModal

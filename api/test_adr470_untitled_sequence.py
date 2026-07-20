@@ -211,7 +211,15 @@ def main() -> int:
     )
     _check(
         "the client exposes one create with both doors",
-        "createArtifact: (template: string, opts?:" in client,
+        # ADR-472 widened the signature across lines (a stage also carries its
+        # dimensions), so assert the INVARIANT — one createArtifact taking a
+        # template plus an optional bag holding BOTH doors' fields — rather
+        # than one line's exact formatting.
+        "createArtifact: (" in client
+        and "template: string," in client
+        and "opts?: {" in client
+        and "path?: string;" in client
+        and "name?: string;" in client,
     )
     # Singular implementation: the old always-a-modal state is gone.
     _check(

@@ -73,10 +73,41 @@ interface NewArtifactModalProps {
   /** Create + open — throws so the failure shows inline here. `name` is what
    *  the member typed, carried alongside the slugified path so the artifact's
    *  <title> gets the real thing (ADR-469). */
-  onCreate: (templateSlug: string, path: string, name: string) => Promise<void>;
+  onCreate: (
+    templateSlug: string,
+    path: string,
+    name: string,
+    dims?: { width: number; height: number },
+  ) => Promise<void>;
+  /** ADR-472 D3 — DIMENSIONS-FIRST. When set, the modal asks for the stage's
+   *  size before anything else, the way a design tool does: the box is the
+   *  first decision, not a ratio applied to a document after the fact. */
+  dimensionsFirst?: boolean;
 }
 
-export function NewArtifactModal({ templates, onClose, onCreate }: NewArtifactModalProps) {
+/** The stage presets (ADR-472 D3) — real pixel boxes, mirroring
+ *  services/images.py::STAGE_PRESETS. Kept in step with the Python: the kernel
+ *  owns the numbers, this is the picker's copy of the same table. */
+export const STAGE_PRESETS = [
+  { slug: 'square', label: 'Square', width: 1080, height: 1080, hint: 'Instagram / LinkedIn post' },
+  { slug: 'story', label: 'Story', width: 1080, height: 1920, hint: 'Story / Reel, 9:16' },
+  { slug: 'wide', label: 'Wide', width: 1600, height: 900, hint: 'Slide still, thumbnail, 16:9' },
+  { slug: 'ad', label: 'Ad', width: 1200, height: 628, hint: 'Meta / LinkedIn link ad' },
+  { slug: 'portrait', label: 'Portrait', width: 1080, height: 1350, hint: 'Instagram portrait, 4:5' },
+  { slug: 'banner', label: 'Banner', width: 1500, height: 500, hint: 'X / site header' },
+] as const;
+
+export function NewArtifactModal({
+  templates,
+  onClose,
+  onCreate,
+  dimensionsFirst = false,
+}: NewArtifactModalProps) {
+  // ADR-472 D3: the stage's box. `custom` carries any W×H — a preset is a
+  // convenience, never a constraint.
+  const [presetSlug, setPresetSlug] = useState<string>('square');
+  const [customW, setCustomW] = useState('1080');
+  const [customH, setCustomH] = useState('1080');
   const [templateSlug, setTemplateSlug] = useState<string>('');
   const [name, setName] = useState('');
   const [dest, setDest] = useState(DEFAULT_DEST);
@@ -90,6 +121,9 @@ export function NewArtifactModal({ templates, onClose, onCreate }: NewArtifactMo
   useEffect(() => {
     if (open) {
       setTemplateSlug(templates![0].slug);
+      setPresetSlug('square');
+      setCustomW('1080');
+      setCustomH('1080');
       setName('');
       setDest(DEFAULT_DEST);
       setErr(null);
@@ -106,13 +140,25 @@ export function NewArtifactModal({ templates, onClose, onCreate }: NewArtifactMo
     ? `${dest.replace(/^\/workspace\//, '')}/${slugify(name)}/${template.slug}.html`
     : '';
 
-  const canCreate = !!name.trim() && !busy;
+  // The resolved box — a preset's numbers, or the typed custom pair.
+  const dims = dimensionsFirst
+    ? presetSlug === 'custom'
+      ? { width: Number(customW) || 0, height: Number(customH) || 0 }
+      : (() => {
+          const p = STAGE_PRESETS.find((x) => x.slug === presetSlug) ?? STAGE_PRESETS[0];
+          return { width: p.width, height: p.height };
+        })()
+    : undefined;
+  const dimsValid =
+    !dimensionsFirst || (!!dims && dims.width >= 16 && dims.height >= 16);
+
+  const canCreate = !!name.trim() && dimsValid && !busy;
   const submit = async () => {
     if (!canCreate) return;
     setBusy(true);
     setErr(null);
     try {
-      await onCreate(template.slug, composedPath, name.trim());
+      await onCreate(template.slug, composedPath, name.trim(), dims);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Creation failed.');
       setBusy(false);
@@ -164,6 +210,74 @@ export function NewArtifactModal({ templates, onClose, onCreate }: NewArtifactMo
               })}
             </div>
           )}
+          {/* ADR-472 D3 — SIZE FIRST. A stage's box is the first decision (the
+              Canva/Fabric model): every object is placed relative to it and the
+              render target IS this size. Real pixels, not a ratio slug — which
+              is why the ADR-471 aspect token could not survive the carve. */}
+          {dimensionsFirst && (
+            <div className="mt-3">
+              <div className="text-xs font-medium text-muted-foreground">Size</div>
+              <div className="mt-1.5 grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Size">
+                {STAGE_PRESETS.map((p) => (
+                  <button
+                    key={p.slug}
+                    type="button"
+                    role="radio"
+                    aria-checked={presetSlug === p.slug}
+                    title={`${p.hint} — ${p.width}×${p.height}`}
+                    onClick={() => setPresetSlug(p.slug)}
+                    className={cn(
+                      'rounded-md border px-2 py-1.5 text-left transition-colors',
+                      presetSlug === p.slug
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:bg-muted/50',
+                    )}
+                  >
+                    <div className="text-xs font-medium">{p.label}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {p.width}×{p.height}
+                    </div>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={presetSlug === 'custom'}
+                  onClick={() => setPresetSlug('custom')}
+                  className={cn(
+                    'rounded-md border px-2 py-1.5 text-left transition-colors',
+                    presetSlug === 'custom'
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:bg-muted/50',
+                  )}
+                >
+                  <div className="text-xs font-medium">Custom</div>
+                  <div className="text-[10px] text-muted-foreground">any size</div>
+                </button>
+              </div>
+              {presetSlug === 'custom' && (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <input
+                    value={customW}
+                    onChange={(e) => setCustomW(e.target.value.replace(/[^0-9]/g, ''))}
+                    inputMode="numeric"
+                    className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+                    aria-label="Width in pixels"
+                  />
+                  <span className="text-xs text-muted-foreground">×</span>
+                  <input
+                    value={customH}
+                    onChange={(e) => setCustomH(e.target.value.replace(/[^0-9]/g, ''))}
+                    inputMode="numeric"
+                    className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+                    aria-label="Height in pixels"
+                  />
+                  <span className="text-xs text-muted-foreground">px</span>
+                </div>
+              )}
+            </div>
+          )}
+
           <input
             ref={inputRef}
             value={name}

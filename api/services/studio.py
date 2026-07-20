@@ -1357,6 +1357,24 @@ def build_skeleton(layout: str, title: str | None = None) -> str:
 
 #: The creation-time registry (API surface of routes/studio.py — shape kept
 #: stable from ADR-440). Derived: a template IS a layout + its starters.
+def all_templates() -> dict[str, dict[str, str]]:
+    """Every registered app's templates (ADR-472 D1) — layout × starter blocks.
+
+    STUDIO_TEMPLATES stays Studio's own (ADR-443 §derivation asserts it equals
+    STUDIO_LAYOUTS exactly); this is the cross-app view the creation surface
+    and the vocabulary endpoint read, so an IMAGES stage is creatable without
+    Studio's table growing a row it does not own.
+    """
+    return {
+        slug: {
+            "label": lay["label"],
+            "description": lay["description"],
+            "skeleton": build_skeleton(slug),
+        }
+        for slug, lay in all_layouts().items()
+    }
+
+
 STUDIO_TEMPLATES: dict[str, dict[str, str]] = {
     slug: {
         "label": lay["label"],

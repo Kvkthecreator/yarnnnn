@@ -29,6 +29,13 @@ from typing import Optional
 
 from services.supabase import UserClient
 
+# ADR-472 D1/D2: importing the IMAGES app REGISTERS its stage with the shared
+# layout registry (services/studio.py::register_layouts). Without this import
+# the registry holds only Studio's layouts and an IMAGES stage silently 404s at
+# creation — the module IS the registration, so the import is load-bearing and
+# must not be pruned as "unused".
+import services.images  # noqa: F401  (import for registration side-effect)
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -58,12 +65,12 @@ class CreateArtifactRequest(BaseModel):
 
 @router.get("/studio/templates")
 async def list_templates(auth: UserClient) -> dict:
-    from services.studio import STUDIO_TEMPLATES
+    _templates = all_templates()
 
     return {
         "templates": [
             {"slug": slug, "label": t["label"], "description": t["description"]}
-            for slug, t in STUDIO_TEMPLATES.items()
+            for slug, t in _templates.items()
         ]
     }
 
@@ -89,6 +96,8 @@ async def list_artifacts(auth: UserClient) -> dict:
     The Files surface (the MIRROR) is untouched and still shows the raw leaf.
     """
     from services.studio import (
+    all_layouts,
+    all_templates,
     resolve_layout,
         STUDIO_ARTIFACT_REGION,
         artifact_kind,
@@ -208,7 +217,7 @@ async def get_vocabulary(auth: UserClient) -> dict:
                 # the FE never hardcodes a layout slug.
                 "mode": l["mode"],
             }
-            for s, l in STUDIO_LAYOUTS.items()
+            for s, l in all_layouts().items()
         ],
         "arrangements": {
             layout: [
@@ -762,14 +771,15 @@ def _untitled_path(auth: UserClient, template: str) -> str:
 @router.post("/studio/artifacts")
 async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     from services.authored_substrate import write_revision
-    from services.studio import STUDIO_ARTIFACT_REGION, STUDIO_TEMPLATES
+    from services.studio import STUDIO_ARTIFACT_REGION
     from services.workspace_context import substrate_scope_filter
 
-    template = STUDIO_TEMPLATES.get(req.template)
+    _templates = all_templates()
+    template = _templates.get(req.template)
     if not template:
         raise HTTPException(
             status_code=422,
-            detail=f"Unknown template: {req.template!r} (one of {sorted(STUDIO_TEMPLATES)})",
+            detail=f"Unknown template: {req.template!r} (one of {sorted(_templates)})",
         )
 
     # ── Placement (ADR-470) ────────────────────────────────────────────────
