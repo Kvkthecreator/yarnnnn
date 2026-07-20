@@ -3,17 +3,30 @@
 /**
  * NewArtifactModal — the "name it" step of scratch creation (ADR-452 v2).
  *
- * The landing shows choices, never form fields: clicking a type card opens
- * this focused modal — name → meaning-placed path (editable) → Create. The
- * path default follows ADR-440 D6: under operation/, named by the work; the
- * Studio never invents an app-named root. Mirrors the RenameModal shell.
+ * The landing shows choices, never form fields: clicking a type card opens this
+ * focused modal — name → destination folder (PICKED, never typed) → Create.
+ *
+ * ── The OS gesture (2026-07-20) ───────────────────────────────────────────
+ * This used to carry a font-mono `operation/…/artifact.html` path INPUT the
+ * operator typed into — the exact raw-path gesture ADR-400 Q2 banned for Move
+ * ("shouldn't be a URL path input") and that `MoveToFolderModal` exists to kill.
+ * New now follows the same Finder truth: name it, then NAVIGATE to a destination
+ * folder in the shared `WorkspacePicker`. The path is composed for the operator
+ * as `{folder}/{slug(name)}/{template}.html` — never edited as a string.
+ *
+ * The default destination is `operation/` (ADR-440 D6 — the Studio never invents
+ * an app-named root; work lives under operation/), so the fast path stays one
+ * field + Enter. Choosing elsewhere is the picker, the same one Open/Move use.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus, Folder } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
+import { operatorCanOrganize } from '@/lib/workspace/ownership';
+import type { WorkspaceTreeNode } from '@/types';
+import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
 
 /** Meaning-placed slug (shared with the landing's learn-from flow). */
 export function slugify(name: string): string {
@@ -22,6 +35,14 @@ export function slugify(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 48) || 'untitled';
+}
+
+/** The default destination — the operation/ root (ADR-440 D6). */
+const DEFAULT_DEST = '/workspace/operation';
+
+/** A destination for display — trim the workspace prefix. */
+function shortDest(path: string): string {
+  return path.replace(/^\/workspace\//, '') || '/';
 }
 
 interface NewArtifactModalProps {
@@ -34,8 +55,8 @@ interface NewArtifactModalProps {
 
 export function NewArtifactModal({ template, onClose, onCreate }: NewArtifactModalProps) {
   const [name, setName] = useState('');
-  const [path, setPath] = useState('');
-  const [pathEdited, setPathEdited] = useState(false);
+  const [dest, setDest] = useState(DEFAULT_DEST);
+  const [pickingDest, setPickingDest] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -43,27 +64,26 @@ export function NewArtifactModal({ template, onClose, onCreate }: NewArtifactMod
   useEffect(() => {
     if (template) {
       setName('');
-      setPath('');
-      setPathEdited(false);
+      setDest(DEFAULT_DEST);
       setErr(null);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [template]);
 
-  useEffect(() => {
-    if (pathEdited || !template) return;
-    setPath(name ? `operation/${slugify(name)}/${template.slug}.html` : '');
-  }, [name, template, pathEdited]);
-
   if (!template) return null;
 
-  const canCreate = !!path.trim() && !busy;
+  // The composed path — meaning-placed under the picked destination.
+  const composedPath = name.trim()
+    ? `${dest.replace(/^\/workspace\//, '')}/${slugify(name)}/${template.slug}.html`
+    : '';
+
+  const canCreate = !!name.trim() && !busy;
   const submit = async () => {
     if (!canCreate) return;
     setBusy(true);
     setErr(null);
     try {
-      await onCreate(template.slug, path.trim());
+      await onCreate(template.slug, composedPath);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Creation failed.');
       setBusy(false);
@@ -101,16 +121,28 @@ export function NewArtifactModal({ template, onClose, onCreate }: NewArtifactMod
             className="mt-3 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
             aria-label="Name"
           />
-          <input
-            value={path}
-            onChange={(e) => {
-              setPathEdited(true);
-              setPath(e.target.value);
-            }}
-            placeholder="operation/…/artifact.html (meaning-placed)"
-            className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-xs outline-none focus:border-primary"
-            aria-label="Workspace path"
-          />
+
+          {/* Destination — picked, not typed. Clicking opens the shared
+              folder-picker (the same tree Open/Move use). */}
+          <button
+            type="button"
+            onClick={() => setPickingDest(true)}
+            className="mt-2 flex w-full items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50"
+            aria-label="Choose destination folder"
+          >
+            <Folder className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+            <span className="min-w-0 flex-1 truncate text-muted-foreground">
+              <span className="text-foreground">{shortDest(dest)}</span>
+              {name.trim() && (
+                <span className="font-mono text-xs">
+                  {' / '}
+                  {slugify(name)}/{template.slug}.html
+                </span>
+              )}
+            </span>
+            <span className="shrink-0 text-xs text-muted-foreground/70">Change</span>
+          </button>
+
           {err && <p className="mt-1.5 text-xs text-destructive">{err}</p>}
           <div className="mt-5 flex justify-end gap-2">
             <button
@@ -137,6 +169,28 @@ export function NewArtifactModal({ template, onClose, onCreate }: NewArtifactMod
           </div>
         </div>
       </div>
+
+      <WorkspacePickerModal
+        open={pickingDest}
+        mode="folder"
+        title="Choose a destination"
+        subtitle="Where the new file lives"
+        confirmLabel="Choose"
+        emptyMessage="No folders available."
+        selectable={(node: WorkspaceTreeNode) => operatorCanOrganize(`${node.path}/x`)}
+        folderDisabledTitle={(node) =>
+          operatorCanOrganize(`${node.path}/x`) ? undefined : 'This folder is managed by the system'
+        }
+        canConfirm={(sel) => operatorCanOrganize(`${sel}/x`)}
+        footerHint={(sel) =>
+          sel ? <>Into <span className="font-mono">{shortDest(sel)}</span></> : 'Pick a folder'
+        }
+        onClose={() => setPickingDest(false)}
+        onConfirm={(folder) => {
+          setDest(folder);
+          setPickingDest(false);
+        }}
+      />
     </>,
     document.body,
   );
