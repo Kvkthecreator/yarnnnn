@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.20.4] - The canvas posture: staged measures + z (ADR-471 C5)
+
+### Changed
+- `services/studio.py`: the studio posture's MEASURES paragraph generalizes
+  "on a deck slide" → "on a STAGED frame (a deck slide or a canvas artboard)"
+  and teaches the new z measure (data-z/--yz — stacking among positioned
+  blocks; absence = document order). Everything else the canvas lane needs
+  DERIVES: the canvas layout's flow prose (everything-positioned, cited
+  figures, aspect slugs), the free arrangement, and the aspect token row all
+  flow into the composed posture from the registries.
+- Expected behavior: a bound canvas lane authors positioned blocks with z
+  where overlap is intended and preserves member geometry incl. --yz; deck
+  lanes read the same paragraph unchanged in meaning.
+
 ## [2026.07.20.3] - Designer grounds before inventing (the click-pass finding)
 
 ### Changed

@@ -1486,10 +1486,12 @@ image smaller", "make this slide a dark divider"). Families:
 {tokens_grammar}
 Blocks may also carry MEASURES — member-authored geometry from the canvas
 gestures: data-w/data-h with style="--yw/--yh" (size in a frame), and on a
-deck slide data-x/data-y with --yx/--yy (a positioned block). When editing a
-block's content, preserve its measure attributes and its style="--y*"
-declarations exactly; a re-laid page (arrangement change) is the act that
-returns a positioned block to flow, never a content edit.
+STAGED frame (a deck slide or a canvas artboard) data-x/data-y with
+--yx/--yy (a positioned block) plus data-z with --yz (stacking among
+positioned blocks — higher is in front; absence = document order). When
+editing a block's content, preserve its measure attributes and its
+style="--y*" declarations exactly; a re-laid page (arrangement change) is
+the act that returns a positioned block to flow, never a content edit.
 
 ## Citing workspace objects (references, never copies)
 - Embed a workspace file by REFERENCE, resolved live at render time:
