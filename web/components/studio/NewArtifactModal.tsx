@@ -58,9 +58,17 @@ function shortDest(path: string): string {
   return path.replace(/^\/workspace\//, '') || '/';
 }
 
+export interface TemplateChoice {
+  slug: string;
+  label: string;
+  description: string;
+}
+
 interface NewArtifactModalProps {
-  /** The chosen type (null = closed). */
-  template: { slug: string; label: string; description: string } | null;
+  /** The shapes to choose among (null/empty = closed). ADR-470: the DELIBERATE
+   *  door owns the whole choice — shape, name, and destination — because the
+   *  member who takes it is the one who arrived knowing all three. */
+  templates: TemplateChoice[] | null;
   onClose: () => void;
   /** Create + open — throws so the failure shows inline here. `name` is what
    *  the member typed, carried alongside the slugified path so the artifact's
@@ -68,7 +76,8 @@ interface NewArtifactModalProps {
   onCreate: (templateSlug: string, path: string, name: string) => Promise<void>;
 }
 
-export function NewArtifactModal({ template, onClose, onCreate }: NewArtifactModalProps) {
+export function NewArtifactModal({ templates, onClose, onCreate }: NewArtifactModalProps) {
+  const [templateSlug, setTemplateSlug] = useState<string>('');
   const [name, setName] = useState('');
   const [dest, setDest] = useState(DEFAULT_DEST);
   const [pickingDest, setPickingDest] = useState(false);
@@ -76,16 +85,21 @@ export function NewArtifactModal({ template, onClose, onCreate }: NewArtifactMod
   const [err, setErr] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const open = !!templates?.length;
+
   useEffect(() => {
-    if (template) {
+    if (open) {
+      setTemplateSlug(templates![0].slug);
       setName('');
       setDest(DEFAULT_DEST);
       setErr(null);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
-  }, [template]);
+  }, [open, templates]);
 
-  if (!template) return null;
+  if (!open) return null;
+
+  const template = templates!.find((t) => t.slug === templateSlug) ?? templates![0];
 
   // The composed path — meaning-placed under the picked destination.
   const composedPath = name.trim()
@@ -121,9 +135,35 @@ export function NewArtifactModal({ template, onClose, onCreate }: NewArtifactMod
           role="dialog"
           aria-modal="true"
         >
-          <h3 className="text-base font-semibold text-card-foreground">
-            New {template.label.toLowerCase()}
-          </h3>
+          <h3 className="text-base font-semibold text-card-foreground">New {template.label.toLowerCase()}</h3>
+
+          {/* The shape — chosen HERE, because the deliberate door owns all
+              three decisions (ADR-470). Hidden when there is only one shape. */}
+          {templates!.length > 1 && (
+            <div className="mt-3 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Type">
+              {templates!.map((t) => {
+                const active = t.slug === template.slug;
+                return (
+                  <button
+                    key={t.slug}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    title={t.description}
+                    onClick={() => setTemplateSlug(t.slug)}
+                    className={cn(
+                      'rounded-md border px-2.5 py-1 text-xs transition-colors',
+                      active
+                        ? 'border-primary bg-primary/10 font-medium text-primary'
+                        : 'border-border text-muted-foreground hover:bg-muted/60',
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <input
             ref={inputRef}
             value={name}

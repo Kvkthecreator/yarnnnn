@@ -526,14 +526,19 @@ export const api = {
           message,
         }),
       }),
-    /** `name` is what the member TYPED (ADR-469) — it becomes the artifact's
-     *  <title>, verbatim. `path` carries only the slugified KEY. Sending both
-     *  is what lets `IR deck v3` and `한글 문서` read back exactly as typed
-     *  while the path stays ASCII. */
-    createArtifact: (path: string, template: string, name?: string) =>
+    /** Create an artifact. Two doors (ADR-470):
+     *   • IMMEDIATE — `template` only. The server places it and the skeleton's
+     *     "Untitled ‹kind›" placeholder stands; the member names it from the
+     *     work (or never).
+     *   • DELIBERATE — `path` + `name` too, for the member who arrives knowing.
+     *
+     *  `name` is what they TYPED (ADR-469): it becomes the <title> verbatim, so
+     *  `IR deck v3` and `한글 문서` read back exactly as typed while the path
+     *  stays an ASCII key. */
+    createArtifact: (template: string, opts?: { path?: string; name?: string }) =>
       request<{ success: boolean; path: string; template: string }>(
         "/api/studio/artifacts",
-        { method: "POST", body: JSON.stringify({ path, template, name }) },
+        { method: "POST", body: JSON.stringify({ template, ...opts }) },
       ),
     /** Rename an artifact by its NAME — which is its MEANING FOLDER, not the
      *  leaf (the leaf is a TYPE marker naming the layout). Moves every file in

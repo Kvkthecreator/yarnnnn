@@ -35,13 +35,16 @@ router = APIRouter()
 
 
 class CreateArtifactRequest(BaseModel):
-    path: str            # workspace-relative or absolute; must end in .html
     template: str        # a STUDIO_TEMPLATES slug
-    # What the member TYPED (ADR-469). The FE composes `path` from a slug of it
-    # for the KEY; this carries the name itself, unicase and unicode, so the
-    # artifact's <title> gets the real thing rather than a reconstruction.
-    # Optional so an older client (or a non-modal caller) still works — the
-    # server falls back to deriving from the path, the pre-468 behaviour.
+    # BOTH optional (ADR-470) — the two doors into creation:
+    #   • IMMEDIATE — neither given. The artifact is born "Untitled ‹kind›" at a
+    #     server-placed, disambiguated key. New hands over the workbench and the
+    #     name arrives from the work (the crumb arms, offering — never demanding).
+    #   • DELIBERATE — both given. The member who arrives knowing ("IR deck v3,
+    #     in clients/") names it and picks a destination up front.
+    # `name` is what the member TYPED (ADR-469): it becomes the <title>
+    # verbatim. `path` carries only the slugified KEY.
+    path: Optional[str] = None
     name: Optional[str] = None
 
 
@@ -700,6 +703,46 @@ async def list_citable(auth: UserClient) -> dict:
     }
 
 
+def _untitled_path(auth: UserClient, template: str) -> str:
+    """Where an UNNAMED artifact lands (ADR-470) — the immediate door.
+
+    `untitled-document/document.html`, then `untitled-document-2/…`. The key
+    is built from the same `path_slug` + `disambiguate` the named door uses
+    (ADR-469), against the artifact region's existing meaning folders — one key
+    rule, so the two doors cannot drift into different collision behaviour.
+
+    It lands in the ORDINARY region, not a `drafts/` namespace: an untitled
+    artifact is real work that hasn't been named yet, not a separate class of
+    thing. DP33 — the state is data (the placeholder title it carries), the
+    namespace stays meaning. Naming it later is a retitle, and moving it is the
+    member's Move verb; neither is forced by where it was born.
+    """
+    from services.naming import disambiguate, path_slug
+    from services.studio import STUDIO_ARTIFACT_REGION, STUDIO_LAYOUTS
+    from services.workspace_context import substrate_scope_filter
+
+    lay = STUDIO_LAYOUTS.get(template)
+    label = lay["label"].lower() if lay else template
+    base = path_slug(f"untitled {label}")
+
+    rows = (
+        auth.client.table("workspace_files")
+        .select("path")
+        .eq(*substrate_scope_filter(auth.user_id))
+        .like("path", f"{STUDIO_ARTIFACT_REGION}%")
+        .execute()
+    ).data or []
+    # STUDIO_ARTIFACT_REGION already carries its trailing slash — never append
+    # one (that yielded `/workspace/operation//untitled-document/…`).
+    prefix = STUDIO_ARTIFACT_REGION
+    taken = {
+        rest.split("/")[0]
+        for rest in (r["path"][len(prefix):] for r in rows if r["path"].startswith(prefix))
+        if rest and "/" in rest
+    }
+    return f"{prefix}{disambiguate(base, taken)}/{template}.html"
+
+
 @router.post("/studio/artifacts")
 async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     from services.authored_substrate import write_revision
@@ -713,9 +756,13 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
             detail=f"Unknown template: {req.template!r} (one of {sorted(STUDIO_TEMPLATES)})",
         )
 
+    # ── Placement (ADR-470) ────────────────────────────────────────────────
+    # No path = the IMMEDIATE door: the server places it. One authority for
+    # where an unnamed artifact lands — the FE never invents a scratch path,
+    # so there is no second placement rule to drift.
     raw = (req.path or "").strip()
     if not raw:
-        raise HTTPException(status_code=422, detail="path required")
+        raw = _untitled_path(auth, req.template)
     path = raw if raw.startswith("/") else f"/workspace/{raw}"
     if not path.endswith(".html"):
         raise HTTPException(status_code=422, detail="A Studio artifact is an .html file")
@@ -757,7 +804,7 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     # Only a `flow` layout's h1 IS the title — a deck's h1 is the title slide's
     # thesis, a page's is its headline, and a filename has no business
     # dictating those (see set_artifact_title's guards). <title> is always set.
-    from services.studio import STUDIO_LAYOUTS, artifact_name, set_artifact_title
+    from services.studio import STUDIO_LAYOUTS, set_artifact_title
 
     # `.get`, not a bare subscript: creation validates `req.template` against
     # STUDIO_TEMPLATES (which is derived 1:1 from STUDIO_LAYOUTS today), but a
@@ -766,10 +813,21 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     # not flow (its h1 stays authored), matching artifact_kind's own fallback.
     _layout = STUDIO_LAYOUTS.get(req.template)
     is_flow = bool(_layout and _layout["mode"] == "flow")
-    # Typed name wins; fall back to the path-derived one for a caller that
-    # sends none (pre-468 clients, non-modal callers).
-    name = (req.name or "").strip() or artifact_name(path)
-    content = set_artifact_title(template["skeleton"], name, set_h1=is_flow)
+
+    # ADR-470: no name → the SKELETON'S OWN placeholder stands ("Untitled
+    # document"), which every layout already ships and `_SCAFFOLD_TITLES`
+    # already recognises as untouched. Deriving one from the path instead would
+    # be the interrogation by proxy — the member didn't name it, so nothing may
+    # invent a name on their behalf and then pretend they authored it. Leaving
+    # the placeholder is what keeps the later crumb-rename an OFFER: the
+    # placeholder guard in set_artifact_title lets a real name replace it,
+    # where an invented one would look authored and be protected from replacement.
+    name = (req.name or "").strip()
+    content = (
+        set_artifact_title(template["skeleton"], name, set_h1=is_flow)
+        if name
+        else template["skeleton"]
+    )
 
     write_revision(
         auth.client,

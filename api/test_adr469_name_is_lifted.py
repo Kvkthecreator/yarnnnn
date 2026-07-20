@@ -137,7 +137,17 @@ def main() -> int:
     _check(
         "create carries the TYPED name (not just the slugified path)",
         "name: Optional[str] = None" in routes
-        and "(req.name or \"\").strip() or artifact_name(path)" in routes,
+        and 'name = (req.name or "").strip()' in routes
+        and "set_artifact_title(template[\"skeleton\"], name, set_h1=is_flow)" in routes,
+    )
+    # ADR-470 REMOVED the `or artifact_name(path)` fallback this used to assert.
+    # Deriving a name from the path when the member gave none would write an
+    # INVENTED name into the h1 — which set_artifact_title's placeholder guard
+    # then treats as authored, permanently blocking the member's own rename.
+    # No name now means the skeleton's placeholder stands, which stays replaceable.
+    _check(
+        "…and NEVER invents one from the path when none was given (ADR-470)",
+        '(req.name or "").strip() or artifact_name(path)' not in routes,
     )
     _check(
         "rename passes the typed name into the retitle",

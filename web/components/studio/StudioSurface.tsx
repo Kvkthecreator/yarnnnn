@@ -2333,7 +2333,9 @@ function StudioStart({
   // ── The two ways to begin (ADR-452 v2): start from scratch, or learn
   // from a source. Both are peers in ONE grid; both nest their details in a
   // focused modal — the landing shows choices and recents, never form fields.
-  const [scratchTemplate, setScratchTemplate] = useState<TemplateInfo | null>(null);
+  // The DELIBERATE door's modal (ADR-470): open (true) = choose shape + name +
+  // destination there. The IMMEDIATE door doesn't pass through here at all.
+  const [namingOpen, setNamingOpen] = useState(false);
   const [learnOpen, setLearnOpen] = useState(false);
   // DESIGN-SYSTEMS.md §6 (the 2026-07-19 regroup) — creating a design system is
   // ONE intent through ONE dedicated modal (NewDesignSystemModal), not two
@@ -2356,12 +2358,21 @@ function StudioStart({
       .catch(() => setLaneEnv({ enabled: false }));
   }, []);
 
-  // Scratch creation — invoked by the name-it modal; throws so the modal
-  // can show the failure inline.
-  //  `name` is the member's typed name, carried alongside the slugified path
-  //  so the artifact's <title> gets the real thing (ADR-462).
+  // ── The two doors into a new artifact (ADR-470) ────────────────────────
+  // IMMEDIATE: New hands over the workbench. No name, no destination — the
+  // server places it, the skeleton's "Untitled ‹kind›" stands, and the crumb
+  // arms so the name is OFFERED. This is the door a doc processor gives you.
+  const createUntitled = async (templateSlug: string) => {
+    const res = await api.studio.createArtifact(templateSlug);
+    onRenameRequest(res.path); // opens the workbench with the crumb armed
+  };
+
+  // DELIBERATE: the member arrived knowing ("IR deck v3, in clients/"). The
+  // name-it modal owns this; it throws so the failure shows inline there.
+  // `name` travels beside the slugified path so the <title> gets what they
+  // actually typed (ADR-469).
   const createScratch = async (templateSlug: string, path: string, name?: string) => {
-    const res = await api.studio.createArtifact(path, templateSlug, name);
+    const res = await api.studio.createArtifact(templateSlug, { path, name });
     onOpen(res.path);
   };
 
@@ -2377,11 +2388,14 @@ function StudioStart({
       throw new Error('Chat helpers aren’t enabled on this workspace.');
     }
     if (target.template) {
-      const sourceSlug = slugify(source.name.replace(/\.[a-z0-9]+$/i, ''));
-      const res = await api.studio.createArtifact(
-        `operation/${sourceSlug}/${target.template}.html`,
-        target.template,
-      );
+      // Deliberate placement: a learn-from artifact is named after its SOURCE,
+      // which is a real name the member chose (by picking that source) — so it
+      // takes the named door, not the untitled one.
+      const sourceName = source.name.replace(/\.[a-z0-9]+$/i, '');
+      const res = await api.studio.createArtifact(target.template, {
+        path: `operation/${slugify(sourceName)}/${target.template}.html`,
+        name: sourceName,
+      });
       await api.lanes.create({
         name: `Learn: ${source.name}`.slice(0, 60),
         // A canvas target IS an authoring lane (it carries `artifact_path`), so
@@ -2462,7 +2476,8 @@ function StudioStart({
             <StudioNewMenu
               templates={templates}
               learnEnabled={laneEnv?.enabled !== false}
-              onPickTemplate={(t) => setScratchTemplate(t)}
+              onPickTemplate={(t) => void createUntitled(t.slug)}
+              onPickNamed={() => setNamingOpen(true)}
               onPickLearn={() => setLearnOpen(true)}
             />
           </div>
@@ -2615,8 +2630,8 @@ function StudioStart({
         </div>
 
         <NewArtifactModal
-          template={scratchTemplate}
-          onClose={() => setScratchTemplate(null)}
+          templates={namingOpen ? templates : null}
+          onClose={() => setNamingOpen(false)}
           onCreate={createScratch}
         />
 

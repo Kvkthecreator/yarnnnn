@@ -1,6 +1,12 @@
 # New should not interrogate you — the untitled sequence
 
-> **Status**: Discourse / design direction. **No code written.** Supersedes the
+> **Status**: **Closed** — implemented as
+> [ADR-470](../adr/ADR-470-new-hands-over-the-workbench.md) (2026-07-20), which
+> took **Design A** (untitled is `active`) and answered §7: the ordinary region
+> (not `drafts/`), the crumb armed, the deliberate modal kept as a peer row.
+> Retained as the derivation.
+>
+> Originally: discourse / design direction. Supersedes the
 > framing (not the findings) of
 > [the-untitled-document-scratch-save-as-and-the-attributed-floor](the-untitled-document-scratch-save-as-and-the-attributed-floor-2026-07-20.md),
 > which treated this as a storage question. It is a **sequence** question.
