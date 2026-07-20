@@ -1,6 +1,6 @@
 # ADR-471 — The canvas mode: a staged frame for composed visuals
 
-> **Status**: **Accepted** (2026-07-20; Phase 1 of the IMAGES implementation plan, operator-delegated scoping). Implementation lands in the same arc, commit-by-commit per `docs/analysis/images-implementation-plan-2026-07-20.md`.
+> **Status**: **Accepted + Implemented** (2026-07-20, one arc, C1–C6: layout `510e86a` · z `f6b67a1` · web chrome `85602d1` · posture `b976739` · click pass `7605f1e`). Gates: adr466 39/39 · adr471_canvas 5/5 · adr461/462/chrome/layout/retrofit/drag/save/citation all green · `next build` clean. The click-pass confirm ran **11/11** live at the real authoring profile (`docs/evaluations/2026-07-20-canvas-click-pass/`). Next per the implementation plan: Phase 2 — ADR-427 Ph2–3 + GC, as its own dedicated arc.
 > **Date**: 2026-07-20
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Substrate** (a new layout in the artifact grammar) with a **Channel** consequence (the staged editor mode) and a **Mechanism** note (the object layer generalizes, no new machinery).
