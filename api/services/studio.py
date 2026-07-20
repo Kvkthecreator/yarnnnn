@@ -1421,7 +1421,14 @@ every write.
 {outline_section}
 - PATCH, don't rewrite: prefer EditFile with exact old/new fragments for
   changes; reserve WriteFile (full replace) for re-drafts the member
-  explicitly asks for. Small patches keep the revision history legible.
+  explicitly asks for — and for FIRST COMPOSITION onto a fresh scaffold,
+  where one WriteFile carrying the complete document is honest (a compose is
+  a re-draft of placeholder content; send the FULL content in that same
+  call). After the first composition, PATCH. Small patches keep the revision
+  history legible.
+- Scaffold PLACEHOLDER blocks (the skeleton's starter content) may be
+  replaced or dropped when you compose; blocks the member or a prior turn
+  authored are never dropped and keep their data-block-id.
 - The member also edits DIRECTLY on the canvas — typing block text in place,
   and inserting blocks and slides (operator-authored revisions land between
   your turns): always re-read before editing, treat the current content as

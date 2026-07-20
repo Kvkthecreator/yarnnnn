@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.20.5] - First composition is honest WriteFile; placeholders are replaceable (ADR-471 C6)
+
+### Changed
+- `services/studio.py`: two click-pass-earned amendments to the studio
+  posture's editing rules. (1) The PATCH-don't-rewrite bullet gains the
+  FIRST-COMPOSITION carve-out — one WriteFile carrying the COMPLETE document
+  is the honest act when composing onto a fresh scaffold (a compose is a
+  re-draft of placeholder content); the patch discipline resumes after.
+  (2) A new bullet draws the placeholder line: scaffold starter blocks may be
+  replaced/dropped when composing; member- or prior-turn-authored blocks are
+  never dropped and keep their ids. Earned by the canvas click pass — both
+  live runs chose wholesale compose and dropped the placeholder kicker while
+  every other discipline held. Capture:
+  docs/evaluations/2026-07-20-canvas-click-pass/.
+- Expected behavior: a bound lane composing a fresh artifact sends one full
+  WriteFile instead of fighting the patch rule (or emitting fragmentary
+  writes); subsequent turns patch; member-authored blocks stay protected.
+
 ## [2026.07.20.4] - The canvas posture: staged measures + z (ADR-471 C5)
 
 ### Changed

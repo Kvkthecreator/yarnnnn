@@ -72,6 +72,8 @@ For each agent, in this order. Do not move to the next step until the current on
 - **Applied (step 5)**: ONE grounding line in the Designer character (recall-before-inventing, citing the observation). Nothing else — no capability change, no studio-posture change. Confirm run: 8/8 with **unprompted** QueryKnowledge-then-edit.
 - **Regression (step 6)**: two gate checks added (`test_agent_registry.py`, 157/157): the grounding-discipline intent assertion + the composed-mind two-limb frame assertion (guards the historical `+=` bug class).
 
+**Canvas addendum (2026-07-20, ADR-471 C6 — the resident's second observed surface).** The worksheet procedure ran again on the bound-CANVAS mind (Designer + the new canvas posture). Four live runs, capture at `docs/evaluations/2026-07-20-canvas-click-pass/`; confirm run **11/11** at the real authoring token profile. Everything-positioned ✓ (percents), z-on-overlap ✓, cited+pinned figure ✓, grounding via recall ✓ (the Designer-pass line carrying over), unprompted `derived_from` ✓. Applied (two posture amendments, `test_adr471_canvas.py` 5/5): first-composition-via-one-complete-WriteFile is honest (both runs chose it; the patch rule resumes after), and placeholders-replaceable / member-blocks-never. Two harness-fidelity lessons recorded: tool-RESULT truncation (input side) and under-provisioned max_tokens truncating tool CALLS (output side — "malformed WriteFile" dissolved at the real 8192) both make rational behavior look broken; match the runtime's contracts before observing.
+
 ### 3.4 Critic (`critic`, posture over Reason)
 
 - **JOB**: pressure-test — "find the hole / what's wrong with this / steelman the objection."
