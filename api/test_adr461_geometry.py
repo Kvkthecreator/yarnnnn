@@ -230,20 +230,25 @@ def run() -> bool:
     )
     # The gesture: third bindGesture caller, posts a PERCENT of the frame.
     _check(
-        # ADR-466 P8: the lone grip grew into the bounding box — body drag +
-        # corner handles, every one riding the SAME gesture primitive.
-        "the bounding box rides the ONE gesture primitive (body + handles)",
-        "bindGesture(box, function () { return selBlock && positionable(selBlock) ? selBlock : null; }" in proj
+        # ADR-466 P8→P10: the lone grip grew into the bounding box, then the
+        # conventional carve — move rides the four BORDER BAND strips (the
+        # interior is pointer-transparent), resize rides EIGHT handles; every
+        # one of them still binds through the SAME gesture primitive.
+        "the bounding box rides the ONE gesture primitive (band + handles)",
+        "bindGesture(strip, function () { return selBlock && positionable(selBlock) ? selBlock : null; }" in proj
         and "bindGesture(h, function () { return selBlock; }" in proj,
     )
     _check(
         "it reports a PERCENT OF THE FRAME, not a pixel (the bound is structural)",
         "br.width / (fr.width || 1)) * 100" in proj,
     )
+    # (Re-pinned for ADR-466 P10: syncBox grew a braced body — it also keeps
+    #  the frame context in step with the box. The gate is unchanged.)
     _check(
         "an UNFRAMED block gets no box (the boundary is felt, not just documented)",
         "function isMeasurable(block)" in proj
-        and "if (editing == null && sel && sel.isConnected && isMeasurable(sel)) showBox(sel);" in proj,
+        and "if (editing == null && sel && sel.isConnected && isMeasurable(sel)) {" in proj
+        and "showBox(sel);" in proj,
     )
     # The handle follows the SELECTION, not the pointer: it draws at the block's
     # corner, so a hover-scoped handle vanishes exactly as it is reached for.

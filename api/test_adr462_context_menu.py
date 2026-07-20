@@ -138,9 +138,12 @@ def main() -> bool:
     _check(
         "a frame indicator exists (a measure is a percent OF something, and "
         "that something was invisible)",
-        # showFrame's 2nd arg became TEXT (ADR-466 D2 — the move grip shows
-        # "x 24% · y 38%"); the resize caller now passes the % itself.
-        ".yarnnn-frame {" in proj and "showFrame(frame, Math.round(pct) + '%');" in proj,
+        # showFrame's 2nd arg became TEXT (ADR-466 D2), then P10 made the
+        # indicator PERSISTENT: it rides the selection (name alone, txt null)
+        # and a live resize overlays its numbers ("62% × 40%", joined per axis).
+        ".yarnnn-frame {" in proj
+        and "showFrame(frame, label.join(' × '));" in proj
+        and "function syncFrameContext()" in proj,
     )
     _check(
         "it is shown only DURING the drag (hidden on release, never chrome "

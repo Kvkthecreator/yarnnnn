@@ -409,8 +409,18 @@ const POINTER_SCRIPT = `
       // (contentEditable=false) — those select the block, never edit. We still
       // post the point payload (drives the Design tab scope) and tell the
       // parent editing began (yarnnn-edit-entered) so its state stays in sync.
+      //
+      // ADR-466 P10 — the mode-native exception: on a STAGED frame (a deck
+      // slide / canvas artboard, the .slide class) the OBJECT grammar wins
+      // the first click. PowerPoint's ladder: first click SELECTS (the
+      // bounding box, move band, handles); a second click on the already-
+      // selected block enters text at the caret; dblclick still enters
+      // directly. Without this, click-to-caret consumed every first click and
+      // the box practically never existed on the one surface built around it.
       var onIsland = t && t.closest ? t.closest('[data-ref]') : null;
+      var staged = blk && blk.closest ? !!blk.closest('.slide') : false;
       if (blk && blkKind && TEXT_KINDS.indexOf(blkKind) !== -1 && !onIsland
+          && (!staged || cur === blk)
           && window.__yarnnnEnter) {
         if (cur) cur.classList.remove('yarnnn-pointed');
         cur = blk;
@@ -772,25 +782,43 @@ const EDIT_CSS = `
    inside a frame: a slide, or a media block's own box). Body-appended chrome,
    never in a block, so it can't leak into a commit. Its ABSENCE on an
    unframed block is the D4 boundary made visible. */
-/* The bounding box (ADR-466 P8) — the object chrome: a SELECTED framed block
-   wears a solid box (grab anywhere to move — deck only; double-click passes
-   through to edit) with corner handles (resize). Body-appended chrome, never
-   serialized; hidden while editing. Its ABSENCE on an unframed block is the
-   ADR-461 boundary made visible. */
+/* The bounding box (ADR-466 P8, conventional carve P10) — the object chrome:
+   a SELECTED framed block wears a solid box in the PowerPoint grammar. The
+   INTERIOR is transparent to the pointer (pointer-events: none) so clicks
+   fall through to the content — the box never fights the editor. What IS
+   interactive: the BORDER BAND (four thin strips riding the edges — the
+   conventional near-the-border move zone, cursor: move) and EIGHT handles
+   (four corners + four edge midpoints, each with its directional cursor).
+   Body-appended chrome, never serialized; hidden while editing. Its ABSENCE
+   on an unframed block is the ADR-461 boundary made visible. */
 .yarnnn-selbox {
   position: absolute; display: none; z-index: 2147483645;
   border: 1.5px solid #6366f1; border-radius: 1px;
   background: transparent; box-sizing: border-box;
+  pointer-events: none;
 }
+.yarnnn-selmove { position: absolute; pointer-events: auto; cursor: move; z-index: 1; }
+.yarnnn-selmove-n { left: 6px; right: 6px; top: -5px; height: 9px; }
+.yarnnn-selmove-s { left: 6px; right: 6px; bottom: -5px; height: 9px; }
+.yarnnn-selmove-w { top: 6px; bottom: 6px; left: -5px; width: 9px; }
+.yarnnn-selmove-e { top: 6px; bottom: 6px; right: -5px; width: 9px; }
+/* A block that cannot be positioned (a media block in a flowing document)
+   keeps the band for selection-stability, but it is honest about inertness. */
+.yarnnn-selbox-static .yarnnn-selmove { cursor: default; }
 .yarnnn-selh {
   position: absolute; width: 10px; height: 10px;
   border: 1.5px solid #6366f1; background: #fff; border-radius: 50%;
   box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  pointer-events: auto; z-index: 2;
 }
 .yarnnn-selh-nw { left: -6px; top: -6px; cursor: nwse-resize; }
 .yarnnn-selh-ne { right: -6px; top: -6px; cursor: nesw-resize; }
 .yarnnn-selh-sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
 .yarnnn-selh-se { right: -6px; bottom: -6px; cursor: nwse-resize; }
+.yarnnn-selh-n { left: 50%; margin-left: -5px; top: -6px; cursor: ns-resize; }
+.yarnnn-selh-s { left: 50%; margin-left: -5px; bottom: -6px; cursor: ns-resize; }
+.yarnnn-selh-w { top: 50%; margin-top: -5px; left: -6px; cursor: ew-resize; }
+.yarnnn-selh-e { top: 50%; margin-top: -5px; right: -6px; cursor: ew-resize; }
 /* PowerPoint's placeholder grammar (ADR-466 P8): an EMPTY slot on a deck
    slide shows its dashed bounds ALWAYS, not only on hover — the member sees
    where content goes before they reach for it. The add-here runtime stamps
@@ -799,12 +827,12 @@ const EDIT_CSS = `
   outline: 1.5px dashed rgba(120,115,107,0.45); outline-offset: 2px;
   min-height: 2.5rem;
 }
-/* The frame indicator (ADR-462 D8) — shown ONLY while resizing. A measure is
-   a percent of SOMETHING, and that something was invisible: the member saw one
-   rectangle (their block) and had to infer the second (what it is a percent
-   of). Naming it during the drag is the whole fix — "60% of SIDE" is a
-   sentence a layman reads without being taught. It borrows the slot label's
-   own grammar (the green uppercase tag already on the canvas) rather than
+/* The frame indicator (ADR-462 D8, made persistent by ADR-466 P10) — the
+   named rectangle a measure is a percent OF. It rides the SELECTION (name
+   alone — "side" / "slide" / "column"), and a live gesture overlays its
+   numbers ("side · 62% × 40%"): the member always sees what they are moving
+   or resizing against, not only mid-drag. It borrows the slot label's own
+   grammar (the green uppercase tag already on the canvas) rather than
    inventing a second vocabulary for the same idea. */
 .yarnnn-frame {
   position: absolute; display: none; pointer-events: none; z-index: 2147483645;
@@ -2146,7 +2174,9 @@ const GUTTER_SCRIPT = `
     }
     var r = frame.getBoundingClientRect();
     var z = zf();
-    frameEl.setAttribute('data-label', frameLabel(frame) + ' · ' + txt);
+    // txt null = at-rest context (the frame's NAME alone rides the selection);
+    // a live gesture appends its numbers — "side · 62% × 40%".
+    frameEl.setAttribute('data-label', txt ? frameLabel(frame) + ' · ' + txt : frameLabel(frame));
     frameEl.style.display = 'block';
     frameEl.style.left = ((r.left + window.scrollX) / z) + 'px';
     frameEl.style.top = ((r.top + window.scrollY) / z) + 'px';
@@ -2207,11 +2237,10 @@ const GUTTER_SCRIPT = `
   }
 
   function moveEnd(block, moved) {
-    hideFrame();
-    if (!moved) return;
+    if (!moved) { syncFrameContext(); return; }
     var id = block.getAttribute('data-block-id');
     var frame = measurableFrame(block);
-    if (!id || !frame) return;
+    if (!id || !frame) { syncFrameContext(); return; }
     var br = block.getBoundingClientRect();
     var fr = frame.getBoundingClientRect();
     // Commit the same clamped value the preview painted (trailing edge bound).
@@ -2225,6 +2254,24 @@ const GUTTER_SCRIPT = `
       y: Math.max(0, Math.min(Math.max(0, 100 - Math.round(hPct)),
         Math.round(((br.top - fr.top) / (fr.height || 1)) * 100))),
     }, '*');
+    syncFrameContext();
+  }
+
+  // Which axes a handle drives (P10 — the conventional 8-handle grammar):
+  // edge midpoints are single-axis (e/w = width, n/s = height), corners are
+  // both. A 'w' or 'n' handle on a POSITIONED block anchors the OPPOSITE
+  // edge — origin and size change together, one geometry revision.
+  function sideAxes(side) {
+    return {
+      west: side.indexOf('w') >= 0,
+      east: side.indexOf('e') >= 0,
+      north: side.indexOf('n') >= 0,
+      south: side.indexOf('s') >= 0,
+    };
+  }
+
+  function isPositioned(block) {
+    return positionable(block) && block.hasAttribute('data-x');
   }
 
   function resizeMove(block, e, side) {
@@ -2232,49 +2279,84 @@ const GUTTER_SCRIPT = `
     if (!frame) return;
     var br = block.getBoundingClientRect();
     var fr = frame.getBoundingClientRect();
-    var pct, maxPct;
-    if (side.indexOf('w') >= 0 && positionable(block) && block.hasAttribute('data-x')) {
-      // West handle on a POSITIONED block: the right edge stays anchored —
-      // origin and width change together (ONE geometry revision on release).
-      // Width may grow only until the left edge meets the frame (ADR-466 P9).
-      var right = br.right;
-      var newLeft = Math.max(fr.left, Math.min(e.clientX, right - 8));
-      pct = ((right - newLeft) / (fr.width || 1)) * 100;
-      maxPct = ((right - fr.left) / (fr.width || 1)) * 100;
-      var xPct = Math.max(0, Math.min(100, ((newLeft - fr.left) / (fr.width || 1)) * 100));
-      block.style.left = xPct + '%';
-    } else {
-      pct = ((e.clientX - br.left) / (fr.width || 1)) * 100;
-      // A positioned block's width is bounded by the room to its right —
-      // (100 − x%); a flow block by the frame itself (100%).
-      maxPct = positionable(block) && block.hasAttribute('data-x')
-        ? 100 - ((br.left - fr.left) / (fr.width || 1)) * 100
-        : 100;
+    var ax = sideAxes(side);
+    var positioned = isPositioned(block);
+    var label = [];
+    // ── Horizontal (width; west anchors the right edge when positioned) ──
+    if (ax.west || ax.east) {
+      var pct, maxPct;
+      if (ax.west && positioned) {
+        var right = br.right;
+        var newLeft = Math.max(fr.left, Math.min(e.clientX, right - 8));
+        pct = ((right - newLeft) / (fr.width || 1)) * 100;
+        maxPct = ((right - fr.left) / (fr.width || 1)) * 100;
+        block.style.left = Math.max(0, Math.min(100,
+          ((newLeft - fr.left) / (fr.width || 1)) * 100)) + '%';
+      } else {
+        pct = ((e.clientX - br.left) / (fr.width || 1)) * 100;
+        // A positioned block's width is bounded by the room to its right —
+        // (100 − x%); a flow block by the frame itself (100%).
+        maxPct = positioned
+          ? 100 - ((br.left - fr.left) / (fr.width || 1)) * 100
+          : 100;
+      }
+      pct = Math.max(1, Math.min(Math.max(1, maxPct), pct));
+      block.style.width = pct + '%';
+      label.push(Math.round(pct) + '%');
     }
-    pct = Math.max(1, Math.min(Math.max(1, maxPct), pct));
-    block.style.width = pct + '%';
+    // ── Vertical (height; north anchors the bottom edge when positioned) ──
+    if (ax.north || ax.south) {
+      var hpct, hMax;
+      if (ax.north && positioned) {
+        var bottom = br.bottom;
+        var newTop = Math.max(fr.top, Math.min(e.clientY, bottom - 8));
+        hpct = ((bottom - newTop) / (fr.height || 1)) * 100;
+        hMax = ((bottom - fr.top) / (fr.height || 1)) * 100;
+        block.style.top = Math.max(0, Math.min(100,
+          ((newTop - fr.top) / (fr.height || 1)) * 100)) + '%';
+      } else if (ax.north) {
+        hpct = ((br.bottom - e.clientY) / (fr.height || 1)) * 100;
+        hMax = 100;
+      } else {
+        hpct = ((e.clientY - br.top) / (fr.height || 1)) * 100;
+        hMax = positioned
+          ? 100 - ((br.top - fr.top) / (fr.height || 1)) * 100
+          : 100;
+      }
+      hpct = Math.max(1, Math.min(Math.max(1, hMax), hpct));
+      block.style.height = hpct + '%';
+      label.push(Math.round(hpct) + '%');
+    }
     showBox(block);
-    // Name what the percent is OF, while it is being chosen (D8).
-    showFrame(frame, Math.round(pct) + '%');
+    // Name what the percent is OF, while it is being chosen (D8) —
+    // "62% × 40%" for a corner, one number for an edge handle.
+    showFrame(frame, label.join(' × '));
   }
 
   function resizeEnd(block, moved, side) {
-    hideFrame();
-    if (!moved) return;
+    if (!moved) { syncFrameContext(); return; }
     var id = block.getAttribute('data-block-id');
     var frame = measurableFrame(block);
-    if (!id || !frame) return;
+    if (!id || !frame) { syncFrameContext(); return; }
     var br = block.getBoundingClientRect();
     var fr = frame.getBoundingClientRect();
-    var msg = {
-      type: 'yarnnn-geometry',
-      blockId: id,
-      w: Math.round((br.width / (fr.width || 1)) * 100),
-    };
-    if (side.indexOf('w') >= 0 && positionable(block) && block.hasAttribute('data-x')) {
-      msg.x = Math.round(((br.left - fr.left) / (fr.width || 1)) * 100);
+    var ax = sideAxes(side);
+    var positioned = isPositioned(block);
+    var msg = { type: 'yarnnn-geometry', blockId: id };
+    if (ax.west || ax.east) {
+      msg.w = Math.round((br.width / (fr.width || 1)) * 100);
+      if (ax.west && positioned) {
+        msg.x = Math.round(((br.left - fr.left) / (fr.width || 1)) * 100);
+      }
+    }
+    if (ax.north || ax.south) {
+      msg.h = Math.round((br.height / (fr.height || 1)) * 100);
+      if (ax.north && positioned) {
+        msg.y = Math.round(((br.top - fr.top) / (fr.height || 1)) * 100);
+      }
     }
     parent.postMessage(msg, '*');
+    syncFrameContext();
   }
 
   function ensureBox() {
@@ -2283,32 +2365,30 @@ const GUTTER_SCRIPT = `
     box.className = 'yarnnn-selbox';
     box.style.display = 'none';
     document.body.appendChild(box);
-    // BODY DRAG = move. The subject gate makes the box inert (no drag) where
-    // position has no frame to be bounded by — a media block in a document
-    // still gets the box + corner resize, never a move.
-    bindGesture(box, function () { return selBlock && positionable(selBlock) ? selBlock : null; }, {
-      axis: 'xy',
-      onStart: function (block, e) {
-        var br = block.getBoundingClientRect();
-        grabDX = e.clientX - br.left;
-        grabDY = e.clientY - br.top;
-        previewContext(block);
-      },
-      onMove: moveMove,
-      onEnd: moveEnd,
+    // The INTERIOR is pointer-transparent (CSS) — clicks fall through to the
+    // content, so the editor never fights the chrome. MOVE lives on the four
+    // BORDER BAND strips (the conventional near-the-border zone, cursor:
+    // move). The subject gate makes the band inert where position has no
+    // frame to be bounded by (a media block in a flowing document).
+    ['n', 'e', 's', 'w'].forEach(function (edge) {
+      var strip = document.createElement('div');
+      strip.className = 'yarnnn-selmove yarnnn-selmove-' + edge;
+      box.appendChild(strip);
+      bindGesture(strip, function () { return selBlock && positionable(selBlock) ? selBlock : null; }, {
+        axis: 'xy',
+        onStart: function (block, e) {
+          var br = block.getBoundingClientRect();
+          grabDX = e.clientX - br.left;
+          grabDY = e.clientY - br.top;
+          previewContext(block);
+        },
+        onMove: moveMove,
+        onEnd: moveEnd,
+      });
     });
-    // Double-click passes THROUGH to the block's own edit gesture — the box
-    // must never cost the member the editor.
-    box.addEventListener('dblclick', function (e) {
-      var b = selBlock;
-      if (!b) return;
-      e.preventDefault();
-      hideBox();
-      b.dispatchEvent(new MouseEvent('dblclick', {
-        bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY,
-      }));
-    });
-    ['nw', 'ne', 'sw', 'se'].forEach(function (side) {
+    // EIGHT handles (P10): four corners resize both axes, four edge midpoints
+    // one axis each — the directional cursors are the affordance.
+    ['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'].forEach(function (side) {
       var h = document.createElement('div');
       h.className = 'yarnnn-selh yarnnn-selh-' + side;
       box.appendChild(h);
@@ -2332,11 +2412,27 @@ const GUTTER_SCRIPT = `
     box.style.top = ((r.top + window.scrollY) / z - 1) + 'px';
     box.style.width = (r.width / z + 2) + 'px';
     box.style.height = (r.height / z + 2) + 'px';
-    box.style.cursor = positionable(block) ? 'move' : 'default';
+    // The band is honest about inertness: no move cursor where no move exists.
+    box.className = positionable(block)
+      ? 'yarnnn-selbox'
+      : 'yarnnn-selbox yarnnn-selbox-static';
   }
   function hideBox() {
     if (box) box.style.display = 'none';
     selBlock = null;
+    hideFrame();
+  }
+
+  /** P10: the frame reference is visible WHENEVER the box is — not only
+   *  mid-gesture. "What am I resizing against" was answered only during the
+   *  drag (D8's live numbers); at rest the member saw one rectangle and had
+   *  to infer the second. Now the named green outline rests with the
+   *  selection, and the gesture handlers overlay the live numbers on it. */
+  function syncFrameContext() {
+    if (!selBlock || !selBlock.isConnected) { hideFrame(); return; }
+    var frame = measurableFrame(selBlock);
+    if (frame) showFrame(frame, null);
+    else hideFrame();
   }
 
   // The handle follows the SELECTION, not the pointer.
@@ -2411,8 +2507,10 @@ const GUTTER_SCRIPT = `
     // would intercept the very clicks the editor needs.
     var editing = window.__yarnnnEditingId ? window.__yarnnnEditingId() : null;
     var sel = window.__yarnnnSelected ? window.__yarnnnSelected() : null;
-    if (editing == null && sel && sel.isConnected && isMeasurable(sel)) showBox(sel);
-    else hideBox();
+    if (editing == null && sel && sel.isConnected && isMeasurable(sel)) {
+      showBox(sel);
+      syncFrameContext();
+    } else hideBox();
   }
   // A click lands selection in the pointer runtime's capture-phase listener;
   // this runs after it (bubble), so the selection is already the new block.

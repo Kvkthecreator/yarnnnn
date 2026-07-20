@@ -108,7 +108,7 @@ interface StudioCanvasProps {
    *  positioned block moves origin AND width together), all as PERCENTS of
    *  the block's frame. The surface clamps from the kernel's served bound and
    *  lands setGeometry (ONE revision per gesture) through the one door. */
-  onGeometry?: (blockId: string, geo: { x?: number; y?: number; w?: number }) => void;
+  onGeometry?: (blockId: string, geo: { x?: number; y?: number; w?: number; h?: number }) => void;
   /** ADR-462 D7: the member right-clicked the canvas. The runtime has ALREADY
    *  selected the block under the cursor (right-click selects), so this only
    *  carries where to anchor + the grain the menu builds its rows from.
@@ -411,6 +411,7 @@ export function StudioCanvas({
           x: typeof d.x === 'number' ? d.x : undefined,
           y: typeof d.y === 'number' ? d.y : undefined,
           w: typeof d.w === 'number' ? d.w : undefined,
+          h: typeof d.h === 'number' ? d.h : undefined,
         });
       } else if (d.type === 'yarnnn-key-verb' && typeof d.blockId === 'string') {
         onKeyVerb?.(d.verb as 'copy' | 'paste' | 'duplicate' | 'delete', d.blockId);

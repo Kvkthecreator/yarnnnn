@@ -842,6 +842,7 @@ export function StudioSurface() {
     const sx = vocabulary?.measures?.find((m) => m.key === 'x');
     const sy = vocabulary?.measures?.find((m) => m.key === 'y');
     const sw = vocabulary?.measures?.find((m) => m.key === 'w');
+    const sh = vocabulary?.measures?.find((m) => m.key === 'h');
     const sz = vocabulary?.measures?.find((m) => m.key === 'z');
     if (!sx || !sy || !sw) return null;
     const spec = (s: NonNullable<typeof sx>) => ({
@@ -850,16 +851,23 @@ export function StudioSurface() {
       min: s.min,
       max: s.max,
     });
-    // z is optional (ADR-471 D-d): a vocabulary served before the token
-    // simply yields no z spec, and the z paths no-op.
-    return { x: spec(sx), y: spec(sy), w: spec(sw), ...(sz ? { z: spec(sz) } : {}) };
+    // h and z are optional (ADR-466 P10 / ADR-471 D-d): a vocabulary served
+    // before either token simply yields no spec, and those paths no-op.
+    return {
+      x: spec(sx),
+      y: spec(sy),
+      w: spec(sw),
+      ...(sh ? { h: spec(sh) } : {}),
+      ...(sz ? { z: spec(sz) } : {}),
+    };
   }, [vocabulary]);
   const handleGeometry = useCallback(
-    (blockId: string, geo: { x?: number; y?: number; w?: number }) => {
+    (blockId: string, geo: { x?: number; y?: number; w?: number; h?: number }) => {
       const specs = geometrySpecs();
       if (!specs) return;
       const parts = [
         geo.w != null ? `width ${Math.round(geo.w)}%` : null,
+        geo.h != null ? `height ${Math.round(geo.h)}%` : null,
         geo.x != null && geo.y != null
           ? `at ${Math.round(geo.x)}%, ${Math.round(geo.y)}%`
           : geo.x != null

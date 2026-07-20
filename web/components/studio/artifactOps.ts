@@ -481,9 +481,11 @@ export function setMeasure(
 export function setGeometry(
   html: string,
   blockId: string,
-  geo: { x?: number; y?: number; w?: number; z?: number },
-  specs: Record<'x' | 'y' | 'w', { cssVar: string; unit: string; min: number; max: number }> &
-    { z?: { cssVar: string; unit: string; min: number; max: number } },
+  geo: { x?: number; y?: number; w?: number; h?: number; z?: number },
+  specs: Record<'x' | 'y' | 'w', { cssVar: string; unit: string; min: number; max: number }> & {
+    h?: { cssVar: string; unit: string; min: number; max: number };
+    z?: { cssVar: string; unit: string; min: number; max: number };
+  },
 ): OpResult | null {
   const doc = parse(html);
   const el = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
@@ -500,7 +502,7 @@ export function setGeometry(
     .map((d) => d.trim())
     .filter((d) => d && vars.some((v) => d.startsWith(`${v}:`)));
   const next = new Map(keep.map((d) => [d.split(':')[0].trim(), d]));
-  (['x', 'y', 'w', 'z'] as const).forEach((key) => {
+  (['x', 'y', 'w', 'h', 'z'] as const).forEach((key) => {
     const v = geo[key];
     const s = specs[key];
     if (v == null || !s) return;

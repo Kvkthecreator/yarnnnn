@@ -139,12 +139,16 @@ def run() -> bool:
     # P8: the grips grew into the BOUNDING BOX (body-drag move, corner-handle
     # resize, dblclick passes through to edit, hidden while editing) and every
     # gesture posts ONE yarnnn-geometry message → ONE setGeometry revision.
+    # (Re-pinned for P10: the whole-box drag + dblclick-dispatch hack became
+    #  the conventional carve — interior pointer-transparent, move on the four
+    #  BORDER BAND strips, dblclick reaches the block natively.)
     _check(
-        "the bounding box: body-drag deck-gated, corner handles, dblclick-through",
+        "the bounding box: interior transparent, border-band move (staged-gated)",
         "yarnnn-selbox" in proj
+        and "pointer-events: none" in proj
+        and "yarnnn-selmove" in proj
         and "positionable(selBlock)" in proj
         and "'yarnnn-geometry'" in proj
-        and "dispatchEvent(new MouseEvent('dblclick'" in proj
         and "closest('.slide')" in proj,
     )
     _check(
@@ -161,9 +165,12 @@ def run() -> bool:
         "empty deck slots wear their bounds always (the placeholder grammar)",
         "yarnnn-slot-open" in proj,
     )
+    # (Re-pinned for P10: syncBox grew a braced body — it also keeps the frame
+    #  context in step with the box.)
     _check(
         "the box hides while editing (a live caret owns the block)",
-        "if (editing == null && sel && sel.isConnected && isMeasurable(sel)) showBox(sel);" in proj,
+        "if (editing == null && sel && sel.isConnected && isMeasurable(sel)) {" in proj
+        and "} else hideBox();" in proj,
     )
     _check(
         "the Properties escape hatch: a positioned block can return to flow",
@@ -212,9 +219,11 @@ def run() -> bool:
         "P9 grain gate: only a [data-block] is measurable — never a slot/page",
         "if (!block.hasAttribute || !block.hasAttribute('data-block')) return false;" in proj,
     )
+    # (Re-pinned for P10: the guards now restore the at-rest frame context on
+    #  their refusal path instead of bare-returning.)
     _check(
         "P9 geometry senders refuse a missing data-block-id (no dead red banner)",
-        proj.count("if (!id || !frame) return;") >= 2,
+        proj.count("if (!id || !frame) { syncFrameContext(); return; }") >= 2,
     )
     _check(
         "P9 one zoom accessor: chrome divides visual rects by body.style.zoom",
@@ -280,6 +289,48 @@ def run() -> bool:
     _check(
         "kernel CSS bumped for the z retrofit (v11+ — existing decks light up too)",
         STUDIO_KERNEL_CSS_VERSION >= 11,
+    )
+
+    # ── P10: the conventional carve (the PowerPoint grammar completed) ───
+    # Operator read of P9: the move affordance was "practically impossible to
+    # select" (click-to-caret consumed every first click on a slide, and the
+    # whole-box drag trapped the interior), and "I don't know what I'm
+    # resizing against" (the frame reference appeared only mid-gesture).
+    _check(
+        "P10 staged click grammar: first click SELECTS, click-again enters text",
+        "(!staged || cur === blk)" in proj
+        and "closest('.slide') : false" in proj,
+    )
+    _check(
+        "P10 move lives on the border band, interior is pointer-transparent",
+        "yarnnn-selmove-n" in proj
+        and "cursor: move" in proj
+        and "yarnnn-selbox-static" in proj
+        and "dispatchEvent(new MouseEvent('dblclick'" not in proj,
+    )
+    _check(
+        "P10 eight handles with directional cursors (edges one axis, corners two)",
+        "['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w']" in proj
+        and "cursor: ns-resize" in proj
+        and "cursor: ew-resize" in proj
+        and "function sideAxes(side)" in proj,
+    )
+    _check(
+        "P10 height is wired end-to-end (runtime → canvas → surface → op)",
+        "msg.h = Math.round((br.height / (fr.height || 1)) * 100);" in proj
+        and "h: typeof d.h === 'number' ? d.h : undefined," in canvas
+        and "...(sh ? { h: spec(sh) } : {})" in surface
+        and "'h'" in ops.split("export function setGeometry", 1)[1].split("\n}", 1)[0],
+    )
+    _check(
+        "P10 north/west on a positioned block anchor the opposite edge (one revision)",
+        "if (ax.north && positioned) {" in proj
+        and "msg.y = Math.round(((br.top - fr.top) / (fr.height || 1)) * 100);" in proj,
+    )
+    _check(
+        "P10 the frame reference rides the selection (name at rest, numbers live)",
+        "function syncFrameContext()" in proj
+        and "txt ? frameLabel(frame) + ' · ' + txt : frameLabel(frame)" in proj,
     )
 
     ok = all(c for _, c in _results)
