@@ -1818,6 +1818,14 @@ export function StudioSurface() {
               {renaming ? (
                 <input
                   autoFocus
+                  // SELECT, don't just focus (browser-tested 2026-07-20).
+                  // `autoFocus` alone leaves the caret at the end, so a member
+                  // typing into a freshly-created "Untitled document" got
+                  // "Untitled documentMy name". That is the ADR-470 D1
+                  // distinction failing in practice: an armed name is only an
+                  // OFFER if typing REPLACES it. Finder selects the name on a
+                  // new folder for exactly this reason.
+                  onFocus={(e) => e.currentTarget.select()}
                   defaultValue={artifactName(artifactPath)}
                   disabled={renameBusy}
                   onBlur={(e) => void commitRename(e.currentTarget.value)}
@@ -2116,9 +2124,9 @@ export function StudioSurface() {
                 // and the menu teaches where the name lives (the Finder model).
                 rename: () => setRenaming(true),
                 move: () =>
-                  organizeVerbs.onMove({ path: artifactPath, name: baseName(artifactPath) }),
+                  organizeVerbs.onMove({ path: artifactPath, name: artifactName(artifactPath) }),
                 trash: () =>
-                  organizeVerbs.onDelete({ path: artifactPath, name: baseName(artifactPath) }),
+                  organizeVerbs.onDelete({ path: artifactPath, name: artifactName(artifactPath) }),
                 share: shareArtifact,
               }}
               exportVerbs={{

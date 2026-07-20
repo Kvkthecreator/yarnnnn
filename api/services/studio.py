@@ -1663,7 +1663,19 @@ def artifact_name(path: str, content: Optional[str] = None) -> str:
     → the titleized stem; nothing → "File".
     """
     lifted = extract_title(content)
-    if lifted:
+    # A PLACEHOLDER title is not a name — fall through to the folder.
+    #
+    # Browser-tested 2026-07-20: an artifact created BEFORE ADR-469 never got
+    # the typed name written into <title>, so it kept the skeleton placeholder
+    # while its folder held the real name. Once the lift made content win, such
+    # a file started reading as "Untitled document" — and a member clicking a
+    # card so labelled opened `prd-for-yarnnn`. The label was honest and the
+    # target was right; the NAME was wrong, which is worse than either.
+    #
+    # `_is_placeholder_title` is the same predicate `set_artifact_title` uses to
+    # decide an h1 is untouched (derived from the layout scaffolds), so the two
+    # can never disagree about what counts as "not yet named".
+    if lifted and not _is_placeholder_title(lifted):
         return lifted
     parts = [p for p in (path or "").split("/") if p]
     if not parts:
