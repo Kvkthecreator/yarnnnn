@@ -35,8 +35,14 @@ router = APIRouter()
 
 
 class CreateArtifactRequest(BaseModel):
-    path: str        # workspace-relative or absolute; must end in .html
-    template: str    # a STUDIO_TEMPLATES slug
+    path: str            # workspace-relative or absolute; must end in .html
+    template: str        # a STUDIO_TEMPLATES slug
+    # What the member TYPED (ADR-469). The FE composes `path` from a slug of it
+    # for the KEY; this carries the name itself, unicase and unicode, so the
+    # artifact's <title> gets the real thing rather than a reconstruction.
+    # Optional so an older client (or a non-modal caller) still works — the
+    # server falls back to deriving from the path, the pre-468 behaviour.
+    name: Optional[str] = None
 
 
 @router.get("/studio/templates")
@@ -94,7 +100,9 @@ async def list_artifacts(auth: UserClient) -> dict:
                 "path": r["path"],
                 "updated_at": r.get("updated_at"),
                 "summary": r.get("summary"),
-                "name": artifact_name(r["path"]),
+                # Both facts are LIFTED from the same content the row already
+                # carries (ADR-469 / ADR-459 D1) — no extra read, no storage.
+                "name": artifact_name(r["path"], r.get("content")),
                 **artifact_kind(r.get("content")),
             }
             for r in rows
@@ -416,7 +424,8 @@ async def rename_artifact(req: RenameArtifactRequest, auth: UserClient) -> dict:
     workspace), so N is 1 and the window is theoretical; the loop exists so a
     folder that grows assets doesn't silently half-rename.
     """
-    from services.studio import STUDIO_ARTIFACT_REGION, artifact_name
+    from services.naming import disambiguate, path_slug
+    from services.studio import STUDIO_ARTIFACT_REGION
     from services.workspace_context import substrate_scope_filter
 
     raw = (req.path or "").strip()
@@ -424,14 +433,18 @@ async def rename_artifact(req: RenameArtifactRequest, auth: UserClient) -> dict:
     if not path.endswith(".html") or ".." in path or not path.startswith(STUDIO_ARTIFACT_REGION):
         raise HTTPException(status_code=403, detail=f"Not a Studio artifact path: {path}")
 
-    # The name → a folder slug. MIRRORS `slugify` in NewArtifactModal.tsx
-    # exactly (lowercase, non-alnum → '-', trim, cap 48) so the two entrances
-    # into a name — create and rename — can never disagree about what a name
-    # becomes. Server-side because rename must slugify even if a future caller
-    # isn't that modal.
-    slug = re.sub(r"[^a-z0-9]+", "-", (req.name or "").lower()).strip("-")[:48].strip("-")
-    if not slug:
+    # The name → a folder slug, the artifact's KEY. `path_slug` is the single
+    # implementation (services/naming.py) both entrances share — create and
+    # rename can never disagree about what a name becomes.
+    #
+    # The slug no longer has to CARRY the name (ADR-469): the typed name goes
+    # into the artifact's <title> below, verbatim. That's what lets a name with
+    # no Latin characters be accepted here instead of 422'd — it slugs to a
+    # disambiguated `untitled-*` key while reading back exactly as typed.
+    typed = (req.name or "").strip()
+    if not typed:
         raise HTTPException(status_code=422, detail="A name is required.")
+    slug = path_slug(typed)
 
     parts = [p for p in path.split("/") if p]
     region_tail = [p for p in STUDIO_ARTIFACT_REGION.split("/") if p]
@@ -442,24 +455,48 @@ async def rename_artifact(req: RenameArtifactRequest, auth: UserClient) -> dict:
             detail="This artifact has no meaning folder to rename — move it into one first.",
         )
     if parent == slug:
-        return {"success": True, "path": path, "renamed": False, "reason": "same_name"}
+        # Same KEY — but the typed name may still differ in case or script
+        # (`ir deck` → `IR deck`, or any edit to a name that slugs to the same
+        # ASCII). The folder doesn't move; the title still must (ADR-469).
+        retitled_only = _retitle_to(auth, path, typed).get("retitled", False)
+        return {
+            "success": True,
+            "path": path,
+            "renamed": False,
+            "reason": "same_folder",
+            "name": typed,
+            "retitled": retitled_only,
+        }
 
     old_folder = "/" + "/".join(parts[:-1])
-    new_folder = "/" + "/".join(parts[:-2] + [slug])
+    region_prefix = "/" + "/".join(parts[:-2])
 
-    # Refuse a collision: renaming ONTO another artifact's folder would merge
-    # two artifacts into one namespace (MoveFile is overwrite-safe per file, but
-    # the folder-level intent is what we guard here).
-    clash = (
+    # The key must be unique. A DISTINCT typed name landing on an occupied key
+    # is disambiguated (`untitled`, `untitled-2`) rather than refused — under
+    # ADR-469 the key no longer carries the name, so two artifacts sharing a
+    # key is a naming-collision of no consequence to the member: each still
+    # reads back as what they typed. Pre-468 this 409'd, which made a Korean
+    # workspace unable to name a second document at all.
+    siblings = (
         auth.client.table("workspace_files")
         .select("path")
         .eq(*substrate_scope_filter(auth.user_id))
-        .like("path", f"{new_folder}/%")
-        .limit(1)
+        .like("path", f"{region_prefix}/%")
         .execute()
     ).data or []
-    if clash:
-        raise HTTPException(status_code=409, detail=f"'{req.name}' already exists — pick another name.")
+    # The sibling's meaning folder = the first segment after the region prefix.
+    # Derived from the prefix, not from an index into a leading-slash split.
+    taken = {
+        rest.split("/")[0]
+        for rest in (
+            r["path"][len(region_prefix) + 1 :]
+            for r in siblings
+            if r["path"].startswith(f"{region_prefix}/")
+        )
+        if rest and "/" in rest
+    } - {parent}
+    slug = disambiguate(slug, taken)
+    new_folder = f"{region_prefix}/{slug}"
 
     rows = (
         auth.client.table("workspace_files")
@@ -499,7 +536,10 @@ async def rename_artifact(req: RenameArtifactRequest, auth: UserClient) -> dict:
     # and best-effort: a retitle failure must not undo a successful rename.
     retitled = False
     try:
-        retitled = _retitle_to_match_filename(auth, new_path).get("retitled", False)
+        # The TYPED name, verbatim — not a reconstruction from the new folder
+        # (ADR-469). This is the whole point: `한글 문서` reaches the title
+        # intact while the folder key is a disambiguated `untitled-N`.
+        retitled = _retitle_to(auth, new_path, typed).get("retitled", False)
     except Exception:
         logger.warning("[STUDIO] rename succeeded but retitle failed for %s", new_path)
 
@@ -508,7 +548,7 @@ async def rename_artifact(req: RenameArtifactRequest, auth: UserClient) -> dict:
         "path": new_path,
         "renamed": True,
         "moved": len(moved),
-        "name": artifact_name(new_path),
+        "name": typed,
         "retitled": retitled,
     }
 
@@ -517,10 +557,21 @@ class RetitleArtifactRequest(BaseModel):
     path: str  # the artifact's CURRENT path; its stem becomes the title
 
 
-def _retitle_to_match_filename(auth: UserClient, path: str) -> dict:
-    """Retitle an artifact FROM its filename — the shared body behind BOTH the
-    explicit /retitle endpoint AND the rename endpoint (which folds it in so a
-    rename is one member act that moves both names together).
+def _retitle_to(auth: UserClient, path: str, title: str | None = None) -> dict:
+    """Retitle an artifact — the shared body behind BOTH the explicit /retitle
+    endpoint AND the rename endpoint (which folds it in so a rename is one
+    member act that moves both names together).
+
+    `title` is what the member TYPED (ADR-469). Pass it and it is written
+    verbatim — casing and script survive, because the title is now the name's
+    authoritative home rather than a reconstruction of it. Omit it (the bare
+    /retitle endpoint, which has only a path) and it falls back to
+    `artifact_name`, which lifts the existing title or degrades to the folder.
+
+    Renamed from `_retitle_to_match_filename` (2026-07-20): the old name
+    described the old direction of travel. The filename no longer dictates the
+    title — under ADR-469 the causality runs the other way, from the typed name
+    into BOTH the title (verbatim) and the folder key (slugified).
 
     The rename half of "the name is one fact" (2026-07-15): a rename used to
     move the file and leave the artifact's own <h1> saying the old thing — two
@@ -551,13 +602,21 @@ def _retitle_to_match_filename(auth: UserClient, path: str) -> dict:
 
     template = re.search(r'data-template="([^"]+)"', content)
     layout = STUDIO_LAYOUTS.get(template.group(1)) if template else None
-    if not layout or layout["mode"] != "flow":
-        # A deck's h1 is its thesis; a page's is its headline. A filename does
-        # not get to dictate authored content.
-        return {"success": True, "retitled": False, "reason": "not_a_flow_layout"}
+    is_flow = bool(layout and layout["mode"] == "flow")
 
-    title = artifact_name(path)
-    updated = set_artifact_title(content, title, set_h1=True)
+    # The typed name wins; without one, fall back to the artifact's own name.
+    name = (title or "").strip() or artifact_name(path, content)
+
+    # `set_h1` is the ADR-459-era guard, unchanged: a deck's h1 is its thesis
+    # and a page's is its headline, so only a flow layout's h1 is a title.
+    #
+    # But <title> is written for EVERY layout — it is metadata, never authored
+    # (set_artifact_title's own contract), and under ADR-469 it is where the
+    # name LIVES. The old code returned early on a paged layout and so never
+    # wrote it; a renamed deck kept its old <title> and the landing card
+    # silently reverted to the folder slug. Guarding the h1 is right; guarding
+    # the title was the bug.
+    updated = set_artifact_title(content, name, set_h1=is_flow)
     if updated == content:
         # Already titled, or the member has authored their own title (the
         # placeholder guard in set_artifact_title) — their words win.
@@ -570,23 +629,24 @@ def _retitle_to_match_filename(auth: UserClient, path: str) -> dict:
         content=updated,
         authored_by="operator",
         author_identity_uuid=auth.user_id,
-        message="Studio: retitle to match the filename",
-        summary=f"Titled '{title}' to match its filename",
+        message=f"Studio: name → '{name}'",
+        summary=f"Named '{name}'",
     )
     return {"success": True, "retitled": True}
 
 
 @router.post("/studio/artifacts/retitle")
 async def retitle_artifact(req: RetitleArtifactRequest, auth: UserClient) -> dict:
-    """Retitle an artifact FROM its filename (explicit endpoint; the shared body
-    is `_retitle_to_match_filename`). See that helper for the full contract."""
+    """Retitle an artifact from its own name (explicit endpoint; the shared body
+    is `_retitle_to`). Carries no typed name, so the helper falls back to
+    `artifact_name`. See that helper for the full contract."""
     from services.studio import STUDIO_ARTIFACT_REGION
 
     raw = (req.path or "").strip()
     path = raw if raw.startswith("/") else f"/workspace/{raw}"
     if not path.endswith(".html") or ".." in path or not path.startswith(STUDIO_ARTIFACT_REGION):
         raise HTTPException(status_code=403, detail=f"Not a Studio artifact path: {path}")
-    return _retitle_to_match_filename(auth, path)
+    return _retitle_to(auth, path)
 
 
 @router.get("/studio/citable")
@@ -686,18 +746,17 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     # The name is ONE fact (2026-07-15): what the member typed names the FILE
     # and titles the ARTIFACT. Creation used to name only the file and leave the
     # h1 at "Untitled document", so the artifact said one thing and the
-    # substrate another — two names for one thing, only one of them real. The
-    # slug is the only surviving form of what they typed (the modal lowercases
-    # it), so the name is reconstructed from it — the same guess the landing
-    # already shows on its cards.
+    # substrate another — two names for one thing, only one of them real.
+    #
+    # ADR-469 fixes WHICH form of the name reaches the title. It used to be
+    # reconstructed from the path (`artifact_name(path)`), which round-trips
+    # through a lossy slug: `IR deck v3` came back `Ir deck v3`, and a name with
+    # no Latin characters came back `Untitled`. The typed name now goes in
+    # verbatim, and the path is left to be a mere key.
+    #
     # Only a `flow` layout's h1 IS the title — a deck's h1 is the title slide's
     # thesis, a page's is its headline, and a filename has no business
-    # dictating those (see set_artifact_title's guards).
-    # `artifact_name` is the SAME name the landing already shows (ADR-459): the
-    # titleized MEANING-FOLDER, not the leaf. That is the artifact's real name —
-    # `operation/prd-for-yarnnn/document.html` is "Prd for yarnnn", never
-    # "Document". One name resolver, so the title, the landing card, and the
-    # file can never disagree.
+    # dictating those (see set_artifact_title's guards). <title> is always set.
     from services.studio import STUDIO_LAYOUTS, artifact_name, set_artifact_title
 
     # `.get`, not a bare subscript: creation validates `req.template` against
@@ -707,7 +766,10 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     # not flow (its h1 stays authored), matching artifact_kind's own fallback.
     _layout = STUDIO_LAYOUTS.get(req.template)
     is_flow = bool(_layout and _layout["mode"] == "flow")
-    content = set_artifact_title(template["skeleton"], artifact_name(path), set_h1=is_flow)
+    # Typed name wins; fall back to the path-derived one for a caller that
+    # sends none (pre-468 clients, non-modal callers).
+    name = (req.name or "").strip() or artifact_name(path)
+    content = set_artifact_title(template["skeleton"], name, set_h1=is_flow)
 
     write_revision(
         auth.client,

@@ -28,13 +28,26 @@ import { operatorCanOrganize } from '@/lib/workspace/ownership';
 import type { WorkspaceTreeNode } from '@/types';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
 
-/** Meaning-placed slug (shared with the landing's learn-from flow). */
+/** The path KEY for a typed name — mirrors `services/naming.py::path_slug`
+ *  (ADR-469). Accents FOLD to their base letter (`café` → `cafe`) rather than
+ *  being deleted; a name with no Latin characters yields `untitled`, and the
+ *  server disambiguates it (`untitled-2`, …) against what already exists.
+ *
+ *  Lossy ON PURPOSE and no longer load-bearing: the key does not carry the
+ *  name any more. What the member typed travels beside it and lands in the
+ *  artifact's <title>, verbatim. Keep in step with the Python. */
 export function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48) || 'untitled';
+  return (
+    name
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '') // strip combining marks: é -> e
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/-{2,}/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 48)
+      .replace(/-+$/, '') || 'untitled'
+  );
 }
 
 /** The default destination — the operation/ root (ADR-440 D6). */
@@ -49,8 +62,10 @@ interface NewArtifactModalProps {
   /** The chosen type (null = closed). */
   template: { slug: string; label: string; description: string } | null;
   onClose: () => void;
-  /** Create + open — throws so the failure shows inline here. */
-  onCreate: (templateSlug: string, path: string) => Promise<void>;
+  /** Create + open — throws so the failure shows inline here. `name` is what
+   *  the member typed, carried alongside the slugified path so the artifact's
+   *  <title> gets the real thing (ADR-469). */
+  onCreate: (templateSlug: string, path: string, name: string) => Promise<void>;
 }
 
 export function NewArtifactModal({ template, onClose, onCreate }: NewArtifactModalProps) {
@@ -83,7 +98,7 @@ export function NewArtifactModal({ template, onClose, onCreate }: NewArtifactMod
     setBusy(true);
     setErr(null);
     try {
-      await onCreate(template.slug, composedPath);
+      await onCreate(template.slug, composedPath, name.trim());
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Creation failed.');
       setBusy(false);

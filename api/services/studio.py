@@ -27,7 +27,7 @@ be logged in ``api/prompts/CHANGELOG.md``.
 from __future__ import annotations
 
 import re
-from html import escape as html_escape
+from html import escape as html_escape, unescape as html_unescape
 from typing import Optional
 
 # Authoring turns rewrite/patch real documents — the chat-sized 2048 ceiling
@@ -1491,16 +1491,56 @@ def _titleize(slug: str) -> str:
     return " ".join(w.capitalize() if i == 0 else w for i, w in enumerate(words))
 
 
-def artifact_name(path: str) -> str:
-    """The artifact's operator-facing name — the titleized MEANING FOLDER.
+def extract_title(artifact_content: Optional[str]) -> Optional[str]:
+    """The artifact's own name, from its ``<title>`` (ADR-469 — the D1 lift).
 
-    `operation/ir-deck-v3/deck.html` → "IR deck v3" (as the member typed it at
-    creation; the modal slugified it into the folder). DP33: the namespace
-    carries meaning, so the name needs no storage — it is already there.
+    ``set_artifact_title`` writes the member's typed name here at creation and
+    at every rename, ALWAYS and for every layout, and its docstring records why
+    that element is the trustworthy one: *"the ``<title>`` element is always set
+    — it is metadata, never authored."* Unlike the ``<h1>`` (a thesis on a paged
+    layout, member-authored words once touched), nothing else may write it.
 
-    Degrades honestly: an artifact sitting directly in the region with no
-    meaning folder falls back to its titleized stem rather than inventing one.
+    So the name is a fact the artifact CARRIES, exactly as ``data-template``
+    carries the kind. Returns None when the element is absent or empty — the
+    caller falls back to the path.
     """
+    m = re.search(r"<title>([^<]*)</title>", artifact_content or "")
+    if not m:
+        return None
+    # set_artifact_title escapes on the way in; unescape on the way out so the
+    # round-trip is exact (`&amp;` → `&`).
+    return html_unescape(m.group(1)).strip() or None
+
+
+def artifact_name(path: str, content: Optional[str] = None) -> str:
+    """The artifact's operator-facing name — LIFTED from the artifact, with the
+    namespace as fallback (ADR-469, amending ADR-459 D2).
+
+    Two sources, in order:
+
+    1. **The artifact's own ``<title>``** — what the member actually typed,
+       exact: casing (`IR deck v3`, not `Ir deck v3`) and script (`한글 문서`,
+       not `Untitled`) both survive. This is ADR-459 D1's lift pattern applied
+       to the name, for D1's own stated reason: *"the kind was never in the
+       name"* — and neither was the name.
+    2. **The titleized meaning folder** — ADR-459 D2's rule, preserved verbatim
+       as the fallback. It still serves every artifact whose content isn't to
+       hand (a tree-node picker) or predates the lift.
+
+    Why the fallback is no longer the primary: D2's derivation is lossy through
+    `slugify`, and measurement showed the loss is not only the casing D2
+    accepted. A name with no Latin characters slugs to the literal `untitled`,
+    so distinct documents collide on one path — the ceiling D2 recorded in
+    advance ("if fidelity ever outweighs the storage cost, that is its own
+    ADR"). The lift clears it while storing nothing: the title was already
+    being written, and content was already authoritative.
+
+    Degrades honestly at every step: no content → the folder; no meaning folder
+    → the titleized stem; nothing → "File".
+    """
+    lifted = extract_title(content)
+    if lifted:
+        return lifted
     parts = [p for p in (path or "").split("/") if p]
     if not parts:
         return UNKNOWN_KIND_LABEL

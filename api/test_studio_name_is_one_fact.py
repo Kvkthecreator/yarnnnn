@@ -122,9 +122,19 @@ def run() -> bool:
         "a retitle endpoint exists, server-side (the h1-is-a-title knowledge lives with the registry)",
         '@router.post("/studio/artifacts/retitle")' in routes,
     )
+    # ADR-469 SPLIT THIS GUARD IN TWO. It used to return early on a paged
+    # layout and so never wrote <title> either — which meant a renamed DECK
+    # kept its old <title> and the landing card silently reverted to the folder
+    # slug. Guarding the h1 is right (a deck's h1 is its thesis); guarding the
+    # title was the bug, because <title> is where the name now LIVES.
     _check(
-        "it refuses a paged layout (guard 1) and no-ops with no revision",
-        '"reason": "not_a_flow_layout"' in routes and '"reason": "no_change"' in routes,
+        "the h1 guard survives (only a flow layout's h1 is a title)",
+        "is_flow = bool(layout and layout[\"mode\"] == \"flow\")" in routes
+        and "set_h1=is_flow" in routes,
+    )
+    _check(
+        "<title> is written for EVERY layout (it is the name's home, never authored)",
+        '"reason": "not_a_flow_layout"' not in routes and '"reason": "no_change"' in routes,
     )
     _check(
         "it is NOT folded into the generic move endpoint (that is every surface's move)",
@@ -138,9 +148,16 @@ def run() -> bool:
         '@router.post("/studio/artifacts/rename")' in routes
         and 'old_folder = "/" + "/".join(parts[:-1])' in routes,
     )
+    # The INVARIANT is "two artifacts never merge into one namespace". It used
+    # to be upheld by REFUSING a colliding name (409). ADR-469 upholds it by
+    # DISAMBIGUATING the key instead — strictly stronger: refusal left the
+    # member stuck (a name with no Latin characters slugged to `untitled`, so
+    # their second such document could not be named at all), while
+    # disambiguation always yields a distinct key AND keeps the typed name.
     _check(
-        "it refuses a collision rather than merging two artifacts' namespaces",
-        "already exists — pick another name." in routes,
+        "two artifacts never merge into one namespace (now by disambiguation, not refusal)",
+        "slug = disambiguate(slug, taken)" in routes
+        and "taken = {" in routes,
     )
     _check(
         "it refuses an artifact with no meaning folder (nothing to rename)",
@@ -152,19 +169,36 @@ def run() -> bool:
     # renamed document kept its old <h1>: two names for one thing, exactly the
     # desync this whole arc claims to have closed. The retitle logic is now a
     # SHARED helper both endpoints call (Singular Implementation).
+    # Renamed `_retitle_to_match_filename` → `_retitle_to` by ADR-469: the old
+    # name described the old direction of travel (filename → title). The
+    # causality now runs from the TYPED name into both the title (verbatim) and
+    # the folder key (slugified), so the filename dictates nothing.
     _check(
         "the retitle body is a shared helper (both /retitle and rename call it)",
-        "def _retitle_to_match_filename(" in routes
-        and routes.count("_retitle_to_match_filename(auth,") >= 2,
+        "def _retitle_to(" in routes and routes.count("_retitle_to(auth,") >= 2,
     )
     _check(
         "rename_artifact actually folds in the retitle (the h1 follows the name)",
-        "_retitle_to_match_filename(auth, new_path)" in routes
-        and '"retitled": retitled' in routes,
+        "_retitle_to(auth, new_path, typed)" in routes and '"retitled": retitled' in routes,
+    )
+    # ADR-469: the slug rule moved OUT of an inlined regex into the one shared
+    # `services/naming.py::path_slug`, so create and rename cannot drift.
+    _check(
+        "the server slugifies via the ONE shared helper (create + rename can't drift)",
+        "from services.naming import disambiguate, path_slug" in routes
+        and "slug = path_slug(typed)" in routes
+        and 're.sub(r"[^a-z0-9]+", "-", (req.name or "").lower())' not in routes,
+    )
+    # ADR-469 — the split: the path is a KEY, the title is the NAME.
+    _check(
+        "the typed name reaches the title verbatim (not reconstructed from the path)",
+        "_retitle_to(auth, new_path, typed)" in routes
+        and '"name": typed,' in routes,
     )
     _check(
-        "the server slugifies (create + rename can't drift on what a name becomes)",
-        're.sub(r"[^a-z0-9]+", "-", (req.name or "").lower()).strip("-")[:48]' in routes,
+        "a key collision is DISAMBIGUATED, never 409'd (a Korean workspace can name a 2nd doc)",
+        "slug = disambiguate(slug, taken)" in routes
+        and "already exists — pick another name" not in routes,
     )
     _check(
         "the Studio's rename is the CRUMB, committed on Enter/blur (never per-keystroke)",

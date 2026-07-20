@@ -1,8 +1,14 @@
 # What a thing is called vs. how it's stored — the naming layer under a non-Latin name
 
-> **Status**: Discourse / audit. No decision taken. Opens the question ADR-459 D2
-> explicitly deferred ("if fidelity ever outweighs the storage cost, that is its
-> own ADR — not a smarter regex").
+> **Status**: **Closed** — resolved by [ADR-469](../adr/ADR-469-the-name-is-lifted-the-path-is-a-key.md)
+> (Implemented 2026-07-20), which took **Option C** (lift the name from the
+> artifact) *with* **Option A**'s accent folding, and answered §6 Q1: ADR-459 D2
+> is **amended** — the folder becomes the fallback, not the name's source.
+> This document is retained as the derivation.
+>
+> Originally: discourse / audit opening the question ADR-459 D2 explicitly
+> deferred ("if fidelity ever outweighs the storage cost, that is its own ADR —
+> not a smarter regex").
 > **Date**: 2026-07-20
 > **Touches**: ADR-459 D2 (name is the namespace) · DP33 (meaning in the
 > namespace, category in data) · ADR-209/286 (attributed substrate,
