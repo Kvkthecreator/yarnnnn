@@ -64,11 +64,44 @@ def main() -> int:
         sk = STUDIO_TEMPLATES[slug]["skeleton"]
         expect = f"Untitled {lay['label'].lower()}"
         _check(f"{slug}: <title> is the placeholder", extract_title(sk) == expect)
-        # The lift (ADR-469) reads it from content — NOT from the path slug.
-        _check(
-            f"{slug}: reads back as '{expect}' via the lift, not the path",
-            artifact_name(f"/workspace/operation/whatever-key/{slug}.html", sk) == expect,
+        # It must read back as "Untitled ‹kind›" AT ITS REAL PLACEMENT — the
+        # server-assigned `untitled-‹kind›` key from _untitled_path.
+        #
+        # Browser-tested amendment (2026-07-20): a placeholder title is NOT a
+        # name, so `artifact_name` now falls THROUGH it to the folder. Asserting
+        # against a fabricated path would test the pre-amendment rule. At the
+        # real key the folder titleizes to the same string, so the member-facing
+        # invariant is unchanged — and a disambiguated key reads
+        # "Untitled document 2", which distinguishes repeat News in Recents.
+        real = f"/workspace/operation/untitled-{lay['label'].lower()}/{slug}.html"
+        _check(f"{slug}: reads back as '{expect}' at its real placement",
+               artifact_name(real, sk) == expect)
+
+    print("\n── 1b. A PLACEHOLDER TITLE IS NOT A NAME (browser-found) ──────")
+    # A pre-ADR-469 artifact never got its typed name written into <title>, so
+    # it kept the skeleton placeholder while its FOLDER held the real name. Once
+    # the lift made content win, such a file read as "Untitled document" — and a
+    # member clicking a card so labelled opened `prd-for-yarnnn`. Found by
+    # browser test 2026-07-20; one live file was affected.
+    doc_sk = STUDIO_TEMPLATES["document"]["skeleton"]
+    _check(
+        "a stale placeholder falls THROUGH to the real folder name",
+        artifact_name("/workspace/operation/prd-for-yarnnn/document.html", doc_sk)
+        == "Prd for yarnnn",
+    )
+    _check(
+        "a genuinely authored title still wins over the folder",
+        artifact_name(
+            "/workspace/operation/whatever/document.html",
+            doc_sk.replace("<title>Untitled document</title>", "<title>IR deck v3</title>"),
         )
+        == "IR deck v3",
+    )
+    _check(
+        "a disambiguated untitled key reads distinctly (Untitled document 2)",
+        artifact_name("/workspace/operation/untitled-document-2/document.html", doc_sk)
+        == "Untitled document 2",
+    )
 
     print("\n── 2. THE PLACEHOLDER GUARD — why we must NOT invent a name ───")
     # THE TRAP this ADR avoids: writing an invented name at create (e.g. one
