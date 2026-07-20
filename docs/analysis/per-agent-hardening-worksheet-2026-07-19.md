@@ -86,10 +86,12 @@ For each agent, in this order. Do not move to the next step until the current on
 
 ## 4. The sequence across agents (recommended order)
 
-1. **Thinker first** — it has the sharpest, most-defensible candidate (`QueryKnowledge`), and proving it validates the whole "grant reads the job needs" thesis on the clearest case. If a reasoning turn visibly wants recall, the pattern is set.
-2. **Researcher second** — mostly confirmation (tools now work) + the history-reads question.
-3. **Designer third** — most likely "no new capability, posture is correctly thin"; a fast confirmation pass.
-4. **Critic last** — rides Thinker's capability; a posture-only look.
+> **Superseded by ADR-467 (2026-07-20).** The macro discourse re-ordered the arc: **Designer first** — it is the resident of Studio (and of IMAGES when ADR-468 builds), so its pass hardens the composed Studio mind (character + studio posture + design-system + derive overlays), opening with the first observed bound-Studio turn. Capability questions per agent (steps 2/5) largely dissolve: ADR-467 D4 makes the lane tool surface **uniform** (five verbs + QueryKnowledge + WebSearch for every lane), so Thinker's QueryKnowledge candidate is resolved by rule, not by pass. The remaining per-agent lever is posture (+ the click pass). Original order kept below as the historical position:
+
+1. ~~**Thinker first**~~ — resolved by ADR-467 D4 (uniform capability); posture-only look remains, unscheduled.
+2. **Researcher** — confirmation (tools work; the history-reads question is now a *uniform-addition* question, evidence-gated).
+3. **Designer** — **NOW FIRST** per ADR-467 D5: the resident's pass, against the composed Studio mind.
+4. **Critic** — posture-only look, rides the uniform surface like everyone.
 
 Each is small. The value is the *observed turn* per agent — the thing the whole codebase has never had (the elephant). The worksheet exists so that after four passes we have four receipts in one place, and the next person adding a fifth agent (a fifth addressed operation, per AGENT-TAXONOMY) runs the same six steps.
 
