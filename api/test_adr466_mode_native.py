@@ -165,11 +165,15 @@ def run() -> bool:
         "empty deck slots wear their bounds always (the placeholder grammar)",
         "yarnnn-slot-open" in proj,
     )
-    # (Re-pinned for P10: syncBox grew a braced body — it also keeps the frame
-    #  context in step with the box.)
+    # (REVERSED by P11 — the PowerPoint convention: the box PERSISTS through
+    #  text editing (handles stay reachable; the border goes dashed as the
+    #  text-mode cue). "Hidden while editing" was the P8 rule from the
+    #  click-trapping box; the pointer-transparent interior retired its cause.)
     _check(
-        "the box hides while editing (a live caret owns the block)",
-        "if (editing == null && sel && sel.isConnected && isMeasurable(sel)) {" in proj
+        "the box persists through editing, dashed as the text-mode cue (P11)",
+        "yarnnn-selbox-editing" in proj
+        and "border-style: dashed" in proj
+        and "if (editing != null) box.className += ' yarnnn-selbox-editing';" in proj
         and "} else hideBox();" in proj,
     )
     _check(

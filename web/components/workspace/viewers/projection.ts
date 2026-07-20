@@ -805,6 +805,11 @@ const EDIT_CSS = `
 /* A block that cannot be positioned (a media block in a flowing document)
    keeps the band for selection-stability, but it is honest about inertness. */
 .yarnnn-selbox-static .yarnnn-selmove { cursor: default; }
+/* P11 — the PowerPoint edit cue: while the caret is live INSIDE the block,
+   the box (and its handles) PERSISTS; the border goes dashed to say "text
+   mode". Hiding the box during editing was the P8 rule from the era when the
+   box trapped clicks — the pointer-transparent interior retired its cause. */
+.yarnnn-selbox-editing { border-style: dashed; }
 .yarnnn-selh {
   position: absolute; width: 10px; height: 10px;
   border: 1.5px solid #6366f1; background: #fff; border-radius: 50%;
@@ -2503,12 +2508,27 @@ const GUTTER_SCRIPT = `
   });
 
   function syncBox() {
-    // Hidden while EDITING — a live caret owns the block; an overlay box
-    // would intercept the very clicks the editor needs.
+    // P11 (operator read of P10 — the PowerPoint convention): the box
+    // PERSISTS through text editing. The handles stay reachable while the
+    // caret is live — the interior is pointer-transparent, so the chrome no
+    // longer fights the editor — and the border goes DASHED as the text-mode
+    // cue. ("Hidden while editing" was the P8 rule from the click-trapping
+    // box; it outlived its cause and starved the object grammar exactly
+    // where the member was looking at the object.)
     var editing = window.__yarnnnEditingId ? window.__yarnnnEditingId() : null;
     var sel = window.__yarnnnSelected ? window.__yarnnnSelected() : null;
-    if (editing == null && sel && sel.isConnected && isMeasurable(sel)) {
-      showBox(sel);
+    var target = sel && sel.isConnected ? sel : null;
+    if (!target && editing != null) {
+      // Click-to-caret can enter edit without routing through the pointer's
+      // selection — the editing block still owns its box.
+      try {
+        target = document.querySelector('[data-block-id="' +
+          (window.CSS && CSS.escape ? CSS.escape(editing) : editing) + '"]');
+      } catch (err) { target = null; }
+    }
+    if (target && target.isConnected && isMeasurable(target)) {
+      showBox(target);
+      if (editing != null) box.className += ' yarnnn-selbox-editing';
       syncFrameContext();
     } else hideBox();
   }
@@ -2522,6 +2542,9 @@ const GUTTER_SCRIPT = `
   });
   document.addEventListener('scroll', syncBox, true);
   window.addEventListener('resize', syncBox);
+  // Typing reflows the block — with the box now persisting through editing
+  // (P11), keep it hugging the live text instead of going stale mid-word.
+  document.addEventListener('input', function () { setTimeout(syncBox, 0); }, true);
   // The parent may select (navigator, Design tab) without a click in-frame.
   window.addEventListener('message', function (e) {
     var d = e.data;

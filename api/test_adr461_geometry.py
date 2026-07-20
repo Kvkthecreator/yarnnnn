@@ -242,13 +242,13 @@ def run() -> bool:
         "it reports a PERCENT OF THE FRAME, not a pixel (the bound is structural)",
         "br.width / (fr.width || 1)) * 100" in proj,
     )
-    # (Re-pinned for ADR-466 P10: syncBox grew a braced body — it also keeps
-    #  the frame context in step with the box. The gate is unchanged.)
+    # (Re-pinned for ADR-466 P10/P11: syncBox resolves a target — selection,
+    #  or the editing block — and the measurable gate still decides the box.)
     _check(
         "an UNFRAMED block gets no box (the boundary is felt, not just documented)",
         "function isMeasurable(block)" in proj
-        and "if (editing == null && sel && sel.isConnected && isMeasurable(sel)) {" in proj
-        and "showBox(sel);" in proj,
+        and "if (target && target.isConnected && isMeasurable(target)) {" in proj
+        and "showBox(target);" in proj,
     )
     # The handle follows the SELECTION, not the pointer: it draws at the block's
     # corner, so a hover-scoped handle vanishes exactly as it is reached for.
