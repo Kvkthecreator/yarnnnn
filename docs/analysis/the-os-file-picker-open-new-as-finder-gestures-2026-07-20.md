@@ -1,7 +1,8 @@
 # The OS File Picker — Open & New as Finder Gestures
 
 **Date**: 2026-07-20
-**Status**: Design consideration, doc-first (operator-requested). Implementation gated on sign-off.
+**Status**: IMPLEMENTED 2026-07-20 (commit `855c266`, on main). Move A + Move B shipped; temp-file
+lifecycle deferred to its own ADR. Doc-first (operator-requested), then built.
 **Dimension**: Channel (which chrome a file operation opens in) — one shared picker across surfaces.
 **Origin**: Operator observation on the Studio Open / New modals — "shouldn't our Open/Find modals
 actually be a Finder-like consideration, identical across scenarios? And New shouldn't ask for a
