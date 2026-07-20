@@ -1,6 +1,6 @@
 # ADR-467 — App residency and the cast: apps have residents, the open surface offers the roster
 
-> **Status**: **Accepted** (2026-07-20, operator-ratified in the per-agent-hardening macro discourse). Doc-first; code lands in the Designer hardening pass + named follow-on commits (§7).
+> **Status**: **Accepted + Implemented** (2026-07-20, operator-ratified in the per-agent-hardening macro discourse; code landed same day, commit `3c900cb` — §7 items 1–4: uniform surface + loud schema guard + declared residency + generalized gate. Gates: `test_agent_registry` 155/155, `test_adr411_lanes` 14/14; `next build` clean). Remaining: the Designer hardening pass (D5) runs as its own arc.
 > **Date**: 2026-07-20
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Identity** (Axiom 2 — which named hand a surface fronts) with a **Channel** consequence (where each colleague is addressed) and a **Substrate** consequence (the uniform lane tool surface, D4).
