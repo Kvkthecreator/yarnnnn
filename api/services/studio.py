@@ -324,57 +324,6 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
   </section>
 </main>""",
     },
-    # ADR-471: the fifth layout — the CANVAS, a staged frame for composed
-    # visuals (IMAGES Phase 1; ships Studio-quiet per the ADR-468 §8
-    # amendment). The artboard deliberately carries class="slide" (D-a): the
-    # kernel position/size rules and the web chrome's positionable/measurable
-    # gates key on the frame CLASS, so the whole object layer (bounding box,
-    # drag, resize, measures) is inherited, not rebuilt. Everything-positioned
-    # is a CONVENTION taught here and by the scaffold (D-e), never enforced —
-    # a flow block degrades via the kernel's var(…, auto) fallback.
-    "canvas": {
-        "label": "Canvas",
-        "mode": "paged",
-        "description": "A composed visual — layered objects on a fixed stage.",
-        "flow": (
-            "each artboard is <section class=\"slide\" data-arrange=\"free\"> — a "
-            "fixed-aspect STAGE, not a prose page. Position EVERY block "
-            "(data-x/data-y markers with style=\"--yx:N%;--yy:N%\") and size "
-            "where it matters (data-w with --yw); overlapping blocks order with "
-            "data-z (--yz, higher = in front). Text is real text (heading "
-            "blocks); images are cited figures (data-ref / data-ref-rev), never "
-            "inline bytes; shapes are inline <svg> inside a block. The root "
-            "<html> may carry data-aspect (absence = square · \"wide\" 16:9 · "
-            "\"portrait\" 4:5 · \"story\" 9:16) to set the stage's ratio. A "
-            "canvas is one visual statement per artboard — compose it like a "
-            "poster, not a document."
-        ),
-        "skin": """
-    body { background: var(--deck-stage, #e8e4de); }
-    /* The artboard is a fixed-aspect STAGE (ADR-471 D-c): the aspect rides
-       the root as data-aspect (the marker) → --stage-aspect (the value) —
-       the same attribute/property split the measures use. Square by default;
-       the honest enumerated ratios below. Padding 0 so a positioned block's
-       percent-of-frame is a percent of the visible stage. */
-    html[data-aspect="wide"] { --stage-aspect: 16 / 9; }
-    html[data-aspect="portrait"] { --stage-aspect: 4 / 5; }
-    html[data-aspect="story"] { --stage-aspect: 9 / 16; }
-    .slide { width: min(100%, 46rem); aspect-ratio: var(--stage-aspect, 1 / 1);
-             margin: 1.5rem auto; padding: 0; background: var(--paper);
-             box-shadow: 0 1px 6px rgba(0,0,0,0.08); overflow: hidden;
-             page-break-after: always; }
-    .slide h1 { font-size: var(--text-4xl, 2.4rem); }
-    .slide h2 { font-size: var(--text-2xl, 1.7rem); }
-    .slide .kicker { color: var(--accent); font-size: var(--text-sm, 0.85rem);
-                     letter-spacing: 0.08em; text-transform: uppercase; }
-    .slide [data-block="figure"] img { width: 100%; height: 100%;
-                                       object-fit: contain; }
-""".strip("\n"),
-        "scaffold": """<section class="slide" data-arrange="free">
-  <p class="kicker" data-block="heading" data-block-id="k1" data-x="8" data-y="8" style="--yx:8%;--yy:8%">Untitled canvas</p>
-  <h1 data-block="heading" data-block-id="t1" data-x="8" data-y="16" data-w="70" style="--yx:8%;--yy:16%;--yw:70%">The visual statement.</h1>
-</section>""",
-    },
 }
 
 
@@ -685,21 +634,6 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
 </section>""",
         },
     },
-    # ADR-471: the canvas has ONE arrangement — the open stage. No slots: the
-    # stage IS the arrangement, and blocks land positioned (D-e convention),
-    # not slotted. A future named composition (grid, thirds) would be a new
-    # row here, but "free" is the mode's identity.
-    "canvas": {
-        "free": {
-            "label": "Free",
-            "description": "An open stage — position everything.",
-            "grain": "page",
-            "slots": [],
-            "fragment": """<section class="slide" data-arrange="free">
-  <h2 data-block="heading" data-block-id="t1" data-x="8" data-y="12" style="--yx:8%;--yy:12%">New artboard</h2>
-</section>""",
-        },
-    },
 }
 
 
@@ -861,24 +795,15 @@ STUDIO_TOKENS: dict[str, dict] = {
         ],
         "description": "the content column width on a document/article (absence = the layout default)",
     },
-    # ADR-471 D-c: the canvas stage's aspect — a ROOT token (the marker
-    # data-aspect; the canvas skin maps each value to --stage-aspect). Default
-    # by omission per the align lesson: absence = square (1:1), so square is
-    # not a value. Values are SLUGS, not ratio strings — the adr461 gate's
-    # rule (every token value enumerable; continuous/typed values belong to a
-    # measure), and it bit on "16:9" during ADR-471 C4, correctly.
-    # `document-canvas` follows the document-flow/document-deck
-    # layout-scoped-grain precedent — the picker appears only on a canvas.
-    "aspect": {
-        "label": "Aspect",
-        "applies": ["document-canvas"],
-        "values": [
-            {"value": "wide", "label": "Wide (16:9)"},
-            {"value": "portrait", "label": "Portrait (4:5)"},
-            {"value": "story", "label": "Story (9:16)"},
-        ],
-        "description": "the stage's aspect ratio (absence = square)",
-    },
+    # ADR-472 D3: the `aspect` token (wide/portrait/story slugs, scoped
+    # `document-canvas`) is DELETED, not moved to IMAGES. It only ever existed
+    # as slugs because ADR-461's gate requires every token value be enumerable,
+    # and a stage's size is a CONTINUOUS value. IMAGES stages carry real W×H
+    # pixels as data (services/images.py::STAGE_PRESETS + resolve_dimensions),
+    # which is what a design tool actually needs. Deleting rather than porting
+    # is the Singular Implementation discipline — the ADR-453 gate was already
+    # failing on this token as "declared but never rendered", which is what a
+    # value with no interpreting selector looks like.
     # ADR-456 Wave 1: slide numbers — CSS counters, script-free, opt-in.
     "pagenum": {
         "label": "Slide numbers",
@@ -1093,7 +1018,8 @@ div[data-block="gallery"] figcaption { font-size: var(--text-xs, 0.75rem); }
    Bounded by the FRAME, per D4: a slide has one (fixed-aspect,
    overflow:hidden, no responsive obligation), and a media block's intrinsic
    ratio is its own. The `.slide` scope is not decoration — it IS the boundary,
-   and it is what a deck slide and a canvas artboard share (ADR-471 D-a).
+   and it is what a deck slide and an IMAGES stage share (ADR-472 D2 — the
+   shared object layer, consumed by both apps).
    Nothing here applies to document/article/page, which reflow and would have
    no answer at 40rem. */
 .slide [data-w], [data-block="figure"][data-w], [data-block="chart"][data-w],
@@ -1339,6 +1265,62 @@ def _is_placeholder_title(inner: str) -> bool:
     return text in _SCAFFOLD_TITLES
 
 
+# ---------------------------------------------------------------------------
+# The layout resolver (ADR-472 D2) — the shared machinery's one lookup.
+# ---------------------------------------------------------------------------
+#
+# `build_skeleton`, `build_studio_posture`, `describe_artifact_kind` and the
+# arrangement grammar are SHARED by Studio and IMAGES: a stage is composed,
+# postured, and named by the same code that composes a deck. Rather than fork
+# them per app (the dual-approach smell) or have Studio import IMAGES (a kernel
+# depending on an app), each app REGISTERS its layouts here and the shared
+# machinery resolves through one door.
+#
+# Studio registers its own table at import; IMAGES registers at import of
+# `services/images.py`. Registration is idempotent and slug-keyed — a collision
+# is a programming error, not a silent override.
+
+_LAYOUT_REGISTRY: dict[str, dict] = {}
+_ARRANGEMENT_REGISTRY: dict[str, dict] = {}
+
+
+def register_layouts(layouts: dict[str, dict], arrangements: dict[str, dict] | None = None) -> None:
+    """Register an app's document types with the shared machinery (ADR-472 D2)."""
+    for slug, row in layouts.items():
+        existing = _LAYOUT_REGISTRY.get(slug)
+        if existing is not None and existing is not row:
+            # Grammar, not schema (ADR-443 §6 — no exceptions from this
+            # module; it stays a pure program). FIRST
+            # REGISTRATION WINS: a second app claiming a live slug is a
+            # programming error, but silently keeping the incumbent beats
+            # crashing an import chain at boot. The ADR-472 gate asserts the
+            # two apps' slug sets are disjoint, which is where a collision is
+            # actually caught.
+            continue
+        _LAYOUT_REGISTRY[slug] = row
+    for slug, rows in (arrangements or {}).items():
+        _ARRANGEMENT_REGISTRY[slug] = rows
+
+
+def resolve_layout(slug: str) -> dict | None:
+    """The layout row for a slug, from ANY registered app. None if unknown."""
+    return _LAYOUT_REGISTRY.get(slug)
+
+
+def all_layouts() -> dict[str, dict]:
+    """Every registered layout across apps (the vocabulary surface reads this)."""
+    return dict(_LAYOUT_REGISTRY)
+
+
+def resolve_arrangements(slug: str) -> dict:
+    """The arrangement roster for a layout, from any registered app."""
+    return _ARRANGEMENT_REGISTRY.get(slug, {})
+
+
+# Studio registers its document types with the shared resolver (ADR-472 D2).
+register_layouts(STUDIO_LAYOUTS, STUDIO_ARRANGEMENTS)
+
+
 def build_skeleton(layout: str, title: str | None = None) -> str:
     """Assemble a new artifact's first revision: layout × starter blocks.
 
@@ -1349,7 +1331,10 @@ def build_skeleton(layout: str, title: str | None = None) -> str:
     `title` (the name the member typed at creation) titles the artifact as well
     as the file — see `set_artifact_title`. Absent, the placeholder stands.
     """
-    lay = STUDIO_LAYOUTS[layout]
+    # Grammar, not schema (ADR-443 §6 — no exceptions from this module): an
+    # unknown layout falls back to `document` the way every other resolution
+    # site does, rather than gating creation.
+    lay = resolve_layout(layout) or STUDIO_LAYOUTS["document"]
     placeholder = f"Untitled {lay['label'].lower()}"
     html = f"""<!doctype html>
 <html data-template="{layout}">
@@ -1397,7 +1382,7 @@ def _blocks_grammar() -> str:
 def _arrangements_grammar(template: str) -> str:
     """The arrangement roster for a layout — the composition options the lane
     can author or re-lay to (ADR-447). Grammar, not schema."""
-    rows = STUDIO_ARRANGEMENTS.get(template, {})
+    rows = resolve_arrangements(template)
     if not rows:
         return "  (no named arrangements for this layout — a single flow.)"
     return "\n".join(
@@ -1575,7 +1560,7 @@ def artifact_kind(artifact_content: Optional[str]) -> dict[str, Optional[str]]:
     slug = extract_template(artifact_content or "")
     if not slug:
         return {"kind": None, "kind_label": UNKNOWN_KIND_LABEL}
-    known = STUDIO_LAYOUTS.get(slug)
+    known = resolve_layout(slug)
     if not known:
         # Deferred import: bundle_reader reads the program bundles off disk;
         # the kernel four resolve without ever touching it.
@@ -1715,7 +1700,7 @@ def build_studio_posture(artifact_path: str, artifact_content: str) -> str:
     yields a posture: the lane can (re)create the file at the bound path.
     """
     template = extract_template(artifact_content) or "document"
-    layout = STUDIO_LAYOUTS.get(template, STUDIO_LAYOUTS["document"])
+    layout = resolve_layout(template) or STUDIO_LAYOUTS["document"]
     outline = extract_outline(artifact_content)
     outline_section = (
         "- Current outline:\n" + "\n".join(f"  {h}" for h in outline)

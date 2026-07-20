@@ -46,6 +46,14 @@ class CreateArtifactRequest(BaseModel):
     # verbatim. `path` carries only the slugified KEY.
     path: Optional[str] = None
     name: Optional[str] = None
+    # ADR-472 D3 — DIMENSIONS-FIRST creation, for apps whose artifact is a
+    # raster (IMAGES). A stage is born at a SIZE the way a Canva design is:
+    # either a named preset ("square", "story", "ad") or an explicit W×H. Both
+    # absent on a stage → the default preset; ignored entirely by flow/paged
+    # document layouts, which have no fixed pixel box.
+    preset: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
 
 
 @router.get("/studio/templates")
@@ -81,6 +89,7 @@ async def list_artifacts(auth: UserClient) -> dict:
     The Files surface (the MIRROR) is untouched and still shows the raw leaf.
     """
     from services.studio import (
+    resolve_layout,
         STUDIO_ARTIFACT_REGION,
         artifact_kind,
         artifact_name,
@@ -611,7 +620,7 @@ def _retitle_to(auth: UserClient, path: str, title: str | None = None) -> dict:
     content = row[0].get("content") or ""
 
     template = re.search(r'data-template="([^"]+)"', content)
-    layout = STUDIO_LAYOUTS.get(template.group(1)) if template else None
+    layout = resolve_layout(template.group(1)) if template else None
     is_flow = bool(layout and layout["mode"] == "flow")
 
     # The typed name wins; without one, fall back to the artifact's own name.
@@ -728,7 +737,7 @@ def _untitled_path(auth: UserClient, template: str) -> str:
     from services.studio import STUDIO_ARTIFACT_REGION, STUDIO_LAYOUTS
     from services.workspace_context import substrate_scope_filter
 
-    lay = STUDIO_LAYOUTS.get(template)
+    lay = resolve_layout(template)
     label = lay["label"].lower() if lay else template
     base = path_slug(f"untitled {label}")
 
@@ -818,7 +827,7 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     # future bundle-shipped template could live in one and not the other — a
     # bare `STUDIO_LAYOUTS[req.template]` would then 500. An unknown layout is
     # not flow (its h1 stays authored), matching artifact_kind's own fallback.
-    _layout = STUDIO_LAYOUTS.get(req.template)
+    _layout = resolve_layout(req.template)
     is_flow = bool(_layout and _layout["mode"] == "flow")
 
     # ADR-470: no name → the SKELETON'S OWN placeholder stands ("Untitled
@@ -835,6 +844,24 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
         if name
         else template["skeleton"]
     )
+
+    # ADR-472 D3: a stage carries its real dimensions on the root, as data.
+    # `data-w`/`data-h` are the MARKERS (the same attribute/property split the
+    # measures use); the FE maps them to --stage-w/--stage-h, and the renderer
+    # (D4/D5) rasterizes at exactly this size. Only IMAGES stages take this
+    # branch — a document has no pixel box, and asking one for dimensions would
+    # be the aspect-token mistake in a new costume.
+    from services.images import STAGE_SLUG, resolve_dimensions, stage_root_attrs
+
+    if req.template == STAGE_SLUG:
+        w, h = resolve_dimensions(
+            preset_slug=req.preset, width=req.width, height=req.height
+        )
+        content = content.replace(
+            f'<html data-template="{STAGE_SLUG}">',
+            f'<html data-template="{STAGE_SLUG}" {stage_root_attrs(w, h)}>',
+            1,
+        )
 
     write_revision(
         auth.client,

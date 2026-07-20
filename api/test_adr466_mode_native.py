@@ -248,35 +248,24 @@ def run() -> bool:
         and "Math.min(Math.max(1, maxPct), pct)" in proj,
     )
 
-    # ── ADR-471: the canvas mode (a staged frame for composed visuals) ────
-    from services.studio import STUDIO_ARRANGEMENTS, STUDIO_LAYOUTS, _SCAFFOLD_TITLES
-    _cv = STUDIO_LAYOUTS.get("canvas", {})
+    # ── ADR-472: the stage LEFT Studio (the canvas doc type was carved into
+    # the IMAGES app). Its layout/scaffold/dimension assertions live in
+    # test_adr472_images.py; what stays here is the Studio-side invariant the
+    # carve must not disturb — the deck keeps its identity 16:9 and never
+    # grows a dimension/aspect knob of its own.
+    from services.studio import STUDIO_LAYOUTS, _SCAFFOLD_TITLES
     _check(
-        "the canvas layout exists and is paged (artboards, ADR-471 D-b)",
-        _cv.get("mode") == "paged" and _cv.get("label") == "Canvas",
+        "the canvas doc type is GONE from Studio (ADR-472 D1/D7)",
+        "canvas" not in STUDIO_LAYOUTS and "image" not in STUDIO_LAYOUTS,
     )
     _check(
-        "the artboard IS a .slide (D-a — the object layer inherited, not rebuilt)",
-        'class="slide"' in _cv.get("scaffold", "")
-        and 'class="slide"' in STUDIO_ARRANGEMENTS.get("canvas", {}).get("free", {}).get("fragment", ""),
-    )
-    _check(
-        "the scaffold teaches everything-positioned (D-e — positioned blocks by example)",
-        'data-x="8"' in _cv.get("scaffold", "") and "--yx:8%" in _cv.get("scaffold", ""),
-    )
-    _check(
-        "aspect is a root token in the canvas skin (D-c — slug marker data-aspect, value --stage-aspect)",
-        'html[data-aspect="wide"]' in _cv.get("skin", "")
-        and "var(--stage-aspect, 1 / 1)" in _cv.get("skin", ""),
-    )
-    _check(
-        "…and deck keeps its identity 16:9 (no aspect token there)",
+        "deck keeps its identity 16:9 (no aspect/dimension token there)",
         "data-aspect" not in STUDIO_LAYOUTS["deck"]["skin"]
         and "16 / 9" in STUDIO_LAYOUTS["deck"]["skin"],
     )
     _check(
-        "the canvas scaffold title participates in the derived overwrite set",
-        "The visual statement." in _SCAFFOLD_TITLES,
+        "the derived scaffold-title set no longer carries the stage's title",
+        "The visual statement." not in _SCAFFOLD_TITLES,
     )
     # D-d: z earned its token (StudioBlockMenu's own comment was the
     # pre-written justification — "z-order arrives with a token").

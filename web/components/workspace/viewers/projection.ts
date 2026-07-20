@@ -296,15 +296,21 @@ html[data-template="deck"] .slide {
 }
 `;
 
-// ADR-471 — the canvas artboard's stage: pin the WIDTH only; height follows
-// the skin's aspect-ratio (the data-aspect → --stage-aspect root token), so
-// one stage rule serves every ratio. Self-gates on the template like
-// DECK_STAGE_CSS — harmless elsewhere.
-export const CANVAS_STAGE_W = 736; // 46rem — the artboard's natural width
+// ADR-472 D3 — the IMAGES stage. The stage is a fixed-SIZE box whose real
+// pixel dimensions ride the root as data-w/data-h (the MARKERS the create path
+// writes); this rule maps them to --stage-w/--stage-h, and the skin's
+// aspect-ratio consumes them. A stage with no dimensions (a pre-ADR-472
+// artifact) falls back to the square default rather than collapsing.
+//
+// This REPLACES ADR-471's data-aspect → --stage-aspect slug mapping, which
+// could only ever enumerate wide/portrait/story because a property token's
+// values must be enumerable (ADR-461). A design tool needs a continuous
+// dimension, so dimensions became data and the token was deleted (ADR-472 D3).
+export const STAGE_DEFAULT_W = 1080; // the square preset's width
 
-const CANVAS_STAGE_CSS = `
-html[data-template="canvas"] body { display: flex; flex-direction: column; align-items: center; }
-html[data-template="canvas"] .slide { width: ${CANVAS_STAGE_W}px !important; flex: 0 0 auto; }
+const IMAGE_STAGE_CSS = `
+html[data-template="image"] body { display: flex; flex-direction: column; align-items: center; }
+html[data-template="image"] .slide { flex: 0 0 auto; }
 `;
 
 // The TEXT-editable block kinds (ADR-456 W2's Turn-into set): a single click on
@@ -2610,7 +2616,7 @@ export async function resolveArtifactHtml(
     const style = doc.createElement('style');
     // DECK_STAGE_CSS self-gates on html[data-template="deck"] — harmless on
     // document/article, load-bearing on decks (fixes the narrow-column collapse).
-    style.textContent = DECK_STAGE_CSS + CANVAS_STAGE_CSS + POINTER_CSS + (opts?.edit ? EDIT_CSS : '');
+    style.textContent = DECK_STAGE_CSS + IMAGE_STAGE_CSS + POINTER_CSS + (opts?.edit ? EDIT_CSS : '');
     doc.head?.appendChild(style);
     if (opts?.edit) {
       // The edit runtime is injected FIRST so window.__yarnnnEditingId is

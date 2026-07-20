@@ -166,8 +166,33 @@ const TEMPLATE_SUGGESTIONS: Record<string, string[]> = {
   ],
 };
 
-export function StudioSurface() {
-  const { get: getParam, set: setParam } = useSurfaceParam('studio');
+/**
+ * The authoring-surface app config (ADR-472 D1/D2).
+ *
+ * Studio and IMAGES are two APPS over one shared authoring machinery: the same
+ * bound lane, the same object layer, the same live render. What differs is the
+ * surface slug (which param namespace the window manager reads), the templates
+ * offered, and the app's own chrome. Parameterizing beats forking 2,500 lines
+ * — the dual-approach smell the hooks discipline forbids.
+ */
+export interface AuthoringApp {
+  /** Surface slug — the param namespace (`studio.file` vs `images.file`). */
+  slug: 'studio' | 'images';
+  /** Layout slugs this app offers at creation. Empty = every registered one. */
+  templates?: string[];
+  /** Dimensions-first creation (ADR-472 D3) — IMAGES only. */
+  dimensionsFirst?: boolean;
+}
+
+export const STUDIO_APP: AuthoringApp = { slug: 'studio' };
+export const IMAGES_APP: AuthoringApp = {
+  slug: 'images',
+  templates: ['image'],
+  dimensionsFirst: true,
+};
+
+export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {}) {
+  const { get: getParam, set: setParam } = useSurfaceParam(app.slug);
   const artifactParam = getParam('file');
   const artifactPath = artifactParam
     ? artifactParam.startsWith('/')
@@ -189,7 +214,7 @@ export function StudioSurface() {
   // root-click fires the leaf onClick → back to the start state, which is
   // what "New / open…" did).
   useWindowCrumb(
-    'studio',
+    app.slug,
     artifactPath
       ? [
           {
@@ -211,12 +236,12 @@ export function StudioSurface() {
   // ADR-458 D3: the surface bar is crumb-only — the "File actions" button is
   // deleted; the file verbs live in the Design tab's document scope (the one
   // settings home). Registering the empty set keeps the bar clean.
-  useSurfaceActions('studio', []);
+  useSurfaceActions(app.slug, []);
   // 2026-07-14 (operator ruling): in the WORKBENCH the toolbar row renders the
   // crumb itself (Studio · ‹artifact›), so the OS strip suppresses — one
   // locator, never two, and the ~28px band is reclaimed for the canvas. The
   // START state keeps the OS strip (it has no toolbar row of its own).
-  useSelfLocatedSurface('studio', Boolean(artifactPath));
+  useSelfLocatedSurface(app.slug, Boolean(artifactPath));
 
   // ── Lane environment (models + existing lanes) ─────────────────────────
   const [lanesEnabled, setLanesEnabled] = useState<boolean | null>(null);
@@ -986,7 +1011,7 @@ export function StudioSurface() {
   const menuCopyBlockLink = useCallback(() => {
     const id = ctxMenu?.blockId;
     if (!id || !artifactPath) return;
-    const url = `${window.location.origin}/desktop?studio.file=${encodeURIComponent(
+    const url = `${window.location.origin}/desktop?${app.slug}.file=${encodeURIComponent(
       relPath(artifactPath),
     )}&studio.block=${encodeURIComponent(id)}`;
     void navigator.clipboard.writeText(url);
@@ -1574,7 +1599,7 @@ export function StudioSurface() {
   // is multi-member; distinct from the ADR-437 Share origin).
   const copyArtifactLink = useCallback(() => {
     if (!artifactPath) return;
-    const url = `${window.location.origin}/desktop?studio.file=${encodeURIComponent(relPath(artifactPath))}`;
+    const url = `${window.location.origin}/desktop?${app.slug}.file=${encodeURIComponent(relPath(artifactPath))}`;
     void navigator.clipboard.writeText(url);
   }, [artifactPath]);
   // Share — mint a /s/{token} grant link for THIS artifact and copy it
@@ -1717,6 +1742,7 @@ export function StudioSurface() {
           setParam({ file: relPath(path) });
           setRenaming(true); // the crumb arms as the workbench mounts
         }}
+        app={app}
       />
     );
   }
@@ -2239,6 +2265,7 @@ function StudioStart({
   onOpen,
   onOpenSystem,
   onRenameRequest,
+  app,
 }: {
   onOpen: (path: string) => void;
   /** Open a design system's manage state (DESIGN-SYSTEMS.md §6 — the third
@@ -2247,6 +2274,8 @@ function StudioStart({
   /** Open the artifact AND arm its crumb rename — the landing has no rename
    *  UI of its own, because the name is renamed where the name is shown. */
   onRenameRequest: (path: string) => void;
+  /** ADR-472: which app is landing — filters templates + names the surface. */
+  app: AuthoringApp;
 }) {
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   // Derived from the client's return type — never hand-restated, so a served
@@ -2298,11 +2327,17 @@ function StudioStart({
   useEffect(() => {
     api.studio
       .templates()
-      .then((res) => setTemplates(res.templates))
+      .then((res) =>
+        setTemplates(
+          app.templates
+            ? res.templates.filter((t) => app.templates!.includes(t.slug))
+            : res.templates.filter((t) => !IMAGES_APP.templates!.includes(t.slug)),
+        ),
+      )
       .catch(() => setError('Could not load templates.'));
     loadRecents();
     loadSystems();
-  }, [loadRecents, loadSystems]);
+  }, [loadRecents, loadSystems, app]);
 
   // ── Organize a recent in place (rename / move / trash) — the SAME shared
   // implementation the Files surface and the open-artifact Design tab use
@@ -2315,7 +2350,7 @@ function StudioStart({
   });
   // Copy link / Duplicate are surface-specific extras (ADR-455 extraItems).
   const copyRecentLink = useCallback((path: string) => {
-    const url = `${window.location.origin}/desktop?studio.file=${encodeURIComponent(relPath(path))}`;
+    const url = `${window.location.origin}/desktop?${app.slug}.file=${encodeURIComponent(relPath(path))}`;
     void navigator.clipboard.writeText(url);
   }, []);
   const duplicateRecent = useCallback(
@@ -2494,7 +2529,9 @@ function StudioStart({
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2">
               <Palette className="h-5 w-5 text-muted-foreground" />
-              <h1 className="text-lg font-semibold">Studio</h1>
+              <h1 className="text-lg font-semibold">
+                {app.slug === 'images' ? 'Images' : 'Studio'}
+              </h1>
             </div>
             <p className="max-w-md text-sm text-muted-foreground">
               Pick a shape, name it, then describe what you want in plain words —

@@ -269,6 +269,30 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/studio",
         "summary": "Author documents, decks, and articles as living artifacts: a model-pinned lane drafts and patches the file while the canvas re-renders it — every citation a live workspace reference, every edit an attributed revision.",
     },
+    {
+        # ADR-472 (2026-07-20) — IMAGES, the SECOND authoring app. Carved out
+        # of Studio, where it had shipped as a fifth layout ("canvas", ADR-471)
+        # and read to the operator as a document type rather than the app its
+        # name promised. The carve is justified by the ARTIFACT: Studio's file
+        # IS the deliverable; an IMAGES composition is a SOURCE whose
+        # deliverable is a rendered raster — an attributed derivation
+        # (ADR-427 binary revisions + ADR-448 derived_from), a relationship
+        # Studio's model structurally lacks (its export LEAVES the system).
+        # Creation is dimensions-first (real W×H, ADR-472 D3), never an
+        # aspect slug. The object layer (position/size/stacking on a staged
+        # frame) is SHARED kernel, not forked — services/studio.py's
+        # `block-staged` grain, consumed by both apps (D2).
+        "slug": "images",
+        "launcher_tier": "primary",
+        "register": "application",
+        "title": "Images",
+        "archetype": "document",
+        "substrate_paths": [],  # compositions are meaning-placed, like artifacts
+        "icon_key": "image",
+        "default_pinned": False,
+        "route": "/images",
+        "summary": "Compose visuals on a sized stage — layered objects, positioned and stacked. The composition is the source and the rendered image is a derivation of it, so every export stays traceable to the stage, the citations, and the revision that produced it.",
+    },
     # ADR-415 (2026-07-08): the `channels` surface is DISSOLVED. It was a fossil
     # of the Feed → Context → Channels lineage, scoped by boundary (edge vs
     # interior) — an axis operators don't hold, producing two "what happened"
