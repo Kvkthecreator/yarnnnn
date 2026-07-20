@@ -177,6 +177,7 @@ export function NewArtifactModal({ template, onClose, onCreate }: NewArtifactMod
         subtitle="Where the new file lives"
         confirmLabel="Choose"
         emptyMessage="No folders available."
+        initialSelected={dest}
         selectable={(node: WorkspaceTreeNode) => operatorCanOrganize(`${node.path}/x`)}
         folderDisabledTitle={(node) =>
           operatorCanOrganize(`${node.path}/x`) ? undefined : 'This folder is managed by the system'

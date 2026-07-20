@@ -187,7 +187,10 @@ function PickerRow({
   onSelect: (path: string) => void;
   onCommit?: (path: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(depth < (mode === 'folder' ? 1 : 2));
+  // Open shallow by default — but always expand far enough to REVEAL a
+  // pre-selected folder, otherwise the selection is real and invisible.
+  const onSelectedPath = !!selected && (selected === node.path || selected.startsWith(`${node.path}/`));
+  const [expanded, setExpanded] = useState(onSelectedPath || depth < (mode === 'folder' ? 1 : 2));
 
   // ── Leaf file ──────────────────────────────────────────────────────────
   if (node.type === 'file') {
@@ -304,6 +307,12 @@ interface WorkspacePickerModalProps extends Omit<WorkspacePickerBodyProps, 'sele
   footerHint?: (selected: string | null) => React.ReactNode;
   /** Reject a selection at confirm time (Move disables the current parent). */
   canConfirm?: (selected: string) => boolean;
+  /** Where the dialog opens POINTED — the Finder "Save As" behaviour of landing
+   *  on your current location rather than nowhere. New passes its destination so
+   *  re-opening the picker shows the folder already chosen. Move passes nothing:
+   *  its current parent is the one folder it REJECTS, so pre-selecting it would
+   *  open on an un-confirmable row. Rows on the path auto-expand to reveal it. */
+  initialSelected?: string | null;
 }
 
 /** The full Finder-style dialog: backdrop + header + tree body + footer. Open…,
@@ -317,13 +326,15 @@ export function WorkspacePickerModal({
   onConfirm,
   footerHint,
   canConfirm,
+  initialSelected,
   ...body
 }: WorkspacePickerModalProps) {
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialSelected ?? null);
 
+  // Re-open lands on the caller's current location (or nowhere, if it has none).
   useEffect(() => {
-    if (open) setSelected(null);
-  }, [open]);
+    if (open) setSelected(initialSelected ?? null);
+  }, [open, initialSelected]);
 
   if (!open) return null;
 
