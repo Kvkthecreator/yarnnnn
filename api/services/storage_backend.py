@@ -34,9 +34,21 @@ Canonical reference: docs/adr/ADR-427-binary-native-substrate-and-the-storage-se
 from __future__ import annotations
 
 import hashlib
+import logging
+import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Iterator, Optional
+
+logger = logging.getLogger(__name__)
+
+# The content-addressed object store for binary bytes (migration 219). Private;
+# service-role access only; served via per-request signed URLs (ADR-427 D4).
+CAS_BUCKET = "workspace-cas"
+
+# git's loose-object layout: cas/<sha[0:2]>/<sha>
+def cas_key(sha: str) -> str:
+    return f"cas/{sha[:2]}/{sha}"
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +142,62 @@ class StorageBackend(ABC):
         """Read a text blob back as a utf-8 string."""
         return self.get_blob(sha).decode("utf-8")
 
+    # -- write stream (ADR-427 Phase 2/3 — large binary without full RAM) --
+
+    def open_write_stream(self) -> "BlobWriteStream":
+        """Begin a streaming write. Feed chunks via `.write()`, then
+        `.finalize()` returns the sha256 content address. The default
+        implementation spools to disk while writing (RAM-bounded ingest) and
+        materializes once at finalize for the driver hand-off — a driver with
+        native resumable/multipart upload (git-lfs batch, TUS) may override
+        `open_write_stream` to avoid even that."""
+        return BlobWriteStream(self)
+
+    # -- serving (ADR-427 D4 — capability minted per-request, never stored) --
+
+    def mint_serving_url(self, sha: str, expires_in: int = 3600) -> Optional[str]:
+        """Mint a short-lived, object-scoped URL for a blob's bytes, or None
+        when the driver serves no out-of-band URLs (e.g. inline text — callers
+        read those through the seam). The LFS-batch `href`+`expires_at` shape."""
+        return None
+
+
+class BlobWriteStream:
+    """Default streaming writer: disk-spooled, hash-as-you-go.
+
+    Satisfies the D2a stream-first contract without assuming the driver has
+    native multipart: chunks spool to a temp file (RAM-bounded), the sha is
+    computed incrementally, and finalize() routes the bytes through the
+    driver's `_write_bytes`.
+    """
+
+    _SPOOL_MAX = 8 * 1024 * 1024  # spill to disk past 8 MB
+
+    def __init__(self, backend: "StorageBackend") -> None:
+        self._backend = backend
+        self._spool = tempfile.SpooledTemporaryFile(max_size=self._SPOOL_MAX)
+        self._hasher = hashlib.sha256()
+        self._finalized: Optional[str] = None
+
+    def write(self, chunk: bytes) -> None:
+        if self._finalized is not None:
+            raise RuntimeError("write after finalize")
+        self._hasher.update(chunk)
+        self._spool.write(chunk)
+
+    def finalize(self) -> str:
+        if self._finalized is not None:
+            return self._finalized
+        self._spool.seek(0)
+        data = self._spool.read()
+        self._spool.close()
+        sha = self._backend._write_bytes(data)
+        expected = self._hasher.hexdigest()
+        if sha != expected:  # pragma: no cover - defensive
+            raise RuntimeError(f"stream hash mismatch: {expected} != {sha}")
+        self._finalized = sha
+        return sha
+
 
 # ---------------------------------------------------------------------------
 # Driver 1 — Postgres + object store (the cloud driver; built Phase 1)
@@ -167,33 +235,132 @@ class PostgresObjectStoreBackend(StorageBackend):
     ) -> Iterator[bytes]:
         result = (
             self._db.table("workspace_blobs")
-            .select("content")
+            .select("content, storage_key")
             .eq("sha256", sha)
             .limit(1)
             .execute()
         )
         if not result.data:
             raise KeyError(f"blob not found: {sha}")
-        # Phase 1: text blobs are stored as a string in `content`; the bytes are
-        # its utf-8 encoding (byte-identical to how sha was computed on write).
-        data = (result.data[0].get("content") or "").encode("utf-8")
+        row = result.data[0]
+        storage_key = row.get("storage_key")
+        if storage_key:
+            # Binary lane (ADR-427 Phase 2): bytes live in the object store.
+            yield from self._read_external(storage_key, byte_range)
+            return
+        # Inline text lane: content is a string; the bytes are its utf-8
+        # encoding (byte-identical to how sha was computed on write).
+        data = (row.get("content") or "").encode("utf-8")
+        if byte_range is not None:
+            data = data[byte_range.start : byte_range.end]
+        yield data
+
+    def _read_external(
+        self, storage_key: str, byte_range: Optional[ByteRange]
+    ) -> Iterator[bytes]:
+        """Read an object-store blob, honoring the range when possible.
+
+        Range path: mint a short-lived signed URL and issue an HTTP Range GET,
+        streaming chunks (true range read — never materializes the full blob).
+        Fallback (no httpx / range unsupported / signed-URL failure): full
+        download + slice, correct if less efficient.
+        """
+        storage = self._db.storage.from_(CAS_BUCKET)
+        if byte_range is not None:
+            try:
+                import httpx
+
+                signed = storage.create_signed_url(storage_key, 300) or {}
+                url = signed.get("signedURL") or signed.get("signedUrl")
+                if url:
+                    end = "" if byte_range.end is None else str(byte_range.end - 1)
+                    headers = {"Range": f"bytes={byte_range.start}-{end}"}
+                    with httpx.stream("GET", url, headers=headers, timeout=120.0) as resp:
+                        resp.raise_for_status()
+                        yield from resp.iter_bytes(chunk_size=1024 * 1024)
+                    return
+            except Exception as exc:  # noqa: BLE001 — fall back to full download
+                logger.warning("[STORAGE] range read fell back to full download: %s", exc)
+        data = storage.download(storage_key)
         if byte_range is not None:
             data = data[byte_range.start : byte_range.end]
         yield data
 
     def _write_bytes(self, data: bytes) -> str:
         sha = sha256_bytes(data)
-        # Phase 1: content is stored as TEXT — this driver's inline lane is the
-        # text/small-blob case. `data` here is always a utf-8 text encoding in
-        # Phase 1 (the only caller is `put_text` via the write path); the binary
-        # lane (bytes that are NOT valid utf-8 → object-store bucket) lands in
-        # Phase 2. Decoding is therefore safe and byte-identical to today.
-        content = data.decode("utf-8")
+        # Lane routing (ADR-427 D1/D2c — physical placement is the driver's
+        # business): utf-8-decodable bytes without NULs are the inline text
+        # lane — the EXACT pre-seam upsert, byte-identical for every existing
+        # text caller. Anything else is the binary lane: bytes in the
+        # workspace-cas bucket keyed by content address, plus a marker row
+        # (content='', storage_key, byte_size) so the FK from
+        # workspace_file_versions.blob_sha, has_blob, dedup, and GC all stay
+        # single-table.
+        try:
+            content = data.decode("utf-8")
+            if "\x00" not in content:
+                self._db.table("workspace_blobs").upsert(
+                    {"sha256": sha, "content": content},
+                    on_conflict="sha256",
+                ).execute()
+                return sha
+        except UnicodeDecodeError:
+            pass
+        return self._write_external(sha, data)
+
+    def _write_external(self, sha: str, data: bytes) -> str:
+        if self.has_blob(sha):
+            return sha  # CAS dedup — bytes already stored, marker row present
+        key = cas_key(sha)
+        # Bytes first, marker second: a marker row implies the bytes exist. A
+        # crash in between leaves an unreferenced object in the bucket —
+        # harmless, re-uploaded idempotently (upsert) on the next write.
+        self._db.storage.from_(CAS_BUCKET).upload(
+            path=key,
+            file=data,
+            file_options={
+                "content-type": "application/octet-stream",
+                "upsert": "true",
+            },
+        )
         self._db.table("workspace_blobs").upsert(
-            {"sha256": sha, "content": content},
+            {
+                "sha256": sha,
+                "content": "",
+                "storage_key": key,
+                "byte_size": len(data),
+            },
             on_conflict="sha256",
         ).execute()
         return sha
+
+    def mint_serving_url(self, sha: str, expires_in: int = 3600) -> Optional[str]:
+        """Per-request, TTL'd signed URL for a binary blob (ADR-427 D4 — a
+        capability is minted, never stored). Inline text blobs return None —
+        they are read through the seam, not served out-of-band."""
+        result = (
+            self._db.table("workspace_blobs")
+            .select("storage_key")
+            .eq("sha256", sha)
+            .limit(1)
+            .execute()
+        )
+        if not result.data:
+            return None
+        storage_key = result.data[0].get("storage_key")
+        if not storage_key:
+            return None
+        try:
+            signed = (
+                self._db.storage.from_(CAS_BUCKET).create_signed_url(
+                    storage_key, expires_in
+                )
+                or {}
+            )
+            return signed.get("signedURL") or signed.get("signedUrl")
+        except Exception as exc:  # noqa: BLE001
+            logger.error("[STORAGE] signed-URL mint failed for %s: %s", sha, exc)
+            return None
 
 
 # ---------------------------------------------------------------------------
