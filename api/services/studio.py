@@ -324,6 +324,56 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
   </section>
 </main>""",
     },
+    # ADR-471: the fifth layout — the CANVAS, a staged frame for composed
+    # visuals (IMAGES Phase 1; ships Studio-quiet per the ADR-468 §8
+    # amendment). The artboard deliberately carries class="slide" (D-a): the
+    # kernel position/size rules and the web chrome's positionable/measurable
+    # gates key on the frame CLASS, so the whole object layer (bounding box,
+    # drag, resize, measures) is inherited, not rebuilt. Everything-positioned
+    # is a CONVENTION taught here and by the scaffold (D-e), never enforced —
+    # a flow block degrades via the kernel's var(…, auto) fallback.
+    "canvas": {
+        "label": "Canvas",
+        "mode": "paged",
+        "description": "A composed visual — layered objects on a fixed stage.",
+        "flow": (
+            "each artboard is <section class=\"slide\" data-arrange=\"free\"> — a "
+            "fixed-aspect STAGE, not a prose page. Position EVERY block "
+            "(data-x/data-y markers with style=\"--yx:N%;--yy:N%\") and size "
+            "where it matters (data-w with --yw); overlapping blocks order with "
+            "data-z (--yz, higher = in front). Text is real text (heading "
+            "blocks); images are cited figures (data-ref / data-ref-rev), never "
+            "inline bytes; shapes are inline <svg> inside a block. The root "
+            "<html> may carry data-aspect (\"1:1\" default · \"16:9\" · \"4:5\" "
+            "· \"9:16\") to set the stage's ratio. A canvas is one visual "
+            "statement per artboard — compose it like a poster, not a document."
+        ),
+        "skin": """
+    body { background: var(--deck-stage, #e8e4de); }
+    /* The artboard is a fixed-aspect STAGE (ADR-471 D-c): the aspect rides
+       the root as data-aspect (the marker) → --stage-aspect (the value) —
+       the same attribute/property split the measures use. Square by default;
+       the honest enumerated ratios below. Padding 0 so a positioned block's
+       percent-of-frame is a percent of the visible stage. */
+    html[data-aspect="16:9"] { --stage-aspect: 16 / 9; }
+    html[data-aspect="4:5"] { --stage-aspect: 4 / 5; }
+    html[data-aspect="9:16"] { --stage-aspect: 9 / 16; }
+    .slide { width: min(100%, 46rem); aspect-ratio: var(--stage-aspect, 1 / 1);
+             margin: 1.5rem auto; padding: 0; background: var(--paper);
+             box-shadow: 0 1px 6px rgba(0,0,0,0.08); overflow: hidden;
+             page-break-after: always; }
+    .slide h1 { font-size: var(--text-4xl, 2.4rem); }
+    .slide h2 { font-size: var(--text-2xl, 1.7rem); }
+    .slide .kicker { color: var(--accent); font-size: var(--text-sm, 0.85rem);
+                     letter-spacing: 0.08em; text-transform: uppercase; }
+    .slide [data-block="figure"] img { width: 100%; height: 100%;
+                                       object-fit: contain; }
+""".strip("\n"),
+        "scaffold": """<section class="slide" data-arrange="free">
+  <p class="kicker" data-block="heading" data-block-id="k1" data-x="8" data-y="8" style="--yx:8%;--yy:8%">Untitled canvas</p>
+  <h1 data-block="heading" data-block-id="t1" data-x="8" data-y="16" data-w="70" style="--yx:8%;--yy:16%;--yw:70%">The visual statement.</h1>
+</section>""",
+    },
 }
 
 
@@ -634,6 +684,21 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
 </section>""",
         },
     },
+    # ADR-471: the canvas has ONE arrangement — the open stage. No slots: the
+    # stage IS the arrangement, and blocks land positioned (D-e convention),
+    # not slotted. A future named composition (grid, thirds) would be a new
+    # row here, but "free" is the mode's identity.
+    "canvas": {
+        "free": {
+            "label": "Free",
+            "description": "An open stage — position everything.",
+            "grain": "page",
+            "slots": [],
+            "fragment": """<section class="slide" data-arrange="free">
+  <h2 data-block="heading" data-block-id="t1" data-x="8" data-y="12" style="--yx:8%;--yy:12%">New artboard</h2>
+</section>""",
+        },
+    },
 }
 
 
@@ -861,13 +926,17 @@ STUDIO_MEASURES: dict[str, dict] = {
         "description": "the block's height inside its frame (absence = the content's own height)",
     },
     # Bounded POSITION (ADR-466 D2, enacting ADR-461 D3's remaining half): x/y
-    # place a deck block at a point IN ITS FRAME — `left`/`top` as a percent of
-    # the frame's box. Deck ONLY (not `media`): a media block in a FLOW layout
-    # must never exit the flow (it has an intrinsic-ratio frame for SIZE, but
-    # position needs the fixed stage). The presence of BOTH measures is the
-    # positioned state; absence = in flow. A positioned block exits the slot
-    # contract (the ADR-461 honest remainder) and re-enters flow when an
-    # arrangement re-lays the page (applyArrangement clears x/y).
+    # place a block at a point IN ITS FRAME — `left`/`top` as a percent of the
+    # frame's box. STAGED frames only (not `media`): the `block-deck` grain is
+    # REDEFINED by ADR-471 D-a as "a block on a staged frame" — the `.slide`
+    # class, which a deck slide AND a canvas artboard both carry (the string
+    # stays for FE compat; the frame class IS the grain's boundary). A media
+    # block in a FLOW layout must never exit the flow (it has an
+    # intrinsic-ratio frame for SIZE, but position needs the fixed stage). The
+    # presence of BOTH measures is the positioned state; absence = in flow. A
+    # positioned block exits the slot contract (the ADR-461 honest remainder)
+    # and re-enters flow when an arrangement re-lays the page
+    # (applyArrangement clears x/y).
     "x": {
         "label": "X",
         "applies": ["block-deck"],
@@ -889,8 +958,10 @@ STUDIO_MEASURES: dict[str, dict] = {
 }
 
 #: Measure grains → the `applies` vocabulary above. `block-deck` is a block on
-#: a deck slide (the frame); `media` is a media block anywhere (an image has an
-#: intrinsic ratio, which is its own frame — ADR-461 D4).
+#: a STAGED frame — the `.slide` class, carried by a deck slide and (ADR-471
+#: D-a) a canvas artboard; the string predates the canvas and stays for FE
+#: compat, the frame class is the boundary. `media` is a media block anywhere
+#: (an image has an intrinsic ratio, which is its own frame — ADR-461 D4).
 MEASURE_GRAINS = {"block-deck", "media"}
 
 
@@ -981,10 +1052,12 @@ div[data-block="gallery"] figcaption { font-size: var(--text-xs, 0.75rem); }
    the natural layout (auto), never to zero. An artifact whose measure was
    dropped by a bad write still renders as itself.
 
-   Bounded by the FRAME, per D4: a slide has one (16:9, overflow:hidden, no
-   responsive obligation), and a media block's intrinsic ratio is its own. The
-   `.slide` scope is not decoration — it IS the boundary. Nothing here applies
-   to document/article/page, which reflow and would have no answer at 40rem. */
+   Bounded by the FRAME, per D4: a slide has one (fixed-aspect,
+   overflow:hidden, no responsive obligation), and a media block's intrinsic
+   ratio is its own. The `.slide` scope is not decoration — it IS the boundary,
+   and it is what a deck slide and a canvas artboard share (ADR-471 D-a).
+   Nothing here applies to document/article/page, which reflow and would have
+   no answer at 40rem. */
 .slide [data-w], [data-block="figure"][data-w], [data-block="chart"][data-w],
 [data-block="gallery"][data-w] { width: var(--yw, auto); max-width: 100%; }
 .slide [data-h], [data-block="figure"][data-h], [data-block="chart"][data-h],

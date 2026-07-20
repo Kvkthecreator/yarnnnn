@@ -97,16 +97,20 @@ def run() -> bool:
         and "splitBlockAndInsert(html, blockId, beforeInner, afterInner, fragment)" in surface,
     )
 
-    # ── D2: the deck object layer ────────────────────────────────────────
+    # ── D2: the object layer (staged frames) ─────────────────────────────
+    # ADR-471 D-a redefined the grain: `block-deck` = a block on a STAGED
+    # frame (the `.slide` class — a deck slide OR a canvas artboard). The
+    # string is unchanged (FE compat); the falsifier now guards that position
+    # stays confined to the ONE staged grain — never media, never flow.
     _check(
-        "x/y measures exist and are DECK-ONLY (the ADR-461 boundary extended)",
+        "x/y measures exist and are STAGED-FRAME-only (the ADR-461 boundary, ADR-471 grain)",
         STUDIO_MEASURES.get("x", {}).get("applies") == ["block-deck"]
         and STUDIO_MEASURES.get("y", {}).get("applies") == ["block-deck"]
         and STUDIO_MEASURES["x"]["css_var"] == "--yx"
         and STUDIO_MEASURES["y"]["css_var"] == "--yy",
     )
     _check(
-        "no continuous position admitted outside the deck frame",
+        "no continuous position admitted outside the staged frame",
         all(
             g == "block-deck"
             for key in ("x", "y")
@@ -229,6 +233,37 @@ def run() -> bool:
         "P9 frame-aware clamp: the trailing edge is bounded too (x ≤ 100 − w%)",
         "var xMax = Math.max(0, 100 - wPct);" in proj
         and "Math.min(Math.max(1, maxPct), pct)" in proj,
+    )
+
+    # ── ADR-471: the canvas mode (a staged frame for composed visuals) ────
+    from services.studio import STUDIO_ARRANGEMENTS, STUDIO_LAYOUTS, _SCAFFOLD_TITLES
+    _cv = STUDIO_LAYOUTS.get("canvas", {})
+    _check(
+        "the canvas layout exists and is paged (artboards, ADR-471 D-b)",
+        _cv.get("mode") == "paged" and _cv.get("label") == "Canvas",
+    )
+    _check(
+        "the artboard IS a .slide (D-a — the object layer inherited, not rebuilt)",
+        'class="slide"' in _cv.get("scaffold", "")
+        and 'class="slide"' in STUDIO_ARRANGEMENTS.get("canvas", {}).get("free", {}).get("fragment", ""),
+    )
+    _check(
+        "the scaffold teaches everything-positioned (D-e — positioned blocks by example)",
+        'data-x="8"' in _cv.get("scaffold", "") and "--yx:8%" in _cv.get("scaffold", ""),
+    )
+    _check(
+        "aspect is a root token in the canvas skin (D-c — marker data-aspect, value --stage-aspect)",
+        'html[data-aspect="16:9"]' in _cv.get("skin", "")
+        and "var(--stage-aspect, 1 / 1)" in _cv.get("skin", ""),
+    )
+    _check(
+        "…and deck keeps its identity 16:9 (no aspect token there)",
+        "data-aspect" not in STUDIO_LAYOUTS["deck"]["skin"]
+        and "16 / 9" in STUDIO_LAYOUTS["deck"]["skin"],
+    )
+    _check(
+        "the canvas scaffold title participates in the derived overwrite set",
+        "The visual statement." in _SCAFFOLD_TITLES,
     )
 
     ok = all(c for _, c in _results)
