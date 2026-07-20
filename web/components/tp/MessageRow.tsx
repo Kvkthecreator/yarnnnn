@@ -42,6 +42,7 @@ import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/sna
 import { MessageRenderer } from './MessageDispatch';
 import { WorkspaceFileView } from '@/components/shared/WorkspaceFileView';
 import { useFreddiePersona } from '@/lib/freddie-persona';
+import { formatMessageTime, formatAbsolute } from '@/lib/formatting';
 import { InteractiveModal } from './InteractiveModal';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import { PrincipalBadge } from '@/lib/workspace/principal-badge';
@@ -266,8 +267,11 @@ function RoutineRow({ msg, freddiePersona }: { msg: TPMessage; freddiePersona?: 
       )}
       <div className="flex items-center gap-2">
         <span className="text-muted-foreground flex-1">{summary}</span>
-        <span className="text-[10px] text-muted-foreground/50 shrink-0 tabular-nums">
-          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        <span
+          className="text-[10px] text-muted-foreground/50 shrink-0 tabular-nums"
+          title={formatAbsolute(msg.timestamp)}
+        >
+          {formatMessageTime(msg.timestamp)}
         </span>
       </div>
     </div>

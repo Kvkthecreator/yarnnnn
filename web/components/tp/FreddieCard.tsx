@@ -20,6 +20,7 @@ import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import type { FreddieCardData } from '@/types/desk';
 import { cn } from '@/lib/utils';
+import { formatAbsolute } from '@/lib/formatting';
 
 interface FreddieCardProps {
   data: FreddieCardData;
@@ -31,6 +32,8 @@ interface FreddieCardProps {
   directiveDispatched?: string | null;
   /** ADR-399: the turn artifact — reasoning + calls, in order, persistent. */
   process?: FreddieProcessItem[];
+  /** When this message landed — surfaced as the hover-time on the bubble. */
+  timestamp?: Date | string;
 }
 
 export type FreddieProcessItem =
@@ -120,7 +123,7 @@ function VerdictChip({ verdict }: { verdict: string }) {
   return null;
 }
 
-export function FreddieCard({ data, content, personaName, confidence, directiveDispatched, process }: FreddieCardProps) {
+export function FreddieCard({ data, content, personaName, confidence, directiveDispatched, process, timestamp }: FreddieCardProps) {
   const { verdict, occupant, actionType, proposalId } = data;
   const persona = occupantLabel(occupant, personaName);
 
@@ -142,7 +145,10 @@ export function FreddieCard({ data, content, personaName, confidence, directiveD
 
   // All non-observation entries: uniform muted bubble — same shape as System Agent
   return (
-    <div className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted rounded-bl-md">
+    <div
+      title={timestamp ? formatAbsolute(timestamp) : undefined}
+      className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted rounded-bl-md"
+    >
       {/* Label row: Freddie's face + persona name + verdict chip. The mascot
           (2026-07-01) gives every Freddie message the same identity the chat
           header + top-bar chip carry — one recognizable actor. Static here (a

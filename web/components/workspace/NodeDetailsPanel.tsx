@@ -33,6 +33,7 @@ import { useEffect, useState } from 'react';
 import { Loader2, FileText, Folder } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import {
   formatAuthorLabelOrSystem as formatAuthorLabel,
@@ -47,20 +48,6 @@ import type { WorkspaceTreeNode } from '@/types';
 
 function fileName(path: string): string {
   return path.split('/').filter(Boolean).pop() || path;
-}
-
-function relativeTime(value: string | null): string {
-  if (!value) return '';
-  const then = new Date(value).getTime();
-  if (Number.isNaN(then)) return '';
-  const min = Math.floor((Date.now() - then) / 60000);
-  if (min < 1) return 'just now';
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  const d = Math.floor(hr / 24);
-  if (d < 7) return `${d}d ago`;
-  return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 interface SubtreeRevision {
@@ -141,8 +128,11 @@ function FolderDetails({
                   <span className="text-[11px] text-muted-foreground shrink-0">
                     {formatAuthorLabel(rev.authored_by)}
                   </span>
-                  <span className="text-[11px] text-muted-foreground/70 shrink-0 w-16 text-right">
-                    {relativeTime(rev.created_at)}
+                  <span
+                    className="text-[11px] text-muted-foreground/70 shrink-0 w-16 text-right"
+                    title={formatAbsolute(rev.created_at)}
+                  >
+                    {formatRelativeTime(rev.created_at, { rollToDate: true })}
                   </span>
                 </button>
               </li>
@@ -239,7 +229,13 @@ function FileProperties({ node }: { node: WorkspaceTreeNode }) {
           </span>
         )}
       </PropRow>
-      {node.updated_at && <PropRow label="Modified">{relativeTime(node.updated_at)}</PropRow>}
+      {node.updated_at && (
+        <PropRow label="Modified">
+          <span title={formatAbsolute(node.updated_at)}>
+            {formatRelativeTime(node.updated_at, { rollToDate: true })}
+          </span>
+        </PropRow>
+      )}
       {contributors && contributors.length > 0 && (
         <PropRow label="Contributors">
           <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5">

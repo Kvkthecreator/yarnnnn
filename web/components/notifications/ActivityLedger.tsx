@@ -37,6 +37,7 @@ import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { PrincipalBadge } from '@/lib/workspace/principal-badge';
+import { formatLedgerTime, formatAbsolute } from '@/lib/formatting';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { EmissionsView } from '@/components/context/EmissionsView';
 import {
@@ -304,13 +305,11 @@ export function ActivityLedger() {
                         "Member (via …)"). */}
                     <PrincipalBadge authoredBy={e.actor} fallbackToSystem showLabel={false} size={12} />
                     {e.at && (
-                      <span className="text-[11px] tabular-nums text-muted-foreground/50">
-                        {new Date(e.at).toLocaleString([], {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                      <span
+                        className="text-[11px] tabular-nums text-muted-foreground/50"
+                        title={formatAbsolute(e.at)}
+                      >
+                        {formatLedgerTime(e.at)}
                       </span>
                     )}
                   </span>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api/client";
+import { formatRelativeTime } from "@/lib/formatting";
 import type { AdminAccountRow } from "@/types/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -24,14 +25,7 @@ import {
 
 function timeAgo(iso: string | null): string {
   if (!iso) return "never";
-  const then = new Date(iso).getTime();
-  const mins = Math.floor((Date.now() - then) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+  return formatRelativeTime(iso);
 }
 
 function isStale(iso: string | null): boolean {

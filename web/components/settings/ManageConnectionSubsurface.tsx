@@ -38,6 +38,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
+import { formatRelativeTime } from "@/lib/formatting";
 import type { ConnectorMeta } from "@/lib/connectors/registry";
 import { SurfaceLink } from "@/components/shell/SurfaceLink";
 
@@ -77,15 +78,10 @@ interface ManageConnectionSubsurfaceProps {
 }
 
 function relativeTime(iso?: string): string {
+  // Connector freshness labels (ADR-392 D5); time math via @/lib/formatting.
   if (!iso) return "not reading yet";
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "unknown";
-  const mins = Math.floor((Date.now() - then) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+  if (Number.isNaN(new Date(iso).getTime())) return "unknown";
+  return formatRelativeTime(iso);
 }
 
 function sinceLabel(iso: string | null | undefined): string | null {

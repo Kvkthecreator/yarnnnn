@@ -29,6 +29,7 @@ import { RefreshCw, CheckCircle2, XCircle, MinusCircle, ChevronDown, ChevronRigh
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import type { ExecutionEvent } from '@/types';
+import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 
 type ModeFilter = 'all' | 'judgment' | 'mechanical';
 type StatusFilter = 'all' | 'success' | 'failed' | 'skipped';
@@ -54,16 +55,6 @@ function formatTokens(n: number | null): string {
   if (!n) return '—';
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
   return String(n);
-}
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 function statusIcon(status: ExecutionEvent['status']) {
@@ -244,8 +235,8 @@ function EventRow({ ev }: { ev: ExecutionEvent }) {
         disabled={!hasDetail}
       >
         {statusIcon(ev.status)}
-        <span className="font-mono text-muted-foreground truncate">
-          {relativeTime(ev.created_at)}
+        <span className="font-mono text-muted-foreground truncate" title={formatAbsolute(ev.created_at)}>
+          {formatRelativeTime(ev.created_at)}
         </span>
         <span className="text-right text-muted-foreground/70">{triggerLabel(ev.trigger_type)}</span>
         <span className="text-right text-muted-foreground/70">{ev.tool_rounds != null ? `${ev.tool_rounds}r` : '—'}</span>
@@ -317,7 +308,7 @@ function JobCard({ group, defaultOpen = false }: { group: JobGroup; defaultOpen?
           {group.skippedCount > 0 && (
             <span>{group.skippedCount} skip</span>
           )}
-          <span>{relativeTime(group.lastRun)}</span>
+          <span title={formatAbsolute(group.lastRun)}>{formatRelativeTime(group.lastRun)}</span>
           {group.totalCost > 0 && group.mode !== 'mechanical' && (
             <span>${group.totalCost.toFixed(4)}</span>
           )}

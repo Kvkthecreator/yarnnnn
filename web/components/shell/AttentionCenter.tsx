@@ -51,7 +51,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { proposalActionLabel } from '@/lib/proposal-labels';
-import { formatRelativeTime } from '@/lib/formatting';
+import { formatRelativeTime, formatLedgerTime, formatAbsolute } from '@/lib/formatting';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { shellStateSuffix } from '@/lib/shell/surface-preferences';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
@@ -443,12 +443,7 @@ export function AttentionCenter() {
                       {e.actor && (
                         <PrincipalBadge authoredBy={e.actor} showLabel={false} size={11} />
                       )}
-                      {new Date(e.created_at).toLocaleString([], {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      <span title={formatAbsolute(e.created_at)}>{formatLedgerTime(e.created_at)}</span>
                     </span>
                   </button>
                 ))}

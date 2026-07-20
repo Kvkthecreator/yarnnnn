@@ -20,6 +20,7 @@ import { useProposalModal, type ProposalData } from '@/components/tp/ProposalCar
 import { api } from '@/lib/api/client';
 import { proposalQueuedByDialLine } from '@/lib/proposal-labels';
 import { cn } from '@/lib/utils';
+import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 
 interface QueueProposal extends ProposalData {
   created_at: string;
@@ -63,17 +64,6 @@ function rowLabel(p: QueueProposal): string {
   }
   const prim = p.primitive.replace(/^platform_/, '').replace(/_/g, ' ');
   return prim.charAt(0).toUpperCase() + prim.slice(1);
-}
-
-function relativeAge(iso: string): string {
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return '';
-  const mins = Math.round((Date.now() - t) / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.round(hrs / 24)}d ago`;
 }
 
 export function QueueBody() {
@@ -159,7 +149,7 @@ export function QueueBody() {
                             Agent approved
                           </span>
                         )}
-                        <span className="shrink-0 text-[11px] text-muted-foreground/50">{relativeAge(p.created_at)}</span>
+                        <span className="shrink-0 text-[11px] text-muted-foreground/50" title={formatAbsolute(p.created_at)}>{formatRelativeTime(p.created_at)}</span>
                       </button>
                     </li>
                   ))}

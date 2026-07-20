@@ -52,7 +52,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { formatTimestamp } from '@/lib/formatting';
+import { formatDaySeparator, formatAbsolute } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { ArtifactCard } from './ArtifactCard';
@@ -576,8 +576,11 @@ export function LanePanel({
               {showDay && (
                 <div className="flex items-center gap-2 my-3">
                   <div className="flex-1 h-px bg-border" />
-                  <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wide">
-                    {formatTimestamp(m.created_at)}
+                  <span
+                    className="text-[10px] text-muted-foreground/70 tracking-wide"
+                    title={formatAbsolute(m.created_at)}
+                  >
+                    {formatDaySeparator(m.created_at)}
                   </span>
                   <div className="flex-1 h-px bg-border" />
                 </div>
@@ -588,6 +591,7 @@ export function LanePanel({
               {(m.content || m.role === 'user' || !m.artifacts?.length) && (
                 <div className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
                   <div
+                    title={m.created_at ? formatAbsolute(m.created_at) : undefined}
                     className={cn(
                       'max-w-[85%] rounded-lg px-3 py-2 text-sm break-words',
                       m.role === 'user'

@@ -35,6 +35,7 @@ import { useFileLoad } from '@/components/workspace/useFileLoad';
 // private getFileKind into the shared kernel-default table so every mount
 // dispatches through one layer.
 import { describeViewerApplication } from '@/lib/file-types';
+import { formatTimestamp } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel, authorAccent } from '@/lib/workspace/attribution';
 import { operatorCanOrganize } from '@/lib/workspace/ownership';
@@ -493,29 +494,3 @@ function describeNodeKind(node: WorkspaceTreeNode): string {
   return describeViewerApplication(node.path);
 }
 
-function formatTimestamp(value?: string, detailed = false): string {
-  if (!value) {
-    return '—';
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  if (detailed) {
-    return date.toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  }
-
-  return date.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-}

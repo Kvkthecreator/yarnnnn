@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
-import { formatShort, getFreshness } from '@/lib/formatting';
+import { formatRelativeTime, getFreshness } from '@/lib/formatting';
 import type { Agent, Recurrence } from '@/types';
 
 interface AgentDashboardProps {
@@ -104,7 +104,7 @@ export function AgentDashboard({ agent, tasks }: AgentDashboardProps) {
       <div className="px-5 py-2.5 border-b border-border/50 flex items-center justify-between text-xs text-muted-foreground">
         <span>
           {entityCount} {entityCount === 1 ? 'entity' : 'entities'}
-          {allUpdates[0] && <> · Last updated {formatShort(allUpdates[0])}</>}
+          {allUpdates[0] && <> · Last updated {formatRelativeTime(allUpdates[0])}</>}
         </span>
         <SurfaceLink
           to="files"
@@ -141,7 +141,7 @@ export function AgentDashboard({ agent, tasks }: AgentDashboardProps) {
               'text-[11px] text-right self-center tabular-nums',
               freshness === 'new' ? 'text-green-600/70' : freshness === 'recent' ? 'text-muted-foreground/60' : 'text-muted-foreground/35'
             )}>
-              {file.updated_at ? formatShort(file.updated_at) : '—'}
+              {file.updated_at ? formatRelativeTime(file.updated_at) : '—'}
             </div>
           </div>
         );
@@ -180,7 +180,7 @@ export function AgentDashboard({ agent, tasks }: AgentDashboardProps) {
               'text-[11px] text-right self-center tabular-nums',
               freshness === 'new' ? 'text-green-600/70' : freshness === 'recent' ? 'text-muted-foreground/60' : 'text-muted-foreground/35'
             )}>
-              {entity.last_updated ? formatShort(entity.last_updated) : '—'}
+              {entity.last_updated ? formatRelativeTime(entity.last_updated) : '—'}
             </div>
           </div>
         );

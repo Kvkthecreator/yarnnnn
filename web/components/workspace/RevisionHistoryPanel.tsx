@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import {
   authorClass,
@@ -128,21 +129,6 @@ function AuthorIcon({ cls }: { cls: AuthorClass }) {
     case 'system':
     default:
       return <Wrench className={c} />;
-  }
-}
-
-function formatAge(iso: string): string {
-  try {
-    const then = new Date(iso).getTime();
-    if (!Number.isFinite(then)) return '';
-    const seconds = Math.floor((Date.now() - then) / 1000);
-    if (seconds < 60) return 'just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-    return new Date(iso).toLocaleDateString();
-  } catch {
-    return '';
   }
 }
 
@@ -346,8 +332,8 @@ export function RevisionHistoryPanel({
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs text-foreground truncate">{rev.message}</div>
-                        <div className="text-[10px] text-muted-foreground/60">
-                          {formatAge(rev.created_at)}
+                        <div className="text-[10px] text-muted-foreground/60" title={formatAbsolute(rev.created_at)}>
+                          {formatRelativeTime(rev.created_at, { rollToDate: true })}
                         </div>
                       </div>
                       {!isHead && !revertDisabled && (

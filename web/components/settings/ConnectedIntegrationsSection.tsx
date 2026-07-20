@@ -11,6 +11,7 @@ import {
   Plus,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
+import { formatRelativeTime } from "@/lib/formatting";
 import {
   CONNECTOR_REGISTRY,
   FRESHNESS_PROVIDERS,
@@ -53,16 +54,11 @@ interface PlatformFreshness {
 function relativeTime(iso: string | null): string {
   // ADR-392 D5 — honest freshness. A connected-but-unread platform is "not
   // reading yet" (available, awaiting selection + a capture recurrence), NOT
-  // "never synced" (which implies a sync is pending that never fires).
+  // "never synced" (which implies a sync is pending that never fires). The
+  // time math itself delegates to the shared formatter (@/lib/formatting).
   if (!iso) return "not reading yet";
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "unknown";
-  const mins = Math.floor((Date.now() - then) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+  if (Number.isNaN(new Date(iso).getTime())) return "unknown";
+  return formatRelativeTime(iso);
 }
 
 interface ConnectedIntegrationsSectionProps {

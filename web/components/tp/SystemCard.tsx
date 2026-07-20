@@ -12,6 +12,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, Layers, ListCollapse } from 'lucide-react';
 import type { SystemCardType } from '@/types/desk';
+import { formatMessageTime, formatAbsolute } from '@/lib/formatting';
 
 interface WorkspaceInitCompleteData {
   system_card: 'workspace_init_complete';
@@ -85,8 +86,8 @@ function TaskCompleteCard({ data }: { data: TaskCompleteData }) {
         <div className="min-w-0">
           <p className="text-xs font-medium truncate">{title} finished</p>
           {data.run_at && (
-            <p className="text-[11px] text-muted-foreground">
-              {new Date(data.run_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <p className="text-[11px] text-muted-foreground" title={formatAbsolute(data.run_at)}>
+              {formatMessageTime(data.run_at)}
             </p>
           )}
         </div>

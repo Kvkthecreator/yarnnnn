@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api/client";
+import { formatLedgerTime } from "@/lib/formatting";
 import type {
   AdminOverviewStats,
   AdminTokenUsage,
@@ -98,13 +99,7 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const formatDate = (dateStr: string) => formatLedgerTime(dateStr);
 
   const formatTokens = (n: number) => {
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;

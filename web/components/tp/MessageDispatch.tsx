@@ -48,6 +48,7 @@ import { MessageBlocks } from './InlineToolCall';
 import { ToolResultList } from './ToolResultCard';
 import { InlineProposalChipById } from './ProposalCard';
 import { useFreddiePersona } from '@/lib/freddie-persona';
+import { formatAbsolute } from '@/lib/formatting';
 
 import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/snapshot';
 
@@ -96,7 +97,10 @@ interface RendererProps {
  */
 function renderUserBubble({ msg }: RendererProps): JSX.Element {
   return (
-    <div className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-primary/10 ml-auto rounded-br-md">
+    <div
+      title={formatAbsolute(msg.timestamp)}
+      className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-primary/10 ml-auto rounded-br-md"
+    >
       <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1 uppercase">
         You
       </span>
@@ -115,7 +119,10 @@ function renderUserBubble({ msg }: RendererProps): JSX.Element {
  */
 function renderAgentBubble({ msg }: RendererProps): JSX.Element {
   return (
-    <div className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted rounded-bl-md">
+    <div
+      title={formatAbsolute(msg.timestamp)}
+      className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted rounded-bl-md"
+    >
       <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1 font-brand text-[10px]">
         {msg.authorAgentSlug ?? 'agent'}
       </span>
@@ -160,6 +167,7 @@ function ReviewerBubbleRenderer({ msg }: RendererProps): JSX.Element {
       content={msg.content}
       personaName={personaName}
       process={process.length > 0 ? process : undefined}
+      timestamp={msg.timestamp}
     />
   );
 }
@@ -186,7 +194,10 @@ function ReviewerBubbleRenderer({ msg }: RendererProps): JSX.Element {
 function renderSystemActivity({ msg, isLoading }: RendererProps): JSX.Element {
   const showLoading = !msg.content && isLoading;
   return (
-    <div className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted rounded-bl-md">
+    <div
+      title={formatAbsolute(msg.timestamp)}
+      className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted rounded-bl-md"
+    >
       <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1 uppercase">
         system
       </span>
