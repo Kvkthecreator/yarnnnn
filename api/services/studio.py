@@ -344,9 +344,10 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
             "data-z (--yz, higher = in front). Text is real text (heading "
             "blocks); images are cited figures (data-ref / data-ref-rev), never "
             "inline bytes; shapes are inline <svg> inside a block. The root "
-            "<html> may carry data-aspect (\"1:1\" default · \"16:9\" · \"4:5\" "
-            "· \"9:16\") to set the stage's ratio. A canvas is one visual "
-            "statement per artboard — compose it like a poster, not a document."
+            "<html> may carry data-aspect (absence = square · \"wide\" 16:9 · "
+            "\"portrait\" 4:5 · \"story\" 9:16) to set the stage's ratio. A "
+            "canvas is one visual statement per artboard — compose it like a "
+            "poster, not a document."
         ),
         "skin": """
     body { background: var(--deck-stage, #e8e4de); }
@@ -355,9 +356,9 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
        the same attribute/property split the measures use. Square by default;
        the honest enumerated ratios below. Padding 0 so a positioned block's
        percent-of-frame is a percent of the visible stage. */
-    html[data-aspect="16:9"] { --stage-aspect: 16 / 9; }
-    html[data-aspect="4:5"] { --stage-aspect: 4 / 5; }
-    html[data-aspect="9:16"] { --stage-aspect: 9 / 16; }
+    html[data-aspect="wide"] { --stage-aspect: 16 / 9; }
+    html[data-aspect="portrait"] { --stage-aspect: 4 / 5; }
+    html[data-aspect="story"] { --stage-aspect: 9 / 16; }
     .slide { width: min(100%, 46rem); aspect-ratio: var(--stage-aspect, 1 / 1);
              margin: 1.5rem auto; padding: 0; background: var(--paper);
              box-shadow: 0 1px 6px rgba(0,0,0,0.08); overflow: hidden;
@@ -859,6 +860,24 @@ STUDIO_TOKENS: dict[str, dict] = {
             {"value": "wide", "label": "Wide"},
         ],
         "description": "the content column width on a document/article (absence = the layout default)",
+    },
+    # ADR-471 D-c: the canvas stage's aspect — a ROOT token (the marker
+    # data-aspect; the canvas skin maps each value to --stage-aspect). Default
+    # by omission per the align lesson: absence = square (1:1), so square is
+    # not a value. Values are SLUGS, not ratio strings — the adr461 gate's
+    # rule (every token value enumerable; continuous/typed values belong to a
+    # measure), and it bit on "16:9" during ADR-471 C4, correctly.
+    # `document-canvas` follows the document-flow/document-deck
+    # layout-scoped-grain precedent — the picker appears only on a canvas.
+    "aspect": {
+        "label": "Aspect",
+        "applies": ["document-canvas"],
+        "values": [
+            {"value": "wide", "label": "Wide (16:9)"},
+            {"value": "portrait", "label": "Portrait (4:5)"},
+            {"value": "story", "label": "Story (9:16)"},
+        ],
+        "description": "the stage's aspect ratio (absence = square)",
     },
     # ADR-456 Wave 1: slide numbers — CSS counters, script-free, opt-in.
     "pagenum": {

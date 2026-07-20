@@ -25,7 +25,7 @@ The navigator strip, the New-‹noun› gallery, and nav behavior all derive fro
 
 ## D-c — Aspect is a root token
 
-`data-aspect` on the artifact root (`1:1` default · `16:9` · `4:5` · `9:16`), mapped to `--stage-aspect` by enumerated selectors in the **canvas skin** (the marker-attribute + custom-property split the measures already use). The artboard reads `aspect-ratio: var(--stage-aspect, 1/1)`. Deck keeps its hardcoded 16:9 — that ratio is deck's identity, not a preference.
+`data-aspect` on the artifact root — absence = square (default by omission, the align lesson) · `wide` (16:9) · `portrait` (4:5) · `story` (9:16) — mapped to `--stage-aspect` by enumerated selectors in the **canvas skin** (the marker-attribute + custom-property split the measures already use). Values are **slugs, not ratio strings**: the ADR-461 gate's rule (every token value enumerable; typed/continuous values belong to a measure) bit on `"16:9"` during implementation, correctly, and the values conformed. The artboard reads `aspect-ratio: var(--stage-aspect, 1/1)`. Deck keeps its hardcoded 16:9 — that ratio is deck's identity, not a preference. Served through the existing token registry with grain `document-canvas` (the `document-flow`/`document-deck` layout-scoped precedent), so the Design-tab picker appears only on a canvas with zero new FE control code.
 
 ## D-d — Z earns its token
 

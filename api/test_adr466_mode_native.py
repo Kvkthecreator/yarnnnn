@@ -252,8 +252,8 @@ def run() -> bool:
         'data-x="8"' in _cv.get("scaffold", "") and "--yx:8%" in _cv.get("scaffold", ""),
     )
     _check(
-        "aspect is a root token in the canvas skin (D-c — marker data-aspect, value --stage-aspect)",
-        'html[data-aspect="16:9"]' in _cv.get("skin", "")
+        "aspect is a root token in the canvas skin (D-c — slug marker data-aspect, value --stage-aspect)",
+        'html[data-aspect="wide"]' in _cv.get("skin", "")
         and "var(--stage-aspect, 1 / 1)" in _cv.get("skin", ""),
     )
     _check(

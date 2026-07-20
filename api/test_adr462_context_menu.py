@@ -328,11 +328,16 @@ def main() -> bool:
     )
 
     print("\n── The honesty checks ──")
+    # ADR-471 D-d flipped this check's premise BY THE RULE IT NAMED: the old
+    # assertion was "no z-order row until the kernel ships a stacking token,
+    # if it ever earns one" — the token landed (--yz, kernel v11), so the
+    # honest form inverts: Bring forward/backward may exist ONLY gated on the
+    # positioned state and beside an unrenamed flow verb. Flow order and
+    # stacking order stay two distinct, honestly-labeled acts.
     _check(
-        "no row claims z-order the kernel cannot do (moveBlock is FLOW order, "
-        "so the label is 'Move up', never 'Bring forward')",
-        "Bring forward" not in menu and "Bring to front" not in menu
-        and "Move up" in menu,
+        "z rows are positioned-gated and flow verbs keep their honest names "
+        "(Move up = flow order; Bring forward = the ADR-471 z token)",
+        "Move up" in menu and "Bring forward" in menu and "target.positioned" in menu,
     )
     _check(
         "the two rows no reference can ship are present",

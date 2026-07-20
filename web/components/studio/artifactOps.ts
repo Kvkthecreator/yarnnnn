@@ -481,14 +481,15 @@ export function setMeasure(
 export function setGeometry(
   html: string,
   blockId: string,
-  geo: { x?: number; y?: number; w?: number },
-  specs: Record<'x' | 'y' | 'w', { cssVar: string; unit: string; min: number; max: number }>,
+  geo: { x?: number; y?: number; w?: number; z?: number },
+  specs: Record<'x' | 'y' | 'w', { cssVar: string; unit: string; min: number; max: number }> &
+    { z?: { cssVar: string; unit: string; min: number; max: number } },
 ): OpResult | null {
   const doc = parse(html);
   const el = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
   if (!el) return null;
   const before = el.outerHTML;
-  const vars = Object.values(specs).map((s) => s.cssVar);
+  const vars = Object.values(specs).filter(Boolean).map((s) => (s as { cssVar: string }).cssVar);
   const decls = (el.getAttribute('style') || '')
     .split(';')
     .map((d) => d.trim())
@@ -499,10 +500,10 @@ export function setGeometry(
     .map((d) => d.trim())
     .filter((d) => d && vars.some((v) => d.startsWith(`${v}:`)));
   const next = new Map(keep.map((d) => [d.split(':')[0].trim(), d]));
-  (['x', 'y', 'w'] as const).forEach((key) => {
+  (['x', 'y', 'w', 'z'] as const).forEach((key) => {
     const v = geo[key];
-    if (v == null) return;
     const s = specs[key];
+    if (v == null || !s) return;
     const clamped = Math.max(s.min, Math.min(s.max, Math.round(v)));
     el.setAttribute(`data-${key}`, '');
     next.set(s.cssVar, `${s.cssVar}: ${clamped}${s.unit}`);
@@ -512,6 +513,27 @@ export function setGeometry(
   else el.removeAttribute('style');
   if (el.outerHTML === before) return null;
   return { html: serialize(doc), landedId: blockId };
+}
+
+/** ADR-471 D-d — nudge a POSITIONED block's stacking order by ±1. Reads the
+ *  current `--yz` off the element's own style (absence = 0, the document-order
+ *  default), clamps from the SERVED spec, and writes through setMeasure (one
+ *  revision, marker + value). Returns null for a non-positioned block — z
+ *  orders positioned blocks; on a static block the kernel rule is inert and a
+ *  write would be a lie the menu should not offer (the gate is target.positioned,
+ *  this is the op-side backstop). */
+export function nudgeZ(
+  html: string,
+  blockId: string,
+  delta: number,
+  spec: { cssVar: string; unit: string; min: number; max: number },
+): OpResult | null {
+  const doc = parse(html);
+  const el = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+  if (!el || !el.hasAttribute('data-x') || !el.hasAttribute('data-y')) return null;
+  const m = (el.getAttribute('style') || '').match(/--yz:\s*(-?\d+)/);
+  const current = m ? parseInt(m[1], 10) : 0;
+  return setMeasure(html, blockId, 'z', current + delta, spec);
 }
 
 /** ADR-466 D2 — bounded position: place a deck block at a point in its frame.

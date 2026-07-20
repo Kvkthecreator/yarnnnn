@@ -23,7 +23,7 @@
 import { useEffect } from 'react';
 import {
   Copy, ClipboardPaste, CopyPlus, Trash2, Type, LayoutGrid,
-  ArrowUp, ArrowDown, Sparkles, SearchCheck, Link2, History,
+  ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, Sparkles, SearchCheck, Link2, History,
 } from 'lucide-react';
 import type { StudioContextTarget } from './StudioCanvas';
 
@@ -38,11 +38,15 @@ export interface StudioBlockMenuProps {
   /** Opens the existing Turn-into / Re-arrange homes in the Design tab. */
   onTurnInto: () => void;
   onRearrange: () => void;
-  /** Move the block one position earlier in its flow. NOT z-order: the kernel
-   *  has no stacking token, so "Bring forward" would be a mislabel (ADR-462
-   *  §Implementation). This is document order, and it says so. */
+  /** Move the block one position earlier in its flow — document order, and it
+   *  says so. */
   onMoveUp: () => void;
   onMoveDown: () => void;
+  /** ADR-471 D-d: z earned its token, so Bring forward/backward are finally
+   *  honest verbs — stacking order among POSITIONED blocks (target.positioned
+   *  gates the rows; nudgeZ backstops the op side). */
+  onBringForward: () => void;
+  onBringBackward: () => void;
   /** Metered (D6): both SEED the composer and send nothing. */
   onRewrite: () => void;
   onCheck: () => void;
@@ -96,7 +100,7 @@ const ICO = 'h-3.5 w-3.5';
 
 export function StudioBlockMenu({
   target, onClose, onCopy, onPaste, onDuplicate, onDelete,
-  onTurnInto, onRearrange, onMoveUp, onMoveDown, onRewrite, onCheck,
+  onTurnInto, onRearrange, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck,
   onCopyLink, onHistory,
 }: StudioBlockMenuProps) {
   useEffect(() => {
@@ -147,11 +151,11 @@ export function StudioBlockMenu({
       <Row icon={<LayoutGrid className={ICO} />} onClick={() => run(onRearrange)}>
         Re-arrange…
       </Row>
-      {/* Document order, NOT z-order. ADR-462 D3 scored "Bring to front" as
-          frame-gated geometry — but the kernel ships no stacking token, so a
-          row wearing that label would move a block up the FLOW and call it
-          "front". The honest verb is the one the op actually performs; real
-          z-order arrives with a token, if it ever earns one. */}
+      {/* Move up/down is DOCUMENT order and says so. Bring forward/backward is
+          Z-ORDER — the token arrived (ADR-471 D-d: composed visuals made
+          blocks overlap on purpose), so the frame-gated rows ADR-462 D3 scored
+          are finally honest: they appear only on a POSITIONED block (the
+          DOM-side gate travels in the target), and the op writes --yz. */}
       {hasBlock && (
         <>
           <Row icon={<ArrowUp className={ICO} />} onClick={() => run(onMoveUp)}>
@@ -159,6 +163,16 @@ export function StudioBlockMenu({
           </Row>
           <Row icon={<ArrowDown className={ICO} />} onClick={() => run(onMoveDown)}>
             Move down
+          </Row>
+        </>
+      )}
+      {hasBlock && target.positioned && (
+        <>
+          <Row icon={<ChevronsUp className={ICO} />} onClick={() => run(onBringForward)}>
+            Bring forward
+          </Row>
+          <Row icon={<ChevronsDown className={ICO} />} onClick={() => run(onBringBackward)}>
+            Bring backward
           </Row>
         </>
       )}

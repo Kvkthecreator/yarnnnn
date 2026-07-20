@@ -352,7 +352,10 @@ export function StudioDesignTab({
           // a page is full-width bands — measure applies to neither (W3).
           ((layout === 'document' || layout === 'article') &&
             t.applies.includes('document-flow')) ||
-          (layout === 'deck' && t.applies.includes('document-deck')),
+          (layout === 'deck' && t.applies.includes('document-deck')) ||
+          // ADR-471 D-c: the aspect token appears only on a canvas — the
+          // document-flow/document-deck layout-scoped-grain precedent.
+          (layout === 'canvas' && t.applies.includes('document-canvas')),
       ),
     [tokens, layout],
   );

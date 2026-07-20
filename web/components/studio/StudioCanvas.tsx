@@ -43,6 +43,9 @@ export interface StudioContextTarget {
   /** ADR-461 D4's gate, answered by the only side that can see the DOM. Gates
    *  the geometry rows (Bring forward) — never guessed from the layout name. */
   framed: boolean;
+  /** ADR-471 D-d: both x/y markers present — the positioned state. Gates the
+   *  z verbs (Bring forward/backward order POSITIONED blocks). */
+  positioned: boolean;
 }
 
 export interface PointerEvent2 {
@@ -179,13 +182,14 @@ interface StudioCanvasProps {
   zoom?: number;
 }
 
-// A deck slide's natural landscape stage (ADR-447 D7.7) — the projection pins
-// deck slides to this fixed box in the canvas so a narrow column can't collapse
-// them (see DECK_STAGE_W in projection.ts). The canvas then AUTO-FITS: it scales
-// the stage down so the 992px-wide slide fits the actual column width, and the
-// operator's zoom rides on top of that fit. Documents/articles are fluid (no
-// fixed stage), so they get no fit — their base is 1.
+// A staged layout's natural width (ADR-447 D7.7; ADR-471) — the projection
+// pins the stage to a fixed box in the canvas so a narrow column can't
+// collapse it (see DECK_STAGE_W / CANVAS_STAGE_W in projection.ts). The
+// canvas then AUTO-FITS: it scales the stage down so it fits the actual
+// column width, and the operator's zoom rides on top of that fit.
+// Documents/articles are fluid (no fixed stage), so they get no fit.
 const DECK_STAGE_W = 992;
+const CANVAS_STAGE_W = 736;
 
 export function StudioCanvas({
   file,
@@ -220,9 +224,13 @@ export function StudioCanvas({
   const [projected, setProjected] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Is this a deck? (the projection pins deck slides to a fixed stage.) The root
-  // carries data-template="deck"; a cheap string test avoids re-parsing.
+  // Is this a STAGED layout? (the projection pins deck slides / canvas
+  // artboards to a fixed stage — ADR-471 D-a shares the frame.) The root
+  // carries data-template; cheap string tests avoid re-parsing.
   const isDeck = file.content?.includes('data-template="deck"') ?? false;
+  const isCanvasTpl = file.content?.includes('data-template="canvas"') ?? false;
+  const isStaged = isDeck || isCanvasTpl;
+  const stageW = isDeck ? DECK_STAGE_W : CANVAS_STAGE_W;
 
   // The auto-fit scale: for a deck, shrink the 992px stage to the column width
   // (never enlarge past 1); for fluid layouts, 1. Measured off the iframe's own
@@ -231,26 +239,26 @@ export function StudioCanvas({
   const [fitScale, setFitScale] = useState(1);
   useEffect(() => {
     const frame = iframeRef.current;
-    if (!frame || !isDeck) {
+    if (!frame || !isStaged) {
       setFitScale(1);
       return;
     }
     const measure = () => {
       const w = frame.clientWidth;
-      if (w > 0) setFitScale(Math.min(1, w / DECK_STAGE_W));
+      if (w > 0) setFitScale(Math.min(1, w / stageW));
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(frame);
     return () => ro.disconnect();
     // `projected` is a dependency, not decoration: on first mount the content
-    // has not loaded, so isDeck is false and this effect settles fitScale=1 and
-    // never re-runs — iframeRef is a ref, so the frame appearing re-renders
+    // has not loaded, so isStaged is false and this effect settles fitScale=1
+    // and never re-runs — iframeRef is a ref, so the frame appearing re-renders
     // nothing. A deck then rendered its 992px stage 1:1 inside a ~370px column
     // (chat + DevTools open) and the member saw a slide's blank left margin: a
     // "broken" white canvas that was really an unfitted one. Re-running once the
     // projection lands measures the frame that now exists.
-  }, [isDeck, projected]);
+  }, [isStaged, stageW, projected]);
   const effectiveZoom = fitScale * zoom;
 
   // Re-project on CONTENT change (not on file-object identity — useFileLoad

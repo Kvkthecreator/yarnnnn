@@ -73,6 +73,7 @@ import {
   mergeBlock,
   moveBlock,
   moveBlockTo,
+  nudgeZ,
   movePage,
   movePageTo,
   splitBlock,
@@ -841,6 +842,7 @@ export function StudioSurface() {
     const sx = vocabulary?.measures?.find((m) => m.key === 'x');
     const sy = vocabulary?.measures?.find((m) => m.key === 'y');
     const sw = vocabulary?.measures?.find((m) => m.key === 'w');
+    const sz = vocabulary?.measures?.find((m) => m.key === 'z');
     if (!sx || !sy || !sw) return null;
     const spec = (s: NonNullable<typeof sx>) => ({
       cssVar: s.css_var,
@@ -848,7 +850,9 @@ export function StudioSurface() {
       min: s.min,
       max: s.max,
     });
-    return { x: spec(sx), y: spec(sy), w: spec(sw) };
+    // z is optional (ADR-471 D-d): a vocabulary served before the token
+    // simply yields no z spec, and the z paths no-op.
+    return { x: spec(sx), y: spec(sy), w: spec(sw), ...(sz ? { z: spec(sz) } : {}) };
   }, [vocabulary]);
   const handleGeometry = useCallback(
     (blockId: string, geo: { x?: number; y?: number; w?: number }) => {
@@ -1967,6 +1971,20 @@ export function StudioSurface() {
                   onRearrange={menuOpenDesign}
                   onMoveUp={() => handleBlockVerb('up')}
                   onMoveDown={() => handleBlockVerb('down')}
+                  onBringForward={() => {
+                    // ADR-471 D-d — z among positioned blocks; the spec comes
+                    // SERVED (geometrySpecs), never invented FE-side.
+                    const id = ctxMenu?.blockId;
+                    const gz = geometrySpecs()?.z;
+                    if (id && gz)
+                      void applyOp((html) => nudgeZ(html, id, +1, gz), `Studio: bring ${id} forward`);
+                  }}
+                  onBringBackward={() => {
+                    const id = ctxMenu?.blockId;
+                    const gz = geometrySpecs()?.z;
+                    if (id && gz)
+                      void applyOp((html) => nudgeZ(html, id, -1, gz), `Studio: bring ${id} backward`);
+                  }}
                   onRewrite={menuRewrite}
                   onCheck={menuCheck}
                   onCopyLink={menuCopyBlockLink}

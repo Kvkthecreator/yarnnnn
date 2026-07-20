@@ -128,9 +128,13 @@ def run() -> bool:
     # canvas that reads as broken but is merely unfitted (the zoom chip still
     # says 100%, the tell). Re-running once `projected` lands fixes it.
     canvas = (web / "components/studio/StudioCanvas.tsx").read_text()
+    # ADR-471: the fit generalized deck→staged (deck slides + canvas
+    # artboards, per-template stage width) — the check's intent is unchanged:
+    # `projected` must be a dependency so the fit re-measures once content
+    # lands.
     _check(
-        "the deck auto-fit re-measures once the projection lands (not [isDeck] alone)",
-        "}, [isDeck, projected]);" in canvas,
+        "the staged auto-fit re-measures once the projection lands (not [isStaged] alone)",
+        "}, [isStaged, stageW, projected]);" in canvas,
     )
     _check(
         "the fit feeds the zoom the runtime applies (fitScale × zoom)",

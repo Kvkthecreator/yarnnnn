@@ -296,6 +296,17 @@ html[data-template="deck"] .slide {
 }
 `;
 
+// ADR-471 — the canvas artboard's stage: pin the WIDTH only; height follows
+// the skin's aspect-ratio (the data-aspect → --stage-aspect root token), so
+// one stage rule serves every ratio. Self-gates on the template like
+// DECK_STAGE_CSS — harmless elsewhere.
+export const CANVAS_STAGE_W = 736; // 46rem — the artboard's natural width
+
+const CANVAS_STAGE_CSS = `
+html[data-template="canvas"] body { display: flex; flex-direction: column; align-items: center; }
+html[data-template="canvas"] .slide { width: ${CANVAS_STAGE_W}px !important; flex: 0 0 auto; }
+`;
+
 // The TEXT-editable block kinds (ADR-456 W2's Turn-into set): a single click on
 // one of these enters edit-at-caret (F4); media/data/structured kinds
 // (figure/gallery/table/metrics/chart) stay select-only. Kept in sync with the
@@ -494,6 +505,9 @@ const POINTER_SCRIPT = `
       // the only side that can see the DOM, so it answers "is this framed?"
       // rather than making the parent guess from the layout name.
       framed: mark ? !!(mark.closest && mark.closest('.slide')) : false,
+      // ADR-471 D-d: z orders POSITIONED blocks — the same DOM-side answer,
+      // one gate over (presence of both x/y markers is the positioned state).
+      positioned: blk ? !!(blk.hasAttribute('data-x') && blk.hasAttribute('data-y')) : false,
     }, '*');
   });
 
@@ -2475,7 +2489,7 @@ export async function resolveArtifactHtml(
     const style = doc.createElement('style');
     // DECK_STAGE_CSS self-gates on html[data-template="deck"] — harmless on
     // document/article, load-bearing on decks (fixes the narrow-column collapse).
-    style.textContent = DECK_STAGE_CSS + POINTER_CSS + (opts?.edit ? EDIT_CSS : '');
+    style.textContent = DECK_STAGE_CSS + CANVAS_STAGE_CSS + POINTER_CSS + (opts?.edit ? EDIT_CSS : '');
     doc.head?.appendChild(style);
     if (opts?.edit) {
       // The edit runtime is injected FIRST so window.__yarnnnEditingId is
