@@ -771,13 +771,43 @@ async def get_workspace_file(
             )
 
         row = rows[0]
+
+        # ADR-427 Phase 2 (D4): a binary head serves a MINTED, TTL'd URL in
+        # the response — never a stored capability. Detected by the head
+        # blob's storage_key; content goes None (the '' denorm is a
+        # Category-2 text cache, meaningless for binary).
+        content = row.get("content")
+        content_url = row.get("content_url")
+        if not (content or "").strip() and row.get("head_version_id"):
+            try:
+                blob = (
+                    auth.client.table("workspace_file_versions")
+                    .select("blob_sha, workspace_blobs(storage_key)")
+                    .eq("id", row["head_version_id"])
+                    .limit(1)
+                    .execute()
+                ).data
+                meta = (blob or [{}])[0].get("workspace_blobs") or {}
+                if isinstance(meta, dict) and meta.get("storage_key"):
+                    from services.storage_backend import get_storage_backend
+                    from services.supabase import get_service_client
+
+                    minted = get_storage_backend(get_service_client()).mint_serving_url(
+                        blob[0]["blob_sha"], expires_in=3600
+                    )
+                    if minted:
+                        content = None
+                        content_url = minted
+            except Exception as exc:  # noqa: BLE001 — serving falls back to the row
+                logger.warning("[WORKSPACE_API] binary mint failed for %s: %s", path, exc)
+
         return FileResponse(
             path=row["path"],
-            content=row.get("content"),
+            content=content,
             summary=row.get("summary"),
             updated_at=row.get("updated_at"),
             content_type=row.get("content_type"),
-            content_url=row.get("content_url"),
+            content_url=content_url,
             metadata=row.get("metadata"),
             head_version_id=row.get("head_version_id"),
         )

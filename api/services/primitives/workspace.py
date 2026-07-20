@@ -524,6 +524,64 @@ async def _log_cross_agent_reference(auth: Any, referenced_agent_ids: list[str])
         logger.debug(f"[WORKSPACE] Reference logging failed (non-fatal): {e}")
 
 
+def _binary_file_notice(auth: Any, abs_path: str, scope: str, rel_path: str) -> Optional[dict]:
+    """ADR-427 §8: the legible binary answer for a text-shaped read.
+
+    A binary revision's TEXT denorm is '' by contract, so a ReadFile that
+    lands on one must say "this is binary" (type + size), never hand back an
+    empty string that reads as an empty file. Returns the notice dict when the
+    path's head is a binary blob, else None (a genuinely empty text file stays
+    an empty text file)."""
+    try:
+        row = (
+            auth.client.table("workspace_files")
+            .select("content_type, head_version_id")
+            .eq(*_scope_filter(auth))
+            .eq("path", abs_path)
+            .limit(1)
+            .execute()
+        ).data
+        if not row or not row[0].get("head_version_id"):
+            return None
+        blob = (
+            auth.client.table("workspace_file_versions")
+            .select("blob_sha, workspace_blobs(storage_key, byte_size)")
+            .eq("id", row[0]["head_version_id"])
+            .limit(1)
+            .execute()
+        ).data
+        if not blob:
+            return None
+        meta = blob[0].get("workspace_blobs") or {}
+        if not isinstance(meta, dict) or not meta.get("storage_key"):
+            return None
+        content_type = row[0].get("content_type") or "application/octet-stream"
+        byte_size = meta.get("byte_size")
+        return {
+            "success": True,
+            "found": True,
+            "scope": scope,
+            "path": rel_path,
+            "binary": True,
+            "content": None,
+            "content_type": content_type,
+            "byte_size": byte_size,
+            "message": (
+                f"Binary file ({content_type}, {byte_size or '?'} bytes). "
+                "Its bytes are served out-of-band — text tools cannot read them. "
+                "The file surface/viewer serves it via a minted URL."
+            ),
+        }
+    except Exception as exc:  # noqa: BLE001 — legibility must never break a read
+        logger.debug("[READ_FILE] binary-notice probe failed for %s: %s", abs_path, exc)
+        return None
+
+
+def _scope_filter(auth: Any):
+    from services.workspace_context import substrate_scope_filter
+    return substrate_scope_filter(auth.user_id)
+
+
 async def handle_read_file(auth: Any, input: dict) -> dict:
     """Handle ReadFile primitive (ADR-168: renamed from ReadWorkspace; ADR-235 Option A: scope='workspace').
 
@@ -558,6 +616,11 @@ async def handle_read_file(auth: Any, input: dict) -> dict:
                 "path": path,
                 "message": f"File not found: {path}. Use ListFiles to see available files.",
             }
+        if content == "":
+            # ADR-427 §8: an empty denorm may be a binary file — answer legibly.
+            notice = _binary_file_notice(auth, f"/workspace/{path}", "workspace", path)
+            if notice:
+                return notice
         return {
             "success": True,
             "found": True,
@@ -574,7 +637,8 @@ async def handle_read_file(auth: Any, input: dict) -> dict:
             "message": "ReadFile scope='agent' requires agent context. Use scope='workspace' for operator-shared paths.",
         }
 
-    ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(agent))
+    agent_slug = get_agent_slug(agent)
+    ws = AgentWorkspace(auth.client, auth.user_id, agent_slug)
     content = await ws.read(path)
     if content is None:
         return {
@@ -585,6 +649,13 @@ async def handle_read_file(auth: Any, input: dict) -> dict:
             "message": f"File not found: {path}. Use ListFiles to see available files.",
         }
 
+    if content == "":
+        # ADR-427 §8: an empty denorm may be a binary file — answer legibly.
+        notice = _binary_file_notice(
+            auth, f"/agents/{agent_slug}/{path}", "agent", path
+        )
+        if notice:
+            return notice
     return {
         "success": True,
         "found": True,
