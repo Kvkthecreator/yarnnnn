@@ -117,6 +117,13 @@ interface StudioDesignTabProps {
      *  transient copied/error state). Runs in the parent (artifactPath + api). */
     share: () => Promise<void>;
   };
+  /** ADR-466 D6 — the boundary projections: Print/PDF (the browser's print
+   *  over the resolved projection) + the AI reference (the interop-face
+   *  handle). Both run in the parent. */
+  exportVerbs: {
+    print: () => void;
+    copyAiRef: () => Promise<void>;
+  };
 }
 
 /** One token family as a segmented control. "Auto" is the default (absence —
@@ -269,6 +276,7 @@ export function StudioDesignTab({
   onSetPageBackground,
   onRemovePageBackground,
   fileVerbs,
+  exportVerbs,
 }: StudioDesignTabProps) {
   const doc = useMemo(() => {
     if (typeof window === 'undefined' || !html) return null;
@@ -463,6 +471,18 @@ export function StudioDesignTab({
       setSharing(false);
     }
   }, [fileVerbs]);
+
+  // ── Export (ADR-466 D6): the AI-reference copy's transient receipt ──────
+  const [aiRefState, setAiRefState] = useState<'idle' | 'copied'>('idle');
+  const runCopyAiRef = useCallback(async () => {
+    try {
+      await exportVerbs.copyAiRef();
+      setAiRefState('copied');
+      setTimeout(() => setAiRefState('idle'), 2500);
+    } catch {
+      /* clipboard denied — nothing durable failed */
+    }
+  }, [exportVerbs]);
 
   // ── Slot scope: role-gated quick-add (media → the image picker) ─────────
   const slotRole = useMemo(() => {
@@ -703,6 +723,36 @@ export function StudioDesignTab({
                 : shareState === 'copied'
                   ? 'Anyone with the link can open this and join your workspace with full access. Manage or revoke shares from Files.'
                   : 'Creates a link. Whoever opens it joins your workspace with full access — narrow it later.'}
+            </p>
+          </div>
+          {/* Export (ADR-466 D6) — the boundary projections. Print/PDF is the
+              browser's print over the resolved projection (no render engine,
+              ADR-417); the AI reference is the interop-face handle (recall/
+              trace via the yarnnn connector) — the third way out, beside the
+              member deep-link (Copy link) and the membership link (Share). */}
+          <div className={SECTION}>
+            <p className={HEADING}>Export</p>
+            <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                className={askBtn}
+                onClick={exportVerbs.print}
+                title="Open the print dialog over the rendered artifact — save as PDF from there"
+              >
+                Print / PDF…
+              </button>
+              <button
+                type="button"
+                className={askBtn}
+                onClick={runCopyAiRef}
+                title="Copy a reference any connected AI can use to recall this artifact via the yarnnn connector"
+              >
+                {aiRefState === 'copied' ? 'Reference copied ✓' : 'Copy AI reference'}
+              </button>
+            </div>
+            <p className="text-[10px] leading-snug text-muted-foreground">
+              A deck prints one slide per page. Markdown export arrives with the
+              interchange wave (ADR-456 W4).
             </p>
           </div>
         </>

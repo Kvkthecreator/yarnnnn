@@ -27,7 +27,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 import { ArrowLeft, Copy, FileText, FolderOpen, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, Plus, Upload } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { api, APIError } from '@/lib/api/client';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { LearnFromFlowModal } from './LearnFromFlowModal';
 import { NewDesignSystemModal } from './NewDesignSystemModal';
@@ -36,6 +36,7 @@ import { StudioNewMenu } from './StudioNewMenu';
 import { studioShapeStyle } from './studioShapes';
 import { OpenArtifactModal } from './OpenArtifactModal';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
+import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
 import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
 import { useSelfLocatedSurface, useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
@@ -614,9 +615,46 @@ export function StudioSurface() {
           if (reload) setReloadKey((k) => k + 1);
           return true;
         } catch (e) {
-          // A 409 here is now a genuinely foreign write (the lane / another
-          // member) — our own ops can no longer collide with each other.
-          setOpError(e instanceof Error ? e.message : 'The edit did not land — reloading.');
+          // Courteous 409 (ADR-466 D7): a conflict here means a genuinely
+          // foreign write (the lane / another member) landed between our base
+          // and now. The op is a COMPUTE over content — so fetch the
+          // authoritative head and re-apply ONCE on top of it. Typed text and
+          // structural intent survive (the member's edit re-lands over the
+          // foreign change); only a second conflict, or an op that no longer
+          // applies to the fresh content, falls back to the destructive
+          // reload. The override keeps its ORIGINAL anchor (loadedFile never
+          // refetched), so the merge guard stays valid and nothing flashes.
+          const conflict =
+            e instanceof APIError ? e.status === 409 : /409|conflict/i.test(String(e));
+          if (conflict) {
+            try {
+              const fresh = await api.workspace.getFile(artifactPath);
+              const recomputed = compute(fresh.content ?? '');
+              if (recomputed != null) {
+                const html2 = retrofitKernel(recomputed, kernelStyleRef.current);
+                const res2 = await api.studio.writeArtifact(
+                  artifactPath,
+                  html2,
+                  fresh.head_version_id ?? null,
+                  message,
+                );
+                liveRef.current = { content: html2, head: res2.head_version_id };
+                setLocalOverride({ anchorHead, content: html2, headVersionId: res2.head_version_id });
+                if (reload) setReloadKey((k) => k + 1);
+                return true;
+              }
+            } catch {
+              /* the retry lost too — fall through to the honest reload */
+            }
+          }
+          const detail =
+            e instanceof APIError && e.data && typeof e.data === 'object'
+              ? (e.data as { detail?: string }).detail
+              : null;
+          setOpError(
+            detail ??
+              (e instanceof Error ? e.message : 'The edit did not land — reloading.'),
+          );
           setLocalOverride(null);
           setReloadKey((k) => k + 1);
           return false;
@@ -1536,6 +1574,56 @@ export function StudioSurface() {
       /* link minted; copy denied — the caller still reports success */
     }
   }, [artifactPath]);
+
+  // ── Export (ADR-466 D6) ────────────────────────────────────────────────
+  // An export is a PROJECTION (ADR-417 — no owned render engine): the resolved
+  // artifact plus a print stylesheet, handed to the browser's print-to-PDF. A
+  // deck prints one slide per landscape page; a flow layout paginates. The
+  // frame is NOT sandboxed (print needs contentWindow) — safe because the
+  // projection has already stripped every artifact-authored executable.
+  const exportPrint = useCallback(async () => {
+    if (!file?.content || !artifactPath) return;
+    const projected = await resolveArtifactHtml(file.content, artifactPath, {});
+    const printCss =
+      template === 'deck'
+        ? `@media print {
+             @page { size: 330mm 186mm; margin: 0; }
+             body { margin: 0; background: #fff; }
+             section.slide { break-after: page; page-break-after: always;
+               width: 100% !important; margin: 0 !important; box-shadow: none !important; }
+           }`
+        : `@media print { @page { size: A4; margin: 18mm; } body { background: #fff; } }`;
+    const html = projected.includes('</head>')
+      ? projected.replace('</head>', `<style>${printCss}</style></head>`)
+      : `<style>${printCss}</style>${projected}`;
+    const frame = document.createElement('iframe');
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+    frame.srcdoc = html;
+    frame.onload = () => {
+      try {
+        frame.contentWindow?.focus();
+        frame.contentWindow?.print();
+      } finally {
+        // Long grace: the print dialog blocks in some browsers, not others.
+        setTimeout(() => frame.remove(), 60_000);
+      }
+    };
+    document.body.appendChild(frame);
+  }, [file, artifactPath, template]);
+
+  // The AI-native reference (the interop face, ADR-368/310): a handle any
+  // connected LLM can use to reach this artifact through the yarnnn MCP
+  // connector — complementing the /s/{token} membership link (ADR-465).
+  const copyAiReference = useCallback(async () => {
+    if (!artifactPath) throw new Error('No artifact open');
+    const rel = relPath(artifactPath);
+    const name = artifactName(artifactPath);
+    await navigator.clipboard.writeText(
+      `"${name}" — a yarnnn artifact at ${rel}. ` +
+        `With the yarnnn connector (MCP), recall "${name}" to read it — ` +
+        `trace shows who changed it and when.`,
+    );
+  }, [artifactPath]);
   // Duplicate — read the open artifact, write it at a -copy sibling through
   // the one mechanical door (never overwrite an existing copy), open the copy.
   const duplicateArtifact = useCallback(async () => {
@@ -1999,6 +2087,10 @@ export function StudioSurface() {
                 trash: () =>
                   organizeVerbs.onDelete({ path: artifactPath, name: baseName(artifactPath) }),
                 share: shareArtifact,
+              }}
+              exportVerbs={{
+                print: () => void exportPrint(),
+                copyAiRef: copyAiReference,
               }}
             />
           )}

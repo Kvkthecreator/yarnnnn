@@ -156,6 +156,28 @@ def run() -> bool:
         "`" not in proj.split("const GUTTER_SCRIPT = `", 1)[1].split("`;", 1)[0],
     )
 
+    # ── D6: Export in the Properties document scope ──────────────────────
+    _check(
+        "Export lives beside Share (print + AI reference, one settings home)",
+        "exportVerbs" in design
+        and "Print / PDF" in design
+        and "Copy AI reference" in design,
+    )
+    _check(
+        "print export is a PROJECTION over the one resolver (no render engine)",
+        "exportPrint" in surface
+        and "resolveArtifactHtml(file.content, artifactPath, {})" in surface
+        and "break-after: page" in surface,
+    )
+
+    # ── D7: the fluidity floor — a 409 never loses typed text ────────────
+    _check(
+        "courteous 409: refetch the authoritative head, recompute, retry ONCE",
+        "e.status === 409" in surface
+        and "compute(fresh.content ?? '')" in surface
+        and "setLocalOverride({ anchorHead, content: html2" in surface,
+    )
+
     # ── The posture teaches geometry preservation (CHANGELOG 2026.07.20.1) ─
     posture = build_studio_posture("operation/x/deck.html", "deck")
     flat = " ".join(posture.split())
