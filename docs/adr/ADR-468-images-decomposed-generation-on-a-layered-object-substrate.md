@@ -1,6 +1,7 @@
 # ADR-468 — IMAGES: decomposed generation onto a layered object substrate
 
 > **Status**: **Accepted direction** (2026-07-20, operator-ratified). Doc-first; the build is **staged** (§8) — after the Designer hardening pass, with the generation half hard-gated on ADR-427 Phases 2–3 (ADR-457 P1, unamended).
+> **D1 FULFILLED 2026-07-20 by [ADR-472](ADR-472-images-as-a-first-class-app.md)**: IMAGES is now a real app — surface `images`, route `/images`, its own dock icon, its own backend module (`api/services/images.py`), its own layouts registered with the shared machinery. ADR-471 had shipped the composition surface as a *Studio layout* ("canvas") with the extraction deferred; the operator hit that seam from the product side the same day and the carve landed immediately. ADR-472 also settles the housing question this ADR left implicit — the object layer is a SHARED kernel (`block-staged`), not forked per app — and adds dimensions-first creation (D3, real W×H) as the honest first decision for a raster artifact. **Still gated**: the generation half (§8), which waits on ADR-427 Ph2–3 (now Implemented) and lands as its own ADR per ADR-472 D6 — decomposed generation drives the object model, not the reverse.
 > **Date**: 2026-07-20
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Channel** (Axiom 6 — a second authoring app/surface) with a **Substrate** spine (the object document is authored markup on the ledger) and a **Mechanism** consequence (rented generation decomposed into per-object calls).
