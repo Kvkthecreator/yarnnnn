@@ -176,29 +176,28 @@ def run() -> bool:
     _check("the toolbar takes isPaged as kernel-derived data", "isPaged: boolean;" in toolbar)
 
     # ── 3. the located insert ───────────────────────────────────────────────
-    # "+ Insert" is gone as a GENERAL insert. It survives only as Media: the
-    # picker-backed kinds open a file picker, so a located entrance can't serve
-    # them — deleting the button outright would strand Image/Table/Gallery.
-    # The glyph is deliberately NOT pinned here: b5495fc moved ▾ → + ("a chevron
-    # promises a menu to pick among; a plus promises a thing appears"). What must
-    # hold is the SEAM — no general Insert, and Media still present as the
-    # picker-backed entrance.
+    # ADR-466 D4 completed the arc: insert is located with NO exceptions. The
+    # general "+ Insert" AND "Media ▾" are both gone — the located palette
+    # lists every kind, and the picker-backed ones (figure/table/gallery) open
+    # StudioCitablePicker at the insertion point (chart seeds the lane). What
+    # must hold is the SEAM: no un-located insert entrance in the toolbar, and
+    # no kind stranded without a home.
     _check(
-        "the general 'Insert' trigger is gone (every ordinary kind is located)",
-        "> Insert <" not in toolbar and re.search(r"Media <\w+\b", toolbar) is not None,
+        "the toolbar carries NO insert entrance (Insert and Media both gone)",
+        "> Insert <" not in toolbar and re.search(r"Media <\w+\b", toolbar) is None
+        and "openPicker" not in toolbar,
     )
     _check(
-        "the Media panel carries ONLY the picker-backed kinds",
-        "const MEDIA_KINDS = new Set(['figure', 'table', 'gallery', 'chart']);" in toolbar
-        and ".filter((b) => MEDIA_KINDS.has(b.kind))" in toolbar,
+        "the located palette lists every kind (no excluded set)",
+        "SLASH_EXCLUDED"
+        not in (web / "components/studio/StudioSlashPalette.tsx").read_text(),
     )
     _check(
-        "Media covers exactly what the slash palette excludes (nothing stranded)",
-        # SLASH_EXCLUDED = figure/table/gallery; chart rides along (it seeds the
-        # lane, so it has no located gesture either). If either list changes and
-        # the other doesn't, a kind loses its only home — that is what this pins.
-        "const SLASH_EXCLUDED = new Set(['figure', 'table', 'gallery']);"
-        in (web / "components/studio/StudioSlashPalette.tsx").read_text(),
+        "nothing stranded: picker-backed kinds route to the cited-file picker",
+        "PICKER_KINDS = new Set(['figure', 'table', 'gallery'])"
+        in (web / "components/studio/StudioCitablePicker.tsx").read_text()
+        and "PICKER_KINDS.has(p.kind)"
+        in (web / "components/studio/StudioSurface.tsx").read_text(),
     )
 
     # ── 4. the gutter owns the ROW, by geometry ─────────────────────────────

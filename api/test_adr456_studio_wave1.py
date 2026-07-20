@@ -108,11 +108,12 @@ def run() -> bool:
     # ── 5. The FE half (source checks) ───────────────────────────────────
     web = Path(__file__).resolve().parent.parent / "web"
     toolbar = (web / "components/studio/StudioToolbar.tsx").read_text()
-    # The callsites later grew the citation PIN argument (test_studio_citation_pin
-    # covers it) — these match the call prefix, not the full arg list.
+    # ADR-466 D4 moved the gallery's multi-select from the toolbar's Media
+    # panel into StudioCitablePicker (opened by the located palette).
+    picker = (web / "components/studio/StudioCitablePicker.tsx").read_text()
     _check("palette routes gallery to the multi-select picker",
-           "openPicker('gallery')" in toolbar and "galleryPick" in toolbar
-           and "onInsertGallery(galleryPick" in toolbar)
+           "kind === 'gallery'" in picker and "setPicked" in picker
+           and "onPickGallery(picked, pins)" in picker)
     surface = (web / "components/studio/StudioSurface.tsx").read_text()
     _check("gallery insert = ONE block from the registry fragment (one revision)",
            "galleryFragment(base, paths.map(relPath)" in surface)

@@ -15,10 +15,12 @@ The fix:
   2. The surface's onEnterBlock inserts prose after that block (always present,
      so Enter never hits the end-append path), then sets editingBlockId to the
      new block so the caret lands in it after the reload.
-  3. Bottom-append fix: lastCaretBlockId tracks the last block the caret
-     touched; the INSERT paths fall back to it (insertAnchor, read fresh at call
-     time) so a toolbar/slash insert with nothing selected lands after where the
-     member last was — never the document end.
+  3. Bottom-append, made structural (ADR-466 D4): there is no un-located insert
+     left. Every insert path carries an explicit block anchor — the palette's
+     take handshake reports the exact block, the cited-file picker parks and
+     reuses that located context — so nothing can fall back to the document
+     end. (The old lastCaretBlockId/insertAnchor implicit-anchor mechanism was
+     the fix for the un-located toolbar insert; it retired with Media ▾.)
 
 Static/structural checks (no DB, no LLM):
 
@@ -108,25 +110,23 @@ def run() -> bool:
         and "const editingRef = useRef<string | null>(editingBlockId ?? null);" in canvas,
     )
 
-    # ── 4. the bottom-append fix ─────────────────────────────────────────
+    # ── 4. bottom-append, made structural (ADR-466 D4) ───────────────────
+    # The implicit-anchor mechanism (lastCaretBlockId + insertAnchor) is GONE
+    # with Media ▾ — every insert is located. What must hold now: the palette
+    # flow lands at the reported block (never the document end), and the
+    # cited-file picker reuses the same parked located context.
     _check(
-        "lastCaretBlockId tracks the caret block (ref, updated on point/enter)",
-        "const lastCaretBlockId = useRef<string | null>(null)" in surface
-        and "lastCaretBlockId.current = p.blockId" in surface,
+        "the implicit-anchor mechanism is deleted (no un-located insert left)",
+        "lastCaretBlockId" not in surface and "insertAnchor" not in surface,
     )
     _check(
-        "the INSERT anchor falls back to lastCaretBlockId (read fresh, not the document end)",
-        "const insertAnchor = useCallback(" in surface
-        and "selection?.blockId ?? lastCaretBlockId.current ?? null" in surface,
+        "the palette's take flow lands at the reported block",
+        "insertBlock(html, p.fragment, { blockId })" in surface,
     )
     _check(
-        "the block-insert handlers use insertAnchor() (fresh), not the memoized anchor",
-        surface.count("insertBlock(html, fragment, insertAnchor())") >= 1
-        and "insertBlock(html, fragment, insertAnchor())" in surface,
-    )
-    _check(
-        "a real deselect (onPointClear) drops the implicit anchor",
-        "lastCaretBlockId.current = null" in surface,
+        "the picker lands at the SAME parked located context",
+        "landAtLocatedPoint" in surface
+        and "ctx: { blockId, beforeInner, afterInner, empty: p.empty }" in surface,
     )
 
     ok = all(c for _, c in _results)

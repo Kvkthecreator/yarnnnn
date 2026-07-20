@@ -15,9 +15,11 @@
  * filter that matches nothing all close it. Typing a URL must never strand a
  * menu over the text.
  *
- * v1 lists the PLAIN-INSERT kinds + chart (the generative ask). The cited kinds
- * (figure/table/gallery) need their pickers and stay in Media ▾ — a palette row
- * that half-opens a different panel would be worse than absent.
+ * The palette lists EVERY kind (ADR-466 D4 — insert is provenance-shaped, in
+ * one place): the plain kinds drop a fragment, chart seeds the lane, and the
+ * picker-backed kinds (figure/table/gallery) open the StudioCitablePicker at
+ * the same anchor — the located insertion point rides through, so the cited
+ * block lands where the member was pointing. `Media ▾` retired with this.
  *
  * The palette EXECUTES nothing itself — the surface routes the pick.
  */
@@ -41,9 +43,6 @@ import {
 } from 'lucide-react';
 import type { StudioVocabulary } from './StudioToolbar';
 
-/** Kinds the slash palette offers — everything except the picker-backed ones. */
-const SLASH_EXCLUDED = new Set(['figure', 'table', 'gallery']);
-
 /** kind → glyph. The kernel vocabulary ships no icon field (and shouldn't — an
  *  icon is presentation), so the mapping lives here. An unmapped kind falls back
  *  to the generic block glyph rather than rendering a hole. */
@@ -61,6 +60,7 @@ const SLASH_ICONS: Record<string, LucideIcon> = {
   code: Code,
   chart: BarChart3,
   figure: ImageIcon,
+  gallery: ImageIcon,
   table: TableIcon,
 };
 const FALLBACK_ICON: LucideIcon = AlignLeft;
@@ -97,7 +97,7 @@ export function StudioSlashPalette({
   const rootRef = useRef<HTMLDivElement>(null);
 
   const items = useMemo(() => {
-    const all = (vocabulary?.blocks ?? []).filter((b) => !SLASH_EXCLUDED.has(b.kind));
+    const all = vocabulary?.blocks ?? [];
     const q = filter.trim().toLowerCase();
     if (!q) return all;
     return all.filter(

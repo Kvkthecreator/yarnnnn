@@ -68,24 +68,31 @@ def run() -> bool:
            and "el.tagName === 'B' ? 'strong' : 'em'" in ops)
 
     # ── 2. Slash-insert ──────────────────────────────────────────────────
-    _check("'/' fires only in an EMPTY context (literal slashes still type)",
-           "slashContextEmpty" in proj
-           and "if (!slashContextEmpty()) return;" in proj)
-    _check("commit-then-palette: the runtime exits (commits) BEFORE opening",
-           "exit(true); // commits current text" in proj
-           and "yarnnn-slash-open" in proj)
+    # The gesture evolved twice after W2 shipped and this section now pins the
+    # LIVE contracts: slash-anywhere (2026-07-15 — the '/' lands as text, the
+    # run after it is the filter, the runtime owns the keyboard; depth-gated by
+    # test_studio_slash_anywhere.py) and the located picker (ADR-466 D4 — the
+    # palette lists EVERY kind; picker-backed ones open StudioCitablePicker at
+    # the insertion point; Media ▾ deleted).
+    _check("'/' opens ANYWHERE; the run after it is the filter (slash-anywhere)",
+           "slashRun" in proj and "yarnnn-slash-open" in proj
+           and "slashContextEmpty" not in proj)
+    _check("the runtime owns the keyboard (arrows/Enter intercepted in-frame)",
+           "yarnnn-slash-move" in proj and "yarnnn-slash-enter" in proj
+           and "'ArrowDown'" in proj)
     _check("canvas forwards yarnnn-slash-open with the block rect",
            "'yarnnn-slash-open'" in canvas and "onSlashOpen?." in canvas)
-    _check("palette excludes the picker-backed kinds (they stay in Insert)",
-           "SLASH_EXCLUDED" in palette
-           and "'figure'" in palette and "'gallery'" in palette)
+    _check("the palette lists EVERY kind (ADR-466 D4 — no excluded set)",
+           "SLASH_EXCLUDED" not in palette
+           and "vocabulary?.blocks ?? []" in palette)
+    _check("picker-backed kinds route to the cited-file picker at the point",
+           "PICKER_KINDS.has(p.kind)" in surface
+           and "setCitePicker" in surface
+           and "StudioCitablePicker" in surface)
     _check("empty block CONVERTS in place; non-empty inserts after",
-           "s.empty" in surface
-           and "convertBlock(html, s.blockId, kind, fragment)" in surface
-           and "insertBlock(html, fragment, { blockId: s.blockId })" in surface)
-    _check("palette keyboard: Enter picks, Esc closes, arrows move",
-           "'Enter'" in palette and "'Escape'" in palette
-           and "'ArrowDown'" in palette)
+           "p.empty" in surface
+           and "convertBlock(html, blockId, p.kind, p.fragment)" in surface
+           and "insertBlock(html, p.fragment, { blockId })" in surface)
 
     # ── 3. Turn-into ─────────────────────────────────────────────────────
     _check("convertBlock preserves the block id",

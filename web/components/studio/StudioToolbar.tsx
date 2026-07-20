@@ -1,31 +1,28 @@
 'use client';
 
 /**
- * StudioToolbar — the DOCUMENT-grain toolbar (ADR-444 executing toolbar,
- * grain-realigned by ADR-453 D3; renamed from StudioInsertMenu).
+ * StudioToolbar — the PAGE-grain toolbar (ADR-444 executing toolbar,
+ * grain-realigned by ADR-453 D3; the page-verb PAIR per ADR-466 D5).
  *
- * Verbs, in operator words:
- *  - Media +             — the picker-backed block kinds (Image/Table/Gallery)
- *                          that the located palette cannot serve, plus Chart.
- *  - New slide/section + — the page-grain structural act, first-class: an
- *                          arrangement GALLERY with derived wireframe
- *                          thumbnails (ADR-447 D7.1 lands here).
+ * Verbs, in operator words (paged layouts only — flow layouts insert at the
+ * pointer and have no page unit):
+ *  - New slide/section + — add a page from the arrangement GALLERY (derived
+ *                          wireframe thumbnails, ADR-447 D7.1).
+ *  - Layout              — re-lay the CURRENT page (the PowerPoint pair; same
+ *                          gallery grammar as the Properties page scope).
+ *
+ * `Media ▾` is DELETED (ADR-466 D4): the picker-backed kinds (Image / Table /
+ * Gallery) now live in the located palette, which opens StudioCitablePicker at
+ * the insertion point; Chart seeds the lane from the same palette. Insert is
+ * located, with no exceptions — the STUDIO.md named follow-on, executed.
  *
  * The selection chip is GONE (2026-07-15) — ADR-453 D3's "acknowledgment" was
  * the receipt for a selection-gated world that ADR-458 replaced with hover.
- * The navigator's ring + the canvas marking + the Design tab's scope already
- * say it; the chip was the third telling. The selection STATE is untouched.
- *
- * "Re-arrange" (change THIS page's arrangement) is selection-scoped and lives
- * in the Design tab's page scope (ADR-453 D4) — the old mixed-grain
- * "Arrange ▾" menu is deleted. Every button EXECUTES a deterministic op
- * through the one mechanical write door; Chart stays the one generative ask
- * (seeds the lane).
+ * Every button EXECUTES a deterministic op through the one mechanical door.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Image as ImageIcon, LayoutGrid, LayoutTemplate, Loader2, Plus } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { LayoutGrid, LayoutTemplate, Plus } from 'lucide-react';
 import { ArrangementThumb } from './ArrangementThumb';
 
 /** An arrangement (ADR-447) — the composition shape of a page/slide. `slots`
@@ -110,28 +107,6 @@ export function arrangementCarryNote(
   return null;
 }
 
-interface Citable {
-  // `head_version_id` is the citation's PIN (ADR-440 D5) — served so the
-  // insert can stamp it at the moment the citation is made.
-  images: Array<{ path: string; updated_at: string | null; head_version_id: string | null }>;
-  tables: Array<{ path: string; updated_at: string | null; head_version_id: string | null }>;
-}
-
-const GROUP_LABELS: Record<string, string> = {
-  content: 'Content',
-  data: 'Data',
-  media: 'Media',
-};
-
-function relPath(p: string): string {
-  return p.replace(/^\/workspace\//, '');
-}
-
-function baseName(p: string): string {
-  const parts = p.split('/');
-  return parts[parts.length - 1] || p;
-}
-
 interface StudioToolbarProps {
   vocabulary: StudioVocabulary | null;
   /** The artifact's current layout slug — selects the arrangement set + noun. */
@@ -139,14 +114,6 @@ interface StudioToolbarProps {
   /** The layout's composition mode (kernel-named). `paged` gets the New-‹noun›
    *  gallery; `flow` has no page unit to offer. */
   isPaged: boolean;
-  /** EXECUTE: insert this block fragment at the selection. */
-  onInsertBlock: (fragment: string, label: string) => void;
-  /** EXECUTE: insert a cited block (figure/table) for a picked workspace file. */
-  /** EXECUTE: insert a cited block (figure/table), PINNED to the cited file's
-   *  head revision at the moment of citation (ADR-440 D5). */
-  onInsertCited: (kind: 'figure' | 'table', path: string, pin?: string | null) => void;
-  /** EXECUTE: insert a gallery block citing the picked images (ADR-456 W1). */
-  onInsertGallery: (paths: string[], pins?: Record<string, string | null>) => void;
   /** EXECUTE: add a new page (slide/section) from the gallery. */
   onAddArrangement: (fragment: string, label: string) => void;
   /** EXECUTE: re-lay the CURRENT page (ADR-466 D5 — the PowerPoint pair: Layout
@@ -160,49 +127,26 @@ interface StudioToolbarProps {
   /** Whether a page can be resolved from the selection — Layout disables
    *  (with a teaching title) when nothing anchors it. */
   hasPageAnchor: boolean;
-  /** The one generative ask (Chart) — seeds the lane. */
-  onSeed: (text: string) => void;
 }
 
 export function StudioToolbar({
   vocabulary,
   layout,
   isPaged,
-  onInsertBlock,
-  onInsertCited,
-  onInsertGallery,
   onAddArrangement,
   onApplyArrangement,
   carriedCount,
   currentArrange,
   hasPageAnchor,
-  onSeed,
 }: StudioToolbarProps) {
   // ADR-447/453: a deck's page is a "slide"; a document/article's is a
   // "section" — the operator word follows the layout.
   const pageNoun = layout === 'deck' ? 'slide' : 'section';
-  const [open, setOpen] = useState<null | 'insert' | 'new' | 'layout' | 'image' | 'table' | 'gallery'>(null);
-  const [citable, setCitable] = useState<Citable | null>(null);
-  const [loadingCitable, setLoadingCitable] = useState(false);
-  // The gallery picker's multi-select (ADR-456 W1) — N cited images, ONE block.
-  const [galleryPick, setGalleryPick] = useState<string[]>([]);
+  const [open, setOpen] = useState<null | 'new' | 'layout'>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   // The trigger cluster (buttons + their panels) — the click-away boundary.
   // Deliberately NOT rootRef, which spans the row's full flex-1 width.
   const menuRef = useRef<HTMLDivElement>(null);
-
-  const openPicker = (panel: 'image' | 'table' | 'gallery') => {
-    setOpen(panel);
-    if (panel === 'gallery') setGalleryPick([]);
-    if (!citable && !loadingCitable) {
-      setLoadingCitable(true);
-      api.studio
-        .citable()
-        .then(setCitable)
-        .catch(() => setCitable({ images: [], tables: [] }))
-        .finally(() => setLoadingCitable(false));
-    }
-  };
 
   // Click-away + Escape. Two things this must get right, both learned the hard
   // way (2026-07-15):
@@ -237,42 +181,7 @@ export function StudioToolbar({
     };
   }, [open]);
 
-  const blocks = vocabulary?.blocks ?? [];
   const arrangements = vocabulary?.arrangements?.[layout] ?? [];
-  // The Media panel carries ONLY the picker-backed kinds — the ones a located
-  // entrance (the gutter's +, or `/`) cannot serve because they open a file
-  // picker instead of dropping a fragment. They are exactly the slash palette's
-  // SLASH_EXCLUDED set, kept in sync by construction: everything else is
-  // reachable at the pointer, and only these would be stranded without a home.
-  // `chart` rides along — it seeds the lane rather than inserting, so it has no
-  // located gesture either.
-  const MEDIA_KINDS = new Set(['figure', 'table', 'gallery', 'chart']);
-  const grouped = blocks
-    .filter((b) => MEDIA_KINDS.has(b.kind))
-    .reduce<Record<string, typeof blocks>>((acc, b) => {
-      (acc[b.group] = acc[b.group] ?? []).push(b);
-      return acc;
-    }, {});
-
-  const pickBlock = (b: StudioVocabulary['blocks'][number]) => {
-    if (b.kind === 'figure') return openPicker('image');
-    if (b.kind === 'gallery') return openPicker('gallery');
-    if (b.kind === 'table') return openPicker('table');
-    if (b.kind === 'chart') {
-      onSeed('Create an SVG chart at ./assets/chart.svg, cite it in the document, showing: ');
-      setOpen(null);
-      return;
-    }
-    onInsertBlock(b.fragment, b.label);
-    setOpen(null);
-  };
-
-  const items =
-    open === 'image' || open === 'gallery'
-      ? citable?.images
-      : open === 'table'
-        ? citable?.tables
-        : undefined;
 
   // shrink-0 + whitespace-nowrap: a flex child is shrinkable BY DEFAULT, so
   // when the row ran out of width (the chat panel open on a narrow viewport)
@@ -297,31 +206,14 @@ export function StudioToolbar({
     // element, and without a replacement the buttons overflowed onto the zoom.
     <div ref={rootRef} className="relative flex min-w-0 items-center gap-1 border-b border-border px-2 py-1.5">
       <div ref={menuRef} className="relative flex min-w-0 items-center gap-1">
-      {/* "+ Insert" is GONE as a general insert (2026-07-15) — it was the one
-          affordance with no LOCATION, falling back to the last block the caret
-          touched or the document end, so where a block landed was effectively
-          arbitrary. Every ordinary block kind is now inserted from a LOCATED
-          entrance: the gutter's + at the hovered row, or `/` in an empty block.
-
-          It survives ONLY as "Media" — the picker-backed kinds (Image / Table /
-          Gallery, SLASH_EXCLUDED in the slash palette because they open a file
-          picker rather than drop a fragment). Deleting the button outright
-          would strand them with no way in. Routing them through the located
-          palette is the right end state and its own change; this narrows the
-          button to exactly what nothing else can reach, rather than shipping a
-          hole. Tracked as the follow-on in docs/design/STUDIO.md.
-
-          "New ‹noun›" is PAGED-only. In a flow artifact there is no section to
-          insert — blocks flow — so the gallery was offering a page unit to a
-          model that has no pages. */}
-      {/* `+` not `▾`: these ADD something. A chevron promises a menu of
-          options to pick among (a filter, a view); a plus promises a thing
-          appears. Both open a panel — the glyph should say what the panel is
-          FOR, and the OS teaches `+` as "insert" everywhere else (the gutter's
-          + is the same promise at the row grain). */}
-      <button type="button" className={btn} onClick={() => setOpen(open === 'insert' ? null : 'insert')}>
-        <ImageIcon className="h-3 w-3" /> Media <Plus className="h-3 w-3" />
-      </button>
+      {/* "Media ▾" is DELETED (ADR-466 D4) — its kinds live in the located
+          palette, which hosts the cited-file picker at the insertion point.
+          Insert is located with no exceptions; the toolbar keeps only the
+          PAGE-grain pair below (paged layouts — a flow artifact has no page
+          unit to offer). */}
+      {/* `+` not `▾`: New ADDS something (the OS teaches `+` as "insert"
+          everywhere else — the gutter's + is the same promise at the row
+          grain); Layout picks among options, so it carries no +. */}
       {isPaged && arrangements.length > 0 && (
         <button type="button" className={btn} onClick={() => setOpen(open === 'new' ? null : 'new')}>
           <LayoutGrid className="h-3 w-3" /> New {pageNoun} <Plus className="h-3 w-3" />
@@ -362,34 +254,6 @@ export function StudioToolbar({
           The STATE (`selection`) is untouched and still load-bearing: it
           anchors every op and scopes the Design tab. Only its third display
           is gone. */}
-
-      {open === 'insert' && (
-        <div className={panel}>
-          {!vocabulary && (
-            <div className="flex items-center justify-center gap-2 p-3 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
-            </div>
-          )}
-          {Object.entries(grouped).map(([group, list]) => (
-            <div key={group} className="mb-1">
-              <p className="px-2 pb-0.5 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                {GROUP_LABELS[group] ?? group}
-              </p>
-              {list.map((b) => (
-                <button
-                  key={b.kind}
-                  type="button"
-                  onClick={() => pickBlock(b)}
-                  className="flex w-full flex-col rounded px-2 py-1.5 text-left hover:bg-muted/40"
-                >
-                  <span className="text-xs">{b.label}</span>
-                  <span className="text-[10px] leading-snug text-muted-foreground">{b.description}</span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* The New ‹slide|section› gallery — arrangement wireframes (D7.1). */}
       {open === 'new' && (
@@ -460,77 +324,6 @@ export function StudioToolbar({
         </div>
       )}
 
-      {(open === 'image' || open === 'table' || open === 'gallery') && (
-        <div className={panel}>
-          {loadingCitable && (
-            <div className="flex items-center justify-center gap-2 p-3 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
-            </div>
-          )}
-          {!loadingCitable && (!items || items.length === 0) && (
-            <p className="p-3 text-xs text-muted-foreground">
-              {open === 'table'
-                ? 'No CSV files in the workspace yet.'
-                : 'No images in the workspace yet — drop one into Files, or ask the chat for an SVG.'}
-            </p>
-          )}
-          {/* Gallery = multi-select: taps toggle, the button below commits ONE
-              block citing all picked images (ADR-456 W1). */}
-          {open === 'gallery' && !loadingCitable && items && items.length > 0 && (
-            <div className="sticky top-0 z-10 border-b border-border bg-background px-2 py-1.5">
-              <button
-                type="button"
-                disabled={galleryPick.length === 0}
-                onClick={() => {
-                  // Pins, keyed by path — the picked rows carry their head rev.
-                  const pins: Record<string, string | null> = {};
-                  for (const it of items ?? []) pins[it.path] = it.head_version_id;
-                  onInsertGallery(galleryPick, pins);
-                  setOpen(null);
-                }}
-                className={`${btn} w-full justify-center`}
-              >
-                Insert gallery ({galleryPick.length})
-              </button>
-            </div>
-          )}
-          {!loadingCitable &&
-            items?.map((it) => {
-              const picked = open === 'gallery' && galleryPick.includes(it.path);
-              return (
-                <button
-                  key={it.path}
-                  type="button"
-                  onClick={() => {
-                    if (open === 'gallery') {
-                      setGalleryPick((cur) =>
-                        cur.includes(it.path)
-                          ? cur.filter((p) => p !== it.path)
-                          : [...cur, it.path],
-                      );
-                      return;
-                    }
-                    onInsertCited(
-                      open === 'image' ? 'figure' : 'table',
-                      it.path,
-                      it.head_version_id,
-                    );
-                    setOpen(null);
-                  }}
-                  className={`flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left hover:bg-muted/40 ${
-                    picked ? 'bg-indigo-50/60 dark:bg-indigo-950/40' : ''
-                  }`}
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-xs">{baseName(it.path)}</span>
-                    <span className="block truncate text-[10px] text-muted-foreground">{relPath(it.path)}</span>
-                  </span>
-                  {picked && <span className="shrink-0 text-[10px] text-indigo-600">✓</span>}
-                </button>
-              );
-            })}
-        </div>
-      )}
       </div>
     </div>
   );

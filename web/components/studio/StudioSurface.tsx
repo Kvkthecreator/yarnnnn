@@ -42,6 +42,7 @@ import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { StudioCanvas, type PointerEvent2, type StudioContextTarget } from './StudioCanvas';
 import { StudioBlockMenu } from './StudioBlockMenu';
+import { StudioCitablePicker, PICKER_KINDS } from './StudioCitablePicker';
 import { StudioSlashPalette } from './StudioSlashPalette';
 import {
   StudioToolbar,
@@ -448,13 +449,9 @@ export function StudioSurface() {
   // Chat — see the setRightTab('chat') calls below).
   const [rightTab, setRightTab] = useState<'chat' | 'design'>('design');
 
-  // F2 (bottom-append fix): the last block the caret touched — the IMPLICIT
-  // anchor for a toolbar/slash insert when nothing is explicitly selected. A
-  // ref (no re-render): it's an anchor hint, folded into `anchor` below so a
-  // no-selection insert lands after where the member last was, not at the END
-  // of the document (the "adding happens on the bottom" complaint). Cleared on
-  // a genuine deselect (click into empty margin).
-  const lastCaretBlockId = useRef<string | null>(null);
+  // (The old F2 "last caret block" implicit-insert anchor is gone with
+  // Media ▾ — every insert is now LOCATED: the palette's take handshake
+  // carries the exact block, so there is no un-located insert left to anchor.)
 
   // ADR-446 D5: a click SELECTS (block → slot → page, the ADR-453 grain
   // ladder; anchors ops + gates edit mode). It NO LONGER auto-seeds the
@@ -470,14 +467,12 @@ export function StudioSurface() {
       arrange: p.arrange,
       text: p.text,
     });
-    if (p.blockId) lastCaretBlockId.current = p.blockId; // remember the anchor
     // ADR-458: the gutter's ⋮⋮ selects AND opens the Design tab (one home).
     if (p.design) setRightTab('design');
   }, []);
   const onPointClear = useCallback(() => {
     setSelection(null);
     setEditingBlockId(null);
-    lastCaretBlockId.current = null; // a real deselect drops the implicit anchor
   }, []);
 
   // ADR-446: which block is being edited in place (surface-held; the canvas
@@ -675,67 +670,40 @@ export function StudioSurface() {
     }),
     [selection],
   );
-  // The INSERT anchor (F2 bottom-append fix): blockId falls back to the last
-  // block the caret touched, resolved FRESH at call time (a ref, not a memo —
-  // so an Enter-then-Insert flow anchors on the just-created block, never the
-  // document end). Only block inserts use this; page/token/arrange ops keep the
-  // explicit-selection `anchor` above (an implicit page anchor would surprise).
-  const insertAnchor = useCallback(
-    () => ({
-      blockId: selection?.blockId ?? lastCaretBlockId.current ?? null,
-      slideIndex: selection?.slideIndex ?? null,
-      pageIndex: selection?.pageIndex ?? null,
-    }),
-    [selection],
-  );
   const kernelStyle = vocabulary?.kernel_style_element;
   // Mirror into the ref the async write queue reads (see kernelStyleRef).
   useEffect(() => {
     kernelStyleRef.current = kernelStyle;
   }, [kernelStyle]);
 
-  const handleInsertBlock = useCallback(
-    (fragment: string, label: string) =>
-      applyOp((html) => insertBlock(html, fragment, insertAnchor()), `Studio: add ${label} block`),
-    [applyOp, insertAnchor],
-  );
-  const handleInsertCited = useCallback(
-    (kind: 'figure' | 'table', path: string, pin?: string | null) => {
-      const rel = relPath(path);
+  // The cited fragment builders (ADR-440 D5): the citation carries its PIN —
+  // the cited file's head revision at the moment of citation. This used to be
+  // the lane's job ("stamp it when you have the head revision id… otherwise
+  // leave it empty") and so was never done: 0 populated pins across the live
+  // workspace. A mechanical insert knows the rev; it stamps it.
+  const citedFragment = useCallback(
+    (kind: 'figure' | 'table', path: string, pin?: string | null): string | null => {
       const base = vocabulary?.blocks.find((b) => b.kind === kind)?.fragment;
-      if (!base) return;
-      // The citation carries its PIN (ADR-440 D5) — the cited file's head
-      // revision at the moment of citation. This used to be the lane's job
-      // ("stamp it when you have the head revision id... otherwise leave it
-      // empty") and so was never done: 0 populated pins across the live
-      // workspace. A mechanical insert knows the rev; it stamps it.
-      const fragment = base
+      if (!base) return null;
+      const rel = relPath(path);
+      return base
         .replace(/data-ref="[^"]*"/, `data-ref="${rel}"`)
         .replace(/data-ref-rev="[^"]*"/, `data-ref-rev="${pin ?? ''}"`);
-      void applyOp(
-        (html) => insertBlock(html, fragment, insertAnchor()),
-        `Studio: insert ${kind === 'figure' ? 'image' : 'table'} ${rel}`,
-      );
     },
-    [applyOp, insertAnchor, vocabulary],
+    [vocabulary],
   );
-  // ADR-456 W1: N cited images land as ONE gallery block, one revision.
-  const handleInsertGallery = useCallback(
-    (paths: string[], pins?: Record<string, string | null>) => {
+  // ADR-456 W1: N cited images land as ONE gallery block, one revision. Pins
+  // are keyed by the RELATIVE path the fragment will carry, so the lookup
+  // inside galleryFragment matches what it stamps.
+  const citedGalleryFragment = useCallback(
+    (paths: string[], pins?: Record<string, string | null>): string | null => {
       const base = vocabulary?.blocks.find((b) => b.kind === 'gallery')?.fragment;
-      if (!base) return;
-      // Pins are keyed by the RELATIVE path the fragment will carry, so the
-      // lookup inside galleryFragment matches what it stamps.
+      if (!base) return null;
       const relPins: Record<string, string | null> = {};
       for (const p of paths) relPins[relPath(p)] = pins?.[p] ?? null;
-      const fragment = galleryFragment(base, paths.map(relPath), relPins);
-      if (!fragment) return;
-      void applyOp(
-        (html) => insertBlock(html, fragment, insertAnchor()),
-        `Studio: insert gallery (${paths.length} images)`,
-      );
+      return galleryFragment(base, paths.map(relPath), relPins);
     },
-    [applyOp, insertAnchor, vocabulary],
+    [vocabulary],
   );
   const handleAddArrangement = useCallback(
     (fragment: string, label: string) =>
@@ -1057,7 +1025,6 @@ export function StudioSurface() {
       ).then((ok) => {
         if (ok && newId) {
           setEditingBlockId(newId); // caret into the new block once it projects
-          lastCaretBlockId.current = newId; // the new block is now the anchor
         }
       });
     },
@@ -1137,9 +1104,22 @@ export function StudioSurface() {
   // and the pick is swallowed. The ref is not cleared by the close, so the pick
   // still knows which run it belongs to; the runtime re-validates the run
   // against the live DOM before applying, so a stale ref can't misfire.
-  const lastSlashRef = useRef<{ blockId: string; empty: boolean; filter: string } | null>(null);
+  const lastSlashRef = useRef<{
+    blockId: string;
+    empty: boolean;
+    filter: string;
+    left: number;
+    top: number;
+  } | null>(null);
   useEffect(() => {
-    if (slash) lastSlashRef.current = { blockId: slash.blockId, empty: slash.empty, filter: slash.filter };
+    if (slash)
+      lastSlashRef.current = {
+        blockId: slash.blockId,
+        empty: slash.empty,
+        filter: slash.filter,
+        left: slash.left,
+        top: slash.top,
+      };
   }, [slash]);
   // The rows the palette is currently showing — the surface needs them because
   // the DOCUMENT owns the keyboard, so Enter/↑/↓ are handled here, not there.
@@ -1187,9 +1167,14 @@ export function StudioSurface() {
   // the caret; the op then lands from `onSlashTaken`. The pending pick parks here
   // between the two — one gesture, ONE op (a commit of our own would race it on
   // the same head).
-  const pendingPick = useRef<{ kind: string; label: string; fragment: string; empty: boolean } | null>(
-    null,
-  );
+  const pendingPick = useRef<{
+    kind: string;
+    label: string;
+    fragment: string;
+    empty: boolean;
+    left: number;
+    top: number;
+  } | null>(null);
   const [slashTake, setSlashTake] = useState<{ filterLen: number; nonce: number } | null>(null);
   const slashNonce = useRef(0);
   const onSlashPick = useCallback(
@@ -1199,7 +1184,14 @@ export function StudioSurface() {
       const s = slash ?? lastSlashRef.current;
       setSlash(null);
       if (!s) return;
-      pendingPick.current = { kind, label, fragment, empty: s.empty };
+      pendingPick.current = {
+        kind,
+        label,
+        fragment,
+        empty: s.empty,
+        left: s.left,
+        top: s.top,
+      };
       slashNonce.current += 1;
       setSlashTake({ filterLen: s.filter.length, nonce: slashNonce.current });
     },
@@ -1213,6 +1205,53 @@ export function StudioSurface() {
     const item = slashItemsRef.current[s.highlight];
     if (item) onSlashPick(item.kind, item.label, item.fragment);
   }, [slash, onSlashPick]);
+  // ADR-466 D4 — the located palette hosts the picker: picking Image / Table /
+  // Gallery parks the located insertion context here and opens the cited-file
+  // picker at the palette's own anchor. The pick then lands a CITED block where
+  // the member was pointing (Media ▾ retired with this).
+  const [citePicker, setCitePicker] = useState<{
+    kind: 'figure' | 'table' | 'gallery';
+    left: number;
+    top: number;
+    ctx: { blockId: string; beforeInner: string | null; afterInner: string | null; empty: boolean };
+  } | null>(null);
+
+  // Land a fragment at a LOCATED insertion context (the slash/gutter point):
+  // an empty block is replaced (insert-after + delete — one revision; headings
+  // are never deleted, they anchor pages); a mid-sentence point splits so the
+  // sentence keeps its tail; otherwise the block lands after the anchor.
+  const landAtLocatedPoint = useCallback(
+    (
+      fragment: string,
+      label: string,
+      ctx: { blockId: string; beforeInner: string | null; afterInner: string | null; empty: boolean },
+    ) => {
+      const { blockId, beforeInner, afterInner, empty } = ctx;
+      if (empty) {
+        void applyOp((html) => {
+          const inserted = insertBlock(html, fragment, { blockId });
+          if (!inserted) return null;
+          const anchorKind = new DOMParser()
+            .parseFromString(inserted.html, 'text/html')
+            .querySelector(`[data-block-id="${CSS.escape(blockId)}"]`)
+            ?.getAttribute('data-block');
+          if (anchorKind === 'heading') return inserted;
+          return deleteBlock(inserted.html, blockId) ?? inserted;
+        }, `Studio: insert ${label}`);
+        return;
+      }
+      if (beforeInner !== null && afterInner !== null && afterInner.trim() !== '') {
+        void applyOp(
+          (html) => splitBlockAndInsert(html, blockId, beforeInner, afterInner, fragment),
+          `Studio: insert ${label}`,
+        );
+        return;
+      }
+      void applyOp((html) => insertBlock(html, fragment, { blockId }), `Studio: insert ${label}`);
+    },
+    [applyOp],
+  );
+
   const onSlashTaken = useCallback(
     (blockId: string, beforeInner: string | null, afterInner: string | null) => {
       const p = pendingPick.current;
@@ -1222,6 +1261,15 @@ export function StudioSurface() {
         seedComposer(
           'Create an SVG chart at ./assets/chart.svg, cite it in the document, showing: ',
         );
+        return;
+      }
+      if (PICKER_KINDS.has(p.kind)) {
+        setCitePicker({
+          kind: p.kind as 'figure' | 'table' | 'gallery',
+          left: p.left,
+          top: p.top,
+          ctx: { blockId, beforeInner, afterInner, empty: p.empty },
+        });
         return;
       }
       // An empty block CONVERTS in place — the Notion "empty line + /" gesture.
@@ -1249,6 +1297,36 @@ export function StudioSurface() {
       );
     },
     [applyOp, seedComposer],
+  );
+
+  // The cited-file picker's terminals (ADR-466 D4): a pick builds the cited
+  // fragment (pin stamped) and lands it at the parked located point.
+  const onCitePickOne = useCallback(
+    (path: string, pin: string | null) => {
+      const cp = citePicker;
+      setCitePicker(null);
+      if (!cp) return;
+      const kind = cp.kind === 'table' ? 'table' : 'figure';
+      const fragment = citedFragment(kind, path, pin);
+      if (!fragment) return;
+      landAtLocatedPoint(
+        fragment,
+        `${kind === 'figure' ? 'image' : 'table'} ${relPath(path)}`,
+        cp.ctx,
+      );
+    },
+    [citePicker, citedFragment, landAtLocatedPoint],
+  );
+  const onCitePickGallery = useCallback(
+    (paths: string[], pins: Record<string, string | null>) => {
+      const cp = citePicker;
+      setCitePicker(null);
+      if (!cp) return;
+      const fragment = citedGalleryFragment(paths, pins);
+      if (!fragment) return;
+      landAtLocatedPoint(fragment, `gallery (${paths.length} images)`, cp.ctx);
+    },
+    [citePicker, citedGalleryFragment, landAtLocatedPoint],
   );
   // ADR-456 W3: the page background — a cited image on the page element.
   const handleSetPageBackground = useCallback(
@@ -1631,9 +1709,6 @@ export function StudioSurface() {
                 vocabulary={vocabulary}
                 layout={template}
                 isPaged={isPaged}
-                onInsertBlock={handleInsertBlock}
-                onInsertCited={handleInsertCited}
-                onInsertGallery={handleInsertGallery}
                 onAddArrangement={handleAddArrangement}
                 onApplyArrangement={handleApplyArrangement}
                 carriedCount={carriedCount}
@@ -1644,7 +1719,6 @@ export function StudioSurface() {
                     selection.slideIndex != null ||
                     selection.pageIndex != null)
                 }
-                onSeed={seedComposer}
               />
             </div>
             {/* Zoom — a VIEW control (doesn't touch the file). */}
@@ -1701,10 +1775,7 @@ export function StudioSurface() {
                 editingBlockId={editingBlockId}
                 onEdit={onEdit}
                 onEditExited={() => setEditingBlockId(null)}
-                onEditEntered={(id) => {
-                  setEditingBlockId(id);
-                  lastCaretBlockId.current = id; // entering a block anchors inserts here
-                }}
+                onEditEntered={(id) => setEditingBlockId(id)}
                 onEnterBlock={onEnterBlock}
                 onReorder={handleReorder}
                 onRatio={handleRatio}
@@ -1736,6 +1807,19 @@ export function StudioSurface() {
                   onItemsChange={onSlashItemsChange}
                   onPick={onSlashPick}
                   onClose={onSlashClose}
+                />
+              )}
+              {/* ADR-466 D4: the cited-file picker the palette opens for the
+                  picker-backed kinds — anchored at the palette's own point, so
+                  the cited block lands where the member was pointing. */}
+              {citePicker && (
+                <StudioCitablePicker
+                  kind={citePicker.kind}
+                  left={citePicker.left}
+                  top={citePicker.top}
+                  onPickOne={onCitePickOne}
+                  onPickGallery={onCitePickGallery}
+                  onClose={() => setCitePicker(null)}
                 />
               )}
               {/* ADR-462: the canvas right-click menu. Fixed-positioned at the

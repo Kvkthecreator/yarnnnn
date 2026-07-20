@@ -125,8 +125,13 @@ def run() -> bool:
     # ADR-453: the toolbar realigned to its grains (Insert · New ‹noun›) and
     # the file took its honest name (StudioInsertMenu → StudioToolbar).
     menu = (repo / "web/components/studio/StudioToolbar.tsx").read_text()
+    # ADR-466 D4: the block palette is the located StudioSlashPalette (Media ▾
+    # deleted); the toolbar keeps only the page-grain pair and still renders
+    # from the served vocabulary.
+    palette_src = (repo / "web/components/studio/StudioSlashPalette.tsx").read_text()
     _check("palette renders from the served vocabulary",
-           "StudioVocabulary" in menu and "grouped" in menu)
+           "StudioVocabulary" in menu and "StudioVocabulary" in palette_src
+           and "vocabulary?.blocks" in palette_src)
 
     # ── 6. Grammar, not schema ───────────────────────────────────────────
     import services.studio as studio_mod
@@ -155,8 +160,11 @@ def run() -> bool:
     _check("FE ops: insert/arrangement reflow, ids preserved",
            "insertBlock" in ops and "insertArrangement" in ops and "applyArrangement" in ops
            and "freshBlockId" in ops)
-    _check("toolbar EXECUTES (not prompt-prefill)",
-           "onInsertBlock" in surface and "writeArtifact" in surface)
+    # The insert executor moved with the palette (ADR-466 D4): located picks
+    # land through the same one write door.
+    _check("toolbar/palette EXECUTES (not prompt-prefill)",
+           "onAddArrangement" in surface and "writeArtifact" in surface
+           and "landAtLocatedPoint" in surface)
     _check("posture: concurrent-writer contract (never renumber ids)",
            "never renumber" in " ".join(posture.split()))
 

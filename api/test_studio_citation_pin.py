@@ -57,7 +57,7 @@ def run() -> bool:
     routes = (ROOT / "api/routes/studio.py").read_text()
     ops = (WEB / "components/studio/artifactOps.ts").read_text()
     surface = (WEB / "components/studio/StudioSurface.tsx").read_text()
-    toolbar = (WEB / "components/studio/StudioToolbar.tsx").read_text()
+    picker = (WEB / "components/studio/StudioCitablePicker.tsx").read_text()
     client = (WEB / "lib/api/client.ts").read_text()
 
     # ── 1. the rev REACHES the FE (cause 3) ────────────────────────────────
@@ -81,16 +81,20 @@ def run() -> bool:
     # ── 2. the mechanical insert STAMPS it (cause 3) ───────────────────────
     print("\n-- the mechanical insert stamps --")
     _check(
-        "the toolbar passes the picked row's pin to onInsertCited",
-        "it.head_version_id" in toolbar,
+        # ADR-466 D4 moved the picker from the toolbar's Media panel into
+        # StudioCitablePicker (opened by the located palette) — the pin now
+        # threads from the picker's rows.
+        "the picker passes the picked row's pin (head_version_id)",
+        "it.head_version_id" in picker,
     )
     _check(
-        "the gallery insert passes a pin map",
-        re.search(r"onInsertGallery\(galleryPick,\s*pins\)", toolbar) is not None,
+        "the gallery pick passes a pin map",
+        "pins[it.path] = it.head_version_id" in picker
+        and "onPickGallery(picked, pins)" in picker,
     )
-    cited = re.search(r"const handleInsertCited = useCallback\(([\s\S]*?)\n  \);", surface)
+    cited = re.search(r"const citedFragment = useCallback\(([\s\S]*?)\n  \);", surface)
     cited_body = cited.group(1) if cited else ""
-    _check("the cited-insert handler is findable", bool(cited))
+    _check("the cited-fragment builder is findable", bool(cited))
     _check(
         "the cited insert REWRITES data-ref-rev with the pin (not just data-ref)",
         "data-ref-rev=" in cited_body and "pin" in cited_body,
