@@ -39,6 +39,44 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
+# Scope spine (ADR-476 D1)
+# =============================================================================
+#
+# The substrate's binding unit is the WORKSPACE (ADR-373, ADR-474). Purge kept
+# deleting by `user_id` because the ADR-373 read sweep never reached it — so in
+# a multi-member workspace "clear everything" quietly meant "clear the rows I
+# happened to author", and a member's content was unreachable by any purge.
+#
+# This mirrors `authored_substrate._substrate_scope` exactly rather than
+# inventing a second rule: prefer `workspace_id` when it resolves, fall back to
+# `user_id` (byte-identical at N=1, where a workspace's rows and its owner's
+# rows are the same set).
+
+
+def _purge_scope(query: Any, user_id: str, workspace_id: Optional[str]) -> Any:
+    """Scope a purge query to the workspace, falling back to the user at N=1."""
+    if workspace_id:
+        return query.eq("workspace_id", workspace_id)
+    return query.eq("user_id", user_id)
+
+
+def resolve_purge_workspace(user_id: str) -> Optional[str]:
+    """The workspace a purge for this user acts on.
+
+    Uses the same resolution spine as every read path (ADR-373). Best-effort:
+    None falls the callers back to `user_id` scoping, which is today's behavior
+    and correct at N=1 — a purge must never be blocked by a resolution failure.
+    """
+    try:
+        from services.workspace_context import effective_workspace_id
+
+        return effective_workspace_id(user_id, None)
+    except Exception as exc:  # noqa: BLE001 — best-effort by design
+        logger.warning(f"[PURGE] workspace resolve failed for {user_id}: {exc}")
+        return None
+
+
+# =============================================================================
 # Mechanical DB helpers (relocated from routes/account.py — single home)
 # =============================================================================
 
@@ -54,18 +92,32 @@ def _delete_rows(
     *,
     user_column: str = "user_id",
     optional: bool = False,
+    workspace_id: Optional[str] = None,
 ) -> int:
-    """Delete all rows in a user-scoped table. Returns count deleted."""
+    """Delete all rows in a scoped table. Returns count deleted.
+
+    ADR-476 D1: when `workspace_id` is supplied AND the table carries that
+    column, the delete is workspace-scoped — it reaches every member's rows,
+    not only the purging user's. Callers pass it for the workspace-scoped
+    tables and omit it for genuinely user-scoped ones (a member's own MCP
+    OAuth tokens are theirs, not the workspace's).
+    """
+    scoped = workspace_id is not None and user_column == "user_id"
     try:
+        base = client.table(table).select("*", count="exact")
         count_result = (
-            client.table(table)
-            .select("*", count="exact")
-            .eq(user_column, user_id)
-            .execute()
-        )
+            _purge_scope(base, user_id, workspace_id)
+            if scoped
+            else base.eq(user_column, user_id)
+        ).execute()
         count = count_result.count or 0
         if count > 0:
-            client.table(table).delete().eq(user_column, user_id).execute()
+            dq = client.table(table).delete()
+            (
+                _purge_scope(dq, user_id, workspace_id)
+                if scoped
+                else dq.eq(user_column, user_id)
+            ).execute()
         return count
     except Exception as e:
         if optional and _is_missing_relation_error(e):
@@ -76,20 +128,31 @@ def _delete_rows(
         raise
 
 
-def _delete_workspace_files(client: Any, user_id: str, path_prefix: str | None = None) -> int:
-    """Delete workspace_files rows, optionally filtered by path prefix."""
+def _delete_workspace_files(
+    client: Any,
+    user_id: str,
+    path_prefix: str | None = None,
+    workspace_id: Optional[str] = None,
+) -> int:
+    """Delete workspace_files rows, optionally filtered by path prefix.
+
+    ADR-476 D1: workspace-scoped — reaches every member's files, not only the
+    purging user's.
+    """
     try:
-        query = (
-            client.table("workspace_files")
-            .select("*", count="exact")
-            .eq("user_id", user_id)
+        query = _purge_scope(
+            client.table("workspace_files").select("*", count="exact"),
+            user_id,
+            workspace_id,
         )
         if path_prefix:
             query = query.like("path", f"{path_prefix}%")
         count_result = query.execute()
         count = count_result.count or 0
         if count > 0:
-            dq = client.table("workspace_files").delete().eq("user_id", user_id)
+            dq = _purge_scope(
+                client.table("workspace_files").delete(), user_id, workspace_id
+            )
             if path_prefix:
                 dq = dq.like("path", f"{path_prefix}%")
             dq.execute()
@@ -99,20 +162,30 @@ def _delete_workspace_files(client: Any, user_id: str, path_prefix: str | None =
         return 0
 
 
-def _collect_blob_shas(client: Any, user_id: str) -> list[tuple[str, str]]:
-    """The (workspace_id, sha256) pairs this user's revisions cite.
+def _collect_blob_shas(
+    client: Any, user_id: str, workspace_id: Optional[str] = None
+) -> list[tuple[str, str]]:
+    """The (workspace_id, sha256) pairs this WORKSPACE's revisions cite.
 
     ADR-474. Must run BEFORE the revision chain is deleted: the revisions are
     the only thing that names the content. Read from the revision rows rather
     than from `workspace_blobs` directly so the scope is exactly "content this
-    user's substrate cites" — never another workspace's rows.
+    workspace's substrate cites" — never another workspace's rows.
+
+    ADR-476 D1 fixes an ADR-474 regression: this filtered `.eq("user_id", …)`,
+    so it collected only the PURGING USER's content and left every other
+    member's blobs behind. ADR-474 made purge able to reach content; this makes
+    it reach the workspace's content.
     """
     try:
         rows = (
-            client.table("workspace_file_versions")
-            .select("workspace_id, blob_sha")
-            .eq("user_id", user_id)
-            .execute()
+            _purge_scope(
+                client.table("workspace_file_versions").select(
+                    "workspace_id, blob_sha"
+                ),
+                user_id,
+                workspace_id,
+            ).execute()
         ).data or []
         return sorted({
             (r["workspace_id"], r["blob_sha"])
@@ -161,7 +234,9 @@ def _delete_workspace_blobs(
     return removed
 
 
-def _null_head_version_pointers(client: Any, user_id: str) -> None:
+def _null_head_version_pointers(
+    client: Any, user_id: str, workspace_id: Optional[str] = None
+) -> None:
     """Null out `workspace_files.head_version_id` before wiping
     `workspace_file_versions`.
 
@@ -174,10 +249,11 @@ def _null_head_version_pointers(client: Any, user_id: str) -> None:
     """
     try:
         (
-            client.table("workspace_files")
-            .update({"head_version_id": None})
-            .eq("user_id", user_id)
-            .execute()
+            _purge_scope(
+                client.table("workspace_files").update({"head_version_id": None}),
+                user_id,
+                workspace_id,
+            ).execute()
         )
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[PURGE] null head_version_id failed for {user_id}: {e}")
@@ -236,6 +312,13 @@ def purge_l2_workspace(client: Any, user_id: str) -> dict[str, int]:
     """
     deleted: dict[str, int] = {}
 
+    # ADR-476 D1: resolve the workspace ONCE and scope every workspace-scoped
+    # delete to it. Without this, a purge in a multi-member workspace deletes
+    # only the rows the purging user happened to author — the workspace reports
+    # "cleared" and every other member's files survive.
+    ws = resolve_purge_workspace(user_id)
+    logger.info(f"[PURGE] L2 for user {user_id} scoped to workspace {ws or '(N=1 fallback)'}")
+
     # ADR-209 FK order: workspace_files.head_version_id → workspace_file_versions.id.
     # Null the pointer first so revisions can be wiped without violating the FK;
     # then wipe the revision chain; then wipe the files.
@@ -243,13 +326,15 @@ def purge_l2_workspace(client: Any, user_id: str) -> dict[str, int]:
     # ADR-474: capture the workspace's blob addresses BEFORE the revisions that
     # cite them are deleted — afterwards nothing points at them and the content
     # would be unreachable (the leak this ADR closes).
-    blob_shas = _collect_blob_shas(client, user_id)
+    blob_shas = _collect_blob_shas(client, user_id, ws)
 
-    _null_head_version_pointers(client, user_id)
-    deleted["workspace_file_versions"] = _delete_rows(client, "workspace_file_versions", user_id)
+    _null_head_version_pointers(client, user_id, ws)
+    deleted["workspace_file_versions"] = _delete_rows(
+        client, "workspace_file_versions", user_id, workspace_id=ws
+    )
 
     # Workspace filesystem — the primary data store
-    deleted["workspace_files"] = _delete_workspace_files(client, user_id)
+    deleted["workspace_files"] = _delete_workspace_files(client, user_id, workspace_id=ws)
 
     # ADR-474: the content layer. Runs AFTER the revisions are gone — the
     # composite FK (workspace_id, blob_sha) refuses to drop a blob any surviving
@@ -259,20 +344,32 @@ def purge_l2_workspace(client: Any, user_id: str) -> dict[str, int]:
     # owner.
     deleted["workspace_blobs"] = _delete_workspace_blobs(client, user_id, blob_shas)
 
-    # Relational tables referencing agents/tasks
-    deleted["tasks"] = _delete_rows(client, "tasks", user_id, optional=True)
-    deleted["agents"] = _delete_rows(client, "agents", user_id)
+    # Relational tables referencing agents/tasks. ADR-476 D1: these all carry a
+    # `workspace_id` (verified populated, 0 NULLs live), so they scope to the
+    # workspace — a member's agents/sessions/activity are the workspace's, not
+    # the purging user's private rows.
+    deleted["tasks"] = _delete_rows(client, "tasks", user_id, optional=True, workspace_id=ws)
+    deleted["agents"] = _delete_rows(client, "agents", user_id, workspace_id=ws)
     # ADR-194 Reviewer proposal queue — prior proposals must not survive reset
-    deleted["action_proposals"] = _delete_rows(client, "action_proposals", user_id)
-    deleted["chat_sessions"] = _delete_rows(client, "chat_sessions", user_id)
-    deleted["activity_log"] = _delete_rows(client, "activity_log", user_id)
-    deleted["event_trigger_log"] = _delete_rows(client, "event_trigger_log", user_id, optional=True)
-    deleted["notifications"] = _delete_rows(client, "notifications", user_id, optional=True)
+    deleted["action_proposals"] = _delete_rows(
+        client, "action_proposals", user_id, workspace_id=ws
+    )
+    deleted["chat_sessions"] = _delete_rows(client, "chat_sessions", user_id, workspace_id=ws)
+    deleted["activity_log"] = _delete_rows(client, "activity_log", user_id, workspace_id=ws)
     # ADR-298 wake queue — transient Reviewer-execution compute. `user_id` is NOT
     # FK-cascaded to auth.users (RLS service-role-only, transient by design), so it
     # survives a workspace wipe unless purged explicitly. Stale `pending` rows would
     # otherwise drain a Reviewer wake against substrate that no longer exists.
-    deleted["wake_queue"] = _delete_rows(client, "wake_queue", user_id, optional=True)
+    deleted["wake_queue"] = _delete_rows(
+        client, "wake_queue", user_id, optional=True, workspace_id=ws
+    )
+
+    # ADR-476 D1: genuinely USER-scoped — these have no `workspace_id` column and
+    # should not acquire one. A member's notifications and MCP OAuth tokens are
+    # THEIRS (ADR-431: an AI connection belongs to the member who authorized it);
+    # clearing the workspace must not revoke another member's connectors.
+    deleted["event_trigger_log"] = _delete_rows(client, "event_trigger_log", user_id, optional=True)
+    deleted["notifications"] = _delete_rows(client, "notifications", user_id, optional=True)
     # MCP OAuth tokens — user's active MCP sessions should not survive a workspace clear
     for table in ("mcp_oauth_codes", "mcp_oauth_access_tokens", "mcp_oauth_refresh_tokens"):
         deleted[table] = _delete_rows(client, table, user_id, optional=True)

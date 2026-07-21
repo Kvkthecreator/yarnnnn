@@ -46,6 +46,8 @@ from services.supabase import UserClient, get_service_client
 # purge). Imported back here so L1/L3/L4 keep their single implementation and
 # the L2 route delegates rather than inlining the purge sequence.
 from services.workspace_purge import (
+    _purge_scope,
+    resolve_purge_workspace,
     _delete_rows,
     _delete_workspace_files,
     _null_head_version_pointers,
@@ -138,17 +140,49 @@ def _count_workspace_paths(client, user_id: str, path_prefix: str) -> int:
         return 0
 
 
-def _count_workspace_pattern(client, user_id: str, like_pattern: str) -> int:
+def _require_workspace_clear_authority(user_id: str, workspace_id: Optional[str]) -> None:
+    """Gate the workspace-content purges on owner-grade authority (ADR-476 D2).
+
+    L1/L2 destroy other members' work, so they are not "clear my own rows".
+    Owner-default + the extensible `workspace:clear` grant scope — never a role
+    enum (ADR-405).
+
+    No workspace resolved → N=1 fallback, where the caller IS the workspace;
+    allowed, preserving today's behavior for every single-member operator.
+    """
+    if not workspace_id:
+        return
+    from services.principal_grants import has_workspace_clear_authority
+
+    if not has_workspace_clear_authority(user_id, workspace_id):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Clearing this workspace's content requires the workspace owner "
+                "(or a principal granted `workspace:clear`). This action removes "
+                "every member's work, not only your own."
+            ),
+        )
+
+
+def _count_workspace_pattern(
+    client, user_id: str, like_pattern: str, workspace_id: Optional[str] = None
+) -> int:
     """Count workspace_files rows matching an arbitrary SQL LIKE pattern.
 
     Caller is responsible for the trailing `%` (and any internal `%` for
     cross-segment patterns like `/workspace/operation/reports/%/2026-%`).
+
+    ADR-476 D1: workspace-scoped — work history is workspace content, so the
+    count must include every member's outputs, not only the caller's.
     """
     try:
         result = (
-            client.table("workspace_files")
-            .select("*", count="exact")
-            .eq("user_id", user_id)
+            _purge_scope(
+                client.table("workspace_files").select("*", count="exact"),
+                user_id,
+                workspace_id,
+            )
             .like("path", like_pattern)
             .execute()
         )
@@ -194,19 +228,23 @@ def _delete_workspace_file_versions_by_path(client, user_id: str, path_prefix: s
         return 0
 
 
-def _delete_workspace_pattern(client, user_id: str, like_pattern: str) -> int:
+def _delete_workspace_pattern(
+    client, user_id: str, like_pattern: str, workspace_id: Optional[str] = None
+) -> int:
     """Delete workspace_files rows matching an arbitrary SQL LIKE pattern.
 
     Two-step (count then delete) so we can return a real count without
     forcing the caller to inspect a delete response shape.
+
+    ADR-476 D1: workspace-scoped.
     """
     try:
-        count = _count_workspace_pattern(client, user_id, like_pattern)
+        count = _count_workspace_pattern(client, user_id, like_pattern, workspace_id)
         if count > 0:
             (
-                client.table("workspace_files")
-                .delete()
-                .eq("user_id", user_id)
+                _purge_scope(
+                    client.table("workspace_files").delete(), user_id, workspace_id
+                )
                 .like("path", like_pattern)
                 .execute()
             )
@@ -216,18 +254,25 @@ def _delete_workspace_pattern(client, user_id: str, like_pattern: str) -> int:
         return 0
 
 
-def _user_agent_ids(client, user_id: str) -> list[str]:
-    """Return all agent IDs owned by the user (used to scope agent_runs ops)."""
+def _user_agent_ids(client, user_id: str, workspace_id: Optional[str] = None) -> list[str]:
+    """Return the agent IDs whose runs a purge may reach (scopes agent_runs ops).
+
+    ADR-476 D1: workspace-scoped. `agent_runs` carries only `workspace_id` (no
+    `user_id`), and is reached through `agents` — so scoping the agents lookup
+    to the user left every other member's runs unreachable by L1.
+    """
     try:
-        result = client.table("agents").select("id").eq("user_id", user_id).execute()
+        result = _purge_scope(
+            client.table("agents").select("id"), user_id, workspace_id
+        ).execute()
         return [r["id"] for r in (result.data or [])]
     except Exception:
         return []
 
 
-def _count_user_agent_runs(client, user_id: str) -> int:
-    """Count agent_runs rows belonging to the user (via agent_id → agents.user_id)."""
-    agent_ids = _user_agent_ids(client, user_id)
+def _count_user_agent_runs(client, user_id: str, workspace_id: Optional[str] = None) -> int:
+    """Count agent_runs rows in scope (via agent_id → agents). ADR-476 D1."""
+    agent_ids = _user_agent_ids(client, user_id, workspace_id)
     if not agent_ids:
         return 0
     try:
@@ -242,13 +287,13 @@ def _count_user_agent_runs(client, user_id: str) -> int:
         return 0
 
 
-def _delete_user_agent_runs(client, user_id: str) -> int:
-    """Delete all agent_runs rows belonging to the user. Returns count deleted."""
-    agent_ids = _user_agent_ids(client, user_id)
+def _delete_user_agent_runs(client, user_id: str, workspace_id: Optional[str] = None) -> int:
+    """Delete the agent_runs rows in scope. Returns count deleted. ADR-476 D1."""
+    agent_ids = _user_agent_ids(client, user_id, workspace_id)
     if not agent_ids:
         return 0
     try:
-        count = _count_user_agent_runs(client, user_id)
+        count = _count_user_agent_runs(client, user_id, workspace_id)
         if count > 0:
             (
                 client.table("agent_runs")
@@ -412,11 +457,17 @@ async def clear_work_history(auth: UserClient) -> OperationResult:
     user_id = auth.user_id
     deleted: dict[str, int] = {}
 
+    # ADR-476 D1/D2: work history is WORKSPACE content — clearing it destroys
+    # every member's run records and outputs, so it is an owner-grade act and
+    # is scoped to the workspace rather than to the caller's own rows.
+    ws = resolve_purge_workspace(user_id)
+    _require_workspace_clear_authority(user_id, ws)
+
     try:
         client = get_service_client()
 
         # Run records — every past invocation
-        deleted["agent_runs"] = _delete_user_agent_runs(client, user_id)
+        deleted["agent_runs"] = _delete_user_agent_runs(client, user_id, ws)
 
         # Dated DELIVERABLE output folders under any recurrence slug.
         # Pattern `/workspace/operation/reports/%/%/%` matches anything 3+ segments deep
@@ -424,15 +475,15 @@ async def clear_work_history(auth: UserClient) -> OperationResult:
         # Slug-root siblings (`_spec.yaml`, `_feedback.md`, `_intent.md`,
         # `_run_log.md`) live at depth 2 and are explicitly preserved.
         deleted["report_outputs"] = _delete_workspace_pattern(
-            client, user_id, "/workspace/operation/reports/%/%/%"
+            client, user_id, "/workspace/operation/reports/%/%/%", ws
         )
 
         # Per-recurrence observation logs — re-created on next run.
         deleted["report_run_logs"] = _delete_workspace_pattern(
-            client, user_id, "/workspace/operation/reports/%/_run_log.md"
+            client, user_id, "/workspace/operation/reports/%/_run_log.md", ws
         )
         deleted["operation_run_logs"] = _delete_workspace_pattern(
-            client, user_id, "/workspace/operation/operations/%/_run_log.md"
+            client, user_id, "/workspace/operation/operations/%/_run_log.md", ws
         )
 
         logger.info(f"[ACCOUNT] User {user_id} cleared work history: {deleted}")
@@ -509,6 +560,11 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
     job is to restore substrate skeletons + the YARNNN heartbeat, not tasks.
     """
     user_id = auth.user_id
+
+    # ADR-476 D2: L2 destroys every member's work in a shared workspace, so it
+    # is owner-grade. The scoping itself (D1) lives in the purge service, which
+    # resolves the workspace once for the whole sequence.
+    _require_workspace_clear_authority(user_id, resolve_purge_workspace(user_id))
 
     try:
         client = get_service_client()

@@ -417,47 +417,31 @@ export default function SettingsPage() {
 
               {/* Purge Actions — graduated severity L1→L3 */}
               <div className="border-t border-border pt-6 space-y-3 mb-6">
-                {/* L1: Clear Work History — lightest layer, no agent/task loss */}
-                <div className="p-4 border border-amber-200 dark:border-amber-900/50 rounded-lg">
-                  <div className="flex items-center justify-between">
+                {/* ADR-476 D3 — L1 (Clear Work History) and L2 (Clear Workspace)
+                    MOVED to Workspace Settings → Danger Zone. They destroy every
+                    member's shared content, which makes them workspace-scope under
+                    ADR-407, not account-scope. Singular Implementation: the cards
+                    live in WorkspaceDangerZone only; this door links across. What
+                    remains here is genuinely the member's own (L3 connections,
+                    L4 reset, L5 deactivate). */}
+                <div className="p-4 border border-border rounded-lg">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
                       <div className="font-medium flex items-center gap-2">
-                        <History className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                        Clear Work History
+                        <Database className="w-4 h-4 text-muted-foreground" />
+                        Clear workspace content
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        Delete {dangerStats.agent_runs} past run records and all dated output folders. Scheduled work, agents, identity, and accumulated context are preserved.
+                        Clearing work history or the whole workspace affects every
+                        member&apos;s work, so it lives with the workspace.
                       </div>
                     </div>
-                    <button
-                      onClick={() => initiateDangerAction("work-history")}
-                      disabled={dangerStats.agent_runs === 0}
-                      className="px-4 py-2 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-700 rounded-md text-sm font-medium hover:bg-amber-50 dark:hover:bg-amber-950/40 disabled:opacity-40 disabled:cursor-not-allowed"
+                    <a
+                      href="/workspace-settings?pane=danger"
+                      className="px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted shrink-0"
                     >
-                      Clear History
-                    </button>
-                  </div>
-                </div>
-
-                {/* L2: Clear Workspace — heavier, wipes agents+tasks but reinit restores roster */}
-                <div className="p-4 border border-orange-200 dark:border-orange-900/50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium flex items-center gap-2">
-                        <Database className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                        Clear Workspace
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Delete {dangerStats.agents} agents, {dangerStats.workspace_files} workspace files, {dangerStats.action_proposals} pending proposals, and all activity
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => initiateDangerAction("workspace")}
-                      disabled={dangerStats.workspace_files === 0 && dangerStats.agents === 0 && dangerStats.action_proposals === 0}
-                      className="px-4 py-2 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-700 rounded-md text-sm font-medium hover:bg-orange-50 dark:hover:bg-orange-950/40 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      Clear
-                    </button>
+                      Open
+                    </a>
                   </div>
                 </div>
 

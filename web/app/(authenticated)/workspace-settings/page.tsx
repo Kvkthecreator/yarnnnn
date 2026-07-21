@@ -31,8 +31,8 @@
  *     panes stay dormant in SystemAgentPanes; /system-agent is a redirect stub.
  */
 
-import { ShieldCheck, Users, Wallet } from "lucide-react";
-import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
+import { AlertTriangle, ShieldCheck, Users, Wallet } from "lucide-react";
+import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 // ADR-454 D4 (2026-07-13) — the ambient steward: the ADR-426 "Freddie System
 // Agent" door is REVERSED. The steward's two operator-tunable dials come back
 // to this door as an unbranded SYSTEM group (same pane bodies, third move,
@@ -47,6 +47,7 @@ import { renderSystemAgentPane } from "@/components/agents/SystemAgentPanes";
 // operator-facing Program hire UI is retired, its lifecycle-drawer component
 // stays in the Setup sequence).
 import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
+import { WorkspaceDangerZone } from "@/components/workspace-concepts/WorkspaceDangerZone";
 // ADR-425 — the Perception group (Connectors · Sources) left this door:
 // Connectors → the account door (a credential is a human's account object),
 // Sources → hidden. ConnectedIntegrationsSection now mounts in settings/page.tsx;
@@ -108,6 +109,15 @@ const PANE_GROUPS: PaneGroup[] = [
       { key: "budget", label: "Budget", icon: Wallet },
     ],
   },
+  {
+    // ADR-476 D3 — the workspace-CONTENT purges. L1 (clear work history) and
+    // L2 (clear workspace) destroy every member's work, so under ADR-407 they
+    // are workspace-scope, not account-scope. They moved here from System
+    // Settings → Account, which keeps the genuinely account-scoped actions
+    // (a member's own connections, account reset, deactivation).
+    label: "Danger Zone",
+    panes: [{ key: "danger", label: "Clear Workspace", icon: AlertTriangle }],
+  },
   // ADR-429 §13.3 — the Billing group LEFT this door for the account door (User
   // Settings, Vercel-style). See settings/page.tsx.
 ];
@@ -133,6 +143,19 @@ export default function WorkspaceSettingsPage() {
       case "autonomy":
       case "budget":
         return <section className="mb-8">{renderSystemAgentPane(pane)}</section>;
+      // ADR-476 D3 — the workspace-content purges (L1/L2), owner-gated.
+      case "danger":
+        return (
+          <section className="mb-8">
+            <PaneHeader
+              icon={AlertTriangle}
+              title="Clear Workspace"
+              subtitle="Remove this workspace's shared content. These actions affect every member's work and cannot be undone."
+              bordered={false}
+            />
+            <WorkspaceDangerZone />
+          </section>
+        );
       // ADR-429 §13.3 — the billing/usage cases LEFT this door for the account
       // door (settings/page.tsx). No cases here; nothing routes to them.
       default:

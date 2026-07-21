@@ -352,6 +352,53 @@ def has_billing_authority(principal_id: str, workspace_id: str) -> bool:
         return False
 
 
+WORKSPACE_CLEAR_SCOPE = "workspace:clear"
+
+
+def has_workspace_clear_authority(principal_id: str, workspace_id: str) -> bool:
+    """True iff this principal may CLEAR the workspace's shared content (ADR-476 D2).
+
+    L1 (clear work history) and L2 (clear workspace) destroy other members'
+    work in a multi-principal commons — so they are owner-grade acts, not
+    "clear my own rows". Before ADR-476 any authenticated member could invoke
+    them (and, being `user_id`-scoped, would silently clear only their own).
+
+    Same shape as `has_billing_authority` (ADR-416 D1) and for the same reason:
+    the ground-truth check is `workspaces.owner_id`, NOT the presence of an
+    `owner`-role grant. Two legacy workspaces have an owner with no owner-grant
+    row (the ADR-373 backfill didn't cover every pre-existing owner), so keying
+    on the grant alone would 403 real owners.
+
+    Authorized iff EITHER:
+      1. it is the workspace's `owner_id` (owner-default, grant-independent), OR
+      2. its active grant carries the `workspace:clear` scope (the extension
+         mechanism — a co-owner/admin the owner has granted).
+
+    A grant SCOPE, never a role enum — ADR-405: no rule may key on species.
+    Fail-closed on error.
+    """
+    try:
+        ws = (
+            _svc()
+            .table("workspaces")
+            .select("owner_id")
+            .eq("id", workspace_id)
+            .limit(1)
+            .execute()
+        ).data
+        if ws and str(ws[0].get("owner_id")) == str(principal_id):
+            return True
+
+        grant = _load_active_grant(principal_id, workspace_id)
+        if grant is None:
+            return False
+        if grant.get("role") == "owner":  # defensive: grant-owner also authorized
+            return True
+        return WORKSPACE_CLEAR_SCOPE in (grant.get("scopes") or [])
+    except Exception:  # pragma: no cover — fail-closed on lookup error
+        return False
+
+
 def narrow_grant(
     principal_id: str,
     workspace_id: str,
