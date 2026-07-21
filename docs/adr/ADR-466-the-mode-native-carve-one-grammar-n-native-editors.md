@@ -1,7 +1,14 @@
 # ADR-466 — The mode-native carve: one grammar, N native editors
 
-- **Status**: Accepted (2026-07-20, operator-ratified — "fully aligned on the assessment,
-  proposed carve and approach"; implementation delegated in full). Phase statuses tracked in §6.
+- **Status**: **Implemented — CLOSED** (2026-07-21). All phases Done (§6: P1–P8 the carve +
+  optimistic writes; P9–P12 the operator-feedback hardening loop — grain/coordinate honesty,
+  PowerPoint box grammar, box-through-editing, the flow-mouse pass + inspector
+  rationalization). Originally Accepted 2026-07-20, operator-ratified — "fully aligned on
+  the assessment, proposed carve and approach"; implementation delegated in full.
+  Remaining perf follow-ons (gesture ops skipping the srcdoc re-projection; navigator
+  per-slide memoization) are named, deliberate deferrals — cost, not loss — to be taken
+  only if the live feel demands them. Final validation: the operator click pass across the
+  five template representatives (deck/document/article/page/canvas).
 - **Date**: 2026-07-20
 - **Dimension**: Channel (primary — how the member shapes, per document type). No new
   substrate, no new write path, no schema.
