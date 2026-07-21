@@ -57,7 +57,11 @@ import { api, APIError } from '@/lib/api/client';
 import { operatorCanOrganize } from '@/lib/workspace/ownership';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
-import { resolveSurfaceApplication } from '@/lib/file-types';
+import {
+  extractTemplate,
+  isArtifactCandidate,
+  resolveSurfaceApplication,
+} from '@/lib/file-types';
 import { NewFolderModal } from '@/components/workspace/NewFolderModal';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
@@ -617,9 +621,30 @@ export default function ContextPage() {
   // .pptx opening PowerPoint; the inline viewer stays the Quick Look analog
   // for everything unclaimed.
   const handleExplorerSelect_byPath = useCallback((path: string) => {
-    const app = resolveSurfaceApplication(path);
-    if (app) {
-      navigateToSurface(app.surface, { [app.param]: path });
+    // ADR-473 D2: WHICH app opens an artifact depends on its declared type
+    // (`data-template`), not on its extension — Studio and IMAGES both author
+    // `.html`. The tree carries no kind (adding it would mean reading every
+    // file's content for a 500-row listing), so the kind is read from the one
+    // file being opened, and routing follows. A read failure falls back to the
+    // default app, which is exactly the pre-ADR-473 behavior.
+    if (isArtifactCandidate(path)) {
+      void (async () => {
+        let kind: string | null = null;
+        try {
+          const file = await api.workspace.getFile(path);
+          kind = extractTemplate(file.content ?? '');
+        } catch {
+          /* fall through to the default app */
+        }
+        const app = resolveSurfaceApplication(path, undefined, kind);
+        if (app) {
+          navigateToSurface(app.surface, { [app.param]: path });
+          return;
+        }
+        setShowTrash(false);
+        setSelectedPath(path);
+        activateBodyRef.current();
+      })();
       return;
     }
     setShowTrash(false);

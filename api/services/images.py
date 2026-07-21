@@ -120,6 +120,10 @@ def resolve_dimensions(
 # surface, not a novel data shape.
 
 STAGE = {
+    # ADR-473 D2: the owning app. One declaration; the kernel derives from it
+    # what this app may create, which artifacts are its own, and where the
+    # Finder's open verb routes this type.
+    "app": "images",
     "label": "Image",
     "mode": "paged",
     "description": "A composed visual — layered objects on a sized stage.",

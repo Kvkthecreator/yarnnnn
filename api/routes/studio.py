@@ -75,14 +75,19 @@ async def list_templates(auth: UserClient) -> dict:
 
     return {
         "templates": [
-            {"slug": slug, "label": t["label"], "description": t["description"]}
+            {
+                "slug": slug,
+                "label": t["label"],
+                "description": t["description"],
+                "app": t.get("app") or "studio",  # ADR-473 D2
+            }
             for slug, t in _templates.items()
         ]
     }
 
 
 @router.get("/studio/artifacts")
-async def list_artifacts(auth: UserClient) -> dict:
+async def list_artifacts(auth: UserClient, app: Optional[str] = None) -> dict:
     """Recent Studio-openable artifacts — .html files in the artifact region,
     newest first. The start state renders these as a clickable list (a member
     should never have to type a path to reopen their own work).
@@ -99,10 +104,16 @@ async def list_artifacts(auth: UserClient) -> dict:
       (`operation/ir-deck-v3/deck.html` → "IR deck v3"). DP33: the namespace
       carries meaning, so there is nothing to store.
 
-    The Files surface (the MIRROR) is untouched and still shows the raw leaf.
+    ADR-473 D4: `app=` scopes the list to the types that app OWNS — the
+    Finder/Preview behavior (Preview's Open dialog does not offer `.sketch`).
+    Ownership is derived from the artifact's own declared type (`kind` →
+    `app_for_kind`), so an app never restates which types are its own. Omitted
+    → every artifact, which is what the Files surface (the un-scoped mirror,
+    DP29) and any future cross-app view want.
     """
     from services.studio import (
         STUDIO_ARTIFACT_REGION,
+        app_for_kind,
         artifact_kind,
         artifact_name,
     )
@@ -122,11 +133,25 @@ async def list_artifacts(auth: UserClient) -> dict:
         # three abandoned "Untitled document"s still sees all three here.
         .or_("lifecycle.is.null,lifecycle.neq.archived")
         .order("updated_at", desc=True)
-        .limit(20)
+        # ADR-473 D4: fetch a WIDER window than we return, because ownership is
+        # decided AFTER the query (the type is lifted from content, so it is not
+        # a column PostgREST can filter on). Without this the scoped app would
+        # get "the newest 20 artifacts, then keep the few that are mine" — an
+        # app with older work would show an empty landing while its artifacts
+        # exist. Trim to the display count after filtering.
+        .limit(200)
         .execute()
     ).data or []
-    return {
-        "artifacts": [
+    _DISPLAY_LIMIT = 20
+    items = []
+    for r in rows:
+        kind = artifact_kind(r.get("content"))
+        # ADR-473 D4: scope by OWNERSHIP. An unowned type (D6) belongs to no
+        # app's recents but still lives in Files — absence of an owner is a
+        # fallback, never an error.
+        if app and app_for_kind(kind.get("kind")) != app:
+            continue
+        items.append(
             {
                 "path": r["path"],
                 "updated_at": r.get("updated_at"),
@@ -134,10 +159,13 @@ async def list_artifacts(auth: UserClient) -> dict:
                 # Both facts are LIFTED from the same content the row already
                 # carries (ADR-469 / ADR-459 D1) — no extra read, no storage.
                 "name": artifact_name(r["path"], r.get("content")),
-                **artifact_kind(r.get("content")),
+                **kind,
             }
-            for r in rows
-        ]
+        )
+        if len(items) >= _DISPLAY_LIMIT:
+            break
+    return {
+        "artifacts": items
     }
 
 
@@ -219,6 +247,10 @@ async def get_vocabulary(auth: UserClient) -> dict:
                 # the pointer. Served so the kernel names the category once and
                 # the FE never hardcodes a layout slug.
                 "mode": l["mode"],
+                # ADR-473 D2/D3: which app OWNS this type. Served so the FE
+                # resolves kind→app at runtime and never hardcodes a slug — a
+                # program-shipped type stays routable with no frontend deploy.
+                "app": l.get("app") or "studio",
             }
             for s, l in all_layouts().items()
         ],

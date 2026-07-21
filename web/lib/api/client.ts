@@ -426,15 +426,24 @@ export const api = {
   // first revision (authored_by=operator). Everything after creation flows
   // through existing machinery (bound lanes + GET /api/workspace/file).
   studio: {
+    /** ADR-473 D2/D3: each row carries the app that OWNS the type, so a
+     *  surface offers only its own shapes without hardcoding a slug list. */
     templates: () =>
-      request<{ templates: Array<{ slug: string; label: string; description: string }> }>(
-        "/api/studio/templates",
-      ),
+      request<{
+        templates: Array<{
+          slug: string;
+          label: string;
+          description: string;
+          app: string;
+        }>;
+      }>("/api/studio/templates"),
     // ADR-459: `name` + `kind` are COMPUTED server-side, never stored — the
     // kind lifted from the artifact's own `data-template`, the name titleized
     // from its meaning folder. `kind` is an opaque slug (a bundle may ship one
     // the FE has no icon for; `kind_label` still reads correctly).
-    artifacts: () =>
+    /** ADR-473 D4: `app` scopes to the types that app owns (the Finder/Preview
+     *  behavior). Omitted → every artifact, which is what Files wants. */
+    artifacts: (app?: string) =>
       request<{
         artifacts: Array<{
           path: string;
@@ -444,7 +453,7 @@ export const api = {
           kind: string | null;
           kind_label: string;
         }>;
-      }>("/api/studio/artifacts"),
+      }>(`/api/studio/artifacts${app ? `?app=${encodeURIComponent(app)}` : ""}`),
     // `head_version_id` is the citation's PIN (ADR-440 D5) — carried here so a
     // mechanical insert can stamp it at the moment the citation is made. Null
     // for a file predating the ADR-209 chain.

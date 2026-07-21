@@ -157,20 +157,77 @@ export interface SurfaceApplication {
   label: string;
 }
 
+/**
+ * The type→app association (ADR-473 D2), learned at runtime from the served
+ * layout vocabulary. The kernel owns the table; this is the FE's cache of it.
+ *
+ * Deliberately NOT a hardcoded map: a program-shipped document type must be
+ * routable without a frontend deploy (ADR-222). Populated once by whoever
+ * fetches the vocabulary; until then, `resolveSurfaceApplication` falls back to
+ * the default app, which is exactly the pre-ADR-473 behavior.
+ */
+const KIND_TO_APP = new Map<string, string>();
+
+/** The surfaces that can own an artifact type, by app slug (ADR-473 D2). */
+const APP_SURFACES: Record<string, SurfaceApplication> = {
+  studio: { surface: 'studio', param: 'file', label: 'Studio' },
+  images: { surface: 'images', param: 'file', label: 'Images' },
+};
+
+const DEFAULT_ARTIFACT_APP = 'studio';
+
+/** Publish the served association (call once with the vocabulary's layouts). */
+export function registerKindApps(rows: Array<{ slug: string; app?: string }>): void {
+  for (const r of rows) {
+    if (r.slug) KIND_TO_APP.set(r.slug, r.app || DEFAULT_ARTIFACT_APP);
+  }
+}
+
+/** Which app owns a document type — null when nothing claims it (D6). */
+export function appForKind(kind?: string | null): string | null {
+  if (!kind) return null;
+  return KIND_TO_APP.get(kind) ?? null;
+}
+
+/** Could this path be an authoring-app artifact at all? (ADR-473)
+ *  A cheap path-only pre-check so the Finder reads content ONLY for files that
+ *  might route to an app — never for a `.md`, an image, or an arrival. */
+export function isArtifactCandidate(path: string, contentType?: string): boolean {
+  const p = path.toLowerCase();
+  const t = (contentType || '').toLowerCase();
+  const isHtml = p.endsWith('.html') || p.endsWith('.htm') || t.includes('text/html');
+  const isArrival = p.includes('/inbound/') || p.startsWith('inbound/');
+  return isHtml && !isArrival;
+}
+
+/** The artifact's declared document type — its root `data-template` (ADR-459
+ *  D1). Lifted from content, never stored; mirrors
+ *  `services/studio.py::extract_template`. */
+export function extractTemplate(content: string): string | null {
+  const m = /<html[^>]*\bdata-template="([^"]+)"/i.exec(content || '');
+  return m ? m[1] : null;
+}
+
 export function resolveSurfaceApplication(
   path: string,
   contentType?: string,
+  /** The artifact's declared type (`data-template`, ADR-459) when the caller
+   *  has it. Absent → the default app, preserving pre-ADR-473 behavior. */
+  kind?: string | null,
 ): SurfaceApplication | null {
   const p = path.toLowerCase();
   const t = (contentType || '').toLowerCase();
-  // Studio claims html artifacts — EXCEPT arrivals (inbound/): a retained
-  // observation is a record to preview, not an authoring canvas (ADR-451 D1).
+  // An html artifact is claimed by an AUTHORING app — EXCEPT arrivals
+  // (inbound/): a retained observation is a record to preview, not an
+  // authoring canvas (ADR-451 D1).
   const isHtml = p.endsWith('.html') || p.endsWith('.htm') || t.includes('text/html');
   const isArrival = p.includes('/inbound/') || p.startsWith('inbound/');
-  if (isHtml && !isArrival) {
-    return { surface: 'studio', param: 'file', label: 'Studio' };
-  }
-  return null;
+  if (!isHtml || isArrival) return null;
+  // ADR-473 D2: the OWNING app comes from the artifact's declared type. The
+  // ADR-451 hardcode (every html → Studio) is replaced, not supplemented —
+  // it would send an IMAGES stage into Studio.
+  const app = appForKind(kind) ?? DEFAULT_ARTIFACT_APP;
+  return APP_SURFACES[app] ?? APP_SURFACES[DEFAULT_ARTIFACT_APP];
 }
 
 /**

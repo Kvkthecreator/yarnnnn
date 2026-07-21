@@ -33,6 +33,7 @@ import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePr
 import { LearnFromFlowModal } from './LearnFromFlowModal';
 import { NewDesignSystemModal } from './NewDesignSystemModal';
 import { NewArtifactModal, slugify } from './NewArtifactModal';
+import { registerKindApps } from '@/lib/file-types';
 import { StudioNewMenu } from './StudioNewMenu';
 import { studioShapeStyle } from './studioShapes';
 import { OpenArtifactModal } from './OpenArtifactModal';
@@ -176,20 +177,18 @@ const TEMPLATE_SUGGESTIONS: Record<string, string[]> = {
  * — the dual-approach smell the hooks discipline forbids.
  */
 export interface AuthoringApp {
-  /** Surface slug — the param namespace (`studio.file` vs `images.file`). */
+  /** Surface slug — the param namespace (`studio.file` vs `images.file`) AND
+   *  the app identity the kernel's type→app association keys on (ADR-473 D2).
+   *  Which shapes this app offers and which artifacts are its own are both
+   *  DERIVED from that association — never listed here (ADR-473 D3). */
   slug: 'studio' | 'images';
-  /** Layout slugs this app offers at creation. Empty = every registered one. */
-  templates?: string[];
-  /** Dimensions-first creation (ADR-472 D3) — IMAGES only. */
+  /** Dimensions-first creation (ADR-472 D3) — a raster artifact is born at a
+   *  size. Not derivable from ownership, so it stays an app property. */
   dimensionsFirst?: boolean;
 }
 
 export const STUDIO_APP: AuthoringApp = { slug: 'studio' };
-export const IMAGES_APP: AuthoringApp = {
-  slug: 'images',
-  templates: ['image'],
-  dimensionsFirst: true,
-};
+export const IMAGES_APP: AuthoringApp = { slug: 'images', dimensionsFirst: true };
 
 export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {}) {
   const { get: getParam, set: setParam } = useSurfaceParam(app.slug);
@@ -575,6 +574,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     api.studio
       .vocabulary()
       .then((v) => {
+        // ADR-473 D3: publish the served type→app association so path-only
+        // callers (the Finder's open verb, the Open picker) route correctly.
+        registerKindApps(v.layouts);
         if (live) setVocabulary(v);
       })
       .catch(() => {
@@ -2295,12 +2297,14 @@ function StudioStart({
 
   const loadRecents = useCallback(() => {
     api.studio
-      .artifacts()
+      // ADR-473 D4: an app's landing shows the artifacts it OWNS. Scoped in
+      // the QUERY, not sieved client-side — correct at 10,000 artifacts.
+      .artifacts(app.slug)
       .then((res) => setRecents(res.artifacts))
       .catch(() => {
         /* recents are a convenience — creation still works without them */
       });
-  }, []);
+  }, [app.slug]);
 
   // DESIGN-SYSTEMS.md §6 — load the workspace's design systems + enrich each
   // with its worn-by count (the ADR-448 edge on the manifest). Best-effort:
@@ -2309,6 +2313,7 @@ function StudioStart({
     api.studio
       .vocabulary()
       .then((v) => {
+        registerKindApps(v.layouts);  // ADR-473 D3 (see the workbench fetch)
         setSystems(v.design_systems);
         for (const s of v.design_systems) {
           api.documents
@@ -2327,13 +2332,11 @@ function StudioStart({
   useEffect(() => {
     api.studio
       .templates()
-      .then((res) =>
-        setTemplates(
-          app.templates
-            ? res.templates.filter((t) => app.templates!.includes(t.slug))
-            : res.templates.filter((t) => !IMAGES_APP.templates!.includes(t.slug)),
-        ),
-      )
+      // ADR-473 D3: ownership is SERVED (`t.app`), never restated here. This
+      // replaces ADR-472's hardcoded slug lists — no FE file holds a list of
+      // "which types are Studio's", so a program-shipped type routes with no
+      // frontend deploy.
+      .then((res) => setTemplates(res.templates.filter((t) => t.app === app.slug)))
       .catch(() => setError('Could not load templates.'));
     loadRecents();
     loadSystems();
@@ -2752,6 +2755,7 @@ function StudioStart({
           setOpenPickerOn(false);
           onOpen(p);
         }}
+        appSlug={app.slug}
       />
     </div>
   );

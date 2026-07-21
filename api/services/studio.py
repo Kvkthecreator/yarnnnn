@@ -183,6 +183,7 @@ STUDIO_LAYOUT_MODES = ("flow", "paged")
 
 STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     "document": {
+        "app": "studio",
         "label": "Document",
         "mode": "flow",
         "description": "An internal working document — sections under one title.",
@@ -208,6 +209,7 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
 </main>""",
     },
     "deck": {
+        "app": "studio",
         "label": "Deck",
         "mode": "paged",
         "description": "A slide deck — one idea per slide, spoken over.",
@@ -251,6 +253,7 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
 </section>""",
     },
     "article": {
+        "app": "studio",
         "label": "Article",
         "mode": "flow",
         "description": "A publishing shape — blog post, essay, announcement.",
@@ -287,6 +290,7 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     # section BANDS (each an arrangement) with the content column centered
     # inside; heroes carry a cited background (data-ref-kind="background").
     "page": {
+        "app": "studio",
         "label": "Page",
         "mode": "paged",
         "description": "A landing page — hero, features, call to action.",
@@ -1357,6 +1361,42 @@ def build_skeleton(layout: str, title: str | None = None) -> str:
 
 #: The creation-time registry (API surface of routes/studio.py — shape kept
 #: stable from ADR-440). Derived: a template IS a layout + its starters.
+DEFAULT_APP = "studio"
+
+
+def app_for_kind(kind: Optional[str]) -> Optional[str]:
+    """Which app OWNS a document type (ADR-473 D2) — the LaunchServices answer.
+
+    The artifact declares its type in its own content (`data-template`, lifted
+    by `artifact_kind`); the layout row declares which app owns that type. This
+    resolves one to the other.
+
+    Returns None for an unowned type — a bundle-shipped layout, a hand-authored
+    file, an artifact from an app that isn't installed. That is a FALLBACK, not
+    a failure (D6): the file still opens in the generic viewer and still appears
+    in Files; it simply belongs to no app's recents.
+    """
+    if not kind:
+        return None
+    row = resolve_layout(kind)
+    if not row:
+        return None
+    return row.get("app") or DEFAULT_APP
+
+
+def kinds_for_app(app: str) -> set:
+    """Every document type an app owns (ADR-473 D2) — the inverse lookup.
+
+    Used to scope an app's creation palette and its artifact list. Derived from
+    the same single declaration, never restated.
+    """
+    return {
+        slug
+        for slug, row in all_layouts().items()
+        if (row.get("app") or DEFAULT_APP) == app
+    }
+
+
 def all_templates() -> dict[str, dict[str, str]]:
     """Every registered app's templates (ADR-472 D1) — layout × starter blocks.
 
@@ -1370,6 +1410,7 @@ def all_templates() -> dict[str, dict[str, str]]:
             "label": lay["label"],
             "description": lay["description"],
             "skeleton": build_skeleton(slug),
+            "app": lay.get("app") or DEFAULT_APP,  # ADR-473 D2
         }
         for slug, lay in all_layouts().items()
     }
