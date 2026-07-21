@@ -1,6 +1,38 @@
 # ADR-445 — The Two-Axis Pricing Collapse: Seats + the Pooled Meter
 
-**Status**: Implemented (2026-07-12 — model ratified + all four phases landed in one pass). RATIFIES a simpler pricing model than ADR-429 and **supersedes ADR-429's Axis ① (the per-workspace base fee)**. **Phases 1–4 SHIPPED**: (1) `billing_tiers.py` config re-tune (seats LIVE, `included_seats` = billing baseline not a cap, free = solo) + the invite gate reworked to fire ONLY on the free→paid boundary (`upgrade_required`, 402) + seat-awareness in `GET /workspace/members` (paid grows freely); (2) checkout carries the seat `quantity` + a best-effort `sync_seat_quantity` on invite-accept/member-revoke keeps the LS subscription in step; (3) the coherence pass — SubscriptionCard, WorkspaceMembersCard, the pricing page, landing, FAQ, and llms.txt all tell the two-axis story; (4) per-member spend caps — a `governance/_member_caps.yaml` sidecar (`services/member_caps.py`) + a gate in the addressed path + the owner UI (a "Set spend cap" verb + chip on the members card). Regression gate `api/test_adr445_two_axis_pricing.py` 37/37 (replaces the deleted `test_adr429_seat_axis.py`); FE `tsc --noEmit` clean; ADR-373/404 sibling gates green. **Operator LS-dashboard step remaining (not code):** make the `starter` LS variant a per-seat subscription (unit = $20/seat) so `quantity` bills correctly. The three-axis model (base · seats · meter) collapses to **two axes: seats · meter** — the paid subscription IS the per-seat price, not a separate base fee sitting above seats. Anchored, at the operator's instruction, on what OpenAI and Anthropic actually charge for (evaluated in §3), and re-derived from the ground rather than accepted from ADR-429. The seat fee is set to a **real launch price** (not dormant, reversing ADR-429 §5a's dormant-launch decision) because in the two-axis model seats ARE the team-revenue path, not a secondary add-on. It supersedes no built substrate — the workspace-as-billing-unit (ADR-416), the pooled meter + allowance mechanics (ADR-396), and the per-principal attribution (ADR-373/291) all stand; this ADR changes what the tier's price *means* and where the free→paid boundary falls.
+**Status**: Implemented (2026-07-12 — model ratified + all four phases landed in one pass). RATIFIES a simpler pricing model than ADR-429 and **supersedes ADR-429's Axis ① (the per-workspace base fee)**. **Phases 1–4 SHIPPED**: (1) `billing_tiers.py` config re-tune (seats LIVE, `included_seats` = billing baseline not a cap, free = solo) + the invite gate reworked to fire ONLY on the free→paid boundary (`upgrade_required`, 402) + seat-awareness in `GET /workspace/members` (paid grows freely); (2) checkout carries the seat `quantity` + a best-effort `sync_seat_quantity` on invite-accept/member-revoke keeps the LS subscription in step; (3) the coherence pass — SubscriptionCard, WorkspaceMembersCard, the pricing page, landing, FAQ, and llms.txt all tell the two-axis story; (4) per-member spend caps — a `governance/_member_caps.yaml` sidecar (`services/member_caps.py`) + a gate in the addressed path + the owner UI (a "Set spend cap" verb + chip on the members card). Regression gate `api/test_adr445_two_axis_pricing.py` 37/37 (replaces the deleted `test_adr429_seat_axis.py`); FE `tsc --noEmit` clean; ADR-373/404 sibling gates green.
+
+> **STATUS CORRECTION (2026-07-21, from the pricing/seat/metering audit).** The
+> Phase-4 claim above was **overstated**: the cap shipped but **never bound a
+> member** — it was inert from the day it landed, for two independent reasons
+> (either alone sufficient). (a) **Scope key**: `load_member_caps` read
+> `.eq("user_id", …)` while `write_revision` lands the sidecar workspace-scoped, so
+> a member — who passes their OWN `auth.user_id` — read an empty bucket and fell to
+> UNCAPPED. (b) **Self-exempt carve**: the owner test read
+> `acting_principal_id in {owner_id, user_id}`, and since the caller passes their
+> own id as *both* arguments, every member exempted themselves by acting as
+> themselves. Compounding it, `principal_id` was stamped at only 11 of 34 telemetry
+> sites, so the `spend_by_principal` sum the cap reads was itself incomplete.
+>
+> **Why the gate did not catch it**: `test_adr445_two_axis_pricing.py` is
+> **config-only** — it asserts `TIER_CONFIG` constants and imports none of
+> `subscription.py` / `workspace_invites.py` / `platform_limits.py` /
+> `member_caps.py` / `telemetry.py`. Every *behavioural* claim in this banner was
+> asserted by prose and by no test. **A green count on a config gate is not
+> evidence a phase shipped.**
+>
+> Fixed + now covered by four behavioural gates: `test_adr445_member_caps_scope.py`
+> (14/14 — a member is actually BLOCKED), `test_adr445_principal_attribution.py`
+> (13/13 — every costed site attributed; it also *found* a costed site the manual
+> audit walk had missed), `test_adr445_seat_reconciliation.py` (17/17), and
+> `test_adr445_solo_checkout_copy.py` (12/12).
+>
+> **Phase 4 remains PARTIAL by scope, and this is now stated honestly.** §7 scoped
+> the gate to "the addressed path", and that is faithfully what exists — but §7's
+> own *Gate criterion* ("a member at their cap is blocked from further draw") is
+> **not met**: wake, ADR-411 lanes, MCP, agents, studio, and capture all draw the
+> pool with no cap check (several with no balance check either). Closing that is
+> the remaining Phase-4 work, tracked in §9. **Operator LS-dashboard step remaining (not code):** make the `starter` LS variant a per-seat subscription (unit = $20/seat) so `quantity` bills correctly. The three-axis model (base · seats · meter) collapses to **two axes: seats · meter** — the paid subscription IS the per-seat price, not a separate base fee sitting above seats. Anchored, at the operator's instruction, on what OpenAI and Anthropic actually charge for (evaluated in §3), and re-derived from the ground rather than accepted from ADR-429. The seat fee is set to a **real launch price** (not dormant, reversing ADR-429 §5a's dormant-launch decision) because in the two-axis model seats ARE the team-revenue path, not a secondary add-on. It supersedes no built substrate — the workspace-as-billing-unit (ADR-416), the pooled meter + allowance mechanics (ADR-396), and the per-principal attribution (ADR-373/291) all stand; this ADR changes what the tier's price *means* and where the free→paid boundary falls.
 
 **Date**: 2026-07-12
 **Authors**: KVK (operator) + Claude (collaborator)
@@ -302,6 +334,17 @@ launch blocker.
   resolves (ADR-396's standing numbers-deferral).
 - **Per-member cap default + granularity** (per-member $ vs % of pool; whether AIs get
   caps): Phase 4's design discourse.
+- **Cap coverage beyond the addressed path** (the open half of Phase 4, surfaced by
+  the 2026-07-21 audit). The cap gate lives at exactly one call site
+  (`routes/feed.py`). Every other path that draws the pool — the wake/judgment lane,
+  ADR-411 member lanes, MCP/foreign-LLM tool calls, `routes/{agents,studio,lanes}`,
+  the capture lane — bypasses it; several bypass `check_balance` too. Until this
+  closes, the cap bounds one conversation surface, not a member. The likely shape is
+  a single choke point (the gate belongs beside the balance check in
+  `execute_primitive()`'s ADR-307 consequential gate, not sprinkled per-route), which
+  is a design question, not a mechanical sweep — hence deferred rather than patched.
+  Interim: the pool hard-stop + per-principal attribution (now complete for costed
+  sites) + grant revocation.
 - **Billing authority beyond owner** (a co-owner role vs granting a `billing` scope): the
   membership-model question ADR-416 §9 + ADR-429 §9 already parked.
 

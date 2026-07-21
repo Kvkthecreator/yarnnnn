@@ -23,9 +23,15 @@ import { BarChart3, Loader2, Users } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { humanizeSlug } from "@/lib/schedule";
 import { deriveUsageMeter } from "@/lib/subscription/usage";
-import { useWorkspaceRoster } from "@/lib/workspace/viewer";
+import { useWorkspaceRoster, useWorkspaceMemberships } from "@/lib/workspace/viewer";
 
 export function UsagePaneBody() {
+  // ADR-416/429 §13 SAFETY GUARD: this pane sits under the ACCOUNT door but every
+  // figure on it is workspace-scoped, so it must name its subject — otherwise it
+  // swaps silently on workspace switch (the exact incoherence the operator caught
+  // on Billing, which got the guard; Usage was left without it).
+  const { memberships } = useWorkspaceMemberships();
+  const activeWorkspaceName = memberships.find((m) => m.is_active)?.label ?? null;
   const [limits, setLimits] = useState<
     Awaited<ReturnType<typeof api.integrations.getLimits>> | null
   >(null);
@@ -105,6 +111,14 @@ export function UsagePaneBody() {
 
   return (
     <div className="space-y-6">
+      {/* The workspace this pane is about (ADR-416/429 §13 guard). */}
+      {activeWorkspaceName ? (
+        <p className="text-xs text-muted-foreground -mb-2">
+          For <span className="font-medium text-foreground">{activeWorkspaceName}</span>
+          {" "}— its usage this cycle. Switch workspaces from the avatar menu.
+        </p>
+      ) : null}
+
       {/* Included usage — activity, not dollars (ADR-396 transparency).
           Meter derived by the shared model so the label always matches the
           math (allowance-first draw order) — lib/subscription/usage.ts. */}
