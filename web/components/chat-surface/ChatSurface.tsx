@@ -33,6 +33,7 @@ import { api } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
+import { useViewport } from '@/lib/shell/useViewport';
 import { useSelfLocatedSurface, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 
 interface LaneInfo {
@@ -94,6 +95,11 @@ export function ChatSurface() {
   const [renameText, setRenameText] = useState('');
   const { get: getParam, set: setParam } = useSurfaceParam('chat');
   const activeLaneId = getParam('lane');
+  // One screen at a time on mobile (the Files/SettingsPaneShell principle):
+  // below 640px the two columns don't share — the lane list IS the screen
+  // until you pick a lane, then the conversation IS the screen. Same single
+  // width signal the rest of the OS reads; no parallel media query.
+  const isNarrow = useViewport().isMobile;
 
   // Debounced transcript search — content matches union with name matches.
   useEffect(() => {
@@ -217,9 +223,16 @@ export function ChatSurface() {
   // always-visible lane-list column names "Chat" + every lane (it IS the
   // navigator), and the conversation header names the active lane + model. So
   // the OS surface bar suppresses for Chat — one "you are here", never two, and
-  // the ~28px band is reclaimed. (The crumb still registers above so the mobile
-  // WindowFrame / any future consumer has the data; only the OS strip hides.)
-  useSelfLocatedSurface('chat', true);
+  // the ~28px band is reclaimed.
+  //
+  // 2026-07-21: that ruling holds only while the lane list is ACTUALLY visible.
+  // Under the one-screen collapse below, a drilled-in mobile lane hides the
+  // list — the in-body locator that justified the suppression is off-screen,
+  // and suppressing the OS strip there would strand the member with no way
+  // back. So self-location is viewport-conditional: desktop (both columns, the
+  // list IS the navigator) suppresses; drilled-in mobile yields to the OS
+  // strip's `‹ {lane}` back chip. Same conditional shape Studio already uses.
+  useSelfLocatedSurface('chat', !(isNarrow && activeLane));
 
   const createLane = useCallback(async (agentSlug: string) => {
     if (!agentSlug) return;
@@ -334,8 +347,18 @@ export function ChatSurface() {
           onClose={() => setCreating(false)}
         />
       )}
-      {/* Lane list — flat recents, work-first (D4). */}
-      <div className="w-72 shrink-0 border-r border-border flex flex-col min-h-0">
+      {/* Lane list — flat recents, work-first (D4). On mobile it's the whole
+          screen (w-full) and yields entirely once a lane is picked; on desktop
+          it's the fixed 288px navigator column that's always present. */}
+      <div
+        className={cn(
+          'flex-col min-h-0',
+          // The divider is a two-column artifact — full-width it's a hairline
+          // against the screen edge.
+          isNarrow ? 'w-full' : 'w-72 shrink-0 flex border-r border-border',
+          isNarrow && (activeLane ? 'hidden' : 'flex'),
+        )}
+      >
         <div className="flex items-center justify-between px-3 py-2.5 border-b border-border shrink-0">
           <span className="text-sm font-medium">Chat</span>
           <button
@@ -544,13 +567,27 @@ export function ChatSurface() {
         </div>
       </div>
 
-      {/* Conversation area. */}
-      <div className="flex-1 min-w-0 flex flex-col min-h-0">
+      {/* Conversation area. On mobile it takes the whole screen when a lane is
+          open and is absent otherwise — its empty state ("pick a lane on the
+          left") is a desktop sentence; on one screen the lane list already IS
+          that instruction. */}
+      <div
+        className={cn(
+          'flex-1 min-w-0 flex-col min-h-0',
+          isNarrow && !activeLane ? 'hidden' : 'flex',
+        )}
+      >
         {activeLane ? (
           <>
+            {/* On mobile the OS back chip already names the lane; repeating it
+                here would stack two "you are here" labels ~28px apart. The
+                model chip stays either way — that's content state (WHICH
+                engine answers), not surface chrome (ADR-442 D3). */}
             <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border shrink-0">
-              <span className="text-sm font-medium">{activeLane.name}</span>
-              <span className="px-1.5 py-px rounded-full bg-muted text-[10px] text-muted-foreground">
+              {!isNarrow && (
+                <span className="text-sm font-medium truncate">{activeLane.name}</span>
+              )}
+              <span className="px-1.5 py-px rounded-full bg-muted text-[10px] text-muted-foreground shrink-0">
                 {modelLabel(activeLane.model)}
               </span>
             </div>
