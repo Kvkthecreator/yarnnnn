@@ -235,8 +235,26 @@ re-architecture.
   variant to a per-seat subscription. Grandfather existing workspaces with a notice
   window (`workspaces.seat_pricing_effective_at`, the ADR-429 §12.3b rail, already
   scoped). **Gate**: a 3-human paid workspace's computed invoice = `2 × $20 + the
-  pooled allowance`; a solo workspace = $0 subscription (usage-only); adding an AI does
-  not change the invoice.
+  pooled allowance`; a solo workspace that has NOT taken the plan = $0 subscription
+  (usage-only); adding an AI does not change the invoice.
+
+  **Amendment (2026-07-21, operator-ratified — the solo-checkout question).** The
+  original gate line read "a solo workspace = $0 subscription (usage-only)" without
+  qualification, which contradicted the shipped checkout (`billable_seats` floored at
+  1, so a solo owner who *takes* the plan pays one unit). The operator resolved in
+  favour of the code: **a solo workspace may take the paid plan, and pays $20.** The
+  free→paid boundary (§4) governs when a workspace *must* pay — the 2nd human — not
+  whether a solo owner may choose to. What that $20 buys a solo owner is the **pooled
+  allowance + the higher gates**, NOT a second seat; §4's "seat 1 is free" remains
+  true as a *seat-axis* statement (they are never charged for a teammate they do not
+  have). It is also the only solo monetization path in a model that otherwise accepts
+  solo = near-zero revenue (§3), so it is retained deliberately. **Copy constraint
+  this imposes**: no surface may tell a paying solo owner "your seat is free" — the
+  upgrade CTA reads `$20/mo` (not `$20/seat/mo`) and the paid-solo seat row names the
+  allowance, not the seat. Enforced by
+  `web/lib/subscription/usage.ts::tierUpgradeLabel`; the seat-unit label
+  `tierPriceLabel` was DELETED (it had exactly one caller — the CTA — where it was
+  wrong).
 
 - **Phase 3 — The coherence pass (the story, told once).** Rewrite the two panels
   (SubscriptionCard: "seats aren't billed yet" → the live per-seat line; WorkspaceMembers:
