@@ -63,9 +63,11 @@ def run() -> bool:
         "the strip hardcodes NO slug (surfaces declare; the strip only listens)",
         not re.search(r"isSelfLocated\(\s*['\"]", strip),
     )
+    # (Re-pinned 2026-07-21: ADR-473 made the Studio surface app-generic — the
+    #  self-located declaration keys on app.slug, not the 'studio' literal.)
     _check(
         "Studio declares self-located ONLY in the workbench (the start state keeps the strip)",
-        "useSelfLocatedSurface('studio', Boolean(artifactPath));" in studio,
+        "useSelfLocatedSurface(app.slug, Boolean(artifactPath));" in studio,
     )
     _check(
         "Chat declares self-located (lane column + conversation header name it)",

@@ -2129,9 +2129,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               layout={template}
               html={file?.content ?? ''}
               selection={selection}
-              carriedCount={carriedCount}
               onSetToken={handleSetToken}
-              onApplyArrangement={handleApplyArrangement}
               onBlockVerb={handleBlockVerb}
               onPageVerb={handlePageVerb}
               onTurnInto={handleTurnInto}

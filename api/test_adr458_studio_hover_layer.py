@@ -82,9 +82,11 @@ def run() -> bool:
            and "rename: () => setRenaming(true)" in surface)
     _check("the Design tab makes no organize API calls of its own (no fork)",
            "api.workspace" not in design and "api.files" not in design)
+    # (Re-pinned 2026-07-21: ADR-473 made the Studio surface app-generic —
+    #  the empty surface-actions registration keys on app.slug, not 'studio'.)
     _check("the surface-bar 'File actions' button is deleted (crumb-only bar)",
            "'File actions'" not in surface
-           and "useSurfaceActions('studio', [])" in surface)
+           and "useSurfaceActions(app.slug, [])" in surface)
     # The WORKBENCH mount stays deleted; the LANDING's recents later gained a
     # legitimate per-card context menu (one hook call, one mount). The check
     # guards against the workbench menu returning, not against the landing's.

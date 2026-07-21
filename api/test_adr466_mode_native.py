@@ -60,15 +60,23 @@ def run() -> bool:
         "export function applyArrangementMovingContent" in ops
         and "applyArrangementMovingContent(html, a.fragment, anchor, receiver.fragment)" in surface,
     )
+    # (Re-pinned 2026-07-21: the Properties page-scope gallery was DELETED as
+    #  a full duplicate of the toolbar's — one act, one mount (DP29). The
+    #  toolbar button relabeled Layout → "Re-arrange"; the carry note now has
+    #  exactly one consumer, and the design tab must NOT regrow a gallery.)
     _check(
-        "the galleries forewarn (one shared carry note, both mounts)",
+        "the gallery forewarns (one shared carry note, ONE mount — the toolbar)",
         "export function arrangementCarryNote" in toolbar
         and "arrangementCarryNote(a, carriedCount, pageNoun)" in toolbar
-        and "arrangementCarryNote(a, carriedCount, pageNoun)" in design,
+        and "arrangementCarryNote" not in design
+        and "ArrangementThumb" not in design,
     )
     _check(
-        "the toolbar pairs New ‹noun› with Layout (the PowerPoint pair)",
-        "New {pageNoun}" in toolbar and "'layout'" in toolbar and "hasPageAnchor" in toolbar,
+        "the toolbar pairs New ‹noun› with Re-arrange (the PowerPoint pair)",
+        "New {pageNoun}" in toolbar
+        and "'layout'" in toolbar
+        and "> Re-arrange" in toolbar
+        and "hasPageAnchor" in toolbar,
     )
     _check(
         "countCarriedBlocks serves the pre-filter from ONE carried definition",
@@ -324,6 +332,25 @@ def run() -> bool:
         "P10 the frame reference rides the selection (name at rest, numbers live)",
         "function syncFrameContext()" in proj
         and "txt ? frameLabel(frame) + ' · ' + txt : frameLabel(frame)" in proj,
+    )
+
+    # ── P12: the flow-mouse pass (operator read, 2026-07-21) ─────────────
+    # The dashed-box noise on documents: every pointable element (h3, p)
+    # outlined individually with cursor:pointer, INSIDE the very block being
+    # edited, with the slot label firing over it. The cue now lights the
+    # click GRAIN, text invites the caret, and chrome rests while typing.
+    _check(
+        "P12 hover cue lights the enclosing block, innermost only",
+        "[data-block]:hover:not(:has([data-block]:hover))" in proj,
+    )
+    _check(
+        "P12 text blocks wear the I-beam; the cursor follows the click's meaning",
+        "{ cursor: text; }" in proj and "TEXT_KINDS_JS).map" in proj,
+    )
+    _check(
+        "P12 quiet while typing: no hover chrome inside a live edit; slots rest",
+        '[contenteditable="true"] :hover' in proj
+        and 'body:has([contenteditable="true"]) [data-slot]:hover { outline: none; }' in proj,
     )
 
     ok = all(c for _, c in _results)

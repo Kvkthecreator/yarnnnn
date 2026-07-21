@@ -219,9 +219,11 @@ export function StudioToolbar({
           <LayoutGrid className="h-3 w-3" /> New {pageNoun} <Plus className="h-3 w-3" />
         </button>
       )}
-      {/* Layout — re-lay the CURRENT page (ADR-466 D5): the PowerPoint pair,
-          New slide beside Layout. Same gallery as the Properties page scope
-          (one component grammar, two mounts); needs an anchored page. */}
+      {/* Re-arrange — re-lay the CURRENT page (ADR-466 D5): the PowerPoint
+          pair, New slide beside it. Since 2026-07-21 this is the ONE mount —
+          the Properties page-scope gallery was deleted as a full duplicate;
+          the label follows the act ("Re-arrange"), not the noun ("Layout").
+          Needs an anchored page. */}
       {isPaged && arrangements.length > 0 && (
         <button
           type="button"
@@ -234,7 +236,7 @@ export function StudioToolbar({
           }
           onClick={() => setOpen(open === 'layout' ? null : 'layout')}
         >
-          <LayoutTemplate className="h-3 w-3" /> Layout
+          <LayoutTemplate className="h-3 w-3" /> Re-arrange
         </button>
       )}
 

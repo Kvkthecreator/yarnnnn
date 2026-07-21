@@ -35,10 +35,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { ArrangementThumb } from './ArrangementThumb';
 import {
-  arrangementCarryNote,
-  type StudioArrangement,
   type StudioSelection,
   type StudioToken,
   type StudioVocabulary,
@@ -65,15 +62,9 @@ interface StudioDesignTabProps {
   /** The artifact's SOURCE html — token values + skin ref parse from it. */
   html: string;
   selection: StudioSelection | null;
-  /** ADR-466 D5 — blocks the selected page would carry through an arrangement
-   *  change; drives the carry note on slotless thumbs. */
-  carriedCount: number | null;
   /** EXECUTE: set (value) / clear (null) a token on the selected block/page,
    *  or on the artifact ROOT (document grain — ADR-455). */
   onSetToken: (grain: 'block' | 'page' | 'document', key: string, value: string | null) => void;
-  /** EXECUTE: re-lay the SELECTED page to this arrangement (role-aware; a
-   *  slotless target resolves by moving content to a new content page). */
-  onApplyArrangement: (a: StudioArrangement) => void;
   onBlockVerb: (verb: StructVerb) => void;
   onPageVerb: (verb: StructVerb) => void;
   /** EXECUTE: turn the selected block into another TEXT kind (ADR-456 W2 —
@@ -260,9 +251,7 @@ export function StudioDesignTab({
   layout,
   html,
   selection,
-  carriedCount,
   onSetToken,
-  onApplyArrangement,
   onBlockVerb,
   onPageVerb,
   onTurnInto,
@@ -679,85 +668,6 @@ export function StudioDesignTab({
               </p>
             </div>
           )}
-          {/* File (ADR-458 D3) — the artifact-as-file verbs, one settings home
-              (Notion's page ⋯ = typography + file verbs; both live HERE now). */}
-          <div className={SECTION}>
-            <p className={HEADING}>File</p>
-            <div className="flex flex-wrap gap-1">
-              <button type="button" className={askBtn} onClick={fileVerbs.copyLink}>
-                Copy link
-              </button>
-              <button type="button" className={askBtn} onClick={fileVerbs.duplicate}>
-                Duplicate
-              </button>
-              <button type="button" className={askBtn} onClick={fileVerbs.rename}>
-                Rename…
-              </button>
-              <button type="button" className={askBtn} onClick={fileVerbs.move}>
-                Move…
-              </button>
-              <button
-                type="button"
-                className={`${askBtn} hover:border-red-300 hover:text-red-600`}
-                onClick={fileVerbs.trash}
-                title="Move this artifact to Trash (revertible from Files)"
-              >
-                <Trash2 className="h-3 w-3" /> Trash
-              </button>
-            </div>
-          </div>
-          {/* Share (ADR-437 D4 wedge / ADR-465 — the membership act, distinct
-              from Copy link's in-app member deep-link). A share link makes the
-              recipient a member of this workspace on accept. */}
-          <div className={SECTION}>
-            <p className={HEADING}>Share</p>
-            <button
-              type="button"
-              className={askBtn}
-              onClick={runShare}
-              disabled={sharing}
-              title="Create a link that lets someone open this artifact and join your workspace"
-            >
-              {sharing ? 'Creating link…' : shareState === 'copied' ? 'Link copied ✓' : 'Share…'}
-            </button>
-            <p className="text-[10px] leading-snug text-muted-foreground">
-              {shareState === 'error'
-                ? 'Could not create the share link. Try again.'
-                : shareState === 'copied'
-                  ? 'Anyone with the link can open this and join your workspace with full access. Manage or revoke shares from Files.'
-                  : 'Creates a link. Whoever opens it joins your workspace with full access — narrow it later.'}
-            </p>
-          </div>
-          {/* Export (ADR-466 D6) — the boundary projections. Print/PDF is the
-              browser's print over the resolved projection (no render engine,
-              ADR-417); the AI reference is the interop-face handle (recall/
-              trace via the yarnnn connector) — the third way out, beside the
-              member deep-link (Copy link) and the membership link (Share). */}
-          <div className={SECTION}>
-            <p className={HEADING}>Export</p>
-            <div className="flex flex-wrap gap-1">
-              <button
-                type="button"
-                className={askBtn}
-                onClick={exportVerbs.print}
-                title="Open the print dialog over the rendered artifact — save as PDF from there"
-              >
-                Print / PDF…
-              </button>
-              <button
-                type="button"
-                className={askBtn}
-                onClick={runCopyAiRef}
-                title="Copy a reference any connected AI can use to recall this artifact via the yarnnn connector"
-              >
-                {aiRefState === 'copied' ? 'Reference copied ✓' : 'Copy AI reference'}
-              </button>
-            </div>
-            <p className="text-[10px] leading-snug text-muted-foreground">
-              A deck prints one slide per page. Markdown export arrives with the
-              interchange wave (ADR-456 W4).
-            </p>
-          </div>
         </>
       )}
 
@@ -828,42 +738,10 @@ export function StudioDesignTab({
               </button>
             )}
           </div>
-          {arrangements.length > 0 && (
-            <div className={SECTION}>
-              <p className={HEADING}>Re-arrange</p>
-              <div className="grid grid-cols-2 gap-1.5">
-                {arrangements.map((a) => {
-                  const current = selectedEl?.getAttribute('data-arrange') === a.slug;
-                  // ADR-466 D5 — forewarn, never dead-end: a slotless target
-                  // moves this page's content to a new content page.
-                  const note = arrangementCarryNote(a, carriedCount, pageNoun);
-                  return (
-                    <button
-                      key={a.slug}
-                      type="button"
-                      title={
-                        note
-                          ? `${a.description} — this ${pageNoun}'s content moves to a new content ${pageNoun} after it.`
-                          : a.description
-                      }
-                      onClick={() => onApplyArrangement(a)}
-                      className={`flex flex-col gap-1 rounded-md border p-1.5 text-left hover:bg-muted/20 ${
-                        current ? 'border-indigo-400' : 'border-transparent hover:border-border'
-                      }`}
-                    >
-                      <ArrangementThumb slots={a.slots} fragment={a.fragment} />
-                      <span className="truncate text-[11px]">{a.label}</span>
-                      {note && (
-                        <span className="truncate text-[9px] leading-tight text-amber-600 dark:text-amber-500">
-                          {note}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* (The Re-arrange thumbnail gallery left this panel 2026-07-21 —
+              it duplicated the toolbar's Re-arrange gallery in full, and two
+              mounts of the same act is exactly the redundancy DP29 names.
+              The toolbar button is the one home.) */}
         </>
       )}
 
@@ -991,6 +869,94 @@ export function StudioDesignTab({
           )}
         </>
       )}
+      {/* ── The artifact tail — EVERY scope, every template (2026-07-21) ──
+          File / Share / Export are document-global acts; scope-gating them
+          under "nothing selected" hid them exactly when the member was
+          working a section ("share/export … seems to have in deck … but not
+          here"). The inspector's top half follows the selection; the
+          artifact's own acts keep one fixed home at the bottom. */}
+      <>
+          {/* File (ADR-458 D3) — the artifact-as-file verbs, one settings home
+              (Notion's page ⋯ = typography + file verbs; both live HERE now). */}
+          <div className={SECTION}>
+            <p className={HEADING}>File</p>
+            <div className="flex flex-wrap gap-1">
+              <button type="button" className={askBtn} onClick={fileVerbs.copyLink}>
+                Copy link
+              </button>
+              <button type="button" className={askBtn} onClick={fileVerbs.duplicate}>
+                Duplicate
+              </button>
+              <button type="button" className={askBtn} onClick={fileVerbs.rename}>
+                Rename…
+              </button>
+              <button type="button" className={askBtn} onClick={fileVerbs.move}>
+                Move…
+              </button>
+              <button
+                type="button"
+                className={`${askBtn} hover:border-red-300 hover:text-red-600`}
+                onClick={fileVerbs.trash}
+                title="Move this artifact to Trash (revertible from Files)"
+              >
+                <Trash2 className="h-3 w-3" /> Trash
+              </button>
+            </div>
+          </div>
+          {/* Share (ADR-437 D4 wedge / ADR-465 — the membership act, distinct
+              from Copy link's in-app member deep-link). A share link makes the
+              recipient a member of this workspace on accept. */}
+          <div className={SECTION}>
+            <p className={HEADING}>Share</p>
+            <button
+              type="button"
+              className={askBtn}
+              onClick={runShare}
+              disabled={sharing}
+              title="Create a link that lets someone open this artifact and join your workspace"
+            >
+              {sharing ? 'Creating link…' : shareState === 'copied' ? 'Link copied ✓' : 'Share…'}
+            </button>
+            <p className="text-[10px] leading-snug text-muted-foreground">
+              {shareState === 'error'
+                ? 'Could not create the share link. Try again.'
+                : shareState === 'copied'
+                  ? 'Anyone with the link can open this and join your workspace with full access. Manage or revoke shares from Files.'
+                  : 'Creates a link. Whoever opens it joins your workspace with full access — narrow it later.'}
+            </p>
+          </div>
+          {/* Export (ADR-466 D6) — the boundary projections. Print/PDF is the
+              browser's print over the resolved projection (no render engine,
+              ADR-417); the AI reference is the interop-face handle (recall/
+              trace via the yarnnn connector) — the third way out, beside the
+              member deep-link (Copy link) and the membership link (Share). */}
+          <div className={SECTION}>
+            <p className={HEADING}>Export</p>
+            <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                className={askBtn}
+                onClick={exportVerbs.print}
+                title="Open the print dialog over the rendered artifact — save as PDF from there"
+              >
+                Print / PDF…
+              </button>
+              <button
+                type="button"
+                className={askBtn}
+                onClick={runCopyAiRef}
+                title="Copy a reference any connected AI can use to recall this artifact via the yarnnn connector"
+              >
+                {aiRefState === 'copied' ? 'Reference copied ✓' : 'Copy AI reference'}
+              </button>
+            </div>
+            <p className="text-[10px] leading-snug text-muted-foreground">
+              A deck prints one slide per page. Markdown export arrives with the
+              interchange wave (ADR-456 W4).
+            </p>
+          </div>
+      </>
+
     </div>
   );
 }

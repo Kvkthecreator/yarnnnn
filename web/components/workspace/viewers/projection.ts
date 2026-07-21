@@ -231,10 +231,44 @@ async function resolveOne(el: Element, artifactPath: string): Promise<void> {
 const POINTABLE =
   'h1,h2,h3,h4,p,li,img,figure,figcaption,table,blockquote,pre,[data-ref],[data-block]';
 
+// The TEXT-editable block kinds (ADR-456 W2's Turn-into set): a single click on
+// one of these enters edit-at-caret (F4); media/data/structured kinds
+// (figure/gallery/table/metrics/chart) stay select-only. Kept in sync with the
+// StudioDesignTab TURN_INTO_KINDS + the heading anchor kind. (Declared before
+// POINTER_CSS, which derives the cursor:text rule from it.)
+const TEXT_KINDS_JS = JSON.stringify(['prose', 'callout', 'quote', 'checklist', 'toggle', 'heading']);
+
 const POINTER_CSS = `
-${POINTABLE.split(',').map((s) => `${s}:hover`).join(',')} {
+/* The hover cue lights the CLICK GRAIN — the enclosing block, never the raw
+   elements inside it (2026-07-21, the flow-mouse pass). The old rule outlined
+   every pointable element individually (h3:hover, p:hover), so a prose block
+   holding a heading + sentence grew THREE competing dashed boxes and a
+   pointer cursor over text whose click means "place the caret" — the noise
+   the operator read as "mouse actions not working as intended". The ladder
+   resolves a click to the block; the cue must agree with the ladder.
+   :has() keeps only the INNERMOST hovered block lit (a nested block does not
+   double-light its ancestor). */
+[data-block]:hover:not(:has([data-block]:hover)) {
+  outline: 1px dashed rgba(120,115,107,0.4); outline-offset: 2px;
+}
+[data-block] { cursor: pointer; }
+/* Text blocks invite the CARET, not a click-target: the I-beam is the honest
+   cursor for click-to-type (Notion), pointer stays for object-like blocks. */
+${JSON.parse(TEXT_KINDS_JS).map((k: string) => `[data-block="${k}"]`).join(', ')} { cursor: text; }
+/* Bare pointables OUTSIDE any block (legacy/unblocked content + citation
+   islands) keep the old per-element cue — there is no block to light. */
+${POINTABLE.split(',').map((s) => `${s}:hover:not([data-block] *):not([data-block])`).join(',\n')} {
   outline: 1px dashed rgba(120,115,107,0.4); outline-offset: 2px; cursor: pointer;
 }
+/* QUIET WHILE TYPING: inside the block being edited, no hover chrome at all —
+   the caret owns it (matches PowerPoint/Notion: no boxes chase the mouse
+   through text you are writing). Slot outlines + labels also rest while any
+   edit is live; the green tag reappears the moment the caret leaves. */
+[contenteditable="true"] :hover, [data-block][contenteditable="true"]:hover {
+  outline: none !important;
+}
+body:has([contenteditable="true"]) [data-slot]:hover { outline: none; }
+body:has([contenteditable="true"]) [data-slot]:hover::after { content: none; }
 /* Selection is NEUTRAL (ADR-462 D5). A saturated outline reads as the app
    asserting itself over the member's page — PowerPoint/Keynote/Figma all draw
    selection as a thin neutral rule, and reserve colour for what is NOT your
@@ -312,12 +346,6 @@ const IMAGE_STAGE_CSS = `
 html[data-template="image"] body { display: flex; flex-direction: column; align-items: center; }
 html[data-template="image"] .slide { flex: 0 0 auto; }
 `;
-
-// The TEXT-editable block kinds (ADR-456 W2's Turn-into set): a single click on
-// one of these enters edit-at-caret (F4); media/data/structured kinds
-// (figure/gallery/table/metrics/chart) stay select-only. Kept in sync with the
-// StudioDesignTab TURN_INTO_KINDS + the heading anchor kind.
-const TEXT_KINDS_JS = JSON.stringify(['prose', 'callout', 'quote', 'checklist', 'toggle', 'heading']);
 
 const POINTER_SCRIPT = `
 (function () {
