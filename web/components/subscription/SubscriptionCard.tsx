@@ -26,7 +26,7 @@ import type { SubscriptionTier } from "@/types";
 import { ByokSection } from "@/components/subscription/ByokSection";
 import {
   deriveUsageMeter,
-  tierPriceLabel,
+  tierUpgradeLabel,
   tierDescriptor,
   type UsageLimits,
   type UsageMeter,
@@ -181,7 +181,12 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                     : `${humanSeats} people · ${billableSeats} ${billableSeats === 1 ? "seat" : "seats"} billed`}
                 </div>
                 <div className="text-[11px] text-muted-foreground">
-                  {humanSeats === 1
+                  {/* A solo owner on a PAID plan is paying — telling them "your seat
+                      is free" contradicts the charge on the same card. What their $20
+                      buys is the pooled allowance + gates, not a second seat. */}
+                  {humanSeats === 1 && tier !== "free" && !exempt
+                    ? "Your plan covers this workspace's shared usage. Teammates you invite are billed seats."
+                    : humanSeats === 1
                     ? "Your seat is free. Invite a teammate and each extra person is a paid seat."
                     : exempt
                       ? "Comped — no seat charge on this workspace."
@@ -249,7 +254,7 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                   {subscribeLoading === t ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    `${TIER_LABEL[t]} · ${tierPriceLabel(t)}`
+                    `${TIER_LABEL[t]} · ${tierUpgradeLabel(t)}`
                   )}
                 </Button>
               ))}

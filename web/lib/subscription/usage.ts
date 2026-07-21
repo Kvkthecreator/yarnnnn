@@ -136,17 +136,20 @@ export const TOPUP_PRESETS = [5, 10, 25, 50] as const;
 export const TOPUP_DEFAULT = 25;
 
 /**
- * Monthly plan price per tier (USD) — the CATALOG price shown on upgrade CTAs.
- * This is a plan price, NOT a usage bill, so it's shown to the operator (the
- * hide-$ contract governs ACTIVITY surfaces, not the price of a plan).
+ * The per-SEAT unit price per tier (USD) — the CATALOG price. A plan price, NOT a
+ * usage bill, so it is shown to the operator (the hide-$ contract governs ACTIVITY
+ * surfaces, not the price of a plan).
  *
- * Mirror of api/services/billing_tiers.py::TIER_CONFIG.price_usd — the backend is
- * the source of truth for what LS charges; this is the display copy. Keep in sync
- * (both are launch-test numbers per ADR-396 §7, relaxed).
+ * Mirror of api/services/billing_tiers.py::TIER_CONFIG.additional_seat_usd — the
+ * backend is the source of truth for what LS charges; this is display copy. Keep in
+ * sync (both are launch-test numbers per ADR-396 §7, relaxed).
+ *
+ * ADR-445: the paid subscription IS the seat fee; there is no separate base. The
+ * checkout quantity is floored at 1 (`billable_seats` ≥ 1, subscription.py), so a
+ * SOLO owner taking the plan pays one unit — what that $20 buys them is the pooled
+ * allowance + the higher gates, not a second seat. Copy must never imply their own
+ * seat is what is being charged; see `tierUpgradeLabel`.
  */
-// ADR-445 — the per-SEAT price (the paid subscription IS the seat fee; no base).
-// A solo workspace pays $0 (the owner is the free seat, usage-only); a team pays
-// (humans − 1) × this. Mirror of TIER_CONFIG.additional_seat_usd.
 export const TIER_SEAT_PRICE_USD: Record<SubscriptionTier, number> = {
   free: 0,
   starter: 20, // $20/additional human/mo (mirror TIER_CONFIG.additional_seat_usd)
@@ -154,10 +157,16 @@ export const TIER_SEAT_PRICE_USD: Record<SubscriptionTier, number> = {
   enterprise: 20, // seat-priced like every paid tier; the custody bundle is the sell
 };
 
-/** "$20/seat" / "Free" — the price label for an upgrade CTA (ADR-445: per-seat). */
-export function tierPriceLabel(tier: SubscriptionTier): string {
+/**
+ * The UPGRADE CTA label — a bare "$20/mo", deliberately NOT a per-seat label. The
+ * upgrade button is only ever shown to a free-tier workspace, which is solo (free =
+ * 1 human). Labelling it "$20/seat/mo" told a solo owner they were buying a seat —
+ * while the same card said "Your seat is free." $20 is what they pay; a SEAT is not
+ * what it buys (it buys the pooled allowance + gates — ADR-445 §7 P2 amendment).
+ */
+export function tierUpgradeLabel(tier: SubscriptionTier): string {
   const price = TIER_SEAT_PRICE_USD[tier];
-  return price > 0 ? `$${price}/seat/mo` : "Free";
+  return price > 0 ? `$${price}/mo` : "Free";
 }
 
 /**
@@ -175,7 +184,7 @@ export function tierDescriptor(tier: SubscriptionTier): string {
     case "pro":
       return "$20/seat · $45 pooled usage included"; // dormant tier (not offered); descriptor kept for a legacy row
     case "starter":
-      return "Free for you · $20/seat for each teammate · $15 pooled usage the workspace shares";
+      return "$15 pooled usage the workspace shares · $20/seat for each teammate you add";
     default:
       return "Workspace + memory, free forever for one person · usage drawn from your balance";
   }

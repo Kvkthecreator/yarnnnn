@@ -380,12 +380,17 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
 
     # custom_price (integer cents) is set only for top-ups.
     custom_price_cents: Optional[int] = None
-    # ADR-445 §7 Phase 2 — the seat QUANTITY for a subscription checkout. The paid
-    # plan is seat-priced (variant unit price × quantity); quantity = billable_seats
-    # = max(0, humans − included_seats). A solo owner checks out with quantity 1 (the
-    # minimum billable unit LS accepts — seat 1 is the owner's own paid seat when
-    # they take the plan solo, e.g. to lift the usage allowance); a team's quantity
-    # is (humans − 1). Kept ≥ 1 so LS never rejects a 0-quantity subscription.
+    # ADR-445 §7 Phase 2 (+ the 2026-07-21 solo-checkout amendment) — the seat
+    # QUANTITY for a subscription checkout. The paid plan is seat-priced (variant
+    # unit price × quantity); quantity = billable_seats = max(0, humans −
+    # included_seats), floored at 1 because LS rejects a 0-quantity subscription.
+    #
+    # A SOLO owner therefore checks out at quantity 1 and pays one unit. That is
+    # ratified, not a rounding artifact: the free→paid boundary governs when a
+    # workspace MUST pay (the 2nd human), not whether a solo owner MAY. What the
+    # unit buys them is the pooled allowance + the higher gates — NOT a second seat.
+    # The copy contract that follows from this (no surface tells a paying solo owner
+    # "your seat is free") is enforced FE-side in lib/subscription/usage.ts.
     seat_quantity: Optional[int] = None
 
     if request.checkout_type == "topup":
