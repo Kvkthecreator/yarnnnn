@@ -1242,7 +1242,9 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
         member_caps: dict[str, float] = {}
         try:
             from services.member_caps import load_member_caps
-            member_caps = load_member_caps(svc, auth.user_id)
+            # Workspace-scoped (ADR-373): the roster's caps belong to the workspace
+            # being listed, not to the calling user's own singleton.
+            member_caps = load_member_caps(svc, auth.user_id, workspace_id)
         except Exception as exc:  # noqa: BLE001 — legibility, never blocks the roster
             logger.debug("[WORKSPACE_API] member-cap load failed: %s", exc)
 
@@ -1536,7 +1538,10 @@ async def set_member_spend_cap(
     workspace_id = _require_owner_workspace(auth)
     from services.member_caps import set_member_cap
     try:
-        caps = set_member_cap(auth.client, auth.user_id, principal_id, body.cap_usd)
+        caps = set_member_cap(
+            auth.client, auth.user_id, principal_id, body.cap_usd,
+            workspace_id=workspace_id,
+        )
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:

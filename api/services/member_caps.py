@@ -37,21 +37,30 @@ def _caps_path() -> str:
     return f"/workspace/{GOVERNANCE_MEMBER_CAPS_PATH}"
 
 
-def load_member_caps(client: Any, user_id: str) -> dict[str, float]:
-    """Read the per-principal cap map for the workspace. {principal_id: cap_usd}.
+def load_member_caps(
+    client: Any, user_id: str, workspace_id: Optional[str] = None
+) -> dict[str, float]:
+    """Read the per-principal cap map for the WORKSPACE. {principal_id: cap_usd}.
+
+    ADR-445 §7 Phase 4 + ADR-373: the cap map is a property of the WORKSPACE (the
+    billing unit, ADR-416), not of a user. It is read with the same
+    `_substrate_scope` key `write_revision` writes it under — keying the read on
+    `user_id` while the write lands workspace-scoped made a member's lookup miss
+    the owner-authored file entirely, silently returning UNCAPPED (the gate was
+    inert for the exact population it bounds). `user_id` remains only as the
+    workspace-resolution seed + the N=1 fallback.
 
     Empty on absent file / parse error (UNCAPPED default). Only positive numeric
     caps are kept — a zero/negative/non-numeric entry is dropped (a 0 cap would be
     a total lockout better expressed via Revoke/Narrow, not a spend cap)."""
     try:
-        res = (
-            client.table("workspace_files")
-            .select("content")
-            .eq("user_id", user_id)
-            .eq("path", _caps_path())
-            .limit(1)
-            .execute()
-        )
+        from services.workspace_context import effective_workspace_id
+        ws = workspace_id or effective_workspace_id(user_id)
+        query = client.table("workspace_files").select("content")
+        # Same scope rule as authored_substrate._substrate_scope: workspace when
+        # resolvable, user_id fallback (byte-identical at N=1).
+        query = query.eq("workspace_id", ws) if ws else query.eq("user_id", user_id)
+        res = query.eq("path", _caps_path()).limit(1).execute()
         content = (res.data or [{}])[0].get("content") or ""
     except Exception as exc:  # noqa: BLE001 — fail-safe to uncapped
         logger.warning("[MEMBER_CAPS] read failed for %s: %s", user_id[:8], exc)
@@ -80,9 +89,11 @@ def load_member_caps(client: Any, user_id: str) -> dict[str, float]:
     return out
 
 
-def get_member_cap(client: Any, user_id: str, principal_id: str) -> Optional[float]:
+def get_member_cap(
+    client: Any, user_id: str, principal_id: str, workspace_id: Optional[str] = None
+) -> Optional[float]:
     """The cap for one principal, or None (uncapped)."""
-    return load_member_caps(client, user_id).get(principal_id)
+    return load_member_caps(client, user_id, workspace_id).get(principal_id)
 
 
 def check_member_cap(
@@ -95,13 +106,18 @@ def check_member_cap(
 
     Returns (allowed, cap_usd_or_None, spent_usd). `allowed` is True when there is
     no cap (the default) or the principal's spend-since-anchor is below their cap.
-    The OWNER (acting_principal_id == the workspace owner / user_id) is never
-    capped. Fail-safe: any error → allowed=True (the pool hard-stop is the backstop).
+    The WORKSPACE OWNER is never capped (no self-lockout). Fail-safe: any error →
+    allowed=True (the pool hard-stop is the backstop).
+
+    The carve is OWNER-ONLY and deliberately does NOT include `user_id`: the caller
+    passes their own id as `user_id` (feed.py passes `auth.user_id` for both args),
+    so an `acting_principal_id in {owner_id, user_id}` test let EVERY member exempt
+    themselves simply by acting as themselves — the cap could never bind. Ownership
+    is a property of the workspace, so it is read from the workspace row alone.
     """
     if not acting_principal_id:
         return True, None, 0.0
     try:
-        # The owner is never capped (no self-lockout).
         from services.workspace_context import effective_workspace_id
         ws = workspace_id or effective_workspace_id(user_id)
         owner_id = None
@@ -110,10 +126,17 @@ def check_member_cap(
                 client.table("workspaces").select("owner_id").eq("id", ws).limit(1).execute()
             ).data
             owner_id = (row[0].get("owner_id") if row else None)
-        if acting_principal_id in {owner_id, user_id}:
+        # Owner-only carve. If the workspace is unresolvable we cannot establish
+        # ownership; fall back to the caller-identity test rather than capping a
+        # possible owner (fail-safe toward allowing, as the docstring promises).
+        if acting_principal_id == owner_id or (owner_id is None and acting_principal_id == user_id):
             return True, None, 0.0
 
-        cap = load_member_caps(client, user_id).get(acting_principal_id)
+        # Read the cap map under the SAME workspace scope the owner-carve above
+        # resolved — this is the fix: `ws` was already resolved for the carve but
+        # the lookup keyed on user_id, so a member (whose auth.user_id is their
+        # own) never found the owner-authored file.
+        cap = load_member_caps(client, user_id, ws).get(acting_principal_id)
         if cap is None:
             return True, None, 0.0
 
@@ -138,6 +161,7 @@ def set_member_cap(
     cap_usd: Optional[float],
     *,
     authored_by: str = "operator",
+    workspace_id: Optional[str] = None,
 ) -> dict[str, float]:
     """Owner sets (or clears, cap_usd=None/≤0) a principal's cap. Writes the sidecar
     through the authored-substrate write path. Returns the new cap map.
@@ -145,17 +169,22 @@ def set_member_cap(
     Owner-only is enforced at the route (the governance/ root is owner-locked, ADR-320);
     this helper is the write mechanism. The owner's OWN principal id is never written
     (no self-cap — parity with the gate's owner carve)."""
-    caps = load_member_caps(client, user_id)
-    # Never cap the owner themselves.
+    # Resolve the workspace ONCE, before the read — the cap map is workspace-scoped
+    # substrate, so the load, the owner-carve, and the write must all agree on the
+    # same key (ADR-373 / ADR-416).
+    ws = workspace_id
     ws_owner = None
     try:
         from services.workspace_context import effective_workspace_id
-        ws = effective_workspace_id(user_id)
+        ws = ws or effective_workspace_id(user_id)
         if ws:
             row = (client.table("workspaces").select("owner_id").eq("id", ws).limit(1).execute()).data
             ws_owner = row[0].get("owner_id") if row else None
     except Exception:  # noqa: BLE001
         ws_owner = None
+
+    caps = load_member_caps(client, user_id, ws)
+    # Never cap the owner themselves.
     if principal_id in {ws_owner, user_id}:
         raise ValueError("the owner cannot be spend-capped")
 
@@ -177,6 +206,10 @@ def set_member_cap(
     write_revision(
         client,
         user_id=user_id,
+        # Explicit — the write must land under the same key `load_member_caps`
+        # reads (ADR-373). Without it the write relied on the contextvar while
+        # the read keyed on user_id; they could diverge.
+        workspace_id=ws,
         path=f"/workspace/{GOVERNANCE_MEMBER_CAPS_PATH}",
         content=body,
         authored_by=authored_by,
