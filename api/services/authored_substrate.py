@@ -377,7 +377,9 @@ def _sha256(content: str) -> str:
     return sha256_bytes(content.encode("utf-8"))
 
 
-def _upsert_blob(db_client: Any, sha: str, content: str) -> None:
+def _upsert_blob(
+    db_client: Any, sha: str, content: str, workspace_id: Optional[str] = None
+) -> None:
     """Insert a blob if not already present. Content-addressed by sha256.
 
     ADR-427 Phase 1: routes through the storage seam
@@ -387,8 +389,13 @@ def _upsert_blob(db_client: Any, sha: str, content: str) -> None:
     that makes the local-disk fork a driver swap). ``sha`` is passed by
     existing callers and re-derived by the seam from the content; they agree by
     construction (both are ``sha256(content.encode("utf-8"))``).
+
+    ADR-474: the blob is owned by ``workspace_id`` — the identity is
+    ``(workspace_id, sha256)``, so the owner travels with the write.
     """
-    written_sha = get_storage_backend(db_client).put_text(content)
+    written_sha = get_storage_backend(db_client).put_text(
+        content, workspace_id=workspace_id
+    )
     # Invariant guard: the caller-supplied sha and the seam-derived sha must
     # match (both are sha256 of the utf-8 bytes). A mismatch would mean a caller
     # computed the address differently — a bug worth failing loudly on.
@@ -727,25 +734,6 @@ def write_revision(
                 is_binary = False
         except UnicodeDecodeError:
             pass
-    ref_sha: Optional[str] = None
-    if content_ref is not None:
-        blob_row = (
-            db_client.table("workspace_blobs")
-            .select("content, storage_key")
-            .eq("sha256", content_ref)
-            .limit(1)
-            .execute()
-        ).data
-        if not blob_row:
-            raise ValueError(f"content_ref blob not found: {content_ref}")
-        if blob_row[0].get("storage_key"):
-            is_binary = True
-            ref_sha = content_ref
-        else:
-            # Inline text blob — continue down the text lane verbatim (the
-            # derived_from lift and denorm behave exactly as a content= write).
-            content = blob_row[0].get("content") or ""
-
     # ADR-373: key the write to the workspace. The caller may pass workspace_id
     # explicitly (e.g. resolved once on AuthenticatedClient); if not, resolve it
     # via the sweep-spine rule (request contextvar → owner workspace). This is
@@ -764,6 +752,31 @@ def write_revision(
                 user_id, exc,
             )
 
+    # ADR-427 §4c: re-reference an existing blob by sha (the revert/archive/
+    # restore form). Resolved AFTER workspace_id so the lookup is scoped to the
+    # owning workspace — ADR-474 D3: an identical sha in another workspace is a
+    # coincidence of content, never a blob this write may reference (and the
+    # composite FK would reject the resulting revision anyway).
+    ref_sha: Optional[str] = None
+    if content_ref is not None:
+        ref_query = (
+            db_client.table("workspace_blobs")
+            .select("content, storage_key")
+            .eq("sha256", content_ref)
+        )
+        if workspace_id is not None:
+            ref_query = ref_query.eq("workspace_id", workspace_id)
+        blob_row = ref_query.limit(1).execute().data
+        if not blob_row:
+            raise ValueError(f"content_ref blob not found: {content_ref}")
+        if blob_row[0].get("storage_key"):
+            is_binary = True
+            ref_sha = content_ref
+        else:
+            # Inline text blob — continue down the text lane verbatim (the
+            # derived_from lift and denorm behave exactly as a content= write).
+            content = blob_row[0].get("content") or ""
+
     # ADR-448: resolve the reference edge (explicit param, or lifted from the
     # content conventions) + the effective provenance-kind, once, at the door.
     # Binary has no content conventions to lift from — only an explicit
@@ -781,13 +794,15 @@ def write_revision(
             sha = ref_sha
             content_type = derive_content_type(path, None)
         else:
-            sha = get_storage_backend(db_client).put_blob(content_bytes)
+            sha = get_storage_backend(db_client).put_blob(
+                content_bytes, workspace_id=workspace_id
+            )
             content_type = derive_content_type(path, content_bytes[:64])
         content = ""
         content_url = None
     else:
         sha = _sha256(content)
-        _upsert_blob(db_client, sha, content)
+        _upsert_blob(db_client, sha, content, workspace_id)
 
     parent_version_id = _read_head_revision_id(db_client, user_id, path, workspace_id)
 
@@ -943,7 +958,7 @@ def delete_live_file(
         current_content = live[0].get("content") or ""
         sha = _sha256(current_content)
         # Legacy row that predates the chain — retain its content as a blob.
-        _upsert_blob(db_client, sha, current_content)
+        _upsert_blob(db_client, sha, current_content, ws)
         parent_version_id = None
 
     tombstone_id = _insert_revision(

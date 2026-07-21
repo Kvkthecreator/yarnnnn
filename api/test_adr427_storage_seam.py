@@ -164,15 +164,17 @@ def run() -> None:
     ok = (backend.has_blob(sha) and not backend.has_blob("0" * 64))
     record("7. has_blob true after write / false for absent", ok, "")
 
-    # 8. byte-identical wire shape — the upsert the seam emits is EXACTLY the
-    #    pre-seam _upsert_blob call: {"sha256": sha, "content": content},
-    #    on_conflict="sha256".
+    # 8. wire shape — ADR-474 made the blob identity (workspace_id, sha256), so
+    #    the upsert carries the owner and its conflict target names BOTH columns.
+    #    A single-column target ("sha256") no longer matches any unique
+    #    constraint and Postgres rejects it outright — this assertion is what
+    #    catches a regression to the pre-474 shape.
     call = db.upsert_calls[0]
     ok = (
-        call["row"] == {"sha256": legacy_sha, "content": text}
-        and call["on_conflict"] == "sha256"
+        call["row"] == {"sha256": legacy_sha, "content": text, "workspace_id": None}
+        and call["on_conflict"] == "workspace_id,sha256"
     )
-    record("8. Postgres driver emits the exact pre-seam upsert wire call", ok,
+    record("8. Postgres driver emits the ADR-474 owner-carrying upsert", ok,
            f"row keys={sorted(call['row'])}, on_conflict={call['on_conflict']!r}")
 
     # 9. _upsert_blob (the refactored legacy fn) still works through the seam,

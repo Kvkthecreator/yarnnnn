@@ -90,7 +90,11 @@ class StorageBackend(ABC):
 
     @abstractmethod
     def open_read_stream(
-        self, sha: str, byte_range: Optional[ByteRange] = None
+        self,
+        sha: str,
+        byte_range: Optional[ByteRange] = None,
+        *,
+        workspace_id: Optional[str] = None,
     ) -> Iterator[bytes]:
         """Yield the blob's bytes (optionally a range). The read primitive.
 
@@ -102,12 +106,18 @@ class StorageBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def has_blob(self, sha: str) -> bool:
-        """True if a blob with this content address already exists (dedup check)."""
+    def has_blob(self, sha: str, *, workspace_id: Optional[str] = None) -> bool:
+        """True if a blob with this content address already exists (dedup check).
+
+        ADR-474 D1/D3: dedup is scoped to the workspace. Identical bytes in
+        another workspace are a coincidence of content, not a hit — treating
+        them as one would let a write silently reference content the workspace
+        does not own.
+        """
         raise NotImplementedError
 
     @abstractmethod
-    def _write_bytes(self, data: bytes) -> str:
+    def _write_bytes(self, data: bytes, *, workspace_id: Optional[str] = None) -> str:
         """Idempotently store `data`, return its sha256 content address.
 
         The write primitive's Phase-1 form (one-shot; the resumable/multipart
@@ -118,29 +128,55 @@ class StorageBackend(ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def delete_blob(self, sha: str, *, workspace_id: Optional[str] = None) -> bool:
+        """Delete a blob's bytes. Returns True if something was removed.
+
+        ADR-474 §4 — the prerequisite for a purge that can reach content. Both
+        halves are the driver's business: the row AND (for the binary lane) the
+        object-store object keyed by `storage_key`. Deleting only the row would
+        strand the object unreachably — the row was the only thing that knew
+        the key.
+
+        Idempotent: deleting an absent blob returns False, never raises.
+
+        Ownership (ADR-474 D1) is enforced by the caller passing
+        `workspace_id`; the driver scopes the delete to that workspace's row so
+        one workspace can never collect another's content. Omitting it deletes
+        by content address alone — reserved for GC over already-unreferenced
+        rows, never for a member-initiated deletion.
+
+        SAFETY: the caller is responsible for establishing that no revision
+        cites this blob. `workspace_file_versions.blob_sha` carries a NO ACTION
+        FK, so the database refuses to delete a referenced blob regardless —
+        that is the guarantee that makes this verb safe independent of caller
+        logic.
+        """
+        raise NotImplementedError
+
     # -- convenience wrappers (small common case) --
 
-    def get_blob(self, sha: str) -> bytes:
+    def get_blob(self, sha: str, *, workspace_id: Optional[str] = None) -> bytes:
         """Read the whole blob as bytes (== full-range read). Convenience over
         `open_read_stream`; do NOT use for large binary — iterate the stream."""
-        return b"".join(self.open_read_stream(sha, None))
+        return b"".join(self.open_read_stream(sha, None, workspace_id=workspace_id))
 
-    def put_blob(self, data: bytes) -> str:
+    def put_blob(self, data: bytes, *, workspace_id: Optional[str] = None) -> str:
         """Store bytes, return the content address. Convenience over the write
         primitive for the small/text common case."""
-        return self._write_bytes(data)
+        return self._write_bytes(data, workspace_id=workspace_id)
 
     # -- text convenience (the byte-identical bridge for today's callers) --
 
-    def put_text(self, content: str) -> str:
+    def put_text(self, content: str, *, workspace_id: Optional[str] = None) -> str:
         """Store text (utf-8), return the content address. This is the exact
         byte-identical replacement for the pre-seam `_upsert_blob` + `_sha256`
         pair — text → utf-8 bytes → sha256, same address as before."""
-        return self._write_bytes(content.encode("utf-8"))
+        return self._write_bytes(content.encode("utf-8"), workspace_id=workspace_id)
 
-    def get_text(self, sha: str) -> str:
+    def get_text(self, sha: str, *, workspace_id: Optional[str] = None) -> str:
         """Read a text blob back as a utf-8 string."""
-        return self.get_blob(sha).decode("utf-8")
+        return self.get_blob(sha, workspace_id=workspace_id).decode("utf-8")
 
     # -- write stream (ADR-427 Phase 2/3 — large binary without full RAM) --
 
@@ -155,7 +191,13 @@ class StorageBackend(ABC):
 
     # -- serving (ADR-427 D4 — capability minted per-request, never stored) --
 
-    def mint_serving_url(self, sha: str, expires_in: int = 3600) -> Optional[str]:
+    def mint_serving_url(
+        self,
+        sha: str,
+        expires_in: int = 3600,
+        *,
+        workspace_id: Optional[str] = None,
+    ) -> Optional[str]:
         """Mint a short-lived, object-scoped URL for a blob's bytes, or None
         when the driver serves no out-of-band URLs (e.g. inline text — callers
         read those through the seam). The LFS-batch `href`+`expires_at` shape."""
@@ -220,26 +262,27 @@ class PostgresObjectStoreBackend(StorageBackend):
     def __init__(self, db_client: Any) -> None:
         self._db = db_client
 
-    def has_blob(self, sha: str) -> bool:
-        result = (
-            self._db.table("workspace_blobs")
-            .select("sha256")
-            .eq("sha256", sha)
-            .limit(1)
-            .execute()
-        )
-        return bool(result.data)
+    def has_blob(self, sha: str, *, workspace_id: Optional[str] = None) -> bool:
+        query = self._db.table("workspace_blobs").select("sha256").eq("sha256", sha)
+        if workspace_id is not None:
+            query = query.eq("workspace_id", workspace_id)
+        return bool(query.limit(1).execute().data)
 
     def open_read_stream(
-        self, sha: str, byte_range: Optional[ByteRange] = None
+        self,
+        sha: str,
+        byte_range: Optional[ByteRange] = None,
+        *,
+        workspace_id: Optional[str] = None,
     ) -> Iterator[bytes]:
-        result = (
+        query = (
             self._db.table("workspace_blobs")
             .select("content, storage_key")
             .eq("sha256", sha)
-            .limit(1)
-            .execute()
         )
+        if workspace_id is not None:
+            query = query.eq("workspace_id", workspace_id)
+        result = query.limit(1).execute()
         if not result.data:
             raise KeyError(f"blob not found: {sha}")
         row = result.data[0]
@@ -286,7 +329,7 @@ class PostgresObjectStoreBackend(StorageBackend):
             data = data[byte_range.start : byte_range.end]
         yield data
 
-    def _write_bytes(self, data: bytes) -> str:
+    def _write_bytes(self, data: bytes, *, workspace_id: Optional[str] = None) -> str:
         sha = sha256_bytes(data)
         # Lane routing (ADR-427 D1/D2c — physical placement is the driver's
         # business): utf-8-decodable bytes without NULs are the inline text
@@ -299,17 +342,30 @@ class PostgresObjectStoreBackend(StorageBackend):
         try:
             content = data.decode("utf-8")
             if "\x00" not in content:
+                # ADR-474: the identity is (workspace_id, sha256) — the conflict
+                # target must name both, or Postgres has no matching unique
+                # constraint to arbitrate on.
                 self._db.table("workspace_blobs").upsert(
-                    {"sha256": sha, "content": content},
-                    on_conflict="sha256",
+                    {
+                        "sha256": sha,
+                        "content": content,
+                        "workspace_id": workspace_id,
+                    },
+                    on_conflict="workspace_id,sha256",
                 ).execute()
                 return sha
         except UnicodeDecodeError:
             pass
-        return self._write_external(sha, data)
+        return self._write_external(sha, data, workspace_id=workspace_id)
 
-    def _write_external(self, sha: str, data: bytes) -> str:
-        if self.has_blob(sha):
+    def _write_external(
+        self, sha: str, data: bytes, *, workspace_id: Optional[str] = None
+    ) -> str:
+        # ADR-474 D3: dedup is workspace-scoped. Identical bytes owned by
+        # another workspace must NOT short-circuit this write — the marker row
+        # this workspace needs would never be created, and its revision would
+        # reference content it does not own (which the composite FK rejects).
+        if self.has_blob(sha, workspace_id=workspace_id):
             return sha  # CAS dedup — bytes already stored, marker row present
         key = cas_key(sha)
         # Bytes first, marker second: a marker row implies the bytes exist. A
@@ -329,22 +385,92 @@ class PostgresObjectStoreBackend(StorageBackend):
                 "content": "",
                 "storage_key": key,
                 "byte_size": len(data),
+                "workspace_id": workspace_id,
             },
-            on_conflict="sha256",
+            on_conflict="workspace_id,sha256",
         ).execute()
         return sha
 
-    def mint_serving_url(self, sha: str, expires_in: int = 3600) -> Optional[str]:
-        """Per-request, TTL'd signed URL for a binary blob (ADR-427 D4 — a
-        capability is minted, never stored). Inline text blobs return None —
-        they are read through the seam, not served out-of-band."""
-        result = (
+    def delete_blob(self, sha: str, *, workspace_id: Optional[str] = None) -> bool:
+        """Delete the row and, for the binary lane, the bucket object.
+
+        ADR-474 §4. Order matters and is the inverse of the write path: the
+        OBJECT goes first, then the row. `_write_external` writes bytes-first
+        so that a marker row always implies the bytes exist; deletion preserves
+        that implication by removing the object before the row that points at
+        it. A crash in between leaves an unreferenced object — the same
+        harmless state a crashed write leaves, re-collectable by sha.
+
+        Deleting the row first would be unrecoverable: the `storage_key` lives
+        only on the row.
+        """
+        query = (
             self._db.table("workspace_blobs")
             .select("storage_key")
             .eq("sha256", sha)
-            .limit(1)
-            .execute()
         )
+        if workspace_id is not None:
+            query = query.eq("workspace_id", workspace_id)
+        result = query.limit(1).execute()
+        if not result.data:
+            return False  # idempotent — absent, or not this workspace's row
+
+        storage_key = result.data[0].get("storage_key")
+        if storage_key:
+            # The bucket object is keyed by CONTENT address, so it is shared by
+            # every workspace row carrying this sha (ADR-474 splits the ROWS,
+            # not the bytes). Removing it while another owner's row survives
+            # would destroy content that workspace still owns. Only the last
+            # owner deletes the object.
+            others = (
+                self._db.table("workspace_blobs")
+                .select("workspace_id", count="exact")
+                .eq("sha256", sha)
+                .neq("workspace_id", workspace_id)
+                .limit(1)
+                .execute()
+                if workspace_id is not None
+                else None
+            )
+            last_owner = others is None or not (others.count or 0)
+            if last_owner:
+                try:
+                    self._db.storage.from_(CAS_BUCKET).remove([storage_key])
+                except Exception as exc:  # noqa: BLE001
+                    # Keep the row: the object stays reachable and the delete is
+                    # retryable. Dropping the row here would strand the object
+                    # forever — the storage_key lives nowhere else.
+                    logger.warning(
+                        "[STORAGE] object delete failed for %s (row kept, retryable): %s",
+                        storage_key,
+                        exc,
+                    )
+                    return False
+
+        delete_q = self._db.table("workspace_blobs").delete().eq("sha256", sha)
+        if workspace_id is not None:
+            delete_q = delete_q.eq("workspace_id", workspace_id)
+        delete_q.execute()
+        return True
+
+    def mint_serving_url(
+        self,
+        sha: str,
+        expires_in: int = 3600,
+        *,
+        workspace_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Per-request, TTL'd signed URL for a binary blob (ADR-427 D4 — a
+        capability is minted, never stored). Inline text blobs return None —
+        they are read through the seam, not served out-of-band."""
+        query = (
+            self._db.table("workspace_blobs")
+            .select("storage_key")
+            .eq("sha256", sha)
+        )
+        if workspace_id is not None:
+            query = query.eq("workspace_id", workspace_id)
+        result = query.limit(1).execute()
         if not result.data:
             return None
         storage_key = result.data[0].get("storage_key")

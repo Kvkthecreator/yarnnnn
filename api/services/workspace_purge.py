@@ -99,6 +99,68 @@ def _delete_workspace_files(client: Any, user_id: str, path_prefix: str | None =
         return 0
 
 
+def _collect_blob_shas(client: Any, user_id: str) -> list[tuple[str, str]]:
+    """The (workspace_id, sha256) pairs this user's revisions cite.
+
+    ADR-474. Must run BEFORE the revision chain is deleted: the revisions are
+    the only thing that names the content. Read from the revision rows rather
+    than from `workspace_blobs` directly so the scope is exactly "content this
+    user's substrate cites" — never another workspace's rows.
+    """
+    try:
+        rows = (
+            client.table("workspace_file_versions")
+            .select("workspace_id, blob_sha")
+            .eq("user_id", user_id)
+            .execute()
+        ).data or []
+        return sorted({
+            (r["workspace_id"], r["blob_sha"])
+            for r in rows
+            if r.get("workspace_id") and r.get("blob_sha")
+        })
+    except Exception as e:  # noqa: BLE001 — never block the purge
+        logger.warning(f"[PURGE] blob sha collection failed for {user_id}: {e}")
+        return []
+
+
+def _delete_workspace_blobs(
+    client: Any, user_id: str, blob_shas: list[tuple[str, str]]
+) -> int:
+    """Collect the content the purged revisions cited (ADR-474 §4).
+
+    Routes through the storage seam so the bucket object is removed alongside
+    the row — deleting only the row would strand the object unreachably, since
+    the `storage_key` lives nowhere else.
+
+    Best-effort per blob: a failure leaves that row behind (collectable later,
+    reachable via its workspace) rather than aborting the purge. The composite
+    FK is the safety net — a blob any surviving revision still cites cannot be
+    deleted at all.
+    """
+    if not blob_shas:
+        return 0
+    try:
+        from services.storage_backend import get_storage_backend
+
+        backend = get_storage_backend(client)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[PURGE] storage backend unavailable, blobs kept: {e}")
+        return 0
+
+    removed = 0
+    for workspace_id, sha in blob_shas:
+        try:
+            if backend.delete_blob(sha, workspace_id=workspace_id):
+                removed += 1
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[PURGE] blob delete failed for {sha[:12]}: {e}")
+    logger.info(
+        f"[PURGE] collected {removed}/{len(blob_shas)} blobs for user {user_id}"
+    )
+    return removed
+
+
 def _null_head_version_pointers(client: Any, user_id: str) -> None:
     """Null out `workspace_files.head_version_id` before wiping
     `workspace_file_versions`.
@@ -177,11 +239,25 @@ def purge_l2_workspace(client: Any, user_id: str) -> dict[str, int]:
     # ADR-209 FK order: workspace_files.head_version_id → workspace_file_versions.id.
     # Null the pointer first so revisions can be wiped without violating the FK;
     # then wipe the revision chain; then wipe the files.
+    #
+    # ADR-474: capture the workspace's blob addresses BEFORE the revisions that
+    # cite them are deleted — afterwards nothing points at them and the content
+    # would be unreachable (the leak this ADR closes).
+    blob_shas = _collect_blob_shas(client, user_id)
+
     _null_head_version_pointers(client, user_id)
     deleted["workspace_file_versions"] = _delete_rows(client, "workspace_file_versions", user_id)
 
     # Workspace filesystem — the primary data store
     deleted["workspace_files"] = _delete_workspace_files(client, user_id)
+
+    # ADR-474: the content layer. Runs AFTER the revisions are gone — the
+    # composite FK (workspace_id, blob_sha) refuses to drop a blob any surviving
+    # revision still cites, which is what makes this safe independent of the
+    # ordering above. Deletes the bucket object too (the storage_key lives only
+    # on the row), and only when this workspace is the content address's last
+    # owner.
+    deleted["workspace_blobs"] = _delete_workspace_blobs(client, user_id, blob_shas)
 
     # Relational tables referencing agents/tasks
     deleted["tasks"] = _delete_rows(client, "tasks", user_id, optional=True)

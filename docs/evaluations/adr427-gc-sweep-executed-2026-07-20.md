@@ -73,3 +73,22 @@ The failed first attempt left **no partial state** — verified before retrying
 
 The A-vs-B decision (recurring GC vs. giving blobs an owner) is **still open**
 and is the subject of its own discourse. Sweeping does not prejudge it.
+
+---
+
+> **RESOLVED 2026-07-21 — [ADR-474](../adr/ADR-474-content-inherits-the-files-scope.md) chose B.**
+> `workspace_blobs` is keyed `(workspace_id, sha256)` and the ledger's FK is
+> composite, so purge now reaches content (verified end-to-end: a written blob
+> is collected and gone). Both "what this does NOT fix" items above are
+> addressed or reclassified:
+>
+> - **`workspace_purge` blob-blindness** — fixed. It collects the workspace's
+>   blobs through the storage seam's new `delete_blob`, which removes the
+>   bucket object too (the `storage_key` lives only on the row) and only when
+>   the workspace is that content address's last owner.
+> - **`write_revision`'s 1→3 gap** — still open, but **demoted**. With ownership
+>   an orphan is reachable and collectable, which was the missing property.
+>   Re-measured: 18 blobs written in the 19 hours after this sweep, zero
+>   orphaned — so the gap does not appear to fire in normal operation, and the
+>   34,393 were almost certainly historical purges. **Falsifier**: if orphans
+>   appear during ordinary use, it fires more often than measured.
