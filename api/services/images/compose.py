@@ -113,6 +113,28 @@ def compose_stage(
             logger.warning("[IMAGES] generation failed for %r: %s", role, exc)
             continue
 
+        # A rented call is a metered call (ADR-396 — one ledger, every $
+        # attributed). One row PER LEAF, matching the per-object revision
+        # grain: "re-roll the hero" costs and ledgers exactly one leaf. The
+        # free stub records nothing (zero-cost rows are noise, not honesty).
+        cost = float(asset.get("cost_usd") or 0)
+        if cost > 0:
+            try:
+                from services.telemetry import record_execution_event
+
+                record_execution_event(
+                    db_client,
+                    user_id=user_id,
+                    slug="images-generate",
+                    mode="mechanical",
+                    trigger_type="manual",
+                    status="success",
+                    model=asset["model"],
+                    cost_override_usd=cost,
+                )
+            except Exception:  # noqa: BLE001 — never lose a leaf over the ledger
+                logger.warning("[IMAGES] could not ledger generation for %r", role)
+
         path = asset_path(stage_path, role, i + 1)
         try:
             revision_id = write_revision(

@@ -101,6 +101,8 @@ class GeneratedAsset(TypedDict):
     content_type: str
     model: str           # the engine that made it — rides onto the element
     prompt: str          # the prompt that made it — rides onto the element
+    cost_usd: float      # what the rented call cost (0.0 = free driver); the
+                         # orchestrator ledgers any non-zero cost per leaf
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +172,7 @@ class StubBackend(GenerationBackend):
             "content_type": "image/png",
             "model": f"stub:{'cutout' if cutout else 'raster'}",
             "prompt": prompt,
+            "cost_usd": 0.0,
         }
 
 
@@ -201,13 +204,155 @@ def _solid_png(width: int, height: int, rgb: tuple[int, int, int]) -> bytes:
     )
 
 
+# ---------------------------------------------------------------------------
+# The rented engine (ADR-475 vendor commit — Gemini, direct REST per ADR-076).
+# ---------------------------------------------------------------------------
+
+
+class GeminiBackend(GenerationBackend):
+    """The rented driver: Gemini's image-output models over their REST API.
+
+    Direct httpx against `generativelanguage.googleapis.com` (the ADR-076
+    pattern — direct API clients, no gateway; no new SDK dependency). One call
+    per LEAF, exactly as the seam demands.
+
+    Two disciplines the driver owns:
+
+    - **Aspect, not pixels.** The API takes an aspect-ratio hint, not a pixel
+      size; the requested width/height map to the nearest supported ratio and
+      the kernel's `data-w`/`data-h` measures do the actual sizing on the
+      stage. The rented pixels are a source the composition scales — same as
+      any cited image.
+    - **The cut-out is prompt-engineered, honestly.** `cutout=True` asks for
+      the subject isolated on a plain white ground (asking image models for
+      "transparent" famously yields painted checkerboards). True alpha matting
+      is a NAMED FOLLOW-ON — a second rented step behind this same contract
+      ("subject leaves arrive composable; the provider chain is
+      implementation"). Until then a cut-out composes as a clean white-ground
+      card, which is honest and visible, never silently wrong.
+    """
+
+    name = "gemini"
+
+    #: Supported aspect hints (the model's own vocabulary).
+    _RATIOS = (
+        ("1:1", 1.0), ("4:3", 4 / 3), ("3:4", 3 / 4), ("16:9", 16 / 9), ("9:16", 9 / 16),
+    )
+
+    def __init__(
+        self,
+        api_key: str,
+        model: Optional[str] = None,
+        cost_usd: Optional[float] = None,
+        timeout: float = 90.0,
+    ) -> None:
+        import os
+
+        self._api_key = api_key
+        self.model = model or os.getenv("IMAGES_GENERATION_MODEL", "gemini-2.5-flash-image")
+        # ADR-396 discipline: the ledger records what the call is billed at.
+        # Image generation has no token count in our rate table, so the driver
+        # carries a per-image figure (list ≈ $0.04; the platform's standard 2×
+        # rate → $0.08 default), env-overridable when the vendor reprices.
+        self._cost_usd = (
+            cost_usd
+            if cost_usd is not None
+            else float(os.getenv("IMAGES_GENERATION_COST_USD", "0.08"))
+        )
+        self._timeout = timeout
+
+    def _aspect(self, width: int, height: int) -> str:
+        target = (width / height) if height else 1.0
+        return min(self._RATIOS, key=lambda r: abs(r[1] - target))[0]
+
+    def generate(
+        self,
+        *,
+        prompt: str,
+        width: int,
+        height: int,
+        cutout: bool = False,
+    ) -> GeneratedAsset:
+        import base64
+
+        import httpx
+
+        subject = prompt.strip()
+        engineered = (
+            f"{subject}. The subject alone, fully in frame, isolated on a plain "
+            "solid pure-white background. No text, no watermark, no border, "
+            "clean studio product-photography lighting."
+            if cutout
+            else f"{subject}. No text, no watermark."
+        )
+        body = {
+            "contents": [{"parts": [{"text": engineered}]}],
+            "generationConfig": {
+                "responseModalities": ["IMAGE"],
+                "imageConfig": {"aspectRatio": self._aspect(width, height)},
+            },
+        }
+        resp = httpx.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{self.model}:generateContent",
+            headers={"x-goog-api-key": self._api_key, "Content-Type": "application/json"},
+            json=body,
+            timeout=self._timeout,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"gemini generate {resp.status_code}: {resp.text[:300]}"
+            )
+        payload = resp.json()
+        for cand in payload.get("candidates") or []:
+            for part in (cand.get("content") or {}).get("parts") or []:
+                inline = part.get("inlineData") or part.get("inline_data")
+                if inline and inline.get("data"):
+                    return {
+                        "data": base64.b64decode(inline["data"]),
+                        "content_type": inline.get("mimeType")
+                        or inline.get("mime_type")
+                        or "image/png",
+                        "model": self.model,
+                        "prompt": prompt,
+                        "cost_usd": self._cost_usd,
+                    }
+        # A 200 with no image part (safety block, text-only answer) is a
+        # per-leaf failure the orchestrator already handles by skipping.
+        raise RuntimeError(
+            f"gemini generate returned no image part: {str(payload)[:300]}"
+        )
+
+
 #: The active driver. A module-level singleton the way the storage seam does
-#: it — swapping to a rented engine is this one binding, plus that driver's
-#: key/cost discipline. Nothing else in the workflow knows which engine ran.
-_BACKEND: GenerationBackend = StubBackend()
+#: it — swapping engines is this one binding, plus that driver's key/cost
+#: discipline. Nothing else in the workflow knows which engine ran.
+#:
+#: Resolution is LAZY and env-driven (the vendor commit): with a
+#: GEMINI_API_KEY present the rented driver is the default; without one — or
+#: with IMAGES_GENERATION_ENGINE=stub forced — the offline stub serves, which
+#: is what keeps every gate green with no key and no network.
+_BACKEND: Optional[GenerationBackend] = None
+
+
+def _default_backend() -> GenerationBackend:
+    import os
+
+    engine = (os.getenv("IMAGES_GENERATION_ENGINE") or "").strip().lower()
+    if engine == "stub":
+        return StubBackend()
+    key = (os.getenv("GEMINI_API_KEY") or "").strip()
+    if key and engine in ("", "gemini"):
+        return GeminiBackend(api_key=key)
+    if engine and engine != "gemini":
+        logger.warning("[IMAGES] unknown IMAGES_GENERATION_ENGINE=%r — using stub", engine)
+    return StubBackend()
 
 
 def get_backend() -> GenerationBackend:
+    global _BACKEND
+    if _BACKEND is None:
+        _BACKEND = _default_backend()
     return _BACKEND
 
 
