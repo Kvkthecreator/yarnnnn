@@ -104,6 +104,10 @@ def run() -> bool:
             "path": path, "author": authored_by, "message": message,
             "is_binary": content_bytes is not None,
             "content": content, "content_type": kw.get("content_type"),
+            # Captured explicitly: the derivation assertions below would pass
+            # vacuously on a dict that never carried these keys.
+            "revision_kind": kw.get("revision_kind"),
+            "derived_from": kw.get("derived_from"),
         })
         return f"rev-{len(writes):03d}"
 
@@ -253,6 +257,82 @@ def run() -> bool:
     except Exception as exc:  # noqa: BLE001
         _check("composing outside the artifact region is refused (403)",
                getattr(exc, "status_code", 0) == 403)
+
+    # ── 10. RENDER-TO-RASTER: the PNG is a DERIVATION, not an export ─────
+    from services.images.render import RenderBackend, raster_path, set_render_backend
+
+    class _FakeRenderer(RenderBackend):
+        name = "fake"
+
+        def __init__(self):
+            self.calls = []
+
+        def render(self, html, *, width, height):
+            self.calls.append({"html": html, "width": width, "height": height})
+            return b"\x89PNG\r\n\x1a\n" + b"fake"
+
+    fake = _FakeRenderer()
+    set_render_backend(fake)
+    writes.clear()
+
+    try:
+        rendered = asyncio.run(ri.render(ri.RenderRequest(path=path), auth))
+        _check("POST /images/render EXECUTES (no NameError in the body)", True)
+    except Exception as exc:  # noqa: BLE001
+        _check(f"POST /images/render EXECUTES — raised {type(exc).__name__}: {exc}", False)
+        _summary()
+        return False
+
+    _check("the raster lands beside its source with a .png extension",
+           rendered["path"] == raster_path(path) and rendered["path"].endswith(".png"))
+    _check("…rasterized at the stage's REAL dimensions (ADR-472 D3)",
+           bool(fake.calls) and fake.calls[0]["width"] == w and fake.calls[0]["height"] == h)
+    _check("…and reports which engine produced it", rendered.get("engine") == "fake")
+
+    raster = [wr for wr in writes if wr["path"].endswith(".png")]
+    _check("the raster is written as BINARY (ADR-427 Category-1 substrate)",
+           len(raster) == 1 and raster[0]["is_binary"])
+    _check(
+        "THE MOAT CLAIM: the raster is revision_kind='derivation' (ADR-423)",
+        bool(raster) and raster[0].get("revision_kind") == "derivation",
+    )
+    _check(
+        "…carrying derived_from = [the composition] (ADR-448 reference edge) — "
+        "this is what lets `trace` walk an exported ad back to its source",
+        bool(raster) and raster[0].get("derived_from") == [path],
+    )
+
+    # A render must never mutate the source: the composition is the SOURCE and
+    # the raster a projection of it (ADR-456). A stage rewritten by its own
+    # export would make the projection a second source.
+    _check("rendering does NOT write the stage (no second source)",
+           not any(wr["path"] == path for wr in writes))
+
+    # 11. The unavailable-engine path answers honestly (503, not a failed write).
+    class _Unavailable(RenderBackend):
+        name = "none"
+
+        def available(self):
+            return False
+
+        def render(self, html, *, width, height):
+            raise AssertionError("must not be called when unavailable")
+
+    set_render_backend(_Unavailable())
+    try:
+        asyncio.run(ri.render(ri.RenderRequest(path=path), auth))
+        _check("an unavailable engine answers 503, not a failed write", False)
+    except Exception as exc:  # noqa: BLE001
+        _check("an unavailable engine answers 503, not a failed write",
+               getattr(exc, "status_code", 0) == 503)
+
+    set_render_backend(fake)
+    try:
+        asyncio.run(ri.render(ri.RenderRequest(path=doc_path), auth))
+        _check("rendering a DOCUMENT is refused (it is not a stage)", False)
+    except Exception as exc:  # noqa: BLE001
+        _check("rendering a DOCUMENT is refused (it is not a stage)",
+               getattr(exc, "status_code", 0) == 422)
 
     return _summary()
 
