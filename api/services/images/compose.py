@@ -1,4 +1,4 @@
-"""The composition act — the four steps, run once (ADR-474, ADR-468 D3).
+"""The composition act — the four steps, run once (ADR-475, ADR-468 D3).
 
     decompose  →  route by kind  →  generate per object  →  compose
 
@@ -21,7 +21,7 @@ everything — would make "re-roll the hero" rewrite the whole composition and
 lose per-object history, which is precisely the flat-image failure IMAGES
 exists to refuse. Per-object provenance requires per-object revisions.
 
-Canonical reference: docs/adr/ADR-474-decomposed-generation.md
+Canonical reference: docs/adr/ADR-475-decomposed-generation.md
 """
 
 from __future__ import annotations

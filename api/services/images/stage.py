@@ -4,7 +4,7 @@ IMAGES — the stage (ADR-472).
 This module owns the stage as DATA: its presets, its real dimensions, its
 scaffold, its skin. Pure constants and pure functions — no I/O, no engine.
 The generation workflow that composes ONTO a stage is `generate.py`
-(ADR-474); the rasterizer that projects one OUT is `render.py`.
+(ADR-475); the rasterizer that projects one OUT is `render.py`.
 
 The second authoring app (ADR-468 D1), carved out of Studio by ADR-472. Its
 artifact is a **rendered raster**: a marketing ad ends life as a 1080×1080 PNG,

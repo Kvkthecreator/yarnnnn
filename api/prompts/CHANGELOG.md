@@ -6,6 +6,44 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.21.1] - Decomposition asks for a LAYER PLAN, not an image (ADR-475)
+
+### Added
+- `services/images/decompose.py::_PLAN_SYSTEM` — a new LLM-facing prompt, the
+  only one this arc introduces. It asks Designer to return a JSON array of
+  LAYERS (`text` | `surface` | `subject`) rather than an image description,
+  which is the ADR-468 D3 thesis expressed as a contract: one prompt yields a
+  composition, not a picture.
+- It teaches the three routing rules by COST, not by taxonomy: text is always
+  real text (never words inside a generated picture — the reliability, brand,
+  and editability win at once); a wash that CSS can express rents nothing; only
+  a genuine photographic subject is generated, and then as an isolated cut-out
+  so it composes.
+- It requires an `h` (height) measure on `surface` and `subject` layers, and
+  explicitly tells the model to OMIT it on text. Earned the hard way — see the
+  behavior note below.
+
+### Expected behavior
+- Designer plans compositions instead of describing images. A brief that would
+  previously have produced one flat generation now produces N named objects,
+  each independently editable and regenerable.
+- Geometry arrives as percentages of the frame and is CLAMPED server-side
+  (`_coerce`) to the kernel's own measure bounds — a hallucinated `x: 4000`
+  degrades to a placed object rather than one off the stage.
+- The prompt's `h` instruction is BACKED BY CODE, not trusted: `_coerce`
+  backfills `h` on any non-text layer that omits it. A model that ignores the
+  instruction still produces a painting composition. This is deliberate — a
+  positioned empty layer without a height renders at ZERO (measured: `756×0`
+  vs `756×396`), and a composition that silently renders nothing is the worst
+  failure mode this app has, because it looks like it worked.
+- Failure is soft in one direction only: a router that is off, a call that
+  errors, or a plan that coerces to zero layers falls back to the deterministic
+  `heuristic_plan` (ADR-468 D4 — a composition must never dead-end). A broken
+  IMPORT is not a fallback condition and raises, so a typo cannot masquerade as
+  "the router is off".
+
+---
+
 ## [2026.07.20.5] - First composition is honest WriteFile; placeholders are replaceable (ADR-471 C6)
 
 ### Changed

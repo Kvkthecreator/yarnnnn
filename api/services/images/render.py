@@ -34,7 +34,7 @@ source-vs-projection split ADR-456 drew for markdown: the substrate keeps
 citations, the projection carries bytes, and the projection is never a second
 source.
 
-Canonical reference: docs/adr/ADR-474-decomposed-generation.md
+Canonical reference: docs/adr/ADR-475-decomposed-generation.md
 """
 
 from __future__ import annotations

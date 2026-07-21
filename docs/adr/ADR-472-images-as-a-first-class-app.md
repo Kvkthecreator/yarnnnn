@@ -112,11 +112,15 @@ ADR-417 retired the render service on the principle **"generation is rented, not
 
 **Scope honesty:** the driver is a seam + contract in this ADR. Wiring a specific vendor is a follow-on with its own key/cost/CHANGELOG discipline — the seam ships now so the substrate shape is right.
 
+> **Correction (2026-07-21, [ADR-475](ADR-475-decomposed-generation.md))**: the paragraph above described `api/services/images/render.py::RenderBackend` in the present tense, but this ADR shipped no such file — D5 was a *specification*, not an implementation. The seam exists as described **since ADR-475** (`9974c12`), at that exact path. The first driver invokes a headless browser the platform already has, which holds ADR-417 in the sense that matters (nothing hosted, nothing operated); a hosted-API driver remains a config swap. Recorded rather than silently fixed, because an ADR that reads as shipped when it is not is the failure mode this correction exists to catch.
+
 ### D6 — Decomposed generation drives the object model, not the reverse
 
 The object model must NOT be designed in the abstract and then have generation fitted to it. The forcing-function discipline (ADR-427 §10.5: *you cannot design the type system, grant granularity, or range API in the abstract*) applies here directly.
 
 Sequence: **carve the housing → dimensions-first creation → the first real generated ad → let what it needed define the layer semantics.** A prompt like *"skincare ad, product hero on gradient, headline + subhead + CTA"* must emit N independently-addressable, placed layers; what that concretely requires (cut-out subjects, background/foreground roles, editable copy runs, `data-gen-*` provenance per ADR-468) is settled by building it, then ratified in the IMAGES P3 ADR.
+
+> **Discharged 2026-07-21 by [ADR-475](ADR-475-decomposed-generation.md)** — and it paid immediately. The first ad composed five layers, placed all five correctly, and **rendered two of them as nothing**: a positioned, empty element resolves `height: auto` to zero, so the background and the cut-out were invisible (browser-measured: `756×0` vs `756×396`). That is precisely the class of fact an abstractly-designed object model would have shipped. See ADR-475 §5.
 
 ### D7 — Legacy is deleted, never dual-run (the hooks discipline)
 
@@ -155,7 +159,7 @@ Three categories, from the full audit of every `canvas` coupling:
 3. **Dimensions-first creation** (D3) — real W×H stages + presets; the aspect token deleted.
 4. **The migration one-shot** — existing canvas artifacts → IMAGES stages.
 5. **Decomposed generation** (D6) — its own ADR, driven by the first real generated ad.
-6. **Render-to-raster** (D4/D5) — the `RenderBackend` seam + the derivation write.
+6. **Render-to-raster** (D4/D5) — the `RenderBackend` seam + the derivation write. ✅ **Shipped 2026-07-21** (ADR-475 D5, `9974c12`): `POST /api/images/render` writes the PNG with `revision_kind="derivation"` + `derived_from=[stage]`, verified end-to-end against real Chrome at the stage's authored 1200×628.
 
 ## 8. The one-line statement
 
