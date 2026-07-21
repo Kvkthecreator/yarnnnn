@@ -1,5 +1,10 @@
 """
-IMAGES — the composition app (ADR-472).
+IMAGES — the stage (ADR-472).
+
+This module owns the stage as DATA: its presets, its real dimensions, its
+scaffold, its skin. Pure constants and pure functions — no I/O, no engine.
+The generation workflow that composes ONTO a stage is `generate.py`
+(ADR-474); the rasterizer that projects one OUT is `render.py`.
 
 The second authoring app (ADR-468 D1), carved out of Studio by ADR-472. Its
 artifact is a **rendered raster**: a marketing ad ends life as a 1080×1080 PNG,
@@ -151,7 +156,7 @@ STAGE = {
        is a percent of the visible stage. */
     /* Unitless siblings (--stage-wn/--stage-hn) feed aspect-ratio, which
        cannot consume a px length; the px pair sizes the box. Both are written
-       inline at creation (services/images.py::stage_root_attrs) — a legacy
+       inline at creation (services/images/stage.py::stage_root_attrs) — a legacy
        stage with neither falls back to 1080 square rather than collapsing. */
     .slide {
       position: relative;

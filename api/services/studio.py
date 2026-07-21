@@ -803,7 +803,7 @@ STUDIO_TOKENS: dict[str, dict] = {
     # `document-canvas`) is DELETED, not moved to IMAGES. It only ever existed
     # as slugs because ADR-461's gate requires every token value be enumerable,
     # and a stage's size is a CONTINUOUS value. IMAGES stages carry real W×H
-    # pixels as data (services/images.py::STAGE_PRESETS + resolve_dimensions),
+    # pixels as data (services/images/stage.py::STAGE_PRESETS + resolve_dimensions),
     # which is what a design tool actually needs. Deleting rather than porting
     # is the Singular Implementation discipline — the ADR-453 gate was already
     # failing on this token as "declared but never rendered", which is what a
@@ -1281,7 +1281,7 @@ def _is_placeholder_title(inner: str) -> bool:
 # machinery resolves through one door.
 #
 # Studio registers its own table at import; IMAGES registers at import of
-# `services/images.py`. Registration is idempotent and slug-keyed — a collision
+# `services/images/`. Registration is idempotent and slug-keyed — a collision
 # is a programming error, not a silent override.
 
 _LAYOUT_REGISTRY: dict[str, dict] = {}

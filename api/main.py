@@ -73,7 +73,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from routes import memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, alpha_trader, budget, mcp, authored, harvest, sources, emissions, member_state, lanes, shares, studio
+from routes import images, memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, alpha_trader, budget, mcp, authored, harvest, sources, emissions, member_state, lanes, shares, studio
 
 app = FastAPI(
     title="YARNNN API",
@@ -226,6 +226,7 @@ app.include_router(proposals.router, prefix="/api", tags=["proposals"])
 app.include_router(member_state.router, prefix="/api", tags=["member-state"])
 app.include_router(lanes.router, prefix="/api", tags=["lanes"])  # ADR-411 chat lanes
 app.include_router(studio.router, prefix="/api", tags=["studio"])  # ADR-440 the Studio
+app.include_router(images.router, prefix="/api", tags=["images"])  # ADR-474 IMAGES compose
 
 # ADR-219 Commit 4: narrative filter-over-substrate for /work list view
 app.include_router(narrative.router, prefix="/api/narrative", tags=["narrative"])
