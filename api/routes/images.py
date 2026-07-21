@@ -37,7 +37,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from services.supabase import UserClient
+from services.supabase import UserClient, resolve_principal_id
 
 # Module-level, NOT function-local. A resolver imported inside one handler is
 # exactly the bug that took /studio/templates + /vocabulary down in prod on
@@ -133,6 +133,8 @@ async def compose(req: ComposeRequest, auth: UserClient) -> dict:
         # ADR-460 D2 split: the face is the member, the fact is on the object.
         authored_by="operator",
         stage_html=stage_html,
+        # ADR-373/445: generation cost is attributed to the acting principal.
+        principal_id=resolve_principal_id(auth),
     )
 
     write_revision(

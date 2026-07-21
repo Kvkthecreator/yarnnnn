@@ -36,7 +36,7 @@ Scope shape (from the picker, ephemeral component state → request body):
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -244,8 +244,9 @@ async def harvest_run(auth: Any, scope: dict) -> dict:
                 "rounds_used": rounds, "files_written": files_written,
             }
 
-        # Telemetry (unified cost ledger, ADR-291).
-        _record_harvest_cost(user_id, response, rounds)
+        # Telemetry (unified cost ledger, ADR-291; attributed per ADR-373/445).
+        from services.supabase import resolve_principal_id
+        _record_harvest_cost(user_id, response, rounds, resolve_principal_id(auth))
 
         # Reconstruct the assistant turn as dict-shaped content (round-trip
         # tool_use blocks back to the API).
@@ -452,7 +453,9 @@ def _stringify_tool_result(result: Any) -> str:
         return str(result)[:8000]
 
 
-def _record_harvest_cost(user_id: str, response: Any, rounds: int) -> None:
+def _record_harvest_cost(
+    user_id: str, response: Any, rounds: int, principal_id: Optional[str] = None
+) -> None:
     try:
         from services.supabase import get_service_client
         from services.telemetry import record_execution_event
@@ -462,6 +465,9 @@ def _record_harvest_cost(user_id: str, response: Any, rounds: int) -> None:
         record_execution_event(
             get_service_client(),
             user_id=user_id,
+            # ADR-373/445: attribute the harvest's cost to the principal who
+            # asked for it (falls back to user_id upstream when unresolvable).
+            principal_id=principal_id,
             slug="agent:harvest",
             mode="judgment",
             trigger_type="addressed",

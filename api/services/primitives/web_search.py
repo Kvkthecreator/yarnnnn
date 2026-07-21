@@ -467,10 +467,15 @@ async def handle_web_search(auth: Any, input: dict) -> dict:
     if result.input_tokens or result.output_tokens:
         try:
             from services.telemetry import record_execution_event
-            from services.supabase import get_service_client
+            from services.supabase import get_service_client, resolve_principal_id
             record_execution_event(
                 get_service_client(),
                 user_id=auth.user_id,
+                # ADR-373/445: attribute the draw to the acting principal, not
+                # just the seed user — a member's (or foreign-LLM's) search must
+                # roll up to THEM in spend_by_principal, and must be visible to
+                # their per-member cap.
+                principal_id=resolve_principal_id(auth),
                 slug="web-search",
                 mode="judgment",
                 trigger_type="reactive",

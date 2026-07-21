@@ -85,6 +85,7 @@ def compose_stage(
     height: int,
     authored_by: str,
     stage_html: str,
+    principal_id: Optional[str] = None,
 ) -> dict:
     """Run generation for every raster leaf, then land the composition.
 
@@ -125,6 +126,10 @@ def compose_stage(
                 record_execution_event(
                     db_client,
                     user_id=user_id,
+                    # ADR-373/445: generation is real metered cost — attribute it
+                    # to the principal who asked, so it lands in
+                    # spend_by_principal and counts against their cap.
+                    principal_id=principal_id or user_id,
                     slug="images-generate",
                     mode="mechanical",
                     trigger_type="manual",

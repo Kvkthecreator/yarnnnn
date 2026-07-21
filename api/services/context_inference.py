@@ -205,6 +205,10 @@ async def author_identity(
                 record_execution_event(
                     get_service_client(),
                     user_id=user_id,
+                    # ADR-373/445: operator-initiated authoring — the acting
+                    # principal is the caller themselves. Stamped so the draw
+                    # lands in spend_by_principal rather than the NULL bucket.
+                    principal_id=user_id,
                     slug=f"author-identity:{target}",
                     mode="judgment",
                     trigger_type="addressed",

@@ -124,6 +124,9 @@ async def infer_recurrence_prompt(
             record_execution_event(
                 get_service_client(),
                 user_id=user_id,
+                # ADR-373/445: back-office inference on the owner's behalf —
+                # the owner is the principal (the seat acts for them).
+                principal_id=user_id,
                 slug="recurrence-prompt-inference",
                 mode="judgment",
                 trigger_type="back_office",

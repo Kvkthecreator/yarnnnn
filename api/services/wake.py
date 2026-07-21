@@ -754,6 +754,13 @@ async def _invoke_recurrence_wake(
     record_execution_event(
         client, user_id=user_id, slug=recurrence.slug,
         id=invocation_id,  # ADR-289 D2: canonical invocation atom id
+        # ADR-373/445: a recurrence fire is the SEAT acting for the workspace
+        # owner — `resolve_principal_id` maps `reviewer:<identity>` → user_id, so
+        # the owner IS the principal here. Stamped explicitly (rather than left
+        # NULL) so autonomous spend appears in spend_by_principal instead of
+        # vanishing into the unattributed bucket, which made the per-member
+        # rollup understate the workspace's largest cost source.
+        principal_id=user_id,
         mode="judgment", trigger_type=trigger,
         status="success", duration_ms=duration_ms,
         envelope_load_ms=envelope_load_ms,

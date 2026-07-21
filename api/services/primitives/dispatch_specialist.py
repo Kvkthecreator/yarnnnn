@@ -313,7 +313,7 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
         # ADR-291: unified cost ledger — write directly to execution_events.
         try:
             from services.telemetry import record_execution_event
-            from services.supabase import get_service_client
+            from services.supabase import get_service_client, resolve_principal_id
             _in = int(usage.get("input_tokens", 0) or 0) if isinstance(usage, dict) else 0
             _out = int(usage.get("output_tokens", 0) or 0) if isinstance(usage, dict) else 0
             _cache_read = int(usage.get("cache_read_input_tokens", 0) or 0) if isinstance(usage, dict) else 0
@@ -321,6 +321,10 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
             record_execution_event(
                 get_service_client(),
                 user_id=user_id,
+                # ADR-373/445: a specialist sub-call is work done ON BEHALF OF
+                # the acting principal — the cost is theirs, so it must roll up
+                # to them and count against their cap.
+                principal_id=resolve_principal_id(auth),
                 slug=f"specialist:{role}",
                 mode="judgment",
                 trigger_type="reactive",
