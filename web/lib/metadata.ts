@@ -4,6 +4,10 @@
  * Centralized brand and metadata settings for SEO and social sharing.
  */
 
+// ADR-445 §6 — prices interpolate from the single source (no cycle: usage.ts
+// imports only a type).
+import { PRICE_COPY } from "@/lib/subscription/usage";
+
 import type { Metadata } from "next";
 
 // =============================================================================
@@ -194,7 +198,7 @@ export function getSoftwareApplicationSchema() {
       price: "0",
       priceCurrency: "USD",
       description:
-        "Free for one person; a paid seat ($20/mo) per teammate plus a shared monthly usage pool. AI connections are always free.",
+        `Free for one person; a paid seat (${PRICE_COPY.seat}/mo) per teammate plus a shared monthly usage pool. AI connections are always free.`,
     },
     publisher: {
       "@id": `${BRAND.url}/#organization`,

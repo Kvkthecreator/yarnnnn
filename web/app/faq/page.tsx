@@ -1,4 +1,6 @@
 import Link from "next/link";
+// ADR-445 §6 — prices interpolate from the single source (lib/subscription/usage.ts).
+import { PRICE_COPY } from "@/lib/subscription/usage";
 import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
@@ -69,7 +71,7 @@ const faqSections: FaqSection[] = [
       {
         question: "What does it cost?",
         answer:
-          "Your memory is free forever for one person — your files, your context, reachable from any AI. Pricing has two axes: a seat per teammate, and shared usage. The first seat (you, the owner) is free; each additional human is a paid seat ($20/mo), and AI connections are always free — never a seat. The paid plan includes a monthly shared usage pool the whole workspace draws from (owner-funded); heavier months you top up any amount from $5 (top-ups never expire). A solo workspace is free (usage-only); a team is paid per additional person. Every workspace starts with a $3 balance to feel the loop before you spend a cent.",
+          `Your memory is free forever for one person — your files, your context, reachable from any AI. Pricing has two axes: a seat per teammate, and shared usage. The first seat (you, the owner) is free; each additional human is a paid seat (${PRICE_COPY.seat}/mo), and AI connections are always free — never a seat. The paid plan includes a monthly shared usage pool the whole workspace draws from (owner-funded); heavier months you top up any amount from ${PRICE_COPY.topUpMin} (top-ups never expire). A solo workspace is free (usage-only); a team is paid per additional person. Every workspace starts with a ${PRICE_COPY.signupGrant} balance to feel the loop before you spend a cent.`,
       },
       {
         question: "Can I cap what it spends?",

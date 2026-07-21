@@ -1,4 +1,6 @@
 import { BRAND } from "@/lib/metadata";
+// ADR-445 §6 — prices interpolate from the single source.
+import { PRICE_COPY } from "@/lib/subscription/usage";
 import { getAllPosts } from "@/lib/blog";
 
 // The MCP connector — yarnnn's interop face. An agent reading this file
@@ -82,9 +84,9 @@ export async function GET() {
     "## Pricing summary",
     "",
     "- The workspace and your memory are free forever for one person — files, chat, context reachable from any AI via MCP. No feature gates.",
-    "- Two pricing axes: (1) seats — the first seat (the owner) is free; each additional human is a paid seat ($20/mo); AI connections are always free and never a seat. (2) metered usage — a paid plan includes a shared monthly usage pool the whole workspace draws (owner-funded); usage is metered at transparent rates and readable line by line. A solo workspace is free (usage-only); a team is paid per additional person. Beyond the allowance, top up any amount from $5 (top-ups never expire); hard stop when allowance and balance are exhausted.",
+    `- Two pricing axes: (1) seats — the first seat (the owner) is free; each additional human is a paid seat (${PRICE_COPY.seat}/mo); AI connections are always free and never a seat. (2) metered usage — a paid plan includes a shared monthly usage pool the whole workspace draws (owner-funded); usage is metered at transparent rates and readable line by line. A solo workspace is free (usage-only); a team is paid per additional person. Beyond the allowance, top up any amount from ${PRICE_COPY.topUpMin} (top-ups never expire); hard stop when allowance and balance are exhausted.`,
     "- Budget cap (separate from the plan): you set a monthly ceiling per operation and the agent paces its own work to stay under it. Two guardrails: a budget ceiling you plan, and a zero-balance floor that pauses without losing anything.",
-    "- Every workspace starts with a $3 usage balance — enough to feel the loop before you spend a cent.",
+    `- Every workspace starts with a ${PRICE_COPY.signupGrant} usage balance — enough to feel the loop before you spend a cent.`,
     "",
     "## Feeds and discovery",
     "",

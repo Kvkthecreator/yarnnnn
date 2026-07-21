@@ -158,6 +158,48 @@ export const TIER_SEAT_PRICE_USD: Record<SubscriptionTier, number> = {
 };
 
 /**
+ * The pooled monthly allowance a paid plan grants the WORKSPACE — not per-seat
+ * (the meter is one shared pool, ADR-445 Axis ②).
+ * Mirror of api/services/billing_tiers.py::TIER_CONFIG.monthly_allowance_usd.
+ */
+export const TIER_ALLOWANCE_USD: Record<SubscriptionTier, number> = {
+  free: 0,
+  starter: 15,
+  pro: 45,       // dormant (hidden) until the capture lane ships
+  enterprise: 0, // sales-led — sized per contract
+};
+
+/**
+ * The one-time balance a new workspace starts with, so the loop can be felt
+ * before spending anything. Marketing copy quotes it; it lives here, not inline.
+ */
+export const SIGNUP_GRANT_USD = 3;
+
+/**
+ * Marketing/price-copy fragments, derived from the constants above so a price
+ * tune changes ONE place. ADR-445 §6 says the numbers "live in one place
+ * (billing_tiers.py::TIER_CONFIG)" — the FE mirrors that single source here
+ * rather than in nine independent string literals across pricing/landing/FAQ/
+ * llms.txt/metadata, which is what the 2026-07-21 audit found.
+ *
+ * These are LAUNCH-TEST values (ADR-396 §7 discipline) and are expected to move.
+ */
+export const PRICE_COPY = {
+  /** "$20" — the per-additional-human seat price. */
+  seat: `$${TIER_SEAT_PRICE_USD.starter}`,
+  /** "$20/mo per teammate you add" */
+  seatPerTeammate: `$${TIER_SEAT_PRICE_USD.starter}/mo per teammate you add`,
+  /** "$15 of monthly usage included — one shared pool" */
+  pooledAllowance: `$${TIER_ALLOWANCE_USD.starter} of monthly usage included — one shared pool`,
+  /** "$15" — the pooled allowance alone. */
+  allowance: `$${TIER_ALLOWANCE_USD.starter}`,
+  /** "$3" — the signup balance. */
+  signupGrant: `$${SIGNUP_GRANT_USD}`,
+  /** "$5" — the top-up floor. */
+  topUpMin: `$${TOPUP_MIN_USD}`,
+} as const;
+
+/**
  * The UPGRADE CTA label — a bare "$20/mo", deliberately NOT a per-seat label. The
  * upgrade button is only ever shown to a free-tier workspace, which is solo (free =
  * 1 human). Labelling it "$20/seat/mo" told a solo owner they were buying a seat —

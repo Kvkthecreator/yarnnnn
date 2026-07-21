@@ -4,6 +4,9 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { SpotlightCard } from "@/components/landing/SpotlightCard";
+// ADR-445 §6 — prices live in ONE place (billing_tiers.py::TIER_CONFIG, mirrored
+// by lib/subscription/usage.ts). This page interpolates; it never re-types a number.
+import { PRICE_COPY } from "@/lib/subscription/usage";
 import { ScrollReveal } from "@/components/landing/ScrollReveal";
 import { Check, Wallet, ShieldCheck } from "lucide-react";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
@@ -41,14 +44,14 @@ const PLANS = [
     featured: false,
     points: [
       "Workspace + memory, free forever for one person",
-      "$3 starting balance — feel the loop before you spend",
+      `${PRICE_COPY.signupGrant} starting balance — feel the loop before you spend`,
       "Reachable from any AI over MCP — always free",
       "Add a teammate anytime on the paid plan",
     ],
   },
   {
     name: "Starter",
-    price: "$20",
+    price: PRICE_COPY.seat,
     cadence: "/seat/mo",
     blurb: "For a real team working out of one shared workspace. You stay free; each teammate is a paid seat, and usage is one shared pool the workspace draws from.",
     cta: "Go Starter",
@@ -56,8 +59,8 @@ const PLANS = [
     featured: true,
     points: [
       "Everything in Free — your seat stays free",
-      "$20/mo per teammate you add",
-      "$15 of monthly usage included — one shared pool",
+      PRICE_COPY.seatPerTeammate,
+      PRICE_COPY.pooledAllowance,
       "Connect any AI over MCP — always free, never a seat",
     ],
   },
@@ -67,7 +70,7 @@ const HOW_IT_WORKS = [
   "Free for one person. Your workspace, your memory, and your own seat are free forever — you only pay when you bring a teammate.",
   "A seat per teammate. Each additional person on the workspace is a paid seat; AI connections you plug in over MCP are always free and never a seat.",
   "One shared usage pool. The paid plan includes a monthly amount of usage the whole workspace draws from — you, your teammates, and any AI all draw the same pool, funded by the owner.",
-  "Need more in a heavy month? Top up any amount from $5. Top-ups never expire and sit beneath your allowance. Hard stop at zero — nothing is lost, you resume by topping up.",
+  `Need more in a heavy month? Top up any amount from ${PRICE_COPY.topUpMin}. Top-ups never expire and sit beneath your allowance. Hard stop at zero — nothing is lost, you resume by topping up.`,
 ];
 
 export default function PricingPage() {
@@ -158,7 +161,7 @@ export default function PricingPage() {
             </ScrollReveal>
 
             <p className="text-center text-white/40 text-sm mb-16">
-              No card to start. The $3 balance is enough to feel the loop before you spend a cent.
+              No card to start. The {PRICE_COPY.signupGrant} balance is enough to feel the loop before you spend a cent.
             </p>
 
             {/* How usage works */}
@@ -229,7 +232,7 @@ export default function PricingPage() {
                   <h3 className="text-lg font-medium mb-3">What does a seat cost?</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
                     A seat is a human on your workspace. The first seat — you, the owner — is free.
-                    Each teammate you add is $20/mo. Every human draws the same shared usage pool the
+                    Each teammate you add is {PRICE_COPY.seat}/mo. Every human draws the same shared usage pool the
                     owner funds — and any AI you connect over MCP is always free, never a seat and
                     never a charge.
                   </p>
@@ -264,12 +267,12 @@ export default function PricingPage() {
                   <p>
                     <strong className="text-white/70">Do I need a paid plan?</strong> No. The
                     workspace and your memory are free forever for one person. A paid plan is for a
-                    real team — inviting your first teammate makes the workspace paid ($20/mo per
+                    real team — inviting your first teammate makes the workspace paid ({PRICE_COPY.seat}/mo per
                     person), and includes a shared monthly usage pool the work draws from.
                   </p>
                   <p>
                     <strong className="text-white/70">Starting balance.</strong> Every workspace
-                    begins with a $3 usage credit — enough to author your context and watch the
+                    begins with a {PRICE_COPY.signupGrant} usage credit — enough to author your context and watch the
                     correction loop firsthand before you spend anything.
                   </p>
                   <p>
