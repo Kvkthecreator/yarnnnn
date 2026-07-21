@@ -36,7 +36,7 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request, status
@@ -161,6 +161,34 @@ async def _get_subscription_payload(http: httpx.AsyncClient, subscription_id: st
     return response.json()
 
 
+def _record_seat_sync_failure(
+    client: Any, workspace_id: str, sub_id: Any, quantity: int,
+    humans: int, reason: str, detail: str = "",
+) -> None:
+    """Persist a failed seat-quantity sync (ADR-445 §7 P2 reconciliation).
+
+    `sync_seat_quantity` is intentionally best-effort — a billing hiccup must
+    never block a member joining or leaving. But best-effort without a record is
+    just silence: LS keeps billing the stale quantity while /subscription/status
+    reports the new one, forever, with no signal. This is the signal.
+    """
+    try:
+        client.table("subscription_events").insert({
+            "workspace_id": workspace_id,
+            "event_type": "seat_sync_failed",
+            "event_source": "yarnnn",
+            "ls_subscription_id": str(sub_id) if sub_id else None,
+            "payload": {
+                "intended_quantity": quantity,
+                "human_seats": humans,
+                "reason": reason,
+                "detail": detail,
+            },
+        }).execute()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("[SEAT_SYNC] could not record sync failure for %s: %s", workspace_id, exc)
+
+
 async def sync_seat_quantity(workspace_id: str) -> None:
     """Sync the LS subscription's seat quantity to the workspace's current headcount
     (ADR-445 §7 Phase 2). Called when a human member is added or removed so the
@@ -223,10 +251,86 @@ async def sync_seat_quantity(workspace_id: str) -> None:
                     f"[SEAT_SYNC] LS quantity update failed for ws {workspace_id} "
                     f"(sub {sub_id}): {resp.status_code} {resp.text[:200]}"
                 )
+                # ADR-445 §7 P2 — a swallowed PATCH failure used to be invisible:
+                # the member lifecycle succeeded, LS kept billing the old count,
+                # and nothing recorded it. Land a durable row so the gap is
+                # attributable instead of living only in a log line.
+                _record_seat_sync_failure(
+                    svc, workspace_id, sub_id, quantity, humans,
+                    f"http_{resp.status_code}", resp.text[:200],
+                )
             else:
                 log.info(f"[SEAT_SYNC] ws {workspace_id} → {quantity} seats (sub {sub_id})")
     except Exception as e:  # noqa: BLE001 — best-effort; never break the member lifecycle
         log.warning(f"[SEAT_SYNC] failed for ws {workspace_id}: {e}")
+        # Same discipline as the non-2xx branch: swallowing is right, staying
+        # silent is not. Guarded so a failure here can't re-raise into the caller.
+        try:
+            from services.supabase import get_service_client
+            _record_seat_sync_failure(
+                get_service_client(), workspace_id, None, -1, -1, "exception", str(e)[:200],
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _ls_quantity(attrs: dict) -> Optional[int]:
+    """The seat quantity LS reports on a subscription payload, or None.
+
+    LS carries it on `first_subscription_item.quantity`. Absent on some event
+    shapes (and on legacy non-quantity variants), which is not an error — it just
+    means this event cannot speak to seat drift.
+    """
+    item = attrs.get("first_subscription_item")
+    if not isinstance(item, dict):
+        return None
+    q = item.get("quantity")
+    try:
+        return int(q) if q is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _reconcile_seat_quantity(
+    client: Any, workspace_id: str, tier: str, attrs: dict, event_name: str
+) -> None:
+    """Compare what LS is billing against what the roster says, and RECORD any gap.
+
+    ADR-445 §7 Phase 2. Deliberately observe-only: it never PATCHes LS (an owner
+    may legitimately set quantity in the customer portal, and a webhook that
+    fought the portal would loop). It writes a `seat_quantity_drift` row to
+    `subscription_events` so the divergence is durable, attributable, and
+    queryable — the reconciliation half that `sync_seat_quantity`'s best-effort
+    PATCH never had. Best-effort itself: never raises into webhook handling.
+    """
+    try:
+        billed = _ls_quantity(attrs)
+        if billed is None:
+            return
+        from services.billing_tiers import billable_seats, count_human_seats
+        humans = count_human_seats(client, workspace_id)
+        expected = max(1, billable_seats(tier, humans))
+        if billed == expected:
+            return
+        log.warning(
+            "[SEAT_DRIFT] ws %s: LS bills %s seat(s), roster implies %s "
+            "(%s humans, tier %s) — event %s",
+            workspace_id, billed, expected, humans, tier, event_name,
+        )
+        client.table("subscription_events").insert({
+            "workspace_id": workspace_id,
+            "event_type": "seat_quantity_drift",
+            "event_source": "yarnnn",   # derived by us, not reported by LS
+            "payload": {
+                "billed_quantity": billed,
+                "expected_quantity": expected,
+                "human_seats": humans,
+                "tier": tier,
+                "observed_on": event_name,
+            },
+        }).execute()
+    except Exception as exc:  # noqa: BLE001 — observation must never break billing
+        log.warning("[SEAT_DRIFT] reconciliation failed for ws %s: %s", workspace_id, exc)
 
 
 async def _get_customer_payload(http: httpx.AsyncClient, customer_id: str) -> Optional[dict]:
@@ -360,7 +464,11 @@ async def get_subscription_status(auth: UserClient):
         subscription_id=ws.get("lemonsqueezy_subscription_id"),
         human_seats=humans,
         included_seats=tier_included_seats(tier),
-        billable_seats=_billable_seats(tier, humans),
+        # Use the exempt-aware value. This re-called `_billable_seats` WITHOUT the
+        # exempt override while `n_billable` (which has it) went unused — so a
+        # comped 3-human workspace reported "2 billable seats" beside "$0.00" and
+        # "seat billing inactive", contradicting itself on one payload.
+        billable_seats=n_billable,
         seat_fee_usd=fee,
         seat_billing_active=seat_active,
         billing_exempt=exempt,
@@ -609,6 +717,16 @@ async def handle_lemonsqueezy_webhook(request: Request):
             update_data["lemonsqueezy_customer_id"] = customer_id
         client.table("workspaces").update(update_data).eq("id", workspace_id).execute()
         log.info(f"Subscription {event_name}: workspace {workspace_id} → tier {tier}")
+
+        # ADR-445 §7 Phase 2 — SEAT RECONCILIATION. The webhook is the only place
+        # that learns what LS is ACTUALLY billing. Without reading quantity here,
+        # nothing could ever detect drift: `sync_seat_quantity` is doubly
+        # best-effort (a non-2xx only logs), so a failed PATCH left LS billing the
+        # old count while /subscription/status reported the new computed fee — a
+        # silent, permanent under-bill on the axis that carries team revenue.
+        # This does not CORRECT drift (the operator may legitimately change
+        # quantity in the LS portal); it makes drift VISIBLE and attributable.
+        _reconcile_seat_quantity(client, workspace_id, tier, attrs, event_name)
 
         # Grant the tier's monthly allowance on activation. subscription_created
         # fires with the first payment; payment_success covers renewals. Guarding
