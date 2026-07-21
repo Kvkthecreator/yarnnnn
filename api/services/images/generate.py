@@ -1,4 +1,4 @@
-"""Decomposed generation — the AI-native image workflow (ADR-474, ADR-468 D3).
+"""Decomposed generation — the AI-native image workflow (ADR-475, ADR-468 D3).
 
 ONE PROMPT DOES NOT GENERATE ONE IMAGE — IT GENERATES A COMPOSITION.
 
@@ -48,7 +48,7 @@ actually needed. The stub produces honest, visibly-placeholder leaves that
 compose exactly as real ones will; swapping the driver changes the BYTES at
 the leaves and nothing else about the composition.
 
-Canonical reference: docs/adr/ADR-474-decomposed-generation.md
+Canonical reference: docs/adr/ADR-475-decomposed-generation.md
 """
 
 from __future__ import annotations
@@ -261,7 +261,7 @@ def _geometry(layer: Layer) -> tuple[str, list[str]]:
     """
     attrs: list[str] = []
     props: list[str] = []
-    # `h` is here for the reason ADR-474 records: a POSITIONED, EMPTY element
+    # `h` is here for the reason ADR-475 records: a POSITIONED, EMPTY element
     # resolves `height: auto` to ZERO, so a background or a cut-out without it
     # is placed perfectly and renders as nothing.
     for key, var in (("x", "--yx"), ("y", "--yy"), ("w", "--yw"), ("h", "--yh")):

@@ -1,4 +1,4 @@
-"""Decomposition — a prompt becomes a NAMED LAYER PLAN (ADR-474, ADR-468 D3 §1).
+"""Decomposition — a prompt becomes a NAMED LAYER PLAN (ADR-475, ADR-468 D3 §1).
 
 This is step 1 of the workflow and the one that carries the thesis: the member
 writes one sentence, and what comes back is not an image but a **composition**
@@ -32,7 +32,7 @@ model, no key, and no network. It exists for three honest reasons —
 Both return the same `list[Layer]`, so everything downstream is blind to which
 ran. That is what makes the model swap a one-line change later.
 
-Canonical reference: docs/adr/ADR-474-decomposed-generation.md
+Canonical reference: docs/adr/ADR-475-decomposed-generation.md
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 #: readable ad, and ADR-472 D6 is explicit that the vocabulary of composition
 #: must fall out of real work rather than be legislated up front.
 #:
-#: ⚠️ NON-TEXT LAYERS CARRY `h` (ADR-474, found by the first ad). The kernel's
+#: ⚠️ NON-TEXT LAYERS CARRY `h` (ADR-475, found by the first ad). The kernel's
 #: measure rule is `height: var(--yh, auto)` — and `auto` on an ABSOLUTELY
 #: POSITIONED, EMPTY element is ZERO. A background div and a cut-out figure
 #: have no text to give them intrinsic height, so without `h` they render at
@@ -201,7 +201,7 @@ def _coerce(raw: list) -> list[Layer]:
             if isinstance(val, (int, float)):
                 layer[key] = max(lo, min(hi, int(val)))
 
-        # The zero-height guarantee (ADR-474). The system prompt asks for `h`
+        # The zero-height guarantee (ADR-475). The system prompt asks for `h`
         # on non-text layers; this MAKES IT TRUE, because a prompt instruction
         # is a request and a composition that silently renders nothing is the
         # worst failure this app has — it looks like it worked.

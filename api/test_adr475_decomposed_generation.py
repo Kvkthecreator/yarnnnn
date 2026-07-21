@@ -1,4 +1,4 @@
-"""ADR-474 — decomposed generation: the composition EXECUTES and PAINTS.
+"""ADR-475 — decomposed generation: the composition EXECUTES and PAINTS.
 
 WHY THIS GATE IS SHAPED THIS WAY. Two lessons are encoded here, both paid for:
 
@@ -21,7 +21,7 @@ WHY THIS GATE IS SHAPED THIS WAY. Two lessons are encoded here, both paid for:
    the broken version — which is exactly the read-test-that-passes-on-empty
    failure this codebase has been bitten by before.
 
-Run:  python3 api/test_adr474_decomposed_generation.py   (NOT pytest — check()-gate.)
+Run:  python3 api/test_adr475_decomposed_generation.py   (NOT pytest — check()-gate.)
 """
 
 import asyncio

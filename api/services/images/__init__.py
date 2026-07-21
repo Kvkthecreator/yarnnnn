@@ -1,13 +1,13 @@
 """IMAGES — the composition app (ADR-472), as a package.
 
-The module became a package when generation arrived (ADR-474): the stage's
+The module became a package when generation arrived (ADR-475): the stage's
 constants and the generation workflow are different concerns with different
 dependencies (one is pure data, the other reaches a rented engine), and a
 single 700-line module would have fused them.
 
     stage.py     — the stage: presets, real dimensions, scaffold, skin.
                    Pure data + pure functions. No I/O, no engine.
-    generate.py  — decomposed generation (ADR-474): a prompt becomes a NAMED
+    generate.py  — decomposed generation (ADR-475): a prompt becomes a NAMED
                    LAYER PLAN, each leaf routed by kind, composed into the
                    layered stage. The engine is RENTED behind a seam.
     render.py    — render-to-raster (ADR-472 D5): the composition is the
@@ -18,7 +18,7 @@ Everything the pre-package module exported is re-exported here, so
 split — the file moved, the import surface did not.
 
 Canonical reference: docs/adr/ADR-472-images-as-a-first-class-app.md
-                     docs/adr/ADR-474-decomposed-generation.md
+                     docs/adr/ADR-475-decomposed-generation.md
 """
 
 from __future__ import annotations

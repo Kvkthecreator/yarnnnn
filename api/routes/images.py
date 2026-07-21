@@ -1,4 +1,4 @@
-"""IMAGES routes — decomposed generation + render-to-raster (ADR-474).
+"""IMAGES routes — decomposed generation + render-to-raster (ADR-475).
 
 Two endpoints, because IMAGES has exactly two acts Studio's machinery does not
 already cover — and they are the two halves of what makes it a different app:
@@ -26,7 +26,7 @@ member (or a lane, via the same HTTP surface) invokes, which is where ADR-472
 D5 already put rendering. The lane still edits the result with the five verbs
 it always had.
 
-Canonical reference: docs/adr/ADR-474-decomposed-generation.md
+Canonical reference: docs/adr/ADR-475-decomposed-generation.md
 """
 
 from __future__ import annotations
