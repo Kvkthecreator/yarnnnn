@@ -175,12 +175,14 @@ def record_execution_event(
     success, None on insert failure.
 
     ADR-439 — `cost_override_usd`: when provided, the row's `cost_usd` is set to
-    this value INSTEAD of computing it from tokens. The ONE intentional exception
-    to the ADR-396 "ledger records at-cost" invariant: a BYOK lane round paid on
-    the customer's own key costs US nothing, so the lane passes 0.0 and the pool
-    draw sees $0 (ADR-409 D2). Use ONLY for BYOK; never to fudge a real cost. When
-    None (the default), cost is computed from tokens exactly as before — every
-    non-BYOK call is byte-identical.
+    this value INSTEAD of computing it from tokens. Two legitimate uses, both
+    consistent with the ADR-396 one-ledger invariant: (1) a BYOK lane round paid
+    on the customer's own key costs US nothing, so the lane passes 0.0 and the
+    pool draw sees $0 (ADR-409 D2); (2) a rented NON-TOKEN call (ADR-475 image
+    generation — priced per image, no token count exists) passes its real
+    per-call figure. Never to fudge a cost that tokens can compute. When None
+    (the default), cost is computed from tokens exactly as before — every
+    token-priced call is byte-identical.
 
     Args:
         client:             Supabase service client
