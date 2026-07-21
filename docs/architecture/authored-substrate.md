@@ -21,7 +21,7 @@ Three substrate-level invariants, enforced at the write path (not by convention,
 
 | Invariant | Meaning | Enforcement |
 |---|---|---|
-| **Content-addressed retention** | Every distinct file content is stored immutably, keyed by hash. Overwrites never destroy; they append a new revision that points at the new content. | `workspace_blobs` table (sha256 PK, content). The write path upserts by hash. |
+| **Content-addressed retention** | Every distinct file content is stored immutably, keyed by hash. Overwrites never destroy; they append a new revision that points at the new content. | `workspace_blobs` table, keyed `(workspace_id, sha256)` — ADR-474. The write path upserts by hash within the owning workspace. |
 | **Parent-pointered history** | Every revision records the revision it descended from. The revision chain for any path is walkable backward. | `workspace_file_versions.parent_version_id` column. The write path reads the current `head_version_id` and stores it as the new revision's parent. |
 | **Authored-by attribution** | Every revision carries an author identity (one of four cognitive layers plus `system:*` actors) and a short message. Writes without attribution are rejected at the boundary. | `workspace_file_versions.authored_by` + `message` columns, required (NOT NULL). Primitive layer threads `authored_by` through every call. |
 
@@ -107,12 +107,16 @@ Git's actual insight isn't branches — it's *"the working tree shows current st
 Three tables. All in Postgres. The substrate itself — not a backing store, not a cache, not a mirror.
 
 ```sql
--- Content-addressed store
+-- Content-addressed store, scoped to the owning workspace (ADR-474)
 workspace_blobs (
-  sha256 TEXT PRIMARY KEY,
+  workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  sha256 TEXT NOT NULL,
   content TEXT NOT NULL,
+  storage_key TEXT,          -- ADR-427: set when the bytes live in the bucket
+  byte_size BIGINT,
   size_bytes INT,
-  created_at TIMESTAMPTZ
+  created_at TIMESTAMPTZ,
+  PRIMARY KEY (workspace_id, sha256)
 )
 
 -- Revision chain per path
@@ -135,6 +139,54 @@ workspace_files (
 )
 ```
 
+### The three layers and their lifetimes (ADR-474)
+
+The substrate is three layers, and they do **not** share a lifetime. Conflating
+them is what let content leak: the content layer's lifetime was implicitly
+assumed to equal the ledger's, and nothing enforced it.
+
+| Layer | Table | What it is | Reachable from | Lifetime rule |
+|---|---|---|---|---|
+| **Namespace** | `workspace_files` | what is present in the workspace *now* | the member's tree | **the member curates** — Trash is legitimate; the ledger holds the record |
+| **Ledger** | `workspace_file_versions` | what happened, who did it, when | `(workspace, path)` | **immutable, retained** — this is ADR-209's actual claim |
+| **Content** | `workspace_blobs` | the bytes a revision points at | a revision's `blob_sha`, *within its workspace* | **owned + reference-bounded** — a blob belongs to one workspace and lives as long as that workspace's revisions cite it |
+
+**The invariant** (ADR-474 §7), checkable in one query and therefore assertable
+in CI rather than hoped for:
+
+> Every blob is owned by exactly one workspace, and every revision resolves its
+> blob within its own workspace.
+
+The composite FK `(workspace_id, blob_sha) → (workspace_id, sha256)` makes a
+cross-workspace content reference **structurally impossible** rather than merely
+discouraged.
+
+**Retention means reachable.** Content that no query can reach is not retained,
+it is *leaked* — the two look identical on a disk-usage graph and are opposites
+in meaning. Before ADR-474, `workspace_purge` could not reach blobs at all
+(there was no column to scope on), so a member's deletion left their content in
+place permanently. Deletion now reaches content because content has an owner.
+
+### Sharing is a grant, never a byte coincidence (ADR-474 D3)
+
+Content-addressing is a **storage** optimization and must never become an
+**authorization** fact. Two workspaces holding identical bytes is a coincidence
+of content; it is not a relationship between them, and it must never let one
+reach the other's data. This is the cloud-provider model — GCS and S3 do not
+make two projects co-own an object because the bytes match.
+
+If workspace A shares a file with B, that is an explicit grant on the **file**
+(`principal_grants` · ADR-434 powerbox · ADR-437), resolved above this layer,
+which then reads A's content. B never acquires ownership of A's blob.
+
+Consequently **dedup is optional and invisible**: identical bytes *may* later be
+stored once physically with N owner rows and a refcount — a placement detail
+beneath the ownership layer. The binary lane already behaves this way (the
+bucket object is content-addressed and shared; only the last owning row's
+deletion removes it). The point of the composite key is that the schema no
+longer *forecloses* dedup, and no longer *requires* it to stand in for
+authorization.
+
 ### The write path (single function, every primitive routes through it)
 
 ```python
@@ -147,7 +199,7 @@ def write_revision(
     author_identity_uuid: UUID | None = None,
 ) -> UUID:
     sha = sha256(content)
-    upsert workspace_blobs(sha, content)
+    upsert workspace_blobs(workspace_id, sha, content)   -- ADR-474: owned
     prev_head = (
         select head_version_id from workspace_files
         where workspace_id = :workspace_id and path = :path
@@ -343,4 +395,5 @@ YARNNN's substrate is the filesystem (Axiom 1). Every mutation to that filesyste
 | Date | Change |
 |------|--------|
 | 2026-04-23 | v1 — Initial canonical doc. Ratified by FOUNDATIONS v6.1 Axiom 1 second clause + ADR-209. Captures the git-inspiration framing (3 of 5 capabilities), the CAS + revision-chain model, the `authored_by` taxonomy, the deprecation manifest (`/history/` pattern and filename-versioning retired), and the deferred-extension gating for branches + git portability. Supersedes ADR-208 v1 (withdrawn) and ADR-119 Phase 3. |
+| 2026-07-21 | v1.2 — **Content inherits the file's scope (ADR-474).** `workspace_blobs` gains `workspace_id`; the identity becomes `(workspace_id, sha256)` and the ledger's FK becomes composite, making a cross-workspace content reference structurally impossible. Adds §3's three-layer lifetime table (namespace curates / ledger immutable / content owned + reference-bounded) — the content layer previously had *no* stated rule, which is why `workspace_purge` could not reach it and a member's deletion left their bytes in place permanently. Adds the sharing-is-a-grant-never-a-byte-coincidence rule: content-addressing is a storage optimization, never an authorization fact; dedup becomes optional and invisible beneath the ownership layer. The storage seam gains `delete_blob` (row + bucket object, last-owner-only). |
 | 2026-04-23 | v1.1 — Branches + distributed replication **reframed as explicitly out of scope, not deferred-future-work.** §7 rewritten from "Future extensions (gated on real operator signal)" to "Out of scope: branches and distributed replication." §2 table bullets changed from "❌ Deferred" to "❌ **Explicitly out of scope**". The "What 'deferred' means concretely" subsection replaced with "The exclusion is structural, not a 'not yet'." Rationale: the v1 phrasing read as a roadmap; the intent was always exclusion. The cockpit (ADR-198) + MCP surface (ADR-169) are what replace git's coordination affordances, not placeholders for them. Corrects drift without altering any shipped code or the three-of-five capability commitment. |

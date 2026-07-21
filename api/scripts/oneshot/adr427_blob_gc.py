@@ -94,13 +94,16 @@ def main() -> int:
     orphan_external_bytes = 0
     young_skipped = 0
     age_buckets: dict[str, int] = {}
-    to_delete: list[tuple[str, str | None]] = []  # (sha, storage_key)
+    # ADR-474: the unit of collection is (workspace_id, sha256) — the blob's
+    # identity. Deleting by sha alone would collect EVERY workspace's row for a
+    # shared content address.
+    to_delete: list[tuple[str, str]] = []  # (workspace_id, sha)
 
     page = 0
     while True:
         rows = (
             client.table("workspace_blobs")
-            .select("sha256, size_bytes, byte_size, storage_key, created_at")
+            .select("workspace_id, sha256, size_bytes, byte_size, storage_key, created_at")
             .order("created_at")
             .range(page * 1000, page * 1000 + 999)
             .execute()
@@ -121,7 +124,7 @@ def main() -> int:
             else:
                 orphan_inline_bytes += r.get("size_bytes") or 0
             if sweep:
-                to_delete.append((r["sha256"], r.get("storage_key")))
+                to_delete.append((r["workspace_id"], r["sha256"]))
         if len(rows) < 1000:
             break
         page += 1
@@ -140,29 +143,30 @@ def main() -> int:
         return 0
 
     print(f"\nSWEEP: deleting {len(to_delete)} orphan blobs…")
-    from services.storage_backend import CAS_BUCKET
+    # ADR-474: route through the storage seam rather than deleting rows here.
+    # The seam owns both halves (row + bucket object, the object only when the
+    # workspace is that content address's last owner) — a raw row delete would
+    # strand the object, since the storage_key lives nowhere else.
+    from services.storage_backend import get_storage_backend
+
+    backend = get_storage_backend(client)
     deleted = 0
-    for i in range(0, len(to_delete), BATCH):
-        chunk = to_delete[i : i + BATCH]
-        keys = [k for _, k in chunk if k]
-        if keys:
-            try:
-                client.storage.from_(CAS_BUCKET).remove(keys)
-            except Exception as exc:  # noqa: BLE001
-                print(f"  bucket remove failed (continuing, rows kept): {exc}")
-                continue
-        shas = [s for s, _ in chunk]
+    failed = 0
+    for n, (workspace_id, sha) in enumerate(to_delete, 1):
         try:
-            client.table("workspace_blobs").delete().in_("sha256", shas).execute()
+            if backend.delete_blob(sha, workspace_id=workspace_id):
+                deleted += 1
+            else:
+                failed += 1
         except Exception as exc:  # noqa: BLE001
-            # A referenced blob cannot be deleted (blob_sha FK is NO ACTION), so
-            # a failure here is transport-shaped, not a safety breach. Report the
-            # batch and keep going rather than dying mid-sweep with a traceback.
-            print(f"  batch {i//BATCH} failed ({len(shas)} shas kept): {exc}")
-            continue
-        deleted += len(shas)
-        print(f"  {deleted}/{len(to_delete)}")
-    print(f"swept {deleted} blobs.")
+            # A referenced blob cannot be deleted (the composite FK is NO
+            # ACTION), so a failure here is transport-shaped, never a safety
+            # breach. Report and keep going rather than dying mid-sweep.
+            failed += 1
+            print(f"  {sha[:12]} failed (kept): {exc}")
+        if n % 100 == 0 or n == len(to_delete):
+            print(f"  {n}/{len(to_delete)} processed ({deleted} deleted)")
+    print(f"swept {deleted} blobs" + (f", {failed} kept" if failed else "") + ".")
     return 0
 
 

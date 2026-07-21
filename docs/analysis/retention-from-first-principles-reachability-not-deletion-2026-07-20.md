@@ -1,5 +1,7 @@
 # Retention from first principles — reachability, not deletion
 
+> **RESOLVED 2026-07-21 by [ADR-474](../adr/ADR-474-content-inherits-the-files-scope.md)** — the §4 A/B/C question was answered **B** (blobs get a workspace owner), on the ground that deletion rights, not storage cost, were the driver. Two of this note's measurements were re-derived and **weakened** on re-check: the dedup being protected is *entirely kernel scaffold seeds*, not member content (so B's cost is ~87 KB, not a real dedup loss), and the leak had *stopped* (18 blobs written post-sweep, zero orphaned — the ~1,500/day rate was historical workspace purges, not an ongoing drip). The A-then-B sequencing this note recommended was therefore **not** adopted; A's urgency had evaporated. Read below as the framing that got the question right, with those two numbers superseded.
+>
 > **Status**: Discourse / axiomatic reframe. **No code written, no decision taken.**
 > **Date**: 2026-07-20
 > **Supersedes the framing of**: [Trash is not history](trash-is-not-history-scoping-the-lifecycle-fix-2026-07-20.md) — which asked "may we delete a row?" That was the wrong question.
