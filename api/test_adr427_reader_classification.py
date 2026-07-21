@@ -62,6 +62,7 @@ CLASSIFICATION: dict[str, str] = {
     "services/primitives/embed.py": "safe-on-empty",        # eligibility rejects empty content
     "routes/feed.py": "safe-on-empty",                      # workspace read renders ''; session_messages selects are non-substrate
     "routes/studio.py": "safe-on-empty",                    # opens .html artifacts; a binary head renders empty, never crashes
+    "routes/images.py": "safe-on-empty",                    # compose/render read the stage .html; '' fails the data-template check → 422, never a crash or a silent bad compose
     "services/connector_retention.py": "safe-on-empty",     # citation scan of capture files; '' has no citations
     "services/design_systems.py": "safe-on-empty",          # css/html text sources; '' skipped
     # -- text-only-by-contract (fixed authored-text paths) --
