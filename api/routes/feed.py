@@ -1265,7 +1265,14 @@ async def global_chat(
         # any error → allowed (the pool hard-stop is the backstop).
         acting_principal = getattr(auth, "principal_id", None) or auth.user_id
         from services.member_caps import check_member_cap
-        cap_ok, cap_usd, cap_spent = check_member_cap(auth.client, auth.user_id, acting_principal)
+        cap_ok, cap_usd, cap_spent = check_member_cap(
+            auth.client, auth.user_id, acting_principal,
+            # The workspace being drawn from — the cap map is workspace-scoped
+            # substrate (ADR-373/416). Without this the lookup fell back to the
+            # CALLER's id, which for a member is their own, so the owner-authored
+            # cap file was never found and every member read as uncapped.
+            workspace_id=getattr(auth, "workspace_id", None),
+        )
         if not cap_ok:
             yield f"data: {json.dumps({'member_cap_reached': True, 'cap_usd': cap_usd, 'spent_usd': round(cap_spent, 4)})}\n\n"
             return
