@@ -1460,6 +1460,53 @@ const EDIT_SCRIPT = `
     if (e.key !== 'Backspace' || !editingEl) return;
     if (fmtInput && document.activeElement === fmtInput) return;
     if (!caretAtBlockStart() || caretInIsland()) return; // mid-text → native delete
+
+    // ── EMPTY block → REMOVE it (the missing rule) ──────────────────────
+    // Backspace at the start of an EMPTY block is a delete, not a merge:
+    // there is nothing to carry, so the merge path's requirement of a
+    // previous TEXT block does not apply. Without this the block survived
+    // its own emptying — first block in the document, or any block whose
+    // predecessor is a figure/table/divider, left an empty frame behind
+    // and native Backspace had nothing to bite on. contenteditable has no
+    // concept of the block; only the runtime can close it.
+    //
+    // The caret lands at the end of the previous block of ANY kind when
+    // that block can hold one; a non-text predecessor (figure, divider)
+    // takes the SELECTION instead — the member is still located, and the
+    // object grammar is the honest place to be on a non-text block.
+    if ((editingEl.textContent || '').trim() === '' && !editingEl.querySelector('[data-ref], img')) {
+      var all = document.querySelectorAll('[data-block]');
+      var here = -1;
+      for (var n = 0; n < all.length; n++) { if (all[n] === editingEl) { here = n; break; } }
+      if (here <= 0) return; // sole/first block → native (nothing to fall back to)
+      var back = all[here - 1];
+      var backId = back.getAttribute('data-block-id');
+      var backKind = back.getAttribute('data-block');
+      var goneId = editingId;
+      e.preventDefault();
+      // silent: this block is about to be removed — a commit here would
+      // re-assert it and race the delete on the same head (the one-gesture
+      // two-ops trap the merge path documents above).
+      exit(false, true);
+      if (backKind && TEXT_KINDS.indexOf(backKind) !== -1 && backId) {
+        enter(backId);
+        try {
+          var selE = window.getSelection();
+          var rE = document.createRange();
+          rE.selectNodeContents(back);
+          rE.collapse(false); // caret at END of the previous block
+          selE.removeAllRanges(); selE.addRange(rE);
+        } catch (err) {}
+        parent.postMessage({ type: 'yarnnn-edit-entered', blockId: backId }, '*');
+      } else if (window.__yarnnnSelect) {
+        window.__yarnnnSelect(back);
+      }
+      // The verb the menu and the keyboard already share (ADR-462 D10) —
+      // one body, a third entrance. Never a second delete implementation.
+      parent.postMessage({ type: 'yarnnn-key-verb', verb: 'delete', blockId: goneId }, '*');
+      return;
+    }
+
     var prev = adjacentTextBlock('up');
     if (!prev) return; // no previous text block → native (nothing to merge into)
     e.preventDefault();
@@ -2501,10 +2548,31 @@ const GUTTER_SCRIPT = `
   //
   // Guards, in order: never when a caret is live (editing owns its own keys),
   // never inside injected chrome, and never when the member is selecting text.
+  //
+  // ── The guard's seam, re-cut (P11 fallout) ──────────────────────────
+  // This asked "is anything editing?" and refused if so. That was correct
+  // while SELECTED and EDITING were mutually exclusive — but P10/P11 made
+  // the box PERSIST through editing (border dashed, all eight handles
+  // live), and the staged click ladder enters text on a block that is
+  // still selected. So a block routinely looks selected — box drawn,
+  // handles up — while editingId is non-null, and every verb key silently
+  // did nothing. Delete worked only after an Esc nothing advertised.
+  //
+  // The honest question is not "is anything editing" but "does the CARET
+  // own this key right now". It owns it when the caret is live in THIS
+  // block and there is text for the key to act on. On an empty block the
+  // caret has nothing to bite (the Backspace-empty rule above handles it);
+  // on a DIFFERENT block, the selection is the member's real subject.
+  function caretOwnsKeyIn(blk) {
+    var editing = window.__yarnnnEditingId ? window.__yarnnnEditingId() : null;
+    if (editing == null) return false;
+    if (blk.getAttribute('data-block-id') !== editing) return false;
+    return (blk.textContent || '').trim() !== '';
+  }
   function selectedBlock() {
-    if (window.__yarnnnEditingId && window.__yarnnnEditingId() != null) return null;
     var sel = window.__yarnnnSelected ? window.__yarnnnSelected() : null;
-    return sel && sel.isConnected ? sel : null;
+    if (!sel || !sel.isConnected) return null;
+    return caretOwnsKeyIn(sel) ? null : sel;
   }
 
   document.addEventListener('keydown', function (e) {
@@ -2516,9 +2584,10 @@ const GUTTER_SCRIPT = `
     if (!id) return;
     var mod = e.metaKey || e.ctrlKey;
 
-    // Delete / Backspace on a SELECTED block removes it. (With a caret, the
-    // existing Backspace handler owns the key and merges — that guard is why
-    // selectedBlock() refuses while editing.)
+    // Delete / Backspace on a SELECTED block removes it. With a live caret in
+    // a block that still has text, caretOwnsKeyIn() has already handed the key
+    // back to the editor (merge at start, native mid-text) — so reaching here
+    // means the caret has no claim on it.
     if (!mod && (e.key === 'Delete' || e.key === 'Backspace')) {
       e.preventDefault();
       parent.postMessage({ type: 'yarnnn-key-verb', verb: 'delete', blockId: id }, '*');
@@ -2532,6 +2601,12 @@ const GUTTER_SCRIPT = `
       // selected, so ⌘C over a highlighted phrase still copies the phrase.
       var s = window.getSelection();
       if (k === 'c' && s && !s.isCollapsed && String(s)) return;
+      // Same rule for the caret itself: an empty block can be SELECTED while
+      // its caret is live (the P11 overlap), and ⌘V there means "paste text
+      // here", never "paste a block after this one". Text keys belong to the
+      // editor whenever a caret exists at all.
+      if ((k === 'v' || k === 'c') &&
+          window.__yarnnnEditingId && window.__yarnnnEditingId() != null) return;
       e.preventDefault();
       parent.postMessage({
         type: 'yarnnn-key-verb',

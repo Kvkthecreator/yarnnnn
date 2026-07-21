@@ -281,9 +281,12 @@ def main() -> bool:
         "type: 'yarnnn-key-verb'" in proj and "function selectedBlock()" in proj,
     )
     _check(
-        "it refuses while a caret is live (editing owns its own keys — the "
-        "seven existing keydown handlers all guard on the editing element)",
-        "if (window.__yarnnnEditingId && window.__yarnnnEditingId() != null) return null;" in proj,
+        "it refuses while the caret has a CLAIM on the key (editing owns its "
+        "own keys). ADR-477 re-cut the seam: the guard was 'is anything "
+        "editing', which ADR-466 P11 (the box persists through editing) made "
+        "routinely true while a block was selected — so every verb key went "
+        "dead. The invariant is unchanged; assert it, not the old line.",
+        "function caretOwnsKeyIn" in proj and "caretOwnsKeyIn(sel) ? null : sel" in proj,
     )
     _check(
         "Cmd/Ctrl-C over selected TEXT still copies the text (the platform's "
