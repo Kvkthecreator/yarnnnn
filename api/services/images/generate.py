@@ -93,6 +93,9 @@ class Layer(TypedDict, total=False):
     w: int
     z: int
     tag: str             # kind="text": h1 / h2 / p — the block's element
+    ground: str          # "dark" | "light" — the STAGE's ground, not the
+                         # layer's; carried here because any layer may be the
+                         # one that declares it (ADR-475 §12)
 
 
 class GeneratedAsset(TypedDict):

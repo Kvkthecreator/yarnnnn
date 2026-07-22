@@ -172,6 +172,25 @@ STAGE = {
                      letter-spacing: 0.08em; text-transform: uppercase; }
     .slide [data-block="figure"] img { width: 100%; height: 100%;
                                        object-fit: contain; }
+    /* GROUND (ADR-475 §12, found by the first live ad). A composed visual
+       routinely wants a dark ground — the first real brand ad Designer
+       composed opened with `background:#0A0A0F` — but the artifact inherits
+       the base layout's LIGHT-page ink (`--ink:#1a1a1a`), and nothing
+       inverted it. Every text layer measured `color: rgb(26,26,26)`: placed
+       perfectly, unreadable. Dark on dark.
+
+       The fix is a declared ground, not a heuristic. The stage says which
+       ground it is and the text follows — the ADR-453 property-layer pattern
+       (enumerable values, pre-declarable rules), NOT a luminance guess at
+       whatever a background layer happens to paint, which would be
+       unpredictable and unauthorable.
+
+       Absence = light, so every stage authored before this reads unchanged. */
+    .slide[data-ground="dark"] { --ink: #f5f5f7; --muted: #a1a1aa;
+                                 --page-bg: #0a0a0f; color: var(--ink); }
+    .slide[data-ground="dark"] h1, .slide[data-ground="dark"] h2,
+    .slide[data-ground="dark"] h3, .slide[data-ground="dark"] p {
+      color: var(--ink); }
 """.strip("\n"),
     "scaffold": """<section class="slide" data-arrange="free">
   <p class="kicker" data-block="heading" data-block-id="k1" data-x="8" data-y="8" style="--yx:8%;--yy:8%">Untitled image</p>

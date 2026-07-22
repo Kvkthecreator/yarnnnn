@@ -105,6 +105,34 @@ Three reasons this is the right default *for this commit*:
 - **A `surface` block kind.** §5 records the pressure; the change waits for more than one instance.
 - **Per-object regeneration UX.** The substrate supports it today (the prompt is on the leaf, the leaf is its own revision chain). The affordance is FE work, unscoped.
 
+## 10. The first live smoke (2026-07-21) — what production taught that the gate could not
+
+The gate was 50/50 green against a fake DB. Then the endpoint ran once on the operator's real workspace with the live Gemini engine, and **four things the gate structurally could not see** surfaced. Recorded here because each is a lesson about where this build's tests end.
+
+### §11 — The privileged writes were using the member's client
+
+Two writes require a service client, and both had the member's:
+
+- **The ledger** — `execution_events` is service-role-only (RLS `42501`). Every other metering site (`lane_runner`, `settle`, `foreign_read`, `session_continuity`) already resolves `get_service_client()`; this module was the lone exception.
+- **The leaf** — a binary revision uploads to the *private* `workspace-cas` bucket (ADR-427 D4), which refuses a member JWT with `403 new row violates row-level security policy`. Isolated by probing each surface separately: `workspace_files` and `workspace_blobs` both accept the member (they fail on NOT NULL, not policy). Only the bucket refuses — which is why the failure read as a substrate problem and was not one.
+
+**Consequence:** Gemini generated the images successfully, both writes 403'd, the member saw `generated: 0` and a lighter composition with no error, and was billed **~$0.16 for images that were discarded with no ledger row.** `workspace=None` in the log was the telemetry fail-open catch swallowing the broken client, not a resolution bug.
+
+**Fixed** (`2e4bce1`): `compose_stage` resolves its own service client, lazily (a pure text+CSS composition rents nothing and must not require service credentials to run — eager resolution broke the offline gate). The boundary lives *with* the privileged writes so a caller cannot hand in the wrong client. Both swallowed exceptions became ERRORs that name the money. The gate now records *which client* reached each write — the assertion surface it was missing.
+
+### §12 — Two visual defects, both invisible until a real ad rendered
+
+- **Dark on dark.** Designer opened the first brand ad with `background:#0A0A0F` and expected the text to cope; the artifact inherited the base layout's light-page `--ink:#1a1a1a`, and every text layer rendered `rgb(26,26,26)` — placed perfectly, unreadable. **Fixed** with a declared `data-ground="dark"` on the frame (the ADR-453 property-layer pattern: enumerable, pre-declarable, absence = light) whose value `_ground_of` derives from the full-bleed surface's *perceived luminance* (Rec. 601) when Designer doesn't state it, and always defers to an explicit declaration. Browser-verified: `rgb(26,26,26)` → `rgb(245,245,247)`.
+- **The `h` floor is too blunt.** `_coerce` clamped `h` to a 10% minimum, copied from `w` without thinking. Designer's hairline divider and pill badge inflated to 63px slabs on a 628px stage. **A 1%-tall rule is legitimate; a 1%-wide column is not** — the axes honestly differ. The floor is the *kernel's* (`STUDIO_MEASURES["h"].min = 10`, governing Studio decks too), so IMAGES now **reads the bound from the kernel rather than forking it**, and lowering it is raised here as a **kernel question, not taken unilaterally**: → *does a staged-frame block's height want a 1% floor where its width wants 10%?* The pill/divider case says yes; a decision belongs in a Studio-scoped change with its own gate.
+
+  > **Open decision for the operator / a kernel commit**: lower `STUDIO_MEASURES["h"].min` from 10 to 1 (or 2). Affects every `block-staged` height in Studio and IMAGES. The evidence is one ad; the risk is a member fat-fingering a block to invisibility, which the inspector's own affordances mitigate.
+
+- **A bug I introduced, caught by re-running the real plan.** The `data-ground` edit accidentally fused the subject-prompt guard into an `else`, so a *surface with no ground token fell through the subject branch and was dropped* — and that empty result masked the luminance path (no surface to read → ground came back light). Replaying the exact 11-layer live plan surfaced both at once. This is the forcing-function discipline paying a second time: the unit gate was green; the real composition was not.
+
+### §13 — Render-to-raster does not run in production
+
+`POST /api/images/render` returns **503** on Render — the container has no headless browser. The 503 is correct behavior (`RenderBackend.available()`), but the moat feature is inert until either Chrome is installed in the image or the seam is pointed at a hosted driver (the intended second driver all along). Deferred, tracked, honest.
+
 ## The one-line statement
 
 **A brief decomposes into a named, legible layer plan — text as real text, washes as CSS that rents nothing, subjects as per-object rented cut-outs carrying their own generation provenance — landing as N+1 attributed revisions whose composition is the source and whose raster is a derivation that can be traced back to it; the engine is stubbed on purpose so the first real ad could drive the object model, and what it drove was the discovery that a positioned empty layer without a height measure is placed perfectly and paints nothing.**
