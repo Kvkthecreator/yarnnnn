@@ -63,6 +63,7 @@ import {
   convertBlock,
   deleteBlock,
   deletePage,
+  deletePages,
   duplicateBlock,
   pasteBlock,
   duplicatePage,
@@ -77,6 +78,7 @@ import {
   nudgeZ,
   movePage,
   movePageTo,
+  movePages,
   splitBlock,
   splitBlockAndInsert,
   removePageBackground,
@@ -1607,20 +1609,28 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // Selecting a slide in the left navigator sets the selection to that slide
   // (no block; anchors page ops + the Design tab) AND scrolls the canvas to it.
   const [scrollToSlide, setScrollToSlide] = useState<{ index: number; nonce: number } | null>(null);
-  const selectSlideFromNavigator = useCallback((index: number) => {
-    setSelection({
-      blockId: null,
-      blockKind: null,
-      slideIndex: index,
-      pageIndex: null,
-      slot: null,
-      arrange: null,
-      text: '',
-    });
-    setEditingBlockId(null);
-    setScrollToSlide((s) => ({ index, nonce: (s?.nonce ?? 0) + 1 }));
-    setMobilePane('canvas'); // on mobile, jump to the canvas to see the slide
-  }, []);
+  const selectSlideFromNavigator = useCallback(
+    (index: number) => {
+      // A deck slide keys on slideIndex (section.slide); a page section keys on
+      // pageIndex (PAGE_SEL) — the ops resolve different index spaces, so the
+      // primary must land in the field the page grain uses. Deck sets both null
+      // but slideIndex; page sets pageIndex (the `page` template has no .slide).
+      const isDeck = template === 'deck';
+      setSelection({
+        blockId: null,
+        blockKind: null,
+        slideIndex: isDeck ? index : null,
+        pageIndex: isDeck ? null : index,
+        slot: null,
+        arrange: null,
+        text: '',
+      });
+      setEditingBlockId(null);
+      setScrollToSlide((s) => ({ index, nonce: (s?.nonce ?? 0) + 1 }));
+      setMobilePane('canvas'); // on mobile, jump to the canvas to see the slide
+    },
+    [template],
+  );
 
   // Drag-to-reorder a slide in the navigator (PowerPoint). One mechanical
   // revision through the same write door as every op; the selection follows the
@@ -1634,6 +1644,34 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       setScrollToSlide((s) => ({ index: to, nonce: (s?.nonce ?? 0) + 1 }));
     },
     [applyOp],
+  );
+
+  // Group reorder (multi-select drag) — move the selection to the drop gap as
+  // ONE compound revision (paged-general: deck slides OR page sections). The
+  // primary selection is cleared to the canvas's own reflow; nothing to re-anchor.
+  const reorderPagesFromNavigator = useCallback(
+    (indices: number[], to: number) => {
+      const noun = template === 'deck' ? 'slides' : 'sections';
+      void applyOp(
+        (html) => movePages(html, indices, to),
+        `Studio: reorder ${indices.length} ${noun}`,
+      );
+    },
+    [applyOp, template],
+  );
+
+  // Multi-delete from the navigator — delete the selection as ONE compound
+  // revision. The confirmation (for >1) lives in the navigator; this is the act.
+  const deletePagesFromNavigator = useCallback(
+    (indices: number[]) => {
+      const noun = template === 'deck' ? 'slides' : 'sections';
+      void applyOp(
+        (html) => deletePages(html, indices),
+        `Studio: delete ${indices.length} ${noun}`,
+      );
+      onPointClear();
+    },
+    [applyOp, template, onPointClear],
   );
 
   // ADR-455: the outline navigates — selecting a heading selects its BLOCK
@@ -1854,11 +1892,18 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
           >
             <StudioNavigator
               layout={template}
+              isPaged={isPaged}
               html={file?.content ?? ''}
               artifactPath={artifactPath}
-              selectedSlide={selection?.slideIndex ?? null}
+              selectedSlide={
+                template === 'deck'
+                  ? (selection?.slideIndex ?? null)
+                  : (selection?.pageIndex ?? null)
+              }
               onSelectSlide={selectSlideFromNavigator}
               onReorderSlide={reorderSlideFromNavigator}
+              onReorderPages={reorderPagesFromNavigator}
+              onDeletePages={deletePagesFromNavigator}
               onSelectHeading={selectHeadingFromNavigator}
             />
             {/* The resize divider — drag to set the strip width (persisted). A

@@ -263,9 +263,13 @@ def run() -> bool:
 
     # ── 10. ADR-447 workbench restructure (nav · canvas · chat) ──────────
     nav = (repo / "web/components/studio/StudioNavigator.tsx").read_text()
-    _check("per-type navigator: deck slide previews + doc/article outline",
-           "buildSlidePreviews" in nav and "extractOutline" in nav
-           and "layout === 'deck'" in nav)
+    _check("per-type navigator: paged page previews + doc/article outline",
+           # buildSlidePreviews → buildPagePreviews and the deck-slug gate →
+           # isPaged (the paged card strip now serves deck slides AND page
+           # sections; ADR-222 — the kernel names the category, the FE derives
+           # from mode). See test_studio_paged_navigator for the full contract.
+           "buildPagePreviews" in nav and "extractOutline" in nav
+           and "if (isPaged)" in nav)
     _check("deck slides render as VISUAL previews (scaled projected iframe)",
            "resolveArtifactHtml" in nav and "transform: `scale(${scale})`" in nav
            and 'sandbox=""' in nav)

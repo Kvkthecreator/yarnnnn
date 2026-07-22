@@ -875,6 +875,76 @@ export function movePageTo(html: string, from: number, to: number): OpResult | n
   return { html: serialize(doc), landedId: moving.getAttribute('data-arrange') };
 }
 
+/** Delete several pages at once — the navigator's multi-select delete (one
+ *  compound revision, not N). Indices are into the `PAGE_SEL` set (deck slides
+ *  AND arranged page sections — the same index space the navigator uses), so
+ *  this is paged-mode-general, not deck-only. Removes high-index-first so an
+ *  earlier removal never shifts a not-yet-removed index. A no-op (empty set /
+ *  all out of range) returns null — no revision lands. */
+export function deletePages(html: string, indices: number[]): OpResult | null {
+  const doc = parse(html);
+  const pages = Array.from(doc.querySelectorAll(PAGE_SEL));
+  const targets = Array.from(new Set(indices))
+    .filter((i) => i >= 0 && i < pages.length)
+    .sort((a, b) => b - a); // high-first: removals don't invalidate lower indices
+  if (!targets.length) return null;
+  targets.forEach((i) => pages[i].remove());
+  return { html: serialize(doc), landedId: null };
+}
+
+/** Move a contiguous-or-scattered SELECTION of pages to sit at position `to`
+ *  in document order, preserving their internal order (the navigator's
+ *  group drag-reorder). Indices + `to` are into the `PAGE_SEL` set. The moved
+ *  group lands as a contiguous run starting where `to` names in the ORIGINAL
+ *  order (the pages before `to` that are NOT moving anchor the landing). One
+ *  revision; nodes move INTACT (ids/blocks untouched). A no-op (the selection
+ *  already sits at `to`, or nothing valid) returns null. */
+export function movePages(html: string, indices: number[], to: number): OpResult | null {
+  const doc = parse(html);
+  const pages = Array.from(doc.querySelectorAll(PAGE_SEL));
+  const moving = Array.from(new Set(indices))
+    .filter((i) => i >= 0 && i < pages.length)
+    .sort((a, b) => a - b); // document order preserved within the group
+  if (!moving.length) return null;
+  if (to < 0 || to > pages.length) return null;
+
+  // The landing reference is the first page at/after `to` that is NOT itself
+  // moving; the group is inserted before it. If none (dropping at the end),
+  // append after the last stationary page. This keeps the group contiguous and
+  // lands it exactly at the gap the navigator computed.
+  const movingSet = new Set(moving);
+  let ref: Element | null = null;
+  for (let i = to; i < pages.length; i++) {
+    if (!movingSet.has(i)) {
+      ref = pages[i];
+      break;
+    }
+  }
+  // No-op guard: the selection is already the contiguous run ending at the gap.
+  const nodes = moving.map((i) => pages[i]);
+  const container = nodes[0].parentElement;
+  if (!container) return null;
+  if (ref && ref.parentElement !== container) return null;
+
+  if (ref) {
+    nodes.forEach((n) => ref!.insertAdjacentElement('beforebegin', n));
+  } else {
+    // Drop at the end: after the last stationary sibling matching PAGE_SEL.
+    const stationary = pages.filter((_, i) => !movingSet.has(i));
+    const last = stationary.length ? stationary[stationary.length - 1] : null;
+    if (last && last.parentElement === container) {
+      let anchor: Element = last;
+      nodes.forEach((n) => {
+        anchor.insertAdjacentElement('afterend', n);
+        anchor = n;
+      });
+    } else {
+      nodes.forEach((n) => container.appendChild(n));
+    }
+  }
+  return { html: serialize(doc), landedId: null };
+}
+
 /** Apply a design system's composed, MARKED skin element (ADR-449 via the
  *  Design tab — the FE mirror of apply_skin_to_html): replace the existing
  *  data-skin element, else append LAST in head (cascade order makes the
