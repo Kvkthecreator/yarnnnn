@@ -159,6 +159,10 @@ Geometry on every layer, as percentages of the frame:
   full-bleed background is x:0 y:0 w:100 h:100. Omit "h" on text layers: the
   copy's own height is correct, and pinning it clips a headline that wraps.
 
+If the composition sits on a DARK ground, say so: put "ground": "dark" on the
+background layer. The stage's text colour follows it. Without it the stage
+uses light-page ink, and dark text on a dark ground is unreadable.
+
 Compose like a poster: one visual statement, generous margins, a clear
 reading order. Use as many or as few layers as the brief actually needs."""
 
@@ -188,15 +192,37 @@ def _coerce(raw: list) -> list[Layer]:
             layer["tag"] = tag if tag in ("h1", "h2", "h3", "p") else "p"
         elif kind == "surface":
             layer["style"] = str(item.get("style") or "")[:500]
-        else:
+        else:  # subject
             prompt = str(item.get("prompt") or "").strip()
             if not prompt:
                 continue  # a subject with no prompt is not a renderable leaf
             layer["prompt"] = prompt[:1000]
 
-        for key, lo, hi in (
-            ("x", 0, 95), ("y", 0, 95), ("w", 10, 100), ("h", 10, 100), ("z", 0, 20)
-        ):
+        # The declared ground (ADR-475 §12) — carried on whichever layer states
+        # it, because it describes the STAGE and any layer may be the one that
+        # knows. `_ground_of` prefers a declaration over its luminance guess.
+        # Orthogonal to kind: a text layer or a surface may declare it.
+        ground = str(item.get("ground") or "").strip().lower()
+        if ground in ("dark", "light"):
+            layer["ground"] = ground
+
+        # Bounds are READ FROM THE KERNEL, never restated (ADR-472 D2 — IMAGES
+        # consumes the shared object layer, it does not fork it). A local copy
+        # would drift from `STUDIO_MEASURES`, and a composition could then emit
+        # a measure the property inspector snaps back the moment a member
+        # touches it — a silent disagreement between what generation writes and
+        # what editing permits.
+        #
+        # ⚠️ `h` currently floors at 10%, which the first live ad exposed as too
+        # blunt: Designer composed a hairline divider and a pill badge and both
+        # inflated to 63px slabs on a 628px stage. Lowering it is a KERNEL
+        # change (it governs Studio decks too), so it is raised in ADR-475 §12
+        # rather than forked here.
+        from services.studio import STUDIO_MEASURES
+
+        for key in ("x", "y", "w", "h", "z"):
+            spec = STUDIO_MEASURES.get(key) or {}
+            lo, hi = spec.get("min", 0), spec.get("max", 100)
             val = item.get(key)
             if isinstance(val, (int, float)):
                 layer[key] = max(lo, min(hi, int(val)))
