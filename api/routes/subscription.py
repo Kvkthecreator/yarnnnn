@@ -449,7 +449,16 @@ async def get_subscription_status(auth: UserClient):
         billable_seats as _billable_seats,
         seat_fee_usd as _seat_fee_usd,
     )
-    humans = count_human_seats(auth.client, workspace_id)
+    # The seat count is BILLING-AUTHORITATIVE, so it reads through the service
+    # client — the same path seat-sync + the webhook drift check already use
+    # (this route once passed auth.client, whose RLS visibility of
+    # principal_grants is the caller's own membership view; migration 221 makes
+    # that view correct for a member, but a billing count must not depend on the
+    # request's RLS scope being complete — one client, one behavior, no under- or
+    # over-billing on a visibility edge). The old under-count read "1 seat — just
+    # you" on a 3-human workspace whose avatar menu correctly read "3 people".
+    from services.supabase import get_service_client
+    humans = count_human_seats(get_service_client(), workspace_id)
     # ADR-445 §12.3a — an exempt workspace pays nothing: force the seat fee to $0
     # and mark seat billing inactive. Otherwise `seat_billing_active` means the
     # workspace has billable seats beyond the free owner-seat (a paid team) — a
@@ -521,8 +530,13 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Subscription variant not configured for {tier}")
         # Seat quantity = additional humans beyond the base, floored at 1 (the plan
         # always bills at least the taking-owner's seat). AI principals excluded.
+        # Service client: this quantity is the CHARGE — it must count every human,
+        # never just the ones the caller's RLS can see (a 3-human team billed for
+        # 1 seat was the exact under-count this replaced). Matches seat-sync +
+        # the webhook drift check, which have always used the service client.
         from services.billing_tiers import billable_seats, count_human_seats
-        humans = count_human_seats(auth.client, workspace_id)
+        from services.supabase import get_service_client
+        humans = count_human_seats(get_service_client(), workspace_id)
         seat_quantity = max(1, billable_seats(tier, humans))
 
     attributes: dict = {
