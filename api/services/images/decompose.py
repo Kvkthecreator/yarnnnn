@@ -213,11 +213,11 @@ def _coerce(raw: list) -> list[Layer]:
         # touches it — a silent disagreement between what generation writes and
         # what editing permits.
         #
-        # ⚠️ `h` currently floors at 10%, which the first live ad exposed as too
-        # blunt: Designer composed a hairline divider and a pill badge and both
-        # inflated to 63px slabs on a 628px stage. Lowering it is a KERNEL
-        # change (it governs Studio decks too), so it is raised in ADR-475 §12
-        # rather than forked here.
+        # `h` floors at 1%, NOT 10% like `w` (ADR-475 §12, resolved): the first
+        # live ad exposed the copied 10% floor inflating a hairline divider and
+        # a pill badge into 63px slabs on a 628px stage. The floor now lives in
+        # the kernel `STUDIO_MEASURES["h"]`, so this read gets the honest bound
+        # for free — no fork, and Studio decks inherit the same 1% height floor.
         from services.studio import STUDIO_MEASURES
 
         for key in ("x", "y", "w", "h", "z"):

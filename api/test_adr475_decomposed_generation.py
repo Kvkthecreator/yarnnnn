@@ -265,6 +265,15 @@ def run() -> bool:
            all("h" not in l for l in coerced if l["kind"] == "text"))
     _check("_coerce clamps out-of-range geometry to the kernel's bounds",
            _coerce([{"role": "x", "kind": "surface", "x": 4000, "w": 9000}])[0]["x"] == 95)
+    # ADR-475 §12 RESOLVED: the h floor is 1%, NOT 10% like w. A 1%-tall hairline
+    # divider survives (the first live ad's pill/divider inflated to 63px slabs
+    # under the copied 10% floor); a 1%-WIDE column still clamps up to 10.
+    _check("h floors at 1% — a hairline divider survives (ADR-475 §12)",
+           _coerce([{"role": "d", "kind": "surface", "style": "background:#000",
+                     "x": 0, "y": 50, "w": 100, "h": 1}])[0]["h"] == 1)
+    _check("w still floors at 10% — a 1%-wide column is illegible, clamps up",
+           _coerce([{"role": "c", "kind": "surface", "style": "background:#000",
+                     "x": 0, "y": 0, "w": 1, "h": 100}])[0]["w"] == 10)
     _check("_coerce drops a subject with no prompt (not a renderable leaf)",
            _coerce([{"role": "x", "kind": "subject"}]) == [])
     _check("_coerce drops an unknown kind rather than composing it",

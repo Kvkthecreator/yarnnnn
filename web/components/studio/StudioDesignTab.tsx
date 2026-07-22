@@ -114,6 +114,10 @@ interface StudioDesignTabProps {
   exportVerbs: {
     print: () => void;
     copyAiRef: () => Promise<void>;
+    /** ADR-475 §13 — the IMAGES app's raster projection (rasterize the stage,
+     *  download a PNG). Present only for IMAGES; undefined for Studio, whose
+     *  boundary projection is Print/PDF. */
+    exportPng?: () => Promise<void>;
   };
 }
 
@@ -473,6 +477,22 @@ export function StudioDesignTab({
       setTimeout(() => setAiRefState('idle'), 2500);
     } catch {
       /* clipboard denied — nothing durable failed */
+    }
+  }, [exportVerbs]);
+
+  // ── Raster export (ADR-475 §13, IMAGES only): rasterizing is real work
+  // (resolve → re-inline → snapshot), so the button shows a working state and
+  // surfaces a failure rather than silently doing nothing. ─────────────────
+  const [pngState, setPngState] = useState<'idle' | 'working' | 'error'>('idle');
+  const runExportPng = useCallback(async () => {
+    if (!exportVerbs.exportPng) return;
+    setPngState('working');
+    try {
+      await exportVerbs.exportPng();
+      setPngState('idle');
+    } catch {
+      setPngState('error');
+      setTimeout(() => setPngState('idle'), 3000);
     }
   }, [exportVerbs]);
 
@@ -933,6 +953,21 @@ export function StudioDesignTab({
           <div className={SECTION}>
             <p className={HEADING}>Export</p>
             <div className="flex flex-wrap gap-1">
+              {exportVerbs.exportPng && (
+                <button
+                  type="button"
+                  className={askBtn}
+                  onClick={runExportPng}
+                  disabled={pngState === 'working'}
+                  title="Rasterize this stage and download it as a PNG"
+                >
+                  {pngState === 'working'
+                    ? 'Rendering…'
+                    : pngState === 'error'
+                      ? 'Export failed — retry'
+                      : 'Download PNG'}
+                </button>
+              )}
               <button
                 type="button"
                 className={askBtn}
@@ -951,8 +986,9 @@ export function StudioDesignTab({
               </button>
             </div>
             <p className="text-[10px] leading-snug text-muted-foreground">
-              A deck prints one slide per page. Markdown export arrives with the
-              interchange wave (ADR-456 W4).
+              {exportVerbs.exportPng
+                ? 'The PNG is a flat projection — the composition stays the source (trace walks its layers). A deck prints one slide per page.'
+                : 'A deck prints one slide per page. Markdown export arrives with the interchange wave (ADR-456 W4).'}
             </p>
           </div>
       </>

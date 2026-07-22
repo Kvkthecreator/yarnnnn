@@ -868,7 +868,16 @@ STUDIO_MEASURES: dict[str, dict] = {
         "label": "Height",
         "applies": ["block-staged", "media"],
         "unit": "%",
-        "min": 10,
+        # The height axis floors at 1%, NOT 10% like width (ADR-475 §12). The
+        # axes honestly differ: a 1%-tall rule is a legitimate block (a hairline
+        # divider, a thin accent bar, a pill badge — the first live ad had two),
+        # where a 1%-wide column is not. The first IMAGES ad exposed the copied
+        # 10% floor inflating a hairline to a 63px slab on a 628px stage. This is
+        # the KERNEL floor, so it governs Studio decks too — which is correct: a
+        # thin horizontal rule is as legitimate on a slide as on a stage. Both
+        # the FE geometry clamp (artifactOps.setGeometry, clamps from the SERVED
+        # spec) and the IMAGES `_coerce` bound read this one value.
+        "min": 1,
         "max": 100,
         "css_var": "--yh",
         "description": "the block's height inside its frame (absence = the content's own height)",

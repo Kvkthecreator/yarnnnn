@@ -1717,6 +1717,20 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     document.body.appendChild(frame);
   }, [file, artifactPath, template]);
 
+  // ── Raster export (ADR-475 §13) — IMAGES only ───────────────────────────
+  // The IMAGES stage's raster is the point of the app; a Studio deck/document
+  // keeps Print/PDF (a raster of a document is a fuzzier need). The member's
+  // browser rasterizes the projection it already shows; provenance stays in the
+  // composition (`trace`), the PNG is the convenience artifact for the outside
+  // world. Throws on failure so the Export tab's button surfaces the error.
+  const exportPng = useCallback(async () => {
+    if (!file?.content || !artifactPath) throw new Error('No artifact open');
+    const { exportArtifactPng } = await import(
+      '@/components/workspace/viewers/rasterExport'
+    );
+    await exportArtifactPng(file.content, artifactPath, artifactName(artifactPath));
+  }, [file, artifactPath]);
+
   // The AI-native reference (the interop face, ADR-368/310): a handle any
   // connected LLM can use to reach this artifact through the yarnnn MCP
   // connector — complementing the /s/{token} membership link (ADR-465).
@@ -2220,6 +2234,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               exportVerbs={{
                 print: () => void exportPrint(),
                 copyAiRef: copyAiReference,
+                // PNG export is the IMAGES app's raster projection (ADR-475
+                // §13); Studio keeps Print/PDF only.
+                exportPng: app.slug === 'images' ? exportPng : undefined,
               }}
             />
           )}
