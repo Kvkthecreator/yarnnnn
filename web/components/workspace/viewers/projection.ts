@@ -453,6 +453,20 @@ const POINTER_SCRIPT = `
       // the box practically never existed on the one surface built around it.
       var onIsland = t && t.closest ? t.closest('[data-ref]') : null;
       var staged = blk && blk.closest ? !!blk.closest('.slide') : false;
+      // ADR-480 D1/D2 — on FLOW the root is already editable, so the caret
+      // lands NATIVELY wherever the member clicked; there is no per-block
+      // enter to perform and no block to wall off. We still post the point
+      // payload (it drives the Design tab's block scope — the block remains
+      // ADDRESSABLE, it just stops being an enclosure), then get out of the
+      // browser's way. This is what buys cross-block drag-selection: no
+      // handler consumes the click that starts a multi-block range.
+      var flowMode = window.__yarnnnFlowMode ? window.__yarnnnFlowMode() : false;
+      if (flowMode) {
+        if (cur) cur.classList.remove('yarnnn-pointed');
+        cur = blk || null;
+        parent.postMessage(payload, '*');
+        return;
+      }
       if (blk && blkKind && TEXT_KINDS.indexOf(blkKind) !== -1 && !onIsland
           && (!staged || cur === blk)
           && window.__yarnnnEnter) {
@@ -898,6 +912,30 @@ const EDIT_SCRIPT = `
   var editingEl = null;
   var idleTimer = null;
 
+  // ── ADR-480: the editing GRAIN is per-mode ────────────────────────────
+  // The axiom: attribution binds to the FILE, addressing to sub-file
+  // STRUCTURE, editing to neither — it binds to what the MEDIUM is.
+  //
+  //   paged (deck/page/canvas) — the block is an ENCLOSURE. One block
+  //     editable at a time; the runtime owns the caret because the medium
+  //     is a frame of objects. Everything below is unchanged there.
+  //   flow (document/article) — the block is an ANNOTATION. contenteditable
+  //     sits on the FLOW ROOT: one continuous writing surface, so the
+  //     BROWSER supplies cross-block selection, Cmd-A, multi-paragraph
+  //     copy, Cmd-F and native undo instead of a simulation of them.
+  //
+  // The mode is stamped by the parent (which reads it from the served
+  // layout registry) — the runtime never learns a layout SLUG, so a new
+  // layout declares its mode once in the kernel (ADR-222).
+  var FLOW_MODE = document.documentElement.getAttribute('data-yarnnn-mode') === 'flow';
+  // The flow root is the scaffold's own container. Resolved once, by shape
+  // and not by slug: the outermost element holding annotated blocks.
+  var FLOW_ROOT_SEL = 'main, article';
+  function flowRoot() {
+    return FLOW_MODE ? document.querySelector(FLOW_ROOT_SEL) : null;
+  }
+  window.__yarnnnFlowMode = function () { return FLOW_MODE; };
+
   // Restore every citation island in the block to its SOURCE form, then read
   // the block's inner — the source-mapped emit (D2/D3).
   function readSourceInner(el) {
@@ -1038,6 +1076,67 @@ const EDIT_SCRIPT = `
     el.addEventListener('paste', onPaste);
   }
 
+  // ── ADR-480 D1: the FLOW editing session ──────────────────────────────
+  // One contenteditable on the flow root, entered once on load and never
+  // swapped. There is no enter/exit per block, so none of the boundary
+  // machinery below (split on Enter, merge on Backspace, the empty-block
+  // rule, cross-block arrow traversal) has anything to do on flow — the
+  // browser does all of it, correctly, including IME, RTL and a11y.
+  //
+  // What the runtime still owns: source-mapping the commit (citation
+  // islands restored to their living-reference form — the ADR-446 D3
+  // contract, unchanged), the debounce, and the paste sanitizer.
+  var flowIdle = null;
+
+  function flowCommit() {
+    var root = flowRoot();
+    if (!root) return;
+    parent.postMessage({
+      type: 'yarnnn-flow-edit',
+      selector: root.tagName.toLowerCase(),
+      newInner: readSourceInner(root),
+    }, '*');
+  }
+
+  function enterFlow() {
+    var root = flowRoot();
+    if (!root || root.getAttribute('contenteditable') === 'true') return;
+    // Citation islands are never editable (ADR-446 D3) — the same rule the
+    // per-block path applies, applied once at the root.
+    var refs = root.querySelectorAll('[data-ref]');
+    for (var i = 0; i < refs.length; i++) refs[i].setAttribute('contenteditable', 'false');
+    root.setAttribute('contenteditable', 'true');
+    try { document.execCommand('styleWithCSS', false, 'false'); } catch (err) {}
+    root.addEventListener('input', function () {
+      if (flowIdle) clearTimeout(flowIdle);
+      flowIdle = setTimeout(flowCommit, 2000); // idle-2s, same cadence as D4
+    });
+    root.addEventListener('blur', function () {
+      if (flowIdle) clearTimeout(flowIdle);
+      flowCommit();
+    }, true);
+    // Paste stays plain-text — no HTML injection through the clipboard.
+    root.addEventListener('paste', function (e) {
+      e.preventDefault();
+      var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
+        document.execCommand('insertText', false, text);
+      }
+    });
+  }
+
+  if (FLOW_MODE) {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', enterFlow);
+    } else {
+      enterFlow();
+    }
+    // A pending edit must never be lost to a re-projection or a tab close.
+    window.addEventListener('beforeunload', function () {
+      if (flowIdle) { clearTimeout(flowIdle); flowCommit(); }
+    });
+  }
+
   // ── ADR-456 W2: the inline format bar ─────────────────────────────────
   // Injected chrome, appended to <body> (never inside a block — commits read
   // the block's inner, so the bar can never leak into the source). Shows on a
@@ -1048,6 +1147,13 @@ const EDIT_SCRIPT = `
   var fmtBar = null, fmtBtns = null, fmtInput = null, savedRange = null;
 
   function scheduleCommit() {
+    // ADR-480: route to the grain's own commit — the block's inner (paged) or
+    // the flow root's region (flow). One debounce cadence either way.
+    if (FLOW_MODE) {
+      if (flowIdle) clearTimeout(flowIdle);
+      flowIdle = setTimeout(flowCommit, 2000);
+      return;
+    }
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = setTimeout(commit, 2000);
   }
@@ -1100,7 +1206,7 @@ const EDIT_SCRIPT = `
   }
 
   function applyFmt(op) {
-    if (!editingEl) return;
+    if (!editHost()) return; // ADR-480: the host is the block (paged) or the root (flow)
     if (op === 'bold') document.execCommand('bold');
     else if (op === 'italic') document.execCommand('italic');
     else if (op === 'code') wrapSelection('code');
@@ -1146,15 +1252,25 @@ const EDIT_SCRIPT = `
     document.body.appendChild(fmtBar);
   }
 
+  // ADR-480: the EDITABLE HOST — the element the caret is currently inside.
+  // On paged that is the block being edited (editingEl); on flow it is the
+  // document root, which is editable for the whole session. One accessor, so
+  // the format bar and the slash palette are written once and serve both
+  // grains (the ADR-466 D1 shape: one grammar, N native editors).
+  function editHost() {
+    return FLOW_MODE ? flowRoot() : editingEl;
+  }
+
   document.addEventListener('selectionchange', function () {
-    if (!editingEl) { hideFmt(); return; }
+    var host = editHost();
+    if (!host) { hideFmt(); return; }
     if (fmtInput && fmtInput.style.display !== 'none') return; // typing a URL
     var sel = window.getSelection();
     if (!sel || !sel.rangeCount || sel.isCollapsed) { hideFmt(); return; }
     var r = sel.getRangeAt(0);
     var anc = r.commonAncestorContainer;
     var ancEl = anc && anc.nodeType === 1 ? anc : (anc ? anc.parentElement : null);
-    if (!ancEl || !editingEl.contains(ancEl)) { hideFmt(); return; }
+    if (!ancEl || !host.contains(ancEl)) { hideFmt(); return; }
     buildFmtBar();
     var rect = r.getBoundingClientRect();
     if (!rect || (rect.width === 0 && rect.height === 0)) { hideFmt(); return; }
@@ -1222,17 +1338,29 @@ const EDIT_SCRIPT = `
   }
 
   document.addEventListener('keydown', function (e) {
-    if (e.key !== '/' || !editingEl) return;
+    if (e.key !== '/' || !editHost()) return;
     if (fmtInput && document.activeElement === fmtInput) return;
     var caret = slashCaret();
     if (!caret || caret.startContainer.nodeType !== 3) return; // not in a text node
     if (caretInIsland()) return; // a citation island owns its own text
     // NO preventDefault + NO exit: the '/' lands and the caret keeps typing.
-    var id = editingId;
+    // ADR-480: the palette anchors on the caret's OWN BLOCK, never the edit
+    // host — on flow the host is the whole document, whose rect would put the
+    // palette at the top of the page instead of beside the line being typed.
+    // The block is still the right anchor there; it is an annotation now, not
+    // an enclosure, but it is exactly the region the '/' was typed into.
+    var anchorEl = editingEl;
+    if (FLOW_MODE) {
+      var cn = caret.startContainer;
+      var ce = cn && cn.nodeType === 1 ? cn : (cn ? cn.parentElement : null);
+      anchorEl = (ce && ce.closest ? ce.closest('[data-block]') : null) || flowRoot();
+    }
+    if (!anchorEl) return;
+    var id = FLOW_MODE ? (anchorEl.getAttribute('data-block-id') || null) : editingId;
     var node = caret.startContainer;
     var at = caret.startOffset;
-    var rect = editingEl.getBoundingClientRect();
-    var empty = (editingEl.textContent || '').trim() === '';
+    var rect = anchorEl.getBoundingClientRect();
+    var empty = (anchorEl.textContent || '').trim() === '';
     setTimeout(function () {
       // Post-input: the '/' now sits at offset 'at' in that text node.
       slashNode = node;
@@ -1399,6 +1527,7 @@ const EDIT_SCRIPT = `
     return 'b' + Math.random().toString(36).slice(2, 8);
   }
   document.addEventListener('keydown', function (e) {
+    if (FLOW_MODE) return; // ADR-480 D4 — the browser splits on flow
     if (e.key !== 'Enter' || e.shiftKey || !editingEl) return;
     if (fmtInput && document.activeElement === fmtInput) return; // link input owns Enter
     if (inListBlock()) return; // native <li> creation is the right behavior
@@ -1457,6 +1586,7 @@ const EDIT_SCRIPT = `
   // place the caret at the join, remove this block — then land the revision in
   // the background (no reload). Refuses across a citation island.
   document.addEventListener('keydown', function (e) {
+    if (FLOW_MODE) return; // ADR-480 D4 — the browser merges (and empties) on flow
     if (e.key !== 'Backspace' || !editingEl) return;
     if (fmtInput && document.activeElement === fmtInput) return;
     if (!caretAtBlockStart() || caretInIsland()) return; // mid-text → native delete
@@ -1579,6 +1709,7 @@ const EDIT_SCRIPT = `
     return null;
   }
   document.addEventListener('keydown', function (e) {
+    if (FLOW_MODE) return; // ADR-480 D4 — the caret already traverses natively on flow
     if ((e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || !editingEl || e.shiftKey) return;
     if (fmtInput && document.activeElement === fmtInput) return;
     var sel = window.getSelection();
@@ -2716,11 +2847,20 @@ function stripExecutable(doc: Document): void {
 export async function resolveArtifactHtml(
   html: string,
   artifactPath: string,
-  opts?: { pointer?: boolean; edit?: boolean },
+  opts?: { pointer?: boolean; edit?: boolean; mode?: 'flow' | 'paged' },
 ): Promise<string> {
   if (!html) return html;
   if (!opts?.pointer && !html.includes('data-ref')) return html;
   const doc = new DOMParser().parseFromString(html, 'text/html');
+  // ADR-480: stamp the layout's MODE for the runtime. The parent reads it from
+  // the served layout registry, so the runtime never learns a layout SLUG — a
+  // new layout declares its mode once in the kernel (ADR-222: the kernel names
+  // the category, never the instance). Projection-time chrome, never
+  // serialized: this attribute rides the projected document only, and the
+  // write path reads the artifact's SOURCE, so it can never reach substrate.
+  if (opts?.pointer && opts?.mode) {
+    doc.documentElement?.setAttribute('data-yarnnn-mode', opts.mode);
+  }
   const cited = Array.from(doc.querySelectorAll('[data-ref]'));
   // ADR-446 D3: stamp each citation's SOURCE outerHTML BEFORE resolution
   // mutates it — by render time its content is resolved and the source form

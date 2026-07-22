@@ -254,6 +254,91 @@ export function editBlockText(
   return { html: serialize(doc), landedId: blockId };
 }
 
+/** ADR-480 D3 — normalize-on-write: re-establish `data-block-id` identity
+ *  across a region the BROWSER just edited.
+ *
+ *  On `flow` layouts contenteditable sits on the document root, so native
+ *  editing splits, merges, duplicates and orphans block ids as the member
+ *  types across boundaries. Identity is therefore PRESERVED (reconstructed
+ *  after the fact) rather than ENFORCED (walled off before it) — the priced
+ *  cost of the carve. The five rules, in order:
+ *
+ *    1. A surviving id on a recognizable block keeps its block.
+ *    2. A DUPLICATED id (native split copied the attribute onto both halves)
+ *       is kept by the FIRST in document order; later ones are re-minted.
+ *    3. A new top-level element with no id is minted a fresh one.
+ *    4. A block whose id vanished entirely is treated as NEW — a fresh id,
+ *       never a guessed resurrection.
+ *    5. Citation islands (`data-ref`) are never re-minted or restructured;
+ *       they keep their identity unconditionally, so the ADR-448 reference
+ *       edge (which lifts from data-ref, never data-block) is untouched.
+ *
+ *  Content is never dropped: an element that carries text but wears no block
+ *  annotation is left exactly as-is. This function assigns identity; it does
+ *  not restructure. Mutates `region` in place. Returns the number of ids
+ *  minted (0 = the member typed inside existing blocks, the common case). */
+export function normalizeBlockIds(doc: Document, region: Element): number {
+  const seen = new Set<string>(
+    Array.from(doc.querySelectorAll('[data-block-id]'))
+      .filter((el) => !region.contains(el))
+      .map((el) => el.getAttribute('data-block-id') ?? '')
+      .filter(Boolean),
+  );
+  let minted = 0;
+  const annotated = [
+    ...(region.hasAttribute('data-block') ? [region] : []),
+    ...Array.from(region.querySelectorAll('[data-block]')),
+  ];
+  for (const el of annotated) {
+    // Rule 5: a citation island's identity is never touched.
+    if (el.hasAttribute('data-ref')) {
+      const kept = el.getAttribute('data-block-id');
+      if (kept) seen.add(kept);
+      continue;
+    }
+    const id = el.getAttribute('data-block-id');
+    // Rules 2/3/4 collapse to one test: an absent id, or one already claimed
+    // earlier in document order, is re-minted. Document order is what makes
+    // "the FIRST keeps it" true — querySelectorAll returns it.
+    if (!id || seen.has(id)) {
+      const fresh = freshBlockId(doc);
+      el.setAttribute('data-block-id', fresh);
+      seen.add(fresh);
+      minted++;
+    } else {
+      seen.add(id); // Rule 1
+    }
+  }
+  return minted;
+}
+
+/** ADR-480 D1 — a flow-layout edit: the member wrote on ONE continuous
+ *  surface (contenteditable on `<main>`/`<article>`), so the runtime reports
+ *  the whole region's inner rather than one block's.
+ *
+ *  The ADR-446 write contract is preserved exactly: the edit maps to the
+ *  artifact's SOURCE (the runtime restored citation islands to their
+ *  living-reference form before posting), is sanitized here, and lands as ONE
+ *  debounced operator-attributed CAS-guarded revision through the one door.
+ *  What differs from `editBlockText` is only the size of the region and the
+ *  normalize pass that follows it.
+ *
+ *  Returns null (no revision) when the region is gone or byte-identical. */
+export function editFlowRegion(
+  html: string,
+  regionSelector: string,
+  newInner: string,
+): OpResult | null {
+  const doc = parse(html);
+  const region = doc.querySelector(regionSelector);
+  if (!region) return null;
+  const sanitized = sanitizeInner(doc, newInner);
+  if (region.innerHTML === sanitized) return null; // no-op — no revision
+  region.innerHTML = sanitized;
+  normalizeBlockIds(doc, region);
+  return { html: serialize(doc), landedId: null };
+}
+
 /** Turn a block into another TEXT kind (ADR-456 W2 "turn into"): the target
  *  kind's registry fragment is the shell; the source block's text units
  *  (li/p/heading/summary/cite, document order) are rebuilt into the target's

@@ -70,6 +70,7 @@ import {
   pasteBlock,
   duplicatePage,
   editBlockText,
+  editFlowRegion,
   galleryFragment,
   insertArrangement,
   insertBlock,
@@ -572,6 +573,14 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const layoutMode: 'flow' | 'paged' =
     vocabulary?.layouts.find((l) => l.slug === template)?.mode ?? 'flow';
   const isPaged = layoutMode === 'paged';
+  // ADR-480: the RESOLVED mode — undefined until the registry answers. The
+  // 'flow' default above is safe for CHROME (show less, flash nothing) but not
+  // for the EDITING GRAIN: defaulting a deck to flow would put contenteditable
+  // on its root for the first frames and let a whole-region write land against
+  // a paged artifact. The canvas therefore receives the mode only once it is
+  // genuinely known, and runs the per-block grammar until then.
+  const resolvedMode: 'flow' | 'paged' | undefined =
+    vocabulary?.layouts.find((l) => l.slug === template)?.mode;
   // One payload, two lifetimes — and that was the bug (ADR-462 D12). Blocks /
   // arrangements / tokens are KERNEL CONSTANTS: fetch once, cache forever,
   // correct. `design_systems` is WORKSPACE STATE that changes while the member
@@ -1210,6 +1219,29 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       void writeAndAdvance(
         (liveHtml) => editBlockText(liveHtml, blockId, newInner)?.html ?? null,
         `Studio: edit ${blockId} block`,
+        false,
+      );
+    },
+    [file, writeAndAdvance],
+  );
+
+  // ADR-480 D1/D3: a FLOW edit committed on the canvas (blur/idle). The member
+  // wrote on ONE continuous surface, so the runtime reports the whole region's
+  // source-mapped inner rather than one block's; `editFlowRegion` swaps it in
+  // and runs normalize-on-write, which re-establishes data-block-id identity
+  // after the native splits and merges the browser performed.
+  //
+  // Everything else is deliberately IDENTICAL to onEdit above — the same
+  // mechanical door, the same invisible save (reload: false), the same silent
+  // no-op guard. ADR-446's write contract is preserved exactly; only the size
+  // of the region differs.
+  const onFlowEdit = useCallback(
+    (selector: string, newInner: string) => {
+      if (!file?.content) return;
+      if (!editFlowRegion(file.content, selector, newInner)) return; // no-op — no revision
+      void writeAndAdvance(
+        (liveHtml) => editFlowRegion(liveHtml, selector, newInner)?.html ?? null,
+        'Studio: edit document',
         false,
       );
     },
@@ -2135,6 +2167,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 editingBlockId={editingBlockId}
                 selectedBlockId={selection?.blockId ?? null}
                 onEdit={onEdit}
+                mode={resolvedMode}
+                onFlowEdit={onFlowEdit}
                 onEditExited={() => setEditingBlockId(null)}
                 onEditEntered={(id) => setEditingBlockId(id)}
                 onEnterBlock={onEnterBlock}

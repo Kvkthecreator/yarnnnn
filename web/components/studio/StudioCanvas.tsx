@@ -91,6 +91,14 @@ interface StudioCanvasProps {
    *  to the SOURCE (citation islands already restored). The surface lands it
    *  through the mechanical write door. */
   onEdit?: (blockId: string, newInner: string) => void;
+  /** ADR-480 D1: the layout's composition mode, read from the served registry.
+   *  `flow` puts contenteditable on the document root (one continuous writing
+   *  surface); `paged` keeps the per-block enclosure grammar. The runtime never
+   *  learns a layout SLUG — it reads only this mode (ADR-222). */
+  mode?: 'flow' | 'paged';
+  /** ADR-480 D1: a FLOW edit committed (blur/idle) — the whole region's inner,
+   *  source-mapped. The surface applies it with normalize-on-write (D3). */
+  onFlowEdit?: (selector: string, newInner: string) => void;
   /** ADR-446: the block left edit mode via a member blur — the surface clears
    *  its editingBlockId so it doesn't re-enter on the post-commit reload. */
   onEditExited?: () => void;
@@ -203,6 +211,8 @@ export function StudioCanvas({
   editingBlockId,
   selectedBlockId,
   onEdit,
+  mode,
+  onFlowEdit,
   onEditExited,
   onEditEntered,
   onEnterBlock,
@@ -281,7 +291,7 @@ export function StudioCanvas({
     // (harmless when nothing is being edited; the runtime idles until the
     // parent commands enter). One render mode keeps the projection stable
     // across select→edit→select without reloading the frame.
-    resolveArtifactHtml(content, artifactPath, { pointer: true, edit: true })
+    resolveArtifactHtml(content, artifactPath, { pointer: true, edit: true, mode })
       .then((html) => !cancelled && setProjected(html))
       // NEVER fall back to raw content: the iframe allows scripts, and only
       // the projection pass strips artifact-authored executables. A blank
@@ -294,7 +304,10 @@ export function StudioCanvas({
     return () => {
       cancelled = true;
     };
-  }, [content, artifactPath]);
+    // ADR-480: `mode` is a projection input (it stamps data-yarnnn-mode), so it
+    // must re-project when the served vocabulary lands — the surface defaults to
+    // 'flow' until then, and a deck would otherwise keep the flow runtime.
+  }, [content, artifactPath, mode]);
 
   // Command the iframe's edit runtime when the surface's editing state changes
   // AND on every fresh load (a reload after a commit reinjects the runtime; it
@@ -397,6 +410,14 @@ export function StudioCanvas({
         typeof d.newInner === 'string'
       ) {
         onEdit?.(d.blockId, d.newInner);
+      } else if (
+        // ADR-480 D1: a flow-layout commit — the whole region's source-mapped
+        // inner, rather than one block's. The surface normalizes ids (D3).
+        d.type === 'yarnnn-flow-edit' &&
+        typeof d.selector === 'string' &&
+        typeof d.newInner === 'string'
+      ) {
+        onFlowEdit?.(d.selector, d.newInner);
       } else if (d.type === 'yarnnn-scroll-pos' && typeof d.y === 'number') {
         // Keep the latest position so a structural reload can restore it — the
         // slide index (deck) alongside the pixel y (fluid fallback).
@@ -494,7 +515,7 @@ export function StudioCanvas({
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [onPoint, onPointClear, onEdit, onEditExited, onEditEntered, onEnterBlock, onReorder, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen, onSlashFilter, onSlashClose, onSlashMove, onSlashEnter, onSlashTaken, onKeyVerb, onGeometry, onRatio, onContextMenu, onUndo, onRedo]);
+  }, [onPoint, onPointClear, onEdit, onFlowEdit, onEditExited, onEditEntered, onEnterBlock, onReorder, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen, onSlashFilter, onSlashClose, onSlashMove, onSlashEnter, onSlashTaken, onKeyVerb, onGeometry, onRatio, onContextMenu, onUndo, onRedo]);
 
   return (
     <iframe

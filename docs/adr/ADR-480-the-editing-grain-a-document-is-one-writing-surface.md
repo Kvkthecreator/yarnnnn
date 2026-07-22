@@ -62,10 +62,14 @@ against `(workspace_id, path)`.
 **F2 — the moat's write door has never heard of blocks.**
 `authored_substrate.py` contains the substring `data-block` **zero times**.
 
-**F3 — `data-block` appears in exactly ONE production module: `api/services/studio.py`** (the
-layout/block registry). Every other occurrence in `api/` is a test file. Not `revisions.py`,
-not the MCP surface (`remember`/`recall`/`trace`), not `permission.py`, not the reference
-edge.
+**F3 — `data-block` is contained entirely in the APP layer.** Every non-test production
+occurrence in `api/` is in `services/studio.py` (the layout/block registry),
+`routes/studio.py`, or `services/images/` (the IMAGES app, which shares the block grammar per
+ADR-472). **Zero** occurrences in the substrate, the primitives, `permission.py`,
+`revisions.py`, or the MCP face (`remember`/`recall`/`trace`). The assertion is a
+*containment boundary*, not a file count: a new Studio/IMAGES module may legitimately speak
+blocks; `authored_substrate.py` or `primitives/` doing so would mean this premise has
+changed and the carve needs re-deriving. The gate enforces the boundary, not the count.
 
 **F4 — citation rides `data-ref`, not `data-block`.**
 The ADR-448 reference edge lifts `derived_from` from `_DATA_REF_RX = data-ref="([^"]+)"`

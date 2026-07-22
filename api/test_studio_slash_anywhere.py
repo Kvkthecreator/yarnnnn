@@ -57,7 +57,13 @@ def run() -> bool:
         "'/' is NOT preventDefault'd — the character lands as text like Notion",
         "if (e.key !== '/'" not in proj or "slash-open" in proj,
     )
-    m = re.search(r"e\.key !== '/'[\s\S]{0,1200}?yarnnn-slash-open", proj)
+    # The window measures "the '/' handler still reaches its message" — a
+    # proximity proxy for the path being intact, not a length budget. Widened
+    # 1200 → 2000 by ADR-480, which added the flow ANCHOR resolution inside
+    # this handler (on flow the palette anchors on the caret's own block, not
+    # the edit host — the host is the whole document there, whose rect would
+    # put the palette at the top of the page). The path is unchanged.
+    m = re.search(r"e\.key !== '/'[\s\S]{0,2000}?yarnnn-slash-open", proj)
     _check("the '/' handler still reaches the slash-open message", bool(m))
     if m:
         body = m.group(0)
