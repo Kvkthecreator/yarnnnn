@@ -20,12 +20,13 @@
  * behaviour and its visual conventions, and nothing else.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Copy, ClipboardPaste, CopyPlus, Trash2, Type,
-  ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, Sparkles, SearchCheck, Link2, History,
+  ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, ChevronRight, Sparkles, SearchCheck, Link2, History,
 } from 'lucide-react';
 import type { StudioContextTarget } from './StudioCanvas';
+import { TURN_INTO_KINDS } from './StudioDesignTab';
 
 export interface StudioBlockMenuProps {
   target: StudioContextTarget;
@@ -35,8 +36,15 @@ export interface StudioBlockMenuProps {
   onPaste: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
-  /** Opens the existing Turn-into / Re-arrange homes in the Design tab. */
-  onTurnInto: () => void;
+  /** ADR-479 D5 — Turn into is BLOCK-scoped, so unlike Re-arrange it belongs in
+   *  this menu; it was merely wired lazily (it opened the Design tab and left
+   *  the member to find the picker). Now it offers the legal kinds inline, in
+   *  one gesture. The caller runs the same `convertBlock` op the Design tab
+   *  runs — a second entrance, never a second write path (ADR-462 D1). */
+  onTurnInto: (kind: string, label: string, fragment: string) => void;
+  /** The served block vocabulary — the submenu resolves each legal kind's label
+   *  and insertion fragment from it, so the menu never restates the registry. */
+  blocks?: Array<{ kind: string; label: string; fragment: string }>;
   /** Move the block one position earlier in its flow — document order, and it
    *  says so. */
   onMoveUp: () => void;
@@ -99,9 +107,10 @@ const ICO = 'h-3.5 w-3.5';
 
 export function StudioBlockMenu({
   target, onClose, onCopy, onPaste, onDuplicate, onDelete,
-  onTurnInto, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck,
+  onTurnInto, blocks, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck,
   onCopyLink, onHistory,
 }: StudioBlockMenuProps) {
+  const [turnOpen, setTurnOpen] = useState(false);
   // Dismissal. NOTE the parent-window blind spot: the Studio canvas is a
   // SANDBOXED IFRAME, so a click on the artifact fires in the frame's own
   // document and these parent listeners never hear it. The canvas's point
@@ -128,6 +137,19 @@ export function StudioBlockMenu({
 
   const run = (fn: () => void) => { fn(); onClose(); };
   const hasBlock = !!target.blockId;
+
+  // The legal conversions for THIS block (ADR-456 W2 + ADR-479 D5): a text kind
+  // that isn't already what it is, and never a citation — `convertBlock`
+  // refuses a block carrying data-ref (flattening would bake a live reference
+  // into prose), so offering it would be a row the op declines.
+  const turnIntoKinds =
+    hasBlock && target.blockKind && !target.dataRef
+      && TURN_INTO_KINDS.includes(target.blockKind)
+      ? TURN_INTO_KINDS
+          .filter((k) => k !== target.blockKind)
+          .map((k) => (blocks ?? []).find((b) => b.kind === k))
+          .filter((b): b is { kind: string; label: string; fragment: string } => !!b)
+      : [];
 
   // The canvas is an iframe: its coordinates are frame-local. The caller passes
   // them already mapped to the page.
@@ -157,7 +179,39 @@ export function StudioBlockMenu({
             Delete
           </Row>
           {SEP}
-          <Row icon={<Type className={ICO} />} onClick={() => run(onTurnInto)}>Turn into…</Row>
+          {/* ADR-479 D5 — Turn into, in one gesture. Shown only when the
+              conversion is LEGAL: a text kind, and never a citation (a figure
+              or table wears data-ref on its own root, and flattening it would
+              bake a live reference into prose — the op refuses, so the menu
+              must not offer). A row that offers what the op will refuse is the
+              same class of lie D4 deleted. */}
+          {turnIntoKinds.length > 0 && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setTurnOpen((v) => !v)}
+                className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
+              >
+                <span className="text-muted-foreground"><Type className={ICO} /></span>
+                <span className="truncate">Turn into</span>
+                <ChevronRight className="ml-auto h-3.5 w-3.5 text-muted-foreground/60" />
+              </button>
+              {turnOpen && (
+                <div className="mt-0.5 border-l-2 border-border/60 pl-1">
+                  {turnIntoKinds.map((b) => (
+                    <button
+                      key={b.kind}
+                      type="button"
+                      onClick={() => run(() => onTurnInto(b.kind, b.label, b.fragment))}
+                      className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
+                    >
+                      <span className="truncate">{b.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
       {/* Re-arrange is GONE from this menu (ADR-479 D4). Every other row here

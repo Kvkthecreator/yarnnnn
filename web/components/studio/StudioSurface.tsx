@@ -1093,7 +1093,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // Turn into / Re-arrange have HOMES already (the Design tab's block + page
   // scopes). The menu row is a doorway to them, not a second implementation —
   // which is exactly ADR-462 D1, and why neither needs new logic here.
-  const menuOpenDesign = useCallback(() => setRightTab('design'), []);
 
   // D6: both AI rows SEED and send nothing. The seeds differ only in how much
   // they pre-fill; the member finishes the sentence and presses enter.
@@ -1570,16 +1569,33 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   );
 
   // Turn-into from the Design tab (same op, selection-anchored).
-  const handleTurnInto = useCallback(
-    (kind: string, label: string, fragment: string) => {
-      const blockId = selection?.blockId;
-      if (!blockId) return;
+  const turnBlockInto = useCallback(
+    (blockId: string, kind: string, label: string, fragment: string) => {
       void applyOp(
         (html) => convertBlock(html, blockId, kind, fragment),
         `Studio: turn block into ${label}`,
       );
     },
-    [applyOp, selection],
+    [applyOp],
+  );
+  const handleTurnInto = useCallback(
+    (kind: string, label: string, fragment: string) => {
+      const blockId = selection?.blockId;
+      if (!blockId) return;
+      turnBlockInto(blockId, kind, label, fragment);
+    },
+    [turnBlockInto, selection],
+  );
+  // ADR-479 D5 — the menu's Turn into acts on the RIGHT-CLICKED block, which is
+  // not necessarily the selected one (right-click selects, but the op must not
+  // depend on that ordering). Same `convertBlock` op, explicit target.
+  const menuTurnInto = useCallback(
+    (kind: string, label: string, fragment: string) => {
+      const blockId = ctxMenu?.blockId;
+      if (!blockId) return;
+      turnBlockInto(blockId, kind, label, fragment);
+    },
+    [turnBlockInto, ctxMenu],
   );
 
   // ADR-447: canvas view controls (view-only, never touch the file) + mobile
@@ -2180,7 +2196,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   onPaste={menuPaste}
                   onDuplicate={() => handleBlockVerb('duplicate')}
                   onDelete={() => handleBlockVerb('delete')}
-                  onTurnInto={menuOpenDesign}
+                  onTurnInto={menuTurnInto}
+                  blocks={vocabulary?.blocks}
                   onMoveUp={() => handleBlockVerb('up')}
                   onMoveDown={() => handleBlockVerb('down')}
                   onBringForward={() => {

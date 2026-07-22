@@ -174,7 +174,10 @@ def main() -> bool:
     _check(
         "no free row carries a badge (silence is the signal)",
         "onClick={() => run(onDuplicate)} shortcut=\"⌘D\">" in menu
-        and "onClick={() => run(onTurnInto)}>" in menu,
+        # Turn into became a SUBMENU trigger (ADR-479 D5), not a <Row> — and a
+        # submenu carries no badge either. Free is free.
+        and "Turn into" in menu
+        and "meter" not in menu.split("Turn into")[1].split("</div>")[0],
     )
     _check(
         "the group header names the line in operator words",
@@ -220,8 +223,14 @@ def main() -> bool:
         # 2026-07-21, so the row was a hint nothing listened for. Turn into
         # stays (it IS block-scoped); its dangling wiring is ADR-479 D5, named
         # as a separate defect and deliberately not fixed here.
-        "Turn into is a DOORWAY to its existing home; Re-arrange left the menu",
-        "onTurnInto={menuOpenDesign}" in surface
+        # ADR-479 D5 closed the last dangling row: Turn into no longer opens a
+        # tab and leaves you to find the picker — it offers the legal kinds
+        # inline and runs the SAME convertBlock op the Design tab runs (ADR-462
+        # D1: a second entrance, never a second write path). `menuOpenDesign`
+        # is retired entirely — both its consumers are gone.
+        "Turn into ACTS in the menu; Re-arrange left it; menuOpenDesign is retired",
+        "onTurnInto={menuTurnInto}" in surface
+        and "menuOpenDesign" not in surface
         and "onRearrange" not in surface
         and "Re-arrange…" not in menu,
     )
@@ -375,6 +384,29 @@ def main() -> bool:
         "a click in the CANVAS dismisses the menu (the iframe blind spot)",
         "setCtxMenu(null)" in surface
         and surface.count("setCtxMenu(null)") >= 2,  # onPoint AND onPointClear
+    )
+    # ── ADR-479 D5: Turn into offers only what the op will accept ──────────
+    _check(
+        "the submenu reads the ONE legality list (no copy to drift from)",
+        "import { TURN_INTO_KINDS }" in menu_src
+        and "export const TURN_INTO_KINDS" in _read("web/components/studio/StudioDesignTab.tsx"),
+    )
+    _check(
+        "it never offers a conversion on a CITATION (convertBlock refuses one, "
+        "so a row offering it would be a promise the op declines)",
+        "!target.dataRef" in menu_src,
+    )
+    _check(
+        "…nor the kind the block already IS (a no-op row is noise)",
+        "k !== target.blockKind" in menu_src,
+    )
+    _check(
+        "the menu acts on the RIGHT-CLICKED block, not whatever is selected",
+        "ctxMenu?.blockId" in surface and "menuTurnInto" in surface,
+    )
+    _check(
+        "one write path: the submenu runs the same convertBlock as the Design tab",
+        surface.count("convertBlock(html, blockId, kind, fragment)") == 1,
     )
     _check(
         "the menu also dismisses on a second right-click / scroll / resize",

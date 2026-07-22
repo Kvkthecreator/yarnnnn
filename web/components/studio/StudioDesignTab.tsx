@@ -48,7 +48,12 @@ const PAGE_SEL = 'section.slide, [data-arrange]';
 /** The TEXT kinds a block can turn into (ADR-456 W2) — text-shaped only:
  *  structured/cited kinds (table/metrics/chart/figure/gallery) and headings
  *  (they anchor pages) are not conversion targets. */
-const TURN_INTO_KINDS = ['prose', 'callout', 'quote', 'checklist', 'toggle'];
+/** The block kinds a block can be turned INTO (ADR-456 W2) — text kinds only,
+ *  because the conversion rebuilds text units and a citation must never
+ *  flatten. Exported so the right-click submenu (ADR-479 D5) offers exactly the
+ *  legal set: one list, two mounts. A copy would drift, and a menu offering an
+ *  illegal conversion is a promise the op refuses to keep. */
+export const TURN_INTO_KINDS = ['prose', 'callout', 'quote', 'checklist', 'toggle'];
 
 function baseName(p: string): string {
   const parts = p.split('/');
