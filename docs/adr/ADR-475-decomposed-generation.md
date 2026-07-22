@@ -129,9 +129,15 @@ Two writes require a service client, and both had the member's:
 
 - **A bug I introduced, caught by re-running the real plan.** The `data-ground` edit accidentally fused the subject-prompt guard into an `else`, so a *surface with no ground token fell through the subject branch and was dropped* — and that empty result masked the luminance path (no surface to read → ground came back light). Replaying the exact 11-layer live plan surfaced both at once. This is the forcing-function discipline paying a second time: the unit gate was green; the real composition was not.
 
-### §13 — Render-to-raster does not run in production
+### §13 — Render-to-raster: the server path is REMOVED; export is client-side (decided 2026-07-22)
 
-`POST /api/images/render` returns **503** on Render — the container has no headless browser. The 503 is correct behavior (`RenderBackend.available()`), but the moat feature is inert until either Chrome is installed in the image or the seam is pointed at a hosted driver (the intended second driver all along). Deferred, tracked, honest.
+The server rasterizer (`POST /api/images/render`, `render.py`, the `RenderBackend` seam) returned **503** in production — the Render container has no headless browser, so it never once produced a PNG. Rather than install Chrome in the image or rent a screenshot API, the operator's call is that **export is client-side**: the member's browser rasterizes the stage it is already displaying. So the whole server path is **deleted**, not deferred — a broken feature removed beats a broken feature kept returning 503.
+
+**The moat survives the deletion, which is why it is safe.** D5 argued render must be server-side so "this PNG is a derivation of revision X" is a *fact*, not a client's *claim*. But the provenance was always in the **composition**, not the export: `trace` walks the layered, attributed source; the flat PNG is a convenience artifact for the outside world (Instagram does not read our ledger). A client-side download therefore loses nothing the moat depends on. If a member ever wants the *export itself* recorded, the browser can POST the bytes back as a `revision_kind="derivation"` — the same write the server path did, sourced from the client — but that is opt-in, not required, and not built at launch.
+
+**Why not built now** (the honest scope): our artifact iframe is sandboxed `allow-scripts` only (a deliberate security boundary — the parent cannot reach its DOM), so a rasterizer must run *inside* the iframe with a library inlined into its runtime, and every cited image (served as a cross-origin signed blob URL) must be re-inlined as a data-URI first to avoid canvas taint (CORS on the bucket is `*`, so this is possible). That is a real FE pass with a genuine fidelity risk on gradients/`object-fit`/webfonts — worth doing well, as its own focused follow-up, once the object-model half (which is prod-verified) has proven itself in use. **ADR-472 D5's `RenderBackend` seam is hereby withdrawn**; §7 step 6 of ADR-472 is reframed from server-derivation to client-export.
+
+D4's "the raster is an attributed derivation" claim is **preserved in principle** (the composition remains the traceable source; the optional record-the-export path keeps the edge) and **withdrawn in mechanism** (no server rasterizer produces it).
 
 ## The one-line statement
 

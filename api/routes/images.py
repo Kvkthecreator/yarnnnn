@@ -1,17 +1,21 @@
-"""IMAGES routes — decomposed generation + render-to-raster (ADR-475).
+"""IMAGES routes — decomposed generation (ADR-475).
 
-Two endpoints, because IMAGES has exactly two acts Studio's machinery does not
-already cover — and they are the two halves of what makes it a different app:
+One endpoint, because IMAGES has exactly one act Studio's machinery does not
+already cover:
 
     POST /api/images/compose — a brief becomes a LAYERED COMPOSITION on an
                                existing stage. The stage is created by the
                                shared `POST /api/studio/artifacts` (dimensions
                                and all); composing is a separate act ON it.
-    POST /api/images/render  — the composition rasterizes to a PNG that lands
-                               as an ATTRIBUTED DERIVATION of it (ADR-472 D4).
-                               Studio's export LEAVES the system (print/PDF);
-                               this one stays in it, traceable to the exact
-                               revision that produced it.
+
+RENDER-TO-RASTER IS NOT HERE (removed 2026-07-22, ADR-475 §13). The server
+render path — a headless browser rasterizing the composition to a PNG — never
+ran in production: the Render container has no Chrome, so `/images/render` only
+ever returned 503. Export is a CLIENT-SIDE fast-follow (the browser rasterizes
+the stage it already displays); the composition stays the traceable source
+regardless of who produces the flat file, so nothing about the moat depended on
+a server rasterizer. The seam, the endpoint, and `render.py` are deleted rather
+than left returning 503 — a broken feature removed beats a broken feature kept.
 
 Everything else IMAGES does flows through existing machinery, exactly as the
 Studio does: creation is the shared create endpoint (ADR-472 D2 registered the
@@ -47,17 +51,10 @@ from services.supabase import UserClient, resolve_principal_id
 from services.images import STAGE_SLUG, stage_dimensions
 from services.images.compose import compose_stage
 from services.images.decompose import plan_layers
-from services.images.render import get_render_backend, inline_citations, raster_path
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-class RenderRequest(BaseModel):
-    #: The stage to rasterize. The composition is the source; the PNG that
-    #: comes back is a derivation OF it (ADR-472 D4).
-    path: str
 
 
 class ComposeRequest(BaseModel):
@@ -161,100 +158,4 @@ async def compose(req: ComposeRequest, auth: UserClient) -> dict:
         "layers": result["layers"],
         "generated": result["generated"],
         "assets": result["assets"],
-    }
-
-
-@router.post("/images/render")
-async def render(req: RenderRequest, auth: UserClient) -> dict:
-    """Rasterize a stage; land the PNG as an attributed derivation of it.
-
-    THE MOAT CLAIM, made structural. The raster is not an export that leaves
-    the system — it is a revision IN it, carrying:
-
-        revision_kind = "derivation"      (ADR-423 — a derived act)
-        derived_from  = [the stage path]  (ADR-448 — the reference edge)
-
-    so `trace` walks the PNG back to the composition, and the Files surface's
-    "N files were made from this" warning knows the ad exists. No design tool
-    can answer "which revision of which composition produced this image?"
-    because in every one of them the export is a dead end.
-    """
-    from services.authored_substrate import write_revision
-    from services.studio import STUDIO_ARTIFACT_REGION
-    from services.workspace_context import substrate_scope_filter
-
-    path = req.path if req.path.startswith("/") else f"/workspace/{req.path}"
-    if ".." in path or not path.endswith(".html"):
-        raise HTTPException(status_code=422, detail="Invalid stage path")
-    if not path.startswith(STUDIO_ARTIFACT_REGION):
-        raise HTTPException(
-            status_code=403,
-            detail=f"IMAGES stages live under {STUDIO_ARTIFACT_REGION} (ADR-440 D6).",
-        )
-
-    backend = get_render_backend()
-    if not backend.available():
-        # 503, not 500: the deployment cannot rasterize, which is a fact about
-        # the host the member can act on — distinct from "your export failed".
-        raise HTTPException(
-            status_code=503,
-            detail="No rendering engine is available on this deployment.",
-        )
-
-    rows = (
-        auth.client.table("workspace_files")
-        .select("path,content")
-        .eq(*substrate_scope_filter(auth.user_id))
-        .eq("path", path)
-        .limit(1)
-        .execute()
-    ).data or []
-    if not rows:
-        raise HTTPException(status_code=404, detail=f"{path} does not exist")
-    stage_html = rows[0].get("content") or ""
-    if f'data-template="{STAGE_SLUG}"' not in stage_html:
-        raise HTTPException(
-            status_code=422,
-            detail="Rendering targets an IMAGES stage — this artifact is not one.",
-        )
-
-    width, height = stage_dimensions(stage_html)
-    # Citations become bytes for the renderer ONLY (the projection, never a
-    # second source — ADR-456). Nothing here is written back to the stage.
-    projected = inline_citations(auth.client, user_id=auth.user_id, html=stage_html)
-
-    try:
-        png = backend.render(projected, width=width, height=height)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[IMAGES] render failed for %s: %s", path, exc)
-        raise HTTPException(status_code=502, detail=f"Rendering failed: {exc}") from exc
-
-    out = raster_path(path)
-    write_revision(
-        auth.client,
-        user_id=auth.user_id,
-        path=out,
-        content_bytes=png,
-        authored_by="operator",
-        author_identity_uuid=auth.user_id,
-        message=f"IMAGES: render {width}x{height} from {path}",
-        content_type="image/png",
-        lifecycle="active",
-        # The two fields that make this a derivation rather than a file that
-        # happens to sit nearby. Passing `derived_from` explicitly is what
-        # ADR-448 calls a DECLARED derive act — the edge is a fact about this
-        # revision, recorded at the write door.
-        revision_kind="derivation",
-        derived_from=[path],
-    )
-    logger.info("[IMAGES] rendered path=%s -> %s (%dx%d, %dB)",
-                path, out, width, height, len(png))
-    return {
-        "success": True,
-        "path": out,
-        "source": path,
-        "width": width,
-        "height": height,
-        "bytes": len(png),
-        "engine": backend.name,
     }

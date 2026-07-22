@@ -10,8 +10,12 @@ single 700-line module would have fused them.
     generate.py  — decomposed generation (ADR-475): a prompt becomes a NAMED
                    LAYER PLAN, each leaf routed by kind, composed into the
                    layered stage. The engine is RENTED behind a seam.
-    render.py    — render-to-raster (ADR-472 D5): the composition is the
-                   source, the PNG is an attributed derivation.
+    decompose.py — the plan: brief → named layer plan (resident or heuristic).
+    compose.py   — the orchestrator: generate per leaf, land N+1 revisions.
+
+(There is no render.py. Export to a flat PNG is CLIENT-SIDE — the browser
+rasterizes the stage it already displays — a fast-follow, not a server concern;
+the removed server rasterizer only ever 503'd in prod. See ADR-475 §13.)
 
 Everything the pre-package module exported is re-exported here, so
 ``from services.images import STAGE_SLUG`` reads exactly as it did before the
