@@ -75,7 +75,10 @@ def run() -> bool:
         "the toolbar pairs New ‹noun› with Re-arrange (the PowerPoint pair)",
         "New {pageNoun}" in toolbar
         and "'layout'" in toolbar
-        and "> Re-arrange" in toolbar
+        # ADR-479 D1 made the label conditional ("Re-arranging…" while the
+        # placement judgment resolves), so assert the LABEL exists rather than
+        # a literal `> Re-arrange` render position.
+        and "'Re-arrange'" in toolbar
         and "hasPageAnchor" in toolbar,
     )
     _check(

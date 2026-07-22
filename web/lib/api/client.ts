@@ -463,6 +463,22 @@ export const api = {
         images: Array<{ path: string; updated_at: string | null; head_version_id: string | null }>;
         tables: Array<{ path: string; updated_at: string | null; head_version_id: string | null }>;
       }>("/api/studio/citable"),
+    // ADR-479 D1: the re-arrangement's PLACEMENT decision, as judgment. Sends
+    // the page's blocks + the target arrangement's declared slots; gets back a
+    // slot per block — never markup. `placements: null` is a REFUSAL, not an
+    // error: the caller falls back to the mechanical ladder (ADR-468 D4, a
+    // re-arrangement must never dead-end). Validated server-side against the
+    // closed slot vocabulary with total block coverage (D2), so a plan can no
+    // longer lose content.
+    planArrangement: (body: {
+      blocks: Array<{ id: string; kind: string; text: string }>;
+      slots: Array<{ name: string; role: string }>;
+      arrangement?: string;
+    }) =>
+      request<{ placements: Array<{ block_id: string; slot: string }> | null }>(
+        "/api/studio/arrangement/plan",
+        { method: "POST", body: JSON.stringify(body) },
+      ),
     // ADR-443 R4 + ADR-444 + ADR-447 + ADR-453: the ONE kernel vocabulary
     // (blocks + layouts + arrangements + property TOKENS + the marked kernel
     // style element + design-system discovery) — palette, galleries, and the

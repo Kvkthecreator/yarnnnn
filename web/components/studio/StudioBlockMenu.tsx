@@ -22,7 +22,7 @@
 
 import { useEffect } from 'react';
 import {
-  Copy, ClipboardPaste, CopyPlus, Trash2, Type, LayoutGrid,
+  Copy, ClipboardPaste, CopyPlus, Trash2, Type,
   ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, Sparkles, SearchCheck, Link2, History,
 } from 'lucide-react';
 import type { StudioContextTarget } from './StudioCanvas';
@@ -37,7 +37,6 @@ export interface StudioBlockMenuProps {
   onDelete: () => void;
   /** Opens the existing Turn-into / Re-arrange homes in the Design tab. */
   onTurnInto: () => void;
-  onRearrange: () => void;
   /** Move the block one position earlier in its flow — document order, and it
    *  says so. */
   onMoveUp: () => void;
@@ -100,7 +99,7 @@ const ICO = 'h-3.5 w-3.5';
 
 export function StudioBlockMenu({
   target, onClose, onCopy, onPaste, onDuplicate, onDelete,
-  onTurnInto, onRearrange, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck,
+  onTurnInto, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck,
   onCopyLink, onHistory,
 }: StudioBlockMenuProps) {
   // Dismissal. NOTE the parent-window blind spot: the Studio canvas is a
@@ -161,9 +160,13 @@ export function StudioBlockMenu({
           <Row icon={<Type className={ICO} />} onClick={() => run(onTurnInto)}>Turn into…</Row>
         </>
       )}
-      <Row icon={<LayoutGrid className={ICO} />} onClick={() => run(onRearrange)}>
-        Re-arrange…
-      </Row>
+      {/* Re-arrange is GONE from this menu (ADR-479 D4). Every other row here
+          acts on the block you right-clicked; Re-arrange acts on the PAGE
+          containing it — a scope violation, and the reason the row was wired to
+          `menuOpenDesign` (which only switches tabs). The gallery it pointed at
+          was deleted 2026-07-21 as a duplicate of the toolbar's, so the row had
+          become a hint nothing listens for (the ADR-477 D10 defect). The
+          toolbar's page-scoped button is the one mount. */}
       {/* Move up/down is DOCUMENT order and says so. Bring forward/backward is
           Z-ORDER — the token arrived (ADR-471 D-d: composed visuals made
           blocks overlap on purpose), so the frame-gated rows ADR-462 D3 scored

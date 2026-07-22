@@ -1060,6 +1060,77 @@ export function applyArrangement(
   return { html: serialize(doc), landedId: el.getAttribute('data-arrange') };
 }
 
+/** ADR-479 D1 — the page's blocks, as the planner needs to see them: an id, a
+ *  kind, and a short text excerpt. The judgment reads MEANING, so it gets the
+ *  text; it never gets markup, and it never returns any. */
+export function blocksForPlan(
+  html: string,
+  anchor: OpAnchor,
+): Array<{ id: string; kind: string; text: string }> | null {
+  const doc = parse(html);
+  const page = arrangedPageAt(doc, anchor);
+  if (!page) return null;
+  return carriedBlocksOf(page)
+    .map((b) => ({
+      id: b.getAttribute('data-block-id') || '',
+      kind: b.getAttribute('data-block') || 'content',
+      text: (b.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 200),
+    }))
+    .filter((b) => b.id);
+}
+
+/** ADR-479 D1 — apply a PLANNED re-arrangement: the judgment named a slot per
+ *  block, and this puts each block there. Deterministic by construction — the
+ *  same plan always yields the same HTML, because this function makes no
+ *  placement decisions at all. It is the mechanism half of the split.
+ *
+ *  `placements` is assumed VALIDATED (ADR-479 D2: real slots, real blocks, total
+ *  coverage) — the server rejects anything else before it reaches here. This
+ *  still guards defensively: a block whose slot is missing from the target lands
+ *  in the first slot rather than being dropped, because the never-destroy-content
+ *  invariant (ADR-462 D9) outranks the plan.
+ *
+ *  Returns null when the anchor resolves to no page or the fragment won't
+ *  materialize — the caller falls back to the mechanical `applyArrangement`. */
+export function applyArrangementPlan(
+  html: string,
+  fragment: string,
+  anchor: OpAnchor,
+  placements: Array<{ block_id: string; slot: string }>,
+): OpResult | null {
+  const doc = parse(html);
+  const page = arrangedPageAt(doc, anchor);
+  if (!page) return null;
+  const el = materializeFragment(doc, fragment);
+  if (!el) return null;
+
+  const carried = carriedBlocksOf(page);
+  const targetSlots = Array.from(el.querySelectorAll('[data-slot]'));
+  if (carried.length && !targetSlots.length) return null; // nowhere to put it
+
+  const byName = new Map(targetSlots.map((s) => [s.getAttribute('data-slot'), s]));
+  const bySlotPlan = new Map(placements.map((p) => [p.block_id, p.slot]));
+  const receiving = new Set<Element>();
+
+  carried.forEach((b) => {
+    const id = b.getAttribute('data-block-id') || '';
+    const planned = bySlotPlan.get(id);
+    const target = (planned ? byName.get(planned) : undefined) ?? targetSlots[0];
+    if (!target) return;
+    // A slot receiving real content sheds its scaffold placeholders — once,
+    // on first receipt, so the second block into a slot doesn't wipe the first.
+    if (!receiving.has(target)) {
+      target.querySelectorAll('[data-block]').forEach((p) => p.remove());
+      receiving.add(target);
+    }
+    returnToFlow(b);
+    target.appendChild(b);
+  });
+
+  page.replaceWith(el);
+  return { html: serialize(doc), landedId: el.getAttribute('data-arrange') };
+}
+
 /** ADR-466 D2 (the ADR-461 honest remainder, closed): re-laying a page is the
  *  act that returns a POSITIONED block to flow — the arrangement's slots are
  *  about to lay it out, so its x/y measures are cleared as it is carried. */

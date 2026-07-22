@@ -174,7 +174,7 @@ def main() -> bool:
     _check(
         "no free row carries a badge (silence is the signal)",
         "onClick={() => run(onDuplicate)} shortcut=\"⌘D\">" in menu
-        and "onClick={() => run(onRearrange)}>" in menu,
+        and "onClick={() => run(onTurnInto)}>" in menu,
     )
     _check(
         "the group header names the line in operator words",
@@ -215,8 +215,15 @@ def main() -> bool:
         and "const copy = materializeFragment(doc, fragment);" in ops,
     )
     _check(
-        "Turn into / Re-arrange are DOORWAYS to their existing homes",
-        "onTurnInto={menuOpenDesign}" in surface and "onRearrange={menuOpenDesign}" in surface,
+        # ADR-479 D4: Re-arrange LEFT this menu — it is page-scoped in a
+        # block-scoped menu, and the gallery it pointed at was deleted
+        # 2026-07-21, so the row was a hint nothing listened for. Turn into
+        # stays (it IS block-scoped); its dangling wiring is ADR-479 D5, named
+        # as a separate defect and deliberately not fixed here.
+        "Turn into is a DOORWAY to its existing home; Re-arrange left the menu",
+        "onTurnInto={menuOpenDesign}" in surface
+        and "onRearrange" not in surface
+        and "Re-arrange…" not in menu,
     )
 
     print("\n── D9: a layout change never destroys content ──")
@@ -246,9 +253,13 @@ def main() -> bool:
         "if (!receiving.has(target)) {" in ops,
     )
     _check(
+        # The sweep lives in the SHARED `carriedBlocksOf` helper (both the
+        # mechanical ladder and ADR-479's planned path carry through it), so
+        # assert the invariant where it actually lives rather than inline.
         "the carry sweeps only TOP-LEVEL blocks (a nested block rides its parent, "
         "never torn out and appended as a sibling)",
-        "!b.parentElement?.closest('[data-block]')" in _fn(ops, "applyArrangement"),
+        "!b.parentElement?.closest('[data-block]')" in _fn(ops, "carriedBlocksOf")
+        or "!b.parentElement?.closest('[data-block]')" in ops,
     )
 
     print("\n── Turn-into never flattens a citation ──")

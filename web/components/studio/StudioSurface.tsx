@@ -58,6 +58,8 @@ import { StudioNavigator } from './StudioNavigator';
 import {
   applyArrangement,
   applyArrangementMovingContent,
+  applyArrangementPlan,
+  blocksForPlan,
   applySkin,
   countCarriedBlocks,
   convertBlock,
@@ -600,6 +602,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // ── The mechanical executor (ADR-444): compute a deterministic op FE-side,
   // land it as ONE operator-attributed CAS-guarded revision, re-render. ──
   const [opError, setOpError] = useState<string | null>(null);
+  // ADR-479 D1: a re-arrangement is planned by a judgment before it applies,
+  // so the gallery can say it is thinking (the call is ~2-4s).
+  const [planning, setPlanning] = useState(false);
 
   // The shared write core: POST the computed html, advance the local CAS base
   // (content + head) so the NEXT write chains off it without a refetch. Returns
@@ -864,8 +869,14 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     [applyOp, anchor],
   );
   const handleApplyArrangement = useCallback(
-    (a: Pick<StudioArrangement, 'fragment' | 'label' | 'slots'>) => {
-      // ADR-466 D5. Two intelligences over the old refusal:
+    async (a: Pick<StudioArrangement, 'fragment' | 'label' | 'slots' | 'slug'>) => {
+      // ADR-479 D1 — the PLACEMENT is a judgment; this function is the
+      // mechanism around it. Ask where each block belongs, then put it there.
+      // A refusal (placements === null: router off, bad JSON, failed
+      // validation) falls straight through to the mechanical ladder below —
+      // ADR-468 D4, a re-arrangement must never dead-end.
+      //
+      // Below, unchanged, is that ladder (ADR-466 D5):
       //  · ROLE-AWARE distribution — the target's slot roles ride into the op,
       //    so media blocks seek media slots and flow content never fills one.
       //  · RESOLUTION instead of a dead-end — a slotless arrangement (title /
@@ -876,6 +887,34 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       //    only for the layout with no slotted arrangement at all.
       const slotRoles = Object.fromEntries(a.slots.map((s) => [s.name, s.role]));
       const pageNoun = template === 'deck' ? 'slide' : 'section';
+
+      // The planned path. Only worth a metered call when there is content to
+      // place AND somewhere to put it — an empty page or a slotless target is
+      // pure mechanism, and paying a judgment for it would be waste.
+      if (file?.content && a.slots.length > 0) {
+        const blocks = blocksForPlan(file.content, anchor);
+        if (blocks && blocks.length > 0) {
+          setPlanning(true);
+          try {
+            const { placements } = await api.studio.planArrangement({
+              blocks,
+              slots: a.slots.map((s) => ({ name: s.name, role: s.role })),
+              arrangement: a.slug,
+            });
+            if (placements) {
+              return await applyOp(
+                (html) => applyArrangementPlan(html, a.fragment, anchor, placements),
+                `Studio: change arrangement to ${a.label}`,
+              );
+            }
+          } catch {
+            /* the planner is unreachable — the mechanical ladder still works */
+          } finally {
+            setPlanning(false);
+          }
+        }
+      }
+
       if (file?.content && !applyArrangement(file.content, a.fragment, anchor, slotRoles)) {
         const set = vocabulary?.arrangements?.[template] ?? [];
         const receiver =
@@ -2015,6 +2054,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 isPaged={isPaged}
                 onAddArrangement={handleAddArrangement}
                 onApplyArrangement={handleApplyArrangement}
+                planning={planning}
                 carriedCount={carriedCount}
                 currentArrange={selection?.arrange ?? null}
                 hasPageAnchor={
@@ -2141,7 +2181,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   onDuplicate={() => handleBlockVerb('duplicate')}
                   onDelete={() => handleBlockVerb('delete')}
                   onTurnInto={menuOpenDesign}
-                  onRearrange={menuOpenDesign}
                   onMoveUp={() => handleBlockVerb('up')}
                   onMoveDown={() => handleBlockVerb('down')}
                   onBringForward={() => {

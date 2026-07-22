@@ -119,6 +119,9 @@ interface StudioToolbarProps {
   /** EXECUTE: re-lay the CURRENT page (ADR-466 D5 — the PowerPoint pair: Layout
    *  beside New slide; same gallery as the Properties page scope, two mounts). */
   onApplyArrangement: (a: StudioArrangement) => void;
+  /** ADR-479 D1: a re-arrangement asks a judgment where each block belongs
+   *  before it applies, so the button says it is thinking (~2-4s). */
+  planning?: boolean;
   /** Blocks the anchored page would carry through an arrangement change —
    *  drives the carry note on slotless thumbs. */
   carriedCount: number | null;
@@ -135,6 +138,7 @@ export function StudioToolbar({
   isPaged,
   onAddArrangement,
   onApplyArrangement,
+  planning,
   carriedCount,
   currentArrange,
   hasPageAnchor,
@@ -228,7 +232,7 @@ export function StudioToolbar({
         <button
           type="button"
           className={btn}
-          disabled={!hasPageAnchor}
+          disabled={!hasPageAnchor || !!planning}
           title={
             hasPageAnchor
               ? `Change this ${pageNoun}'s layout`
@@ -236,7 +240,8 @@ export function StudioToolbar({
           }
           onClick={() => setOpen(open === 'layout' ? null : 'layout')}
         >
-          <LayoutTemplate className="h-3 w-3" /> Re-arrange
+          <LayoutTemplate className="h-3 w-3" />
+          {planning ? 'Re-arranging…' : 'Re-arrange'}
         </button>
       )}
 

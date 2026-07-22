@@ -411,6 +411,63 @@ def _strip_common_root(files: dict) -> dict:
     return {k[len(root):]: v for k, v in real.items() if k != root}
 
 
+class ArrangementPlanRequest(BaseModel):
+    """ADR-479 — plan a re-arrangement's placements.
+
+    `blocks` = what is on the page now ({id, kind, text}); `slots` = what the
+    target arrangement declares ({name, role}). Both come from the FE, which
+    already holds the parsed document and the served registry.
+    """
+    blocks: list[dict]
+    slots: list[dict]
+    arrangement: Optional[str] = None  # the target slug, for the ledger only
+
+
+@router.post("/studio/arrangement/plan")
+async def plan_arrangement_route(req: ArrangementPlanRequest, auth: UserClient) -> dict:
+    """ADR-479 D1 — the placement decision, as judgment.
+
+    Returns `{"placements": [{block_id, slot}, ...]}` when the plan is
+    admissible, or `{"placements": null}` to tell the FE to use its mechanical
+    ladder. A refusal is a normal outcome, never an error: per ADR-468 D4 the
+    re-arrangement must never dead-end.
+
+    The model NEVER emits markup — it names a slot per block, and the FE applies
+    it deterministically. Validation (ADR-479 D2) enforces the closed slot
+    vocabulary and TOTAL BLOCK COVERAGE, so a plan can no longer lose content.
+    """
+    from services.studio_arrangement_plan import plan_arrangement
+
+    placements, completion = await plan_arrangement(req.blocks or [], req.slots or [])
+
+    # Meter here, exactly once: `route_completion` reports usage but never
+    # ledgers (ADR-396 one meter, one ledger). A call that happened costs even
+    # when its plan was rejected — we pay for the attempt, not the outcome.
+    if completion is not None:
+        try:
+            from services.supabase import get_service_client
+            from services.telemetry import record_execution_event
+
+            record_execution_event(
+                get_service_client(),  # service-role only — execution_events RLS
+                user_id=auth.user_id,
+                slug="studio-arrangement-plan",
+                mode="judgment",
+                trigger_type="addressed",
+                status="success",
+                model=completion.ledger_model,
+                principal_id=getattr(auth, "principal_id", None) or auth.user_id,
+                workspace_id=getattr(auth, "workspace_id", None),
+                **completion.usage,
+            )
+        except Exception as exc:  # noqa: BLE001
+            # ERROR, not warning: an unrecorded rented call is unbilled spend —
+            # a correctness failure of the ADR-396 one-meter invariant.
+            logger.error("[STUDIO] arrangement-plan ledger record failed: %s", exc)
+
+    return {"placements": placements}
+
+
 class WriteArtifactRequest(BaseModel):
     path: str
     content: str
