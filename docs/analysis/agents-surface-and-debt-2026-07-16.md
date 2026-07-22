@@ -194,13 +194,56 @@ The gate caught `model` entering the chooser payload while `avatar` was added. *
 - **Connections** — dormant lane + the cliff question (§5).
 - **Per-turn engine override in a lane** — the routing ladder's rung (a). Free (five lines; attribution is already per-turn correct) and **not built**: the Agent IS the designation, so switching mid-thread is a different gesture than picking a colleague. Wants evidence first.
 
+## 6.10 The INHABITED surface still answers with an engine — ✅ **RESOLVED** (2026-07-22)
+
+**Raised by the operator, 2026-07-22**: *"I thought we de-coupled agents and models, but the front end surfacing and user flows and thus related design and navigations doesn't seem to reflect it."*
+
+**The read was right, and §7's "the build order is closed" is what made it right.** That banner is true of the *entry points* and false of the *inhabited* surface. Audited against §7's own receipts, four candidate seams; **one was already closed, three were real**:
+
+| Seam | Verdict |
+|---|---|
+| The lane FILTER groups by engine | ✅ **already closed** — `presentWho` filters by WHO; `presentModels` greps to zero as §7 claims. The engine fallback for agent-less lanes is honest (that IS what a Studio/derive lane is), not a leak. |
+| **The conversation header names the ENGINE and nothing else** | ❌ **real** — the one place a member spends every minute |
+| **The copy asks the member to pick a MODEL** | ❌ **real** — the empty state's own words |
+| **`/chat` ↔ `/agents` have no bridge** | ❌ **real** — two surfaces over one concept |
+
+**6.10a — The conversation header.** `ChatSurface.tsx:584-592` rendered `{activeLane.name}` + `modelLabel(activeLane.model)` — the lane's title and its **engine chip**. The colleague's name appeared in the lane *list* row (`laneLabel` + `laneSubLabel`, correct since the registry landed) and then **vanished the moment you opened the conversation**. You click Lisa; the header says *GPT-5*.
+
+This is the decoupling **inverted at its highest-traffic pixel**, and it survived the build order because §7's step 5 was scoped to the *facet* — the list's chrome — and the conversation pane was never in the frame. The in-comment defence (*"the model chip stays either way — that's content state (WHICH engine answers), not surface chrome, ADR-442 D3"*) is **correct and insufficient**: content state is the right classification, but the engine is the *second* fact, and it was rendering as the only one.
+
+**Fixed**: the header leads with the face + the colleague's name, and the engine rides behind it as the sub-label — the exact `laneLabel` / `laneSubLabel` pair the list row already uses. **One rule, both places.** The chip is not deleted (ADR-463 §3's discipline: the technical fact stays *visible*, it just isn't the headline).
+
+**6.10b — The copy.** Two strings asked a question ADR-460 D1 says the member must never be asked:
+- the empty state: *"A lane is a conversation pinned to a **model of your choice**"*
+- the disabled state: *"Chat lanes run on the **model router**"* — an internal module name, surfaced to a member
+
+Re-written to the colleague frame (*"a conversation with one colleague"* / *"chat colleagues aren't available on this deployment"*). **The `models` envelope is untouched** — this is the chooser's words, never what the system can run (§4's rule).
+
+**6.10c — The bridge.** `/chat` and `/agents` are the correct ADR-460 D5 cut (Agent = Identity, Room = Channel) rendered as **two islands**: the only crossing was `NewChatModal`'s footer link *out*. There was no way to chat with a colleague from their card, and no way to ask *"who is this?"* from a conversation.
+
+**Fixed, both directions, without collapsing the cut**: the agent's detail card gains a **Start a chat** button (creates the lane, foregrounds `/chat` on it); the conversation header's face is a link to that colleague's card. Two surfaces, one concept, a door each way.
+
+**6.10d — The stale vocabulary.** 8 files still narrate the **three-altitude ladder** ADR-460 D1 *retired* ("Altitude 2's chrome home", "Altitude 1's rail", "Altitude-3 agents"). Comments, not behavior — but they are the exact vocabulary a future session reads to decide what an Agent is, and ADR-460 §9 named this cost explicitly (*"a vocabulary retires"*). **The four chat-surface files are re-worded in this pass** (`ChatSurface`, `LanePanel`, `chat/page.tsx`, `ChatDrawer`); the four outside it (`AgentContentView`, `SystemAgentPanes`, `WorkspaceMembersCard`, `expected-output/page.tsx`) are **named here and deliberately not swept** — they belong to the steward/persona-seat surfaces, whose own re-cut (ADR-382 horizon) is where that vocabulary should die with its context.
+
+**6.10e — A gate was defending the retired vocabulary.** `test_adr412_chat_surface.py:135` asserted `"modelFilter" in src` — *"Model FILTER facet exists (by-engine view on demand)"*. §7 step 5 re-axed that facet to `whoFilter` per ADR-460 D1, so **the gate had been red ever since, defending the exact thing its own successor removed.** It read as one of §6.8's "another lane's" pre-existing failures and was carried as noise for six days.
+
+Corrected in this pass (ADR-412 D4's load-bearing claim is preserved and is what's now checked: a facet exists, and the engine is never the namespace) — plus the inverse assertion, so the by-engine facet is pinned **gone**, not merely unused. **The remaining 3 ADR-412 failures reproduce byte-identical on a clean stash** and are genuinely other lanes' (§6.8 discipline followed before claiming it).
+
+> **A red gate is either a bug or a stale claim, and "another lane's" is not a third option** — it is a hypothesis that has to be checked, because a gate left red is a gate nobody reads, and this one had been *arguing against canon* in a file whose whole job is to defend it.
+
+**The lesson this seam records** — the generalizable one, worth more than the fix:
+
+> **"The build order is closed" is a claim about the steps, never about the surface.** Every step in §7 was genuinely done. The decoupling still failed to be *felt*, because a build order enumerates the things you decided to change, and the header, the copy, and the navigation were never on it — they were the surface the changed things *live in*. The entry point asked the right question and the room the member then sat in for an hour answered with the wrong one. **A migration is complete when the inhabited surface speaks the new vocabulary, not when the checklist does** — which is §6.1's thesis (*a gate proves the code path; only a human proves the product*) arriving one layer up: **only the operator, looking at the surface, found this.** No gate could — every gate was green.
+
 ---
 
 ## 7. Build order (FE + wiring, per the operator's "double our efforts")
 
 > **STATUS 2026-07-16 — ALL EIGHT STEPS DONE. The build order is closed.** Receipts: `agents` is `launcher_tier: primary` with the inversion reasoning recorded in-comment (`kernel_surfaces.py:547`) · the surface is list+detail (`3c29bed`) · the dead roster is re-pointed, not both-and-neither · the hiring door left the picker and `NewChatModal` links out to `/agents` · the `presentModels` facet is **gone** (grep: zero hits) · the avatar renders and has been **clicked** (§6.2) · migration 217 applied (§6.2a) · **step 8 landed** — Designer exists, all three Studio `lanes.create` calls name a colleague, `models[0]` is gone from source (§6.7).
 >
-> **The D3.a ratchet is green at 127/127** (was 111 — the §3b section pins step 8's invariants). Every conversation in the OS now answers "who am I talking to?" with a name.
+> **The D3.a ratchet is green at 127/127** (was 111 — the §3b section pins step 8's invariants). Every conversation in the OS is now *created* by naming a colleague.
+>
+> ⚠️ **CORRECTED 2026-07-22 (§6.10).** The line that stood here read *"every conversation in the OS now answers 'who am I talking to?' with a name."* **It was an overclaim, and the operator found it by looking.** Every conversation was *created* that way; the conversation you then sat in named its **engine** in the header and asked you to pick a **model** in its copy. The steps were done; the inhabited surface had not moved. See §6.10 — the header, the copy, and the `/chat`↔`/agents` bridge close it.
 >
 > **What remains is not a build-order item — it is §6.1**: eight commits, one clicked. The next thing this board wants is a human, not a commit.
 

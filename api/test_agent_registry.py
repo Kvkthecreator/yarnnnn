@@ -843,6 +843,66 @@ def run() -> bool:
         "api.lanes.list(true)" in (web / "components" / "studio" / "StudioSurface.tsx").read_text(),
     )
 
+    print("\n── 14. the INHABITED surface speaks the new vocabulary (§6.10) ──")
+    # The seam the operator found by LOOKING, after 127 green gates and a
+    # "build order is closed" banner: every ENTRY POINT asked WHO, and the
+    # room you then sat in answered with an ENGINE. These pin the room.
+    agents_surface = (web / "components" / "agents" / "AgentsSurface.tsx").read_text()
+
+    # §6.10a — the conversation header leads with WHO.
+    _check(
+        "the conversation header names the COLLEAGUE, not just the engine",
+        "activeAgent" in chat and "{activeAgent.name}" in chat,
+    )
+    _check(
+        "…using the SAME sub-label rule as the list row (one rule, both places)",
+        "laneSubLabel(activeLane)" in chat,
+    )
+    _check(
+        "…and the engine is still VISIBLE for agent-less lanes (never deleted)",
+        "modelLabel(activeLane.model)" in chat,
+    )
+
+    # §6.10b — the copy never asks the member to pick an engine.
+    for phrase in ("pinned to a model", "model of your choice", "the model router"):
+        _check(
+            f"the chat copy does not say {phrase!r} (ADR-460 D1: never ask an engine)",
+            phrase not in chat,
+        )
+
+    # §6.10c — the bridge, both directions.
+    _check(
+        "an agent's card can START A CHAT (the /agents → /chat door)",
+        "api.lanes.create({ agent: slug })" in agents_surface
+        and "navigateToSurface('chat'" in agents_surface,
+    )
+    _check(
+        "…and it SHOWS a failure rather than swallowing it",
+        "startError" in agents_surface and 'role="alert"' in agents_surface,
+    )
+    _check(
+        "the conversation links back to the colleague's card (/chat → /agents)",
+        "<SurfaceLink" in chat and 'to="agents"' in chat,
+    )
+
+    # §6.10d — the retired ladder must not grow back in the chat surface.
+    for path in (
+        web / "components" / "chat-surface" / "ChatSurface.tsx",
+        web / "components" / "chat-surface" / "LanePanel.tsx",
+        web / "app" / "(authenticated)" / "chat" / "page.tsx",
+    ):
+        body = path.read_text()
+        # The ⚠️ tombstones NAME the retired vocabulary on purpose; the ban is
+        # on USING it ("Altitude 2's chrome home"), not on recording that it died.
+        live = [
+            ln for ln in body.splitlines()
+            if "Altitude" in ln and "RETIRED" not in ln and "retired" not in ln
+        ]
+        _check(
+            f"{path.name} does not narrate the retired altitude ladder (ADR-460 D1)",
+            not live,
+        )
+
     ok = all(c for _, c in _results)
     print()
     print(f"{'PASS' if ok else 'FAIL'}: {sum(c for _, c in _results)}/{len(_results)} checks")

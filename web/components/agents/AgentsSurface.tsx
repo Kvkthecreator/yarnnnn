@@ -42,12 +42,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Pencil, Plus, Sparkles } from 'lucide-react';
+import { Loader2, MessageCircle, Pencil, Plus, Sparkles } from 'lucide-react';
 import { AgentCard } from '@/components/chat-surface/AgentCard';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { AgentFace } from './AgentFace';
-import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
+import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 
 interface AgentInfo {
@@ -71,7 +71,13 @@ export function AgentsSurface() {
   const [agents, setAgents] = useState<AgentInfo[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [hiring, setHiring] = useState<{ slug?: string } | null>(null);
+  // §6.10c — the chat door's in-flight + error state. The error is SHOWN
+  // (§7's own lesson: the picker's `catch {}` once ate a live 409 and the
+  // member saw a click that did nothing).
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
   const { get: getParam, set: setParam } = useSurfaceParam('agents');
+  const { navigateToSurface } = useSurfacePreferences();
   const activeSlug = getParam('agent');
 
   const load = useCallback(async () => {
@@ -88,6 +94,27 @@ export function AgentsSurface() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // §6.10c — start a chat with this colleague. Same door the picker uses:
+  // send WHO, the engine resolves server-side (ADR-460 D4). Then hand off to
+  // /chat foregrounded on the new lane — `chat.lane` is window-namespaced by
+  // navigateToSurface (ADR-358 D6), so this is one window flip, not a route
+  // change out of the OS shell.
+  const startChat = useCallback(
+    async (slug: string) => {
+      setStarting(true);
+      setStartError(null);
+      try {
+        const lane = await api.lanes.create({ agent: slug });
+        navigateToSurface('chat', { lane: lane.id });
+      } catch (e) {
+        setStartError(e instanceof Error ? e.message : 'Could not start this chat');
+      } finally {
+        setStarting(false);
+      }
+    },
+    [navigateToSurface],
+  );
 
   const mine = useMemo(() => (agents ?? []).filter((a) => a.kernel === false), [agents]);
   const kernel = useMemo(() => (agents ?? []).filter((a) => a.kernel !== false), [agents]);
@@ -142,6 +169,38 @@ export function AgentsSurface() {
                 <Pencil className="w-3 h-3" />
                 Edit
               </button>
+            )}
+          </div>
+
+          {/* §6.10c — THE DOOR. `/chat` and `/agents` are the correct ADR-460
+              D5 cut (Agent = Identity, Room = Channel) — and they rendered as
+              two islands: the only crossing was the picker's footer link OUT.
+              You could read about a colleague and have no way to talk to
+              them. This creates the chat through the SAME door the picker
+              uses (`agent:` slug → engine resolves server-side) and hands off
+              to /chat foregrounded on the new lane.
+
+              It does NOT collapse the cut: this surface still never renders a
+              transcript, and /chat still never edits an identity. Two
+              surfaces, one concept, a door each way. */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={starting}
+              onClick={() => void startChat(active.slug)}
+              className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-50 inline-flex items-center gap-1.5"
+            >
+              {starting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <MessageCircle className="w-3.5 h-3.5" />
+              )}
+              Start a chat
+            </button>
+            {startError && (
+              <p className="text-xs text-destructive" role="alert">
+                {startError}
+              </p>
             )}
           </div>
 

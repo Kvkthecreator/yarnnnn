@@ -170,9 +170,10 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   // ADR-412 D2 (2026-07-06): the drawer purified to the STEWARD. The
   // ADR-411 lane strip (steward chip + lane chips + create form + LanePanel
   // dispatch) relocated to the windowed Chat surface
-  // (components/chat-surface/ChatSurface.tsx) — the rail is Altitude 1's
-  // chrome home and only that; lanes are Altitude 2's and live in their
-  // workbench. Same chrome must not imply same kind.
+  // (components/chat-surface/ChatSurface.tsx) — the rail is the STEWARD's
+  // chrome home and only that; the member's own conversations live in their
+  // workbench. Same chrome must not imply same kind. (The "Altitude 1/2"
+  // ordinals this comment carried were retired by ADR-460 D1 — §6.10d.)
 
   // Hydrate the operator's explicit width from localStorage on mount.
   useEffect(() => {

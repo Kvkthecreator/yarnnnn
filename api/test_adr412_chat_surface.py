@@ -132,7 +132,18 @@ def test_surface_work_first() -> None:
 
     _assert("api.lanes" in src, "Surface lists lanes via the lanes API (viewer-scoped)")
     _assert("updated_at" in src, "Recency sort keys on updated_at (touched per turn)")
-    _assert("modelFilter" in src, "Model FILTER facet exists (by-engine view on demand)")
+    # ⚠️ SUPERSEDED BY ADR-460 (corrected 2026-07-22, §6.10). This asserted
+    # `modelFilter` — a facet that grouped conversations BY ENGINE. ADR-460 D1
+    # retired the engine as a member-facing question, so the facet was re-axed
+    # to filter by WHO (`whoFilter`) and this gate went red defending the
+    # vocabulary its own successor removed. D4's load-bearing claim survives
+    # intact and is what's checked now: a FACET exists (on demand), and the
+    # engine is never the namespace (the assert below).
+    _assert("whoFilter" in src, "A filter facet exists — by WHO, not by engine (ADR-460 D1)")
+    _assert(
+        "modelFilter" not in src,
+        "…and the by-engine facet is GONE, not merely unused (Singular Implementation)",
+    )
     _assert(
         "groupBy" not in src and "modelGroups" not in src,
         "No model-first grouping (D4 — the model is never the namespace)",

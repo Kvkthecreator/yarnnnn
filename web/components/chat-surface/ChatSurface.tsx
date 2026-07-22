@@ -1,12 +1,21 @@
 'use client';
 
 /**
- * ChatSurface — the lanes workbench (ADR-412 D3/D4).
+ * ChatSurface — the chat workbench (ADR-412 D3/D4).
  *
- * Altitude 2's chrome home: the member's model-pinned helper threads
- * (ADR-411 lanes) as a windowed surface — a working area, summoned like any
- * window, distinct from the steward rail (Altitude 1, chat drawer) and the
- * Agents roster (Altitude 3).
+ * Your conversations with colleagues (ADR-411 lanes) as a windowed surface —
+ * a working area summoned like any window, distinct from the steward rail
+ * (the chat drawer) and the Agents roster (who they are).
+ *
+ * ⚠️ VOCABULARY (ADR-460 D1, corrected 2026-07-22 — §6.10d). This header used
+ * to place the surface on a three-rung ladder ("A2's chrome home", vs the
+ * rail's A1 and the roster's A3). **ADR-460 D1 RETIRED that ladder** — it was a bundle of
+ * four independent facts (attribution · configuration · standing intent ·
+ * governance files) wearing an ordinal, and the runtime never had it
+ * (`_caller_class` branches on the author prefix, not a rung). Say instead:
+ * an Agent that attributes as the member (these chats) vs one that attributes
+ * as itself. Do not reintroduce the ladder in comments — it is the vocabulary
+ * the next session reads to decide what an Agent is.
  *
  * D4 — lanes organize by WORK, never by model: the list is flat recents
  * (updated_at desc — the API touches updated_at on every turn), each row
@@ -28,6 +37,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Archive, Loader2, MessageCircle, Pencil, Pin, Plus, Search, X } from 'lucide-react';
 import { LanePanel } from './LanePanel';
 import { AgentFace } from '@/components/agents/AgentFace';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { NewChatModal } from './NewChatModal';
 import { api } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
@@ -196,6 +206,14 @@ export function ChatSurface() {
     [data, activeLaneId],
   );
 
+  // §6.10a — WHO the open conversation is with. Null for pre-registry and
+  // Studio/derive lanes, which fall back to their engine label (honest: that
+  // IS what those lanes are).
+  const activeAgent = useMemo(
+    () => (activeLane ? laneAgent(activeLane) : null),
+    [activeLane, laneAgent],
+  );
+
   // ADR-450 D5: a derive-bound lane arrives with ONE starter chip — the
   // suggested ask in the member's words (click fills the composer, the member
   // sends — never auto-sent, the ADR-446 lesson). The recipe section on the
@@ -323,11 +341,14 @@ export function ChatSurface() {
       <div className="h-full flex items-center justify-center p-8">
         <div className="max-w-sm text-center space-y-2 text-sm text-muted-foreground">
           <MessageCircle className="w-6 h-6 mx-auto text-muted-foreground/50" />
-          <p className="font-medium text-foreground/80">Lanes are not enabled</p>
+          <p className="font-medium text-foreground/80">Chat is not enabled</p>
+          {/* §6.10b — this used to name the routing module by its internal
+              name and report that it wasn't live: a module name shown to a
+              member, asking them to care about an engine. */}
           <p>
-            Chat lanes run on the model router, which is not live on this
-            deployment. Your conversation with Freddie is unaffected — summon
-            it from the chat button.
+            Chat colleagues aren&apos;t available on this deployment yet. Your
+            conversation with Freddie is unaffected — summon it from the chat
+            button.
           </p>
         </div>
       </div>
@@ -432,12 +453,17 @@ export function ChatSurface() {
         <div className="flex-1 min-h-0 overflow-y-auto">
           {lanes.length === 0 && (
             <div className="px-4 py-8 text-center text-xs text-muted-foreground space-y-1.5">
-              <p className="font-medium text-foreground/80">No lanes yet</p>
+              <p className="font-medium text-foreground/80">No chats yet</p>
+              {/* §6.10b — this used to open "a lane is a conversation pinned
+                  to a MODEL OF YOUR CHOICE", which is the one question
+                  ADR-460 D1 says a member must never be asked. The ADR-411
+                  contract it carries (isolation · shared files · attribution)
+                  is preserved — only the frame moves from engine to
+                  colleague. */}
               <p>
-                A lane is a conversation pinned to a model of your choice.
-                Each lane is isolated — the workspace files are the shared
-                memory, and a lane&apos;s work lands there, attributed to you
-                via its model.
+                Each chat is a conversation with one colleague, kept separate
+                from the others. Your workspace files are the shared memory —
+                whatever a colleague makes lands there, attributed to you.
               </p>
             </div>
           )}
@@ -579,17 +605,52 @@ export function ChatSurface() {
       >
         {activeLane ? (
           <>
-            {/* On mobile the OS back chip already names the lane; repeating it
-                here would stack two "you are here" labels ~28px apart. The
-                model chip stays either way — that's content state (WHICH
-                engine answers), not surface chrome (ADR-442 D3). */}
+            {/* §6.10a — WHO leads, here as in the list row. This header used
+                to render the lane name + the ENGINE chip and nothing else, so
+                you clicked Lisa and the room you sat in said "GPT-5": the
+                decoupling inverted at its highest-traffic pixel. It survived
+                the build order because step 5 was scoped to the list's facet
+                and the conversation pane was never in the frame.
+
+                The engine is NOT deleted — it rides behind the name as the
+                sub-label (ADR-463 §3: the technical fact stays visible, it
+                just isn't the headline). Same laneLabel/laneSubLabel pair the
+                list row uses: one rule, both places.
+
+                The face is a LINK to the colleague's card (§6.10c) — the
+                `/chat`→`/agents` door. On mobile the OS back chip already
+                names the lane, so the lane's own title is dropped there; the
+                colleague is not, because that's the fact that was missing. */}
             <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border shrink-0">
-              {!isNarrow && (
-                <span className="text-sm font-medium truncate">{activeLane.name}</span>
+              {activeAgent ? (
+                <SurfaceLink
+                  to="agents"
+                  params={{ agent: activeAgent.slug }}
+                  className="flex items-center gap-2 min-w-0 rounded hover:bg-muted -mx-1 px-1 py-0.5 transition-colors"
+                  title={`About ${activeAgent.name}`}
+                >
+                  <AgentFace name={activeAgent.name} avatarUrl={activeAgent.avatar_url} />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium truncate">
+                      {activeAgent.name}
+                    </span>
+                    <span className="block text-[10px] text-muted-foreground truncate">
+                      {laneSubLabel(activeLane)}
+                    </span>
+                  </span>
+                </SurfaceLink>
+              ) : (
+                /* No colleague (pre-registry / Studio / derive lane): its
+                   engine IS what it is — naming it is honest, not a gap. */
+                <span className="px-1.5 py-px rounded-full bg-muted text-[10px] text-muted-foreground shrink-0">
+                  {modelLabel(activeLane.model)}
+                </span>
               )}
-              <span className="px-1.5 py-px rounded-full bg-muted text-[10px] text-muted-foreground shrink-0">
-                {modelLabel(activeLane.model)}
-              </span>
+              {!isNarrow && (
+                <span className="text-sm text-muted-foreground truncate border-l border-border pl-2 ml-1">
+                  {activeLane.name}
+                </span>
+              )}
             </div>
             <LanePanel
               key={activeLane.id}
@@ -612,13 +673,15 @@ export function ChatSurface() {
             <div className="max-w-sm text-center space-y-2 text-sm text-muted-foreground">
               <MessageCircle className="w-6 h-6 mx-auto text-muted-foreground/50" />
               <p className="font-medium text-foreground/80">
-                Your helper conversations
+                Your conversations
               </p>
+              {/* §6.10b — same re-frame as the two empty states above: a
+                  chat is with a COLLEAGUE, not with a chosen engine. */}
               <p>
-                Lanes are isolated conversations, each pinned to a model; the
-                workspace is the shared memory. Pick a lane on the left or
-                create one — its work lands in the shared files, attributed to
-                you via the lane&apos;s model.
+                Each chat is with one colleague, kept separate from the
+                others; your workspace files are the shared memory. Pick a
+                chat on the left or start a new one — the work lands in your
+                files, attributed to you.
               </p>
             </div>
           </div>

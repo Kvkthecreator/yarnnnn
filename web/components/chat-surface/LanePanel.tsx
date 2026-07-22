@@ -4,22 +4,27 @@
  * LanePanel — one chat lane's conversation body (ADR-411, implements
  * ADR-408 D6).
  *
- * A lane is a model-pinned helper thread: an isolated conversation whose
- * model works the SHARED workspace through the file-verb tool surface.
+ * A lane is a conversation with one colleague: an isolated thread whose
+ * agent works the SHARED workspace through the file-verb tool surface.
  * This panel is deliberately simpler than the steward's ConversationPanel:
  * non-streaming turns (POST → JSON reply), no command picker, no surface
  * override — a lane is a working thread, not the OS terminal.
  *
  * ADR-412 D2/D3 (2026-07-06): relocated from the chat-drawer chrome
  * (shell/chrome/) to the Chat surface body — the drawer purified to the
- * steward (Altitude 1); lanes live in their windowed workbench
- * (Altitude 2). Mechanics unchanged.
+ * steward; member conversations live in their windowed workbench.
+ * Mechanics unchanged.
  *
- * ADR-441 D2 (2026-07-11): THE lane-thread renderer — one per Altitude 2,
- * frame-agnostic, mounted N times (the /chat workbench, the Studio's left
- * pane) behind the named `LaneMountSlots` contract below. Deliberately NOT
- * merged with the steward's ConversationPanel: the A1/A2 split is a
- * wire-protocol split (ADR-441 D1), not a styling preference.
+ * ADR-441 D2 (2026-07-11): THE lane-thread renderer — one per member
+ * conversation, frame-agnostic, mounted N times (the /chat workbench, the
+ * Studio's left pane) behind the named `LaneMountSlots` contract below.
+ * Deliberately NOT merged with the steward's ConversationPanel: the split is
+ * a wire-protocol split (ADR-441 D1), not a styling preference — the steward
+ * streams and reaches the OS, a member conversation does neither.
+ *
+ * ⚠️ The "Altitude 1/2" ordinals this header carried were RETIRED by ADR-460
+ * D1 (see ChatSurface.tsx's header, §6.10d). The wire-protocol split above is
+ * the real, surviving fact; the ladder was never it.
  *
  * The contract rendered here: the transcript is private to the lane; the
  * work lands in files. When a turn used tools, the reply footer names them
