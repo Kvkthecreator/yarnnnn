@@ -21,6 +21,7 @@ import {
   FolderKanban,
   FolderOpen,
   Home,
+  Image,
   Inbox,
   Link2,
   MessageCircle,
@@ -83,6 +84,13 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // cockpit→home rename). Replaces square-activity, which no longer
   // matched the surface name.
   home: Home,
+  // 2026-07-22: the IMAGES app glyph. The `images` surface (ADR-472) shipped
+  // `launcher_tier: primary` declaring `icon_key: "image"` with NO registry
+  // entry, so resolveSurfaceIcon fell through to the `Box` fallback — the app
+  // wore a generic square in the Launcher, the Dock, AND its own page header
+  // (all four resolveSurfaceIcon call sites). A concrete object glyph, matching
+  // the family (Chat bubble / Studio palette / Files folder).
+  image: Image,
   inbox: Inbox,
   // ADR-297 D19.5.2 (2026-05-22): layout-dashboard DELETED. Was only
   // mapped to Cockpit; swapped to square-activity to disambiguate
