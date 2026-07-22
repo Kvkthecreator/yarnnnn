@@ -1,6 +1,6 @@
 # ADR-476 — Purge is workspace-scoped, and its surfaces say so
 
-> **Status**: Accepted 2026-07-21. Ratified by KVK.
+> **Status**: **Implemented** 2026-07-21. Ratified by KVK; shipped `c6af67b` (purge is workspace-scoped). Gate 20/20 + falsified; live-verified against prod (old predicate 0 rows, new 1).
 > **Decides**: purge re-keys `user_id → workspace_id`; clearing shared content
 > becomes an owner-grade act; the surfaces move to Workspace Settings.
 > **Amends**: ADR-244 (the danger-zone surface) · ADR-407 (three-scope taxonomy

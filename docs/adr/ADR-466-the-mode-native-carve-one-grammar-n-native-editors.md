@@ -65,7 +65,38 @@ Three contracts, written into STUDIO.md as the interaction canon:
   selection, band reordering, per-band background/tone — page-grain mechanisms applied to
   the band stack. Spatial freedom stays refused (a page has a viewport; ADR-461 D4's
   re-open conditions stand). Deep band **nesting** (section arrangements *inside* bands)
-  remains the named phase-2 follow-on — this ADR ships the contract, not the nesting.
+  was named here as the phase-2 follow-on — **RETIRED 2026-07-22, see the note below**.
+
+  > **AMENDED 2026-07-22 — nesting is NOT phase 2.** Three findings retire it,
+  > in the order they mattered:
+  >
+  > 1. **Multi-slot arrangements already express internal layout.** `feature-grid`
+  >    ships `slots = [a, b, c]` — a three-up band, the commonest "nested" landing
+  >    pattern, expressed as sibling slots on ONE band. Deck says the same thing
+  >    louder: 11 arrangements, all flat, `two-column` / `comparison` /
+  >    `picture-with-caption` all multi-slot, and in a year nobody has wanted a
+  >    slide inside a slide. Nesting would be a second, recursive way to say what
+  >    slots already say.
+  > 2. **ADR-479 changed the economics.** The placement judgment reads slots from
+  >    the served vocabulary and places by meaning, so a new arrangement is now a
+  >    REGISTRY ROW — no heuristic to teach, no code, no prompt branch. The
+  >    generative answer to "we need more internal layouts" became *declare more
+  >    arrangements*, which is data.
+  > 3. **Nesting would partially undermine ADR-479.** Its plan validates against a
+  >    FLAT list of declared slots; a tree of slots is a materially weaker
+  >    contract. Recursion also breaks every page index (`PAGE_SEL`, the navigator
+  >    strip, `deletePages`/`movePages`, `arrangedPageAt`) and re-opens selection
+  >    grain (click-to-descend) on chrome hardened in P9–P12.
+  >
+  > **The real gap was never depth — it was arrangement COVERAGE.** Six page
+  > arrangements is a thin vocabulary; that is a data problem with a cheap fix,
+  > not an architecture problem with an expensive one. Successor work: widen the
+  > page arrangement registry, on demand, as real pages ask for shapes.
+  >
+  > **Re-open condition:** a concrete artifact that genuinely needs arbitrary
+  > depth (a band split two-up whose left half itself stacks) and cannot be
+  > expressed by declaring an arrangement for it. Evidence first, then an ADR —
+  > not a Wix analogy.
 
 ### D2 — The deck object layer: handles + drag-to-position, inside ADR-461's bound
 
@@ -161,8 +192,11 @@ Declared as the standing bar every Studio change is held to:
 - Does not touch the block grammar, the write door, attribution, or the registries'
   serving contract.
 - Does not widen ADR-461 — position ships only where the frame already is (deck; media).
-- Does not build page band **nesting** (named phase 2), block-grain derive recipes, md
-  export (W4), or ADR-465 Phases B–F.
+- Does not build page band **nesting** (named phase 2 here; **RETIRED 2026-07-22** —
+  see the amendment under D1: multi-slot arrangements already express internal layout,
+  ADR-479 made a new arrangement a registry row, and nesting would weaken ADR-479's
+  flat-slot plan contract), block-grain derive recipes, md export (W4), or ADR-465
+  Phases B–F.
 - Does not add a JSON layout tree, a coordinate model outside `data-*`/CSS vars, or a
   second write path. Gestures compose existing ops (ADR-461 D2).
 

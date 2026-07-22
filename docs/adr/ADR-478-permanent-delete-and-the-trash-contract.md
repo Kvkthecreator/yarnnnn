@@ -1,6 +1,6 @@
 # ADR-478 — Permanent delete, and the Trash contract
 
-> **Status**: Accepted 2026-07-21. Ratified by KVK.
+> **Status**: **Implemented** 2026-07-21. Ratified by KVK; shipped `e800d31` (permanent delete). Gate 10/10 + falsified.
 > **Decides**: Trash gains a permanent-delete gesture; no retention timer; the
 > ledger is never deleted; the gesture is owner-grade and dependency-checked.
 > **Sequenced after**: [ADR-474](ADR-474-content-inherits-the-files-scope.md)

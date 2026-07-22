@@ -1,6 +1,6 @@
 # ADR-477 — The block keyboard: an empty block closes, a selected block acts
 
-> **Status**: Accepted 2026-07-21. Ratified by KVK.
+> **Status**: **Implemented** 2026-07-21. Ratified by KVK; shipped `da450c0` (the block keyboard). Gate 13/13.
 > **Decides**: Backspace on an emptied block removes it; the verb-key guard is
 > re-cut from "is anything editing" to "does the caret have a CLAIM on this
 > key"; the mode-native keyboard grammar is named, and its unbuilt half is

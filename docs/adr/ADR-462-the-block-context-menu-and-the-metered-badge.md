@@ -35,7 +35,13 @@ Three facts, verified before designing, each of which removed work rather than a
 - **The verbs exist.** `StructVerb = 'duplicate' | 'up' | 'down' | 'delete'`, `convertBlock`
   (turn-into), `duplicateBlock`, `deleteBlock`, `moveBlock`. No row in this menu is a new
   capability.
-- **Re-arrange already ships, and it is MECHANICAL.** The `Re-arrange` thumbnail gallery
+- **Re-arrange already ships, and it is MECHANICAL.** *(HISTORICAL — **reversed by
+  ADR-479 D1, 2026-07-22**: re-arrange's PLACEMENT is now a metered judgment, and the
+  row itself left this menu per D4. The paragraph below records what was true when
+  ADR-462 was written, and why the reversal was not a contradiction: the judgment was
+  indeed spent at authoring time for the ARRANGEMENT, but never for WHERE EACH BLOCK
+  GOES inside it — that was a heuristic ladder standing in for a decision, which is
+  what ADR-479 replaced.)* The `Re-arrange` thumbnail gallery
   (`StudioDesignTab.tsx:616`) swaps `data-arrange`; the kernel's CSS does the rest. **Zero LLM
   calls.** It is also not deck-scoped — `STUDIO_ARRANGEMENTS` carries rows for all four layouts.
   The operator's hypotheses (that it needs an AI call, and that it is deck+media only) were both
@@ -74,6 +80,28 @@ where dwell is the posture, and set aside for verbs, where it never applied.
 Re-arrange… · Move up · Move down** — *(sep)* — **WRITE WITH AI: Rewrite… · Check this…** —
 *(sep)* — **THIS BLOCK: Copy link to block · History**
 
+> **AMENDED 2026-07-22 (ADR-479 D4 + D5) — the row set changed on both counts:**
+>
+> - **`Re-arrange…` is DELETED from this menu.** Every other row here acts on the
+>   block you right-clicked; Re-arrange acts on the *page containing it* — a
+>   scope violation, and the reason it had been wired to a tab-switch rather
+>   than an act. The gallery it pointed at was itself deleted 2026-07-21 as a
+>   duplicate of the toolbar's, leaving a row that hinted at nothing (the
+>   ADR-477 D10 defect). The toolbar's page-scoped button is the one mount.
+>   Re-arrange is also **no longer mechanical** (see the §"already ships, and it
+>   is MECHANICAL" note below, now historical): ADR-479 D1 made its placement a
+>   metered judgment, applied mechanically.
+> - **`Turn into…` became a SUBMENU that acts here** (ADR-479 D5). It is
+>   genuinely block-scoped, so it belongs — it was merely wired lazily. It now
+>   offers the legal kinds inline and runs the same `convertBlock` op the Design
+>   tab runs, and it appears only when the conversion is legal (text kinds, not
+>   the current kind, never a citation — the op refuses those, so the menu must
+>   not offer them).
+>
+> Live row set: **Copy · Paste here** — **Duplicate · Delete** — **Turn into ▸** —
+> **Move up · Move down** (+ z-verbs when positioned) — **WRITE WITH AI:
+> Rewrite… · Check this…** — **THIS BLOCK: Copy link to block · History**
+
 Refused, with reasons (the inclusion test, so the next request is answered in advance):
 
 | Reference item | Verdict | Why |
@@ -103,8 +131,11 @@ So the AI door is **named acts under a group header**, each carrying a badge:
 
 - **`AI` badge** (ochre, filled dot) on every metered row. **Free rows carry nothing** — silence
   is the signal; most of the menu is free, so marking the exception is cheaper than marking the
-  rule. A badge only means something if its neighbours lack one (which is precisely why
-  `Re-arrange` sitting un-badged one row up is load-bearing).
+  rule. A badge only means something if its neighbours lack one. *(The original example
+  here was `Re-arrange` sitting un-badged one row up. **ADR-479 retired that example on
+  both counts** — the row left this menu (D4) and the act became metered (D1). The
+  principle stands and is now carried by `Duplicate`/`Delete`/`Turn into ▸`, which sit
+  free and un-badged beside the two badged AI rows.)*
 - **Three redundant signals**: group header (`WRITE WITH AI`) · per-row badge (survives if the
   group is ever split) · hue (the row's icon and hover state, so it reads before the eye arrives).
   Redundancy is correct here: this is the free/metered line, and it must be impossible to miss at
