@@ -167,7 +167,12 @@ def run() -> bool:
 
     gen.set_backend(_CostedBackend())
     try:
+        # `get_service_client` is patched because the two privileged writes
+        # (binary leaf → private CAS bucket; ledger → service-role-only
+        # execution_events) resolve it themselves as of 2026-07-21. Before
+        # that they used the caller's client and 403'd in production.
         with patch("services.authored_substrate.write_revision", return_value="rev-1"), \
+             patch("services.supabase.get_service_client", return_value=MagicMock()), \
              patch("services.telemetry.record_execution_event") as ledger:
             out = compose_stage(
                 MagicMock(),
