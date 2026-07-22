@@ -73,15 +73,39 @@ export function useSubscription() {
     }
   };
 
-  const manageSubscription = async () => {
+  // RENAMED 2026-07-22 from `manageSubscription`. The old name promised generic
+  // plan management and delivered a bounce to the Lemon Squeezy customer portal
+  // — a differently-branded page listing our product under a store name. The
+  // portal's honest scope is the payment INSTRUMENT (card on file, invoices,
+  // receipts), which is genuinely the processor's; the PLAN (which tier this
+  // workspace runs on) is ours to model, and now has in-app verbs.
+  const openPaymentMethods = async () => {
     try {
       setIsLoading(true);
       setError(null);
       const { portal_url } = await api.subscription.getPortal();
       window.location.href = portal_url;
     } catch (err) {
-      setError(toUserError(err, "Failed to open billing portal"));
+      setError(toUserError(err, "Failed to open payment methods"));
       setIsLoading(false);
+    }
+  };
+
+  // Cancel at period end. Returns `ends_at` so the caller can say WHEN access
+  // stops — the tier flips on the `subscription_expired` webhook at that
+  // boundary, never optimistically here (cancelling must not strip an allowance
+  // the workspace already paid for). Refreshes status so the card re-reads.
+  const cancel = async (): Promise<{ ends_at: string | null } | null> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const res = await api.subscription.cancel();
+      await fetchStatus();
+      return { ends_at: res.ends_at ?? null };
+    } catch (err) {
+      setError(toUserError(err, "Failed to cancel the plan"));
+      setIsLoading(false);
+      return null;
     }
   };
 
@@ -93,7 +117,8 @@ export function useSubscription() {
     error,
     topup,
     subscribe,
-    manageSubscription,
+    openPaymentMethods,
+    cancel,
     refresh: fetchStatus,
   };
 }

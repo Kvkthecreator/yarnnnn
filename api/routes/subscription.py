@@ -419,6 +419,17 @@ class PortalResponse(BaseModel):
     portal_url: str
 
 
+class CancelResponse(BaseModel):
+    """Result of an in-app plan cancellation (2026-07-22).
+
+    `ends_at` is the renewal boundary access runs to — LS cancellation is
+    cancel-at-period-end, never immediate, so the surface can say when the plan
+    actually stops instead of implying it already has. None when LS returned no
+    date (the cancel still succeeded)."""
+    cancelled: bool
+    ends_at: Optional[str] = None
+
+
 # ── Status endpoint ───────────────────────────────────────────────────────────
 
 @router.get("/status", response_model=SubscriptionStatus)
@@ -637,6 +648,88 @@ async def get_customer_portal(auth: UserClient):
                 return PortalResponse(portal_url=portal_url)
 
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Billing portal unavailable. If you recently subscribed, wait a moment and retry.")
+
+
+# ── Cancel endpoint ───────────────────────────────────────────────────────────
+
+
+@router.post("/cancel", response_model=CancelResponse)
+async def cancel_subscription(auth: UserClient):
+    """Cancel the acting workspace's plan at period end (2026-07-22).
+
+    WHY THIS EXISTS IN-APP. Plan lifecycle was previously reachable only by
+    bouncing the operator to the Lemon Squeezy customer portal — a differently-
+    branded page, listing OUR product under a store name, where "cancel" is
+    ambiguous between the plan and the whole customer record. Cancelling a plan
+    is a decision about the WORKSPACE (which tier it runs on), and the workspace
+    is ours to model; only the payment INSTRUMENT (card, invoices, receipts) is
+    genuinely the processor's. So the plan verb comes home and the portal keeps
+    exactly what it owns.
+
+    `cancelled` in LS means "do not renew" — access continues to period end,
+    which is why this route does NOT touch `subscription_tier` locally. The tier
+    flips when the `subscription_expired` webhook fires at the boundary. Writing
+    the downgrade here would strip a paid workspace of its allowance the instant
+    it cancelled, i.e. charge for a period it can no longer use. The webhook is
+    the single writer of tier state (Singular Implementation).
+
+    Authorization is the same billing-grant gate as checkout/portal — a plain
+    member draws the pool but never changes its funding (ADR-416 D1).
+    """
+    if not LEMONSQUEEZY_API_KEY:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Payment service not configured")
+
+    workspace_id = _resolve_billing_workspace(auth)
+    rows = (
+        auth.client.table("workspaces")
+        .select("id, subscription_tier, billing_exempt, lemonsqueezy_subscription_id")
+        .eq("id", workspace_id).limit(1).execute()
+    ).data or []
+    if not rows:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No workspace found")
+    ws = rows[0]
+
+    # An exempt (comped) workspace has no subscription to cancel — refusing is
+    # honest, where a silent success would imply a bill stopped that never ran.
+    if bool(ws.get("billing_exempt")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This workspace is comped — there is no subscription to cancel.",
+        )
+    subscription_id = ws.get("lemonsqueezy_subscription_id")
+    if not subscription_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This workspace has no active subscription.",
+        )
+
+    async with httpx.AsyncClient() as http:
+        response = await http.delete(
+            f"https://api.lemonsqueezy.com/v1/subscriptions/{subscription_id}",
+            headers=_ls_headers(), timeout=30.0,
+        )
+    if response.status_code not in (200, 204):
+        log.error(
+            "[SUBSCRIPTION] cancel failed for ws %s sub %s: %s %s",
+            workspace_id, subscription_id, response.status_code, response.text[:300],
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not cancel the subscription. Please try again, or use Payment method & invoices.",
+        )
+
+    # Read the renewal boundary back so the surface can say WHEN access ends,
+    # rather than leaving the operator guessing whether it stopped immediately.
+    ends_at: Optional[str] = None
+    try:
+        payload = response.json() if response.status_code == 200 else None
+        attrs = ((payload or {}).get("data") or {}).get("attributes") or {}
+        ends_at = attrs.get("ends_at") or attrs.get("renews_at")
+    except Exception:  # noqa: BLE001 — a missing date must not fail the cancel
+        pass
+
+    log.info("[SUBSCRIPTION] ws %s cancelled sub %s (ends %s)", workspace_id, subscription_id, ends_at)
+    return CancelResponse(cancelled=True, ends_at=ends_at)
 
 
 # ── Webhook handler ───────────────────────────────────────────────────────────

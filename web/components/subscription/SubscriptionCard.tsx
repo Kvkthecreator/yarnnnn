@@ -24,7 +24,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 // `Users` dropped 2026-07-22 — the reference's seat row leads with the COUNT at
 // emphasis weight, no leading glyph; the icon competed with the numeral.
-import { Loader2, Zap, ArrowUpCircle, ShieldCheck } from "lucide-react";
+import {
+  Loader2,
+  Zap,
+  ArrowUpCircle,
+  ShieldCheck,
+  CreditCard,
+  CircleSlash,
+  ExternalLink,
+  X,
+} from "lucide-react";
+import { SeatPanel } from "@/components/subscription/SeatPanel";
 import type { SubscriptionTier } from "@/types";
 import { ByokSection } from "@/components/subscription/ByokSection";
 import {
@@ -37,7 +47,14 @@ import {
   TOPUP_DEFAULT,
   TOPUP_MIN_USD,
   TOPUP_MAX_USD,
+  TIER_SEAT_PRICE_USD,
 } from "@/lib/subscription/usage";
+
+// A price, not a meter reading — ADR-396 hides the running consumption figure,
+// not what a plan costs (usage.ts states the same split at TIER_SEAT_PRICE_USD).
+function money(n: number): string {
+  return n % 1 === 0 ? `$${n}` : `$${n.toFixed(2)}`;
+}
 
 const TIER_LABEL: Record<SubscriptionTier, string> = {
   free: "Free",
@@ -54,8 +71,14 @@ const TIER_LABEL: Record<SubscriptionTier, string> = {
 const TIER_ORDER: SubscriptionTier[] = ["free", "starter"];
 
 export function SubscriptionCard({ workspaceName }: { workspaceName?: string | null }) {
-  const { status, tier, isLoading, error, topup, subscribe, manageSubscription } = useSubscription();
+  const { status, tier, isLoading, error, topup, subscribe, openPaymentMethods, cancel } =
+    useSubscription();
   const { navigateToSurface } = useSurfacePreferences();
+  // 2026-07-22 — the two misleading buttons become in-app panels. `seats` is the
+  // per-person cost breakdown (was: a jump to the permissions roster); `plan` is
+  // the tier/cancel panel (was: a bounce to the Lemon Squeezy portal).
+  const [panel, setPanel] = useState<null | "seats" | "plan">(null);
+  const [cancelled, setCancelled] = useState<string | null>(null);
   // ADR-445 — the seat + comped state (already fetched by useSubscription's
   // getStatus). `seatBillingActive` is now TRUE on paid tiers (seats are live):
   // it means the workspace has billable seats beyond the owner. An exempt
@@ -65,6 +88,8 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
   const includedSeats = status?.included_seats ?? 1;
   const billableSeats = status?.billable_seats ?? 0;
   const seatBillingActive = status?.seat_billing_active ?? false;
+  // Exempt-aware already (the backend forces it to 0 on a comped workspace).
+  const seatFee = status?.seat_fee_usd ?? 0;
   const [usage, setUsage] = useState<UsageLimits | null>(null);
   const [nextRefill, setNextRefill] = useState<string | null>(null);
   const [topupAmount, setTopupAmount] = useState<string>(String(TOPUP_DEFAULT));
@@ -109,11 +134,14 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
     setSubscribeLoading(null);
   };
 
-  // "Manage seats" — in OUR model a seat is a human member (ADR-445 Axis ①), so
-  // managing seats IS managing workspace access. The reference opens a seat-count
-  // purchase dialog; we open the Members pane, where a seat is added by inviting
-  // a person (the count follows the roster, it is never bought directly).
-  const onManageSeats = () => navigateToSurface("workspace-settings", { pane: "members" });
+  // "Manage seats" — REWIRED 2026-07-22. It used to jump straight to the Members
+  // pane: a permissions surface with no price on it, opened from a button inside
+  // a billing card, which read as "take me to the payment screen" and delivered
+  // access control. It now opens SeatPanel — who occupies a seat, what each one
+  // costs, the seat total, and the priced invite action (the purchase, since in
+  // our derived model the invite IS the buy). The roster stays one click on from
+  // there, where the invite is actually authored.
+  const onManageSeats = () => setPanel((p) => (p === "seats" ? null : "seats"));
 
   const currentIndex = TIER_ORDER.indexOf(tier);
   const upgradeTargets = TIER_ORDER.slice(currentIndex + 1).filter(
@@ -182,10 +210,10 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
               </div>
               {tier !== "free" && !exempt && (
                 <button
-                  onClick={manageSubscription}
+                  onClick={() => setPanel((p) => (p === "plan" ? null : "plan"))}
                   className="shrink-0 text-sm font-medium px-4 py-2 rounded-full border border-border hover:bg-muted/40 transition-colors"
                 >
-                  Manage
+                  Manage plan
                 </button>
               )}
             </div>
@@ -201,6 +229,16 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                   {humanSeats === 1
                     ? "1 seat in use"
                     : `${humanSeats} people · ${billableSeats} ${billableSeats === 1 ? "seat" : "seats"} billed`}
+                  {/* The seat TOTAL, on the headline row. `seat_fee_usd` has been
+                      computed + returned by /subscription/status all along and
+                      rendered nowhere — so a team could see "2 seats billed"
+                      without ever being told what that costs. A price, not a
+                      meter (ADR-396 governs the consumption figure). */}
+                  {seatFee > 0 && (
+                    <span className="ml-1.5 font-normal text-muted-foreground">
+                      · {money(seatFee)}/mo
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   {/* A solo owner on a PAID plan is paying — telling them "your seat
@@ -248,6 +286,103 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
             </div>
           )}
         </section>
+
+        {/* ── SEATS PANEL (2026-07-22) — opened by "Manage seats". Renders in
+            place, directly beneath the card whose seat row summoned it, so the
+            operator keeps the plan in view while reading what it costs. */}
+        {panel === "seats" && (
+          <section className="border border-border rounded-xl p-5">
+            <SeatPanel
+              status={status}
+              seatPriceUsd={TIER_SEAT_PRICE_USD[tier]}
+              onClose={() => setPanel(null)}
+            />
+          </section>
+        )}
+
+        {/* ── PLAN PANEL (2026-07-22) — opened by "Manage plan". The verbs that
+            are OURS (what this workspace runs on) stay in-app; the one that is
+            genuinely the processor's (the payment instrument) is a labelled
+            link out. */}
+        {panel === "plan" && (
+          <section className="border border-border rounded-xl p-5 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-medium">Manage plan</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {TIER_LABEL[tier]} · {money(TIER_SEAT_PRICE_USD[tier])}/person per month
+                  {nextRefill && ` · renews ${new Date(nextRefill).toLocaleDateString([], { month: "short", day: "numeric" })}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPanel(null)}
+                aria-label="Close plan panel"
+                className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {cancelled ? (
+              // Cancellation is at PERIOD END, never immediate — so the
+              // confirmation names the date access actually stops. Saying
+              // "cancelled" alone would imply the workspace lost its allowance
+              // the moment it clicked, which is both wrong and alarming.
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 text-sm">
+                Plan cancelled. This workspace keeps its current plan until{" "}
+                <span className="font-medium">
+                  {new Date(cancelled).toLocaleDateString([], { month: "long", day: "numeric", year: "numeric" })}
+                </span>
+                , then returns to Free. Nothing is deleted.
+              </div>
+            ) : (
+              <div className="rounded-lg border border-border divide-y divide-border/60">
+                {/* The payment INSTRUMENT — the one thing the processor owns.
+                    Named for what it is, instead of a generic "Manage" that
+                    promised plan control and delivered a store page. */}
+                <button
+                  type="button"
+                  onClick={openPaymentMethods}
+                  disabled={isLoading}
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/40 disabled:opacity-60"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Payment method &amp; invoices</span>
+                  </span>
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+                </button>
+
+                {/* Cancel — ours, because it decides what the WORKSPACE runs on. */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!window.confirm(
+                      "Cancel this plan? The workspace keeps its current plan until the end of the billing period, then returns to Free. Your files and history are not affected.",
+                    )) return;
+                    const res = await cancel();
+                    if (res) setCancelled(res.ends_at ?? new Date().toISOString());
+                  }}
+                  disabled={isLoading}
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/40 disabled:opacity-60"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <CircleSlash className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Cancel plan</span>
+                  </span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">at period end</span>
+                </button>
+              </div>
+            )}
+
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Cancelling stops the subscription only. Your workspace, files, and
+              history stay exactly as they are — a Free workspace keeps everything
+              it made.
+            </p>
+          </section>
+        )}
 
         {/* ── BALANCE / USAGE (the reference's "Credits balance" — but OUR model:
             included-usage %, no credits, no dollars per ADR-396). ───────────── */}

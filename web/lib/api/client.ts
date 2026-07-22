@@ -20,6 +20,7 @@ import type {
   ByokStatus,
   CheckoutResponse,
   PortalResponse,
+  CancelResponse,
   Agent,
   AgentCreate,
   AgentUpdate,
@@ -932,7 +933,15 @@ export const api = {
         body: JSON.stringify({ checkout_type: "subscription", tier }),
       }),
 
+    // The LS customer portal. Scoped 2026-07-22 to what the processor genuinely
+    // owns — the payment INSTRUMENT (card on file, invoices, receipts). Plan
+    // lifecycle is in-app (`cancel` below + `createSubscription` above).
     getPortal: () => request<PortalResponse>("/api/subscription/portal"),
+
+    // Cancel the plan at period end (in-app; no portal bounce). Access runs to
+    // `ends_at`; the tier flips on the `subscription_expired` webhook, never here.
+    cancel: () =>
+      request<CancelResponse>("/api/subscription/cancel", { method: "POST" }),
   },
 
   // Admin endpoints (requires admin access)

@@ -161,6 +161,15 @@ export interface PortalResponse {
   portal_url: string;
 }
 
+/** Result of an in-app plan cancellation (2026-07-22). LS cancellation is
+ *  cancel-at-period-END: access runs to `ends_at` and the tier flips on the
+ *  `subscription_expired` webhook, so the surface must say WHEN it stops rather
+ *  than imply it already has. `ends_at` is null when LS returned no date. */
+export interface CancelResponse {
+  cancelled: boolean;
+  ends_at: string | null;
+}
+
 // =============================================================================
 // ADR-018: Recurring Agents
 // ADR-019: Agent Types System
