@@ -4,6 +4,19 @@
 > now properly block-grained)" ARRIVES — as property tokens in the Design tab's block/page scopes
 > (tokens-not-pixels; the free-geometry variant stays refused).
 
+> **Amended by [ADR-480](ADR-480-the-editing-grain-a-document-is-one-writing-surface.md)**
+> (2026-07-22): the editing **UNIT** becomes per-mode. On `paged` layouts (deck · page ·
+> canvas) this ADR is unchanged — one block editable at a time, `contenteditable` swapped
+> per block. On `flow` layouts (document · article) `contenteditable` sits on the **document
+> root**, so the member writes on one continuous surface and the browser supplies
+> cross-block selection, `⌘A`, multi-paragraph copy and native undo. **This ADR's write
+> contract is preserved exactly** — the edit still maps to the artifact's SOURCE (never the
+> projected DOM), citations are still `contentEditable=false` islands restored to their
+> living-reference form, the content is still sanitized, and it still lands as ONE debounced
+> operator-attributed CAS-guarded revision through the one door. What changes is the size of
+> the region an edit reports, plus a normalize-on-write pass (ADR-480 D3) that re-establishes
+> `data-block-id` identity after native splits and merges.
+
 > **Status**: **Accepted** (2026-07-12, operator-commissioned as a full re-approach of the
 > selection→chat-seed model). The operator's verdict: the seed-the-chat model is "only partially
 > right… we need to think closer to a webpage editor like Wix — select and edit ON SCREEN, IN

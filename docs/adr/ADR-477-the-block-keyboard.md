@@ -11,6 +11,15 @@
 > an existing verb, never a new op) · ADR-462 falsifiers 11 + 12 · ADR-466 D1
 > (three native editors over one grammar) · ADR-461 D4 (a page has a viewport —
 > no spatial keys on flow layouts).
+> **⚠️ SCOPED BY [ADR-480](ADR-480-the-editing-grain-a-document-is-one-writing-surface.md)
+> (2026-07-22)**: §1a's rule — *an empty block closes itself* — becomes **`paged`-only**.
+> It is not deleted; it is scoped to where blocks are still ENCLOSURES (deck · page ·
+> canvas), and there it stands exactly as shipped. On `flow` layouts (document · article)
+> `contenteditable` moves to the document root, so the browser owns emptying, merging and
+> splitting natively — the gap this ADR patched cannot occur there, because its cause
+> ("`contenteditable` has no concept of the block") no longer applies when the editable
+> field *is* the document. §1b (the verb-key guard asking whether the CARET has a claim)
+> is untouched and still governs both modes.
 
 ---
 
