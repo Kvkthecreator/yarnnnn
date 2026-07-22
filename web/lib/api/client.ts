@@ -749,6 +749,22 @@ export const api = {
         { method: "POST", body: JSON.stringify({ path }) }
       ),
 
+    // ADR-478: permanently delete ONE trashed file. Unrecoverable, owner-gated,
+    // refused if a live file cites it (409 with the dependents named).
+    permanentDelete: (path: string) =>
+      request<{ success: boolean; message: string; path: string; revisions: number; blobs: number }>(
+        "/api/documents/permanent-delete",
+        { method: "POST", body: JSON.stringify({ path }) }
+      ),
+
+    // ADR-478: empty the trash — permanently delete every archived file in reach.
+    // Cited files are skipped (not fatal) and reported back.
+    emptyTrash: () =>
+      request<{ success: boolean; message: string; deleted: number; skipped: string[] }>(
+        "/api/documents/trash/empty",
+        { method: "POST" }
+      ),
+
     // ADR-400 D2: move or rename an operator-owned file (both roots scoped).
     move: (path: string, newPath: string) =>
       request<{ success: boolean; path: string }>(

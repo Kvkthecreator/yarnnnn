@@ -18,7 +18,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -742,6 +742,129 @@ async def restore_document(body: RestoreRequest, auth: UserClient):
         lifecycle="active",
     )
     return {"success": True, "message": "Restored", "path": path}
+
+
+# =============================================================================
+# PERMANENT DELETE — ADR-478: the terminal step, unrecoverable-not-unremembered
+# =============================================================================
+# The second step of the delete verb. Trash (archive) is reversible; this is not.
+# Removes the deleted path's row + chain + content (blobs no other path cites),
+# preserves every OTHER file's ledger. Owner-grade (destroys shared content,
+# ADR-478 D4 = ADR-476 D2), archived-only, and refused if a live file cites the
+# path (ADR-478 D5 — the reference edge doing real work).
+
+
+def _require_permadelete_authority(user_id: str) -> Optional[str]:
+    """Owner-grade gate + the resolved workspace (ADR-478 D4). Returns the
+    workspace_id for scoping. N=1 (no workspace resolved) → the caller IS the
+    workspace, allowed — byte-identical to every solo operator today."""
+    from services.workspace_purge import resolve_purge_workspace
+    from services.principal_grants import has_workspace_clear_authority
+
+    ws = resolve_purge_workspace(user_id)
+    if ws and not has_workspace_clear_authority(user_id, ws):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Permanently deleting a file requires the workspace owner (or a "
+                "principal granted `workspace:clear`). This destroys shared "
+                "content and cannot be undone."
+            ),
+        )
+    return ws
+
+
+def _assert_archived_and_uncited(client: Any, user_id: str, ws: Optional[str], path: str) -> None:
+    """The two content guards: the file must be in trash, and nothing live may
+    cite it (ADR-478 D5). Raises 404 / 409 / 409 respectively."""
+    from services.workspace_purge import _purge_scope
+    from services.authored_substrate import list_dependents
+
+    row = _purge_scope(
+        client.table("workspace_files").select("lifecycle"), user_id, ws
+    ).eq("path", path).limit(1).execute().data
+    if not row:
+        raise HTTPException(status_code=404, detail="File not found")
+    if row[0].get("lifecycle") != "archived":
+        raise HTTPException(
+            status_code=409,
+            detail="Only files in the trash can be permanently deleted. Move it to trash first.",
+        )
+    # ADR-478 D5 — refuse if a LIVE file's head cites this path. list_dependents
+    # already excludes archived dependents, so a trashed file citing this one
+    # does not block.
+    deps = list_dependents(client, user_id=user_id, path=path, limit=5)
+    if deps:
+        names = ", ".join(d["path"].rsplit("/", 1)[-1] for d in deps[:5])
+        raise HTTPException(
+            status_code=409,
+            detail=f"Can't permanently delete — {len(deps)} file(s) were made from this: {names}. Delete or update those first.",
+        )
+
+
+class PermanentDeleteRequest(BaseModel):
+    path: str
+
+
+@router.post("/documents/permanent-delete")
+async def permanent_delete_document(body: PermanentDeleteRequest, auth: UserClient):
+    """Permanently delete ONE trashed file (ADR-478). Unrecoverable.
+
+    Owner-grade, archived-only, uncited-only. Removes the path's row + chain +
+    content; every other file's ledger is untouched.
+    """
+    from services.permanent_delete import permanently_delete_file
+
+    path = body.path if body.path.startswith("/") else "/" + body.path
+    if not operator_can_organize(path):
+        raise HTTPException(
+            status_code=403,
+            detail="This file is managed by the system and can't be deleted from here.",
+        )
+    ws = _require_permadelete_authority(auth.user_id)
+    service = get_service_client()
+    _assert_archived_and_uncited(service, auth.user_id, ws, path)
+    summary = permanently_delete_file(
+        service, user_id=auth.user_id, workspace_id=ws, path=path
+    )
+    return {"success": True, "message": "Permanently deleted", "path": path, **summary}
+
+
+@router.post("/documents/trash/empty")
+async def empty_trash(auth: UserClient):
+    """Empty the trash — permanently delete every archived file in the operator's
+    organize reach (ADR-478 D1). Unrecoverable.
+
+    Owner-grade. A file that a live file still cites is SKIPPED (not fatal — the
+    rest empty), and reported back so the operator knows what remained and why.
+    """
+    from services.permanent_delete import permanently_delete_file
+    from services.authored_substrate import list_dependents
+    from services.workspace_purge import _purge_scope
+
+    ws = _require_permadelete_authority(auth.user_id)
+    service = get_service_client()
+
+    archived = _purge_scope(
+        service.table("workspace_files").select("path"), auth.user_id, ws
+    ).eq("lifecycle", "archived").limit(500).execute().data or []
+
+    deleted = 0
+    skipped: List[str] = []
+    for row in archived:
+        path = row["path"]
+        if not operator_can_organize(path):
+            continue
+        if list_dependents(service, user_id=auth.user_id, path=path, limit=1):
+            skipped.append(path.rsplit("/", 1)[-1])
+            continue
+        permanently_delete_file(service, user_id=auth.user_id, workspace_id=ws, path=path)
+        deleted += 1
+
+    msg = f"Permanently deleted {deleted} file(s)"
+    if skipped:
+        msg += f"; {len(skipped)} kept (still referenced): {', '.join(skipped[:5])}"
+    return {"success": True, "message": msg, "deleted": deleted, "skipped": skipped}
 
 
 # =============================================================================
