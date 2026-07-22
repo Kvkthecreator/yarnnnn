@@ -46,7 +46,29 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { LogOut, Sun, Moon, Monitor, UserCircle, Columns2, LayoutGrid, Check, Briefcase, Wallet, Link2 } from 'lucide-react';
+// 2026-07-22 — icon vocabulary aligned to the reference account menu
+// (ChatGPT enterprise): a workspace is an ORG (Building2, not a Briefcase — a
+// briefcase reads "job/work", the row names an organization); membership is
+// managed with a people-plus (UserRoundPlus); the account door is a gear
+// (Settings) since it IS settings, freeing UserRound for the person; billing is
+// a card (CreditCard, not a Wallet — the row opens the billing pane). Each row
+// that opens another window carries a trailing ChevronRight, the reference's
+// "this leads somewhere" affordance.
+import {
+  LogOut,
+  Sun,
+  Moon,
+  Monitor,
+  Columns2,
+  LayoutGrid,
+  Check,
+  Building2,
+  UserRoundPlus,
+  CreditCard,
+  Link2,
+  Settings,
+  ChevronRight,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/api/client';
 import { setActiveWorkspace, clearActiveWorkspace } from '@/lib/api/client';
@@ -314,7 +336,7 @@ export function UserMenu({ email }: UserMenuProps) {
                   onClick={() => handleSwitchWorkspace(m)}
                   className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
                 >
-                  <Briefcase className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
                   <span className="flex-1 min-w-0">
                     <span className="block truncate">{m.label}</span>
                     <span className="block text-[11px] text-muted-foreground">
@@ -334,14 +356,21 @@ export function UserMenu({ email }: UserMenuProps) {
                   {m.is_active && <Check className="w-4 h-4 text-primary shrink-0" />}
                 </button>
               ))}
+              {/* 2026-07-22 — was a small text-only "Manage access →" link, the
+                  one row in the menu that broke the icon+label grammar. Promoted
+                  to a full row matching the reference's "Add teammates": a
+                  people-plus glyph, plain label, trailing chevron. Same handler,
+                  same destination (Members pane) — presentation only. */}
               <button
                 onClick={() => {
                   setIsOpen(false);
                   navigateToSurface('workspace-settings', { pane: 'members' });
                 }}
-                className="w-full px-3 py-1.5 text-left text-[11px] text-primary hover:bg-muted transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
               >
-                Manage access →
+                <UserRoundPlus className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="flex-1">Manage access</span>
+                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
               </button>
 
               {/* 2026-07-08 — Budget glance, re-homed from the retired top-bar
@@ -352,15 +381,21 @@ export function UserMenu({ email }: UserMenuProps) {
                 onClick={handleBudget}
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
               >
-                <Wallet className="w-4 h-4 text-muted-foreground shrink-0" />
+                <CreditCard className="w-4 h-4 text-muted-foreground shrink-0" />
                 <span className="flex-1 min-w-0">
-                  <span className="block">Budget</span>
+                  {/* 2026-07-22 — labelled "Billing", matching where it goes.
+                      The row has opened User Settings → Billing since
+                      2026-07-10, but kept the older "Budget" label + Wallet
+                      glyph from the retired top-bar chip — the label named a
+                      surface the click no longer reaches. */}
+                  <span className="block">Billing</span>
                   {usageMeter && tierLabel && (
                     <span className="block text-[11px] text-muted-foreground">
                       {tierLabel} · {usageMeter.percent}% used
                     </span>
                   )}
                 </span>
+                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
               </button>
 
               {/* Connectors — a plain link into the account door (ADR-425:
@@ -371,7 +406,8 @@ export function UserMenu({ email }: UserMenuProps) {
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
               >
                 <Link2 className="w-4 h-4 text-muted-foreground shrink-0" />
-                <span>Connectors</span>
+                <span className="flex-1">Connectors</span>
+                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
               </button>
             </div>
           )}
@@ -386,8 +422,12 @@ export function UserMenu({ email }: UserMenuProps) {
             onClick={handleAccount}
             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
           >
-            <UserCircle className="w-4 h-4 text-muted-foreground" />
-            <span>User Settings</span>
+            {/* 2026-07-22 — the gear, matching the reference's "Settings" row.
+                UserCircle duplicated the avatar trigger this menu hangs off; a
+                door labelled Settings wears a gear. */}
+            <Settings className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className="flex-1">User Settings</span>
+            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
           </button>
 
           <div className="border-t border-border my-1" />
