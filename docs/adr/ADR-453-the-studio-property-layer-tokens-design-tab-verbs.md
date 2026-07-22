@@ -1,5 +1,13 @@
 # ADR-453 — The Studio property layer: tokens-not-pixels, the Design tab, and the grain-aligned verbs
 
+> **Amended by [ADR-481](ADR-481-the-flow-chrome-rebuild-a-blank-document-is-a-blank-page.md) D1/D3**
+> (2026-07-22): D5's click-grain ladder loses the **slot** and **page** grains on `flow`
+> layouts — **by derivation, not by suppression**. ADR-466 P4 declined to remove them because
+> a document's `[data-arrange]` band was then the only re-arrangeable unit; ADR-481 D1 removes
+> the band (flow serves no arrangements), so there is nothing left for those grains to resolve
+> to. The ladder, the inspector scopes and the token model are otherwise unchanged, and every
+> grain survives in full on `paged`.
+
 > **Amended by ADR-455** (2026-07-13): the token registry gains the **document grain** —
 > `data-font` / `data-measure` on the artifact ROOT (the Notion page-menu affordances as
 > tokens); the kernel element bumps to **v2** (the D2 retrofit carries the new rules);

@@ -68,8 +68,13 @@ def run() -> bool:
            'data-tone="inverse"' in deck["closing"]["fragment"])
     _check("full-bleed's slot is media-role (the picker gates the add)",
            deck["full-bleed"]["slots"] == [{"name": "media", "role": "media"}])
-    _check("document rows: checklist-section/metrics-band",
-           {"checklist-section", "metrics-band"} <= set(STUDIO_ARRANGEMENTS["document"]))
+    # ADR-481 D1 (2026-07-22) RETIRED W1's document arrangements — a FLOWING
+    # document has no page-grain unit, and the registry serving rows for one is
+    # what produced the empty-slot void. The W1 pin flips from "these rows
+    # exist" to "flow serves NO arrangements"; the deck rows above are the
+    # surviving half of W1's arrangement work and still assert in full.
+    _check("ADR-481 D1: flow layouts serve NO arrangements (W1's document rows retired)",
+           "document" not in STUDIO_ARRANGEMENTS and "article" not in STUDIO_ARRANGEMENTS)
 
     # ── 3. The new tokens ────────────────────────────────────────────────
     _check("pad: page grain, presets (s/l) never pixels",

@@ -238,6 +238,51 @@ const POINTABLE =
 // POINTER_CSS, which derives the cursor:text rule from it.)
 const TEXT_KINDS_JS = JSON.stringify(['prose', 'callout', 'quote', 'checklist', 'toggle', 'heading']);
 
+// ── ADR-481 D2/D3: the FLOW pointer chrome ────────────────────────────────
+//
+// A from-scratch cue set for a continuous writing surface, derived from
+// ADR-480's axiom rather than inherited from the Notion benchmark. What the
+// paged sheet carries and this one deliberately does NOT:
+//
+//   • no [data-block]:hover outline — the caret and the I-beam already say
+//     where a click lands; boxing prose as the pointer travels re-asserts the
+//     enclosure ADR-480 dissolved (the operator's "mouse fights me")
+//   • no [data-slot] outline/label and no "+ Add here" — flow serves no
+//     arrangements (D1), so there is no slot
+//
+// What survives, because it still means something: a non-text OBJECT (figure,
+// table, chart, gallery, divider) is still an object — selectable, right-
+// clickable, addressable — so it keeps the neutral selection outline and the
+// pointer cursor. Text is pure caret territory.
+const FLOW_POINTER_CSS = `
+/* Text is caret territory — the I-beam is the honest cursor, no outline. */
+[data-block] { cursor: text; }
+/* Objects stay objects: pointer cursor + a quiet hover cue on the OBJECT
+   kinds only (never prose). These are the block kinds a click SELECTS
+   rather than places a caret in. */
+[data-block="figure"], [data-block="table"], [data-block="chart"],
+[data-block="gallery"], [data-block="metrics"], [data-block="divider"],
+[data-block="button"] { cursor: pointer; }
+[data-block="figure"]:hover, [data-block="table"]:hover, [data-block="chart"]:hover,
+[data-block="gallery"]:hover, [data-block="metrics"]:hover {
+  outline: 1px dashed rgba(120,115,107,0.4); outline-offset: 2px;
+}
+/* Selection stays NEUTRAL (ADR-462 D5) — a thin rule, never a saturated box. */
+.yarnnn-pointed {
+  outline: 1px solid rgba(60,58,54,0.5) !important; outline-offset: 2px;
+}
+/* ADR-481 D2 — the cold-start hint. CSS-only (:empty on the flow root, no
+   script, never serialized): an untouched document says how to reach the
+   palette, and the hint vanishes the moment anything is typed. The Notion/
+   Craft convention — one line, no persistent chrome. */
+main:empty::before, article:empty::before {
+  content: 'Type / for blocks, or just start writing';
+  color: rgba(120,115,107,0.55);
+  font: 400 1rem/1.6 system-ui, sans-serif;
+  pointer-events: none;
+}
+`;
+
 const POINTER_CSS = `
 /* The hover cue lights the CLICK GRAIN — the enclosing block, never the raw
    elements inside it (2026-07-21, the flow-mouse pass). The old rule outlined
@@ -2879,12 +2924,50 @@ export async function resolveArtifactHtml(
     });
   }
   await Promise.all(cited.map((el) => resolveOne(el, artifactPath)));
+  // ── ADR-481 D5: flatten legacy arrangements on FLOW, at projection ──────
+  // Existing flow artifacts carry the old scaffold's `<section data-arrange>`
+  // wrapping a `<div data-slot>` — which renders as a dead vertical void
+  // (the operator's screenshot). We do NOT migrate the substrate: rewriting
+  // live content to fix a chrome problem would manufacture revisions nobody
+  // authored (ADR-209). Instead the projection unwraps them, lifting children
+  // in document order. The SOURCE is untouched; because ADR-480's flow writes
+  // serialize what the member edited, a legacy artifact flattens PERMANENTLY
+  // on its next edit — migration by use, attributed to whoever actually typed.
+  //
+  // This re-parents, never rewrites: blocks, ids, citations and data-ref pins
+  // all survive. Paged projections are untouched (a slide IS its arrangement).
+  if (opts?.mode === 'flow') {
+    doc.querySelectorAll('[data-arrange]').forEach((section) => {
+      const parent = section.parentNode;
+      if (!parent) return;
+      // Slots are pure containers on flow — lift their children too, so a
+      // `<section data-arrange><div data-slot>…</div></section>` collapses in
+      // one pass rather than leaving an orphaned slot div behind.
+      section.querySelectorAll('[data-slot]').forEach((slot) => {
+        while (slot.firstChild) slot.parentNode?.insertBefore(slot.firstChild, slot);
+        slot.remove();
+      });
+      while (section.firstChild) parent.insertBefore(section.firstChild, section);
+      section.remove();
+    });
+  }
   if (opts?.pointer) {
     stripExecutable(doc);
     const style = doc.createElement('style');
     // DECK_STAGE_CSS self-gates on html[data-template="deck"] — harmless on
     // document/article, load-bearing on decks (fixes the narrow-column collapse).
-    style.textContent = DECK_STAGE_CSS + IMAGE_STAGE_CSS + POINTER_CSS + (opts?.edit ? EDIT_CSS : '');
+    // ADR-481 D3: POINTER_CSS's block-hover outline is PAGED-only — on a
+    // continuous writing surface the caret and the I-beam already say where a
+    // click lands, and boxing prose as the pointer travels re-asserts the
+    // enclosure ADR-480 dissolved. FLOW_POINTER_CSS keeps what still means
+    // something there: the neutral selection outline for non-text OBJECTS
+    // (figure/table/chart/gallery are still selectable, right-clickable,
+    // addressable) plus the D2 empty-state hint.
+    style.textContent =
+      DECK_STAGE_CSS +
+      IMAGE_STAGE_CSS +
+      (opts?.mode === 'flow' ? FLOW_POINTER_CSS : POINTER_CSS) +
+      (opts?.edit ? EDIT_CSS : '');
     doc.head?.appendChild(style);
     if (opts?.edit) {
       // The edit runtime is injected FIRST so window.__yarnnnEditingId is
@@ -2898,12 +2981,23 @@ export async function resolveArtifactHtml(
     doc.body?.appendChild(script);
     // ADR-447 Phase 4: empty-slot "+ Add here" (last — decorates the settled
     // DOM; its buttons are not [data-block], so pointer selection ignores them).
-    const addHere = doc.createElement('script');
-    addHere.textContent = ADD_HERE_SCRIPT;
-    doc.body?.appendChild(addHere);
-    if (opts?.edit) {
+    // ADR-481 D1: PAGED only — flow layouts serve no arrangements, so there is
+    // no slot to decorate (and the legacy flatten above removed any left over).
+    if (opts?.mode !== 'flow') {
+      const addHere = doc.createElement('script');
+      addHere.textContent = ADD_HERE_SCRIPT;
+      doc.body?.appendChild(addHere);
+    }
+    if (opts?.edit && opts?.mode !== 'flow') {
       // ADR-458: the hover gutter (after the pointer — it uses the pointer's
       // __yarnnnSelect + the edit runtime's __yarnnnEditingId).
+      //
+      // ADR-481 D2: NOT on flow. The gutter answers "insert HERE" — meaningful
+      // when blocks were enclosures with gaps between them, meaningless once
+      // the caret IS the insertion point (ADR-480). An affordance that points
+      // at a place answers a question a continuous surface never asks. Insert
+      // on flow is `/` at the caret and right-click — both already built, both
+      // better suited. This is a removal, not a replacement.
       const gutter = doc.createElement('script');
       gutter.textContent = GUTTER_SCRIPT;
       doc.body?.appendChild(gutter);

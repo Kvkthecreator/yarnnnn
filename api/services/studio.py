@@ -197,15 +197,16 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     section[data-block] { margin-top: 2rem; }
     section[data-block] h2 { font-size: var(--text-xl, 1.3rem); margin-bottom: 0.75rem; }
 """.strip("\n"),
+        # ADR-481 D1: FLAT. A blank document is a blank page — no arrangement
+        # wrapper, no empty slot. The old scaffold shipped a `title-lede`
+        # section around an empty `data-slot="main"`, which on a flowing
+        # document renders as a dead vertical void wearing an "+ Add here"
+        # and a gutter attached to nothing. A slot is a PAGED concept.
         "scaffold": """<main>
   <h1 data-block="heading" data-block-id="t1">Untitled document</h1>
   <p class="lede" data-block="heading" data-block-id="t2">One sentence on what this document is for.</p>
-  <section data-arrange="title-lede">
-    <h2 data-block="heading" data-block-id="t3">First section</h2>
-    <div data-slot="main">
-      <div data-block="prose" data-block-id="b1"><p>Start here.</p></div>
-    </div>
-  </section>
+  <h2 data-block="heading" data-block-id="t3">First section</h2>
+  <div data-block="prose" data-block-id="b1"><p>Start here.</p></div>
 </main>""",
     },
     "deck": {
@@ -273,17 +274,15 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
                      letter-spacing: 0.02em; }
     article [data-block="prose"] p { margin: 1rem 0; }
 """.strip("\n"),
+        # ADR-481 D1: FLAT (see the document scaffold above). The <header> is a
+        # flow container, not an arrangement — it stays.
         "scaffold": """<article>
   <header>
     <h1 data-block="heading" data-block-id="t1">Untitled article</h1>
     <p class="subtitle" data-block="heading" data-block-id="t2">The one-sentence promise to the reader.</p>
     <p class="byline" data-block="heading" data-block-id="t3">Byline · Date</p>
   </header>
-  <section data-arrange="section">
-    <div data-slot="main">
-      <div data-block="prose" data-block-id="b1"><p>Opening paragraph.</p></div>
-    </div>
-  </section>
+  <div data-block="prose" data-block-id="b1"><p>Opening paragraph.</p></div>
 </article>""",
     },
     # ADR-456 D4 (Wave 3): the fourth layout — the landing page. Full-width
@@ -476,89 +475,6 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
   <p class="kicker" data-block="heading" data-block-id="k1">Thank you</p>
   <h1 data-block="heading" data-block-id="t1">The closing line.</h1>
   <p data-block="heading" data-block-id="f1">Contact · next step</p>
-</section>""",
-        },
-    },
-    "document": {
-        "title-lede": {
-            "label": "Title + lede",
-            "description": "A title and one-line lede, then content.",
-            "grain": "page",
-            "slots": [{"name": "main", "role": "flow"}],
-            "fragment": """<section data-arrange="title-lede">
-  <h2 data-block="heading" data-block-id="t1">Section title</h2>
-  <p class="lede" data-block="heading" data-block-id="l1">One line on what this section is for.</p>
-  <div data-slot="main"></div>
-</section>""",
-        },
-        "two-column": {
-            "label": "Two column",
-            "description": "A heading over two side-by-side regions.",
-            "grain": "page",
-            "slots": [{"name": "main", "role": "flow"}, {"name": "side", "role": "flow"}],
-            "fragment": """<section data-arrange="two-column">
-  <h2 data-block="heading" data-block-id="t1">Section title</h2>
-  <div class="cols">
-    <div class="col" data-slot="main"></div>
-    <div class="col" data-slot="side"></div>
-  </div>
-</section>""",
-        },
-        # ADR-456 Wave 1 — the document rows.
-        "checklist-section": {
-            "label": "Checklist",
-            "description": "A heading over a list of items or steps.",
-            "grain": "page",
-            "slots": [{"name": "main", "role": "flow"}],
-            "fragment": """<section data-arrange="checklist-section">
-  <h2 data-block="heading" data-block-id="t1">Section title</h2>
-  <div data-slot="main">
-    <ul data-block="checklist" data-block-id="b1"><li>First item</li><li>Second item</li></ul>
-  </div>
-</section>""",
-        },
-        "metrics-band": {
-            "label": "Metrics",
-            "description": "A heading over a row of headline numbers.",
-            "grain": "page",
-            "slots": [{"name": "main", "role": "flow"}],
-            "fragment": """<section data-arrange="metrics-band">
-  <h2 data-block="heading" data-block-id="t1">Section title</h2>
-  <div data-slot="main">
-    <div data-block="metrics" data-block-id="b1"><div class="metric"><strong>42%</strong><span>label</span></div></div>
-  </div>
-</section>""",
-        },
-    },
-    "article": {
-        "section": {
-            "label": "Section",
-            "description": "A subheading and flowing prose.",
-            "grain": "page",
-            "slots": [{"name": "main", "role": "flow"}],
-            "fragment": """<section data-arrange="section">
-  <h2 data-block="heading" data-block-id="t1">Section heading</h2>
-  <div data-slot="main"></div>
-</section>""",
-        },
-        "pull-quote": {
-            "label": "Pull quote",
-            "description": "A prose region with an offset pull quote aside.",
-            "grain": "page",
-            "slots": [{"name": "main", "role": "flow"}],
-            "fragment": """<section data-arrange="pull-quote">
-  <blockquote data-block="quote" data-block-id="q1"><p>The line worth pulling.</p></blockquote>
-  <div data-slot="main"></div>
-</section>""",
-        },
-        "lead-image": {
-            "label": "Lead image",
-            "description": "A cited image leading into prose.",
-            "grain": "page",
-            "slots": [{"name": "media", "role": "media"}, {"name": "main", "role": "flow"}],
-            "fragment": """<section data-arrange="lead-image">
-  <div data-slot="media"></div>
-  <div data-slot="main"></div>
 </section>""",
         },
     },

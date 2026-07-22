@@ -179,6 +179,13 @@ instance.
 
 ### D5 — On flow, right-click LEADS; the gutter recedes to insert
 
+> **⚠️ SHIPPED HALF; COMPLETED BY [ADR-481](ADR-481-the-flow-chrome-rebuild-a-blank-document-is-a-blank-page.md) D2**
+> (2026-07-22). This ADR's implementation gated the KEYBOARD simulation (split / merge /
+> traversal) on flow and left the VISUAL chrome untouched — so the gutter kept floating in the
+> document, and the operator's first click pass caught it. ADR-481 finishes the thought and
+> goes further than "recede": on flow the gutter is **deleted**, because the caret IS the
+> insertion point. The hover outline over prose retires with it.
+
 Format changes (turn-into, duplicate, move, delete) reach for the **right-click menu**
 (already built — ADR-462, `StudioBlockMenu`) and the **inline format bar** (already built —
 ADR-456 W2). The hover gutter stays for **insert** (`+` / slash) and loses its role as the

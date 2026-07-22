@@ -143,8 +143,12 @@ def run() -> bool:
 
     # ── 7. ADR-444/447: the mechanical layer + arrangements ──────────────
     from services.studio import STUDIO_ARRANGEMENTS
-    _check("arrangements registry keyed by layout",
-           set(STUDIO_ARRANGEMENTS) == set(STUDIO_LAYOUTS))
+    # ADR-481 D1 (2026-07-22): the registry is keyed by the layouts that HAVE a
+    # page-grain unit — the `paged` ones. Flow layouts (document/article) serve
+    # none, so this is a subset relation now, not equality.
+    _check("arrangements registry keyed by PAGED layouts (ADR-481 D1)",
+           set(STUDIO_ARRANGEMENTS)
+           == {s for s, v in STUDIO_LAYOUTS.items() if v["mode"] == "paged"})
     _check("deck ships its page arrangements",
            {"title", "content", "two-column", "quote"} <= set(STUDIO_ARRANGEMENTS["deck"]))
     _check("arrangement fragments carry data-arrange + slots + grain metadata",
@@ -230,10 +234,13 @@ def run() -> bool:
 
     # ── 9. ADR-447: the arrangement layer (composition, per-type) ────────
     from services.studio import _arrangements_grammar
-    _check("every layout has page arrangements (document/article filled)",
-           all(len(STUDIO_ARRANGEMENTS[t]) >= 1 for t in STUDIO_LAYOUTS)
-           and len(STUDIO_ARRANGEMENTS["document"]) >= 1
-           and len(STUDIO_ARRANGEMENTS["article"]) >= 1)
+    # ADR-481 D1: every PAGED layout has page arrangements; flow layouts have
+    # none by design (a flowing document has no page-grain unit).
+    _check("every PAGED layout has page arrangements (ADR-481 D1)",
+           all(len(STUDIO_ARRANGEMENTS[t]) >= 1
+               for t, v in STUDIO_LAYOUTS.items() if v["mode"] == "paged")
+           and not any(t in STUDIO_ARRANGEMENTS
+                       for t, v in STUDIO_LAYOUTS.items() if v["mode"] == "flow"))
     _check("arrangement slots carry name + role (flow vs heading)",
            all("name" in s and "role" in s
                for arr in STUDIO_ARRANGEMENTS.values()

@@ -1,5 +1,14 @@
 # ADR-458 — The Studio hover layer and the one settings home
 
+> **Amended by [ADR-481](ADR-481-the-flow-chrome-rebuild-a-blank-document-is-a-blank-page.md) D2**
+> (2026-07-22): the hover gutter is **`paged`-only** — on `flow` layouts it is DELETED, not
+> hidden. The gutter answers *"insert **here**"*, which was meaningful when blocks were
+> enclosures with gaps between them and became meaningless once ADR-480 made the caret the
+> insertion point: an affordance that points at a place answers a question a continuous
+> writing surface never asks. Insert on flow is `/` at the caret + right-click (ADR-456 W2 +
+> ADR-462), both already built. The gutter's row-geometry work (`rowAt`, the 64px lane) is
+> untouched and still governs every `paged` surface.
+
 > **Status**: **Accepted** (2026-07-14, operator-ratified — "aligned in proceed" — from the
 > Notion-screenshot interaction discourse). Ships in one commit; in-frame block DRAG rides the new
 > handle as a named follow-on; the slash-anywhere refactor stays the post-stabilization item

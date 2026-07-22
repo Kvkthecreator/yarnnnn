@@ -122,10 +122,15 @@ def run() -> bool:
 
     # ── 3. The interaction contract (D5) ─────────────────────────────────
     deck = STUDIO_ARRANGEMENTS["deck"]
+    # ADR-481 D1 (2026-07-22): article's `lead-image` retired with every other
+    # flow arrangement. The media ROLE — what this check is actually about — is
+    # unchanged, carried by the deck's two media rows (picture-with-caption +
+    # the W1 full-bleed). Verified against the registry: `page`'s band family is
+    # heading/flow only, so deck is where the role lives.
     _check(
-        "the media role exists (picture-with-caption + lead-image)",
+        "the media role exists (picture-with-caption + full-bleed)",
         any(s["role"] == "media" for s in deck["picture-with-caption"]["slots"])
-        and any(s["role"] == "media" for s in STUDIO_ARRANGEMENTS["article"]["lead-image"]["slots"]),
+        and any(s["role"] == "media" for s in deck["full-bleed"]["slots"]),
     )
     _check(
         "section-header ships the first token use (data-tone)",

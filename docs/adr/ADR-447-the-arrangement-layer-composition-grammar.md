@@ -1,5 +1,15 @@
 # ADR-447 — The arrangement layer: composition as a first-class, per-type, nested grammar
 
+> **Amended by [ADR-481](ADR-481-the-flow-chrome-rebuild-a-blank-document-is-a-blank-page.md) D1**
+> (2026-07-22): arrangements become **`paged`-only**. The registry's `document` and `article`
+> rows are DELETED and their scaffolds go flat. The grammar below is unchanged wherever a
+> page-grain unit actually exists (`deck`, `page`) — what ADR-481 denies is that a FLOWING
+> document has such a unit. Evidence: across all 4 live flow artifacts every arrangement was
+> the scaffold's own and **zero** were member-authored, while the scaffold's own
+> `<section data-arrange>` wrapping an empty `<div data-slot>` rendered as a dead vertical
+> void (a slot is a PowerPoint placeholder / Wix band region — a paged concept). Two columns
+> inside a document would be a **block kind**, not a page arrangement.
+
 > **Amended by ADR-455** (2026-07-13): the D7.2 navigator becomes **collapsible** (toolbar
 > toggle) and the document/article outline becomes **navigational** (click a heading → select
 > its block + scroll the canvas, via the D7.7 scroll bridge generalized to
