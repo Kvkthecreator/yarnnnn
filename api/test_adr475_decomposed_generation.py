@@ -101,6 +101,12 @@ def run() -> bool:
     def _fake_write(_db, *, user_id, path, content=None, content_bytes=None,
                     authored_by, message, **kw):
         writes.append({
+            # WHICH CLIENT reached the write. The pre-2026-07-21 gate ignored
+            # this and passed 43/43 against code that 403'd in production on
+            # every binary leaf: a binary revision uploads to the PRIVATE
+            # `workspace-cas` bucket and a member JWT is refused there. The
+            # client is now part of the assertion surface.
+            "client": _db,
             "path": path, "author": authored_by, "message": message,
             "is_binary": content_bytes is not None,
             "content": content, "content_type": kw.get("content_type"),
@@ -112,6 +118,31 @@ def run() -> bool:
         return f"rev-{len(writes):03d}"
 
     sub.write_revision = _fake_write
+
+    # The SERVICE client — a distinct sentinel object, so "which client did
+    # this write use?" is answerable by identity rather than by inspection.
+    class _ServiceClient:
+        """Stands in for get_service_client(). Identity is the whole point."""
+
+    service_client = _ServiceClient()
+
+    import services.supabase as _supa
+
+    _supa.get_service_client = lambda: service_client
+
+    # The metering ledger, recorded the same way and for the same reason: the
+    # live smoke lost $0.16 of rented generation to `42501 new row violates
+    # row-level security policy` because this call site passed the member's
+    # client to a service-role-only table.
+    ledger: list[dict] = []
+
+    import services.telemetry as _tel
+
+    def _fake_ledger(_client, **kw):
+        ledger.append({"client": _client, **kw})
+        return "evt-1"
+
+    _tel.record_execution_event = _fake_ledger
 
     import routes.images as ri
 
@@ -182,6 +213,37 @@ def run() -> bool:
            bool(re.search(r'<h1[^>]*data-role="headline"[^>]*>[^<]+</h1>', inner)))
     _check("a CSS-expressible surface rents NOTHING (the routing rule)",
            'data-surface="css"' in inner)
+
+    # ── 4b. THE GROUND (ADR-475 §12, found by the first live ad) ─────────
+    from services.images.compose import _ground_of
+    from services.images.decompose import _coerce
+
+    # The exact failure: a dark full-bleed background with light-page ink →
+    # dark-on-dark, every layer placed perfectly and unreadable.
+    dark = _coerce([{"role": "bg", "kind": "surface",
+                     "style": "background:#0A0A0F", "x": 0, "y": 0, "w": 100, "h": 100}])
+    _check("a dark full-bleed surface derives ground='dark' (luminance, not a list)",
+           _ground_of(dark) == "dark")
+    _check("a light full-bleed surface stays light (absence = light default)",
+           _ground_of(_coerce([{"role": "bg", "kind": "surface",
+                                "style": "background:#ffffff", "x": 0, "y": 0,
+                                "w": 100, "h": 100}])) == "")
+    _check("a small dark SHAPE is an object, not the ground (full-bleed only)",
+           _ground_of(_coerce([{"role": "chip", "kind": "surface",
+                                "style": "background:#000", "x": 10, "y": 10,
+                                "w": 20, "h": 8}])) == "")
+    _check("an EXPLICIT ground declaration beats the luminance guess",
+           _ground_of(_coerce([{"role": "bg", "kind": "surface", "ground": "dark",
+                                "style": "background:#ffffff", "x": 0, "y": 0,
+                                "w": 100, "h": 100}])) == "dark")
+
+    # The structural bug the replay caught: my ground edit fused the subject-
+    # prompt guard into an `else`, so a surface with no `ground` token fell
+    # through the subject branch and was DROPPED. A surface must survive
+    # regardless of ground.
+    _check("a surface with NO ground token still survives _coerce (the fused-else bug)",
+           len(_coerce([{"role": "d", "kind": "surface", "style": "background:#7C6DFA",
+                         "x": 10, "y": 38, "w": 18, "h": 1}])) == 1)
 
     # ── 5. THE FRAME SURVIVES (composition replaces contents, not the stage) ──
     _check("the stage's real dimensions survive composition (ADR-472 D3)",
@@ -257,6 +319,59 @@ def run() -> bool:
     except Exception as exc:  # noqa: BLE001
         _check("composing outside the artifact region is refused (403)",
                getattr(exc, "status_code", 0) == 403)
+
+    # ── 9b. THE PRIVILEGED-CLIENT BOUNDARY (the 2026-07-21 live smoke) ───
+    # Two writes structurally require the SERVICE client. Both were shipped
+    # with the member's client, both 403'd in production, and the gate was
+    # green throughout because it asserted markup shape against a fake DB.
+    # These checks are the ones that would have caught it.
+    binary_writes = [wr for wr in writes if wr["is_binary"]]
+    _check(
+        "the binary LEAF is written with the SERVICE client — a member JWT is "
+        "403'd by the private workspace-cas bucket (ADR-427 D4)",
+        bool(binary_writes) and all(wr["client"] is service_client for wr in binary_writes),
+    )
+    stage_writes = [wr for wr in writes if not wr["is_binary"]]
+    _check(
+        "…while the STAGE keeps the member's client (their revision, their grant)",
+        bool(stage_writes) and all(wr["client"] is not service_client for wr in stage_writes),
+    )
+
+    # The ledger only fires on a COSTED call, so exercise a priced backend.
+    from services.images.generate import GenerationBackend, get_backend, set_backend
+
+    class _CostedBackend(GenerationBackend):
+        name = "costed"
+
+        def generate(self, *, prompt, width, height, cutout=False):
+            return {"data": b"\x89PNG\r\n\x1a\nx", "content_type": "image/png",
+                    "model": "test-engine", "prompt": prompt, "cost_usd": 0.08}
+
+    # First establish the FREE case honestly: the stub run above generated a
+    # leaf and must have ledgered nothing (zero-cost rows are noise, not
+    # honesty). Asserted from the ledger as it stands, before the costed run.
+    free_ledger_rows = len(ledger)
+
+    prior_backend = get_backend()
+    set_backend(_CostedBackend())
+    ledger.clear()
+    writes.clear()
+    store[path] = {"path": path, "content": stage_html}  # reset to the scaffold
+    asyncio.run(ri.compose(ri.ComposeRequest(path=path, brief="a serum bottle"), auth))
+    set_backend(prior_backend)
+
+    _check("a COSTED generation writes a ledger row (ADR-396 one meter)", len(ledger) == 1)
+    _check(
+        "…with the SERVICE client — execution_events is service-role-only "
+        "(RLS 42501; the live smoke lost $0.16 of unrecorded spend here)",
+        bool(ledger) and ledger[0]["client"] is service_client,
+    )
+    _check("…carrying the real per-call cost, not a token estimate",
+           bool(ledger) and ledger[0].get("cost_override_usd") == 0.08)
+    _check("…attributed to the principal who asked (ADR-373/445)",
+           bool(ledger) and ledger[0].get("principal_id"))
+    _check("a FREE (stub) generation ledgers NOTHING — zero-cost rows are noise",
+           free_ledger_rows == 0)
 
     # ── 10. RENDER-TO-RASTER: the PNG is a DERIVATION, not an export ─────
     from services.images.render import RenderBackend, raster_path, set_render_backend
