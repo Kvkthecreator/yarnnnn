@@ -2616,6 +2616,31 @@ const GUTTER_SCRIPT = `
     }
   });
 
+  // ── Undo / Redo (⌘Z / ⌘⇧Z) ───────────────────────────────────────────────
+  //
+  // Unlike the verb keys above, undo is NOT scoped to a selected block — it
+  // reverses the LAST edit whether or not anything is selected, so it gets its
+  // own top-level listener instead of extending the selected-block handler
+  // (which returns early on no selection). The parent owns the snapshot stack
+  // (one HTML string per whole op); the runtime only hears the key and asks.
+  //
+  // The one guard is the same as ⌘C/⌘V above: when a text caret is LIVE, undo
+  // belongs to the platform — the browser's native contentEditable stack
+  // rewinds the member's typing, keystroke by keystroke, better than we could.
+  // Our stack takes over the moment the caret leaves (edits commit on blur as
+  // whole ops). So: caret live → let it through; no caret → claim it.
+  document.addEventListener('keydown', function (e) {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    if ((e.key || '').toLowerCase() !== 'z') return;
+    // A live caret owns its own undo — don't steal the native text stack.
+    if (window.__yarnnnEditingId && window.__yarnnnEditingId() != null) return;
+    var t = e.target;
+    // Injected chrome (gutter/format bar) is never an undo subject.
+    if (t && t.closest && (t.closest('.yarnnn-gutter') || t.closest('.yarnnn-fmt'))) return;
+    e.preventDefault();
+    parent.postMessage({ type: e.shiftKey ? 'yarnnn-redo' : 'yarnnn-undo' }, '*');
+  });
+
   function syncBox() {
     // P11 (operator read of P10 — the PowerPoint convention): the box
     // PERSISTS through text editing. The handles stay reachable while the

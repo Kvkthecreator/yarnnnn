@@ -141,9 +141,16 @@ def main() -> bool:
         ),
     )
     _check(
-        "no undo shortcut is advertised while revert-as-write is unbuilt "
-        "(shipping ⌘Z before History would repeat the D10 defect exactly)",
-        "⌘Z" not in menu,
+        # ⌘Z now SHIPS (StudioSurface undo/redo — a session-local stack of
+        # whole-op HTML snapshots replayed through the ONE write door as normal
+        # CAS revisions; that IS revert-as-write). The invariant this line
+        # protects is unchanged and still real: the shortcut lives in the
+        # runtime with a live handler, NOT as a dead menu-row hint — advertising
+        # a ⌘Z the menu doesn't listen for would be the D10 defect. So the menu
+        # still carries no ⌘Z row; the key works from the canvas.
+        "⌘Z is not a dead menu hint — it ships as a listened-for runtime key, "
+        "not a menu row (a menu row with no handler would be the D10 defect)",
+        "⌘Z" not in menu and "yarnnn-undo" in proj,
     )
 
     print()

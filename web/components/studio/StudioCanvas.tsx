@@ -119,6 +119,10 @@ interface StudioCanvasProps {
    *  sandboxed iframe — keys land in its document or nowhere — so the runtime
    *  hears them and posts an existing verb out. Never a new op. */
   onKeyVerb?: (verb: 'copy' | 'paste' | 'duplicate' | 'delete', blockId: string) => void;
+  /** ⌘Z / ⌘⇧Z from the runtime (fired only when no text caret is live — see
+   *  projection.ts). The parent owns the snapshot stack; these just ask. */
+  onUndo?: () => void;
+  onRedo?: () => void;
   /** ADR-461 D3: the member dragged the column divider to a STOP. `value` is
    *  the ratio token's value, or null for the even default (which is written
    *  by CLEARING the attribute — 1-1 is the absence, not a third value). */
@@ -207,6 +211,8 @@ export function StudioCanvas({
   onGeometry,
   onContextMenu,
   onKeyVerb,
+  onUndo,
+  onRedo,
   onSplitBlock,
   onMergeBlock,
   onAddHere,
@@ -415,6 +421,10 @@ export function StudioCanvas({
         });
       } else if (d.type === 'yarnnn-key-verb' && typeof d.blockId === 'string') {
         onKeyVerb?.(d.verb as 'copy' | 'paste' | 'duplicate' | 'delete', d.blockId);
+      } else if (d.type === 'yarnnn-undo') {
+        onUndo?.();
+      } else if (d.type === 'yarnnn-redo') {
+        onRedo?.();
       } else if (d.type === 'yarnnn-context-menu' && typeof d.x === 'number') {
         // The runtime reports the pointer's iframe-VIEWPORT coordinates
         // (e.clientX/Y). The menu draws in the parent page, so we offset by the
@@ -484,7 +494,7 @@ export function StudioCanvas({
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [onPoint, onPointClear, onEdit, onEditExited, onEditEntered, onEnterBlock, onReorder, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen, onSlashFilter, onSlashClose, onSlashMove, onSlashEnter, onSlashTaken]);
+  }, [onPoint, onPointClear, onEdit, onEditExited, onEditEntered, onEnterBlock, onReorder, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen, onSlashFilter, onSlashClose, onSlashMove, onSlashEnter, onSlashTaken, onKeyVerb, onGeometry, onRatio, onContextMenu, onUndo, onRedo]);
 
   return (
     <iframe

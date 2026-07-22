@@ -605,6 +605,29 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // html from the previous RESULT via liveRef.
   const writeTail = useRef<Promise<boolean>>(Promise.resolve(true));
 
+  // ── Undo / redo (⌘Z / ⌘⇧Z) — a session-local stack of whole-op HTML
+  // snapshots. Because the whole document IS one HTML string and block ids are
+  // stable within it (artifactOps discipline: ids are never renumbered), a
+  // prior state is reconstructed by swapping its string back in — no revision
+  // round-trip, no tree diff. `writeAndAdvance` is the single door every op
+  // passes through, so it is where snapshots are captured.
+  //
+  // Model (the ratified choices): whole ops one at a time (text edits already
+  // batch to one op on blur); session-scoped, cleared on any FOREIGN write to
+  // this file — you cannot undo across a conflict you did not make. An undo is
+  // itself a normal op (a full-content replace back through the door), so it is
+  // durable + CAS-safe like any other; the flag below just stops it re-pushing
+  // its own snapshot and clearing the redo branch it is walking.
+  const undoStack = useRef<string[]>([]);
+  const redoStack = useRef<string[]>([]);
+  const replaying = useRef(false);
+  useEffect(() => {
+    // A path change or foreign reload starts a fresh history — the same signal
+    // that drops the override (below), for the same reason.
+    undoStack.current = [];
+    redoStack.current = [];
+  }, [artifactPath, reloadKey]);
+
   const writeAndAdvance = useCallback(
     (
       compute: (liveHtml: string) => string | null,
@@ -623,6 +646,16 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const live = liveRef.current;
       const computed = compute(live?.content ?? '');
       if (computed == null) return Promise.resolve(false); // no-op against live state
+      // Snapshot the PRE-mutation content for undo (a whole op = one entry).
+      // Skipped while replaying: an undo/redo must not push its own before-state
+      // (that would make ⌘Z a no-op toggle) — replaying manages the stacks
+      // itself. A fresh forward edit invalidates the redo branch, as every
+      // editor does. Cap the depth so a long session can't grow unbounded.
+      if (!replaying.current && live) {
+        undoStack.current.push(live.content);
+        if (undoStack.current.length > 100) undoStack.current.shift();
+        redoStack.current = [];
+      }
       // ADR-453 D2: the kernel element retrofits on first touch, at the one
       // member write door. Byte-identical when current — never manufactures a
       // revision on its own.
@@ -708,6 +741,33 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     },
     [artifactPath, loadedFile],
   );
+
+  // ⌘Z — restore the previous snapshot; ⌘⇧Z — re-apply the one just undone.
+  // Both replay a captured HTML string through the ONE write door as a full
+  // replace, so the restore is a normal CAS-safe revision and the canvas
+  // re-projects (reload=true — the DOM shape may have changed). `replaying`
+  // stops the door from pushing the replayed before-state back onto the stack.
+  const handleUndo = useCallback(() => {
+    const prev = undoStack.current.pop();
+    if (prev == null) return; // nothing to undo — quiet no-op
+    const current = liveRef.current?.content ?? '';
+    redoStack.current.push(current);
+    replaying.current = true;
+    void writeAndAdvance(() => prev, 'Studio: undo', true).finally(() => {
+      replaying.current = false;
+    });
+  }, [writeAndAdvance]);
+
+  const handleRedo = useCallback(() => {
+    const nextState = redoStack.current.pop();
+    if (nextState == null) return;
+    const current = liveRef.current?.content ?? '';
+    undoStack.current.push(current);
+    replaying.current = true;
+    void writeAndAdvance(() => nextState, 'Studio: redo', true).finally(() => {
+      replaying.current = false;
+    });
+  }, [writeAndAdvance]);
 
   const applyOp = useCallback(
     async (compute: (html: string) => OpResult | null, message: string) => {
@@ -1960,6 +2020,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 onGeometry={handleGeometry}
                 onContextMenu={setCtxMenu}
                 onKeyVerb={handleKeyVerb}
+                onUndo={handleUndo}
+                onRedo={handleRedo}
                 onSplitBlock={handleSplitBlock}
                 onMergeBlock={handleMergeBlock}
                 onAddHere={onAddHere}
