@@ -196,13 +196,26 @@ def test_kernel_surfaces_module() -> None:
             f"is canonical",
         )
 
-    # Single default pin (ADR-297 D5). ADR-415 (2026-07-08): the Channels
-    # surface dissolved and handed its pin to Home — the composition front page
-    # + the fixed dock anchor. Coherent with DEFAULT_KEPT_SURFACES=['home'].
-    pinned_by_default = [s["slug"] for s in KERNEL_SURFACES if s["default_pinned"]]
+    # Default dock pins. History: ADR-297 D5 asserted a SINGLE pin; ADR-415
+    # handed it to Home. This assertion then went STALE — ADR-435 deleted the
+    # Home surface, so `== ["home"]` could never hold again and the gate has
+    # been failing on this line ever since (it was red, not green, before
+    # 2026-07-22).
+    #
+    # Live contract (2026-07-22): the FIVE primary apps ship in the Dock, and
+    # the pinned set must equal the primary tier exactly — the invariant worth
+    # gating is not "how many" but the COHERENCE of the two fields: a primary
+    # app the operator never sees is invisible product, and a pinned surface
+    # that isn't primary is a Dock icon with no launcher home. Order is the
+    # frontend's (DEFAULT_KEPT_SURFACES), so compare as sets.
+    pinned_by_default = {s["slug"] for s in KERNEL_SURFACES if s["default_pinned"]}
+    primary_tier = {
+        s["slug"] for s in KERNEL_SURFACES if s.get("launcher_tier") == "primary"
+    }
     _assert(
-        pinned_by_default == ["home"],
-        f"Only Home is default_pinned (found: {pinned_by_default})",
+        pinned_by_default == primary_tier,
+        f"default_pinned == the primary tier (pinned={sorted(pinned_by_default)}, "
+        f"primary={sorted(primary_tier)})",
     )
 
     # Two-register coherence (ADR-309; cleaved by ADR-312 D5). Every

@@ -265,7 +265,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "archetype": "document",
         "substrate_paths": [],  # artifacts are meaning-placed; no app namespace
         "icon_key": "palette",
-        "default_pinned": False,
+        "default_pinned": True,  # 2026-07-22 — the five primary apps ship in the Dock
+        # (see the DOCK DEFAULTS note below the registry).
         "route": "/studio",
         "summary": "Author documents, decks, and articles as living artifacts: a model-pinned lane drafts and patches the file while the canvas re-renders it — every citation a live workspace reference, every edit an attributed revision.",
     },
@@ -289,7 +290,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "archetype": "document",
         "substrate_paths": [],  # compositions are meaning-placed, like artifacts
         "icon_key": "image",
-        "default_pinned": False,
+        "default_pinned": True,  # 2026-07-22 — the five primary apps ship in the Dock
+        # (see the DOCK DEFAULTS note below the registry).
         "route": "/images",
         "summary": "Compose visuals on a sized stage — layered objects, positioned and stacked. The composition is the source and the rendered image is a derivation of it, so every export stays traceable to the stage, the citations, and the revision that produced it.",
     },
@@ -563,7 +565,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "archetype": "browser",
         "substrate_paths": [],  # All paths under workspace_files
         "icon_key": "folder",
-        "default_pinned": False,
+        "default_pinned": True,  # 2026-07-22 — the five primary apps ship in the Dock
+        # (see the DOCK DEFAULTS note below the registry).
         "route": "/files",  # _route_status: EXISTING — slug/route/label all coherent (legacy /context is a redirect stub)
         "summary": "Raw substrate browser — every file in the workspace, with revision history.",
     },
@@ -607,7 +610,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # until 2026-07-16 (named the wrong noun) → `sparkles` (too abstract,
         # broke the family) → `users-round` (2026-07-20).
         "icon_key": "users-round",
-        "default_pinned": False,
+        "default_pinned": True,  # 2026-07-22 — the five primary apps ship in the Dock
+        # (see the DOCK DEFAULTS note below the registry).
         "route": "/agents",  # _route_status: EXISTING — hired-agent detail + roster live here
         # Summary rewritten 2026-07-16 with the re-surface: the old line described
         # the A3-deferred world the comment above just inverted ("hired Altitude-3

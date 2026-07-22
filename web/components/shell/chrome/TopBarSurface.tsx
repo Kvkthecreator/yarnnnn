@@ -55,7 +55,7 @@
  *   - Kept + Not-Open   — Open / Remove from Dock
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { LayoutGrid } from 'lucide-react';
 import { useComposition } from '@/lib/compositor/useComposition';
@@ -70,6 +70,25 @@ import { AttentionCenter } from '../AttentionCenter';
 import { useShellChrome } from '../ShellChromeContext';
 import type { Surface } from '@/lib/compositor/types';
 import { cn } from '@/lib/utils';
+
+// 2026-07-22 — the Dock's semantic BANDS. The five primary apps are not five
+// peers: they are three acts (matching DEFAULT_KEPT_SURFACES' order + the
+// ADR-457 Think/Make verbs).
+//
+//     Chat  │  Studio  Images  │  Files  Agents
+//     think    <--- make --->     <-- the record -->
+//
+// Used ONLY to decide where a divider falls between two adjacent kept icons
+// (see the kept-segment render). Presentation, not routing: a slug absent from
+// this map simply never starts a band, so a program-shipped or
+// operator-kept surface degrades cleanly rather than needing an entry.
+const DOCK_BAND: Record<string, string> = {
+  chat: 'think',
+  studio: 'make',
+  images: 'make',
+  files: 'record',
+  agents: 'record',
+};
 
 export function TopBarSurface() {
   const router = useRouter();
@@ -113,22 +132,25 @@ export function TopBarSurface() {
     return map;
   }, [composition.surfaces]);
 
-  // Home is the fixed anchor slot (2026-06-04). It renders as a
-  // dedicated, un-releasable Dock entry pinned immediately after the
-  // Launcher — the macOS Finder analog (always-leftmost, can't be
-  // removed). Per ADR-312 the Home is the most important content surface
-  // (the operation, rendered); it earns a permanent one-tap affordance
-  // on every screen size, independent of the mutable kept/open registry.
-  // It is excluded from the kept/open segments below so it never
-  // double-renders.
-  const HOME_SLUG = 'home';
-  const homeSurface = surfaceBySlug.get(HOME_SLUG) ?? null;
+  // 2026-07-22 — the fixed HOME ANCHOR slot is DELETED (dead code since
+  // ADR-435). It reserved a permanent, un-releasable Dock entry for
+  // `slug: 'home'`, but ADR-435 deleted that surface from the registry and the
+  // slug union, so `surfaceBySlug.get('home')` has returned undefined ever
+  // since: renderHomeAnchor could never fire, and three filters excluded a slug
+  // that cannot appear. The Dock has had no anchor at all.
+  //
+  // Not re-pointed at another slug. Chat is now the first entry of the default
+  // kept set (DEFAULT_KEPT_SURFACES), so it already renders leftmost through
+  // the ordinary kept segment — a second, parallel render path for one icon
+  // would be exactly the duplicate-door shape ADR-385 warned about. The
+  // permanence Chat loses is the un-releasable property; that is the honest
+  // trade, since every other Dock icon is releasable and Chat has no claim to
+  // be structurally different. Persisted `home` entries still normalize → chat
+  // in surface-preferences (LEGACY_SLUG_ALIASES), so nothing dangles.
 
   // D14: compute the two Dock segments — kept-in-order, then
   // open-but-not-kept in open-order. Unknown slugs (e.g. stale entries
-  // for a deleted bundle) are silently skipped. Home is filtered out of
-  // both — its render is owned by the fixed anchor slot, not the
-  // kept/open registry.
+  // for a deleted bundle) are silently skipped.
   // ADR-340 P2: pane-grade surfaces (pane_of set) never render as Dock
   // icons — they're sidebar panes inside their parent's window, not
   // windows. Stale persisted kept/open entries from before the System
@@ -143,7 +165,6 @@ export function TopBarSurface() {
   const keptSurfaces: Surface[] = useMemo(
     () =>
       kept
-        .filter((slug) => slug !== HOME_SLUG)
         .map((slug) => surfaceBySlug.get(slug))
         .filter(isDockable),
     [kept, surfaceBySlug]
@@ -152,7 +173,7 @@ export function TopBarSurface() {
   const openOnlySurfaces: Surface[] = useMemo(
     () =>
       open
-        .filter((slug) => !kept.includes(slug) && slug !== HOME_SLUG)
+        .filter((slug) => !kept.includes(slug))
         .map((slug) => surfaceBySlug.get(slug))
         .filter(isDockable),
     [open, kept, surfaceBySlug]
@@ -238,57 +259,6 @@ export function TopBarSurface() {
             (foregrounded → solid; kept-not-open → muted) — the prior tiny
             open-state dot below the icon was redundant + read as visual noise,
             removed per operator direction. */}
-      </div>
-    );
-  };
-
-  // Render the fixed Home anchor (2026-06-04). Same click semantics as a
-  // Dock icon (open / foreground / minimize / restore), but: NO right-
-  // click context menu — Home cannot be removed from the Dock (the
-  // Finder analog). It is always present, regardless of kept/open state,
-  // which is why it lives outside the kept/open registry. On mobile this
-  // is the single one-tap path to the Home composition surface (the
-  // wordmark brand mark is hidden < sm).
-  const renderHomeAnchor = (surface: Surface) => {
-    const Icon = resolveSurfaceIcon(surface.icon_key);
-    const isForegrounded = foregrounded === surface.slug;
-    const surfaceIsOpen = isOpen(surface.slug);
-
-    const handleClick = () => {
-      if (!isKernelSurfaceSlug(surface.slug)) return;
-      const isMinimized = !!windowStates[surface.slug]?.minimized;
-      if (!surfaceIsOpen) {
-        foregroundSurface(surface.slug);
-      } else if (isMinimized) {
-        foregroundSurface(surface.slug);
-      } else if (isForegrounded) {
-        minimizeWindow(surface.slug);
-      } else {
-        raiseWindow(surface.slug);
-      }
-    };
-
-    return (
-      <div key={surface.slug} className="relative flex shrink-0 flex-col items-center">
-        <button
-          type="button"
-          onClick={handleClick}
-          title={surface.title}
-          aria-label={surface.title}
-          aria-current={isForegrounded ? 'page' : undefined}
-          className={cn(
-            'flex h-9 w-9 items-center justify-center rounded-md transition-colors',
-            isForegrounded
-              ? 'bg-foreground text-background'
-              : // Anchor is never "muted/gray not-open" like a kept-not-open
-                // surface — it's the permanent home affordance, so it stays
-                // at full foreground tint whether open or not.
-                'text-foreground hover:bg-muted'
-          )}
-        >
-          <Icon className="h-4 w-4" />
-        </button>
-        {/* Open-state dot removed — the icon fill already carries the state. */}
       </div>
     );
   };
@@ -407,11 +377,9 @@ export function TopBarSurface() {
           <LayoutGrid className="h-4 w-4" />
         </button>
 
-        {/* Fixed Home anchor — pinned immediately after the Launcher,
-            always present, un-releasable (ADR-312: Home is the primary
-            content surface). The macOS Finder analog. */}
-        {homeSurface && renderHomeAnchor(homeSurface)}
-
+        {/* The fixed Home-anchor mount was deleted 2026-07-22 (dead since
+            ADR-435 removed the `home` surface) — see the note above the Dock
+            segments. Chat now leads the kept segment instead. */}
         {hasAnyDockEntries && (
           <>
             <div
@@ -420,7 +388,36 @@ export function TopBarSurface() {
               aria-orientation="vertical"
               className="mx-1 h-4 w-px shrink-0 bg-border/40"
             />
-            {keptSurfaces.map(renderDockIcon)}
+            {keptSurfaces.map((surface, i) => {
+              // 2026-07-22 — BAND separators inside the kept segment. The five
+              // primary apps read as three bands (think · make · the record),
+              // the same grouping DEFAULT_KEPT_SURFACES orders them by; without
+              // a rule they read as five undifferentiated squares.
+              //
+              // Derived from the surface's own band, NOT from a fixed index, so
+              // an operator who unpins or reorders never gets a divider
+              // stranded in the wrong place: a rule is drawn only where two
+              // ADJACENT kept icons actually belong to different bands. An
+              // unbanded surface (anything the operator kept beyond the five)
+              // never draws one.
+              const prev = i > 0 ? keptSurfaces[i - 1] : null;
+              const band = DOCK_BAND[surface.slug];
+              const prevBand = prev ? DOCK_BAND[prev.slug] : null;
+              const startsBand = Boolean(prev && band && prevBand && band !== prevBand);
+              return (
+                <Fragment key={surface.slug}>
+                  {startsBand && (
+                    <div
+                      aria-hidden
+                      role="separator"
+                      aria-orientation="vertical"
+                      className="mx-1 h-4 w-px shrink-0 bg-border/40"
+                    />
+                  )}
+                  {renderDockIcon(surface)}
+                </Fragment>
+              );
+            })}
             {keptSurfaces.length > 0 && openOnlySurfaces.length > 0 && (
               <div
                 aria-hidden

@@ -40,7 +40,38 @@ const OPEN_KEY_PREFIX = 'yarnnn:shell:open-surfaces:';
 const FOREGROUND_KEY_PREFIX = 'yarnnn:shell:foregrounded-surface:';
 const WINDOW_STATE_KEY_PREFIX = 'yarnnn:shell:window-state:';
 
-export const DEFAULT_KEPT_SURFACES: string[] = ['chat'];
+// ----------------------------------------------------------------------------
+// DOCK DEFAULTS (2026-07-22) — the five primary apps ship in the Dock
+// ----------------------------------------------------------------------------
+//
+// Was `['chat']`: the other four primary surfaces (Studio · Images · Files ·
+// Agents) existed but were INVISIBLE until the operator discovered right-click
+// → "Keep in Dock" on an already-open icon. That is correct macOS behavior for
+// a 40-app Launchpad; with FIVE apps it hides the product behind a gesture
+// nobody performs. Discovery should not be earned at this cardinality.
+//
+// ORDER is meaning, not registry-declaration accident (the Dock renders `kept`
+// in its stored order, so this array IS the on-screen order):
+//
+//     Chat  │  Studio  Images  │  Files  Agents
+//     think    <--- make --->     <-- the record -->
+//
+// Chat first (ADR-457's Think verb — the steward's voice + the activation
+// landing). Then the two MAKERS (ADR-457 Make + ADR-472's sibling canvas app),
+// adjacent because they are the same act on different material. Then what the
+// making settles into: the record (Files) and its residents (Agents). The old
+// order interleaved a maker with the record (Studio · Images · Files).
+//
+// Keep/unkeep is untouched — the right-click toggle still governs; only the
+// starting state stops being near-empty. Mobile: five 36px icons + the launcher
+// ≈ 216px, inside a 375px viewport, and the Dock already overflow-x scrolls.
+export const DEFAULT_KEPT_SURFACES: string[] = [
+  'chat',
+  'studio',
+  'images',
+  'files',
+  'agents',
+];
 export const DEFAULT_OPEN_SURFACES: string[] = [];
 export const DEFAULT_FOREGROUNDED_SURFACE: string | null = null;
 
@@ -174,6 +205,45 @@ function normalizeSlugList(slugs: string[]): string[] {
 // regardless of whether it's currently open. The Dock's contents are
 // the UNION of kept ∪ open; see TopBarSurface for the rendering.
 
+// ----------------------------------------------------------------------------
+// One-time dock re-seed (2026-07-22)
+// ----------------------------------------------------------------------------
+//
+// DEFAULT_KEPT_SURFACES only applies to an operator with NO persisted key.
+// Everyone who has already used the app has `['chat']` (the old default)
+// written to localStorage, so widening the default alone would reach new
+// signups ONLY — every existing operator would keep a one-icon Dock and see
+// nothing change. Hence a one-time seed, run at the read boundary.
+//
+// It is deliberately CONSERVATIVE — it fires only when the stored list is
+// exactly the old default (`['chat']`), i.e. an operator who never curated
+// their Dock. Anyone who added, removed, or reordered even one icon has
+// EXPRESSED A PREFERENCE, and this must not overwrite it: a curated Dock is
+// operator authorship, and silently rewriting it is the same class of mistake
+// as clobbering an authored file. Marked done via its own key so an operator
+// who then unpins back down to `['chat']` is not re-seeded on next read.
+const DOCK_RESEED_KEY_PREFIX = 'yarnnn:shell:dock-reseed-2026-07:';
+const PRE_RESEED_DEFAULT = ['chat'];
+
+function maybeReseedDock(userId: string, stored: string[]): string[] {
+  try {
+    const doneKey = key(DOCK_RESEED_KEY_PREFIX, userId);
+    if (localStorage.getItem(doneKey)) return stored;
+    localStorage.setItem(doneKey, '1');
+    const untouched =
+      stored.length === PRE_RESEED_DEFAULT.length &&
+      stored.every((s, i) => s === PRE_RESEED_DEFAULT[i]);
+    if (!untouched) return stored; // curated — leave the operator's Dock alone
+    localStorage.setItem(
+      key(KEPT_KEY_PREFIX, userId),
+      JSON.stringify(DEFAULT_KEPT_SURFACES),
+    );
+    return DEFAULT_KEPT_SURFACES;
+  } catch {
+    return stored; // private-browsing / quota — never break the read path
+  }
+}
+
 export function getKeptSurfaces(userId: string): string[] {
   if (!isBrowser() || !userId) return DEFAULT_KEPT_SURFACES;
   try {
@@ -183,7 +253,7 @@ export function getKeptSurfaces(userId: string): string[] {
     if (Array.isArray(parsed) && parsed.every((s) => typeof s === 'string')) {
       // Normalize legacy alias slugs (context/feed → channels, deduped) so a
       // stale persisted dock entry doesn't render a duplicate icon.
-      return normalizeSlugList(parsed);
+      return maybeReseedDock(userId, normalizeSlugList(parsed));
     }
     return DEFAULT_KEPT_SURFACES;
   } catch {
