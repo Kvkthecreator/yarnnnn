@@ -116,6 +116,34 @@ def run() -> bool:
     )
     _check("group reorder wires through onReorderPages / a group move", "Pages" in nav)
 
+    # ── 3b. the drag is on the CARD, with a threshold (operator 2026-07-22) ──
+    # The first cut bound onPointerDown to the 12px number grip ONLY, so a
+    # press-and-drag on the card body had NO handler and fell through to the
+    # browser's native TEXT SELECTION — the operator saw blue highlight over the
+    # card titles instead of a reorder. The whole card is the handle now
+    # (PowerPoint/Keynote: you grab the thumbnail), armed with a movement
+    # threshold so a plain click still selects.
+    _check(
+        "the card body carries the drag (armDrag on the card's onPointerDown)",
+        "armDrag(s.index" in nav,
+    )
+    _check(
+        "a press only becomes a drag past a movement threshold (a click still selects)",
+        "DRAG_THRESHOLD_PX" in nav and "didDragRef" in nav,
+    )
+    _check(
+        "the card is select-none — a drag never paints a native text selection",
+        "select-none" in nav,
+    )
+    _check(
+        "selecting a card FOCUSES the strip, so Delete/arrows are reachable",
+        "focusStrip" in nav and "stripRef.current?.focus" in nav,
+    )
+    _check(
+        "a multi-selection offers a VISIBLE Delete (not only the keystroke)",
+        "onClick={deleteSelection}" in nav,
+    )
+
     # ── 4. StudioSurface wires the new verbs ────────────────────────────────
     _check("StudioSurface wires deletePages", "deletePages" in surface)
     _check("StudioSurface wires movePages", "movePages" in surface)

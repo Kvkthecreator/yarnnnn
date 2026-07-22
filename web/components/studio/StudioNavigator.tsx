@@ -308,6 +308,14 @@ export function StudioNavigator({
     [onSelectSlide],
   );
 
+  // Selecting a card FOCUSES the strip, so Delete/arrows work immediately.
+  // Without this the keyboard was unreachable in practice: the handler lives on
+  // the strip container, but clicking a CARD focuses the card, so a member who
+  // selected a slide and pressed Delete got nothing.
+  const focusStrip = useCallback(() => {
+    stripRef.current?.focus({ preventScroll: true });
+  }, []);
+
   // Delete the current selection (Delete/Backspace or a future menu). Confirms
   // only for a multi-delete — a single delete is cheap and ⌘Z undoes it.
   const deleteSelection = useCallback(() => {
@@ -367,12 +375,51 @@ export function StudioNavigator({
   }, []);
 
   // The drag lives on WINDOW listeners, not on the <ul>'s React handlers — a
-  // pointerdown on the grip must NOT setPointerCapture (that would route every
-  // subsequent move to the grip element, so the list never hears them and the
-  // drag appears dead). window listeners see the moves wherever the pointer
-  // goes, including off the strip. `dropAtRef` mirrors the state so the up
-  // handler reads the final gap synchronously. Bound only while a drag is live.
+  // pointerdown must NOT setPointerCapture (that would route every subsequent
+  // move to the pressed element, so the list never hears them and the drag
+  // appears dead). window listeners see the moves wherever the pointer goes,
+  // including off the strip. `dropAtRef` mirrors the state so the up handler
+  // reads the final gap synchronously. Bound only while a drag is live.
   const dropAtRef = useRef<number | null>(null);
+  // The ARMED press: the whole card is the handle, so a press must not commit
+  // to a drag until the pointer actually MOVES (a plain click has to keep
+  // selecting). `armed` holds the pressed index + its origin-Y until the
+  // threshold is crossed; `didDrag` suppresses the click that ends a real drag.
+  const armedRef = useRef<{ index: number; y: number } | null>(null);
+  const didDragRef = useRef(false);
+  const DRAG_THRESHOLD_PX = 4;
+
+  const armDrag = useCallback((index: number, clientY: number) => {
+    armedRef.current = { index, y: clientY };
+    didDragRef.current = false;
+  }, []);
+
+  // While a press is armed (but not yet a drag), watch for the threshold.
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      const armed = armedRef.current;
+      if (!armed || dragIndex != null) return;
+      if (Math.abs(e.clientY - armed.y) < DRAG_THRESHOLD_PX) return;
+      // Threshold crossed — promote the armed press to a live drag.
+      didDragRef.current = true;
+      dropAtRef.current = armed.index;
+      setDragIndex(armed.index);
+      setDropAt(armed.index);
+    };
+    const onUp = () => {
+      // A press that never moved is a click; disarm and let onClick select.
+      if (dragIndex == null) armedRef.current = null;
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [dragIndex]);
+
   useEffect(() => {
     if (dragIndex == null) return;
     const onMove = (e: PointerEvent) => {
@@ -399,6 +446,7 @@ export function StudioNavigator({
       setDragIndex(null);
       setDropAt(null);
       dropAtRef.current = null;
+      armedRef.current = null;
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
@@ -420,12 +468,24 @@ export function StudioNavigator({
         onKeyDown={onStripKeyDown}
         className="flex h-full w-full flex-col overflow-y-auto p-2 outline-none"
       >
-        <div className="flex items-center justify-between px-1 pb-2 pt-1">
+        <div className="flex items-center justify-between gap-2 px-1 pb-2 pt-1">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             {noun}
           </p>
-          {selCount > 1 && (
-            <span className="text-[10px] text-muted-foreground">{selCount} selected</span>
+          {/* The selection action bar — multi-select must not be a secret
+              keystroke. When >1 is selected, say so AND offer the act; Delete
+              (the key) still works, this is the discoverable path to it. */}
+          {selCount > 1 && onDeletePages && (
+            <span className="flex items-center gap-1.5">
+              <span className="text-[10px] text-muted-foreground">{selCount} selected</span>
+              <button
+                type="button"
+                onClick={deleteSelection}
+                className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-red-400 hover:text-red-600"
+              >
+                Delete
+              </button>
+            </span>
           )}
         </div>
         <ul ref={listRef} className="relative w-full space-y-2">
@@ -439,13 +499,31 @@ export function StudioNavigator({
               <div
                 role="button"
                 tabIndex={0}
-                onClick={(e) =>
+                // The WHOLE CARD is the drag handle (PowerPoint/Keynote — you
+                // grab the thumbnail, not a 12px number). A press arms the
+                // drag; it only becomes a drag past a small movement
+                // threshold, so a plain click still selects. Without this the
+                // card body had no pointer handler at all, so a press-and-drag
+                // fell through to the browser's native TEXT SELECTION — the
+                // operator-observed blue highlight over the card titles.
+                onPointerDown={(e) => {
+                  focusStrip(); // so Delete / arrows work right after a select
+                  if (!onReorderSlide && !onReorderPages) return;
+                  if (e.button !== 0) return; // left button only
+                  armDrag(s.index, e.clientY);
+                }}
+                onClick={(e) => {
+                  // A click that completed a drag must not also re-select.
+                  if (didDragRef.current) {
+                    didDragRef.current = false;
+                    return;
+                  }
                   onCardClick(s.index, {
                     metaKey: e.metaKey,
                     ctrlKey: e.ctrlKey,
                     shiftKey: e.shiftKey,
-                  })
-                }
+                  });
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
@@ -457,8 +535,12 @@ export function StudioNavigator({
                   }
                 }}
                 title={s.title}
-                className={`block w-full cursor-pointer rounded-md border text-left transition-colors ${
+                // select-none on the CARD: a drag over a card must never paint
+                // a native text selection across its title/thumb.
+                className={`block w-full select-none rounded-md border text-left transition-colors ${
                   dragIndex === s.index ? 'opacity-40' : ''
+                } ${
+                  dragIndex != null ? 'cursor-grabbing' : 'cursor-grab'
                 } ${
                   // Primary = solid ring; a secondary multi-selected card = a
                   // lighter fill so the group reads as one selection.
@@ -470,26 +552,9 @@ export function StudioNavigator({
                 }`}
               >
                 <div className="flex items-stretch gap-1.5 p-1">
-                  {/* The grip: press to drag-reorder (PowerPoint). The number
-                      doubles as the grab handle so the strip stays compact. A
-                      drag of a card inside a multi-selection moves the group. */}
-                  <span
-                    onPointerDown={(e) => {
-                      if (!onReorderSlide && !onReorderPages) return;
-                      // Do NOT setPointerCapture — window listeners own the drag
-                      // (capture would starve them). Stop propagation so the
-                      // card's onClick/select doesn't also fire on the press.
-                      e.preventDefault();
-                      e.stopPropagation();
-                      dropAtRef.current = s.index;
-                      setDragIndex(s.index);
-                      setDropAt(s.index);
-                    }}
-                    title="Drag to reorder"
-                    className={`mt-0.5 w-3 shrink-0 select-none text-right text-[10px] font-medium text-muted-foreground ${
-                      onReorderSlide || onReorderPages ? 'cursor-grab active:cursor-grabbing' : ''
-                    }`}
-                  >
+                  {/* The number. The whole card carries the drag now, so this
+                      is a position label, not the sole grab handle. */}
+                  <span className="mt-0.5 w-3 shrink-0 text-right text-[10px] font-medium text-muted-foreground">
                     {s.index + 1}
                   </span>
                   <span className="min-w-0 flex-1">
