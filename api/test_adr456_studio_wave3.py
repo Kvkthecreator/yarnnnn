@@ -110,6 +110,15 @@ def run() -> bool:
     _check("Design tab: the background picker + page-bg token gate",
            "onSetPageBackground" in design and "page-bg" in design
            and "Set background…" in design)
+    # The picker must not close itself. Keying its reset on `selection` (an
+    # object the surface REBUILDS on every point message) collapsed the picker
+    # before an image could be chosen — the operator's "set background doesn't
+    # work" (2026-07-22). Reset on the selected PAGE's identity instead.
+    _check("Design tab: the bg picker resets on the selected PAGE, not the "
+           "selection OBJECT (which churns every point message)",
+           "selectedPageKey" in design
+           and "}, [selectedPageKey]);" in design
+           and "}, [selection]);" not in design)
 
     # ── 5. Version + ops + posture ───────────────────────────────────────
     # Pinned `== 4` when W3 shipped; the version kept moving (design systems v9,

@@ -103,13 +103,26 @@ export function StudioBlockMenu({
   onTurnInto, onRearrange, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck,
   onCopyLink, onHistory,
 }: StudioBlockMenuProps) {
+  // Dismissal. NOTE the parent-window blind spot: the Studio canvas is a
+  // SANDBOXED IFRAME, so a click on the artifact fires in the frame's own
+  // document and these parent listeners never hear it. The canvas's point
+  // message closes the menu for that case (StudioSurface.onPoint) — these
+  // cover the parent chrome (rails, panels, toolbar) plus Escape, a second
+  // right-click elsewhere, and any scroll (a menu anchored to a point is a lie
+  // once the point moves).
   useEffect(() => {
     const close = () => onClose();
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('click', close);
+    window.addEventListener('contextmenu', close);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true); // capture: any scroller
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('click', close);
+      window.removeEventListener('contextmenu', close);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
       window.removeEventListener('keydown', onKey);
     };
   }, [onClose]);

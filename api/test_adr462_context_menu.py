@@ -354,6 +354,24 @@ def main() -> bool:
         "studio.block=${encodeURIComponent(id)}" in surface,
     )
 
+    # ── Dismissal across the IFRAME BOUNDARY (operator, 2026-07-22) ─────────
+    # The menu hung open when clicking the artifact. Its outside-click listener
+    # is on the PARENT window, but the canvas is a sandboxed iframe: an
+    # in-artifact click fires in the frame's own document and never reaches the
+    # parent. The canvas's point message is the signal that DOES arrive, so the
+    # surface closes the menu there.
+    _check(
+        "a click in the CANVAS dismisses the menu (the iframe blind spot)",
+        "setCtxMenu(null)" in surface
+        and surface.count("setCtxMenu(null)") >= 2,  # onPoint AND onPointClear
+    )
+    _check(
+        "the menu also dismisses on a second right-click / scroll / resize",
+        "'contextmenu', close" in menu
+        and "'scroll', close" in menu
+        and "'resize', close" in menu,
+    )
+
     print()
     ok = all(c for _, c in _results)
     print(f"{'PASS' if ok else 'FAIL'}: {sum(c for _, c in _results)}/{len(_results)} checks")

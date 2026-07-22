@@ -486,6 +486,13 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // composer — that produced the seed-append spam. The lane hears the
   // selection only on the explicit "Ask about this" affordance below.
   const onPoint = useCallback((p: PointerEvent2) => {
+    // A click in the CANVAS dismisses the context menu. The menu's own
+    // outside-click listener is on the PARENT window, but the canvas is a
+    // sandboxed iframe — a click on the artifact fires inside the frame's
+    // document, which the parent never hears, so the menu used to hang open
+    // (operator, 2026-07-22). The runtime already posts a point on every
+    // click; closing here is the signal that actually arrives.
+    setCtxMenu(null);
     setSelection({
       blockId: p.blockId,
       blockKind: p.blockKind,
@@ -499,6 +506,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     if (p.design) setRightTab('design');
   }, []);
   const onPointClear = useCallback(() => {
+    setCtxMenu(null); // same reason as onPoint — a click on empty canvas
     setSelection(null);
     setEditingBlockId(null);
   }, []);

@@ -424,9 +424,17 @@ export function StudioDesignTab({
       : null;
   const [bgPicking, setBgPicking] = useState(false);
   const [bgImages, setBgImages] = useState<Array<{ path: string }> | null>(null);
+  // Close the picker when the selection moves to a DIFFERENT page. Keying on
+  // `selection` itself was a bug (operator, 2026-07-22: "set background doesn't
+  // work"): the surface rebuilds that object on every point message, so any
+  // re-fire — including the one the click on "Set background…" itself
+  // provoked — collapsed the picker before an image could be chosen. Key on
+  // the identity of the selected page, not the object's.
+  const selectedPageKey =
+    selection?.slideIndex ?? selection?.pageIndex ?? null;
   useEffect(() => {
     setBgPicking(false);
-  }, [selection]);
+  }, [selectedPageKey]);
   useEffect(() => {
     if (!bgPicking || bgImages) return;
     api.studio
