@@ -170,7 +170,20 @@ def test_surface_work_first() -> None:
 
 def test_roster_purified() -> None:
     print("\n[c] /agents roster is Altitude 3 only (ADR-412 D5)")
+    # RETARGETED 2026-07-22. `agents/page.tsx` was REWRITTEN 2026-07-16 into a
+    # 28-line mount — the roster body moved to `AgentsSurface` (the old page
+    # rendered the ADR-382 Rung-2 seats over the now-empty `agents` table). The
+    # assertions below kept grepping the page, so two of them went red against a
+    # file that no longer holds the logic, NOT against a regression.
+    #
+    # The ADR-412 D5 intent — no Freddie seat on the roster — is satisfied more
+    # strongly than the original greps checked: the roster path was replaced
+    # outright, and the live surface mentions Freddie ZERO times, so there is no
+    # card to filter and no stale deep-link to fall through. That is what these
+    # now assert (an absence at the new home), rather than the presence of a
+    # specific filter expression the rewrite made unnecessary.
     page = _read("web/app/(authenticated)/agents/page.tsx")
+    surface = _read("web/components/agents/AgentsSurface.tsx")
 
     _assert("Systemic" not in page, "No Systemic section on the roster")
     _assert(
@@ -179,12 +192,13 @@ def test_roster_purified() -> None:
     )
     _assert("FREDDIE_PANE_KEYS" not in page, "The ADR-387 pane inference is gone")
     _assert(
-        "governed by Freddie" in page,
-        "The governor frame line renders (ADR-381 D5 — a line, not a seat)",
+        "freddie" not in surface.lower(),
+        "The live roster body (AgentsSurface) seats no Freddie at all "
+        "(ADR-381 D5 — a governor, not a seat)",
     )
     _assert(
-        "!== 'freddie'" in page,
-        "The freddie class is filtered from the roster (stale deep-links fall to list mode)",
+        "FREDDIE_PANE_KEYS" not in surface and "agent: 'freddie'" not in surface,
+        "No Freddie card selection at the roster's new home",
     )
 
     view = _read("web/components/agents/AgentContentView.tsx")
@@ -347,9 +361,16 @@ def test_grant_derived_affordances() -> None:
     ws = _read("web/app/(authenticated)/workspace-settings/page.tsx")
     # ADR-421: the Constitution panes are GONE from Workspace Settings — a
     # workspace has no constitution of its own; mandate/identity/principles are
-    # per-agent, surfaced on the agent detail. Brand still gates on operation/.
-    _assert('"operation/"' in ws,
-            "the Brand pane still gates on operation/ coverage")
+    # per-agent, surfaced on the agent detail.
+    #
+    # The Brand assertion ("still gates on operation/ coverage") is INVERTED
+    # 2026-07-22: ADR-432 D1c RETIRED the Brand pane in full (operation/BRAND.md
+    # is read by no producing path), so there is no operation/-gated pane left
+    # to assert and the check has been red since that ADR landed. The page's own
+    # header comment records the retirement while this line contradicted it. The
+    # live invariant is the retirement itself.
+    _assert('"operation/"' not in ws,
+            "the Brand pane is retired, so nothing gates on operation/ (ADR-432 D1c)")
     # ADR-418: the System Agent panes are the steward's DIALS (governance/).
     sap = _read("web/components/agents/SystemAgentPanes.tsx")
     _assert("PANE_REGIONS" in sap and "governance/" in sap,

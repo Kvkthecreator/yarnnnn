@@ -64,11 +64,25 @@ class _RecordingClient:
 
 def _make_write_recorder(store):
     """A write_revision stand-in recording (path -> {content, content_url,
-    authored_by, ...}). Returns a fake revision id."""
-    def _write(db_client=None, *, user_id, path, content, authored_by, message,
-               lifecycle=None, content_type=None, content_url=None, **_k):
+    authored_by, ...}). Returns a fake revision id.
+
+    2026-07-22 — `content` made OPTIONAL and `content_bytes` accepted, mirroring
+    the real `write_revision` (authored_substrate.py: both are Optional). The
+    stub had `content` as a REQUIRED keyword-only arg, which was true when this
+    gate was written but stopped being true at ADR-427 Phase 2/3: a binary
+    upload now writes its raw through the CAS as `content_bytes=` with no
+    `content`, so every call raised TypeError ("missing 1 required keyword-only
+    argument: 'content'") and 5 tests failed on the STUB, not on the pipeline.
+    A test double that is stricter than the real function tests nothing but
+    itself. `content_bytes` is recorded so a binary write is still observable
+    (the caption + content_url assertions are what these tests actually check).
+    """
+    def _write(db_client=None, *, user_id, path, content=None, content_bytes=None,
+               authored_by, message, lifecycle=None, content_type=None,
+               content_url=None, **_k):
         store[path] = {
             "content": content,
+            "content_bytes": content_bytes,
             "authored_by": authored_by,
             "content_url": content_url,
             "content_type": content_type,
@@ -113,9 +127,24 @@ def _run_upload(store, embeds, *, filename, file_type, text_body):
     return result
 
 
-def test_upload_lands_raw_in_inbound_uploads_with_content_url():
+def test_upload_lands_raw_in_inbound_uploads_as_versioned_bytes():
     """Piece A: the RAW blob lands at inbound/uploads/{principal}/{slug}.{ext}
-    carrying content_url — NOT a derived .md, NOT under the legacy uploads/ root."""
+    as a VERSIONED BINARY revision — NOT a derived .md, NOT under the legacy
+    uploads/ root.
+
+    REWRITTEN 2026-07-22 (was `..._with_content_url`). This asserted the pre-
+    ADR-427 representation: a caption string in `content` ("Uploaded file: …")
+    plus a stored `content_url` pointing at an un-versioned bucket copy. ADR-427
+    Phase 3 replaced BOTH — the bytes now enter the content-addressed store
+    behind the storage seam (attributed, parent-pointered, revertible), the type
+    is derived at the door, and serving URLs are MINTED AT READ. documents.py
+    says it outright at the call site: "No un-versioned bucket copy, no stored
+    content_url." So the old assertions did not describe a regression; they
+    described a superseded design, and could never pass again.
+
+    What is asserted now is the live contract — bytes retained, no caption, no
+    stored URL, operator-attributed.
+    """
     store, embeds = {}, []
     body = "Acme quarterly brief.\n" + ("Revenue grew. " * 40)
     result = _run_upload(store, embeds, filename="acme-brief.pdf", file_type="pdf", text_body=body)
@@ -124,9 +153,12 @@ def test_upload_lands_raw_in_inbound_uploads_with_content_url():
     raw_path = result["raw_path"]
     assert raw_path == "/workspace/inbound/uploads/operator/acme-brief.pdf", raw_path
     raw = store[raw_path]
-    # content_url is the stable /blob endpoint; content is a caption, not text.
-    assert raw["content_url"] == "/api/documents/blob?storage_path=user-1234%2Fdoc-1%2Foriginal.pdf", raw
-    assert raw["content"].startswith("Uploaded file:"), raw["content"]
+    # The raw is BYTES in the CAS (ADR-427 Phase 3) — not a caption + pointer.
+    assert raw["content_bytes"], f"raw must carry bytes, got {raw!r}"
+    assert raw["content"] is None, f"no caption string on a binary raw: {raw['content']!r}"
+    assert raw["content_url"] is None, (
+        "serving URLs are minted at READ, never stored on the revision (ADR-427 D4)"
+    )
     assert raw["authored_by"] == "operator"  # the raw is the operator's
 
 

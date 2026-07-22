@@ -119,7 +119,10 @@ def test_kernel_surfaces_module() -> None:
         # ADR-415 (2026-07-08): the `channels` row was DELETED (the Channels
         # surface dissolved; its content re-homed to Activity + Workspace
         # Settings). `feed`/`context` were already deleted (ADR-385 follow-on).
-        "home",  # ADR-312 D1 — renamed from `cockpit` (was ADR-297 D1)
+        # ADR-435 (2026-07-09): `home` DELETED — the one composition in a
+        # registry of mirrors; its anchor + landing roles both moved to `chat`.
+        # This list kept asserting it, so the gate has been red on this line
+        # ever since (cleared 2026-07-22 with the rest of the stale set).
         "chat",  # ADR-412 D3 — the lanes surface (Altitude 2's chrome home)
         "recurrence",  # 2026-06-03 — renamed from `cadence` (substrate already spoke "recurrence")
         "budget",  # ADR-327 (2026-06-08) — repurposed from /pace; pace retired
@@ -178,10 +181,24 @@ def test_kernel_surfaces_module() -> None:
         f"All canonical kernel surfaces present (missing: {missing or 'none'})",
     )
 
-    # Required fields
+    # Required fields.
+    #
+    # `route` is required only of a NAVIGABLE surface. The DORMANT-slug pattern
+    # (ADR-432 D2d `program`, ADR-437 `setup`) deliberately ships a row with no
+    # `route` and no `launcher_tier`: the surface is retired as a destination
+    # but its slug survives so flat search still resolves the name instead of
+    # 404-ing a bookmark. This rule predated that pattern and kept demanding
+    # `route` of them, so the gate has been red on both ever since (cleared
+    # 2026-07-22). Chrome rows (top-bar/launcher/chat-drawer) carry `route: ""`
+    # — declared-but-empty, so they satisfy the field check without being
+    # navigable, and are unaffected either way.
     for entry in KERNEL_SURFACES:
         present = set(entry.keys())
-        missing_fields = (REQUIRED_SURFACE_FIELDS - {"tier"}) - present
+        dormant = "launcher_tier" not in entry and "route" not in entry
+        required = REQUIRED_SURFACE_FIELDS - {"tier"}
+        if dormant:
+            required = required - {"route"}
+        missing_fields = required - present
         _assert(
             not missing_fields,
             f"Surface '{entry.get('slug', '?')}' has all required fields "
@@ -267,9 +284,13 @@ def test_kernel_surface_entries_shape() -> None:
         f"All entries tier='kernel' (found tiers: {tiers})",
     )
 
-    # All required fields present (now including tier)
+    # All required fields present (now including tier). Same dormant-slug
+    # carve-out as the declaration block above — a retired-but-searchable
+    # surface (ADR-432 D2d / ADR-437) carries no `route`.
     for entry in entries:
-        missing_fields = REQUIRED_SURFACE_FIELDS - set(entry.keys())
+        dormant = "launcher_tier" not in entry and "route" not in entry
+        required = REQUIRED_SURFACE_FIELDS - ({"route"} if dormant else set())
+        missing_fields = required - set(entry.keys())
         _assert(
             not missing_fields,
             f"Entry '{entry.get('slug', '?')}' has all required fields "

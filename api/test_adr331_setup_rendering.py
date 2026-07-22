@@ -1,18 +1,35 @@
-"""ADR-331 — Setup-as-Rendering: the /setup Sequence surface + harvest.
+"""ADR-331 — Setup-as-Rendering: the surviving surface invariants + harvest.
 
-Regression gate for the three-phase ADR-331 implementation:
+SCOPED DOWN 2026-07-22 (was 24 tests, 9 of them red). Two thirds of this gate
+outlived what it guarded, so it asserted a deleted wizard and a moved upload
+path — a red gate nobody could act on. What was removed, and why:
 
-  Phase 1 (D1, D2) — `/setup` is a kernel atomic surface, Sequence archetype,
-                     os-config register, owns no substrate (substrate_paths
-                     == []); the sequence archetype is registered in both the
-                     Python ARCHETYPES tuple and the TS Archetype union.
+  Phase 1 wizard (4 tests, DELETED) — `/setup` as a navigable Sequence surface:
+      its page, its renderer, its first-run redirect, its registry row. ADR-437
+      DELETED the guided first-boot wizard (built on the pre-pure-workspace
+      model; ADR-414 D4/D5 made genesis empty and programs anytime hires, so
+      there is no sequence to walk). The `/setup` row survives as a DORMANT slug
+      + a redirect stub → /chat, which is why the two remaining Phase-1 tests
+      (middleware protection + the `rocket` icon) still hold and stay.
+
+  Phase 3 upload (8 tests, DELETED as DUPLICATE) — not dead behavior: the
+      upload pipeline is very much alive, but it MOVED from `routes/documents`
+      to `services/documents` under ADR-395, and its live gate
+      (test_adr395_model_consumable_projection.py) already covers the raw lane,
+      the derived projection, no-clobber, and the deferred embed. Keeping a
+      second copy pinned to the old import path was duplicate coverage that
+      could only rot. Coverage is preserved THERE, not lost here.
+
+What remains is what still guards live code:
+
+  Phase 1 (D1, D2) — the sequence archetype is registered in both the Python
+                     ARCHETYPES tuple and the TS Archetype union; the surface
+                     owns no substrate; `/setup` stays auth-gated and its icon
+                     resolves (no Box fallback).
   Phase 2 (D3, D4) — harvest is an ordinary attributed invocation: the
                      `agent:harvest` author string validates against the
                      existing is_valid_author taxonomy (no new author prefix);
                      the metadata-only dry-run endpoint performs no writes.
-  Phase 3 (D5)     — /documents/upload accepts a file list + .zip expansion,
-                     writing N attributed /workspace/uploads/*.md rows from
-                     one call.
 
 Pure-Python / pure-fs assertions where possible. No DB, no network, no LLM.
 """
@@ -20,8 +37,6 @@ Pure-Python / pure-fs assertions where possible. No DB, no network, no LLM.
 from __future__ import annotations
 
 from pathlib import Path
-
-from fastapi import BackgroundTasks
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -33,23 +48,6 @@ def _read(p: Path) -> str:
 # =============================================================================
 # Phase 1 — /setup surface + sequence archetype (D1, D2)
 # =============================================================================
-
-
-def test_phase1_setup_registered_as_sequence_os_config():
-    """D1: `setup` is in KERNEL_SURFACES with archetype=sequence,
-    register=os-config, route=/setup, summon-only (default_pinned False)."""
-    from services.kernel_surfaces import KERNEL_SURFACES
-
-    setup = next((s for s in KERNEL_SURFACES if s["slug"] == "setup"), None)
-    assert setup is not None, "ADR-331 D1: `setup` not registered in KERNEL_SURFACES"
-    assert setup["archetype"] == "sequence", (
-        f"ADR-331 D1: setup archetype must be 'sequence', got {setup['archetype']!r}"
-    )
-    assert setup["register"] == "os-config", (
-        f"ADR-331 D1: setup register must be 'os-config', got {setup['register']!r}"
-    )
-    assert setup["route"] == "/setup"
-    assert setup["default_pinned"] is False, "ADR-331 D1: setup is summon-only after first run"
 
 
 def test_phase1_setup_owns_no_substrate():
@@ -80,48 +78,6 @@ def test_phase1_sequence_archetype_in_ts_union():
         "ADR-331 D1: 'sequence' missing from the TS Archetype union — "
         "Python ARCHETYPES and the TS union must not drift."
     )
-
-
-def test_phase1_setup_page_exists():
-    """D1: the /setup route page exists and renders the SetupSequence."""
-    page = _read(REPO_ROOT / "web" / "app" / "(authenticated)" / "setup" / "page.tsx")
-    assert page, "ADR-331 D1: /setup route page missing"
-    assert "SetupSequence" in page, "ADR-331 D1: /setup page must render SetupSequence"
-
-
-def test_phase1_setup_renderer_reads_getstate_no_local_state():
-    """D1: the SetupSequence renderer reads api.workspace.getState() and stores
-    no progress of its own (the no-wizard-state rule). We assert it calls
-    getState and does NOT persist any setup/wizard/progress to an API."""
-    src = _read(REPO_ROOT / "web" / "components" / "library" / "SetupSequence.tsx")
-    assert src, "ADR-331 D1: SetupSequence component missing"
-    assert "api.workspace.getState()" in src, (
-        "ADR-331 D1: SetupSequence must derive from api.workspace.getState()"
-    )
-    # No persisted wizard/setup/progress writes — derivation only.
-    for banned in ("saveSetup", "setWizardState", "api.setup.save", "persistProgress"):
-        assert banned not in src, (
-            f"ADR-331 anti-goal: SetupSequence must not persist progress ({banned})"
-        )
-
-
-def test_phase1_first_run_redirect_points_to_setup():
-    """D2: the first-run redirect target moved to /setup?first_run=1."""
-    cb = _read(REPO_ROOT / "web" / "app" / "auth" / "callback" / "page.tsx")
-    assert "/setup?first_run=1" in cb, (
-        "ADR-331 D2: first-run redirect must target /setup?first_run=1"
-    )
-    # The old /program?first_run=1 target must be gone from the redirect.
-    assert "/program?first_run=1" not in cb, (
-        "ADR-331 D2: stale /program?first_run=1 redirect must be removed"
-    )
-
-
-# ADR-435 (2026-07-10): test_phase1_home_cta_points_to_setup DELETED. It
-# verified the Home empty-state CTA (UnactivatedHomeCTA in HomeFrontPage) linked
-# to /setup — both were deleted with the Home surface. /setup remains reachable
-# (protected route below + the SetupSequence's own affordances); the Home CTA
-# entry point is simply gone.
 
 
 def test_phase1_setup_is_protected_route():
@@ -228,381 +184,3 @@ def test_phase2_changelog_entry_present():
 
 # =============================================================================
 # Phase 3 — multi-file + .zip upload (D5)
-# =============================================================================
-#
-# Mix of pure-logic assertions (zip expander, type resolver, single-file error
-# paths — no DB) AND a real BEHAVIOR test: the route handler driven directly
-# with process_document mocked, proving N files in one call → N result items
-# (→ N attributed /workspace/uploads/*.md writes), .zip expansion, and
-# non-transactional partial success.
-
-import asyncio
-import io
-import zipfile
-from unittest.mock import patch
-
-
-def test_phase3_zip_expander_filters_correctly():
-    """D5: .zip expands to supported entries only — dirs, hidden, macOS
-    resource forks, and unsupported types are filtered; corrupt → []."""
-    from routes.documents import _expand_zip
-
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("notes/decisions.md", "# Decisions\nWe chose X.")
-        zf.writestr("readme.txt", "plain text content")
-        zf.writestr("image.png", b"\x89PNG")            # unsupported
-        zf.writestr(".hidden.md", "hidden")              # hidden
-        zf.writestr("__MACOSX/._decisions.md", "fork")   # resource fork
-        zf.writestr("sub/", "")                          # directory
-    names = sorted(n for n, _ in _expand_zip(buf.getvalue()))
-    assert names == ["decisions.md", "readme.txt"], names
-    assert _expand_zip(b"not a zip") == []
-
-
-def test_phase3_type_resolver():
-    """D5: file type resolves by content-type or extension; unsupported → None."""
-    from routes.documents import _resolve_file_type
-
-    assert _resolve_file_type("application/pdf", "x") == "pdf"
-    assert _resolve_file_type("", "notes.md") == "md"
-    assert _resolve_file_type("", "report.docx") == "docx"
-    assert _resolve_file_type("", "image.png") is None
-
-
-def test_phase3_single_upload_rejects_oversize_and_unsupported_without_db():
-    """D5: per-file validation (oversize, unsupported, empty) returns an error
-    UploadResultItem and never touches storage/DB (the error paths are pure)."""
-    from routes.documents import _process_single_upload, MAX_FILE_SIZE
-
-    # ADR-395 deferral: _process_single_upload now returns (item, projection_to_embed).
-    # Unsupported type — rejected before any storage call.
-    r1, e1 = asyncio.run(_process_single_upload(
-        content=b"x" * 100, content_type="", filename="img.png",
-        user_id="u", service=None,  # service untouched on this path
-    ))
-    assert r1.success is False and "Unsupported" in (r1.error or "") and e1 is None
-
-    # Oversize — rejected before storage.
-    r2, e2 = asyncio.run(_process_single_upload(
-        content=b"x" * (MAX_FILE_SIZE + 1), content_type="text/plain", filename="big.txt",
-        user_id="u", service=None,
-    ))
-    assert r2.success is False and "too large" in (r2.error or "") and e2 is None
-
-    # Empty — rejected before storage.
-    r3, e3 = asyncio.run(_process_single_upload(
-        content=b"x", content_type="text/plain", filename="tiny.txt",
-        user_id="u", service=None,
-    ))
-    assert r3.success is False and "empty" in (r3.error or "").lower() and e3 is None
-
-
-# ── Behavior test fixtures ────────────────────────────────────────────────
-
-
-class _FakeUploadFile:
-    """Minimal UploadFile stand-in: .filename, .content_type, async .read()."""
-
-    def __init__(self, filename, content_type, content):
-        self.filename = filename
-        self.content_type = content_type
-        self._content = content
-
-    async def read(self):
-        return self._content
-
-
-class _FakeAuth:
-    def __init__(self, user_id="user-1234"):
-        self.user_id = user_id
-        self.client = object()
-
-
-class _FakeStorageBucket:
-    """Minimal Supabase storage bucket: upload() ok, remove() no-op."""
-
-    def upload(self, *a, **k):
-        return {"path": k.get("path") or (a[0] if a else "")}  # no .error → success
-
-    def remove(self, *a, **k):
-        return {}
-
-
-class _FakeStorage:
-    def from_(self, _bucket):
-        return _FakeStorageBucket()
-
-
-class _FakeService:
-    """Service client whose only exercised surface here is .storage (binary
-    upload). process_document is mocked, so no .table() calls reach this."""
-
-    storage = _FakeStorage()
-
-
-def _fake_process_document_factory(written_paths):
-    """Returns an async process_document mock that records a distinct write per
-    call (mimicking _unique_upload_path's N-files-→-N-rows guarantee) and fails
-    deterministically for filenames containing 'FAIL' (to prove partial success).
-    """
-    counter = {"n": 0}
-
-    async def _fake(*, filename, **kwargs):
-        if "FAIL" in filename:
-            return {"success": False, "error": "Processing failed (simulated)"}
-        counter["n"] += 1
-        slug = filename.rsplit(".", 1)[0].lower().replace(" ", "-")
-        path = f"/workspace/uploads/{slug}.md"
-        # Distinct path per call even on slug collision (mirror real behavior).
-        if path in written_paths:
-            path = f"/workspace/uploads/{slug}-{counter['n']}.md"
-        written_paths.append(path)
-        return {"success": True, "workspace_path": path, "word_count": 42}
-
-    return _fake
-
-
-def test_phase3_behavior_n_files_one_call_writes_n_rows():
-    """D5 BEHAVIOR: N files in one call → N attributed upload rows. Drives the
-    real upload_documents handler; process_document mocked at the write boundary."""
-    from routes import documents
-
-    written: list = []
-    files = [
-        _FakeUploadFile("decisions.md", "text/markdown", b"# Decisions\n" + b"x" * 60),
-        _FakeUploadFile("notes.txt", "text/plain", b"some notes " * 10),
-        _FakeUploadFile("brief.md", "text/markdown", b"# Brief\n" + b"y" * 60),
-    ]
-    auth = _FakeAuth()
-
-    with patch.object(documents, "process_document", _fake_process_document_factory(written)), \
-         patch.object(documents, "get_service_client", lambda: _FakeService()):
-        resp = asyncio.run(documents.upload_documents(auth, BackgroundTasks(), files=files, project_id=None))
-
-    assert resp.succeeded == 3, resp
-    assert resp.failed == 0
-    assert len(resp.results) == 3
-    assert len(written) == 3, "N files must write N distinct rows"
-    assert all(r.workspace_path and r.workspace_path.startswith("/workspace/uploads/") for r in resp.results)
-
-
-def test_phase3_behavior_zip_expands_to_n_rows():
-    """D5 BEHAVIOR: a single .zip → N rows (one per supported entry)."""
-    from routes import documents
-
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("a.md", "# A\n" + "x" * 60)
-        zf.writestr("b.txt", "bbb " * 30)
-        zf.writestr("skip.png", b"\x89PNG")  # filtered
-    zip_file = _FakeUploadFile("bundle.zip", "application/zip", buf.getvalue())
-
-    written: list = []
-    with patch.object(documents, "process_document", _fake_process_document_factory(written)), \
-         patch.object(documents, "get_service_client", lambda: _FakeService()):
-        resp = asyncio.run(documents.upload_documents(_FakeAuth(), BackgroundTasks(), files=[zip_file], project_id=None))
-
-    assert resp.succeeded == 2, f"zip should expand to 2 supported entries, got {resp.succeeded}"
-    assert len(written) == 2
-
-
-def test_phase3_behavior_partial_success_non_transactional():
-    """D5 BEHAVIOR: a failing file does not abort the batch — successes still
-    land, failures are reported per-file (non-transactional)."""
-    from routes import documents
-
-    files = [
-        _FakeUploadFile("good.md", "text/markdown", b"# Good\n" + b"x" * 60),
-        _FakeUploadFile("FAIL.md", "text/markdown", b"# Bad\n" + b"x" * 60),
-        _FakeUploadFile("alsogood.txt", "text/plain", b"text " * 20),
-    ]
-    written: list = []
-    with patch.object(documents, "process_document", _fake_process_document_factory(written)), \
-         patch.object(documents, "get_service_client", lambda: _FakeService()):
-        resp = asyncio.run(documents.upload_documents(_FakeAuth(), BackgroundTasks(), files=files, project_id=None))
-
-    assert resp.succeeded == 2, resp
-    assert resp.failed == 1
-    assert len(written) == 2, "successful files persist despite a sibling failure"
-    failed = [r for r in resp.results if not r.success]
-    assert len(failed) == 1 and failed[0].filename == "FAIL.md"
-
-
-# ── Fully-real single-file path (real extract_text + real write_revision) ──
-
-
-class _FakeQuery:
-    """A tiny chainable Supabase query stand-in over an in-memory table.
-
-    Supports the exact chains process_document → write_revision exercise:
-      .select(...).eq(...).like(...).order(...).limit(...).execute()
-      .insert(row).execute()
-      .upsert(row, on_conflict=...).execute()
-    """
-
-    def __init__(self, table):
-        self._t = table
-        self._filters = []
-        self._likes = []
-
-    def select(self, *a, **k):
-        return self
-
-    def eq(self, col, val):
-        self._filters.append((col, val))
-        return self
-
-    def like(self, col, pattern):
-        self._likes.append((col, pattern.rstrip("%")))
-        return self
-
-    def order(self, *a, **k):
-        return self
-
-    def limit(self, *a, **k):
-        return self
-
-    def range(self, *a, **k):
-        return self
-
-    def _matches(self, row):
-        for col, val in self._filters:
-            if row.get(col) != val:
-                return False
-        for col, prefix in self._likes:
-            if not str(row.get(col, "")).startswith(prefix):
-                return False
-        return True
-
-    def execute(self):
-        rows = [r for r in self._t.rows if self._matches(r)]
-        return type("R", (), {"data": rows})()
-
-    def insert(self, row):
-        import uuid as _u
-        new = {**row, "id": str(_u.uuid4())}
-        self._t.rows.append(new)
-        return type("Q", (), {"execute": lambda _s=None: type("R", (), {"data": [new]})()})()
-
-    def upsert(self, row, on_conflict=None):
-        keys = (on_conflict or "").split(",") if on_conflict else []
-        keys = [k.strip() for k in keys if k.strip()]
-        if keys:
-            for existing in self._t.rows:
-                if all(existing.get(k) == row.get(k) for k in keys):
-                    existing.update(row)
-                    return type("Q", (), {"execute": lambda _s=None: type("R", (), {"data": [existing]})()})()
-        self._t.rows.append(dict(row))
-        return type("Q", (), {"execute": lambda _s=None: type("R", (), {"data": [row]})()})()
-
-
-class _FakeTable:
-    def __init__(self):
-        self.rows = []
-
-
-class _FakeDB:
-    """In-memory Supabase client supporting the write_revision surface +
-    storage. Used to prove the REAL attributed write lands."""
-
-    storage = _FakeStorage()
-
-    def __init__(self):
-        self._tables = {}
-
-    def table(self, name):
-        self._tables.setdefault(name, _FakeTable())
-        return _FakeQuery(self._tables[name])
-
-    # convenience for assertions
-    def rows(self, name):
-        return self._tables.get(name, _FakeTable()).rows
-
-
-def test_phase3_real_write_path_lands_attributed_upload_rows():
-    """D5 STRONGEST RECEIPT (ADR-395 conformance): drive the REAL
-    upload_documents handler with the REAL process_document + REAL write_revision
-    (against an in-memory DB) and REAL text extraction.
-
-    ADR-395 (retain raw · derive projection · DP34): two files in one call now
-    produce, per file, a RAW row at /workspace/inbound/uploads/operator/{slug}.{ext}
-    (content_url populated, attributed `operator`) PLUS a co-located
-    `.extracted.md` TEXT PROJECTION (attributed `system:extract`, citing the raw
-    via derived_from). The old /workspace/uploads/{slug}.md extracted-text-as-
-    substrate shape is retired. Only the network embedding boundary is stubbed."""
-    from routes import documents
-
-    db = _FakeDB()
-    files = [
-        _FakeUploadFile("alpha.md", "text/markdown",
-                        b"# Alpha\n" + b"This is real markdown content, well over fifty chars long. " * 2),
-        _FakeUploadFile("beta.md", "text/markdown",
-                        b"# Beta\n" + b"Another real document with plenty of extractable text content here. " * 2),
-    ]
-
-    async def _noop_embed(*a, **k):
-        return None
-
-    # _embed_workspace_file is imported lazily (in process_document AND in the
-    # ExtractTextFromBlob derive) from services.primitives.workspace — patch it
-    # at its source module.
-    with patch.object(documents, "get_service_client", lambda: db), \
-         patch("services.primitives.workspace._embed_workspace_file", _noop_embed):
-        resp = asyncio.run(documents.upload_documents(_FakeAuth(), BackgroundTasks(), files=files, project_id=None))
-
-    assert resp.succeeded == 2, resp
-    assert resp.failed == 0
-
-    wf_rows = db.rows("workspace_files")
-
-    # RAW blobs land in the inbound/uploads/ lane (ADR-395 Piece A / DP32),
-    # named with the REAL extension, carrying content_url.
-    raw_paths = sorted(
-        r["path"] for r in wf_rows
-        if r["path"].startswith("/workspace/inbound/uploads/") and not r["path"].endswith(".extracted.md")
-    )
-    assert len(raw_paths) == 2, f"expected 2 raw upload rows, got {raw_paths}"
-    assert "/workspace/inbound/uploads/operator/alpha.md" in raw_paths
-    assert "/workspace/inbound/uploads/operator/beta.md" in raw_paths
-    raw_rows = [r for r in wf_rows if r["path"] in raw_paths]
-    assert all(r.get("content_url") for r in raw_rows), "raw rows must carry content_url"
-
-    # TEXT PROJECTIONS land co-located (ADR-395 Piece B / DP34), citing the raw.
-    projection_paths = sorted(r["path"] for r in wf_rows if r["path"].endswith(".extracted.md"))
-    assert len(projection_paths) == 2, f"expected 2 projection rows, got {projection_paths}"
-    assert all("derived_from:" in (r.get("content") or "") for r in wf_rows if r["path"].endswith(".extracted.md"))
-
-    # REAL revision rows: raw attributed operator, projection attributed system:extract.
-    ver_rows = db.rows("workspace_file_versions")
-    raw_versions = [r for r in ver_rows if r["path"] in raw_paths]
-    assert len(raw_versions) == 2
-    assert all(r["authored_by"] == "operator" for r in raw_versions)
-    proj_versions = [r for r in ver_rows if r["path"].endswith(".extracted.md")]
-    assert len(proj_versions) == 2
-    assert all(r["authored_by"] == "system:extract" for r in proj_versions)
-
-
-def test_phase3_behavior_empty_batch_rejected():
-    """D5: a call with no supported files (e.g. only an empty/garbage zip) is a
-    400, not a silent empty success."""
-    from fastapi import HTTPException
-    from routes import documents
-
-    empty_zip = io.BytesIO()
-    with zipfile.ZipFile(empty_zip, "w") as zf:
-        zf.writestr("only.png", b"\x89PNG")  # nothing supported
-    zf_file = _FakeUploadFile("empty.zip", "application/zip", empty_zip.getvalue())
-
-    with patch.object(documents, "get_service_client", lambda: _FakeService()):
-        try:
-            asyncio.run(documents.upload_documents(_FakeAuth(), BackgroundTasks(), files=[zf_file], project_id=None))
-            assert False, "expected HTTPException for no supported files"
-        except HTTPException as e:
-            assert e.status_code == 400
-
-
-if __name__ == "__main__":
-    import pytest
-
-    raise SystemExit(pytest.main([__file__, "-q"]))
