@@ -74,8 +74,32 @@ export class APIError extends Error {
     public statusText: string,
     public data?: unknown
   ) {
-    super(`API Error: ${status} ${statusText}`);
+    // The server's own words come first. FastAPI puts the reason in
+    // `detail` — a lane cap, a stale parent, a missing grant — and every
+    // surface that renders `error.message` was showing "API Error: 409"
+    // instead. `statusText` is empty over HTTP/2, so the status-only form
+    // read as a bare number with no reason at all. Fall back to the status
+    // line only when the body carries nothing legible.
+    super(APIError.messageFrom(status, statusText, data));
     this.name = "APIError";
+  }
+
+  private static messageFrom(
+    status: number,
+    statusText: string,
+    data: unknown
+  ): string {
+    const detail = (data as { detail?: unknown } | null)?.detail;
+    if (typeof detail === "string" && detail.trim()) return detail;
+    // 422s arrive as a list of validation objects — surface the first `msg`
+    // rather than "[object Object]".
+    if (Array.isArray(detail)) {
+      const first = detail.find(
+        (d) => typeof (d as { msg?: unknown })?.msg === "string"
+      ) as { msg?: string } | undefined;
+      if (first?.msg) return first.msg;
+    }
+    return `API Error: ${status}${statusText ? ` ${statusText}` : ""}`;
   }
 }
 

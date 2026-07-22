@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_MAX_ACTIVE_LANES = 8      # UX bound, not policy (ADR-408 D6)
+_MAX_ACTIVE_LANES = 20     # UX bound, not policy (ADR-408 D6)
 _MAX_NAME_LEN = 60
 _HISTORY_WINDOW = 20       # messages sent to the model per turn
 _MAX_MESSAGE_LEN = 32_000
