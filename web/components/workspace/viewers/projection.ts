@@ -1499,7 +1499,30 @@ const EDIT_SCRIPT = `
   function slashRun() {
     if (slashStart < 0 || !slashNode) return null;
     var caret = slashCaret();
-    if (!caret || caret.startContainer !== slashNode) return null;
+    if (!caret) return null;
+    // ADR-482 D10: RE-ANCHOR before giving up on node identity.
+    //
+    // The run was keyed on caret.startContainer !== slashNode — an identity
+    // test that holds on PAGED, where the '/' is typed into a small per-block
+    // contenteditable whose text node is stable. On FLOW the browser owns a
+    // whole-document editable and freely splits, merges and re-creates text
+    // nodes as the member types — ADR-480 D1 accepted exactly this (D3 already
+    // re-establishes block ids on write for the same reason). When the caret's
+    // node is no longer the OBJECT captured at '/'-time, this returned null,
+    // the keyup handler called closeSlash(), the anchor was forgotten, and the
+    // later take bailed at its own guard: the filter never narrowed and the
+    // pick silently did nothing, with nothing thrown to log.
+    //
+    // The '/' is a POSITION in text, not an object identity. If the caret has
+    // moved into a different node, look for the sentinel at the remembered
+    // offset in the caret's OWN node and adopt it. Identity is kept where it
+    // survives; where native editing broke it, the position is re-found.
+    if (caret.startContainer !== slashNode) {
+      var cn = caret.startContainer;
+      if (!cn || cn.nodeType !== 3) return null;
+      if ((cn.textContent || '').charAt(slashStart) !== '/') return null;
+      slashNode = cn; // re-anchored — the run continues in the node that lives
+    }
     if (caret.startOffset < slashStart + 1) return null; // caret moved before the '/'
     var text = slashNode.textContent || '';
     if (text.charAt(slashStart) !== '/') return null; // the '/' was deleted

@@ -167,6 +167,21 @@ def run() -> bool:
         'main[contenteditable="true"]' not in paged_css,
     )
 
+    # ── D10 — the slash run survives native node replacement ─────────────
+    _check(
+        "D10 slashRun re-anchors instead of failing on node identity",
+        "if (caret.startContainer !== slashNode) {" in proj
+        and "slashNode = cn; // re-anchored" in proj,
+    )
+    d10 = web / "scripts/gates/adr482_slash_run_reanchor.mjs"
+    _check("D10 the executing harness is committed", d10.exists())
+    if d10.exists():
+        p2 = subprocess.run(["node", str(d10)], cwd=str(root), capture_output=True, text=True)
+        _check(
+            "D10 the executing harness PASSES (node replaced under the caret)",
+            p2.returncode == 0 and "6 passed, 0 failed" in p2.stdout,
+        )
+
     # ── D9 — prose is never boxed on flow; the menu offers no impossible act ──
     _check(
         "D9 right-click does NOT box a TEXT block on flow",
