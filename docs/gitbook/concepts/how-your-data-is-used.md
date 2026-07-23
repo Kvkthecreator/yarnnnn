@@ -1,67 +1,57 @@
 # How Your Data Is Used
 
-YARNNN uses your data to ground responses, run agents, and improve work quality over time.
+## What's in your workspace
 
-## What YARNNN reads
+Everything in a YARNNN workspace got there because someone put it there:
 
-| Platform | What YARNNN can access |
-|---|---|
-| Slack | Selected channel content |
-| Notion | Selected pages and databases |
-| Documents | Files you upload directly to YARNNN |
+- **What you author** — chat lanes, documents, decks, images, notes
+- **What you upload** — files you add through Files
+- **What arrives over MCP** — things you asked ChatGPT or Claude to remember
+- **What a connected platform sends** — from any connection you've authorised
 
-Coverage is user-scoped and can be refined after connection.
+Nothing is scraped from your activity. There's no background inference building a hidden profile. If it's in your workspace, it's a file you can open, read, correct, and delete.
 
-## What YARNNN does with that data
+## What YARNNN does with it
 
-### Grounds TP responses
+**Grounds your conversations.** When you ask a chat lane something, it can search and read your workspace so the answer starts from your material.
 
-When you ask a question, TP can answer from your synced work context instead of relying on generic assumptions.
+**Feeds the work.** Studio artifacts, derived summaries, and anything an agent produces draw on the files you point them at.
 
-### Produces agent runs
+**Gets sent to model providers to do that work.** This is worth being plain about: when a lane reasons over a file, that file's relevant content is sent to whichever model is running the lane — Anthropic, OpenAI, Google, or DeepSeek. Which engine a colleague runs on is shown on its card.
 
-Agents use the relevant parts of your substrate to create digests, briefs, status updates, research, and other work products.
+## What YARNNN doesn't do
 
-### Improves future work
+- **It doesn't train models on your data.** Your content isn't used to train foundation models.
+- **It doesn't share your workspace with other users.** Only principals you've granted access to can read it.
+- **It doesn't infer memory in the background.** What's remembered is what was written.
+- **It doesn't store your passwords.** Platform connections store encrypted OAuth tokens.
 
-YARNNN also uses:
+## Retention
 
-- prior runs
-- edits and follow-up direction
-- standing instructions and preferences
+**What you author is kept until you delete it.** There's no expiry on your own work.
 
-to improve later work quality.
+**Deleting is reversible by default.** Files go to Trash and stay there — no timer — until you explicitly empty it. Permanent delete removes the bytes; the attributed record that they existed remains.
 
-## What YARNNN does not do
-
-- it does not post or edit content inside Slack or Notion
-- it does not share your data with other users
-- it does not train external foundation models on your data
-- it does not store your passwords; it stores encrypted OAuth tokens
-
-## Retention model
-
-YARNNN is designed to keep what proves useful and let low-value synced content expire over time.
-
-In practice that means:
-
-- raw synced platform content is not all treated as permanent
-- outputs, work history, and feedback that become part of useful work can persist longer
-- disconnecting a platform stops future sync immediately
+**Raw material captured from a connected platform** is subject to a retention window set by your plan, and by your own retention setting within that ceiling. Derived work made from it is not affected.
 
 ## Your controls
 
-You can:
-
-- change source coverage
-- disconnect integrations
-- update or remove remembered preferences
-- delete uploaded documents
-- reset or delete account-level data through account controls
+| What | Where |
+|---|---|
+| Read, correct, or delete any file | Files |
+| See who changed what | Files → Get Info → history |
+| Restore something deleted | Files → Trash |
+| Permanently delete | Files → Trash → Delete Permanently / Empty Trash |
+| Revoke an AI's access | Workspace Settings → Access |
+| Narrow or remove a teammate | Workspace Settings → Access |
+| Disconnect a platform | Settings → Connections |
+| Cap what the workspace can spend | Workspace Settings → System → Budget |
+| Clear work history or the whole workspace | Workspace Settings → Danger Zone |
+| Reset or deactivate your account | Settings → Account |
 
 ## Security
 
-- data is encrypted in transit and at rest
-- OAuth tokens are encrypted at rest
-- access is scoped to the authenticated user
-- platform integrations are read-only
+- Encrypted in transit and at rest
+- OAuth tokens encrypted at rest
+- Access enforced per principal, per workspace, on every read and write
+- Workspace-destroying actions are owner-grade and require explicit confirmation

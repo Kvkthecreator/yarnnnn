@@ -1,61 +1,60 @@
 # Quickstart
 
-Start with one platform, one useful task, and one feedback loop.
+Ten minutes to your first useful thing. No setup flow, no connections required.
 
-## 1. Create your account
+## 1. Sign in
 
-Sign in at [app.yarnnn.com](https://app.yarnnn.com).
+Go to [app.yarnnn.com](https://app.yarnnn.com). Your workspace exists as soon as you do — empty, and yours.
 
-You will land in YARNNN's core surfaces: Chat, Work, Agents, and Context.
+You'll land on a desk with five apps in the Dock: **Chat · Studio · Images · Files · Agents**.
 
-## 2. Connect one platform
+## 2. Think something through
 
-Choose the platform that already contains the clearest signal for your work:
+Open **Chat** and start a lane. You pick a colleague, not a model:
 
-- **Slack** for team discussion and decisions
-- **Notion** for docs and project state
+- **Thinker** for working out a hard call
+- **Researcher** for digging up material, with sources
+- **Designer** for making something
+- **Critic** for finding the hole in an idea
 
-YARNNN uses read-only access. It does not post, send, or modify content in your connected tools.
+Ask a real question. Something you actually need an answer to today.
 
-## 3. Let YARNNN handle the first pass
+## 3. Keep what's worth keeping
 
-After connection, YARNNN:
+When the conversation gets somewhere, get it out of the chat and into your workspace. Ask the lane to write it down:
 
-- discovers available sources
-- applies smart default coverage
-- starts the first sync
-- grounds your workspace and agent roster in real material
+> "Write that up as a decision note."
 
-You do not need to fully configure the system before seeing value.
+The file lands in your workspace, attributed to you, citing the conversation it came from. That's the moment the thinking stops being disposable.
 
-## 4. Review the first result
+## 4. Make something from it
 
-Once the first useful result lands, usually as a daily update, grounded TP answer, or first task output:
+Open **Studio** and start a Document or a Deck. On the right there's a chat lane bound to what you're editing — point it at the note you just made:
 
-- keep it as-is if it is already useful
-- edit it if it is too broad or misses emphasis
-- tell TP what should change next time
+> "Turn this into a five-slide deck."
 
-This first run is the fastest way to teach the system what "good" looks like for you.
+Then take over. Drag blocks, change the layout, set the design. Words for exploring; hands for shaping.
 
-## 5. Use TP to steer the system
+## 5. Look at what happened
 
-Thinking Partner is the fastest way to create or adjust recurring work:
+Open **Files**. Everything you just made is there.
 
-> "Create a weekly leadership brief from engineering and product."
+Right-click any file → **Get Info**. You'll see its full history: which revisions, who authored each one, and what changed. Click one to diff it against the current version.
 
-> "Tighten the recap and lead with blockers next time."
+That's `trace`. It's the thing that makes the workspace an asset rather than an output folder.
 
-> "Why did this task run today?"
+## 6. Connect your other AI
 
-Use the Work surface to inspect outputs and history. Use the Agents surface to inspect the specialists assigned to that work.
+Connect from the AI's side:
 
-## 6. Expand only after you see value
+- **ChatGPT** or **Claude.ai** — add `https://mcp.yarnnn.com` as a connector
+- **Claude Desktop** or **Claude Code** — see the [full setup guide](../integrations/mcp-connector.md)
 
-Once one task is producing useful work:
+Once it's connected, tell ChatGPT something worth keeping and ask Claude about it tomorrow. Same workspace, both directions.
 
-- add another platform
-- widen or narrow coverage
-- create additional tasks for status reports, research, or monitoring
+## What to do next
 
-The right onboarding strategy is usually narrow first, then compound.
+- Upload the documents you already have — Files → right-click → Add Files
+- Hire a colleague and give it your own name — [Agents](../apps/agents.md)
+- Invite a teammate — [Working with a team](../concepts/working-with-a-team.md)
+- Read [Your first week](your-first-week.md)

@@ -1,49 +1,50 @@
-# Versioning & Sync
+# Documentation Layers
 
-This page tracks GitBook sync metadata and the role of the public docs layer.
+## Where things live
 
-## Documentation layers
+YARNNN keeps documentation in separate layers on purpose:
 
-YARNNN uses separate documentation layers on purpose:
+| Layer | What it is |
+|---|---|
+| `docs/gitbook/` | These public product docs |
+| `docs/ESSENCE.md` | The canonical product narrative |
+| `docs/architecture/` | Canonical internal architecture — FOUNDATIONS, GLOSSARY, service model |
+| `docs/adr/` | Decision records; the implementation history |
+| `docs/analysis/` | Exploratory work and open questions |
 
-- `docs/gitbook/` -> public product and developer docs
-- `docs/architecture/` -> canonical internal architecture
-- `docs/adr/` -> decision records and implementation history
-- `docs/analysis/` -> exploratory analysis and unresolved questions
-
-Public docs may simplify. They should not contradict canonical docs.
+Public docs may simplify. They should never contradict the canonical layer. Where these pages describe something as not-yet-running, that reflects the shipped state rather than the intended one — the goal is that a reader is never surprised.
 
 <!-- GITBOOK_VERSIONING_START -->
 ## Current snapshot
 
 | Field | Value |
 |---|---|
-| Last synced (UTC) | `2026-03-17 02:18:50Z` |
-| Docs version | `v5.0.0-docs.20260317` |
-| API version | `5.0.0` |
-| Web version | `5.0.0` |
-| Source commit | `147a7bc` |
-| Source range | `45ff552..147a7bc` |
-| New commits since last sync | `157` |
-
-## Recent sync history
-
-| Synced at (UTC) | Docs version | Commit | Range | Commits |
-|---|---|---|---|---|
-| `2026-03-17 02:18:50Z` | `v5.0.0-docs.20260317` | `147a7bc` | `45ff552..147a7bc` | `157` |
-| `2026-03-04 07:32:45Z` | `v5.0.0-docs.20260304` | `45ff552` | `0c9ab5e..45ff552` | `18` |
+| Last reviewed (UTC) | `2026-07-23` |
+| Docs version | `v7.0.0-docs.20260723` |
+| Source commit | `4f18b2a` |
+| Basis | Full rewrite against ESSENCE v16 (ADR-457 Think · Make), ADR-414, ADR-445 |
 <!-- GITBOOK_VERSIONING_END -->
 
-## How auto-sync works
+## What the 7.0 rewrite changed
 
-1. Reads recent git commits.
-2. Builds a docs sync version from API/Web versions + date.
-3. Updates GitBook changelog auto section.
-4. Updates this versioning snapshot.
-5. Persists sync state to `docs/gitbook/.sync-state.json`.
+The docs had drifted roughly four months behind the product. Everything describing the previous service model was replaced:
 
-## Run manually
+- **Thinking Partner** — retired as a concept; the roster is now named colleagues, and orchestration isn't personified
+- **Tasks, agents-as-workforce, multi-agent pipelines** — the task abstraction was dissolved; work happens in Chat and Studio
+- **Slack/Notion-first onboarding** — no longer the entry path; the workspace is useful from signup with nothing connected
+- **Platform bots, projects, meeting rooms, rendered PDF/PPTX/XLSX deliverables** — all removed from the product
+- **Plans** — replaced with the current two-axis model (seats + a pooled meter)
+- **MCP tools** — `work_on_this`/`pull_context`/`remember_this` are gone; the surface is `remember`/`recall`/`trace`
+- **MCP URL** — now `https://mcp.yarnnn.com`
+
+New pages cover the five apps, the record, Freddie, and team use.
+
+## Auto-sync
+
+A helper script refreshes the changelog and this snapshot from git history:
 
 ```bash
 python3 scripts/sync_gitbook.py
 ```
+
+It updates the auto-generated sections only. The narrative pages are maintained by hand against the canonical docs.

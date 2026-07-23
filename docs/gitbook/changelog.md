@@ -1,91 +1,70 @@
 # Changelog
 
-Notable updates to YARNNN and GitBook docs.
-
-## April 2026
-
-### Service model sync (Apr 9)
-- Updated GitBook to match the current service model: agents are the specialists, tasks are the work units, and Thinking Partner is the meta-cognitive agent
-- Replaced legacy project, meeting-room, and orchestrator language across Getting Started, Concepts, FAQ, and Plans pages
-- Reframed the MCP connector as the three-tool context hub across LLMs instead of an external admin surface
-- Aligned public docs with the recent agent/work surface changes shipped in early April
-
-## March 2026
-
-### Public docs overhaul (Mar 17)
-- Rebuilt the GitBook information architecture around the current product model
-- Replaced deliverable-era pages with public docs for Thinking Partner, agents, and first value after connect
-- Updated plans to the current Free + Pro structure
-- Updated API docs to reflect the current chat and agents endpoints
-- Added source-of-truth guidance separating public docs from canonical architecture and ADRs
+Notable updates to YARNNN and these docs.
 
 <!-- AUTO_SYNC_START -->
-## Auto-synced updates
-
-- Last synced: `2026-03-17 02:18:50Z`
-- Docs version: `v5.0.0-docs.20260317`
-- Source commit: `147a7bc`
-- Source range: `45ff552..147a7bc`
-- New commits since last sync: `157`
-- Displayed commits: `157`
-
-### Recent commits
-- 2026-03-17 `147a7bc` docs(gitbook): overhaul public docs structure
-- 2026-03-17 `a832785` feat: workspace density model for Composer eagerness (ADR-115)
-- 2026-03-16 `f4fff39` feat: knowledge corpus signals in Composer heartbeat (ADR-114 Phases 1-3)
-- 2026-03-16 `576f0b0` docs: ADR-114 Composer substrate-aware assessment + prompt versioning baseline
-- 2026-03-16 `6ba63cb` content: add agent protocol stack post + update IR deck (March 2026 v2)
-- 2026-03-16 `bf53fa6` feat: dashboard visibility — next_run_at, heartbeat pulse, progression milestones
-- 2026-03-16 `9bcafd6` fix: harden autonomy invariants — origin guard, weighted approval, substrate-wide heartbeat (ADR-111)
-- 2026-03-16 `c20fa99` docs: correct VALUE-CHAIN Phase 6-7 status — Composer Heartbeat already shipped
-- 2026-03-16 `a341fa6` feat: inline first-run execution + VALUE-CHAIN accuracy pass (ADR-110/107)
-- 2026-03-16 `0ba8c7a` docs: add post-launch monetization considerations (ADR-113 impact)
-- 2026-03-16 `fa6661d` docs: add VALUE-CHAIN.md — canonical value realization chain (ADR-113)
-- 2026-03-16 `dc7499a` content: add agent protocol stack posts (LinkedIn, Twitter, parts 1-2)
-- 2026-03-16 `0461f34` content: update strategy, ops, voice & brand docs + add agent protocol post
-- 2026-03-16 `e8bed23` feat: ADR-113 auto source selection — eliminate manual prerequisite, smarter heuristics
-- 2026-03-16 `fbcbdb2` content: align marketing pages with current product reality
-- 2026-03-16 `866dc81` feat: dashboard empty states + origin badge cleanup + onboarding v4 doc
-- 2026-03-16 `771abdc` feat: Supervision Dashboard + Orchestrator route restructure
-- 2026-03-16 `34d63ae` feat: activity page Composer events + Supervision Dashboard design doc
-- 2026-03-16 `07fd8d9` feat: ADR-111 Phase 5 — Lifecycle Progression (maturity signals + auto-pause + expansion)
-- 2026-03-16 `507dc2a` feat: ADR-111 Phase 4 — Supervisory Reframe (proactive review → TP Heartbeat)
 <!-- AUTO_SYNC_END -->
 
-### Agent taxonomy update (Mar 4)
-- Replaced legacy agent taxonomy with 7 purpose-first types (`digest`, `brief`, `status`, `watch`, `deep_research`, `coordinator`, `custom`)
-- Updated product docs to reflect strict type vs mode separation
+## July 2026
 
-### Agent intelligence modes finalized (Mar 4)
-- Documented 5 execution modes: `recurring`, `goal`, `reactive`, `proactive`, `coordinator`
-- Retired legacy signal-processing framing in favor of agent-native intelligence
+### Docs rewritten for the current product (Jul 23)
+- Full rebuild of the public docs against the shipped product. The previous version described the pre-June service model and was substantially wrong.
+- New pages for the five apps (Chat, Studio, Images, Files, Agents), the record and `trace`, Freddie, and working with a team.
+- Corrected the MCP surface (`remember` / `recall` / `trace`) and the connector URL (`https://mcp.yarnnn.com`).
+- Corrected pricing to the current seats-plus-usage model.
+- Removed Thinking Partner, tasks, projects, platform bots, and rendered-deliverable pages — none of those exist in the product.
 
-### Platform and API documentation refresh (Mar 4)
-- Updated plans/limits docs to match current backend-enforced tier limits
-- Updated API reference paths to current endpoints (`/api/chat`, `/api/agents/{id}/run`, version endpoints)
-- Added GitBook versioning + sync metadata page
+### The Dock (Jul 22)
+- Five primary apps ship in the Dock in three bands: **Chat** · **Studio** · **Images** · **Files** · **Agents**
+- Right-click any open app to keep it in the Dock or remove it
 
-### Content updates (Mar 4)
-- Added new opinion series and additional blog content across channels
+### Studio: documents became one writing surface (Jul 21–23)
+- Documents and articles are now edited as a page — you type into the document rather than block by block
+- A blank document is genuinely blank; the old scaffold wrapper is gone
+- Decks and pages keep the slide grammar, with a multi-select navigator for managing slides
+- **Re-arrange** — ask for a layout and the AI plans where each block belongs
+- **Turn into** in the block menu now offers only conversions the target actually accepts
+- ⌘Z / ⌘⇧Z undo and redo, recorded as revisions rather than erasures
 
-## February 2026
+### Images became its own app (Jul 18–22)
+- Compose layered visuals on a sized stage — creation starts with dimensions
+- Generation decomposes a brief into layers you can then adjust by hand
+- Export renders in your browser; the raster stays traceable to the composition
 
-### Improved platform reliability (Feb 25)
-- All platform integrations upgraded for improved sync reliability and speed
+### Permanent delete and Trash (Jul 12–20)
+- Trash holds until you empty it — no automatic timer
+- **Delete Permanently** and **Empty Trash**, both requiring explicit confirmation
+- Deleting a file that others were made from warns you first
+- Permanent delete removes the bytes and keeps the attributed record
 
-### External AI tool access (Feb 24)
-- Third-party AI tools can now access your YARNNN context via the MCP connector
-- Secure two-layer authentication for external connections
+### Chat (Jul 16–23)
+- Up to 20 active lanes, with bound Studio lanes exempt
+- You pick a colleague rather than a model; the engine stays visible as a chip
+- Filter lanes by colleague, search transcripts, pin and archive
+- Mobile gets one screen at a time, with a way back
 
-### Updated plans (Feb 23)
-- New plan tiers: Free, Starter, and Pro
-- All platforms available on every plan, including Free
-- Smart signal detection available on Starter and above
+### Agents (Jul 16)
+- The roster is four to start — Thinker, Researcher, Designer, Critic
+- Hire any of them under your own name, tone, colour, and avatar
+- Capability is uniform: every agent holds the same abilities
 
-### Smarter context (Feb 20)
-- YARNNN now automatically identifies and preserves important content long-term
-- Improved search quality across all connected platforms
+### Billing (Jul 12–22)
+- Two-axis pricing: free for one person, $20/mo per additional teammate, plus a shared $15/mo usage pool on the paid plan
+- Seat and plan management moved in-app
+- Fixed a seat count that undercounted teams
 
-### Better learning (Feb 15)
-- YARNNN now learns from your conversations, agent edits, and usage patterns
-- Preferences are applied automatically in future sessions and agents
+## June 2026
+
+### The workspace became multi-principal
+- Humans, agents, and external AIs each hold their own named, revocable grant
+- Connected ChatGPT and Claude appear as rows in the members roster
+- Each teammate's AI connections are their own
+- No permission rule keys on whether a participant is human or AI
+
+### Team invites
+- Invite by email; accepting mints membership in the shared workspace
+- Chat lanes stay private per person; files are shared
+
+## Earlier
+
+Before June 2026 the product was structured around scheduled tasks, a persistent agent workforce, and platform-first onboarding. That model was dissolved. Documentation describing it has been removed rather than amended, because amending it would have implied continuity that doesn't exist.

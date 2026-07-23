@@ -1,36 +1,38 @@
 # What Is YARNNN?
 
-YARNNN is an autonomous agent platform for recurring knowledge work.
+**YARNNN is shared memory for AI and human work.**
 
-It connects to the tools where your work already lives, accumulates context over time, and runs persistent agents against recurring tasks. You supervise a running system instead of rebuilding the same prompt and draft every cycle.
+It's a workspace where everything you and your AI produce — notes, decisions, documents, decks, images — lands in one place you own. Every file has an author. Every change is recorded. Nothing resets when a session ends.
+
+You work in it two ways: **Chat** for thinking, **Studio** for making. And you can reach the same workspace from ChatGPT, Claude, or any AI that speaks MCP.
 
 ## The short version
 
-Connect your tools once. YARNNN builds a shared workspace, assigns persistent agents to recurring work, delivers outputs on schedule, and gets better through feedback and prior runs.
+Think in Chat. Make in Studio. Everything lands in Files — attributed, versioned, and yours. Tell one AI something today, and every AI you connect knows it tomorrow.
 
-## How YARNNN is different
+## Why this is different
 
 | Generic AI chat | YARNNN |
 |---|---|
-| Starts from the prompt in front of it | Starts from your connected work context |
-| Helps with one request at a time | Runs agents against recurring tasks over time |
-| Resets every session | Accumulates context, memory, and learned preferences |
-| You operate every step | You supervise a system that compounds with use |
+| Memory is inferred from your activity — invisible, uncorrectable | You author your context; every file is one you can read and fix |
+| Work is episodic — fix an output and tomorrow starts from zero | Corrections compound — fix a file once and everything after inherits it |
+| Locked to one vendor's model and one vendor's memory | Reachable from any AI you use; the engines are swappable |
+| No record of who changed what | Every change is an attributed revision you can `trace` |
+| Resets every session | Nothing resets |
 
 ## What you can do with YARNNN
 
-- get weekly updates, email digests, meeting prep, and status reports automatically
-- ask cross-platform questions grounded in your actual work
-- use Thinking Partner to create, inspect, and redirect recurring work
-- review agents and work history separately instead of managing everything in one chat thread
-- have multiple agents collaborate on bigger deliverables (PDF, slides, spreadsheets)
-- access YARNNN from Claude, ChatGPT, and compatible clients through the MCP connector
-- compound quality over time as feedback and prior runs accumulate
+- **Think** — hold conversations with named colleagues (Thinker, Researcher, Designer, Critic), grounded in your own workspace rather than a vendor's memory scrapings
+- **Make** — author documents, decks, articles, and landing pages in Studio, with an AI lane bound to the artifact you're editing
+- **Compose visuals** — build layered images on a sized stage in the Images app
+- **Keep everything** — Files holds every file in the workspace, with full revision history and reversible delete
+- **Trace anything** — see who changed a file, when, and what the change was
+- **Reach it from anywhere** — connect ChatGPT, Claude, or any MCP-capable AI to the same workspace
+- **Work with a team** — invite teammates into one shared commons; each person's chat stays private, the work lands publicly
 
 ## Where to start
 
-- [Quickstart](getting-started/quickstart.md)
-- [First value after connect](getting-started/first-value-after-connect.md)
-- [How YARNNN works](concepts/how-yarnnn-works.md)
-- [What are agents?](concepts/what-are-agents.md)
-- [Tasks & multi-agent work](concepts/projects.md)
+- [Quickstart](getting-started/quickstart.md) — your first ten minutes
+- [The desk: Think and Make](concepts/the-desk.md) — the two verbs the product is built around
+- [How your work is recorded](concepts/how-your-work-is-recorded.md) — attribution, revisions, and `trace`
+- [Connect YARNNN to your AI](integrations/mcp-connector.md) — ChatGPT, Claude, and others

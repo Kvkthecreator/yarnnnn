@@ -5,38 +5,43 @@
 ## Getting Started
 
 * [Quickstart](getting-started/quickstart.md)
-* [Connecting your tools](getting-started/connecting-your-tools.md)
-* [First value after connect](getting-started/first-value-after-connect.md)
+* [Your first week](getting-started/your-first-week.md)
+
+## The Apps
+
+* [The desk: Think and Make](concepts/the-desk.md)
+* [Chat](apps/chat.md)
+* [Studio](apps/studio.md)
+* [Images](apps/images.md)
+* [Files](apps/files.md)
+* [Agents](apps/agents.md)
 
 ## How It Works
 
-* [How YARNNN works](concepts/how-yarnnn-works.md)
-* [What are agents?](concepts/what-are-agents.md)
-* [Tasks & multi-agent work](concepts/projects.md)
-* [Thinking Partner](concepts/thinking-partner.md)
-* [How YARNNN learns](concepts/how-yarnnn-learns.md)
+* [How your work is recorded](concepts/how-your-work-is-recorded.md)
+* [Freddie, the workspace steward](concepts/freddie.md)
+* [Working with a team](concepts/working-with-a-team.md)
 * [How your data is used](concepts/how-your-data-is-used.md)
 
-## Integrations
+## Connect Your AI
 
 * [Overview](integrations/overview.md)
-* [Slack](integrations/slack.md)
-* [Notion](integrations/notion.md)
-* [MCP Connector — Context Hub Across LLMs](integrations/mcp-connector.md)
+* [MCP connector — ChatGPT, Claude & more](integrations/mcp-connector.md)
+* [Platform connections](integrations/platform-connections.md)
 
 ## Plans & Billing
 
-* [Plans](plans/plans.md)
+* [Plans and pricing](plans/plans.md)
+* [Usage and spend controls](plans/usage.md)
 
-## API Reference
+## Developers
 
-* [Overview](api-reference/overview.md)
+* [API overview](api-reference/overview.md)
 * [Authentication](api-reference/authentication.md)
-* [Chat](api-reference/chat.md)
-* [Agents](api-reference/agents.md)
+* [MCP tool reference](api-reference/mcp-tools.md)
 
 ## Resources
 
 * [FAQ](resources/faq.md)
-* [Versioning & Sync](resources/versioning.md)
+* [Documentation layers](resources/versioning.md)
 * [Changelog](changelog.md)

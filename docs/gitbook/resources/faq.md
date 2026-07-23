@@ -1,88 +1,87 @@
 # Frequently Asked Questions
 
-## General
+## The difference
 
 ### What is YARNNN?
 
-YARNNN is an autonomous agent platform for recurring knowledge work. It connects to your tools, runs persistent agents against recurring tasks, and improves through supervision and accumulated feedback.
+A workspace that holds everything you and your AI produce — notes, decisions, documents, decks, images — attributed to whoever made it, with the full history of every change. You work in it two ways: **Chat** for thinking, **Studio** for making. And you can reach the same workspace from ChatGPT, Claude, or any AI that speaks MCP.
 
-### How is YARNNN different from ChatGPT or Claude?
+### How is this different from ChatGPT's or Claude's memory?
 
-Chat tools are session-based. They help in the moment but reset when you close the tab. YARNNN is system-based: it maintains synced context from your work tools, runs tasks on schedule without you, and learns from your feedback over time. The output gets better the longer it runs.
+Three ways.
 
-### What kind of work can YARNNN do?
+**It's authored, not inferred.** Their memory is scraped from your activity — you can't fully see it, can't correct it precisely, and can't take it with you. Yours is a set of files you wrote, can read, and can fix.
 
-Common work patterns include:
+**It's shared across AIs.** Their memory works in their app. Yours works in every AI you connect.
 
-- weekly team updates and recaps
-- competitor monitoring and research
-- cross-platform status reports
-- rendered deliverables (PDF, slides, spreadsheets)
+**It has history.** Ask a memory feature how it came to believe something and it can't tell you. Ask YARNNN and you get `trace` — who wrote it, when, and what it said before.
 
-### What does "autonomous" mean here?
+### What is `trace`?
 
-Tasks run in the background on schedule or by trigger, using persistent agents and shared workspace context. You do not need to re-prompt from zero each time. You review and redirect when needed.
+Every change to a file is a revision carrying its author, timestamp, and a message. `trace` walks that chain. You can see it in the app (any file → Get Info) or ask a connected AI for it.
 
-## Setup & Integrations
+It's the capability a storage connector structurally can't offer, because storage keeps the current state and YARNNN keeps the history.
 
-### Which platforms does YARNNN support?
+### Is my data mine?
 
-Slack and Notion.
+Yes. You author it, you can read every file, correct any of it, delete any of it, and take it with you. We don't train models on it and we don't share it between workspaces.
 
-### Can YARNNN post in Slack or edit Notion pages?
+### Does it work with my team?
 
-Source integrations are read-only for context ingestion. Delivery is separate: YARNNN can send outputs to destinations you configure, but it does not silently modify the source systems it reads from.
+Yes. Invite by email; everyone writes into the same workspace and every change carries their name. Chat lanes stay private per person — you diverge privately and settle publicly.
 
-### Can I control what YARNNN can see?
+## The work
 
-Yes. YARNNN starts with smart defaults after connection, and you can refine source coverage at any time.
+### How do I get things in?
 
-## Agents & Tasks
+Three routes: **upload** them in Files (PDF, DOCX, TXT, MD, ZIP), **save** them from a connected AI over MCP, or **author** them here in Chat and Studio.
 
-### Do I have to create agents manually?
+### Which AI models does it work with?
 
-No. YARNNN scaffolds a starter workforce, and Thinking Partner can create or adjust tasks and assignments from plain language.
+Inside YARNNN, the colleagues run on Claude, GPT, Gemini, and DeepSeek models — you pick a colleague and the engine rides behind the name. From outside, any MCP-capable client can connect.
 
-### What are tasks?
+Engines are deliberately swappable. The memory is the thing that stays.
 
-Tasks are the work units. A task defines the objective, cadence, delivery target, and assigned agent or multi-agent process. Simple jobs use one agent. Bigger jobs can involve several agents working in sequence.
+### Can it read my Slack and Notion?
 
-### How do I steer the system?
+You can authorise Slack, Notion, and GitHub and choose what's in scope. **Scheduled background pulling isn't running yet**, so connecting alone doesn't populate your workspace today. Uploads and MCP are the reliable routes in for now.
 
-Use Thinking Partner to create work, change priorities, refine task objectives, and inspect why something ran. Use the Work and Agents surfaces to review outputs, history, and the specialists involved.
+### What's the "second set of eyes"?
 
-### How do agents improve over time?
+That's Freddie — the workspace's own steward. He tends the record: organising, deriving, noticing what needs your attention. He's in beta, does only reversible things, and you meet him in the activity log rather than in a chat window. See [Freddie](../concepts/freddie.md).
 
-Each agent learns from prior runs, edits, and your feedback. They also accumulate domain knowledge, which means later work can become more specific and better calibrated than the first run.
+### Can I undo things?
 
-### What output formats are available?
+Yes, at several levels. **⌘Z** in Studio. **Revert** on any previous revision of any file. **Restore** from Trash, which has no timer. Even permanent delete keeps the record of what existed.
 
-Agents can produce plain text, email-ready content, PDFs, slide decks (PPTX), spreadsheets (XLSX), charts, and more. The format depends on the job.
+## Pricing
 
-### Do agents have run history?
+### What does it cost?
 
-Yes. Every task run creates inspectable history over time, including outputs and execution context.
+Free for one person. $20/mo per teammate you add. Plus shared usage — $15/mo included on the paid plan, then top up.
 
-## Privacy & Security
+### Do connected AIs cost a seat?
 
-### Who can see my data?
+Never. Connect as many as you like.
 
-Only your authenticated account. Data is user-scoped and isolated.
+### Can I cap what it spends?
 
-### Does YARNNN train external models on my data?
+Yes — set a workspace budget at Workspace Settings → System. And the balance itself is a hard floor: at zero, AI work stops rather than overdrafting.
 
-No. User data is used to power that user's YARNNN experience.
+### What if my allowance runs out?
 
-## Plans
+Work pauses until you top up. Nothing is lost. Your files, history, and MCP access are unaffected — reading and keeping your workspace is free.
 
-### Where can I see current limits?
+## Getting started
 
-Check [Plans](../plans/plans.md). Limits are versioned and may evolve with product updates.
+### How do I start?
 
-### What are work units?
+Sign in, open Chat, and ask a real question. Then get the answer out of the chat and into a file. That's the whole loop.
 
-Work units measure autonomous work. Task execution, composition, and delivery count toward that budget. Messages with Thinking Partner are counted separately.
+### What's the best first move?
 
-### Can I upgrade or downgrade later?
+Upload the documents you already work from. An empty workspace can't ground anything; a workspace with your material in it is useful from the first conversation.
 
-Yes. Plan changes can be handled from billing/subscription flows.
+### What should I not expect yet?
+
+Scheduled background work from connected platforms, and Freddie as a conversational partner. Both are named plainly in these docs where they come up.

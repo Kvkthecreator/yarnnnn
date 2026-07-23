@@ -1,6 +1,8 @@
-# API Reference
+# API Overview
 
-YARNNN exposes a REST API for chat, integrations, agents, knowledge, and account state.
+Most integrations should use the [MCP connector](../integrations/mcp-connector.md) — it's the supported, stable, intent-shaped way in, and it works from any MCP-capable client without writing code.
+
+The REST API below is what the YARNNN app itself uses. It's available, but it tracks the product closely and changes with it.
 
 ## Base URL
 
@@ -8,51 +10,52 @@ YARNNN exposes a REST API for chat, integrations, agents, knowledge, and account
 https://api.yarnnn.com
 ```
 
-## Core endpoint groups
+## Machine-readable spec
 
-| Group | Base path |
-|---|---|
-| Chat | `/api/chat` |
-| Agents | `/api/agents` |
-| Integrations | `/api/integrations` |
-| Knowledge | `/api/knowledge` |
-| Documents | `/api/documents` |
-| Subscription | `/api/subscription` |
-| Limits | `/api/user/limits` |
-| System | `/api/system` |
-| Account | `/api/account` |
+The authoritative, always-current surface is the OpenAPI 3.1 document:
 
-## Health check
+```text
+https://yarnnn.com/openapi.json
+```
+
+Generate a client from that rather than transcribing endpoints from documentation. The developer hub at [yarnnn.com/developers](https://yarnnn.com/developers) covers the same ground with worked examples.
+
+## Endpoint groups
+
+| Group | Base path | What it covers |
+|---|---|---|
+| Workspace | `/api/workspace` | Files, revisions, members, shares |
+| Lanes | `/api/lanes` | Chat lanes and turns |
+| Studio | `/api/studio` | Artifacts, layouts, blocks |
+| Images | `/api/images` | Stages and composition |
+| Documents | `/api/documents` | Uploads |
+| Agents | `/api/agents` | The roster and hired agents |
+| Integrations | `/api/integrations` | Platform connections |
+| Subscription | `/api/subscription` | Plan, balance, top-ups |
+| Budget | `/api/budget` | Spend envelope |
+| Recurrences | `/api/recurrences` | Scheduled work and activity |
+| Account | `/api/account` | Account-level state |
+
+## Errors
+
+Structured JSON, never HTML:
+
+```json
+{
+  "error": {
+    "code": "...",
+    "message": "...",
+    "hint": "..."
+  }
+}
+```
+
+## Health
 
 ```text
 GET /health
 ```
 
-Response:
-
-```json
-{
-  "status": "ok",
-  "version": "5.0.0"
-}
-```
-
 ## Authentication
 
-All `/api/*` endpoints require a Bearer token.
-
-```text
-Authorization: Bearer <token>
-```
-
-See [Authentication](authentication.md).
-
-## Error format
-
-Most errors return:
-
-```json
-{
-  "detail": "Description of what went wrong"
-}
-```
+Every `/api/*` endpoint requires a bearer token — see [Authentication](authentication.md).
