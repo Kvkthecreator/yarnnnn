@@ -106,9 +106,15 @@ def run() -> bool:
         "D2 text keys guard on caret-live, not on __yarnnnEditingId",
         "window.__yarnnnCaretLive && window.__yarnnnCaretLive()) return;" in pointer,
     )
+    # AMENDED by ADR-484: D2 closed a real asymmetry (right-click outlined,
+    # left-click did not) but resolved it the wrong direction on PROSE — on a
+    # continuous writing surface the caret is the feedback, and boxing a
+    # paragraph re-asserts the enclosure ADR-480 dissolved. The cue is now
+    # OBJECT-ONLY on flow, matching the boundary FLOW_POINTER_CSS already drew
+    # for the hover cue. The asymmetry D2 fixed stays fixed for objects.
     _check(
-        "D2 flow left-click applies the neutral selection cue",
-        "if (cur) cur.classList.add('yarnnn-pointed');" in proj,
+        "D2+484 flow left-click applies the selection cue to OBJECTS ONLY",
+        "if (cur && TEXT_KINDS.indexOf(cur.getAttribute('data-block')) === -1) {" in proj,
     )
 
     # ── D3 — the chrome waits for the mode ────────────────────────────────
@@ -159,6 +165,28 @@ def run() -> bool:
     _check(
         "D8 PAGED is untouched — no root focus suppression there",
         'main[contenteditable="true"]' not in paged_css,
+    )
+
+    # ── D9 — prose is never boxed on flow; the menu offers no impossible act ──
+    _check(
+        "D9 right-click does NOT box a TEXT block on flow",
+        "if (!flowNow || TEXT_KINDS.indexOf(markKind) === -1) {" in proj,
+    )
+    _check(
+        "D9 left-click keeps the same boundary (objects only)",
+        "if (cur && TEXT_KINDS.indexOf(cur.getAttribute('data-block')) === -1) {" in proj,
+    )
+    _check(
+        "D9 Paste here is gated on there being something to paste",
+        "{hasClipboard && (" in menu,
+    )
+    _check(
+        "D9 a menu with no acts does not render",
+        "if (!hasBlock && !hasClipboard) return null;" in menu,
+    )
+    _check(
+        "D9 the surface passes the clipboard state",
+        "hasClipboard={!!blockClip.current}" in surface,
     )
 
     # ── D5 — the menu is mode-scoped ──────────────────────────────────────

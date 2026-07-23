@@ -71,6 +71,11 @@ export interface StudioBlockMenuProps {
    *  Undefined until the registry answers — treated as flow, matching the
    *  chrome's show-less default (ADR-482 D3). */
   mode?: 'flow' | 'paged';
+  /** ADR-482 D9: is there a block on the in-memory clipboard? `Paste here` was
+   *  the only unconditional row, so an empty-canvas right-click rendered a
+   *  menu of one act that could not happen. A paste offer requires something
+   *  to paste. */
+  hasClipboard?: boolean;
 }
 
 function Row({
@@ -118,7 +123,7 @@ const ICO = 'h-3.5 w-3.5';
 export function StudioBlockMenu({
   target, onClose, onCopy, onPaste, onDuplicate, onDelete,
   onTurnInto, blocks, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck,
-  onCopyLink, onHistory, mode,
+  onCopyLink, onHistory, mode, hasClipboard,
 }: StudioBlockMenuProps) {
   const [turnOpen, setTurnOpen] = useState(false);
   // Dismissal. NOTE the parent-window blind spot: the Studio canvas is a
@@ -169,6 +174,12 @@ export function StudioBlockMenu({
   const left = typeof window !== 'undefined' ? Math.min(target.x, window.innerWidth - 250) : target.x;
   const top = typeof window !== 'undefined' ? Math.min(target.y, window.innerHeight - 330) : target.y;
 
+  // ADR-482 D9: no block and nothing to paste = no menu. Every row is gated, so
+  // this state would otherwise paint an empty bordered box — chrome that
+  // appears, says nothing, and must be dismissed. A menu with no acts is not a
+  // menu; the right-click simply does nothing, which is the honest answer.
+  if (!hasBlock && !hasClipboard) return null;
+
   return (
     <div
       className="fixed z-50 min-w-[228px] rounded-md border border-border bg-popover py-1 shadow-md"
@@ -179,9 +190,18 @@ export function StudioBlockMenu({
       {hasBlock && (
         <Row icon={<Copy className={ICO} />} onClick={() => run(onCopy)} shortcut="⌘C">Copy</Row>
       )}
-      <Row icon={<ClipboardPaste className={ICO} />} onClick={() => run(onPaste)} shortcut="⌘V">
-        Paste here
-      </Row>
+      {/* ADR-482 D9: Paste here was the ONE ungated row, so a right-click on
+          empty canvas produced a one-item menu offering to paste a block
+          clipboard that is usually empty — the operator saw it "a lot of the
+          time" precisely because everything else had correctly hidden itself.
+          A paste needs something TO paste; gating on the clipboard makes the
+          menu honest, and an empty right-click now yields no menu at all
+          rather than a menu of one impossible act. */}
+      {hasClipboard && (
+        <Row icon={<ClipboardPaste className={ICO} />} onClick={() => run(onPaste)} shortcut="⌘V">
+          Paste here
+        </Row>
+      )}
       {hasBlock && (
         <>
           {SEP}

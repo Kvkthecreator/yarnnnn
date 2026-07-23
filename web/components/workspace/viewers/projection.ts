@@ -535,12 +535,22 @@ const POINTER_SCRIPT = `
       if (flowMode) {
         if (cur) cur.classList.remove('yarnnn-pointed');
         cur = blk || null;
-        // ADR-482 D2: apply the NEUTRAL selection cue (ADR-462 D5), which the
-        // flow branch omitted while the right-click handler applied it — so
-        // right-click outlined and left-click did not. The rule is already
-        // defined in FLOW_POINTER_CSS; only the application was missing. This
-        // is the selection cue, not the retired hover cue (ADR-481 D3).
-        if (cur) cur.classList.add('yarnnn-pointed');
+        // ADR-484: the selection cue is applied to OBJECTS ONLY on flow.
+        //
+        // ADR-482 D2 saw a real asymmetry (right-click outlined, left-click did
+        // not) and resolved it the wrong direction on prose: it made left-click
+        // match right-click, when on a continuous writing surface NEITHER
+        // should box a paragraph. Clicking into prose places a caret — the
+        // caret IS the feedback, and a rule around the paragraph re-asserts the
+        // per-block enclosure ADR-480 dissolved. FLOW_POINTER_CSS already drew
+        // this line for the hover cue (object kinds only); the selection cue
+        // now honours the same boundary.
+        //
+        // An OBJECT (figure/table/chart/gallery/divider) is still selected as a
+        // unit — there is no caret to stand in for the cue, so it keeps it.
+        if (cur && TEXT_KINDS.indexOf(cur.getAttribute('data-block')) === -1) {
+          cur.classList.add('yarnnn-pointed');
+        }
         parent.postMessage(payload, '*');
         return;
       }
@@ -618,7 +628,17 @@ const POINTER_SCRIPT = `
     if (mark) {
       if (cur) cur.classList.remove('yarnnn-pointed');
       cur = mark;
-      mark.classList.add('yarnnn-pointed');
+      // ADR-482 D9: on FLOW, prose is never boxed — not by left-click (already
+      // corrected) and not by right-click either. The left-click fix landed one
+      // direction only, so right-clicking a paragraph still drew the enclosure
+      // ADR-480 dissolved; the operator's third pass caught it on a document
+      // whose ONLY structure is prose. An object (figure/table/chart/gallery)
+      // still gets the cue in both grains: there is no caret to stand in for it.
+      var flowNow = window.__yarnnnFlowMode ? window.__yarnnnFlowMode() : false;
+      var markKind = mark.getAttribute ? mark.getAttribute('data-block') : null;
+      if (!flowNow || TEXT_KINDS.indexOf(markKind) === -1) {
+        mark.classList.add('yarnnn-pointed');
+      }
     } else if (cur) {
       cur.classList.remove('yarnnn-pointed');
       cur = null;
@@ -1093,6 +1113,24 @@ const EDIT_SCRIPT = `
   function readSourceInner(el) {
     if (!el || !el.cloneNode) return '';
     var clone = el.cloneNode(true);
+    // ADR-484: strip RUNTIME CHROME before serializing. The yarnnn-pointed
+    // class is a transient selection cue the pointer runtime paints on the live
+    // DOM; it has no business in the artifact. Because every commit reads the
+    // DOM as it stands, whichever block was selected at commit time carried the
+    // class into the SAVED file — verified in prod on three artifacts, one of
+    // them a real operator document whose h2 shipped the class outright. That
+    // is worse than a live-session artifact: it renders the outline for every
+    // future reader, and it is attributed as the member's own authored content.
+    //
+    // Done HERE because this is the ONE serializer both commit paths use (the
+    // flow root and the per-block edit), so chrome cannot leak from either.
+    var painted = clone.querySelectorAll('.yarnnn-pointed');
+    for (var p = 0; p < painted.length; p++) {
+      painted[p].classList.remove('yarnnn-pointed');
+      // Drop the attribute entirely when it was the only class — an empty
+      // class="" is noise in an attributed revision diff.
+      if (!painted[p].getAttribute('class')) painted[p].removeAttribute('class');
+    }
     var refs = clone.querySelectorAll('[data-src-html]');
     for (var i = 0; i < refs.length; i++) {
       var r = refs[i];

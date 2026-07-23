@@ -2316,6 +2316,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   // — the menu withholds enclosure verbs until the registry
                   // answers rather than guessing them on.
                   mode={resolvedMode}
+                  // ADR-482 D9: read at menu-open (the ctxMenu state change IS
+                  // the render), so the ref's non-reactivity is not a problem —
+                  // the clipboard cannot change while the menu is on screen.
+                  hasClipboard={!!blockClip.current}
                   onClose={() => setCtxMenu(null)}
                   onCopy={menuCopy}
                   onPaste={menuPaste}
