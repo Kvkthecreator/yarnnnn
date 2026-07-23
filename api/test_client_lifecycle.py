@@ -33,6 +33,7 @@ Run: api/venv/bin/python api/test_client_lifecycle.py
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import sys
 import types
@@ -282,13 +283,71 @@ check(
     len(_ANTH_OPENED) > 0 and not _anth_leaked,
 )
 
-anth_src = (Path(__file__).resolve().parent / "services" / "anthropic.py").read_text()
+# The FOURTH occurrence (OOM 2026-07-22, mid-SSE on a lane turn) got past the
+# previous version of this gate because it read ONE file's text —
+# services/anthropic.py — and counted occurrences in it. Two callers in OTHER
+# files (services/primitives/web_search.py, services/recurrence_prompt_inference.py)
+# were structurally invisible to it, and both leaked a pool per call for weeks.
+# A gate that greps one file cannot see the call site that matters. So: walk the
+# AST of EVERY api/ source, find every call to get_anthropic_client(), and
+# require each one to be the context-expression of an `async with` — the single
+# exception being the long-lived streaming generator that closes in a `finally`.
+_ANTH_BARE: list[str] = []
+_ANTH_GUARDED: list[str] = []
+_API_ROOT = Path(__file__).resolve().parent
+
+
+def _is_get_anth_call(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "get_anthropic_client"
+    )
+
+
+for _py in sorted(_API_ROOT.rglob("*.py")):
+    rel = _py.relative_to(_API_ROOT).as_posix()
+    # Skip vendored deps and the gates themselves (which name the call in prose).
+    if rel.startswith((".venv", "venv")) or rel.startswith("test_"):
+        continue
+    try:
+        _tree = ast.parse(_py.read_text())
+    except SyntaxError:
+        continue
+    # Every call that sits directly under an `async with` header is guarded.
+    _guarded_nodes: set[int] = set()
+    for _n in ast.walk(_tree):
+        if isinstance(_n, ast.AsyncWith):
+            for _item in _n.items:
+                if _is_get_anth_call(_item.context_expr):
+                    _guarded_nodes.add(id(_item.context_expr))
+    for _n in ast.walk(_tree):
+        if _is_get_anth_call(_n):
+            where = f"{rel}:{_n.lineno}"
+            if id(_n) in _guarded_nodes:
+                _ANTH_GUARDED.append(where)
+            else:
+                _ANTH_BARE.append(where)
+
+# services/anthropic.py's streaming generator holds the client across yields, so
+# it cannot use `async with`; it closes in a `finally` instead. That one bare
+# call is the ONLY sanctioned exception, and it must still prove its teardown.
+_ANTH_SANCTIONED = {
+    w for w in _ANTH_BARE if w.startswith("services/anthropic.py")
+}
+_anth_src = (_API_ROOT / "services" / "anthropic.py").read_text()
 check(
-    "anthropic: no bare `client = get_anthropic_client()` without a guarding context/finally",
-    # the only remaining bare assignment is the long-generator, immediately
-    # followed by try: ... finally: await client.close()
-    anth_src.count("client = get_anthropic_client()") == 1
-    and "await client.close()" in anth_src,
+    f"anthropic: every call site outside the streaming generator uses `async with` "
+    f"({len(_ANTH_GUARDED)} guarded, {len(_ANTH_BARE) - len(_ANTH_SANCTIONED)} bare)",
+    not (set(_ANTH_BARE) - _ANTH_SANCTIONED),
+)
+check(
+    "anthropic: the one sanctioned bare call (streaming generator) closes in a finally",
+    len(_ANTH_SANCTIONED) <= 1 and "await client.close()" in _anth_src,
+)
+check(
+    "anthropic: the gate actually SAW the call sites (guards against a silent no-op scan)",
+    len(_ANTH_GUARDED) + len(_ANTH_BARE) >= 8,
 )
 
 

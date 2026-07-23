@@ -293,8 +293,6 @@ async def _execute_web_search(
     need to generate meaningful text — just enough to complete the tool call.
     Output tokens beyond tool execution are waste.
     """
-    client = get_anthropic_client()
-
     # Minimal prompt — just enough to trigger a search. No "please summarize"
     # instruction that wastes output tokens on prose nobody reads.
     user_prompt = f"Search: {query}"
@@ -302,50 +300,41 @@ async def _execute_web_search(
         user_prompt += f" ({context})"
 
     try:
-        messages = [{"role": "user", "content": user_prompt}]
-        search_results = []
-        # ADR-291: accumulate tokens (incl. cache breakdown) across all rounds
-        total_input_tokens = 0
-        total_output_tokens = 0
-        total_cache_read = 0
-        total_cache_create = 0
+        # `async with` is the CONTRACT, not a style preference:
+        # AsyncAnthropic.__init__ eagerly builds an httpx pool
+        # (max_connections=1000) and offers only a best-effort __del__. Bare
+        # construction here abandoned one pool per WebSearch call — the fourth
+        # instance of the leak class in docs/infrastructure/
+        # memory-and-client-lifecycle.md, and the one that OOM-killed the API
+        # mid-SSE on 2026-07-22. WebSearch is on the lane surface, so every
+        # searching chat turn paid it.
+        async with get_anthropic_client() as client:
+            messages = [{"role": "user", "content": user_prompt}]
+            search_results = []
+            # ADR-291: accumulate tokens (incl. cache breakdown) across all rounds
+            total_input_tokens = 0
+            total_output_tokens = 0
+            total_cache_read = 0
+            total_cache_create = 0
 
-        def _extract_results(content_blocks):
-            """Pull web_search_tool_result blocks from a response content list."""
-            for block in content_blocks:
-                if block.type == "web_search_tool_result":
-                    if hasattr(block, 'content') and isinstance(block.content, list):
-                        for result in block.content:
-                            if hasattr(result, 'type') and result.type == "web_search_result":
-                                search_results.append({
-                                    "title": getattr(result, 'title', ''),
-                                    "url": getattr(result, 'url', ''),
-                                    "snippet": getattr(result, 'snippet', getattr(result, 'content', ''))[:500],
-                                })
-                elif getattr(block, 'type', '') == "server_tool_use" and block.name == "web_search":
-                    logger.info(f"[WEB_SEARCH] Query: {block.input.get('query', '')}")
+            def _extract_results(content_blocks):
+                """Pull web_search_tool_result blocks from a response content list."""
+                for block in content_blocks:
+                    if block.type == "web_search_tool_result":
+                        if hasattr(block, 'content') and isinstance(block.content, list):
+                            for result in block.content:
+                                if hasattr(result, 'type') and result.type == "web_search_result":
+                                    search_results.append({
+                                        "title": getattr(result, 'title', ''),
+                                        "url": getattr(result, 'url', ''),
+                                        "snippet": getattr(result, 'snippet', getattr(result, 'content', ''))[:500],
+                                    })
+                    elif getattr(block, 'type', '') == "server_tool_use" and block.name == "web_search":
+                        logger.info(f"[WEB_SEARCH] Query: {block.input.get('query', '')}")
 
-        # Initial call — max_tokens=50 because we only need the tool to execute,
-        # not generate a prose summary. Server-side tool result arrives in the
-        # response content regardless of text output length.
-        response = await client.messages.create(
-            model=_ANTHROPIC_SEARCH_MODEL,
-            max_tokens=50,
-            system="Search the web and return results.",
-            tools=[WEB_SEARCH_TOOL],
-            messages=messages,
-        )
-        if response.usage:
-            total_input_tokens += getattr(response.usage, "input_tokens", 0)
-            total_output_tokens += getattr(response.usage, "output_tokens", 0)
-            total_cache_read += getattr(response.usage, "cache_read_input_tokens", 0) or 0
-            total_cache_create += getattr(response.usage, "cache_creation_input_tokens", 0) or 0
-
-        _extract_results(response.content)
-
-        # Continue only if the tool is still running (shouldn't happen with simple queries)
-        while response.stop_reason == "tool_use" and not search_results:
-            messages.append({"role": "assistant", "content": response.content})
+            # Initial call — max_tokens=50 because we only need the tool to execute,
+            # not generate a prose summary. Server-side tool result arrives in the
+            # response content regardless of text output length.
             response = await client.messages.create(
                 model=_ANTHROPIC_SEARCH_MODEL,
                 max_tokens=50,
@@ -358,28 +347,46 @@ async def _execute_web_search(
                 total_output_tokens += getattr(response.usage, "output_tokens", 0)
                 total_cache_read += getattr(response.usage, "cache_read_input_tokens", 0) or 0
                 total_cache_create += getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+
             _extract_results(response.content)
 
-        # Deduplicate by URL
-        seen_urls = set()
-        unique_results = []
-        for r in search_results:
-            if r["url"] not in seen_urls:
-                seen_urls.add(r["url"])
-                unique_results.append(r)
+            # Continue only if the tool is still running (shouldn't happen with simple queries)
+            while response.stop_reason == "tool_use" and not search_results:
+                messages.append({"role": "assistant", "content": response.content})
+                response = await client.messages.create(
+                    model=_ANTHROPIC_SEARCH_MODEL,
+                    max_tokens=50,
+                    system="Search the web and return results.",
+                    tools=[WEB_SEARCH_TOOL],
+                    messages=messages,
+                )
+                if response.usage:
+                    total_input_tokens += getattr(response.usage, "input_tokens", 0)
+                    total_output_tokens += getattr(response.usage, "output_tokens", 0)
+                    total_cache_read += getattr(response.usage, "cache_read_input_tokens", 0) or 0
+                    total_cache_create += getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+                _extract_results(response.content)
 
-        logger.info(f"[WEB_SEARCH] Complete: {len(unique_results)} results for '{query}'")
+            # Deduplicate by URL
+            seen_urls = set()
+            unique_results = []
+            for r in search_results:
+                if r["url"] not in seen_urls:
+                    seen_urls.add(r["url"])
+                    unique_results.append(r)
 
-        return WebSearchResult(
-            query=query,
-            results=unique_results[:max_results],
-            success=True,
-            input_tokens=total_input_tokens,
-            output_tokens=total_output_tokens,
-            cache_read_tokens=total_cache_read,
-            cache_create_tokens=total_cache_create,
-            ledger_model=_ANTHROPIC_SEARCH_MODEL,
-        )
+            logger.info(f"[WEB_SEARCH] Complete: {len(unique_results)} results for '{query}'")
+
+            return WebSearchResult(
+                query=query,
+                results=unique_results[:max_results],
+                success=True,
+                input_tokens=total_input_tokens,
+                output_tokens=total_output_tokens,
+                cache_read_tokens=total_cache_read,
+                cache_create_tokens=total_cache_create,
+                ledger_model=_ANTHROPIC_SEARCH_MODEL,
+            )
 
     except Exception as e:
         logger.error(f"[WEB_SEARCH] Failed: {e}", exc_info=True)

@@ -106,13 +106,16 @@ async def infer_recurrence_prompt(
     )
 
     try:
-        anthropic_client = get_anthropic_client()
-        response = await anthropic_client.messages.create(
-            model=INFERENCE_MODEL,
-            max_tokens=2000,
-            system=PROMPT_INFERENCE_SYSTEM,
-            messages=[{"role": "user", "content": user_message}],
-        )
+        # `async with` is the contract (see get_anthropic_client's docstring):
+        # bare construction abandons an httpx pool per call. Scoped to the one
+        # request — nothing below needs the client, only its response.
+        async with get_anthropic_client() as anthropic_client:
+            response = await anthropic_client.messages.create(
+                model=INFERENCE_MODEL,
+                max_tokens=2000,
+                system=PROMPT_INFERENCE_SYSTEM,
+                messages=[{"role": "user", "content": user_message}],
+            )
         refined = response.content[0].text.strip()
 
         try:
