@@ -194,8 +194,11 @@ interface StudioNavigatorProps {
    *  document order. One mechanical revision. Kept for the single-drag path. */
   onReorderSlide?: (from: number, to: number) => void;
   /** Reorder a MULTI-SELECTION as a contiguous group to the drop gap `to`
-   *  (preserving internal order). One compound revision. */
-  onReorderPages?: (indices: number[], to: number) => void;
+   *  (preserving internal order). One compound revision. `landsAt` is the index
+   *  the group's FIRST page occupies after the reflow — the parent re-anchors
+   *  the primary selection to it (the single-drag path's `to` equivalent), so
+   *  the canvas follows the group instead of holding a now-stale index. */
+  onReorderPages?: (indices: number[], to: number, landsAt: number) => void;
   /** Delete a selection of pages as ONE compound revision (multi-select
    *  Delete). The parent confirms when >1. */
   onDeletePages?: (indices: number[]) => void;
@@ -435,8 +438,31 @@ export function StudioNavigator({
         // the selection as a contiguous run before the page currently at `gap`.
         const sel = Array.from(selected).sort((a, b) => a - b);
         if (sel.length > 1 && sel.includes(dragIndex) && onReorderPages) {
-          onReorderPages(sel, gap);
+          // Where does the group LAND? `gap` names a page in the ORIGINAL
+          // order; the group is inserted before the first non-moving page at or
+          // after it. So the landing index = how many stationary pages sit
+          // before `gap`. Computing it here (not in the op) keeps the navigator
+          // and the parent agreeing on one index space.
+          const movingSet = new Set(sel);
+          let landsAt = 0;
+          for (let i = 0; i < gap; i++) if (!movingSet.has(i)) landsAt++;
+          // A drop INSIDE the selection is a no-op in the op (the group is
+          // already there). Don't fire a revision that changes nothing.
+          const alreadyThere = sel.every((s, k) => s === landsAt + k);
+          if (!alreadyThere) {
+            // The group becomes a CONTIGUOUS run at `landsAt`. Re-key the local
+            // selection to where the pages actually are now — holding the old
+            // indices would paint the highlight on whatever slid into those
+            // slots (the operator-observed "wrong slides stay selected").
+            setSelected(new Set(sel.map((_, k) => landsAt + k)));
+            anchorRef.current = landsAt;
+            onReorderPages(sel, gap, landsAt);
+          }
         } else if (onReorderSlide) {
+          // The grabbed card is NOT part of the multi-selection — this is a
+          // single move, so the stale group highlight must not survive it. The
+          // parent re-anchors the primary; we collapse the local set to match.
+          if (selected.size > 1) setSelected(new Set([dragIndex]));
           // The drop gap is an index in the ORIGINAL order; landing in our own
           // slot or just after it is a no-op.
           const to = gap > dragIndex ? gap - 1 : gap;

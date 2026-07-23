@@ -1802,15 +1802,30 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   );
 
   // Group reorder (multi-select drag) — move the selection to the drop gap as
-  // ONE compound revision (paged-general: deck slides OR page sections). The
-  // primary selection is cleared to the canvas's own reflow; nothing to re-anchor.
+  // ONE compound revision (paged-general: deck slides OR page sections).
+  //
+  // The primary selection MUST be re-anchored, exactly as the single-drag path
+  // does. It is not "cleared by the canvas's own reflow": `selection.slideIndex`
+  // is an INDEX, and after the group moves that same index names a DIFFERENT
+  // page — so the canvas held a slide the member never dragged and the Design
+  // tab scoped to it. `landsAt` is where the group's first page ends up; the
+  // primary follows the group there and the canvas scrolls to it.
   const reorderPagesFromNavigator = useCallback(
-    (indices: number[], to: number) => {
+    (indices: number[], to: number, landsAt: number) => {
       const noun = template === 'deck' ? 'slides' : 'sections';
       void applyOp(
         (html) => movePages(html, indices, to),
         `Studio: reorder ${indices.length} ${noun}`,
       );
+      setSelection((sel) => {
+        if (sel?.slideIndex == null) return sel;
+        // The primary was one of the moved pages → it keeps its rank within the
+        // group. If it was NOT (a stale primary), re-anchor to the group head
+        // rather than leave it pointing at an unrelated page.
+        const rank = indices.indexOf(sel.slideIndex);
+        return { ...sel, slideIndex: rank >= 0 ? landsAt + rank : landsAt };
+      });
+      setScrollToSlide((s) => ({ index: landsAt, nonce: (s?.nonce ?? 0) + 1 }));
     },
     [applyOp, template],
   );
