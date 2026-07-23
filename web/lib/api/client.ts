@@ -756,6 +756,17 @@ export const api = {
     // reference; we forward its storage_path query verbatim.
     blobUrl: (contentUrl: string) => {
       const qs = contentUrl.includes("?") ? contentUrl.slice(contentUrl.indexOf("?")) : "";
+      // Only the ?storage_path= form is resolvable (ADR-395). A content_url
+      // that lacks it — a retired ?token= reference, an empty string, an
+      // absolute URL that slipped through — would hit the endpoint with a
+      // param it 404s on, and the BROWSER logs that failed request to the
+      // console whether or not the promise is caught (a network-layer log, not
+      // a JS throw). So don't send it: reject locally with a shape the caller
+      // already try/catches into a graceful fallback (operator-observed console
+      // flood on an open deck, 2026-07-24).
+      if (!/[?&]storage_path=/.test(qs)) {
+        return Promise.reject(new Error("blobUrl: content_url has no storage_path"));
+      }
       return request<{ url: string; expires_in: number }>(`/api/documents/blob${qs}`);
     },
 

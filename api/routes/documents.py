@@ -440,7 +440,7 @@ class BlobUrlResponse(BaseModel):
 
 
 @router.get("/documents/blob", response_model=BlobUrlResponse)
-async def get_blob_url(auth: UserClient, storage_path: str):
+async def get_blob_url(auth: UserClient, storage_path: Optional[str] = None):
     """Resolve a raw-upload blob's stable content_url key to a fresh signed URL.
 
     Authenticated (Bearer) JSON endpoint — the FE fetches this with the session
@@ -449,9 +449,19 @@ async def get_blob_url(auth: UserClient, storage_path: str):
     Ownership: the `documents`-bucket key is `{user_id}/{document_id}/…`, so a
     caller may only resolve blobs under their OWN user_id prefix — this prevents
     reading another principal's blob by guessing the key.
+
+    `storage_path` is OPTIONAL by signature so a malformed reference degrades to
+    a 404 (a missing blob), not a FastAPI 422 (a malformed request). The retired
+    `?token=` content_url form (pre-ADR-395) and any stale-bundle caller sending
+    the wrong param name both land here: the blob genuinely cannot be resolved,
+    which is a 404, and the FE's projection already try/catches a 404 into a
+    graceful fallback. A 422 instead read as a system error and flooded the
+    console (operator-observed on an open deck, 2026-07-24).
     """
     if not storage_path or not storage_path.startswith(f"{auth.user_id}/"):
-        # Not owned by the caller (or empty) — 404, don't leak existence.
+        # Not owned by the caller, empty, or the wrong param name (a legacy
+        # ?token= reference resolves storage_path to None) — 404, don't leak
+        # existence and don't 422 a request the FE handles gracefully.
         raise HTTPException(status_code=404, detail="Blob not found")
 
     # POWERBOX read-gate: a narrowed principal must not fetch a blob whose
