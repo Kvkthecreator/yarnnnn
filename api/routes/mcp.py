@@ -24,7 +24,6 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query
-from mcp.server.auth.provider import construct_redirect_uri
 from pydantic import BaseModel
 
 from services.supabase import UserClient, get_service_client
@@ -95,6 +94,15 @@ async def mcp_oauth_callback(
 
     # Build the OAuth client redirect target (code + original state). The web
     # handoff page navigates the browser here.
+    #
+    # Deferred deliberately: the `mcp` SDK costs ~600 modules of resident
+    # baseline at API boot, and this one helper on the OAuth-callback path is
+    # the API service's only use of it. (The MCP SERVER is a separate Render
+    # service with its own process — this router only brokers the OAuth
+    # handoff.) Import at call time so a boot that never sees a callback never
+    # pays for it.
+    from mcp.server.auth.provider import construct_redirect_uri
+
     redirect_uri = row["redirect_uri"]
     state = row.get("state")
     target = construct_redirect_uri(redirect_uri, code=code, state=state)

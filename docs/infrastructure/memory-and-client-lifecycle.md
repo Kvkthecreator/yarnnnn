@@ -243,6 +243,67 @@ It also asserts it *saw* ≥8 call sites, so a scan that silently matches nothin
 Verified by reverting the two fixes with the new gate in place: **FAIL — 5 guarded, 2 bare**.
 The gate catches the bug it claims to catch.
 
+### The step-ladder — reading the shape
+
+At 1-minute resolution the growth is **discrete steps separated by flat plateaus**, never a
+slope and never a decline:
+
+```
+16:00–16:07  314.8 MB   flat, 8 min
+16:08        316.2 MB   +1.4 MB step
+16:22        322.0 MB   +2.9 MB step
+16:23–16:34  322.0 MB   flat, 12 min
+18:39        376.8 MB   +7.1 MB step
+```
+
+Each step is one abandoned pool (or a small batch of them); each flat is a stretch with no
+leaking request. The steps are MB-sized rather than KB-sized because of the glibc arena
+amplification measured above (475 KB/client threaded vs 0 KB single-threaded).
+
+**The diagnostic value is in what the shape rules out.** Memory *stops* climbing when traffic
+stops — on 2026-07-20, RSS plateaued at 461 MB and held flat across 23:30→01:00 as requests
+fell 127 → 4 per 30 min. So: request-driven accumulation, **not** a background task, timer, or
+gradual heap creep. When triaging the next one, read the shape first — it tells you where to
+look before you read any code.
+
+---
+
+## Baseline (resident-at-boot) — the other half of the headroom
+
+A leak is only lethal relative to the headroom it eats. The 2026-07-22 OOM was made lethal by a
+baseline of **~112 MB against a 512 MiB cap** — barely 4x headroom before the first request.
+Auditing it found two heavy SDKs imported at **module scope** on the boot path, each for a
+symbol used inside exactly one function:
+
+| Import | Cost | Used by |
+|---|---|---|
+| `services/primitives/web_search.py` → `from services.anthropic import …` | ~861 `anthropic.types.*` modules | one call in `_execute_web_search` |
+| `routes/mcp.py` → `from mcp.server.auth.provider import …` | ~600 modules | one helper on the OAuth callback |
+
+Both deferred to call time. Measured, subprocess-booting the real app:
+
+| | RSS | modules |
+|---|---|---|
+| bare interpreter | 13.0 MB | 53 |
+| `import main` — before | 112.2 MB | 2132 |
+| `import main` — after | **81.2 MB** | **932** |
+
+**−31 MB / −28% baseline, −1200 modules**, and a correspondingly faster cold start (which matters:
+Render restarts the process on every deploy). `litellm` was already correctly deferred — its
+`services/model_router.py` call sites carry the comment *"~3s cold import must not tax API boot"*.
+The `supabase` + `fastapi` + `pydantic` floor (~70 MB) is structural and stays.
+
+Deferring an import moves failure from boot time to request time, so both were proven to resolve
+**at call time**, not merely to boot: `_execute_web_search` was driven end-to-end and reached
+Anthropic's API, failing only on a stub key (401) — not on `NameError`/`ImportError`.
+
+Guarded by `api/test_boot_import_cost.py`, which **measures** rather than greps: it boots the app
+in a subprocess and asks the live `sys.modules` whether each heavy SDK is resident, plus a module-
+count ceiling to catch a new dependency not on the named list. A grep could not defend this — the
+two offending files never name `anthropic` or `mcp` in a form a naive import-grep would flag; the
+cost arrives transitively. Falsified: reverting both deferrals turns the gate red (3 failed,
+113.0 MB / 2133 modules).
+
 ---
 
 ## Discipline rule (going forward)
@@ -266,7 +327,17 @@ Sanctioned patterns:
 file's text. Prove it by reverting the fix and watching the gate go red — a gate never seen failing
 is a claim, not evidence.
 
-A regression test (`api/test_client_lifecycle.py`) asserts: `build_working_memory` closes every
-Supabase client it opens; `close_supabase_client` releases both sub-clients; **and every
-`services/anthropic.py` wrapper closes the Anthropic client it opens, including on mid-stream
-disconnect.**
+**Second rule — keep heavy SDKs off the boot path.** An import needed inside one function belongs
+*in* that function. The convention is already the codebase norm (`litellm`, `openai`, `PyPDF2`,
+`docx`, `markdown`, and four of the five `anthropic` call sites defer); the exceptions are what
+cost 31 MB. Before adding a module-scope import of a large third-party SDK to anything reachable
+from `main.py`, check whether the symbol is call-time-only — and run
+`python3 test_boot_import_cost.py`, which will tell you in one line.
+
+Two regression gates guard this doc's claims — run both from `api/` as scripts (not pytest):
+
+- **`python3 test_client_lifecycle.py`** — teardown. `build_working_memory` closes every Supabase
+  client it opens; `close_supabase_client` releases both sub-clients; **every** `get_anthropic_client()`
+  call site anywhere in `api/` is `async with`-guarded (AST walk), including on mid-stream disconnect.
+- **`python3 test_boot_import_cost.py`** — baseline. The heavy SDKs (`anthropic`, `mcp`, `litellm`,
+  `openai`) are **not resident** after `import main`, plus a module-count ceiling for the general case.

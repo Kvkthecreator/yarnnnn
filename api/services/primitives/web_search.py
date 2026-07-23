@@ -37,8 +37,6 @@ from dataclasses import dataclass
 
 import httpx
 
-from services.anthropic import get_anthropic_client
-
 logger = logging.getLogger(__name__)
 
 
@@ -293,6 +291,17 @@ async def _execute_web_search(
     need to generate meaningful text — just enough to complete the tool call.
     Output tokens beyond tool execution are waste.
     """
+    # Deferred deliberately (see the module docstring's boot-cost note): this
+    # module sits on the import path of every API boot via
+    # services.primitives.registry, and `from anthropic import AsyncAnthropic`
+    # drags in ~861 `anthropic.types.*` Pydantic model modules — ~31 MB of
+    # resident baseline for a client only ever built inside this function. The
+    # rest of the codebase already defers this import (routes/feed.py,
+    # services/session_continuity.py, services/memory.py, and
+    # services/recurrence_prompt_inference.py all do); this was the one
+    # module-scope holdout.
+    from services.anthropic import get_anthropic_client
+
     # Minimal prompt — just enough to trigger a search. No "please summarize"
     # instruction that wastes output tokens on prose nobody reads.
     user_prompt = f"Search: {query}"
