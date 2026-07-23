@@ -4,6 +4,24 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-07-23 — STUDIO: the cue that boxed prose, and leaked into the substrate (ADR-484)
+
+**Governing ADR**: [ADR-484](../adr/ADR-484-the-cue-that-boxed-prose-and-leaked-into-substrate.md). Operator-reported: *"i thought the document is now one big flow, i still see outlined block selections for this newly created document."*
+
+**D1 — the outline was ours, from ADR-482 D2.** D2 saw a real asymmetry (on flow, right-click applied the neutral `.yarnnn-pointed` cue and left-click did not) and resolved it by making left-click match right-click, unconditionally. Wrong direction on prose: clicking into a paragraph places a caret, and **the caret IS the feedback** — a rule around the paragraph re-asserts the enclosure ADR-480 dissolved. The tell that this was oversight rather than judgment: `FLOW_POINTER_CSS` had **already drawn the correct boundary** for the HOVER cue (object kinds only, never prose); D2 applied the SELECTION cue without honouring the line the hover cue respected. Now object-only — a figure/table/chart/divider is still selected visibly (no caret to stand in for the cue); prose gets the caret and nothing else. Paged untouched.
+
+**D2 — the worse bug underneath.** Reading the operator's actual stored document to confirm the diagnosis surfaced `<h2 … class="yarnnn-pointed">` **in the saved artifact**. `readSourceInner` — the ONE serializer both commit paths use — restored citation islands and stripped no runtime chrome, so whichever block was selected at commit time carried its cue into the file. Categorically worse than a live-session artifact: it renders for **every future reader**, and it sits in the substrate **attributed as the member's own authored content** (ADR-209) when they never wrote it and could not see that they had. The strip now lives in that one serializer, token-wise, dropping an emptied `class=""` rather than leaving noise in the revision diff.
+
+**The generalization** (ADR-484 §3), the substrate-side twin of ADR-482 §10's lesson: *runtime chrome painted onto the live DOM must be **stripped at the serialization boundary**, not merely styled correctly.* A cue invisible in one mode is still PRESENT in the DOM, and any path that reads the DOM to persist it will write it into the artifact. Nothing in the CSS layer could have caught this — the styling was scoped fine; the serializer was the unguarded surface.
+
+**Data repair**: the leak had already shipped to 3 artifacts (5 occurrences), including the operator's real `prd-for-yarnnn` (3). `api/scripts/oneshot/adr484_strip_leaked_chrome_class.py` repairs them **through `write_revision`**, never a raw UPDATE, attributed `system:adr484-chrome-strip` (a mechanical repair of runtime leakage, explicitly not an authored edit). Receipts: 3 repaired, 3 attributed revisions, `count(*) where content like '%yarnnn-pointed%'` → **0**, authored `class="lede"` intact. A bug in the repair script itself was caught by its own test pass before it touched data — substring surgery fused `class="a yarnnn-pointed b"` into `class="ab"`; rewritten token-wise. *Test the repair against the real shapes before running it against the real data.*
+
+**Gates**: `web/scripts/gates/adr484_flow_chrome_leak.mjs` **14/14 EXECUTING** the real click branch and the real `readSourceInner`, with a **falsifier per defect** (restore the unconditional apply → prose boxes again; remove the strip → the class serializes again) · `api/test_adr484_flow_chrome_leak.py` 13/13, which also executes the repair's strip against every real class shape. `api/test_adr482_flow_completion.py` amended 39/39 — the D2 assertion pinned the literal line this ADR replaces; the invariant it protects is preserved and narrowed. Siblings green: 480 30/30 · 481 32/32 · 482 slash-take 7/7 · 483 17/17. `next build` clean.
+
+**Owed**: a human click-pass confirming prose no longer outlines and objects still do.
+
+---
+
 ## 2026-07-23 — STUDIO: the name is what the member typed (ADR-483)
 
 **Governing ADR**: [ADR-483](../adr/ADR-483-the-name-is-what-the-member-typed.md). Commissioned by an operator report that creating a new document *"asks to rename the document name, then nothing renders for me to actually input."*
