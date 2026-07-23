@@ -16,7 +16,10 @@
  * one is a soft, honest fallback rather than a wrong label.
  */
 
-import { FileText, Presentation, Newspaper, LayoutTemplate, File as FileGlyph } from 'lucide-react';
+import {
+  FileText, Presentation, Newspaper, LayoutTemplate, Image as ImageGlyph,
+  File as FileGlyph,
+} from 'lucide-react';
 
 export interface StudioShapeStyle {
   icon: typeof FileText;
@@ -30,6 +33,10 @@ const SHAPE_STYLES: Record<string, StudioShapeStyle> = {
   deck: { icon: Presentation, color: 'text-amber-500' },
   article: { icon: Newspaper, color: 'text-violet-500' },
   page: { icon: LayoutTemplate, color: 'text-emerald-500' },
+  // ADR-482 D7: the IMAGES stage (ADR-472) had no row, so it fell to the
+  // neutral glyph everywhere this table is read — correct by the fallback's
+  // design, but the shape is known and deserves its own mark.
+  image: { icon: ImageGlyph, color: 'text-rose-500' },
 };
 
 const UNSTYLED: StudioShapeStyle = {

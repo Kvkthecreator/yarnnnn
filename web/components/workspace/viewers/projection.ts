@@ -342,8 +342,9 @@ body:has([contenteditable="true"]) [data-slot]:hover::after { content: none; }
   font: 500 0.8rem system-ui, sans-serif; cursor: pointer; text-align: center;
 }
 .yarnnn-add-here:hover {
-  background: rgba(99,102,241,0.06); border-color: rgba(99,102,241,0.45);
-  color: #6366f1;
+  background: rgba(var(--yarnnn-chrome-accent-rgb),0.06);
+  border-color: rgba(var(--yarnnn-chrome-accent-rgb),0.45);
+  color: var(--yarnnn-chrome-accent);
 }
 `;
 
@@ -366,6 +367,16 @@ const DECK_STAGE_W = 992; // 62rem — the slide's natural landscape width
 const DECK_STAGE_H = Math.round((DECK_STAGE_W * 9) / 16); // 16:9 → 558
 
 const DECK_STAGE_CSS = `
+/* ADR-482 D4: the app-chrome accent, declared ONCE. It was a bare #6366f1
+   literal at six independent sites across four separately-injected sheets, so
+   nothing made the count auditable or a change single-edit. Declared here
+   because this sheet is unconditionally concatenated ahead of the others in
+   every pointer projection. This is chrome the app draws — never document
+   content, which takes its color from the design system. */
+:root {
+  --yarnnn-chrome-accent: #6366f1;
+  --yarnnn-chrome-accent-rgb: 99,102,241;
+}
 html[data-template="deck"] body { display: flex; flex-direction: column; align-items: center; }
 html[data-template="deck"] .slide {
   width: ${DECK_STAGE_W}px !important;
@@ -509,6 +520,12 @@ const POINTER_SCRIPT = `
       if (flowMode) {
         if (cur) cur.classList.remove('yarnnn-pointed');
         cur = blk || null;
+        // ADR-482 D2: apply the NEUTRAL selection cue (ADR-462 D5), which the
+        // flow branch omitted while the right-click handler applied it — so
+        // right-click outlined and left-click did not. The rule is already
+        // defined in FLOW_POINTER_CSS; only the application was missing. This
+        // is the selection cue, not the retired hover cue (ADR-481 D3).
+        if (cur) cur.classList.add('yarnnn-pointed');
         parent.postMessage(payload, '*');
         return;
       }
@@ -728,6 +745,81 @@ const POINTER_SCRIPT = `
       reportScroll(); // trailing: capture where the scroll actually settled
     }, 120);
   }, true);
+  // ── Keyboard verbs (ADR-482 D2, relocated from GUTTER_SCRIPT) ──────────
+  //
+  // Injected in BOTH grains, because the menu that advertises these keys is
+  // rendered in both. Guards ask __yarnnnCaretLive (a caret question), never
+  // __yarnnnEditingId (a per-block-session question with no flow answer).
+  function caretOwnsKeyIn(blk) {
+    // ADR-482 D2: on PAGED the caret owns the key only inside the block that is
+    // actually editing. On FLOW the root is editable for the whole session, so
+    // "which block is editing" has no answer — the honest test is whether the
+    // caret sits in this block and there is text for the key to act on.
+    var flow = window.__yarnnnFlowMode ? window.__yarnnnFlowMode() : false;
+    if (flow) {
+      if (!(window.__yarnnnCaretLive && window.__yarnnnCaretLive())) return false;
+      var s = window.getSelection();
+      if (!s || !s.rangeCount) return false;
+      var n = s.getRangeAt(0).startContainer;
+      var el = n && n.nodeType === 1 ? n : (n ? n.parentElement : null);
+      var inBlk = !!(el && el.closest && el.closest('[data-block]') === blk);
+      return inBlk && (blk.textContent || '').trim() !== '';
+    }
+    var editing = window.__yarnnnEditingId ? window.__yarnnnEditingId() : null;
+    if (editing == null) return false;
+    if (blk.getAttribute('data-block-id') !== editing) return false;
+    return (blk.textContent || '').trim() !== '';
+  }
+  function selectedBlock() {
+    var sel = window.__yarnnnSelected ? window.__yarnnnSelected() : null;
+    if (!sel || !sel.isConnected) return null;
+    return caretOwnsKeyIn(sel) ? null : sel;
+  }
+
+  document.addEventListener('keydown', function (e) {
+    var blk = selectedBlock();
+    if (!blk) return;
+    var t = e.target;
+    if (t && t.closest && (t.closest('.yarnnn-gutter') || t.closest('.yarnnn-fmt'))) return;
+    var id = blk.getAttribute('data-block-id');
+    if (!id) return;
+    var mod = e.metaKey || e.ctrlKey;
+
+    // Delete / Backspace on a SELECTED block removes it. With a live caret in
+    // a block that still has text, caretOwnsKeyIn() has already handed the key
+    // back to the editor (merge at start, native mid-text) — so reaching here
+    // means the caret has no claim on it.
+    if (!mod && (e.key === 'Delete' || e.key === 'Backspace')) {
+      e.preventDefault();
+      parent.postMessage({ type: 'yarnnn-key-verb', verb: 'delete', blockId: id }, '*');
+      return;
+    }
+    if (!mod) return;
+    var k = (e.key || '').toLowerCase();
+    if (k === 'c' || k === 'd' || k === 'v') {
+      // The member may be copying TEXT they selected inside the block — that is
+      // the platform's job, not ours. Only claim the key when nothing is
+      // selected, so ⌘C over a highlighted phrase still copies the phrase.
+      var s = window.getSelection();
+      if (k === 'c' && s && !s.isCollapsed && String(s)) return;
+      // Same rule for the caret itself: an empty block can be SELECTED while
+      // its caret is live (the P11 overlap), and ⌘V there means "paste text
+      // here", never "paste a block after this one". Text keys belong to the
+      // editor whenever a caret exists at all.
+      // ADR-482 D2: ask "is a caret LIVE", not "is a block editing" — the
+      // latter is null on flow while the caret is live in the root, which
+      // would steal text keys from a member mid-sentence on every document.
+      if ((k === 'v' || k === 'c') &&
+          window.__yarnnnCaretLive && window.__yarnnnCaretLive()) return;
+      e.preventDefault();
+      parent.postMessage({
+        type: 'yarnnn-key-verb',
+        verb: k === 'c' ? 'copy' : k === 'd' ? 'duplicate' : 'paste',
+        blockId: id,
+      }, '*');
+    }
+  });
+
 })();
 `;
 
@@ -822,11 +914,11 @@ const ADD_HERE_SCRIPT = `
 
 const EDIT_CSS = `
 [data-block][contenteditable="true"] {
-  outline: 2px solid #6366f1 !important; outline-offset: 3px;
-  background: rgba(99,102,241,0.04);
+  outline: 2px solid var(--yarnnn-chrome-accent) !important; outline-offset: 3px;
+  background: rgba(var(--yarnnn-chrome-accent-rgb),0.04);
 }
 [data-block][contenteditable="true"] [data-ref] {
-  outline: 1px dashed rgba(99,102,241,0.5); cursor: default;
+  outline: 1px dashed rgba(var(--yarnnn-chrome-accent-rgb),0.5); cursor: default;
 }
 /* ADR-456 W2: the inline format bar — injected chrome, body-appended (never
    inside a block, so it can never leak into a commit). */
@@ -870,7 +962,7 @@ const EDIT_CSS = `
   content: ''; position: absolute; inset: 0 4px; border-radius: 2px;
   background: transparent; transition: background 0.1s;
 }
-.yarnnn-coldiv:hover::before, .yarnnn-coldiv:active::before { background: #6366f1; }
+.yarnnn-coldiv:hover::before, .yarnnn-coldiv:active::before { background: var(--yarnnn-chrome-accent); }
 /* The resize handle (ADR-461 D4) — the corner grip on a MEASURABLE block (one
    inside a frame: a slide, or a media block's own box). Body-appended chrome,
    never in a block, so it can't leak into a commit. Its ABSENCE on an
@@ -886,7 +978,7 @@ const EDIT_CSS = `
    on an unframed block is the ADR-461 boundary made visible. */
 .yarnnn-selbox {
   position: absolute; display: none; z-index: 2147483645;
-  border: 1.5px solid #6366f1; border-radius: 1px;
+  border: 1.5px solid var(--yarnnn-chrome-accent); border-radius: 1px;
   background: transparent; box-sizing: border-box;
   pointer-events: none;
 }
@@ -905,7 +997,7 @@ const EDIT_CSS = `
 .yarnnn-selbox-editing { border-style: dashed; }
 .yarnnn-selh {
   position: absolute; width: 10px; height: 10px;
-  border: 1.5px solid #6366f1; background: #fff; border-radius: 50%;
+  border: 1.5px solid var(--yarnnn-chrome-accent); background: #fff; border-radius: 50%;
   box-shadow: 0 1px 2px rgba(0,0,0,0.2);
   pointer-events: auto; z-index: 2;
 }
@@ -944,9 +1036,9 @@ const EDIT_CSS = `
 }
 .yarnnn-dragging { opacity: 0.4; }
 .yarnnn-dropline {
-  position: absolute; z-index: 9997; height: 2px; background: #6366f1;
+  position: absolute; z-index: 9997; height: 2px; background: var(--yarnnn-chrome-accent);
   border-radius: 2px; pointer-events: none; display: none;
-  box-shadow: 0 0 0 1px rgba(99,102,241,0.3);
+  box-shadow: 0 0 0 1px rgba(var(--yarnnn-chrome-accent-rgb),0.3);
 }
 `;
 
@@ -1857,7 +1949,14 @@ const EDIT_SCRIPT = `
       // fact (which text node, which offset) that the source HTML cannot name.
       // We exit SILENT — the parent's op carries the whole result, and a commit
       // of our own would race it on the same head (the one-gesture-two-ops trap).
-      if (slashStart < 0 || !slashNode || !editingEl) return;
+      //
+      // ADR-482 D1: the guard reads the edit HOST, not the per-block session.
+      // editingEl is assigned only by enter(), and ADR-480 D1 stopped calling
+      // enter() on flow — so this bailed unconditionally on every document, and
+      // ADR-481 D2 had already removed the gutter '+' that was masking it. The
+      // palette opened, filtered, and did nothing. editHost() is the ADR-480
+      // seam built for exactly this: the flow root on flow, editingEl on paged.
+      if (slashStart < 0 || !slashNode || !editHost()) return;
       var text = slashNode.textContent || '';
       var end = slashStart + 1 + (typeof d.filterLen === 'number' ? d.filterLen : 0);
       slashNode.textContent = text.slice(0, slashStart) + text.slice(end);
@@ -1868,10 +1967,22 @@ const EDIT_SCRIPT = `
         var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
       } catch (err) {}
       var halves = splitHalves(); // null inside an island → parent falls back
+      // ADR-482 D1: resolve the target from the CARET, mirroring the open path
+      // (:1396-1405). editingId is null on flow for the same reason editingEl
+      // is, so reading it sent the parent a null blockId and its op had nothing
+      // to land after. On paged the session variable is still the truth.
       var id = editingId;
+      if (FLOW_MODE) {
+        var tn = slashNode.nodeType === 1 ? slashNode : slashNode.parentElement;
+        var tblk = tn && tn.closest ? tn.closest('[data-block]') : null;
+        id = tblk ? (tblk.getAttribute('data-block-id') || null) : null;
+      }
       slashStart = -1;
       slashNode = null;
-      exit(false, true); // silent — the parent's op is the sole writer
+      // Silent — the parent's op is the sole writer (the one-gesture-two-ops
+      // trap). On flow there is no per-block session to leave; calling exit()
+      // there would be a no-op that reads as though one were open.
+      if (!FLOW_MODE) exit(false, true);
       parent.postMessage({ type: 'yarnnn-slash-taken', blockId: id,
         beforeInner: halves ? halves.before : null,
         afterInner: halves ? halves.after : null }, '*');
@@ -1881,6 +1992,21 @@ const EDIT_SCRIPT = `
   // Expose to the pointer runtime so it can suppress its click-to-select while
   // a block is being edited (the caret must land, not a new selection).
   window.__yarnnnEditingId = function () { return editingId; };
+  // ADR-482 D2: "is a text caret LIVE right now?" — the question the keyboard
+  // verbs actually need, and the one editingId cannot answer on flow (it is
+  // null there by ADR-480 D1, while the caret is very much live in the root).
+  // Callers that guard TEXT keys must ask this, not __yarnnnEditingId, or ⌘C /
+  // ⌘V / ⌘Z would be stolen from a member mid-sentence on every document.
+  window.__yarnnnCaretLive = function () {
+    if (!FLOW_MODE) return editingId != null;
+    var root = flowRoot();
+    if (!root) return false;
+    var s = window.getSelection();
+    if (!s || !s.rangeCount) return false;
+    var n = s.getRangeAt(0).startContainer;
+    var el = n && n.nodeType === 1 ? n : (n ? n.parentElement : null);
+    return !!(el && root.contains(el));
+  };
   // Expose enter-at-point so the pointer runtime can turn a SINGLE click on a
   // text block into caret placement (ADR audit F4 — click-to-type, no dblclick).
   window.__yarnnnEnter = function (blockId, x, y) { enter(blockId, x, y); };
@@ -2739,58 +2865,12 @@ const GUTTER_SCRIPT = `
   // block and there is text for the key to act on. On an empty block the
   // caret has nothing to bite (the Backspace-empty rule above handles it);
   // on a DIFFERENT block, the selection is the member's real subject.
-  function caretOwnsKeyIn(blk) {
-    var editing = window.__yarnnnEditingId ? window.__yarnnnEditingId() : null;
-    if (editing == null) return false;
-    if (blk.getAttribute('data-block-id') !== editing) return false;
-    return (blk.textContent || '').trim() !== '';
-  }
-  function selectedBlock() {
-    var sel = window.__yarnnnSelected ? window.__yarnnnSelected() : null;
-    if (!sel || !sel.isConnected) return null;
-    return caretOwnsKeyIn(sel) ? null : sel;
-  }
-
-  document.addEventListener('keydown', function (e) {
-    var blk = selectedBlock();
-    if (!blk) return;
-    var t = e.target;
-    if (t && t.closest && (t.closest('.yarnnn-gutter') || t.closest('.yarnnn-fmt'))) return;
-    var id = blk.getAttribute('data-block-id');
-    if (!id) return;
-    var mod = e.metaKey || e.ctrlKey;
-
-    // Delete / Backspace on a SELECTED block removes it. With a live caret in
-    // a block that still has text, caretOwnsKeyIn() has already handed the key
-    // back to the editor (merge at start, native mid-text) — so reaching here
-    // means the caret has no claim on it.
-    if (!mod && (e.key === 'Delete' || e.key === 'Backspace')) {
-      e.preventDefault();
-      parent.postMessage({ type: 'yarnnn-key-verb', verb: 'delete', blockId: id }, '*');
-      return;
-    }
-    if (!mod) return;
-    var k = (e.key || '').toLowerCase();
-    if (k === 'c' || k === 'd' || k === 'v') {
-      // The member may be copying TEXT they selected inside the block — that is
-      // the platform's job, not ours. Only claim the key when nothing is
-      // selected, so ⌘C over a highlighted phrase still copies the phrase.
-      var s = window.getSelection();
-      if (k === 'c' && s && !s.isCollapsed && String(s)) return;
-      // Same rule for the caret itself: an empty block can be SELECTED while
-      // its caret is live (the P11 overlap), and ⌘V there means "paste text
-      // here", never "paste a block after this one". Text keys belong to the
-      // editor whenever a caret exists at all.
-      if ((k === 'v' || k === 'c') &&
-          window.__yarnnnEditingId && window.__yarnnnEditingId() != null) return;
-      e.preventDefault();
-      parent.postMessage({
-        type: 'yarnnn-key-verb',
-        verb: k === 'c' ? 'copy' : k === 'd' ? 'duplicate' : 'paste',
-        blockId: id,
-      }, '*');
-    }
-  });
+  // ADR-482 D2: the keyboard VERBS (⌘C/⌘V/⌘D/⌫) moved to the pointer runtime.
+  // They lived here only by historical accident, and GUTTER_SCRIPT is not
+  // injected on flow (ADR-481 D2) — so on every document the right-click menu
+  // advertised shortcut hints for keys that did nothing. An affordance's
+  // injection site must follow its LIFETIME, not the script it was first
+  // written into. The gutter keeps what is genuinely gutter: '+', ⋮⋮, selbox.
 
   // ── Undo / Redo (⌘Z / ⌘⇧Z) ───────────────────────────────────────────────
   //
@@ -2963,11 +3043,26 @@ export async function resolveArtifactHtml(
     // something there: the neutral selection outline for non-text OBJECTS
     // (figure/table/chart/gallery are still selectable, right-clickable,
     // addressable) plus the D2 empty-state hint.
+    //
+    // ADR-482 D3: the mode gates the GRAIN; the chrome WAITS for the mode.
+    // `mode` is undefined until the vocabulary fetch answers, and every
+    // `!== 'flow'` test below read that undefined as PAGED — so a flow
+    // document's first frames projected the paged gutter, hover cue and edit
+    // outline, then re-projected once the registry landed. That flash is the
+    // indigo box the operator photographed on a document. The safe direction
+    // is the one that shows LESS chrome (StudioSurface.tsx:571-573): until the
+    // mode is KNOWN, mode-specific chrome is withheld rather than guessed.
+    const paged = opts?.mode === 'paged';
+    const flow = opts?.mode === 'flow';
     style.textContent =
       DECK_STAGE_CSS +
       IMAGE_STAGE_CSS +
-      (opts?.mode === 'flow' ? FLOW_POINTER_CSS : POINTER_CSS) +
-      (opts?.edit ? EDIT_CSS : '');
+      (flow ? FLOW_POINTER_CSS : paged ? POINTER_CSS : '') +
+      // ADR-482 D4: the 2px indigo EDIT outline says "this object is live" —
+      // true when one block at a time is editable, meaningless on a continuous
+      // surface where contenteditable lands on main/article and the selector
+      // cannot match. Paged-only, so the intent is legible not accidental.
+      (opts?.edit && paged ? EDIT_CSS : '');
     doc.head?.appendChild(style);
     if (opts?.edit) {
       // The edit runtime is injected FIRST so window.__yarnnnEditingId is
@@ -2983,12 +3078,13 @@ export async function resolveArtifactHtml(
     // DOM; its buttons are not [data-block], so pointer selection ignores them).
     // ADR-481 D1: PAGED only — flow layouts serve no arrangements, so there is
     // no slot to decorate (and the legacy flatten above removed any left over).
-    if (opts?.mode !== 'flow') {
+    // ADR-482 D3: `paged`, not `!== 'flow'` — an unresolved mode gets nothing.
+    if (paged) {
       const addHere = doc.createElement('script');
       addHere.textContent = ADD_HERE_SCRIPT;
       doc.body?.appendChild(addHere);
     }
-    if (opts?.edit && opts?.mode !== 'flow') {
+    if (opts?.edit && paged) {
       // ADR-458: the hover gutter (after the pointer — it uses the pointer's
       // __yarnnnSelect + the edit runtime's __yarnnnEditingId).
       //

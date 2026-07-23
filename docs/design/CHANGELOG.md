@@ -4,6 +4,26 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-07-23 — STUDIO: the flow completion pass (ADR-482)
+
+**Governing ADR**: [ADR-482](../adr/ADR-482-the-flow-completion-pass-insert-parity-and-the-mode-race.md). Commissioned by an operator click-pass over the document type — six complaints, which the audit resolved into four causes, one of them a **regression neither prior ADR could see from inside its own scope**.
+
+**The finding that outranked the six asks.** ADR-480 moved the editing grain to the document root; ADR-481 rebuilt the chrome around it. Both correct alone. Composed, they left flow with **no working insert path**: `yarnnn-slash-take` guarded on `editingEl` (assigned only by the per-block `enter()`, which ADR-480 D1 stopped calling on flow), and ADR-481 D2 then deleted the gutter `+` that was masking it — explicitly reasoning that *"insert on flow is `/` at the caret + right-click — both already built."* The palette opened and filtered; the pick did nothing. The operator's request for a centered insert button was a correct reading of a real absence, and is answered by **repairing `/`** rather than adding chrome, because ADR-481 D2's reasoning about the caret remains sound.
+
+**Recorded lesson**: *when an ADR deletes an affordance because "the replacement is already built," the replacement must be exercised in that mode, not merely present in the codebase.* Every check short of completing the gesture passed — including ADR-481's own gate, which was green while the surface was unusable. The falsifier's shape is "the act completes," not "the affordance appears." This is the arc's **second** premise-level defect (ADR-480 §1 was the first, across five passes).
+
+**Shipped** (D1–D7): the slash-take path resolves its host and target from the caret (D1) · keyboard verbs `⌘C`/`⌘V`/`⌘D`/`⌫` leave `GUTTER_SCRIPT` for the pointer runtime, guarded by a new caret-shaped `__yarnnnCaretLive` rather than the flow-null `__yarnnnEditingId`, and flow left-click gains the neutral selection cue it omitted while right-click applied it (D2) · **the mode race** — `mode` is undefined until the vocabulary answers and every `!== 'flow'` test read that as paged, flashing paged chrome onto a flow document's first frames (the indigo box in the screenshot); the chrome now waits for the mode while the editing grain keeps its conservative default (D3) · `EDIT_CSS`'s indigo outline goes paged-only and six `#6366f1` literals collapse to one custom property (D4) · `StudioBlockMenu` gains a mode and withdraws the enclosure verbs Move up/down on flow (D5) · **Properties is ordered by scope** — File/Share/Export lead, then the selection (D6) · the breadcrumb carries the document-type glyph, `image` gains a shape row, the crumb root label goes app-aware (D7).
+
+**Explicitly NOT shipped** (ADR-482 §7): **paste fidelity**. Both handlers force `text/plain` — a *security* decision (no HTML injection through the clipboard), not an oversight. Preserving format needs an allow-list sanitizer and gets its own ADR; sweeping it in would bury a security-relevant change under six cosmetic ones. Recorded with it: ADR-480 D1's "structure intact" claim holds for copy *out* only, and the menu's `⌘C` writes an in-memory block clipboard, not the OS one.
+
+**Gates**: `api/test_adr482_flow_completion.py` 32/32 (static shape) + `web/scripts/gates/adr482_slash_take.mjs` 7/7 **executing** the real handler body in both grains, with a falsifier that restores the pre-fix guard and asserts flow breaks again. Siblings re-run green: ADR-480 30/30 · ADR-481 32/32 (three assertions updated — they pinned the literal `!== 'flow'` spelling D3 replaced; the *intent* is preserved and strengthened) · ADR-477 13/13 · ADR-479 19/19. `next build` clean.
+
+**Files touched (9)**: `docs/adr/ADR-482-*.md` (new) · `docs/design/STUDIO.md` (the seam section; ADR-480 D5's "gutter recedes" line corrected — D2 deleted it) · this changelog · `web/components/workspace/viewers/projection.ts` · `web/components/studio/{StudioBlockMenu,StudioSurface,StudioDesignTab,studioShapes}.tsx|ts` · `api/test_adr482_flow_completion.py` (new) · `web/scripts/gates/adr482_slash_take.mjs` (new) · `api/test_adr481_flow_chrome.py` (3 assertions re-pinned).
+
+**Owed** (ADR-482 §9): the paste ADR · the `Rename…` no-op when the crumb is unrendered (the button arms an input in another component's subtree) · two dead-code sites (`StudioDesignTab` `document-canvas`, unreachable since ADR-472; `StudioToolbar` comments describing a gallery deleted 2026-07-21).
+
+---
+
 ## 2026-05-24 — WORKSPACE-COMPONENTS v1.2: Autonomy rename + confirm-modal pattern
 
 **No governing ADR** — operator-feedback-driven design polish, captured directly in `docs/design/WORKSPACE-COMPONENTS.md` per the "design polish ≠ architectural decision" principle. Two changes shipped together because they both touch the same family of high-stakes operator-dial cards.

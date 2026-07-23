@@ -2049,7 +2049,11 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 title="Back to Studio"
                 className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
               >
-                Studio
+                {/* ADR-482 D7: app-aware, matching the landing (:2762). The
+                    workbench hardcoded the literal, so the IMAGES app read
+                    "Images" on its landing and "Studio /…" once a stage was
+                    open — the same app naming itself two ways. */}
+                {app.slug === 'images' ? 'Images' : 'Studio'}
               </button>
               <span className="text-muted-foreground/40">/</span>
               {/* The name is renamed WHERE IT IS SHOWN (the Finder/macOS model)
@@ -2088,9 +2092,20 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   type="button"
                   onClick={() => setRenaming(true)}
                   title={`${relPath(artifactPath)} — click to rename`}
-                  className="max-w-[24ch] truncate rounded px-1 py-0.5 font-medium text-foreground/80 hover:bg-muted/50"
+                  className="flex max-w-[26ch] items-center gap-1.5 truncate rounded px-1 py-0.5 font-medium text-foreground/80 hover:bg-muted/50"
                 >
-                  {artifactName(artifactPath)}
+                  {/* ADR-482 D7: the document-type glyph. The registry already
+                      existed (studioShapes) with three consumers — the landing
+                      recents, the New menu, the Open picker — and the crumb,
+                      the one place a member reads WHILE working, was the only
+                      surface without it. `template` is the served slug, so an
+                      unknown layout degrades to a neutral glyph rather than a
+                      wrong one. Presentation only; the name stays the name. */}
+                  {(() => {
+                    const { icon: ShapeIcon, color } = studioShapeStyle(template);
+                    return <ShapeIcon className={`h-3.5 w-3.5 shrink-0 ${color}`} aria-hidden />;
+                  })()}
+                  <span className="truncate">{artifactName(artifactPath)}</span>
                 </button>
               )}
               <span className="mx-1 h-4 w-px shrink-0 bg-border/60" aria-hidden />
@@ -2225,6 +2240,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               {ctxMenu && (
                 <StudioBlockMenu
                   target={ctxMenu}
+                  // ADR-482 D5: the RESOLVED mode, same source the canvas reads
+                  // — the menu withholds enclosure verbs until the registry
+                  // answers rather than guessing them on.
+                  mode={resolvedMode}
                   onClose={() => setCtxMenu(null)}
                   onCopy={menuCopy}
                   onPaste={menuPaste}

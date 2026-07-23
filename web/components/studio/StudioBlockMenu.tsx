@@ -61,6 +61,16 @@ export interface StudioBlockMenuProps {
    *  revision chain joins by that same id. */
   onCopyLink: () => void;
   onHistory: () => void;
+  /** ADR-482 D5: the layout's composition mode. The menu was mode-BLIND — it
+   *  offered Move up/down against a continuous prose surface where a block is
+   *  an ANNOTATION, not an enclosure (ADR-480 D2), so reordering "blocks" asks
+   *  the member to think in a unit the medium no longer has. Rows whose meaning
+   *  depends on the enclosure are withdrawn on flow; rows that act on an
+   *  addressable REGION (copy, duplicate, delete, turn-into, the AI acts,
+   *  link, history) are kept, because addressing survives the dissolution.
+   *  Undefined until the registry answers — treated as flow, matching the
+   *  chrome's show-less default (ADR-482 D3). */
+  mode?: 'flow' | 'paged';
 }
 
 function Row({
@@ -108,7 +118,7 @@ const ICO = 'h-3.5 w-3.5';
 export function StudioBlockMenu({
   target, onClose, onCopy, onPaste, onDuplicate, onDelete,
   onTurnInto, blocks, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck,
-  onCopyLink, onHistory,
+  onCopyLink, onHistory, mode,
 }: StudioBlockMenuProps) {
   const [turnOpen, setTurnOpen] = useState(false);
   // Dismissal. NOTE the parent-window blind spot: the Studio canvas is a
@@ -137,6 +147,9 @@ export function StudioBlockMenu({
 
   const run = (fn: () => void) => { fn(); onClose(); };
   const hasBlock = !!target.blockId;
+  // ADR-482 D5: `paged` is the affirmative test — an unresolved mode withholds
+  // enclosure-shaped rows rather than guessing them on (the D3 principle).
+  const isPaged = mode === 'paged';
 
   // The legal conversions for THIS block (ADR-456 W2 + ADR-479 D5): a text kind
   // that isn't already what it is, and never a citation — `convertBlock`
@@ -226,7 +239,14 @@ export function StudioBlockMenu({
           blocks overlap on purpose), so the frame-gated rows ADR-462 D3 scored
           are finally honest: they appear only on a POSITIONED block (the
           DOM-side gate travels in the target), and the op writes --yz. */}
-      {hasBlock && (
+      {/* ADR-482 D5: PAGED only. Reordering is an enclosure verb — it moves a
+          block past its neighbours in a sequence of them. On flow the member
+          edits one continuous surface and moves text by selecting and typing,
+          the way every writing tool works; offering "move this block up" there
+          asks them to think in a unit ADR-480 D2 dissolved into an annotation.
+          The op survives (it is still reachable structurally); the menu simply
+          stops advertising it where it does not describe the medium. */}
+      {hasBlock && isPaged && (
         <>
           <Row icon={<ArrowUp className={ICO} />} onClick={() => run(onMoveUp)}>
             Move up

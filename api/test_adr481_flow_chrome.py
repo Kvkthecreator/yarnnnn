@@ -85,12 +85,17 @@ def run() -> bool:
 
     # ── D2 — the gutter is deleted on flow; insert is caret-located ────────
     _check(
-        "D2 the gutter runtime is injected only when NOT flow",
-        "if (opts?.edit && opts?.mode !== 'flow') {" in proj,
+        # ADR-482 D3 tightened the spelling: `paged` (affirmative) rather than
+        # `!== 'flow'`, which read an UNRESOLVED mode as paged and flashed this
+        # chrome onto a document's first frames. The ADR-481 intent is preserved
+        # and strengthened — flow never gets the gutter, and neither does an
+        # unresolved projection.
+        "D2 the gutter runtime is injected only when paged (never flow)",
+        "if (opts?.edit && paged) {" in proj,
     )
     _check(
-        "D2 the add-here runtime is injected only when NOT flow",
-        "if (opts?.mode !== 'flow') {" in proj,
+        "D2 the add-here runtime is injected only when paged (never flow)",
+        "if (paged) {" in proj and "const paged = opts?.mode === 'paged';" in proj,
     )
     _check(
         "D2 the cold-start hint is CSS-only (a ::before on the empty root)",
@@ -104,8 +109,10 @@ def run() -> bool:
     # ── D3 — the flow cue set ─────────────────────────────────────────────
     _check("D3 a flow-specific pointer sheet exists", "const FLOW_POINTER_CSS" in proj)
     _check(
+        # ADR-482 D3: an unresolved mode now yields NO sheet rather than the
+        # paged one — the flow document no longer flashes paged chrome.
         "D3 the sheet is chosen by MODE at projection",
-        "opts?.mode === 'flow' ? FLOW_POINTER_CSS : POINTER_CSS" in proj,
+        "(flow ? FLOW_POINTER_CSS : paged ? POINTER_CSS : '')" in proj,
     )
     flow_css = proj[proj.index("const FLOW_POINTER_CSS") : proj.index("const POINTER_CSS")]
     _check("D3 flow carries NO [data-block]:hover outline", "[data-block]:hover" not in flow_css)
