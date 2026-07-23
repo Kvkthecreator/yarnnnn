@@ -8,8 +8,10 @@
  * pointer and have no page unit):
  *  - New slide/section + — add a page from the arrangement GALLERY (derived
  *                          wireframe thumbnails, ADR-447 D7.1).
- *  - Layout              — re-lay the CURRENT page (the PowerPoint pair; same
- *                          gallery grammar as the Properties page scope).
+ *  - Re-arrange          — re-lay the CURRENT page (the PowerPoint pair). Since
+ *                          2026-07-21 this is the ONE mount: the Properties
+ *                          page-scope gallery was deleted as a full duplicate,
+ *                          and the label follows the ACT, not the noun.
  *
  * `Media ▾` is DELETED (ADR-466 D4): the picker-backed kinds (Image / Table /
  * Gallery) now live in the located palette, which opens StudioCitablePicker at
@@ -72,6 +74,11 @@ export interface StudioVocabulary {
    *  the value). Served WITH its bound, so nothing downstream invents one. */
   measures: StudioMeasure[];
   media_kinds: string[];
+  /** ADR-483 — every layout's scaffolded h1, served so the name-lift can tell a
+   *  PLACEHOLDER title from an authored one. Not derivable from `layouts`: a
+   *  deck/page scaffold is a thesis ("The headline promise."), not
+   *  "Untitled ‹label›". The kernel names it; the FE never re-derives it. */
+  placeholder_titles: string[];
   kernel_css_version: number;
   kernel_style_element: string;
   design_systems: Array<{ name: string; manifest_path: string; folder: string; css: string[] }>;

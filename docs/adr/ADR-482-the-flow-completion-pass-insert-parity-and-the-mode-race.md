@@ -270,10 +270,20 @@ standing refusal is untouched).
 ## 9. The owed work (recorded, not done)
 
 - **F10 rename no-op** — the button arms an input in another subtree that may not be rendered.
+  *Still owed.* Investigated 2026-07-23 as the prime suspect behind an operator report that
+  a new document offered "nowhere to type the name" — and **exonerated**: the substrate
+  ledger showed the crumb input had rendered, been typed into, and committed. That report's
+  actual causes were the two in [ADR-483](ADR-483-the-name-is-what-the-member-typed.md) (a
+  path-derived crumb + an unguarded IME Enter). The split-subtree fragility is real and
+  unfixed; it is simply not what bit here.
 - **The paste ADR** — sanitizing paste + the two-clipboard asymmetry (§7).
-- **Dead code** — `StudioDesignTab.tsx:356`'s `document-canvas` branch, unreachable since
+- ~~**Dead code** — `StudioDesignTab.tsx:356`'s `document-canvas` branch, unreachable since
   ADR-472 moved canvas to `image`; `StudioToolbar.tsx:11-12`/`226-230`'s comments describing a
-  Re-arrange gallery deleted 2026-07-21.
+  Re-arrange gallery deleted 2026-07-21.~~ **Done** (ADR-483 cleanup pass, 2026-07-23). The
+  `canvas` branch was verified dead against the served registry before deletion — no layout
+  slug is `canvas`, no token declares `document-canvas` — rather than deleted on the note's
+  word. The toolbar's *header* was the stale half (it still called the verb "Layout"); the
+  inline comment at the button was already current.
 
 ## 10. The lesson, recorded
 

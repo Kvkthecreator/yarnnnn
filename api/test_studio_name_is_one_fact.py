@@ -217,13 +217,18 @@ def run() -> bool:
     )
 
     # ── 5. the crumb shows the NAME ─────────────────────────────────────────
+    # ADR-483 completed the ADR-469 lift FE-side: the resolver is no longer a
+    # path-only mirror of `artifact_name`'s FALLBACK — it is the whole rule,
+    # <title> first with the meaning folder behind it. The invariant this pair
+    # has always protected (the crumb shows the NAME, never the type leaf) is
+    # unchanged; only the function carrying it is.
     _check(
-        "the FE has the name resolver, mirroring artifact_name",
-        "function artifactName(p: string): string {" in surface,
+        "the FE has the name resolver, mirroring artifact_name (title, then path)",
+        "function artifactNameOf(" in surface and "function artifactNameFromPath(" in surface,
     )
     _check(
         "both crumbs (the OS window crumb + the toolbar's own) show the NAME",
-        surface.count("artifactName(artifactPath)") >= 2,
+        surface.count("artifactDisplayName") >= 2,
     )
     _check(
         "the leaf is gone from the crumb (it named the TYPE, not the artifact)",

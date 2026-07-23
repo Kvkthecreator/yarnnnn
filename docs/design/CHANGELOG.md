@@ -4,6 +4,26 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-07-23 — STUDIO: the name is what the member typed (ADR-483)
+
+**Governing ADR**: [ADR-483](../adr/ADR-483-the-name-is-what-the-member-typed.md). Commissioned by an operator report that creating a new document *"asks to rename the document name, then nothing renders for me to actually input."*
+
+**The report was true about the experience and wrong about the mechanism** — which is why three separate static readings each produced a confident wrong cause (state reset on navigation, no re-render from `replaceState`, the `canvasActive` gate) before anyone asked the substrate. The revision ledger settled it in one query: `MoveFile: from operation/untitled-document-2/ → operation/sd/`, then `Studio: name → 'sdㄴ'`, 343ms after creation. **The input rendered, was typed into, and committed.** The immediate door (ADR-470) worked end to end.
+
+Two defects then made a working rename look like a dead one. **D1**: the workbench crumb derived the name from the PATH, which ADR-469 had already established is an ASCII identity key — lossy on purpose. ADR-469 lifted the name into the artifact's `<title>` and taught `artifact_name` to read it first, but the workbench was never migrated and kept a path-only copy of the *fallback branch*, under a comment claiming it mirrored the server. So the one surface a member reads *while working* was the last one still showing the wrong half: `sdㄴ` → "Sd", `한글 문서` → "Untitled". **D2**: the rename field acted on Enter *during an IME composition*, where the first Enter commits the syllable and the buffer holds a half-formed jamo — so the fragment `sdㄴ` is what got written, and `path_slug` then dropped the non-Latin character on the way to the key.
+
+**The decision NOT taken, recorded so it is not relitigated** (ADR-483 §4): allowing non-Latin path slugs. Benchmarked against Windows/macOS (both store `한글.txt` happily) and declined — a Windows filename has one consumer, a human in a file browser; a yarnnn path has four (the `(workspace_id, path)` binding key, a URL parameter, an agent-facing MCP/`derived_from` address, and a `data-ref` pin). Unicode there buys readability nobody reads and costs encoding fragility across all four. The sharper benchmark is macOS, whose model yarnnn already matches: a display name the member reads (`<title>`), an immutable inode underneath (the path). Readability was already solved by ADR-469's lift; collision by `disambiguate`. What remained was one caller reading the wrong half. **`path_slug` is unchanged and gated to stay that way.**
+
+**Shipped** (D1–D3): the workbench derives the name through the same two-source rule as the server, computed ONCE as `artifactDisplayName` and read by every naming surface — the OS window crumb, the toolbar crumb, the rename field's starting value, the export filename, the Move/Trash confirmations (D1) · the kernel SERVES the scaffold-title set (`GET /studio/vocabulary` → `placeholder_titles`) rather than letting the FE re-derive it, because a deck/page scaffold h1 is a thesis ("The headline promise."), not "Untitled ‹label›" (D2) · both inputs that name an artifact return early while `e.nativeEvent.isComposing` — the crumb and the named door's modal, one bug in two places (D3).
+
+**Gates**: `web/scripts/gates/adr483_name_lift_and_ime.mjs` **14/14 executing** the real `artifactNameOf`/`extractTitle` and the real crumb `onKeyDown` body, with **a falsifier per defect** (restore the path-only derivation → `sdㄴ` mangles to `Sd` again; strip the IME guard → the fragment commits again) · `api/test_adr483_name_lift_and_ime.py` 17/17 (single-derivation invariant, FE/BE parity of the served placeholder set, the §4 no-change-to-`path_slug` decision). `api/test_studio_name_is_one_fact.py` amended 34/34 — two checks pinned the pre-lift function shape; the invariant they protect is unchanged and now better enforced. Siblings green: ADR-469 25/25 · ADR-470 33/33 · ADR-466 45/45 · ADR-480 30/30 · ADR-481 32/32 · ADR-482 34/34. `next build` clean.
+
+**Cleanup pass** (closing two ADR-482 §9 items): `StudioDesignTab`'s `document-canvas` token branch DELETED — verified dead against the served registry first (no layout slug is `canvas`, no token declares `document-canvas`), not deleted on the note's word · `StudioToolbar`'s header comment corrected, which was the stale half (it still called the verb "Layout" after the body was renamed "Re-arrange"); the inline comment at the button was already current.
+
+**Owed**: a human click-pass confirming the Korean rename end to end. The gates execute the handlers, but no gate can see a live IME — a real ceiling, not a formality. ADR-482 §9's `Rename…` no-op remains open: it was the prime suspect here and was **exonerated** by the ledger, but the split-subtree fragility is real and unfixed.
+
+---
+
 ## 2026-07-23 — STUDIO: the flow completion pass (ADR-482)
 
 **Governing ADR**: [ADR-482](../adr/ADR-482-the-flow-completion-pass-insert-parity-and-the-mode-race.md). Commissioned by an operator click-pass over the document type — six complaints, which the audit resolved into four causes, one of them a **regression neither prior ADR could see from inside its own scope**.

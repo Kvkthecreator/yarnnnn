@@ -283,6 +283,11 @@ export function NewArtifactModal({
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
+              // ADR-483 — the IME owns Enter first (the same guard the crumb's
+              // rename carries). Mid-composition Enter commits the SYLLABLE;
+              // acting on it here would create the artifact named with a
+              // half-formed jamo, which is then the name it keeps.
+              if (e.nativeEvent.isComposing) return;
               if (e.key === 'Enter') void submit();
               if (e.key === 'Escape') onClose();
             }}

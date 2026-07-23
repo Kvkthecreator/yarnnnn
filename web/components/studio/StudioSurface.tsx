@@ -121,19 +121,17 @@ function baseName(p: string): string {
   return parts[parts.length - 1] || p;
 }
 
-/** The artifact's operator-facing NAME — the titleized meaning folder.
+/** The artifact's name from its PATH — the titleized meaning folder.
  *
  *  `operation/prd-for-yarnnn/document.html` → "Prd for yarnnn". The leaf is a
- *  TYPE marker (document/deck/article/page.html), not a name — which is why the
- *  crumb used to say "document.html" while the landing card, correctly, said
- *  "Prd for yarnnn". Three names for one artifact, and the two the member could
- *  see were the two that weren't its name.
+ *  TYPE marker (document/deck/article/page.html), not a name.
  *
- *  Mirrors `artifact_name` in services/studio.py (the same resolver ADR-459
- *  already uses for the landing). Kept in sync by the layout-mode gate's
- *  parity check — the FE needs it synchronously for the crumb, and the
- *  workbench doesn't fetch the artifacts list. */
-function artifactName(p: string): string {
+ *  This is the FALLBACK half of `artifact_name` in services/studio.py. It is
+ *  lossy by construction — the path is an ASCII identity key (ADR-469), so a
+ *  non-Latin name slugs away entirely (`sdㄴ` → `sd`, `한글 문서` → `untitled`).
+ *  Never call it directly for a member-facing name; call `artifactNameOf`,
+ *  which lifts the title first. */
+function artifactNameFromPath(p: string): string {
   const parts = (p || '').split('/').filter(Boolean);
   if (!parts.length) return p;
   const parent = parts.length >= 2 ? parts[parts.length - 2] : null;
@@ -144,6 +142,45 @@ function artifactName(p: string): string {
       : parts[parts.length - 1].replace(/\.[a-z0-9]+$/i, '');
   const spaced = stem.replace(/[-_]+/g, ' ').trim();
   return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : p;
+}
+
+/** The artifact's own `<title>`, exact. Mirrors `extract_title` (ADR-469 D1) —
+ *  `set_artifact_title` writes the member's typed name here at creation and at
+ *  every rename, for every layout, and nothing else may write it. */
+function extractTitle(html: string): string | null {
+  const m = /<title>([^<]*)<\/title>/.exec(html || '');
+  if (!m) return null;
+  // set_artifact_title escapes on the way in; unescape so the round-trip is
+  // exact (`&amp;` → `&`), matching the Python's html_unescape.
+  const el = typeof document !== 'undefined' ? document.createElement('textarea') : null;
+  let text = m[1];
+  if (el) {
+    el.innerHTML = text;
+    text = el.value;
+  }
+  return text.trim() || null;
+}
+
+/** The artifact's operator-facing NAME — LIFTED from the artifact, with the
+ *  namespace as fallback. The FE half of ADR-469, completed by ADR-483.
+ *
+ *  ADR-469 lifted the name into `<title>` and made `services/studio.py::
+ *  artifact_name` read it first — but the Studio workbench never migrated, so
+ *  the crumb kept deriving from the folder slug alone. That is a LOSSY key: a
+ *  member who named a document `sdㄴ` saw the crumb read "Sd", because the
+ *  non-Latin character is dropped on the way into the path. The artifact's
+ *  title said one thing and the crumb another — the exact "two names for one
+ *  thing" ADR-469 set out to end, surviving at its last unmigrated caller.
+ *
+ *  Same two sources, same order, same placeholder guard as the server:
+ *    1. the artifact's own `<title>`, unless it is still a scaffold
+ *    2. the titleized meaning folder
+ *  `placeholders` comes from the served vocabulary — never re-derived here,
+ *  because a deck's scaffold h1 is a thesis, not "Untitled ‹label›". */
+function artifactNameOf(p: string, html: string | undefined, placeholders: string[]): string {
+  const lifted = extractTitle(html ?? '');
+  if (lifted && !placeholders.includes(lifted)) return lifted;
+  return artifactNameFromPath(p);
 }
 
 /** The artifact's declared template (data-template root attr). */
@@ -213,22 +250,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       : `/workspace/${systemParam}`
     : null;
 
-  // ADR-442 D4: the Studio declares its surface chrome into the surface bar
-  // instead of hand-rolling a header row. Identity = the crumb (the strip's
-  // root-click fires the leaf onClick → back to the start state, which is
-  // what "New / open…" did).
-  useWindowCrumb(
-    app.slug,
-    artifactPath
-      ? [
-          {
-            label: artifactName(artifactPath),
-            kind: 'artifact',
-            onClick: () => setParam({ file: null }),
-          },
-        ]
-      : [],
-  );
   // ADR-447 (2026-07-12): the type-switcher (formerly a surface-bar action)
   // is DELETED. It was a legacy misread — morphing a whole artifact from a
   // deck into a document (or vice versa) is not an operation the member wants;
@@ -404,32 +425,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // intermediate state would be a real move ("Q", "Q3", "Q3 "…).
   const [renaming, setRenaming] = useState(false);
   const [renameBusy, setRenameBusy] = useState(false);
-  const commitRename = useCallback(
-    async (next: string) => {
-      if (!artifactPath || renameBusy) return;
-      const trimmed = next.trim();
-      // No change / cleared → just close. Never rename to nothing.
-      if (!trimmed || trimmed === artifactName(artifactPath)) {
-        setRenaming(false);
-        return;
-      }
-      setRenameBusy(true);
-      setOpError(null);
-      try {
-        const r = await api.studio.renameArtifact(artifactPath, trimmed);
-        if (r.renamed) {
-          setParam({ file: relPath(r.path) }); // follow the artifact to its new path
-          setReloadKey((k) => k + 1); // the retitle is a server-side write
-        }
-      } catch (e) {
-        setOpError(e instanceof Error ? e.message : 'Rename failed.');
-      } finally {
-        setRenameBusy(false);
-        setRenaming(false);
-      }
-    },
-    [artifactPath, renameBusy, setParam],
-  );
 
   const { verbs: organizeVerbs, modals: organizeModals } = useFileOrganizeVerbs({
     onAfterMutate: (newPath) => {
@@ -559,6 +554,71 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // same source. One fetch per open. (Layouts are served too but the Studio no
   // longer switches type — ADR-447 deleted the format-switcher.) ──
   const [vocabulary, setVocabulary] = useState<StudioVocabulary | null>(null);
+
+  // ── The artifact's NAME (ADR-469's lift, completed FE-side by ADR-483) ────
+  // ONE derivation for every surface that shows the name — the crumb, the
+  // rename field's starting value, the export filename, the Move/Trash
+  // confirmations. Computed here, below `file` + `vocabulary`, because the lift
+  // needs both the content (the <title>) and the served placeholder set.
+  //
+  // Before the placeholders arrive the guard is empty, so a freshly-created
+  // artifact reads its scaffold title ("Untitled document") for one beat rather
+  // than the folder — the same words either way, and it self-corrects on the
+  // vocabulary fetch. Nothing downstream re-derives.
+  const artifactDisplayName = useMemo(
+    () =>
+      artifactPath
+        ? artifactNameOf(artifactPath, file?.content, vocabulary?.placeholder_titles ?? [])
+        : '',
+    [artifactPath, file?.content, vocabulary?.placeholder_titles],
+  );
+
+  const commitRename = useCallback(
+    async (next: string) => {
+      if (!artifactPath || renameBusy) return;
+      const trimmed = next.trim();
+      // No change / cleared → just close. Never rename to nothing. Compared
+      // against the LIFTED name (ADR-483): against the path-derived one, a
+      // member who re-confirmed a non-Latin name would submit a "change" that
+      // slugs to the identical key and 409s on a rename to itself.
+      if (!trimmed || trimmed === artifactDisplayName) {
+        setRenaming(false);
+        return;
+      }
+      setRenameBusy(true);
+      setOpError(null);
+      try {
+        const r = await api.studio.renameArtifact(artifactPath, trimmed);
+        if (r.renamed) {
+          setParam({ file: relPath(r.path) }); // follow the artifact to its new path
+          setReloadKey((k) => k + 1); // the retitle is a server-side write
+        }
+      } catch (e) {
+        setOpError(e instanceof Error ? e.message : 'Rename failed.');
+      } finally {
+        setRenameBusy(false);
+        setRenaming(false);
+      }
+    },
+    [artifactPath, renameBusy, setParam, artifactDisplayName],
+  );
+
+  // ADR-442 D4: the Studio declares its surface chrome into the surface bar
+  // instead of hand-rolling a header row. Identity = the crumb (the strip's
+  // root-click fires the leaf onClick → back to the start state, which is
+  // what "New / open…" did).
+  useWindowCrumb(
+    app.slug,
+    artifactPath
+      ? [
+          {
+            label: artifactDisplayName,
+            kind: 'artifact',
+            onClick: () => setParam({ file: null }),
+          },
+        ]
+      : [],
+  );
 
   // The composition seam (kernel-named; see STUDIO_LAYOUT_MODES in
   // services/studio.py). `paged` (deck, page) = the CONTAINER is the unit, so
@@ -1861,7 +1921,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     const { exportArtifactPng } = await import(
       '@/components/workspace/viewers/rasterExport'
     );
-    await exportArtifactPng(file.content, artifactPath, artifactName(artifactPath));
+    await exportArtifactPng(file.content, artifactPath, artifactDisplayName);
   }, [file, artifactPath]);
 
   // The AI-native reference (the interop face, ADR-368/310): a handle any
@@ -1870,7 +1930,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const copyAiReference = useCallback(async () => {
     if (!artifactPath) throw new Error('No artifact open');
     const rel = relPath(artifactPath);
-    const name = artifactName(artifactPath);
+    const name = artifactDisplayName;
     await navigator.clipboard.writeText(
       `"${name}" — a yarnnn artifact at ${rel}. ` +
         `With the yarnnn connector (MCP), recall "${name}" to read it — ` +
@@ -2072,10 +2132,22 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   // OFFER if typing REPLACES it. Finder selects the name on a
                   // new folder for exactly this reason.
                   onFocus={(e) => e.currentTarget.select()}
-                  defaultValue={artifactName(artifactPath)}
+                  defaultValue={artifactDisplayName}
                   disabled={renameBusy}
                   onBlur={(e) => void commitRename(e.currentTarget.value)}
                   onKeyDown={(e) => {
+                    // ADR-483 — an IME COMPOSITION owns Enter first. Typing
+                    // Korean/Japanese/Chinese, the first Enter commits the
+                    // SYLLABLE, not the field: `isComposing` is true and the
+                    // buffer still holds a half-formed jamo. Without this guard
+                    // the rename snatched that fragment and committed it —
+                    // browser-observed as `sdㄴ`, which then slugged to `sd`
+                    // (the non-Latin character drops on the way into the path
+                    // key), so the crumb read "Sd" and the rename looked like
+                    // it had silently done nothing. The member gets a second
+                    // Enter once the syllable is assembled, which is exactly
+                    // the interaction every native text field gives them.
+                    if (e.nativeEvent.isComposing) return;
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       void commitRename(e.currentTarget.value);
@@ -2105,7 +2177,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                     const { icon: ShapeIcon, color } = studioShapeStyle(template);
                     return <ShapeIcon className={`h-3.5 w-3.5 shrink-0 ${color}`} aria-hidden />;
                   })()}
-                  <span className="truncate">{artifactName(artifactPath)}</span>
+                  <span className="truncate">{artifactDisplayName}</span>
                 </button>
               )}
               <span className="mx-1 h-4 w-px shrink-0 bg-border/60" aria-hidden />
@@ -2388,9 +2460,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 // and the menu teaches where the name lives (the Finder model).
                 rename: () => setRenaming(true),
                 move: () =>
-                  organizeVerbs.onMove({ path: artifactPath, name: artifactName(artifactPath) }),
+                  organizeVerbs.onMove({ path: artifactPath, name: artifactDisplayName }),
                 trash: () =>
-                  organizeVerbs.onDelete({ path: artifactPath, name: artifactName(artifactPath) }),
+                  organizeVerbs.onDelete({ path: artifactPath, name: artifactDisplayName }),
                 share: shareArtifact,
               }}
               exportVerbs={{

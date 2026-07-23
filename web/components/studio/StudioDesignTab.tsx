@@ -350,10 +350,12 @@ export function StudioDesignTab({
           // a page is full-width bands — measure applies to neither (W3).
           ((layout === 'document' || layout === 'article') &&
             t.applies.includes('document-flow')) ||
-          (layout === 'deck' && t.applies.includes('document-deck')) ||
-          // ADR-471 D-c: the aspect token appears only on a canvas — the
-          // document-flow/document-deck layout-scoped-grain precedent.
-          (layout === 'canvas' && t.applies.includes('document-canvas')),
+          (layout === 'deck' && t.applies.includes('document-deck')),
+        // NOTE: the `canvas` branch (ADR-471 D-c's aspect token) is DELETED —
+        // ADR-472 moved the canvas to the IMAGES app's `image` layout, so no
+        // served layout is `canvas` and no served token declares
+        // `document-canvas`. Verified against the registry, not assumed
+        // (ADR-482 §9 recorded it as owed).
       ),
     [tokens, layout],
   );

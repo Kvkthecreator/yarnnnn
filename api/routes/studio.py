@@ -188,6 +188,10 @@ async def get_vocabulary(auth: UserClient) -> dict:
         STUDIO_ARRANGEMENTS,
         STUDIO_BLOCKS,
         STUDIO_KERNEL_CSS_VERSION,
+        # Underscore-named but module-canonical: it is the ONE derived scaffold
+        # set (`test_studio_name_is_one_fact` gates its declaration verbatim, so
+        # it is not renamed for a second reader).
+        _SCAFFOLD_TITLES,
         STUDIO_LAYOUTS,
         STUDIO_MEASURES,
         STUDIO_TOKENS,
@@ -223,6 +227,13 @@ async def get_vocabulary(auth: UserClient) -> dict:
             for k, m in STUDIO_MEASURES.items()
         ],
         "media_kinds": sorted(MEDIA_BLOCK_KINDS),
+        # ADR-483 — the scaffolded titles, so the FE's name-lift can apply the
+        # SAME placeholder guard the server does (`artifact_name` falls through
+        # to the folder when the <title> is still a scaffold). NOT derivable
+        # FE-side: a deck/page scaffold h1 is a thesis ("The headline promise."),
+        # not "Untitled ‹label›", so re-deriving from the served labels would
+        # fork the rule and drift. The kernel names it once; the FE reads it.
+        "placeholder_titles": sorted(_SCAFFOLD_TITLES),
         "kernel_css_version": STUDIO_KERNEL_CSS_VERSION,
         "kernel_style_element": compose_kernel_style_element(),
         "design_systems": find_design_systems(auth.client, auth.user_id),
