@@ -401,18 +401,23 @@ html[data-template="deck"] .slide {
 }
 `;
 
-// ADR-472 D3 — the IMAGES stage. The stage is a fixed-SIZE box whose real
-// pixel dimensions ride the root as data-w/data-h (the MARKERS the create path
-// writes); this rule maps them to --stage-w/--stage-h, and the skin's
-// aspect-ratio consumes them. A stage with no dimensions (a pre-ADR-472
-// artifact) falls back to the square default rather than collapsing.
+// ADR-472 D3 — the IMAGES stage: a fixed-SIZE box whose real pixel dimensions
+// ride the root as data-w/data-h, with `--stage-w`/`--stage-h` written INLINE
+// on that same root at creation (`services/images/stage.py::stage_root_attrs`).
+// The stage skin consumes those custom properties by inheritance, so this rule
+// only needs to give the stage its layout box.
+//
+// ADR-485 D5: the comment here used to claim this rule MAPPED data-w → --stage-w
+// as a retrofit, and exported a STAGE_DEFAULT_W constant for it. Neither was
+// real — the mapping was never written and the constant had zero importers.
+// Deleted rather than implemented: every live stage carries the mapping inline,
+// so there is no instance in hand. If a stage ever loses its root style, that
+// is the ADR that should build the retrofit, against the real case.
 //
 // This REPLACES ADR-471's data-aspect → --stage-aspect slug mapping, which
 // could only ever enumerate wide/portrait/story because a property token's
 // values must be enumerable (ADR-461). A design tool needs a continuous
 // dimension, so dimensions became data and the token was deleted (ADR-472 D3).
-export const STAGE_DEFAULT_W = 1080; // the square preset's width
-
 const IMAGE_STAGE_CSS = `
 html[data-template="image"] body { display: flex; flex-direction: column; align-items: center; }
 html[data-template="image"] .slide { flex: 0 0 auto; }
@@ -2611,6 +2616,76 @@ const GUTTER_SCRIPT = `
     return block.closest ? block.closest('.slide') : null;
   }
 
+  /** The SERVED bounds (ADR-485 D3), with the permissive pre-485 fallback.
+   *  window.__yarnnnMeasureBounds is written by the projection immediately
+   *  above this script from vocabulary.measures. The runtime clamps the PREVIEW,
+   *  which is the number the member sees and the box they release on; the op
+   *  clamps again at the write (the two-clamp rule is unchanged). Before this,
+   *  the preview floored BOTH axes at a hardcoded 1 while the kernel serves
+   *  w.min = 10 — so a 3% width previewed at 3% and landed at 10%. */
+  var MEASURE_BOUNDS = (window.__yarnnnMeasureBounds) || {};
+  function measureBound(key, edge, fallback) {
+    var b = MEASURE_BOUNDS[key];
+    return b && typeof b[edge] === 'number' ? b[edge] : fallback;
+  }
+  var MEASURE_MIN = { w: measureBound('w', 'min', 1), h: measureBound('h', 'min', 1) };
+  var MEASURE_MAX = { w: measureBound('w', 'max', 100), h: measureBound('h', 'max', 100) };
+  /** Clamp a committed value to the served bound for its key. The COMMIT
+   *  clamps too (not just the preview) so the receipt the parent builds from
+   *  this message states what actually landed — a revision message reading
+   *  "width 3%" over an artifact holding 10% is a receipt that misstates the
+   *  substrate, which is worse than the visual snap it accompanies. */
+  function clampMeasure(key, v) {
+    return Math.max(measureBound(key, 'min', 0), Math.min(measureBound(key, 'max', 100), v));
+  }
+
+  /** WHICH RECTANGLE is the percent a percent OF? (ADR-485 D1)
+   *
+   *  measurableFrame answers "which ELEMENT bounds this block". That is not the
+   *  whole question, because one element carries three rectangles and the CSS
+   *  box model uses a DIFFERENT one per axis-class:
+   *
+   *    width:% / height:%  on a child        -> the frame's CONTENT box
+   *    left:% / top:%      on an abs child   -> the frame's PADDING box
+   *
+   *  getBoundingClientRect() returns neither — it returns the BORDER box. That
+   *  was the bug: the commit divided by the border box while CSS multiplied by
+   *  the content box, so on a slide carrying padding 3.5rem/4rem every drag
+   *  committed ~87% of what the member drew, and each correction lost the same
+   *  fraction again (100 -> 87 -> 76 -> 66 -> 57, measured in Chrome).
+   *
+   *  Returned in the SAME visual-pixel space as getBoundingClientRect(), so the
+   *  percent math stays zoom-invariant (visual/visual) exactly as before —
+   *  getComputedStyle padding is layout px, so it is scaled by zf() to match
+   *  the rect it is being subtracted from. One helper, four callers (resize
+   *  preview + commit, move preview + commit): the preview and the commit can
+   *  no longer disagree, which is what made the gesture unconvergeable. */
+  function frameRects(frame) {
+    var r = frame.getBoundingClientRect();
+    var cs = getComputedStyle(frame);
+    var z = zf() || 1;
+    var pl = (parseFloat(cs.paddingLeft) || 0) * z;
+    var pr = (parseFloat(cs.paddingRight) || 0) * z;
+    var pt = (parseFloat(cs.paddingTop) || 0) * z;
+    var pb = (parseFloat(cs.paddingBottom) || 0) * z;
+    var bl = (parseFloat(cs.borderLeftWidth) || 0) * z;
+    var br_ = (parseFloat(cs.borderRightWidth) || 0) * z;
+    var bt = (parseFloat(cs.borderTopWidth) || 0) * z;
+    var bb = (parseFloat(cs.borderBottomWidth) || 0) * z;
+    return {
+      // What width:%/height:% resolve against.
+      contentW: Math.max(1, r.width - bl - br_ - pl - pr),
+      contentH: Math.max(1, r.height - bt - bb - pt - pb),
+      // What left:%/top:% resolve against, and the origin they measure FROM
+      // (the padding edge = the border edge inset by the border width).
+      padW: Math.max(1, r.width - bl - br_),
+      padH: Math.max(1, r.height - bt - bb),
+      padLeft: r.left + bl,
+      padTop: r.top + bt,
+      rect: r,
+    };
+  }
+
   // (The lone corner grip + ⠿ move grip were replaced by the bounding box
   //  below — ADR-466 P8. Same gestures, same messages' semantics, one honest
   //  object chrome.)
@@ -2680,18 +2755,26 @@ const GUTTER_SCRIPT = `
   function moveMove(block, e) {
     var frame = measurableFrame(block);
     if (!frame) return;
-    var fr = frame.getBoundingClientRect();
+    var f = frameRects(frame);
     var br = block.getBoundingClientRect();
     // Frame-aware clamp (ADR-466 P9): the block's TRAILING edge is bounded
     // too — x may reach only (100 − width%), so a wide block can never be
     // dragged past the frame it is a percent of. Percent math itself is
     // zoom-invariant (visual/visual), so no zf() here.
-    var wPct = (br.width / (fr.width || 1)) * 100;
-    var hPct = (br.height / (fr.height || 1)) * 100;
+    //
+    // ADR-485 D1: the two percentages in that clamp must be percentages of the
+    // SAME rectangle. They were not — x was a percent of the border box and
+    // width a percent of the content box, so (100 - wPct) compared unlike
+    // units and the trailing edge was wrong by the padding fraction. x/y are
+    // percents of the PADDING box (what left:%/top: % resolve against); the
+    // block's own extent is a percent of the CONTENT box (what width:% does).
+    // Express the extent in the position's own space before subtracting.
+    var wPct = (br.width / f.padW) * 100;
+    var hPct = (br.height / f.padH) * 100;
     var xMax = Math.max(0, 100 - wPct);
     var yMax = Math.max(0, 100 - hPct);
-    var xPct = Math.max(0, Math.min(xMax, ((e.clientX - grabDX - fr.left) / (fr.width || 1)) * 100));
-    var yPct = Math.max(0, Math.min(yMax, ((e.clientY - grabDY - fr.top) / (fr.height || 1)) * 100));
+    var xPct = Math.max(0, Math.min(xMax, ((e.clientX - grabDX - f.padLeft) / f.padW) * 100));
+    var yPct = Math.max(0, Math.min(yMax, ((e.clientY - grabDY - f.padTop) / f.padH) * 100));
     block.style.position = 'absolute';
     block.style.left = xPct + '%';
     block.style.top = yPct + '%';
@@ -2706,17 +2789,20 @@ const GUTTER_SCRIPT = `
     var frame = measurableFrame(block);
     if (!id || !frame) { syncFrameContext(); return; }
     var br = block.getBoundingClientRect();
-    var fr = frame.getBoundingClientRect();
-    // Commit the same clamped value the preview painted (trailing edge bound).
-    var wPct = (br.width / (fr.width || 1)) * 100;
-    var hPct = (br.height / (fr.height || 1)) * 100;
+    // ADR-485 D1: the SAME rectangle the preview used (the padding box, which
+    // is what left:%/top:% resolve against) — preview and commit can no longer
+    // disagree. Clamp BEFORE rounding, matching moveMove, so a drop the preview
+    // allowed cannot round one percent past the frame's trailing edge.
+    var f = frameRects(frame);
+    var wPct = (br.width / f.padW) * 100;
+    var hPct = (br.height / f.padH) * 100;
+    var xRaw = Math.max(0, Math.min(Math.max(0, 100 - wPct), ((br.left - f.padLeft) / f.padW) * 100));
+    var yRaw = Math.max(0, Math.min(Math.max(0, 100 - hPct), ((br.top - f.padTop) / f.padH) * 100));
     parent.postMessage({
       type: 'yarnnn-geometry',
       blockId: id,
-      x: Math.max(0, Math.min(Math.max(0, 100 - Math.round(wPct)),
-        Math.round(((br.left - fr.left) / (fr.width || 1)) * 100))),
-      y: Math.max(0, Math.min(Math.max(0, 100 - Math.round(hPct)),
-        Math.round(((br.top - fr.top) / (fr.height || 1)) * 100))),
+      x: Math.round(xRaw),
+      y: Math.round(yRaw),
     }, '*');
     syncFrameContext();
   }
@@ -2742,7 +2828,12 @@ const GUTTER_SCRIPT = `
     var frame = measurableFrame(block);
     if (!frame) return;
     var br = block.getBoundingClientRect();
-    var fr = frame.getBoundingClientRect();
+    // ADR-485 D1 — the two rectangles, named. A resize writes BOTH classes of
+    // property on a west/north handle (a width AND a left), and they resolve
+    // against DIFFERENT boxes: width:% against the content box, left:% against
+    // the padding box. Using one rect for both is what made the drag lose the
+    // padding fraction on every release.
+    var f = frameRects(frame);
     var ax = sideAxes(side);
     var positioned = isPositioned(block);
     var label = [];
@@ -2751,20 +2842,20 @@ const GUTTER_SCRIPT = `
       var pct, maxPct;
       if (ax.west && positioned) {
         var right = br.right;
-        var newLeft = Math.max(fr.left, Math.min(e.clientX, right - 8));
-        pct = ((right - newLeft) / (fr.width || 1)) * 100;
-        maxPct = ((right - fr.left) / (fr.width || 1)) * 100;
+        var newLeft = Math.max(f.padLeft, Math.min(e.clientX, right - 8));
+        pct = ((right - newLeft) / f.contentW) * 100;
+        maxPct = ((right - f.padLeft) / f.contentW) * 100;
         block.style.left = Math.max(0, Math.min(100,
-          ((newLeft - fr.left) / (fr.width || 1)) * 100)) + '%';
+          ((newLeft - f.padLeft) / f.padW) * 100)) + '%';
       } else {
-        pct = ((e.clientX - br.left) / (fr.width || 1)) * 100;
+        pct = ((e.clientX - br.left) / f.contentW) * 100;
         // A positioned block's width is bounded by the room to its right —
         // (100 − x%); a flow block by the frame itself (100%).
         maxPct = positioned
-          ? 100 - ((br.left - fr.left) / (fr.width || 1)) * 100
+          ? 100 - ((br.left - f.padLeft) / f.contentW) * 100
           : 100;
       }
-      pct = Math.max(1, Math.min(Math.max(1, maxPct), pct));
+      pct = Math.max(MEASURE_MIN.w, Math.min(Math.max(MEASURE_MIN.w, Math.min(MEASURE_MAX.w, maxPct)), pct));
       block.style.width = pct + '%';
       label.push(Math.round(pct) + '%');
     }
@@ -2773,21 +2864,21 @@ const GUTTER_SCRIPT = `
       var hpct, hMax;
       if (ax.north && positioned) {
         var bottom = br.bottom;
-        var newTop = Math.max(fr.top, Math.min(e.clientY, bottom - 8));
-        hpct = ((bottom - newTop) / (fr.height || 1)) * 100;
-        hMax = ((bottom - fr.top) / (fr.height || 1)) * 100;
+        var newTop = Math.max(f.padTop, Math.min(e.clientY, bottom - 8));
+        hpct = ((bottom - newTop) / f.contentH) * 100;
+        hMax = ((bottom - f.padTop) / f.contentH) * 100;
         block.style.top = Math.max(0, Math.min(100,
-          ((newTop - fr.top) / (fr.height || 1)) * 100)) + '%';
+          ((newTop - f.padTop) / f.padH) * 100)) + '%';
       } else if (ax.north) {
-        hpct = ((br.bottom - e.clientY) / (fr.height || 1)) * 100;
+        hpct = ((br.bottom - e.clientY) / f.contentH) * 100;
         hMax = 100;
       } else {
-        hpct = ((e.clientY - br.top) / (fr.height || 1)) * 100;
+        hpct = ((e.clientY - br.top) / f.contentH) * 100;
         hMax = positioned
-          ? 100 - ((br.top - fr.top) / (fr.height || 1)) * 100
+          ? 100 - ((br.top - f.padTop) / f.contentH) * 100
           : 100;
       }
-      hpct = Math.max(1, Math.min(Math.max(1, hMax), hpct));
+      hpct = Math.max(MEASURE_MIN.h, Math.min(Math.max(MEASURE_MIN.h, Math.min(MEASURE_MAX.h, hMax)), hpct));
       block.style.height = hpct + '%';
       label.push(Math.round(hpct) + '%');
     }
@@ -2803,20 +2894,30 @@ const GUTTER_SCRIPT = `
     var frame = measurableFrame(block);
     if (!id || !frame) { syncFrameContext(); return; }
     var br = block.getBoundingClientRect();
-    var fr = frame.getBoundingClientRect();
+    // ADR-485 D1 — THE defect this ADR exists for. This divided by the frame's
+    // BORDER box while the kernel's width: var(--yw) multiplies by its
+    // CONTENT box, so a member who dragged to the true edge committed
+    // 864/992 = 87%, the block re-rendered 112px narrower, and every attempt
+    // to correct it lost the same 13% again (100 -> 87 -> 76 -> 66 -> 57).
+    // Measured in Chrome; corroborated by the live corpus, where six authored
+    // widths existed and none exceeded 78%.
+    //
+    // Each axis-class now divides by the box its OWN property resolves against,
+    // and by the SAME numbers resizeMove previewed with.
+    var f = frameRects(frame);
     var ax = sideAxes(side);
     var positioned = isPositioned(block);
     var msg = { type: 'yarnnn-geometry', blockId: id };
     if (ax.west || ax.east) {
-      msg.w = Math.round((br.width / (fr.width || 1)) * 100);
+      msg.w = Math.round(clampMeasure('w', (br.width / f.contentW) * 100));
       if (ax.west && positioned) {
-        msg.x = Math.round(((br.left - fr.left) / (fr.width || 1)) * 100);
+        msg.x = Math.round(clampMeasure('x', ((br.left - f.padLeft) / f.padW) * 100));
       }
     }
     if (ax.north || ax.south) {
-      msg.h = Math.round((br.height / (fr.height || 1)) * 100);
+      msg.h = Math.round(clampMeasure('h', (br.height / f.contentH) * 100));
       if (ax.north && positioned) {
-        msg.y = Math.round(((br.top - fr.top) / (fr.height || 1)) * 100);
+        msg.y = Math.round(clampMeasure('y', ((br.top - f.padTop) / f.padH) * 100));
       }
     }
     parent.postMessage(msg, '*');
@@ -3048,7 +3149,20 @@ function stripExecutable(doc: Document): void {
 export async function resolveArtifactHtml(
   html: string,
   artifactPath: string,
-  opts?: { pointer?: boolean; edit?: boolean; mode?: 'flow' | 'paged' },
+  opts?: {
+    pointer?: boolean;
+    edit?: boolean;
+    mode?: 'flow' | 'paged';
+    /** ADR-485 D3 — the SERVED measure bounds (`vocabulary.measures`), keyed by
+     *  measure key. The in-gesture clamp used to hardcode `1` for both axes
+     *  while the kernel serves `w.min = 10` and `h.min = 1`, so a width dragged
+     *  to 3% previewed at 3% and landed at 10% — wider than the box the member
+     *  released on. The runtime must never invent a bound (ADR-461 D4: the
+     *  kernel names it, nothing downstream re-derives it), so the parent passes
+     *  what the registry served. Omitted → the gesture falls back to the
+     *  permissive [1,100] it always used, which is the pre-ADR-485 behaviour. */
+    measureBounds?: Record<string, { min: number; max: number }>;
+  },
 ): Promise<string> {
   if (!html) return html;
   if (!opts?.pointer && !html.includes('data-ref')) return html;
@@ -3148,7 +3262,12 @@ export async function resolveArtifactHtml(
       doc.body?.appendChild(editScript);
     }
     const script = doc.createElement('script');
-    script.textContent = POINTER_SCRIPT;
+    // ADR-485 D3: the SERVED measure bounds reach the runtime as data, ahead of
+    // the runtime that clamps with them. The kernel names the bound; the
+    // gesture applies it; nothing in between re-derives it.
+    script.textContent =
+      `window.__yarnnnMeasureBounds = ${JSON.stringify(opts?.measureBounds ?? null)};\n` +
+      POINTER_SCRIPT;
     doc.body?.appendChild(script);
     // ADR-447 Phase 4: empty-slot "+ Add here" (last — decorates the settled
     // DOM; its buttons are not [data-block], so pointer selection ignores them).

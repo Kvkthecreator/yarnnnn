@@ -254,9 +254,15 @@ def run() -> bool:
         and "selectedBlockId={selection?.blockId ?? null}" in surface,
     )
     _check(
+        # ADR-485 re-pin: the clamp still bounds the trailing edge, but both of
+        # its percentages are now percentages of the SAME rectangle (they were
+        # not — x was a percent of the border box and width of the content box,
+        # so `100 - wPct` compared unlike units), and the floor comes from the
+        # SERVED bound rather than a hardcoded 1 (the kernel serves w.min=10,
+        # so a 3% width previewed at 3% and landed at 10%).
         "P9 frame-aware clamp: the trailing edge is bounded too (x ≤ 100 − w%)",
         "var xMax = Math.max(0, 100 - wPct);" in proj
-        and "Math.min(Math.max(1, maxPct), pct)" in proj,
+        and "Math.min(Math.max(MEASURE_MIN.w, Math.min(MEASURE_MAX.w, maxPct)), pct)" in proj,
     )
 
     # ── ADR-472: the stage LEFT Studio (the canvas doc type was carved into
@@ -320,16 +326,24 @@ def run() -> bool:
         and "function sideAxes(side)" in proj,
     )
     _check(
+        # ADR-485 D1 re-pin: height divides by the frame's CONTENT box (what
+        # `height: var(--yh)` resolves against), not its border box — the same
+        # correction as width, and worse before it (a 20% loss per drag against
+        # width's 13%, because vertical padding is a larger fraction of 558px).
         "P10 height is wired end-to-end (runtime → canvas → surface → op)",
-        "msg.h = Math.round((br.height / (fr.height || 1)) * 100);" in proj
+        "msg.h = Math.round(clampMeasure('h', (br.height / f.contentH) * 100));" in proj
         and "h: typeof d.h === 'number' ? d.h : undefined," in canvas
         and "...(sh ? { h: spec(sh) } : {})" in surface
         and "'h'" in ops.split("export function setGeometry", 1)[1].split("\n}", 1)[0],
     )
     _check(
+        # ADR-485 D1 re-pin: y is a percent of the frame's PADDING box (what
+        # `top: %` resolves against on an absolutely-positioned child), and it
+        # measures FROM the padding edge — a different rectangle than width's,
+        # which is the distinction the single `fr` rect could not express.
         "P10 north/west on a positioned block anchor the opposite edge (one revision)",
         "if (ax.north && positioned) {" in proj
-        and "msg.y = Math.round(((br.top - fr.top) / (fr.height || 1)) * 100);" in proj,
+        and "msg.y = Math.round(clampMeasure('y', ((br.top - f.padTop) / f.padH) * 100));" in proj,
     )
     _check(
         "P10 the frame reference rides the selection (name at rest, numbers live)",

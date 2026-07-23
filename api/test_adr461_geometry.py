@@ -238,9 +238,25 @@ def run() -> bool:
         "bindGesture(strip, function () { return selBlock && positionable(selBlock) ? selBlock : null; }" in proj
         and "bindGesture(h, function () { return selBlock; }" in proj,
     )
+    # ADR-485 D1 re-pin. This check pinned the literal
+    # `br.width / (fr.width || 1)) * 100` — which is the BORDER-box denominator
+    # that ADR-485 removed. The check's PROSE was right ("a percent of the
+    # frame") and its pin was the bug: `fr` was getBoundingClientRect(), while
+    # the kernel's `width: var(--yw)` resolves against the frame's CONTENT box,
+    # so every drag committed ~87% of what the member drew and each correction
+    # lost the same fraction again. This gate stayed green through all of it,
+    # because asserting "a percent of the frame" never asks WHICH RECTANGLE.
+    # Re-pinned to the corrected invariant; the round trip itself is proven by
+    # execution in `web/scripts/gates/adr485_measure_frame.mjs`.
     _check(
         "it reports a PERCENT OF THE FRAME, not a pixel (the bound is structural)",
-        "br.width / (fr.width || 1)) * 100" in proj,
+        "br.width / f.contentW) * 100" in proj,
+    )
+    _check(
+        "ADR-485 D1: and the frame's rectangle is named, per axis-class",
+        "function frameRects(" in proj
+        and "contentW:" in proj
+        and "padW:" in proj,
     )
     # (Re-pinned for ADR-466 P10/P11: syncBox resolves a target — selection,
     #  or the editing block — and the measurable gate still decides the box.)

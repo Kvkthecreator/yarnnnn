@@ -96,6 +96,11 @@ interface StudioCanvasProps {
    *  surface); `paged` keeps the per-block enclosure grammar. The runtime never
    *  learns a layout SLUG — it reads only this mode (ADR-222). */
   mode?: 'flow' | 'paged';
+  /** ADR-485 D3: the SERVED measure bounds, keyed by measure key — the same
+   *  registry the write-side clamp reads (`vocabulary.measures`). The gesture
+   *  clamps its PREVIEW with these, so the box the member releases on is the
+   *  box that lands. The runtime invents no bound (ADR-461 D4). */
+  measureBounds?: Record<string, { min: number; max: number }>;
   /** ADR-480 D1: a FLOW edit committed (blur/idle) — the whole region's inner,
    *  source-mapped. The surface applies it with normalize-on-write (D3). */
   onFlowEdit?: (selector: string, newInner: string) => void;
@@ -212,6 +217,7 @@ export function StudioCanvas({
   selectedBlockId,
   onEdit,
   mode,
+  measureBounds,
   onFlowEdit,
   onEditExited,
   onEditEntered,
@@ -291,7 +297,7 @@ export function StudioCanvas({
     // (harmless when nothing is being edited; the runtime idles until the
     // parent commands enter). One render mode keeps the projection stable
     // across select→edit→select without reloading the frame.
-    resolveArtifactHtml(content, artifactPath, { pointer: true, edit: true, mode })
+    resolveArtifactHtml(content, artifactPath, { pointer: true, edit: true, mode, measureBounds })
       .then((html) => !cancelled && setProjected(html))
       // NEVER fall back to raw content: the iframe allows scripts, and only
       // the projection pass strips artifact-authored executables. A blank
@@ -307,7 +313,10 @@ export function StudioCanvas({
     // ADR-480: `mode` is a projection input (it stamps data-yarnnn-mode), so it
     // must re-project when the served vocabulary lands — the surface defaults to
     // 'flow' until then, and a deck would otherwise keep the flow runtime.
-  }, [content, artifactPath, mode]);
+    // ADR-485 D3: `measureBounds` is a projection input for the same reason —
+    // it is baked into the injected script, so a vocabulary that lands after
+    // the first projection must re-inject or the gesture keeps the fallback.
+  }, [content, artifactPath, mode, measureBounds]);
 
   // Command the iframe's edit runtime when the surface's editing state changes
   // AND on every fresh load (a reload after a commit reinjects the runtime; it

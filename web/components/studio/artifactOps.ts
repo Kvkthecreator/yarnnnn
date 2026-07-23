@@ -1218,15 +1218,28 @@ export function applyArrangementPlan(
 
 /** ADR-466 D2 (the ADR-461 honest remainder, closed): re-laying a page is the
  *  act that returns a POSITIONED block to flow — the arrangement's slots are
- *  about to lay it out, so its x/y measures are cleared as it is carried. */
+ *  about to lay it out, so its measures are cleared as it is carried.
+ *
+ *  ADR-485 D2 — the CLEAR-grain now matches the WRITE-grain. `setGeometry`
+ *  writes x/y/w/h/z as ONE geometry unit from one gesture; this cleared two of
+ *  the five, so `--yw: 60%` survived a re-arrange and was silently re-based
+ *  against a narrower rectangle: measured in Chrome, a block laid out by the
+ *  slide at 595.2px became 247.2px (−58.5%) on being carried into a `flex: 1`
+ *  column, with height collapsing 223.2px → 18.0px because a flex-start column
+ *  has no definite height for a percentage to resolve against. No gesture
+ *  involved — one click. A width that was a percent of the slide is not a width
+ *  that means anything in a column, so the arrangement lays the block out
+ *  fresh. `data-z` goes too: it orders POSITIONED siblings, and on a static
+ *  block it is inert state that `nudgeZ` then refuses to touch. */
+const GEOMETRY_VARS = ['--yx:', '--yy:', '--yw:', '--yh:', '--yz:'];
 function returnToFlow(b: Element): void {
-  if (!b.hasAttribute('data-x') && !b.hasAttribute('data-y')) return;
-  b.removeAttribute('data-x');
-  b.removeAttribute('data-y');
+  const keys = ['x', 'y', 'w', 'h', 'z'];
+  if (!keys.some((k) => b.hasAttribute(`data-${k}`))) return;
+  keys.forEach((k) => b.removeAttribute(`data-${k}`));
   const kept = (b.getAttribute('style') || '')
     .split(';')
     .map((d) => d.trim())
-    .filter((d) => d && !d.startsWith('--yx:') && !d.startsWith('--yy:'));
+    .filter((d) => d && !GEOMETRY_VARS.some((v) => d.startsWith(v)));
   if (kept.length) b.setAttribute('style', kept.join('; '));
   else b.removeAttribute('style');
 }

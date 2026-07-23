@@ -1000,7 +1000,13 @@ export function StudioDesignTab({
           {/* ADR-466 D2 — the positioned state's escape hatch. A block the
               member dragged to a point (x/y measures) sits outside the page's
               flow; this returns it (re-arranging the page also does). */}
-          {selectedEl?.hasAttribute('data-x') && (
+          {/* ADR-485 D4: the kernel rule is `.slide [data-block][data-x][data-y]`
+              — BOTH are required for the positioned state. Testing `data-x`
+              alone offered "Return to flow" on a block that was still in flow
+              (a lane can write one attribute without the other, since the
+              posture teaches them as prose), and clicking it landed a revision
+              that changed nothing visible. Read the state the kernel reads. */}
+          {selectedEl?.hasAttribute('data-x') && selectedEl?.hasAttribute('data-y') && (
             <div className={SECTION}>
               <p className={HEADING}>Position</p>
               <button type="button" className={askBtn} onClick={onReturnToFlow}>

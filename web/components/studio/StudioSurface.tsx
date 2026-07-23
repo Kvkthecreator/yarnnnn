@@ -1066,17 +1066,45 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       ...(sz ? { z: spec(sz) } : {}),
     };
   }, [vocabulary]);
+  // ADR-485 D3 — the served bounds, in the shape the projection bakes into the
+  // pointer runtime. Same registry `geometrySpecs` reads: ONE source, two
+  // consumers (the in-gesture preview clamp and the write clamp), so the box
+  // the member releases on is the box that lands. useMemo, not a literal: this
+  // is a projection input, and a fresh object every render would re-inject the
+  // runtime and reload the frame on every keystroke.
+  const measureBounds = useMemo(() => {
+    const rows = vocabulary?.measures ?? [];
+    if (!rows.length) return undefined;
+    const out: Record<string, { min: number; max: number }> = {};
+    rows.forEach((m) => {
+      out[m.key] = { min: m.min, max: m.max };
+    });
+    return out;
+  }, [vocabulary]);
+
   const handleGeometry = useCallback(
     (blockId: string, geo: { x?: number; y?: number; w?: number; h?: number }) => {
       const specs = geometrySpecs();
       if (!specs) return;
+      // ADR-485 D3 — the receipt states what LANDED, not what was asked for.
+      // These parts were built from the raw `geo`, while `setGeometry` clamps
+      // to the served bound; a width dragged to 3% therefore wrote a revision
+      // message reading "width 3%" over an artifact holding 10%. A receipt is
+      // the one surface a member consults to learn what actually happened, so a
+      // receipt that misstates the substrate is worse than the visual snap it
+      // accompanies. Clamp first, describe second — one helper, same specs the
+      // op uses, so the two can never drift apart again.
+      const landed = (key: 'x' | 'y' | 'w' | 'h', v: number) => {
+        const s = specs[key];
+        return s ? Math.round(Math.max(s.min, Math.min(s.max, v))) : Math.round(v);
+      };
       const parts = [
-        geo.w != null ? `width ${Math.round(geo.w)}%` : null,
-        geo.h != null ? `height ${Math.round(geo.h)}%` : null,
+        geo.w != null ? `width ${landed('w', geo.w)}%` : null,
+        geo.h != null ? `height ${landed('h', geo.h)}%` : null,
         geo.x != null && geo.y != null
-          ? `at ${Math.round(geo.x)}%, ${Math.round(geo.y)}%`
+          ? `at ${landed('x', geo.x)}%, ${landed('y', geo.y)}%`
           : geo.x != null
-            ? `x ${Math.round(geo.x)}%`
+            ? `x ${landed('x', geo.x)}%`
             : null,
       ].filter(Boolean);
       void applyOp(
@@ -2270,6 +2298,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 selectedBlockId={selection?.blockId ?? null}
                 onEdit={onEdit}
                 mode={resolvedMode}
+                measureBounds={measureBounds}
                 onFlowEdit={onFlowEdit}
                 onEditExited={() => setEditingBlockId(null)}
                 onEditEntered={(id) => setEditingBlockId(id)}
