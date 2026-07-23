@@ -88,6 +88,7 @@ import {
   removeSkin,
   retrofitKernel,
   setGeometry,
+  setMeasure,
   setPageBackground,
   setPosition,
   setToken,
@@ -1113,6 +1114,24 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       );
     },
     [applyOp, geometrySpecs],
+  );
+  // ADR-485 follow-on — clear a single size measure (w or h) from the Properties
+  // block scope. The DRAG is the primary authoring path for a measure; this is
+  // the read-back's "reset to Auto" affordance, the same absence-default every
+  // token offers. Routes through setMeasure(…, null), which strips both halves
+  // (data-w + --yw) as one revision — never a second write path.
+  const handleClearMeasure = useCallback(
+    (key: 'w' | 'h') => {
+      const id = selection?.blockId;
+      const spec = geometrySpecs();
+      const s = key === 'w' ? spec?.w : spec?.h;
+      if (!id || !s) return;
+      void applyOp(
+        (html) => setMeasure(html, id, key, null, s),
+        `Studio: clear ${id} ${key === 'w' ? 'width' : 'height'}`,
+      );
+    },
+    [applyOp, selection, geometrySpecs],
   );
   // The escape hatch (Properties block scope): a positioned block returns to
   // the page's flow — both measures cleared, one revision.
@@ -2492,6 +2511,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               onPageVerb={handlePageVerb}
               onTurnInto={handleTurnInto}
               onReturnToFlow={handleReturnToFlow}
+              measures={vocabulary?.measures ?? []}
+              onClearMeasure={handleClearMeasure}
               onAskAboutSelection={askAboutSelection}
               onApplyDesignSystem={handleApplyDesignSystem}
               onRemoveDesignSystem={handleRemoveDesignSystem}

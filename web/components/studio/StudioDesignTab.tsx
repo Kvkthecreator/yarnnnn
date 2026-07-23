@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import {
+  type StudioMeasure,
   type StudioSelection,
   type StudioToken,
   type StudioVocabulary,
@@ -78,6 +79,13 @@ interface StudioDesignTabProps {
   /** ADR-466 D2: clear the selected block's x/y measures — the positioned
    *  block returns to the page's flow (one revision). */
   onReturnToFlow: () => void;
+  /** ADR-485 follow-on: the served measures (`vocabulary.measures`) — the Design
+   *  tab reads a block's CURRENT w/h back from its --y* style so a member sees
+   *  the size the drag authored. Empty until the vocabulary lands. */
+  measures: StudioMeasure[];
+  /** ADR-485 follow-on: reset a size measure to Auto (the absence-default) — the
+   *  read-back's clear affordance, since the drag is the authoring path. */
+  onClearMeasure: (key: 'w' | 'h') => void;
   /** Seed the lane with the selection and flip to the Chat tab. */
   onAskAboutSelection: () => void;
   /** EXECUTE: apply a design system's composed skin element (resolve + write). */
@@ -265,6 +273,8 @@ export function StudioDesignTab({
   onPageVerb,
   onTurnInto,
   onReturnToFlow,
+  measures,
+  onClearMeasure,
   onAskAboutSelection,
   onApplyDesignSystem,
   onRemoveDesignSystem,
@@ -310,6 +320,37 @@ export function StudioDesignTab({
   const mediaKinds = vocabulary?.media_kinds ?? [];
   const arrangements = vocabulary?.arrangements?.[layout] ?? [];
   const pageNoun = layout === 'deck' ? 'slide' : 'section';
+
+  // ADR-485 follow-on — the SIZE measures a block can carry (w/h), and which of
+  // them apply at this scope (ADR-461 D4 `applies`: block-staged = a block on a
+  // fixed frame; media = a media block anywhere). This is the read-back the
+  // inspector was missing entirely: a member who dragged a block to 60% wide
+  // had no numeric confirmation anywhere in the tab (the value lived only in the
+  // transient in-gesture frame label). The position measures (x/y/z) stay OUT of
+  // this — they are the "Return to flow" state, shown separately below.
+  const sizeMeasures = useMemo(() => {
+    if (scope !== 'block') return [];
+    const isMedia = !!selection?.blockKind && mediaKinds.includes(selection.blockKind);
+    const framed = !!selectedEl?.closest('.slide');
+    return (measures ?? []).filter(
+      (m) =>
+        (m.key === 'w' || m.key === 'h') &&
+        ((framed && m.applies.includes('block-staged')) ||
+          (isMedia && m.applies.includes('media'))),
+    );
+  }, [scope, measures, selection, selectedEl, mediaKinds]);
+
+  // The current value of a measure, parsed from the block's own --y* style —
+  // derived at render, never stored (the ADR-453 D1 convention every token uses).
+  const measureValue = useCallback(
+    (m: StudioMeasure): number | null => {
+      const style = selectedEl?.getAttribute('style') ?? '';
+      const rx = new RegExp(`${m.css_var}\\s*:\\s*(-?\\d+(?:\\.\\d+)?)`);
+      const hit = style.match(rx);
+      return hit ? Number(hit[1]) : null;
+    },
+    [selectedEl],
+  );
 
   // Which token families apply at the current scope (ADR-453 D1 `applies`).
   const applicable = useMemo(() => {
@@ -995,6 +1036,48 @@ export function StudioDesignTab({
                   onSet={(v) => onSetToken('block', t.key, v)}
                 />
               ))}
+            </div>
+          )}
+          {/* ADR-485 follow-on — the SIZE read-back. A drag on the canvas
+              handle authors w/h; this shows the value it wrote (the tab had no
+              numeric confirmation anywhere before) and offers reset-to-Auto,
+              the same absence-default a token gives. Drag to size, read here.
+              Only rendered where a measure applies (a framed or media block). */}
+          {sizeMeasures.length > 0 && (
+            <div className={SECTION}>
+              <p className={HEADING}>Size</p>
+              {sizeMeasures.map((m) => {
+                const v = measureValue(m);
+                return (
+                  <div key={m.key} className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground" title={m.description}>
+                      {m.label}
+                    </span>
+                    {v == null ? (
+                      <span className="text-xs text-muted-foreground">Auto</span>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-xs tabular-nums text-foreground">
+                          {v}
+                          {m.unit}
+                        </span>
+                        <button
+                          type="button"
+                          className={askBtn}
+                          onClick={() => onClearMeasure(m.key as 'w' | 'h')}
+                          title={`Reset ${m.label.toLowerCase()} to Auto`}
+                        >
+                          Auto
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+              <p className="text-[10px] leading-snug text-muted-foreground">
+                Drag the block&apos;s corner on the canvas to size it; the value
+                shows here.
+              </p>
             </div>
           )}
           {/* ADR-466 D2 — the positioned state's escape hatch. A block the
