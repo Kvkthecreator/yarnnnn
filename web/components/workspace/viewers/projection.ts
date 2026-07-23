@@ -255,6 +255,21 @@ const TEXT_KINDS_JS = JSON.stringify(['prose', 'callout', 'quote', 'checklist', 
 // clickable, addressable — so it keeps the neutral selection outline and the
 // pointer cursor. Text is pure caret territory.
 const FLOW_POINTER_CSS = `
+/* ADR-482 D8: the BROWSER'S focus ring on the flow root is suppressed.
+   ADR-480 D1 put contenteditable on <main>/<article>, and a focused editable
+   element gets the UA's default focus outline for free — so the whole document
+   wore a saturated box for the entire session. It is not our chrome (no rule of
+   ours draws it, which is why the earlier passes looking at [data-block] rules
+   never found it), but it is chrome we CAUSED, and it says the one thing a
+   continuous writing surface never needs to say: "this is the editable region."
+   The whole page is. The caret says where you are; a permanent frame around
+   everything is the enclosure ADR-480 dissolved, redrawn by the UA.
+   Paged is untouched — there the per-block outline is meaningful (one block is
+   live at a time), and it is OUR rule, in EDIT_CSS. */
+main[contenteditable="true"]:focus, article[contenteditable="true"]:focus,
+main[contenteditable="true"]:focus-visible, article[contenteditable="true"]:focus-visible {
+  outline: none;
+}
 /* Text is caret territory — the I-beam is the honest cursor, no outline. */
 [data-block] { cursor: text; }
 /* Objects stay objects: pointer cursor + a quiet hover cue on the OBJECT

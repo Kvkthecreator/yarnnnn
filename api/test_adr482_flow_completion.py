@@ -147,6 +147,20 @@ def run() -> bool:
         "rgba(99,102,241," not in proj,
     )
 
+    # ── D8 — the UA focus ring on the flow root is suppressed ─────────────
+    flow_css = proj[proj.index("const FLOW_POINTER_CSS") : proj.index("const POINTER_CSS")]
+    _check(
+        "D8 the flow root's browser focus ring is suppressed",
+        'main[contenteditable="true"]:focus' in flow_css
+        and 'article[contenteditable="true"]:focus' in flow_css
+        and "outline: none;" in flow_css,
+    )
+    paged_css = proj[proj.index("const POINTER_CSS") : proj.index("const EDIT_CSS")]
+    _check(
+        "D8 PAGED is untouched — no root focus suppression there",
+        'main[contenteditable="true"]' not in paged_css,
+    )
+
     # ── D5 — the menu is mode-scoped ──────────────────────────────────────
     _check("D5 StudioBlockMenu accepts a mode", "mode?: 'flow' | 'paged';" in menu)
     _check(
