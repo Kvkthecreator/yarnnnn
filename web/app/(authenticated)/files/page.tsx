@@ -604,12 +604,6 @@ export default function ContextPage() {
   // pathnameSlug resolution, disrupting the launcher/topbar (operator-observed
   // KVK 2026-06-12). `?path=` survives only as a COLD-LOAD deep-link (read on
   // entry to seed selectedPath) — it is never written from intra-surface clicks.
-  const handleExplorerSelect = useCallback((node: TreeNode) => {
-    setShowTrash(false);
-    setSelectedPath(node.path);
-    activateBodyRef.current(); // narrow: drill into the viewer
-  }, []);
-
   // Path-based select — a path string, not a TreeNode. The file may not be in
   // the visible tree (e.g. a folder-Details revision row deep-links into a
   // `_`-prefixed file hidden from the explorer); syntheticNodeForPath resolves
@@ -651,6 +645,22 @@ export default function ContextPage() {
     setSelectedPath(path);
     activateBodyRef.current(); // narrow: drill into the viewer
   }, [navigateToSurface]);
+
+  // 2026-07-24 — the tree + folder-listing select verb is the SAME open verb as
+  // right-click Open and a Recents click. Pre-fix the tree had its own inline-
+  // only handler (`handleExplorerSelect`) that set selectedPath and NEVER
+  // consulted the surface-owning app layer — so clicking a Studio artifact in
+  // the tree mounted the inline WebViewer instead of opening Studio, and an
+  // authored `.html` (whose body is a composed document, not a peekable page)
+  // rendered blank. The app layer already existed (resolveSurfaceApplication,
+  // ADR-451) and the RIGHT-CLICK Open already used it; the tree just bypassed
+  // it. One verb now: every open of an artifact routes to its app, folders and
+  // unclaimed types stay inline (they aren't artifact candidates, so `_byPath`
+  // falls straight through to the inline selection).
+  const handleExplorerSelect = useCallback(
+    (node: TreeNode) => handleExplorerSelect_byPath(node.path),
+    [handleExplorerSelect_byPath],
+  );
 
   // ADR-329 (amended): right-click "Get Info" on a tree node → select it (so
   // Details scopes to it) and open the Details panel.

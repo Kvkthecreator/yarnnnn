@@ -27,6 +27,7 @@ Asserts:
 """
 
 import os
+import re
 import sys
 
 _HERE = os.path.dirname(__file__)
@@ -66,14 +67,44 @@ def run() -> int:
     )
 
     # ── 2. the Files open branch ──────────────────────────────────────────
+    # NOTE (2026-07-24): the call gained a `kind` arg at ADR-473
+    # (`resolveSurfaceApplication(path, undefined, kind)`), so match the verb
+    # name + its navigate, not the stale 1-arg literal this asserted before.
     passed &= _check(
         "Files open path consults the resolver + navigates",
-        "resolveSurfaceApplication(path)" in files_page
+        "resolveSurfaceApplication(path" in files_page
         and "navigateToSurface(app.surface, { [app.param]: path })" in files_page,
     )
     passed &= _check(
         "chat FileOpenModal NOT branched (ADR-441 preview stands)",
         bool(open_modal) and "resolveSurfaceApplication" not in open_modal,
+    )
+    # 2026-07-24 — the WIRING invariant the routing needed to be reachable.
+    # The tree's onSelect + the folder-listing onNavigate must BOTH reach the
+    # app-consulting handler (handleExplorerSelect_byPath), not an inline-only
+    # one — else clicking a Studio artifact in the tree mounts the inline
+    # WebViewer (blank for an authored .html) instead of opening Studio. The
+    # bug was that both existed and the tree used the wrong one; assert the
+    # single-verb wiring so it can't silently split again.
+    #
+    # handleExplorerSelect is now a THIN WRAPPER over _byPath (the one open
+    # verb). Assert it delegates rather than re-implementing an inline set —
+    # a re-added `setSelectedPath(node.path)` body would be the regression.
+    wrapper = re.search(
+        r"const handleExplorerSelect = useCallback\(\s*\(node: TreeNode\) =>(.*?),\s*\[",
+        files_page,
+        re.DOTALL,
+    )
+    delegates = bool(wrapper) and "handleExplorerSelect_byPath(node.path)" in wrapper.group(1)
+    passed &= _check(
+        "tree select delegates to the app-consulting open verb (_byPath)",
+        delegates,
+        "" if delegates else "handleExplorerSelect must wrap _byPath, not set selectedPath directly",
+    )
+    passed &= _check(
+        "the tree + folder-listing are wired to that verb",
+        "onSelect={handleExplorerSelect}" in files_page
+        and "onNavigate={handleExplorerSelect}" in files_page,
     )
 
     # ── 3. the entrance move ──────────────────────────────────────────────
