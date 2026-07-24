@@ -486,9 +486,14 @@ choice, not an accident.
    import-vs-derive first choice inside, the `.zip` pre-picker explanation, the type-filtered derive
    source. The section stops calling `LearnFromFlowModal`. (This section, 2026-07-19.)
 2. **The manage panel** — the third render state on `studio.system=`, composing dependents + files
-   + the shared theme panel + re-import. No new backend (all endpoints exist). Step-1 minimal panel
-   shipped; the openable-dependents + theme-panel + editor-slot body remains.
-3. **(Deferred)** the inline token-editor, against the shipped `PATCH` permission.
+   + the shared theme panel + re-import. No new backend (all endpoints exist). **SHIPPED in two
+   passes**: the step-1 minimal panel, then the body (2026-07-24) — the dependents are an
+   **openable list** (each ADR-448 edge, one click to its workbench), the **read-only theme
+   panel** folded in (parsed from the *resolved* `skin_element`, maps bridge included — the same
+   parse the Design tab runs, extracted to the shared `web/components/studio/skinVars.ts`), and
+   the theme section named as the **token-editor slot** (its footer says read-only honestly).
+3. **(Deferred)** the inline token-editor, against the shipped `PATCH` permission — lands inside
+   the step-2 theme section; still blocked on the var→owning-source design pass (§5 Move 3).
 
 ---
 
@@ -504,6 +509,7 @@ choice, not an accident.
 | The derive recipe (AI authors one) | `api/services/derive_recipes.py::DERIVE_RECIPES["design-system"]` |
 | FE picker + import UI (Job A — apply, in an open artifact) | `web/components/studio/StudioDesignTab.tsx` (document scope) |
 | FE landing + render states (Job B home — §6) | `web/components/studio/StudioSurface.tsx` (`StudioStart` = landing; `studio.file` = workbench; `studio.system` = the manage state) |
+| FE skin-var parse (ONE parse, two readers — Design tab reads the artifact's marked element, manage panel reads the resolved `skin_element`) | `web/components/studio/skinVars.ts` (`parseSkinVars` + `KERNEL_CONSUMED_VARS` + `isColorValue`) |
 | FE creation modal (§6, the regroup — one entry, import+derive) | `web/components/studio/NewDesignSystemModal.tsx` (to build); the section stops calling `LearnFromFlowModal` |
 | FE learn-from (the GENERAL create path — all targets) | `web/components/studio/LearnFromFlowModal.tsx` + `LEARN_TARGETS` (`New ▾ · Learn from`; no longer the design-system entry) |
 | FE skin url() resolution | `web/components/workspace/viewers/projection.ts::resolveStyleUrls` |

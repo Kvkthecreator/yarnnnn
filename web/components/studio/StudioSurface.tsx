@@ -36,6 +36,7 @@ import { NewArtifactModal, slugify } from './NewArtifactModal';
 import { registerKindApps } from '@/lib/file-types';
 import { StudioNewMenu } from './StudioNewMenu';
 import { studioShapeStyle } from './studioShapes';
+import { isColorValue, parseSkinVars } from './skinVars';
 import { OpenArtifactModal } from './OpenArtifactModal';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
@@ -3172,10 +3173,11 @@ function StudioStart({
 // the manifest) · its files (the flattened sources) · Re-import. NOT a canvas,
 // NOT a modal — a dedicated panel, the deferred token-editor's future home.
 //
-// Step 1 (this): the panel + Re-import + the dependent COUNT. Step 2 makes the
-// dependents an OPENABLE list, folds in the read-only theme panel (the §5
-// widened vocabulary), and adds the token-editor slot. Named so the boundary
-// is honest.
+// Step 2 (this, 2026-07-24): the dependents are an OPENABLE list, the
+// read-only theme panel (the §5 widened vocabulary, kernel-consumed slots
+// first — the SAME parse the Design tab runs, shared via skinVars.ts) is
+// folded in, and the theme section is the named token-editor slot (step 3
+// makes values editable against the shipped §5 Q4 PATCH permission).
 function StudioManage({
   manifestPath,
   onBack,
@@ -3183,14 +3185,13 @@ function StudioManage({
 }: {
   manifestPath: string;
   onBack: () => void;
-  /** Open one of the artifacts that wear this system (step 2 makes the list
-   *  clickable; step 1 wires the handler so the enrichment is drop-in). */
+  /** Open one of the artifacts that wear this system. */
   onOpenArtifact: (path: string) => void;
 }) {
   const [detail, setDetail] = useState<Awaited<
     ReturnType<typeof api.studio.resolveDesignSystem>
   > | null>(null);
-  const [wornBy, setWornBy] = useState<number | null>(null);
+  const [wornBy, setWornBy] = useState<Array<{ path: string }> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reimporting, setReimporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -3201,13 +3202,24 @@ function StudioManage({
       .resolveDesignSystem(manifestPath)
       .then(setDetail)
       .catch(() => setError('This design system could not be read.'));
-    // Worn-by: the ADR-448 reference edge, read outward from the manifest. The
-    // backend returns {count: 0} on any failure, so this never throws.
+    // Worn-by: the ADR-448 reference edge, read outward from the manifest —
+    // the endpoint already returns the PATHS, not just the count. The backend
+    // returns {dependents: []} on any failure, so this never throws.
     api.documents
       .dependents(manifestPath)
-      .then((d) => setWornBy(d.count))
+      .then((d) => setWornBy(d.dependents))
       .catch(() => setWornBy(null));
   }, [manifestPath]);
+
+  // The theme — parsed from the RESOLVED skin element (what this system IS,
+  // maps bridge included), not from any one artifact's copy of it.
+  const themeVars = useMemo(() => {
+    if (!detail) return [];
+    const css =
+      detail.skin_element.match(/<style[^>]*>([\s\S]*?)<\/style>/i)?.[1] ??
+      detail.skin_element;
+    return parseSkinVars(css, 24);
+  }, [detail]);
 
   useEffect(() => {
     load();
@@ -3281,31 +3293,39 @@ function StudioManage({
 
         {error && <p className="text-xs text-red-500">{error}</p>}
 
-        {/* Worn by — the ADR-448 reference edge. Step 2 makes this an openable
-            list; step 1 shows the count (the payoff the citation contract was
-            built for, surfaced at last). */}
+        {/* Worn by — the ADR-448 reference edge, now the openable LIST (the
+            payoff the citation contract was built for): each artifact whose
+            HEAD cites this manifest, one click from its manage home. */}
         <div className="rounded-lg border border-border p-4">
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Worn by
+            Worn by{wornBy && wornBy.length > 0 ? ` · ${wornBy.length}` : ''}
           </p>
-          <p className="mt-1 text-sm">
-            {wornBy === null ? (
-              <span className="text-muted-foreground">—</span>
-            ) : wornBy === 0 ? (
-              <span className="text-muted-foreground">
-                No artifacts wear this yet. Apply it from an artifact’s Design tab.
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onOpenArtifact(folder)}
-                className="text-foreground underline-offset-2 hover:underline"
-                title="Open the artifacts that cite this design system (Files shows the full list)"
-              >
-                {wornBy} {wornBy === 1 ? 'artifact' : 'artifacts'}
-              </button>
-            )}
-          </p>
+          {wornBy === null ? (
+            <p className="mt-1 text-sm text-muted-foreground">—</p>
+          ) : wornBy.length === 0 ? (
+            <p className="mt-1 text-sm text-muted-foreground">
+              No artifacts wear this yet. Apply it from an artifact’s Design tab.
+            </p>
+          ) : (
+            <ul className="mt-2 space-y-1">
+              {wornBy.map((d) => (
+                <li key={d.path}>
+                  <button
+                    type="button"
+                    onClick={() => onOpenArtifact(d.path)}
+                    className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm transition-colors hover:bg-muted/60"
+                    title={d.path.replace(/^\/workspace\//, '')}
+                  >
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 truncate">{leafOf(d.path)}</span>
+                    <span className="ml-auto shrink-0 truncate text-[10px] text-muted-foreground">
+                      {d.path.replace(/^\/workspace\//, '').split('/').slice(0, -1).join('/')}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* The files — the flattened sources the skin is composed from. */}
@@ -3340,8 +3360,38 @@ function StudioManage({
           )}
         </div>
 
-        {/* The theme panel + the token-editor slot are step 2 (they reuse the
-            Design tab's skinVars parse + the shipped §5 Q4 PATCH permission). */}
+        {/* The theme — the resolved skin's custom properties, kernel-consumed
+            vocabulary first (§5 Move 1; the shared skinVars parse). This
+            section IS the token-editor slot: step 3 makes a row editable
+            against the shipped §5 Q4 PATCH permission, once the var→owning-
+            source design pass lands. Read-only until then, and says so. */}
+        {themeVars.length > 0 && (
+          <div className="rounded-lg border border-border p-4">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Theme
+            </p>
+            <div className="mt-2 space-y-1">
+              {themeVars.map((v) => (
+                <div key={v.name} className="flex items-center gap-2">
+                  {isColorValue(v.value) ? (
+                    <span
+                      className="h-3.5 w-3.5 shrink-0 rounded-sm border border-border"
+                      style={{ background: v.value }}
+                    />
+                  ) : (
+                    <span className="h-3.5 w-3.5 shrink-0" />
+                  )}
+                  <code className="text-[11px] text-muted-foreground">--{v.name}</code>
+                  <span className="ml-auto truncate text-[11px]">{v.value}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 border-t border-border pt-2 text-[10px] text-muted-foreground">
+              Read-only — the theme lives in its files. Change a value through
+              the chat or a re-import; inline editing lands here.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
