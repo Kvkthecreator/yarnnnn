@@ -122,6 +122,12 @@ interface StudioCanvasProps {
    *  the block's frame. The surface clamps from the kernel's served bound and
    *  lands setGeometry (ONE revision per gesture) through the one door. */
   onGeometry?: (blockId: string, geo: { x?: number; y?: number; w?: number; h?: number }) => void;
+  /** A GROUP drop — every member's landed position, folded into one revision. */
+  onGeometryMany?: (
+    moves: Array<{ blockId: string; geo: { x?: number; y?: number } }>,
+  ) => void;
+  /** The group's membership changed (shift/⌘-click) — a transient selection. */
+  onGroup?: (blockIds: string[]) => void;
   /** ADR-462 D7: the member right-clicked the canvas. The runtime has ALREADY
    *  selected the block under the cursor (right-click selects), so this only
    *  carries where to anchor + the grain the menu builds its rows from.
@@ -225,6 +231,8 @@ export function StudioCanvas({
   onReorder,
   onRatio,
   onGeometry,
+  onGeometryMany,
+  onGroup,
   onContextMenu,
   onKeyVerb,
   onUndo,
@@ -524,7 +532,7 @@ export function StudioCanvas({
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [onPoint, onPointClear, onEdit, onFlowEdit, onEditExited, onEditEntered, onEnterBlock, onReorder, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen, onSlashFilter, onSlashClose, onSlashMove, onSlashEnter, onSlashTaken, onKeyVerb, onGeometry, onRatio, onContextMenu, onUndo, onRedo]);
+  }, [onPoint, onPointClear, onEdit, onFlowEdit, onEditExited, onEditEntered, onEnterBlock, onReorder, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen, onSlashFilter, onSlashClose, onSlashMove, onSlashEnter, onSlashTaken, onKeyVerb, onGeometry, onGeometryMany, onGroup, onRatio, onContextMenu, onUndo, onRedo]);
 
   return (
     <iframe

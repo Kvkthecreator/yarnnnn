@@ -88,6 +88,7 @@ import {
   removeSkin,
   retrofitKernel,
   setGeometry,
+  setGeometryMany,
   setMeasure,
   setPageBackground,
   setPosition,
@@ -1111,6 +1112,20 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       void applyOp(
         (html) => setGeometry(html, blockId, geo, specs),
         `Studio: ${blockId} ${parts.join(' ') || 'geometry'}`,
+      );
+    },
+    [applyOp, geometrySpecs],
+  );
+  // A GROUP drop (2026-07-24) — N blocks, ONE revision. The receipt names the
+  // count rather than every id: a group of six would otherwise write a message
+  // no one can read, and the ids are in the diff either way.
+  const handleGeometryMany = useCallback(
+    (moves: Array<{ blockId: string; geo: { x?: number; y?: number } }>) => {
+      const specs = geometrySpecs();
+      if (!specs || !moves.length) return;
+      void applyOp(
+        (html) => setGeometryMany(html, moves, specs),
+        `Studio: moved ${moves.length} blocks together`,
       );
     },
     [applyOp, geometrySpecs],
@@ -2325,6 +2340,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 onReorder={handleReorder}
                 onRatio={handleRatio}
                 onGeometry={handleGeometry}
+                onGeometryMany={handleGeometryMany}
                 onContextMenu={setCtxMenu}
                 onKeyVerb={handleKeyVerb}
                 onUndo={handleUndo}

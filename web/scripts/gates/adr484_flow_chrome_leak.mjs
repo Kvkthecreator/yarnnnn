@@ -89,10 +89,12 @@ const rsiBody = src.slice(src.indexOf('{', rsi) + 1, src.indexOf('\n  }', rsi));
 function mkClone(els) {
   return {
     cloneNode: () => mkClone(els),
+    // Answers for ANY class selector — the strip enumerates a list of chrome
+    // classes now (yarnnn-pointed + yarnnn-grouped, 2026-07-24), so a stub
+    // hard-coded to one selector would silently return [] for the others and
+    // report a leak-free serialize that never actually looked.
     querySelectorAll: (sel) =>
-      sel === '.yarnnn-pointed'
-        ? els.filter((e) => e.classList.contains('yarnnn-pointed'))
-        : [],
+      sel.startsWith('.') ? els.filter((e) => e.classList.contains(sel.slice(1))) : [],
     get innerHTML() {
       return els
         .map((e) => {
@@ -127,10 +129,19 @@ t('leak: an authored class SURVIVES the strip', out.includes('lede'));
 t('leak: only the chrome class is removed', !out.includes('yarnnn-pointed'));
 
 // FALSIFIER: remove the strip; the class ships again.
+// Removes the whole ENUMERATED strip (the CHROME_CLASSES loop, 2026-07-24 —
+// previously a single `querySelectorAll('.yarnnn-pointed')` block). A
+// falsifier that no longer matches the code it is meant to delete silently
+// stops falsifying: it would leave the strip in place and then assert the leak
+// that cannot happen. Anchored on the declaration through the loop's close.
 const rsiPre = rsiBody.replace(
-  /var painted = clone\.querySelectorAll\('\.yarnnn-pointed'\);[\s\S]*?\n    \}/,
+  /var CHROME_CLASSES = \[[\s\S]*?\n      \}\n    \}/,
   '',
 );
+if (rsiPre === rsiBody) {
+  console.log('[FAIL] FALSIFIER could not remove the strip — the anchor drifted');
+  process.exitCode = 1;
+}
 const leaked = (() => {
   const root = { cloneNode: () => mkClone([mkEl('h2', 'heading', ['yarnnn-pointed'])]) };
   return new Function('el', 'document', rsiPre)(root, {

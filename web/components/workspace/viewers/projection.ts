@@ -338,6 +338,13 @@ body:has([contenteditable="true"]) [data-slot]:hover::after { content: none; }
 .yarnnn-pointed {
   outline: 1px solid rgba(60,58,54,0.5) !important; outline-offset: 2px;
 }
+/* A GROUP member (2026-07-24) wears the SAME neutral rule as the primary —
+   the set reads as one selection, which is the whole point of grouping. It is
+   a class, never markup: ungroup is deselection, and nothing here is ever
+   serialized (ADR-484 — runtime chrome is stripped at the one serializer). */
+.yarnnn-grouped {
+  outline: 1px solid rgba(60,58,54,0.5) !important; outline-offset: 2px;
+}
 /* ADR-453 D5: slots are the interaction surface — outline + name on hover
    (the Wix section-hover). position:relative only anchors the label.
    NOT on a slot the projection marked INERT: where a page has one flow slot
@@ -491,6 +498,30 @@ const POINTER_SCRIPT = `
     if (sum && cur && sum.closest('[data-block="toggle"]') === cur) return;
     var el = t && t.closest ? t.closest(SEL) : null;
     e.preventDefault();
+
+    // ── GROUP click (2026-07-24) — shift/⌘ adds to the selection ──────────
+    // Intercepted BEFORE the ladder: a modifier-click is not a navigation
+    // gesture, so it must never place a caret, enter a block, or re-run the
+    // grain ladder. Staged frames only (a deck slide / canvas artboard) —
+    // moving a set together needs a coordinate space to move it IN, which is
+    // ADR-461 D4's rule (a slide has a frame, a page has a viewport) and the
+    // same reason x/y are block-staged. On flow, shift-click stays the
+    // browser's range-selection and we do not touch it.
+    if (e.shiftKey || e.metaKey || e.ctrlKey) {
+      var gblk = el && el.closest ? el.closest('[data-block]') : null;
+      var gstaged = gblk && gblk.closest ? !!gblk.closest('.slide') : false;
+      if (gblk && gstaged) {
+        if (!cur) { window.__yarnnnSelect(gblk); }
+        else { toggleGroup(gblk); }
+        parent.postMessage({
+          type: 'yarnnn-group',
+          blockIds: (window.__yarnnnGroup() || []).map(function (n) {
+            return n.getAttribute('data-block-id');
+          }).filter(Boolean),
+        }, '*');
+        return;
+      }
+    }
 
     // ADR-453 D5: the click-grain ladder — block (a pointable inside one) →
     // slot (a slot's empty padding) → page (the page margin) → clear.
@@ -684,9 +715,34 @@ const POINTER_SCRIPT = `
   window.__yarnnnSelect = function (el) {
     if (!el || !el.classList) return;
     if (cur) cur.classList.remove('yarnnn-pointed');
+    clearGroup();
     cur = el;
     el.classList.add('yarnnn-pointed');
   };
+  // ── The GROUP (2026-07-24) — a transient multi-selection, never markup ───
+  // Shift/⌘-click adds a block to the selection; the set moves together and
+  // ungroup is simply deselection. It rides ALONGSIDE cur rather than
+  // replacing it: cur stays the primary (the block the box, handles and
+  // Properties scope follow), and group is the additional members. That
+  // keeps the one-selection rule intact — every existing reader of
+  // __yarnnnSelected() still gets exactly one element, and only the move
+  // gesture consults the group.
+  var group = [];
+  function clearGroup() {
+    for (var i = 0; i < group.length; i++) group[i].classList.remove('yarnnn-grouped');
+    group = [];
+  }
+  function inGroup(el) { return group.indexOf(el) >= 0; }
+  function toggleGroup(el) {
+    if (!el || !el.classList) return;
+    if (el === cur) return; // the primary is already in the set
+    var i = group.indexOf(el);
+    if (i >= 0) { group.splice(i, 1); el.classList.remove('yarnnn-grouped'); }
+    else { group.push(el); el.classList.add('yarnnn-grouped'); }
+  }
+  // The full set the move gesture acts on: the primary FIRST, then the others.
+  window.__yarnnnGroup = function () { return cur ? [cur].concat(group) : group.slice(); };
+  window.__yarnnnClearGroup = clearGroup;
   // The READER half of the same one-selection rule. The resize handle follows
   // the SELECTED block (ADR-461 D4's gesture needs a subject that outlives the
   // pointer's journey to the corner), and it must read this runtime's own
@@ -1137,12 +1193,19 @@ const EDIT_SCRIPT = `
     //
     // Done HERE because this is the ONE serializer both commit paths use (the
     // flow root and the per-block edit), so chrome cannot leak from either.
-    var painted = clone.querySelectorAll('.yarnnn-pointed');
-    for (var p = 0; p < painted.length; p++) {
-      painted[p].classList.remove('yarnnn-pointed');
-      // Drop the attribute entirely when it was the only class — an empty
-      // class="" is noise in an attributed revision diff.
-      if (!painted[p].getAttribute('class')) painted[p].removeAttribute('class');
+    // Enumerated rather than hard-coded to ONE class: yarnnn-grouped (the
+    // group's cue, 2026-07-24) is the second member of this family, and the
+    // ADR-484 defect was precisely that a runtime class had no single place
+    // that knew it must be stripped. Any future cue belongs in this list.
+    var CHROME_CLASSES = ['yarnnn-pointed', 'yarnnn-grouped'];
+    for (var c = 0; c < CHROME_CLASSES.length; c++) {
+      var painted = clone.querySelectorAll('.' + CHROME_CLASSES[c]);
+      for (var p = 0; p < painted.length; p++) {
+        painted[p].classList.remove(CHROME_CLASSES[c]);
+        // Drop the attribute entirely when it was the only class — an empty
+        // class="" is noise in an attributed revision diff.
+        if (!painted[p].getAttribute('class')) painted[p].removeAttribute('class');
+      }
     }
     var refs = clone.querySelectorAll('[data-src-html]');
     for (var i = 0; i < refs.length; i++) {
@@ -2745,6 +2808,9 @@ const GUTTER_SCRIPT = `
   // the op clamps again at the write — the two-clamp rule, unchanged).
   var box = null;
   var grabDX = 0, grabDY = 0;
+  // The group's members and their fixed offsets from the dragged block, held
+  // for the duration of one move gesture (see the strip's onStart).
+  var groupRide = [];
 
   function positionable(block) {
     return !!(block && block.closest && block.closest('.slide'));
@@ -2787,6 +2853,21 @@ const GUTTER_SCRIPT = `
     block.style.left = xPct + '%';
     block.style.top = yPct + '%';
     block.style.margin = '0';
+    // The riders follow at their captured offsets, in the SAME frame space and
+    // clamped by the SAME rule — a group member may not leave the frame just
+    // because the block being dragged is still inside it.
+    for (var ri = 0; ri < groupRide.length; ri++) {
+      var rd = groupRide[ri];
+      var rr = rd.el.getBoundingClientRect();
+      var rwPct = (rr.width / f.padW) * 100;
+      var rhPct = (rr.height / f.padH) * 100;
+      var rx = ((e.clientX - grabDX + rd.dx - f.padLeft) / f.padW) * 100;
+      var ry = ((e.clientY - grabDY + rd.dy - f.padTop) / f.padH) * 100;
+      rd.el.style.position = 'absolute';
+      rd.el.style.left = Math.max(0, Math.min(Math.max(0, 100 - rwPct), rx)) + '%';
+      rd.el.style.top = Math.max(0, Math.min(Math.max(0, 100 - rhPct), ry)) + '%';
+      rd.el.style.margin = '0';
+    }
     showBox(block);
     showFrame(frame, 'x ' + Math.round(xPct) + '% · y ' + Math.round(yPct) + '%');
   }
@@ -2806,6 +2887,30 @@ const GUTTER_SCRIPT = `
     var hPct = (br.height / f.padH) * 100;
     var xRaw = Math.max(0, Math.min(Math.max(0, 100 - wPct), ((br.left - f.padLeft) / f.padW) * 100));
     var yRaw = Math.max(0, Math.min(Math.max(0, 100 - hPct), ((br.top - f.padTop) / f.padH) * 100));
+    // A group drop is ONE act, so it posts ONE message carrying every member's
+    // landed position — the parent folds them into a single revision. Posting
+    // N geometry messages would race the optimistic write and make the history
+    // read as N drags nobody performed.
+    if (groupRide.length) {
+      var moves = [{ blockId: id, x: Math.round(xRaw), y: Math.round(yRaw) }];
+      for (var mi = 0; mi < groupRide.length; mi++) {
+        var mel = groupRide[mi].el;
+        var mid = mel.getAttribute('data-block-id');
+        if (!mid) continue;
+        var mr = mel.getBoundingClientRect();
+        var mwPct = (mr.width / f.padW) * 100;
+        var mhPct = (mr.height / f.padH) * 100;
+        moves.push({
+          blockId: mid,
+          x: Math.round(Math.max(0, Math.min(Math.max(0, 100 - mwPct), ((mr.left - f.padLeft) / f.padW) * 100))),
+          y: Math.round(Math.max(0, Math.min(Math.max(0, 100 - mhPct), ((mr.top - f.padTop) / f.padH) * 100))),
+        });
+      }
+      groupRide = [];
+      parent.postMessage({ type: 'yarnnn-geometry-many', moves: moves }, '*');
+      syncFrameContext();
+      return;
+    }
     parent.postMessage({
       type: 'yarnnn-geometry',
       blockId: id,
@@ -2953,6 +3058,17 @@ const GUTTER_SCRIPT = `
           var br = block.getBoundingClientRect();
           grabDX = e.clientX - br.left;
           grabDY = e.clientY - br.top;
+          // The group rides the PRIMARY's delta: capture each member's offset
+          // from the dragged block once, then hold it for the whole gesture.
+          // Recomputing per frame would compound rounding and let the set
+          // drift apart mid-drag.
+          groupRide = [];
+          var set = window.__yarnnnGroup ? window.__yarnnnGroup() : [];
+          for (var gi = 0; gi < set.length; gi++) {
+            if (set[gi] === block || !positionable(set[gi])) continue;
+            var gr = set[gi].getBoundingClientRect();
+            groupRide.push({ el: set[gi], dx: gr.left - br.left, dy: gr.top - br.top });
+          }
           previewContext(block);
         },
         onMove: moveMove,

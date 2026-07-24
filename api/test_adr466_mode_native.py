@@ -411,6 +411,64 @@ def run() -> bool:
         "if (!row) return true;" in tab,
     )
 
+    # ── The GROUP is a transient selection, never markup ──────────────────
+    # The substrate decides this, not taste: applyArrangement calls
+    # returnToFlow() on every carried block (stripping x/y/w/h/z), so a
+    # persisted <div data-group> would be orphaned by the next re-arrange; and
+    # carriedBlocksOf skips any block nested inside another block, so a wrapper
+    # would hide its own children from every sweep. A group that survived in
+    # the file would be a second structural layer competing with the
+    # arrangement — the confusion the slot pass just removed.
+    canvas = (web / "components/studio/StudioCanvas.tsx").read_text()
+    surface = (web / "components/studio/StudioSurface.tsx").read_text()
+    # Tests CODE, not prose: `data-group` appears in setGeometryMany's comment
+    # explaining why the wrapper does NOT exist, so a bare substring check
+    # matches its own rationale. Assert no element ever CARRIES the attribute.
+    _check(
+        "no group WRAPPER is ever written (a group is selection, not structure)",
+        "setAttribute('data-group" not in ops
+        and "setAttribute('data-group" not in proj
+        and 'querySelector("[data-group' not in ops,
+    )
+    _check(
+        "the group's cue is a CLASS the runtime paints",
+        "yarnnn-grouped" in proj,
+    )
+    _check(
+        "…and the ONE serializer strips it (the ADR-484 leak, generalized)",
+        "CHROME_CLASSES = ['yarnnn-pointed', 'yarnnn-grouped']" in proj,
+    )
+    _check(
+        "group membership rides ALONGSIDE cur (the one-selection rule holds)",
+        "__yarnnnGroup" in proj and "window.__yarnnnSelected = function () { return cur; }" in proj,
+    )
+    _check(
+        "a modifier-click is intercepted BEFORE the ladder (never places a caret)",
+        "if (e.shiftKey || e.metaKey || e.ctrlKey) {" in proj,
+    )
+    _check(
+        "grouping is STAGED-only (a set needs a frame to move in — ADR-461 D4)",
+        "gstaged" in proj,
+    )
+    _check(
+        "the riders' offsets are captured ONCE per gesture (no mid-drag drift)",
+        "groupRide = [];" in proj and "dx: gr.left - br.left" in proj,
+    )
+    _check(
+        "a group drop posts ONE message, and lands as ONE revision",
+        "type: 'yarnnn-geometry-many'" in proj
+        and "setGeometryMany" in ops
+        and "setGeometryMany(html, moves, specs)" in surface,
+    )
+    _check(
+        "setGeometryMany reuses setGeometry (one clamp, no second write path)",
+        "const r = setGeometry(cur, m.blockId, m.geo, specs);" in ops,
+    )
+    _check(
+        "an unresolved member is skipped, never aborting the gesture",
+        "if (!r) continue;" in ops,
+    )
+
     ok = all(c for _, c in _results)
     print()
     print(f"{'PASS' if ok else 'FAIL'}: {sum(c for _, c in _results)}/{len(_results)} checks")

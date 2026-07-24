@@ -77,9 +77,24 @@ def run() -> bool:
     # ── D2 — the serializer strips runtime chrome ─────────────────────────
     rsi = proj.index("function readSourceInner(el)")
     rsi_body = proj[rsi : proj.index("\n  }", rsi)]
+    # The strip is now ENUMERATED over a list rather than hard-coded to one
+    # class (2026-07-24): `yarnnn-grouped` (the group's transient cue) is the
+    # second member of the family, and ADR-484's defect was precisely that a
+    # runtime class had no single place that knew it must be stripped. Assert
+    # the list contains every cue the runtime paints, so adding a third without
+    # adding it here turns this red.
     _check(
-        "D2 readSourceInner strips the chrome class",
-        "querySelectorAll('.yarnnn-pointed')" in rsi_body,
+        "D2 readSourceInner strips EVERY runtime chrome class",
+        "CHROME_CLASSES = ['yarnnn-pointed', 'yarnnn-grouped']" in rsi_body
+        and "querySelectorAll('.' + CHROME_CLASSES[c])" in rsi_body,
+    )
+    _check(
+        "D2 the strip list covers every cue the runtime actually paints",
+        all(
+            f"CHROME_CLASSES = ['yarnnn-pointed', 'yarnnn-grouped']" in rsi_body
+            for cue in ("yarnnn-pointed", "yarnnn-grouped")
+            if f"classList.add('{cue}')" in proj
+        ),
     )
     _check(
         "D2 an emptied class attribute is dropped, never left as class=\"\"",

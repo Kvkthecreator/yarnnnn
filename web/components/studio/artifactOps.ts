@@ -630,6 +630,52 @@ export function setGeometry(
   return { html: serialize(doc), landedId: blockId };
 }
 
+/** Move/resize SEVERAL blocks as ONE revision — the group gesture (2026-07-24).
+ *
+ *  A group is a TRANSIENT SELECTION, never markup. The substrate says so
+ *  plainly: `applyArrangement` calls `returnToFlow()` on every block it
+ *  carries, stripping x/y/w/h/z — so a persisted `<div data-group>` would be
+ *  orphaned by the next re-arrange. And `carriedBlocksOf` skips any block
+ *  nested inside another block, so a wrapper would hide its own children from
+ *  every sweep that redistributes content. A group that survives in the file
+ *  would be a second structural layer competing with the arrangement — the
+ *  exact confusion the slot pass just removed (STUDIO.md: a slot is DECLARED
+ *  by the arrangement, a group is AUTHORED ad hoc; they are not the same kind
+ *  of thing and must not become one).
+ *
+ *  So the group lives in the member's selection, and what it writes is what a
+ *  group has always written in PowerPoint: each member's OWN geometry. Ungroup
+ *  is deselection — there is nothing to undo, which is why no `ungroup` op
+ *  exists here.
+ *
+ *  ONE revision, not N: the gesture is one act, and N revisions would make the
+ *  history unreadable and a single undo insufficient. Blocks are applied in
+ *  sequence over one parsed document; a member that no longer resolves is
+ *  skipped rather than failing the whole gesture (a concurrent lane may have
+ *  removed it). Returns null when nothing changed — the byte-identical no-op
+ *  rule every op here obeys.
+ */
+export function setGeometryMany(
+  html: string,
+  moves: Array<{ blockId: string; geo: { x?: number; y?: number; w?: number; h?: number; z?: number } }>,
+  specs: Record<'x' | 'y' | 'w', { cssVar: string; unit: string; min: number; max: number }> & {
+    h?: { cssVar: string; unit: string; min: number; max: number };
+    z?: { cssVar: string; unit: string; min: number; max: number };
+  },
+): OpResult | null {
+  let cur = html;
+  let landed: string | null = null;
+  let changed = false;
+  for (const m of moves) {
+    const r = setGeometry(cur, m.blockId, m.geo, specs);
+    if (!r) continue; // unresolved or byte-identical — skip, never abort
+    cur = r.html;
+    landed = landed ?? r.landedId;
+    changed = true;
+  }
+  return changed ? { html: cur, landedId: landed } : null;
+}
+
 /** ADR-471 D-d — nudge a POSITIONED block's stacking order by ±1. Reads the
  *  current `--yz` off the element's own style (absence = 0, the document-order
  *  default), clamps from the SERVED spec, and writes through setMeasure (one
