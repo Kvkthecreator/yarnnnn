@@ -50,6 +50,21 @@ commit `a301425`).
    `fire_on_activation`). Correct behavior — declarations stay authoritative —
    but worth knowing for future evals.
 
+6. **Second defect (post-eval recall probe): `OPENAI_API_KEY` is missing on
+   BOTH the Scheduler and the MCP server** — the CLAUDE.md env-drift pitfall,
+   twice. Consequences: (a) the brief's embed step failed non-fatally on the
+   cron (`[WORKSPACE] Embedding failed … Missing credentials`, 05:31:24Z) —
+   backfilled locally for the eval brief; every future sweep's embed fails
+   until the key lands; (b) recall's semantic escalation has been silently
+   dead on the MCP server (`[QUERY_KNOWLEDGE] Semantic escalation failed:
+   Missing credentials`, observed 06:51–06:57Z) — BM25-only has been serving
+   recall, so lexically-strong subjects hit and fuzzy ones miss. Verified
+   end-state: `recall("runaway AI agent incident")` via the live claude.ai
+   connector returns the brief with `confidence=high` (BM25). **Operator
+   action owed: add `OPENAI_API_KEY` (copy from yarnnn-api) to
+   yarnnn-unified-scheduler + yarnnn-mcp-server in the Render dashboard** —
+   not automated here per the never-paste-secrets rule.
+
 **Recommendation carried forward**: none blocking. The R2 FE mount (hub-typed
 folder view in the Files viewer) waits on the projection layer settling +
 D7's R3 unveil discipline. Falsifier window (D8) opens from today's baseline:
