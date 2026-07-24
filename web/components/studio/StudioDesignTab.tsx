@@ -291,11 +291,39 @@ export function StudioDesignTab({
     return new DOMParser().parseFromString(html, 'text/html');
   }, [html]);
 
+  // A slot is a selection grain only where it is a DISTINGUISHABLE REGION.
+  //
+  // On 13 of 17 arrangements the page declares exactly one flow slot, and that
+  // slot is coextensive with the page's content box (measured on a title
+  // slide: slot 992px, slide inner 992px, offset 0). Selecting it drew a box
+  // around the whole slide and offered one act — so it read as "you have
+  // selected the layout master", an object the member cannot move, resize,
+  // reorder or delete, because its geometry belongs to the arrangement (the
+  // layer rule, STUDIO.md). PowerPoint refuses the same thing: a layout's
+  // content area is not selectable on the slide; you change it via Layout.
+  //
+  // The two cases where the slot IS a real region survive:
+  //   · 2+ slots — two-column / comparison / feature-grid: the outline names a
+  //     genuine sub-region, and `ratio` is the act that resizes it.
+  //   · a MEDIA slot — `picture-with-caption` / `full-bleed`: this scope is
+  //     the image picker's home, and `onAddHere` routes here deliberately for
+  //     role='media'. Removing it would strip the picker.
+  //
+  // Derived from the served registry, never a layout slug (ADR-481 D4: the
+  // ladder loses a grain BY DERIVATION, not by suppression).
+  const slotIsRegion = useMemo(() => {
+    if (!selection?.slot) return false;
+    const row = vocabulary?.arrangements?.[layout]?.find((a) => a.slug === selection.arrange);
+    if (!row) return true; // unknown arrangement: keep the grain, never hide a real slot
+    if (row.slots.length >= 2) return true;
+    return row.slots.find((s) => s.name === selection.slot)?.role === 'media';
+  }, [selection, vocabulary, layout]);
+
   const scope: 'document' | 'block' | 'slot' | 'page' = !selection
     ? 'document'
     : selection.blockId
       ? 'block'
-      : selection.slot
+      : selection.slot && slotIsRegion
         ? 'slot'
         : selection.slideIndex != null || selection.pageIndex != null
           ? 'page'

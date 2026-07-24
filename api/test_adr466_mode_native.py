@@ -370,6 +370,47 @@ def run() -> bool:
         and 'body:has([contenteditable="true"]) [data-slot]:hover { outline: none; }' in proj,
     )
 
+    # ── A slot is chrome only where it is a distinguishable region ────────
+    # 13 of 17 arrangements declare one flow slot that fills its own page, so
+    # hovering drew a dashed box around the whole slide and clicking selected
+    # it — the layout master offered as an object with none of an object's
+    # affordances. The premise being corrected is POINTER_CSS's own comment
+    # ("the Wix section-hover"): Wix builds pages of BANDS where a section is
+    # the unit; a slide's unit is the OBJECT. Both premises lived in one sheet.
+    tab = (web / "components/studio/StudioDesignTab.tsx").read_text()
+    _check(
+        "the projection MARKS the page-filling slot inert (paged only)",
+        "data-slot-inert" in proj and "opts?.mode === 'paged'" in proj,
+    )
+    _check(
+        "a 2+-slot page keeps its slots (a real sub-region: two-column, comparison)",
+        "if (slots.length >= 2) return;" in proj,
+    )
+    _check(
+        "a MEDIA slot keeps its chrome (full-bleed's picker home would vanish)",
+        "=== 'media') return;" in proj,
+    )
+    _check(
+        "an EMPTY slot keeps its bounds (the ADR-466 P8 click-to-add placeholder)",
+        "if (!slot.querySelector('[data-block]')) return;" in proj,
+    )
+    _check(
+        "hover chrome is gated on the marker, not deleted outright",
+        "[data-slot]:not([data-slot-inert]):hover {" in proj,
+    )
+    _check(
+        "the click ladder SKIPS an inert slot (it falls through to the page)",
+        "closest('[data-slot]:not([data-slot-inert])')" in proj,
+    )
+    _check(
+        "the Design tab derives the same predicate from the SERVED registry",
+        "slotIsRegion" in tab and "row.slots.length >= 2" in tab,
+    )
+    _check(
+        "an unknown arrangement KEEPS the grain (never hide a real slot)",
+        "if (!row) return true;" in tab,
+    )
+
     ok = all(c for _, c in _results)
     print()
     print(f"{'PASS' if ok else 'FAIL'}: {sum(c for _, c in _results)}/{len(_results)} checks")

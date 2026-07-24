@@ -339,12 +339,16 @@ body:has([contenteditable="true"]) [data-slot]:hover::after { content: none; }
   outline: 1px solid rgba(60,58,54,0.5) !important; outline-offset: 2px;
 }
 /* ADR-453 D5: slots are the interaction surface — outline + name on hover
-   (the Wix section-hover). position:relative only anchors the label. */
+   (the Wix section-hover). position:relative only anchors the label.
+   NOT on a slot the projection marked INERT: where a page has one flow slot
+   that fills it, the outline drew a box around the whole slide and the label
+   named a region the member cannot act on. Wix hovers bands because a band is
+   the unit; a slide's unit is the object. See the projection's marking pass. */
 [data-slot] { position: relative; }
-[data-slot]:hover {
+[data-slot]:not([data-slot-inert]):hover {
   outline: 1px dashed rgba(16,185,129,0.55); outline-offset: 2px;
 }
-[data-slot]:hover::after {
+[data-slot]:not([data-slot-inert]):hover::after {
   content: attr(data-slot); position: absolute; top: -1rem; left: 0;
   font: 500 0.6rem system-ui, sans-serif; letter-spacing: 0.06em;
   text-transform: uppercase; color: rgba(16,185,129,0.9); pointer-events: none;
@@ -571,7 +575,11 @@ const POINTER_SCRIPT = `
         return;
       }
     } else {
-      var slot = t && t.closest ? t.closest('[data-slot]') : null;
+      // An INERT slot is not a selection grain — the ladder skips it and the
+      // click lands on the PAGE, which IS an object (tokens, duplicate,
+      // delete, re-arrange). Selecting a slot that fills its own slide handed
+      // back the layout master with none of an object's affordances.
+      var slot = t && t.closest ? t.closest('[data-slot]:not([data-slot-inert])') : null;
       var page = t && t.closest ? t.closest(PAGE_SEL) : null;
       var hit = slot || page;
       if (hit) {
@@ -3219,6 +3227,43 @@ export async function resolveArtifactHtml(
       });
       while (section.firstChild) parent.insertBefore(section.firstChild, section);
       section.remove();
+    });
+  }
+  // ── A slot is chrome only where it is a DISTINGUISHABLE REGION ──────────
+  // On 13 of 17 arrangements the page declares one flow slot, and that slot is
+  // coextensive with the page's content box (measured on a title slide: slot
+  // 992px, slide inner 992px, offset 0). Hovering it drew a dashed outline and
+  // a name label around the ENTIRE slide, and clicking selected it — so the
+  // member was offered the layout master as an object, with none of an
+  // object's affordances (its geometry belongs to the arrangement — the layer
+  // rule in STUDIO.md). PowerPoint refuses exactly this: a layout's content
+  // area is not selectable on the slide.
+  //
+  // The premise being corrected is in POINTER_CSS's own comment — "slots are
+  // the interaction surface (the Wix section-hover)". Wix builds PAGES OF
+  // BANDS, where a section is the unit you manipulate; PowerPoint builds
+  // SLIDES OF OBJECTS, where the content area is invisible scaffolding. Both
+  // premises live in one sheet today; this marks which slots get which.
+  //
+  // Two cases keep the chrome, and both are real regions:
+  //   · 2+ slots on the page — two-column / comparison / feature-grid, where
+  //     the outline names a genuine sub-region and `ratio` resizes it.
+  //   · a slot named `media` — picture-with-caption / full-bleed, where this
+  //     is the image picker's home (`onAddHere` routes role='media' here).
+  //
+  // Derived from the DOM, which is exact: `full-bleed` is the only single-slot
+  // media arrangement and its slot is literally named `media`. An EMPTY slot
+  // always keeps its bounds — that is the ADR-466 P8 "click to add"
+  // placeholder, a different affordance with a different job.
+  if (opts?.mode === 'paged') {
+    doc.querySelectorAll('[data-arrange]').forEach((page) => {
+      const slots = Array.from(page.querySelectorAll('[data-slot]'));
+      if (slots.length >= 2) return; // a real sub-region — chrome stays
+      slots.forEach((slot) => {
+        if (slot.getAttribute('data-slot') === 'media') return; // the picker's home
+        if (!slot.querySelector('[data-block]')) return; // empty: keep the placeholder
+        slot.setAttribute('data-slot-inert', '');
+      });
     });
   }
   if (opts?.pointer) {
