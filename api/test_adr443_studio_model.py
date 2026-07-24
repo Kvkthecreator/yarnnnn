@@ -26,6 +26,7 @@ Exit code is authoritative (0 = pass).
 """
 
 import inspect
+import re
 import sys
 from pathlib import Path
 
@@ -39,6 +40,7 @@ def _check(label: str, cond: bool) -> None:
 
 def run() -> bool:
     from services.studio import (
+        STUDIO_ARRANGEMENTS,
         STUDIO_BLOCKS,
         STUDIO_LAYOUTS,
         STUDIO_TEMPLATES,
@@ -79,6 +81,46 @@ def run() -> bool:
     _check("STUDIO_TEMPLATES derives from layouts (template = layout × starters)",
            set(STUDIO_TEMPLATES) == set(STUDIO_LAYOUTS)
            and all(STUDIO_TEMPLATES[s]["skeleton"] == build_skeleton(s) for s in STUDIO_LAYOUTS))
+
+    # ── 2b. Slots: DECLARED == SHIPPED ───────────────────────────────────
+    # An arrangement's `slots` list is a CONTRACT, and three surfaces read it
+    # for three different purposes: the re-arrange op distributes blocks by
+    # slot name+role, `arrangementCarryNote` forewarns when a target has
+    # nowhere to put content, and the lane's posture teaches slots as the
+    # composition regions. Two of those read the DECLARATION and one reads the
+    # SHIPPED markup — so a fragment that omits a slot it declares makes them
+    # disagree, and the same page behaves differently depending on which
+    # surface last touched it.
+    #
+    # That is not hypothetical: five arrangements (deck title/section-header/
+    # closing, page hero/cta) declared a `heading` slot and shipped no
+    # [data-slot] at all. The lane authored the wrapper anyway (it followed the
+    # declaration), the kernel's own fragment did not, and re-arrange refused
+    # content on the hand-scaffolded ones while accepting it on lane-authored
+    # ones. One contract, one markup — enforced here so it cannot drift again.
+    for layout, rows in STUDIO_ARRANGEMENTS.items():
+        for slug, a in rows.items():
+            declared = sorted(s["name"] for s in a["slots"])
+            shipped = sorted(re.findall(r'data-slot="([^"]+)"', a["fragment"]))
+            _check(
+                f"arrangement '{layout}/{slug}': declared slots == shipped slots",
+                declared == shipped,
+            )
+            _check(
+                f"arrangement '{layout}/{slug}': every slot role is known",
+                all(s.get("role") in ("heading", "flow", "media") for s in a["slots"]),
+            )
+    # A scaffold is markup the kernel ships directly (not through an
+    # arrangement fragment), so it can drift the same way and independently.
+    for slug in ("deck", "page"):
+        sc = STUDIO_LAYOUTS[slug]["scaffold"]
+        want = sorted(
+            n
+            for arr in re.findall(r'data-arrange="([^"]+)"', sc)
+            for n in [s["name"] for s in STUDIO_ARRANGEMENTS[slug][arr]["slots"]]
+        )
+        got = sorted(re.findall(r'data-slot="([^"]+)"', sc))
+        _check(f"scaffold '{slug}': ships the slots its arrangements declare", want == got)
 
     # ── 3. Posture v2 (one home, R4) ─────────────────────────────────────
     posture = build_studio_posture(
@@ -261,8 +303,16 @@ def run() -> bool:
     _check("toolbar: 'New ‹slide|section›' gallery (page-grain add, all types)",
            "New {pageNoun}" in menu and "arrangements" in menu
            and "onAddArrangement" in menu)
-    _check("Design tab: 'Re-arrange' gallery (selection-scoped re-lay)",
-           "Re-arrange" in design_tab and "onApplyArrangement" in design_tab)
+    # ADR-466 D5 (2026-07-21) REVERSED this: Re-arrange pairs with New ‹noun›
+    # in the TOOLBAR — the PowerPoint pair, and the gallery's ONE mount. The
+    # Design tab's page-scope duplicate was deleted (DP29: one act, one home).
+    # The gate kept asserting the pre-reversal placement and had been red ever
+    # since — a stale CLAIM, not a bug. Assert the ratified arrangement: the
+    # act lives in the toolbar, and the Design tab must NOT re-mount it.
+    _check("toolbar: 'Re-arrange' gallery (the one mount, paired with New ‹noun›)",
+           "Re-arrange" in menu and "onApplyArrangement" in menu)
+    _check("Design tab does NOT re-mount the Re-arrange gallery (one act, one home)",
+           "onApplyArrangement" not in design_tab)
     _check("new-page gallery is not deck-gated (arrangements.length gate)",
            "arrangements.length > 0" in menu)
     _check("vocabulary endpoint serves arrangements with grain + slots",

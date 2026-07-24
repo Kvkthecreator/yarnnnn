@@ -46,12 +46,31 @@ Four, and only four. Each is a real DOM element; there is no parallel tree.
 |---|---|---|---|---|
 | **Artifact root** | `<html>` | — | `document` *(nothing selected)* | `data-template`, document-grain tokens (`font`/`measure`/`pagenum`), the marked `<style>` elements |
 | **Page** | `[data-arrange]` — a deck slide, a document/article `<section>`, a page band | root | `page` | `data-arrange`, page tokens (`tone`/`pad`/`valign`/`ratio`/`scrim`/`bg-pos`), the background citation |
-| **Slot** | `[data-slot]` | page | `slot` | `data-slot` (a name + a role). **No tokens today** — see the open question |
+| **Slot** | `[data-slot]` | page | `slot` | `data-slot` (a **name** + a **role**). Carries no property tokens — it is a *region contract*, not a styled object |
 | **Block** | `[data-block]` + `data-block-id` | slot, page, or the flow root | `block` | block tokens (`size`/`align`/`tone`), media tokens, measures, `data-ref` citations |
 
 **Containment is the load-bearing relation.** A token's behavior depends not only on the object it sits on but on what that object sits *inside* — the same `data-size="fill"` behaves differently on a deck slide than in a document, because the deck skin caps prose width and the document's grain does not. A model that named only the object could not express that, which is exactly how a Width control shipped inert (2026-07-24, kernel v12).
 
 **Two objects are mode-conditional** (see Mode, above): on `flow` (document/article) a page is *not* a composition unit and a **slot does not exist at all** — ADR-481 D1 made flow scaffolds flat, so the click-grain ladder loses both grains by derivation rather than by suppression. Slots and page arrangements are `paged` concepts (deck/page). This is the single largest source of "the panel looks different on a document," and it is intended.
+
+### The slot contract — the containment hinge *(hardened 2026-07-24)*
+
+A slot is a **named region inside a page** — the HTML container it looks like. It carries exactly two fields, and no more:
+
+- **name** — *which* region (`main` · `side` · `left` · `right` · `a`/`b`/`c` · `media` · `caption` · `heading`). Used to preserve position intent through a re-arrange (`side` → `side`).
+- **role** — *what it accepts* (`heading` · `flow` · `media`). Used to route blocks: a media block seeks a media slot, flow content never lands in one, and **heading-role slots are skipped by the flow fallback**.
+
+**The slot decides a block's parent.** A block's container is the slot when the arrangement has one, the page directly when it does not, and the flow root on `document`/`article`. That is why re-arrange, the Design tab's scope ladder, and the lane's posture all read this one relation — and why they must share one definition of it.
+
+**Heading blocks are never carried.** `carriedBlocksOf` sweeps every non-heading block for redistribution; headings anchor the page and stay put. This is why a `heading`-named slot is genuinely a different kind of region from a content slot — it holds title matter that re-arrange leaves alone. It is also why `content` arrangements put their `<h2>` **outside** the slot, as a direct page child, with the slot holding body content only. That asymmetry is deliberate; preserve it when authoring new arrangements.
+
+**THE INVARIANT: declared slots == shipped slots.** An arrangement's `slots` list is a contract read by three surfaces for three purposes — the re-arrange op (distributes by name+role), `arrangementCarryNote` (forewarns when a target has nowhere to put content), and the lane's posture (teaches slots as composition regions). Two of those read the **declaration** and one reads the **shipped markup**, so a fragment that omits a slot it declares makes them disagree.
+
+That was live: five arrangements (deck `title`/`section-header`/`closing`, page `hero`/`cta`) declared a `heading` slot and shipped no `[data-slot]` at all. The lane authored the wrapper anyway — it followed the declaration — while the kernel's own fragment did not, so **re-arrange refused content on a hand-scaffolded title slide and accepted it on a lane-authored one.** Resolved by shipping what is declared (Option A, 2026-07-24): every arrangement and both `paged` scaffolds now ship their declared slots, and `test_adr443_studio_model.py` §2b enforces it. `hero`/`cta` were re-declared `main`/`flow` rather than `heading` — those bands carry a button alongside their headings, and the role must describe what the region actually holds.
+
+**Slots do NOT map to heading levels.** Considered and declined (2026-07-24). `h1`, `h2`, and `<p class="kicker">` all carry `data-block="heading"`: the **HTML tag** carries the typographic level, the **block kind** carries "this is a heading," and the **slot** carries the region. Fusing level into the slot would encode a combinatorial table (a `main` slot holds an h2 on one arrangement and prose on another) and break the moment an arrangement wants an h2 in `side`. The two-field slot contract is sufficient; the gap was never granularity, it was enforcement.
+
+*Naming caution:* `heading` currently names three different things — a slot name, a slot role, and a block kind. Disambiguating the vocabulary is unresolved; until then, read the position, not the word.
 
 ### The `applies` vocabulary — one string doing two fields' work
 
@@ -90,7 +109,8 @@ In all three, the gate passed. **Presence of a selector is not evidence of an ef
 
 ### Open questions (deliberately not resolved here)
 
-- **`slot` carries no tokens.** Is that a gap or a correct absence? A slot is a *region contract* (name + role), and every property one might want (padding, alignment) belongs to the page or the block. Leaning correct-absence; unresolved.
+- **`slot` carries no tokens** — RESOLVED as a correct absence (2026-07-24). A slot is a region contract (name + role); every property one might want (padding, alignment) belongs to the page or the block. The slot's significance is *containment*, not styling.
+- **`heading` names three things** (a slot name, a slot role, a block kind). Unresolved. Renaming any one of them touches the served vocabulary and live markup, so it waits for the same stabilization gate as the `(scope, grain)` split.
 - **Should `applies` become `(scope, grain)`?** The table above is the argument for it: `page-deck` → `(page, deck)` would make the two fields real and let a gate check a token against the skin that might defeat it. It touches the served contract and the FE gating, so it is a **named follow-on, not taken** — deferred until the surface stabilizes.
 - **Should measures derive their posture line** the way tokens now do? Same asymmetry, smaller blast radius.
 

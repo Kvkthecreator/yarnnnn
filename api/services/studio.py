@@ -242,14 +242,18 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     .slide .col { flex: 1; min-width: 0; }
 """.strip("\n"),
         "scaffold": """<section class="slide" data-arrange="title">
-  <p class="kicker" data-block="heading" data-block-id="k1">Untitled deck</p>
-  <h1 data-block="heading" data-block-id="t1">The one-line thesis goes here.</h1>
-  <p data-block="heading" data-block-id="f1">Subtitle or framing sentence.</p>
+  <div data-slot="heading">
+    <p class="kicker" data-block="heading" data-block-id="k1">Untitled deck</p>
+    <h1 data-block="heading" data-block-id="t1">The one-line thesis goes here.</h1>
+    <p data-block="heading" data-block-id="f1">Subtitle or framing sentence.</p>
+  </div>
 </section>
 <section class="slide" data-arrange="content">
   <h2 data-block="heading" data-block-id="t2">First point</h2>
-  <div data-block="prose" data-block-id="b1">
-    <p>One idea per slide.</p>
+  <div data-slot="main">
+    <div data-block="prose" data-block-id="b1">
+      <p>One idea per slide.</p>
+    </div>
   </div>
 </section>""",
     },
@@ -314,10 +318,12 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
 """.strip("\n"),
         "scaffold": """<main>
   <section data-arrange="hero">
-    <p class="kicker" data-block="heading" data-block-id="k1">Untitled page</p>
-    <h1 data-block="heading" data-block-id="t1">The headline promise.</h1>
-    <p class="tagline" data-block="heading" data-block-id="s1">One sentence expanding on it.</p>
-    <p data-block="button" data-block-id="c1"><a href="https://…">Call to action</a></p>
+    <div data-slot="main">
+      <p class="kicker" data-block="heading" data-block-id="k1">Untitled page</p>
+      <h1 data-block="heading" data-block-id="t1">The headline promise.</h1>
+      <p class="tagline" data-block="heading" data-block-id="s1">One sentence expanding on it.</p>
+      <p data-block="button" data-block-id="c1"><a href="https://…">Call to action</a></p>
+    </div>
   </section>
   <section data-arrange="content">
     <h2 data-block="heading" data-block-id="t2">First section</h2>
@@ -354,9 +360,11 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "grain": "page",
             "slots": [{"name": "heading", "role": "heading"}],
             "fragment": """<section class="slide" data-arrange="title">
-  <p class="kicker" data-block="heading" data-block-id="k1">Kicker</p>
-  <h1 data-block="heading" data-block-id="t1">The headline goes here.</h1>
-  <p data-block="heading" data-block-id="f1">Framing sentence.</p>
+  <div data-slot="heading">
+    <p class="kicker" data-block="heading" data-block-id="k1">Kicker</p>
+    <h1 data-block="heading" data-block-id="t1">The headline goes here.</h1>
+    <p data-block="heading" data-block-id="f1">Framing sentence.</p>
+  </div>
 </section>""",
         },
         "content": {
@@ -426,8 +434,10 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "grain": "page",
             "slots": [{"name": "heading", "role": "heading"}],
             "fragment": """<section class="slide" data-arrange="section-header" data-tone="inverse">
-  <p class="kicker" data-block="heading" data-block-id="k1">Part</p>
-  <h1 data-block="heading" data-block-id="t1">Section title</h1>
+  <div data-slot="heading">
+    <p class="kicker" data-block="heading" data-block-id="k1">Part</p>
+    <h1 data-block="heading" data-block-id="t1">Section title</h1>
+  </div>
 </section>""",
         },
         # ADR-456 Wave 1 — the builder-class deck rows. Their CSS lives in the
@@ -472,9 +482,11 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "grain": "page",
             "slots": [{"name": "heading", "role": "heading"}],
             "fragment": """<section class="slide" data-arrange="closing" data-tone="inverse">
-  <p class="kicker" data-block="heading" data-block-id="k1">Thank you</p>
-  <h1 data-block="heading" data-block-id="t1">The closing line.</h1>
-  <p data-block="heading" data-block-id="f1">Contact · next step</p>
+  <div data-slot="heading">
+    <p class="kicker" data-block="heading" data-block-id="k1">Thank you</p>
+    <h1 data-block="heading" data-block-id="t1">The closing line.</h1>
+    <p data-block="heading" data-block-id="f1">Contact · next step</p>
+  </div>
 </section>""",
         },
     },
@@ -485,12 +497,19 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Hero",
             "description": "The headline band — kicker, promise, tagline, button.",
             "grain": "page",
-            "slots": [{"name": "heading", "role": "heading"}],
+            # `main`/flow, not `heading`: this band carries a button alongside
+            # its headings, and the role ladder routes flow content PAST a
+            # heading-role slot — a hero declared `heading` would take content
+            # only via the last-resort fallback. The name describes what the
+            # region actually holds.
+            "slots": [{"name": "main", "role": "flow"}],
             "fragment": """<section data-arrange="hero">
-  <p class="kicker" data-block="heading" data-block-id="k1">Kicker</p>
-  <h1 data-block="heading" data-block-id="t1">The headline promise.</h1>
-  <p class="tagline" data-block="heading" data-block-id="s1">One sentence expanding on it.</p>
-  <p data-block="button" data-block-id="c1"><a href="https://…">Call to action</a></p>
+  <div data-slot="main">
+    <p class="kicker" data-block="heading" data-block-id="k1">Kicker</p>
+    <h1 data-block="heading" data-block-id="t1">The headline promise.</h1>
+    <p class="tagline" data-block="heading" data-block-id="s1">One sentence expanding on it.</p>
+    <p data-block="button" data-block-id="c1"><a href="https://…">Call to action</a></p>
+  </div>
 </section>""",
         },
         "content": {
@@ -536,10 +555,14 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Call to action",
             "description": "A closing ask — heading and button, centered.",
             "grain": "page",
-            "slots": [{"name": "heading", "role": "heading"}],
+            # `main`/flow for the same reason as `hero` — the band holds a
+            # button, not headings alone.
+            "slots": [{"name": "main", "role": "flow"}],
             "fragment": """<section data-arrange="cta" data-tone="accent">
-  <h2 data-block="heading" data-block-id="t1">The closing ask.</h2>
-  <p data-block="button" data-block-id="c1"><a href="https://…">Call to action</a></p>
+  <div data-slot="main">
+    <h2 data-block="heading" data-block-id="t1">The closing ask.</h2>
+    <p data-block="button" data-block-id="c1"><a href="https://…">Call to action</a></p>
+  </div>
 </section>""",
         },
         "footer": {

@@ -934,9 +934,13 @@ export function StudioDesignTab({
       {/* ── SLOT scope ─────────────────────────────────────────────────── */}
       {scope === 'slot' && selection?.slot && (
         <div className={SECTION}>
+          {/* A slot has a NAME (which region) and a ROLE (what it accepts),
+              and for the heading slots those two words are identical — so this
+              rendered the stutter "Slot · heading (heading)". Show the role
+              only when it says something the name does not. */}
           <p className={HEADING}>
             Slot · {selection.slot}
-            {slotRole ? ` (${slotRole})` : ''}
+            {slotRole && slotRole !== selection.slot ? ` (${slotRole})` : ''}
           </p>
           {slotRole === 'media' ? (
             slotImages == null ? (
@@ -989,9 +993,20 @@ export function StudioDesignTab({
       {scope === 'block' && (
         <>
           <div className={SECTION}>
+            {/* The id is an IDENTIFIER, not a heading level — but this row is
+                uppercased, so `heading · t1` rendered as "HEADING · T1", which
+                reads exactly like Word/PowerPoint's "Heading 1". Two different
+                concepts, one string, and the block model has no h-levels at
+                all (h1/h2/kicker are all data-block="heading"; the TAG carries
+                the level). Keep the id lowercase and mark it as an id so the
+                misreading has no surface to land on. */}
             <p className={HEADING}>
               {selection?.blockKind ?? 'block'}
-              {selection?.blockId ? ` · ${selection.blockId}` : ''}
+              {selection?.blockId ? (
+                <span className="normal-case text-muted-foreground/70">
+                  {' '}· id {selection.blockId}
+                </span>
+              ) : null}
             </p>
             <div className="flex flex-wrap gap-1">
               <button type="button" className={askBtn} onClick={onAskAboutSelection}>
