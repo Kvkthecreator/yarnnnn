@@ -57,6 +57,7 @@ import {
   hydrateShellState,
   keepSurface as keepSurfaceWrite,
   normalizeWindowParams,
+  stripEphemeralParams,
   openSurface as openSurfaceWrite,
   releaseSurface as releaseSurfaceWrite,
   setForegroundedSurface as setForegroundedWrite,
@@ -534,7 +535,18 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       // observed `?agents.pane=autonomy`, from when `autonomy` was pane_of:
       // agents) would re-adopt the dead param and re-persist it, resurrecting it
       // from a clean localStorage. Both sources pass the same allowlist.
-      const remembered = windowStatesRef.current[foregroundSlug]?.params ?? {};
+      //
+      // 2026-07-24 — the remembered source is additionally stripped of
+      // DOCUMENT-IDENTITY params (`studio.file`, `images.file`, `.system`).
+      // Those are owned (an incoming deep-link or a delivered param still
+      // lands) but never replayed from storage, so clicking the Studio dock
+      // icon opens Studio's landing rather than resuming whatever artifact was
+      // last touched there. See SURFACE_EPHEMERAL_PARAM_KEYS.
+      const remembered =
+        stripEphemeralParams(
+          foregroundSlug,
+          windowStatesRef.current[foregroundSlug]?.params,
+        ) ?? {};
       const merged: Record<string, string> =
         normalizeWindowParams(foregroundSlug, {
           ...incoming,

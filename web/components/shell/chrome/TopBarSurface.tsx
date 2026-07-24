@@ -48,6 +48,10 @@
  *   - Minimized                — restore (foregroundSurface clears minimized + raises)
  *   - Open + not-foreground    — raise to foreground (raiseWindow)
  *   - Open + foreground        — minimize (minimizeWindow) — macOS Dock-click-on-active-app
+ *                                DESKTOP layout only. In CANVAS (the default,
+ *                                ADR-358) this is a no-op: one chromeless
+ *                                surface fills the column, so there is no
+ *                                window to send anywhere (2026-07-24).
  *
  * Right-click menus (reshaped by D14):
  *   - Open + Kept       — Close / Remove from Dock
@@ -108,7 +112,10 @@ export function TopBarSurface() {
     raiseWindow,
     minimizeWindow,
   } = useSurfacePreferences();
-  const { userEmail, openLauncher } = useShellChrome();
+  const { userEmail, openLauncher, layoutMode } = useShellChrome();
+  // ADR-358 — in canvas exactly one surface fills the column, so there is no
+  // window to minimize (see the dock-click handler below).
+  const canvasMode = layoutMode === 'canvas';
 
   // D17 (2026-05-22): brand-mark click navigates to /desktop (the
   // authenticated Desktop layer) — the macOS "click the wallpaper /
@@ -224,6 +231,15 @@ export function TopBarSurface() {
       } else if (isMinimized) {
         foregroundSurface(surface.slug); // restore + raise + foreground
       } else if (isForegrounded) {
+        // 2026-07-24 — minimize is a WINDOWED-mode gesture. In canvas (the
+        // default layout, ADR-358) exactly ONE chromeless surface fills the
+        // column, so "send it to the Dock" has nowhere to send it: the surface
+        // vanishes to an empty desktop and the icon looks identical to before
+        // (the open-state dot was removed), reading as a trapdoor rather than a
+        // minimize. macOS's gesture depends on seeing the window fly INTO the
+        // Dock; without that feedback the honest behaviour is a no-op — you
+        // clicked the app you are already in.
+        if (canvasMode) return;
         minimizeWindow(surface.slug);
       } else {
         raiseWindow(surface.slug);

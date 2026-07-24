@@ -501,6 +501,44 @@ export type WindowStateMap = Record<string, WindowState>;
 const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
   // ADR-167 list/detail: `?agents.agent={slug}`. There are no panes here.
   agents: ['agent'],
+  // The authoring apps (ADR-440 Studio / ADR-472 Images). `file` names the open
+  // artifact; `system` names an open design-system manifest. Both are OWNED
+  // (a delivered deep-link must work) but neither is REMEMBERED — see below.
+  studio: ['file', 'system'],
+  images: ['file', 'system'],
+};
+
+// ----------------------------------------------------------------------------
+// VIEW STATE vs DOCUMENT IDENTITY (2026-07-24)
+// ----------------------------------------------------------------------------
+//
+// `WindowState.params` conflated two kinds of state. reconcileUrl replays the
+// remembered set on EVERY foreground, which is right for one kind and wrong for
+// the other:
+//
+//   VIEW STATE — where you were looking (`settings.pane`, `agents.agent`).
+//     Cheap to restore, orienting, and one click to change. Remember it.
+//
+//   DOCUMENT IDENTITY — what you were working on (`studio.file`, `images.file`,
+//     `studio.system`). Replaying it makes three claims that are usually false:
+//     that this is your current work, that you meant to return to it, and that
+//     the app IS this document. Clicking the Studio icon means "go to Studio",
+//     not "resume the last thing I touched there" — and the landing it skips is
+//     where recents, New, and Open live. Figma opens the file browser, not the
+//     last file; so do Docs, Sheets, and Photoshop.
+//
+// The observed bug (operator, KVK 2026-07-24): the Studio dock icon reopened a
+// document from an arbitrary earlier session. `remembered` outranks `incoming`
+// in reconcileUrl's merge and nothing ever CLEARS it — only opening a different
+// file overwrites it — so a doc opened once was the landing target forever,
+// across refreshes, sessions, and (via the ADR-407 server write-through) devices.
+//
+// These keys stay OWNED (accepted from an incoming URL, so "open in Studio" from
+// Files, a shared link, and in-session param writes all work) but are stripped
+// from the REMEMBERED set, so a bare launch lands on the app's own front door.
+const SURFACE_EPHEMERAL_PARAM_KEYS: Record<string, readonly string[]> = {
+  studio: ['file', 'system'],
+  images: ['file', 'system'],
 };
 
 /** Drop persisted param keys a surface doesn't own (see SURFACE_PARAM_KEYS). */
@@ -514,6 +552,27 @@ export function normalizeWindowParams(
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(params)) {
     if (allowed.includes(k)) out[k] = v;
+  }
+  return out;
+}
+
+/**
+ * Drop the params a surface owns but must NOT have replayed on a bare launch
+ * (document identity — see SURFACE_EPHEMERAL_PARAM_KEYS). Applied to the
+ * REMEMBERED source only: an incoming URL deep-link and a just-delivered param
+ * both still land, because those carry present intent. This is what makes the
+ * dock icon mean "go to the app" rather than "resume that document".
+ */
+export function stripEphemeralParams(
+  slug: string,
+  params: Record<string, string> | undefined
+): Record<string, string> | undefined {
+  if (!params) return params;
+  const ephemeral = SURFACE_EPHEMERAL_PARAM_KEYS[slug];
+  if (!ephemeral) return params;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (!ephemeral.includes(k)) out[k] = v;
   }
   return out;
 }
