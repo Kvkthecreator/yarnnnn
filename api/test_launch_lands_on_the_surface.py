@@ -1,5 +1,5 @@
 """
-The dock icon opens the APP, not the last document (2026-07-24).
+The dock icon opens the SURFACE, not the object you drilled into (2026-07-24).
 
 Operator-observed (KVK): clicking the Studio dock icon reopened an artifact
 from an arbitrary earlier session instead of Studio's landing. `studio.file`
@@ -8,11 +8,20 @@ set that `reconcileUrl` replays into the URL on EVERY foreground. `remembered`
 outranks `incoming` in that merge and nothing ever CLEARED it (only opening a
 different file overwrote it), so one artifact became the permanent landing
 target across refreshes, sessions, and — via the ADR-407 server write-through —
-devices.
+devices. Any remembered value with no clearing path has this shape.
 
-The carve: VIEW STATE (`settings.pane`, `agents.agent` — where you were
-looking) stays remembered; DOCUMENT IDENTITY (`studio.file`, `images.file`,
-`.system` — what you were working on) is owned but never replayed.
+The carve is DRILL-INS, not all params — the question is whether replaying it
+answers something the member is asking NOW:
+
+  RESTORE       `settings.pane` (a resting posture), `chat.lane` (a place you
+                live in — Slack/Messages/Mail resume the last thread, and the
+                lane list sits beside it).
+  DON'T RESTORE `studio.file` / `images.file` / `.system` (the artifact you
+                were authoring — the app is not that document) and
+                `agents.agent` (a drill-in on a roster whose POINT is the list).
+
+Both stay OWNED, so an incoming deep-link, a shared URL, and a delivered
+navigateToSurface param still land — those carry PRESENT intent.
 
 This gate EXECUTES the merge rather than grepping for it. A source-text check
 would pass on a `stripEphemeralParams` that was defined and never called, or
@@ -20,7 +29,7 @@ called with the arguments transposed — the precise failures worth catching.
 The TS merge body is transliterated below and kept honest by assertion 0, which
 fails if reconcileUrl's real merge stops matching the shape modelled here.
 
-Run directly: `python test_studio_launch_lands_on_landing.py`.
+Run directly: `python test_launch_lands_on_the_surface.py`.
 """
 
 import os
@@ -185,11 +194,30 @@ def run() -> int:
         f"got {out}",
     )
 
-    # ── 3. VIEW STATE is untouched — the carve is document-identity-only ──
+    # ── 3. the roster's front door is the roster ──────────────────────────
+    # Weaker than the authoring case (nothing is authored in a profile), but a
+    # launch landing on one colleague answers a question asked days ago.
     out = _reconcile(owned, ephemeral, "agents", {}, {"agent": "freddie"}, {})
     passed &= _check(
-        "agents: remembered view state still replays (not ephemeral)",
+        "agents: bare dock click drops the remembered profile → roster",
+        out == {},
+        f"got {out}",
+    )
+    out = _reconcile(owned, ephemeral, "agents", {}, {}, {"agent": "freddie"})
+    passed &= _check(
+        "agents: a delivered profile param still opens the detail",
         out == {"agent": "freddie"},
+        f"got {out}",
+    )
+
+    # ── 4. what a launch SHOULD restore is untouched ──────────────────────
+    # The carve is drill-ins, not all params. A conversation is a place you
+    # live in (Slack/Messages/Mail resume the last thread, and the lane list
+    # sits beside it); a settings pane is a resting posture.
+    out = _reconcile(owned, ephemeral, "chat", {}, {"lane": "lane-42"}, {})
+    passed &= _check(
+        "chat: the remembered lane STILL replays (a conversation is not a drill-in)",
+        out == {"lane": "lane-42"},
         f"got {out}",
     )
     out = _reconcile(
@@ -201,7 +229,7 @@ def run() -> int:
         f"got {out}",
     )
 
-    # ── 4. every ephemeral key is also an owned key ───────────────────────
+    # ── 5. every ephemeral key is also an owned key ───────────────────────
     # A key stripped from remembered but absent from the owned allowlist would
     # be silently eaten on the incoming path too — the deep-link would die.
     for slug, keys in ephemeral.items():
@@ -212,7 +240,7 @@ def run() -> int:
             f"unowned: {missing}" if missing else "",
         )
 
-    # ── 5. canvas dock-click-on-active is a no-op ─────────────────────────
+    # ── 6. canvas dock-click-on-active is a no-op ─────────────────────────
     # Minimize is a windowed gesture; in canvas one chromeless surface fills
     # the column, so minimizing drops to an empty desktop with no visible
     # change to the icon. Structural check — the handler is React-bound.

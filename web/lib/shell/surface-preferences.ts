@@ -509,36 +509,53 @@ const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
 };
 
 // ----------------------------------------------------------------------------
-// VIEW STATE vs DOCUMENT IDENTITY (2026-07-24)
+// WHAT A LAUNCH SHOULD RESTORE (2026-07-24)
 // ----------------------------------------------------------------------------
 //
 // `WindowState.params` conflated two kinds of state. reconcileUrl replays the
 // remembered set on EVERY foreground, which is right for one kind and wrong for
-// the other:
+// the other. The question to ask of a param is: does replaying it answer a
+// question the member is asking NOW, or one they asked once and moved on from?
 //
-//   VIEW STATE — where you were looking (`settings.pane`, `agents.agent`).
-//     Cheap to restore, orienting, and one click to change. Remember it.
+//   RESTORE — the surface's own resting posture, or a place you live in.
+//     `settings.pane` (which drawer was open), `chat.lane` (the conversation
+//     you were having). A messaging client resuming your last thread is Slack,
+//     Messages, and Mail behaving correctly — and the lane list sits right
+//     beside it, so the roster is never hidden by the resumption.
 //
-//   DOCUMENT IDENTITY — what you were working on (`studio.file`, `images.file`,
-//     `studio.system`). Replaying it makes three claims that are usually false:
-//     that this is your current work, that you meant to return to it, and that
-//     the app IS this document. Clicking the Studio icon means "go to Studio",
-//     not "resume the last thing I touched there" — and the landing it skips is
-//     where recents, New, and Open live. Figma opens the file browser, not the
-//     last file; so do Docs, Sheets, and Photoshop.
+//   DON'T RESTORE — a specific object you drilled into. Two flavours:
+//
+//     DOCUMENT IDENTITY (`studio.file`, `images.file`, `studio.system`) — the
+//       artifact you were authoring. Replaying it claims this is your current
+//       work, that you meant to return to it, and that the app IS this
+//       document. Figma opens the file browser, not the last file; so do Docs,
+//       Sheets, and Photoshop.
+//
+//     A DRILL-IN ON A ROSTER (`agents.agent`) — the surface's POINT is the
+//       list ("who do I have?"); a profile is a momentary look, and the app is
+//       not that colleague. Weaker than the authoring case (nothing is
+//       authored in a profile, and `← All agents` is right there), so this is
+//       staleness rather than a trapdoor — but a launch that lands on one
+//       roster member still answers a question asked days ago.
 //
 // The observed bug (operator, KVK 2026-07-24): the Studio dock icon reopened a
 // document from an arbitrary earlier session. `remembered` outranks `incoming`
 // in reconcileUrl's merge and nothing ever CLEARS it — only opening a different
 // file overwrites it — so a doc opened once was the landing target forever,
-// across refreshes, sessions, and (via the ADR-407 server write-through) devices.
+// across refreshes, sessions, and (via the ADR-407 server write-through)
+// devices. Any remembered value with no clearing path has this shape.
 //
-// These keys stay OWNED (accepted from an incoming URL, so "open in Studio" from
-// Files, a shared link, and in-session param writes all work) but are stripped
-// from the REMEMBERED set, so a bare launch lands on the app's own front door.
+// These keys stay OWNED (accepted from an incoming URL, so "open in Studio"
+// from Files, a shared link, a delivered navigateToSurface param, and
+// in-session writes all work — those carry PRESENT intent) but are stripped
+// from the REMEMBERED set, so a bare launch lands on the surface's front door.
 const SURFACE_EPHEMERAL_PARAM_KEYS: Record<string, readonly string[]> = {
   studio: ['file', 'system'],
   images: ['file', 'system'],
+  // The roster's front door is the roster (see "a drill-in on a roster" above).
+  // `chat.lane` is deliberately NOT here — a conversation is a place you live
+  // in, and its list stays visible beside it.
+  agents: ['agent'],
 };
 
 /** Drop persisted param keys a surface doesn't own (see SURFACE_PARAM_KEYS). */
