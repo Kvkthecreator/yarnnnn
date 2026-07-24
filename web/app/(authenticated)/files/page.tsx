@@ -408,6 +408,13 @@ export default function ContextPage() {
   // the shell renders no parallel back row.
   const activateBodyRef = useRef<() => void>(() => {});
   const drillOutRef = useRef<() => void>(() => {});
+  // A ref mirror of the openPath funnel (defined below), so the earlier-declared
+  // loadExplorer + the post-mount deep-link effect can route a `?files.path=`
+  // through the ONE open door without a definition-order / stale-closure cycle.
+  // Same idiom as activateBodyRef above (a late callback reached from an early
+  // one). Assigned once openPath exists; a deep-link that lands before that tick
+  // is impossible (openPath is defined in the same render).
+  const openPathRef = useRef<(path: string) => void>(() => {});
   const registerActivate = useCallback((fn: () => void) => {
     activateBodyRef.current = fn;
   }, []);
@@ -491,17 +498,21 @@ export default function ContextPage() {
           fp.set({ path: null, domain: null });
 
           // ?files.path= — always honour it; syntheticNodeForPath handles paths
-          // not present in the virtual tree (e.g. entity subfolders).
+          // not present in the virtual tree (e.g. entity subfolders). Through the
+          // ONE open door: a shared link to a Studio artifact opens Studio, not a
+          // blank inline frame (Option A — the deep-link is an open, same as a
+          // click). A folder / .md / image path falls through openPath to inline.
           if (seed.path) {
-            setSelectedPath(seed.path);
+            openPathRef.current(seed.path);
             return;
           }
           // ?files.domain= — select the domain folder under the operation root
-          // (ADR-388 D1: domains nest under the literal operation/ root).
+          // (ADR-388 D1: domains nest under the literal operation/ root). A
+          // domain is a folder → openPath selects it inline.
           if (seed.domain) {
             const domainPath = `/workspace/operation/${seed.domain}`;
             if (resolveNodeByPath(root, domainPath)) {
-              setSelectedPath(domainPath);
+              openPathRef.current(domainPath);
               return;
             }
           }
@@ -586,11 +597,13 @@ export default function ContextPage() {
     // seed. This is the belt to the seedConsumedRef braces: even a stray
     // re-render can't re-apply the ghost path.
     if (pathParam === seedRef.current.path && domainParam === seedRef.current.domain) return;
+    // Through the ONE open door (openPathRef) — a post-mount deep-link to an
+    // artifact opens its app, folders/unclaimed types fall through to inline.
     if (pathParam) {
-      setSelectedPath(pathParam);
+      openPathRef.current(pathParam);
     } else if (domainParam) {
       // ADR-388 D1: domains nest under the literal operation/ root.
-      setSelectedPath(`/workspace/operation/${domainParam}`);
+      openPathRef.current(`/workspace/operation/${domainParam}`);
     }
     fp.set({ path: null, domain: null });
     // fp.set stable; keyed on the param values so a new jump re-fires but a
@@ -610,56 +623,78 @@ export default function ContextPage() {
   // the viewer. Selecting via a folder-Details row also drops Details back to
   // the (newly-selected) node's own scope.
   //
-  // ADR-451: the Finder's open verb consults the surface-owning app layer
-  // FIRST — a claimed format (a Studio artifact) opens in its APP, like a
-  // .pptx opening PowerPoint; the inline viewer stays the Quick Look analog
-  // for everything unclaimed.
-  const handleExplorerSelect_byPath = useCallback((path: string) => {
-    // ADR-473 D2: WHICH app opens an artifact depends on its declared type
-    // (`data-template`), not on its extension — Studio and IMAGES both author
-    // `.html`. The tree carries no kind (adding it would mean reading every
-    // file's content for a 500-row listing), so the kind is read from the one
-    // file being opened, and routing follows. A read failure falls back to the
-    // default app, which is exactly the pre-ADR-473 behavior.
-    if (isArtifactCandidate(path)) {
-      void (async () => {
-        let kind: string | null = null;
-        try {
-          const file = await api.workspace.getFile(path);
-          kind = extractTemplate(file.content ?? '');
-        } catch {
-          /* fall through to the default app */
-        }
-        const app = resolveSurfaceApplication(path, undefined, kind);
-        if (app) {
-          navigateToSurface(app.surface, { [app.param]: path });
-          return;
-        }
-        setShowTrash(false);
-        setSelectedPath(path);
-        activateBodyRef.current();
-      })();
+  // ── openPath — THE ONE DOOR that opens a workspace path ────────────────
+  //
+  // 2026-07-24 (Option A cleanup). Every way a member opens a file in the Files
+  // surface routes through here — the tree click, the folder-listing click, the
+  // right-click Open verb, a Recents click, a cold-load / post-mount deep-link
+  // (`?files.path=`), and a just-uploaded file. There is deliberately no second
+  // path that calls `setSelectedPath` for a FILE: a new door consults the app
+  // layer by calling this, and physically cannot bypass it (a bare
+  // setSelectedPath for an artifact is the regression the gate forbids).
+  //
+  // Why a funnel and not per-call-site resolution: the pre-cleanup shape
+  // consulted the resolver at each open site, so every entry point had to
+  // REMEMBER to. The tree forgot (rendered a Studio artifact blank inline); the
+  // two deep-link jumps forgot (a shared link to an artifact rendered blank).
+  // Same bug three times — the signature of a missing funnel. This is the
+  // Singular Implementation of "open".
+  //
+  // The decision inside: ADR-451 — a format claimed by a surface-owning app (a
+  // Studio artifact, an Images stage) opens in its APP, like a .pptx opening
+  // PowerPoint; everything unclaimed (folders, .md, images, pdf, arrivals) drops
+  // to the inline viewer, the Quick Look analog. ADR-473 D2 — WHICH app owns an
+  // artifact comes from its declared type (`data-template`), read from the one
+  // file being opened (the tree carries no kind); a read failure falls back to
+  // the default app (pre-ADR-473 behavior).
+  //
+  // `selectInline` is the terminal for an unclaimed path — the ONLY sanctioned
+  // setSelectedPath-for-a-file site for an OPEN (nested so it can't be called
+  // from outside). The one deliberate carve: Get Info / Properties
+  // (handleGetInfo, fileVerbs.onProperties) also setSelectedPath a file path,
+  // but their intent is to SCOPE THE DETAILS PANEL to that file's metadata, not
+  // to open its body — routing those through openPath would wrongly launch the
+  // app when the operator asked to inspect. Those are select-to-inspect, not
+  // open; the gate's ban is on open-a-file setSelectedPath outside the funnel,
+  // and it allowlists the two Details sites by name.
+  const openPath = useCallback((path: string) => {
+    const selectInline = () => {
+      setShowTrash(false);
+      setSelectedPath(path);
+      activateBodyRef.current(); // narrow: drill into the viewer
+    };
+    // A non-artifact path (folder, .md, image, arrival) never routes to an app —
+    // isArtifactCandidate is a cheap path-only pre-check, so we don't read
+    // content for the 500-row tree, only for a file that might route.
+    if (!isArtifactCandidate(path)) {
+      selectInline();
       return;
     }
-    setShowTrash(false);
-    setSelectedPath(path);
-    activateBodyRef.current(); // narrow: drill into the viewer
+    void (async () => {
+      let kind: string | null = null;
+      try {
+        const file = await api.workspace.getFile(path);
+        kind = extractTemplate(file.content ?? '');
+      } catch {
+        /* fall through to the default app */
+      }
+      const app = resolveSurfaceApplication(path, undefined, kind);
+      if (app) {
+        navigateToSurface(app.surface, { [app.param]: path });
+        return;
+      }
+      selectInline();
+    })();
   }, [navigateToSurface]);
+  // Mirror into the ref so the earlier loadExplorer + post-mount effect route
+  // deep-links through this exact funnel (see openPathRef declaration).
+  openPathRef.current = openPath;
 
-  // 2026-07-24 — the tree + folder-listing select verb is the SAME open verb as
-  // right-click Open and a Recents click. Pre-fix the tree had its own inline-
-  // only handler (`handleExplorerSelect`) that set selectedPath and NEVER
-  // consulted the surface-owning app layer — so clicking a Studio artifact in
-  // the tree mounted the inline WebViewer instead of opening Studio, and an
-  // authored `.html` (whose body is a composed document, not a peekable page)
-  // rendered blank. The app layer already existed (resolveSurfaceApplication,
-  // ADR-451) and the RIGHT-CLICK Open already used it; the tree just bypassed
-  // it. One verb now: every open of an artifact routes to its app, folders and
-  // unclaimed types stay inline (they aren't artifact candidates, so `_byPath`
-  // falls straight through to the inline selection).
+  // The tree + folder-listing hand a TreeNode; every other door hands a path.
+  // Both are the SAME open verb (openPath) — the node wrapper only unwraps.
   const handleExplorerSelect = useCallback(
-    (node: TreeNode) => handleExplorerSelect_byPath(node.path),
-    [handleExplorerSelect_byPath],
+    (node: TreeNode) => openPath(node.path),
+    [openPath],
   );
 
   // ADR-329 (amended): right-click "Get Info" on a tree node → select it (so
@@ -706,10 +741,13 @@ export default function ContextPage() {
       });
       setNewFolderOpen(false);
       await loadExplorer();
-      // Jump to the seeded README so the new folder is visible + selected.
-      if (r?.seeded) setSelectedPath(r.seeded);
+      // Jump to the seeded README so the new folder is visible + selected —
+      // through THE ONE DOOR (openPath). The seed is markdown today (falls
+      // through to inline), but routing keeps the invariant: no open-a-path
+      // site outside the funnel.
+      if (r?.seeded) openPath(r.seeded);
     } catch { /* error toast already surfaced; keep the modal open to retry */ }
-  }, [runAction, loadExplorer]);
+  }, [runAction, loadExplorer, openPath]);
 
   // Move (deliberate, modal) + drag-move (gesture) both route through the shared
   // hook — `openMove` opens the picker, `commitMove` is the drag fast-path.
@@ -743,13 +781,13 @@ export default function ContextPage() {
   // D4) mints a link to the artifact. (Learn-from moved to the Studio landing
   // — ADR-452 D5: a creation act, not a file operation.)
   const fileVerbs = useMemo(() => ({
-    onOpen: (t: { path: string }) => handleExplorerSelect_byPath(t.path),
+    onOpen: (t: { path: string }) => openPath(t.path),
     onProperties: (t: { path: string }) => { setShowTrash(false); setSelectedPath(t.path); setDetailsOpen(true); },
     onRename: openRename,
     onMove: openMove,
     onDelete: handleTreeDelete,
     onShare: handleShare,
-  }), [handleExplorerSelect_byPath, openRename, openMove, handleTreeDelete, handleShare]);
+  }), [openPath, openRename, openMove, handleTreeDelete, handleShare]);
 
   // Upload success (2026-07-01): after files land in the Intake raw lane
   // (inbound/uploads/{principal}/{slug}.{ext}, ADR-395), refresh the tree AND
@@ -760,9 +798,14 @@ export default function ContextPage() {
   // looking tree. reload → then select so the fresh node exists when it resolves.
   const handleUploaded = useCallback(async (workspacePath: string) => {
     await loadExplorer();
-    setSelectedPath(workspacePath);
+    // Route through THE ONE DOOR (openPath) rather than a raw setSelectedPath.
+    // An uploaded file lands in the Intake raw lane (inbound/uploads/…), which
+    // isArtifactCandidate excludes — so an uploaded .html falls through to inline
+    // preview here, correctly. If upload destinations ever change, the resolver
+    // decides; the upload path can't reintroduce the blank-inline bug.
+    openPath(workspacePath);
     activateBodyRef.current(); // narrow: drill into the viewer
-  }, [loadExplorer]);
+  }, [loadExplorer, openPath]);
 
   // Finder-parity canvas verbs (2026-07-09). Right-click on empty canvas → the
   // background menu (New Folder / Add Files) — the gesture Finder's muscle memory
@@ -975,7 +1018,7 @@ export default function ContextPage() {
     // "Recents" view — a columnar glance of recent authored changes across the
     // workspace. Selecting a row swaps to the node view.
     <div className="flex-1 min-h-0">
-      <RecentRevisions onSelectPath={handleExplorerSelect_byPath} verbs={fileVerbs} />
+      <RecentRevisions onSelectPath={openPath} verbs={fileVerbs} />
     </div>
   );
 
@@ -1051,7 +1094,7 @@ export default function ContextPage() {
       <PropertiesModal
         node={detailsOpen ? selectedNode : null}
         onClose={() => setDetailsOpen(false)}
-        onSelectPath={handleExplorerSelect_byPath}
+        onSelectPath={openPath}
         onRevert={loadExplorer}
       />
 

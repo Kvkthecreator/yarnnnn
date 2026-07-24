@@ -79,32 +79,67 @@ def run() -> int:
         "chat FileOpenModal NOT branched (ADR-441 preview stands)",
         bool(open_modal) and "resolveSurfaceApplication" not in open_modal,
     )
-    # 2026-07-24 — the WIRING invariant the routing needed to be reachable.
-    # The tree's onSelect + the folder-listing onNavigate must BOTH reach the
-    # app-consulting handler (handleExplorerSelect_byPath), not an inline-only
-    # one — else clicking a Studio artifact in the tree mounts the inline
-    # WebViewer (blank for an authored .html) instead of opening Studio. The
-    # bug was that both existed and the tree used the wrong one; assert the
-    # single-verb wiring so it can't silently split again.
-    #
-    # handleExplorerSelect is now a THIN WRAPPER over _byPath (the one open
-    # verb). Assert it delegates rather than re-implementing an inline set —
-    # a re-added `setSelectedPath(node.path)` body would be the regression.
+    # 2026-07-24 (Option A) — THE ONE DOOR invariant. Every way a member opens
+    # a file routes through one funnel (openPath), which consults the resolver
+    # once. The pre-cleanup shape resolved per-call-site, so each new door had to
+    # REMEMBER to — the tree forgot (Studio artifact blank inline), then the two
+    # deep-link jumps forgot (a shared link blank). Same bug three times = a
+    # missing funnel. These assertions defend the funnel, not any single door.
+
+    # (a) the funnel exists and is the one open verb.
+    passed &= _check(
+        "openPath funnel exists (THE ONE DOOR)",
+        "const openPath = useCallback((path: string) =>" in files_page,
+    )
+
+    # (b) the tree's node-select wrapper DELEGATES to openPath — a re-added inline
+    # `setSelectedPath(node.path)` body is the original regression.
     wrapper = re.search(
         r"const handleExplorerSelect = useCallback\(\s*\(node: TreeNode\) =>(.*?),\s*\[",
         files_page,
         re.DOTALL,
     )
-    delegates = bool(wrapper) and "handleExplorerSelect_byPath(node.path)" in wrapper.group(1)
+    delegates = bool(wrapper) and "openPath(node.path)" in wrapper.group(1)
     passed &= _check(
-        "tree select delegates to the app-consulting open verb (_byPath)",
+        "tree select delegates to the funnel (openPath), not an inline set",
         delegates,
-        "" if delegates else "handleExplorerSelect must wrap _byPath, not set selectedPath directly",
+        "" if delegates else "handleExplorerSelect must wrap openPath(node.path)",
     )
+
+    # (c) the tree + folder-listing are wired to that verb.
     passed &= _check(
-        "the tree + folder-listing are wired to that verb",
+        "the tree + folder-listing are wired to the open verb",
         "onSelect={handleExplorerSelect}" in files_page
         and "onNavigate={handleExplorerSelect}" in files_page,
+    )
+
+    # (d) the deep-link doors (cold-load seed + post-mount `?files.path=` jump)
+    # route through the funnel via openPathRef — NOT a raw setSelectedPath, which
+    # would render a shared artifact link blank inline (the third instance of the
+    # bug the audit found).
+    passed &= _check(
+        "deep-link jumps route through the funnel (openPathRef)",
+        "openPathRef.current = openPath" in files_page
+        and files_page.count("openPathRef.current(") >= 2,
+    )
+
+    # (e) the closing invariant: the ONLY raw setSelectedPath(<a path variable>)
+    # OPEN sites are the funnel's own selectInline + the two allowlisted
+    # Details-scoping sites (Get Info / Properties select-to-inspect, not open).
+    # Every other setSelectedPath is a CLEAR (setSelectedPath(null)) or a
+    # selection-preservation updater (setSelectedPath((prev) => …)). A new
+    # bare setSelectedPath(<path>) open door outside the allowlist trips this.
+    #   allowlisted open-path setters, by their surrounding token:
+    #     selectInline    → setSelectedPath(path)          (the funnel terminal)
+    #     handleGetInfo   → setSelectedPath(node.path)     (scope Details)
+    #     onProperties    → setSelectedPath(t.path)        (scope Details)
+    open_setters = re.findall(r"setSelectedPath\((?!null|\(prev)([^)]+)\)", files_page)
+    allowed = {"path", "node.path", "t.path"}
+    stray = [s.strip() for s in open_setters if s.strip() not in allowed]
+    passed &= _check(
+        "no un-allowlisted setSelectedPath(<path>) open door outside the funnel",
+        not stray,
+        "" if not stray else f"stray open setters: {stray}",
     )
 
     # ── 3. the entrance move ──────────────────────────────────────────────
