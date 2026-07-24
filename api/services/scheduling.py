@@ -432,10 +432,16 @@ async def materialize_scheduling_index(
     by_slug: dict[str, Recurrence] = {r.slug: r for r in recurrences}
 
     try:
+        # Kind-scoped (ADR-393 disjointness invariant, closed with ADR-486):
+        # this materializer owns ONLY kind='judgment' rows. Without the filter
+        # it would delete capture/radar index rows as "stale" — their slugs
+        # never appear in _recurrences.yaml. Migration 193 backfilled every
+        # pre-existing row to 'judgment', so the filter loses nothing.
         existing = (
             client.table("tasks")
-            .select("id, slug, last_run_at, next_run_at, schedule, status")
+            .select("id, slug, last_run_at, next_run_at, schedule, status, kind")
             .eq("user_id", user_id)
+            .eq("kind", "judgment")
             .execute()
         )
         existing_by_slug: dict[str, dict] = {
@@ -553,10 +559,14 @@ async def get_due_recurrences(
         now = datetime.now(timezone.utc)
 
     try:
+        # Kind-scoped (ADR-393/486): due CAPTURE and RADAR rows are served by
+        # their own drainers; without the filter every due row of another kind
+        # triggers a wasted _recurrences.yaml walk + a spurious stale-row warning.
         result = (
             client.table("tasks")
             .select("id, user_id, slug, status, schedule, next_run_at, last_run_at")
             .eq("status", "active")
+            .eq("kind", "judgment")
             .lte("next_run_at", now.isoformat())
             .execute()
         )

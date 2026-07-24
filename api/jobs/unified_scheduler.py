@@ -416,6 +416,26 @@ async def run_unified_scheduler():
                 logger.warning("[SCHED] connector raw-lane GC raised: %s", exc)
 
         # ---------------------------------------------------------------------
+        # ADR-486 R0: the radar lane — standing sweeps over declared topic hubs
+        # (operation/{topic}/_radar.yaml). Sibling maintenance phase to the
+        # capture drain, but NOT behind CONNECTOR_CAPTURE_ENABLED: radar runs
+        # on web watches + the commons (ADR-486 §5 — the capture lane's
+        # dormancy is a connector decision, not a standing-sweep one). Inside
+        # AGENT_ENABLED because a sweep's derive is metered judgment spend.
+        # Zero hubs declared → one LIKE scan → no-op (the empty-world cost).
+        # ---------------------------------------------------------------------
+        try:
+            from services.radar import drain_due_radar_sweeps
+            r_found, r_succeeded, r_failed = await drain_due_radar_sweeps(supabase)
+            if r_found > 0:
+                logger.info(
+                    f"[SCHED] radar: {r_succeeded}/{r_found} sweep(s) succeeded, "
+                    f"{r_failed} failed"
+                )
+        except Exception as exc:
+            logger.warning("[SCHED] radar lane raised: %s", exc)
+
+        # ---------------------------------------------------------------------
         # ADR-296 v2 D1 + D2: substrate-event wake source walker.
         # For each active user, walk /workspace/_hooks.yaml against recent
         # workspace_file_versions revisions. Hook matches submit wake proposals
