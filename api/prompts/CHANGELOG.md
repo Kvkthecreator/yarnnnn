@@ -6,6 +6,31 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.24.1] - The lane is told WHERE a token may sit (ADR-453 R4)
+
+### Changed
+- `services/studio.py::_tokens_grammar` — every property-token line in the
+  Studio posture now carries its `applies` grain: `data-pagenum="on" [on the
+  artifact root, deck only] — …`. Rendered via a new `_applies_phrase` helper
+  over a new `APPLIES_TARGETS` map (the `applies` vocabulary as data; the
+  comment block above it was previously the only definition).
+- Why: "one registry, one grammar, both hands" was true of the VALUES and
+  false of the CONTAINMENT. The Design tab GATES every control by `applies`
+  (a member cannot put `data-pagenum` on a block — the control never renders),
+  but the posture emitted only key/values/description, so the AI hand received
+  the grammar with the relation stripped. Some descriptions smuggled it back
+  in prose ("on a figure/chart block") — the tell that it was load-bearing —
+  and `size`/`align`/`tone` carried no location signal at all.
+- Expected behavior: the lane should stop emitting structurally-misplaced
+  tokens (a document-grain token on a block, a deck-only token in an article,
+  a media token on a text block). No values changed and no token was added or
+  removed, so a correct existing write stays correct — this only supplies the
+  constraint the FE already enforced.
+- Gate: `test_adr453_property_layer.py` §4 (37/37; the three new checks fail
+  35/37 against the prior grammar, confirmed by reverting the render line).
+
+---
+
 ## [2026.07.21.1] - Decomposition asks for a LAYER PLAN, not an image (ADR-475)
 
 ### Added

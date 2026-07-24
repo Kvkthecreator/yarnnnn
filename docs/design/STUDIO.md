@@ -34,6 +34,66 @@ An artifact is composed from four orthogonal layers. Each answers one question; 
 
 Arrangement is the composition layer PowerPoint's New-Slide flyout and Wix's section stacks both name: *Title Slide · Two Content · Comparison · Picture-with-Caption* (page grain) and drop-in *two-column / three-grid / image-overlay* bands (section grain), nested. It is orthogonal to blocks (what) and skin (how). See ADR-447.
 
+## The object model — what an annotation attaches to *(2026-07-24)*
+
+The layers above name the annotations. This names the **objects they attach to, and the relations between them** — the half that was never written down, and whose absence is a recurring bug source rather than a documentation gap (§"Why this is here", below).
+
+### The objects
+
+Four, and only four. Each is a real DOM element; there is no parallel tree.
+
+| Object | DOM anchor | Contained by | Selection scope | Carries |
+|---|---|---|---|---|
+| **Artifact root** | `<html>` | — | `document` *(nothing selected)* | `data-template`, document-grain tokens (`font`/`measure`/`pagenum`), the marked `<style>` elements |
+| **Page** | `[data-arrange]` — a deck slide, a document/article `<section>`, a page band | root | `page` | `data-arrange`, page tokens (`tone`/`pad`/`valign`/`ratio`/`scrim`/`bg-pos`), the background citation |
+| **Slot** | `[data-slot]` | page | `slot` | `data-slot` (a name + a role). **No tokens today** — see the open question |
+| **Block** | `[data-block]` + `data-block-id` | slot, page, or the flow root | `block` | block tokens (`size`/`align`/`tone`), media tokens, measures, `data-ref` citations |
+
+**Containment is the load-bearing relation.** A token's behavior depends not only on the object it sits on but on what that object sits *inside* — the same `data-size="fill"` behaves differently on a deck slide than in a document, because the deck skin caps prose width and the document's grain does not. A model that named only the object could not express that, which is exactly how a Width control shipped inert (2026-07-24, kernel v12).
+
+**Two objects are mode-conditional** (see Mode, above): on `flow` (document/article) a page is *not* a composition unit and a **slot does not exist at all** — ADR-481 D1 made flow scaffolds flat, so the click-grain ladder loses both grains by derivation rather than by suppression. Slots and page arrangements are `paged` concepts (deck/page). This is the single largest source of "the panel looks different on a document," and it is intended.
+
+### The `applies` vocabulary — one string doing two fields' work
+
+The kernel gates every property token by an `applies` value (`STUDIO_TOKENS[*]['applies']`, served on `GET /studio/vocabulary`). All ten values decompose the same way — **an object × an optional condition**:
+
+| `applies` | Object | Condition | Predicate kind |
+|---|---|---|---|
+| `block` | block | — | — |
+| `media` | block | kind ∈ figure/chart/gallery | block **kind** |
+| `block-staged` | block | inside a `.slide` frame | **ancestry** |
+| `page` | page | — | — |
+| `page-deck` | page | layout = deck | **layout** |
+| `page-multicol` | page | arrangement has ≥2 flow slots | **arrangement shape** |
+| `page-bg` | page | has `data-ref-kind="background"` | **element state** |
+| `document` | root | — | — |
+| `document-flow` | root | mode = flow | **mode** |
+| `document-deck` | root | layout = deck | **layout** |
+
+Three objects, each with an optional predicate; the hyphen is a second field in disguise. The predicates are five genuinely different kinds of test, which is why the flat list reads as arbitrary — it isn't, but the structure is implicit.
+
+`APPLIES_TARGETS` (in `services/studio.py`) is the machine-readable half: value → the phrase naming where it may sit. Both hands read it (below).
+
+### One grammar, both hands — including *where*
+
+ADR-453 R4 says one registry serves the Design tab and the lane. That was true of the token **values** and, until 2026-07-24, false of the **containment**: the Design tab gated its controls by `applies`, while `_tokens_grammar()` emitted only key/values/description — so the AI hand was told `data-pagenum` exists and never told it belongs on the root. Every posture line now carries its grain (`[on the artifact root, deck only]`). *Measures* still teach their containment in hand-written posture prose rather than deriving it — accurate today, a drift risk, and the smaller sibling of the same asymmetry.
+
+### Why this is here (the bug class it exists to prevent)
+
+Three defects share one root — a relation the model could not express:
+
+1. **`align` shipped a phantom value** (ADR-461 B1): `data-align="start"` was declared with no kernel rule, so picking "Left" wrote an attribute that rendered nothing.
+2. **`size` shipped inert** (kernel v12): `Fill` declared `applies: ["block"]`, but its real behavior depended on the block's *grain-parent*; the deck skin's reading measure out-specified it and Fill rendered identically to Auto on every heading and paragraph.
+3. **The lane wrote misplaced tokens**: it received the grammar with the containment stripped.
+
+In all three, the gate passed. **Presence of a selector is not evidence of an effect**, and nothing in the model made containment checkable. Naming the relation is what lets a gate test it — the current gates now assert the defeating condition, not the declaration.
+
+### Open questions (deliberately not resolved here)
+
+- **`slot` carries no tokens.** Is that a gap or a correct absence? A slot is a *region contract* (name + role), and every property one might want (padding, alignment) belongs to the page or the block. Leaning correct-absence; unresolved.
+- **Should `applies` become `(scope, grain)`?** The table above is the argument for it: `page-deck` → `(page, deck)` would make the two fields real and let a gate check a token against the skin that might defeat it. It touches the served contract and the FE gating, so it is a **named follow-on, not taken** — deferred until the surface stabilizes.
+- **Should measures derive their posture line** the way tokens now do? Same asymmetry, smaller blast radius.
+
 ## The seven operations × operator words (ADR-443 D2/D3)
 
 The operations are internal vocabulary. **The chrome speaks the right column, always.**

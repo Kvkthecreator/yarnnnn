@@ -39,11 +39,14 @@ def _check(label: str, cond: bool) -> None:
 
 def run() -> bool:
     from services.studio import (
+        APPLIES_TARGETS,
         MEDIA_BLOCK_KINDS,
         STUDIO_ARRANGEMENTS,
         STUDIO_KERNEL_CSS,
         STUDIO_KERNEL_CSS_VERSION,
+        STUDIO_MEASURES,
         STUDIO_TOKENS,
+        _applies_phrase,
         build_skeleton,
         build_studio_posture,
         compose_kernel_style_element,
@@ -148,6 +151,36 @@ def run() -> bool:
     _check(
         "posture token lines derive from the registry",
         all(f"data-{key}=" in posture for key in STUDIO_TOKENS),
+    )
+    # "One grammar, both hands" was true of the VALUES and false of the
+    # CONTAINMENT: the Design tab gates every control by `applies`, while the
+    # posture emitted key/values/description only — so the AI hand was told
+    # data-pagenum exists and never told it belongs on the root. Prose in some
+    # descriptions ("on a figure/chart block") smuggled it back inconsistently,
+    # and size/align/tone carried no location signal at all. Both hands, or the
+    # registry is only half-shared.
+    _check(
+        "EVERY token line teaches WHERE it may sit (not just its values)",
+        all(
+            f'data-{key}="' in posture
+            and f'[on {_applies_phrase(t["applies"])}]' in posture
+            for key, t in STUDIO_TOKENS.items()
+        ),
+    )
+    _check(
+        "the three grains with no prose fallback are covered (size/align/tone)",
+        all(
+            f'data-{k}="' in posture and "[on any block" in posture
+            for k in ("size", "align", "tone")
+        ),
+    )
+    _check(
+        "every declared `applies` value has a target phrase (no silent grain)",
+        all(
+            a in APPLIES_TARGETS
+            for t in list(STUDIO_TOKENS.values()) + list(STUDIO_MEASURES.values())
+            for a in t["applies"]
+        ),
     )
     _check(
         "layout-switch rule protects BOTH marked elements",
