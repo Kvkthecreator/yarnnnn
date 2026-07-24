@@ -238,7 +238,15 @@ def run() -> bool:
     #  their refusal path instead of bare-returning.)
     _check(
         "P9 geometry senders refuse a missing data-block-id (no dead red banner)",
-        proj.count("if (!id || !frame) { syncFrameContext(); return; }") >= 2,
+        # Counts the REFUSAL, not one spelling of it: resizeEnd's path also
+        # clears the group capture (an aborted gesture must not leave a stale
+        # one), so a literal-match check went red on a change that preserved
+        # the invariant exactly. Both senders still bail and restore the
+        # at-rest frame context.
+        len([
+            ln for ln in proj.splitlines()
+            if "if (!id || !frame) {" in ln and "syncFrameContext(); return; }" in ln
+        ]) >= 2,
     )
     _check(
         "P9 one zoom accessor: chrome divides visual rects by body.style.zoom",
@@ -467,6 +475,45 @@ def run() -> bool:
     _check(
         "an unresolved member is skipped, never aborting the gesture",
         "if (!r) continue;" in ops,
+    )
+    # The group's HANDLER, not just its props. The first cut of this feature
+    # declared onGeometryMany, destructured it, and listed it in the deps array
+    # while the message-handler BRANCH never landed — so the runtime posted
+    # yarnnn-geometry-many and nothing listened. A prop that exists and is
+    # never called is the shape of a half-applied patch, and only a check on
+    # the listener catches it.
+    _check(
+        "the canvas LISTENS for the group message (a declared prop is not a wired one)",
+        "d.type === 'yarnnn-geometry-many'" in canvas and "onGeometryMany?.(moves)" in canvas,
+    )
+    _check(
+        "…and passes SIZE through, so a group resize is not silently a move",
+        "w: typeof m.w === 'number'" in canvas,
+    )
+    # Group resize — the Figma model: proportional within the bounding box.
+    _check(
+        "group resize scales about the bounding box, captured once per gesture",
+        "function captureGroupResize(primary)" in proj and "groupResize = {" in proj,
+    )
+    _check(
+        "the handle's OPPOSITE edge anchors (a west drag pins the right edge)",
+        "var ancX = gax.west ? b.left + b.width : b.left;" in proj,
+    )
+    _check(
+        "members scale POSITION and SIZE together (relative layout preserved)",
+        "anchorX + (m.r.left - anchorX) * sx" in proj and "m.r.width * sx" in proj,
+    )
+    _check(
+        "commit reads each member's LANDED rect (what was seen is what is written)",
+        "gel.getBoundingClientRect()" in proj and "type: 'yarnnn-geometry-many'" in proj,
+    )
+    _check(
+        "the receipt distinguishes a resize from a move (ADR-485 D3)",
+        "resized ? 'resized' : 'moved'" in surface,
+    )
+    _check(
+        "no keyboard grouping (⌘G would imply a PERSISTED group)",
+        "metaKey && (e.key === 'g'" not in proj and "'KeyG'" not in proj,
     )
 
     ok = all(c for _, c in _results)

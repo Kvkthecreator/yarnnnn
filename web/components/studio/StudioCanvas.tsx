@@ -124,7 +124,7 @@ interface StudioCanvasProps {
   onGeometry?: (blockId: string, geo: { x?: number; y?: number; w?: number; h?: number }) => void;
   /** A GROUP drop — every member's landed position, folded into one revision. */
   onGeometryMany?: (
-    moves: Array<{ blockId: string; geo: { x?: number; y?: number } }>,
+    moves: Array<{ blockId: string; geo: { x?: number; y?: number; w?: number; h?: number } }>,
   ) => void;
   /** The group's membership changed (shift/⌘-click) — a transient selection. */
   onGroup?: (blockIds: string[]) => void;
@@ -457,6 +457,25 @@ export function StudioCanvas({
           w: typeof d.w === 'number' ? d.w : undefined,
           h: typeof d.h === 'number' ? d.h : undefined,
         });
+      } else if (d.type === 'yarnnn-geometry-many' && Array.isArray(d.moves)) {
+        // A group drop or group resize — ONE act, so it lands as ONE revision
+        // (the runtime batches; the parent must not re-split it into N writes).
+        const moves = (d.moves as Array<Record<string, unknown>>)
+          .filter((m) => typeof m.blockId === 'string')
+          .map((m) => ({
+            blockId: m.blockId as string,
+            geo: {
+              x: typeof m.x === 'number' ? m.x : undefined,
+              y: typeof m.y === 'number' ? m.y : undefined,
+              // A group RESIZE carries size too; a group MOVE omits both, and
+              // setGeometry preserves an axis it is not given.
+              w: typeof m.w === 'number' ? m.w : undefined,
+              h: typeof m.h === 'number' ? m.h : undefined,
+            },
+          }));
+        if (moves.length) onGeometryMany?.(moves);
+      } else if (d.type === 'yarnnn-group' && Array.isArray(d.blockIds)) {
+        onGroup?.((d.blockIds as unknown[]).filter((b): b is string => typeof b === 'string'));
       } else if (d.type === 'yarnnn-key-verb' && typeof d.blockId === 'string') {
         onKeyVerb?.(d.verb as 'copy' | 'paste' | 'duplicate' | 'delete', d.blockId);
       } else if (d.type === 'yarnnn-undo') {

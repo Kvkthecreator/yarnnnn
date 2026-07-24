@@ -1120,12 +1120,16 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // count rather than every id: a group of six would otherwise write a message
   // no one can read, and the ids are in the diff either way.
   const handleGeometryMany = useCallback(
-    (moves: Array<{ blockId: string; geo: { x?: number; y?: number } }>) => {
+    (moves: Array<{ blockId: string; geo: { x?: number; y?: number; w?: number; h?: number } }>) => {
       const specs = geometrySpecs();
       if (!specs || !moves.length) return;
+      // ADR-485 D3 — the receipt states what LANDED. A group resize carries
+      // w/h, a group move does not; calling both "moved" would misdescribe the
+      // substrate on the one surface a member consults to learn what happened.
+      const resized = moves.some((m) => m.geo.w != null || m.geo.h != null);
       void applyOp(
         (html) => setGeometryMany(html, moves, specs),
-        `Studio: moved ${moves.length} blocks together`,
+        `Studio: ${resized ? 'resized' : 'moved'} ${moves.length} blocks together`,
       );
     },
     [applyOp, geometrySpecs],

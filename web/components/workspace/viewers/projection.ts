@@ -2937,10 +2937,84 @@ const GUTTER_SCRIPT = `
     return positionable(block) && block.hasAttribute('data-x');
   }
 
+  // ── GROUP RESIZE (2026-07-24) — the Figma model ────────────────────────
+  // Figma resizes a multi-selection PROPORTIONALLY WITHIN ITS BOUNDING BOX:
+  // every member's position and size scale by the same ratio relative to that
+  // box, so the set's internal layout is preserved. It scales the BOX, never
+  // the type — a text block gets wider, its font does not grow (that is
+  // Figma's own distinction between resizing a frame and scaling it, and it is
+  // the only one expressible here: the kernel has w/h measures and no scale
+  // transform, so "each member's own w/h" is both the Figma behaviour and the
+  // only honest one).
+  //
+  // Captured ONCE at gesture start, for the same reason the move's offsets
+  // are: recomputing the union per frame would feed each frame's rounding
+  // into the next and let the set creep.
+  var groupResize = null;
+  function captureGroupResize(primary) {
+    var set = window.__yarnnnGroup ? window.__yarnnnGroup() : [];
+    if (set.length < 2) { groupResize = null; return; }
+    var members = [];
+    var minL = Infinity, minT = Infinity, maxR = -Infinity, maxB = -Infinity;
+    for (var i = 0; i < set.length; i++) {
+      if (!positionable(set[i])) continue;
+      var r = set[i].getBoundingClientRect();
+      members.push({ el: set[i], r: r });
+      if (r.left < minL) minL = r.left;
+      if (r.top < minT) minT = r.top;
+      if (r.right > maxR) maxR = r.right;
+      if (r.bottom > maxB) maxB = r.bottom;
+    }
+    if (members.length < 2) { groupResize = null; return; }
+    groupResize = {
+      primary: primary,
+      box: { left: minL, top: minT, width: Math.max(1, maxR - minL), height: Math.max(1, maxB - minT) },
+      members: members,
+    };
+  }
+  // Apply the primary's scale to every member, about the box's anchored corner.
+  // sx/sy are the ratios the primary's own drag produced; the anchor is the
+  // edge the handle did NOT move (a west drag anchors the box's right edge).
+  function applyGroupResize(f, sx, sy, anchorX, anchorY) {
+    if (!groupResize) return;
+    var g = groupResize;
+    for (var i = 0; i < g.members.length; i++) {
+      var m = g.members[i];
+      var nl = anchorX + (m.r.left - anchorX) * sx;
+      var nt = anchorY + (m.r.top - anchorY) * sy;
+      var nw = m.r.width * sx;
+      var nh = m.r.height * sy;
+      m.el.style.position = 'absolute';
+      m.el.style.margin = '0';
+      m.el.style.left = Math.max(0, Math.min(100, ((nl - f.padLeft) / f.padW) * 100)) + '%';
+      m.el.style.top = Math.max(0, Math.min(100, ((nt - f.padTop) / f.padH) * 100)) + '%';
+      m.el.style.width = Math.max(MEASURE_MIN.w, Math.min(MEASURE_MAX.w, (nw / f.contentW) * 100)) + '%';
+      m.el.style.height = Math.max(MEASURE_MIN.h, Math.min(MEASURE_MAX.h, (nh / f.contentH) * 100)) + '%';
+    }
+  }
+
   function resizeMove(block, e, side) {
     var frame = measurableFrame(block);
     if (!frame) return;
     var br = block.getBoundingClientRect();
+    // A group resize scales the whole set about the anchored corner; the
+    // primary is one member of it, so its own branch below is skipped.
+    if (groupResize) {
+      var gf = frameRects(frame);
+      var gax = sideAxes(side);
+      var b = groupResize.box;
+      var ancX = gax.west ? b.left + b.width : b.left;
+      var ancY = gax.north ? b.top + b.height : b.top;
+      var sx = 1, sy = 1;
+      if (gax.west) sx = Math.max(0.05, (ancX - e.clientX) / b.width);
+      else if (gax.east) sx = Math.max(0.05, (e.clientX - ancX) / b.width);
+      if (gax.north) sy = Math.max(0.05, (ancY - e.clientY) / b.height);
+      else if (gax.south) sy = Math.max(0.05, (e.clientY - ancY) / b.height);
+      applyGroupResize(gf, sx, sy, ancX, ancY);
+      showBox(block);
+      showFrame(frame, Math.round(sx * 100) + '% × ' + Math.round(sy * 100) + '%');
+      return;
+    }
     // ADR-485 D1 — the two rectangles, named. A resize writes BOTH classes of
     // property on a west/north handle (a width AND a left), and they resolve
     // against DIFFERENT boxes: width:% against the content box, left:% against
@@ -3002,11 +3076,36 @@ const GUTTER_SCRIPT = `
   }
 
   function resizeEnd(block, moved, side) {
-    if (!moved) { syncFrameContext(); return; }
+    if (!moved) { groupResize = null; syncFrameContext(); return; }
     var id = block.getAttribute('data-block-id');
     var frame = measurableFrame(block);
-    if (!id || !frame) { syncFrameContext(); return; }
+    if (!id || !frame) { groupResize = null; syncFrameContext(); return; }
     var br = block.getBoundingClientRect();
+    // A group resize commits every member's LANDED rect — read back from the
+    // DOM rather than recomputed from the scale, so what is written is what
+    // the member saw (the clamps in applyGroupResize already ran). One
+    // message, one revision, exactly as the group move does.
+    if (groupResize) {
+      var gf = frameRects(frame);
+      var gmoves = [];
+      for (var gi = 0; gi < groupResize.members.length; gi++) {
+        var gel = groupResize.members[gi].el;
+        var gid = gel.getAttribute('data-block-id');
+        if (!gid) continue;
+        var gr = gel.getBoundingClientRect();
+        gmoves.push({
+          blockId: gid,
+          x: Math.round(clampMeasure('x', ((gr.left - gf.padLeft) / gf.padW) * 100)),
+          y: Math.round(clampMeasure('y', ((gr.top - gf.padTop) / gf.padH) * 100)),
+          w: Math.round(clampMeasure('w', (gr.width / gf.contentW) * 100)),
+          h: Math.round(clampMeasure('h', (gr.height / gf.contentH) * 100)),
+        });
+      }
+      groupResize = null;
+      if (gmoves.length) parent.postMessage({ type: 'yarnnn-geometry-many', moves: gmoves }, '*');
+      syncFrameContext();
+      return;
+    }
     // ADR-485 D1 — THE defect this ADR exists for. This divided by the frame's
     // BORDER box while the kernel's width: var(--yw) multiplies by its
     // CONTENT box, so a member who dragged to the true edge committed
@@ -3083,7 +3182,7 @@ const GUTTER_SCRIPT = `
       box.appendChild(h);
       bindGesture(h, function () { return selBlock; }, {
         axis: 'xy',
-        onStart: function (block) { previewContext(block); },
+        onStart: function (block) { captureGroupResize(block); previewContext(block); },
         onMove: function (block, ev) { resizeMove(block, ev, side); },
         onEnd: function (block, moved) { resizeEnd(block, moved, side); },
       });
