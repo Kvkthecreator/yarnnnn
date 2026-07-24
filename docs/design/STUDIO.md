@@ -72,6 +72,42 @@ That was live: five arrangements (deck `title`/`section-header`/`closing`, page 
 
 *Naming caution:* `heading` currently names three different things — a slot name, a slot role, and a block kind. Disambiguating the vocabulary is unresolved; until then, read the position, not the word.
 
+### Who owns width — the layer rule *(decided 2026-07-24)*
+
+> **The arrangement owns REGION geometry. The block owns its own width WITHIN a region. A slot has no size of its own.**
+
+**A slot takes no size token, and should not gain one.** `data-size` (`applies: ["block"]`) is a block property; a slot's width is already determined structurally by its arrangement, which is what an arrangement *is*:
+
+| Slot | Width | Owner |
+|---|---|---|
+| `heading` on a title slide | the full slide (992px measured) | block flow |
+| `main` + `side` on two-column | an even split (476 / 476) | `[data-arrange] .col { flex: 1 }` |
+| the same, re-weighted | 2:1 or 1:2 | the `ratio` token |
+
+Adding a size token to the slot layer would put a second width mechanism against a working one, and when two mechanisms disagree the higher-specificity rule wins **silently** — which is exactly the failure that made `Fill` render as `Auto` (kernel v12). *If per-slot width control is ever wanted, the correct move is more `ratio` values on the arrangement, never a size token on the slot.*
+
+This matches the convention rather than inventing one: a PowerPoint placeholder's size comes from its layout master, and Figma's Hug/Fill lives on the object while auto-layout owns the region. **Neither Hug nor Fill is the right slot default — the concept does not belong at that layer.** The block default stays *absence* (the flow's natural width), the same convention every token uses.
+
+### `paged` composes by REGION; `flow` composes by SEQUENCE *(2026-07-24)*
+
+The document type is not a simpler deck. It is a different object model, and the difference is structural rather than a matter of degree:
+
+| | document / article (`flow`) | deck / page (`paged`) |
+|---|---|---|
+| Arrangements | **0** | 11 / 6 |
+| Slots in the scaffold | **0** | 2 / 2 |
+| Objects that exist | root · block | root · page · slot · block |
+| Property tokens reachable | 6 | 13 |
+| Measures reachable | `w`/`h`, media only | all five, incl. `x`/`y`/`z` |
+
+**Two of the four objects do not exist on a document at all.** ADR-481 D1 made flow scaffolds flat, so a document has no page unit and no slot — which means everything in the slot contract above (declared-vs-shipped, the role ladder, re-arrange distribution) is **`paged`-only by construction**, not by suppression.
+
+A slide answers *where on the frame*; a document answers *what comes next*. **Region questions — slots, arrangements, position, ratio — are meaningless in a sequence**, and the code already refuses them by derivation. This one sentence predicts every asymmetry in this doc: why slots are paged-only, why `x`/`y`/`z` are `block-staged`, why `measure` (the reading column) is `document-flow`, why the navigator is a slide-strip on one and an outline on the other.
+
+**The single deliberate crossover is MEDIA.** `w`/`h` apply to `media` blocks *anywhere*, a document included, because an image carries an intrinsic ratio that is its own frame (ADR-461 D4). So a document has exactly one island of geometry — and that island is the boundary to watch, because it is where a "let it resize here too" request will arrive. The refusal that keeps `flow` from acquiring a coordinate space is ADR-461 D4's: **a slide has a frame, a page has a viewport.**
+
+**Therefore, deliberately NOT built**: a slot size token · arrangements on `flow` · a unified inspector across the two modes. Each would fuse a seam the code currently keeps clean.
+
 ### The `applies` vocabulary — one string doing two fields' work
 
 The kernel gates every property token by an `applies` value (`STUDIO_TOKENS[*]['applies']`, served on `GET /studio/vocabulary`). All ten values decompose the same way — **an object × an optional condition**:
