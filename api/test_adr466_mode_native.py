@@ -196,12 +196,17 @@ def run() -> bool:
         "`" not in proj.split("const GUTTER_SCRIPT = `", 1)[1].split("`;", 1)[0],
     )
 
-    # ── D6: Export in the Properties document scope ──────────────────────
+    # ── D6: the boundary projections (relocated 2026-07-24: Export lives
+    #    beside Share as HEADER verbs — StudioShareExport, right of zoom —
+    #    and the Properties pane no longer mounts either) ──────────────────
+    share_export = (web / "components/studio/StudioShareExport.tsx").read_text()
     _check(
-        "Export lives beside Share (print + AI reference, one settings home)",
-        "exportVerbs" in design
-        and "Print / PDF" in design
-        and "Copy AI reference" in design,
+        "Export lives beside Share in the header cluster (print + AI reference)",
+        "Print / PDF" in share_export
+        and "Copy AI reference" in share_export
+        and "<StudioShareExport" in surface
+        and "exportVerbs" not in design
+        and "Print / PDF" not in design,
     )
     _check(
         "print export is a PROJECTION over the one resolver (no render engine)",

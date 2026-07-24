@@ -116,22 +116,9 @@ interface StudioDesignTabProps {
     rename: () => void;
     move: () => void;
     trash: () => void;
-    /** ADR-437 D4 / ADR-465: mint a /s/{token} share link for this artifact and
-     *  copy it. Resolves on success, rejects on failure (the tab surfaces the
-     *  transient copied/error state). Runs in the parent (artifactPath + api). */
-    share: () => Promise<void>;
   };
-  /** ADR-466 D6 — the boundary projections: Print/PDF (the browser's print
-   *  over the resolved projection) + the AI reference (the interop-face
-   *  handle). Both run in the parent. */
-  exportVerbs: {
-    print: () => void;
-    copyAiRef: () => Promise<void>;
-    /** ADR-475 §13 — the IMAGES app's raster projection (rasterize the stage,
-     *  download a PNG). Present only for IMAGES; undefined for Studio, whose
-     *  boundary projection is Print/PDF. */
-    exportPng?: () => Promise<void>;
-  };
+  /* Share + export verbs left this pane (2026-07-24) — they are header acts
+   * now (StudioShareExport, right of zoom). */
 }
 
 /** One token family as a segmented control. "Auto" is the default (absence —
@@ -284,7 +271,6 @@ export function StudioDesignTab({
   onSetPageBackground,
   onRemovePageBackground,
   fileVerbs,
-  exportVerbs,
 }: StudioDesignTabProps) {
   const doc = useMemo(() => {
     if (typeof window === 'undefined' || !html) return null;
@@ -531,54 +517,9 @@ export function StudioDesignTab({
     }
   };
 
-  // ── Share (ADR-437 D4 wedge, surfaced in the Properties document scope) ────
-  // The mint-and-copy runs in the PARENT (fileVerbs.share) where artifactPath +
-  // api live, matching the file-verb threading. This holds only the button's
-  // transient copied/error state. Distinct from fileVerbs.copyLink (the in-app
-  // member deep-link): a share link makes the recipient a broad member of the
-  // commons on accept (the Figma default, ADR-437 D4.2 / ADR-465 D3).
-  const [sharing, setSharing] = useState(false);
-  const [shareState, setShareState] = useState<'idle' | 'copied' | 'error'>('idle');
-  const runShare = useCallback(async () => {
-    setSharing(true);
-    setShareState('idle');
-    try {
-      await fileVerbs.share();
-      setShareState('copied');
-    } catch {
-      setShareState('error');
-    } finally {
-      setSharing(false);
-    }
-  }, [fileVerbs]);
-
-  // ── Export (ADR-466 D6): the AI-reference copy's transient receipt ──────
-  const [aiRefState, setAiRefState] = useState<'idle' | 'copied'>('idle');
-  const runCopyAiRef = useCallback(async () => {
-    try {
-      await exportVerbs.copyAiRef();
-      setAiRefState('copied');
-      setTimeout(() => setAiRefState('idle'), 2500);
-    } catch {
-      /* clipboard denied — nothing durable failed */
-    }
-  }, [exportVerbs]);
-
-  // ── Raster export (ADR-475 §13, IMAGES only): rasterizing is real work
-  // (resolve → re-inline → snapshot), so the button shows a working state and
-  // surfaces a failure rather than silently doing nothing. ─────────────────
-  const [pngState, setPngState] = useState<'idle' | 'working' | 'error'>('idle');
-  const runExportPng = useCallback(async () => {
-    if (!exportVerbs.exportPng) return;
-    setPngState('working');
-    try {
-      await exportVerbs.exportPng();
-      setPngState('idle');
-    } catch {
-      setPngState('error');
-      setTimeout(() => setPngState('idle'), 3000);
-    }
-  }, [exportVerbs]);
+  // Share + Export left this pane (2026-07-24) — they are header verbs now
+  // (StudioShareExport, right of zoom): document-global boundary acts, not
+  // shaping properties. Their transient states moved with them.
 
   // ── Slot scope: role-gated quick-add (media → the image picker) ─────────
   const slotRole = useMemo(() => {
@@ -602,10 +543,11 @@ export function StudioDesignTab({
   return (
     <div className="flex-1 overflow-y-auto text-sm">
       {/* ── The artifact head — EVERY scope, every template ──────────────
-          File / Share / Export are document-global acts; scope-gating them
-          under "nothing selected" hid them exactly when the member was
-          working a section ("share/export … seems to have in deck … but not
-          here"). That mode-invariance is preserved exactly.
+          The File verbs are document-global acts; scope-gating them under
+          "nothing selected" hid them exactly when the member was working a
+          section ("share/export … seems to have in deck … but not here").
+          That mode-invariance is preserved exactly. Share + Export moved to
+          the header cluster (StudioShareExport, 2026-07-24).
 
           ADR-482 D6: the panel is ordered by SCOPE — outermost first. This
           block was the tail, so a block selection read HEADING · T1 → WIDTH →
@@ -642,74 +584,8 @@ export function StudioDesignTab({
               </button>
             </div>
           </div>
-          {/* Share (ADR-437 D4 wedge / ADR-465 — the membership act, distinct
-              from Copy link's in-app member deep-link). A share link makes the
-              recipient a member of this workspace on accept. */}
-          <div className={SECTION}>
-            <p className={HEADING}>Share</p>
-            <button
-              type="button"
-              className={askBtn}
-              onClick={runShare}
-              disabled={sharing}
-              title="Create a link that lets someone open this artifact and join your workspace"
-            >
-              {sharing ? 'Creating link…' : shareState === 'copied' ? 'Link copied ✓' : 'Share…'}
-            </button>
-            <p className="text-[10px] leading-snug text-muted-foreground">
-              {shareState === 'error'
-                ? 'Could not create the share link. Try again.'
-                : shareState === 'copied'
-                  ? 'Anyone with the link can open this and join your workspace with full access. Manage or revoke shares from Files.'
-                  : 'Creates a link. Whoever opens it joins your workspace with full access — narrow it later.'}
-            </p>
-          </div>
-          {/* Export (ADR-466 D6) — the boundary projections. Print/PDF is the
-              browser's print over the resolved projection (no render engine,
-              ADR-417); the AI reference is the interop-face handle (recall/
-              trace via the yarnnn connector) — the third way out, beside the
-              member deep-link (Copy link) and the membership link (Share). */}
-          <div className={SECTION}>
-            <p className={HEADING}>Export</p>
-            <div className="flex flex-wrap gap-1">
-              {exportVerbs.exportPng && (
-                <button
-                  type="button"
-                  className={askBtn}
-                  onClick={runExportPng}
-                  disabled={pngState === 'working'}
-                  title="Rasterize this stage and download it as a PNG"
-                >
-                  {pngState === 'working'
-                    ? 'Rendering…'
-                    : pngState === 'error'
-                      ? 'Export failed — retry'
-                      : 'Download PNG'}
-                </button>
-              )}
-              <button
-                type="button"
-                className={askBtn}
-                onClick={exportVerbs.print}
-                title="Open the print dialog over the rendered artifact — save as PDF from there"
-              >
-                Print / PDF…
-              </button>
-              <button
-                type="button"
-                className={askBtn}
-                onClick={runCopyAiRef}
-                title="Copy a reference any connected AI can use to recall this artifact via the yarnnn connector"
-              >
-                {aiRefState === 'copied' ? 'Reference copied ✓' : 'Copy AI reference'}
-              </button>
-            </div>
-            <p className="text-[10px] leading-snug text-muted-foreground">
-              {exportVerbs.exportPng
-                ? 'The PNG is a flat projection — the composition stays the source (trace walks its layers). A deck prints one slide per page.'
-                : 'A deck prints one slide per page. Markdown export arrives with the interchange wave (ADR-456 W4).'}
-            </p>
-          </div>
+          {/* Share + Export moved to the header (StudioShareExport, right of
+              zoom, 2026-07-24) — boundary acts, not shaping properties. */}
       </>
       {/* ── DOCUMENT scope ─────────────────────────────────────────────── */}
       {scope === 'document' && (

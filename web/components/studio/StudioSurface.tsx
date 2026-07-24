@@ -54,6 +54,7 @@ import {
   type StudioVocabulary,
 } from './StudioToolbar';
 import { StudioDesignTab, type StructVerb } from './StudioDesignTab';
+import { StudioShareExport } from './StudioShareExport';
 import { StudioNavigator } from './StudioNavigator';
 import {
   applyArrangement,
@@ -2308,6 +2309,16 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 +
               </button>
             </div>
+            {/* The boundary acts (2026-07-24) — Share/Export left the
+                Properties pane for the header, right of zoom: document-global
+                verbs with their own anchored panels (the StudioToolbar popover
+                grammar). The Properties sections are deleted, not mirrored. */}
+            <StudioShareExport
+              share={shareArtifact}
+              print={() => void exportPrint()}
+              copyAiRef={copyAiReference}
+              exportPng={app.slug === 'images' ? exportPng : undefined}
+            />
           </div>
           {opError && (
             <p className="border-b border-border bg-red-50 px-3 py-1 text-[11px] text-red-700 dark:bg-red-950/30 dark:text-red-300">
@@ -2552,14 +2563,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   organizeVerbs.onMove({ path: artifactPath, name: artifactDisplayName }),
                 trash: () =>
                   organizeVerbs.onDelete({ path: artifactPath, name: artifactDisplayName }),
-                share: shareArtifact,
-              }}
-              exportVerbs={{
-                print: () => void exportPrint(),
-                copyAiRef: copyAiReference,
-                // PNG export is the IMAGES app's raster projection (ADR-475
-                // §13); Studio keeps Print/PDF only.
-                exportPng: app.slug === 'images' ? exportPng : undefined,
               }}
             />
           )}
