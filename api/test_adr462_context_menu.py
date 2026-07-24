@@ -125,13 +125,17 @@ def main() -> bool:
         ".yarnnn-selbox {" in proj
         and "outline: 1px solid rgba(60,58,54,0.5) !important" in proj,
     )
+    # (Re-pinned 2026-07-24: ADR-482 D4 collapsed the six #6366f1 literals into
+    #  ONE --yarnnn-chrome-accent declaration — the accent survives, var-form.)
     _check(
         "the EDITING state keeps its accent (typing-into-this is a different fact)",
-        "[data-block][contenteditable=\"true\"] {\n  outline: 2px solid #6366f1" in proj,
+        '[data-block][contenteditable="true"] {\n  outline: 2px solid var(--yarnnn-chrome-accent)'
+        in proj,
     )
     _check(
         "transient gesture chrome keeps its accent (drop-line = a prediction)",
-        "background: #6366f1;\n  border-radius: 2px; pointer-events: none;" in proj,
+        "background: var(--yarnnn-chrome-accent);\n  border-radius: 2px; pointer-events: none;"
+        in proj,
     )
 
     print("\n── D8: the frame is NAMED while it is being measured against ──")
@@ -168,8 +172,8 @@ def main() -> bool:
         "meter &&" in menu and ">\n          AI\n        </span>" in menu,
     )
     _check(
-        "BOTH AI rows are badged (meter passed, not decorative)",
-        menu.count("meter>\n") == 2,
+        "ALL THREE AI rows are badged (meter passed, not decorative)",
+        menu.count("meter>\n") == 3,
     )
     _check(
         "no free row carries a badge (silence is the signal)",
@@ -184,17 +188,24 @@ def main() -> bool:
         "Write with AI" in menu,
     )
 
-    print("\n── D6: two AI verbs, and the seed is a sentence not a button ──")
+    print("\n── D6: the AI verbs — a seed is a sentence not a button ──")
+    # (Amended 2026-07-24: THREE verbs. Rewrite + Check stay the only EDIT
+    #  verbs — shorter/expand remain banned as rewrites-with-an-adjective.
+    #  "Ask about this…" joined when the Properties block-verb section was
+    #  deleted, leaving this menu as the act's only mount. It is a distinct
+    #  act (an open question, not an edit instruction), so D6's reasoning —
+    #  no pre-typed adjectives — is preserved, not violated.)
     _check(
-        "exactly TWO AI verbs — Rewrite + Check (shorter/expand were rewrites "
-        "with a pre-typed adjective)",
-        "Rewrite…" in menu and "Check this…" in menu
+        "three AI verbs — Rewrite + Check + Ask (no rewrites-with-adjectives)",
+        "Rewrite…" in menu and "Check this…" in menu and "Ask about this…" in menu
         and "Make shorter" not in menu and "Expand this" not in menu,
     )
     _check(
-        "both SEED the composer and send nothing",
+        "all three SEED the composer and send nothing",
         "seedComposer(`Rewrite the ${kind} block" in surface
-        and "seedComposer(`Check the ${kind} block" in surface,
+        and "seedComposer(`Check the ${kind} block" in surface
+        and "onAsk={askAboutSelection}" in surface
+        and "seedComposer(`About the ${kind} block" in surface,
     )
     _check(
         "neither AI row calls a send path (the member presses enter)",

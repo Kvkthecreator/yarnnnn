@@ -519,7 +519,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
 
   // The explicit ask (replaces the auto-seed): the member chose to bring the
   // selection to the lane — one seed, on purpose, in operator words. Lives in
-  // the Design tab (ADR-453 D4); it flips back to Chat so the seed is seen.
+  // the right-click menu's AI group (relocated 2026-07-24 when the Properties
+  // block-verb section was deleted); it flips back to Chat so the seed is seen.
   const askAboutSelection = useCallback(() => {
     if (!selection) return;
     const s = selection;
@@ -2439,6 +2440,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   }}
                   onRewrite={menuRewrite}
                   onCheck={menuCheck}
+                  // The open question, relocated from the deleted Properties
+                  // block-verb section (2026-07-24) — same seed, same flip to
+                  // Chat; the menu is its only mount now.
+                  onAsk={askAboutSelection}
                   onCopyLink={menuCopyBlockLink}
                   onHistory={menuHistory}
                 />
@@ -2538,13 +2543,11 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               html={file?.content ?? ''}
               selection={selection}
               onSetToken={handleSetToken}
-              onBlockVerb={handleBlockVerb}
               onPageVerb={handlePageVerb}
               onTurnInto={handleTurnInto}
               onReturnToFlow={handleReturnToFlow}
               measures={vocabulary?.measures ?? []}
               onClearMeasure={handleClearMeasure}
-              onAskAboutSelection={askAboutSelection}
               onApplyDesignSystem={handleApplyDesignSystem}
               onRemoveDesignSystem={handleRemoveDesignSystem}
               onAddTextInSlot={insertProseInSlot}

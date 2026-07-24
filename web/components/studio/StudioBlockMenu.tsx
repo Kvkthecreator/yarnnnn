@@ -23,7 +23,7 @@
 import { useEffect, useState } from 'react';
 import {
   Copy, ClipboardPaste, CopyPlus, Trash2, Type,
-  ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, ChevronRight, Sparkles, SearchCheck, Link2, History,
+  ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, ChevronRight, MessageSquare, Sparkles, SearchCheck, Link2, History,
 } from 'lucide-react';
 import type { StudioContextTarget } from './StudioCanvas';
 import { TURN_INTO_KINDS } from './StudioDesignTab';
@@ -54,9 +54,15 @@ export interface StudioBlockMenuProps {
    *  gates the rows; nudgeZ backstops the op side). */
   onBringForward: () => void;
   onBringBackward: () => void;
-  /** Metered (D6): both SEED the composer and send nothing. */
+  /** Metered (D6): each SEEDS the composer and sends nothing. `onAsk` is the
+   *  open question (relocated here 2026-07-24 when the Properties block-verb
+   *  section was deleted — this menu became its only mount): it seeds "About
+   *  the ‹kind› block…" with the selection's id + text and flips to Chat. Not
+   *  a rewrite-with-an-adjective, so it does not violate D6's two-verb
+   *  reasoning — it is the third DISTINCT act, an ask rather than an edit. */
   onRewrite: () => void;
   onCheck: () => void;
+  onAsk: () => void;
   /** The two rows no reference can ship (D3) — a block has an address, and the
    *  revision chain joins by that same id. */
   onCopyLink: () => void;
@@ -122,7 +128,7 @@ const ICO = 'h-3.5 w-3.5';
 
 export function StudioBlockMenu({
   target, onClose, onCopy, onPaste, onDuplicate, onDelete,
-  onTurnInto, blocks, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck,
+  onTurnInto, blocks, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck, onAsk,
   onCopyLink, onHistory, mode, hasClipboard,
 }: StudioBlockMenuProps) {
   const [turnOpen, setTurnOpen] = useState(false);
@@ -302,6 +308,11 @@ export function StudioBlockMenu({
           </Row>
           <Row icon={<SearchCheck className={ICO} />} onClick={() => run(onCheck)} meter>
             Check this…
+          </Row>
+          {/* The open question — the third distinct act (see the prop doc):
+              seeds the selection reference and flips to Chat. */}
+          <Row icon={<MessageSquare className={ICO} />} onClick={() => run(onAsk)} meter>
+            Ask about this…
           </Row>
           {SEP}
           <div className="px-2 pb-[3px] pt-[6px] text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">

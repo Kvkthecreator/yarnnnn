@@ -245,14 +245,20 @@ def run() -> bool:
     _check("surface: selection no longer auto-seeds the composer (spam killed)",
            "no longer auto-seed" in surface.lower()
            and "seedComposer(`Selected the" not in surface)
-    # ADR-453: the selection's VERBS moved from the toolbar chip to the Design
-    # tab (the chip stays as identity + clear); the explicit-ask survives there.
+    # ADR-453 moved the selection's VERBS to the Design tab; 2026-07-24 moved
+    # them OUT again — the block verb row (Ask/Duplicate/Up/Down/Delete + the
+    # double-click hint) is deleted from the pane: the right-click menu +
+    # block keyboard are the entrances, and the explicit-ask relocated into
+    # the menu's AI group (its only mount). The pane keeps shaping only.
     design_tab = (repo / "web/components/studio/StudioDesignTab.tsx").read_text()
     _check("surface: explicit 'Ask about this' affordance replaces the auto-seed",
-           "askAboutSelection" in surface and "onAskAboutSelection" in design_tab)
-    _check("Design tab: Ask-about-this verb; toolbar Edit button stays DELETED",
-           "Ask about this" in design_tab and "onToggleEdit" not in menu
-           and "Double-click the block" in design_tab)
+           "askAboutSelection" in surface and "onAsk={askAboutSelection}" in surface)
+    block_menu = (repo / "web/components/studio/StudioBlockMenu.tsx").read_text()
+    _check("Ask-about-this lives in the MENU; the pane's block verb row is gone",
+           "Ask about this…" in block_menu and "onToggleEdit" not in menu
+           and "Ask about this" not in design_tab
+           and "onBlockVerb" not in design_tab
+           and "Double-click the block" not in design_tab)
     _check("canvas: renders in edit mode + forwards edit commits",
            "editingBlockId" in surface
            and "yarnnn-edit" in (repo / "web/components/studio/StudioCanvas.tsx").read_text())

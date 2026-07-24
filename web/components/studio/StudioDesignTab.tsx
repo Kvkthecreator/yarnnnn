@@ -14,9 +14,11 @@
  *    arrangements) + Duplicate / Move / Delete.
  *  - a slot → SLOT scope: name + role, and the role-gated quick-add (flow →
  *    a text block; media → the workspace image picker).
- *  - a block → BLOCK scope: block tokens (align/tone; media blocks add
- *    height/fit) + Ask about this (the one judgment bridge) + Duplicate /
- *    Move / Delete + the double-click-to-edit hint.
+ *  - a block → BLOCK scope: SHAPING only — Turn into + block tokens
+ *    (align/tone; media blocks add height/fit) + measures. The verb row
+ *    (ask / duplicate / move / delete) left the pane 2026-07-24: the
+ *    right-click menu + block keyboard are the entrances, and the
+ *    ask-about act relocated into the menu's AI group.
  *
  * Everything here EXECUTES deterministic ops through the surface's applyOp
  * (the one CAS door) — tokens, not pixels (ADR-453 D1); current values are
@@ -32,7 +34,6 @@ import {
   FolderInput,
   Link2,
   Loader2,
-  MessageSquare,
   MoreHorizontal,
   Palette,
   Pencil,
@@ -76,7 +77,9 @@ interface StudioDesignTabProps {
   /** EXECUTE: set (value) / clear (null) a token on the selected block/page,
    *  or on the artifact ROOT (document grain — ADR-455). */
   onSetToken: (grain: 'block' | 'page' | 'document', key: string, value: string | null) => void;
-  onBlockVerb: (verb: StructVerb) => void;
+  /** Page verbs only — the BLOCK verb row left this pane (2026-07-24; the
+   *  right-click menu + block keyboard are the entrances). Page verbs stay:
+   *  duplicate-page has no other mount (the navigator covers delete/reorder). */
   onPageVerb: (verb: StructVerb) => void;
   /** EXECUTE: turn the selected block into another TEXT kind (ADR-456 W2 —
    *  convertBlock: id + tokens survive, text units rebuilt into the target). */
@@ -91,8 +94,6 @@ interface StudioDesignTabProps {
   /** ADR-485 follow-on: reset a size measure to Auto (the absence-default) — the
    *  read-back's clear affordance, since the drag is the authoring path. */
   onClearMeasure: (key: 'w' | 'h') => void;
-  /** Seed the lane with the selection and flip to the Chat tab. */
-  onAskAboutSelection: () => void;
   /** EXECUTE: apply a design system's composed skin element (resolve + write). */
   onApplyDesignSystem: (manifestPath: string) => Promise<void>;
   /** EXECUTE: remove the marked skin element. */
@@ -267,13 +268,11 @@ export function StudioDesignTab({
   html,
   selection,
   onSetToken,
-  onBlockVerb,
   onPageVerb,
   onTurnInto,
   onReturnToFlow,
   measures,
   onClearMeasure,
-  onAskAboutSelection,
   onApplyDesignSystem,
   onRemoveDesignSystem,
   onImported,
@@ -1012,34 +1011,17 @@ export function StudioDesignTab({
       )}
 
       {/* ── BLOCK scope ────────────────────────────────────────────────── */}
+      {/* The identity/verb section (kind · id, the ask-about act, duplicate/
+          up/down/delete, the double-click hint) is DELETED (2026-07-24):
+          every verb already had a faster mouse entrance — the right-click
+          menu (mode-gated, ADR-462) and the block keyboard (⌫/⌘C/⌘D/⌘V,
+          ADR-477) — and editing is double-click on the canvas itself. The
+          ask-about act relocated to the right-click menu (its only remaining
+          mount). The pane keeps what only it can do: SHAPING (Turn into ·
+          tokens · measures). The canvas selection box is the scope
+          indicator. */}
       {scope === 'block' && (
         <>
-          <div className={SECTION}>
-            {/* The id is an IDENTIFIER, not a heading level — but this row is
-                uppercased, so `heading · t1` rendered as "HEADING · T1", which
-                reads exactly like Word/PowerPoint's "Heading 1". Two different
-                concepts, one string, and the block model has no h-levels at
-                all (h1/h2/kicker are all data-block="heading"; the TAG carries
-                the level). Keep the id lowercase and mark it as an id so the
-                misreading has no surface to land on. */}
-            <p className={HEADING}>
-              {selection?.blockKind ?? 'block'}
-              {selection?.blockId ? (
-                <span className="normal-case text-muted-foreground/70">
-                  {' '}· id {selection.blockId}
-                </span>
-              ) : null}
-            </p>
-            <div className="flex flex-wrap gap-1">
-              <button type="button" className={askBtn} onClick={onAskAboutSelection}>
-                <MessageSquare className="h-3 w-3" /> Ask about this
-              </button>
-            </div>
-            <VerbRow noun="block" onVerb={onBlockVerb} />
-            <p className="text-[10px] text-muted-foreground">
-              Double-click the block on the canvas to edit its text in place.
-            </p>
-          </div>
           {/* Turn into (ADR-456 W2) — text kinds only; the id and tokens
               survive the conversion (a block with a citation refuses). */}
           {selection?.blockKind && TURN_INTO_KINDS.includes(selection.blockKind) && (
