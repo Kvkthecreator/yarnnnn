@@ -323,7 +323,8 @@ export function normalizeBlockIds(doc: Document, region: Element): number {
  *  What differs from `editBlockText` is only the size of the region and the
  *  normalize pass that follows it.
  *
- *  Returns null (no revision) when the region is gone or byte-identical. */
+ *  Returns null (no revision) when the region is gone, byte-identical, or
+ *  would ANNIHILATE a non-empty document (see the guard below). */
 export function editFlowRegion(
   html: string,
   regionSelector: string,
@@ -334,6 +335,33 @@ export function editFlowRegion(
   if (!region) return null;
   const sanitized = sanitizeInner(doc, newInner);
   if (region.innerHTML === sanitized) return null; // no-op — no revision
+
+  // THE ANNIHILATION GUARD. Unlike `editBlockText`, which replaces ONE block,
+  // this replaces the WHOLE document body — so the blast radius of a bad
+  // `newInner` is the entire artifact, and it lands as a durable revision.
+  //
+  // The trigger is never a deliberate act. `flowCommit` fires from three
+  // AUTOMATIC sources (projection.ts): idle-2s, a capture-phase `blur` on the
+  // root, and `beforeunload`. Each reads the live DOM at whatever instant it
+  // happens to run — including mid-teardown, when the root can already be
+  // detached or emptied. A member who genuinely wants an empty document
+  // deletes the blocks (an explicit op, undoable); nothing about "the region
+  // read empty during a blur" carries that intent.
+  //
+  // So: refuse to be the write that takes a document from HAVING content to
+  // having NONE. Emptiness is judged by ANNOTATED BLOCKS, not raw text —
+  // contenteditable leaves `<br>` and stray whitespace behind on a select-all
+  // delete, and a `<br>`-only body is exactly as destroyed as an empty one
+  // (proven: empty / whitespace / `<br>` all reduced a live 4-block document
+  // to 0 blocks). A document that was ALREADY block-empty is untouched by this
+  // rule — it has nothing to lose, and this must not freeze a blank artifact.
+  const hadBlocks = region.querySelectorAll('[data-block]').length > 0;
+  if (hadBlocks) {
+    const probe = doc.createElement('div');
+    probe.innerHTML = sanitized;
+    if (probe.querySelectorAll('[data-block]').length === 0) return null;
+  }
+
   region.innerHTML = sanitized;
   normalizeBlockIds(doc, region);
   return { html: serialize(doc), landedId: null };
