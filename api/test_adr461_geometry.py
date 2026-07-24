@@ -68,6 +68,35 @@ def run() -> bool:
             f'[data-size="{v["value"]}"]' in STUDIO_KERNEL_CSS,
         )
 
+    # The check above only proves a SELECTOR EXISTS, and that is not the same as
+    # the value being visible. Fill shipped with `width: 100%` and still rendered
+    # identically to Auto on every heading and paragraph in a deck, because the
+    # skin's reading measure (`.slide h1 { max-width: 34rem }`, specificity
+    # (0,1,1)) outranked it (0,1,0) and clamped the width straight back. Two
+    # inspector states, one box — the exact defect ADR-461 B1 deleted from
+    # `align`. A width that cannot exceed the measure is not a width.
+    _check(
+        "Fill DEFEATS the grain's reading measure (else it renders as Auto)",
+        '.slide [data-size="fill"] { max-width: none; }' in STUDIO_KERNEL_CSS,
+    )
+    # ...and the override must stay scoped to the frame. On document/article the
+    # measure IS the grain (ADR-455), so an unscoped `max-width: none` would
+    # blow out prose everywhere to fix a deck.
+    _check(
+        "that override is FRAME-SCOPED (the document grain keeps its measure)",
+        '[data-size="fill"] { max-width: none; }' not in STUDIO_KERNEL_CSS.replace(
+            '.slide [data-size="fill"] { max-width: none; }', ""
+        ),
+    )
+    # Hug + align: `text-align` moves text INSIDE a box; a box that hugs its own
+    # text has no inside left to move, so aligning a hugged block did nothing
+    # until the margin act existed. Width and align meet here or not at all.
+    for al, decl in (("center", "margin-inline: auto"), ("end", "margin-inline-start: auto")):
+        _check(
+            f"a hugged block can be aligned '{al}' (a box moves by margin, not text-align)",
+            f'[data-size="hug"][data-align="{al}"] {{ {decl}; }}' in STUDIO_KERNEL_CSS,
+        )
+
     # ── D2: one gesture primitive ──────────────────────────────────────────
     print("\n-- D2: gestures compose ops, never a second write path --")
     _check(

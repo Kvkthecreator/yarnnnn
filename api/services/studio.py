@@ -934,6 +934,23 @@ div[data-block="gallery"] figcaption { font-size: var(--text-xs, 0.75rem); }
    than a fourth value on this row. Absence = the flow's own width. */
 [data-size="hug"] { width: fit-content; max-width: 100%; }
 [data-size="fill"] { width: 100%; }
+/* Fill has to BEAT the grain's reading measure, or it is not a width at all.
+   The deck skin caps prose for legibility (`.slide h1 { max-width: 34rem }`,
+   `.slide p { max-width: 36rem }`) — specificity (0,1,1), which outranks the
+   (0,1,0) row above. So `width: 100%` computed, then max-width clamped it
+   straight back to 34rem: on the two most common blocks in a deck, Fill and
+   Auto rendered the SAME BOX. Two inspector states, one visual result — the
+   exact bug ADR-461 B1 removed from `align`, in the row next door.
+   Measured (992px slide, 64px pad, inner 864): h1 auto 544 / fill 544 → 864.
+   Scoped `.slide` (0,2,0) so it wins where the cap is set, and stays out of
+   document/article/page, whose measure is the whole point of the grain. */
+.slide [data-size="fill"] { max-width: none; }
+/* A hugged box is only as wide as its text, so `text-align` — which aligns the
+   text INSIDE the box — has nothing left to move. Aligning it is a margin act.
+   Without this, Hug + Center sat flush left (measured l=64, the bare padding),
+   which reads as "align is broken" when it is width and align meeting. */
+[data-size="hug"][data-align="center"] { margin-inline: auto; }
+[data-size="hug"][data-align="end"] { margin-inline-start: auto; }
 /* MEASURES (ADR-461 D4) — the one axis the token model gains: a property whose
    MECHANISM is pre-declared here but whose VALUE rides in the element. Two
    rules, any value — which is exactly why this preserves the invariant that
@@ -1057,6 +1074,17 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 # pre-declares every selector it matches. Deck + media only: a slide has a
 # frame, a page has a viewport.
 #
+# v12 (2026-07-24, ADR-461 D1 follow-on): Fill actually fills, and a hugged
+# block can be aligned. `[data-size="fill"]` set width:100% but the deck skin's
+# reading measure (`.slide h1 { max-width: 34rem }`) has HIGHER specificity, so
+# the clamp won and Fill rendered identically to Auto on headings and prose —
+# the two most common blocks on a slide. Scoped `.slide [data-size="fill"]
+# { max-width: none }` beats it where the cap lives, without touching the
+# document grain, where the measure is the feature. Second half: `text-align`
+# can't move a box that hugs its own text, so Hug + Center sat flush left;
+# `margin-inline: auto` is the box-level act that token was always asking for.
+# The bump is what carries both to decks already built.
+#
 # v11 (2026-07-20, ADR-471 D-d): the `z` stacking rule —
 # `.slide [data-block][data-z] { z-index: var(--yz, auto) }`. The bump is what
 # lights stacking up in every existing deck's positioned blocks, not only new
@@ -1075,7 +1103,7 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 # layout. A pre-ADR-444 deck's baked skin has no `.slide .cols`, and the
 # kernel's `:not(.slide)` rule excluded it, so its two-column slides stacked
 # silently. Bumping the version is what makes the retrofit reach them.
-STUDIO_KERNEL_CSS_VERSION = 11
+STUDIO_KERNEL_CSS_VERSION = 12
 
 
 def compose_kernel_style_element() -> str:
