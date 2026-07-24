@@ -2554,16 +2554,16 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               fileVerbs={{
                 copyLink: copyArtifactLink,
                 duplicate: () => void duplicateArtifact(),
-                // Rename focuses the CRUMB rather than opening the shared
-                // leaf-rename modal: the artifact's name is its meaning folder,
-                // and the crumb is where that name is shown. One rename path,
-                // and the menu teaches where the name lives (the Finder model).
-                rename: () => setRenaming(true),
                 move: () =>
                   organizeVerbs.onMove({ path: artifactPath, name: artifactDisplayName }),
                 trash: () =>
                   organizeVerbs.onDelete({ path: artifactPath, name: artifactDisplayName }),
               }}
+              // The File card renames IN PLACE (double-click the name) through
+              // the SAME commit the crumb uses — one derivation (ADR-483), one
+              // write path, two entry fields (the Finder: sidebar + Get Info).
+              artifactName={artifactDisplayName}
+              onRenameCommit={commitRename}
             />
           )}
         </div>

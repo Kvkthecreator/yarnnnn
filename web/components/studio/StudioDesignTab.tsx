@@ -29,9 +29,13 @@ import {
   ArrowUp,
   Check,
   Copy,
+  FolderInput,
+  Link2,
   Loader2,
   MessageSquare,
+  MoreHorizontal,
   Palette,
+  Pencil,
   Trash2,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
@@ -41,6 +45,7 @@ import {
   type StudioToken,
   type StudioVocabulary,
 } from './StudioToolbar';
+import { studioShapeStyle } from './studioShapes';
 
 export type StructVerb = 'duplicate' | 'up' | 'down' | 'delete';
 
@@ -113,10 +118,16 @@ interface StudioDesignTabProps {
   fileVerbs: {
     copyLink: () => void;
     duplicate: () => void;
-    rename: () => void;
     move: () => void;
     trash: () => void;
   };
+  /** The artifact's display name (the surface's ONE derivation, ADR-483) —
+   *  shown as the File card's identity line. */
+  artifactName: string;
+  /** Commit a rename — the surface's `commitRename`, the SAME one commit path
+   *  the crumb uses. The card owns only the inline input; the write, the
+   *  path-follow and the error surface all live in the parent. */
+  onRenameCommit: (next: string) => void | Promise<void>;
   /* Share + export verbs left this pane (2026-07-24) — they are header acts
    * now (StudioShareExport, right of zoom). */
 }
@@ -271,6 +282,8 @@ export function StudioDesignTab({
   onSetPageBackground,
   onRemovePageBackground,
   fileVerbs,
+  artifactName,
+  onRenameCommit,
 }: StudioDesignTabProps) {
   const doc = useMemo(() => {
     if (typeof window === 'undefined' || !html) return null;
@@ -521,6 +534,45 @@ export function StudioDesignTab({
   // (StudioShareExport, right of zoom): document-global boundary acts, not
   // shaping properties. Their transient states moved with them.
 
+  // ── The File card (2026-07-24 re-presentation of ADR-458 D3) ────────────
+  // The verb-chip row read as developer buttons; the layman grammar is the
+  // Finder's: the file shows its NAME, the name IS the rename affordance
+  // (double-click, edit in place), and every other verb waits behind ⋯.
+  // One commit path — the input calls the parent's commitRename, the same
+  // function the crumb's input calls; two entry fields, one write.
+  const [nameEditing, setNameEditing] = useState(false);
+  const [nameBusy, setNameBusy] = useState(false);
+  const [fileMenu, setFileMenu] = useState(false);
+  const fileMenuRef = useRef<HTMLDivElement>(null);
+  const commitNameEdit = useCallback(
+    async (value: string) => {
+      setNameBusy(true);
+      try {
+        await onRenameCommit(value);
+      } finally {
+        setNameBusy(false);
+        setNameEditing(false);
+      }
+    },
+    [onRenameCommit],
+  );
+  useEffect(() => {
+    if (!fileMenu) return;
+    const close = () => setFileMenu(false);
+    const onDown = (e: MouseEvent) => {
+      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) close();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [fileMenu]);
+
   // ── Slot scope: role-gated quick-add (media → the image picker) ─────────
   const slotRole = useMemo(() => {
     if (scope !== 'slot' || !selection?.slot) return null;
@@ -557,31 +609,97 @@ export function StudioDesignTab({
           makes the fixed half a stable header rather than a drifting footer.
           Nothing else changes: same sections, same verbs, same invariance. */}
       <>
-          {/* File (ADR-458 D3) — the artifact-as-file verbs, one settings home
-              (Notion's page ⋯ = typography + file verbs; both live HERE now). */}
+          {/* File (ADR-458 D3, re-presented 2026-07-24) — a FILE CARD, not a
+              verb row: the file shows its name (the Finder grammar), the name
+              is the rename affordance (double-click, edit in place — the same
+              one commit path as the crumb), and the remaining verbs wait
+              behind ⋯. Common to every scope and every template. */}
           <div className={SECTION}>
             <p className={HEADING}>File</p>
-            <div className="flex flex-wrap gap-1">
-              <button type="button" className={askBtn} onClick={fileVerbs.copyLink}>
-                Copy link
-              </button>
-              <button type="button" className={askBtn} onClick={fileVerbs.duplicate}>
-                Duplicate
-              </button>
-              <button type="button" className={askBtn} onClick={fileVerbs.rename}>
-                Rename…
-              </button>
-              <button type="button" className={askBtn} onClick={fileVerbs.move}>
-                Move…
-              </button>
+            <div ref={fileMenuRef} className="relative flex items-center gap-1.5">
+              {(() => {
+                const { icon: ShapeIcon, color } = studioShapeStyle(layout);
+                return <ShapeIcon className={`h-4 w-4 shrink-0 ${color}`} aria-hidden />;
+              })()}
+              {nameEditing ? (
+                <input
+                  autoFocus
+                  // SELECT, don't just focus — an armed name is only an offer
+                  // if typing REPLACES it (the crumb input, ADR-470 D1).
+                  onFocus={(e) => e.currentTarget.select()}
+                  defaultValue={artifactName}
+                  disabled={nameBusy}
+                  onBlur={(e) => void commitNameEdit(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    // ADR-483 — an IME composition owns Enter first (the
+                    // crumb's guard, kept in lockstep).
+                    if (e.nativeEvent.isComposing) return;
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void commitNameEdit(e.currentTarget.value);
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setNameEditing(false);
+                    }
+                  }}
+                  className="min-w-0 flex-1 rounded border border-indigo-400/60 bg-background px-1.5 py-0.5 text-xs font-medium outline-none disabled:opacity-50"
+                  aria-label="Rename this artifact"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onDoubleClick={() => setNameEditing(true)}
+                  title="Double-click to rename"
+                  className="min-w-0 flex-1 cursor-text truncate rounded px-1 py-0.5 text-left text-xs font-medium text-foreground/90 hover:bg-muted/40"
+                >
+                  {artifactName}
+                </button>
+              )}
               <button
                 type="button"
-                className={`${askBtn} hover:border-red-300 hover:text-red-600`}
-                onClick={fileVerbs.trash}
-                title="Move this artifact to Trash (revertible from Files)"
+                onClick={() => setFileMenu((v) => !v)}
+                title="File actions"
+                aria-label="File actions"
+                className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
               >
-                <Trash2 className="h-3 w-3" /> Trash
+                <MoreHorizontal className="h-4 w-4" />
               </button>
+              {fileMenu && (
+                <div className="absolute right-0 top-full z-30 mt-1 w-48 rounded-md border border-border bg-background p-1 shadow-md">
+                  {(
+                    [
+                      ['Copy link', Link2, fileVerbs.copyLink],
+                      ['Duplicate', Copy, fileVerbs.duplicate],
+                      ['Rename…', Pencil, () => setNameEditing(true)],
+                      ['Move…', FolderInput, fileVerbs.move],
+                    ] as const
+                  ).map(([label, Icon, run]) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => {
+                        setFileMenu(false);
+                        run();
+                      }}
+                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[11px] text-foreground/80 transition-colors hover:bg-muted/40"
+                    >
+                      <Icon className="h-3.5 w-3.5 text-muted-foreground" /> {label}
+                    </button>
+                  ))}
+                  <div className="mx-1 my-1 border-t border-border/60" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFileMenu(false);
+                      fileVerbs.trash();
+                    }}
+                    title="Move this artifact to Trash (revertible from Files)"
+                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[11px] text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Move to Trash
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           {/* Share + Export moved to the header (StudioShareExport, right of

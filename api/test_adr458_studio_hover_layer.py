@@ -69,17 +69,23 @@ def run() -> bool:
            "if (p.design) setRightTab('design');" in surface)
 
     # ── 3. The one settings home ─────────────────────────────────────────
-    _check("Design tab: the File section (Copy link/Duplicate/Rename/Move/Trash)",
+    # (Re-presented 2026-07-24: the verb-chip row became a FILE CARD — the name
+    #  shown with its type glyph, double-click renames in place, the remaining
+    #  verbs behind a ⋯ menu. Same verbs, same section, same invariance.)
+    _check("Design tab: the File card (name + ⋯ menu: Copy link/Duplicate/Rename/Move/Trash)",
            "Copy link" in design and "Rename…" in design and "Move…" in design
-           and "Trash" in design and "fileVerbs" in design)
+           and "Move to Trash" in design and "fileVerbs" in design
+           and "onDoubleClick={() => setNameEditing(true)}" in design)
     # Rename left the shared leaf-rename modal by DESIGN (ADR-459: the artifact's
-    # name is its meaning folder; the rename affordance is the CRUMB) — the verb
-    # focuses the crumb instead. Move/Trash still ride the shared implementation.
+    # name is its meaning folder). The File card renames IN PLACE through the
+    # SAME commit path the crumb uses (commitRename — one derivation, one write,
+    # two entry fields), with the crumb's IME guard kept in lockstep.
     _check("the File verbs ride the SHARED implementation (useFileOrganizeVerbs)",
            "organizeVerbs.onMove({ path: artifactPath" in surface
            and "organizeVerbs.onDelete({ path: artifactPath" in surface
            and "useFileOrganizeVerbs" in surface
-           and "rename: () => setRenaming(true)" in surface)
+           and "onRenameCommit={commitRename}" in surface
+           and "isComposing" in design)
     _check("the Design tab makes no organize API calls of its own (no fork)",
            "api.workspace" not in design and "api.files" not in design)
     # (Re-pinned 2026-07-21: ADR-473 made the Studio surface app-generic —
