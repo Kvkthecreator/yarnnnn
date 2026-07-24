@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.24.2] - The radar brief posture (ADR-486 R0)
+
+### Added
+- `services/radar.py::_RADAR_POSTURE` + `build_radar_posture()` — the standing
+  sweep's derive posture (one bounded turn, no tools, the settle division of
+  labour: the model distills, the kernel places/cites/embeds). Contracts:
+  what-changed-vs-previous-brief framing; the exact `NO_BRIEF` sentinel for the
+  honest empty sweep (metered `skipped/no_brief` — falsifier 4); ≤~80 lines;
+  every claim cited inline to a signal-entry url; never invent; optional
+  operator steer block from the hub declaration's `prompt:` key.
+- Expected behavior: a declared hub produces a cited delta brief per sweep when
+  the signal moved, and exactly `NO_BRIEF` when it didn't. Live-proven both
+  ways 2026-07-24 (brief rev `353e8c5d`; then `no_brief` five minutes later).
+
 ## [2026.07.24.1] - The lane is told WHERE a token may sit (ADR-453 R4)
 
 ### Changed
