@@ -124,6 +124,7 @@ class FakeQuery:
     def order(self, *a, **k): return self
     def limit(self, *a, **k): return self
     def lte(self, *a, **k): return self
+    def in_(self, *a, **k): return self
 
     def eq(self, key, val):
         self.filters[key] = val
@@ -285,8 +286,127 @@ from services.radar import RADAR_MODEL
 check("RADAR_MODEL is a LANE_MODELS key (priced, routable)", RADAR_MODEL in LANE_MODELS)
 
 # ---------------------------------------------------------------------------
+# 9. R1/R2 routes — authoring + the composed view (handlers EXECUTED)
+# ---------------------------------------------------------------------------
+print("9. radar routes (R1 authoring + R2 view)")
+
+import routes.radar as _routes
+from routes.radar import (
+    CreateHubRequest, HubSource, UpdateHubRequest,
+    compose_declaration_yaml, create_hub, get_hub, update_hub,
+)
+
+# compose → parse round-trip: what the route writes, the walker schedules
+composed = compose_declaration_yaml(
+    schedule="0 21 * * *", paused=False, prompt="Watch pricing.",
+    sources=[{"id": "blog", "url": "https://example.com/feed", "max_entries": 8}],
+    fire_on_activation=True,
+)
+rt = parse_radar_yaml(composed, topic="t", declaration_path="/workspace/operation/t/_radar.yaml")
+check("composed yaml round-trips through parse_radar_yaml",
+      rt is not None and rt.schedule == "0 21 * * *"
+      and rt.options.get("fire_on_activation") is True
+      and "Watch pricing." in (rt.options.get("prompt") or ""))
+check("composed yaml carries sources for TrackWebSources",
+      _routes._declared_sources(composed)[0]["url"] == "https://example.com/feed")
+
+# route handlers executed against a stateful fake
+class RouteFakeQuery(FakeQuery):
+    def __init__(self, table, store):
+        super().__init__(table)
+        self.store = store
+
+    def execute(self):
+        if self.table == "workspace_files":
+            p = self.filters.get("path", "")
+            if p in self.store:
+                return SimpleNamespace(data=[{"path": p, "content": self.store[p]}])
+            return SimpleNamespace(data=[])
+        return SimpleNamespace(data=[])
+
+
+class RouteFakeClient:
+    def __init__(self):
+        self.files: dict = {}
+
+    def table(self, name):
+        return RouteFakeQuery(name, self.files)
+
+
+written: list[dict] = []
+
+
+def route_fake_write(client, **kwargs):
+    written.append(kwargs)
+    client_files = _route_client.files
+    client_files[kwargs["path"]] = kwargs["content"]
+    return "rev-route-1"
+
+
+async def route_fake_materialize(client, user_id):
+    return None
+
+
+_route_client = RouteFakeClient()
+_route_auth = SimpleNamespace(user_id="user-1", client=_route_client, workspace_id=None)
+
+_orig_wr = _subst.write_revision
+_orig_mat = _routes._materialize
+_subst.write_revision = route_fake_write
+_routes._materialize = route_fake_materialize
+try:
+    from fastapi import HTTPException
+
+    req = CreateHubRequest(topic="competitor-x",
+                           sources=[HubSource(id="blog", url="https://example.com/feed")],
+                           prompt="Watch pricing.")
+    summary = asyncio.run(create_hub(req, _route_auth))
+    check("create_hub writes the declaration through the one door",
+          len(written) == 1 and written[0]["path"] == "/workspace/operation/competitor-x/_radar.yaml"
+          and written[0]["authored_by"] == "operator")
+    check("create_hub returns the hub summary",
+          summary.topic == "competitor-x" and summary.sources[0].url == "https://example.com/feed")
+
+    try:
+        asyncio.run(create_hub(req, _route_auth))
+        check("duplicate create → 409", False)
+    except HTTPException as e:
+        check("duplicate create → 409", e.status_code == 409)
+
+    try:
+        bad = CreateHubRequest(topic="Not A Slug!", sources=[HubSource(id="b", url="https://x.com/f")])
+        asyncio.run(create_hub(bad, _route_auth))
+        check("bad topic → 422", False)
+    except HTTPException as e:
+        check("bad topic → 422", e.status_code == 422)
+
+    upd = asyncio.run(update_hub("competitor-x", UpdateHubRequest(paused=True), _route_auth))
+    check("update_hub pause persists to the declaration",
+          upd.paused is True and "paused: true" in _route_client.files[
+              "/workspace/operation/competitor-x/_radar.yaml"])
+
+    view = asyncio.run(get_hub("competitor-x", _route_auth))
+    check("get_hub composes the view (derived, not stored)",
+          view.topic == "competitor-x" and view.briefs == [] and view.brief_count == 0)
+
+    try:
+        asyncio.run(get_hub("nope", _route_auth))
+        check("unknown hub → 404", False)
+    except HTTPException as e:
+        check("unknown hub → 404", e.status_code == 404)
+finally:
+    _subst.write_revision = _orig_wr
+    _routes._materialize = _orig_mat
+
+# registration — the route ships wired
+with open("main.py") as f:
+    main_src = f.read()
+check("radar router registered in main.py",
+      "radar.router" in main_src and ", radar" in main_src)
+
+# ---------------------------------------------------------------------------
 print()
 if FAILURES:
     print(f"✗ {len(FAILURES)} check(s) failed: {FAILURES}")
     sys.exit(1)
-print("✓ all ADR-486 R0 radar checks passed")
+print("✓ all ADR-486 radar checks passed (R0 lane + R1 authoring + R2 view)")
