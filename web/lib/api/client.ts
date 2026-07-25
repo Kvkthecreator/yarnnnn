@@ -530,6 +530,13 @@ export const api = {
       }>(
         `/api/studio/design-systems/resolve?manifest=${encodeURIComponent(manifestPath)}`,
       ),
+    /** ADR-487 D5 — set/clear the workspace-default design system (null
+     *  clears). An inheritance rule at creation; nothing existing is touched. */
+    setDefaultDesignSystem: (manifestPath: string | null) =>
+      request<{ ok: boolean; default_design_system: string | null }>(
+        "/api/studio/design-systems/default",
+        { method: "POST", body: JSON.stringify({ manifest: manifestPath }) },
+      ),
     /** ADR-462 D14 — import a design-system export (.zip) → a conforming
      *  meaning-folder. Multipart, so it cannot ride `request` (which sets a
      *  JSON content-type); the boundary must be the browser's own. Returns

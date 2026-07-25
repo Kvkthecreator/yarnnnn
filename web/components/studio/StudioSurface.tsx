@@ -26,7 +26,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
-import { ArrowLeft, Copy, FileText, FolderOpen, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, Plus, Upload } from 'lucide-react';
+import { ArrowLeft, Check, Copy, FileText, FolderOpen, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, Plus, Upload } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { AUTHORING_APPS } from '@/lib/apps/authoring';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -2699,6 +2699,8 @@ function StudioStart({
     Awaited<ReturnType<typeof api.studio.vocabulary>>['design_systems']
   >([]);
   const [wornBy, setWornBy] = useState<Record<string, number>>({});
+  // ADR-487 D5 — the workspace default's manifest path (badged on its card).
+  const [defaultSystem, setDefaultSystem] = useState<string | null>(null);
   const [openPickerOn, setOpenPickerOn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -2722,6 +2724,7 @@ function StudioStart({
       .then((v) => {
         registerKindApps(v.layouts);  // ADR-473 D3 (see the workbench fetch)
         setSystems(v.design_systems);
+        setDefaultSystem(v.default_design_system ?? null);
         for (const s of v.design_systems) {
           api.documents
             .dependents(s.manifest_path)
@@ -3106,9 +3109,17 @@ function StudioStart({
                   onClick={() => onOpenSystem(s.manifest_path)}
                   className="group flex flex-col items-start rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/20"
                 >
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex w-full items-center gap-1.5">
                     <Palette className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 truncate text-sm font-medium">{s.name}</span>
+                    {defaultSystem === s.manifest_path && (
+                      <span
+                        className="ml-auto shrink-0 rounded-full border border-border px-1.5 py-px text-[9px] uppercase tracking-wide text-muted-foreground"
+                        title="New artifacts are born wearing this design system"
+                      >
+                        Default
+                      </span>
+                    )}
                   </span>
                   <span className="mt-1 text-[11px] text-muted-foreground">
                     {wornBy[s.manifest_path] === undefined
@@ -3194,6 +3205,9 @@ function StudioManage({
   const [wornBy, setWornBy] = useState<Array<{ path: string }> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reimporting, setReimporting] = useState(false);
+  // ADR-487 D5 — is THIS system the workspace default? (null = unknown/loading)
+  const [isDefault, setIsDefault] = useState<boolean | null>(null);
+  const [defaultBusy, setDefaultBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
@@ -3209,7 +3223,28 @@ function StudioManage({
       .dependents(manifestPath)
       .then((d) => setWornBy(d.dependents))
       .catch(() => setWornBy(null));
+    // The default flag rides the vocabulary (the served workspace state).
+    api.studio
+      .vocabulary()
+      .then((v) => setIsDefault(v.default_design_system === manifestPath))
+      .catch(() => setIsDefault(null));
   }, [manifestPath]);
+
+  // ADR-487 D5 — toggle the workspace default. An inheritance rule at
+  // creation: new artifacts are born wearing it; nothing existing changes.
+  const toggleDefault = async () => {
+    if (isDefault === null) return;
+    setDefaultBusy(true);
+    setError(null);
+    try {
+      const r = await api.studio.setDefaultDesignSystem(isDefault ? null : manifestPath);
+      setIsDefault(r.default_design_system === manifestPath);
+    } catch {
+      setError('Could not update the workspace default.');
+    } finally {
+      setDefaultBusy(false);
+    }
+  };
 
   // The theme — parsed from the RESOLVED skin element (what this system IS,
   // maps bridge included), not from any one artifact's copy of it.
@@ -3267,7 +3302,31 @@ function StudioManage({
               {folder.replace(/^\/workspace\//, '')}
             </p>
           </div>
-          <div className="shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
+            {/* ADR-487 D5 — the workspace default: new artifacts are born
+                wearing it. Toggle; clearing returns to skin-less birth. */}
+            <button
+              type="button"
+              disabled={defaultBusy || isDefault === null}
+              onClick={() => void toggleDefault()}
+              title={
+                isDefault
+                  ? 'New artifacts are born wearing this — click to clear'
+                  : 'Make new artifacts wear this design system at creation'
+              }
+              className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50 ${
+                isDefault
+                  ? 'border-indigo-400 bg-indigo-50/60 text-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200'
+                  : 'border-border text-foreground hover:bg-muted/60'
+              }`}
+            >
+              {defaultBusy ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Check className={`h-3.5 w-3.5 ${isDefault ? '' : 'opacity-40'}`} />
+              )}
+              {isDefault ? 'Default' : 'Set as default'}
+            </button>
             <input
               ref={fileInputRef}
               type="file"

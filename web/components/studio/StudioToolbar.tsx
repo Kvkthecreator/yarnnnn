@@ -82,6 +82,9 @@ export interface StudioVocabulary {
   kernel_css_version: number;
   kernel_style_element: string;
   design_systems: Array<{ name: string; manifest_path: string; folder: string; css: string[] }>;
+  /** ADR-487 D5 — the workspace-default system's manifest path (null = none):
+   *  the house identity a NEW artifact is born wearing. */
+  default_design_system: string | null;
 }
 
 /** The canvas selection (ADR-444/446, slot + page grains added by ADR-453):

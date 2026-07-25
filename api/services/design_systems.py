@@ -44,6 +44,44 @@ _SKIN_ELEMENT_RX = re.compile(
 #: Defensive bound on composed skin CSS (an artifact carries this inline).
 _MAX_SKIN_CSS = 120_000
 
+#: ADR-487 D5 — the Studio's workspace-level machine config (underscore-yaml
+#: per ADR-254). One key today: `default_design_system: <manifest-path>` — the
+#: house identity a NEW artifact is born wearing (birth-apply at creation;
+#: per-artifact apply/remove always wins afterwards; absence = today's
+#: skin-less birth, byte-identical).
+STUDIO_DEFAULTS_PATH = "/workspace/operation/_studio.yaml"
+
+
+def read_default_design_system(client: Any, user_id: str) -> Optional[str]:
+    """The workspace-default design system's manifest path, or None.
+
+    Best-effort and read-only: a missing file, unparseable yaml, or a
+    non-string value all return None — a broken default must never break
+    artifact creation or the vocabulary fetch. The pointer is not validated
+    here (the caller resolves it and skips a dangling one).
+    """
+    import yaml
+
+    from services.workspace_context import substrate_scope_filter
+
+    try:
+        rows = (
+            client.table("workspace_files")
+            .select("content, lifecycle")
+            .eq(*substrate_scope_filter(user_id))
+            .eq("path", STUDIO_DEFAULTS_PATH)
+            .limit(1)
+            .execute()
+        ).data or []
+        if not rows or rows[0].get("lifecycle") == "archived":
+            return None
+        parsed = yaml.safe_load(rows[0].get("content") or "")
+        value = (parsed or {}).get("default_design_system") if isinstance(parsed, dict) else None
+        return value if isinstance(value, str) and value.strip() else None
+    except Exception as exc:  # noqa: BLE001 — a default is a convenience, never a gate
+        logger.debug("[DESIGN_SYSTEMS] default read failed: %s", exc)
+        return None
+
 #: `@import "…";` / `@import url(…);` — the entry-point convention every real
 #: design-system export uses (ADR-462 D11). Media-query'd imports
 #: (`@import "x.css" screen;`) are matched and their query DROPPED: the skin is

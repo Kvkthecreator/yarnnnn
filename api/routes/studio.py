@@ -182,7 +182,7 @@ async def get_vocabulary(auth: UserClient) -> dict:
     carry the property layer (the FE upserts the marked element on token ops —
     the ADR-453 D2 retrofit). `design_systems` is ADR-449 discovery (the
     Design tab's document scope). Grammar, not schema."""
-    from services.design_systems import find_design_systems
+    from services.design_systems import find_design_systems, read_default_design_system
     from services.studio import (
         MEDIA_BLOCK_KINDS,
         STUDIO_ARRANGEMENTS,
@@ -237,6 +237,10 @@ async def get_vocabulary(auth: UserClient) -> dict:
         "kernel_css_version": STUDIO_KERNEL_CSS_VERSION,
         "kernel_style_element": compose_kernel_style_element(),
         "design_systems": find_design_systems(auth.client, auth.user_id),
+        # ADR-487 D5 — the workspace default (the house identity a new
+        # artifact is born wearing). Rides the vocabulary (which already
+        # carries the systems list) so the read side costs no extra fetch.
+        "default_design_system": read_default_design_system(auth.client, auth.user_id),
         "blocks": [
             {
                 "kind": k,
@@ -378,6 +382,73 @@ async def import_design_system_route(
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Import failed."))
     return result
+
+
+class SetDefaultDesignSystemRequest(BaseModel):
+    #: The manifest path to make the workspace default; null CLEARS it.
+    manifest: Optional[str] = None
+
+
+@router.post("/studio/design-systems/default")
+async def set_default_design_system_route(
+    req: SetDefaultDesignSystemRequest, auth: UserClient
+) -> dict:
+    """Set/clear the workspace-default design system (ADR-487 D5).
+
+    Writes `_studio.yaml` through the one door (`write_revision`, attributed
+    to the operator). The default is an inheritance rule at CREATION — a new
+    artifact is born wearing it; per-artifact apply/remove always wins and
+    nothing already created is touched.
+    """
+    import yaml
+
+    from services.authored_substrate import write_revision
+    from services.design_systems import (
+        STUDIO_DEFAULTS_PATH,
+        resolve_design_system,
+    )
+    from services.workspace_context import substrate_scope_filter
+
+    manifest = (req.manifest or "").strip() or None
+    if manifest:
+        if not resolve_design_system(auth.client, auth.user_id, manifest):
+            raise HTTPException(
+                status_code=404, detail=f"Not a design system: {manifest}"
+            )
+
+    # Read-modify-write the yaml so future keys survive a default change.
+    rows = (
+        auth.client.table("workspace_files")
+        .select("content")
+        .eq(*substrate_scope_filter(auth.user_id))
+        .eq("path", STUDIO_DEFAULTS_PATH)
+        .limit(1)
+        .execute()
+    ).data or []
+    try:
+        parsed = yaml.safe_load(rows[0]["content"]) if rows else None
+    except Exception:  # noqa: BLE001 — a corrupt config is replaced, not fatal
+        parsed = None
+    config = parsed if isinstance(parsed, dict) else {}
+    if manifest:
+        config["default_design_system"] = manifest
+    else:
+        config.pop("default_design_system", None)
+
+    write_revision(
+        auth.client,
+        user_id=auth.user_id,
+        path=STUDIO_DEFAULTS_PATH,
+        content=yaml.safe_dump(config, sort_keys=True, allow_unicode=True),
+        authored_by="operator",
+        author_identity_uuid=auth.user_id,
+        message=(
+            f"Set default design system: {manifest}"
+            if manifest
+            else "Clear default design system"
+        ),
+    )
+    return {"ok": True, "default_design_system": manifest}
 
 
 #: A design-system archive is tokens + a few assets. The live YARNNN export is
@@ -975,6 +1046,28 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
             f'<html data-template="{STAGE_SLUG}" {stage_root_attrs(w, h)}>',
             1,
         )
+
+    # ── ADR-487 D5: the workspace default — born wearing the house identity ──
+    # An inheritance rule at creation only: the skin element lands exactly as
+    # the Design tab's Apply would land it (same compose, same marked+cited
+    # element), so per-artifact remove/apply works on it unchanged. Best-effort
+    # by construction — a dangling or unreadable default resolves to None and
+    # the artifact is simply born skin-less (creation never breaks on a
+    # convenience).
+    from services.design_systems import (
+        apply_skin_to_html,
+        compose_skin_element,
+        read_default_design_system,
+        resolve_design_system,
+    )
+
+    default_manifest = read_default_design_system(auth.client, auth.user_id)
+    if default_manifest:
+        ds = resolve_design_system(auth.client, auth.user_id, default_manifest)
+        if ds:
+            content = apply_skin_to_html(
+                content, compose_skin_element(ds["manifest_path"], ds["css_text"])
+            )
 
     write_revision(
         auth.client,

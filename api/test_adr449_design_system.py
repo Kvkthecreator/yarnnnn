@@ -351,6 +351,46 @@ def run() -> int:
         "write_revision" not in mod_src and ".insert(" not in mod_src and ".update(" not in mod_src,
     )
 
+    # ── 7. ADR-487 D5: the workspace default ──────────────────────────────
+    # The READ lives in the pure module (best-effort, returns None on any
+    # failure); the WRITE lives in the route through the one door; creation
+    # birth-applies through the SAME compose+apply pair the Design tab uses
+    # (one apply shape — a born skin is a removable skin).
+    from services.design_systems import STUDIO_DEFAULTS_PATH, read_default_design_system  # noqa: F401
+
+    passed &= _check(
+        "default config is underscore-yaml at a fixed path (ADR-254 discipline)",
+        STUDIO_DEFAULTS_PATH.endswith("/_studio.yaml"),
+    )
+
+    class _Boom:
+        def table(self, *_a, **_k):
+            raise RuntimeError("db down")
+
+    passed &= _check(
+        "a broken default read returns None, never raises (creation must not "
+        "break on a convenience)",
+        read_default_design_system(_Boom(), "u1") is None,
+    )
+
+    import routes.studio as studio_routes
+
+    create_src = inspect.getsource(studio_routes.create_artifact)
+    passed &= _check(
+        "creation birth-applies the default through the ONE apply pair "
+        "(compose_skin_element + apply_skin_to_html — same shape as Apply)",
+        "read_default_design_system" in create_src
+        and "apply_skin_to_html" in create_src
+        and "compose_skin_element" in create_src,
+    )
+    set_src = inspect.getsource(studio_routes.set_default_design_system_route)
+    passed &= _check(
+        "setting a default VALIDATES the manifest resolves and writes through "
+        "the one door (write_revision, operator-attributed)",
+        "resolve_design_system" in set_src and "write_revision" in set_src
+        and 'authored_by="operator"' in set_src,
+    )
+
     return 0 if passed else 1
 
 
