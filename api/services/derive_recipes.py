@@ -90,7 +90,11 @@ Steps:
      • type      --text-xs · --text-sm · --text-base · --text-lg · --text-xl ·
                  --text-2xl · --text-3xl · --text-4xl · --text-5xl (a SCALE;
                  headings + captions read these)
-     • semantic  --fresh · --danger · --warn (status color)
+     • semantic  --fresh · --danger · --warn (status color — callout
+                 variants render --fresh/--warn since ADR-487 D2)
+     • faces     --font-serif · --font-sans · --font-mono (what each font
+                 FAMILY resolves to — the member's typeface choice routes
+                 through these; ADR-487 D4)
    Additional variables are welcome, but a value the source shows that maps
    onto one of these names should USE that name — a `--brand` orange the chrome
    never reads themes nothing. If the source names its accent something else

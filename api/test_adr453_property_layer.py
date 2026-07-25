@@ -60,7 +60,8 @@ def run() -> bool:
     )
     valid_applies = {"block", "media", "page", "page-multicol", "page-deck", "document",
                      "document-flow", "document-deck",  # document-deck: ADR-456 W1
-                     "page-bg"}  # page-bg: ADR-456 W3 (cited background present)
+                     "page-bg",  # page-bg: ADR-456 W3 (cited background present)
+                     "block-callout"}  # block-callout: ADR-487 D2 (variant token)
     _check(
         "token rows carry label/applies/values/description",
         all(

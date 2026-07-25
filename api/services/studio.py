@@ -624,6 +624,7 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
 #: relation first is what makes that refactor arguable rather than speculative.
 APPLIES_TARGETS: dict[str, str] = {
     "block": "any block",
+    "block-callout": "a callout block",
     "media": "a media block (figure/chart/gallery)",
     "block-staged": "a block on a staged frame (a deck slide or a canvas artboard)",
     "page": "any page/slide element",
@@ -681,6 +682,22 @@ STUDIO_TOKENS: dict[str, dict] = {
             {"value": "inverse", "label": "Inverse"},
         ],
         "description": "emphasis via the palette variables — never raw color",
+    },
+    # ADR-487 D2 — the semantic trio wired. The §5 contract named
+    # --fresh/--danger/--warn with the honest note "no selector yet"; the
+    # selectors arrive WITH the member affordance that justifies them (a
+    # callout's semantic register), never as speculative chrome. Absence =
+    # the accent default the callout has always worn. --danger stays a
+    # reserved slot (a fourth value is one row when a block demands it).
+    "variant": {
+        "label": "Variant",
+        "applies": ["block-callout"],
+        "values": [
+            {"value": "note", "label": "Note"},
+            {"value": "success", "label": "Success"},
+            {"value": "warning", "label": "Warning"},
+        ],
+        "description": "the callout's semantic register via the semantic slots — never raw color (absence = the accent default)",
     },
     "height": {
         "label": "Height",
@@ -1038,6 +1055,17 @@ section.slide, .slide .col, .slide [data-slot] { position: relative; }
 /* Stacking (ADR-471 D-d) — z orders positioned blocks; on a static block
    z-index is inert by CSS, which is the fallback rule doing its job. */
 .slide [data-block][data-z] { z-index: var(--yz, auto); }
+/* Callout variants (ADR-487 D2) — the semantic trio wired. The base callout
+   look (accent border + tint) lives in the baked layout skin; a variant
+   overrides border + tint through the SEMANTIC slots, in the kernel so it
+   retrofits. color-mix derives the tint from the same slot, so a themed
+   trio tints as itself. Higher specificity (two attrs) beats the base. */
+aside[data-block="callout"][data-variant="note"] { border-color: var(--ink-10, #ddd);
+  background: color-mix(in srgb, var(--ink, #1a1a1a) 5%, transparent); }
+aside[data-block="callout"][data-variant="success"] { border-color: var(--fresh, #2e7d32);
+  background: color-mix(in srgb, var(--fresh, #2e7d32) 7%, transparent); }
+aside[data-block="callout"][data-variant="warning"] { border-color: var(--warn, #b45309);
+  background: color-mix(in srgb, var(--warn, #b45309) 8%, transparent); }
 [data-tone="accent"] { color: var(--accent, #b4540a); }
 [data-tone="muted"] { color: var(--muted, #6b6b6b); }
 [data-block][data-tone="inverse"] { background: var(--ink, #1a1a1a);
@@ -1066,9 +1094,13 @@ section.slide, .slide .col, .slide [data-slot] { position: relative; }
 [data-arrange][data-pad="s"]:not(.slide) { padding-block: 0.25rem; }
 [data-arrange][data-pad="l"]:not(.slide) { padding-block: 2.5rem; }
 /* Document-grain tokens (ADR-455) — on the artifact root. */
-html[data-font="serif"] body { font-family: Georgia, 'Times New Roman', serif; }
-html[data-font="sans"] body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
-html[data-font="mono"] body { font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
+/* ADR-487 D4 — the face slots. The member's choice stays the closed
+   three-family vocabulary (categories, ADR-222); the design system supplies
+   what each family IS (--font-serif: 'Tiempos', …). Fallbacks are the exact
+   prior stacks, so a system that ships no faces changes nothing. */
+html[data-font="serif"] body { font-family: var(--font-serif, Georgia, 'Times New Roman', serif); }
+html[data-font="sans"] body { font-family: var(--font-sans, system-ui, -apple-system, 'Segoe UI', sans-serif); }
+html[data-font="mono"] body { font-family: var(--font-mono, ui-monospace, 'SF Mono', Menlo, monospace); }
 html[data-measure="wide"] main, html[data-measure="wide"] article { max-width: 64rem; }
 /* The slide IS the frame (ADR-461 D3/D4). `position: relative` makes it the
    containing block, so anything positioned inside a slide resolves against the
@@ -1157,7 +1189,15 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 # layout. A pre-ADR-444 deck's baked skin has no `.slide .cols`, and the
 # kernel's `:not(.slide)` rule excluded it, so its two-column slides stacked
 # silently. Bumping the version is what makes the retrofit reach them.
-STUDIO_KERNEL_CSS_VERSION = 12
+# v13 (2026-07-25, ADR-487 D2+D4): the design system reaches the grammar.
+# (D2) callout `variant` token — note/success/warning selectors reading the
+# semantic slots (--fresh/--warn wired at last; §5's "no selector yet" note
+# resolved WITH the member affordance, not as speculative chrome). (D4) the
+# three font-family rules gain FACE slots (--font-serif/sans/mono) with the
+# exact prior stacks as fallbacks — ADR-455's "a skin supplies faces; the
+# token selects among them" completed. Byte-identical on a skin-less
+# artifact; the bump retrofits both into every existing artifact.
+STUDIO_KERNEL_CSS_VERSION = 13
 
 
 def compose_kernel_style_element() -> str:

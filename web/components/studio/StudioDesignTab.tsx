@@ -383,8 +383,14 @@ export function StudioDesignTab({
   const applicable = useMemo(() => {
     if (scope === 'block') {
       const isMedia = !!selection?.blockKind && mediaKinds.includes(selection.blockKind);
+      // ADR-487 D2: kind-gated grain (the `media` precedent) — the callout's
+      // semantic register applies to callouts alone.
+      const isCallout = selection?.blockKind === 'callout';
       return tokens.filter(
-        (t) => t.applies.includes('block') || (isMedia && t.applies.includes('media')),
+        (t) =>
+          t.applies.includes('block') ||
+          (isMedia && t.applies.includes('media')) ||
+          (isCallout && t.applies.includes('block-callout')),
       );
     }
     if (scope === 'page') {
