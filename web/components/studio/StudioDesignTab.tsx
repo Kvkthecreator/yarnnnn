@@ -47,7 +47,7 @@ import {
   type StudioVocabulary,
 } from './StudioToolbar';
 import { studioShapeStyle } from './studioShapes';
-import { isColorValue, parseSkinVars } from './skinVars';
+import { isColorValue, parseSkinVars, resolveSkinVar, skinVarMap } from './skinVars';
 
 export type StructVerb = 'duplicate' | 'up' | 'down' | 'delete';
 
@@ -180,10 +180,14 @@ function TokenControl({
   token,
   current,
   onSet,
+  swatches,
 }: {
   token: StudioToken;
   current: string | null;
   onSet: (value: string | null) => void;
+  /** ADR-487 D3 — a value→color map paints a dot on the chip with the APPLIED
+   *  system's resolved value (falls back to the kernel literal unskinned). */
+  swatches?: Record<string, string>;
 }) {
   const seg =
     'rounded px-1.5 py-0.5 text-[10px] transition-colors border';
@@ -215,6 +219,12 @@ function TokenControl({
                 : 'border-border text-muted-foreground hover:bg-muted/40'
             }`}
           >
+            {swatches?.[v.value] && (
+              <span
+                className="mr-1 inline-block h-2 w-2 rounded-full border border-black/10 align-middle"
+                style={{ background: swatches[v.value] }}
+              />
+            )}
             {v.label}
           </button>
         ))}
@@ -235,10 +245,14 @@ function FontControl({
   token,
   current,
   onSet,
+  stacks = FONT_STACKS,
 }: {
   token: StudioToken;
   current: string | null;
   onSet: (value: string | null) => void;
+  /** ADR-487 D3+D4 — the chips wear what each family RESOLVES to under the
+   *  applied system (--font-serif/sans/mono); kernel stacks unskinned. */
+  stacks?: Record<string, string>;
 }) {
   const chip = (value: string | null, label: string, stack?: string) => {
     const active = (current ?? null) === value;
@@ -267,7 +281,7 @@ function FontControl({
       </p>
       <div className="flex flex-wrap gap-1.5" title={token.description}>
         {chip(null, 'Auto')}
-        {token.values.map((v) => chip(v.value, v.label, FONT_STACKS[v.value]))}
+        {token.values.map((v) => chip(v.value, v.label, stacks[v.value]))}
       </div>
     </div>
   );
@@ -517,12 +531,38 @@ export function StudioDesignTab({
   // are surfaced first. The mechanical var-editor is unblocked (the §5 Q4
   // PATCH permission shipped) but still a named follow-on — it needs a design
   // pass for WHICH flattened source a value writes back to.
-  const skinVars = useMemo(
-    () =>
-      parseSkinVars(
-        doc?.querySelector('head style[data-skin]')?.textContent ?? '',
-      ),
+  const skinCss = useMemo(
+    () => doc?.querySelector('head style[data-skin]')?.textContent ?? '',
     [doc],
+  );
+  const skinVars = useMemo(() => parseSkinVars(skinCss), [skinCss]);
+  // ADR-487 D3 — the full definition map: the controls paint themselves with
+  // the applied system's RESOLVED values (kernel literals when unskinned).
+  // Derived from the artifact's own marked element at render, never stored.
+  const skinMap = useMemo(() => skinVarMap(skinCss), [skinCss]);
+  const resolvedFontStacks = useMemo(
+    () => ({
+      serif: resolveSkinVar(skinMap, 'font-serif', FONT_STACKS.serif),
+      sans: resolveSkinVar(skinMap, 'font-sans', FONT_STACKS.sans),
+      mono: resolveSkinVar(skinMap, 'font-mono', FONT_STACKS.mono),
+    }),
+    [skinMap],
+  );
+  // Value→resolved-color per palette-backed token (tone; the D2 variant).
+  const tokenSwatches = useMemo<Record<string, Record<string, string>>>(
+    () => ({
+      tone: {
+        accent: resolveSkinVar(skinMap, 'accent', '#b4540a'),
+        muted: resolveSkinVar(skinMap, 'muted', '#6b6b6b'),
+        inverse: resolveSkinVar(skinMap, 'ink', '#1a1a1a'),
+      },
+      variant: {
+        note: resolveSkinVar(skinMap, 'ink-10', '#dddddd'),
+        success: resolveSkinVar(skinMap, 'fresh', '#2e7d32'),
+        warning: resolveSkinVar(skinMap, 'warn', '#b45309'),
+      },
+    }),
+    [skinMap],
   );
 
   // ADR-456 W3: the page background — cited image on the page element.
@@ -757,6 +797,7 @@ export function StudioDesignTab({
                     token={t}
                     current={root?.getAttribute(`data-${t.key}`) ?? null}
                     onSet={(v) => onSetToken('document', t.key, v)}
+                    stacks={resolvedFontStacks}
                   />
                 ) : (
                   <TokenControl
@@ -929,6 +970,7 @@ export function StudioDesignTab({
                   token={t}
                   current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
                   onSet={(v) => onSetToken('page', t.key, v)}
+                  swatches={tokenSwatches[t.key]}
                 />
               ))}
             </div>
@@ -1087,6 +1129,7 @@ export function StudioDesignTab({
                   token={t}
                   current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
                   onSet={(v) => onSetToken('block', t.key, v)}
+                  swatches={tokenSwatches[t.key]}
                 />
               ))}
             </div>
