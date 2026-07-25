@@ -358,9 +358,13 @@ its own pass rather than guessed here.
   `--radius-*` directly, so `seed_maps` returns empty for it — **Move 1 is its whole fix**; the
   bridge is for the export that names its accent `--brand` without also defining `--accent`.
 - **Remaining** (named, deferred): the var-editor *UI* (unblocked, needs the var→owning-source
-  design pass, above); semantic `--fresh/--danger/--warn` are in the contract but wire no kernel
-  selector yet (no chrome reads status color — inventing one would be behavior, not a widen); and
-  **no browser render of a themed deck yet** — the probe proves the *contract*, not the pixels.
+  design pass, above); and **no browser render of a themed deck yet** — the probe proves the
+  *contract*, not the pixels. ~~Semantic `--fresh/--danger/--warn` wire no kernel selector~~ —
+  **resolved by ADR-487 D2** (callout `variant` token; the selectors arrive with the member
+  affordance that justifies them). ADR-487 also widens the contract with the face slots
+  (`--font-serif/sans/mono`, D4) and makes the type ramp member-playable (heading grammar, D1) —
+  see [ADR-487](../adr/ADR-487-the-design-system-reaches-the-editing-grammar.md) for the full
+  editing-grammar arc (system-aware controls, workspace default).
 
 **The ground truth remains §3's coverage histogram.** The acceptance test was never "does it
 apply" (it always did) but "does the (a) bucket hold the pill, the hairline, and the type scale" —
