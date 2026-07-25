@@ -1,6 +1,8 @@
 # ADR-487 — The design system reaches the editing grammar: the playable ramp, semantic variants, and system-aware controls
 
-- **Status**: Accepted (2026-07-25) — implementation sequenced in §8, each decision its own commit + gate
+- **Status**: Accepted + **Implemented** (2026-07-25) — D2/D4 (kernel v13, `998eb61`), D1
+  registry+turn-into (`fc39e20`), D3 painted controls (`a486789`), D5 workspace default
+  (`d4f19bd`). **Two named remainders, deliberately deferred to the flow lane** (§9).
 - **Dimension**: Channel (primary — what the member can shape, and what the controls speak) + Substrate (three new kernel slots, one new config file; no schema)
 - **Supersedes**: nothing
 - **Amends**: ADR-455 (the `font` token's values resolve through face *slots* — the supply/select line completed) · ADR-456 (the block/token registry grows by one wave: heading grammar + callout variants) · DESIGN-SYSTEMS.md §5 ("semantic `--fresh/--danger/--warn` wire no selector yet" — they wire now)
@@ -188,3 +190,29 @@ already-live semantic trio now *renders* (callout variants). The derive recipe
    sibling flow lane's active territory (ADR-480/481/482; two open regressions adjacent);
    land against freshly-pulled main with the tightest possible diff.
 7. (Trailing, unscheduled) D7 previews.
+
+## 9. Implementation status (2026-07-25) — what landed, what is handed off
+
+**Landed** (each its own commit + gate, all on main): kernel v13 (`998eb61` — variant token
+37/37, probe (a)-bucket 17→21) · heading registry + turn-into levels (`fc39e20` — reachable in
+BOTH modes: Design tab "Turn into" and the right-click submenu, which work in flow too since
+blocks stay annotated there) · painted controls (`a486789`) · workspace default (`d4f19bd` —
+ADR-449 gate 49 checks incl. a live broken-read behavior check).
+
+**Handed off to the flow lane** (the ADR-480/481/482 arc), with the design constraint found
+during this pass recorded so it isn't re-derived:
+
+- **The format-bar style switch** (D1's third entrance). A naive
+  `execCommand('formatBlock')` **drops `data-*` attributes** — it would strip
+  `data-block`/`data-block-id` and corrupt the annotation grain. The correct shape is an
+  attribute-preserving re-tag (create the new tag, copy attributes, move children, restore
+  the caret) against whatever flow DOM shape that arc settles (legacy flattens at
+  projection, ADR-481). Two open flow regressions sit in exactly this code region; landing
+  the switch inside that arc is the honest sequencing, not a scope cut — the capability
+  (heading levels) already ships via the other two entrances.
+- **The type readback** (D3's remainder): "Heading 2 · 1.7rem · ‹face›" on the selected
+  block wants resolved computed styles, which only the projection's selection payload can
+  carry — same file, same seam, same rider.
+
+**The live click-pass on the whole ADR-487 surface remains owed** (the standing Studio debt —
+compile + gates are the validation ceiling until a human drives it).
