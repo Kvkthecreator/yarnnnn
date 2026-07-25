@@ -1016,16 +1016,15 @@ const ADD_HERE_SCRIPT = `
 // {type:'yarnnn-edit-enter', blockId} enters, {type:'yarnnn-edit-exit'} exits.
 // On commit the runtime posts {type:'yarnnn-edit', blockId, newInner}.
 
-const EDIT_CSS = `
-[data-block][contenteditable="true"] {
-  outline: 2px solid var(--yarnnn-chrome-accent) !important; outline-offset: 3px;
-  background: rgba(var(--yarnnn-chrome-accent-rgb),0.04);
-}
-[data-block][contenteditable="true"] [data-ref] {
-  outline: 1px dashed rgba(var(--yarnnn-chrome-accent-rgb),0.5); cursor: default;
-}
 /* ADR-456 W2: the inline format bar — injected chrome, body-appended (never
-   inside a block, so it can never leak into a commit). */
+   inside a block, so it can never leak into a commit). Its OWN sheet
+   (2026-07-25): the runtime builds the bar on BOTH grains (projection's
+   editHost() seam, "written once and serve both grains"), but the rules
+   lived in EDIT_CSS, which ADR-482 D4 made paged-only — so on flow the bar
+   rendered as unstyled static buttons at the end of body (position:absolute
+   never applied, the inline left/top ignored). The bar's chrome is
+   grain-independent; it ships whenever the edit runtime does. */
+const FMT_CSS = `
 .yarnnn-fmt {
   position: absolute; z-index: 9999; display: inline-flex; align-items: center;
   gap: 2px; background: #1f2937; border-radius: 6px; padding: 3px 4px;
@@ -1039,6 +1038,16 @@ const EDIT_CSS = `
 .yarnnn-fmt input {
   font: 12px system-ui, sans-serif; border: 0; border-radius: 4px;
   padding: 4px 6px; width: 220px; outline: none;
+}
+`;
+
+const EDIT_CSS = `
+[data-block][contenteditable="true"] {
+  outline: 2px solid var(--yarnnn-chrome-accent) !important; outline-offset: 3px;
+  background: rgba(var(--yarnnn-chrome-accent-rgb),0.04);
+}
+[data-block][contenteditable="true"] [data-ref] {
+  outline: 1px dashed rgba(var(--yarnnn-chrome-accent-rgb),0.5); cursor: default;
 }
 /* ADR-458: the hover gutter — + and ⋮⋮ beside the hovered block (injected
    chrome, body-appended; the pointer runtime ignores its clicks). */
@@ -1262,6 +1271,13 @@ const EDIT_SCRIPT = `
   // focusing — the single-click-to-edit gesture (ADR audit F4). Absent (the
   // dblclick / parent-command path) → the browser's default focus caret.
   function enter(blockId, caretX, caretY) {
+    // ADR-480 D1 — flow has NO per-block session: the root is the editor.
+    // This is the chokepoint (2026-07-25): the dblclick fallback below had no
+    // flow guard, so double-clicking prose stamped contenteditable on the
+    // BLOCK — a nested editable inside the editable root, wearing the UA
+    // focus ring D8 only suppressed on the root (the operator's boxed
+    // paragraph), and assigning editingEl state no flow path expects.
+    if (FLOW_MODE) return;
     // Idempotent: if this block is already being edited, do nothing. This
     // breaks the re-entrancy where a local dblclick enters, tells the parent,
     // and the parent echoes back 'yarnnn-edit-enter' for the SAME block —
@@ -1630,7 +1646,7 @@ const EDIT_SCRIPT = `
     if (e.key !== '/' || !editHost()) return;
     if (fmtInput && document.activeElement === fmtInput) return;
     var caret = slashCaret();
-    if (!caret || caret.startContainer.nodeType !== 3) return; // not in a text node
+    if (!caret) return;
     if (caretInIsland()) return; // a citation island owns its own text
     // NO preventDefault + NO exit: the '/' lands and the caret keeps typing.
     // ADR-480: the palette anchors on the caret's OWN BLOCK, never the edit
@@ -1638,20 +1654,29 @@ const EDIT_SCRIPT = `
     // palette at the top of the page instead of beside the line being typed.
     // The block is still the right anchor there; it is an annotation now, not
     // an enclosure, but it is exactly the region the '/' was typed into.
+    var cn = caret.startContainer;
+    var ce = cn && cn.nodeType === 1 ? cn : (cn ? cn.parentElement : null);
     var anchorEl = editingEl;
     if (FLOW_MODE) {
-      var cn = caret.startContainer;
-      var ce = cn && cn.nodeType === 1 ? cn : (cn ? cn.parentElement : null);
       anchorEl = (ce && ce.closest ? ce.closest('[data-block]') : null) || flowRoot();
     }
     if (!anchorEl) return;
     var id = FLOW_MODE ? (anchorEl.getAttribute('data-block-id') || null) : editingId;
-    var node = caret.startContainer;
-    var at = caret.startOffset;
     var rect = anchorEl.getBoundingClientRect();
     var empty = (anchorEl.textContent || '').trim() === '';
     setTimeout(function () {
-      // Post-input: the '/' now sits at offset 'at' in that text node.
+      // POST-INPUT: re-read the caret now that the '/' exists in the DOM.
+      // The pre-input read bailed on nodeType !== 3 — which is exactly an
+      // EMPTY LINE's state at keydown (the caret sits in the element; the
+      // text node doesn't exist until the character lands). The gesture's
+      // canonical home ("type / on an empty line", this file's own words)
+      // was the one place it never fired (2026-07-25). The sentinel's own
+      // landing creates the text node; anchor on it after the fact.
+      var c2 = slashCaret();
+      if (!c2 || c2.startContainer.nodeType !== 3) return;
+      var node = c2.startContainer;
+      var at = c2.startOffset - 1; // the '/' sits just before the caret
+      if (at < 0 || (node.textContent || '').charAt(at) !== '/') return;
       slashNode = node;
       slashStart = at;
       parent.postMessage({ type: 'yarnnn-slash-open', blockId: id, empty: empty,
@@ -1761,24 +1786,31 @@ const EDIT_SCRIPT = `
     } catch (err) { return false; }
     return probe.toString().replace(/^\\s+/, '') === '';
   }
-  // Partition the editing block at the caret into BEFORE / AFTER source-inner
+  // Partition the HOST block at the caret into BEFORE / AFTER source-inner
   // (citation islands restored via readSourceInner). Returns null if the caret
   // sits in an island (refuse the split). Two clones are truncated by the caret
   // range, then read source-mapped — the same proven path as a plain edit.
-  function splitHalves() {
+  //
+  // host is a PARAMETER (2026-07-25): this read editingEl directly, which is
+  // null on flow by ADR-480 D1 — so the flow slash-take (its second caller,
+  // fixed by ADR-482 D1 to resolve its target from the caret) crashed on
+  // cloneNode-of-null and the palette pick silently did nothing, leaving the
+  // typed '/' behind. Paged passes editingEl; flow passes the caret's block.
+  function splitHalves(host) {
+    if (!host) return null;
     var sel = window.getSelection();
     if (!sel || !sel.rangeCount || !sel.isCollapsed) return null;
     if (caretInIsland()) return null;
     var caret = sel.getRangeAt(0);
-    var beforeClone = editingEl.cloneNode(true);
-    var afterClone = editingEl.cloneNode(true);
+    var beforeClone = host.cloneNode(true);
+    var afterClone = host.cloneNode(true);
     // Map the caret into each clone by walking the same node path.
     function rangeInClone(clone, toEnd) {
       var r = document.createRange();
-      // Locate the caret node inside the clone by index path from editingEl.
+      // Locate the caret node inside the clone by index path from the host.
       var path = [];
       var node = caret.startContainer;
-      while (node && node !== editingEl) {
+      while (node && node !== host) {
         var p = node.parentNode;
         if (!p) break;
         path.unshift(Array.prototype.indexOf.call(p.childNodes, node));
@@ -1832,7 +1864,7 @@ const EDIT_SCRIPT = `
     // caret lands in the new block instantly), then land the revision in the
     // background WITHOUT a reload — no stutter. A caret inside a citation island
     // refuses (splitHalves → null) and falls to native.
-    var halves = splitHalves();
+    var halves = splitHalves(editingEl);
     if (!halves) return; // in-island / uncomputable → native newline
     e.preventDefault();
     var newId = freshId();
@@ -2046,6 +2078,11 @@ const EDIT_SCRIPT = `
   // cover still has a way in — but guard it to blocks that actually hold text
   // (never make a pure media/citation block contentEditable).
   document.addEventListener('dblclick', function (e) {
+    // ADR-480 D1 (guard added 2026-07-25): on flow the root is the editor and
+    // a double-click means what it means in every editor — word-select. The
+    // enter() chokepoint also refuses, but bailing here keeps preventDefault
+    // from eating the native selection.
+    if (FLOW_MODE) return;
     var t = e.target;
     var blk = t && t.closest ? t.closest('[data-block]') : null;
     if (!blk) return;
@@ -2118,17 +2155,22 @@ const EDIT_SCRIPT = `
         r.setStart(slashNode, slashStart); r.collapse(true);
         var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
       } catch (err) {}
-      var halves = splitHalves(); // null inside an island → parent falls back
-      // ADR-482 D1: resolve the target from the CARET, mirroring the open path
-      // (:1396-1405). editingId is null on flow for the same reason editingEl
-      // is, so reading it sent the parent a null blockId and its op had nothing
-      // to land after. On paged the session variable is still the truth.
+      // ADR-482 D1: resolve the target from the CARET, mirroring the open path.
+      // editingId is null on flow for the same reason editingEl is, so reading
+      // it sent the parent a null blockId and its op had nothing to land
+      // after. On paged the session variable is still the truth. The resolved
+      // block is ALSO the split host (2026-07-25): splitHalves cloned
+      // editingEl unconditionally, so every flow pick crashed on
+      // cloneNode-of-null — the console's splitHalves TypeError.
       var id = editingId;
+      var host = editingEl;
       if (FLOW_MODE) {
         var tn = slashNode.nodeType === 1 ? slashNode : slashNode.parentElement;
         var tblk = tn && tn.closest ? tn.closest('[data-block]') : null;
         id = tblk ? (tblk.getAttribute('data-block-id') || null) : null;
+        host = tblk;
       }
+      var halves = splitHalves(host); // null host/island → parent falls back
       slashStart = -1;
       slashNode = null;
       // Silent — the parent's op is the sole writer (the one-gesture-two-ops
@@ -3508,6 +3550,9 @@ export async function resolveArtifactHtml(
       DECK_STAGE_CSS +
       IMAGE_STAGE_CSS +
       (flow ? FLOW_POINTER_CSS : paged ? POINTER_CSS : '') +
+      // The format bar's sheet rides the edit runtime on BOTH grains
+      // (2026-07-25 — it was orphaned on flow when D4 scoped EDIT_CSS).
+      (opts?.edit ? FMT_CSS : '') +
       // ADR-482 D4: the 2px indigo EDIT outline says "this object is live" —
       // true when one block at a time is editable, meaningless on a continuous
       // surface where contenteditable lands on main/article and the selector

@@ -104,9 +104,9 @@ def run() -> bool:
     _check("convertBlock refuses citations + no-ops same-kind",
            "block.querySelector('[data-ref]')" in ops
            and "block.getAttribute('data-block') === kind" in ops)
-    _check("Design tab: Turn into, text kinds only",
+    _check("Design tab: Turn into, text kinds only (+ heading per ADR-487 D1)",
            "TURN_INTO_KINDS" in design
-           and "'prose', 'callout', 'quote', 'checklist', 'toggle'" in design
+           and "'prose', 'heading', 'callout', 'quote', 'checklist', 'toggle'" in design
            and "onTurnInto" in design)
     _check("surface routes turn-into through the one door (applyOp)",
            "handleTurnInto" in surface

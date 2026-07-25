@@ -139,6 +139,36 @@ def run() -> bool:
         "D4 EDIT_CSS is applied only on paged",
         "(opts?.edit && paged ? EDIT_CSS : '')" in proj,
     )
+    # (2026-07-25) D4's scoping orphaned the format bar's rules on flow — the
+    # runtime builds the bar on both grains, so its sheet must ride the edit
+    # runtime unconditionally: unstyled static B/I/<>/Link at the body's end
+    # was the operator-photographed symptom.
+    _check(
+        "the format bar's sheet ships on BOTH grains (FMT_CSS ungated by mode)",
+        "(opts?.edit ? FMT_CSS : '')" in proj
+        and ".yarnnn-fmt" in proj.split("const FMT_CSS")[1].split("`;")[0]
+        and ".yarnnn-fmt" not in proj.split("const EDIT_CSS")[1].split("`;")[0],
+    )
+    # (2026-07-25) The empty-line slash: the pre-input caret sits in the
+    # ELEMENT node, so the old `nodeType !== 3` bail excluded the gesture's
+    # canonical home. The caret is re-read POST-input, when the '/' has
+    # created the text node. And the take path's splitHalves takes its HOST —
+    # it cloned editingEl (null on flow), crashing every flow pick.
+    _check(
+        "slash-open anchors POST-input (empty line included)",
+        "var c2 = slashCaret();" in proj
+        and "c2.startOffset - 1; // the '/' sits just before the caret" in proj,
+    )
+    _check(
+        "splitHalves takes its host; flow passes the caret's block",
+        "function splitHalves(host)" in proj
+        and "splitHalves(editingEl)" in proj
+        and "var halves = splitHalves(host)" in proj,
+    )
+    _check(
+        "flow has NO per-block enter — the chokepoint and the dblclick both refuse",
+        "if (FLOW_MODE) return;\n    // Idempotent" in proj.replace("\r", ""),
+    )
     _check(
         "D4 the chrome accent is declared once as a custom property",
         "--yarnnn-chrome-accent: #6366f1;" in proj,
@@ -227,7 +257,11 @@ def run() -> bool:
         "D6 the block is still scope- and mode-INVARIANT",
         "EVERY scope, every template" in design,
     )
-    _check("D6 File is still the first section within it", design.index("File</p>") < design.index("Share</p>"))
+    # (Re-pinned 2026-07-24/25: Share + Export relocated to the header cluster
+    #  — StudioShareExport, right of zoom — so the pane's head is File alone.)
+    _check("D6 File leads the head; Share/Export left for the header cluster",
+           "File</p>" in design and "Share</p>" not in design
+           and "Export</p>" not in design)
 
     # ── D7 — the crumb carries the type glyph ─────────────────────────────
     _check("D7 the IMAGES stage has a shape row", "image: { icon: ImageGlyph" in shapes)

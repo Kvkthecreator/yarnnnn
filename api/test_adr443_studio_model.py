@@ -49,8 +49,8 @@ def run() -> bool:
     )
 
     # ── 1. The vocabulary (D4) ───────────────────────────────────────────
-    _check("12 block kinds (the 8 launch kinds + the ADR-456 W1 four)",
-           set(STUDIO_BLOCKS) == {"prose", "callout", "quote", "checklist",
+    _check("13 block kinds (8 launch + ADR-456 W1 four + ADR-487 D1 heading)",
+           set(STUDIO_BLOCKS) == {"prose", "heading", "callout", "quote", "checklist",
                                   "table", "metrics", "chart", "figure",
                                   "divider", "toggle", "button", "gallery"})
     for kind, b in STUDIO_BLOCKS.items():
@@ -273,8 +273,10 @@ def run() -> bool:
            all('data-block="heading"' in a["fragment"]
                for a in STUDIO_ARRANGEMENTS["deck"].values()
                if "<h1" in a["fragment"] or "<h2" in a["fragment"]))
-    _check("heading is NOT a palette-inserted vocabulary kind (grammar, not schema)",
-           "heading" not in STUDIO_BLOCKS)
+    # (REVERSED by ADR-487 D1, 2026-07-25: the type ramp became playable —
+    #  heading IS a vocabulary kind now, its levels carried by the tag.)
+    _check("heading is a vocabulary kind (ADR-487 D1 — the playable ramp)",
+           "heading" in STUDIO_BLOCKS)
     _check("posture teaches the heading block (editable titles)",
            'data-block="heading"' in posture)
     _check("arrangement reflow does not sweep heading blocks into a slot",

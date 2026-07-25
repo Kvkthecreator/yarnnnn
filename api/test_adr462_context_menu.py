@@ -399,7 +399,7 @@ def main() -> bool:
     # ── ADR-479 D5: Turn into offers only what the op will accept ──────────
     _check(
         "the submenu reads the ONE legality list (no copy to drift from)",
-        "import { TURN_INTO_KINDS }" in menu_src
+        "import { TURN_INTO_KINDS, turnIntoTargets }" in menu_src
         and "export const TURN_INTO_KINDS" in _read("web/components/studio/StudioDesignTab.tsx"),
     )
     _check(
@@ -407,9 +407,13 @@ def main() -> bool:
         "so a row offering it would be a promise the op declines)",
         "!target.dataRef" in menu_src,
     )
+    # (Re-pinned 2026-07-25: ADR-487 D1 moved the exclusion into the shared
+    #  turnIntoTargets builder — one list, two mounts, one legality rule.)
     _check(
         "…nor the kind the block already IS (a no-op row is noise)",
-        "k !== target.blockKind" in menu_src,
+        "turnIntoTargets(blocks ?? [], target.blockKind, null)" in menu_src
+        and "if (k === currentKind) continue;"
+        in _read("web/components/studio/StudioDesignTab.tsx"),
     )
     _check(
         "the menu acts on the RIGHT-CLICKED block, not whatever is selected",
