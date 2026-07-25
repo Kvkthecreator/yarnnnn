@@ -30,6 +30,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  ChevronDown,
   Copy,
   FolderInput,
   Link2,
@@ -180,14 +181,10 @@ function TokenControl({
   token,
   current,
   onSet,
-  swatches,
 }: {
   token: StudioToken;
   current: string | null;
   onSet: (value: string | null) => void;
-  /** ADR-487 D3 — a value→color map paints a dot on the chip with the APPLIED
-   *  system's resolved value (falls back to the kernel literal unskinned). */
-  swatches?: Record<string, string>;
 }) {
   const seg =
     'rounded px-1.5 py-0.5 text-[10px] transition-colors border';
@@ -219,12 +216,6 @@ function TokenControl({
                 : 'border-border text-muted-foreground hover:bg-muted/40'
             }`}
           >
-            {swatches?.[v.value] && (
-              <span
-                className="mr-1 inline-block h-2 w-2 rounded-full border border-black/10 align-middle"
-                style={{ background: swatches[v.value] }}
-              />
-            )}
             {v.label}
           </button>
         ))}
@@ -284,6 +275,148 @@ function FontControl({
         {token.values.map((v) => chip(v.value, v.label, stacks[v.value]))}
       </div>
     </div>
+  );
+}
+
+// ── ADR-487 D3 v2 — the visual style select (the Figma presentation) ────────
+// One dropdown shape, two consumers (Typography + Color): the trigger shows
+// the CURRENT style as it resolves under the applied system; each option row
+// is rendered in what IT resolves to. The values stay the closed kernel
+// vocabulary — only the presentation speaks the system.
+function StyleSelect({
+  label,
+  description,
+  current,
+  options,
+}: {
+  label: string;
+  description?: string;
+  current: { preview: React.ReactNode; label: string; detail?: string };
+  options: Array<{
+    key: string;
+    preview: React.ReactNode;
+    label: string;
+    detail?: string;
+    active?: boolean;
+    onPick: () => void;
+  }>;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+  return (
+    <div ref={ref} className="relative">
+      <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title={description}
+        className="flex w-full items-center gap-2 rounded-md border border-border px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted/40"
+      >
+        {current.preview}
+        <span className="min-w-0 truncate">{current.label}</span>
+        {current.detail && (
+          <span className="shrink-0 text-[10px] text-muted-foreground">· {current.detail}</span>
+        )}
+        <ChevronDown className="ml-auto h-3 w-3 shrink-0 text-muted-foreground/60" />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-md border border-border bg-popover py-1 shadow-md">
+          {options.map((o) => (
+            <button
+              key={o.key}
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                o.onPick();
+              }}
+              className={`flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-accent ${
+                o.active ? 'bg-muted/40' : ''
+              }`}
+            >
+              {o.preview}
+              <span className="min-w-0 truncate">{o.label}</span>
+              {o.detail && (
+                <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">{o.detail}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The Typography ramp rows (ADR-487 D3 v2) — the tag IS the rung. Order is
+ *  the ramp's (largest first), Text closing it, the Figma reading. */
+const TEXT_STYLE_ROWS: Array<{ key: string; label: string }> = [
+  { key: 'h1', label: 'Heading 1' },
+  { key: 'h2', label: 'Heading 2' },
+  { key: 'h3', label: 'Heading 3' },
+  { key: 'p', label: 'Text' },
+];
+
+/** A palette-backed token (tone / the D2 variant) as a visual select — the
+ *  swatch is the applied system's RESOLVED value; a slashed dot is Auto. */
+function ColorTokenSelect({
+  token,
+  current,
+  swatches,
+  onSet,
+}: {
+  token: StudioToken;
+  current: string | null;
+  swatches: Record<string, string>;
+  onSet: (value: string | null) => void;
+}) {
+  const dot = (color: string | null) => (
+    <span
+      className="h-3.5 w-3.5 shrink-0 rounded-full border border-black/10"
+      style={
+        color
+          ? { background: color }
+          : {
+              backgroundImage:
+                'linear-gradient(135deg, transparent 45%, #bbb 45%, #bbb 55%, transparent 55%)',
+            }
+      }
+    />
+  );
+  const cur = token.values.find((v) => v.value === current) ?? null;
+  return (
+    <StyleSelect
+      label={token.label}
+      description={token.description}
+      current={{
+        preview: dot(current ? swatches[current] ?? null : null),
+        label: cur?.label ?? 'Auto',
+      }}
+      options={[
+        {
+          key: '__auto',
+          preview: dot(null),
+          label: 'Auto',
+          active: current == null,
+          onPick: () => onSet(null),
+        },
+        ...token.values.map((v) => ({
+          key: v.value,
+          preview: dot(swatches[v.value] ?? null),
+          label: v.label,
+          active: current === v.value,
+          onPick: () => onSet(current === v.value ? null : v.value),
+        })),
+      ]}
+    />
   );
 }
 
@@ -564,6 +697,49 @@ export function StudioDesignTab({
     }),
     [skinMap],
   );
+
+  // ADR-487 D3 v2 — the Typography previews derive from the ARTIFACT'S OWN
+  // styles: every layout bakes its tag sizes as `h1 { font-size: var(--text-*,
+  // LIT) }`, so a textual last-match + skin resolution is truthful per layout
+  // AND per skin — nothing is hand-mapped, so a layout or skin change
+  // re-truths the dropdown on its own.
+  const allCss = useMemo(
+    () =>
+      Array.from(doc?.querySelectorAll('style') ?? [])
+        .map((s) => s.textContent ?? '')
+        .join('\n'),
+    [doc],
+  );
+  const resolveCssValue = useCallback(
+    (raw: string) => {
+      const m = raw.trim().match(/^var\(\s*--([a-z0-9-]+)\s*(?:,\s*([^)]+))?\)$/i);
+      if (!m) return raw.trim();
+      return skinMap.get(m[1]) ?? m[2]?.trim() ?? raw.trim();
+    },
+    [skinMap],
+  );
+  const tagFontSize = useCallback(
+    (tag: string) => {
+      const rx = new RegExp(`(?:^|[\\s,{}])${tag}[^{]*\\{[^}]*font-size:\\s*([^;}]+)`, 'gi');
+      let last: string | null = null;
+      let m;
+      while ((m = rx.exec(allCss))) last = m[1];
+      if (last) return resolveCssValue(last);
+      return { h1: '2rem', h2: '1.3rem', h3: '1.17em', p: '1rem' }[tag] ?? '1rem';
+    },
+    [allCss, resolveCssValue],
+  );
+  const bodyFace = useMemo(() => {
+    const fontToken = doc?.documentElement?.getAttribute('data-font');
+    if (fontToken && fontToken in resolvedFontStacks) {
+      return resolvedFontStacks[fontToken as keyof typeof resolvedFontStacks];
+    }
+    const rx = /(?:^|[\s,{}])body[^{]*\{[^}]*font-family:\s*([^;}]+)/gi;
+    let last: string | null = null;
+    let m;
+    while ((m = rx.exec(allCss))) last = m[1];
+    return last ? resolveCssValue(last) : FONT_STACKS.serif;
+  }, [allCss, doc, resolvedFontStacks, resolveCssValue]);
 
   // ADR-456 W3: the page background — cited image on the page element.
   const pageBgRef =
@@ -964,15 +1140,24 @@ export function StudioDesignTab({
           </div>
           {applicable.length > 0 && (
             <div className={SECTION}>
-              {applicable.map((t) => (
-                <TokenControl
-                  key={t.key}
-                  token={t}
-                  current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
-                  onSet={(v) => onSetToken('page', t.key, v)}
-                  swatches={tokenSwatches[t.key]}
-                />
-              ))}
+              {applicable.map((t) =>
+                tokenSwatches[t.key] ? (
+                  <ColorTokenSelect
+                    key={t.key}
+                    token={t}
+                    current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
+                    swatches={tokenSwatches[t.key]}
+                    onSet={(v) => onSetToken('page', t.key, v)}
+                  />
+                ) : (
+                  <TokenControl
+                    key={t.key}
+                    token={t}
+                    current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
+                    onSet={(v) => onSetToken('page', t.key, v)}
+                  />
+                ),
+              )}
             </div>
           )}
           {/* Background (ADR-456 W3) — a CITED image on the page element; the
@@ -1098,8 +1283,69 @@ export function StudioDesignTab({
           indicator. */}
       {scope === 'block' && (
         <>
-          {/* Turn into (ADR-456 W2) — text kinds only; the id and tokens
-              survive the conversion (a block with a citation refuses). */}
+          {/* Typography (ADR-487 D3 v2) — the ramp as a visual select, on the
+              two ramp-shaped kinds (prose/heading), UNIVERSAL across layouts:
+              current rung read from the tag, previews derived from the
+              artifact's own styles under the applied skin. Picking a rung IS
+              the turn-into conversion (id + tokens survive). */}
+          {selection?.blockKind &&
+            (selection.blockKind === 'prose' || selection.blockKind === 'heading') &&
+            (() => {
+              const tag = selectedEl?.tagName?.toLowerCase() ?? null;
+              const curTag =
+                selection.blockKind === 'heading' && tag && ['h1', 'h2', 'h3'].includes(tag)
+                  ? tag
+                  : 'p';
+              const AG_SCALE: Record<string, number> = { h1: 18, h2: 16, h3: 14, p: 12 };
+              const ag = (t: string) => (
+                <span
+                  className="w-6 shrink-0 text-center leading-none"
+                  style={{
+                    fontFamily: bodyFace,
+                    fontSize: AG_SCALE[t] ?? 12,
+                    fontWeight: t === 'p' ? 400 : 600,
+                  }}
+                >
+                  Ag
+                </span>
+              );
+              const proseRow = vocabulary?.blocks.find((b) => b.kind === 'prose');
+              const curRow =
+                TEXT_STYLE_ROWS.find((r) => r.key === curTag) ??
+                TEXT_STYLE_ROWS[TEXT_STYLE_ROWS.length - 1];
+              return (
+                <div className={SECTION}>
+                  <StyleSelect
+                    label="Typography"
+                    description="The block's place on the type ramp — sized by the layout, themed by the design system"
+                    current={{ preview: ag(curTag), label: curRow.label, detail: tagFontSize(curTag) }}
+                    options={TEXT_STYLE_ROWS.map((r) => ({
+                      key: r.key,
+                      preview: ag(r.key),
+                      label: r.label,
+                      detail: tagFontSize(r.key),
+                      active: r.key === curTag,
+                      onPick: () => {
+                        if (r.key === curTag) return;
+                        if (r.key === 'p') {
+                          if (proseRow) onTurnInto(proseRow.kind, proseRow.label, proseRow.fragment);
+                        } else {
+                          onTurnInto(
+                            'heading',
+                            r.label,
+                            `<${r.key} data-block="heading">…</${r.key}>`,
+                          );
+                        }
+                      },
+                    }))}
+                  />
+                </div>
+              );
+            })()}
+          {/* Turn into (ADR-456 W2) — the id and tokens survive the conversion
+              (a block with a citation refuses). On ramp blocks (prose/heading)
+              the Typography select above OWNS the ramp, so this list carries
+              only the STRUCTURAL targets; structural kinds keep the full list. */}
           {selection?.blockKind && TURN_INTO_KINDS.includes(selection.blockKind) && (
             <div className={SECTION}>
               <p className={HEADING}>Turn into</p>
@@ -1108,30 +1354,47 @@ export function StudioDesignTab({
                   vocabulary?.blocks ?? [],
                   selection.blockKind,
                   selectedEl?.tagName ?? null,
-                ).map((b) => (
-                  <button
-                    key={b.key}
-                    type="button"
-                    className={askBtn}
-                    onClick={() => onTurnInto(b.kind, b.label, b.fragment)}
-                  >
-                    {b.label}
-                  </button>
-                ))}
+                )
+                  .filter(
+                    (b) =>
+                      !(
+                        (selection.blockKind === 'prose' || selection.blockKind === 'heading') &&
+                        (b.kind === 'heading' || b.kind === 'prose')
+                      ),
+                  )
+                  .map((b) => (
+                    <button
+                      key={b.key}
+                      type="button"
+                      className={askBtn}
+                      onClick={() => onTurnInto(b.kind, b.label, b.fragment)}
+                    >
+                      {b.label}
+                    </button>
+                  ))}
               </div>
             </div>
           )}
           {applicable.length > 0 && (
             <div className={SECTION}>
-              {applicable.map((t) => (
-                <TokenControl
-                  key={t.key}
-                  token={t}
-                  current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
-                  onSet={(v) => onSetToken('block', t.key, v)}
-                  swatches={tokenSwatches[t.key]}
-                />
-              ))}
+              {applicable.map((t) =>
+                tokenSwatches[t.key] ? (
+                  <ColorTokenSelect
+                    key={t.key}
+                    token={t}
+                    current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
+                    swatches={tokenSwatches[t.key]}
+                    onSet={(v) => onSetToken('block', t.key, v)}
+                  />
+                ) : (
+                  <TokenControl
+                    key={t.key}
+                    token={t}
+                    current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
+                    onSet={(v) => onSetToken('block', t.key, v)}
+                  />
+                ),
+              )}
             </div>
           )}
           {/* ADR-485 follow-on — the SIZE read-back. A drag on the canvas

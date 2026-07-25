@@ -216,3 +216,24 @@ during this pass recorded so it isn't re-derived:
 
 **The live click-pass on the whole ADR-487 surface remains owed** (the standing Studio debt —
 compile + gates are the validation ceiling until a human drives it).
+
+## 10. D3 v2 — the visual style selects (amendment, 2026-07-25, same day)
+
+The operator, from Figma's Text-styles + Fill pickers: *the dropdown must SHOW the change,
+and typography/color handling should be universal across document types.* D3's first cut
+(swatch dots on chips) is superseded by the full presentation:
+
+- **One `StyleSelect` shape, two consumers.** Trigger = the current style as it resolves
+  under the applied system; each option row rendered in what *it* resolves to.
+- **Typography** (block scope, prose + heading kinds, **universal across layouts**): the
+  ramp as a select — "Ag" previews in the resolved body face, per-rung resolved sizes
+  **derived from the artifact's own baked styles** (`h1 { font-size: var(--text-*, LIT) }`
+  last-match + skin resolution — nothing hand-mapped, so a layout or skin change re-truths
+  the dropdown by construction). Picking a rung IS the turn-into conversion. On ramp blocks
+  the "Turn into" row narrows to STRUCTURAL targets (the select owns the ramp — no dual
+  mount); structural kinds keep the full list; the right-click menu is unchanged.
+- **Color** (tone + the D2 variant, block + page scope): the same select with resolved
+  swatches; Auto = the slashed dot. The chip-dot presentation from the first D3 cut is
+  deleted (Singular Implementation).
+- The values stay the closed kernel vocabulary throughout — the presentation speaks the
+  system; the document still records only roles.
