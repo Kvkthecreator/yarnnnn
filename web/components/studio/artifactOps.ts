@@ -382,7 +382,6 @@ export function convertBlock(
   const doc = parse(html);
   const block = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
   if (!block) return null;
-  if (block.getAttribute('data-block') === kind) return null; // no-op
   // Citations never flatten — check the block's OWN ref (figure/table wear
   // data-ref on their root) as well as any descendant. A root-ref block that
   // slipped past a descendant-only check would keep its live citation pin on
@@ -392,6 +391,12 @@ export function convertBlock(
   tpl.innerHTML = fragment.trim();
   const shell = tpl.content.firstElementChild;
   if (!shell) return null;
+  // No-op = same kind AND same tag (ADR-487 D1): a heading level change is
+  // same-kind/different-tag, so the guard compares both — kind alone would
+  // make the rungs unreachable.
+  if (block.getAttribute('data-block') === kind && block.tagName === shell.tagName) {
+    return null;
+  }
   const units = Array.from(block.querySelectorAll('li, p, h1, h2, h3, h4, summary, cite'))
     .map((el) => (el.textContent ?? '').trim())
     .filter(Boolean);
@@ -402,7 +407,12 @@ export function convertBlock(
   // Rebuild the content in the target's shape — text harvested, never markup
   // (inline formatting inside a converted block is the one accepted loss).
   const built: Array<[string, string]> = [];
-  if (kind === 'checklist') {
+  if (kind === 'heading') {
+    // A heading is ONE line on the ramp (ADR-487 D1) — the shell (h1/h2/h3)
+    // holds the text directly, no child units. Joining keeps every unit's
+    // text (content is never dropped, shape is the accepted loss).
+    built.push(['__self__', units.length ? units.join(' ') : 'Heading']);
+  } else if (kind === 'checklist') {
     (units.length ? units : ['…']).forEach((u) => built.push(['li', u]));
   } else if (kind === 'quote') {
     built.push(['p', units[0] ?? '…']);
@@ -416,6 +426,10 @@ export function convertBlock(
   }
   shell.innerHTML = '';
   for (const [tag, text] of built) {
+    if (tag === '__self__') {
+      shell.textContent = text; // the shell IS the unit (heading)
+      continue;
+    }
     const child = doc.createElement(tag);
     child.textContent = text;
     shell.appendChild(child);

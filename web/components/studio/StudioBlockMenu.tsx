@@ -26,7 +26,7 @@ import {
   ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, ChevronRight, MessageSquare, Sparkles, SearchCheck, Link2, History,
 } from 'lucide-react';
 import type { StudioContextTarget } from './StudioCanvas';
-import { TURN_INTO_KINDS } from './StudioDesignTab';
+import { TURN_INTO_KINDS, turnIntoTargets } from './StudioDesignTab';
 
 export interface StudioBlockMenuProps {
   target: StudioContextTarget;
@@ -166,13 +166,14 @@ export function StudioBlockMenu({
   // that isn't already what it is, and never a citation — `convertBlock`
   // refuses a block carrying data-ref (flattening would bake a live reference
   // into prose), so offering it would be a row the op declines.
+  // ADR-487 D1: one target list, two mounts — heading expands to its level
+  // targets. The menu cannot know the block's current TAG (the selection
+  // message carries kind, not tag), so it passes null: the current level is
+  // offered and lands as a convertBlock no-op, never a lie about capability.
   const turnIntoKinds =
     hasBlock && target.blockKind && !target.dataRef
       && TURN_INTO_KINDS.includes(target.blockKind)
-      ? TURN_INTO_KINDS
-          .filter((k) => k !== target.blockKind)
-          .map((k) => (blocks ?? []).find((b) => b.kind === k))
-          .filter((b): b is { kind: string; label: string; fragment: string } => !!b)
+      ? turnIntoTargets(blocks ?? [], target.blockKind, null)
       : [];
 
   // The canvas is an iframe: its coordinates are frame-local. The caller passes
@@ -239,7 +240,7 @@ export function StudioBlockMenu({
                 <div className="mt-0.5 border-l-2 border-border/60 pl-1">
                   {turnIntoKinds.map((b) => (
                     <button
-                      key={b.kind}
+                      key={b.key}
                       type="button"
                       onClick={() => run(() => onTurnInto(b.kind, b.label, b.fragment))}
                       className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"

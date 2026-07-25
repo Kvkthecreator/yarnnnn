@@ -47,6 +47,20 @@ STUDIO_ARTIFACT_REGION = "/workspace/operation/"
 # ---------------------------------------------------------------------------
 
 STUDIO_BLOCKS: dict[str, dict[str, str]] = {
+    # ADR-487 D1 — the type ramp made playable. Every scaffold already uses
+    # heading blocks (they anchor pages); this registry row makes the insert
+    # and turn-into surfaces offer what the scaffolds always used. The TAG
+    # carries the rung (h1/h2/h3 — the FE's level targets swap the tag, same
+    # kind); the kernel sizes each level from the type scale, so headings are
+    # design-system-fed by construction. The re-arrange protection ("heading
+    # blocks anchor the page and are not swept") is untouched — it never
+    # required headings to be unauthorable.
+    "heading": {
+        "label": "Heading",
+        "group": "content",
+        "description": "A heading on the type ramp — the tag (h1/h2/h3) carries the level.",
+        "markup": '<h2 data-block="heading" data-block-id="b13">Heading</h2>',
+    },
     "prose": {
         "label": "Text",
         "group": "content",

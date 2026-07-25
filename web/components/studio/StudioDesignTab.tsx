@@ -53,15 +53,55 @@ export type StructVerb = 'duplicate' | 'up' | 'down' | 'delete';
 
 const PAGE_SEL = 'section.slide, [data-arrange]';
 
-/** The TEXT kinds a block can turn into (ADR-456 W2) — text-shaped only:
- *  structured/cited kinds (table/metrics/chart/figure/gallery) and headings
- *  (they anchor pages) are not conversion targets. */
 /** The block kinds a block can be turned INTO (ADR-456 W2) — text kinds only,
  *  because the conversion rebuilds text units and a citation must never
  *  flatten. Exported so the right-click submenu (ADR-479 D5) offers exactly the
  *  legal set: one list, two mounts. A copy would drift, and a menu offering an
- *  illegal conversion is a promise the op refuses to keep. */
-export const TURN_INTO_KINDS = ['prose', 'callout', 'quote', 'checklist', 'toggle'];
+ *  illegal conversion is a promise the op refuses to keep.
+ *  ADR-487 D1: `heading` joins — the old exclusion ("headings anchor pages")
+ *  was about the re-arrange sweep, which stays; it never needed to make
+ *  headings unconvertible. */
+export const TURN_INTO_KINDS = ['prose', 'heading', 'callout', 'quote', 'checklist', 'toggle'];
+
+/** The heading rungs (ADR-487 D1) — the tag carries the level; the kernel
+ *  sizes each from the type scale, so the rungs are design-system-fed. */
+export const HEADING_LEVELS: Array<{ tag: string; label: string }> = [
+  { tag: 'h1', label: 'Heading 1' },
+  { tag: 'h2', label: 'Heading 2' },
+  { tag: 'h3', label: 'Heading 3' },
+];
+
+/** Build the Turn-into target list (ONE list, two mounts — the Design tab and
+ *  the right-click submenu). `heading` expands to its three level targets
+ *  (same kind, the tag carries the rung). `currentTag` (when the mount knows
+ *  it) excludes the level the block already is; a mount that cannot know the
+ *  tag passes null — clicking the current level is a convertBlock no-op, not
+ *  a lie. */
+export function turnIntoTargets(
+  blocks: Array<{ kind: string; label: string; fragment: string }>,
+  currentKind: string | null,
+  currentTag: string | null,
+): Array<{ key: string; kind: string; label: string; fragment: string }> {
+  const out: Array<{ key: string; kind: string; label: string; fragment: string }> = [];
+  for (const k of TURN_INTO_KINDS) {
+    if (k === 'heading') {
+      for (const lvl of HEADING_LEVELS) {
+        if (currentKind === 'heading' && currentTag?.toLowerCase() === lvl.tag) continue;
+        out.push({
+          key: `heading-${lvl.tag}`,
+          kind: 'heading',
+          label: lvl.label,
+          fragment: `<${lvl.tag} data-block="heading">…</${lvl.tag}>`,
+        });
+      }
+      continue;
+    }
+    if (k === currentKind) continue;
+    const b = blocks.find((vb) => vb.kind === k);
+    if (b) out.push({ key: k, kind: b.kind, label: b.label, fragment: b.fragment });
+  }
+  return out;
+}
 
 function baseName(p: string): string {
   const parts = p.split('/');
@@ -1022,20 +1062,20 @@ export function StudioDesignTab({
             <div className={SECTION}>
               <p className={HEADING}>Turn into</p>
               <div className="flex flex-wrap gap-1">
-                {TURN_INTO_KINDS.filter((k) => k !== selection.blockKind).map((k) => {
-                  const b = vocabulary?.blocks.find((vb) => vb.kind === k);
-                  if (!b) return null;
-                  return (
-                    <button
-                      key={k}
-                      type="button"
-                      className={askBtn}
-                      onClick={() => onTurnInto(b.kind, b.label, b.fragment)}
-                    >
-                      {b.label}
-                    </button>
-                  );
-                })}
+                {turnIntoTargets(
+                  vocabulary?.blocks ?? [],
+                  selection.blockKind,
+                  selectedEl?.tagName ?? null,
+                ).map((b) => (
+                  <button
+                    key={b.key}
+                    type="button"
+                    className={askBtn}
+                    onClick={() => onTurnInto(b.kind, b.label, b.fragment)}
+                  >
+                    {b.label}
+                  </button>
+                ))}
               </div>
             </div>
           )}
