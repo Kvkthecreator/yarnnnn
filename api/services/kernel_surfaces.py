@@ -295,6 +295,29 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/images",
         "summary": "Compose visuals on a sized stage — layered objects, positioned and stacked. The composition is the source and the rendered image is a derivation of it, so every export stays traceable to the stage, the citations, and the revision that produced it.",
     },
+    {
+        # ADR-486 — AI Radar, the STANDING app (the third verb: perceive made
+        # felt). Topic hubs (operation/{topic}/_radar.yaml) sweep on schedule
+        # with nobody present: declared sources → retained observations → a
+        # derived cited brief. This surface is the app's window: hub roster +
+        # the composed hub view (briefs shelf · sweep health · sources),
+        # projected at read time from substrate + ledger (D5, derived-never-
+        # stored). Built as its OWN app from the start — the Images lesson
+        # (ADR-472): growing an app inside an existing surface forces a carve
+        # later. launcher_tier stays search-only until R3 (D7, the unveil
+        # rule): the app exists and works; the dock icon is earned by the D8
+        # falsifier window, not shipped ahead of it.
+        "slug": "radar",
+        "launcher_tier": "search-only",  # ADR-486 D7 — unveil held for R3
+        "register": "application",
+        "title": "Radar",
+        "archetype": "dashboard",
+        "substrate_paths": [],  # hubs are meaning-placed under operation/{topic}/
+        "icon_key": "radar",
+        "default_pinned": False,
+        "route": "/radar",
+        "summary": "Standing topic hubs that sweep while you're away — declared sources fetched on schedule, what changed distilled into a cited brief. Watch → observe → derive → compose; every brief traces to the observations it was made from.",
+    },
     # ADR-415 (2026-07-08): the `channels` surface is DISSOLVED. It was a fossil
     # of the Feed → Context → Channels lineage, scoped by boundary (edge vs
     # interior) — an axis operators don't hold, producing two "what happened"

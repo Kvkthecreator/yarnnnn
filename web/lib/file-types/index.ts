@@ -208,6 +208,25 @@ export function extractTemplate(content: string): string | null {
   return m ? m[1] : null;
 }
 
+/**
+ * ADR-486 — the DECLARATION claim, ahead of the artifact (html) layer.
+ *
+ * A hub declaration (`operation/{topic}/_radar.yaml`) is not an authoring
+ * artifact — it is the standing app's unit, and opening it from the Finder
+ * launches the Radar app on that hub (param `radar.file` carries the path;
+ * the app derives the topic). Path-only and cheap, so `openPath` consults it
+ * BEFORE the isArtifactCandidate content-read gate. Every other yaml stays
+ * with the inline raw view (Quick Look) — the claim is exactly one leaf name
+ * in exactly one namespace, never "yaml opens Radar".
+ */
+export function resolveDeclarationApplication(path: string): SurfaceApplication | null {
+  const rel = (path || '').toLowerCase().replace(/^\/workspace\//, '').replace(/^\//, '');
+  if (/^operation\/[^/]+\/_radar\.yaml$/.test(rel)) {
+    return { surface: 'radar', param: 'file', label: 'Radar' };
+  }
+  return null;
+}
+
 export function resolveSurfaceApplication(
   path: string,
   contentType?: string,

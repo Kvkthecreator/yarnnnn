@@ -405,8 +405,51 @@ check("radar router registered in main.py",
       "radar.router" in main_src and ", radar" in main_src)
 
 # ---------------------------------------------------------------------------
+# 10. R2 — the dedicated app (the Images lesson: never grown inside Files)
+# ---------------------------------------------------------------------------
+print("10. the Radar app (dedicated, search-only until R3)")
+
+import os
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+def _read(rel):
+    with open(os.path.join(_ROOT, rel)) as f:
+        return f.read()
+
+ks_src = _read("services/kernel_surfaces.py")
+radar_row = ks_src[ks_src.find('"slug": "radar"'):ks_src.find('"slug": "radar"') + 800]
+check("BE registry row exists", '"slug": "radar"' in ks_src)
+check("launcher tier held at search-only (D7 — no dock until R3)",
+      '"launcher_tier": "search-only"' in radar_row and '"route": "/radar"' in radar_row)
+check("registered as an application, not pinned",
+      '"register": "application"' in radar_row and '"default_pinned": False' in radar_row)
+
+desk_src = _read("../web/types/desk.ts")
+check("FE slug union + allowlist carry 'radar'",
+      "| 'radar'" in desk_src and "'images', 'radar'," in desk_src)
+
+reg_src = _read("../web/components/shell/SurfaceRegistry.tsx")
+check("SurfaceRegistry mounts RadarPage", "radar: RadarPage" in reg_src)
+
+surface_src = _read("../web/components/radar/RadarSurface.tsx")
+check("the app is its own component tree (never inside Files' viewers)",
+      os.path.exists(os.path.join(_ROOT, "../web/components/radar/RadarSurface.tsx"))
+      and "useSurfaceParam('radar')" in surface_src)
+check("briefs open via Files (the record never requires the app)",
+      "navigateToSurface('files'" in surface_src)
+
+ft_src = _read("../web/lib/file-types/index.ts")
+check("declaration claim is exactly one leaf in one namespace",
+      "resolveDeclarationApplication" in ft_src
+      and "operation\\/[^/]+\\/_radar\\.yaml$" in ft_src)
+
+files_src = _read("../web/app/(authenticated)/files/page.tsx")
+op = files_src[files_src.find("const openPath"):files_src.find("openPathRef.current = openPath")]
+check("openPath consults the declaration claim BEFORE the artifact gate",
+      0 < op.find("resolveDeclarationApplication") < op.find("isArtifactCandidate(path)"))
+
+# ---------------------------------------------------------------------------
 print()
 if FAILURES:
     print(f"✗ {len(FAILURES)} check(s) failed: {FAILURES}")
     sys.exit(1)
-print("✓ all ADR-486 radar checks passed (R0 lane + R1 authoring + R2 view)")
+print("✓ all ADR-486 radar checks passed (R0 lane + R1 authoring + R2 view + app)")

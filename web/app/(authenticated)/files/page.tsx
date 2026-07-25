@@ -60,6 +60,7 @@ import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
 import {
   extractTemplate,
   isArtifactCandidate,
+  resolveDeclarationApplication,
   resolveSurfaceApplication,
 } from '@/lib/file-types';
 import { NewFolderModal } from '@/components/workspace/NewFolderModal';
@@ -663,6 +664,15 @@ export default function ContextPage() {
       setSelectedPath(path);
       activateBodyRef.current(); // narrow: drill into the viewer
     };
+    // ADR-486: a hub DECLARATION (operation/{topic}/_radar.yaml) is claimed by
+    // the Radar app — a path-only check ahead of the artifact layer, still
+    // inside the one openPath funnel (no content read; the app derives the
+    // topic from the handed path).
+    const declApp = resolveDeclarationApplication(path);
+    if (declApp) {
+      navigateToSurface(declApp.surface, { [declApp.param]: path });
+      return;
+    }
     // A non-artifact path (folder, .md, image, arrival) never routes to an app —
     // isArtifactCandidate is a cheap path-only pre-check, so we don't read
     // content for the 500-row tree, only for a file that might route.

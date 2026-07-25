@@ -27,6 +27,7 @@ import {
   MessageCircle,
   Package,
   Palette,
+  Radar,
   Rocket,
   Rss,
   Scale,
@@ -92,6 +93,10 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // the family (Chat bubble / Studio palette / Files folder).
   image: Image,
   inbox: Inbox,
+  // ADR-486: the RADAR app glyph — the standing sweep. Registered with the
+  // surface (search-only tier until R3) so the Launcher's summon-by-name row
+  // and the eventual Dock tile wear the same object from day one.
+  radar: Radar,
   // ADR-297 D19.5.2 (2026-05-22): layout-dashboard DELETED. Was only
   // mapped to Cockpit; swapped to square-activity to disambiguate
   // from Launcher's layout-grid glyph (both rendered as 4-square

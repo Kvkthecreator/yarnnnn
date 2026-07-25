@@ -269,6 +269,32 @@ async function streamLaneTurn(
   }
 }
 
+// ADR-486 — radar hub shapes (mirror api/routes/radar.py).
+export interface RadarHubSummary {
+  topic: string;
+  declaration_path: string;
+  schedule?: string | string[] | null;
+  paused: boolean;
+  prompt?: string | null;
+  sources: Array<{ id: string; url: string; max_entries?: number }>;
+  last_run_at?: string | null;
+  next_run_at?: string | null;
+  latest_brief_path?: string | null;
+  latest_brief_title?: string | null;
+  brief_count: number;
+}
+
+export interface RadarHubView extends RadarHubSummary {
+  briefs: Array<{ path: string; title: string; date?: string | null }>;
+  recent_sweeps: Array<{
+    slug: string;
+    status: string;
+    created_at?: string | null;
+    error_reason?: string | null;
+  }>;
+  signal_observed_at?: string | null;
+}
+
 export const api = {
   // ADR-411 (ADR-408 D6): chat lanes — model-pinned helper threads per
   // member over the shared workspace. `enabled` reflects MODEL_ROUTER_ENABLED
@@ -443,6 +469,39 @@ export const api = {
     archive: (laneId: string) =>
       request<{ success: boolean }>(`/api/lanes/${laneId}/archive`, {
         method: "POST",
+      }),
+  },
+
+  // ADR-486 — AI Radar, the standing app. Hubs are declarations
+  // (operation/{topic}/_radar.yaml, written through the one door server-side);
+  // the hub view is the D5 lazy projection over substrate + ledger.
+  radar: {
+    list: () => request<RadarHubSummary[]>("/api/radar/hubs"),
+    get: (topic: string) =>
+      request<RadarHubView>(`/api/radar/hubs/${encodeURIComponent(topic)}`),
+    create: (data: {
+      topic: string;
+      sources: Array<{ id: string; url: string; max_entries?: number }>;
+      schedule?: string;
+      prompt?: string;
+      fire_on_activation?: boolean;
+    }) =>
+      request<RadarHubSummary>("/api/radar/hubs", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (
+      topic: string,
+      data: {
+        paused?: boolean;
+        schedule?: string;
+        prompt?: string;
+        sources?: Array<{ id: string; url: string; max_entries?: number }>;
+      },
+    ) =>
+      request<RadarHubSummary>(`/api/radar/hubs/${encodeURIComponent(topic)}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
       }),
   },
 
