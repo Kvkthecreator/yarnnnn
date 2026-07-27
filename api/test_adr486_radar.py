@@ -160,9 +160,13 @@ async def fake_intake(auth, args):
             "errors": []}
 
 
+route_calls: list[dict] = []
+
+
 def make_fake_route(text: str):
     async def fake_route(model, messages, **kwargs):
-        return SimpleNamespace(text=text, ledger_model="claude-sonnet-4-6",
+        route_calls.append({"model": model, "system": kwargs.get("system", "")})
+        return SimpleNamespace(text=text, ledger_model="gemini-2.5-flash",
                                usage={"input_tokens": 100, "output_tokens": 50})
     return fake_route
 
@@ -225,6 +229,16 @@ try:
           len(brief_evts) == 1 and brief_evts[0].get("mode") == "judgment"
           and brief_evts[0].get("status") == "success"
           and brief_evts[0].get("output_tokens") == 50)
+    # The resident binding, asserted on the EXECUTED call (2026-07-28):
+    # engine from the scout row; system = character first, job second.
+    from services.agents_registry import KERNEL_AGENTS as _KA
+    rc = route_calls[-1]
+    check("derive routes on the resident's engine (scout row)",
+          rc["model"] == _KA["scout"]["model"])
+    char_pos = rc["system"].find("You are Researcher")
+    job_pos = rc["system"].find("THE STANDING RADAR JOB")
+    check("system composes character BEFORE the job overlay",
+          0 <= char_pos < job_pos)
 
     print("6. run_radar_sweep — NO_BRIEF (the honest empty sweep)")
     events.clear(); revisions.clear(); embedded.clear()
@@ -280,10 +294,17 @@ capture_flag_block = sched_src[sched_src.find("capture_lane_on = "):radar_pos]
 check("radar NOT gated on CONNECTOR_CAPTURE_ENABLED (ADR-404 stands)",
       "drain_due_radar_sweeps" not in capture_flag_block)
 
-# radar model must be a routable priced model (the ADR-439 §4 rule)
+# The resident binding (operator-ratified 2026-07-28): the sweep's engine +
+# character come from the Researcher row — no hardcoded model constant (the
+# Designer precedent: a named colleague, never models[0]).
+from services.agents_registry import KERNEL_AGENTS
 from services.lane_runner import LANE_MODELS
-from services.radar import RADAR_MODEL
-check("RADAR_MODEL is a LANE_MODELS key (priced, routable)", RADAR_MODEL in LANE_MODELS)
+from services.radar import resolve_radar_resident
+_res_model, _res_char = resolve_radar_resident()
+check("resident is Researcher (scout row: engine + character)",
+      _res_model == KERNEL_AGENTS["scout"]["model"]
+      and _res_char == KERNEL_AGENTS["scout"]["posture"])
+check("resident model is a LANE_MODELS key (priced, routable)", _res_model in LANE_MODELS)
 
 # ---------------------------------------------------------------------------
 # 9. R1/R2 routes — authoring + the composed view (handlers EXECUTED)

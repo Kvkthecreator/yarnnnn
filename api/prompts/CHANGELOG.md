@@ -6,6 +6,23 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.28.1] - Radar's resident is Researcher (ADR-486 binding, operator-ratified)
+
+### Changed
+- `services/radar.py` — the sweep derive now resolves engine + character from
+  `KERNEL_AGENTS["scout"]` (Researcher) instead of a hardcoded model constant
+  (`RADAR_MODEL` deleted — the Designer precedent: a named colleague, never an
+  unnamed engine). System prompt composes CHARACTER first (Researcher's row
+  posture), JOB second (`_RADAR_POSTURE`, reworded from a self-contained
+  "You are the standing radar" frame into a job overlay: "THE STANDING RADAR
+  JOB — hub …", with an explicit selectivity-IS-the-job clause to resolve the
+  character's "do not editorialize" against the brief's "what matters").
+- Expected behavior: briefs now ride Researcher's engine (gemini-2.5-flash —
+  sweeps are volume work; ~10× cheaper than the sonnet constant) and read as
+  Researcher's work (revision message carries the face; `system:radar` stays
+  the ledger fact). Brief quality is watched by falsifier 2; an evidence-earned
+  regression moves the ROW (engine/character), never forks radar off it.
+
 ## [2026.07.24.2] - The radar brief posture (ADR-486 R0)
 
 ### Added

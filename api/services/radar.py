@@ -75,10 +75,33 @@ RADAR_DECLARATION_LEAF = "_radar.yaml"
 SIGNAL_LEAF = "_watch_signal.yaml"
 BRIEFS_DIR = "briefs"
 
-#: One bounded judgment turn — a brief is ~80 lines, not a report.
-RADAR_MODEL = "anthropic/claude-sonnet-4-6"
+#: One bounded judgment turn — a brief is ~80 lines, not a report. The
+#: ceiling is the JOB's (a brief runs short), regardless of who executes it —
+#: the `_studio_max_tokens` logic, inverted.
 _BRIEF_MAX_TOKENS = 2048
 _BRIEF_TIMEOUT_S = 120.0
+
+
+def resolve_radar_resident() -> tuple[str, str]:
+    """The sweep's resident colleague — Researcher (slug ``scout``).
+
+    The Designer↔Studio precedent applied (operator-ratified 2026-07-28): a
+    hardcoded model constant here was the same unnamed-engine smell as
+    Studio's pre-Designer ``models[0]`` — an engine nobody chose answering
+    "who swept this?". The agent ROW carries IDENTITY + ENGINE + CHARACTER
+    (ADR-460/467); the radar posture below is the JOB overlay composed on
+    top (character first, job second — the lane_runner order). No new agent
+    was minted: the base roster is closed at three addressed operations
+    (AGENT-TAXONOMY §5) and a sweep is un-addressed — it is Researcher's
+    acquire/read operation running on a clock, so Researcher is the
+    resident. A future hub-chat lane pins ``agent: 'scout'`` in lane_meta
+    (the Studio pin — a lane fact, never an agent fact).
+
+    Returns ``(model, character_posture)``.
+    """
+    from services.agents_registry import KERNEL_AGENTS
+    row = KERNEL_AGENTS["scout"]
+    return row["model"], row["posture"]
 
 #: The empty-sweep sentinel the posture contracts. Falsifier 4's honest zero.
 NO_BRIEF_SENTINEL = "NO_BRIEF"
@@ -374,16 +397,20 @@ class _RadarAuth:
         self.caller_identity = "system:radar"
 
 
-#: The brief posture — composed at sweep time, never stored. Carries ONLY what
-#: the model needs to distill; the kernel holds placement/citation/embed (the
-#: settle division of labour).
-_RADAR_POSTURE = """You are the standing radar on "{topic}" — a scheduled sweep \
-in a YARNNN workspace. Nobody is present; your brief will be read later.
+#: The brief posture — the JOB overlay, composed at sweep time UNDER the
+#: resident's character (Researcher's row posture leads; this section follows
+#: — the lane_runner character-then-job order). Never stored. Carries ONLY
+#: what the model needs to distill; the kernel holds placement/citation/embed
+#: (the settle division of labour).
+_RADAR_POSTURE = """THE STANDING RADAR JOB — hub "{topic}".
 
-THE JOB
-You are handed the fresh watch signal (distilled entries from the hub's declared
-web sources, fetched just now) and the hub's previous brief (if one exists).
-Write ONE brief: what changed on this topic that matters, since the previous brief.
+A scheduled sweep fired in the member's workspace. Nobody is present; the
+brief you write will be read later. You are handed the fresh watch signal
+(distilled entries from the hub's declared web sources, fetched just now) and
+the hub's previous brief (if one exists). Write ONE brief: what changed on
+this topic that matters, since the previous brief. Selectivity IS the job
+here — unlike an addressed research ask, nobody will refine this query;
+choosing what matters is what the brief is for.
 {steer}
 THE BAR
 - If nothing meaningfully NEW appears in the signal versus the previous brief,
@@ -501,12 +528,16 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
     )
 
     from services.model_router import route_completion
+    resident_model, resident_character = resolve_radar_resident()
     derive_started = datetime.now(timezone.utc)
     try:
         routed = await route_completion(
-            RADAR_MODEL,
+            resident_model,
             [{"role": "user", "content": user_msg}],
-            system=build_radar_posture(hub.topic, steer),
+            # Character first, job second — Researcher's row posture leads,
+            # the radar job overlay follows (the lane_runner composition
+            # order; see resolve_radar_resident).
+            system=resident_character + "\n\n" + build_radar_posture(hub.topic, steer),
             max_tokens=_BRIEF_MAX_TOKENS,
             timeout=_BRIEF_TIMEOUT_S,
         )
@@ -549,8 +580,10 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
         user_id=user_id,
         path=path,
         content=note,
+        # The face is the resident, the fact is the ledger (ADR-460 D2):
+        # the member reads "Researcher"; authored_by stays the mechanism.
         authored_by="system:radar",
-        message=f"radar brief for hub '{hub.topic}' (standing sweep, {items} sources)",
+        message=f"Researcher's radar brief for hub '{hub.topic}' (standing sweep, {items} sources)",
         revision_kind="derivation",
         derived_from=[signal_path, *raw_paths],
     )
@@ -646,7 +679,7 @@ async def drain_due_radar_sweeps(client) -> tuple[int, int, int]:
 __all__ = [
     "RADAR_KIND",
     "RADAR_DECLARATION_LEAF",
-    "RADAR_MODEL",
+    "resolve_radar_resident",
     "NO_BRIEF_SENTINEL",
     "RadarHub",
     "topic_from_declaration_path",
