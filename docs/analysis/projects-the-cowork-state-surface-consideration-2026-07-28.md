@@ -124,3 +124,40 @@ per-agent-ized (mandate, expected output), while Option B risks two half-desks.
 **Next step when taken up:** operator discourse over §4 and §6 → if ratified, a direction ADR
 (with the §5 cautions as constraints) → build inside whatever wave it's assigned. Until then,
 this document is the standing record of the consideration and nothing more.
+
+---
+
+## 7. Discourse pass (2026-07-28, second session) — audited, graduated to a draft
+
+The Lane-2 discourse ran the implementation audit (four receipted passes) and drafted the
+direction ADR: **[ADR-493](../adr/ADR-493-projects-the-co-work-state-desk.md) (Proposed —
+awaiting operator ratification, §9 there).** The audit findings that moved this doc's open
+questions, recorded so they are not re-derived:
+
+1. **§2's asymmetry confirmed and deepened** — no human-commitment object exists (zero
+   assignee/assigned_to object hits repo-wide), *and* the agent side has no assignable unit
+   either: standing intent rides declarations, never agents (`agents_registry.py:15-35`,
+   ADR-486 D3). "Assign to an Agent" = author a declaration. ADR-493 D1 re-cuts the work-unit
+   as the third declaration kind (recurrence · hub · **work-unit = declaration with an owner**).
+2. **§4's crux dissolves** — the Agents desk is identity/capability only (live code,
+   `agents/page.tsx:10-21`); there is no agent-mandate desk to absorb. ADR-493 D2 rules the
+   seam **people vs work** (Agents = people; Projects = the one work-state desk), with per-agent
+   governance staying per-agent substrate.
+3. **§6.1 (substrate form)** — file-shaped per Radar; **no** index in v1 (members have no cron;
+   the `kind='work'` tasks-index slice is the named future pattern, ADR-231 D4).
+4. **§6.3 (what-wants-me)** — yes, as the THIRD source, with the ADR-410 §2 + ADR-489 D1
+   amendments explicitly declared in ADR-493's header (the ADR-492 D3 template; note the second
+   source, mentions, is itself declared-not-built).
+5. **§6.4 (done honesty)** — completion is always an attributed revision; receipts
+   (`derived_from` edges) always possible, never mandatory; evidence renders as a fact about the
+   unit, never a rule keyed on species (ADR-405 D1); the floor never moves.
+6. **Access (§2 table row)** — stronger than assumed: the powerbox already scopes read+write at
+   arbitrary depth per principal. Honest ceilings named in ADR-493 D5: read-secure is app-layer
+   only (RLS SELECT has no path predicate, migration 189), region-first ACL and approval-mode
+   are NOT taken (approval = witness-dial territory, not membership).
+7. **§6.6 (MVP-as-views) REFUTED by receipt** — prod `_recurrences.yaml` = `[]`; a views-only
+   MVP composes an empty desk. The human work-unit is the demand-generator (the Radar R1
+   lesson). MVP = scope + work-unit (both species) + My-Work.
+
+Still the operator's to rule: everything in ADR-493 §9 — notably the D2 seam, the noun
+("Projects" recommended), and wave placement (build stays behind/beside rooms, ADR-460 §8).
