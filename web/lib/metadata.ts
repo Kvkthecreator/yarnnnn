@@ -198,7 +198,8 @@ export function getSoftwareApplicationSchema() {
       price: "0",
       priceCurrency: "USD",
       description:
-        `Free for one person; a paid seat (${PRICE_COPY.seat}/mo) per teammate plus a shared monthly usage pool. AI connections are always free.`,
+        // ADR-490 — two free seats; PAYG usage (no included pool).
+        `Free for two people; a paid seat (${PRICE_COPY.seat}/mo) per extra teammate, usage pay-as-you-go from one shared balance. AI connections are always free.`,
     },
     publisher: {
       "@id": `${BRAND.url}/#organization`,
