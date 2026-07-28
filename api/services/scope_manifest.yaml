@@ -45,6 +45,9 @@ stores:
   filesystem_documents: { scope: content, note: "uploaded documents (ADR-197)" }
   destination_delivery_log: { scope: content, note: "operator-addressing dispatch ledger (ADR-299/304)" }
   export_log: { scope: content, note: "artifact-export ledger" }
+  conversations: { scope: content, note: "shared Conversation objects — rooms + bound comment threads (ADR-492 D2)" }
+  conversation_members: { scope: content, note: "room membership — humans by principal, Agents by slug (ADR-492 D6)" }
+  conversation_messages: { scope: content, note: "shared-scope turns, author always a human principal (never-ambient, ADR-492)" }
 
   # --- member-experience: one member's private state (workspace_id, principal_id) ---
   chat_sessions: { scope: member-experience, note: "lanes (ADR-407 D6/ADR-411)" }

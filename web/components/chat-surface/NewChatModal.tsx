@@ -39,13 +39,24 @@ export interface ChatAgentChoice {
   kernel?: boolean;
 }
 
+export interface ChatPersonChoice {
+  principal_id: string;
+  label: string;
+}
+
 interface NewChatModalProps {
   agents: ChatAgentChoice[];
+  /** ADR-492 D6.a — the door is person-first and species-blind: workspace
+   *  members (humans) list beside the Agents. Picking a person starts a ROOM
+   *  (born shared — they can read it, so it is shared by construction);
+   *  picking an Agent starts a private lane. Scope is set at birth (D6.b). */
+  people?: ChatPersonChoice[];
   onPick: (slug: string) => Promise<void>;
+  onPickPerson?: (principalId: string) => Promise<void>;
   onClose: () => void;
 }
 
-export function NewChatModal({ agents, onPick, onClose }: NewChatModalProps) {
+export function NewChatModal({ agents, people, onPick, onPickPerson, onClose }: NewChatModalProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -125,6 +136,45 @@ export function NewChatModal({ agents, onPick, onClose }: NewChatModalProps) {
               </button>
             ))}
           </div>
+
+          {people && people.length > 0 && onPickPerson && (
+            <div className="mt-3 pt-3 border-t border-border">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground px-2">
+                People — start a shared room
+              </p>
+              <div className="mt-1 space-y-1">
+                {people.map((p) => (
+                  <button
+                    key={p.principal_id}
+                    type="button"
+                    disabled={!!busy}
+                    onClick={() => {
+                      setBusy(p.principal_id);
+                      setError(null);
+                      onPickPerson(p.principal_id).catch((e) => {
+                        setError(e instanceof Error ? e.message : 'Could not start this room');
+                        setBusy(null);
+                      });
+                    }}
+                    className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-muted text-left transition-colors disabled:opacity-50"
+                  >
+                    <span className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground shrink-0">
+                      {p.label.slice(0, 1).toUpperCase()}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm truncate">{p.label}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        A room — shared, in the open
+                      </span>
+                    </span>
+                    {busy === p.principal_id && (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {error && (
             <p className="mt-3 text-xs text-destructive" role="alert">

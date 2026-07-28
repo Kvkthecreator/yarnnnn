@@ -8,8 +8,21 @@ amendment surface was declared, and agenda item C closed as §8 point 6. **Third
 (operator live):** the front-end grammar scoped in as §6b D6 — person-first door, scope-at-birth
 with the settle-bridge (operator-ruled), engines-by-invitation, the invite·keep·share triad with
 the settle re-home (operator-ruled: verb stays, bookmark costume retired — shipped to
-`LanePanel.tsx` same session); locks on operator ratification — the ratification points are
-enumerated in §8)
+`LanePanel.tsx` same session). **Fourth pass same day (operator-ordered): the rooms build jumped
+forward — rooms v1 SHIPPED** (operator chose "jump straight to human rooms" over the staged
+sequence; W0 pre-rooms baseline recorded first per §7 —
+`docs/analysis/w0-falsifier-baseline-pre-rooms-2026-07-28.md`). In: migration 225
+(`conversations`/`conversation_members`/`conversation_messages`, content scope, DP35 manifest);
+`routes/rooms.py` (born-shared create · grant-gated membership · plain turns fire nothing ·
+addressed Agent turns via the lane runner, `ledger_slug="room"`, draw-gated); the door's People
+section (picking a person starts a room); `RoomPanel` (attributed transcript, Ask chips =
+addressing, invite popover); gate `api/test_adr492_rooms.py` 12/12. **Owed fast-follows, declared
+not built:** the D3 attention wiring (mentions → To-do source; shared-scope conversation acts →
+timeline + ADR-489 weight rows — rooms currently write NO attention surface, honest per D3's
+"Chat never sends a notification"); human-mention parsing; streaming room turns; the D6.b
+"start a room from here" settle-bridge affordance; D4 comment-thread mounts (the store carries
+`binding`/`resolved_at` from birth). Ratification of §8 still open — the build followed the
+operator's explicit order, not a status flip.)
 **Dimensions:** Channel (primary — Axiom 6) + Identity (addressing) + Substrate (scope flip)
 **Relates to:** ADR-457 (Think·Make — D2 divergence amendment applied here), ADR-460 (Agents =
 named hands; the cast model rooms inherit), ADR-411 (the lane contract rooms extend), ADR-408

@@ -299,6 +299,95 @@ export const api = {
   // ADR-411 (ADR-408 D6): chat lanes — model-pinned helper threads per
   // member over the shared workspace. `enabled` reflects MODEL_ROUTER_ENABLED
   // server-side; the drawer shows the lane strip only when true.
+  /** ADR-492 — rooms: shared Conversations (workspace content). A room is
+   *  born shared (any human peer ⇒ shared by construction, D6.a); private
+   *  lanes stay `api.lanes` and never flip (D6.b). Agents answer only when
+   *  addressed (never-ambient). */
+  rooms: {
+    list: () =>
+      request<{
+        rooms: Array<{
+          id: string;
+          title: string;
+          status: string;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+          members: Array<{
+            member_kind: 'human' | 'agent';
+            principal_id: string | null;
+            agent_slug: string | null;
+            invited_by: string;
+            created_at: string;
+          }>;
+        }>;
+      }>('/api/rooms'),
+    create: (data: {
+      title?: string;
+      members?: Array<{ kind: 'human' | 'agent'; principal_id?: string; agent_slug?: string }>;
+    }) =>
+      request<{
+        room: {
+          id: string;
+          title: string;
+          status: string;
+          created_by: string;
+          members: Array<{
+            member_kind: 'human' | 'agent';
+            principal_id: string | null;
+            agent_slug: string | null;
+          }>;
+        };
+      }>('/api/rooms', { method: 'POST', body: JSON.stringify(data) }),
+    get: (roomId: string) =>
+      request<{
+        room: {
+          id: string;
+          title: string;
+          status: string;
+          created_by: string;
+          members: Array<{
+            member_kind: 'human' | 'agent';
+            principal_id: string | null;
+            agent_slug: string | null;
+          }>;
+        };
+        messages: Array<{
+          id: string;
+          author_principal_id: string;
+          via_model: string | null;
+          agent_slug: string | null;
+          content: string;
+          mentions: Array<{ kind: string; id: string }> | null;
+          created_at: string;
+        }>;
+      }>(`/api/rooms/${roomId}`),
+    postMessage: (roomId: string, data: { content: string; address?: string }) =>
+      request<{
+        messages: Array<{
+          id: string;
+          author_principal_id: string;
+          via_model: string | null;
+          agent_slug: string | null;
+          content: string;
+          created_at: string;
+        }>;
+        artifacts?: string[];
+      }>(`/api/rooms/${roomId}/messages`, { method: 'POST', body: JSON.stringify(data) }),
+    invite: (roomId: string, data: { kind: 'human' | 'agent'; principal_id?: string; agent_slug?: string }) =>
+      request<{ added: boolean; members: Array<{ member_kind: 'human' | 'agent'; principal_id: string | null; agent_slug: string | null }> }>(
+        `/api/rooms/${roomId}/invite`,
+        { method: 'POST', body: JSON.stringify(data) },
+      ),
+    rename: (roomId: string, title: string) =>
+      request<{ room: { id: string; title: string } }>(`/api/rooms/${roomId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title }),
+      }),
+    archive: (roomId: string) =>
+      request<{ archived: boolean }>(`/api/rooms/${roomId}/archive`, { method: 'POST' }),
+  },
+
   lanes: {
     /** `includeBound` (2026-07-16): bound (Studio) lanes leave the /chat list —
      *  /chat is Think; a bound lane is Make-work with a text interface and

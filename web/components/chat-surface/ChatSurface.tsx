@@ -36,9 +36,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Archive, Loader2, MessageCircle, Pencil, Pin, Plus, Search, X } from 'lucide-react';
 import { LanePanel } from './LanePanel';
+import { RoomPanel } from './RoomPanel';
 import { AgentFace } from '@/components/agents/AgentFace';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { NewChatModal } from './NewChatModal';
+import { useWorkspaceMembers } from '@/lib/workspace/viewer';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { api } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
@@ -109,6 +112,28 @@ export function ChatSurface() {
   const [renameText, setRenameText] = useState('');
   const { get: getParam, set: setParam } = useSurfaceParam('chat');
   const activeLaneId = getParam('lane');
+  // ADR-492 — rooms: shared Conversations beside the private lanes. One list,
+  // two scopes; scope is set at birth and never flips (D6.b).
+  const activeRoomId = getParam('room');
+  const [rooms, setRooms] = useState<
+    Array<{
+      id: string;
+      title: string;
+      updated_at: string;
+      members: Array<{ member_kind: 'human' | 'agent'; principal_id: string | null; agent_slug: string | null }>;
+    }>
+  >([]);
+  const { userId } = useSurfacePreferences();
+  const { members: wsMembers } = useWorkspaceMembers();
+  // The door's People = human grant-holders other than the viewer (D6.a:
+  // picking a person starts a BORN-SHARED room).
+  const people = useMemo(
+    () =>
+      wsMembers
+        .filter((m) => (m.role === 'owner' || m.role === 'member') && m.principal_id !== userId)
+        .map((m) => ({ principal_id: m.principal_id, label: m.label || `member-${m.principal_id.slice(0, 8)}` })),
+    [wsMembers, userId],
+  );
   // One screen at a time on mobile (the Files/SettingsPaneShell principle):
   // below 640px the two columns don't share — the lane list IS the screen
   // until you pick a lane, then the conversation IS the screen. Same single
@@ -143,6 +168,23 @@ export function ChatSurface() {
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  // Rooms are workspace content — refresh on mount and on a slow poll (a peer
+  // may have started one; pull, not push — ADR-407 D2).
+  useEffect(() => {
+    let cancelled = false;
+    const fetchRooms = () =>
+      api.rooms
+        .list()
+        .then((res) => !cancelled && setRooms(res.rooms))
+        .catch(() => {});
+    void fetchRooms();
+    const t = setInterval(() => void fetchRooms(), 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
     };
   }, []);
 
@@ -210,6 +252,11 @@ export function ChatSurface() {
     [data, activeLaneId],
   );
 
+  const activeRoom = useMemo(
+    () => rooms.find((r) => r.id === activeRoomId) ?? null,
+    [rooms, activeRoomId],
+  );
+
   // §6.10a — WHO the open conversation is with. Null for pre-registry and
   // Studio/derive lanes, which fall back to their engine label (honest: that
   // IS what those lanes are).
@@ -237,9 +284,11 @@ export function ChatSurface() {
   // surface chrome (ADR-442 D3).
   useWindowCrumb(
     'chat',
-    activeLane
-      ? [{ label: activeLane.name, onClick: () => setParam({ lane: null }) }]
-      : [],
+    activeRoom
+      ? [{ label: activeRoom.title, onClick: () => setParam({ room: null }) }]
+      : activeLane
+        ? [{ label: activeLane.name, onClick: () => setParam({ lane: null }) }]
+        : [],
   );
   // 2026-07-14 (operator ruling): Chat renders its OWN locator in-body — the
   // always-visible lane-list column names "Chat" + every lane (it IS the
@@ -254,7 +303,7 @@ export function ChatSurface() {
   // back. So self-location is viewport-conditional: desktop (both columns, the
   // list IS the navigator) suppresses; drilled-in mobile yields to the OS
   // strip's `‹ {lane}` back chip. Same conditional shape Studio already uses.
-  useSelfLocatedSurface('chat', !(isNarrow && activeLane));
+  useSelfLocatedSurface('chat', !(isNarrow && (activeLane || activeRoom)));
 
   const createLane = useCallback(async (agentSlug: string) => {
     if (!agentSlug) return;
@@ -280,6 +329,28 @@ export function ChatSurface() {
       throw e instanceof Error ? e : new Error('Could not start this chat');
     }
   }, [setParam]);
+
+  // ADR-492 D6.a — picking a PERSON starts a room, born shared (they can read
+  // it, so it is workspace content by construction). Scope set at birth.
+  const createRoom = useCallback(
+    async (principalId: string) => {
+      const res = await api.rooms.create({
+        members: [{ kind: 'human', principal_id: principalId }],
+      });
+      setRooms((cur) => [
+        {
+          id: res.room.id,
+          title: res.room.title,
+          updated_at: new Date().toISOString(),
+          members: res.room.members,
+        },
+        ...cur,
+      ]);
+      setParam({ room: res.room.id, lane: null });
+      setCreating(false);
+    },
+    [setParam],
+  );
 
   const archiveLane = useCallback(
     async (laneId: string) => {
@@ -368,7 +439,9 @@ export function ChatSurface() {
       {creating && (
         <NewChatModal
           agents={data?.agents ?? []}
+          people={people}
           onPick={createLane}
+          onPickPerson={createRoom}
           onClose={() => setCreating(false)}
         />
       )}
@@ -381,7 +454,7 @@ export function ChatSurface() {
           // The divider is a two-column artifact — full-width it's a hairline
           // against the screen edge.
           isNarrow ? 'w-full' : 'w-72 shrink-0 flex border-r border-border',
-          isNarrow && (activeLane ? 'hidden' : 'flex'),
+          isNarrow && (activeLane || activeRoom ? 'hidden' : 'flex'),
         )}
       >
         <div className="flex items-center justify-between px-3 py-2.5 border-b border-border shrink-0">
@@ -455,6 +528,50 @@ export function ChatSurface() {
         )}
 
         <div className="flex-1 min-h-0 overflow-y-auto">
+          {/* Rooms — shared Conversations (ADR-492). Sectioned above the
+              private lanes: a different scope deserves a visible seam, not a
+              mixed list pretending one thing. */}
+          {rooms.length > 0 && (
+            <>
+              <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                Rooms
+              </div>
+              {rooms.map((room) => (
+                <button
+                  key={room.id}
+                  onClick={() => setParam({ room: room.id, lane: null })}
+                  className={cn(
+                    'w-full text-left px-3 py-2.5 border-b border-border/50 transition-colors',
+                    activeRoomId === room.id ? 'bg-muted' : 'hover:bg-muted/50',
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-sm font-medium truncate">{room.title}</span>
+                    {room.updated_at && (
+                      <span className="text-[10px] text-muted-foreground/60 shrink-0">
+                        {formatRelativeTime(room.updated_at)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground truncate mt-0.5">
+                    {room.members.filter((m) => m.member_kind === 'human').length}{' '}
+                    {room.members.filter((m) => m.member_kind === 'human').length === 1
+                      ? 'person'
+                      : 'people'}
+                    {room.members.some((m) => m.member_kind === 'agent') &&
+                      ` · ${room.members
+                        .filter((m) => m.member_kind === 'agent')
+                        .map((m) => data?.agents?.find((a) => a.slug === m.agent_slug)?.name || m.agent_slug)
+                        .join(', ')}`}
+                    {' · shared'}
+                  </div>
+                </button>
+              ))}
+              <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                Chats
+              </div>
+            </>
+          )}
           {lanes.length === 0 && (
             <div className="px-4 py-8 text-center text-xs text-muted-foreground space-y-1.5">
               <p className="font-medium text-foreground/80">No chats yet</p>
@@ -499,7 +616,7 @@ export function ChatSurface() {
             ) : (
             <button
               key={lane.id}
-              onClick={() => setParam({ lane: lane.id })}
+              onClick={() => setParam({ lane: lane.id, room: null })}
               className={cn(
                 'w-full text-left px-3 py-2.5 border-b border-border/50 transition-colors group',
                 'flex items-start gap-2.5',
@@ -604,10 +721,22 @@ export function ChatSurface() {
       <div
         className={cn(
           'flex-1 min-w-0 flex-col min-h-0',
-          isNarrow && !activeLane ? 'hidden' : 'flex',
+          isNarrow && !activeLane && !activeRoom ? 'hidden' : 'flex',
         )}
       >
-        {activeLane ? (
+        {activeRoom ? (
+          <RoomPanel
+            key={activeRoom.id}
+            roomId={activeRoom.id}
+            agents={data?.agents ?? []}
+            people={people}
+            onRenamed={(t) =>
+              setRooms((cur) =>
+                cur.map((r) => (r.id === activeRoom.id ? { ...r, title: t } : r)),
+              )
+            }
+          />
+        ) : activeLane ? (
           <>
             {/* §6.10a — WHO leads, here as in the list row. This header used
                 to render the lane name + the ENGINE chip and nothing else, so

@@ -472,6 +472,11 @@ async def run_lane_turn(
     # caller that doesn't pass it still meters correctly, it is just
     # unclassifiable in falsifier 1.
     session_id: Optional[str] = None,
+    # ADR-492: rooms reuse this loop for their addressed agent turns but meter
+    # under their own slug — the D8 falsifiers stay honest (a room turn is not
+    # a lane turn; per-phase evaluation, pre-rooms baseline recorded). For
+    # rooms, session_id is the conversation id.
+    ledger_slug: str = "lane",
 ) -> dict:
     """Run one lane turn: bounded tool loop over the router.
 
@@ -564,7 +569,7 @@ async def run_lane_turn(
             record_execution_event(
                 get_service_client(),
                 user_id=auth.user_id,
-                slug="lane",
+                slug=ledger_slug,
                 mode="judgment",
                 trigger_type="addressed",
                 status="success",
@@ -651,6 +656,8 @@ async def run_lane_turn_stream(
     agent: Optional[str] = None,
     # W0 / ADR-457 D8 — the falsifier join key; see ``run_lane_turn``.
     session_id: Optional[str] = None,
+    # ADR-492 — the metering slug; see ``run_lane_turn``.
+    ledger_slug: str = "lane",
 ):
     """Streaming sibling of ``run_lane_turn`` (ADR-412 D2 lane streaming).
 
@@ -758,7 +765,7 @@ async def run_lane_turn_stream(
             record_execution_event(
                 get_service_client(),
                 user_id=auth.user_id,
-                slug="lane",
+                slug=ledger_slug,
                 mode="judgment",
                 trigger_type="addressed",
                 status="success",
