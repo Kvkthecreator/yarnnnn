@@ -144,11 +144,10 @@ export const TOPUP_DEFAULT = 25;
  * backend is the source of truth for what LS charges; this is display copy. Keep in
  * sync (both are launch-test numbers per ADR-396 §7, relaxed).
  *
- * ADR-445: the paid subscription IS the seat fee; there is no separate base. The
- * checkout quantity is floored at 1 (`billable_seats` ≥ 1, subscription.py), so a
- * SOLO owner taking the plan pays one unit — what that $20 buys them is the pooled
- * allowance + the higher gates, not a second seat. Copy must never imply their own
- * seat is what is being charged; see `tierUpgradeLabel`.
+ * ADR-490: the paid subscription IS the seat fee; there is no separate base and
+ * no included allowance. The first TWO humans are free; the checkout is offered
+ * only at the seat boundary (inviting the 3rd human), with quantity floored at 1
+ * (the incoming seat — LS rejects quantity 0).
  */
 export const TIER_SEAT_PRICE_USD: Record<SubscriptionTier, number> = {
   free: 0,
@@ -158,14 +157,15 @@ export const TIER_SEAT_PRICE_USD: Record<SubscriptionTier, number> = {
 };
 
 /**
- * The pooled monthly allowance a paid plan grants the WORKSPACE — not per-seat
- * (the meter is one shared pool, ADR-445 Axis ②).
- * Mirror of api/services/billing_tiers.py::TIER_CONFIG.monthly_allowance_usd.
+ * The pooled monthly allowance a plan grants — RETIRED by ADR-490 §1③: every
+ * tier grants $0 (usage is pure pay-as-you-go from the shared balance). Kept as
+ * a constant so the meter math + descriptors degrade gracefully; mirror of
+ * api/services/billing_tiers.py::TIER_CONFIG.monthly_allowance_usd.
  */
 export const TIER_ALLOWANCE_USD: Record<SubscriptionTier, number> = {
   free: 0,
-  starter: 15,
-  pro: 45,       // dormant (hidden) until the capture lane ships
+  starter: 0,    // ADR-490 — the allowance layer is retired
+  pro: 0,        // dormant (hidden); returns differentiating on gates, not allowance
   enterprise: 0, // sales-led — sized per contract
 };
 
@@ -187,11 +187,11 @@ export const SIGNUP_GRANT_USD = 3;
 export const PRICE_COPY = {
   /** "$20" — the per-additional-human seat price. */
   seat: `$${TIER_SEAT_PRICE_USD.starter}`,
-  /** "$20/mo per teammate you add" */
+  /** "$20/mo per teammate you add" (from the 3rd person — ADR-490) */
   seatPerTeammate: `$${TIER_SEAT_PRICE_USD.starter}/mo per teammate you add`,
-  /** "$15 of monthly usage included — one shared pool" */
-  pooledAllowance: `$${TIER_ALLOWANCE_USD.starter} of monthly usage included — one shared pool`,
-  /** "$15" — the pooled allowance alone. */
+  /** Usage is pay-as-you-go from one shared balance (ADR-490 — no allowance). */
+  pooledAllowance: `usage pay-as-you-go from one shared balance`,
+  /** "$0" — the allowance layer is retired (ADR-490 §1③). */
   allowance: `$${TIER_ALLOWANCE_USD.starter}`,
   /** "$3" — the signup balance. */
   signupGrant: `$${SIGNUP_GRANT_USD}`,
@@ -200,15 +200,14 @@ export const PRICE_COPY = {
 } as const;
 
 /**
- * The UPGRADE CTA label — a bare "$20/mo", deliberately NOT a per-seat label. The
- * upgrade button is only ever shown to a free-tier workspace, which is solo (free =
- * 1 human). Labelling it "$20/seat/mo" told a solo owner they were buying a seat —
- * while the same card said "Your seat is free." $20 is what they pay; a SEAT is not
- * what it buys (it buys the pooled allowance + gates — ADR-445 §7 P2 amendment).
+ * The UPGRADE CTA label. ADR-490: the paid plan exists to add seats beyond the
+ * two free humans, so the CTA is honestly per-seat — it is shown only at the
+ * seat boundary (inviting the 3rd person), never as a generic solo upsell (the
+ * subscription buys nothing else — the allowance is retired).
  */
 export function tierUpgradeLabel(tier: SubscriptionTier): string {
   const price = TIER_SEAT_PRICE_USD[tier];
-  return price > 0 ? `$${price}/mo` : "Free";
+  return price > 0 ? `$${price}/seat/mo` : "Free";
 }
 
 /**
@@ -217,17 +216,17 @@ export function tierUpgradeLabel(tier: SubscriptionTier): string {
  * Mirrors billing_tiers.py TIER_CONFIG (seat price + pooled allowance).
  */
 export function tierDescriptor(tier: SubscriptionTier): string {
-  // ADR-445 — two axes: a per-seat price (free for the owner) + a pooled usage
-  // allowance the whole workspace draws. Connector-history is dropped from the
-  // pitch (it gates the dormant capture lane).
+  // ADR-490 — two axes: seats (two humans free, each additional priced) +
+  // pay-as-you-go usage from one shared balance. Connector-history is dropped
+  // from the pitch (it gates the dormant capture lane).
   switch (tier) {
     case "enterprise":
       return "Your team, your keys (BYOK) · custody, on-prem, and support"; // ADR-439
     case "pro":
-      return "$20/seat · $45 pooled usage included"; // dormant tier (not offered); descriptor kept for a legacy row
+      return "$20/seat beyond two · usage pay-as-you-go"; // dormant tier (not offered); descriptor kept for a legacy row
     case "starter":
-      return "$15 pooled usage the workspace shares · $20/seat for each teammate you add";
+      return "$20/seat for each teammate beyond two · usage pay-as-you-go from a shared balance";
     default:
-      return "Workspace + memory, free forever for one person · usage drawn from your balance";
+      return "Workspace + memory, free for two people · usage pay-as-you-go from your balance";
   }
 }

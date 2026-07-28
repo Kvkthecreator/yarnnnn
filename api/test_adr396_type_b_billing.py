@@ -73,8 +73,13 @@ def main():
         free["retention_max_days"] < starter["retention_max_days"] < pro["retention_max_days"],
     ))
     results.append(_check(
-        "allowance widens free < starter < pro",
-        free["monthly_allowance_usd"] < starter["monthly_allowance_usd"] < pro["monthly_allowance_usd"],
+        # ADR-490 §1③ — the included-allowance layer is RETIRED: every tier grants
+        # $0 (usage is pure PAYG at the billed rate). The grant machinery survives
+        # as the banking/anchor engine only.
+        "allowance retired: every tier grants $0 (ADR-490)",
+        free["monthly_allowance_usd"] == 0
+        and starter["monthly_allowance_usd"] == 0
+        and pro["monthly_allowance_usd"] == 0,
     ))
     results.append(_check(
         "connector ceiling: free capped, pro unlimited (None)",

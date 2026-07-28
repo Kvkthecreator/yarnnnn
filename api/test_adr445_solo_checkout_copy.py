@@ -1,18 +1,21 @@
-"""ADR-445 §7 P2 amendment gate — the solo-checkout copy contract (2026-07-21).
+"""ADR-490 gate — the seat-boundary checkout copy contract (supersedes the
+2026-07-21 ADR-445 §7 P2 amendment this file previously locked).
 
-THE RATIFIED POSITION: a solo workspace MAY take the paid plan and pays $20
-(checkout floors `billable_seats` at 1 — LS rejects quantity 0). The free→paid
-boundary governs when a workspace MUST pay (the 2nd human), not whether a solo
-owner may choose to. What the $20 buys a solo owner is the POOLED ALLOWANCE +
-the higher gates — NOT a second seat.
+THE RATIFIED POSITION (ADR-490): the paid subscription is SEATS ONLY — the
+allowance is retired, so there is nothing else it buys. The first two humans
+are free; the upgrade CTA is shown only at the seat boundary (inviting the 3rd
+person). The checkout still floors `billable_seats` at 1 — at the boundary the
+floor IS the incoming seat (LS also rejects quantity 0).
 
 THE COPY CONTRACT that follows, and what this gate locks:
-  • the upgrade CTA reads "$20/mo", never "$20/seat/mo" — it is only ever shown
-    to a free (therefore solo) workspace, so a per-seat label told a solo owner
-    they were buying a seat while the same card said "Your seat is free";
-  • no surface tells a PAYING solo owner their seat is free;
-  • the seat-unit label (`tierPriceLabel`) stays DELETED — it had exactly one
-    caller, the CTA, where it was wrong (Singular Implementation).
+  • the upgrade CTA is honestly PER-SEAT ("$20/seat/mo") — it appears only at
+    the boundary, where a seat is exactly what is being bought (the 2026-07-21
+    bare-"/mo" rule existed to avoid selling a solo owner a seat bundled with
+    an allowance; the allowance is gone, so the rule inverts);
+  • no surface tells a PAYING solo owner their seat is free (still true);
+  • the descriptor names pay-as-you-go usage, never an included allowance;
+  • the seat-unit label (`tierPriceLabel`) stays DELETED (Singular
+    Implementation — `tierUpgradeLabel` is the one CTA label).
 
 This is a TEXT gate over the FE source (the copy is the artifact under test).
 Per the repo lesson that gates must exercise what they claim, the *behavioural*
@@ -48,15 +51,15 @@ def check(label: str, condition: bool, detail: str = "") -> None:
         FAILED += 1
 
 
-def test_upgrade_label_is_not_per_seat() -> None:
-    print("\n[cta] the upgrade label is $X/mo, not $X/seat/mo")
+def test_upgrade_label_is_per_seat() -> None:
+    print("\n[cta] the upgrade label is honestly per-seat (ADR-490)")
     src = USAGE_TS.read_text()
     m = re.search(r"export function tierUpgradeLabel[\s\S]*?\n}", src)
     check("tierUpgradeLabel exists", m is not None)
     if m:
         body = m.group(0)
-        check("it renders a bare /mo price", "/mo`" in body and "/seat/mo" not in body,
-              "an upgrade CTA must not imply a seat purchase")
+        check("it renders a /seat/mo price", "/seat/mo" in body,
+              "the CTA appears only at the seat boundary — a seat IS what is bought")
 
 
 def test_seat_unit_label_stays_deleted() -> None:
@@ -95,7 +98,8 @@ def test_descriptor_does_not_lead_with_free_for_you() -> None:
     if m:
         text = m.group(1)
         check("it does not claim 'Free for you'", "Free for you" not in text, f"got: {text}")
-        check("it names the pooled allowance", "pooled" in text, f"got: {text}")
+        check("it names pay-as-you-go usage, not an included allowance",
+              "pay-as-you-go" in text and "included" not in text, f"got: {text}")
 
 
 def test_checkout_floors_quantity_at_one() -> None:
@@ -107,14 +111,15 @@ def test_checkout_floors_quantity_at_one() -> None:
     check("checkout applies max(1, billable_seats(...))",
           re.search(r"seat_quantity\s*=\s*max\(1,\s*billable_seats", src) is not None,
           "LS rejects quantity 0; the floor is deliberate, not a bug")
-    check("a 3-human team bills 2 seats", billable_seats("starter", 3) == 2)
+    check("a 3-human team bills 1 seat (two free — ADR-490 §1①)",
+          billable_seats("starter", 3) == 1)
 
 
 def main() -> int:
     print("=" * 74)
     print("ADR-445 §7 P2 amendment — the solo-checkout copy contract")
     print("=" * 74)
-    test_upgrade_label_is_not_per_seat()
+    test_upgrade_label_is_per_seat()
     test_seat_unit_label_stays_deleted()
     test_paid_solo_is_not_told_their_seat_is_free()
     test_descriptor_does_not_lead_with_free_for_you()

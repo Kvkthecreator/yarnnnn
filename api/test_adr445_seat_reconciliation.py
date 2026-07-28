@@ -97,8 +97,8 @@ def test_quantity_is_read_from_the_payload() -> None:
 def test_drift_is_recorded() -> None:
     print("\n[drift] a mismatch lands a durable subscription_events row")
     from routes.subscription import _reconcile_seat_quantity
-    # 3 humans on starter → expected billable = 2. LS says it bills 1.
-    c = FakeClient(humans=3)
+    # ADR-490: 4 humans on starter → expected billable = 2. LS says it bills 1.
+    c = FakeClient(humans=4)
     _reconcile_seat_quantity(c, WS, "starter", _attrs(1), "subscription_updated")
     rows = c.rows("subscription_events")
     check("exactly one drift row written", len(rows) == 1, f"rows={rows}")
@@ -116,7 +116,7 @@ def test_drift_is_recorded() -> None:
 def test_agreement_is_silent() -> None:
     print("\n[quiet] when LS agrees with the roster, nothing is written")
     from routes.subscription import _reconcile_seat_quantity
-    c = FakeClient(humans=3)          # expected billable = 2
+    c = FakeClient(humans=4)          # ADR-490: expected billable = 2
     _reconcile_seat_quantity(c, WS, "starter", _attrs(2), "subscription_updated")
     check("no row on agreement", not c.rows("subscription_events"),
           f"rows={c.rows('subscription_events')}")

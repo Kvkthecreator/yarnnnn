@@ -506,6 +506,10 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
         status="success" if sweep_ok else "failed",
         error_reason=None if sweep_ok else (intake.get("error") or "no_sources_fetched"),
         duration_ms=sweep_ms, funnel_decision="radar",
+        # ADR-445 attribution carve: the standing sweep runs FOR the workspace on
+        # the cron — the owner is the accountable principal (the recurrence/wake
+        # convention). Costed rows must never land in the NULL bucket.
+        principal_id=user_id,
     )
     if not sweep_ok:
         return {"success": False, "slug": hub.slug,
@@ -547,7 +551,7 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
             client, user_id=user_id, slug=f"radar-brief:{hub.topic}",
             mode="judgment", trigger_type="scheduled", status="failed",
             error_reason="derive_raised", error_detail=str(e)[:500],
-            funnel_decision="radar",
+            funnel_decision="radar", principal_id=user_id,
         )
         return {"success": False, "slug": hub.slug, "error_reason": "derive_raised"}
 
@@ -561,7 +565,8 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
             client, user_id=user_id, slug=f"radar-brief:{hub.topic}",
             mode="judgment", trigger_type="scheduled", status="skipped",
             error_reason="no_brief", model=routed.ledger_model,
-            duration_ms=derive_ms, funnel_decision="radar", **routed.usage,
+            duration_ms=derive_ms, funnel_decision="radar", principal_id=user_id,
+            **routed.usage,
         )
         return {"success": True, "slug": hub.slug, "no_brief": True}
 
@@ -600,7 +605,7 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
         client, user_id=user_id, slug=f"radar-brief:{hub.topic}",
         mode="judgment", trigger_type="scheduled", status="success",
         model=routed.ledger_model, duration_ms=derive_ms,
-        funnel_decision="radar", **routed.usage,
+        funnel_decision="radar", principal_id=user_id, **routed.usage,
     )
 
     logger.info("[RADAR] %s/%s → %s (rev %s)", user_id[:8], hub.slug, path, revision_id[:8])

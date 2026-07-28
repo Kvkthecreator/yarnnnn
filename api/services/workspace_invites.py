@@ -124,8 +124,8 @@ def create_invite(
             if projected > included:
                 raise InviteError(
                     "upgrade_required",
-                    "The free plan is for one person. Upgrade to the paid plan "
-                    "to invite your team into this workspace.",
+                    "The free plan covers two people. Upgrade to the paid plan "
+                    "to add more seats to this workspace.",
                 )
     except InviteError:
         raise

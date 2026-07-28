@@ -27,12 +27,14 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Billing rates — ADR-291 single source of truth, at TRUE PROVIDER LIST
 # PRICES (operator ruling 2026-07-06, recorded as an ADR-291 amendment).
-# The legacy 2x platform markup is RETIRED: cost_usd now records what the
-# invocation actually costs at the provider, and the ADR-396 allowance pool
-# draws at cost. Margin, if any, lives in the subscription tier — never in
-# a hidden per-token multiplier. Any provider price change flows through
-# this table only; per ADR-291 D2 cost math lives here, in exactly one
-# place, in compute_cost_usd_inclusive().
+# The legacy 2x platform markup is RETIRED: cost_usd records what the
+# invocation actually costs at the provider. The platform margin lives in
+# ADR-490's `billed_usd` (cost × billing_tiers.USAGE_BILLING_MULTIPLIER,
+# stamped alongside cost_usd at the single write site) — the pool draws
+# billed_usd; cost_usd stays truthful for the D4 cost-mirror + margin
+# analytics. Any provider price change flows through this table only; per
+# ADR-291 D2 cost math lives here, in exactly one place, in
+# compute_cost_usd_inclusive().
 #
 # The prior table was drifted twice over: it carried 2x of STALE list
 # prices (opus at 2x $15/$75 — the pre-4.5 Opus price; haiku at 2x
@@ -118,10 +120,12 @@ def compute_cost_usd_inclusive(
 # ---------------------------------------------------------------------------
 
 def get_daily_spend(client, user_id: str) -> float:
-    """Return today's total cost_usd from execution_events (UTC day),
+    """Return today's total billed spend from execution_events (UTC day),
     scoped to the acting WORKSPACE (ADR-407 Phase 0 — the spend guard draws
     the shared pool, so every principal's spend counts). Falls back to the
     legacy user_id scope only when no workspace resolves (byte-identical N=1).
+    ADR-490: sums billed_usd (the pool debit), falling back to cost_usd on
+    pre-migration rows.
 
     Used by the spend guard before dispatching generative invocations.
     Returns 0.0 on any error (fail-open: prefer running over blocking on DB error).
@@ -130,11 +134,13 @@ def get_daily_spend(client, user_id: str) -> float:
         from services.workspace_context import effective_workspace_id
         ws = effective_workspace_id(user_id)
         today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT00:00:00+00:00")
-        query = client.table("execution_events").select("cost_usd")
+        query = client.table("execution_events").select("cost_usd, billed_usd")
         query = query.eq("workspace_id", ws) if ws else query.eq("user_id", user_id)
         result = query.gte("created_at", today_utc).execute()
         rows = result.data or []
-        return round(sum(float(r.get("cost_usd") or 0) for r in rows), 6)
+        return round(
+            sum(float(r.get("billed_usd") or r.get("cost_usd") or 0) for r in rows), 6
+        )
     except Exception as e:
         logger.warning("[TELEMETRY] get_daily_spend failed (fail-open): %s", e)
         return 0.0
@@ -294,6 +300,12 @@ def record_execution_event(
             row["cache_create_tokens"] = cache_create_tokens
         if cost_usd is not None:
             row["cost_usd"] = cost_usd
+            # ADR-490 §2 — the pool debit: provider cost × the platform margin,
+            # stamped at THIS single write site (never at read time, never into
+            # cost_usd — which stays actual provider cost for the ADR-408 D4
+            # cost-mirror). Every balance/spend reader draws billed_usd.
+            from services.billing_tiers import billed_usd_for_cost
+            row["billed_usd"] = billed_usd_for_cost(cost_usd)
         # Migration 204 (2026-07-06): the ledger records WHICH model ran —
         # previously `model` fed only the rate lookup and was discarded.
         # Per-model spend legibility for routed lanes (ADR-408 D4 / ADR-411).

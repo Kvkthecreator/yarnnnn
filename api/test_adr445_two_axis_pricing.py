@@ -46,22 +46,23 @@ def test_seats_live() -> None:
 
 
 def test_owner_seat_free() -> None:
-    print("\n[owner] seat 1 (the owner) is free on every tier — solo pays $0 (ADR-445 §5)")
+    print("\n[owner] the first TWO humans are free on every tier (ADR-490 §1①)")
     from services.billing_tiers import billable_seats, seat_fee_usd
 
     for tier in ("free", "starter", "pro", "enterprise"):
-        check(f"{tier}: billable_seats(x1) == 0 (owner is the free seat)",
-              billable_seats(tier, 1) == 0)
-        check(f"{tier}: seat_fee_usd(x1) == $0 (solo subscription is usage-only)",
-              seat_fee_usd(tier, 1) == 0.0)
+        for humans in (1, 2):
+            check(f"{tier}: billable_seats(x{humans}) == 0 (two free seats)",
+                  billable_seats(tier, humans) == 0)
+            check(f"{tier}: seat_fee_usd(x{humans}) == $0 (usage-only)",
+                  seat_fee_usd(tier, humans) == 0.0)
 
 
 def test_seat_math() -> None:
-    print("\n[math] a team bills (humans − 1) × the seat fee (ADR-445 §4)")
+    print("\n[math] a team bills (humans − 2) × the seat fee (ADR-490 §1①)")
     from services.billing_tiers import billable_seats, seat_fee_usd, tier_additional_seat_usd
 
     unit = tier_additional_seat_usd("starter")
-    for humans, want_billable in [(1, 0), (2, 1), (3, 2), (5, 4), (10, 9)]:
+    for humans, want_billable in [(1, 0), (2, 0), (3, 1), (5, 3), (10, 8)]:
         check(f"starter, {humans} humans → {want_billable} billable seats",
               billable_seats("starter", humans) == want_billable,
               f"got {billable_seats('starter', humans)}")
@@ -82,15 +83,14 @@ def test_baseline_not_a_cap() -> None:
     print("\n[baseline] included_seats is the billing baseline, not a hard cap (ADR-445 §4)")
     from services.billing_tiers import tier_included_seats, PAID_TIERS
 
-    # Free is SOLO (the owner alone); the 2nd human is the free→paid boundary.
-    check("free included_seats == 1 (solo)", tier_included_seats("free") == 1)
-    # The paid plan's owner is the one free seat; additional humans bill.
-    check("starter included_seats == 1 (owner; additional humans billed)",
-          tier_included_seats("starter") == 1)
+    # ADR-490: free covers TWO humans; the 3rd human is the free→paid boundary.
+    check("free included_seats == 2 (owner + one teammate)", tier_included_seats("free") == 2)
+    check("starter included_seats == 2 (two free; additional humans billed)",
+          tier_included_seats("starter") == 2)
     # The paid tiers are the in-tier resolution for a growing team — so the invite
     # gate (workspace_invites) must fire ONLY on non-paid tiers. Assert 'free' is
     # not paid (it gates) and 'starter' is paid (it does not).
-    check("free is NOT a paid tier (it gates the 2nd human)", "free" not in PAID_TIERS)
+    check("free is NOT a paid tier (it gates the 3rd human)", "free" not in PAID_TIERS)
     check("starter IS a paid tier (grows freely, never hard-capped)", "starter" in PAID_TIERS)
 
 

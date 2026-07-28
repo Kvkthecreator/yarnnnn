@@ -5,25 +5,28 @@ Platform Limits Service — ADR-396 (Type-B subscription over the metered balanc
 Single gate: effective balance > 0. No capability gates (ADR-172 discipline
 preserved — a tier sets ceilings, never feature locks).
 
-Balance model (ADR-396):
-  A plan TIER (free | starter | pro; see services.billing_tiers) grants a monthly
-  INCLUDED ALLOWANCE (allowance_usd). Paid TOP-UPS accumulate onto balance_usd and
-  never reset — the overage pool ("balance IS the currency", no credit unit).
-  Draw order: allowance → balance → hard-stop at zero.
-  Effective balance = (allowance_usd + balance_usd) − SUM(execution_events.cost_usd
-  since the allowance anchor). Computed in the get_effective_balance RPC
-  (migration 194). Spend draws allowance-first by construction (both summed).
+Balance model (ADR-396, allowance layer retired by ADR-490):
+  Usage is PAY-AS-YOU-GO: the signup grant + paid TOP-UPS accumulate onto
+  balance_usd and never reset ("balance IS the currency", no credit unit).
+  Hard-stop at zero. Tiers grant a $0 monthly allowance (ADR-490 §1③ — the
+  Type-B included-allowance layer is retired; allowance_usd survives as a
+  grandfathered/machinery column).
+  Effective balance = (allowance_usd + balance_usd) − SUM(billed spend since the
+  anchor), where billed = COALESCE(execution_events.billed_usd, cost_usd)
+  (ADR-490 §2 — the pool draws provider cost × the platform margin). Computed in
+  the get_effective_balance RPC (migrations 194/200/224).
 
 Grants:
-  grant_allowance()  — the monthly billing cycle: fresh allowance, banks surviving
-                       top-ups, moves the anchor. Allowance expires; top-ups survive.
+  grant_allowance()  — kept as the banking/anchor engine (banks surviving value,
+                       moves the anchor); with ADR-490 tier allowances it grants $0.
   grant_balance()    — additive top-ups + signup/admin grants onto balance_usd.
   (Legacy 'subscription_refill' balance-reset removed by ADR-396 — it wiped top-ups.)
 
 Token metering (ADR-291 — substrate collapse):
   Every LLM call → record_execution_event() → execution_events table.
-  Cost computed via services.telemetry.compute_cost_usd_inclusive (cache-aware, 2x markup).
-  Billing rates live in services.telemetry._BILLING_RATES — single source of truth.
+  cost_usd = actual provider cost (compute_cost_usd_inclusive, cache-aware);
+  billed_usd = cost × billing_tiers.USAGE_BILLING_MULTIPLIER (ADR-490), stamped at
+  the same single write site. Rates live in services.telemetry._BILLING_RATES.
 
 Transparency (ADR-396): the customer surfaces show ACTIVITY (usage + allowance
 consumed), NOT dollar figures. Dollars stay internal to this service + the ledger.
@@ -43,8 +46,9 @@ SyncFrequency = Literal["1x_daily", "2x_daily", "4x_daily", "hourly"]
 # Billing rates + cost computation — ADR-291 sunset
 # =============================================================================
 # Rates and cost computation live in services.telemetry now:
-#   - _BILLING_RATES (single source of truth for 2x markup)
-#   - compute_cost_usd_inclusive() (cache-aware)
+#   - _BILLING_RATES (provider list prices — single source of truth)
+#   - compute_cost_usd_inclusive() (cache-aware, at-cost)
+#   - billed_usd = cost × billing_tiers.USAGE_BILLING_MULTIPLIER (ADR-490)
 # This module only orchestrates the gate (check_balance); cost math is one
 # function in one place per Singular Implementation (ADR-291 D2).
 
@@ -404,8 +408,8 @@ def get_lifetime_spend_usd(client, user_id: str) -> float:
     cost since the allowance anchor (allowance_granted_at → subscription_refill_at
     → created_at). Anchoring spend and remaining on one window is what makes the
     billing surface reconcile — spend + remaining == (allowance_usd + balance_usd)
-    by construction. ADR-291: reads execution_events.cost_usd, the sole canonical
-    cost ledger.
+    by construction. ADR-291 + ADR-490: reads the billed draw
+    (COALESCE(billed_usd, cost_usd)) from the sole canonical cost ledger.
     """
     try:
         ws_id = _acting_workspace_id(user_id)
@@ -423,13 +427,15 @@ def get_lifetime_spend_usd(client, user_id: str) -> float:
         anchor = _spend_anchor(ws.data[0])
         result = (
             client.table("execution_events")
-            .select("cost_usd")
+            .select("cost_usd, billed_usd")
             .eq("workspace_id", ws_id)
             .gt("created_at", anchor)
             .execute()
         )
         rows = result.data or []
-        return round(sum(float(r.get("cost_usd") or 0) for r in rows), 6)
+        return round(
+            sum(float(r.get("billed_usd") or r.get("cost_usd") or 0) for r in rows), 6
+        )
     except Exception as e:
         logger.warning(f"[BALANCE] get_lifetime_spend_usd failed: {e}")
         return 0.0
@@ -541,7 +547,7 @@ def get_usage_detail(client, user_id: str) -> dict:
 
         rows = (
             client.table("execution_events")
-            .select("slug, cost_usd, status, created_at")
+            .select("slug, cost_usd, billed_usd, status, created_at")
             .eq("workspace_id", ws_id)
             .gt("created_at", anchor)
             .execute()
@@ -550,11 +556,11 @@ def get_usage_detail(client, user_id: str) -> dict:
         logger.warning(f"[USAGE] get_usage_detail failed: {e}")
         return empty
 
-    # ── Spend by work item ────────────────────────────────────────────
+    # ── Spend by work item (ADR-490: billed draw, cost_usd fallback) ──
     per_slug: dict[str, dict] = {}
     total_cost = 0.0
     for r in rows:
-        cost = float(r.get("cost_usd") or 0)
+        cost = float(r.get("billed_usd") or r.get("cost_usd") or 0)
         slug = r.get("slug") or "unknown"
         bucket = per_slug.setdefault(slug, {"slug": slug, "runs": 0, "cost_usd": 0.0})
         bucket["runs"] += 1
@@ -592,7 +598,7 @@ def get_usage_detail(client, user_id: str) -> dict:
             continue
         day = str(created)[:10]
         if day in by_day:
-            by_day[day] += float(r.get("cost_usd") or 0)
+            by_day[day] += float(r.get("billed_usd") or r.get("cost_usd") or 0)
     trend = [{"date": d, "cost_usd": round(by_day[d], 4)} for d in by_day]
 
     # ── Activity summary ──────────────────────────────────────────────

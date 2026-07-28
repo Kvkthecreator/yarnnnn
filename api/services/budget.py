@@ -201,8 +201,10 @@ def load_budget(client: Any, user_id: str) -> Budget:
 def window_spend(
     client: Any, user_id: str, window: str, workspace_id: Optional[str] = None
 ) -> float:
-    """Sum `execution_events.cost_usd` over the current budget window
-    (ADR-291 unified cost ledger; ADR-327 D3 — reader only, no new writer).
+    """Sum the billed draw (COALESCE(billed_usd, cost_usd) — ADR-490) over the
+    current budget window (ADR-291 unified cost ledger; ADR-327 D3 — reader
+    only, no new writer). Billed, not cost: this number is compared against the
+    pool the workspace actually drains.
 
     `window` ∈ {monthly, weekly, daily}; monthly = since UTC month start.
     Returns 0.0 on any read failure (fail-open — a read error must not
@@ -221,13 +223,13 @@ def window_spend(
     try:
         from services.workspace_context import effective_workspace_id
         ws = effective_workspace_id(user_id, workspace_id)
-        q = client.table("execution_events").select("cost_usd").gte("created_at", floor_iso)
+        q = client.table("execution_events").select("cost_usd, billed_usd").gte("created_at", floor_iso)
         # Scope to the workspace pool (ADR-416); fall back to user_id only if no
         # workspace resolves (legacy safety — never a silent wrong-scope sum).
         q = q.eq("workspace_id", ws) if ws else q.eq("user_id", user_id)
         res = q.execute()
         rows = res.data or []
-        return float(sum(float(r.get("cost_usd") or 0) for r in rows))
+        return float(sum(float(r.get("billed_usd") or r.get("cost_usd") or 0) for r in rows))
     except Exception as exc:
         logger.warning(
             "[BUDGET] window_spend failed for user=%s window=%s: %s",

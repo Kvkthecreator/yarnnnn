@@ -399,13 +399,14 @@ class SubscriptionStatus(BaseModel):
     expires_at: Optional[str] = None
     customer_id: Optional[str] = None
     subscription_id: Optional[str] = None
-    # ── ADR-445 Axis ① — the seat state (LIVE) ────────────────────────────────
-    # The seat math, surfaced for legibility. Seat 1 (the owner) is free; each
-    # additional human is a priced seat. `seat_billing_active` = the workspace has
-    # billable seats beyond the owner (a paid team). A solo workspace reads 0
-    # billable seats (only usage bills).
+    # ── ADR-445 Axis ① / ADR-490 — the seat state (LIVE) ─────────────────────
+    # The seat math, surfaced for legibility. The first `included_seats` humans
+    # (2 — the owner + one teammate, ADR-490 §1①) are free; each additional human
+    # is a priced seat. `seat_billing_active` = the workspace has billable seats
+    # beyond the free two (a paid team). A ≤2-human workspace reads 0 billable
+    # seats (only usage bills).
     human_seats: int = 1                 # active human members (owner + members)
-    included_seats: int = 1              # billing baseline (humans covered before the seat fee)
+    included_seats: int = 2              # billing baseline (humans covered before the seat fee)
     billable_seats: int = 0              # additional humans beyond the base (the billed seats)
     seat_fee_usd: float = 0.0            # billable_seats × additional_seat_usd (the seat-axis total)
     seat_billing_active: bool = False    # billable_seats > 0 on a paid, non-exempt tier
@@ -508,17 +509,14 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
 
     # custom_price (integer cents) is set only for top-ups.
     custom_price_cents: Optional[int] = None
-    # ADR-445 §7 Phase 2 (+ the 2026-07-21 solo-checkout amendment) — the seat
-    # QUANTITY for a subscription checkout. The paid plan is seat-priced (variant
-    # unit price × quantity); quantity = billable_seats = max(0, humans −
-    # included_seats), floored at 1 because LS rejects a 0-quantity subscription.
-    #
-    # A SOLO owner therefore checks out at quantity 1 and pays one unit. That is
-    # ratified, not a rounding artifact: the free→paid boundary governs when a
-    # workspace MUST pay (the 2nd human), not whether a solo owner MAY. What the
-    # unit buys them is the pooled allowance + the higher gates — NOT a second seat.
-    # The copy contract that follows from this (no surface tells a paying solo owner
-    # "your seat is free") is enforced FE-side in lib/subscription/usage.ts.
+    # ADR-490 — the seat QUANTITY for a subscription checkout. The paid plan is
+    # seat-priced ONLY (variant unit price × quantity, no allowance); quantity =
+    # billable_seats = max(0, humans − included_seats[2]), floored at 1 because
+    # LS rejects a 0-quantity subscription AND because the upgrade normally
+    # happens AT the boundary (2 humans, inviting the 3rd — the floor IS the
+    # incoming seat). The FE offers this checkout only from the seat boundary
+    # (there is nothing else the subscription buys — ADR-490 §1③ retired the
+    # allowance, superseding the 2026-07-21 solo-checkout amendment).
     seat_quantity: Optional[int] = None
 
     if request.checkout_type == "topup":
