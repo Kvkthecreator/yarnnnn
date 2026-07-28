@@ -43,8 +43,8 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAutoResize, COMPOSER_MAX_PX } from '@/hooks/useAutoResize';
 import {
   ArrowUp,
-  BookmarkPlus,
   Check,
+  NotebookPen,
   Copy,
   FileText,
   ImageIcon,
@@ -535,6 +535,30 @@ export function LanePanel({
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
+      {/* "Keep this" (ADR-457 D3 settle) — a labeled, conversation-level act
+          (ADR-492 D6.e, operator-ruled 2026-07-28): it acts ON the whole
+          conversation, so it lives above the transcript, not on the composer.
+          The unlabeled composer bookmark proved illegible — the verb stays,
+          the bookmark costume goes. Hidden until there is something to keep. */}
+      {messages.length > 0 && (
+        <div className="flex items-center justify-end px-3 pt-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => void settle()}
+            disabled={sending || settling}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-border text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-colors"
+            aria-label="Keep this — settle the conversation into a note in your files"
+            title="Distill this conversation into a note in your files"
+          >
+            {settling ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <NotebookPen className="w-3.5 h-3.5" />
+            )}
+            Keep this
+          </button>
+        </div>
+      )}
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
         {loading && (
           <div className="text-xs text-muted-foreground py-6 text-center">
@@ -743,7 +767,7 @@ export function LanePanel({
           <div className="rounded-md border border-border bg-muted/30 p-2 space-y-1.5">
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <BookmarkPlus className="w-3 h-3" />
+                <NotebookPen className="w-3 h-3" />
                 Kept — this conversation is now record
               </span>
               <button
@@ -846,26 +870,6 @@ export function LanePanel({
           >
             <Paperclip className="w-4 h-4" />
           </button>
-          {/* "Keep this" (ADR-457 D3) — the settle gesture. Sits beside the
-              composer because it is an act ON the conversation, not a message
-              in it. Hidden until there is something to settle: an empty lane
-              has no understanding to distill. */}
-          {messages.length > 0 && (
-            <button
-              type="button"
-              onClick={() => void settle()}
-              disabled={sending || settling}
-              className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 shrink-0 transition-colors"
-              aria-label="Keep this — settle the conversation into a note"
-              title="Keep this"
-            >
-              {settling ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <BookmarkPlus className="w-4 h-4" />
-              )}
-            </button>
-          )}
           <textarea
             ref={textareaRef}
             value={input}
