@@ -1251,30 +1251,22 @@ async def global_chat(
 
     # ── Main stream dispatcher ────────────────────────────────────────────────
     async def response_stream():
-        # Balance gate — the shared-pool hard-stop (ADR-396). Applies to every
-        # principal drawing the workspace pool.
-        from services.platform_limits import check_balance
-        balance_ok, effective_balance = check_balance(auth.client, auth.user_id)
-        if not balance_ok:
-            yield f"data: {json.dumps({'balance_exhausted': True, 'balance_usd': round(effective_balance, 4)})}\n\n"
-            return
-
-        # Per-member cap gate (ADR-445 §7 Phase 4) — layered ON TOP of the pool
-        # hard-stop: an owner may bound one member's draw of the shared pool. The
-        # owner is never capped; an uncapped member passes freely. Fail-safe:
-        # any error → allowed (the pool hard-stop is the backstop).
-        acting_principal = getattr(auth, "principal_id", None) or auth.user_id
-        from services.member_caps import check_member_cap
-        cap_ok, cap_usd, cap_spent = check_member_cap(
-            auth.client, auth.user_id, acting_principal,
-            # The workspace being drawn from — the cap map is workspace-scoped
-            # substrate (ADR-373/416). Without this the lookup fell back to the
-            # CALLER's id, which for a member is their own, so the owner-authored
-            # cap file was never found and every member read as uncapped.
+        # THE draw gate (ADR-445 §9 closed / ADR-491 Phase 3) — hard-stop + the
+        # per-member cap in ONE call, the same helper every costed member-facing
+        # entry uses (lanes, studio, images). The two SSE payload shapes are
+        # preserved verbatim for the FE.
+        from services.platform_limits import check_draw
+        draw_ok, draw_reason, draw_detail = check_draw(
+            auth.client,
+            auth.user_id,
             workspace_id=getattr(auth, "workspace_id", None),
+            principal_id=getattr(auth, "principal_id", None) or auth.user_id,
         )
-        if not cap_ok:
-            yield f"data: {json.dumps({'member_cap_reached': True, 'cap_usd': cap_usd, 'spent_usd': round(cap_spent, 4)})}\n\n"
+        if not draw_ok:
+            if draw_reason == "member_capped":
+                yield f"data: {json.dumps({'member_cap_reached': True, 'cap_usd': draw_detail.get('cap_usd'), 'spent_usd': draw_detail.get('spent_usd')})}\n\n"
+            else:
+                yield f"data: {json.dumps({'balance_exhausted': True, 'balance_usd': draw_detail.get('balance_usd')})}\n\n"
             return
 
         try:

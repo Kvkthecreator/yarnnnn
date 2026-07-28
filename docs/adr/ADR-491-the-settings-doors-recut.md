@@ -66,6 +66,15 @@ Altitude-3 roster build, and deliberately sequenced AFTER the ADR-445 §9 cap
 choke-point closes (a governance row that looks like enforcement must not
 precede the mechanism).
 
+**Phase-3 closure (same day)**: the prerequisite landed —
+`platform_limits.check_draw` is the one draw gate (hard-stop + cap), wired at
+every costed member entry (feed · lanes turn/regenerate/settle · studio plan ·
+images compose); wake stays owner-attributed on its own `check_balance`. The
+member cap now bounds a MEMBER, not one conversation surface, so the Members
+card's cap chips state something true everywhere. What remains deferred is
+only the ADR-382 roster UI (per-agent dial rows — no hired agents exist to
+render). Gate: `test_adr445_cap_choke_point.py` 16/16.
+
 ## 4. End state
 
 - **Workspace Settings** (the org-settings door): Access (Members) · Billing

@@ -92,6 +92,26 @@ async def compose(req: ComposeRequest, auth: UserClient) -> dict:
     if not brief:
         raise HTTPException(status_code=422, detail="A brief is required to compose")
 
+    # THE draw gate (ADR-445 §9 closed / ADR-491 Phase 3) — a compose is a
+    # costed, member-attributed draw (planning call + per-image engine cost);
+    # gate before any model work launches.
+    from services.platform_limits import check_draw
+    draw_ok, draw_reason, _draw_detail = check_draw(
+        auth.client,
+        auth.user_id,
+        workspace_id=getattr(auth, "workspace_id", None),
+        principal_id=getattr(auth, "principal_id", None) or auth.user_id,
+    )
+    if not draw_ok:
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                "This workspace's balance is exhausted — top up to continue."
+                if draw_reason == "balance_exhausted"
+                else "You've reached your spend cap on this workspace — ask the owner to raise it."
+            ),
+        )
+
     rows = (
         auth.client.table("workspace_files")
         .select("path,content")

@@ -197,6 +197,53 @@ def check_balance(client, user_id: str) -> tuple[bool, float]:
     return balance > 0, balance
 
 
+def check_draw(
+    client,
+    user_id: str,
+    *,
+    workspace_id: Optional[str] = None,
+    principal_id: Optional[str] = None,
+) -> tuple[bool, Optional[str], dict]:
+    """THE draw gate — may this principal draw the workspace pool right now?
+
+    ADR-445 §9 (closed 2026-07-28, ADR-491 Phase 3): the per-member cap used to
+    bind at exactly ONE call site (the addressed path) while lanes, studio, and
+    images drew the pool with no gate at all — a cap that bounds one
+    conversation surface, not a member. This helper is the single
+    implementation both checks share; every costed, member-facing entry calls
+    it ONCE before launching model work:
+
+      1. the pool hard-stop (ADR-396) — applies to every principal;
+      2. the per-member cap (ADR-445 §7 P4, member_caps) — layered on top;
+         the owner is never capped; absent cap = uncapped.
+
+    Returns (allowed, reason, detail):
+      (True,  None,               {})                       — draw away
+      (False, 'balance_exhausted', {'balance_usd': ...})    — pool empty
+      (False, 'member_capped',     {'cap_usd', 'spent_usd'}) — this principal
+                                                              is at their cap
+
+    NOT called on the wake/recurrence lane: standing work attributes to the
+    owner (the radar/recurrence convention), who is never capped — the wake
+    path keeps its own check_balance. Fail-safe semantics are inherited from
+    the parts: a cap read error → uncapped (the hard-stop backstops); a balance
+    read error → 0.0 → blocked (never over-spend on a DB hiccup).
+    """
+    allowed, balance = check_balance(client, user_id)
+    if not allowed:
+        return False, "balance_exhausted", {"balance_usd": round(balance, 4)}
+    from services.member_caps import check_member_cap
+    cap_ok, cap_usd, cap_spent = check_member_cap(
+        client, user_id, principal_id, workspace_id=workspace_id
+    )
+    if not cap_ok:
+        return False, "member_capped", {
+            "cap_usd": cap_usd,
+            "spent_usd": round(cap_spent, 4),
+        }
+    return True, None, {}
+
+
 def spend_by_principal(
     client, user_id: str, workspace_id: Optional[str] = None
 ) -> list[dict]:

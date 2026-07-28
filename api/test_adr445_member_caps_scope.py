@@ -201,7 +201,11 @@ def test_callers_pass_workspace() -> None:
     import re
     from pathlib import Path
     for rel, fn in (
-        ("routes/feed.py", "check_member_cap"),
+        # ADR-445 §9 closure (2026-07-28): feed.py now calls the ONE draw gate
+        # (platform_limits.check_draw), which threads workspace_id into
+        # check_member_cap internally — asserted both here (the entry passes a
+        # workspace) and in test_adr445_cap_choke_point.py (the helper threads).
+        ("routes/feed.py", "check_draw"),
         ("routes/workspace.py", "load_member_caps"),
         ("routes/workspace.py", "set_member_cap"),
     ):

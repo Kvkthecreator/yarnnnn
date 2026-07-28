@@ -574,6 +574,28 @@ def _turn_stream_response(
     from services.lane_runner import lane_caller_identity, run_lane_turn_stream
     from services.narrative import write_narrative_entry
 
+    # THE draw gate (ADR-445 §9 closed / ADR-491 Phase 3) — a lane turn is a
+    # costed, member-attributed draw of the shared pool; gate BEFORE the stream
+    # starts (this runs in the handler body, so a block is a clean 402, not a
+    # mid-stream error). Covers both entries (turn + regenerate) — they both
+    # come through this core.
+    from services.platform_limits import check_draw
+    draw_ok, draw_reason, draw_detail = check_draw(
+        auth.client,
+        auth.user_id,
+        workspace_id=getattr(auth, "workspace_id", None),
+        principal_id=getattr(auth, "principal_id", None) or auth.user_id,
+    )
+    if not draw_ok:
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                "This workspace's balance is exhausted — top up to continue."
+                if draw_reason == "balance_exhausted"
+                else "You've reached your spend cap on this workspace — ask the owner to raise it."
+            ),
+        )
+
     lane_id = lane["id"]
     lane_meta = (lane.get("context_metadata") or {}).get("lane") or {}
     model = lane_meta.get("model") or ""
@@ -969,6 +991,25 @@ async def settle_lane_route(lane_id: str, auth: UserClient) -> dict:
         raise HTTPException(
             status_code=422,
             detail="this model has no billing rate configured and cannot run (ADR-439 §4)",
+        )
+
+    # THE draw gate (ADR-445 §9 closed / ADR-491 Phase 3) — a settle is one
+    # bounded costed turn; gate before it launches.
+    from services.platform_limits import check_draw
+    draw_ok, draw_reason, _draw_detail = check_draw(
+        auth.client,
+        auth.user_id,
+        workspace_id=getattr(auth, "workspace_id", None),
+        principal_id=getattr(auth, "principal_id", None) or auth.user_id,
+    )
+    if not draw_ok:
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                "This workspace's balance is exhausted — top up to continue."
+                if draw_reason == "balance_exhausted"
+                else "You've reached your spend cap on this workspace — ask the owner to raise it."
+            ),
         )
 
     # The full conversation, oldest-first — a settle reads the whole thing,

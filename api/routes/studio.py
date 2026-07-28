@@ -520,6 +520,21 @@ async def plan_arrangement_route(req: ArrangementPlanRequest, auth: UserClient) 
     """
     from services.studio_arrangement_plan import plan_arrangement
 
+    # THE draw gate (ADR-445 §9 closed / ADR-491 Phase 3) — the plan is a costed
+    # judgment call drawing the shared pool; gate before launching it. A block
+    # returns the mechanical-ladder fallback shape (placements: null), so the
+    # FE degrades exactly as it does on a refused plan — never a dead-end
+    # (ADR-468 D4) — and no model call is paid for.
+    from services.platform_limits import check_draw
+    draw_ok, _draw_reason, _draw_detail = check_draw(
+        auth.client,
+        auth.user_id,
+        workspace_id=getattr(auth, "workspace_id", None),
+        principal_id=getattr(auth, "principal_id", None) or auth.user_id,
+    )
+    if not draw_ok:
+        return {"placements": None}
+
     placements, completion = await plan_arrangement(req.blocks or [], req.slots or [])
 
     # Meter here, exactly once: `route_completion` reports usage but never

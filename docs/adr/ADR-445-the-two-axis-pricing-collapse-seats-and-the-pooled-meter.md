@@ -334,17 +334,24 @@ launch blocker.
   resolves (ADR-396's standing numbers-deferral).
 - **Per-member cap default + granularity** (per-member $ vs % of pool; whether AIs get
   caps): Phase 4's design discourse.
-- **Cap coverage beyond the addressed path** (the open half of Phase 4, surfaced by
-  the 2026-07-21 audit). The cap gate lives at exactly one call site
-  (`routes/feed.py`). Every other path that draws the pool — the wake/judgment lane,
-  ADR-411 member lanes, MCP/foreign-LLM tool calls, `routes/{agents,studio,lanes}`,
-  the capture lane — bypasses it; several bypass `check_balance` too. Until this
-  closes, the cap bounds one conversation surface, not a member. The likely shape is
-  a single choke point (the gate belongs beside the balance check in
-  `execute_primitive()`'s ADR-307 consequential gate, not sprinkled per-route), which
-  is a design question, not a mechanical sweep — hence deferred rather than patched.
-  Interim: the pool hard-stop + per-principal attribution (now complete for costed
-  sites) + grant revocation.
+- **Cap coverage beyond the addressed path** — **CLOSED (2026-07-28, ADR-491
+  Phase 3)**. The choke point landed as
+  `platform_limits.check_draw(client, user_id, workspace_id=, principal_id=)` —
+  ONE helper composing the pool hard-stop + the per-member cap, called before
+  model work launches at every costed member-attributed entry: `routes/feed.py`
+  (the two inline gates folded into the one call), `routes/lanes.py` (the
+  streaming turn core, covering turn + regenerate, AND settle), `routes/
+  studio.py` (arrangement plan — a block degrades to the mechanical-ladder
+  fallback, never a dead-end per ADR-468 D4), `routes/images.py` (compose).
+  The §9 sketch ("beside the balance check in `execute_primitive()`") was
+  re-derived and NOT taken: cost is drawn by LLM invocations, not by
+  consequential tool writes, so the ADR-307 gate is the wrong waist — the
+  right one is the costed entry set, held to Singular Implementation by the
+  shared helper. The wake/recurrence lane deliberately keeps its own
+  `check_balance`: standing work attributes to the owner (the radar
+  convention), who is never capped. Gate:
+  `test_adr445_cap_choke_point.py` 16/16 (behavioural composition + a
+  call-site walk that names a regressing file).
 - **Billing authority beyond owner** (a co-owner role vs granting a `billing` scope): the
   membership-model question ADR-416 §9 + ADR-429 §9 already parked.
 
