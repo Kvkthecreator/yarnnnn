@@ -13,64 +13,62 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA } from "@/lib/cta";
 
 export const metadata = getMarketingMetadata({
-  title: "Pricing — free for one person, a paid seat for every teammate",
+  title: "Pricing — free for two people, a paid seat for every extra teammate",
   description:
-    "Your workspace and memory are free forever for one person. Add a teammate and each extra person is a paid seat; usage is a shared pool the owner funds. AI connections are always free. See every action; never a surprise bill.",
+    "Your workspace and memory are free for you and a teammate. From the 3rd person, each extra seat is paid; usage is pay-as-you-go from one shared balance the owner funds. AI connections are always free. See every action; never a surprise bill.",
   path: "/pricing",
   keywords: ["yarnnn pricing", "ai workspace pricing", "shared ai workspace", "per seat ai pricing", "team ai plan", "usage-based ai pricing", "transparent ai usage"],
 });
 
-// ADR-445 (2026-07-12): the TWO-AXIS pricing model (supersedes ADR-429's three
-// axes). There is NO separate per-workspace base fee — the paid subscription IS the
-// per-seat price. Two axes:
-//   ① SEATS — seat 1 (the owner) is free; each additional human is a priced seat
-//      ($20/seat/mo). Unlimited workspaces; a solo workspace is free; a team is paid
-//      at (humans − 1) × the seat fee. The free→paid boundary is the 2nd human. AI
-//      connections are never seats and never charged.
-//   ② METERED USAGE — the paid plan grants a monthly POOLED allowance the whole
-//      workspace draws (owner-funded); top-ups sit beneath; hard-stop at zero.
+// ADR-490 (2026-07-28): two free seats + pay-as-you-go usage. There is NO base
+// fee and NO included allowance — the paid subscription IS the per-seat price.
+//   ① SEATS — the first TWO humans (you + one teammate) are free; each additional
+//      human is a priced seat ($20/seat/mo). Unlimited workspaces; the free→paid
+//      boundary is the 3rd human. AI connections are never seats, never charged.
+//   ② USAGE — pure pay-as-you-go from one shared balance (signup grant + top-ups,
+//      owner-funded); hard-stop at zero; top-ups never expire.
 // The tier ladder is Free + one paid plan (`pro` dormant, returns with the capture
-// lane). Numbers ($0 / $20 seat / $15 pooled allowance) are launch-test values,
-// reversible against first-customer evidence (ADR-396 §7 standing discipline).
+// lane). Numbers ($0 / $20 seat) are launch-test values, reversible against
+// first-customer evidence (ADR-396 §7 standing discipline).
 
 const PLANS = [
   {
     name: "Free",
     price: "$0",
-    cadence: "for one person",
-    blurb: "Your memory — files, notes, and context — kept with full history and reachable from every AI you use. Free forever for one person, no card.",
+    cadence: "for two people",
+    blurb: "Your memory — files, notes, and context — kept with full history and reachable from every AI you use. Free for you and a teammate, no card.",
     cta: "Start free",
     href: CTA.signup,
     featured: false,
     points: [
-      "Workspace + memory, free forever for one person",
+      "Workspace + memory, free for two people",
       `${PRICE_COPY.signupGrant} starting balance — feel the loop before you spend`,
+      "Usage pay-as-you-go — top up only for what runs",
       "Reachable from any AI over MCP — always free",
-      "Add a teammate anytime on the paid plan",
     ],
   },
   {
-    name: "Starter",
+    name: "Team",
     price: PRICE_COPY.seat,
-    cadence: "/seat/mo",
-    blurb: "For a real team working out of one shared workspace. You stay free; each teammate is a paid seat, and usage is one shared pool the workspace draws from.",
-    cta: "Go Starter",
+    cadence: "/extra seat/mo",
+    blurb: "For a real team working out of one shared workspace. Two of you stay free; from the 3rd person each seat is paid, and usage stays one shared pay-as-you-go balance.",
+    cta: "Bring the team",
     href: CTA.signup,
     featured: true,
     points: [
-      "Everything in Free — your seat stays free",
-      PRICE_COPY.seatPerTeammate,
-      PRICE_COPY.pooledAllowance,
+      "Everything in Free — your first two seats stay free",
+      `${PRICE_COPY.seat}/mo per seat from the 3rd person`,
+      "One shared usage balance the whole workspace draws",
       "Connect any AI over MCP — always free, never a seat",
     ],
   },
 ];
 
 const HOW_IT_WORKS = [
-  "Free for one person. Your workspace, your memory, and your own seat are free forever — you only pay when you bring a teammate.",
-  "A seat per teammate. Each additional person on the workspace is a paid seat; AI connections you plug in over MCP are always free and never a seat.",
-  "One shared usage pool. The paid plan includes a monthly amount of usage the whole workspace draws from — you, your teammates, and any AI all draw the same pool, funded by the owner.",
-  `Need more in a heavy month? Top up any amount from ${PRICE_COPY.topUpMin}. Top-ups never expire and sit beneath your allowance. Hard stop at zero — nothing is lost, you resume by topping up.`,
+  "Free for two people. Your workspace, your memory, and your first teammate are free — you only pay a seat from the 3rd person.",
+  "A seat per extra teammate. Each person beyond the first two is a paid seat; AI connections you plug in over MCP are always free and never a seat.",
+  "Usage is pay-as-you-go. Every judgment call draws one shared balance the owner funds — you, your teammates, and any AI all draw the same pool. Only what actually ran counts.",
+  `Top up any amount from ${PRICE_COPY.topUpMin}. Top-ups never expire. Hard stop at zero — nothing is lost, you resume by topping up.`,
 ];
 
 export default function PricingPage() {
@@ -104,17 +102,17 @@ export default function PricingPage() {
             {/* Header */}
             <div className="text-center mb-16">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-6 tracking-tight">
-                Free for one.<br />A seat for the team.
+                Free for two.<br />A seat for the rest.
               </h1>
               <p className="text-white/50 text-lg max-w-2xl mx-auto">
-                Your workspace and your memory are free forever for one person. Add a
-                teammate and each extra person is a paid seat; usage is one shared
-                pool the owner funds. AI connections are always free — never a seat.
-                See every action; never a surprise bill.
+                Your workspace and your memory are free for you and a teammate. From
+                the 3rd person, each extra seat is paid; usage is pay-as-you-go from
+                one shared balance the owner funds. AI connections are always free —
+                never a seat. See every action; never a surprise bill.
               </p>
             </div>
 
-            {/* Plan ladder — Free + one paid plan (ADR-445); two cards, centered */}
+            {/* Plan ladder — Free + one paid plan (ADR-490); two cards, centered */}
             <ScrollReveal className="mb-8">
               <div className="grid gap-4 sm:grid-cols-2 max-w-2xl mx-auto">
                 {PLANS.map((plan, i) => (
@@ -187,12 +185,12 @@ export default function PricingPage() {
               </SpotlightCard>
             </ScrollReveal>
 
-            {/* Two guardrails explainer — the budget vs the floor (survives ADR-396) */}
+            {/* Two guardrails explainer — visibility + the floor (ADR-490) */}
             <ScrollReveal className="max-w-3xl mx-auto mb-16">
               <div className="text-center mb-6">
                 <h3 className="text-xl font-medium mb-2">Two guardrails, so spend is never a surprise</h3>
                 <p className="text-white/45 text-sm max-w-xl mx-auto">
-                  One ceiling you plan, one floor that never lets anything break.
+                  You see everything, and nothing can overrun.
                 </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -200,12 +198,12 @@ export default function PricingPage() {
                   <div className="p-6">
                     <div className="flex items-center gap-2 mb-2">
                       <Wallet className="w-4 h-4 text-emerald-400" />
-                      <h4 className="text-base font-medium">Your ceiling — the budget</h4>
+                      <h4 className="text-base font-medium">You only pay for what ran</h4>
                     </div>
                     <p className="text-white/50 text-sm leading-relaxed">
-                      The planned maximum. The agent paces its own work to stay under the monthly
-                      amount you set, so an active operation costs what you decided it could — and
-                      no more. Raise or lower it whenever. It&apos;s a cap you set, not a charge.
+                      Usage is pay-as-you-go: each judgment call draws the shared balance, and the
+                      Usage screen shows every action — what ran, and who ran it. Idle costs
+                      nothing; there is no subscription for usage, no monthly commitment.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -216,9 +214,8 @@ export default function PricingPage() {
                       <h4 className="text-base font-medium">The floor — zero balance</h4>
                     </div>
                     <p className="text-white/50 text-sm leading-relaxed">
-                      The absolute stop. If your allowance and balance ever reach zero the operation
-                      simply pauses — nothing is lost, no overage, no surprise. You resume by
-                      upgrading or topping up.
+                      The absolute stop. If the balance ever reaches zero the work simply pauses —
+                      nothing is lost, no overage, no surprise. You resume by topping up.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -231,10 +228,10 @@ export default function PricingPage() {
                 <div className="p-6">
                   <h3 className="text-lg font-medium mb-3">What does a seat cost?</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    A seat is a human on your workspace. The first seat — you, the owner — is free.
-                    Each teammate you add is {PRICE_COPY.seat}/mo. Every human draws the same shared usage pool the
-                    owner funds — and any AI you connect over MCP is always free, never a seat and
-                    never a charge.
+                    A seat is a human on your workspace. The first two — you and a teammate — are
+                    free. Each person from the 3rd onward is {PRICE_COPY.seat}/mo. Every human draws the same
+                    shared balance the owner funds — and any AI you connect over MCP is always
+                    free, never a seat and never a charge.
                   </p>
                 </div>
               </SpotlightCard>
@@ -242,19 +239,19 @@ export default function PricingPage() {
                 <div className="p-6">
                   <h3 className="text-lg font-medium mb-3">What&apos;s &ldquo;usage&rdquo;?</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Usage is the model work your operation runs — a judgment call, a piece of
-                    research, a draft. Your plan includes a monthly amount of it; you see every
+                    Usage is the model work your workspace runs — a judgment call, a piece of
+                    research, a draft. It draws your balance as it happens, and you see every
                     action on your Usage screen. Only what actually ran counts.
                   </p>
                 </div>
               </SpotlightCard>
               <SpotlightCard variant="dark" spotlightSize={500}>
                 <div className="p-6">
-                  <h3 className="text-lg font-medium mb-3">Why a plan instead of pure pay-as-you-go?</h3>
+                  <h3 className="text-lg font-medium mb-3">Why pay-as-you-go instead of a usage plan?</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    A plan makes spend predictable — a known monthly amount, an allowance included,
-                    and a budget you cap it at. Heavier months you top up; idle months you don&apos;t.
-                    You get the predictability of a fixed plan without paying per opaque token.
+                    Because work is uneven. Heavy months you top up; idle months you pay nothing —
+                    there is no monthly usage fee to outgrow or waste. The seat price is the only
+                    subscription, and it buys something that doesn&apos;t fluctuate: your team&apos;s access.
                   </p>
                 </div>
               </SpotlightCard>
@@ -266,9 +263,9 @@ export default function PricingPage() {
                 <div className="p-6 space-y-4 text-white/50 text-sm leading-relaxed">
                   <p>
                     <strong className="text-white/70">Do I need a paid plan?</strong> No. The
-                    workspace and your memory are free forever for one person. A paid plan is for a
-                    real team — inviting your first teammate makes the workspace paid ({PRICE_COPY.seat}/mo per
-                    person), and includes a shared monthly usage pool the work draws from.
+                    workspace and your memory are free for two people. The paid plan is for a
+                    bigger team — from the 3rd person, each extra seat is {PRICE_COPY.seat}/mo. Usage stays
+                    pay-as-you-go either way.
                   </p>
                   <p>
                     <strong className="text-white/70">Starting balance.</strong> Every workspace
@@ -276,13 +273,9 @@ export default function PricingPage() {
                     correction loop firsthand before you spend anything.
                   </p>
                   <p>
-                    <strong className="text-white/70">If you hit your budget,</strong> the operation
-                    eases off its scheduled work for the rest of the window so it stays under your
-                    ceiling. Raise the budget anytime to let it keep going.
-                  </p>
-                  <p>
-                    <strong className="text-white/70">If your allowance runs out,</strong> top up any
-                    amount — it never expires — or upgrade your plan. The operation resumes at once.
+                    <strong className="text-white/70">If your balance runs out,</strong> the work
+                    simply pauses. Top up any amount — it never expires — and everything resumes at
+                    once. Nothing is lost while paused.
                   </p>
                   <p>
                     <strong className="text-white/70">If you stop running an operation,</strong> it

@@ -71,17 +71,17 @@ const faqSections: FaqSection[] = [
       {
         question: "What does it cost?",
         answer:
-          `Your memory is free forever for one person — your files, your context, reachable from any AI. Pricing has two axes: a seat per teammate, and shared usage. The first seat (you, the owner) is free; each additional human is a paid seat (${PRICE_COPY.seat}/mo), and AI connections are always free — never a seat. The paid plan includes a monthly shared usage pool the whole workspace draws from (owner-funded); heavier months you top up any amount from ${PRICE_COPY.topUpMin} (top-ups never expire). A solo workspace is free (usage-only); a team is paid per additional person. Every workspace starts with a ${PRICE_COPY.signupGrant} balance to feel the loop before you spend a cent.`,
+          `Your memory is free for two people — your files, your context, reachable from any AI. Pricing has two axes: seats and usage. The first two seats (you and a teammate) are free; each person from the 3rd onward is a paid seat (${PRICE_COPY.seat}/mo), and AI connections are always free — never a seat. Usage is pay-as-you-go from one shared balance the owner funds; top up any amount from ${PRICE_COPY.topUpMin} (top-ups never expire). Every workspace starts with a ${PRICE_COPY.signupGrant} balance to feel the loop before you spend a cent.`,
       },
       {
         question: "Can I cap what it spends?",
         answer:
-          "Yes — separately from your plan. Set a monthly budget ceiling and the assistant paces its own work to stay under it. That's a cap you set, not a charge we bill. Two guardrails, so spend is never a surprise: a budget ceiling you plan, and a floor (zero allowance and balance) that pauses the operation without losing anything.",
+          "Yes. Spend is bounded by the balance itself — usage is pay-as-you-go, so nothing can draw more than you've put in, and the hard stop at zero pauses the work without losing anything. On a team, the owner can additionally set a per-member spend cap on the shared balance.",
       },
       {
-        question: "What if my allowance runs out, or I turn the assistant off?",
+        question: "What if my balance runs out, or I turn the assistant off?",
         answer:
-          "Nothing is deleted. When your monthly allowance and balance are spent, the assistant pauses — upgrade your plan or top up to resume. Turn it off and it simply stops drawing usage. Either way, your memory and every file stay yours, free.",
+          "Nothing is deleted. When the balance is spent, the assistant pauses — top up to resume. Turn it off and it simply stops drawing usage. Either way, your memory and every file stay yours, free.",
       },
     ],
   },
