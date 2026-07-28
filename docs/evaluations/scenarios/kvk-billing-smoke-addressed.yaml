@@ -1,0 +1,21 @@
+scenario_schema_version: 1
+scenario: kvk-billing-smoke-addressed
+description: |
+  Hat-B smoke on the LIVE kvk workspace (operator-requested, 2026-07-28,
+  the ADR-490/491 verification pass): ONE benign addressed turn to
+  (1) exercise the new billing path end to end on prod — the check_draw
+  gate (pool hard-stop + member cap, ADR-445 §9 closure) ahead of a real
+  costed judgment call — and (2) land the first post-deploy ledger row,
+  whose billed_usd must read cost_usd × 1.30 (the ADR-490 margin receipt;
+  every earlier row is pre-deploy backfill parity, billed == cost).
+
+  DELIBERATELY ZERO SETUP: this is the operator's live personal workspace
+  (d5b9029b, starter, freshly streamlined to allowance=0 / balance=37.09).
+  No resets, no seeded substrate, no proposals — a read-shaped status ask
+  only. The read is mechanical (ledger receipts), not a judgment-axis eval.
+persona: kvk
+turns:
+  - send_message: "Quick status check: in one or two sentences, what changed most recently in this workspace, and is anything waiting on me?"
+    expect:
+      - reviewer_responded
+      - no_substrate_writes
