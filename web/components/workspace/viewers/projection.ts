@@ -1671,11 +1671,35 @@ const EDIT_SCRIPT = `
       // text node doesn't exist until the character lands). The gesture's
       // canonical home ("type / on an empty line", this file's own words)
       // was the one place it never fired (2026-07-25). The sentinel's own
-      // landing creates the text node; anchor on it after the fact.
+      // landing creates the text node; anchor on it after the fact — and,
+      // per D11 below, from an element-node caret too (a native flow line).
       var c2 = slashCaret();
-      if (!c2 || c2.startContainer.nodeType !== 3) return;
+      if (!c2) return;
+      // ADR-482 D11: resolve the '/'-bearing TEXT NODE from wherever the caret
+      // settled. On flow the browser owns the whole-document editable and does
+      // not guarantee the caret lands in a text node after input: pressing '/'
+      // on a native div line (the block-level element Enter creates on a flow
+      // root — see normalizeBlockIds) can leave the caret in the ELEMENT at an
+      // offset between its children. The pre-D11 guard bailed on nodeType !== 3,
+      // so '/' on exactly those lines dead-ended and the sentinel landed as
+      // literal text (verified in prod: a document littered with typed slashes
+      // and no palette). The '/' is a POSITION, not a node identity (the same
+      // premise D10 applied to slashRun): find the text node that holds it,
+      // whether the caret sits IN it or just AFTER it.
       var node = c2.startContainer;
-      var at = c2.startOffset - 1; // the '/' sits just before the caret
+      var at;
+      if (node.nodeType === 3) {
+        at = c2.startOffset - 1; // caret inside the text node, just past the '/'
+      } else {
+        // Element-node caret: the '/' is the last char of the text node ending
+        // at this offset (the child immediately before startOffset, or its last
+        // descendant text node). Walk back to it.
+        var prev = c2.startOffset > 0 ? node.childNodes[c2.startOffset - 1] : null;
+        while (prev && prev.nodeType === 1) prev = prev.lastChild;
+        if (!prev || prev.nodeType !== 3) return;
+        node = prev;
+        at = (node.textContent || '').length - 1;
+      }
       if (at < 0 || (node.textContent || '').charAt(at) !== '/') return;
       slashNode = node;
       slashStart = at;

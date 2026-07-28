@@ -261,8 +261,16 @@ export function editBlockText(
  *  editing splits, merges, duplicates and orphans block ids as the member
  *  types across boundaries. Identity is therefore PRESERVED (reconstructed
  *  after the fact) rather than ENFORCED (walled off before it) — the priced
- *  cost of the carve. The five rules, in order:
+ *  cost of the carve. The rules, in order:
  *
+ *    0. ADR-482 D11 — a bare block-level element the browser MINTED (a direct
+ *       child of the flow root carrying content but no `data-block`) is
+ *       PROMOTED to a prose block first, so the id pass below reaches it.
+ *       Pressing Enter on a flow root inserts a native `<div>`/`<p>`; without
+ *       promotion those accumulated as un-addressable, un-selectable content
+ *       (verified in prod: a document of raw `<div>text</div>` siblings) AND
+ *       they were the element-node lines where the '/' palette then dead-ended
+ *       (projection.ts D11). Promoting them closes both.
  *    1. A surviving id on a recognizable block keeps its block.
  *    2. A DUPLICATED id (native split copied the attribute onto both halves)
  *       is kept by the FIRST in document order; later ones are re-minted.
@@ -273,11 +281,24 @@ export function editBlockText(
  *       they keep their identity unconditionally, so the ADR-448 reference
  *       edge (which lifts from data-ref, never data-block) is untouched.
  *
- *  Content is never dropped: an element that carries text but wears no block
- *  annotation is left exactly as-is. This function assigns identity; it does
- *  not restructure. Mutates `region` in place. Returns the number of ids
- *  minted (0 = the member typed inside existing blocks, the common case). */
+ *  Content is never dropped. Mutates `region` in place. Returns the number of
+ *  ids minted (0 = the member typed inside existing blocks, the common case). */
 export function normalizeBlockIds(doc: Document, region: Element): number {
+  // Rule 0: promote the bare block-level elements native Enter creates. Only
+  // DIRECT children of the region (that is what the flow root's contenteditable
+  // produces) and only genuine block-level tags with content — an inline stray
+  // or a `<br>`-only line is left alone (the annihilation guard already treats
+  // a `<br>`-only body as empty). A promoted div keeps its children verbatim;
+  // it gains `data-block="prose"` and, below, a fresh id. This is the ONE place
+  // restructuring is warranted: the browser authored a block, we name it.
+  const PROMOTABLE = new Set(['DIV', 'P']);
+  Array.from(region.children).forEach((el) => {
+    if (el.hasAttribute('data-block') || el.hasAttribute('data-ref')) return;
+    if (!PROMOTABLE.has(el.tagName)) return;
+    if ((el.textContent ?? '').trim() === '') return; // a <br>-only / empty line
+    el.setAttribute('data-block', 'prose');
+  });
+
   const seen = new Set<string>(
     Array.from(doc.querySelectorAll('[data-block-id]'))
       .filter((el) => !region.contains(el))

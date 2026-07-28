@@ -27,6 +27,17 @@ around it. Both were right in isolation, and the hole opened in the SEAM:
   D6  Properties is ordered by SCOPE: File/Share/Export lead, then the selection.
   D7  the breadcrumb carries the document-type glyph; `image` gains a registry
       row; the crumb's root label is app-aware.
+  D11 the '/' palette dead-ended on a native flow line and Enter's bare divs
+      never became blocks — the two halves of one seam. On a flow root the
+      browser inserts a native <div>/<p> on Enter (no data-block) and does not
+      guarantee the caret lands in a text node after input. The slash-open
+      guard bailed on `nodeType !== 3` (so '/' on those element-node lines was
+      dropped, landing as literal text — verified in prod), and normalizeBlockIds
+      only ever touched already-annotated elements (so the bare divs saved
+      un-addressable). Fix: slash-open resolves the '/'-bearing text node from
+      wherever the caret settled; normalizeBlockIds promotes bare block-level
+      flow lines to prose first. Both validated EXECUTING with falsifiers
+      (adr482_slash_open_elementnode.mjs, adr482_flow_promote.mjs).
 
 D1 is validated EXECUTING, not grepped — `web/scripts/gates/adr482_slash_take.mjs`
 runs the real handler body in both grains (7/7) and includes a FALSIFIER that
@@ -57,6 +68,7 @@ def run() -> bool:
     surface = (web / "components/studio/StudioSurface.tsx").read_text()
     design = (web / "components/studio/StudioDesignTab.tsx").read_text()
     shapes = (web / "components/studio/studioShapes.ts").read_text()
+    ops = (web / "components/studio/artifactOps.ts").read_text()
 
     # ── D1 — the slash-take path completes on flow ────────────────────────
     _check(
@@ -149,15 +161,14 @@ def run() -> bool:
         and ".yarnnn-fmt" in proj.split("const FMT_CSS")[1].split("`;")[0]
         and ".yarnnn-fmt" not in proj.split("const EDIT_CSS")[1].split("`;")[0],
     )
-    # (2026-07-25) The empty-line slash: the pre-input caret sits in the
-    # ELEMENT node, so the old `nodeType !== 3` bail excluded the gesture's
-    # canonical home. The caret is re-read POST-input, when the '/' has
-    # created the text node. And the take path's splitHalves takes its HOST —
-    # it cloned editingEl (null on flow), crashing every flow pick.
+    # (2026-07-25 → D11) The empty-line slash: the caret is re-read POST-input,
+    # when the '/' has created the text node. D11 generalized this to element-
+    # node carets too (see the D11 block below). And the take path's splitHalves
+    # takes its HOST — it cloned editingEl (null on flow), crashing every pick.
     _check(
         "slash-open anchors POST-input (empty line included)",
         "var c2 = slashCaret();" in proj
-        and "c2.startOffset - 1; // the '/' sits just before the caret" in proj,
+        and "at = c2.startOffset - 1; // caret inside the text node" in proj,
     )
     _check(
         "splitHalves takes its host; flow passes the caret's block",
@@ -273,6 +284,54 @@ def run() -> bool:
         "D7 the crumb's root label is app-aware",
         "{app.slug === 'images' ? 'Images' : 'Studio'}" in surface,
     )
+
+    # ── D11 — the '/' opens from an element-node caret; Enter's bare divs ──
+    #          become real blocks ─────────────────────────────────────────────
+    # The two halves of the same seam the operator hit: pressing '/' on a native
+    # flow line (an element-node caret) dead-ended at the `nodeType !== 3` bail,
+    # so the sentinel landed as literal text — and the native <div> lines that
+    # caret sat on were never promoted to blocks, so they accumulated
+    # un-addressable. Both validated EXECUTING (the D1 lesson), each with a
+    # falsifier that restores the pre-fix body and asserts it breaks again.
+    _check(
+        "D11 slash-open resolves the '/' text node from an element-node caret",
+        "if (node.nodeType === 3) {" in proj
+        and "while (prev && prev.nodeType === 1) prev = prev.lastChild;" in proj,
+    )
+    _check(
+        "D11 the pre-fix nodeType-3 bail is gone",
+        "if (!c2 || c2.startContainer.nodeType !== 3) return;" not in proj,
+    )
+    open_gate = web / "scripts/gates/adr482_slash_open_elementnode.mjs"
+    _check("D11 the slash-open executing harness is committed", open_gate.exists())
+    if open_gate.exists():
+        p3 = subprocess.run(
+            ["node", str(open_gate)], cwd=str(root), capture_output=True, text=True
+        )
+        _check(
+            "D11 slash-open harness PASSES (element-node caret opens the palette)",
+            p3.returncode == 0 and "7 passed, 0 failed" in p3.stdout,
+        )
+    _check(
+        "D11 normalizeBlockIds promotes bare block-level flow lines",
+        "el.setAttribute('data-block', 'prose');" in ops
+        and "const PROMOTABLE = new Set(['DIV', 'P']);" in ops,
+    )
+    _check(
+        "D11 promotion skips <br>-only lines and citation islands",
+        "if (el.hasAttribute('data-block') || el.hasAttribute('data-ref')) return;" in ops
+        and "=== '') return; // a <br>-only / empty line" in ops,
+    )
+    promote_gate = web / "scripts/gates/adr482_flow_promote.mjs"
+    _check("D11 the promotion executing harness is committed", promote_gate.exists())
+    if promote_gate.exists():
+        p4 = subprocess.run(
+            ["node", str(promote_gate)], cwd=str(root), capture_output=True, text=True
+        )
+        _check(
+            "D11 promotion harness PASSES (bare Enter divs become prose blocks)",
+            p4.returncode == 0 and "8 passed, 0 failed" in p4.stdout,
+        )
 
     # ── Preserved — paged is untouched ────────────────────────────────────
     _check(
