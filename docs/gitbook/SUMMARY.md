@@ -12,7 +12,6 @@
 * [The desk: Think and Make](concepts/the-desk.md)
 * [Chat](apps/chat.md)
 * [Studio](apps/studio.md)
-* [Images](apps/images.md)
 * [Files](apps/files.md)
 * [Agents](apps/agents.md)
 

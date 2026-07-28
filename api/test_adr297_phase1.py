@@ -219,7 +219,9 @@ def test_kernel_surfaces_module() -> None:
     # been failing on this line ever since (it was red, not green, before
     # 2026-07-22).
     #
-    # Live contract (2026-07-22): the FIVE primary apps ship in the Dock, and
+    # Live contract (2026-07-22): the primary apps ship in the Dock (five at
+    # first; Images left per ADR-488, Radar joined per ADR-486 — both
+    # 2026-07-28), and
     # the pinned set must equal the primary tier exactly — the invariant worth
     # gating is not "how many" but the COHERENCE of the two fields: a primary
     # app the operator never sees is invisible product, and a pinned surface

@@ -17,7 +17,7 @@ When nothing is selected, you see **Recents** — the most recent revisions acro
 
 Right-click anything:
 
-- **Open** — opens it in the app that owns its type. A deck opens in Studio; an image composition opens in Images; anything else opens in a generic viewer
+- **Open** — opens it in the app that owns its type. A deck opens in Studio; anything else opens in a generic viewer
 - **Get Info / Properties** — kind, location, ownership, modified date, contributors, and the full revision history
 - **Rename**
 - **Move to…** — or drag and drop

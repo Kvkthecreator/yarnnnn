@@ -7,6 +7,10 @@ Notable updates to YARNNN and these docs.
 
 ## July 2026
 
+### Images went internal (Jul 28)
+- The Images app left the Dock while it's polished to parity — it's an internal preview for now, not part of the shipped desk
+- Existing compositions are untouched: they stay in Files with their full history, and open normally
+
 ### Docs rewritten for the current product (Jul 23)
 - Full rebuild of the public docs against the shipped product. The previous version described the pre-June service model and was substantially wrong.
 - New pages for the five apps (Chat, Studio, Images, Files, Agents), the record and `trace`, Freddie, and working with a team.

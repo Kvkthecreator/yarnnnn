@@ -1,5 +1,6 @@
 # ADR-472: IMAGES as a First-Class App — the Housing Carve and the Composition→Raster Model
 
+> **⚠️ Visibility amended by [ADR-488](ADR-488-images-goes-internal-the-unveil-bar-is-polish-parity.md) (2026-07-28)**: the app went INTERNAL pre-beta — `launcher_tier` re-tiered `primary` → `search-only`, out of the default Dock. The housing carve, shared kernel, and everything else in this ADR stand unchanged; compositions still open into `/images` via Files. Re-unveil bar = polish parity (ADR-488 §3).
 > **Status**: **Accepted** (2026-07-20) — operator-ratified with implementation delegated in full. Supersedes [ADR-471](ADR-471-the-canvas-layout.md)'s housing decision (canvas as a Studio layout); preserves ADR-471's object-layer inheritance thesis by *promoting* it to a shared kernel rather than discarding it.
 > **Date**: 2026-07-20
 > **Dimension**: **Channel** (Axiom 6 — which app the operator is in) primary; **Substrate** (Axiom 1 — the composition/raster relationship) secondary.

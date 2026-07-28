@@ -27,7 +27,6 @@ Generate a client from that rather than transcribing endpoints from documentatio
 | Workspace | `/api/workspace` | Files, revisions, members, shares |
 | Lanes | `/api/lanes` | Chat lanes and turns |
 | Studio | `/api/studio` | Artifacts, layouts, blocks |
-| Images | `/api/images` | Stages and composition |
 | Documents | `/api/documents` | Uploads |
 | Agents | `/api/agents` | The roster and hired agents |
 | Integrations | `/api/integrations` | Platform connections |

@@ -118,8 +118,19 @@ def test_connectors_sources_stubs_point_at_workspace_settings():
 
 def test_default_kept_is_home():
     # ADR-435: the default dock anchor moved from 'home' (deleted) to 'chat'.
+    # 2026-07-22 widened the default to the primary apps (multi-entry list);
+    # this gate's claim narrows to the ANCHOR invariant it actually owns:
+    # 'chat' leads the default Dock. (The full list is owned by the app gates —
+    # test_adr472_images.py §6 pins Images' ADR-488 absence, test_adr486_radar
+    # pins Radar's presence.)
     src = _read_web("lib/shell/surface-preferences.ts")
-    assert "DEFAULT_KEPT_SURFACES: string[] = ['chat']" in src
+    kept = src.split("DEFAULT_KEPT_SURFACES: string[] = [", 1)[1].split("];", 1)[0]
+    entries = [
+        line.split("'")[1]
+        for line in kept.splitlines()
+        if line.strip().startswith("'")
+    ]
+    assert entries and entries[0] == "chat"
 
 
 def test_legacy_slugs_normalize_to_home():

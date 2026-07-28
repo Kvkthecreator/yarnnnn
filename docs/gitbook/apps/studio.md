@@ -64,4 +64,4 @@ The open artifact carries the standard verbs: rename, move, duplicate, copy link
 
 ## Export
 
-Studio artifacts can leave the system as standard output. For visuals that should stay traceable back to their source composition, use [Images](images.md) instead — there, the rendered file is recorded as a derivation of the stage that produced it.
+Studio artifacts can leave the system as standard output (Print / PDF).

@@ -24,7 +24,6 @@ Think in Chat. Make in Studio. Everything lands in Files — attributed, version
 
 - **Think** — hold conversations with named colleagues (Thinker, Researcher, Designer, Critic), grounded in your own workspace rather than a vendor's memory scrapings
 - **Make** — author documents, decks, articles, and landing pages in Studio, with an AI lane bound to the artifact you're editing
-- **Compose visuals** — build layered images on a sized stage in the Images app
 - **Keep everything** — Files holds every file in the workspace, with full revision history and reversible delete
 - **Trace anything** — see who changed a file, when, and what the change was
 - **Reach it from anywhere** — connect ChatGPT, Claude, or any MCP-capable AI to the same workspace

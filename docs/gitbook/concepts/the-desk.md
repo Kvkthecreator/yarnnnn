@@ -19,13 +19,13 @@ The same principle scales to a team: **diverge privately, settle publicly.** You
 
 ## The five apps
 
-Your Dock holds five apps in three bands:
+Your Dock holds five apps:
 
 | Band | App | What it's for |
 |---|---|---|
 | **Think** | [Chat](../apps/chat.md) | Conversations with named colleagues, grounded in your workspace |
 | **Make** | [Studio](../apps/studio.md) | Documents, decks, articles, landing pages |
-| **Make** | [Images](../apps/images.md) | Layered visuals on a sized stage |
+| **Perceive** | Radar | Standing topic hubs that sweep sources while you're away and distill what changed into a cited brief |
 | **Record** | [Files](../apps/files.md) | Every file in the workspace, with revision history |
 | **Record** | [Agents](../apps/agents.md) | The colleagues you've hired and named |
 

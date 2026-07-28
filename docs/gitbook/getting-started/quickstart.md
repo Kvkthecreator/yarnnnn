@@ -6,7 +6,7 @@ Ten minutes to your first useful thing. No setup flow, no connections required.
 
 Go to [app.yarnnn.com](https://app.yarnnn.com). Your workspace exists as soon as you do — empty, and yours.
 
-You'll land on a desk with five apps in the Dock: **Chat · Studio · Images · Files · Agents**.
+You'll land on a desk with five apps in the Dock: **Chat · Studio · Radar · Files · Agents**.
 
 ## 2. Think something through
 

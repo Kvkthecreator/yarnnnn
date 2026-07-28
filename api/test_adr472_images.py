@@ -166,6 +166,45 @@ def run() -> bool:
         ),
     )
 
+    # ── §6 ADR-488 — the app is INTERNAL: hidden, not unplugged ─────────
+    # Images left the user-facing tier pre-beta (unveil bar = polish parity,
+    # the ADR-486 D7 registration-is-not-unveil pattern). The gate pins the
+    # HIDDEN state so a stray edit can't half-unveil it: hiding is these
+    # four facts together, and re-unveiling is a deliberate ADR-488 §5
+    # decision that updates this block in the same commit.
+    from services.kernel_surfaces import KERNEL_SURFACES
+
+    images_row = next(s for s in KERNEL_SURFACES if s["slug"] == "images")
+    _check(
+        "registry: images is search-only (ADR-488 — hidden at rest)",
+        images_row.get("launcher_tier") == "search-only",
+    )
+    _check(
+        "registry: images is NOT default-pinned (ADR-488 — left the Dock)",
+        images_row.get("default_pinned") is False,
+    )
+    _check(
+        "registry: images stays ROUTABLE (unpromoted, not unplugged)",
+        images_row.get("route") == "/images"
+        and images_row.get("register") == "application",
+    )
+    prefs_src = (
+        Path(__file__).resolve().parent.parent
+        / "web/lib/shell/surface-preferences.ts"
+    ).read_text()
+    kept_block = prefs_src.split("DEFAULT_KEPT_SURFACES: string[] = [", 1)[1].split(
+        "];", 1
+    )[0]
+    _check(
+        "FE: 'images' is not in the default Dock (DEFAULT_KEPT_SURFACES)",
+        "'images'" not in kept_block.replace("// 'images'", ""),
+    )
+    _check(
+        "FE: the de-seed path exists — a reseed generation names the old "
+        "images-bearing default, so seeded-but-uncurated Docks converge",
+        "'images'," in prefs_src.split("DOCK_RESEED_GENERATIONS", 1)[1].split("];", 1)[0],
+    )
+
     ok = all(c for _, c in _results)
     print()
     print(f"{'PASS' if ok else 'FAIL'}: {sum(c for _, c in _results)}/{len(_results)} checks")
