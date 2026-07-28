@@ -76,18 +76,20 @@ def test_seat_unit_label_stays_deleted() -> None:
     check("no call sites anywhere in web/", not callers, f"callers={callers}")
 
 
-def test_paid_solo_is_not_told_their_seat_is_free() -> None:
-    print("\n[card] a PAYING solo owner is never told 'your seat is free'")
+def test_seat_copy_names_two_free_seats() -> None:
+    print("\n[card] the seat copy names TWO free seats; the upsell waits for the boundary")
     src = CARD_TSX.read_text()
-    check("the paid-solo branch is distinguished from free-solo",
-          'humanSeats === 1 && tier !== "free"' in src,
-          "the seat row must branch on tier, else a paying solo reads 'free'")
-    # The free-seat sentence must be reachable ONLY on the free/exempt path.
-    idx_paid = src.find('humanSeats === 1 && tier !== "free"')
-    idx_free_copy = src.find("Your seat is free")
-    check("the 'seat is free' copy sits AFTER the paid-solo branch",
-          idx_paid != -1 and idx_free_copy != -1 and idx_paid < idx_free_copy,
-          "ordering proves the paid case is caught first")
+    # ADR-490 — the paid-solo carve is GONE (a ≤2-human workspace has no
+    # subscription to buy), so the old tier-branched solo copy must not survive.
+    check("the old paid-solo branch is deleted",
+          'humanSeats === 1 && tier !== "free"' not in src)
+    check("the seat copy names the two free seats",
+          "first two seats are free" in src and "Two seats are free" in src)
+    # The upgrade section renders only AT the seat boundary — a 1-human free
+    # workspace is never upsold a subscription that buys it nothing.
+    check("the upgrade section is boundary-gated",
+          "humanSeats >= includedSeats && (" in src,
+          "the upsell must key on the seat boundary, not mere free-tier membership")
 
 
 def test_descriptor_does_not_lead_with_free_for_you() -> None:
@@ -121,7 +123,7 @@ def main() -> int:
     print("=" * 74)
     test_upgrade_label_is_per_seat()
     test_seat_unit_label_stays_deleted()
-    test_paid_solo_is_not_told_their_seat_is_free()
+    test_seat_copy_names_two_free_seats()
     test_descriptor_does_not_lead_with_free_for_you()
     test_checkout_floors_quantity_at_one()
     print("\n" + "=" * 74)

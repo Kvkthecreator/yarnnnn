@@ -419,49 +419,14 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/recurrence",
         "summary": "What's on the schedule — the recurring work this workspace runs, what fires when, and what your agent is standing watch on.",  # ADR-340 P4 F1: operator vocabulary
     },
-    {
-        # ADR-327 (2026-06-08) — budget repurposed from /pace (ADR-300, which
-        # promoted pace from a cockpit-tab section to an atomic kernel surface).
-        # Pace retired: "how often the agent works" is the Reviewer's allocation
-        # problem within the dollar budget, not an operator dial. Document
-        # archetype, operator-only edit, mirrors /autonomy's shape. Slotted
-        # between /recurrence and /autonomy to keep Trigger-dimension surfaces
-        # adjacent before transitioning into Mechanism (Autonomy) and Identity
-        # (Identity / Brand / Principles) per axiom order.
-        "slug": "budget",
-        "launcher_tier": "search-only",  # ADR-340 P3
-        "register": "os-config",  # ADR-312 D5 (was `settings`)
-        # ADR-347 (2026-06-19): the two-door split is reversed — Governance
-        # moves OUT of the dissolved System Settings door INTO the one
-        # operation-settings door (workspace-settings), as the "Contract"
-        # group (Rhythm · Witness · Expected Output — the operating contract).
-        # Budget (Rhythm) is per-operation config, not machine config.
-        # ADR-387 §6.4 (2026-06-30) moved the agent-scoped governance panes to
-        # Freddie's roster pane. ADR-412 D5 (2026-07-06): re-homed pane_of agents → workspace-settings
-        # (System Agent group) — Freddie left the roster; the steward's dials
-        # live on the system layer. Still the agent's GRANT (ADR-366).
-        # ADR-426 (2026-07-09): the System Agent group leaves Workspace Settings
-        # and becomes its OWN door — re-homed pane_of workspace-settings →
-        # system-agent (the "Freddie System Agent" door, same launcher plane as
-        # Workspace Settings). foregroundSurface('budget') resolves there now.
-        # ADR-454 D4 (2026-07-13): the door is REVERSED (the ambient steward) —
-        # re-homed pane_of system-agent → workspace-settings, in an unbranded
-        # "System" pane group. Same pane body (SystemAgentPanes), third move,
-        # never duplicated. foregroundSurface('budget') resolves there now.
-        "pane_of": "workspace-settings",
-        "pane_group": "System",
-        "title": "Budget",
-        "archetype": "document",
-        "substrate_paths": [
-            "/workspace/governance/_budget.yaml",
-        ],
-        "icon_key": "wallet",
-        "default_pinned": False,
-        # ADR-327 D7/Phase 5: pace retired → /budget is the canonical surface.
-        # ADR-347: pane-grade — /budget is a redirect stub → /workspace-settings?pane=budget.
-        "route": "/budget",
-        "summary": "The operation's dollar spend envelope — declared budget plus window-to-date utilization. The Reviewer allocates wakes within it.",
-    },
+    # ADR-491 D3 (2026-07-28): the `budget` surface row is DELETED — the Budget
+    # pane dissolved (completing ADR-433: its numbers were the Usage pane's; the
+    # runway line moved there; governance/_budget.yaml stays the machine-owned
+    # runaway envelope, read by services/budget.py, rendered as a raw file).
+    # Lineage: /pace (ADR-300) → /budget (ADR-327) → pane-grade under
+    # workspace-settings (ADR-347/412/426/454) → dissolved here. A stale
+    # ?pane=budget falls to the settings shell's default-pane fallback; the
+    # /budget route stub dies with the row (zero live foregroundSurface callers).
     {
         # 2026-05-24 design polish: renamed from "delegation" to "autonomy"
         # to align with the substrate file (_autonomy.yaml) and the

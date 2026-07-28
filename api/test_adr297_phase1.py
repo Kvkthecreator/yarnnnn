@@ -125,7 +125,8 @@ def test_kernel_surfaces_module() -> None:
         # ever since (cleared 2026-07-22 with the rest of the stale set).
         "chat",  # ADR-412 D3 — the lanes surface (Altitude 2's chrome home)
         "recurrence",  # 2026-06-03 — renamed from `cadence` (substrate already spoke "recurrence")
-        "budget",  # ADR-327 (2026-06-08) — repurposed from /pace; pace retired
+        # ADR-491 D3 (2026-07-28): `budget` DELETED — the pane dissolved into
+        # Usage (completing ADR-433); /budget + /pace are redirect stubs.
         "autonomy",  # 2026-05-24 design polish — renamed from "delegation"
         "mandate",
         "principles",

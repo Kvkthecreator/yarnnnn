@@ -55,7 +55,6 @@
 import {
   Info,
   ShieldCheck,
-  Wallet,
   Activity as ActivityIcon,
 } from 'lucide-react';
 import type { PaneGroup } from '@/components/settings/SettingsPaneShell';
@@ -63,7 +62,9 @@ import { GrantGate } from '@/components/workspace-concepts/GrantGate';
 import { FreddieAboutPanel } from './FreddieAboutPanel';
 import { FreddieActivityPanel } from './FreddieActivityPanel';
 import { AutonomyCard } from '@/components/workspace-concepts/AutonomyCard';
-import { BudgetCard } from '@/components/workspace-concepts/BudgetCard';
+// ADR-491 D3 (2026-07-28): BudgetCard is DELETED — the Budget pane dissolved
+// (its numbers were the Usage pane's; the runway line moved there; the machine
+// envelope governance/_budget.yaml needs no operator pane).
 
 /**
  * The one sidebar group of the Freddie System Agent door — Freddie's About +
@@ -79,7 +80,7 @@ export const SYSTEM_AGENT_PANE_GROUP: PaneGroup = {
   panes: [
     { key: 'about', label: 'About', icon: Info },
     { key: 'autonomy', label: 'Autonomy', icon: ShieldCheck },
-    { key: 'budget', label: 'Budget', icon: Wallet },
+    // ADR-491 D3 — the 'budget' pane removed (dissolved into Usage).
     // ADR-430 (2026-07-09): relabeled 'Activity' → 'Health' to end the label
     // collision with the global Activity surface. This pane is the system
     // agent's own liveness/supervision view (a different substrate + question),
@@ -97,7 +98,6 @@ export const SYSTEM_AGENT_PANE_KEYS = SYSTEM_AGENT_PANE_GROUP.panes.map((p) => p
  *  about/activity are pure reads — no gate. */
 const PANE_REGIONS: Record<string, string> = {
   autonomy: 'governance/',
-  budget: 'governance/',
 };
 
 /** Render one System Agent pane body — the same components the roster mount
@@ -115,8 +115,6 @@ function renderPaneBody(pane: string) {
       return <FreddieAboutPanel />;
     case 'autonomy':
       return <AutonomyCard variant="full" />;
-    case 'budget':
-      return <BudgetCard variant="full" />;
     case 'activity':
       return <FreddieActivityPanel />;
     default:

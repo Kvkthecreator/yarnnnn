@@ -315,10 +315,10 @@ export function AttentionCenter() {
     (target: 'resolve' | 'understand' | 'tune' | 'billing') => {
       setIsOpen(false);
       if (target === 'billing') {
-        // ADR-429 §13.3 (2026-07-09) — billing re-homed to the account door
-        // (User Settings, Vercel-style; content stays workspace-scoped).
+        // ADR-491 D1 (2026-07-28) — billing re-homed to the WORKSPACE door
+        // (authority-gated workspace governance; supersedes ADR-429 §13.3).
         // navigateToSurface keeps the /desktop pathname (History-API param update).
-        navigateToSurface('settings', { pane: 'billing' });
+        navigateToSurface('workspace-settings', { pane: 'billing' });
       } else {
         navigateToSurface('notifications', { pane: target });
       }

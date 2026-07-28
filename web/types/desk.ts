@@ -38,7 +38,9 @@ export type KernelSurfaceSlug =
   | 'images'  // ADR-472 — the second authoring app (stages, rendered rasters)
   | 'radar'   // ADR-486 — the standing app (topic hubs, sweeps, cited briefs)
   | 'recurrence'
-  | 'budget'
+  // ADR-491 D3 (2026-07-28): `budget` LEFT the union — the Budget pane
+  // dissolved (its numbers live on Workspace Settings → Usage; /budget is a
+  // redirect stub; the kernel registry row is deleted).
   | 'autonomy'
   // ADR-348 added the Expected-Output pane. ADR-418 (2026-07-08) made it DORMANT
   // (routeless, off this allowlist) — the output contract is a HIRED agent's
@@ -113,7 +115,8 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   // (genesis is empty, ADR-414; activation reframes to cold-landing + the
   // shared-artifact wedge). All are dormant registry rows; the three-way parity
   // (navigable == allowlist == registry∪panes) holds with them out of all three.
-  'chat', 'studio', 'images', 'radar', 'recurrence', 'budget', 'autonomy',
+  // ADR-491 D3: `budget` LEFT (pane dissolved into Usage; slug retired).
+  'chat', 'studio', 'images', 'radar', 'recurrence', 'autonomy',
   'files', 'agents', 'queue', 'notifications', 'activity',
   // ADR-425 D2: `sources` LEFT the allowlist (hidden, redirect-stub only).
   // ADR-454 D4: the system-agent slug LEFT too (door reversed; hidden row).

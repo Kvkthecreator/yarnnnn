@@ -43,6 +43,10 @@ export function UsagePaneBody() {
   const [spendByPrincipal, setSpendByPrincipal] = useState<
     Awaited<ReturnType<typeof api.integrations.getSpendByPrincipal>> | null
   >(null);
+  // ADR-491 D3 — the runway ("~N days at this pace") is the Budget pane's one
+  // surviving fact; it lives here now, beside the meter it qualifies. Served by
+  // the surviving GET /api/budget (effective balance ÷ daily burn).
+  const [runwayDays, setRunwayDays] = useState<number | null>(null);
   // principal_id → humanized label (member email / LLM room / agent slug).
   const { labels: principalLabels } = useWorkspaceRoster();
 
@@ -68,6 +72,16 @@ export function UsagePaneBody() {
       .getSpendByPrincipal()
       .then((d) => {
         if (!cancelled) setSpendByPrincipal(d);
+      })
+      .catch(() => {});
+    api
+      .budget()
+      .then((d) => {
+        // 999 is the backend's "effectively unlimited" cap — not worth a line.
+        const days = (d as { runway_days?: number | null }).runway_days;
+        if (!cancelled && typeof days === "number" && days > 0 && days < 999) {
+          setRunwayDays(Math.round(days));
+        }
       })
       .catch(() => {});
     return () => {
@@ -150,7 +164,10 @@ export function UsagePaneBody() {
                   style={{ width: `${meter.percent}%` }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">{meter.detail}</p>
+              <p className="text-xs text-muted-foreground">
+                {meter.detail}
+                {runwayDays !== null && ` · ~${runwayDays} days left at this pace`}
+              </p>
             </>
           );
         })()}
@@ -191,7 +208,7 @@ export function UsagePaneBody() {
           </div>
           <p className="text-xs text-muted-foreground">
             Share of this workspace&rsquo;s pooled usage, by member. Everyone draws
-            the one shared allowance.
+            the one shared balance.
           </p>
         </div>
       )}

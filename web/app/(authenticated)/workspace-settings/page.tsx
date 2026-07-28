@@ -31,8 +31,15 @@
  *     panes stay dormant in SystemAgentPanes; /system-agent is a redirect stub.
  */
 
-import { AlertTriangle, ShieldCheck, Users, Wallet } from "lucide-react";
+import { AlertTriangle, BarChart3, CreditCard, ShieldCheck, Users } from "lucide-react";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
+// ADR-491 D1 (2026-07-28) — Billing + Usage return to THIS door (the third and
+// final placement flip): with members real (seats live, ADR-490), billing is
+// authority-gated WORKSPACE governance — the ChatGPT/Claude Team convention.
+// Billing gates on the server's 403 (billing authority, ADR-416 D1) inside
+// SubscriptionCard; Usage stays member-visible (commons legibility, DP29).
+import { BillingPaneBody } from "@/components/subscription/BillingPaneBody";
+import { UsagePaneBody } from "@/components/subscription/UsagePaneBody";
 // ADR-454 D4 (2026-07-13) — the ambient steward: the ADR-426 "Freddie System
 // Agent" door is REVERSED. The steward's two operator-tunable dials come back
 // to this door as an unbranded SYSTEM group (same pane bodies, third move,
@@ -99,15 +106,26 @@ const PANE_GROUPS: PaneGroup[] = [
     panes: [{ key: "members", label: "Workspace Members", icon: Users }],
   },
   {
-    // ADR-454 D4 — the SYSTEM group: the steward's two dials (the witness
-    // dial + the spend envelope), re-homed from the reversed ADR-426 door.
-    // Pane keys match the kernel registry slugs (pane_of: workspace-settings),
-    // so foregroundSurface('autonomy' | 'budget') resolves here.
-    label: "System",
+    // ADR-491 D1 — the workspace's money. Billing is authority-gated (the
+    // owner's verbs; a member sees the calm pointer state); Usage is
+    // member-visible legibility. Each pane names the workspace it bills.
+    label: "Billing",
     panes: [
-      { key: "autonomy", label: "Autonomy", icon: ShieldCheck },
-      { key: "budget", label: "Budget", icon: Wallet },
+      { key: "billing", label: "Billing", icon: CreditCard },
+      { key: "usage", label: "Usage", icon: BarChart3 },
     ],
+  },
+  {
+    // ADR-491 D4 — the system agent's dial. The pane's fallback file
+    // (governance/_autonomy.yaml) IS the steward's witness dial (ADR-414 D6:
+    // hired agents carry their own sidecar, read per-agent by load_autonomy).
+    // The BUDGET pane is DISSOLVED (ADR-491 D3, completing ADR-433): its
+    // numbers were the Usage meter's; the runway line moved there; the
+    // machine envelope (governance/_budget.yaml) needs no operator pane.
+    // Pane key matches the kernel registry slug (pane_of: workspace-settings),
+    // so foregroundSurface('autonomy') resolves here.
+    label: "System agent",
+    panes: [{ key: "autonomy", label: "Autonomy", icon: ShieldCheck }],
   },
   {
     // ADR-476 D3 — the workspace-CONTENT purges. L1 (clear work history) and
@@ -118,8 +136,6 @@ const PANE_GROUPS: PaneGroup[] = [
     label: "Danger Zone",
     panes: [{ key: "danger", label: "Clear Workspace", icon: AlertTriangle }],
   },
-  // ADR-429 §13.3 — the Billing group LEFT this door for the account door (User
-  // Settings, Vercel-style). See settings/page.tsx.
 ];
 
 export default function WorkspaceSettingsPage() {
@@ -138,10 +154,35 @@ export default function WorkspaceSettingsPage() {
             <WorkspaceMembersCard variant="full" />
           </section>
         );
-      // ADR-454 D4 — the steward's dials, back from the reversed ADR-426 door.
-      // Same bodies (SystemAgentPanes renders AutonomyCard / BudgetCard).
+      // ADR-491 D1 — the workspace's money (returned from the account door).
+      case "billing":
+        return (
+          <section className="mb-8">
+            <PaneHeader
+              icon={CreditCard}
+              title="Billing"
+              subtitle="This workspace's plan, seats, and balance."
+              bordered={false}
+            />
+            <BillingPaneBody />
+          </section>
+        );
+      case "usage":
+        return (
+          <section className="mb-8">
+            <PaneHeader
+              icon={BarChart3}
+              title="Usage"
+              subtitle="This workspace's usage — what ran, what it drew from the shared balance, and who used it."
+              bordered={false}
+            />
+            <UsagePaneBody />
+          </section>
+        );
+      // ADR-491 D4 — the system agent's witness dial (ADR-454 D4's group,
+      // trimmed: the budget pane dissolved into Usage; a stale ?pane=budget
+      // falls to the shell's default-pane fallback).
       case "autonomy":
-      case "budget":
         return <section className="mb-8">{renderSystemAgentPane(pane)}</section>;
       // ADR-476 D3 — the workspace-content purges (L1/L2), owner-gated.
       case "danger":

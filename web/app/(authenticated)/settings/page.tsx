@@ -32,14 +32,12 @@ import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/sett
 // account door now. The section is location-agnostic; it was formerly mounted
 // under Workspace Settings → Perception.
 import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
-// ADR-429 §13.3 — Billing + Usage move INTO the account door (Vercel-style: the
-// account door is the entry point; the CONTENT stays workspace-scoped, each pane
-// naming the workspace it bills). Re-reverses the ADR-416 follow-on that moved
-// them to Workspace Settings. The panes are workspace-scoped bodies that own
-// their own fetches + name their workspace.
-import { BillingPaneBody } from "@/components/subscription/BillingPaneBody";
-import { UsagePaneBody } from "@/components/subscription/UsagePaneBody";
-import { CreditCard, BarChart3 } from "lucide-react";
+// ADR-491 D1 — Billing + Usage LEFT this door (again, finally) for Workspace
+// Settings: with members real (seats live, ADR-490), billing is role-gated
+// workspace governance, and the enterprise convention (ChatGPT/Claude Team)
+// puts it behind the workspace door. This door is now genuinely personal:
+// Account + Connectors. Legacy ?settings.pane=billing|usage redirects across
+// (effect below).
 
 interface DangerZoneStats {
   workspace_files: number;
@@ -83,25 +81,16 @@ const DEFAULT_NOTIFICATION_PREFS: NotificationPreferences = {
 // ADR-425 (2026-07-09): Connectors moves IN — a platform credential is an
 // account object (a human's own Slack/Notion/GitHub, keyed user_id), not a
 // workspace peripheral. So the account door holds Account + Connections.
-// ADR-429 §13.3 (2026-07-09): Billing + Usage move IN (Vercel-style — the
-// account door is the entry point; the content is the ACTIVE workspace's money,
-// named as such).
-type SettingsTab = "account" | "connectors" | "billing" | "usage";
+// ADR-491 D1 (2026-07-28): Billing + Usage move OUT to Workspace Settings —
+// with members real, billing is authority-gated workspace governance (the
+// ChatGPT/Claude Team convention). Supersedes ADR-429 §13.3's account-door
+// placement.
+type SettingsTab = "account" | "connectors";
 
 const PANE_GROUPS: PaneGroup[] = [
   {
     label: "Account",
     panes: [{ key: "account", label: "Account", icon: User }],
-  },
-  // ADR-429 §13.3 — the workspace's money, reached from the account door. The
-  // panes name the workspace they bill (the safety guard: switching workspaces
-  // via the avatar menu changes which workspace's money you see).
-  {
-    label: "Billing",
-    panes: [
-      { key: "billing", label: "Billing", icon: CreditCard },
-      { key: "usage", label: "Usage", icon: BarChart3 },
-    ],
   },
   // ADR-425 — a human's platform connections are their own credentials, in
   // their account. (The workspace does not present "its connectors"; it
@@ -154,6 +143,14 @@ export default function SettingsPage() {
       navigateToSurface("files", { path: "/workspace/context/_shared/IDENTITY.md" });
     }
   }, [tabParam, navigateToSurface]);
+
+  // ADR-491 D1 — bookmark safety for the door move: a legacy
+  // ?settings.pane=billing|usage link lands on the workspace door's pane.
+  useEffect(() => {
+    if (requestedPane === "billing" || requestedPane === "usage") {
+      navigateToSurface("workspace-settings", { pane: requestedPane });
+    }
+  }, [requestedPane, navigateToSurface]);
 
   const [dangerStats, setDangerStats] = useState<DangerZoneStats | null>(null);
   const [isLoadingDangerStats, setIsLoadingDangerStats] = useState(false);
@@ -327,34 +324,9 @@ export default function SettingsPage() {
   // panes (billing/usage/account) are the heavier blocks below.
   const renderPane = (pane: string) => (
     <>
-      {/* Billing — ADR-429 §13.3: the ACTIVE workspace's plan · balance · top-ups,
-          reached from the account door (Vercel-style). BillingPaneBody names the
-          workspace it bills (the safety guard). */}
-      {pane === "billing" && (
-        <section className="mb-8">
-          <PaneHeader
-            icon={CreditCard}
-            title="Billing"
-            subtitle="Your active workspace's plan, balance, and top-ups. Switch workspaces from the avatar menu to manage another."
-            bordered={false}
-          />
-          <BillingPaneBody />
-        </section>
-      )}
-
-      {/* Usage — ADR-429 §13.3: the active workspace's usage this cycle (activity,
-          not dollars — ADR-396). Leads with the per-member "Who used it" view. */}
-      {pane === "usage" && (
-        <section className="mb-8">
-          <PaneHeader
-            icon={BarChart3}
-            title="Usage"
-            subtitle="Your active workspace's included usage this cycle, and who in the workspace used it."
-            bordered={false}
-          />
-          <UsagePaneBody />
-        </section>
-      )}
+      {/* ADR-491 D1 — the billing/usage cases LEFT this door for Workspace
+          Settings (authority-gated workspace governance). Legacy links redirect
+          via the effect above; no cases here. */}
 
       {/* Connectors — ADR-425: a human's platform connections are account
           objects (their own credential, keyed user_id). Moved here from

@@ -1,19 +1,24 @@
 "use client";
 
 /**
- * Billing pane — the TWO-AXIS pricing model (ADR-445, over ADR-396's meter).
+ * Billing pane — the TWO-AXIS pricing model (ADR-490, over ADR-396's meter).
  *
  * Two axes, both owner-paid:
- *   ① SEATS — seat 1 (the owner) is free; each additional human is a priced seat.
- *      The per-seat price IS the paid subscription (no separate base fee). A solo
- *      workspace is free; a team is paid at (humans − 1) × the seat fee.
- *   ② METERED USAGE — the plan grants a monthly pooled ALLOWANCE the whole
- *      workspace draws; a dynamic top-up is the overage pool beneath it. Draw
- *      order: allowance → balance → hard-stop at zero.
+ *   ① SEATS — the first TWO humans (owner + one teammate) are free; each
+ *      additional human is a priced seat. The per-seat price IS the paid
+ *      subscription (no base fee, no allowance). A ≤2-human workspace is free;
+ *      a team pays (humans − 2) × the seat fee.
+ *   ② USAGE — pure pay-as-you-go from one shared balance (signup grant +
+ *      top-ups), hard-stop at zero. The monthly-allowance layer is retired
+ *      (ADR-490 §1③).
  *
- * Transparency contract (ADR-396): this customer surface shows ACTIVITY — the plan
- * + seats + allowance consumed this cycle — NOT raw dollar figures. The monthly
- * spend CEILING (a governance dial, not a bill) lives on the Budget surface.
+ * Transparency contract (ADR-396): this customer surface shows ACTIVITY — the
+ * plan + seats + balance consumed — NOT raw dollar figures; dollars appear only
+ * at the moment of purchase (seat price, top-up amounts).
+ *
+ * ADR-491 D2 — member gate: /subscription/status 403s a caller without billing
+ * authority (ADR-416 D1); this card renders the calm member state instead of
+ * dead verbs. The gate keys on the server's decision, never a role enum.
  */
 
 import { useEffect, useState } from "react";
@@ -71,7 +76,7 @@ const TIER_LABEL: Record<SubscriptionTier, string> = {
 const TIER_ORDER: SubscriptionTier[] = ["free", "starter"];
 
 export function SubscriptionCard({ workspaceName }: { workspaceName?: string | null }) {
-  const { status, tier, isLoading, error, topup, subscribe, openPaymentMethods, cancel } =
+  const { status, tier, isLoading, error, isForbidden, topup, subscribe, openPaymentMethods, cancel } =
     useSubscription();
   const { navigateToSurface } = useSurfacePreferences();
   // 2026-07-22 — the two misleading buttons become in-app panels. `seats` is the
@@ -85,7 +90,7 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
   // workspace shows a "Comped" state instead of upgrade/top-up CTAs.
   const exempt = status?.billing_exempt ?? false;
   const humanSeats = status?.human_seats ?? 1;
-  const includedSeats = status?.included_seats ?? 1;
+  const includedSeats = status?.included_seats ?? 2;
   const billableSeats = status?.billable_seats ?? 0;
   const seatBillingActive = status?.seat_billing_active ?? false;
   // Exempt-aware already (the backend forces it to 0 on a comped workspace).
@@ -147,6 +152,32 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
   const upgradeTargets = TIER_ORDER.slice(currentIndex + 1).filter(
     (t): t is "starter" | "pro" => t === "starter" || t === "pro",
   );
+
+  // ADR-491 D2 — a member without billing authority sees a calm pointer, not a
+  // broken card. Rendered before anything else so no verb ever appears.
+  if (isForbidden) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Billing</CardTitle>
+          <CardDescription>
+            {workspaceName ? (
+              <>Billing for <span className="font-medium text-foreground">{workspaceName}</span> is managed by the workspace owner.</>
+            ) : (
+              <>Billing for this workspace is managed by the workspace owner.</>
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            You draw the workspace&rsquo;s shared usage pool — see the Usage pane
+            for what has been used and by whom. Plan changes, seats, and top-ups
+            are the owner&rsquo;s verbs.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -218,17 +249,18 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
               )}
             </div>
 
-            {/* SEATS — Axis ① (ADR-445). Seat 1 (the owner) is free; each additional
-                human is a priced seat. Solo = free; a team is billed per extra head.
-                The line names the live billing honestly (no "not billed yet").
-                Reference shape: the count reads as the row's headline, its action
-                is a pill button hard right. */}
+            {/* SEATS — Axis ① (ADR-490). The first TWO humans are free; each
+                additional human is a priced seat. The line names the live billing
+                honestly. Reference shape: the count reads as the row's headline,
+                its action is a pill button hard right. */}
             <div className="flex items-center justify-between gap-4 border-t border-border/60 pt-4">
               <div className="min-w-0">
                 <div className="text-base font-medium">
                   {humanSeats === 1
                     ? "1 seat in use"
-                    : `${humanSeats} people · ${billableSeats} ${billableSeats === 1 ? "seat" : "seats"} billed`}
+                    : billableSeats > 0
+                    ? `${humanSeats} people · ${billableSeats} ${billableSeats === 1 ? "seat" : "seats"} billed`
+                    : `${humanSeats} people · no billed seats`}
                   {/* The seat TOTAL, on the headline row. `seat_fee_usd` has been
                       computed + returned by /subscription/status all along and
                       rendered nowhere — so a team could see "2 seats billed"
@@ -241,18 +273,16 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                   )}
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  {/* A solo owner on a PAID plan is paying — telling them "your seat
-                      is free" contradicts the charge on the same card. What their $20
-                      buys is the pooled allowance + gates, not a second seat. */}
-                  {humanSeats === 1 && tier !== "free" && !exempt
-                    ? "Your plan covers this workspace's shared usage. Teammates you invite are billed seats."
-                    : humanSeats === 1
-                    ? "Your seat is free. Invite a teammate and each extra person is a paid seat."
-                    : exempt
-                      ? "Comped — no seat charge on this workspace."
-                      : seatBillingActive
-                        ? `Seat 1 (you) is free; ${billableSeats} additional ${billableSeats === 1 ? "person is a billed seat" : "people are billed seats"} at renewal.`
-                        : "Seat 1 (you) is free; additional people are billed seats on a paid plan."}
+                  {/* ADR-490 — two free seats. (The old paid-solo carve is gone
+                      with the allowance: a ≤2-human workspace has no subscription
+                      to buy, so "free" is simply true.) */}
+                  {exempt
+                    ? "Comped — no seat charge on this workspace."
+                    : seatBillingActive
+                      ? `The first two seats are free; ${billableSeats} additional ${billableSeats === 1 ? "person is a billed seat" : "people are billed seats"} at renewal.`
+                      : humanSeats === 1
+                        ? "Your seat is free, and a first teammate is too. From the 3rd person, each seat is paid."
+                        : "Two seats are free. From the 3rd person, each additional seat is paid."}
                   {" · AI connections are free"}
                 </div>
               </div>
@@ -420,17 +450,19 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
           )}
         </section>
 
-        {/* Upgrade — hidden when comped (no bill to change). ADR-429 §13.2 copy:
-            a paid plan unlocks a bigger shared allowance + a team, not connector
-            history (which gates the dormant capture lane). */}
-        {!exempt && upgradeTargets.length > 0 && (
+        {/* Upgrade — ADR-490/491: the paid plan is SEATS ONLY, so the upgrade is
+            offered only AT the seat boundary (the workspace's humans have used
+            up the free seats). A 1-human free workspace sees no upsell — there
+            is nothing the subscription would buy them. Hidden when comped. */}
+        {!exempt && upgradeTargets.length > 0 && humanSeats >= includedSeats && (
           <section className="p-5 border border-border rounded-xl space-y-3">
             <div className="flex items-center gap-2">
               <ArrowUpCircle className="w-4 h-4 text-primary" />
-              <h3 className="text-base font-medium">Upgrade your plan</h3>
+              <h3 className="text-base font-medium">Add more seats</h3>
             </div>
             <p className="text-sm text-muted-foreground">
-              A paid plan includes a monthly usage allowance your whole workspace draws from, and lets you invite your team.
+              Two seats are free. The paid plan adds seats for the rest of your
+              team — each additional person from the 3rd onward.
             </p>
             <div className="flex gap-2">
               {upgradeTargets.map((t) => (
@@ -461,7 +493,8 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
             <h3 className="text-base font-medium">Add balance</h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            A one-time top-up gives this workspace extra headroom beyond the monthly allowance. It never expires.
+            Usage is pay-as-you-go from this workspace&rsquo;s shared balance. A
+            one-time top-up adds headroom; it never expires.
           </p>
           <div className="flex gap-2">
             {TOPUP_PRESETS.map((amt) => (

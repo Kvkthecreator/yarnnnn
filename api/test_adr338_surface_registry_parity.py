@@ -137,12 +137,13 @@ def test_three_way_parity() -> None:
     check(
         "pane set is the live fold (ADR-454 D4 dials on Workspace Settings + ADR-425 sources hidden)",
         panes == {
-            # ADR-454 D4 (2026-07-13): budget/autonomy are pane_of
-            # workspace-settings again ("System" group — the ADR-426 door
-            # reversed; the system-agent row is hidden). ADR-418:
+            # ADR-454 D4 (2026-07-13): autonomy is pane_of workspace-settings
+            # ("System" group — the ADR-426 door reversed; the system-agent row
+            # is hidden). ADR-491 D3 (2026-07-28): `budget` LEFT — the pane
+            # dissolved into Usage; its registry row is deleted. ADR-418:
             # expected-output LEFT (dormant). ADR-421: mandate/identity/principles
             # LEFT (dormant) — a workspace has no constitution of its own.
-            "budget", "autonomy",
+            "autonomy",
             # ADR-425 (2026-07-09): `connectors` is now pane_of settings (the
             # account door); `sources` is HIDDEN (no pane_of/route). ADR-432 D2d
             # (2026-07-09): `program` LEFT the pane set — the operator hire pane
@@ -172,14 +173,12 @@ def test_setup_dormant() -> None:
 
 
 def test_pace_retired_budget_canonical() -> None:
-    print("\n[budget] ADR-327 pace→budget reconciled backend-side")
+    print("\n[budget] ADR-327 pace→budget → ADR-491 budget dissolved")
     backend = _backend_navigable_slugs()
-    check("backend registers budget", "budget" in backend)
+    # ADR-491 D3 — the budget row is DELETED with the pane (its numbers live on
+    # Workspace Settings → Usage; /budget + /pace stay as redirect stubs).
+    check("backend no longer registers budget (ADR-491 D3)", "budget" not in backend)
     check("backend no longer registers retired pace surface", "pace" not in backend)
-    src = _read("services/kernel_surfaces.py", root=_API_ROOT)
-    check("budget surface points at /budget route", '"route": "/budget"' in src)
-    check("budget surface points at _budget.yaml substrate",
-          "governance/_budget.yaml" in src)
 
 
 def main() -> int:

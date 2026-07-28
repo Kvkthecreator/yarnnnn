@@ -37,6 +37,11 @@ export function useSubscription() {
 
   const tier: SubscriptionTier = status?.tier ?? "free";
   const isPaid = tier === "starter" || tier === "pro";
+  // ADR-491 D2 — the member gate keys on the SERVER's grant decision, never a
+  // role enum: /subscription/status 403s a caller without billing authority
+  // (ADR-416 D1), and the Billing pane renders a calm "managed by the owner"
+  // state instead of dead verbs.
+  const isForbidden = error instanceof APIError && error.status === 403;
 
   const toUserError = (err: unknown, fallback: string) => {
     if (err instanceof APIError) {
@@ -115,6 +120,7 @@ export function useSubscription() {
     isPaid,
     isLoading,
     error,
+    isForbidden,
     topup,
     subscribe,
     openPaymentMethods,

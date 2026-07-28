@@ -200,7 +200,10 @@ export function AutonomyCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold">Autonomy</p>
-          <p className="text-xs text-muted-foreground mt-0.5">How much YARNNN decides without asking first.</p>
+          {/* ADR-491 D4 — this is the SYSTEM AGENT's witness dial (the
+              governance/_autonomy.yaml fallback; a hired agent carries its own
+              dial in its home, ADR-414 D6). Name whose dial it is. */}
+          <p className="text-xs text-muted-foreground mt-0.5">How much your workspace&rsquo;s system agent decides without asking first. Hired agents carry their own dial.</p>
         </div>
         <RevisionFootnote revision={lastRevision ?? null} className="shrink-0 pt-1" />
       </div>

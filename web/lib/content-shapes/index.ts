@@ -46,7 +46,9 @@ import { META as decisionsMeta } from './decisions';
 import { META as identityMeta } from './identity';
 import { META as inferenceMetaMeta } from './inference-meta';
 import { META as mandateMeta } from './mandate';
-import { META as budgetMeta } from './budget';
+// ADR-491 D3 (2026-07-28): the budget content-shape is deleted with the Budget
+// pane — governance/_budget.yaml is a machine envelope (ADR-433), rendered as
+// a raw file, not an operator dial.
 import { META as expectedOutputMeta } from './expected-output';
 import { META as snapshotMeta } from './snapshot';
 import { META as moneyTruthMeta } from './money-truth';
@@ -59,7 +61,6 @@ export const CONTENT_SHAPES: Readonly<Record<string, ContentShape>> = Object.fre
   identity: identityMeta,
   'inference-meta': inferenceMetaMeta,
   mandate: mandateMeta,
-  budget: budgetMeta,
   'expected-output': expectedOutputMeta,
   snapshot: snapshotMeta,
   money_truth: moneyTruthMeta,

@@ -187,12 +187,12 @@ export function UserMenu({ email }: UserMenuProps) {
   };
 
   // 2026-07-08 — Budget + Connectors folded in from the retired top-bar cluster.
-  // 2026-07-10 — the Budget glance now opens User Settings → Billing (the account
-  // door's billing pane, ADR-439/396), NOT the Freddie System-Agent budget surface.
-  // The money readout is a billing concern reached from the account door.
+  // ADR-491 D1 (2026-07-28) — the balance glance opens Workspace Settings →
+  // Billing: with members real, billing is authority-gated workspace governance
+  // behind the workspace door (the ChatGPT/Claude Team convention).
   const handleBudget = () => {
     setIsOpen(false);
-    navigateToSurface('settings', { pane: 'billing' });
+    navigateToSurface('workspace-settings', { pane: 'billing' });
   };
 
   const handleConnectors = () => {

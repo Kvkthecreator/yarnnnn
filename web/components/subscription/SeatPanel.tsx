@@ -10,8 +10,8 @@
  * payment screen for seats" and landed on permissions. This is that payment
  * screen.
  *
- * THE MODEL IT RENDERS (ADR-445 Axis ①). Entrance is paid: every human beyond
- * the owner is $20/mo. But the count is DERIVED from the roster
+ * THE MODEL IT RENDERS (ADR-490 Axis ①). The first two humans are free; every
+ * human beyond them is $20/mo. The count is DERIVED from the roster
  * (`billable_seats = max(0, humans − included_seats)`), never stored as a
  * purchased quantity — no migration has a seat-count column, and the webhook
  * treats an LS/roster mismatch as `seat_quantity_drift` to RECORD, not truth to
@@ -64,7 +64,7 @@ export function SeatPanel({
   const [busy, setBusy] = useState(false);
 
   const exempt = status?.billing_exempt ?? false;
-  const includedSeats = status?.included_seats ?? 1;
+  const includedSeats = status?.included_seats ?? 2;
   const billable = status?.billable_seats ?? 0;
   const seatTotal = status?.seat_fee_usd ?? 0;
 
@@ -151,7 +151,13 @@ export function SeatPanel({
           <span className="text-sm font-medium">Invite a teammate</span>
         </span>
         <span className="shrink-0 text-xs text-muted-foreground">
-          {exempt ? "comped" : `+${money(seatPriceUsd)}/mo`}
+          {/* ADR-490 — the price the NEXT invite actually carries: free while
+              the workspace is under its two included seats, priced beyond. */}
+          {exempt
+            ? "comped"
+            : humans.length < includedSeats
+              ? "included"
+              : `+${money(seatPriceUsd)}/mo`}
         </span>
       </button>
 
