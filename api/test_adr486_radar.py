@@ -439,10 +439,19 @@ def _read(rel):
 ks_src = _read("services/kernel_surfaces.py")
 radar_row = ks_src[ks_src.find('"slug": "radar"'):ks_src.find('"slug": "radar"') + 800]
 check("BE registry row exists", '"slug": "radar"' in ks_src)
-check("launcher tier held at search-only (D7 — no dock until R3)",
-      '"launcher_tier": "search-only"' in radar_row and '"route": "/radar"' in radar_row)
-check("registered as an application, not pinned",
-      '"register": "application"' in radar_row and '"default_pinned": False' in radar_row)
+# The unveil (2026-07-28, operator: "handled exactly like Studio") — D7's R3
+# gate taken early. Radar wears the Studio treatment: primary tile, shipped
+# in the Dock by default.
+check("launcher tier is primary (unveiled — the Studio treatment)",
+      '"launcher_tier": "primary"' in radar_row and '"route": "/radar"' in radar_row)
+check("registered as an application, default-pinned like the other apps",
+      '"register": "application"' in radar_row and '"default_pinned": True' in radar_row)
+
+prefs_src = _read("../web/lib/shell/surface-preferences.ts")
+check("radar ships in DEFAULT_KEPT_SURFACES (the Dock seed)",
+      "'radar'," in prefs_src.split("DEFAULT_KEPT_SURFACES")[1][:400])
+check("dock reseed generation exists for existing operators",
+      "dock-reseed-2026-07-28-radar" in prefs_src)
 
 desk_src = _read("../web/types/desk.ts")
 check("FE slug union + allowlist carry 'radar'",

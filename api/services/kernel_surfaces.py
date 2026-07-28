@@ -265,8 +265,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "archetype": "document",
         "substrate_paths": [],  # artifacts are meaning-placed; no app namespace
         "icon_key": "palette",
-        "default_pinned": True,  # 2026-07-22 — the five primary apps ship in the Dock
-        # (see the DOCK DEFAULTS note below the registry).
+        "default_pinned": True,  # 2026-07-22 — the primary apps ship in the Dock
+        # (five at first; four since ADR-488 took Images internal).
         "route": "/studio",
         "summary": "Author documents, decks, and articles as living artifacts: a model-pinned lane drafts and patches the file while the canvas re-renders it — every citation a live workspace reference, every edit an attributed revision.",
     },
@@ -283,15 +283,24 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # aspect slug. The object layer (position/size/stacking on a staged
         # frame) is SHARED kernel, not forked — services/studio.py's
         # `block-staged` grain, consumed by both apps (D2).
+        #
+        # ADR-488 (2026-07-28) — HIDDEN pre-beta. The app is functionally
+        # complete through its core loop (decomposed generation live, metered,
+        # prod-smoked), but a Canva-class app's honest unveil bar is POLISH
+        # PARITY, not generation-works — ADR-468 D1's gate fired too early.
+        # Re-tiered to search-only (the ADR-486 D7 Radar pattern: registration
+        # is not unveil); development continues internally. Compositions in
+        # Files still open here via openPath (ADR-473 type→app routing) — the
+        # app is unpromoted, not unplugged. Dock re-unveil = a deliberate
+        # ADR-488 §5 decision, not a flag flip.
         "slug": "images",
-        "launcher_tier": "primary",
+        "launcher_tier": "search-only",  # ADR-488 — unveil held for polish parity
         "register": "application",
         "title": "Images",
         "archetype": "document",
         "substrate_paths": [],  # compositions are meaning-placed, like artifacts
         "icon_key": "image",
-        "default_pinned": True,  # 2026-07-22 — the five primary apps ship in the Dock
-        # (see the DOCK DEFAULTS note below the registry).
+        "default_pinned": False,  # ADR-488 — left the default Dock (was True, 2026-07-22)
         "route": "/images",
         "summary": "Compose visuals on a sized stage — layered objects, positioned and stacked. The composition is the source and the rendered image is a derivation of it, so every export stays traceable to the stage, the citations, and the revision that produced it.",
     },
@@ -304,17 +313,21 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # projected at read time from substrate + ledger (D5, derived-never-
         # stored). Built as its OWN app from the start — the Images lesson
         # (ADR-472): growing an app inside an existing surface forces a carve
-        # later. launcher_tier stays search-only until R3 (D7, the unveil
-        # rule): the app exists and works; the dock icon is earned by the D8
-        # falsifier window, not shipped ahead of it.
+        # later.
+        #
+        # UNVEILED 2026-07-28 (operator decision: "handled exactly like
+        # Studio") — D7's R3 gate taken early. Shipped one tier-flip after
+        # the app landed, primary + default-pinned like the other apps; the
+        # D8 falsifiers stay armed as MEASURES of the standing loop, no
+        # longer as the unveil's gate.
         "slug": "radar",
-        "launcher_tier": "search-only",  # ADR-486 D7 — unveil held for R3
+        "launcher_tier": "primary",  # ADR-486 unveil 2026-07-28 (was search-only per D7)
         "register": "application",
         "title": "Radar",
         "archetype": "dashboard",
         "substrate_paths": [],  # hubs are meaning-placed under operation/{topic}/
         "icon_key": "radar",
-        "default_pinned": False,
+        "default_pinned": True,  # ships in the Dock with the other apps
         "route": "/radar",
         "summary": "Standing topic hubs that sweep while you're away — declared sources fetched on schedule, what changed distilled into a cited brief. Watch → observe → derive → compose; every brief traces to the observations it was made from.",
     },
@@ -588,8 +601,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "archetype": "browser",
         "substrate_paths": [],  # All paths under workspace_files
         "icon_key": "folder",
-        "default_pinned": True,  # 2026-07-22 — the five primary apps ship in the Dock
-        # (see the DOCK DEFAULTS note below the registry).
+        "default_pinned": True,  # 2026-07-22 — the primary apps ship in the Dock
+        # (five at first; four since ADR-488 took Images internal).
         "route": "/files",  # _route_status: EXISTING — slug/route/label all coherent (legacy /context is a redirect stub)
         "summary": "Raw substrate browser — every file in the workspace, with revision history.",
     },
@@ -633,8 +646,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # until 2026-07-16 (named the wrong noun) → `sparkles` (too abstract,
         # broke the family) → `users-round` (2026-07-20).
         "icon_key": "users-round",
-        "default_pinned": True,  # 2026-07-22 — the five primary apps ship in the Dock
-        # (see the DOCK DEFAULTS note below the registry).
+        "default_pinned": True,  # 2026-07-22 — the primary apps ship in the Dock
+        # (five at first; four since ADR-488 took Images internal).
         "route": "/agents",  # _route_status: EXISTING — hired-agent detail + roster live here
         # Summary rewritten 2026-07-16 with the re-surface: the old line described
         # the A3-deferred world the comment above just inverted ("hired Altitude-3
