@@ -40,6 +40,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useAutoResize, COMPOSER_MAX_PX } from '@/hooks/useAutoResize';
 import {
   ArrowUp,
@@ -156,6 +157,11 @@ interface LanePanelProps extends LaneMountSlots {
   /** Phase-A attachments: may this lane's model receive images? (LANE_MODELS
    *  vision flag — the server guards regardless; this gates the affordance.) */
   visionCapable?: boolean;
+  /** ADR-492 D6.e — a host element in the mount's own header row for the
+   *  conversation-level acts ("Keep this"). When provided, the act portals
+   *  there (one header row, no extra ruled section); absent, LanePanel
+   *  renders its own slim action row (drawer/panel mounts). */
+  actionsContainer?: HTMLElement | null;
 }
 
 export function LanePanel({
@@ -169,6 +175,7 @@ export function LanePanel({
   artifactWrite = 'card',
   onLaneRenamed,
   visionCapable = true,
+  actionsContainer,
 }: LanePanelProps) {
   const [messages, setMessages] = useState<LaneMessage[]>([]);
   const [input, setInput] = useState('');
@@ -537,28 +544,38 @@ export function LanePanel({
     <div className="flex-1 min-h-0 flex flex-col">
       {/* "Keep this" (ADR-457 D3 settle) — a labeled, conversation-level act
           (ADR-492 D6.e, operator-ruled 2026-07-28): it acts ON the whole
-          conversation, so it lives above the transcript, not on the composer.
-          The unlabeled composer bookmark proved illegible — the verb stays,
-          the bookmark costume goes. Hidden until there is something to keep. */}
-      {messages.length > 0 && (
-        <div className="flex items-center justify-end px-3 pt-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => void settle()}
-            disabled={sending || settling}
-            className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-border text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-colors"
-            aria-label="Keep this — settle the conversation into a note in your files"
-            title="Distill this conversation into a note in your files"
-          >
-            {settling ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <NotebookPen className="w-3.5 h-3.5" />
-            )}
-            Keep this
-          </button>
-        </div>
-      )}
+          conversation, so it lives in the conversation header (portaled into
+          the mount's header row when the mount hosts one), never on the
+          composer. The unlabeled composer bookmark proved illegible — the
+          verb stays, the bookmark costume goes. Hidden until there is
+          something to keep. */}
+      {messages.length > 0 &&
+        (() => {
+          const keepButton = (
+            <button
+              type="button"
+              onClick={() => void settle()}
+              disabled={sending || settling}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-border text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-colors"
+              aria-label="Keep this — settle the conversation into a note in your files"
+              title="Distill this conversation into a note in your files"
+            >
+              {settling ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <NotebookPen className="w-3.5 h-3.5" />
+              )}
+              Keep this
+            </button>
+          );
+          return actionsContainer ? (
+            createPortal(keepButton, actionsContainer)
+          ) : (
+            <div className="flex items-center justify-end px-3 pt-2 shrink-0">
+              {keepButton}
+            </div>
+          );
+        })()}
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
         {loading && (
           <div className="text-xs text-muted-foreground py-6 text-center">
