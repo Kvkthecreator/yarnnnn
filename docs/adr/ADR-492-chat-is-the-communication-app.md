@@ -4,8 +4,12 @@
 applied 2026-07-28 second session** — implementation audit receipts confirmed the ADR-460 §8 wave
 program stands at step 4 [W0 instrumented `services/falsifiers.py` + migration 216; settle shipped
 `POST /lanes/{id}/settle`; Agent registry shipped `services/agents_registry.py` + ADR-467], the
-amendment surface was declared, and agenda item C closed as §8 point 6; locks on operator
-ratification — the ratification points are enumerated in §8)
+amendment surface was declared, and agenda item C closed as §8 point 6. **Third pass same day
+(operator live):** the front-end grammar scoped in as §6b D6 — person-first door, scope-at-birth
+with the settle-bridge (operator-ruled), engines-by-invitation, the invite·keep·share triad with
+the settle re-home (operator-ruled: verb stays, bookmark costume retired — shipped to
+`LanePanel.tsx` same session); locks on operator ratification — the ratification points are
+enumerated in §8)
 **Dimensions:** Channel (primary — Axiom 6) + Identity (addressing) + Substrate (scope flip)
 **Relates to:** ADR-457 (Think·Make — D2 divergence amendment applied here), ADR-460 (Agents =
 named hands; the cast model rooms inherit), ADR-411 (the lane contract rooms extend), ADR-408
@@ -153,9 +157,62 @@ Consequences:
 - **No per-turn engine picker** — responder selection is addressing (D3); engines stay behind
   Agent names (ADR-460). A model dropdown on the composer would resurrect the spec-sheet the
   registry retired.
+- **No mid-life scope flip** — private stays private; the lane→room bridge is settle (D6.b).
+- **No "remember"/bookmark premise in chat chrome** — the act on a conversation is keep (settle)
+  or share (D6.e); a message-bookmark feature, if ever wanted, is a separate premise approached
+  on its own.
 - **No change to the sequencing already ruled**: W0 falsifiers → settle → Agent registry → cast
   in a room → the object ADR (ADR-460 §8). Rooms/mentions/comments land inside that program —
   this ADR is the direction they land *into*, not a schedule jump.
+
+## 6b. D6 — The operator flow: the door, invite, engines, and the keep·share triad (scoped in 2026-07-28)
+
+The second discourse pass scoped the front-end grammar in as first-class (the operator's
+correction: the expected user flow is part of the refactoring plan, not a build detail). Two of
+these carry in-discourse operator rulings (2026-07-28), noted where they land.
+
+**D6.a — The door is person-first.** "New chat" = pick *whom* you are talking to — the Agent
+roster today (`NewChatModal`), widening to **one species-blind picker** of Agents + human members
+when rooms land. Membership at birth decides scope by construction: any human peer present ⇒ the
+conversation is born **shared** (a room — the peer can read it, so it is workspace content by
+definition); you + Agents only ⇒ a private lane. The "composed-create vs create-then-invite"
+question collapses: creation is always composed (you pick at least one interlocutor — the live
+door already works this way), *and* invite remains a room-level act afterwards.
+
+**D6.b — Scope is set at birth and never flips** *(operator-ruled 2026-07-28)*. A human is never
+invited into an existing private lane. The lane→room bridge is **settle**: "start a room from
+here" creates a *new* shared conversation seeded with the settled distillate — never the raw
+transcript. This is ADR-457 D2 made mechanical (diverge privately, settle publicly; the
+transcript is never the system of record), and it dissolves the DP35 store-crossing migration:
+no conversation row ever changes store class mid-life.
+
+**D6.c — Agents are always additive.** Inviting an Agent into a private lane crosses no scope
+boundary — the Agent is the member's hands (ADR-460), so the lane stays private; this *is* the
+multi-engine thread of D3. Membership changes involving humans exist only on shared objects and
+are attributed acts on the timeline.
+
+**D6.d — Engines change by invitation, never by swap.** The Agent is the unit; its engine is a
+configuration fact in the registry. There is no in-chat model-mutation gesture (§6's picker
+refusal, applied mid-life): wanting another engine's view means inviting the colleague that runs
+it. Editing a member-authored Agent's engine in its *configuration* is allowed and affects future
+turns everywhere it is addressed — per-turn attribution (`member:{id} via {model}`, verbatim)
+keeps history honest either way.
+
+**D6.e — The act vocabulary is invite · keep · share** (the layman triad the composer area had
+been missing a frame for):
+- **Invite** — membership of the conversation (D6.a–c).
+- **Keep** — the settle verb (ADR-457 D3). *Operator-ruled 2026-07-28*: the verb **stays**; the
+  composer bookmark costume goes. The live affordance (an unlabeled `BookmarkPlus` beside the
+  composer, `LanePanel.tsx`) proved illegible enough that the operator read it as a "remember"
+  bookmark — settle re-homes as a **labeled conversation-level act** ("Keep this", header/menu),
+  and the "remember"/bookmark framing retires from chat chrome entirely.
+- **Share** — the ADR-465 membership primitive, *mounted* in chat context (share the kept
+  artifact or the workspace outward; the MCP `share` verb) — chat mounts it, never owns it.
+
+The first-class statement this triad serves (the operator's crystallization, and D1's product
+sentence): **chat's first-class capability is the multi-human × multi-LLM conversation over the
+commons — and then doing something fundamental with the room's product: keep it, share it, build
+on it.**
 
 ## 7. The build shape (when the waves reach it)
 
@@ -197,3 +254,11 @@ snapshot, never on one clock.
 7. The declared amendment surface (header **Amends** block): ADR-408 D6's rooms rejection
    superseded as direction; ADR-410 §2's closed source-list widened on rooms landing; ADR-489 D1
    weight rows for conversation entries.
+8. D6.a person-first door + scope-at-birth (any human peer ⇒ born shared).
+9. D6.b settle-bridge — *already operator-ruled in-discourse 2026-07-28* (no human invite into a
+   private lane; "start a room from here" seeds the distillate); listed for the record.
+10. D6.d engines-by-invitation (no in-chat engine swap; registry config edits allowed, per-turn
+    attribution keeps history honest).
+11. D6.e the invite·keep·share triad — settle re-home *already operator-ruled in-discourse
+    2026-07-28* (verb stays, bookmark costume + "remember" framing retire); share is the ADR-465
+    primitive mounted, never owned.
