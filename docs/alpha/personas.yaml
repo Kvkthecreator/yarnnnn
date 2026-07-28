@@ -359,11 +359,15 @@ personas:
         - /workspace/operation/authored/_entities.md
         - /workspace/agents/alpha-author/principles.md
   - slug: kvk
-    label: "KVK personal alpha-trader workspace (kvkthecreator@gmail.com)"
+    label: "KVK personal workspace (kvkthecreator@gmail.com)"
     program: alpha-trader
     email: kvkthecreator@gmail.com
     user_id: 2abf3f96-118b-4987-9d95-40f2d9be9a18
-    workspace_id: 848a9d7e-f469-4058-9aad-1d9b3eced9df
+    # Corrected 2026-07-28 (billing-smoke run): the old id named a retired
+    # workspace; kvk's sole active grant is owner of d5b9029b (the live
+    # starter commons). The proxy resolves the acting workspace from grants
+    # server-side, so the stale id was inert — fixed for registry honesty.
+    workspace_id: d5b9029b-bd4e-4757-9fcb-e2b139fd4913
     platform:
       kind: trading
       provider: alpaca
