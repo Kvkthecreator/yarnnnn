@@ -2,9 +2,11 @@
 
 ADR-405 D3/D5 operationalized: after-witness emission derives recipients from
 the grant roster at emission time (owner + members, minus actor — never a
-stored subscription matrix), lands one notifications row per recipient, and is
-wired at the two decision-critical moments (proposal created, proposal
-decided). N=1 byte-identity: witnesses-minus-actor is empty → no-op.
+stored subscription matrix), wired at the two decision-critical moments
+(proposal created, proposal decided). ADR-410 D3 retired the in_app rows;
+ADR-489 D4 landed the pref-gated email send loop (default dial 'high' →
+quiet at normal urgency). N=1 byte-identity: witnesses-minus-actor is empty
+→ no-op.
 
 Run:
     cd api && python test_adr407_phase2_witness.py
@@ -134,9 +136,13 @@ def test_roster() -> None:
 
 def test_emission() -> None:
     # ADR-410 D3 (2026-07-06): the in_app writes are RETIRED — in-app
-    # attention derives from the timeline + witness queue; this function is
-    # the OUTBOUND seam. It must still derive recipients (actor excluded)
-    # and must write NO notifications rows.
+    # attention derives from the timeline + witness queue.
+    # ADR-489 D4 (2026-07-28): the outbound send loop LANDED, pref-gated by
+    # the recipient's member_state witness_email dial (default 'high').
+    # At default dial + normal urgency the emission is QUIET BY DESIGN:
+    # zero emails, zero notifications rows (the bell is the canonical
+    # after-witness channel). The dial-open send path is behaviorally
+    # covered in test_adr489_attention_weight.py.
     from services.witness import emit_after_witness
 
     grants = [
@@ -154,10 +160,10 @@ def test_emission() -> None:
         )
     )
     notif_inserts = [r for t, r in client.sink.get("inserts", []) if t == "notifications"]
-    if reached == 1 and not notif_inserts:
-        _ok("emission (ADR-410 D3): recipients derived (owner, not actor); NO in_app rows written")
+    if reached == 0 and not notif_inserts:
+        _ok("emission (ADR-410 D3 / ADR-489 D4): default dial quiet — no emails, NO rows written")
     else:
-        _bad("emission (ADR-410 D3): recipients derived; NO in_app rows written",
+        _bad("emission (ADR-410 D3 / ADR-489 D4): default dial quiet — no emails, NO rows written",
              f"reached={reached} notif_inserts={len(notif_inserts)}")
 
     # No workspace → no-op

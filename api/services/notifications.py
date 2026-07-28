@@ -1,15 +1,22 @@
-"""
-Notification Service - ADR-040
+"""Notification transport — email via Resend (ADR-489 recut of ADR-040).
 
-Lightweight notification delivery via email (Resend).
-Background notifications also insert a message into the user's chat session
-for continuity when they return.
+The `notifications` table is TRANSPORT ONLY (ADR-405 D3 / ADR-410 D3): a row
+records an outbound send to a recipient principal, workspace-stamped
+(ADR-407 D8). In-app attention is pure derivation — the bell + Notifications
+surface mount the workspace timeline + witness queue; nothing here feeds
+them. Rows are written only when a send actually happens (a transport record
+records transport, not decisions not to send).
 
-This service handles:
-1. Persisting notification records for audit
-2. Sending email notifications
-3. Respecting user notification preferences
-4. Inserting chat messages for background notifications
+Preference gating reads member_state['notification_prefs'] — the ONE prefs
+store (ADR-489 D5; the ADR-407 D7 fold executed; `user_notification_
+preferences` dropped by migration 223):
+
+    { "delivery_email": true, "failure_email": true, "witness_email": "high" }
+
+`witness_email` ∈ 'all' | 'high' | 'none' is the after-witness push dial
+(ADR-405 D2): the in-app bell stays the canonical after-witness channel;
+email push is opt-in ('all') or reserved for high-urgency emissions
+(default 'high' — quiet unless something demands it).
 """
 
 from __future__ import annotations
@@ -21,6 +28,16 @@ from typing import Literal, Optional
 
 logger = logging.getLogger(__name__)
 
+# ADR-489 D5 — the pref keys and their quiet defaults. Presentation-layer,
+# never authorization (ADR-405 D5).
+DEFAULT_NOTIFICATION_PREFS: dict = {
+    "delivery_email": True,   # agent output delivered
+    "failure_email": True,    # generation/delivery failed
+    "witness_email": "high",  # after-witness peer-act push: all | high | none
+}
+
+PrefKind = Literal["delivery", "failure", "witness"]
+
 
 @dataclass
 class NotificationResult:
@@ -30,120 +47,123 @@ class NotificationResult:
     error: Optional[str] = None
 
 
+async def get_notification_prefs(
+    client, user_id: str, workspace_id: Optional[str] = None
+) -> dict:
+    """The recipient's notification prefs — member_state['notification_prefs']
+    keyed (workspace, principal), defaults when unset (ADR-489 D5)."""
+    prefs = dict(DEFAULT_NOTIFICATION_PREFS)
+    try:
+        ws = workspace_id
+        if not ws:
+            from services.workspace_context import effective_workspace_id
+            ws = effective_workspace_id(user_id)
+        if not ws:
+            return prefs
+        row = (
+            client.table("member_state")
+            .select("value")
+            .eq("workspace_id", ws)
+            .eq("principal_id", user_id)
+            .eq("key", "notification_prefs")
+            .limit(1)
+            .execute()
+        )
+        if row.data:
+            value = row.data[0].get("value") or {}
+            if isinstance(value, dict):
+                prefs.update(value)
+    except Exception as e:
+        logger.warning("[NOTIFICATION] prefs read failed for %s: %s", user_id[:8], e)
+    return prefs
+
+
+def _pref_allows(prefs: dict, pref: PrefKind, urgency: str) -> bool:
+    if pref == "delivery":
+        return bool(prefs.get("delivery_email", True))
+    if pref == "failure":
+        return bool(prefs.get("failure_email", True))
+    # witness — the after-witness push dial (ADR-489 D4).
+    dial = prefs.get("witness_email", "high")
+    if dial == "all":
+        return True
+    if dial == "high":
+        return urgency == "high"
+    return False
+
+
 async def send_notification(
     db_client,
     user_id: str,
     message: str,
-    channel: Literal["email", "in_app"] = "email",
+    *,
     urgency: Literal["low", "normal", "high"] = "normal",
     context: Optional[dict] = None,
-    source_type: Literal["system", "monitor", "tp", "agent", "event_trigger", "suggestion"] = "system",
+    source_type: str = "system",
     source_id: Optional[str] = None,
-    preference_type: Optional[Literal["agent_ready", "agent_failed", "suggestion_created"]] = None,
+    workspace_id: Optional[str] = None,
+    pref: PrefKind = "delivery",
 ) -> NotificationResult:
+    """Send one email notification to one recipient principal.
+
+    The single writer into the `notifications` transport table. Pref-gated
+    BEFORE any row is written; the row is the record of an actual send
+    attempt (workspace-stamped, ADR-407 D8). Email is the only channel —
+    the ADR-040 `in_app` branch is deleted (ADR-410 D3: in-app attention is
+    derivation, never rows).
     """
-    Send a notification to a user.
-
-    For email: Sends via Resend and logs to notifications table.
-    For in_app: Just logs to notifications table (TP handles display).
-
-    Args:
-        db_client: Supabase client (service role)
-        user_id: Target user
-        message: Notification text
-        channel: Delivery channel (email or in_app)
-        urgency: Priority level
-        context: Optional related context (agent_id, url, etc.)
-        source_type: What triggered this notification
-        source_id: ID of triggering entity
-        preference_type: Optional explicit notification preference key override
-
-    Returns:
-        NotificationResult with status
-    """
-    # Create notification record
     try:
-        notification = db_client.table("notifications").insert({
+        if not workspace_id:
+            from services.workspace_context import effective_workspace_id
+            workspace_id = effective_workspace_id(user_id)
+    except Exception:
+        workspace_id = None
+
+    prefs = await get_notification_prefs(db_client, user_id, workspace_id)
+    if not _pref_allows(prefs, pref, urgency):
+        logger.info(f"[NOTIFICATION] Skipped (recipient opted out, pref={pref}): {message[:50]}...")
+        return NotificationResult(id="", status="sent")
+
+    from jobs.unified_scheduler import get_user_email
+
+    user_email = await get_user_email(db_client, user_id)
+    if not user_email:
+        logger.warning(f"[NOTIFICATION] No email for user {user_id}")
+        return NotificationResult(id="", status="failed", error="No email address")
+
+    # Transport record — written because a send is actually happening.
+    try:
+        row = {
             "user_id": user_id,
             "message": message,
-            "channel": channel,
+            "channel": "email",
             "urgency": urgency,
             "context": context or {},
             "source_type": source_type,
             "source_id": source_id,
             "status": "pending",
-        }).execute()
-
+        }
+        if workspace_id:
+            row["workspace_id"] = workspace_id
+        notification = db_client.table("notifications").insert(row).execute()
         notification_id = notification.data[0]["id"]
     except Exception as e:
-        logger.error(f"[NOTIFICATION] Failed to create record: {e}")
+        logger.error(f"[NOTIFICATION] Failed to create transport record: {e}")
         return NotificationResult(id="", status="failed", error=str(e))
 
-    # Deliver based on channel
     try:
-        if channel == "email":
-            # Check user preferences
-            from jobs.unified_scheduler import should_send_email, get_user_email
-
-            # Map source_type to notification preference type
-            pref_type_map = {
-                "agent": "agent_ready",
-                "system": "agent_ready",  # Default to agent_ready for system
-                "tp": "agent_ready",
-                "event_trigger": "agent_ready",
-                "monitor": "agent_ready",
-                "suggestion": "suggestion_created",  # ADR-060
-            }
-            pref_type = preference_type or pref_type_map.get(source_type, "agent_ready")
-
-            if not await should_send_email(db_client, user_id, pref_type):
-                logger.info(f"[NOTIFICATION] Skipped (user opted out): {message[:50]}...")
-                _update_notification_status(db_client, notification_id, "sent")  # Mark as sent (opted out)
-                return NotificationResult(id=notification_id, status="sent")
-
-            user_email = await get_user_email(db_client, user_id)
-            if not user_email:
-                logger.warning(f"[NOTIFICATION] No email for user {user_id}")
-                _update_notification_status(db_client, notification_id, "failed", "No email address")
-                return NotificationResult(id=notification_id, status="failed", error="No email address")
-
-            # Send email
-            result = await _send_notification_email(
-                to=user_email,
-                message=message,
-                urgency=urgency,
-                context=context,
-            )
-
-            if result.success:
-                _update_notification_status(db_client, notification_id, "sent")
-                logger.info(f"[NOTIFICATION] Sent email to {user_email}: {message[:50]}...")
-
-                # Insert message into chat session for continuity (background notifications only)
-                # Skip if source_type is 'tp' since that means user is in active session
-                if source_type != "tp":
-                    await _insert_chat_notification(
-                        db_client=db_client,
-                        user_id=user_id,
-                        message=message,
-                        context=context,
-                    )
-
-                return NotificationResult(id=notification_id, status="sent")
-            else:
-                _update_notification_status(db_client, notification_id, "failed", result.error)
-                return NotificationResult(id=notification_id, status="failed", error=result.error)
-
-        elif channel == "in_app":
-            # In-app notifications are just logged - TP session handles display
+        result = await _send_notification_email(
+            to=user_email,
+            message=message,
+            urgency=urgency,
+            context=context,
+        )
+        if result.success:
             _update_notification_status(db_client, notification_id, "sent")
-            logger.info(f"[NOTIFICATION] Logged in-app: {message[:50]}...")
+            logger.info(f"[NOTIFICATION] Sent email to {user_email}: {message[:50]}...")
             return NotificationResult(id=notification_id, status="sent")
-
-        else:
-            _update_notification_status(db_client, notification_id, "failed", f"Unknown channel: {channel}")
-            return NotificationResult(id=notification_id, status="failed", error=f"Unknown channel: {channel}")
-
+        _update_notification_status(db_client, notification_id, "failed", result.error)
+        return NotificationResult(id=notification_id, status="failed", error=result.error)
     except Exception as e:
         logger.error(f"[NOTIFICATION] Delivery failed: {e}")
         _update_notification_status(db_client, notification_id, "failed", str(e))
@@ -167,82 +187,6 @@ def _update_notification_status(
         db_client.table("notifications").update(update).eq("id", notification_id).execute()
     except Exception as e:
         logger.warning(f"[NOTIFICATION] Failed to update status: {e}")
-
-
-async def _insert_chat_notification(
-    db_client,
-    user_id: str,
-    message: str,
-    context: Optional[dict],
-) -> None:
-    """
-    Insert a notification message into the user's chat session.
-
-    This ensures background notifications appear in chat history when user returns.
-    Uses the daily session scope so the message appears in their current/recent session.
-    """
-    try:
-        # Get or create the recipient's daily session in the acting workspace
-        # (ADR-407 Phase 4 — owner fallback keeps N=1 byte-identical).
-        from services.workspace_context import effective_workspace_id
-        session_result = db_client.rpc(
-            "get_or_create_chat_session",
-            {
-                "p_user_id": user_id,
-                "p_project_id": None,
-                "p_session_type": "thinking_partner",
-                "p_scope": "daily",
-                "p_workspace_id": effective_workspace_id(user_id),
-            }
-        ).execute()
-
-        if not session_result.data:
-            logger.warning(f"[NOTIFICATION] Could not get session for user {user_id}")
-            return
-
-        session_id = session_result.data.get("session_id")
-        if not session_id:
-            logger.warning(f"[NOTIFICATION] No session_id in result for user {user_id}")
-            return
-
-        # Format the notification as a TP message
-        chat_message = f"📧 I sent you an email: {message}"
-
-        # ADR-219 Commit 2: route through the single narrative write path.
-        # Notification surfacing is a reactive system event (an email
-        # send fired this card) — pulse=reactive, weight=routine
-        # (notifications are pointers to external channels per ADR-202;
-        # they don't carry the substance themselves). Role stays
-        # 'assistant' so the legacy chat bubble rendering continues
-        # without UX drift; reclassification to 'system' rendering is
-        # a Commit 5 concern.
-        from services.narrative import write_narrative_entry
-
-        write_narrative_entry(
-            db_client,
-            session_id,
-            role="assistant",
-            summary="Email sent",
-            body=chat_message,
-            pulse="reactive",
-            weight="routine",
-            # Actor identity (2026-06-30): the system's notification dispatcher
-            # (an outbound send surfaced as a pointer, ADR-202). source_type/
-            # source_id carry the finer trigger but "system:notification" is the
-            # honest actor for the FE badge.
-            authored_by="system:notification",
-            extra_metadata={
-                "type": "notification",
-                "channel": "email",
-                "context": context or {},
-            },
-        )
-
-        logger.info(f"[NOTIFICATION] Inserted chat message for user {user_id}")
-
-    except Exception as e:
-        # Non-fatal - notification was still sent, just not shown in chat
-        logger.warning(f"[NOTIFICATION] Failed to insert chat message: {e}")
 
 
 async def _send_notification_email(
@@ -339,33 +283,18 @@ async def notify_agent_delivered(
     external_url: Optional[str] = None,
     delivery_platform: Optional[str] = None,
 ) -> NotificationResult:
-    """
-    Send notification when an agent has been delivered.
+    """Send notification when an agent has been delivered.
 
-    When delivery_platform is "email", the content email already
-    landed in the user's inbox — skip the separate notification email to
-    avoid duplicates. Still log to notifications table for audit.
+    When delivery_platform is "email", the content email already landed in
+    the recipient's inbox — the content IS the notification (ADR-040/066),
+    and the delivery is already recorded in destination_delivery_log (the
+    emissions Out lens). No email, no duplicate audit row (ADR-489 D5).
     """
-    # Skip email notification when content was delivered via email —
-    # the content email IS the notification (ADR-040 / ADR-066).
     if delivery_platform == "email":
         logger.info(
             f"[NOTIFICATION] Skipped delivery notification — content delivered via {delivery_platform}"
         )
-        # Still record for audit, but as in_app (no email sent)
-        context = {"agent_id": agent_id, "destination": destination, "skipped_reason": "content_is_notification"}
-        if external_url:
-            context["url"] = external_url
-        return await send_notification(
-            db_client=db_client,
-            user_id=user_id,
-            message=f'"{agent_title}" was delivered to {destination}.',
-            channel="in_app",
-            urgency="low",
-            context=context,
-            source_type="agent",
-            source_id=agent_id,
-        )
+        return NotificationResult(id="", status="sent")
 
     context = {"agent_id": agent_id, "destination": destination}
     if external_url:
@@ -375,11 +304,11 @@ async def notify_agent_delivered(
         db_client=db_client,
         user_id=user_id,
         message=f'"{agent_title}" was delivered to {destination}.',
-        channel="email",
         urgency="low",
         context=context,
         source_type="agent",
         source_id=agent_id,
+        pref="delivery",
     )
 
 
@@ -395,11 +324,9 @@ async def notify_agent_failed(
         db_client=db_client,
         user_id=user_id,
         message=f'Failed to generate "{agent_title}": {error[:100]}',
-        channel="email",
         urgency="high",
         context={"agent_id": agent_id, "error": error},
         source_type="agent",
         source_id=agent_id,
-        preference_type="agent_failed",
+        pref="failure",
     )
-

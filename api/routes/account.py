@@ -91,20 +91,6 @@ class OperationResult(BaseModel):
     deleted: dict
 
 
-class NotificationPreferences(BaseModel):
-    """User notification preferences for email."""
-    email_agent_ready: bool = True
-    email_agent_failed: bool = True
-    email_suggestion_created: bool = True
-
-
-class NotificationPreferencesUpdate(BaseModel):
-    """Partial update for notification preferences."""
-    email_agent_ready: Optional[bool] = None
-    email_agent_failed: Optional[bool] = None
-    email_suggestion_created: Optional[bool] = None
-
-
 # =============================================================================
 # Internal Helpers
 # =============================================================================
@@ -307,59 +293,10 @@ def _delete_user_agent_runs(client, user_id: str, workspace_id: Optional[str] = 
         return 0
 
 
-# =============================================================================
-# Notification Preferences
-# =============================================================================
-
-@router.get("/account/notification-preferences")
-async def get_notification_preferences(auth: UserClient) -> NotificationPreferences:
-    """Get user's notification preferences. Returns defaults if none set."""
-    try:
-        result = auth.client.table("user_notification_preferences").select("*").eq("user_id", auth.user_id).execute()
-        if result.data and len(result.data) > 0:
-            prefs = result.data[0]
-            return NotificationPreferences(
-                email_agent_ready=prefs.get("email_agent_ready", True),
-                email_agent_failed=prefs.get("email_agent_failed", True),
-                email_suggestion_created=prefs.get("email_suggestion_created", True),
-            )
-        return NotificationPreferences()
-    except Exception as e:
-        logger.error(f"[ACCOUNT] Failed to get notification preferences: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get notification preferences")
-
-
-@router.patch("/account/notification-preferences")
-async def update_notification_preferences(
-    auth: UserClient,
-    update: NotificationPreferencesUpdate,
-) -> NotificationPreferences:
-    """Update user's notification preferences (upsert)."""
-    user_id = auth.user_id
-    try:
-        existing = auth.client.table("user_notification_preferences").select("id").eq("user_id", user_id).execute()
-        update_data = {k: v for k, v in update.model_dump().items() if v is not None}
-        if not update_data:
-            return await get_notification_preferences(auth)
-
-        if existing.data and len(existing.data) > 0:
-            auth.client.table("user_notification_preferences").update(
-                {**update_data, "updated_at": "now()"}
-            ).eq("user_id", user_id).execute()
-        else:
-            auth.client.table("user_notification_preferences").insert({
-                "user_id": user_id,
-                "email_agent_ready": True,
-                "email_agent_failed": True,
-                "email_suggestion_created": True,
-                **update_data,
-            }).execute()
-
-        return await get_notification_preferences(auth)
-    except Exception as e:
-        logger.error(f"[ACCOUNT] Failed to update notification preferences: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update notification preferences")
-
+# ADR-489 D5: the notification-preference routes are DELETED — the one prefs
+# store is member_state['notification_prefs'] (GET/PUT /api/member-state/
+# notification_prefs), per (workspace, principal). The
+# user_notification_preferences table dropped in migration 223.
 
 # =============================================================================
 # Stats Endpoint
@@ -528,7 +465,7 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
     Preserved (L2 invariant):
     - platform_connections (user should not re-OAuth on a workspace reset)
     - user_admin_flags (admin identity survives workspace wipe — L4 only)
-    - user_notification_preferences (email prefs survive workspace wipe)
+    - member_state notification_prefs (ADR-489 D5 — rides the member_state row)
     - execution_events (cost ledger — L4 only, never L2; ADR-291)
     - active program (ADR-244 D4): if a program was active before the purge,
       the bundle is re-forked during reinit so the operator lands on the
@@ -698,7 +635,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         export_log, destination_delivery_log, event_trigger_log.
       - Uploads: filesystem_documents (cascades filesystem_chunks).
       - MCP: mcp_oauth_codes / _access_tokens / _refresh_tokens.
-      - Prefs: user_notification_preferences.
+      - Prefs: member_state (notification_prefs + shell state — ADR-489 D5).
     """
     user_id = auth.user_id
     deleted: dict[str, int] = {}
@@ -739,7 +676,6 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
             "execution_events",           # ADR-291 unified cost ledger
             "wake_queue",                 # ADR-298 transient wake compute — no auth cascade, must purge explicitly
             "user_admin_flags",           # ADR-194 v2 Phase 2b admin scope
-            "user_notification_preferences",
         ]
         for table in tables:
             deleted[table] = _delete_rows(client, table, user_id, optional=True)

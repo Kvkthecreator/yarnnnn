@@ -81,10 +81,14 @@ def test_d2_witness_queue_honest() -> None:
 def test_d3_notifications_outbound_only() -> None:
     print("\n[D3] the notifications table returns to outbound transport")
     w = _read("api/services/witness.py")
-    _assert("send_notification" not in w, "witness emission writes NO in_app rows")
-    _assert('channel="in_app"' not in w, "no in_app channel usage")
+    # ADR-489 D4 amendment (2026-07-28): the outbound send loop this D3
+    # reserved the seam for has LANDED (email transport, pref-gated). The
+    # assertion's intent — no in_app rows, ever — is unchanged; the literal
+    # "send_notification absent" check is superseded by the ADR-489 gate.
+    _assert('channel="in_app"' not in w and "'in_app'" not in w, "no in_app channel usage")
     _assert("workspace_witnesses" in w, "the recipient derivation survives (the outbound seam)")
     _assert("ADR-410 D3" in w, "the retirement is attributed in-source")
+    _assert('pref="witness"' in w, "outbound transport is pref-gated (ADR-489 D4)")
 
 
 def test_d4_vocabulary() -> None:
@@ -139,8 +143,9 @@ def test_d6_timeline_ids_and_identity() -> None:
             "entries carry derived stable ids (kind:natural-key:at)")
     _assert("author_identity_uuid" in ws.split("class TimelineEntry", 1)[1][:2000] or "actor_id" in ws,
             "TimelineEntry carries actor_id")
-    _assert('.select("path, authored_by, author_identity_uuid, message, created_at")' in ws,
-            "revision read selects the acting principal's uuid")
+    # ADR-489: the select gained revision_kind (weight classification input).
+    _assert('.select("path, authored_by, author_identity_uuid, message, revision_kind, created_at")' in ws,
+            "revision read selects the acting principal's uuid (+ revision_kind, ADR-489)")
 
     # Human-write routes thread identity — operator-class acts stop being
     # ambiguous between humans in a multi-member commons.

@@ -71,6 +71,16 @@ const DIRECTION_LENSES: Array<{ key: DirectionLens; label: string }> = [
   { key: 'out', label: 'Out' },
 ];
 
+// ADR-489 D2 — the weight lens (Axiom 9 rendering-weight taxonomy, derived
+// server-side per entry). Default hides housekeeping (machine bookkeeping —
+// index regens, `_*.yaml` state); the complete attributed record stays one
+// click away. Missing weight reads material (fail-open).
+type WeightLens = 'matters' | 'all';
+const WEIGHT_LENSES: Array<{ key: WeightLens; label: string }> = [
+  { key: 'matters', label: 'What matters' },
+  { key: 'all', label: 'Everything' },
+];
+
 export function ActivityLedger() {
   const { userId } = useSurfacePreferences();
   const roster = useWorkspaceRoster();
@@ -85,6 +95,7 @@ export function ActivityLedger() {
 
   const [kindFilter, setKindFilter] = useState<'all' | TimelineEntry['kind']>('all');
   const [actorFilter, setActorFilter] = useState<string>('all');
+  const [weightLens, setWeightLens] = useState<WeightLens>('matters');
   // Date filter = a jump of the `before` cursor (history from that day back).
   const [beforeDate, setBeforeDate] = useState<string>('');
 
@@ -153,6 +164,7 @@ export function ActivityLedger() {
   }, [resolved]);
 
   const visible = resolved.filter(({ e, actorKey }) => {
+    if (weightLens === 'matters' && e.weight === 'housekeeping') return false;
     if (kindFilter !== 'all' && e.kind !== kindFilter) return false;
     if (actorFilter !== 'all' && actorKey !== actorFilter) return false;
     return true;
@@ -185,6 +197,24 @@ export function ActivityLedger() {
         </div>
         {lens === 'timeline' && (
           <>
+            <span aria-hidden className="h-4 w-px bg-border/60" />
+            <div className="flex items-center gap-1" role="group" aria-label="Attention weight">
+              {WEIGHT_LENSES.map((w) => (
+                <button
+                  key={w.key}
+                  type="button"
+                  onClick={() => setWeightLens(w.key)}
+                  className={cn(
+                    'rounded-md px-2 py-1 text-[11px] transition-colors',
+                    weightLens === w.key
+                      ? 'bg-muted font-medium text-foreground'
+                      : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+                  )}
+                >
+                  {w.label}
+                </button>
+              ))}
+            </div>
             <span aria-hidden className="h-4 w-px bg-border/60" />
             <div className="flex items-center gap-1" role="group" aria-label="Filter by kind">
               {KIND_FILTERS.map((k) => (
@@ -226,13 +256,14 @@ export function ActivityLedger() {
                 className="h-7 rounded-md border border-border bg-background px-1.5 text-[11px] text-foreground"
               />
             </label>
-            {(kindFilter !== 'all' || actorFilter !== 'all' || beforeDate) && (
+            {(kindFilter !== 'all' || actorFilter !== 'all' || beforeDate || weightLens !== 'matters') && (
               <button
                 type="button"
                 onClick={() => {
                   setKindFilter('all');
                   setActorFilter('all');
                   setBeforeDate('');
+                  setWeightLens('matters');
                 }}
                 className="text-[11px] text-primary hover:underline"
               >
@@ -271,7 +302,14 @@ export function ActivityLedger() {
               });
               const line = actorLine(e, who.label);
               return (
-                <li key={e.id} className="flex items-center gap-2.5 px-6 py-2.5">
+                <li
+                  key={e.id}
+                  className={cn(
+                    'flex items-center gap-2.5 px-6 py-2.5',
+                    // ADR-489 — housekeeping stays legible but recedes.
+                    e.weight === 'housekeeping' && 'opacity-60',
+                  )}
+                >
                   <KindGlyph entry={e} />
                   <span className="flex-1 min-w-0">
                     {e.kind === 'revision' && e.path ? (

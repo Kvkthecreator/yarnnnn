@@ -1843,6 +1843,10 @@ export const api = {
           // labeler (proposalActionLabel); no title parsing.
           primitive: string | null;
           family: string | null;
+          // ADR-489 — attention weight, derived at read time (Axiom 9
+          // rendering-weight taxonomy). Bell mounts material only; the
+          // workbench defaults to material + routine.
+          weight?: 'material' | 'routine' | 'housekeeping';
         }>;
         has_more: boolean;
       }>(
@@ -2124,27 +2128,9 @@ export const api = {
 
   // Account management
   account: {
-    // Notification preferences
-    getNotificationPreferences: () =>
-      request<{
-        email_agent_ready: boolean;
-        email_agent_failed: boolean;
-        email_suggestion_created: boolean; // ADR-060
-      }>("/api/account/notification-preferences"),
-
-    updateNotificationPreferences: (data: {
-      email_agent_ready?: boolean;
-      email_agent_failed?: boolean;
-      email_suggestion_created?: boolean; // ADR-060
-    }) =>
-      request<{
-        email_agent_ready: boolean;
-        email_agent_failed: boolean;
-        email_suggestion_created: boolean; // ADR-060
-      }>("/api/account/notification-preferences", {
-        method: "PATCH",
-        body: JSON.stringify(data),
-      }),
+    // ADR-489 D5 — the notification-preference methods are deleted (no UI
+    // ever consumed them); the one prefs store is
+    // member_state['notification_prefs'] via api.memberState.get/put.
 
     // Data & Privacy — ADR-122 Phase 5 + 2026-04-24 streamline (docs/features/data-privacy.md Phase 5)
     getDangerZoneStats: () =>

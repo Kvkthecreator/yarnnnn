@@ -94,6 +94,12 @@ interface PeerActivity {
   created_at: string;
 }
 
+/** ADR-489 D2 — the bell is the glance mount: MATERIAL acts only. Index
+ * regenerations and machine bookkeeping (housekeeping) and raw arrivals /
+ * run-chatter (routine) stay legible in the workbench, never in the badge.
+ * Missing weight reads material (fail-open — new kinds are never hidden). */
+const isMaterial = (weight?: string) => !weight || weight === 'material';
+
 // "Coming up" — a derived view over each recurrence's next_run_at. No new
 // state: next_run_at already rides on the recurrence list (ADR-340 D3
 // derived-never-stored preserved). title is the operator-facing label —
@@ -215,6 +221,8 @@ export function AttentionCenter() {
         for (const e of timelineResult.value.entries || []) {
           if (e.kind !== 'revision' && e.kind !== 'invocation') continue;
           if (!e.at) continue;
+          // ADR-489 D2 — glance depth: material only.
+          if (!isMaterial(e.weight)) continue;
           if (e.kind === 'invocation') {
             const minuteKey = `${e.slug}:${e.at.slice(0, 16)}`;
             if (seen.has(minuteKey)) continue;

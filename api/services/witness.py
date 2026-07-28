@@ -10,11 +10,17 @@ subscription matrix (DP29).
 ADR-410 D3 (2026-07-06): the Phase-2 in_app `notifications` rows are RETIRED.
 They were the bridge before the workspace timeline existed (ADR-408 D5.1);
 keeping them made a SECOND store of what the attributed ledgers already say —
-the DP29 shape of mistake. In-app attention is now pure derivation (the bell +
-Notifications mount the timeline + witness queue). This module survives as the
-OUTBOUND transport seam: `workspace_witnesses` is the recipient derivation,
-and `emit_after_witness` is where email/push fan-out lands when those
-transports build (ADR-405 §3) — today it derives recipients and stops.
+the DP29 shape of mistake. In-app attention is pure derivation (the bell +
+Notifications mount the timeline + witness queue).
+
+ADR-489 D4 (2026-07-28): the outbound send loop LANDED. For each derived
+recipient, the one gated send path (`services.notifications.send_notification`
+with pref="witness") consults the recipient's member_state
+notification_prefs `witness_email` dial ('all' | 'high' | 'none', default
+'high') and emails only where the dial allows — so default behavior stays
+quiet (the bell remains the canonical after-witness channel; push is opt-in).
+Transport rows are workspace-stamped (ADR-407 D8), written only on actual
+sends. Still no in_app rows, ever.
 
 Foreign-LLM / agent principals are never notification recipients — their
 witness surface is the substrate itself (they read ledgers on their next
@@ -82,19 +88,16 @@ async def emit_after_witness(
     source_id: Optional[str] = None,
     urgency: str = "normal",
 ) -> int:
-    """The outbound after-witness seam (ADR-410 D3).
+    """The outbound after-witness transport (ADR-410 D3 seam; ADR-489 D4 send).
 
-    Derives who would be told (the roster minus the actor) and returns the
-    recipient count. The in_app rows this used to write are RETIRED — in-app
-    attention derives from the timeline + witness queue (ADR-410 D1/D5), and
-    a stored copy of what the ledgers already say violates DP29. When an
-    outbound transport ships (email/push, ADR-405 §3), its per-recipient send
-    loop lands HERE, reading each recipient's delivery preferences from
-    member_state (ADR-407 D7). Best-effort: never fails the act.
+    Derives who is told (the roster minus the actor, ADR-405 D5) and routes
+    each recipient through the ONE gated send path — email under the
+    recipient's `witness_email` dial (member_state notification_prefs,
+    default 'high' → quiet at normal urgency). In-app attention stays pure
+    derivation (no in_app rows — ADR-410 D3 preserved). Returns the number
+    of recipients an email actually went to. Best-effort: never fails the
+    act.
     """
-    # Unused until an outbound transport lands — kept in the signature so
-    # call sites don't churn when it does.
-    _ = (message, context, source_type, source_id, urgency)
     if not workspace_id:
         return 0
     try:
@@ -105,6 +108,24 @@ async def emit_after_witness(
         logger.warning("[WITNESS] roster derivation failed: %s", e)
         return 0
 
-    # ADR-410 D3: no in_app writes. The outbound send loop will iterate
-    # `witnesses` here when email/push transports build.
-    return len(witnesses)
+    sent = 0
+    for recipient in witnesses:
+        try:
+            from services.notifications import send_notification
+
+            result = await send_notification(
+                client,
+                recipient,
+                message,
+                urgency=urgency,  # type: ignore[arg-type]
+                context=context,
+                source_type=source_type,
+                source_id=source_id,
+                workspace_id=workspace_id,
+                pref="witness",
+            )
+            if result.id:
+                sent += 1
+        except Exception as e:  # pragma: no cover — one recipient never blocks another
+            logger.warning("[WITNESS] send failed for %s: %s", recipient[:8], e)
+    return sent

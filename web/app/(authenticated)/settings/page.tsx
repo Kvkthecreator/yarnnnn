@@ -56,10 +56,22 @@ interface DangerZoneStats {
   action_proposals: number;
 }
 
+// ADR-489 D5 — the ONE prefs store is member_state['notification_prefs'],
+// keyed (acting workspace, principal): mute one commons, not all. Shape +
+// quiet defaults mirror services/notifications.py DEFAULT_NOTIFICATION_PREFS.
+// witness_email is the after-witness push dial (ADR-405 D2): the bell stays
+// the canonical channel; email push is opt-in.
 interface NotificationPreferences {
-  email_agent_ready: boolean;
-  email_agent_failed: boolean;
+  delivery_email: boolean;
+  failure_email: boolean;
+  witness_email: 'all' | 'high' | 'none';
 }
+
+const DEFAULT_NOTIFICATION_PREFS: NotificationPreferences = {
+  delivery_email: true,
+  failure_email: true,
+  witness_email: 'high',
+};
 
 // The `settings` surface is the ACCOUNT window — genuinely user_id-scoped, the
 // human/principal's concern (data & privacy, danger zone). ADR-416 follow-on
@@ -176,29 +188,32 @@ export default function SettingsPage() {
   const loadNotificationPreferences = async () => {
     setIsLoadingNotifications(true);
     try {
-      const prefs = await api.account.getNotificationPreferences();
-      setNotificationPrefs(prefs);
+      // ADR-489 D5 — member_state is the one prefs store; missing keys read
+      // the quiet defaults.
+      const res = await api.memberState.get('notification_prefs');
+      const stored = (res.value as Partial<NotificationPreferences> | null) ?? {};
+      setNotificationPrefs({ ...DEFAULT_NOTIFICATION_PREFS, ...stored });
     } catch (err) {
       console.error("Failed to fetch notification preferences:", err);
+      setNotificationPrefs({ ...DEFAULT_NOTIFICATION_PREFS });
     } finally {
       setIsLoadingNotifications(false);
     }
   };
 
-  const handleNotificationToggle = async (key: keyof NotificationPreferences, value: boolean) => {
+  const handleNotificationChange = async (patch: Partial<NotificationPreferences>) => {
     if (!notificationPrefs) return;
+    const previous = notificationPrefs;
+    const next = { ...notificationPrefs, ...patch };
 
-    // Optimistic update
-    setNotificationPrefs({ ...notificationPrefs, [key]: value });
+    // Optimistic update, revert on error.
+    setNotificationPrefs(next);
     setIsSavingNotifications(true);
-
     try {
-      const updated = await api.account.updateNotificationPreferences({ [key]: value });
-      setNotificationPrefs(updated);
+      await api.memberState.put('notification_prefs', next);
     } catch (err) {
       console.error("Failed to update notification preference:", err);
-      // Revert on error
-      setNotificationPrefs({ ...notificationPrefs, [key]: !value });
+      setNotificationPrefs(previous);
     } finally {
       setIsSavingNotifications(false);
     }
@@ -539,19 +554,19 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-3">
                     <Mail className="w-4 h-4 text-muted-foreground" />
                     <div>
-                      <div className="text-sm font-medium">Agent Ready</div>
-                      <div className="text-xs text-muted-foreground">Notified when a scheduled agent is ready</div>
+                      <div className="text-sm font-medium">Work delivered</div>
+                      <div className="text-xs text-muted-foreground">Email when an agent&apos;s output is delivered</div>
                     </div>
                   </div>
                   <button
-                    onClick={() => handleNotificationToggle("email_agent_ready", !notificationPrefs.email_agent_ready)}
+                    onClick={() => handleNotificationChange({ delivery_email: !notificationPrefs.delivery_email })}
                     disabled={isSavingNotifications}
                     className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      notificationPrefs.email_agent_ready ? "bg-primary" : "bg-muted"
+                      notificationPrefs.delivery_email ? "bg-primary" : "bg-muted"
                     }`}
                   >
                     <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                      notificationPrefs.email_agent_ready ? "translate-x-4" : "translate-x-0.5"
+                      notificationPrefs.delivery_email ? "translate-x-4" : "translate-x-0.5"
                     }`} />
                   </button>
                 </div>
@@ -559,21 +574,44 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-3">
                     <AlertTriangle className="w-4 h-4 text-muted-foreground" />
                     <div>
-                      <div className="text-sm font-medium">Agent Failed</div>
-                      <div className="text-xs text-muted-foreground">Notified when an agent fails to generate</div>
+                      <div className="text-sm font-medium">Failures</div>
+                      <div className="text-xs text-muted-foreground">Email when a run or delivery fails</div>
                     </div>
                   </div>
                   <button
-                    onClick={() => handleNotificationToggle("email_agent_failed", !notificationPrefs.email_agent_failed)}
+                    onClick={() => handleNotificationChange({ failure_email: !notificationPrefs.failure_email })}
                     disabled={isSavingNotifications}
                     className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      notificationPrefs.email_agent_failed ? "bg-primary" : "bg-muted"
+                      notificationPrefs.failure_email ? "bg-primary" : "bg-muted"
                     }`}
                   >
                     <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                      notificationPrefs.email_agent_failed ? "translate-x-4" : "translate-x-0.5"
+                      notificationPrefs.failure_email ? "translate-x-4" : "translate-x-0.5"
                     }`} />
                   </button>
+                </div>
+                {/* ADR-489 D4 — the after-witness push dial. The in-app bell
+                    is always on (derived); this governs EMAIL about peers'
+                    and agents' workspace acts. */}
+                <div className="p-3 border border-border rounded-lg flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Bell className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <div className="text-sm font-medium">Workspace activity</div>
+                      <div className="text-xs text-muted-foreground">Email when teammates or agents act in the workspace</div>
+                    </div>
+                  </div>
+                  <select
+                    value={notificationPrefs.witness_email}
+                    onChange={(e) => handleNotificationChange({ witness_email: e.target.value as NotificationPreferences['witness_email'] })}
+                    disabled={isSavingNotifications}
+                    aria-label="Workspace activity emails"
+                    className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"
+                  >
+                    <option value="high">Urgent only</option>
+                    <option value="all">Every action</option>
+                    <option value="none">Never</option>
+                  </select>
                 </div>
               </div>
             ) : (

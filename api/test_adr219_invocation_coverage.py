@@ -60,22 +60,13 @@ def _read(rel: str) -> str:
 #       routes/feed.py::append_message
 #       services/freddie_chat_surfacing.py::write_freddie_message
 #       api/mcp_server/server.py::_emit_mcp_narrative
+# Registry repaired 2026-07-28 (ADR-489 session): rows for files DELETED by
+# later ADRs pruned — task_pipeline.py (ADR-231), back_office/
+# narrative_digest.py (ADR-260/261), notifications.py's chat-echo (ADR-489 D5:
+# the "I sent you an email" private-thread echo was a second attention store;
+# the email send is transport, not narrative), routes/memory.py's init card
+# (relocated to routes/workspace.py).
 COVERAGE_SITES: list[tuple[str, list[str], str]] = [
-    (
-        "api/services/task_pipeline.py",
-        ["from routes.feed import append_message", "_append_message"],
-        "Task pipeline writes the task_complete narrative card via "
-        "chat.append_message (which routes through write_narrative_entry).",
-    ),
-    (
-        "api/services/back_office/narrative_digest.py",
-        [
-            "from services.narrative import",
-            "write_narrative_entry",
-        ],
-        "Back-office narrative-digest executor emits the rolled-up "
-        "material entry directly via write_narrative_entry.",
-    ),
     (
         "api/services/review_proposal_dispatch.py",
         [
@@ -95,15 +86,6 @@ COVERAGE_SITES: list[tuple[str, list[str], str]] = [
         "write_freddie_message → write_narrative_entry.",
     ),
     (
-        "api/services/notifications.py",
-        [
-            "from services.narrative import write_narrative_entry",
-            "write_narrative_entry",
-        ],
-        "Notification chat-card insertion routes through write_narrative_entry "
-        "(replaced direct append_session_message RPC in Commit 2).",
-    ),
-    (
         "api/routes/feed.py",
         [
             "from services.narrative import write_narrative_entry",
@@ -113,13 +95,14 @@ COVERAGE_SITES: list[tuple[str, list[str], str]] = [
         "(Commit 2) — every operator turn + YARNNN reply lands here.",
     ),
     (
-        "api/routes/memory.py",
+        "api/routes/workspace.py",
         [
             "from routes.feed import",
             "append_message",
         ],
         "workspace_init_complete system card writes via feed.append_message "
-        "(routes through write_narrative_entry per Commit 2).",
+        "(routes through write_narrative_entry per Commit 2; relocated from "
+        "routes/memory.py).",
     ),
     (
         "api/services/freddie_chat_surfacing.py",
@@ -191,8 +174,9 @@ def test_three_mcp_tools_emit_narrative() -> None:
         f"(one per tool); found {occurrences}."
     )
 
-    # Spot-check that each tool name appears as a `tool=` argument to the helper.
-    for tool_name in ("work_on_this", "pull_context", "remember_this"):
+    # Spot-check that each tool name appears as a `tool=` argument to the
+    # helper. ADR-368 renamed the tool surface: remember / recall / trace.
+    for tool_name in ("remember", "recall", "trace"):
         assert f'tool="{tool_name}"' in src, (
             f"MCP tool {tool_name!r} does not pass tool=\"{tool_name}\" to "
             f"_emit_mcp_narrative — narrative coverage incomplete."
@@ -257,7 +241,8 @@ def test_external_role_only_used_by_mcp() -> None:
         "api/prompts/CHANGELOG.md",
     }
     files = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    violators = [f for f in files if f not in allowed]
+    # Prose under docs/ discusses the role; it never emits (2026-07-28).
+    violators = [f for f in files if f not in allowed and not f.startswith("docs/")]
     if violators:
         raise AssertionError(
             "Files using role='external' outside the allowlist (likely "

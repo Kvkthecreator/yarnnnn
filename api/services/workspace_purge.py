@@ -306,7 +306,8 @@ def purge_l2_workspace(client: Any, user_id: str) -> dict[str, int]:
     no longer exists after reinit).
 
     PRESERVES (L2 invariant): platform_connections, user_admin_flags,
-    user_notification_preferences, execution_events (cost ledger — L4 only).
+    member_state notification_prefs (ADR-489 D5), execution_events (cost
+    ledger — L4 only).
 
     Returns the per-table deleted-count dict.
     """

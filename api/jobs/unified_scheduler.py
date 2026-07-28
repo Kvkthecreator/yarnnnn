@@ -66,7 +66,9 @@ if _sentry_dsn:
 
 
 # ---------------------------------------------------------------------------
-# User-email + notification preferences (preserved — used by delivery layer)
+# User-email lookup (used by the delivery layer + operator-addressed sends).
+# Notification-preference gating moved to services/notifications.py reading
+# member_state['notification_prefs'] — ADR-489 D5 (the ADR-407 D7 fold).
 # ---------------------------------------------------------------------------
 
 
@@ -79,39 +81,6 @@ async def get_user_email(supabase_client, user_id: str) -> Optional[str]:
     except Exception as e:
         logger.warning(f"Failed to get user email: {e}")
     return None
-
-
-async def should_send_email(supabase_client, user_id: str, notification_type: str) -> bool:
-    """Check if user has email notifications enabled for this type.
-
-    Args:
-        supabase_client: Supabase client
-        user_id: User ID
-        notification_type: 'agent_ready', 'agent_failed', 'suggestion_created'
-
-    Returns:
-        True if should send email (defaults to True if no preferences set)
-    """
-    column_map = {
-        "agent_ready": "email_agent_ready",
-        "agent_failed": "email_agent_failed",
-        "suggestion_created": "email_suggestion_created",
-    }
-    column = column_map.get(notification_type)
-    if not column:
-        return True
-
-    try:
-        result = supabase_client.rpc(
-            "get_notification_preferences",
-            {"p_user_id": user_id},
-        ).execute()
-        if result.data and len(result.data) > 0:
-            return result.data[0].get(column, True)
-        return True
-    except Exception as e:
-        logger.warning(f"Failed to check notification preferences for {user_id}: {e}")
-        return True
 
 
 # ---------------------------------------------------------------------------

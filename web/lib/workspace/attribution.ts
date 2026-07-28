@@ -154,7 +154,10 @@ export function formatAuthorLabel(authored_by: string | null | undefined): strin
     case 'platform':
       return 'Platform';
     case 'system':
-      return 'System';
+      // ADR-486 D2 / ADR-489 D3 — the face is the resident, the fact is the
+      // ledger: the standing Radar sweep's briefs read as its Researcher;
+      // authored_by stays the mechanism ('system:radar').
+      return authored_by === 'system:radar' ? 'Researcher' : 'System';
     default:
       return null;
   }

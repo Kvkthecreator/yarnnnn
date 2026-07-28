@@ -26,8 +26,9 @@ NOT deleted (intentional):
 - auth.users row — keep the login; we just wipe their workspace state
 - workspaces row itself — balance + signup audit preserved (ADR-172)
 - balance_transactions ledger — lifecycle audit, signup grant idempotency
-- user_notification_preferences — email prefs survive workspace wipe
-  (the account-level reset at Settings L4 handles them)
+- member_state notification_prefs — email prefs survive workspace wipe
+  (ADR-489 D5; the account-level reset at Settings L4 handles them via the
+  workspaces-row cascade)
 
 After purge, next login should trigger workspace_init which scaffolds the
 post-LAYER-MAPPING-flip substrate: YARNNN agent row + Reviewer substrate

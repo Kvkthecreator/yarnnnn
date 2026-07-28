@@ -168,6 +168,10 @@ class TimelineEntry(BaseModel):
     # directly instead of regex-unpacking the "primitive (family)" title.
     primitive: Optional[str] = None
     family: Optional[str] = None
+    # ADR-489 — attention weight, derived at read time (never stored): the
+    # Axiom 9 rendering-weight taxonomy. The bell mounts material only; the
+    # workbench defaults to material + routine.
+    weight: str = "material"           # material | routine | housekeeping
 
 
 class WorkspaceTimelineResponse(BaseModel):
@@ -994,6 +998,7 @@ async def get_workspace_timeline(
     the FE attribution module. This is the member-visible home of autonomous
     and peer work that private chat threads can't show.
     """
+    from services.attention import classify_weight
     from services.workspace_context import substrate_scope_filter
 
     limit = max(1, min(limit, 100))
@@ -1005,7 +1010,7 @@ async def get_workspace_timeline(
     try:
         q = (
             auth.client.table("workspace_file_versions")
-            .select("path, authored_by, author_identity_uuid, message, created_at")
+            .select("path, authored_by, author_identity_uuid, message, revision_kind, created_at")
             .eq(col, val)
         )
         if before:
@@ -1023,6 +1028,11 @@ async def get_workspace_timeline(
                 title=r.get("path") or "substrate change",
                 detail=r.get("message"),
                 path=r.get("path"),
+                weight=classify_weight(
+                    "revision",
+                    path=r.get("path"),
+                    revision_kind=r.get("revision_kind"),
+                ),
             ))
     except Exception as e:
         logger.warning("[TIMELINE] revisions read failed: %s", e)
@@ -1052,6 +1062,9 @@ async def get_workspace_timeline(
                 detail=f"{r.get('mode') or ''} · {r.get('trigger_type') or ''}".strip(" ·"),
                 slug=r.get("slug"),
                 status=r.get("status"),
+                weight=classify_weight(
+                    "invocation", mode=r.get("mode"), status=r.get("status"),
+                ),
             ))
     except Exception as e:
         logger.warning("[TIMELINE] invocations read failed: %s", e)

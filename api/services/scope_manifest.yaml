@@ -49,8 +49,7 @@ stores:
   # --- member-experience: one member's private state (workspace_id, principal_id) ---
   chat_sessions: { scope: member-experience, note: "lanes (ADR-407 D6/ADR-411)" }
   session_messages: { scope: member-experience, note: "lane messages" }
-  notifications: { scope: member-experience, note: "after-witness transport (ADR-407 D8)" }
-  user_notification_preferences: { scope: member-experience, note: "folds into member_state (ADR-407 D7)" }
+  notifications: { scope: member-experience, note: "after-witness transport, workspace-stamped rows on actual sends only (ADR-407 D8 / ADR-489 D4)" }
   member_state: { scope: member-experience, note: "the member-experience home (ADR-407 D7)" }
   email_delivery_log: { scope: member-experience, note: "keyed by recipient — per-member delivery record" }
 
