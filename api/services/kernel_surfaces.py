@@ -426,7 +426,45 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # Lineage: /pace (ADR-300) → /budget (ADR-327) → pane-grade under
     # workspace-settings (ADR-347/412/426/454) → dissolved here. A stale
     # ?pane=budget falls to the settings shell's default-pane fallback; the
-    # /budget route stub dies with the row (zero live foregroundSurface callers).
+    # /budget route is a redirect stub → the Usage pane.
+    {
+        # ADR-491 D1 launcher catch-up (2026-07-28): with `budget` dissolved,
+        # the Launcher's Spotlight-style search lost its only money surface —
+        # typing "billing"/"usage"/"balance" found nothing. Billing + Usage are
+        # pane-grade rows on the workspace door (the autonomy pattern):
+        # search-only (never a rest-state tile), foregroundSurface('billing')
+        # resolves via pane_of, /billing is a redirect stub. Not
+        # substrate-backed — the pane reads DB money (workspaces.balance_usd +
+        # the execution_events ledger), not workspace files.
+        "slug": "billing",
+        "launcher_tier": "search-only",
+        "register": "os-config",
+        "pane_of": "workspace-settings",
+        "pane_group": "Billing",
+        "title": "Billing",
+        "archetype": "document",
+        "substrate_paths": [],
+        "icon_key": "credit-card",
+        "default_pinned": False,
+        "route": "/billing",
+        "summary": "This workspace's plan, seats, and balance — two seats free, a paid seat per extra teammate, usage pay-as-you-go from one shared balance (ADR-490).",
+    },
+    {
+        # ADR-491 D1/D3 — the Usage pane row (member-visible legibility; the
+        # Budget pane's runway line lives here now). Search-only, pane-grade.
+        "slug": "usage",
+        "launcher_tier": "search-only",
+        "register": "os-config",
+        "pane_of": "workspace-settings",
+        "pane_group": "Billing",
+        "title": "Usage",
+        "archetype": "document",
+        "substrate_paths": [],
+        "icon_key": "bar-chart-3",
+        "default_pinned": False,
+        "route": "/usage",
+        "summary": "What this workspace's usage went to — the balance meter with runway, who used it, and the activity trend. Activity, never dollars.",
+    },
     {
         # 2026-05-24 design polish: renamed from "delegation" to "autonomy"
         # to align with the substrate file (_autonomy.yaml) and the

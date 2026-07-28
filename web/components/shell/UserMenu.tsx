@@ -23,8 +23,9 @@
  * (ADR-412 D6). Singular Implementation: the workspace's money + connection
  * reach are read HERE, not in parallel top-bar chrome. The top bar keeps
  * only the load-bearing items (Dock, bell, avatar):
- *   - Budget → a compact read-only usage row in the Workspace section
- *     (plan + usage%, the ADR-396 no-dollars readout); opens the Budget
+ *   - Billing → a compact read-only usage row in the Workspace section
+ *     (plan + usage%, the ADR-396 no-dollars readout); opens the workspace
+ *     door's Billing pane (ADR-491) — formerly the Budget
  *     surface. The workspace's money is a workspace-scoped glance, homed
  *     with the workspace switcher + Manage-access.
  *   - Connectors → a plain link into Workspace Settings → Perception
@@ -373,10 +374,10 @@ export function UserMenu({ email }: UserMenuProps) {
                 <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
               </button>
 
-              {/* 2026-07-08 — Budget glance, re-homed from the retired top-bar
-                  chip. Read-only: plan + usage% (ADR-396 no-dollars readout);
-                  opens the Budget surface for detail. Workspace-scoped, so it
-                  sits with the workspace switcher. */}
+              {/* 2026-07-08 — the money glance, re-homed from the retired
+                  top-bar chip. Read-only: plan + usage% (ADR-396 no-dollars
+                  readout); opens Workspace Settings → Billing (ADR-491).
+                  Workspace-scoped, so it sits with the workspace switcher. */}
               <button
                 onClick={handleBudget}
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
@@ -415,7 +416,8 @@ export function UserMenu({ email }: UserMenuProps) {
           {/* Menu items — 2026-07-08: the Workspace Settings item is REMOVED
               (Manage access → above already opens that window at the Members
               pane; the gear now titles Workspace Settings itself). User
-              Settings (the human/principal's account — billing/usage/privacy)
+              Settings (the human/principal's account — data & privacy +
+              connectors; Billing/Usage moved to the WORKSPACE door, ADR-491)
               stays, with the account (user-circle) glyph. Operation surfaces
               (Home/Files/…) are reached via Dock + Launcher, not duplicated. */}
           <button

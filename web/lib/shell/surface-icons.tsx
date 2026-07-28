@@ -15,9 +15,11 @@ import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import {
   Activity,
   ArrowLeftRight,
+  BarChart3,
   Bell,
   Box,
   Clock,
+  CreditCard,
   FolderKanban,
   FolderOpen,
   Home,
@@ -38,7 +40,6 @@ import {
   User,
   UserCircle,
   UsersRound,
-  Wallet,
 } from 'lucide-react';
 
 // The type the resolver returns — every call site renders `<Icon className=... />`
@@ -77,10 +78,12 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // ADR-349 D4: the Workspace Settings (operation) door — distinct from the
   // System Settings gear so the two launcher doors read apart.
   'folder-kanban': FolderKanban,
-  // ADR-327: wallet glyph for the /budget surface (supersedes /pace's gauge —
-  // the `gauge` key was removed ADR-349 D2 once Notifications stopped borrowing
-  // it; no surface declares gauge anymore).
-  wallet: Wallet,
+  // ADR-491 (2026-07-28): `wallet` REMOVED — the budget surface dissolved and
+  // no row declares it (Singular Implementation: no orphan mappings). The
+  // money surfaces are billing (credit-card) + usage (bar-chart-3), matching
+  // the Workspace Settings sidebar glyphs.
+  'credit-card': CreditCard,
+  'bar-chart-3': BarChart3,
   // 2026-06-03: home glyph for the Home surface (post ADR-312
   // cockpit→home rename). Replaces square-activity, which no longer
   // matched the surface name.

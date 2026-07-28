@@ -140,10 +140,12 @@ def test_three_way_parity() -> None:
             # ADR-454 D4 (2026-07-13): autonomy is pane_of workspace-settings
             # ("System" group — the ADR-426 door reversed; the system-agent row
             # is hidden). ADR-491 D3 (2026-07-28): `budget` LEFT — the pane
-            # dissolved into Usage; its registry row is deleted. ADR-418:
+            # dissolved into Usage; its registry row is deleted. ADR-491 D1:
+            # `billing` + `usage` JOIN as pane-grade rows on the workspace door
+            # (search-only — the Launcher's money surfaces). ADR-418:
             # expected-output LEFT (dormant). ADR-421: mandate/identity/principles
             # LEFT (dormant) — a workspace has no constitution of its own.
-            "autonomy",
+            "autonomy", "billing", "usage",
             # ADR-425 (2026-07-09): `connectors` is now pane_of settings (the
             # account door); `sources` is HIDDEN (no pane_of/route). ADR-432 D2d
             # (2026-07-09): `program` LEFT the pane set — the operator hire pane

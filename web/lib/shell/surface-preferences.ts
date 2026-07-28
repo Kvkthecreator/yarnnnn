@@ -181,7 +181,10 @@ const LEGACY_SLUG_ALIASES: Record<string, string> = {
 // `system-agent` (ADR-454 D4, 2026-07-13): the ADR-426 door is reversed
 // (hidden registry row + redirect stub) — a persisted dock entry naming it
 // would render a dead icon (the ADR-385 ghost-icon lesson).
-const DOCK_RETIRED_SLUGS = new Set<string>(['system-agent']);
+// `budget` (ADR-491 D3, 2026-07-28): the Budget pane dissolved into Usage and
+// its registry row is deleted — same ghost-icon protection for any persisted
+// kept/open entry from its search-only era.
+const DOCK_RETIRED_SLUGS = new Set<string>(['system-agent', 'budget']);
 
 function normalizeSlug(slug: string): string {
   return LEGACY_SLUG_ALIASES[slug] ?? slug;
