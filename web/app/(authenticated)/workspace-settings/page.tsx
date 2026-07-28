@@ -31,7 +31,9 @@
  *     panes stay dormant in SystemAgentPanes; /system-agent is a redirect stub.
  */
 
+import { useEffect } from "react";
 import { AlertTriangle, BarChart3, CreditCard, ShieldCheck, Users } from "lucide-react";
+import { useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 // ADR-491 D1 (2026-07-28) — Billing + Usage return to THIS door (the third and
 // final placement flip): with members real (seats live, ADR-490), billing is
@@ -139,6 +141,19 @@ const PANE_GROUPS: PaneGroup[] = [
 ];
 
 export default function WorkspaceSettingsPage() {
+  // ADR-491 D3 — `budget` is a RETIRED value of this door's RESTORE-class pane
+  // param. Without normalization a persisted `?pane=budget` renders the
+  // default pane under a dishonest URL forever (no clearing path). Rewrite it
+  // to its successor IN PLACE — same door, so nothing is hijacked.
+  const wsParam = useSurfaceParam("workspace-settings");
+  const wsPane = wsParam.get("pane");
+  useEffect(() => {
+    if (wsPane === "budget") {
+      wsParam.set({ pane: "usage" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsPane]);
+
   const renderPane = (pane: string) => {
     switch (pane) {
       // ADR-421 — Mandate/Identity/Principles cases REMOVED (workspace has no

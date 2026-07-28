@@ -144,13 +144,20 @@ export default function SettingsPage() {
     }
   }, [tabParam, navigateToSurface]);
 
-  // ADR-491 D1 — bookmark safety for the door move: a legacy
-  // ?settings.pane=billing|usage link lands on the workspace door's pane.
+  // ADR-491 D1 — `billing`/`usage` are RETIRED values of this door's pane
+  // param (the panes moved to the workspace door). `settings.pane` is
+  // RESTORE-class (replayed on every open), so the first cut — a redirect to
+  // the workspace door — HIJACKED this door for anyone whose last-open pane
+  // was billing: clicking User Settings bounced them straight back out, with
+  // no clearing path (the remembered-state smell). A door must open itself:
+  // clear the stale value and land on Account. Old billing bookmarks land
+  // here too — the workspace door's Billing is one click (or /billing).
   useEffect(() => {
     if (requestedPane === "billing" || requestedPane === "usage") {
-      navigateToSurface("workspace-settings", { pane: requestedPane });
+      accountParam.set({ pane: null });
     }
-  }, [requestedPane, navigateToSurface]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedPane]);
 
   const [dangerStats, setDangerStats] = useState<DangerZoneStats | null>(null);
   const [isLoadingDangerStats, setIsLoadingDangerStats] = useState(false);
