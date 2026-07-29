@@ -22,7 +22,18 @@ pydantic>=2.5.0
 httpx>=0.26.0
 
 # MCP (Model Context Protocol) - Integration layer
-mcp>=1.0.0
+#
+# PINNED TO 1.x — DO NOT relax to a bare `>=` floor (2026-07-29 outage).
+# `mcp>=1.0.0` was an unpinned floor; when the SDK published 2.0.0 the next
+# yarnnn-mcp-server deploy resolved to it and crash-looped on boot with
+# `ModuleNotFoundError: No module named 'mcp.server.fastmcp'`. Verified against
+# the published 2.0.0 wheel: `mcp/server/fastmcp/` is REMOVED in 2.x (while
+# `mcp/server/auth/` survives), and `mcp_server/server.py` imports
+# `Context, FastMCP` from it. No yarnnn code changed — the floor let an upstream
+# major in. Migrating to the 2.x surface is a real port (fastmcp, lowlevel,
+# transport_security, server.auth) and belongs in its own ADR, not in a
+# dependency resolution.
+mcp>=1.28.0,<2.0.0
 cryptography>=42.0.0  # For Fernet token encryption
 
 # Scheduling
