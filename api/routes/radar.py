@@ -14,9 +14,13 @@ briefs shelf + sweep health from execution_events, composed at read time.
 Nothing here stores dashboard state; the substrate and the ledger are the
 only sources.
 
-Auth boundary: everything scopes to ``auth.user_id`` (the N=1 fallback the
-radar service itself uses). Writes attribute ``operator`` (the ADR-209
-route-side taxonomy — the save_identity precedent).
+Auth boundary (ADR-501): everything scopes to the ACTING WORKSPACE'S OWNER
+user_id — the radar stack's end-to-end key (discovery grouping, the
+kind='radar' index, the sweep contract "user_id = workspace owner UUID").
+Resolved once per handler via ``_acting_owner``; byte-identical for owners,
+and a member bound to a granted workspace reads/authors the WORKSPACE's hubs
+(previously their own user_id: an empty surface + orphaned creates). Writes
+attribute ``operator`` (the ADR-209 route-side taxonomy).
 """
 
 from __future__ import annotations
@@ -110,6 +114,15 @@ class HubView(HubSummary):
 
 def _hub_path(topic: str) -> str:
     return f"/workspace/operation/{topic}/_radar.yaml"
+
+
+def _acting_owner(auth) -> str:
+    """The acting workspace's OWNER user id — the radar stack's key (ADR-501).
+
+    Same seam as the addressed wake (routes/feed.py): resolve at the boundary,
+    key the stack by the owner. Owner sessions resolve to themselves."""
+    from services.workspace_context import acting_workspace_owner
+    return acting_workspace_owner(auth.client, auth.user_id)
 
 
 def _read_declaration(client, user_id: str, topic: str) -> Optional[str]:
@@ -214,12 +227,13 @@ async def _materialize(client, user_id: str) -> None:
 @router.get("/radar/hubs")
 async def list_hubs(auth: UserClient) -> list[HubSummary]:
     from services.radar import discover_radar_hubs
-    hubs = [h for h in discover_radar_hubs(auth.client).get(auth.user_id, [])]
+    actor = _acting_owner(auth)
+    hubs = [h for h in discover_radar_hubs(auth.client).get(actor, [])]
 
     index_rows = (
         auth.client.table("tasks")
         .select("slug, last_run_at, next_run_at")
-        .eq("user_id", auth.user_id)
+        .eq("user_id", actor)
         .eq("kind", "radar")
         .execute()
     ).data or []
@@ -227,14 +241,15 @@ async def list_hubs(auth: UserClient) -> list[HubSummary]:
 
     out: list[HubSummary] = []
     for hub in sorted(hubs, key=lambda h: h.topic):
-        content = _read_declaration(auth.client, auth.user_id, hub.topic) or ""
-        out.append(_summarize(auth.client, auth.user_id, hub,
+        content = _read_declaration(auth.client, actor, hub.topic) or ""
+        out.append(_summarize(auth.client, actor, hub,
                               by_slug.get(hub.slug), _declared_sources(content)))
     return out
 
 
 @router.post("/radar/hubs", status_code=201)
 async def create_hub(request: CreateHubRequest, auth: UserClient) -> HubSummary:
+    actor = _acting_owner(auth)
     topic = request.topic.strip().lower()
     if not _TOPIC_RE.match(topic):
         raise HTTPException(status_code=422, detail="topic must be a kebab-case slug (a-z, 0-9, hyphens)")
@@ -246,7 +261,7 @@ async def create_hub(request: CreateHubRequest, auth: UserClient) -> HubSummary:
         if not s.url.startswith(("http://", "https://")):
             raise HTTPException(status_code=422, detail=f"source {s.id!r}: url must be http(s)")
 
-    if _read_declaration(auth.client, auth.user_id, topic) is not None:
+    if _read_declaration(auth.client, actor, topic) is not None:
         raise HTTPException(status_code=409, detail=f"hub '{topic}' already exists")
 
     content = compose_declaration_yaml(
@@ -260,30 +275,31 @@ async def create_hub(request: CreateHubRequest, auth: UserClient) -> HubSummary:
     from services.authored_substrate import write_revision
     write_revision(
         auth.client,
-        user_id=auth.user_id,
+        user_id=actor,
         path=_hub_path(topic),
         content=content,
         authored_by="operator",
         message=f"declare radar hub '{topic}' ({len(request.sources)} sources, {request.schedule})",
         workspace_id=getattr(auth, "workspace_id", None),
     )
-    await _materialize(auth.client, auth.user_id)
+    await _materialize(auth.client, actor)
 
     from services.radar import parse_radar_yaml
     hub = parse_radar_yaml(content, topic=topic, declaration_path=_hub_path(topic),
-                           user_id=auth.user_id)
+                           user_id=actor)
     row = (
         auth.client.table("tasks").select("slug, last_run_at, next_run_at")
-        .eq("user_id", auth.user_id).eq("kind", "radar")
+        .eq("user_id", actor).eq("kind", "radar")
         .eq("slug", f"radar:{topic}").limit(1).execute()
     ).data or []
-    return _summarize(auth.client, auth.user_id, hub, row[0] if row else None,
+    return _summarize(auth.client, actor, hub, row[0] if row else None,
                       [s.model_dump() for s in request.sources])
 
 
 @router.patch("/radar/hubs/{topic}")
 async def update_hub(topic: str, request: UpdateHubRequest, auth: UserClient) -> HubSummary:
-    content = _read_declaration(auth.client, auth.user_id, topic)
+    actor = _acting_owner(auth)
+    content = _read_declaration(auth.client, actor, topic)
     if content is None:
         raise HTTPException(status_code=404, detail=f"no hub '{topic}'")
 
@@ -316,52 +332,53 @@ async def update_hub(topic: str, request: UpdateHubRequest, auth: UserClient) ->
     from services.authored_substrate import write_revision
     write_revision(
         auth.client,
-        user_id=auth.user_id,
+        user_id=actor,
         path=_hub_path(topic),
         content=new_content,
         authored_by="operator",
         message=f"update radar hub '{topic}'",
         workspace_id=getattr(auth, "workspace_id", None),
     )
-    await _materialize(auth.client, auth.user_id)
+    await _materialize(auth.client, actor)
 
     from services.radar import parse_radar_yaml
     hub = parse_radar_yaml(new_content, topic=topic, declaration_path=_hub_path(topic),
-                           user_id=auth.user_id)
+                           user_id=actor)
     row = (
         auth.client.table("tasks").select("slug, last_run_at, next_run_at")
-        .eq("user_id", auth.user_id).eq("kind", "radar")
+        .eq("user_id", actor).eq("kind", "radar")
         .eq("slug", f"radar:{topic}").limit(1).execute()
     ).data or []
-    return _summarize(auth.client, auth.user_id, hub, row[0] if row else None,
+    return _summarize(auth.client, actor, hub, row[0] if row else None,
                       [s for s in (parsed.get("sources") or []) if isinstance(s, dict)])
 
 
 @router.get("/radar/hubs/{topic}")
 async def get_hub(topic: str, auth: UserClient) -> HubView:
     """R2 — the composed hub view, projected at read time (never stored)."""
-    content = _read_declaration(auth.client, auth.user_id, topic)
+    actor = _acting_owner(auth)
+    content = _read_declaration(auth.client, actor, topic)
     if content is None:
         raise HTTPException(status_code=404, detail=f"no hub '{topic}'")
 
     from services.radar import parse_radar_yaml
     hub = parse_radar_yaml(content, topic=topic, declaration_path=_hub_path(topic),
-                           user_id=auth.user_id)
+                           user_id=actor)
     if hub is None:
         raise HTTPException(status_code=422, detail="declaration unparseable")
 
     row = (
         auth.client.table("tasks").select("slug, last_run_at, next_run_at")
-        .eq("user_id", auth.user_id).eq("kind", "radar")
+        .eq("user_id", actor).eq("kind", "radar")
         .eq("slug", hub.slug).limit(1).execute()
     ).data or []
-    summary = _summarize(auth.client, auth.user_id, hub, row[0] if row else None,
+    summary = _summarize(auth.client, actor, hub, row[0] if row else None,
                          _declared_sources(content))
 
     briefs_rows = (
         auth.client.table("workspace_files")
         .select("path, content")
-        .eq("user_id", auth.user_id)
+        .eq("user_id", actor)
         .like("path", f"{hub.root}/briefs/%")
         .order("path", desc=True)
         .limit(50)
@@ -374,7 +391,7 @@ async def get_hub(topic: str, auth: UserClient) -> HubView:
     events = (
         auth.client.table("execution_events")
         .select("slug, status, created_at, error_reason")
-        .eq("user_id", auth.user_id)
+        .eq("user_id", actor)
         .in_("slug", [f"radar-sweep:{topic}", f"radar-brief:{topic}"])
         .order("created_at", desc=True)
         .limit(20)
@@ -388,7 +405,7 @@ async def get_hub(topic: str, auth: UserClient) -> HubView:
     sig_rows = (
         auth.client.table("workspace_files")
         .select("content")
-        .eq("user_id", auth.user_id)
+        .eq("user_id", actor)
         .eq("path", hub.signal_path)
         .limit(1)
         .execute()

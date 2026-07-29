@@ -482,10 +482,13 @@ async def get_signals(auth: UserClient, limit: int = 10) -> Dict:
     # Used to distinguish "never run" from "ran, found nothing" empty-states.
     evaluator_last_run_at: Optional[str] = None
     try:
+        from services.workspace_context import substrate_scope_filter
         eval_row = (
             auth.client.table("tasks")
             .select("last_run_at")
-            .eq("user_id", user_id)
+            # ADR-501: workspace-scoped (trigger-stamped) — a member bound to
+            # the trading workspace reads ITS evaluator status.
+            .eq(*substrate_scope_filter(user_id, getattr(auth, "workspace_id", None)))
             .eq("slug", "signal-evaluation")
             .limit(1)
             .execute()

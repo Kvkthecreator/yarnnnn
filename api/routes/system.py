@@ -224,9 +224,12 @@ async def get_system_status(auth: UserClient):
     # recurrences visible on /work?include_system=true (ADR-231, ADR-206).
     background_jobs = []
 
+    # ADR-501: workspace-scoped (trigger-stamped workspace_id) so a member
+    # bound to a granted workspace sees ITS heartbeat, not their own lane's.
+    from services.workspace_context import substrate_scope_filter
     hb_result = auth.client.table("activity_log").select(
         "id, summary, metadata, created_at"
-    ).eq("user_id", user_id).eq(
+    ).eq(*substrate_scope_filter(user_id, getattr(auth, "workspace_id", None))).eq(
         "event_type", "scheduler_heartbeat"
     ).order("created_at", desc=True).limit(1).execute()
 
@@ -320,6 +323,9 @@ async def get_execution_events(
     or mode (judgment/mechanical, ADR-263 cost discriminator).
     Powers the /activity page job activity log (ADR-265).
     """
+    # ADR-501: workspace-scoped — the /activity page reads the SAME ledger as
+    # /workspace/timeline (already workspace-scoped); the two views must agree.
+    from services.workspace_context import substrate_scope_filter
     query = (
         auth.client.table("execution_events")
         .select(
@@ -327,7 +333,7 @@ async def get_execution_events(
             "tool_rounds, input_tokens, output_tokens, cache_read_tokens, "
             "cache_create_tokens, cost_usd, duration_ms, created_at, principal_id"
         )
-        .eq("user_id", auth.user_id)
+        .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
         .order("created_at", desc=True)
         .limit(min(limit, 500))
     )

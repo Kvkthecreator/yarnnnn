@@ -2007,6 +2007,10 @@ export const api = {
           label: string;
           is_active: boolean;
         }>;
+        /** ADR-501: the caller's workspace-clear authority in the ACTING
+         *  workspace, server-derived from the grant (owner OR the
+         *  `workspace:clear` scope) — read this, never predict from role. */
+        can_clear: boolean;
       }>("/api/workspace/memberships"),
 
     // ADR-439 — BYOK (enterprise-tier). GET is readable on any tier (the FE

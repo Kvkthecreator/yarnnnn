@@ -111,13 +111,20 @@ def _count_rows(client, table: str, user_id: str, *, user_column: str = "user_id
         raise
 
 
-def _count_workspace_paths(client, user_id: str, path_prefix: str) -> int:
-    """Count workspace_files rows matching a path prefix."""
+def _count_workspace_paths(
+    client, user_id: str, path_prefix: str, workspace_id: Optional[str] = None
+) -> int:
+    """Count workspace_files rows matching a path prefix.
+
+    ADR-501: workspace-scoped (ADR-476 D1) — the preview must count what the
+    workspace-scoped purge will delete, not only the caller's own rows."""
     try:
         result = (
-            client.table("workspace_files")
-            .select("*", count="exact")
-            .eq("user_id", user_id)
+            _purge_scope(
+                client.table("workspace_files").select("*", count="exact"),
+                user_id,
+                workspace_id,
+            )
             .like("path", f"{path_prefix}%")
             .execute()
         )
@@ -181,28 +188,37 @@ def _count_workspace_pattern(
 # above). Still used by L4/L5 via that import.
 
 
-def _delete_workspace_file_versions_by_path(client, user_id: str, path_prefix: str) -> int:
-    """Delete workspace_file_versions rows under a path prefix. ADR-209 keys
-    the revision chain by `(user_id, path)` directly — no FK to workspace_files
-    — so path-based scoping is the correct delete criterion. Used by L3
-    (platform disconnect) so that disconnecting a platform also wipes the
+def _delete_workspace_file_versions_by_path(
+    client, user_id: str, path_prefix: str, workspace_id: Optional[str] = None
+) -> int:
+    """Delete workspace_file_versions rows under a path prefix. The revision
+    chain is workspace-keyed (ADR-373; `(user_id, path)` is the N=1 fallback)
+    — path-based scoping within the workspace is the delete criterion. Used by
+    L3 (platform disconnect) so that disconnecting a platform also wipes the
     Authored Substrate revision chain under the platform-owned context
     directory.
-    """
+
+    ADR-501: workspace-scoped via _purge_scope — a member's revisions under
+    the platform directory are part of the workspace's chain and must go with
+    it, and the count must match the delete."""
     try:
         count_result = (
-            client.table("workspace_file_versions")
-            .select("*", count="exact")
-            .eq("user_id", user_id)
+            _purge_scope(
+                client.table("workspace_file_versions").select("*", count="exact"),
+                user_id,
+                workspace_id,
+            )
             .like("path", f"{path_prefix}%")
             .execute()
         )
         count = count_result.count or 0
         if count > 0:
             (
-                client.table("workspace_file_versions")
-                .delete()
-                .eq("user_id", user_id)
+                _purge_scope(
+                    client.table("workspace_file_versions").delete(),
+                    user_id,
+                    workspace_id,
+                )
                 .like("path", f"{path_prefix}%")
                 .execute()
             )
@@ -309,15 +325,34 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
     try:
         client = get_service_client()
 
-        workspace_files = _count_rows(client, "workspace_files", user_id)
-        agents = _count_rows(client, "agents", user_id)
-        tasks = _count_rows(client, "tasks", user_id)
-        chat_sessions = _count_rows(client, "chat_sessions", user_id)
+        # ADR-501: the stats PREVIEW must count what the workspace-scoped
+        # purges (ADR-476) will actually delete — workspace content counts by
+        # workspace, with user_id as the N=1 fallback (_purge_scope). Account
+        # objects (platform_connections, ADR-425) stay user-keyed.
+        ws = resolve_purge_workspace(user_id)
+
+        def _count_ws(table: str, *, optional: bool = False) -> int:
+            try:
+                result = (
+                    _purge_scope(
+                        client.table(table).select("*", count="exact"), user_id, ws
+                    ).execute()
+                )
+                return result.count or 0
+            except Exception:
+                if optional:
+                    return 0
+                raise
+
+        workspace_files = _count_ws("workspace_files")
+        agents = _count_ws("agents")
+        tasks = _count_ws("tasks")
+        chat_sessions = _count_ws("chat_sessions")
         platform_connections = _count_rows(client, "platform_connections", user_id)
 
         # ADR-158: count files across all three platform-owned context dirs.
         platform_context_files = sum(
-            _count_workspace_paths(client, user_id, prefix)
+            _count_workspace_paths(client, user_id, prefix, ws)
             for prefix in (
                 "/workspace/context/slack/",
                 "/workspace/context/notion/",
@@ -326,10 +361,10 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
         )
 
         # Phase 3: count of past task runs (drives the L1 "Clear Work History" card).
-        agent_runs = _count_user_agent_runs(client, user_id)
+        agent_runs = _count_user_agent_runs(client, user_id, ws)
 
         # ADR-194 Reviewer queue — in-flight proposals
-        action_proposals = _count_rows(client, "action_proposals", user_id, optional=True)
+        action_proposals = _count_ws("action_proposals", optional=True)
 
         return DangerZoneStats(
             workspace_files=workspace_files,
@@ -579,11 +614,14 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
         # temporal directory. Deleting here removes all per-source subfolders
         # (channels, pages, repos) and their _tracker.md files in one shot.
         # ADR-209: delete revisions under these paths first (FK order).
+        # ADR-501: workspace-scoped (ADR-476 D1) — platform context is
+        # workspace content; the chain and files go by workspace, not caller.
+        ws = resolve_purge_workspace(user_id)
         context_files_deleted = 0
         revision_files_deleted = 0
         for platform_dir in ("/workspace/context/slack/", "/workspace/context/notion/", "/workspace/context/github/"):
-            revision_files_deleted += _delete_workspace_file_versions_by_path(client, user_id, platform_dir)
-            context_files_deleted += _delete_workspace_files(client, user_id, platform_dir)
+            revision_files_deleted += _delete_workspace_file_versions_by_path(client, user_id, platform_dir, ws)
+            context_files_deleted += _delete_workspace_files(client, user_id, platform_dir, ws)
         deleted["workspace_file_versions_platform"] = revision_files_deleted
         deleted["platform_context_files"] = context_files_deleted
 

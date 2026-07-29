@@ -2226,7 +2226,7 @@ def _lookup_grant_axes(auth: Any) -> Optional[dict]:
         def _fetch(cb: Optional[str]):
             q = (
                 svc.table("principal_grants")
-                .select("read_scopes, write_scopes, scopes")
+                .select("read_scopes, write_scopes, scopes, role")
                 .eq("principal_id", principal_id)
                 .eq("workspace_id", workspace_id)
                 .eq("status", "active")
@@ -2253,6 +2253,10 @@ def _lookup_grant_axes(auth: Any) -> Optional[dict]:
             axes = {
                 "read": list(read) if read is not None else None,
                 "write": list(write) if write is not None else None,
+                # ADR-501: the grant's ROLE rides along so the NULL-scope
+                # fallback can derive its class from the GRANT (the ratified
+                # ADR-373 D3 ceiling) rather than the transport string.
+                "role": row.get("role"),
             }
     except Exception as exc:  # pragma: no cover — fail safe to class default
         import logging
@@ -2278,15 +2282,36 @@ def _grant_axis(auth: Any, axis: str) -> Optional[list[str]]:
 def _is_path_locked_for_principal(auth: Any, path: str) -> bool:
     """The grant-consulting WRITE lock (single gate entry point).
 
-    Resolves the caller's write axis; None → class default (_is_path_locked);
-    [] → deny-all (locked everywhere); [..] → locked iff `path` is NOT under any
-    granted prefix (longest-prefix, arbitrary depth). One consult site, so a new
+    Resolves the caller's write axis; None → class default; [] → deny-all
+    (locked everywhere); [..] → locked iff `path` is NOT under any granted
+    prefix (longest-prefix, arbitrary depth). One consult site, so a new
     principal type lights up by writing a grant row — no gate edit.
+
+    ADR-501 (the ceiling follows the grant): when the write axis is NULL but a
+    grant row EXISTS, the class default derives from the grant's ROLE via the
+    ratified ADR-373 D3 table (owner→operator, member→agent, foreign-llm→mcp…)
+    — the same table the Access pane's write_regions display uses. Previously
+    the fallback keyed on the transport string (`caller_identity`), which is
+    "operator" for EVERY human browser session — so a member's declared
+    agent-class ceiling was display-only and the gate gave them owner-grade
+    reach. Owner is byte-identical (owner→operator either way).
+
+    The substitution applies ONLY when the transport class is already
+    "operator" (a human session or a member's lane): freddie/system callers
+    also resolve their principal to the owner's user_id (supabase.py
+    resolve_principal_id — "the seat acts for the owner"), so an
+    unconditional role-derived class would hand the STEWARD the owner
+    grant's operator class and widen it into governance/. Non-operator
+    transport classes keep their own (stricter or equal) policy row.
     """
-    write_scopes = _grant_axis(auth, "write")
+    axes = _lookup_grant_axes(auth)
+    write_scopes = axes.get("write") if axes else None
     if write_scopes is None:
-        # No grant / write axis NULL → class default = today's behavior.
-        return _is_path_locked(_caller_class(auth), path)
+        klass = _caller_class(auth)
+        if klass == "operator" and axes and axes.get("role"):
+            from services.principals import role_class
+            klass = role_class(axes.get("role")) or klass
+        return _is_path_locked(klass, path)
     # Explicit allow-list ([] = deny-all handled by the matcher: nothing matches).
     return not path_under_scopes(path, write_scopes)
 

@@ -190,6 +190,12 @@ class WorkspaceMembership(BaseModel):
 
 class WorkspaceMembershipsResponse(BaseModel):
     memberships: list[WorkspaceMembership]
+    # ADR-501: the caller's workspace-clear authority in the ACTING workspace,
+    # server-derived from the grant (owner_id OR the `workspace:clear` scope —
+    # services.principal_grants.has_workspace_clear_authority). The FE reads
+    # this instead of predicting from the role label (ADR-405: the test is
+    # "which grant", never "which role").
+    can_clear: bool = True
 
 
 class RecentRevision(BaseModel):
@@ -257,7 +263,11 @@ async def get_workspace_nav(auth: UserClient) -> dict:
         tasks_result = (
             auth.client.table("tasks")
             .select("id, slug, status, schedule, next_run_at, last_run_at")
-            .eq("user_id", auth.user_id)
+            # ADR-501: workspace-scoped like every other query in this handler
+            # (and like GET /api/recurrences) — the index rows are trigger-
+            # stamped with workspace_id, and a member must see the workspace's
+            # recurrences, not an empty section contradicting /api/recurrences.
+            .eq(*_substrate_scope_filter(auth))
             .order("created_at", desc=True)
             .execute()
         )
@@ -1163,7 +1173,19 @@ async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsRes
     except Exception as e:
         logger.warning("[MEMBERSHIPS] grant lookup failed: %s", e)
 
-    return WorkspaceMembershipsResponse(memberships=memberships)
+    # ADR-501: the caller's clear-authority in the acting workspace — the same
+    # verdict the purge gate enforces (routes/account.py), so the FE's Danger
+    # Zone affordance and the server can never disagree. Best-effort open on
+    # failure (the gate still enforces; a probe error must not hide the card).
+    can_clear = True
+    try:
+        if acting:
+            from services.principal_grants import has_workspace_clear_authority
+            can_clear = has_workspace_clear_authority(auth.user_id, acting)
+    except Exception as e:  # noqa: BLE001 — legibility only, gate enforces
+        logger.debug("[MEMBERSHIPS] clear-authority probe failed: %s", e)
+
+    return WorkspaceMembershipsResponse(memberships=memberships, can_clear=can_clear)
 
 
 @router.get("/workspace/members", response_model=WorkspaceMembersResponse)

@@ -41,6 +41,18 @@ _ROLE_TO_CLASS = {
 }
 
 
+def role_class(role: Optional[str]) -> Optional[str]:
+    """The CALLER_WRITE_POLICY class a grant role inherits (ADR-373 D3 table).
+
+    ADR-501: this is the SINGULAR role→class mapping — the write gate's
+    NULL-scope fallback and the roster display both read it, so the ceiling
+    the Access pane shows is the ceiling the gate enforces. Unknown/None →
+    None (caller falls back to its transport-derived class)."""
+    if not role:
+        return None
+    return _ROLE_TO_CLASS.get(role)
+
+
 def class_default_write_regions(role: str) -> list[str]:
     """The write-region set a role inherits from its class default (the
     complement of the class's locked prefixes in CALLER_WRITE_POLICY)."""
@@ -60,12 +72,18 @@ def load_principal_roster(client: Any, user_id: str) -> list[dict]:
 
     Used by BOTH the Workspace Members route (GET /api/workspace/members) and the
     steward wake envelope's principal-commons fact. service-client read: the
-    grant table is the gate's authority; membership RLS is mid-transition and the
-    lookup is already scoped to the resolved owner-workspace.
-    """
-    from services.supabase import get_service_client, resolve_owner_workspace_id
+    grant table is the gate's authority; membership RLS is mid-transition.
 
-    workspace_id = resolve_owner_workspace_id(user_id)
+    ADR-501: resolves the ACTING workspace (request contextvar → owner
+    fallback), not the owner workspace unconditionally. Every live caller
+    passes the workspace owner's id today (the wake stack contract), so this
+    is byte-identical — but a future request-context caller with a member's
+    id no longer silently reads the wrong workspace's roster.
+    """
+    from services.supabase import get_service_client
+    from services.workspace_context import effective_workspace_id
+
+    workspace_id = effective_workspace_id(user_id)
     if not workspace_id:
         return []
 

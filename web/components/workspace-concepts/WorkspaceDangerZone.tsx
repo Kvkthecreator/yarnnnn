@@ -47,10 +47,11 @@ type WorkspaceAction = "work-history" | "workspace";
 export function WorkspaceDangerZone() {
   const [stats, setStats] = useState<DangerZoneStats | null>(null);
   const [loading, setLoading] = useState(false);
-  // ADR-476 D2 mirrored from the same facts the backend gates on: the caller's
-  // role for the ACTING workspace (`/workspace/memberships`) and the human
-  // roster (`/workspace/members`). Derived, never stored (DP29). The backend
-  // is the authority — this only avoids offering an action that would 403.
+  // ADR-501: the server's own clear-authority verdict (`can_clear` on
+  // /workspace/memberships — owner OR the `workspace:clear` grant scope),
+  // never predicted from the role label (ADR-405: the test is "which grant").
+  // Derived, never stored (DP29). The backend gate remains the authority —
+  // this only avoids offering an action that would 403.
   const [canClear, setCanClear] = useState(true);
   const [otherMemberCount, setOtherMemberCount] = useState(0);
 
@@ -63,8 +64,7 @@ export function WorkspaceDangerZone() {
           api.workspace.getMembers(),
         ]);
         if (cancelled) return;
-        const active = ms.memberships.find((m) => m.is_active) ?? ms.memberships[0];
-        setCanClear(active?.role === "owner");
+        setCanClear(ms.can_clear !== false);
         const humans = roster.members.filter(
           (m) => m.role === "owner" || m.role === "member",
         );

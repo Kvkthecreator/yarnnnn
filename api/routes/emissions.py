@@ -77,8 +77,15 @@ async def get_emissions(auth: UserClient, limit: int = 100) -> list[Emission]:
 
     Read-only union over `destination_delivery_log` + `notifications`
     (email channel). Merged, sorted by created_at desc, capped at `limit`.
+
+    ADR-501: both ledgers are written by the owner-keyed wake stack
+    ("user_id = workspace owner UUID") and neither carries a usable
+    workspace column for filtering, so the workspace-correct read keys on
+    the ACTING workspace's owner (the routes/feed.py:1044 seam) — a member
+    sees the workspace's sends, not an empty lens. Owner: byte-identical.
     """
-    user_id = auth.user_id
+    from services.workspace_context import acting_workspace_owner
+    user_id = acting_workspace_owner(auth.client, auth.user_id)
     client = auth.client
     emissions: list[Emission] = []
 
