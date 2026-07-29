@@ -155,6 +155,17 @@ async function getAuthHeaders(): Promise<HeadersInit> {
 /** localStorage key holding the explicitly-bound workspace id (member mode). */
 export const ACTIVE_WORKSPACE_KEY = "yarnnn.active-workspace";
 
+/** The currently pinned workspace id, or null. Reading it is how the
+ *  self-heal below distinguishes "the pin is stale" from "you lack authority
+ *  for this verb" — both are 403s, only one is fixable by dropping a header. */
+export function getActiveWorkspaceId(): string | null {
+  try {
+    return window.localStorage.getItem(ACTIVE_WORKSPACE_KEY);
+  } catch {
+    return null; // storage unavailable — treat as unpinned
+  }
+}
+
 export function setActiveWorkspace(workspaceId: string | null): void {
   try {
     if (workspaceId) window.localStorage.setItem(ACTIVE_WORKSPACE_KEY, workspaceId);
@@ -171,9 +182,12 @@ export function clearActiveWorkspace(): void {
   setActiveWorkspace(null);
 }
 
+/** Internal-only: marks the single self-heal retry so it can never loop. */
+type RequestOptions = RequestInit & { __retriedWithoutWorkspace?: boolean };
+
 async function request<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestOptions = {}
 ): Promise<T> {
   const headers = await getAuthHeaders();
 
@@ -193,6 +207,37 @@ async function request<T>(
     } catch {
       data = null;
     }
+
+    // ADR-499 — SELF-HEAL A STALE WORKSPACE PIN.
+    //
+    // `X-Workspace-Id` is a localStorage pin written on invite/share accept.
+    // The server validates it fail-closed (`supabase.py`: "No active grant into
+    // workspace …" → 403). If the grant is later REVOKED — or the workspace is
+    // deleted — the pin survives in the browser with no clearing path, so every
+    // subsequent request 403s: account stats, notification prefs, surfaces, all
+    // of it. The member appears to have no workspace at all, even though their
+    // OWN owner-workspace is sitting right there, reachable the moment the
+    // header goes away.
+    //
+    // Observed 2026-07-29: a member whose invite grant was revoked was locked
+    // out of their own account by a pin naming someone else's workspace.
+    //
+    // The pin is a client-side CACHE of a server-side fact. When the server
+    // says the fact is gone, the cache must go too — then retry ONCE without
+    // it, which falls back to the caller's owner workspace (the N=1 default).
+    // Scoped narrowly to this one detail string so an ordinary authorization
+    // 403 (owner-only verbs, etc.) is never swallowed.
+    const staleWorkspacePin =
+      response.status === 403 &&
+      typeof (data as { detail?: unknown } | null)?.detail === "string" &&
+      ((data as { detail: string }).detail).startsWith("No active grant into workspace") &&
+      !!getActiveWorkspaceId();
+
+    if (staleWorkspacePin && !options.__retriedWithoutWorkspace) {
+      clearActiveWorkspace();
+      return request<T>(endpoint, { ...options, __retriedWithoutWorkspace: true });
+    }
+
     throw new APIError(response.status, response.statusText, data);
   }
 
