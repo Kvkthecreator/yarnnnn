@@ -97,4 +97,15 @@ A workspace-level connection — one credential shared by every member, the "age
 - `tsc --noEmit` clean; `next build` green (170/170).
 - Live receipt: the two active foreign-LLM grants both carry `connected_by` = the owner, so the pane renders ChatGPT + Claude for that viewer.
 
-**Not verified by these gates** (needs a human click): the rendered pane in a live session, and — because prod is N=1 for AI connections today — the multi-member case where a peer's connection must *not* appear. The filter is receipted at the data layer; the rendered negative needs a second member to connect their own assistant.
+**Peer-exclusion — RECEIPTED (2026-07-29)**, closing the gap this section originally recorded. Prod is N=1 for AI connections, so the multi-member negative was manufactured in a rolled-back transaction on the live grants table: one grant reassigned to the workspace's actual second member (`nickyandnicholas`), then the endpoint's own `cb == auth.user_id` expression evaluated for both viewers over the same rows.
+
+```
+ principal_id | is_you_for_OWNER | is_you_for_MEMBER
+--------------+------------------+-------------------
+ chatgpt      | f                | t
+ claude.ai    | t                | f
+```
+
+Disjoint at the server; the `scope='mine'` predicate replayed on both payloads yields `["claude.ai"]` for the owner and `["chatgpt"]` for the member, with the workspace door still showing both (narrowing the account door must not narrow the commons). Rollback verified — both grants restored byte-identical. Full write-up: [`docs/evaluations/sessions/adr496-peer-exclusion-2026-07-29.md`](../evaluations/sessions/adr496-peer-exclusion-2026-07-29.md).
+
+**Still not verified** (needs a human click): the *rendered* pane in a live browser. The check above validates the server expression and the filter predicate, not pixels. Also unexercised: the OAuth path that would write a second member's `connected_by` for real (covered by ADR-431's own gate — this evaluation covers the read, not the write).
