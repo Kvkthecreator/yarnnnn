@@ -35,7 +35,7 @@ _MAX_VALUE_BYTES = 64 * 1024
 
 
 def _scope(auth: UserClient) -> tuple[str, str]:
-    ws = effective_workspace_id(auth.user_id)
+    ws = effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))
     if not ws:
         raise HTTPException(status_code=403, detail="No acting workspace resolves")
     return ws, auth.user_id

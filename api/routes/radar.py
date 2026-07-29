@@ -117,9 +117,14 @@ def _hub_path(topic: str) -> str:
 
 
 def _acting_workspace(auth) -> Optional[str]:
-    """The workspace this request is bound to (ADR-501) — scopes the hub scan."""
+    """The workspace this request is bound to (ADR-501) — scopes the hub scan.
+
+    The explicit `auth.workspace_id` is the strongest signal (get_user_client
+    already resolved it fail-closed from X-Workspace-Id); omitting it falls
+    through to the contextvar/owner path and resolves a member's OWN workspace.
+    """
     from services.workspace_context import effective_workspace_id
-    return effective_workspace_id(auth.user_id)
+    return effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))
 
 
 def _acting_owner(auth) -> str:

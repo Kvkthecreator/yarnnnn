@@ -1382,7 +1382,7 @@ async def get_global_chat_history(
         .eq("user_id", auth.user_id)
         .eq("session_type", "thinking_partner")
     )
-    _hist_ws = effective_workspace_id(auth.user_id)
+    _hist_ws = effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))
     if _hist_ws:
         q = q.eq("workspace_id", _hist_ws)
     if task_slug:
@@ -1429,7 +1429,7 @@ async def list_global_sessions(
         .is_("agent_id", "null")
         .eq("session_type", "thinking_partner")
     )
-    _list_ws = effective_workspace_id(auth.user_id)
+    _list_ws = effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))
     if _list_ws:
         _list_q = _list_q.eq("workspace_id", _list_ws)
     result = (

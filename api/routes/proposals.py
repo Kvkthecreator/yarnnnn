@@ -325,7 +325,9 @@ async def _emit_decision_witness(auth: UserClient, proposal_id: str, decision: s
         from services.workspace_context import effective_workspace_id
         await emit_after_witness(
             auth.client,
-            workspace_id=effective_workspace_id(auth.user_id),
+            workspace_id=effective_workspace_id(
+                auth.user_id, getattr(auth, "workspace_id", None)
+            ),
             actor_user_id=auth.user_id,
             message=f"Proposal {decision} by a workspace principal",
             context={"proposal_id": proposal_id, "decision": decision},

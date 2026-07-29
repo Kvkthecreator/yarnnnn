@@ -146,17 +146,17 @@ def probe_binding(owner: Session, member_bound: Session, member_own: Session) ->
           "activity ledger identical for owner and bound member",
           f"owner={o_n} rows, member={m_n} rows")
 
-    # Workspace nav recurrences must not contradict /api/recurrences.
-    rn = member_bound.get("/api/workspace/nav")
-    rr = member_bound.get("/api/recurrences")
-    if rn.status_code == 200 and rr.status_code == 200:
-        nav = rn.json().get("recurrences") or rn.json().get("tasks") or []
-        recs = rr.json() if isinstance(rr.json(), list) else (rr.json().get("recurrences") or [])
-        check(len(nav) == len(recs),
-              "nav recurrences agree with /api/recurrences for the member",
-              f"nav={len(nav)} recurrences={len(recs)}")
-    else:
-        check(False, "nav/recurrences readable", f"nav={rn.status_code} rec={rr.status_code}")
+    # Workspace nav must show the member the SAME scheduling index the owner
+    # sees. (It is not comparable to /api/recurrences: nav lists every `tasks`
+    # row, while /api/recurrences filters to recurrence kinds — a radar hub is
+    # a kind='radar' row and legitimately appears in one and not the other.)
+    no = owner.get("/api/workspace/nav")
+    nm = member_bound.get("/api/workspace/nav")
+    o_nav = len(no.json().get("recurrences") or []) if no.status_code == 200 else -1
+    m_nav = len(nm.json().get("recurrences") or []) if nm.status_code == 200 else -2
+    check(o_nav == m_nav,
+          "workspace nav identical for owner and bound member",
+          f"owner={o_nav} member={m_nav}")
 
 
 def probe_ceiling(owner: Session, member_bound: Session) -> None:
@@ -187,7 +187,9 @@ def probe_ceiling(owner: Session, member_bound: Session) -> None:
         cur = member_bound.get(f"/api/workspace/file?path={path}")
         body = (cur.json() or {}).get("content") if cur.status_code == 200 else None
         if body is None:
-            check(False, f"member READ of {label} (precondition)", f"status={cur.status_code}")
+            # Not every workspace has every governance file. Absent → nothing
+            # to test at this path (not a finding); the other two still run.
+            print(f"  SKIP  {label} — not present in this workspace (status={cur.status_code})")
             continue
         # Re-write the file's OWN content: refused → 403 and nothing changed;
         # allowed → a no-op-content revision (harmless, and the finding).

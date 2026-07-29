@@ -106,7 +106,18 @@ class LanePatchRequest(BaseModel):
 
 
 def _acting_workspace(auth: UserClient) -> Optional[str]:
-    return effective_workspace_id(auth.user_id)
+    """The workspace this request is bound to.
+
+    `auth.workspace_id` is passed EXPLICITLY (ADR-501, probe 2026-07-29):
+    `get_user_client` already resolved the binding fail-closed from
+    `X-Workspace-Id`, and it is the strongest signal — omitting it left the
+    resolver to fall through to the contextvar/owner path, so a member acting
+    in a granted workspace resolved their OWN and every conversation in the
+    shared one 404'd with "not found in this workspace". The contextvar is set
+    per request too, but passing the value we already hold removes the
+    dependency on that ordering entirely.
+    """
+    return effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))
 
 
 def _cast_read_client(auth: UserClient):
