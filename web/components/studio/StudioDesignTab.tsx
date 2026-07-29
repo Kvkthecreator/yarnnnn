@@ -48,7 +48,11 @@ import {
   type StudioVocabulary,
 } from './StudioToolbar';
 import { studioShapeStyle } from './studioShapes';
-import { isColorValue, parseSkinVars, resolveSkinVar, skinVarMap } from './skinVars';
+// ADR-487 D9: the Design tab reads the skin only to PAINT the controls
+// (skinVarMap + resolveSkinVar). The var-LIST parse belongs to the manage panel
+// alone now — the system-as-object register. Importing it here again would
+// re-create the deleted artifact-side list, so the ADR-455 gate forbids it.
+import { resolveSkinVar, skinVarMap } from './skinVars';
 
 export type StructVerb = 'duplicate' | 'up' | 'down' | 'delete';
 
@@ -140,6 +144,12 @@ interface StudioDesignTabProps {
   onApplyDesignSystem: (manifestPath: string) => Promise<void>;
   /** EXECUTE: remove the marked skin element. */
   onRemoveDesignSystem: () => void;
+  /** ADR-487 D9: open the applied system in the MANAGE panel (the third render
+   *  state, `studio.system=`) — the system-as-object register. This is the
+   *  route the tab never had: block scope said "themed by the design system"
+   *  and offered no way to reach it, so the member had to deselect to get back
+   *  to document scope, then hunt the picker row. */
+  onOpenSystem: (manifestPath: string) => void;
   /** ADR-462 D14: a design system was imported — the surface refetches the
    *  served vocabulary so the picker sees it (the payload carries kernel
    *  constants AND workspace state; only the second half goes stale). */
@@ -224,59 +234,13 @@ function TokenControl({
   );
 }
 
-/** The typography chips (ADR-455) — the Notion "Ag" affordance, our grammar:
- *  each value previews in its own stack; Auto = the layout/skin default. */
+/** The kernel's own face stacks (ADR-455) — the fallbacks a SKIN-LESS artifact
+ *  paints with, and the fallback each `--font-*` slot resolves through. */
 const FONT_STACKS: Record<string, string> = {
   serif: "Georgia, 'Times New Roman', serif",
   sans: "system-ui, -apple-system, 'Segoe UI', sans-serif",
   mono: "ui-monospace, 'SF Mono', Menlo, monospace",
 };
-
-function FontControl({
-  token,
-  current,
-  onSet,
-  stacks = FONT_STACKS,
-}: {
-  token: StudioToken;
-  current: string | null;
-  onSet: (value: string | null) => void;
-  /** ADR-487 D3+D4 — the chips wear what each family RESOLVES to under the
-   *  applied system (--font-serif/sans/mono); kernel stacks unskinned. */
-  stacks?: Record<string, string>;
-}) {
-  const chip = (value: string | null, label: string, stack?: string) => {
-    const active = (current ?? null) === value;
-    return (
-      <button
-        key={label}
-        type="button"
-        onClick={() => onSet(active && value != null ? null : value)}
-        className={`flex w-14 flex-col items-center gap-0.5 rounded-md border px-1 py-1.5 transition-colors ${
-          active
-            ? 'border-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/40'
-            : 'border-border hover:bg-muted/40'
-        }`}
-      >
-        <span className="text-lg leading-none" style={stack ? { fontFamily: stack } : undefined}>
-          Ag
-        </span>
-        <span className="text-[9px] text-muted-foreground">{label}</span>
-      </button>
-    );
-  };
-  return (
-    <div>
-      <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        {token.label}
-      </p>
-      <div className="flex flex-wrap gap-1.5" title={token.description}>
-        {chip(null, 'Auto')}
-        {token.values.map((v) => chip(v.value, v.label, stacks[v.value]))}
-      </div>
-    </div>
-  );
-}
 
 // ── ADR-487 D3 v2 — the visual style select (the Figma presentation) ────────
 // One dropdown shape, two consumers (Typography + Color): the trigger shows
@@ -365,6 +329,63 @@ const TEXT_STYLE_ROWS: Array<{ key: string; label: string }> = [
   { key: 'p', label: 'Text' },
 ];
 
+/** The `font` token (ADR-455 + D4 face slots) as a visual select — ADR-487 D9.
+ *
+ *  It was the last chip-row left in the panel: document scope rendered "Ag"
+ *  chips while block scope rendered the ramp as a StyleSelect, so ONE word
+ *  ("Typography") had two presentations ~130 lines apart in one scroll. Same
+ *  shape now — each option previews in the face it RESOLVES to under the
+ *  applied system (--font-serif/sans/mono), kernel stacks unskinned. The value
+ *  stays the closed three-category vocabulary; only the presentation speaks the
+ *  system. */
+function FaceTokenSelect({
+  token,
+  current,
+  stacks,
+  onSet,
+}: {
+  token: StudioToken;
+  current: string | null;
+  stacks: Record<string, string>;
+  onSet: (value: string | null) => void;
+}) {
+  const ag = (stack?: string) => (
+    <span
+      className="w-6 shrink-0 text-center text-base leading-none"
+      style={stack ? { fontFamily: stack } : undefined}
+    >
+      Ag
+    </span>
+  );
+  const cur = token.values.find((v) => v.value === current) ?? null;
+  return (
+    <StyleSelect
+      label={token.label}
+      description={token.description}
+      current={{
+        preview: ag(current ? stacks[current] : undefined),
+        label: cur?.label ?? 'Auto',
+      }}
+      options={[
+        {
+          key: '__auto',
+          preview: ag(undefined),
+          label: 'Auto',
+          active: current == null,
+          onPick: () => onSet(null),
+        },
+        ...token.values.map((v) => ({
+          key: v.value,
+          preview: ag(stacks[v.value]),
+          label: v.label,
+          active: current === v.value,
+          onPick: () => onSet(current === v.value ? null : v.value),
+        })),
+      ]}
+    />
+  );
+}
+
 /** A palette-backed token (tone / the D2 variant) as a visual select — the
  *  swatch is the applied system's RESOLVED value; a slashed dot is Auto. */
 function ColorTokenSelect({
@@ -420,6 +441,40 @@ function ColorTokenSelect({
   );
 }
 
+/** The applied-system cue (ADR-487 D9) — the one line the shaping scopes carry
+ *  about the system. It NAMES the system (an anonymous "a design system is
+ *  applied" told the member nothing they could act on) and is the ROUTE to the
+ *  manage panel, where the system is legible as an object. One component, two
+ *  mounts (document + block), so the two scopes can never drift into two
+ *  different sentences about the same fact. */
+function AppliedSystemCue({
+  name,
+  manifestPath,
+  onOpen,
+  note,
+}: {
+  name: string;
+  manifestPath: string;
+  onOpen: (manifestPath: string) => void;
+  /** Scope-specific clause — what the system is doing HERE. */
+  note: string;
+}) {
+  return (
+    <p className="text-[10px] leading-snug text-muted-foreground">
+      <button
+        type="button"
+        onClick={() => onOpen(manifestPath)}
+        title="Open this design system — its palette, type, files and what else wears it"
+        className="inline-flex items-center gap-1 rounded font-medium text-foreground/80 underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground"
+      >
+        <Palette className="h-3 w-3 shrink-0" />
+        {name}
+      </button>{' '}
+      {note}
+    </p>
+  );
+}
+
 /** The structural verb row (Duplicate / Move up / Move down / Delete). */
 function VerbRow({ noun, onVerb }: { noun: string; onVerb: (v: StructVerb) => void }) {
   const btn =
@@ -463,6 +518,7 @@ export function StudioDesignTab({
   onClearMeasure,
   onApplyDesignSystem,
   onRemoveDesignSystem,
+  onOpenSystem,
   onImported,
   onAddTextInSlot,
   onInsertImageInSlot,
@@ -533,7 +589,19 @@ export function StudioDesignTab({
   const tokens = vocabulary?.tokens ?? [];
   const mediaKinds = vocabulary?.media_kinds ?? [];
   const arrangements = vocabulary?.arrangements?.[layout] ?? [];
-  const pageNoun = layout === 'deck' ? 'slide' : 'section';
+  /** The layout's composition mode, read from the SERVED kernel row (ADR-466).
+   *
+   *  This pane used to spell the flow/paged split out longhand, testing the two
+   *  flow slugs by name — which is exactly the flow set, re-enumerated. That
+   *  made the kernel's claim "the FE never learns another slug" (studio.py)
+   *  false here: a new flow layout registering `mode: "flow"` would get correct
+   *  chrome everywhere else and SILENTLY lose its `document-flow` tokens in
+   *  this panel. Derive it; never re-enumerate it.
+   *
+   *  Undefined until the vocabulary lands — the `?? 'flow'` default matches the
+   *  surface's own `layoutMode` (show the flowing, less-chrome reading first). */
+  const mode = vocabulary?.layouts.find((l) => l.slug === layout)?.mode ?? 'flow';
+  const pageNoun = mode === 'paged' && layout === 'deck' ? 'slide' : 'section';
 
   // ADR-485 follow-on — the SIZE measures a block can carry (w/h), and which of
   // them apply at this scope (ADR-461 D4 `applies`: block-staged = a block on a
@@ -607,10 +675,13 @@ export function StudioDesignTab({
       tokens.filter(
         (t) =>
           t.applies.includes('document') ||
-          // document-flow = document/article only: a deck is a fixed stage and
-          // a page is full-width bands — measure applies to neither (W3).
-          ((layout === 'document' || layout === 'article') &&
-            t.applies.includes('document-flow')) ||
+          // document-flow = the FLOW layouts: a deck is a fixed stage and a
+          // page is full-width bands — measure applies to neither (W3). Read
+          // from the served `mode`, not a slug list (see `mode` above).
+          (mode === 'flow' && t.applies.includes('document-flow')) ||
+          // document-deck stays slug-keyed on purpose: it is a DECK affordance
+          // (slide numbers), not a paged one — `page` is paged too and has no
+          // slides to number.
           (layout === 'deck' && t.applies.includes('document-deck')),
         // NOTE: the `canvas` branch (ADR-471 D-c's aspect token) is DELETED —
         // ADR-472 moved the canvas to the IMAGES app's `image` layout, so no
@@ -618,10 +689,19 @@ export function StudioDesignTab({
         // `document-canvas`. Verified against the registry, not assumed
         // (ADR-482 §9 recorded it as owed).
       ),
-    [tokens, layout],
+    [tokens, layout, mode],
   );
   const skinRef = doc?.querySelector('head style[data-skin]')?.getAttribute('data-ref') ?? null;
   const designSystems = vocabulary?.design_systems ?? [];
+  /** The applied system as an OBJECT (ADR-487 D9) — the marked element carries
+   *  only its manifest path, so the served list supplies the name. Null when
+   *  nothing is applied, or when the ref names a system the vocabulary doesn't
+   *  know (a deleted folder): the cue names what it can prove, never a path
+   *  dressed as a name. */
+  const appliedSystem = useMemo(
+    () => (skinRef ? (designSystems.find((d) => d.manifest_path === skinRef) ?? null) : null),
+    [skinRef, designSystems],
+  );
   const [applying, setApplying] = useState<string | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
@@ -656,19 +736,36 @@ export function StudioDesignTab({
     [onImported],
   );
 
-  // ADR-456 W3 + DESIGN-SYSTEMS.md §5: the theme panel — the applied skin's
-  // custom properties, parsed from the artifact's own marked element (read
-  // legibility; the theme's FILES are the source of truth). The kernel now
-  // consumes a widened vocabulary (an ink ramp, a radius scale, a type scale)
-  // so more of a real system's tokens paint; the ones that theme the chrome
-  // are surfaced first. The mechanical var-editor is unblocked (the §5 Q4
-  // PATCH permission shipped) but still a named follow-on — it needs a design
-  // pass for WHICH flattened source a value writes back to.
+  // ADR-487 D9: INSIDE AN ARTIFACT THE SYSTEM IS WORN, NEVER LISTED.
+  //
+  // This used to also parse a `--var: value` list for a read-only Theme panel
+  // (ADR-456 W3). It is DELETED, and deleted rather than restyled, for three
+  // reasons measured against the shipped controls:
+  //
+  //  1. It was redundant where it mattered. The painted controls already carry
+  //     every slot a member can ACT on — accent/muted/ink (tone), ink-10/fresh/
+  //     warn (variant), font-serif/sans/mono (faces), the nine --text-* rungs
+  //     (via tagFontSize). What the list uniquely added was --paper, --ink-06,
+  //     --deck-stage, --danger and the four --radius-* — precisely the slots
+  //     ADR-487's audit classified as member-INVISIBLE (identity, not a
+  //     per-artifact choice). It showed the member exactly what they cannot
+  //     touch, in the one grammar §3 forbids, under controls that already
+  //     showed everything they can.
+  //  2. It read the wrong source. This parse reads THIS ARTIFACT'S copy of the
+  //     skin; the system itself is the resolved skin_element (maps bridge
+  //     included) the manage panel reads. After a re-import the two diverge and
+  //     this one silently showed values the system no longer has. Restyling
+  //     would have made a stale reading prettier and more trustworthy.
+  //  3. The register is the manage panel's. Inspecting a system AS AN OBJECT
+  //     (what it defines, what wears it, what a re-import changed) is a
+  //     different act by a different reader — and that panel is already the
+  //     named home of the deferred token editor.
+  //
+  // The map below stays: it is what PAINTS the controls (the applied register).
   const skinCss = useMemo(
     () => doc?.querySelector('head style[data-skin]')?.textContent ?? '',
     [doc],
   );
-  const skinVars = useMemo(() => parseSkinVars(skinCss), [skinCss]);
   // ADR-487 D3 — the full definition map: the controls paint themselves with
   // the applied system's RESOLVED values (kernel literals when unskinned).
   // Derived from the artifact's own marked element at render, never stored.
@@ -968,12 +1065,12 @@ export function StudioDesignTab({
             <div className={SECTION}>
               {docTokens.map((t) =>
                 t.key === 'font' ? (
-                  <FontControl
+                  <FaceTokenSelect
                     key={t.key}
                     token={t}
                     current={root?.getAttribute(`data-${t.key}`) ?? null}
-                    onSet={(v) => onSetToken('document', t.key, v)}
                     stacks={resolvedFontStacks}
+                    onSet={(v) => onSetToken('document', t.key, v)}
                   />
                 ) : (
                   <TokenControl
@@ -984,10 +1081,13 @@ export function StudioDesignTab({
                   />
                 ),
               )}
-              {skinRef && (
-                <p className="text-[10px] text-muted-foreground">
-                  A design system is applied — its styles may override these.
-                </p>
+              {appliedSystem && (
+                <AppliedSystemCue
+                  name={appliedSystem.name}
+                  manifestPath={appliedSystem.manifest_path}
+                  onOpen={onOpenSystem}
+                  note="is applied — its styles may override these."
+                />
               )}
             </div>
           )}
@@ -1096,36 +1196,11 @@ export function StudioDesignTab({
               </div>
             )}
           </div>
-          {/* Theme (ADR-456 W3) — the applied skin's custom properties, read
-              from the artifact's marked element. The theme's FILES are the
-              source of truth: change a value through the chat, then Apply
-              again here to pick it up (the mechanical var-editor is a named
-              follow-on pending the file-edit permission surface). */}
-          {skinRef && skinVars.length > 0 && (
-            <div className={SECTION}>
-              <p className={HEADING}>Theme</p>
-              <div className="space-y-1">
-                {skinVars.map((v) => (
-                  <div key={v.name} className="flex items-center gap-2">
-                    {isColorValue(v.value) ? (
-                      <span
-                        className="h-3.5 w-3.5 shrink-0 rounded-sm border border-border"
-                        style={{ background: v.value }}
-                      />
-                    ) : (
-                      <span className="h-3.5 w-3.5 shrink-0" />
-                    )}
-                    <code className="text-[10px] text-muted-foreground">--{v.name}</code>
-                    <span className="ml-auto truncate text-[10px]">{v.value}</span>
-                  </div>
-                ))}
-              </div>
-              <p className="text-[10px] text-muted-foreground">
-                The theme lives in its files — ask the chat to change a value,
-                then Apply again to pick it up.
-              </p>
-            </div>
-          )}
+          {/* (The read-only Theme var-list is DELETED — ADR-487 D9. Inside an
+              artifact the system is WORN, never listed: the controls above
+              already carry every slot the member can act on, and the system AS
+              AN OBJECT is the manage panel's register. The rationale is in full
+              at the skinCss parse above.) */}
         </>
       )}
 
@@ -1394,6 +1469,20 @@ export function StudioDesignTab({
                     onSet={(v) => onSetToken('block', t.key, v)}
                   />
                 ),
+              )}
+              {/* ADR-487 D9 — the block scope's route OUT. The controls above
+                  are painted in the system's values and the Typography
+                  description says "themed by the design system", but this scope
+                  named no system and offered no way to reach one: the member
+                  had to deselect, then find the picker row. Same one line, same
+                  component, as document scope. */}
+              {appliedSystem && (
+                <AppliedSystemCue
+                  name={appliedSystem.name}
+                  manifestPath={appliedSystem.manifest_path}
+                  onOpen={onOpenSystem}
+                  note="supplies these values."
+                />
               )}
             </div>
           )}

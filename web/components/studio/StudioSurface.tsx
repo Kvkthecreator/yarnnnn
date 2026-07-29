@@ -2551,6 +2551,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               onClearMeasure={handleClearMeasure}
               onApplyDesignSystem={handleApplyDesignSystem}
               onRemoveDesignSystem={handleRemoveDesignSystem}
+              // ADR-487 D9 — the applied-system cue routes to the manage panel
+              // (the third render state), the SAME param the landing card sets.
+              onOpenSystem={(manifestPath) => setParam({ system: relPath(manifestPath) })}
               onAddTextInSlot={insertProseInSlot}
               onInsertImageInSlot={insertImageInSlot}
               onSetPageBackground={handleSetPageBackground}

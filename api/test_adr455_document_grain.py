@@ -70,14 +70,47 @@ def run() -> bool:
            "'block' | 'page' | 'document'" in ops and "doc.documentElement" in ops)
 
     design_tab = (web / "components/studio/StudioDesignTab.tsx").read_text()
-    _check("Design tab: Ag-preview typography chips (FontControl)",
-           "FontControl" in design_tab and "Ag" in design_tab and "FONT_STACKS" in design_tab)
-    _check("Design tab: document tokens gated by layout (measure = document/article only; "
-           "ADR-456 W3 excluded page too)",
+    # ADR-487 D9 re-pin: the `font` token keeps its Ag preview and its resolved
+    # face stacks, but the CHIP ROW is gone — it is a StyleSelect now
+    # (FaceTokenSelect), the same shape block scope uses, because one word
+    # ("Typography") rendering two ways in one panel was the drift. The
+    # CAPABILITY asserted here is unchanged: an Ag preview per face, painted
+    # with what the face resolves to.
+    _check("Design tab: Ag-preview face select (ADR-487 D9 — one select shape, was FontControl chips)",
+           "FaceTokenSelect" in design_tab
+           and "Ag" in design_tab
+           and "FONT_STACKS" in design_tab
+           and "FontControl" not in design_tab)
+    # ADR-487 D9 re-pin: the flow gate is DERIVED from the served `mode`
+    # (ADR-466), not re-enumerated as a slug list. The old spelling was exactly
+    # the flow set written longhand, so a new flow layout would have silently
+    # lost its width token here.
+    _check("Design tab: document tokens gated by served MODE, not a slug list "
+           "(measure = flow layouts only; ADR-456 W3 excluded page too)",
            "document-flow" in design_tab
-           and "layout === 'document' || layout === 'article'" in design_tab)
+           and "mode === 'flow'" in design_tab
+           and "layout === 'document' || layout === 'article'" not in design_tab)
     _check("Design tab: the skin-override hint (cascade stays honest)",
            "may override" in design_tab)
+    # ADR-487 D9 — THE INVARIANT: inside an artifact the system is WORN, never
+    # listed. The artifact-side var-list is deleted (it showed the
+    # member-INVISIBLE slots the painted controls don't carry, parsed from this
+    # artifact's stale copy rather than the resolved system). The var-list parse
+    # belongs to the manage panel alone; the tab keeps only the PAINT map.
+    _check("Design tab: no var-list — the system is worn, not listed (ADR-487 D9)",
+           "parseSkinVars" not in design_tab
+           and "isColorValue" not in design_tab
+           and "skinVarMap" in design_tab)
+    # ADR-487 D9 — and the cue that replaces it NAMES the system and is the
+    # ROUTE to it (block scope was a dead end: painted in the system's values,
+    # with no way to reach the system).
+    _check("Design tab: the applied-system cue names + routes (one component, two scopes)",
+           "AppliedSystemCue" in design_tab
+           and design_tab.count("<AppliedSystemCue") == 2
+           and "onOpenSystem" in design_tab)
+    surface_src = (web / "components/studio/StudioSurface.tsx").read_text()
+    _check("surface: the manage panel is the SOLE var-list mount (the object register)",
+           "parseSkinVars" in surface_src)
 
     menu = (web / "components/workspace/FileContextMenu.tsx").read_text()
     _check("shared menu: the extraItems extension point (additive, no fork)",

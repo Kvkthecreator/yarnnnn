@@ -3,6 +3,9 @@
 - **Status**: Accepted + **Implemented** (2026-07-25) — D2/D4 (kernel v13, `998eb61`), D1
   registry+turn-into (`fc39e20`), D3 painted controls (`a486789`), D5 workspace default
   (`d4f19bd`). **Two named remainders, deliberately deferred to the flow lane** (§9).
+  **D9 (§11, 2026-07-29)**: worn-not-listed — the artifact-side Theme var-list DELETED, the
+  applied-system cue names + routes, `font` folded into the one select shape. The landing
+  swatch strip is deferred with its cost measured (§11).
 - **Dimension**: Channel (primary — what the member can shape, and what the controls speak) + Substrate (three new kernel slots, one new config file; no schema)
 - **Supersedes**: nothing
 - **Amends**: ADR-455 (the `font` token's values resolve through face *slots* — the supply/select line completed) · ADR-456 (the block/token registry grows by one wave: heading grammar + callout variants) · DESIGN-SYSTEMS.md §5 ("semantic `--fresh/--danger/--warn` wire no selector yet" — they wire now)
@@ -237,3 +240,102 @@ and typography/color handling should be universal across document types.* D3's f
   deleted (Singular Implementation).
 - The values stay the closed kernel vocabulary throughout — the presentation speaks the
   system; the document still records only roles.
+
+---
+
+## 11. D9 — Worn, not listed: the two registers (amendment, 2026-07-29)
+
+The operator, from a document wearing the YARNNN system: *now that the colour and typography
+selections themselves carry the applied system, do we still need the theme preview?* — and, if
+we do, the framing has to be evolved with the applied selections in mind.
+
+The answer is **no for the artifact, yes for the system**, and the reason the two got conflated
+is that "show the design system" was never split into two questions with different answers.
+
+### The measurement
+
+Against the shipped controls, the Design tab's read-only Theme var-list added nothing a member
+could act on. The painted controls already carry every slot that IS a choice — `accent`/`muted`/
+`ink` (tone), `ink-10`/`fresh`/`warn` (variant), `font-serif/sans/mono` (faces), and all nine
+`--text-*` rungs (resolved by `tagFontSize`). Subtracting those from the kernel-consumed
+vocabulary leaves exactly:
+
+```
+--paper  --ink-06  --deck-stage  --danger  --radius-sm/md/lg/pill
+```
+
+— page ground, hairlines, the deck stage, the reserved fourth variant, and the radius scale that
+§2's audit item 5 classified as *member-invisible (identity, not a per-artifact choice)*. The
+panel showed the member precisely the slots they cannot act on, in the one grammar §3 forbids,
+directly beneath controls that already showed everything they can. Not redundant-and-harmless:
+an anti-affordance.
+
+### The principle (the evolved framing)
+
+**Inside an artifact the system is WORN, never listed; inside the system it is LISTED, never
+worn.** Two registers, two readers, two acts:
+
+- **The applied register** — *"what will this do when I pick it?"* Belongs on the control, at the
+  moment of choosing, in the resolved value. This is D3 v2, already built. A member never needs
+  to know a slot is named `--accent`; they need "Accent" to BE accent-coloured when they pick it.
+  Extend this register and the artifact-side list's job evaporates by construction.
+- **The object register** — *"what is this system?"* Belongs to the manage panel
+  (`studio.system=`): the resolved `skin_element`, what wears it, what a re-import changed. There
+  the full vocabulary is legitimately the content — including the eight slots above — because the
+  question genuinely is what the system defines. It is also already the named home of the
+  deferred token editor: the place you inspect a system is where you would edit it.
+
+D3's principle (§3) governed *controls* and was never extended to *displays*. D9 extends it.
+
+### Decisions
+
+1. **Delete** the Theme var-list from the Design tab (document scope), and the `parseSkinVars`
+   call feeding it. `skinVarMap`/`resolveSkinVar` stay — they PAINT the controls.
+   **Deleted, not restyled**, for a third reason beyond redundancy: it read the wrong source. The
+   tab parsed *this artifact's copy* of the skin; the system is the resolved `skin_element` the
+   manage panel reads. After a re-import the two diverge and the tab silently showed values the
+   system no longer had, with the remedy ("Apply again") a 10px footnote. Restyling would have
+   made a stale reading prettier and more trustworthy.
+2. **The manage panel's Theme is the sole mount** and is affirmed as correct — same rendering,
+   different register. This also retires the two-caps drift (12 in the tab vs 24 in the panel,
+   one shared parse, neither indicating truncation) and the dual-source divergence, by removing
+   one side rather than reconciling them.
+3. **The applied-system cue names the system and is the route to it.** The anonymous "A design
+   system is applied" is replaced by one shared `AppliedSystemCue` component with two mounts
+   (document + block), so the scopes cannot drift into two sentences about one fact. This also
+   fixes the **block-scope dead end**: that scope is painted in the system's values and its
+   Typography description says "themed by the design system", but it named no system and offered
+   no way to reach one — the member had to deselect, then hunt the picker row. The name resolves
+   through the served list; a ref the vocabulary doesn't know renders no cue (never a path
+   dressed as a name).
+4. **`font` becomes a `StyleSelect`** (`FaceTokenSelect`). It was the last chip-row: document
+   scope rendered "Ag" chips while block scope rendered the ramp as a select, so ONE word
+   ("Typography") had two presentations ~130 lines apart in one scroll. `FontControl` is deleted
+   (Singular Implementation); the closed serif/sans/mono vocabulary is untouched.
+
+### Rider — the mode-vs-slug bug (independent, fixed here)
+
+`docTokens` gated `document-flow` on `layout === 'document' || layout === 'article'` — which is
+exactly the flow set, spelled out longhand. That made the kernel's claim *"the FE never learns
+another slug"* (`studio.py`) false in this pane: a new flow layout registering `mode: "flow"`
+would get correct chrome everywhere else and **silently lose its width token here**. Now derived
+from the served `mode` (ADR-466). `document-deck` and page-scope `isSlide` stay slug-keyed
+**deliberately** — those are DECK affordances (slide numbers, valign), and `page` is paged too
+with no slides to number. Only the genuinely flow-vs-paged test moved.
+
+### Deferred with a reason
+
+**The landing card swatch strip.** A card is the object register, so colour there is consistent
+rather than net-new — but the served payload (`find_design_systems` → `{name, manifest_path,
+folder, css}`) carries no resolved values; they live in the flattened stylesheets behind
+`resolve_design_system()`. A strip therefore costs either N folder-reads per landing render (up
+to 20 systems) or a new served palette field. Either is a backend change wanting its own commit
+and gate, so it is NOT smuggled into this presentation-only pass. DESIGN-SYSTEMS.md §6 already
+lists the card visual as still-open; this is what it will cost.
+
+### Gates
+
+Presentation-only: no token vocabulary change, no `applies` change, no schema, no endpoint. The
+ADR-449 (49) and ADR-453 (37) baselines hold unchanged, which is the correct signal for a pass
+that deletes a display and re-presents two others. FE verify is `npx next build`.
+**The live click-pass on D9 is owed** — the standing Studio debt (§9) is unchanged by this.

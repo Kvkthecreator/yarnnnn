@@ -319,8 +319,10 @@ editable this way. This is a permission widening, not a new write path; it rides
 mechanical door.
 
 **What this does NOT include** (the honest gap): the var-editor *UI* is unblocked but not built.
-The theme panel (STUDIO.md §Theme) shows the applied skin's variables read-only, now with the
-kernel-consumed vocabulary surfaced first. Making a value *editable inline* needs a design pass
+The theme panel (STUDIO.md §Theme) shows the system's variables read-only, kernel-consumed
+vocabulary first — and since ADR-487 D9 it lives **only** in the manage state (`studio.system=`),
+the system-as-object register; the artifact-side copy is deleted (inside an artifact the system
+is worn, never listed). Making a value *editable inline* needs a design pass
 for one unresolved question the flatten creates: **which of the N flattened source files does a
 value write back to?** A skin is composed from 6 sources (`fonts → colors → typography → …`); an
 edit to `--accent` must land in the file that *defines* it, and the projection reads the flattened
@@ -465,8 +467,10 @@ choice, not an accident.
 - **Worn by N artifacts** — the ADR-448 reference edge (`GET /api/workspace/file/dependents` on
   the manifest), each openable. This is the payoff the whole citation contract was built for.
 - **The files** — manifest + stylesheets + fonts/images (the import receipt, persisted).
-- **The theme panel** — the §5 widened vocabulary, kernel-consumed slots first, read-only for now
-  (the same `skinVars` parse the Design tab already does, relocated/shared).
+- **The theme panel** — the §5 widened vocabulary, kernel-consumed slots first, read-only for now.
+  Since **ADR-487 D9** this is the panel's OWN surface, not a shared one: the Design tab's copy is
+  deleted (it listed the member-invisible identity slots the painted controls don't carry, and it
+  read the artifact's stale copy rather than the resolved system). One mount, one cap, one source.
 - **Re-import** — the same import modal, re-run against the folder (ADR-292 reapply shape).
 - **The token-editor slot** — the deferred var-editor lands here (the §5 Q4 `PATCH` permission is
   already shipped; the UI needs the var→owning-source design pass named in §5 Move 3).
@@ -481,6 +485,12 @@ choice, not an accident.
 - **Still open (do not build ahead of it)**: the token-editor UI (its var→source mapping); whether
   the create-time "wear this" selector (Job A at creation) ships with this or later; the exact
   card visual. These are named so the build stops at the decided line.
+  On the **card visual**, ADR-487 D9 measured one candidate and its cost: a swatch strip is
+  *consistent* (a card is the object register, where colour belongs) but the served payload
+  (`find_design_systems` → `{name, manifest_path, folder, css}`) carries no resolved values —
+  they live in the flattened stylesheets behind `resolve_design_system()`. It therefore costs N
+  folder-reads per landing render (up to 20 systems) or a new served palette field: a backend
+  change with its own commit and gate, deliberately NOT folded into a presentation-only pass.
 
 ### The build order the decision implies (each its own commit + gate)
 
@@ -496,6 +506,9 @@ choice, not an accident.
    panel** folded in (parsed from the *resolved* `skin_element`, maps bridge included — the same
    parse the Design tab runs, extracted to the shared `web/components/studio/skinVars.ts`), and
    the theme section named as the **token-editor slot** (its footer says read-only honestly).
+   **2c (ADR-487 D9, 2026-07-29)**: the Design tab's duplicate var-list is deleted, making this
+   the sole mount — which retires the two-caps drift (12 there vs 24 here) and the dual-source
+   divergence (artifact copy vs resolved `skin_element`) by removing one side, not reconciling.
 3. **(Deferred)** the inline token-editor, against the shipped `PATCH` permission — lands inside
    the step-2 theme section; still blocked on the var→owning-source design pass (§5 Move 3).
 
