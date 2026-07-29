@@ -9,7 +9,8 @@ which is exactly the danger: §6 also says these are launch-test values that
 the marketing surface from what the backend actually charges.
 
 The FE now mirrors the backend once (`lib/subscription/usage.ts`:
-TIER_SEAT_PRICE_USD / TIER_ALLOWANCE_USD / SIGNUP_GRANT_USD / TOPUP_MIN_USD) and
+TIER_SEAT_PRICE_USD / SIGNUP_GRANT_USD / TOPUP_MIN_USD — TIER_ALLOWANCE_USD
+retired with the allowance layer, ADR-490 §1③ / ADR-396 §10) and
 copy interpolates `PRICE_COPY`. This gate enforces both halves:
 
   (a) the FE mirror still AGREES with billing_tiers.py (the real drift risk —
@@ -73,9 +74,15 @@ def test_fe_mirror_matches_backend() -> None:
         fe_seat = _ts_number(src, "TIER_SEAT_PRICE_USD", tier)
         be_seat = TIER_CONFIG[tier]["additional_seat_usd"]
         check(f"{tier}: seat price {fe_seat} == backend {be_seat}", fe_seat == be_seat)
-        fe_allow = _ts_number(src, "TIER_ALLOWANCE_USD", tier)
-        be_allow = TIER_CONFIG[tier]["monthly_allowance_usd"]
-        check(f"{tier}: allowance {fe_allow} == backend {be_allow}", fe_allow == be_allow)
+        # ADR-490 §1③ retired the allowance layer; the ADR-396 §10 display pass
+        # (2026-07-29) deleted its FE mirror as dead code. The honest assertion
+        # is now that BOTH sides carry no allowance: the backend grants $0, and
+        # the FE holds no constant to drift from it. Mirroring a retired layer
+        # would keep a dead concept alive in the gate.
+        check(f"{tier}: backend grants no allowance",
+              TIER_CONFIG[tier]["monthly_allowance_usd"] == 0.0)
+    check("FE holds no TIER_ALLOWANCE_USD mirror (retired, ADR-490 §1③)",
+          "TIER_ALLOWANCE_USD" not in src)
 
 
 def test_copy_has_no_bare_price_literals() -> None:
@@ -115,8 +122,9 @@ def test_price_copy_is_derived_not_typed() -> None:
         check("every field interpolates a constant",
               "${" in code and not re.search(r'"\$\d', code),
               "a hardcoded value here would defeat the whole point")
-        for const in ("TIER_SEAT_PRICE_USD", "TIER_ALLOWANCE_USD",
-                      "SIGNUP_GRANT_USD", "TOPUP_MIN_USD"):
+        # TIER_ALLOWANCE_USD dropped from this list — the constant it named was
+        # deleted with the allowance layer (ADR-490 §1③ / ADR-396 §10).
+        for const in ("TIER_SEAT_PRICE_USD", "SIGNUP_GRANT_USD", "TOPUP_MIN_USD"):
             check(f"derives from {const}", const in body)
 
 

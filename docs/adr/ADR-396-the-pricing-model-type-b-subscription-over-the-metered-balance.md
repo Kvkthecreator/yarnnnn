@@ -109,3 +109,70 @@ These sit at/above the UNIT-ECONOMICS ~$15–25 base band. They are the **single
 - The three session analysis docs (matrix / unit-economics / carve) — the derivation; unchanged.
 
 **The model is decided and shipped. The launch-test numbers (Free/$19/$49) are set to test, not to be right — reversible against the first paying user.**
+
+---
+
+## 10. Amendment (2026-07-29) — the prepaid balance is legible in dollars
+
+**Status**: Accepted (operator-ratified in discourse — the billing-pane audit).
+**Amends**: §1's display posture, narrowly. §2's carve, §3's no-credit-currency
+ruling, and §5's double-charge invariant are untouched.
+
+### What went wrong
+
+§1 ruled "activity is transparent, dollar amounts are NOT shown" and gave the
+operator a substitute quantity to reason in: **allowance remaining**. That
+substitute was load-bearing — the contract works because the operator reads
+*something* that tells them where they stand.
+
+ADR-490 §1③ retired the allowance layer. The substitute quantity ceased to
+exist, but the hide-dollars rule stayed, and the billing pane kept rendering a
+percentage. With no allowance to measure against, the FE meter fell back to
+`spend / (spend + topups)` labelled **"% of balance used"** — a denominator with
+no fixed meaning for a prepaid pool, because `spend` is anchored to
+`allowance_granted_at` and the banking cycle re-stamps that anchor monthly. The
+percentage rebases on its own.
+
+Live receipt (workspace `d5b9029b`, tier `starter`, 2026-07-29): $36.93
+effective balance, $0.156 spent since a one-day-old anchor → the pane rendered
+**"0% used"** and, beneath it, a chooser asking the operator to pick between $5
+and $50. The pane also told a paying `starter` workspace it was "on the free
+plan" — the surviving meter branch's copy was hardcoded for free.
+
+### The amendment
+
+**A prepaid balance is shown as remaining dollars.** The rest of §1 stands
+unchanged.
+
+The reasoning is §1's own: dollars are permitted *at the moment of purchase*. A
+prepaid balance is topped up in dollars, from a chooser denominated in dollars,
+and hard-stops at a dollar boundary the operator must fund. It **is** the
+purchase quantity — the same class of figure as the seat price, not the running
+cost meter §1 hides. Asking someone to choose a top-up amount while refusing to
+tell them what they hold is not opacity-of-dollars; it is an information gap at
+the decision point, and it makes the hard-stop unpredictable.
+
+**What stays activity-shaped** (the §1 contract, intact):
+- Per-member attribution — a %-share of the pool, never per-member dollars.
+- The activity trend — relative bars, no $ axis.
+- The runway — days, not dollars-per-day.
+- No running cost ticker anywhere; no per-invocation price surfaced.
+
+**The one dollar figure is the balance itself** — on the Billing pane, the
+Workspace Settings → Usage pane, and the UserMenu glance. All three read it
+from one model (`web/lib/subscription/usage.ts::deriveBalance`), which prefers
+the server's netted `balance_usd` — the same number `check_draw` enforces — so
+what the operator sees is what the gate will do.
+
+### Implementation note
+
+The three-mode meter (`allowance` | `overage` | `balance`) is **deleted**, not
+flagged off: two of its branches required `allowance > 0`, which no tier grants
+post-ADR-490, and the surviving branch's copy contradicted the model it ran
+under. Dead branches whose copy lies are worse than no branches (Singular
+Implementation).
+
+Also corrected in the same pass: `int(amount) * 100` in the top-up checkout
+truncated fractional dollars (a $12.99 request charged $12.00) — now rounds; and
+the "How it works" block offered *"Upgrade or top up to resume"* on an exhausted
+balance, which is false under ADR-490 where the paid plan buys **seats only**.

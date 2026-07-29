@@ -12,9 +12,11 @@
  *      top-ups), hard-stop at zero. The monthly-allowance layer is retired
  *      (ADR-490 §1③).
  *
- * Transparency contract (ADR-396): this customer surface shows ACTIVITY — the
- * plan + seats + balance consumed — NOT raw dollar figures; dollars appear only
- * at the moment of purchase (seat price, top-up amounts).
+ * Transparency contract (ADR-396, as amended §10): CONSUMPTION stays
+ * activity-shaped — per-member %-share, relative trend, runway in days, never a
+ * running cost ticker. Dollars appear at the moment of purchase (seat price,
+ * top-up amounts) AND as the prepaid BALANCE itself, which the operator tops up
+ * in dollars and must be able to read to choose an amount.
  *
  * ADR-491 D2 — member gate: /subscription/status 403s a caller without billing
  * authority (ADR-416 D1); this card renders the calm member state instead of
@@ -43,11 +45,12 @@ import { SeatPanel } from "@/components/subscription/SeatPanel";
 import type { SubscriptionTier } from "@/types";
 import { ByokSection } from "@/components/subscription/ByokSection";
 import {
-  deriveUsageMeter,
+  deriveBalance,
+  formatUsd,
   tierUpgradeLabel,
   tierDescriptor,
   type UsageLimits,
-  type UsageMeter,
+  type BalanceReadout,
   TOPUP_PRESETS,
   TOPUP_DEFAULT,
   TOPUP_MIN_USD,
@@ -97,7 +100,17 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
   const seatFee = status?.seat_fee_usd ?? 0;
   const [usage, setUsage] = useState<UsageLimits | null>(null);
   const [nextRefill, setNextRefill] = useState<string | null>(null);
-  const [topupAmount, setTopupAmount] = useState<string>(String(TOPUP_DEFAULT));
+  // ADR-491 D3 — the runway ("~N days at this pace") is the dissolved Budget
+  // pane's one surviving fact. It qualifies the balance figure, so it sits with
+  // it. Served by GET /api/budget (effective balance ÷ observed daily burn).
+  const [runwayDays, setRunwayDays] = useState<number | null>(null);
+  // ONE selection model for the top-up chooser (2026-07-29). Previously the four
+  // preset buttons and the always-visible number field were two competing inputs
+  // driven off one string: typing a non-preset amount silently deselected every
+  // chip and the UI went stateless. Now the chips ARE the control, and the field
+  // exists only while "Custom" is the selection.
+  const [topupChoice, setTopupChoice] = useState<number | "custom">(TOPUP_DEFAULT);
+  const [customAmount, setCustomAmount] = useState<string>("");
   const [topupLoading, setTopupLoading] = useState(false);
   const [subscribeLoading, setSubscribeLoading] = useState<SubscriptionTier | null>(null);
 
@@ -108,6 +121,7 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
       .then((d) => {
         if (!cancelled) {
           setUsage({
+            balance_usd: d.balance_usd,
             spend_usd: d.spend_usd,
             raw_balance_usd: d.raw_balance_usd,
             allowance_usd: d.allowance_usd,
@@ -118,18 +132,44 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
         }
       })
       .catch(() => {});
+    api
+      .budget()
+      .then((d) => {
+        // 999 is the backend's "effectively unlimited" clamp — not worth a line.
+        const days = (d as { runway_days?: number | null }).runway_days;
+        if (!cancelled && typeof days === "number" && days > 0 && days < 999) {
+          setRunwayDays(Math.round(days));
+        }
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const meter: UsageMeter | null = deriveUsageMeter(usage);
+  const balance: BalanceReadout | null = deriveBalance(usage);
+
+  // The dollars a top-up would actually charge, or null when the custom entry is
+  // absent/out of bounds. Validated HERE, at the boundary — the old handler only
+  // rejected `<= 0`, so $3 and $9999 reached the API and failed there with a raw
+  // error. WHOLE DOLLARS: the LS checkout prices in integer cents from a
+  // whole-dollar amount, so offering cents would promise precision the charge
+  // doesn't keep.
+  const topupUsd: number | null = (() => {
+    if (topupChoice !== "custom") return topupChoice;
+    const raw = customAmount.trim();
+    if (!raw) return null;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) return null;
+    if (parsed < TOPUP_MIN_USD || parsed > TOPUP_MAX_USD) return null;
+    return parsed;
+  })();
+  const customInvalid = topupChoice === "custom" && customAmount.trim() !== "" && topupUsd === null;
 
   const handleTopup = async () => {
-    const amount = parseInt(topupAmount, 10);
-    if (!Number.isFinite(amount) || amount <= 0) return;
+    if (topupUsd === null) return;
     setTopupLoading(true);
-    await topup(amount);
+    await topup(topupUsd);
     setTopupLoading(false);
   };
 
@@ -414,38 +454,54 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
           </section>
         )}
 
-        {/* ── BALANCE / USAGE (the reference's "Credits balance" — but OUR model:
-            included-usage %, no credits, no dollars per ADR-396). ───────────── */}
-        <section className="border border-border rounded-xl p-5 space-y-4">
-          {/* Reference shape: section title left, its primary action as a pill
-              button hard right, then the FIGURE at display scale beneath. Ours
-              shows the % used (ADR-396: activity, never dollars) where the
-              reference shows a credit count — the numeral is the same visual
-              anchor, carrying a figure our transparency contract permits. */}
+        {/* ── BALANCE (the reference's "Credits balance" — our model: a prepaid
+            pool, so the figure is WHAT'S LEFT). ─────────────────────────────────
+            Rewritten 2026-07-29. This read "N% used" against `spend / (spend +
+            topups)` — a denominator with no fixed meaning for a prepaid pool,
+            since `spend` is anchored to `allowance_granted_at` and the banking
+            cycle re-stamps that monthly. A workspace holding $37 with a fresh
+            anchor rendered "0% used": arithmetically true, and it told the
+            operator nothing about what they hold while asking them to choose
+            between $5 and $50 below.
+
+            Dollars here are ADR-396-legal (§10 amendment): the hide-$ contract
+            governs the CONSUMPTION meter — no running cost ticker — and permits
+            dollars at the moment of purchase. A prepaid balance topped up in
+            dollars IS the purchase quantity. Consumption stays activity-shaped
+            everywhere else (per-member %, relative trend, runway in days). */}
+        <section className="border border-border rounded-xl p-5 space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-base font-medium">
-              {meter?.mode === "overage" ? "Top-up balance" : meter?.mode === "balance" ? "Balance" : "Included usage"}
-            </h3>
+            <h3 className="text-base font-medium">Balance</h3>
           </div>
-          {meter ? (
+          {balance ? (
             <>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-5xl font-semibold tabular-nums leading-none tracking-tight">
-                  {meter.percent}
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span
+                  className={
+                    balance.isExhausted
+                      ? "text-5xl font-semibold tabular-nums leading-none tracking-tight text-destructive"
+                      : "text-5xl font-semibold tabular-nums leading-none tracking-tight"
+                  }
+                >
+                  {balance.remainingLabel}
                 </span>
-                <span className="text-lg text-muted-foreground">% used</span>
+                <span className="text-lg text-muted-foreground">remaining</span>
               </div>
-              <div className="h-2 w-full rounded-full bg-muted/50 overflow-hidden">
-                <div
-                  className={meter.isCritical ? "h-full rounded-full bg-destructive" : meter.isWarn ? "h-full rounded-full bg-amber-500" : "h-full rounded-full bg-primary"}
-                  style={{ width: `${meter.percent}%` }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">{meter.detail}</p>
+              {/* The qualifying facts, in one line: what's been drawn, and how
+                  long the rest lasts at the observed pace (ADR-491 D3's runway,
+                  re-homed from the dissolved Budget pane). */}
+              {(balance.spentUsd > 0 || runwayDays !== null) && (
+                <p className="text-sm text-muted-foreground">
+                  {balance.spentUsd > 0 && <>{formatUsd(balance.spentUsd)} used since your last top-up</>}
+                  {balance.spentUsd > 0 && runwayDays !== null && " · "}
+                  {runwayDays !== null && <>about {runwayDays} {runwayDays === 1 ? "day" : "days"} left at this pace</>}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">{balance.detail}</p>
             </>
           ) : (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading usage…
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading balance…
             </div>
           )}
         </section>
@@ -496,37 +552,81 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
             Usage is pay-as-you-go from this workspace&rsquo;s shared balance. A
             one-time top-up adds headroom; it never expires.
           </p>
-          <div className="flex gap-2">
+          {/* The chooser (2026-07-29): presets + Custom as ONE radio group. The
+              amount field appears only under Custom, so there is never a second
+              input silently disagreeing with the selected chip. */}
+          <div role="radiogroup" aria-label="Top-up amount" className="flex gap-2 flex-wrap">
             {TOPUP_PRESETS.map((amt) => (
               <Button
                 key={amt}
                 type="button"
-                variant={topupAmount === String(amt) ? "secondary" : "outline"}
+                role="radio"
+                aria-checked={topupChoice === amt}
+                variant={topupChoice === amt ? "secondary" : "outline"}
                 size="sm"
-                onClick={() => setTopupAmount(String(amt))}
+                onClick={() => setTopupChoice(amt)}
                 disabled={topupLoading}
               >
                 ${amt}
               </Button>
             ))}
-          </div>
-          <div className="flex gap-2 items-center">
-            <div className="flex items-center gap-1 flex-1 rounded-md border border-border px-3 py-1.5">
-              <span className="text-muted-foreground text-sm">$</span>
-              <input
-                type="number"
-                min={TOPUP_MIN_USD}
-                max={TOPUP_MAX_USD}
-                value={topupAmount}
-                onChange={(e) => setTopupAmount(e.target.value)}
-                className="w-full bg-transparent text-sm outline-none"
-                aria-label="Top-up amount in dollars"
-              />
-            </div>
-            <Button size="sm" onClick={handleTopup} disabled={topupLoading}>
-              {topupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Top up"}
+            <Button
+              type="button"
+              role="radio"
+              aria-checked={topupChoice === "custom"}
+              variant={topupChoice === "custom" ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => setTopupChoice("custom")}
+              disabled={topupLoading}
+            >
+              Custom
             </Button>
           </div>
+          {topupChoice === "custom" && (
+            <div className="space-y-1.5">
+              <div
+                className={
+                  customInvalid
+                    ? "flex items-center gap-1 max-w-[12rem] rounded-md border border-destructive px-3 py-1.5"
+                    : "flex items-center gap-1 max-w-[12rem] rounded-md border border-border px-3 py-1.5"
+                }
+              >
+                <span className="text-muted-foreground text-sm">$</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  step={1}
+                  min={TOPUP_MIN_USD}
+                  max={TOPUP_MAX_USD}
+                  value={customAmount}
+                  autoFocus
+                  onChange={(e) => setCustomAmount(e.target.value)}
+                  placeholder={String(TOPUP_DEFAULT)}
+                  className="w-full bg-transparent text-sm outline-none"
+                  aria-label="Custom top-up amount in whole dollars"
+                  aria-invalid={customInvalid}
+                />
+              </div>
+              <p className={customInvalid ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+                Whole dollars, between {formatUsd(TOPUP_MIN_USD)} and {formatUsd(TOPUP_MAX_USD)}.
+              </p>
+            </div>
+          )}
+          {/* The button NAMES the charge. "Top up" alone asked for a real payment
+              without stating its amount. */}
+          <Button
+            size="sm"
+            onClick={handleTopup}
+            disabled={topupLoading || topupUsd === null}
+          >
+            {topupLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : topupUsd !== null ? (
+              `Add ${formatUsd(topupUsd)}`
+            ) : (
+              "Add balance"
+            )}
+          </Button>
         </section>
         )}
 
@@ -534,20 +634,23 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
             tier_byok_available is true; a no-op card otherwise. */}
         <ByokSection />
 
-        {/* How it works — ADR-429 §13.2 commons language. */}
+        {/* How it works — ADR-429 §13.2 commons language, corrected 2026-07-29
+            for ADR-490. Every "allowance" here named a layer this model retired,
+            and the last line offered "Upgrade" as a remedy for an empty balance —
+            false under ADR-490, where the paid plan buys SEATS and nothing else. */}
         <section className="p-5 border border-border rounded-xl space-y-2 text-sm text-muted-foreground leading-relaxed">
           <p>
             <strong className="text-foreground">Idle costs nothing.</strong> The workspace and every
-            file are free — only work that runs draws on the allowance.
+            file are free — only work that runs draws on the balance.
           </p>
           <p>
             <strong className="text-foreground">One shared pool.</strong> Everyone in the workspace —
-            you, your teammates, and any AI you connect — draws the same allowance. Usage is
+            you, your teammates, and any AI you connect — draws the same balance. Usage is
             attributed per member on the Usage tab.
           </p>
           <p>
-            <strong className="text-foreground">Hard stop when exhausted.</strong> If the allowance and
-            balance run out, work pauses — nothing is lost. Upgrade or top up to resume.
+            <strong className="text-foreground">Hard stop at zero.</strong> If the balance runs out,
+            work pauses — nothing is lost. Top up to resume.
           </p>
         </section>
       </CardContent>

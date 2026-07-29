@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * UsagePaneBody — the workspace's usage-this-cycle glance (plan · included-usage
- * meter · where-it-went · activity trend).
+ * UsagePaneBody — the workspace's usage-this-cycle glance (plan · balance ·
+ * where-it-went · activity trend).
  *
  * ADR-416 follow-on (2026-07-08): Usage is WORKSPACE-scoped — every read
  * (getLimits / getUsageDetail) resolves the acting workspace via
@@ -14,15 +14,18 @@
  * swap, and the component owns its own fetches (it loads on mount, since it now
  * renders inside a pane that only mounts when selected).
  *
- * Activity, not dollars (ADR-396 transparency contract): the meter shows
- * "% used", the trend shows relative activity — the $ figure is never surfaced.
+ * Activity, not dollars (ADR-396 transparency contract, as amended §8): the
+ * CONSUMPTION views stay activity-shaped — per-member %-share, relative trend,
+ * runway in days, never a running cost ticker. The one dollar figure is the
+ * prepaid BALANCE itself, which the operator tops up in dollars and must be able
+ * to read (ADR-490: usage is pay-as-you-go from that balance).
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, Loader2, Users } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { humanizeSlug } from "@/lib/schedule";
-import { deriveUsageMeter } from "@/lib/subscription/usage";
+import { deriveBalance } from "@/lib/subscription/usage";
 import { useWorkspaceRoster, useWorkspaceMemberships } from "@/lib/workspace/viewer";
 
 export function UsagePaneBody() {
@@ -133,39 +136,32 @@ export function UsagePaneBody() {
         </p>
       ) : null}
 
-      {/* Included usage — activity, not dollars (ADR-396 transparency).
-          Meter derived by the shared model so the label always matches the
-          math (allowance-first draw order) — lib/subscription/usage.ts. */}
+      {/* Balance — the prepaid pool's remaining dollars (ADR-490 §1③: no
+          allowance tranche exists to meter against). Derived by the shared model
+          so this pane and the Billing pane can never disagree —
+          lib/subscription/usage.ts. Consumption below stays activity-shaped
+          (%-share, relative trend); the balance itself is the one dollar figure
+          (ADR-396 §10 amendment). */}
       <div className="p-4 border border-border rounded-lg space-y-3">
         {(() => {
-          const meter = deriveUsageMeter(limits);
-          if (!meter) return null;
-          const heading =
-            meter.mode === "allowance"
-              ? "Included usage"
-              : meter.mode === "overage"
-              ? "Top-up balance"
-              : "Balance";
+          const balance = deriveBalance(limits);
+          if (!balance) return null;
           return (
             <>
               <div className="flex items-center justify-between">
-                <h3 className="font-medium">{heading}</h3>
-                <span className="text-sm font-medium">{meter.percent}% used</span>
-              </div>
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${
-                    meter.isCritical
-                      ? "bg-destructive"
-                      : meter.isWarn
-                      ? "bg-yellow-500"
-                      : "bg-primary"
-                  }`}
-                  style={{ width: `${meter.percent}%` }}
-                />
+                <h3 className="font-medium">Balance</h3>
+                <span
+                  className={
+                    balance.isExhausted
+                      ? "text-sm font-medium tabular-nums text-destructive"
+                      : "text-sm font-medium tabular-nums"
+                  }
+                >
+                  {balance.remainingLabel} remaining
+                </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                {meter.detail}
+                {balance.detail}
                 {runwayDays !== null && ` · ~${runwayDays} days left at this pace`}
               </p>
             </>

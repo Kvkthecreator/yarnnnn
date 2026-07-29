@@ -529,7 +529,12 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
         variant_id = LEMONSQUEEZY_TOPUP_VARIANT_ID
         if not variant_id:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Top-up variant not configured")
-        custom_price_cents = int(amount) * 100
+        # ROUND, never truncate (2026-07-29). `int(amount) * 100` silently
+        # under-charged every fractional request — a $12.99 top-up was billed
+        # $12.00 and credited $12.99's worth of intent. The chooser is whole-dollar
+        # (see lib/subscription/usage.ts), so this is a defence-in-depth floor for
+        # any non-UI caller, not a live UI path.
+        custom_price_cents = int(round(float(amount) * 100))
     else:
         tier = normalize_tier(request.tier)
         if tier not in PAID_TIERS:

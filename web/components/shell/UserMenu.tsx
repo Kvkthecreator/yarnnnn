@@ -78,7 +78,7 @@ import {
   useWorkspaceMemberships,
   type WorkspaceMembershipRow,
 } from '@/lib/workspace/viewer';
-import { deriveUsageMeter, type UsageLimits } from '@/lib/subscription/usage';
+import { deriveBalance, type UsageLimits } from '@/lib/subscription/usage';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -134,7 +134,7 @@ export function UserMenu({ email }: UserMenuProps) {
       cancelled = true;
     };
   }, [isOpen]);
-  const usageMeter = deriveUsageMeter(balance);
+  const balanceReadout = deriveBalance(balance);
   const tierLabel = balance
     ? balance.tier.charAt(0).toUpperCase() + balance.tier.slice(1)
     : null;
@@ -390,9 +390,18 @@ export function UserMenu({ email }: UserMenuProps) {
                       glyph from the retired top-bar chip — the label named a
                       surface the click no longer reaches. */}
                   <span className="block">Billing</span>
-                  {usageMeter && tierLabel && (
-                    <span className="block text-[11px] text-muted-foreground">
-                      {tierLabel} · {usageMeter.percent}% used
+                  {/* 2026-07-29 — the glance reads the BALANCE, not a "% used"
+                      against a self-rebasing anchor window (ADR-490: the pool is
+                      prepaid, so the meaningful figure is what's left). */}
+                  {balanceReadout && tierLabel && (
+                    <span
+                      className={
+                        balanceReadout.isExhausted || balanceReadout.isLow
+                          ? 'block text-[11px] text-destructive'
+                          : 'block text-[11px] text-muted-foreground'
+                      }
+                    >
+                      {tierLabel} · {balanceReadout.remainingLabel} left
                     </span>
                   )}
                 </span>
