@@ -32,6 +32,9 @@ import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/sett
 // account door now. The section is location-agnostic; it was formerly mounted
 // under Workspace Settings → Perception.
 import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
+// ADR-496 — the inbound half of a member's own connections (read-only mirror of
+// their own `principal_grants` rows; the roster keeps the governance verbs).
+import { MyAiConnectionsSection } from "@/components/settings/MyAiConnectionsSection";
 // ADR-491 D1 — Billing + Usage LEFT this door (again, finally) for Workspace
 // Settings: with members real (seats live, ADR-490), billing is role-gated
 // workspace governance, and the enterprise convention (ChatGPT/Claude Team)
@@ -337,7 +340,7 @@ export default function SettingsPage() {
             <PaneHeader
               icon={Link2}
               title="Connectors"
-              subtitle="Your platform connections — each is your own credential, in your account. Connect, see status, disconnect."
+              subtitle="Your connections — platforms you reach out to, and AI assistants that reach in. Each is authorized by you, and yours to disconnect."
               bordered={false}
             />
           )}
@@ -348,6 +351,19 @@ export default function SettingsPage() {
             onManageConnection={(provider) => accountParam.set({ connector: provider })}
             onBackFromManage={() => accountParam.set({ connector: null })}
           />
+
+          {/* ADR-496 D1 — the INBOUND half of this member's own connections.
+              An MCP connection is a member's connection (ADR-431 §2:
+              `connected_by`), so "what have I connected?" belongs on the
+              account door next to the outbound credentials — not only inside a
+              workspace-governance roster whose job is governing other people.
+              READ-ONLY: governance stays singular in WorkspaceMembersCard.
+              Hidden during a connector drill-in so the subsurface stays alone. */}
+          {!accountParam.get("connector") && (
+            <div className="mt-8 border-t border-border pt-8">
+              <MyAiConnectionsSection />
+            </div>
+          )}
         </section>
       )}
 
