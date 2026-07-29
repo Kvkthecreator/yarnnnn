@@ -29,7 +29,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { api } from '@/lib/api/client';
+import { api, getActiveWorkspaceId } from '@/lib/api/client';
 import {
   formatAuthorLabelOrSystem,
   memberEmbodiment,
@@ -60,9 +60,36 @@ export interface WorkspaceRoster {
 }
 
 // Module-level caches: membership is a slow fact; one fetch per page life is
-// enough (the workspace switcher hard-reloads on bind change, ADR-407 D9).
+// enough — PROVIDED the acting workspace can't change under the cache.
+//
+// ADR-500: that proviso used to hold (the workspace switcher hard-reloads on
+// bind change, ADR-407 D9), but ADR-499's stale-pin self-heal rebinds MID-
+// SESSION with no reload. A roster fetched under the old binding then outlived
+// it, so the chat picker offered a person from the previous workspace and the
+// server correctly 422'd ("that person isn't in this workspace") on a choice
+// the FE should never have presented.
+//
+// The cache is therefore keyed to the BINDING it was fetched under. A binding
+// change invalidates by construction — no invalidation call to remember at the
+// (now several) sites that can rebind.
 let membersPromise: Promise<WorkspaceMemberRow[]> | null = null;
 let membershipsPromise: Promise<WorkspaceMembershipRow[]> | null = null;
+let cacheBinding: string | null | undefined;
+
+/** Drop the caches when the acting workspace differs from the one they were
+ *  fetched under. Cheap (a string compare) and called on every hook read. */
+function syncCacheBinding(): void {
+  const current = getActiveWorkspaceId();
+  if (cacheBinding === undefined) {
+    cacheBinding = current;
+    return;
+  }
+  if (cacheBinding !== current) {
+    membersPromise = null;
+    membershipsPromise = null;
+    cacheBinding = current;
+  }
+}
 
 async function fetchMembers(): Promise<WorkspaceMemberRow[]> {
   try {
@@ -94,6 +121,7 @@ export function useWorkspaceMembers(): {
   });
   useEffect(() => {
     let cancelled = false;
+    syncCacheBinding();
     if (!membersPromise) membersPromise = fetchMembers();
     membersPromise.then((members) => {
       if (!cancelled) setState({ members, loaded: true });
@@ -124,6 +152,7 @@ export function useWorkspaceMemberships(): {
   }>({ memberships: [], loaded: false });
   useEffect(() => {
     let cancelled = false;
+    syncCacheBinding();
     if (!membershipsPromise) membershipsPromise = fetchMemberships();
     membershipsPromise.then((memberships) => {
       if (!cancelled) setState({ memberships, loaded: true });

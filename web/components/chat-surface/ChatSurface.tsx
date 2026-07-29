@@ -318,20 +318,31 @@ export function ChatSurface() {
       // rather than sending undefined and reading back a 422.
       const model = data?.models?.[0]?.id;
       if (!model) throw new Error('Still loading — try again in a moment');
+      // ADR-500 — starting a conversation WITH someone is two calls (create,
+      // then cast them). If the second fails the first has already landed, so
+      // the member gets an error AND an empty conversation they never asked
+      // for — observed 2026-07-29 (lane d59090d6…, created then orphaned when
+      // the add 422'd). Roll the lane back so a failed act leaves no trace.
+      let created: { id: string } | null = null;
       try {
-        const lane = await api.lanes.create({
+        created = await api.lanes.create({
           model,
           name: people.find((p) => p.principal_id === principalId)?.label,
         });
-        await api.lanes.addParticipant(lane.id, {
+        await api.lanes.addParticipant(created.id, {
           kind: 'human',
           principal_id: principalId,
         });
         const listed = await api.lanes.list();
         setData(listed as LaneData);
-        setParam({ lane: lane.id });
+        setParam({ lane: created.id });
         setCreating(false);
       } catch (e) {
+        if (created) {
+          // Best-effort: the error the member sees is the ORIGINAL failure,
+          // never a cleanup failure stacked on top of it.
+          await api.lanes.archive(created.id).catch(() => {});
+        }
         // SHOW it — same discipline as createLane above.
         throw e instanceof Error ? e : new Error('Could not start this chat');
       }
