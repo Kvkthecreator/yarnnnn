@@ -1,9 +1,27 @@
 # ADR-495: The Conversation — One Object, One Cast, One Visibility Question
 
-**Status:** Proposed (drafted 2026-07-29 from the lifecycle discourse, then **rewritten in full
-the same day** after the operator's species-blind challenge — see §1.3. The first draft carried a
-`scope: private|shared` column and a fork-on-human-invite rule; both were species law in substrate
-costume and are deleted, not deprecated. What survives is smaller and over-determined.)
+**Status:** **IMPLEMENTED 2026-07-29** (drafted from the lifecycle discourse, **rewritten in full
+the same day** after the operator's species-blind challenge — see §1.3 — then built, commit
+`c643282`. The first draft carried a `scope: private|shared` column and a fork-on-human-invite
+rule; both were species law in substrate costume and are deleted, not deprecated. What survives is
+smaller and over-determined.)
+
+> **Build receipts (2026-07-29).** Migration 226 applied to prod: 49 human + 32 agent participants
+> backfilled at window 0; `conversations` + `conversation_messages` dropped (0 rows, verified empty
+> immediately before the run); 0 conversations left without a human participant. `routes/rooms.py`
+> (521 LOC) + `RoomPanel.tsx` (405 LOC) deleted into `lanes.py` + `CastBar.tsx`; net **−50 lines**
+> while adding the cast, the window, and the invite. Gate `api/test_adr495_conversation.py` 12/12,
+> including the ADR-405 §5 ratchet (an AST walk over If/IfExp test nodes proving no access function
+> branches on participant class — substring greps would have passed `select("member_kind, …")` and
+> failed honest code, so it inspects the tree). **Live prod probe** on a real 4-turn conversation:
+> owner floor 0 · stranger floor None · defaults agent=0/human=5 · a from-now participant sees
+> **0 of 4** turns · re-invite does not widen · removal revokes. Siblings green (ADR-411 14/14,
+> registry 169/169); `test_adr407_phase4_chat_scope` 16/1 with the 1 **pre-existing at HEAD**
+> (clean-worktree verified, unrelated). FE tsc + full `next build` clean.
+>
+> **Not built, per D6:** notifications/attention wiring (deferred to post-stabilization by operator
+> ruling), human-`@mention` parsing, streaming for multi-participant conversations. A peer's
+> message still reaches no attention surface — the standing honest gap.
 **Dimensions:** Identity (primary — the cast is the model) + Substrate (one store) + Channel (one
 surface grammar)
 **Relates to:** ADR-405 (the witness dial — **§5's test is the instrument that killed this ADR's
