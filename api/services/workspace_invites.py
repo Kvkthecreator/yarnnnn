@@ -260,21 +260,55 @@ async def send_invite_email(*, email: str, token: str, workspace_name: Optional[
         from jobs.email import send_email
         from services.deep_links import app_url
 
+        from services.email_shell import paragraph, render_email
+
         link = f"{app_url()}/invite/{token}"
-        ws = workspace_name or "a YARNNN workspace"
+        ws = workspace_name or "a yarnnn workspace"
         who = inviter_email or "The workspace owner"
+
+        # ADR-498 D2 — the invite is a member's FIRST contact with yarnnn, and
+        # it was the least-branded thing the product sent (bare <p> + a raw
+        # blue link). It now renders through the one house shell.
+        #
+        # D3 — the address is named in the BODY, not only in fine print: the
+        # accept is email-bound (a mismatch 403s), and the operator hit exactly
+        # that by opening a teammate's link while signed in as themself. Saying
+        # "sent to <address>" up front is what prevents the dead end; the app
+        # now also catches it, but the mail should not set up the failure.
         result = await send_email(
             to=email,
-            subject=f"You're invited to {ws} on YARNNN",
-            html=(
-                f"<p>{who} invited you to collaborate in <strong>{ws}</strong> "
-                f"— a shared, attributed workspace.</p>"
-                f'<p><a href="{link}">Accept the invite</a> '
-                f"(valid {INVITE_TTL_DAYS} days).</p>"
-                f"<p style=\"color:#888\">If you don't have a YARNNN account yet, "
-                f"sign up with this email address first, then open the link.</p>"
+            subject=f"{who} invited you to {ws}",
+            html=render_email(
+                preheader=f"Join {ws} — a shared, attributed workspace.",
+                heading=f"Join {ws}",
+                body_html=(
+                    paragraph(
+                        f"<strong>{who}</strong> invited you to collaborate in "
+                        f"<strong>{ws}</strong> — a shared workspace where every "
+                        f"change records who made it."
+                    )
+                    + paragraph(
+                        f"This invite was sent to <strong>{email}</strong>. "
+                        f"Accept it while signed in with that address."
+                    )
+                ),
+                cta_label="Accept invite",
+                cta_url=link,
+                footnote_html=f"The link is valid for {INVITE_TTL_DAYS} days.",
+                footer_html=(
+                    f"No yarnnn account yet? Sign up with {email} first, then "
+                    f"open the link again.<br>"
+                    f"If you weren&rsquo;t expecting this, you can ignore it."
+                ),
             ),
-            text=f"{who} invited you to {ws} on YARNNN. Accept: {link}",
+            text=(
+                f"{who} invited you to {ws} on yarnnn — a shared workspace where "
+                f"every change records who made it.\n\n"
+                f"Accept: {link}\n\n"
+                f"This invite was sent to {email}; accept it while signed in with "
+                f"that address. The link is valid for {INVITE_TTL_DAYS} days.\n"
+                f"No account yet? Sign up with {email} first, then open the link."
+            ),
         )
         return bool(getattr(result, "success", False) or getattr(result, "id", None))
     except Exception as exc:  # noqa: BLE001 — email is transport, never blocks the invite

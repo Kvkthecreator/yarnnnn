@@ -19,9 +19,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, Users } from "lucide-react";
+import { Loader2, Users, AlertTriangle } from "lucide-react";
 
 import { api, APIError, setActiveWorkspace } from "@/lib/api/client";
+import { createClient } from "@/lib/supabase/client";
 
 type Preview = {
   workspace_name: string | null;
@@ -38,6 +39,29 @@ export default function InviteAcceptPage() {
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // ADR-498 — WHO is currently signed in. The accept is email-bound
+  // (`accept_invite` 403s on mismatch), and the page previously discovered that
+  // only AFTER the click: an owner who opened an invite meant for a teammate
+  // got a bare "Failed to load resource: 403" with no explanation and no way
+  // forward. The signed-in identity is knowable BEFORE the click, so the
+  // mismatch is surfaced as a state, not as a failure.
+  const [viewerEmail, setViewerEmail] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await createClient().auth.getSession();
+        if (!cancelled) setViewerEmail(data.session?.user?.email ?? null);
+      } catch {
+        if (!cancelled) setViewerEmail(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -73,6 +97,30 @@ export default function InviteAcceptPage() {
     }
   }, [token]);
 
+  // ADR-498 — the mismatch is decided from two knowable facts, before any
+  // network call. Compared case-insensitively + trimmed, mirroring the server's
+  // own test (`workspace_invites.py::accept_invite`) so the FE can never
+  // disagree with the gate about what counts as a match.
+  const invitedEmail = preview?.email?.trim().toLowerCase() ?? null;
+  const signedInEmail = viewerEmail?.trim().toLowerCase() ?? null;
+  const wrongAccount =
+    !!invitedEmail && !!signedInEmail && invitedEmail !== signedInEmail;
+
+  // Sign out and return HERE — the invite link survives the round-trip, so the
+  // member lands back on the accept button as the right person instead of
+  // having to re-open the email.
+  const switchAccount = useCallback(async () => {
+    setSigningOut(true);
+    try {
+      await createClient().auth.signOut();
+    } catch {
+      // best-effort — the redirect below re-gates through login either way
+    }
+    window.location.assign(
+      `/auth/login?next=${encodeURIComponent(`/invite/${token}`)}`,
+    );
+  }, [token]);
+
   const wsName = preview?.workspace_name || "a shared workspace";
 
   return (
@@ -101,6 +149,33 @@ export default function InviteAcceptPage() {
               <p className="mt-4 text-sm text-muted-foreground">
                 This invite is {preview?.status}.
               </p>
+            ) : wrongAccount ? (
+              /* ADR-498 — the wrong-account state. Named BEFORE the click, with
+                 the way out attached: the accept is email-bound, so the only
+                 resolution is to sign in as the invited address. */
+              <div className="mt-5">
+                <div className="flex items-start gap-2 rounded-md border border-amber-300/60 bg-amber-50 p-3 text-left dark:border-amber-800/50 dark:bg-amber-950/30">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <p className="text-xs text-amber-900 dark:text-amber-200">
+                    This invite was sent to{" "}
+                    <span className="font-medium">{preview?.email}</span>, but
+                    you&apos;re signed in as{" "}
+                    <span className="font-medium">{viewerEmail}</span>. Invites
+                    are bound to their address, so switch accounts to accept it.
+                  </p>
+                </div>
+                <button
+                  onClick={() => void switchAccount()}
+                  disabled={signingOut}
+                  className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                >
+                  {signingOut && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Sign in as {preview?.email}
+                </button>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  You&apos;ll come back to this invite after signing in.
+                </p>
+              </div>
             ) : (
               <>
                 <button
@@ -112,8 +187,8 @@ export default function InviteAcceptPage() {
                   Accept invite
                 </button>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Invited address: {preview?.email}. You must be signed in with
-                  that email.
+                  Invited address: {preview?.email}
+                  {signedInEmail ? " · signed in as you" : ""}.
                 </p>
               </>
             )}
