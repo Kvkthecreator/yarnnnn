@@ -240,6 +240,35 @@ def test_falsifier_sees_every_conversation_turn() -> None:
     _assert('.eq("slug", "lane")' not in f, "the single-slug filter is gone")
 
 
+def test_person_create_invents_no_agent_slug() -> None:
+    """Live bug 2026-07-29: picking a person sent `agent: 'freddie'` — a slug
+    that is not in the registry (sonnet/scout/designer/critic), so `create`
+    422'd and the modal read "Failed to fetch".
+
+    Two rules, both gated: choosing a person must not choose an Agent for you,
+    and no FE call site may hardcode an agent slug the registry has to honor.
+    """
+    print("\nRegression — picking a person invents no Agent")
+    surface = _read(WEB / "components" / "chat-surface" / "ChatSurface.tsx")
+    block_start = surface.find("const createConversationWithPerson")
+    _assert(block_start > 0, "the person-create path exists")
+    block = surface[block_start : surface.find("const archiveLane", block_start)]
+    # Comment lines are stripped: the block DOCUMENTS the bug (naming the bad
+    # slug so it isn't re-derived), which is the opposite of shipping it.
+    # Assert on code — the lesson from this gate's own first run.
+    code = "\n".join(
+        ln for ln in block.splitlines()
+        if not ln.strip().startswith(("//", "*", "/*"))
+    )
+    _assert("agent:" not in code, "the person path picks NO agent for you")
+    _assert("'freddie'" not in code, "no hardcoded agent slug in the create call")
+    _assert(
+        "data?.models?.[0]?.id" in block or "model," in block,
+        "it passes a model from the server's own envelope (guaranteed routable)",
+    )
+    _assert("throw" in block, "failures surface to the member, never swallowed")
+
+
 def test_last_human_cannot_be_removed() -> None:
     print("\nSafety — a conversation cannot be orphaned")
     lanes = _read(ROOT / "routes" / "lanes.py")
@@ -261,6 +290,7 @@ if __name__ == "__main__":
         test_never_ambient_survives,
         test_conversations_write_no_notification,
         test_falsifier_sees_every_conversation_turn,
+        test_person_create_invents_no_agent_slug,
         test_last_human_cannot_be_removed,
     ]:
         fn()

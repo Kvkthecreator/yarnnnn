@@ -302,19 +302,41 @@ export function ChatSurface() {
   }, [setParam]);
 
   // ADR-495 D3 — picking a PERSON starts a conversation with them in the
-  // cast. Not a different object and not a different endpoint: the same
-  // create, then one species-blind invite. Their window defaults to "from
-  // now", which on a brand-new conversation is everything.
+  // cast. Same create, then one species-blind invite; their window defaults
+  // to "from now", which on a brand-new conversation is everything.
+  //
+  // NO AGENT IS PICKED FOR YOU. The first cut hardcoded `agent: 'freddie'` —
+  // a slug that does not exist in the registry (sonnet/scout/designer/critic),
+  // so `create` 422'd and the modal showed "Failed to fetch". Choosing a
+  // person is choosing a person; an Agent joins when you add one. The lane
+  // takes a model directly (the Studio/derive path's shape) so a
+  // human-only conversation is representable without a colleague in it.
   const createConversationWithPerson = useCallback(
     async (principalId: string) => {
-      const lane = await api.lanes.create({ agent: 'freddie' });
-      await api.lanes.addParticipant(lane.id, { kind: 'human', principal_id: principalId });
-      const listed = await api.lanes.list();
-      setData(listed as LaneData);
-      setParam({ lane: lane.id });
-      setCreating(false);
+      // The envelope is what the server validates `model` against, so its
+      // first entry is guaranteed routable. If it hasn't loaded, say so
+      // rather than sending undefined and reading back a 422.
+      const model = data?.models?.[0]?.id;
+      if (!model) throw new Error('Still loading — try again in a moment');
+      try {
+        const lane = await api.lanes.create({
+          model,
+          name: people.find((p) => p.principal_id === principalId)?.label,
+        });
+        await api.lanes.addParticipant(lane.id, {
+          kind: 'human',
+          principal_id: principalId,
+        });
+        const listed = await api.lanes.list();
+        setData(listed as LaneData);
+        setParam({ lane: lane.id });
+        setCreating(false);
+      } catch (e) {
+        // SHOW it — same discipline as createLane above.
+        throw e instanceof Error ? e : new Error('Could not start this chat');
+      }
     },
-    [setParam],
+    [setParam, data, people],
   );
 
   const archiveLane = useCallback(
