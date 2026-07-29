@@ -24,15 +24,17 @@
  * Kept intentionally thin — no composition, no inference. Just a name
  * extracted from the IDENTITY.md at the seat path.
  *
- * Module-level singleton cache: the persona name is workspace-stable
- * within a session, so a single fetch (deduped across all hook callers)
- * is correct. Without this dedupe, every chat message row mounts the
- * hook → fires its own fetch, producing tens-of-fetches-per-second
- * loops as the conversation re-renders.
+ * Module-level singleton cache, KEYED TO THE ACTING WORKSPACE. A single fetch
+ * (deduped across all hook callers) is correct within one binding — without
+ * the dedupe, every chat message row mounts the hook and fires its own fetch,
+ * producing tens-of-fetches-per-second loops as the conversation re-renders.
+ * The cache used to claim session-stability; that was wrong once the acting
+ * workspace could rebind mid-session without a reload, so it now invalidates
+ * on a binding change (see `syncCacheBinding` below).
  */
 
 import { useState, useEffect } from 'react';
-import { api } from '@/lib/api/client';
+import { api, getActiveWorkspaceId } from '@/lib/api/client';
 
 const REVIEWER_IDENTITY_PATH = '/workspace/persona/IDENTITY.md';
 
@@ -98,8 +100,36 @@ let cachedPersonaName: string | null = null;
 let resolved = false;
 let inFlight: Promise<string | null> | null = null;
 const subscribers = new Set<(name: string | null) => void>();
+// The persona name is read from `persona/IDENTITY.md` INSIDE the acting
+// workspace's substrate, so it is workspace-dependent — but this cache had no
+// binding key and `resolved` latched forever. After a mid-session rebind
+// (`client.ts`'s stale-pin self-heal, which does not reload) every consumer
+// kept showing the PREVIOUS workspace's operator-authored persona name.
+//
+// Same defect, same fix as the roster cache in `lib/workspace/viewer.ts`:
+// key the cache to the binding it was fetched under, so a rebind invalidates
+// by construction and no call site has an invalidation to remember.
+let cacheBinding: string | null | undefined;
+
+function syncCacheBinding(): void {
+  const current = getActiveWorkspaceId();
+  if (cacheBinding === undefined) {
+    cacheBinding = current;
+    return;
+  }
+  if (cacheBinding !== current) {
+    cachedPersonaName = null;
+    resolved = false;
+    inFlight = null;
+    cacheBinding = current;
+    // Subscribers re-render to the kernel default until the refetch lands —
+    // a brief generic label beats another workspace's proper noun.
+    subscribers.forEach((cb) => cb(null));
+  }
+}
 
 async function fetchPersonaOnce(): Promise<string | null> {
+  syncCacheBinding();
   if (resolved) return cachedPersonaName;
   if (inFlight) return inFlight;
 
@@ -141,8 +171,9 @@ export function getFreddiePersonaName(): string | null {
  * Returns null if the persona hasn't been authored yet (skeleton state).
  *
  * Module-level cache + subscriber pattern: every hook caller subscribes
- * to the same single fetch. Persona name is workspace-stable within a
- * session — there is no need to refetch per component mount.
+ * to the same single fetch. The name is stable within one WORKSPACE BINDING
+ * (not one session — the acting workspace can rebind mid-session), so the
+ * cache is keyed to its binding and invalidates when that changes.
  */
 export function useFreddiePersona(): string | null {
   const [personaName, setPersonaName] = useState<string | null>(cachedPersonaName);

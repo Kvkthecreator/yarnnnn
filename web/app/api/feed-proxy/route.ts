@@ -29,10 +29,16 @@ export async function POST(request: NextRequest): Promise<Response> {
   const authorization = request.headers.get("authorization");
   const contentType = request.headers.get("content-type");
   const cookie = request.headers.get("cookie");
+  // The acting-workspace binding must survive the proxy hop (ADR-373). This
+  // allowlist previously dropped it, so the same-origin fallback re-created
+  // the exact mis-scope the direct path was just fixed for: the turn would
+  // land in the member's OWN workspace instead of the granted one.
+  const workspaceId = request.headers.get("x-workspace-id");
 
   if (authorization) headers.set("authorization", authorization);
   if (contentType) headers.set("content-type", contentType);
   if (cookie) headers.set("cookie", cookie);
+  if (workspaceId) headers.set("x-workspace-id", workspaceId);
 
   let upstreamResponse: Response;
   try {
