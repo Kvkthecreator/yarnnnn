@@ -58,12 +58,36 @@ export type WorkspaceMembersVariant = 'full' | 'compact';
 const HUMAN_ROLES = ['owner', 'member'] as const;
 const AI_ROLES = ['foreign-llm', 'a2a', 'platform', 'own-agent'] as const;
 
+/**
+ * WHOSE principals the roster renders (ADR-496 D1).
+ *
+ * - `workspace` — every principal in the commons. The governance surface.
+ * - `mine`      — only the principals the VIEWER authorized
+ *                 (`connected_by_is_you`). The account-door mirror: a member
+ *                 asking "what have I connected?" without opening a surface
+ *                 whose job is governing other people.
+ *
+ * This is a FILTER on the one roster fetch, never a second fetch or a second
+ * component (DP29 "mirror once"): the same rows, the same row renderer, the
+ * same brand marks and zone chips — so the two surfaces cannot drift into two
+ * visual languages for one fact.
+ */
+export type WorkspaceMembersScope = 'workspace' | 'mine';
+
 interface WorkspaceMembersCardProps {
   variant?: WorkspaceMembersVariant;
+  /** Whose principals to show. Defaults to the whole commons. */
+  scope?: WorkspaceMembersScope;
+  /** Opt OUT of the governance verbs (narrow / revoke). The account-door mirror
+   *  sets this: governance stays SINGULAR on the workspace door, which this
+   *  surface links across to instead of duplicating. */
+  readOnly?: boolean;
   className?: string;
   /** Optional override for the empty state (shown when the roster is empty). */
   emptyTitle?: string;
   emptyHint?: string;
+  /** Rendered after the roster sections (e.g. the mirror's cross-link). */
+  footer?: React.ReactNode;
 }
 
 // Role → presentation (icon + human label). The internal slugs are stable
@@ -94,9 +118,12 @@ function regionLabel(region: string): string {
 
 export function WorkspaceMembersCard({
   variant = 'full',
+  scope = 'workspace',
+  readOnly = false,
   className,
   emptyTitle,
   emptyHint,
+  footer,
 }: WorkspaceMembersCardProps) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -247,8 +274,21 @@ export function WorkspaceMembersCard({
   // (humans / external AI). Not a data fork (DP29): one fetch, partitioned for
   // legibility. A member's in-chat model is not here at all (it's not a
   // principal), so the two partitions are exhaustive over the roster.
-  const humans = members.filter((m) => (HUMAN_ROLES as readonly string[]).includes(m.role));
-  const ais = members.filter((m) => (AI_ROLES as readonly string[]).includes(m.role));
+  // ADR-496 D1 — the scope filter. `mine` keeps only the principals the VIEWER
+  // authorized, using the attributed fact ADR-431 D3 already serves
+  // (`connected_by_is_you`). A human's own row is theirs by definition; an AI
+  // connection's is decided by who ran its OAuth flow. Applied BEFORE the
+  // kind-partition so both sections narrow together.
+  const scoped =
+    scope === 'mine'
+      ? members.filter((m) =>
+          (AI_ROLES as readonly string[]).includes(m.role)
+            ? m.connected_by_is_you === true
+            : false,
+        )
+      : members;
+  const humans = scoped.filter((m) => (HUMAN_ROLES as readonly string[]).includes(m.role));
+  const ais = scoped.filter((m) => (AI_ROLES as readonly string[]).includes(m.role));
 
   if (loading) {
     return (
@@ -278,7 +318,9 @@ export function WorkspaceMembersCard({
         const Icon = meta.icon;
         const name = m.label ?? m.principal_id;
         // ADR-386 D4 — the owner grant is immutable from this surface: no verbs.
-        const governable = m.role !== 'owner';
+        // ADR-496 D1 — `readOnly` drops the verbs entirely (the account-door
+        // mirror READS; the workspace door GOVERNS — Singular Implementation).
+        const governable = !readOnly && m.role !== 'owner';
         // ADR-431 §display — the one-line "what kind of principal is this" hint
         // that carries the conceptual framing. For an external LLM it names the
         // distinguishing fact: it reaches in autonomously over MCP and writes
@@ -513,21 +555,33 @@ export function WorkspaceMembersCard({
           (humans) and AI connections (external LLMs). The AI section only
           appears once at least one AI principal exists, so a cold-start
           workspace (owner only) sees a clean People list, not an empty AI box. */}
-      <section className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          People
-        </h3>
-        {humans.length === 0 ? renderEmptyState('No people yet') : renderMemberList(humans)}
-      </section>
+      {/* ADR-496 D1 — under `mine` the People section is omitted: "who else is
+          in this workspace" is a commons question, answered on the workspace
+          door. The account door answers only "what have I connected". */}
+      {scope === 'workspace' && (
+        <section className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            People
+          </h3>
+          {humans.length === 0 ? renderEmptyState('No people yet') : renderMemberList(humans)}
+        </section>
+      )}
 
-      {ais.length > 0 && (
+      {(ais.length > 0 || scope === 'mine') && (
         <section className="space-y-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             AI connections
           </h3>
-          {renderMemberList(ais)}
+          {ais.length > 0
+            ? renderMemberList(ais)
+            : renderEmptyState(
+                'No AI connections yet',
+                'Connect this workspace from ChatGPT or Claude to give it durable, attributed memory.',
+              )}
         </section>
       )}
+
+      {footer}
 
       {/* ADR-386 D2/D3 — REVOKE = full eviction. The modal emphasizes the weight:
           irreversible-feeling, names the consequence BEFORE the click. */}

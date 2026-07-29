@@ -1,6 +1,6 @@
 """
-ADR-496 regression gate — the account door mirrors the member's OWN inbound AI
-connections, and governance stays singular.
+ADR-496 regression gate — the account door reuses the ROSTER COMPONENT for the
+member's own inbound AI connections, and governance stays singular.
 
 Run: `python3 api/test_adr496_my_ai_connections.py`
 
@@ -30,7 +30,6 @@ import os
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-COMPONENT = os.path.join(REPO, "web", "components", "settings", "MyAiConnectionsSection.tsx")
 PAGE = os.path.join(REPO, "web", "app", "(authenticated)", "settings", "page.tsx")
 ROSTER = os.path.join(
     REPO, "web", "components", "workspace-concepts", "WorkspaceMembersCard.tsx"
@@ -48,90 +47,93 @@ def check(label: str, ok: bool, detail: str = "") -> None:
         _failures.append(label)
 
 
-comp = open(COMPONENT).read()
 page = open(PAGE).read()
 roster = open(ROSTER).read()
 backend = open(BACKEND).read()
 
-# --- 1. the mirror shows only the VIEWER's own connections ------------------
+# --- 1. ONE component, not a look-alike (the operator's correction) ----------
 
 check(
-    "the mirror filters on connected_by_is_you",
-    "connected_by_is_you === true" in comp,
+    "the account door renders the REAL roster component, not a twin",
+    "WorkspaceMembersCard" in page
+    and "@/components/workspace-concepts/WorkspaceMembersCard" in page,
+    "a second component would drift from the workspace view",
+)
+check(
+    "the look-alike twin is deleted",
+    not os.path.exists(
+        os.path.join(REPO, "web", "components", "settings", "MyAiConnectionsSection.tsx")
+    ),
+    "two components for one display is the dual-approach this repo forbids",
+)
+check(
+    "the roster exposes a scope axis",
+    "WorkspaceMembersScope" in roster and "scope = 'workspace'" in roster,
+)
+
+# --- 2. `mine` shows only the VIEWER's own connections ----------------------
+
+check(
+    "the `mine` scope filters on connected_by_is_you",
+    "m.connected_by_is_you === true" in roster,
     "without this a member would see peers' connections on their personal door",
 )
 check(
-    "the mirror filters to inbound AI roles only",
-    "EXTERNAL_AI_ROLES" in comp and "foreign-llm" in comp,
+    "the scope filter runs on the ONE fetch (no second request)",
+    "scope === 'mine'" in roster and roster.count("api.workspace.getMembers()") <= 2,
 )
 check(
-    "human roles are NOT rendered here (that is the roster's job)",
-    '"owner"' not in comp and "'owner'" not in comp,
+    "under `mine` the People section is omitted",
+    "scope === 'workspace' && (" in roster,
+    "who else is in the workspace is a commons question, not an account one",
+)
+check(
+    "the account door passes scope=\"mine\"",
+    'scope="mine"' in page,
 )
 
-# --- 2. it is READ-ONLY — governance stays singular -------------------------
-
-for verb, api_call in [
-    ("narrow", "narrowMember"),
-    ("revoke", "revokeMember"),
-    ("invite", "inviteMember"),
-    ("spend cap", "setSpendCap"),
-]:
-    check(
-        f"the mirror carries no {verb} verb",
-        api_call not in comp,
-        f"{api_call} would make this a second governance surface",
-    )
+# --- 3. READ-ONLY — governance stays singular on the workspace door ---------
 
 check(
-    "the roster still owns the governance verbs",
+    "the roster supports readOnly (drops narrow/revoke)",
+    "readOnly = false" in roster and "!readOnly && m.role !== 'owner'" in roster,
+)
+check(
+    "the account door passes readOnly",
+    "readOnly" in page,
+)
+check(
+    "the roster still owns the governance verbs for the workspace door",
     "revokeMember" in roster,
-    "governance must not have MOVED — it stays singular in the roster",
+    "governance must not have MOVED — it stays on the workspace door",
 )
 check(
-    "the mirror links ACROSS to the roster instead of duplicating it",
-    "/workspace-settings?pane=members" in comp,
+    "the account door links ACROSS instead of duplicating governance",
+    "/workspace-settings?pane=members" in page,
 )
 
-# --- 3. the backend still serves the attributed fact ------------------------
+# --- 4. the backend still serves the attributed fact ------------------------
 
 check(
     "GET /workspace/members serves connected_by_is_you (ADR-431 D3)",
     "connected_by_is_you" in backend,
-    "the mirror's filter depends on this field",
+    "the scope filter depends on this field",
 )
 check(
     "the member model still carries write_zones (ADR-424 operator zones)",
     "write_zones" in backend,
 )
 
-# --- 4. it is mounted on the account door, under the connectors pane --------
+# --- 5. mounting ------------------------------------------------------------
 
 check(
-    "the mirror is mounted in the settings (account) door",
-    "MyAiConnectionsSection" in page,
-)
-check(
-    "it is imported from the settings component home",
-    "@/components/settings/MyAiConnectionsSection" in page,
-)
-check(
     "it is hidden during a connector drill-in",
-    '{!accountParam.get("connector") && (\n            <div className="mt-8' in page,
+    '{!accountParam.get("connector") && (' in page,
     "the Manage subsurface must render alone",
 )
 check(
     "the pane subtitle names BOTH directions (outbound + inbound)",
     "platforms you reach out to, and AI assistants that reach in" in page,
-    "the old subtitle described only the outbound half",
-)
-
-# --- 5. shared rendering primitives, so the two surfaces cannot drift -------
-
-check(
-    "the mirror reuses the shared provider brand icons",
-    "@/lib/ai-providers/brand-icons" in comp and "@/lib/ai-providers/brand-icons" in roster,
-    "two visual languages for one fact would drift",
 )
 
 print()

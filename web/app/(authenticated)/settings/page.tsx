@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   AlertTriangle,
+  ArrowRight,
   Loader2,
   Check,
   User,
@@ -32,9 +33,11 @@ import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/sett
 // account door now. The section is location-agnostic; it was formerly mounted
 // under Workspace Settings → Perception.
 import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
-// ADR-496 — the inbound half of a member's own connections (read-only mirror of
-// their own `principal_grants` rows; the roster keeps the governance verbs).
-import { MyAiConnectionsSection } from "@/components/settings/MyAiConnectionsSection";
+// ADR-496 — the inbound half of a member's own connections. This is the SAME
+// component the workspace door renders, in `scope="mine"` + `readOnly` — not a
+// look-alike. One roster, one row renderer, so the two surfaces are identical
+// by construction rather than by careful copying.
+import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
 // ADR-491 D1 — Billing + Usage LEFT this door (again, finally) for Workspace
 // Settings: with members real (seats live, ADR-490), billing is role-gated
 // workspace governance, and the enterprise convention (ChatGPT/Claude Team)
@@ -361,7 +364,27 @@ export default function SettingsPage() {
               Hidden during a connector drill-in so the subsurface stays alone. */}
           {!accountParam.get("connector") && (
             <div className="mt-8 border-t border-border pt-8">
-              <MyAiConnectionsSection />
+              <h3 className="mb-1 text-sm font-medium">Your AI connections</h3>
+              <p className="mb-3 text-xs text-muted-foreground">
+                External AI assistants you&apos;ve connected to this workspace
+                over MCP. Each reaches in as itself and writes under your
+                authorization — so a connection is yours, not the
+                workspace&apos;s, and it goes away when you do.
+              </p>
+              <WorkspaceMembersCard
+                variant="compact"
+                scope="mine"
+                readOnly
+                footer={
+                  <a
+                    href="/workspace-settings?pane=members"
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    Manage access for everyone in the workspace
+                    <ArrowRight className="h-3 w-3" />
+                  </a>
+                }
+              />
             </div>
           )}
         </section>

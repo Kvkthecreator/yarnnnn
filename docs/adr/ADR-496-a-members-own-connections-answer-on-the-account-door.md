@@ -30,15 +30,43 @@ ADR-431 §2 states the principle: **an MCP connection is a member's connection, 
 
 One member, one question, two directions across the same MCP boundary, and only one of them had a home on the member's own door.
 
-## 2. D1 — The account door mirrors the member's own inbound connections
+## 2. D1 — The account door renders the ROSTER COMPONENT, scoped to the viewer
 
-`MyAiConnectionsSection` renders on User Settings → Connectors, beneath the outbound platform connectors. It is a **read-only mirror** (ADR-340 DP29, "mirror once"):
+**Operator correction, same day:** the first implementation was a purpose-built
+`MyAiConnectionsSection` that *looked* like the roster — its own row markup, its
+own labels, its own empty state. The operator's ruling: *"can't you align with
+workspace views and information and display — want it to be as similar as
+possible."*
 
-- **Scope**: only rows where `connected_by_is_you` (served by `GET /workspace/members`, ADR-431 D3). A member never sees a peer's connection on their personal door. This is the load-bearing check — it is a privacy boundary, not a display preference, and the gate verifies it fails when removed.
-- **No governance verbs.** No narrow, revoke, invite, or spend cap. Governance stays singular in `WorkspaceMembersCard`; this pane **links across** to it.
-- **Shared primitives.** Reuses the roster's `providerBrandIcon` module and the same `write_zones` chips, so two surfaces for one fact cannot drift into two visual languages.
+That was the right call, and stronger than a styling note. A look-alike is a
+**dual approach**: two components rendering one fact, guaranteed to drift the
+first time either is touched. The twin is **deleted**. `WorkspaceMembersCard`
+— the same component the workspace door renders — gains two orthogonal props:
 
-The pane subtitle now names both directions: *"platforms you reach out to, and AI assistants that reach in."* Previously it described only the outbound half — accurate before this change, incomplete after.
+| Prop | Default | Effect |
+|---|---|---|
+| `scope` | `'workspace'` | `'mine'` filters to principals the viewer authorized (`connected_by_is_you`) and omits the People section |
+| `readOnly` | `false` | drops the narrow/revoke verbs |
+
+Plus a `footer` slot for the cross-link. The account door mounts
+`<WorkspaceMembersCard variant="compact" scope="mine" readOnly … />`.
+
+Both new props **default to the prior behavior**, so the workspace door — which
+passes only `variant="full"` — is byte-identical. The two surfaces are now
+identical *by construction* rather than by careful copying: one fetch, one
+partition, one row renderer, one set of brand marks and zone chips.
+
+Scope semantics:
+- `'mine'` keeps only rows where `connected_by_is_you` (the attributed fact
+  ADR-431 D3 already serves). A member never sees a peer's connection on their
+  personal door. This is a **privacy boundary**, not a display preference — the
+  gate verifies it fails when removed.
+- Under `'mine'` the **People section is omitted**: *"who else is in this
+  workspace"* is a commons question, answered on the workspace door. The account
+  door answers only *"what have I connected"*.
+
+The pane subtitle now names both directions: *"platforms you reach out to, and
+AI assistants that reach in."* Previously it described only the outbound half.
 
 ## 3. Why a mirror and not a move
 
@@ -65,7 +93,7 @@ A workspace-level connection — one credential shared by every member, the "age
 
 ## 6. Validation
 
-- `api/test_adr496_my_ai_connections.py` — **16/16**: viewer-scoping, role filtering, four separate no-governance-verb checks, governance-still-in-the-roster, the cross-link, both backend fields, the mount, drill-in hiding, the subtitle, and shared icon reuse. The privacy check is **verified to fail** when the `connected_by_is_you` filter is removed.
+- `api/test_adr496_my_ai_connections.py` — **15/15**: component reuse (and that the twin is *deleted*), the scope axis, viewer-scoping, one-fetch, People omission, readOnly, governance-still-on-the-workspace-door, the cross-link, both backend fields, drill-in hiding, and the subtitle. The privacy check is **verified to fail** when the `connected_by_is_you` filter is removed.
 - `tsc --noEmit` clean; `next build` green (170/170).
 - Live receipt: the two active foreign-LLM grants both carry `connected_by` = the owner, so the pane renders ChatGPT + Claude for that viewer.
 
