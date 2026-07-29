@@ -482,13 +482,13 @@ export function WorkspaceMembersCard({
 
   return (
     <div className={cn('space-y-6', className)}>
+      {/* One line. The prior version spent five explaining the People/AI-connections
+          split, the MCP transport, and the in-chat-model exclusion — all of it true,
+          none of it needed here: the two section headings below already name the
+          split, and each AI row states "Connects over MCP · writes as itself". */}
       {variant === 'full' && (
         <p className="text-sm text-muted-foreground">
-          Everyone — and everything — that can write to this workspace. People are the humans on
-          the workspace; <span className="font-medium text-foreground/80">AI connections</span> are
-          external LLMs that reach in over MCP and write as themselves. (A member&rsquo;s in-chat
-          model isn&rsquo;t here — it writes as the member, not as its own principal.) Narrow or
-          revoke any principal&rsquo;s access.
+          Everyone — and everything — that can write to this workspace.
         </p>
       )}
 
@@ -538,14 +538,16 @@ export function WorkspaceMembersCard({
               Invite member
             </button>
           </div>
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            Members join this workspace with write access to Operation and Agents —
-            every change they make is attributed to them. Narrow or revoke any time.
-          </p>
+          {/* The "Members join this workspace with write access to Operation and
+              Agents — every change they make is attributed to them. Narrow or
+              revoke any time." helper is DELETED (2026-07-29, operator). It
+              restated what the member rows already show: each row renders its own
+              "Can write:" chips and a Narrow/Revoke menu, so the sentence was
+              describing the controls sitting directly beneath it. */}
           {inviteError && <p className="mt-1.5 text-xs text-destructive">{inviteError}</p>}
           {lastInviteLink && (
             <p className="mt-1.5 break-all text-xs text-muted-foreground">
-              Invite sent. Link (share directly if the email doesn&rsquo;t arrive):{' '}
+              Invite sent — share this link if the email doesn&rsquo;t arrive:{' '}
               <span className="font-mono text-foreground/80">{lastInviteLink}</span>
             </p>
           )}
