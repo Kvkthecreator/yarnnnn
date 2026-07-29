@@ -14,6 +14,7 @@ import { api } from "@/lib/api/client";
 import { formatRelativeTime } from "@/lib/formatting";
 import {
   CONNECTOR_REGISTRY,
+  OFFERED_CONNECTORS,
   FRESHNESS_PROVIDERS,
   connectorMeta,
   type ConnectorMeta,
@@ -105,14 +106,10 @@ export function ConnectedIntegrationsSection({
   const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
-  // Commerce (API key auth, not OAuth)
-  const [commerceApiKey, setCommerceApiKey] = useState("");
-  const [commerceError, setCommerceError] = useState<string | null>(null);
-  // Trading (API key + secret auth — ADR-187)
-  const [tradingApiKey, setTradingApiKey] = useState("");
-  const [tradingApiSecret, setTradingApiSecret] = useState("");
-  const [tradingPaper, setTradingPaper] = useState(true);
-  const [tradingError, setTradingError] = useState<string | null>(null);
+  // ADR-494 D2 — the commerce/trading api-key connect state is DELETED along
+  // with their credential forms. Both connectors are retired (never offered),
+  // so there is no second connect path to keep alive. All remaining connectors
+  // are OAuth: `handleConnectIntegration` is the singular connect verb.
 
   const loadIntegrations = async () => {
     setIsLoadingIntegrations(true);
@@ -131,6 +128,19 @@ export function ConnectedIntegrationsSection({
 
       setPlatformStatuses(statuses);
 
+      // ADR-494 D4 — read the capture-lane flag DIRECTLY, once, from the
+      // zero-DB endpoint that exists for exactly this (ADR-404 D2's amendment).
+      // Before this the flag was inferred incidentally from a per-provider
+      // capture-signal response, so it stayed false whenever no connected
+      // freshness-capable provider happened to be fetched — the reason
+      // `getCaptureLane()` shipped with no caller at all. One flag, one read.
+      try {
+        const lane = await api.integrations.getCaptureLane();
+        setCaptureEnabled(!!lane.connector_capture_enabled);
+      } catch {
+        setCaptureEnabled(false); // fail-safe toward dormancy (ADR-404 D2)
+      }
+
       // ADR-401 D6: fan out the capture signal for connected freshness-capable
       // providers (Slack/Notion/GitHub) — health is DERIVED (capture signal),
       // never the stored status column. Each call is independently guarded so
@@ -143,7 +153,8 @@ export function ConnectedIntegrationsSection({
           connected.map(async (provider) => {
             try {
               const s = await api.integrations.getCaptureSignal(provider);
-              if (s.connector_capture_enabled) setCaptureEnabled(true);
+              // ADR-494 D4: the lane flag is read once above — NOT re-inferred
+              // per provider (that was the second source of one fact).
               const block = s.observed?.[`capture-${provider}`];
               const fresh: PlatformFreshness = {
                 status: block?.status,
@@ -247,170 +258,6 @@ export function ConnectedIntegrationsSection({
     );
   };
 
-  const handleConnectCommerce = async () => {
-    if (!commerceApiKey.trim()) {
-      setCommerceError("API key is required");
-      return;
-    }
-    setConnectingProvider("commerce");
-    setCommerceError(null);
-    try {
-      await api.integrations.connectCommerce(commerceApiKey.trim());
-      setCommerceApiKey("");
-      await loadIntegrations();
-    } catch (err: any) {
-      setCommerceError(err?.message || "Failed to connect. Check your API key.");
-    } finally {
-      setConnectingProvider(null);
-    }
-  };
-
-  const handleConnectTrading = async () => {
-    if (!tradingApiKey.trim() || !tradingApiSecret.trim()) {
-      setTradingError("API key and secret are required");
-      return;
-    }
-    setConnectingProvider("trading");
-    setTradingError(null);
-    try {
-      await api.integrations.connectTrading(
-        tradingApiKey.trim(),
-        tradingApiSecret.trim(),
-        tradingPaper,
-      );
-      setTradingApiKey("");
-      setTradingApiSecret("");
-      await loadIntegrations();
-    } catch (err: any) {
-      setTradingError(err?.message || "Failed to connect. Check your credentials.");
-    } finally {
-      setConnectingProvider(null);
-    }
-  };
-
-  // ADR-392 FE Phase A — the api-key credential form, injected into the
-  // universal ConnectorCard for api-key connectors (commerce/trading). Lifted
-  // VERBATIM from the prior hardcoded commerce/trading card blocks. OAuth
-  // connectors render their brand Connect button inside the card and never
-  // reach this.
-  const renderConnectForm = (meta: ConnectorMeta): React.ReactNode => {
-    if (meta.provider === "commerce") {
-      return (
-        <div className="flex flex-col gap-2 w-full">
-          <div className="flex items-center gap-2">
-            <input
-              type="password"
-              value={commerceApiKey}
-              onChange={(e) => {
-                setCommerceApiKey(e.target.value);
-                setCommerceError(null);
-              }}
-              placeholder="Paste your Lemon Squeezy API key"
-              className="flex-1 px-3 py-2 text-sm border border-border rounded-md bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleConnectCommerce();
-              }}
-            />
-            <button
-              onClick={handleConnectCommerce}
-              disabled={connectingProvider === "commerce" || !commerceApiKey.trim()}
-              className="px-4 py-2 bg-[#7C3AED] text-white rounded-md text-sm font-medium hover:bg-[#6D28D9] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-            >
-              {connectingProvider === "commerce" ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                "Connect"
-              )}
-            </button>
-          </div>
-          {commerceError && (
-            <p className="text-sm text-destructive">{commerceError}</p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Find your API key at{" "}
-            <a
-              href="https://app.lemonsqueezy.com/settings/api"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-foreground"
-            >
-              app.lemonsqueezy.com/settings/api
-            </a>
-          </p>
-        </div>
-      );
-    }
-
-    if (meta.provider === "trading") {
-      return (
-        <div className="flex flex-col gap-2 w-full">
-          <div className="flex items-center gap-2">
-            <input
-              type="password"
-              value={tradingApiKey}
-              onChange={(e) => {
-                setTradingApiKey(e.target.value);
-                setTradingError(null);
-              }}
-              placeholder="Alpaca API key"
-              className="flex-1 px-3 py-2 text-sm border border-border rounded-md bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-            <input
-              type="password"
-              value={tradingApiSecret}
-              onChange={(e) => {
-                setTradingApiSecret(e.target.value);
-                setTradingError(null);
-              }}
-              placeholder="API secret"
-              className="flex-1 px-3 py-2 text-sm border border-border rounded-md bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleConnectTrading();
-              }}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
-              <input
-                type="checkbox"
-                checked={tradingPaper}
-                onChange={(e) => setTradingPaper(e.target.checked)}
-                className="w-4 h-4 rounded border-border"
-              />
-              Paper trading (simulated)
-            </label>
-            <button
-              onClick={handleConnectTrading}
-              disabled={connectingProvider === "trading" || !tradingApiKey.trim() || !tradingApiSecret.trim()}
-              className="px-4 py-2 bg-[#FFDC00] text-black rounded-md text-sm font-medium hover:bg-[#E6C600] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ml-auto"
-            >
-              {connectingProvider === "trading" ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                "Connect"
-              )}
-            </button>
-          </div>
-          {tradingError && (
-            <p className="text-sm text-destructive">{tradingError}</p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Get your API keys at{" "}
-            <a
-              href="https://app.alpaca.markets/brokerage/account/api-keys"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-foreground"
-            >
-              app.alpaca.markets
-            </a>
-          </p>
-        </div>
-      );
-    }
-
-    return null;
-  };
 
   // ADR-392 Phase B — the drill-in: when a connector is the active target and it
   // is connected + selection-capable, render its DEEP Manage subsurface instead
@@ -438,8 +285,15 @@ export function ConnectedIntegrationsSection({
   // (api-key, no selection); un-connected go into the "New connection" discovery
   // section below.
   const isConnected = (m: ConnectorMeta) => platformStatuses[m.provider] === "active";
+  //
+  // ADR-494 D2 — the two halves read DIFFERENT lists, deliberately:
+  //   • connected ← CONNECTOR_REGISTRY (all of it), so a historical connection
+  //     to a RETIRED connector still renders with its real name + brand and
+  //     stays disconnectable. Retiring must never orphan an existing fact.
+  //   • available ← OFFERED_CONNECTORS, so a retired connector is never offered
+  //     as a new connection.
   const connected = CONNECTOR_REGISTRY.filter(isConnected);
-  const available = CONNECTOR_REGISTRY.filter((m) => !isConnected(m));
+  const available = OFFERED_CONNECTORS.filter((m) => !isConnected(m));
 
   return (
     <section className={className}>
@@ -468,7 +322,8 @@ export function ConnectedIntegrationsSection({
                     <ConnectedConnectorRow
                       key={meta.provider}
                       meta={meta}
-                      freshness={freshness[meta.provider]}
+                      freshness={captureEnabled ? freshness[meta.provider] : undefined}
+                      captureEnabled={captureEnabled}
                       onManage={() => onManageConnection?.(meta.provider)}
                       onViewFlow={onViewFlow ? () => onViewFlow(meta.provider) : undefined}
                     />
@@ -487,7 +342,6 @@ export function ConnectedIntegrationsSection({
                     onConnect={handleConnectIntegration}
                     onDisconnect={handleDisconnectIntegration}
                     renderFreshness={renderFreshness}
-                    renderConnectForm={renderConnectForm}
                   />
                 );
               })}
@@ -523,7 +377,6 @@ export function ConnectedIntegrationsSection({
                     onConnect={handleConnectIntegration}
                     onDisconnect={handleDisconnectIntegration}
                     renderFreshness={renderFreshness}
-                    renderConnectForm={renderConnectForm}
                   />
                 );
               })}
@@ -547,11 +400,14 @@ export function ConnectedIntegrationsSection({
 function ConnectedConnectorRow({
   meta,
   freshness,
+  captureEnabled,
   onManage,
   onViewFlow,
 }: {
   meta: ConnectorMeta;
   freshness?: PlatformFreshness;
+  /** ADR-494 D4 — whether the capture lane is RUNNING (ADR-404 D2). */
+  captureEnabled: boolean;
   onManage: () => void;
   onViewFlow?: () => void;
 }) {
@@ -576,7 +432,16 @@ function ConnectedConnectorRow({
             </span>
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-            {freshness?.observedAt ? (
+            {!captureEnabled ? (
+              // ADR-494 D4 — the honest dormant state. This row previously
+              // rendered `freshness` UNGATED, so with the capture lane dormant
+              // (ADR-404 D2, default OFF) it kept displaying the last signal
+              // written before dormancy — a frozen "Last read 3w ago · 2 sources
+              // read" presented as current. A connector that cannot read must
+              // not claim a reading. The ADR-392 D5 honest-freshness discipline
+              // applied to the dormant case.
+              <span>Connected — not reading (capture is paused)</span>
+            ) : freshness?.observedAt ? (
               <>
                 <span className="inline-flex items-center gap-1">
                   <Clock className="h-3 w-3" />

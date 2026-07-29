@@ -8,8 +8,12 @@
  *
  * Post-Phase-B (ADR-392) the card renders the CONNECT + lifecycle surface only:
  *  - un-connected OAuth  → a brand-coloured "Connect" button (OAuth flow).
- *  - un-connected apikey → the parent's credential form (`renderConnectForm`).
- *  - connected apikey    → Reconnect (n/a) + Disconnect + freshness.
+ *  - connected apikey    → Disconnect + freshness.
+ *
+ * ADR-494 D2: the api-key CREDENTIAL FORM is deleted. Both api-key connectors
+ * (Lemon Squeezy / Alpaca) are retired, so no un-connected api-key connector is
+ * ever offered — the branch had no reachable caller. A connected api-key
+ * connector still renders here for Disconnect.
  * SELECTION (picking channels/pages) moved OUT of the card into the deep
  * ManageConnectionSubsurface (a `channels.connector=<provider>` drill-in) —
  * connected OAuth+selection connectors render as a `ConnectedConnectorRow` that
@@ -36,8 +40,6 @@ interface ConnectorCardProps {
   onDisconnect: (provider: string) => void;
   /** ADR-377 freshness strip (parent-owned, OAuth-only). */
   renderFreshness?: (provider: string) => ReactNode;
-  /** API-key credential form (parent-owned, apikey-only). */
-  renderConnectForm?: (meta: ConnectorMeta) => ReactNode;
 }
 
 export function ConnectorCard({
@@ -49,7 +51,6 @@ export function ConnectorCard({
   onConnect,
   onDisconnect,
   renderFreshness,
-  renderConnectForm,
 }: ConnectorCardProps) {
   const isOauth = meta.authKind === "oauth";
 
@@ -118,9 +119,7 @@ export function ConnectorCard({
                   </>
                 )}
               </button>
-            ) : (
-              renderConnectForm?.(meta)
-            )}
+            ) : null}
           </div>
 
           {connected && isOauth && renderFreshness?.(meta.provider)}

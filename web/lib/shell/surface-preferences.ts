@@ -555,10 +555,25 @@ const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
 // question the member is asking NOW, or one they asked once and moved on from?
 //
 //   RESTORE — the surface's own resting posture, or a place you live in.
-//     `settings.pane` (which drawer was open), `chat.lane` (the conversation
-//     you were having). A messaging client resuming your last thread is Slack,
-//     Messages, and Mail behaving correctly — and the lane list sits right
-//     beside it, so the roster is never hidden by the resumption.
+//     `chat.lane` (the conversation you were having). A messaging client
+//     resuming your last thread is Slack, Messages, and Mail behaving
+//     correctly — and the lane list sits right beside it, so the roster is
+//     never hidden by the resumption.
+//
+//     `settings.pane` WAS classified here ("which drawer was open") and is
+//     RECLASSIFIED as ephemeral by ADR-494 D5. Two reasons, both observed:
+//       (a) The UserMenu offers "User Settings" (the door) and "Connectors"
+//           (one pane) as SEPARATE items. Under restore they collapse into the
+//           same destination — the door stops being a door, because clicking it
+//           lands wherever you last were. A door must open itself.
+//       (b) It has the no-clearing-path shape this section was written to
+//           catch: ADR-491's stale `billing` value made the account door
+//           literally unenterable for anyone who had used Billing before it
+//           moved, and the fix had to be a hand-written per-value normalizer.
+//           That normalizer is a symptom; every future pane retirement would
+//           need another one. Ephemeral removes the class.
+//     A pane is a momentary look at one drawer, not a place you live in — the
+//     nav list sits right there, one click away, so nothing is lost.
 //
 //   DON'T RESTORE — a specific object you drilled into. Two flavours:
 //
@@ -593,6 +608,14 @@ const SURFACE_EPHEMERAL_PARAM_KEYS: Record<string, readonly string[]> = {
   // `chat.lane` is deliberately NOT here — a conversation is a place you live
   // in, and its list stays visible beside it.
   agents: ['agent'],
+  // ADR-494 D5 — both settings doors open on their own front pane. `pane` stays
+  // OWNED, so every deep-link still works (the UserMenu's "Connectors" item,
+  // `?pane=billing` from the balance glance, a bookmark) — it is only dropped
+  // from the REMEMBERED set. `connector` is the drill-in one level deeper
+  // (ADR-392 Phase B): a specific connection's Manage subsurface, which is a
+  // document-identity-shaped drill-in by the test above.
+  settings: ['pane', 'connector'],
+  'workspace-settings': ['pane'],
 };
 
 /** Drop persisted param keys a surface doesn't own (see SURFACE_PARAM_KEYS). */

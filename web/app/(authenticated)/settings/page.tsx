@@ -144,20 +144,12 @@ export default function SettingsPage() {
     }
   }, [tabParam, navigateToSurface]);
 
-  // ADR-491 D1 — `billing`/`usage` are RETIRED values of this door's pane
-  // param (the panes moved to the workspace door). `settings.pane` is
-  // RESTORE-class (replayed on every open), so the first cut — a redirect to
-  // the workspace door — HIJACKED this door for anyone whose last-open pane
-  // was billing: clicking User Settings bounced them straight back out, with
-  // no clearing path (the remembered-state smell). A door must open itself:
-  // clear the stale value and land on Account. Old billing bookmarks land
-  // here too — the workspace door's Billing is one click (or /billing).
-  useEffect(() => {
-    if (requestedPane === "billing" || requestedPane === "usage") {
-      accountParam.set({ pane: null });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestedPane]);
+  // ADR-494 D5 — the ADR-491 D1 `billing`/`usage` clearing effect is DELETED.
+  // It patched the symptom (a stale RESTORE-class pane value with no clearing
+  // path); the cause is fixed at the source — `settings.pane` is now ephemeral
+  // (SURFACE_EPHEMERAL_PARAM_KEYS), so no stale pane is ever replayed and this
+  // door always opens on Account. An old `?pane=billing` bookmark still lands
+  // here safely via the ALL_PANES fallback below.
 
   const [dangerStats, setDangerStats] = useState<DangerZoneStats | null>(null);
   const [isLoadingDangerStats, setIsLoadingDangerStats] = useState(false);

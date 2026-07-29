@@ -24,11 +24,31 @@ import type { ReactNode } from "react";
 
 export type ConnectorAuthKind = "oauth" | "apikey";
 
+/**
+ * A connector's lifecycle status — the SINGLE derivation of what is offered
+ * (ADR-494 D1). Previously the offered set was this array, duplicated by a
+ * hardcoded `SUPPORTED_PLATFORMS` literal in the backend; the Nth connector had
+ * to be added in both, and drift was invisible.
+ *
+ * - `live`    — a real connect path AND a capture binding
+ *               (`CONNECTOR_CAPTURE_BINDINGS`). Offered.
+ * - `retired` — kept as data (hide-not-delete, the ADR-404/425 precedent) so a
+ *               historical connection still resolves to its real name + brand,
+ *               but NOT offered as a new connection.
+ *
+ * There is deliberately NO `dormant` value: dormancy is a property of the
+ * capture LANE (`CONNECTOR_CAPTURE_ENABLED`, ADR-404 D2), read once and applied
+ * uniformly — encoding it per-row would give two sources for one fact.
+ */
+export type ConnectorStatus = "live" | "retired";
+
 export interface ConnectorMeta {
   provider: string;
   displayName: string;
   tagline: string;
   authKind: ConnectorAuthKind;
+  /** Lifecycle status — governs whether this connector is OFFERED (ADR-494 D1). */
+  status: ConnectorStatus;
   /** For OAuth connectors with a Phase-2 Select subsurface: the resource noun
    *  ("channels" / "pages" / "repos"). Undefined for api-key connectors. */
   resourceNoun?: string;
@@ -93,6 +113,7 @@ export const CONNECTOR_REGISTRY: ConnectorMeta[] = [
     displayName: "Slack",
     tagline: "Team collaboration and context",
     authKind: "oauth",
+    status: "live",
     resourceNoun: "channels",
     supportsSelection: true,
     brand: { chipClass: "bg-[#4A154B]", connectTextClass: "text-white", icon: SlackIcon },
@@ -102,6 +123,7 @@ export const CONNECTOR_REGISTRY: ConnectorMeta[] = [
     displayName: "Notion",
     tagline: "Documentation and knowledge base",
     authKind: "oauth",
+    status: "live",
     resourceNoun: "pages",
     supportsSelection: true,
     brand: { chipClass: "bg-black dark:bg-white", icon: NotionIcon },
@@ -111,15 +133,28 @@ export const CONNECTOR_REGISTRY: ConnectorMeta[] = [
     displayName: "GitHub",
     tagline: "Repositories, issues, and pull requests",
     authKind: "oauth",
+    status: "live",
     resourceNoun: "repos",
     supportsSelection: true,
     brand: { chipClass: "bg-gray-900 dark:bg-white", icon: GithubIcon },
   },
+  // ADR-494 D2 — RETIRED. Receipted 2026-07-29: zero commerce and zero trading
+  // rows have ever existed in `platform_connections` (prod: only slack=1,
+  // notion=1). Neither has a `CONNECTOR_CAPTURE_BINDINGS` entry, so neither ever
+  // had a connector-lane reader. Trading's only capture path is the alpha-trader
+  // bundle's SyncPlatformState mirrors, which need a hire with no operator
+  // surface (ADR-414 D5 / ADR-382 deferred; "13 workspaces, 0 minted").
+  // Offering them was an invitation into a dead end.
+  //
+  // Kept as data, not deleted: a historical connection still renders with its
+  // real name + brand and stays disconnectable; re-lighting either is a
+  // one-word status change here plus the same in `connector_registry.py`.
   {
     provider: "commerce",
     displayName: "Lemon Squeezy",
     tagline: "Subscriptions, revenue, and customer data",
     authKind: "apikey",
+    status: "retired",
     brand: { chipClass: "bg-[#7C3AED]", icon: CommerceIcon },
   },
   {
@@ -127,15 +162,27 @@ export const CONNECTOR_REGISTRY: ConnectorMeta[] = [
     displayName: "Alpaca Trading",
     tagline: "Market data, portfolio tracking, and trade execution",
     authKind: "apikey",
+    status: "retired",
     brand: { chipClass: "bg-[#FFDC00]", icon: TradingIcon },
   },
 ];
+
+/**
+ * The connectors OFFERED as a new connection (ADR-494 D1) — what the "New
+ * connection" section maps over. Retired connectors are absent here but still
+ * resolvable via `connectorMeta`, so an existing connection keeps its identity.
+ */
+export const OFFERED_CONNECTORS = CONNECTOR_REGISTRY.filter(
+  (c) => c.status === "live",
+);
 
 // ADR-377: which providers have a sync registry (OAuth platforms with
 // synced_resources). Api-key connectors authenticate by key and have no
 // per-resource sync freshness — they are skipped in the freshness fan-out.
 // Derived from the registry so it can never drift from the auth kinds above.
-export const FRESHNESS_PROVIDERS = CONNECTOR_REGISTRY.filter(
+// ADR-494: derived from OFFERED_CONNECTORS — a retired connector is never
+// polled for freshness (there is no reader behind it to be fresh).
+export const FRESHNESS_PROVIDERS = OFFERED_CONNECTORS.filter(
   (c) => c.authKind === "oauth",
 ).map((c) => c.provider);
 

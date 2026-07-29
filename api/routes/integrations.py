@@ -23,6 +23,13 @@ from pydantic import BaseModel
 
 from services.supabase import UserClient, get_service_client
 from services.workspace_context import substrate_scope_filter, account_scope_filter
+# ADR-494 D1 — the single offered-connector source (mirrors the FE registry;
+# drift is CI-gated by api/test_adr494_connector_registry.py).
+from services.connector_registry import (
+    CONNECTOR_PROVIDERS,
+    CONNECTOR_REGISTRY,
+    is_offered,
+)
 from integrations.core.tokens import get_token_manager
 from integrations.core.slack_client import get_slack_client
 from integrations.core.oauth import (
@@ -97,6 +104,26 @@ def _extract_notion_parent_type(page: dict) -> str:
 
 
 router = APIRouter()
+
+
+def _reject_if_retired(provider: str) -> None:
+    """Refuse a NEW connection to a retired connector (ADR-494 D2).
+
+    One guard, derived from the one registry — so retiring the Nth connector is
+    a status change in `services.connector_registry`, never a hand-edit here.
+    Retired providers stay READABLE and DISCONNECTABLE (an existing connection
+    is a fact the operator must still see and be able to revoke); only the
+    connect verb closes.
+    """
+    if not is_offered(provider):
+        raise HTTPException(
+            status_code=410,
+            detail=(
+                f"The {provider} connector is retired and no longer accepts new "
+                "connections. Existing connections remain readable and can be "
+                "disconnected."
+            ),
+        )
 
 
 # =============================================================================
@@ -379,8 +406,12 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
         from datetime import timedelta
         seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
 
-        # ADR-131: Google/Gmail removed. ADR-147: GitHub added. ADR-183: Commerce added. ADR-187: Trading added.
-        SUPPORTED_PLATFORMS = {"slack", "notion", "github", "commerce", "trading"}
+        # ADR-494 D1 — the recognized set is DERIVED from the one registry
+        # (services.connector_registry), never re-listed here. The former
+        # `SUPPORTED_PLATFORMS` literal was the second of two sources; deleted.
+        # Retired providers stay recognized so an existing connection is still
+        # readable + disconnectable.
+        SUPPORTED_PLATFORMS = CONNECTOR_PROVIDERS
 
         def _is_active(row: dict[str, Any]) -> bool:
             return row.get("status") == IntegrationStatus.ACTIVE.value
@@ -445,8 +476,17 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
                 activity_7d=_count_activity(provider),
             )
 
-        # Emit platform summaries in stable order
-        for provider in ("slack", "notion", "github"):
+        # Emit platform summaries in stable order.
+        #
+        # ADR-494 D3 — this loop used to iterate a hardcoded
+        # `("slack", "notion", "github")` tuple: the THIRD offered-set list, and
+        # a live bug. A connected commerce/trading connection was never emitted,
+        # so the frontend (which keys connectedness off this summary) rendered it
+        # under "New connection" even while connected. Iterating the registry
+        # fixes that by construction — every recognized provider that has a row
+        # is reported, retired ones included (they exist, so they must be
+        # reportable; they are simply not OFFERED).
+        for provider in CONNECTOR_REGISTRY:
             integration = canonical_integrations.get(provider)
             if integration:
                 platforms.append(_to_summary(provider, integration))
@@ -2501,9 +2541,16 @@ async def connect_commerce(
     Connect a commerce platform using API key (ADR-183).
 
     Unlike OAuth flows (Slack, Notion, GitHub), commerce uses direct API key auth.
-    This endpoint validates the key, encrypts it, stores the connection, and
-    scaffolds the Commerce Bot + context domains.
+    This endpoint validates the key, encrypts it, and stores the connection.
+    (ADR-207 P4a: the Commerce Bot this docstring once claimed to scaffold was
+    dissolved — the stale claim is corrected here.)
+
+    ADR-494 D2 — commerce is RETIRED: NEW connections are refused. The endpoint
+    is not deleted, because the Lemon Squeezy webhook below is an independent
+    live path and an existing connection must stay readable/disconnectable.
     """
+    _reject_if_retired("commerce")
+
     from integrations.core.lemonsqueezy_client import get_commerce_client
     from services.directory_registry import scaffold_context_domain
 
@@ -2783,9 +2830,18 @@ async def connect_trading(
     """
     Connect a trading platform using API key + secret (ADR-187).
 
-    Same pattern as Commerce (ADR-183): validates credentials, encrypts,
-    stores connection, activates Trading Bot, scaffolds context domains.
+    Same pattern as Commerce (ADR-183): validates credentials, encrypts, and
+    stores the connection. (ADR-207 P4a: the Trading Bot this docstring once
+    claimed to activate was dissolved — the stale claim is corrected here.)
+
+    ADR-494 D2 — trading is RETIRED: NEW connections are refused. Its only
+    capture path was the alpha-trader bundle's SyncPlatformState mirrors, which
+    need a hire with no operator surface (ADR-414 D5 / ADR-382). The endpoint
+    survives so an existing connection stays readable/disconnectable and so an
+    alpha-trader re-hire can re-light it with a one-word change.
     """
+    _reject_if_retired("trading")
+
     from integrations.core.alpaca_client import get_trading_client
     from services.directory_registry import scaffold_context_domain
 
