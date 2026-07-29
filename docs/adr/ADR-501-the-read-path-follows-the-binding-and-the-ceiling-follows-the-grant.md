@@ -60,6 +60,35 @@ Each endpoint moves to the existing spine — no new mechanism:
 - **`chat_sessions`/`session_messages` RLS is workspace-blind** (`user_id = auth.uid()` only). The live Realtime path subscribes to the member's OWN session (per-member feed sessions are the ADR-408 design), so there is no cross-principal leak; the residual exposure is a revoked member's supabase-js read access to their own historical sessions. An RLS tightening needs care (policy subqueries vs grants RLS) and its own change.
 - The `('owner','member')` human predicate spelled in two tiers (`ChatSurface` + `lanes.py`), and the invite/BYOK hard `owner_id` gates lacking the `has_*_authority` scope-extension shape — pattern debt, consistent today.
 
+## 6a. Completion pass — what the Hat-B probe found (2026-07-29, same day)
+
+The source-anchored gates all passed and three defects survived them. A probe
+driving the **live** API as both real principals (`api/scripts/operator/
+probe_adr501_503_member_session.py` — harness JWT mint, real `X-Workspace-Id`)
+found them in one run. Recorded here because each is a *class*, not an
+incident:
+
+1. **The gate was on one door.** D1 landed in
+   `_is_path_locked_for_principal`, which only the PRIMITIVE path consults.
+   `PATCH /api/workspace/file` — the editor every browser uses — has its own
+   editable-prefix list (an "is this file operator-editable at all" check,
+   never per-principal) and wrote straight through. The member PATCHed
+   `constitution/MANDATE.md` and got 200. Both doors now consult the one gate.
+   **Lesson: a permission fix must enumerate the doors, not the deciders.**
+2. **RLS defeated the read sweep from underneath.** D2 moved the ledgers onto
+   the workspace spine; `execution_events` / `activity_log` / `tasks` still
+   carried `auth.uid() = user_id` SELECT policies, so the correct filter
+   returned nothing for a member. `workspace_files` had a grant-aware policy
+   since migration 189 — which is exactly why Files worked and these didn't.
+   **Migration 227** adds an additive, read-only SELECT policy to each,
+   bounded by migration 221's recursion-safe `is_workspace_member()`.
+   **Lesson: an application-layer scoping change is only half the sweep; the
+   row-level policy is the other half.**
+3. **Radar's discovery grouped by the file's AUTHOR**, so an owner-authored hub
+   was unreachable for a member. Now scans the acting workspace and groups by
+   that workspace's OWNER — the key both the request path and the scheduler
+   already look up by.
+
 ## 7. Validation
 
 - `api/test_adr501_read_path_binding.py` — behavioral gate on D1 (the gate function executed with member/owner/no-grant/freddie-shaped auths) + sweep assertions.

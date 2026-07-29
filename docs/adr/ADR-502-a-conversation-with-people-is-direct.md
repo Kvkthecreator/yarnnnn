@@ -41,6 +41,27 @@ The `done` frame carries `direct: true` so the sender's UI drops the reply place
 - **The "you were added" signal.** Visibility is correct (the list is cast-scoped ∩ acting workspace — the added member sees the conversation when bound to that workspace via the switcher), but nothing NOTIFIES them. That is the ADR-495 owed notifications/@mentions item, operator-deferred to post-stabilization; this ADR does not preempt it.
 - **@-mentioning an agent from inside a DM** — arrives with the same deferred work.
 
+## 6a. The blocker this ADR did not know about (Hat-B probe, same day)
+
+D1–D4 were necessary and **not sufficient**: shared conversations were dead at
+N>1 for a reason one layer below. `chat_sessions` / `session_messages` RLS is
+`user_id = auth.uid()` — the row belongs to its **creator**, a policy written
+before conversations had a cast. So a member correctly cast in could not see
+the conversation in their list, its turns 404'd, and the transcript read empty
+— while every application-level check passed. Probe receipt: cast rows correct
+in the DB, `POST /lanes/{id}/messages` → 404 "Conversation not found".
+
+Conversation reads now go through `_cast_read_client` (`routes/lanes.py`) —
+the same posture `conversation_cast._svc` already documents for its own table:
+the API mediates authorization (cast membership via `visibility_floor` plus the
+acting-workspace match, both enforced before any row is touched), the table is
+not directly reachable. Authorization is unchanged; only the client that
+executes the already-authorized read.
+
+A cast-aware RLS policy remains the better long-run shape (a subquery over
+`conversation_members`, the migration-221 pattern) and stays open — §6's
+Realtime item retires with it.
+
 ## 7. Validation
 
 `api/test_adr502_503_gate.py` (source-anchored) + `py_compile` + `tsc` + `next build`. Behavioral verification needs two browsers (owner + member) — expected: the member bound to the shared workspace sees the conversation; a message broadcasts without an engine reply; each side sees the other's rows left-aligned with their email.
