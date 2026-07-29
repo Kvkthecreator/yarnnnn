@@ -76,7 +76,7 @@ Retired = **not offered**, still **recognized**. The split is load-bearing and t
 - **connected** ← the full registry, so a historical connection still renders with its real name and brand and stays disconnectable. *Retiring must never orphan an existing fact.*
 - **available** ← `OFFERED_CONNECTORS`, so a retired connector is never offered.
 
-`_reject_if_retired()` — one guard, derived from the one registry — closes the connect verb with a 410 at both api-key endpoints. Their credential FORMS are deleted (see D6); the endpoints survive because the Lemon Squeezy webhook is an independent live path and an alpha-trader re-hire must be able to re-light trading with a one-word change.
+`_reject_if_retired()` — one guard, derived from the one registry — closes the connect verb with a 410 at both api-key endpoints. Their credential FORMS are deleted — with both api-key connectors retired, no un-connected api-key connector is ever offered, so `renderConnectForm` had no reachable caller and every offered connector is now OAuth (one connect verb, `handleConnectIntegration`). The endpoints survive because the Lemon Squeezy webhook is an independent live path and an alpha-trader re-hire must be able to re-light trading with a one-word change.
 
 This follows the ADR-404/425 hide-not-delete precedent exactly: substrate, tools, clients, and the webhook are untouched.
 
