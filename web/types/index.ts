@@ -142,6 +142,20 @@ export interface SubscriptionStatus {
   // ADR-445 §12.3a — comped workspace (seats + usage forced $0). The FE shows a
   // "comped" state instead of a bill; the operator's test workspaces are exempt.
   billing_exempt: boolean;
+  // 2026-07-29 — the unresolved seat-sync signal. Non-null when a member change
+  // did NOT reach the invoice (LS still bills the old count), so the next bill is
+  // wrong in a direction the operator cannot otherwise see. Cleared by a later
+  // successful sync. Null = healthy.
+  seat_sync_issue: SeatSyncIssue | null;
+}
+
+/** A seat change that never reached the invoice (see `seat_sync_issue`). */
+export interface SeatSyncIssue {
+  at: string | null;                 // when the sync failed (ISO)
+  intended_action: string;           // 'update_quantity' | 'cancel_at_period_end'
+  intended_quantity: number | null;  // the seat count we tried to bill
+  human_seats: number | null;        // the roster's headcount at the time
+  reason: string | null;             // 'http_404' | 'exception' | …
 }
 
 // ADR-439 — BYOK legibility view (never the key). `available` is the tier gate

@@ -99,6 +99,8 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
   const seatBillingActive = status?.seat_billing_active ?? false;
   // Exempt-aware already (the backend forces it to 0 on a comped workspace).
   const seatFee = status?.seat_fee_usd ?? 0;
+  // A seat change that never reached the invoice (null = healthy).
+  const seatSyncIssue = status?.seat_sync_issue ?? null;
   const [usage, setUsage] = useState<UsageLimits | null>(null);
   const [nextRefill, setNextRefill] = useState<string | null>(null);
   // ADR-491 D3 — the runway ("~N days at this pace") is the dissolved Budget
@@ -241,6 +243,35 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
         {error && (
           <div className="p-3 rounded-lg border border-destructive/20 bg-destructive/5 text-sm text-destructive">
             {error.message}
+          </div>
+        )}
+
+        {/* ── UNRESOLVED SEAT SYNC (2026-07-29) ──────────────────────────────
+            A member joined or left, but the change never reached the invoice —
+            so the next bill is wrong in a direction the operator cannot see.
+            The backend has recorded these `seat_sync_failed` rows since the
+            reconciliation layer shipped and NOTHING read them: a live revoke's
+            failure was found only by hand-querying the table. Best-effort
+            billing is right; silent best-effort is not. */}
+        {seatSyncIssue && (
+          <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 text-sm space-y-1">
+            <p className="font-medium text-foreground">
+              We couldn&rsquo;t update your seat count with the payment provider.
+            </p>
+            <p className="text-muted-foreground">
+              Your workspace has{" "}
+              {seatSyncIssue.human_seats !== null
+                ? `${seatSyncIssue.human_seats} ${seatSyncIssue.human_seats === 1 ? "person" : "people"}`
+                : "a new headcount"}
+              , but the subscription still bills the old count, so your next
+              invoice may be wrong. Nothing here is lost — open Payment method
+              &amp; invoices to check, or contact support and we&rsquo;ll correct it.
+              {seatSyncIssue.at && (
+                <> (Last attempt {new Date(seatSyncIssue.at).toLocaleString([], {
+                  month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+                })}.)</>
+              )}
+            </p>
           </div>
         )}
 

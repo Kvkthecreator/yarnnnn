@@ -189,6 +189,120 @@ def _record_seat_sync_failure(
         log.warning("[SEAT_SYNC] could not record sync failure for %s: %s", workspace_id, exc)
 
 
+def _latest_unresolved_seat_sync_issue(workspace_id: str) -> Optional[dict]:
+    """The most recent seat-sync failure that nothing has since superseded.
+
+    A `seat_sync_failed` row means the roster changed but the invoice did not —
+    the workspace is being over- or under-billed and CANNOT SEE IT. Those rows
+    have been landing since the reconciliation layer shipped with no reader; this
+    is the reader (found 2026-07-29, when a live revoke's failure was discovered
+    only by hand-querying the table).
+
+    "Unresolved" = no successful sync/cancel event for this workspace AFTER the
+    failure. Any later success means the invoice caught up, so the stale warning
+    must not linger on the surface.
+
+    Best-effort: a read failure here returns None (no banner) rather than
+    breaking the billing pane — the pane's job is the plan, not this.
+    """
+    try:
+        from services.supabase import get_service_client
+        rows = (
+            get_service_client()
+            .table("subscription_events")
+            .select("event_type, payload, created_at")
+            .eq("workspace_id", workspace_id)
+            .in_("event_type", [
+                "seat_sync_failed", "seat_sync_succeeded", "seat_subscription_cancelled",
+            ])
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        ).data or []
+        if not rows or rows[0].get("event_type") != "seat_sync_failed":
+            return None
+        row = rows[0]
+        payload = row.get("payload") or {}
+        return {
+            "at": row.get("created_at"),
+            "intended_action": payload.get("intended_action", "update_quantity"),
+            "intended_quantity": payload.get("intended_quantity"),
+            "human_seats": payload.get("human_seats"),
+            "reason": payload.get("reason"),
+        }
+    except Exception as exc:  # noqa: BLE001
+        log.warning("[SEAT_SYNC] could not read sync issues for %s: %s", workspace_id, exc)
+        return None
+
+
+async def _cancel_subscription_at_period_end(
+    client: Any, workspace_id: str, sub_id: Any, humans: int, reason: str,
+) -> None:
+    """Stop a seat subscription that no longer has a billable seat to charge for.
+
+    LS `DELETE /v1/subscriptions/{id}` is CANCEL-AT-PERIOD-END, not an immediate
+    termination: the workspace keeps the plan it already paid for until
+    `ends_at`, then LS emits `subscription_cancelled` and the existing webhook
+    branch returns the tier to `free`. So this never revokes access the operator
+    has bought, and never touches the balance (Axis ② is a separate pool).
+
+    Same best-effort discipline as the PATCH path: a billing hiccup must never
+    block a member leaving, but silence is not acceptable either — every outcome
+    lands a durable `subscription_events` row so the money story is queryable.
+    """
+    event: dict[str, Any] = {
+        "workspace_id": workspace_id,
+        "event_source": "yarnnn",
+        "ls_subscription_id": str(sub_id) if sub_id else None,
+        "payload": {"human_seats": humans, "billable_seats": 0, "reason": reason},
+    }
+    try:
+        async with httpx.AsyncClient() as http:
+            resp = await http.delete(
+                f"https://api.lemonsqueezy.com/v1/subscriptions/{sub_id}",
+                headers=_ls_headers(), timeout=30.0,
+            )
+        if resp.status_code in (200, 204):
+            ends_at = None
+            try:
+                attrs = ((resp.json() or {}).get("data") or {}).get("attributes") or {}
+                ends_at = attrs.get("ends_at") or attrs.get("renews_at")
+            except Exception:  # noqa: BLE001 — a missing date must not fail the cancel
+                pass
+            event["event_type"] = "seat_subscription_cancelled"
+            event["payload"]["ends_at"] = ends_at
+            log.info(
+                "[SEAT_SYNC] ws %s dropped to %s humans (0 billable) — subscription %s "
+                "cancelled at period end (%s)", workspace_id, humans, sub_id, ends_at,
+            )
+        else:
+            # The team really is back under the free ceiling, but LS is still
+            # going to invoice. That is an OVER-BILL, and it must be visible.
+            event["event_type"] = "seat_sync_failed"
+            event["payload"].update({
+                "intended_action": "cancel_at_period_end",
+                "reason": f"http_{resp.status_code}",
+                "detail": resp.text[:200],
+            })
+            log.warning(
+                "[SEAT_SYNC] ws %s cancel-at-period-end failed (sub %s): %s %s",
+                workspace_id, sub_id, resp.status_code, resp.text[:200],
+            )
+    except Exception as exc:  # noqa: BLE001 — never break the member lifecycle
+        event["event_type"] = "seat_sync_failed"
+        event["payload"].update({
+            "intended_action": "cancel_at_period_end",
+            "reason": "exception",
+            "detail": str(exc)[:200],
+        })
+        log.warning("[SEAT_SYNC] cancel-at-period-end raised for ws %s: %s", workspace_id, exc)
+
+    try:
+        client.table("subscription_events").insert(event).execute()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("[SEAT_SYNC] could not record cancel outcome for %s: %s", workspace_id, exc)
+
+
 async def sync_seat_quantity(workspace_id: str) -> None:
     """Sync the LS subscription's seat quantity to the workspace's current headcount
     (ADR-445 §7 Phase 2). Called when a human member is added or removed so the
@@ -196,9 +310,11 @@ async def sync_seat_quantity(workspace_id: str) -> None:
     lifecycle. No-op for free/exempt workspaces or when there is no LS subscription
     (a solo owner who hasn't taken the paid plan).
 
-    Quantity = max(1, billable_seats) = additional humans beyond the base, floored at
-    1 (the taking-owner's own seat). The pooled usage allowance is unchanged — this
-    touches only the seat AXIS (Axis ①), never the meter (Axis ②).
+    Quantity = billable_seats = humans beyond the two free ones (ADR-490). When
+    that reaches 0 the subscription is CANCELLED AT PERIOD END rather than pinned
+    to a phantom seat — see `_cancel_subscription_at_period_end`. The pooled usage
+    balance is unchanged either way: this touches only the seat AXIS (Axis ①),
+    never the meter (Axis ②).
     """
     if not LEMONSQUEEZY_API_KEY:
         return
@@ -229,7 +345,25 @@ async def sync_seat_quantity(workspace_id: str) -> None:
             return
 
         humans = count_human_seats(svc, workspace_id)
-        quantity = max(1, billable_seats(tier, humans))
+        billable = billable_seats(tier, humans)
+
+        # ── The FREE BOUNDARY (2026-07-29, operator-ratified) ────────────────
+        # `max(1, billable)` is right at CHECKOUT (LS rejects quantity 0, and the
+        # buyer is purchasing the incoming 3rd seat) but WRONG here. When a team
+        # shrinks back to the two free humans the honest quantity is 0 — and the
+        # honest action is to stop the subscription, not to bill a phantom seat
+        # forever. Cancel at PERIOD END: the workspace keeps `starter` until the
+        # paid period it already bought expires, then the existing
+        # `subscription_cancelled` webhook returns it to `free`. Nothing is lost;
+        # balance, files, and history are untouched (ADR-490 — the paid plan buys
+        # SEATS only, so with no billable seat it buys nothing).
+        if billable == 0:
+            await _cancel_subscription_at_period_end(
+                svc, workspace_id, sub_id, humans, reason="below_paid_floor",
+            )
+            return
+
+        quantity = billable
 
         # PATCH the subscription-item quantity. LS updates the quantity on the
         # subscription's first (and only) item; the subscription id resolves it.
@@ -261,6 +395,20 @@ async def sync_seat_quantity(workspace_id: str) -> None:
                 )
             else:
                 log.info(f"[SEAT_SYNC] ws {workspace_id} → {quantity} seats (sub {sub_id})")
+                # Record the SUCCESS too, not just the failure. Without it a
+                # resolved issue would sit on the billing surface forever —
+                # `_latest_unresolved_seat_sync_issue` clears the banner by
+                # finding a later success, and it can only find one if we write it.
+                try:
+                    svc.table("subscription_events").insert({
+                        "workspace_id": workspace_id,
+                        "event_type": "seat_sync_succeeded",
+                        "event_source": "yarnnn",
+                        "ls_subscription_id": str(sub_id),
+                        "payload": {"quantity": quantity, "human_seats": humans},
+                    }).execute()
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("[SEAT_SYNC] could not record sync success for %s: %s", workspace_id, exc)
     except Exception as e:  # noqa: BLE001 — best-effort; never break the member lifecycle
         log.warning(f"[SEAT_SYNC] failed for ws {workspace_id}: {e}")
         # Same discipline as the non-2xx branch: swallowing is right, staying
@@ -272,6 +420,45 @@ async def sync_seat_quantity(workspace_id: str) -> None:
             )
         except Exception:  # noqa: BLE001
             pass
+
+
+def _ls_subscription_id(payload: dict) -> Optional[str]:
+    """The SUBSCRIPTION id a webhook payload speaks about — never an invoice id.
+
+    THE BUG THIS EXISTS TO KILL (found 2026-07-29, live): the handler read
+    `payload.data.id` for every event type. That is correct only when
+    `data.type == "subscriptions"`. On `subscription_payment_success` the payload
+    is a **`subscription-invoices`** resource, so `data.id` is the INVOICE id —
+    and the handler wrote it over the good subscription id it had stored minutes
+    earlier at `subscription_created`.
+
+    Live receipt (workspace d5b9029b): created + updated stored 2308204
+    (`data.type: subscriptions`); payment_success then clobbered it with 7779626
+    (`data.type: subscription-invoices`). Every `sync_seat_quantity` PATCH since
+    2026-07-02 has 404'd against a subscription that does not exist, so a member
+    revoke could never reach the invoice — the failure this function prevents is
+    a silent, permanent mis-bill.
+
+    Resolution order:
+      1. `data.type == "subscriptions"` → `data.id` is the subscription id.
+      2. otherwise → `attributes.first_subscription_item.subscription_id`, which
+         invoice payloads carry, else `attributes.subscription_id`.
+      3. no confident answer → None, and the CALLER MUST NOT WRITE. A wrong id is
+         strictly worse than a stale one: stale still resolves at LS.
+    """
+    data = payload.get("data") or {}
+    attrs = data.get("attributes") or {}
+
+    if data.get("type") == "subscriptions":
+        raw = data.get("id")
+        return str(raw) if raw else None
+
+    item = attrs.get("first_subscription_item")
+    if isinstance(item, dict) and item.get("subscription_id"):
+        return str(item["subscription_id"])
+    if attrs.get("subscription_id"):
+        return str(attrs["subscription_id"])
+    return None
 
 
 def _ls_quantity(attrs: dict) -> Optional[int]:
@@ -309,8 +496,15 @@ def _reconcile_seat_quantity(
             return
         from services.billing_tiers import billable_seats, count_human_seats
         humans = count_human_seats(client, workspace_id)
-        expected = max(1, billable_seats(tier, humans))
+        expected = billable_seats(tier, humans)
         if billed == expected:
+            return
+        # 0 billable + LS still billing 1 is the CANCEL-PENDING window, not drift:
+        # `sync_seat_quantity` cancelled at period end, so LS keeps reporting the
+        # bought seat until `ends_at`. Reporting that as drift would cry wolf on
+        # every shrink-to-free. A real over-bill still surfaces — as the
+        # `seat_sync_failed` row the cancel path writes when the DELETE fails.
+        if expected == 0 and billed == 1 and attrs.get("cancelled"):
             return
         log.warning(
             "[SEAT_DRIFT] ws %s: LS bills %s seat(s), roster implies %s "
@@ -414,6 +608,13 @@ class SubscriptionStatus(BaseModel):
     # nothing (seats + usage forced to $0); the operator's test workspaces are
     # exempt. Surfaced so the FE can show a "comped" state instead of a bill.
     billing_exempt: bool = False
+    # ── The unresolved-sync signal (2026-07-29) ──────────────────────────────
+    # `seat_sync_failed` rows have been landing since the reconciliation layer
+    # shipped, and NOTHING read them: the operator learned their seat change had
+    # not reached the invoice only by querying the table by hand. A failed sync
+    # means the next invoice is wrong in a direction the operator cannot see, so
+    # it belongs on the surface that talks about money. Null = healthy.
+    seat_sync_issue: Optional[dict] = None
 
 
 class PortalResponse(BaseModel):
@@ -493,6 +694,7 @@ async def get_subscription_status(auth: UserClient):
         seat_fee_usd=fee,
         seat_billing_active=seat_active,
         billing_exempt=exempt,
+        seat_sync_issue=_latest_unresolved_seat_sync_issue(workspace_id),
     )
 
 
@@ -771,7 +973,11 @@ async def handle_lemonsqueezy_webhook(request: Request):
     custom_data = payload.get("meta", {}).get("custom_data", {})
     workspace_id = custom_data.get("workspace_id")
     attrs = payload.get("data", {}).get("attributes", {})
-    subscription_id = str(payload.get("data", {}).get("id", ""))
+    # NEVER `data.id` — on an invoice payload that is the INVOICE id, and writing
+    # it over the stored subscription id is what broke seat sync for a month
+    # (see _ls_subscription_id). None means "this payload cannot name a
+    # subscription", and every write below is guarded on that.
+    subscription_id = _ls_subscription_id(payload)
     customer_id = str(attrs.get("customer_id", ""))
 
     client = get_service_client()
@@ -821,8 +1027,12 @@ async def handle_lemonsqueezy_webhook(request: Request):
         update_data = {
             "subscription_tier": tier,
             "subscription_expires_at": renews_at,
-            "lemonsqueezy_subscription_id": subscription_id,
         }
+        # Only write an id we could resolve confidently. A None here means the
+        # payload named no subscription; keeping the stored one is strictly
+        # better than nulling a working id.
+        if subscription_id:
+            update_data["lemonsqueezy_subscription_id"] = subscription_id
         if customer_id:
             update_data["lemonsqueezy_customer_id"] = customer_id
         client.table("workspaces").update(update_data).eq("id", workspace_id).execute()

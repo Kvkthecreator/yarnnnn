@@ -122,13 +122,41 @@ def test_agreement_is_silent() -> None:
           f"rows={c.rows('subscription_events')}")
 
 
-def test_solo_floor_is_not_reported_as_drift() -> None:
-    print("\n[floor] a solo workspace billing 1 is NOT drift (the ratified floor)")
+def test_below_floor_quiet_only_while_cancel_is_pending() -> None:
+    """The floor's meaning changed (2026-07-29, operator-ratified).
+
+    Pre-change, `max(1, billable_seats)` was the ratified charge, so a workspace
+    under the paid floor billing 1 seat was correct-by-definition and this
+    reconciler stayed quiet about it. That floor is retired at SYNC: when the
+    team drops back under the boundary, `sync_seat_quantity` now CANCELS at
+    period end rather than pinning a phantom seat.
+
+    So "0 expected, 1 billed" now means one of two DIFFERENT things:
+      · `cancelled: true`  → the cancel landed; LS keeps reporting the bought
+        seat until `ends_at`. Expected, transient — stay quiet or we cry wolf on
+        every shrink-to-free.
+      · `cancelled` absent → the cancel did NOT land and LS is still going to
+        invoice a seat nobody occupies. That is a live OVER-BILL and exactly the
+        thing this reconciler exists to make visible.
+    """
+    print("\n[floor] below the paid floor: quiet while cancelling, loud otherwise")
     from routes.subscription import _reconcile_seat_quantity
-    c = FakeClient(humans=1)  # billable_seats = 0, floored to 1 at checkout
-    _reconcile_seat_quantity(c, WS, "starter", _attrs(1), "subscription_created")
-    check("solo at quantity 1 is quiet", not c.rows("subscription_events"),
-          "max(1, billable_seats) is the ratified charge, not a defect")
+
+    pending = FakeClient(humans=2)  # billable = 0; cancel already issued
+    _reconcile_seat_quantity(
+        pending, WS, "starter", {**_attrs(1), "cancelled": True}, "subscription_updated",
+    )
+    check("cancel-pending window is quiet", not pending.rows("subscription_events"),
+          "LS reports the bought seat until ends_at — not drift")
+
+    stuck = FakeClient(humans=2)  # billable = 0; nothing cancelled it
+    _reconcile_seat_quantity(stuck, WS, "starter", _attrs(1), "subscription_updated")
+    rows = stuck.rows("subscription_events")
+    check("an uncancelled seat below the floor IS reported", len(rows) == 1,
+          "a phantom seat billing forever must not be silent")
+    if rows:
+        check("recorded as seat_quantity_drift",
+              rows[0]["event_type"] == "seat_quantity_drift")
 
 
 def test_missing_quantity_is_not_drift() -> None:
@@ -196,7 +224,7 @@ def main() -> int:
     test_quantity_is_read_from_the_payload()
     test_drift_is_recorded()
     test_agreement_is_silent()
-    test_solo_floor_is_not_reported_as_drift()
+    test_below_floor_quiet_only_while_cancel_is_pending()
     test_missing_quantity_is_not_drift()
     test_sync_failure_is_recorded()
     test_reconciler_never_raises()
