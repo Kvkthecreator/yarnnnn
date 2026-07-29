@@ -136,7 +136,20 @@ def _lane_row_to_dict(row: dict) -> dict:
 
 
 def _get_lane(auth: UserClient, lane_id: str) -> dict:
-    """Load one lane row, enforcing (workspace, principal) ownership."""
+    """Load one conversation, authorizing by CAST MEMBERSHIP (ADR-495 D2).
+
+    Membership IS read permission. The creator is a participant like any other
+    (migration 226 backfilled one for every pre-existing conversation), so the
+    single-owner case is the N=1 degenerate case of the general rule rather
+    than a separate code path.
+
+    No species check: `visibility_floor` answers the same question for every
+    participant. The window itself is applied at the transcript read
+    (`_fetch_history`, `lane_messages`) — this gate answers *may they read at
+    all*, that one answers *from where*.
+    """
+    from services.conversation_cast import visibility_floor
+
     res = (
         auth.client.table("chat_sessions")
         .select("id, user_id, workspace_id, status, context_metadata, created_at, updated_at")
@@ -146,12 +159,58 @@ def _get_lane(auth: UserClient, lane_id: str) -> dict:
         .execute()
     )
     row = (res.data or [None])[0]
-    if not row or row.get("user_id") != auth.user_id:
-        raise HTTPException(status_code=404, detail="Lane not found")
+    if not row:
+        raise HTTPException(status_code=404, detail="Conversation not found")
     ws = _acting_workspace(auth)
     if ws and row.get("workspace_id") and row["workspace_id"] != ws:
-        raise HTTPException(status_code=404, detail="Lane not found in this workspace")
+        raise HTTPException(status_code=404, detail="Conversation not found in this workspace")
+
+    floor = visibility_floor(auth.client, lane_id, auth.user_id)
+    if floor is None:
+        # Not in the cast. The creator fallback covers conversations whose
+        # participant row is missing (a failed backfill or a race at create):
+        # the creator is always a participant, so heal rather than lock out.
+        if row.get("user_id") != auth.user_id:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        from services.conversation_cast import add_participant
+        add_participant(
+            auth.client, lane_id,
+            workspace_id=row.get("workspace_id"), member_kind="human",
+            principal_id=auth.user_id, invited_by=auth.user_id,
+            visible_from_sequence=0,
+        )
+        floor = 0
+    row["_visible_from_sequence"] = floor
     return row
+
+
+def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
+    """The capability envelope around the conversation list. Extracted so the
+    empty-cast early return serves the identical shape (one envelope, one
+    definition — the FE must never see two payload shapes for one endpoint)."""
+    from services.agents_registry import find_member_agents, list_agents
+    from services.derive_recipes import list_recipes
+    from services.lane_runner import LANE_MODELS
+
+    return {
+        "enabled": enabled,
+        # ADR-460 D4 — the chooser: named colleagues, not a spec sheet. The
+        # member picks WHO; the engine rides behind the name. The member's own
+        # Agents (their `_agent.yaml` folders) come first — they named them.
+        "agents": list_agents(find_member_agents(auth.client, auth.user_id)),
+        # `models` STAYS: every LANE_MODELS row is still routable (the Studio +
+        # derive paths bind a model directly, and the lane list's model filter
+        # facet reads it). The registry changes what the CHOOSER asks, not what
+        # the system can run.
+        "models": [
+            {"id": mid, "label": meta["label"], "vision": bool(meta.get("vision", True))}
+            for mid, meta in LANE_MODELS.items()
+        ],
+        # ADR-450 D5: the Learn-from chooser payload — kernel recipes, served
+        # on the capability envelope (no new endpoint, no FE duplication).
+        "recipes": list_recipes(),
+        "lanes": lanes,
+    }
 
 
 @router.get("/lanes")
@@ -164,10 +223,23 @@ async def list_lanes(auth: UserClient, include_bound: bool = False) -> dict:
     enabled = model_router_enabled()
     lanes: list[dict] = []
     if enabled:
+        # ADR-495 D2 — the list is CAST-SCOPED, not owner-scoped: a
+        # conversation you were invited to is yours to see. `user_id` stays on
+        # the row as the creator fact; it is no longer the read gate.
+        member_rows = (
+            auth.client.table("conversation_members")
+            .select("conversation_id")
+            .eq("principal_id", auth.user_id)
+            .eq("member_kind", "human")
+            .execute()
+        ).data or []
+        my_conversations = [m["conversation_id"] for m in member_rows]
+        if not my_conversations:
+            return _lane_envelope(auth, enabled, [])
         q = (
             auth.client.table("chat_sessions")
             .select("id, user_id, workspace_id, status, context_metadata, created_at, updated_at, summary")
-            .eq("user_id", auth.user_id)
+            .in_("id", my_conversations)
             .eq("session_type", "lane")
             .eq("status", "active")
             .order("created_at")
@@ -190,30 +262,23 @@ async def list_lanes(auth: UserClient, include_bound: bool = False) -> dict:
                 if not ((r.get("context_metadata") or {}).get("lane") or {}).get("artifact_path")
             ]
         lanes = [_lane_row_to_dict(r) for r in rows]
+        # ADR-495 D1 — the cast rides on every row: the list shows WHO is in
+        # each conversation, which is the whole object model made visible.
+        # One batched read, not N.
+        if lanes:
+            casts = (
+                auth.client.table("conversation_members")
+                .select("conversation_id, member_kind, principal_id, agent_slug, visible_from_sequence")
+                .in_("conversation_id", [ln["id"] for ln in lanes])
+                .execute()
+            ).data or []
+            by_conv: dict[str, list[dict]] = {}
+            for c in casts:
+                by_conv.setdefault(c["conversation_id"], []).append(c)
+            for ln in lanes:
+                ln["participants"] = by_conv.get(ln["id"], [])
 
-    from services.derive_recipes import list_recipes
-
-    from services.agents_registry import find_member_agents, list_agents
-
-    return {
-        "enabled": enabled,
-        # ADR-460 D4 — the chooser: named colleagues, not a spec sheet. The
-        # member picks WHO; the engine rides behind the name. The member's own
-        # Agents (their `_agent.yaml` folders) come first — they named them.
-        "agents": list_agents(find_member_agents(auth.client, auth.user_id)),
-        # `models` STAYS: every LANE_MODELS row is still routable (the Studio +
-        # derive paths bind a model directly, and the lane list's model filter
-        # facet reads it). The registry changes what the CHOOSER asks, not what
-        # the system can run.
-        "models": [
-            {"id": mid, "label": meta["label"], "vision": bool(meta.get("vision", True))}
-            for mid, meta in LANE_MODELS.items()
-        ],
-        # ADR-450 D5: the Learn-from chooser payload — kernel recipes, served
-        # on the capability envelope (no new endpoint, no FE duplication).
-        "recipes": list_recipes(),
-        "lanes": lanes,
-    }
+    return _lane_envelope(auth, enabled, lanes)
 
 
 @router.post("/lanes")
@@ -321,17 +386,36 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     created = (res.data or [None])[0]
     if not created:
         raise HTTPException(status_code=500, detail="Lane creation failed")
+    # ADR-495 D1 — the cast is born with the conversation: the creator, plus
+    # the Agent they picked. Both at window 0 (they see everything from turn
+    # one — there is nothing prior to withhold).
+    from services.conversation_cast import add_participant
+
+    add_participant(
+        auth.client, created["id"], workspace_id=ws, member_kind="human",
+        principal_id=auth.user_id, invited_by=auth.user_id, visible_from_sequence=0,
+    )
+    if agent_slug:
+        add_participant(
+            auth.client, created["id"], workspace_id=ws, member_kind="agent",
+            agent_slug=agent_slug, invited_by=auth.user_id, visible_from_sequence=0,
+        )
     logger.info("[LANE] created lane=%s model=%s ws=%s", created["id"][:8], req.model, (ws or "-")[:8])
     return _lane_row_to_dict(created)
 
 
 @router.get("/lanes/{lane_id}/messages")
 async def lane_messages(lane_id: str, auth: UserClient) -> dict:
-    _get_lane(auth, lane_id)
+    lane = _get_lane(auth, lane_id)
+    # ADR-495 D2 — the visibility window, enforced at the read. `_get_lane`
+    # answered "may they read at all"; this answers "from where". A window of
+    # 0 (every pre-existing participant) is a no-op filter.
+    floor = int(lane.get("_visible_from_sequence") or 0)
     res = (
         auth.client.table("session_messages")
         .select("id, role, content, metadata, created_at")
         .eq("session_id", lane_id)
+        .gte("sequence_number", floor)
         .order("sequence_number")
         .limit(200)
         .execute()
@@ -352,15 +436,23 @@ async def lane_messages(lane_id: str, auth: UserClient) -> dict:
 
 
 def _fetch_history(
-    auth: UserClient, lane_id: str, *, before_sequence: Optional[int] = None
+    auth: UserClient, lane_id: str, *, before_sequence: Optional[int] = None,
+    visible_from: int = 0,
 ) -> list[dict]:
     """History window: user/assistant text only — tool traffic is per-turn
     working state, never persisted (the transcript is not shared memory,
-    and it is not the tool ledger either; writes live in revisions)."""
+    and it is not the tool ledger either; writes live in revisions).
+
+    `visible_from` (ADR-495 D2) clamps the history to what the ACTING
+    participant may read. Without it, a participant joined at "from now" could
+    address an Agent and receive an answer conditioned on turns they cannot
+    see — the window would be cosmetic. 0 is a no-op.
+    """
     q = (
         auth.client.table("session_messages")
         .select("role, content, sequence_number")
         .eq("session_id", lane_id)
+        .gte("sequence_number", visible_from)
         .order("sequence_number", desc=True)
         .limit(_HISTORY_WINDOW)
     )
@@ -600,7 +692,13 @@ def _turn_stream_response(
     lane_meta = (lane.get("context_metadata") or {}).get("lane") or {}
     model = lane_meta.get("model") or ""
 
-    history = _fetch_history(auth, lane_id, before_sequence=history_before_sequence)
+    # ADR-495 D2 — the acting participant's window clamps the model's context,
+    # so an answer is never conditioned on turns the asker cannot see.
+    history = _fetch_history(
+        auth, lane_id,
+        before_sequence=history_before_sequence,
+        visible_from=int(lane.get("_visible_from_sequence") or 0),
+    )
 
     if persist_user:
         # Persist the member's message before the LLM call (the turn is real
@@ -1064,17 +1162,30 @@ async def patch_lane(lane_id: str, req: LanePatchRequest, auth: UserClient) -> d
 
 @router.get("/lanes/search")
 async def search_lanes(q: str, auth: UserClient) -> dict:
-    """Phase-A hygiene: search across the member's active lanes in the acting
-    workspace — transcript content match (ILIKE), first snippet per lane.
-    Member-experience scope (ADR-407): only the viewer's own lanes."""
+    """Phase-A hygiene: search across the conversations the viewer PARTICIPATES
+    in, in the acting workspace — transcript content match (ILIKE), first
+    snippet per conversation. Cast-scoped per ADR-495 D2 (membership is read
+    permission), and window-clamped so search never surfaces a turn the viewer
+    cannot open."""
     query = (q or "").strip()
     if len(query) < 2:
         return {"matches": []}
 
+    member_rows = (
+        auth.client.table("conversation_members")
+        .select("conversation_id, visible_from_sequence")
+        .eq("principal_id", auth.user_id)
+        .eq("member_kind", "human")
+        .execute()
+    ).data or []
+    if not member_rows:
+        return {"matches": []}
+    floors = {m["conversation_id"]: int(m.get("visible_from_sequence") or 0) for m in member_rows}
+
     lq = (
         auth.client.table("chat_sessions")
         .select("id")
-        .eq("user_id", auth.user_id)
+        .in_("id", list(floors.keys()))
         .eq("session_type", "lane")
         .eq("status", "active")
     )
@@ -1087,7 +1198,7 @@ async def search_lanes(q: str, auth: UserClient) -> dict:
 
     res = (
         auth.client.table("session_messages")
-        .select("session_id, content, created_at")
+        .select("session_id, content, created_at, sequence_number")
         .in_("session_id", lane_ids)
         .ilike("content", f"%{query}%")
         .order("created_at", desc=True)
@@ -1098,6 +1209,9 @@ async def search_lanes(q: str, auth: UserClient) -> dict:
     for r in res.data or []:
         sid = r["session_id"]
         if sid in matches:
+            continue
+        # ADR-495 D2 — never surface a turn below the viewer's window.
+        if int(r.get("sequence_number") or 0) < floors.get(sid, 0):
             continue
         content = r.get("content") or ""
         idx = content.lower().find(query.lower())
@@ -1147,3 +1261,135 @@ async def archive_lane(lane_id: str, auth: UserClient) -> dict:
         update["summary"] = summary
     auth.client.table("chat_sessions").update(update).eq("id", lane_id).execute()
     return {"success": True, "summary": summary}
+
+
+# ---------------------------------------------------------------------------
+# The cast — ADR-495 D1/D3. ONE species-blind invite.
+#
+# There is no "invite a person" endpoint and no "invite an agent" endpoint:
+# there is `POST /lanes/{id}/participants`, which takes a participant. The
+# class routes the row to the right column and pre-selects a default window;
+# it never decides whether the invite is allowed or what the invite MEANS.
+# ---------------------------------------------------------------------------
+
+class ParticipantRequest(BaseModel):
+    kind: str                                    # 'human' | 'agent'
+    principal_id: Optional[str] = None
+    agent_slug: Optional[str] = None
+    # ADR-495 D2 — the visibility window, chosen by the inviter at invite time.
+    # Omitted → the class default (agent: full history; human: from now).
+    # `0` is an explicit "share full history" and is honored as given.
+    visible_from_sequence: Optional[int] = None
+
+
+def _workspace_humans(auth: UserClient, workspace_id: Optional[str]) -> dict[str, str]:
+    """Active human grant-holders: principal_id → role. The commons boundary
+    (ADR-408 D1) — a workspace grant is the prerequisite for being invited to
+    a conversation inside it."""
+    if not workspace_id:
+        return {auth.user_id: "owner"}
+    from services.supabase import get_service_client
+
+    rows = (
+        get_service_client()
+        .table("principal_grants")
+        .select("principal_id, role, status")
+        .eq("workspace_id", workspace_id)
+        .eq("status", "active")
+        .execute()
+    ).data or []
+    return {r["principal_id"]: r["role"] for r in rows if r.get("role") in ("owner", "member")}
+
+
+@router.get("/lanes/{lane_id}/participants")
+async def list_conversation_participants(lane_id: str, auth: UserClient) -> dict:
+    """The cast. One list — humans and Agents, in join order."""
+    from services.conversation_cast import list_participants
+
+    _get_lane(auth, lane_id)
+    return {"participants": list_participants(auth.client, lane_id)}
+
+
+@router.post("/lanes/{lane_id}/participants")
+async def add_conversation_participant(
+    lane_id: str, req: ParticipantRequest, auth: UserClient
+) -> dict:
+    """Add a participant — human or Agent, one mechanism (ADR-495 D3).
+
+    Adding a participant grants them read access from their window forward.
+    That is the whole act: no scope flip, no fork, no metered settle, no second
+    conversation.
+    """
+    from services.conversation_cast import add_participant, list_participants
+
+    lane = _get_lane(auth, lane_id)
+    ws = lane.get("workspace_id") or _acting_workspace(auth)
+
+    kind = (req.kind or "").strip().lower()
+    if kind == "human":
+        if not req.principal_id:
+            raise HTTPException(status_code=422, detail="A person needs principal_id")
+        if req.principal_id not in _workspace_humans(auth, ws):
+            raise HTTPException(
+                status_code=422,
+                detail="That person isn't in this workspace — invite them to the workspace first.",
+            )
+    elif kind == "agent":
+        if not req.agent_slug:
+            raise HTTPException(status_code=422, detail="An agent needs agent_slug")
+        from services.agents_registry import find_member_agents, resolve_agent
+
+        try:
+            member_agents = find_member_agents(auth.client, auth.user_id)
+        except Exception:  # noqa: BLE001 — registry read is best-effort
+            member_agents = []
+        if resolve_agent(req.agent_slug, member_agents) is None:
+            raise HTTPException(status_code=422, detail=f"No agent called '{req.agent_slug}'")
+    else:
+        raise HTTPException(status_code=422, detail=f"Unknown participant kind: {req.kind}")
+
+    result = add_participant(
+        auth.client, lane_id,
+        workspace_id=ws, member_kind=kind, invited_by=auth.user_id,
+        principal_id=req.principal_id if kind == "human" else None,
+        agent_slug=req.agent_slug if kind == "agent" else None,
+        visible_from_sequence=req.visible_from_sequence,
+    )
+    return {
+        "added": result["added"],
+        "participant": result["participant"],
+        "participants": list_participants(auth.client, lane_id),
+    }
+
+
+@router.delete("/lanes/{lane_id}/participants")
+async def remove_conversation_participant(
+    lane_id: str,
+    auth: UserClient,
+    principal_id: Optional[str] = None,
+    agent_slug: Optional[str] = None,
+) -> dict:
+    """Remove a participant. Ends FUTURE read access; it does not un-read what
+    was already seen (ADR-495 D6 — an honest limit, stated not implied).
+
+    The last human may not be removed: a conversation with no human participant
+    would be unreachable by anyone, which is deletion wearing another name.
+    """
+    from services.conversation_cast import human_ids, list_participants, remove_participant
+
+    _get_lane(auth, lane_id)
+    if bool(principal_id) == bool(agent_slug):
+        raise HTTPException(
+            status_code=422, detail="Pass exactly one of principal_id / agent_slug"
+        )
+    if principal_id:
+        humans = human_ids(list_participants(auth.client, lane_id))
+        if humans == [principal_id]:
+            raise HTTPException(
+                status_code=422,
+                detail="That's the last person in this conversation — archive it instead.",
+            )
+    removed = remove_participant(
+        auth.client, lane_id, principal_id=principal_id, agent_slug=agent_slug
+    )
+    return {"removed": removed, "participants": list_participants(auth.client, lane_id)}

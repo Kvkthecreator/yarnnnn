@@ -50,6 +50,13 @@ SURFACE_DERIVE = "derive"          # a derive-bound lane (ADR-450 D3)
 SURFACE_STEWARD = "steward"        # the ambient rail (ADR-454)
 SURFACE_UNCLASSIFIED = "unclassified"  # pre-W0 rows — NEVER folded into another
 
+#: ADR-495 — the ledger slugs that mean "a conversation turn". `lane` is the
+#: original; `room` was minted by ADR-492's rooms build and is retained after
+#: the fold so multi-participant spend stays separable in the cost ledger. Both
+#: are the SAME object post-ADR-495 (a Conversation), so F1 must read both or
+#: it silently under-counts exactly the turns the new work produces.
+CONVERSATION_SLUGS = ("lane", "room")
+
 
 def _window_start(days: int) -> str:
     return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
@@ -90,11 +97,17 @@ def falsifier_1_surface_mix(
     left open is not use — but it is not literally what D8 wrote.
     """
     since = _window_start(days)
+    # ADR-495 — the ledger slug widened when rooms shipped (`slug="room"` for a
+    # multi-participant turn, ADR-492) and the fold kept that distinction for
+    # metering legibility. A conversation turn is a conversation turn: reading
+    # only `"lane"` would make every multi-participant turn INVISIBLE to F1
+    # while the counts still looked stable — the worst failure mode for an
+    # instrument whose whole job is per-phase comparison (ADR-492 §7).
     events = (
         client.table("execution_events")
         .select("id, session_id")
         .eq("workspace_id", workspace_id)
-        .eq("slug", "lane")
+        .in_("slug", CONVERSATION_SLUGS)
         .gte("created_at", since)
         .execute()
     ).data or []

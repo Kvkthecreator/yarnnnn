@@ -46,10 +46,10 @@ export interface ChatPersonChoice {
 
 interface NewChatModalProps {
   agents: ChatAgentChoice[];
-  /** ADR-492 D6.a — the door is person-first and species-blind: workspace
-   *  members (humans) list beside the Agents. Picking a person starts a ROOM
-   *  (born shared — they can read it, so it is shared by construction);
-   *  picking an Agent starts a private lane. Scope is set at birth (D6.b). */
+  /** ADR-495 D3 — the door is species-blind: workspace members list beside
+   *  the Agents, and picking either starts a conversation with them in the
+   *  cast. There is no second object and no scope to choose — you pick who
+   *  you are talking to, and you can add more people or Agents later. */
   people?: ChatPersonChoice[];
   onPick: (slug: string) => Promise<void>;
   onPickPerson?: (principalId: string) => Promise<void>;
@@ -140,7 +140,7 @@ export function NewChatModal({ agents, people, onPick, onPickPerson, onClose }: 
           {people && people.length > 0 && onPickPerson && (
             <div className="mt-3 pt-3 border-t border-border">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground px-2">
-                People — start a shared room
+                People
               </p>
               <div className="mt-1 space-y-1">
                 {people.map((p) => (
@@ -152,7 +152,7 @@ export function NewChatModal({ agents, people, onPick, onPickPerson, onClose }: 
                       setBusy(p.principal_id);
                       setError(null);
                       onPickPerson(p.principal_id).catch((e) => {
-                        setError(e instanceof Error ? e.message : 'Could not start this room');
+                        setError(e instanceof Error ? e.message : 'Could not start this chat');
                         setBusy(null);
                       });
                     }}
@@ -164,7 +164,7 @@ export function NewChatModal({ agents, people, onPick, onPickPerson, onClose }: 
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm truncate">{p.label}</span>
                       <span className="block text-xs text-muted-foreground">
-                        A room — shared, in the open
+                        They&apos;ll see this conversation from here
                       </span>
                     </span>
                     {busy === p.principal_id && (

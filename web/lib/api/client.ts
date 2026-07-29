@@ -270,6 +270,19 @@ async function streamLaneTurn(
 }
 
 // ADR-486 — radar hub shapes (mirror api/routes/radar.py).
+/** ADR-495 D1 — a participant in a Conversation. Humans and Agents are one
+ *  list: `member_kind` routes the identifier to the right field and pre-selects
+ *  a default window; it never decides access (ADR-405 — no rule keys on
+ *  species). `visible_from_sequence` is the window: 0 = full history. */
+export interface Participant {
+  member_kind: 'human' | 'agent';
+  principal_id: string | null;
+  agent_slug: string | null;
+  visible_from_sequence: number;
+  invited_by?: string;
+  created_at?: string;
+}
+
 export interface RadarHubSummary {
   topic: string;
   declaration_path: string;
@@ -299,94 +312,9 @@ export const api = {
   // ADR-411 (ADR-408 D6): chat lanes — model-pinned helper threads per
   // member over the shared workspace. `enabled` reflects MODEL_ROUTER_ENABLED
   // server-side; the drawer shows the lane strip only when true.
-  /** ADR-492 — rooms: shared Conversations (workspace content). A room is
-   *  born shared (any human peer ⇒ shared by construction, D6.a); private
-   *  lanes stay `api.lanes` and never flip (D6.b). Agents answer only when
-   *  addressed (never-ambient). */
-  rooms: {
-    list: () =>
-      request<{
-        rooms: Array<{
-          id: string;
-          title: string;
-          status: string;
-          created_by: string;
-          created_at: string;
-          updated_at: string;
-          members: Array<{
-            member_kind: 'human' | 'agent';
-            principal_id: string | null;
-            agent_slug: string | null;
-            invited_by: string;
-            created_at: string;
-          }>;
-        }>;
-      }>('/api/rooms'),
-    create: (data: {
-      title?: string;
-      members?: Array<{ kind: 'human' | 'agent'; principal_id?: string; agent_slug?: string }>;
-    }) =>
-      request<{
-        room: {
-          id: string;
-          title: string;
-          status: string;
-          created_by: string;
-          members: Array<{
-            member_kind: 'human' | 'agent';
-            principal_id: string | null;
-            agent_slug: string | null;
-          }>;
-        };
-      }>('/api/rooms', { method: 'POST', body: JSON.stringify(data) }),
-    get: (roomId: string) =>
-      request<{
-        room: {
-          id: string;
-          title: string;
-          status: string;
-          created_by: string;
-          members: Array<{
-            member_kind: 'human' | 'agent';
-            principal_id: string | null;
-            agent_slug: string | null;
-          }>;
-        };
-        messages: Array<{
-          id: string;
-          author_principal_id: string;
-          via_model: string | null;
-          agent_slug: string | null;
-          content: string;
-          mentions: Array<{ kind: string; id: string }> | null;
-          created_at: string;
-        }>;
-      }>(`/api/rooms/${roomId}`),
-    postMessage: (roomId: string, data: { content: string; address?: string }) =>
-      request<{
-        messages: Array<{
-          id: string;
-          author_principal_id: string;
-          via_model: string | null;
-          agent_slug: string | null;
-          content: string;
-          created_at: string;
-        }>;
-        artifacts?: string[];
-      }>(`/api/rooms/${roomId}/messages`, { method: 'POST', body: JSON.stringify(data) }),
-    invite: (roomId: string, data: { kind: 'human' | 'agent'; principal_id?: string; agent_slug?: string }) =>
-      request<{ added: boolean; members: Array<{ member_kind: 'human' | 'agent'; principal_id: string | null; agent_slug: string | null }> }>(
-        `/api/rooms/${roomId}/invite`,
-        { method: 'POST', body: JSON.stringify(data) },
-      ),
-    rename: (roomId: string, title: string) =>
-      request<{ room: { id: string; title: string } }>(`/api/rooms/${roomId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ title }),
-      }),
-    archive: (roomId: string) =>
-      request<{ archived: boolean }>(`/api/rooms/${roomId}/archive`, { method: 'POST' }),
-  },
+  // ADR-495 — the `rooms` client is GONE. A room was never a second object:
+  // a Conversation is participants + turns, and the participant verbs live on
+  // `lanes` below (`participants` / `addParticipant` / `removeParticipant`).
 
   lanes: {
     /** `includeBound` (2026-07-16): bound (Studio) lanes leave the /chat list —
@@ -418,6 +346,9 @@ export const api = {
           created_at: string;
           updated_at: string;
           summary?: string | null;
+          /** ADR-495 D1 — the cast rides on every row: the list shows WHO is
+           *  in each conversation. Absent only if the row predates the fold. */
+          participants?: Participant[];
         }>;
         // The param has to REACH the server. It was accepted, typed, and
         // dropped — so Studio asked for its bound lanes, the API filtered
@@ -559,6 +490,38 @@ export const api = {
       request<{ success: boolean }>(`/api/lanes/${laneId}/archive`, {
         method: "POST",
       }),
+    /** ADR-495 D1 — the cast. One list: humans and Agents together. */
+    participants: (laneId: string) =>
+      request<{ participants: Participant[] }>(`/api/lanes/${laneId}/participants`),
+    /** ADR-495 D3 — ONE species-blind invite. `visibleFromSequence` is the
+     *  visibility window (omit → the class default: Agent full history, human
+     *  from now); 0 is an explicit "share everything". */
+    addParticipant: (
+      laneId: string,
+      data: {
+        kind: "human" | "agent";
+        principal_id?: string;
+        agent_slug?: string;
+        visible_from_sequence?: number;
+      },
+    ) =>
+      request<{ added: boolean; participant: Participant; participants: Participant[] }>(
+        `/api/lanes/${laneId}/participants`,
+        { method: "POST", body: JSON.stringify(data) },
+      ),
+    /** Ends FUTURE read access; it does not un-read what was already seen. */
+    removeParticipant: (
+      laneId: string,
+      sel: { principal_id?: string; agent_slug?: string },
+    ) => {
+      const qs = sel.principal_id
+        ? `principal_id=${encodeURIComponent(sel.principal_id)}`
+        : `agent_slug=${encodeURIComponent(sel.agent_slug || "")}`;
+      return request<{ removed: boolean; participants: Participant[] }>(
+        `/api/lanes/${laneId}/participants?${qs}`,
+        { method: "DELETE" },
+      );
+    },
   },
 
   // ADR-486 — AI Radar, the standing app. Hubs are declarations
