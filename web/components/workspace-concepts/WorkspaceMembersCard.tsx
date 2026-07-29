@@ -26,7 +26,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Users, ShieldCheck, Bot, Plug, User, Cpu, Loader2, MoreHorizontal, ShieldMinus, Trash2, AlertTriangle, Link as LinkIcon, Plus, Wallet } from 'lucide-react';
+import { Users, ShieldCheck, Bot, User, Cpu, Loader2, MoreHorizontal, ShieldMinus, Trash2, AlertTriangle, Link as LinkIcon, Plus, Wallet } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { providerBrandIcon } from '@/lib/ai-providers/brand-icons';
@@ -56,7 +56,17 @@ export type WorkspaceMembersVariant = 'full' | 'compact';
  * ADR-382) Altitude-3 persona agents.
  */
 const HUMAN_ROLES = ['owner', 'member'] as const;
-const AI_ROLES = ['foreign-llm', 'a2a', 'platform', 'own-agent'] as const;
+// ADR-497 — the DISPLAY vocabulary carries only roles something can actually
+// create. `foreign-llm` is minted by the MCP OAuth flow
+// (`oauth_provider.py::_ensure_foreign_llm_grant`); `own-agent` by program
+// activation (`programs.py::mint_hire_grant`, ADR-414 D5 program-as-hire —
+// reachable, zero live rows). `a2a` and `platform` had NO creation path
+// anywhere in the codebase — their only trace was presentation metadata here,
+// describing principals that cannot exist. Reserved seats (ADR-382 / ADR-401
+// D1) stay in the DB CHECK constraint and in the eviction sweep
+// (`principal_grants.py:549`, which must stay broad so a row would still be
+// cleaned up) — a reserved seat is a substrate fact, not a rendered one.
+const AI_ROLES = ['foreign-llm', 'own-agent'] as const;
 
 /**
  * WHOSE principals the roster renders (ADR-496 D1).
@@ -97,8 +107,6 @@ const ROLE_META: Record<string, { label: string; icon: typeof Users; tone: strin
   member: { label: 'Member', icon: User, tone: 'text-blue-600 dark:text-blue-400' },
   'own-agent': { label: 'Agent', icon: Bot, tone: 'text-violet-600 dark:text-violet-400' },
   'foreign-llm': { label: 'External LLM', icon: Cpu, tone: 'text-amber-600 dark:text-amber-400' },
-  platform: { label: 'Platform', icon: Plug, tone: 'text-cyan-600 dark:text-cyan-400' },
-  a2a: { label: 'Agent (A2A)', icon: Bot, tone: 'text-violet-600 dark:text-violet-400' },
 };
 
 // Narrow-region root → operator-facing name for the NARROW dialog options.
@@ -329,10 +337,6 @@ export function WorkspaceMembersCard({
         const kindHint =
           m.role === 'foreign-llm'
             ? 'Connects over MCP · writes as itself'
-            : m.role === 'a2a'
-            ? 'Agent-to-agent caller · writes as itself'
-            : m.role === 'platform'
-            ? 'Platform integration · writes as itself'
             : m.role === 'own-agent'
             ? 'Workspace agent · writes as itself'
             : null;
@@ -340,7 +344,11 @@ export function WorkspaceMembersCard({
         // Resolves the operator's "whose?" question directly. "You" when the
         // viewer authorized it, else the member's email. Rendered as its own
         // prominent attribution line (not buried in the kind hint).
-        const isExternalAI = m.role === 'foreign-llm' || m.role === 'a2a' || m.role === 'platform';
+        // ADR-497 — `foreign-llm` is the only EXTERNAL principal class with a
+        // creation path, so it alone gets the provider brand mark + the
+        // connected-by attribution line. `own-agent` is internal (a hired
+        // program, not someone's connection) and keeps the role glyph.
+        const isExternalAI = m.role === 'foreign-llm';
         const connectedByName = m.connected_by_is_you ? 'You' : (m.connected_by_label ?? null);
         // ADR-424 — show OPERATOR ZONES (Documents/Downloads/System files), NOT
         // the raw kernel roots. write_zones is the backend's operator projection.

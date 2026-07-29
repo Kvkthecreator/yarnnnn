@@ -87,7 +87,7 @@ Zero backend work. `connected_by`, `connected_by_is_you`, `label`, and `write_zo
 
 The operator's framing named two scopes: user-level and workspace-level. **Today only user-level exists**, and this ADR does not change that.
 
-`own-agent` and `a2a` are in the `principal_grants.role` CHECK constraint, and `evict_principal` already handles them — but **no code path creates one**. They are reserved seats (ADR-382, Rung-2 persona agents, deferred).
+`own-agent` and `a2a` are in the `principal_grants.role` CHECK constraint and `evict_principal` handles them. **Correction (ADR-497, same day): `own-agent` DOES have a creation path** — `programs.py::mint_hire_grant`, on program activation (ADR-414 D5 program-as-hire); it is reachable with zero live rows, not unreachable. `a2a` is the genuinely uncreatable one (a reserved seat, ADR-382 Rung-2). The claim as originally written here was half wrong.
 
 A workspace-level connection — one credential shared by every member, the "agent-owned account" pattern — is a genuine capability with a trust model attached: who authorizes it, who it acts as, what happens when its authorizer leaves, and how its writes attribute under DP32. That is a separate discourse, explicitly sequenced after this one by operator ruling. **Deliberately not designed here**, so that a surface cleanup does not smuggle in a permission model.
 
