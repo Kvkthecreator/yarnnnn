@@ -109,6 +109,30 @@ def _acting_workspace(auth: UserClient) -> Optional[str]:
     return effective_workspace_id(auth.user_id)
 
 
+def _cast_read_client(auth: UserClient):
+    """The client conversation READS go through (ADR-502 §7, Hat-B 2026-07-29).
+
+    `chat_sessions` + `session_messages` RLS is `user_id = auth.uid()` — the
+    row belongs to its CREATOR. That predates multi-human conversations
+    (ADR-495): a cast member reading with their own JWT silently gets nothing
+    back, so a conversation they were correctly cast into is invisible, its
+    turns 404, and the whole shared-conversation feature is dead at N>1 while
+    every application-level check passes. Probe-verified live.
+
+    Authorization is NOT weakened: every caller of this client already gates on
+    the ADR-495 primitive — cast membership (`visibility_floor`) plus the
+    acting-workspace match — before touching a row. This is the same posture
+    `conversation_cast._svc` documents for its own table: the API mediates,
+    the table is not directly reachable. The alternative (a cast-aware RLS
+    policy) is the right long-run shape and stays open; it needs a migration
+    with a subquery over `conversation_members`, and this unblocks the feature
+    without one.
+    """
+    from services.supabase import get_service_client
+
+    return get_service_client()
+
+
 def _lane_row_to_dict(row: dict) -> dict:
     lane_meta = (row.get("context_metadata") or {}).get("lane") or {}
     return {
@@ -151,7 +175,7 @@ def _get_lane(auth: UserClient, lane_id: str) -> dict:
     from services.conversation_cast import visibility_floor
 
     res = (
-        auth.client.table("chat_sessions")
+        _cast_read_client(auth).table("chat_sessions")
         .select("id, user_id, workspace_id, status, context_metadata, created_at, updated_at")
         .eq("id", lane_id)
         .eq("session_type", "lane")
@@ -239,7 +263,7 @@ async def list_lanes(auth: UserClient, include_bound: bool = False) -> dict:
         if not my_conversations:
             return _lane_envelope(auth, enabled, [])
         q = (
-            auth.client.table("chat_sessions")
+            _cast_read_client(auth).table("chat_sessions")
             .select("id, user_id, workspace_id, status, context_metadata, created_at, updated_at, summary")
             .in_("id", my_conversations)
             .eq("session_type", "lane")
@@ -414,7 +438,7 @@ async def lane_messages(lane_id: str, auth: UserClient) -> dict:
     # 0 (every pre-existing participant) is a no-op filter.
     floor = int(lane.get("_visible_from_sequence") or 0)
     res = (
-        auth.client.table("session_messages")
+        _cast_read_client(auth).table("session_messages")
         .select("id, role, content, metadata, created_at")
         .eq("session_id", lane_id)
         .gte("sequence_number", floor)
@@ -451,7 +475,7 @@ def _fetch_history(
     see — the window would be cosmetic. 0 is a no-op.
     """
     q = (
-        auth.client.table("session_messages")
+        _cast_read_client(auth).table("session_messages")
         .select("role, content, sequence_number")
         .eq("session_id", lane_id)
         .gte("sequence_number", visible_from)
@@ -473,7 +497,7 @@ def _delete_transcript_tail(auth: UserClient, lane_id: str, from_sequence: int) 
     only — the no-rewind rule: substrate writes from discarded turns stand on
     the ledger (the transcript is episodic; the ledger is truth)."""
     (
-        auth.client.table("session_messages")
+        _cast_read_client(auth).table("session_messages")
         .delete()
         .eq("session_id", lane_id)
         .gte("sequence_number", from_sequence)
@@ -615,7 +639,7 @@ def _maybe_autoname(auth: UserClient, lane: dict, content: str) -> Optional[str]
         head = head.rsplit(" ", 1)[0] if " " in head else head
     lane_meta["name"] = head
     try:
-        auth.client.table("chat_sessions").update(
+        _cast_read_client(auth).table("chat_sessions").update(
             {"context_metadata": {**meta_all, "lane": lane_meta}}
         ).eq("id", lane["id"]).execute()
     except Exception as exc:
@@ -808,7 +832,7 @@ def _turn_stream_response(
                 extra_metadata=extra,
             )
             try:
-                auth.client.table("chat_sessions").update(
+                _cast_read_client(auth).table("chat_sessions").update(
                     {"updated_at": "now()"}
                 ).eq("id", lane_id).execute()
             except Exception:
@@ -912,7 +936,7 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
     # run an ordinary turn with the edited content.
     if req.replace_from_message_id:
         row_res = (
-            auth.client.table("session_messages")
+            _cast_read_client(auth).table("session_messages")
             .select("id, role, sequence_number, metadata")
             .eq("session_id", lane_id)
             .eq("id", req.replace_from_message_id)
@@ -957,7 +981,7 @@ async def regenerate_lane_turn(lane_id: str, auth: UserClient):
         raise HTTPException(status_code=409, detail="Lane is archived")
 
     rows_res = (
-        auth.client.table("session_messages")
+        _cast_read_client(auth).table("session_messages")
         .select("id, role, content, sequence_number")
         .eq("session_id", lane_id)
         .order("sequence_number", desc=True)
@@ -1176,7 +1200,7 @@ async def settle_lane_route(lane_id: str, auth: UserClient) -> dict:
     # not the turn window (_fetch_history caps at _HISTORY_WINDOW for cost;
     # settling half a conversation would distill half an understanding).
     msgs = (
-        auth.client.table("session_messages")
+        _cast_read_client(auth).table("session_messages")
         .select("role, content, sequence_number")
         .eq("session_id", lane_id)
         .order("sequence_number")
@@ -1215,7 +1239,7 @@ async def patch_lane(lane_id: str, req: LanePatchRequest, auth: UserClient) -> d
         changed = True
     if changed:
         merged = {**meta_all, "lane": lane_meta}
-        auth.client.table("chat_sessions").update(
+        _cast_read_client(auth).table("chat_sessions").update(
             {"context_metadata": merged}
         ).eq("id", lane_id).execute()
         lane = {**lane, "context_metadata": merged}
@@ -1247,7 +1271,7 @@ async def search_lanes(q: str, auth: UserClient) -> dict:
     floors = {m["conversation_id"]: int(m.get("visible_from_sequence") or 0) for m in member_rows}
 
     lq = (
-        auth.client.table("chat_sessions")
+        _cast_read_client(auth).table("chat_sessions")
         .select("id")
         .in_("id", list(floors.keys()))
         .eq("session_type", "lane")
@@ -1261,7 +1285,7 @@ async def search_lanes(q: str, auth: UserClient) -> dict:
         return {"matches": []}
 
     res = (
-        auth.client.table("session_messages")
+        _cast_read_client(auth).table("session_messages")
         .select("session_id, content, created_at, sequence_number")
         .in_("session_id", lane_ids)
         .ilike("content", f"%{query}%")
@@ -1299,7 +1323,7 @@ async def archive_lane(lane_id: str, auth: UserClient) -> dict:
         from services.session_continuity import generate_session_summary
 
         msgs = (
-            auth.client.table("session_messages")
+            _cast_read_client(auth).table("session_messages")
             .select("role, content, sequence_number")
             .eq("session_id", lane_id)
             .order("sequence_number")
@@ -1323,7 +1347,7 @@ async def archive_lane(lane_id: str, auth: UserClient) -> dict:
     update: dict = {"status": "archived"}
     if summary:
         update["summary"] = summary
-    auth.client.table("chat_sessions").update(update).eq("id", lane_id).execute()
+    _cast_read_client(auth).table("chat_sessions").update(update).eq("id", lane_id).execute()
     return {"success": True, "summary": summary}
 
 

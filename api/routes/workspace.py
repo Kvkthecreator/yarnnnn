@@ -2107,6 +2107,25 @@ async def edit_workspace_file(
             detail=f"File not editable via API: {path}. Only workspace config and recurrence files are editable.",
         )
 
+    # ADR-501 S1, COMPLETED (Hat-B probe 2026-07-29): the editable-prefix list
+    # above answers "is this file editable by an operator at all" — it is NOT a
+    # per-principal check. The ADR-373 grant consult lived only on the
+    # primitive path (`permission.py`), so THIS door — the Files/settings
+    # editor every browser uses — wrote straight through: a member with the
+    # displayed `operation/`-only ceiling could PATCH constitution/MANDATE.md
+    # and persona/principles.md (probe-verified live against prod; both
+    # returned 200). Same gate, same one table, now on both doors.
+    from services.primitives.workspace import _is_path_locked_for_principal
+
+    if _is_path_locked_for_principal(auth, path):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Your grant in this workspace does not permit writing {path}. "
+                "The workspace owner can widen it from the Access pane."
+            ),
+        )
+
     try:
         from datetime import datetime, timezone
         from services.authored_substrate import StaleWriteError, write_revision

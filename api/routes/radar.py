@@ -116,6 +116,12 @@ def _hub_path(topic: str) -> str:
     return f"/workspace/operation/{topic}/_radar.yaml"
 
 
+def _acting_workspace(auth) -> Optional[str]:
+    """The workspace this request is bound to (ADR-501) — scopes the hub scan."""
+    from services.workspace_context import effective_workspace_id
+    return effective_workspace_id(auth.user_id)
+
+
 def _acting_owner(auth) -> str:
     """The acting workspace's OWNER user id — the radar stack's key (ADR-501).
 
@@ -215,7 +221,10 @@ async def _materialize(client, user_id: str) -> None:
     """Immediate index sync post-write — a fire_on_activation hub arms now,
     not at the next global discovery."""
     from services.radar import discover_radar_hubs, materialize_radar_index
-    hubs = discover_radar_hubs(client).get(user_id, [])
+    from services.workspace_context import effective_workspace_id
+    hubs = discover_radar_hubs(
+        client, workspace_id=effective_workspace_id(user_id)
+    ).get(user_id, [])
     await materialize_radar_index(client, user_id, hubs)
 
 
@@ -228,7 +237,11 @@ async def _materialize(client, user_id: str) -> None:
 async def list_hubs(auth: UserClient) -> list[HubSummary]:
     from services.radar import discover_radar_hubs
     actor = _acting_owner(auth)
-    hubs = [h for h in discover_radar_hubs(auth.client).get(actor, [])]
+    hubs = [
+        h for h in discover_radar_hubs(
+            auth.client, workspace_id=_acting_workspace(auth)
+        ).get(actor, [])
+    ]
 
     index_rows = (
         auth.client.table("tasks")

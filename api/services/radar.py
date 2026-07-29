@@ -221,23 +221,58 @@ def _coerce_datetime(v: Any) -> Optional[datetime]:
     return None
 
 
-def discover_radar_hubs(client) -> dict[str, list[RadarHub]]:
-    """All hub declarations across all workspaces, grouped by user_id.
+def discover_radar_hubs(client, *, workspace_id: Optional[str] = None) -> dict[str, list[RadarHub]]:
+    """All hub declarations, grouped by the OWNER user_id of their workspace.
 
     One LIKE scan — the whole lane's cost when zero hubs are declared. The
     global scan is the R0 shape (no write-time materialization exists yet);
     R1's authoring route also materializes on write.
+
+    `workspace_id` (ADR-501, Hat-B 2026-07-29) scopes the scan to ONE
+    workspace for the request path. The scheduler omits it and keeps the
+    global sweep. Two things made a member's radar dark without it: the scan
+    read `user_id` off the FILE (the author — kvk), so a member's lookup key
+    never matched; and an unscoped scan through a member's own RLS-filtered
+    client returns their rows, not the workspace's. Scanning by workspace
+    fixes both — `workspace_files` RLS is already grant-aware (migration 189),
+    so a member's client legitimately sees the shared workspace's files.
     """
     try:
-        rows = (
+        q = (
             client.table("workspace_files")
-            .select("user_id, path, content")
+            .select("user_id, workspace_id, path, content")
             .like("path", f"{_OPERATION_PREFIX}%/{RADAR_DECLARATION_LEAF}")
-            .execute()
-        ).data or []
+        )
+        if workspace_id:
+            q = q.eq("workspace_id", workspace_id)
+        rows = q.execute().data or []
     except Exception as e:
         logger.warning("[RADAR] hub discovery scan failed: %s", e)
         return {}
+
+    # The GROUPING KEY is the workspace's OWNER, not the file's author. Both
+    # the request path (`_acting_owner`) and the scheduler (whose contract is
+    # "user_id = workspace owner UUID") look up by that key; keying on the
+    # author meant a hub authored by a member was filed under the member and
+    # invisible to the workspace — and a hub authored by the owner was
+    # unreachable for the member. Resolved once per workspace, owner-cached.
+    from services.workspace_context import acting_workspace_owner
+
+    owner_of: dict[str, str] = {}
+
+    def _owner(row: dict) -> Optional[str]:
+        ws = row.get("workspace_id")
+        if not ws:
+            return row.get("user_id")  # pre-re-key row (N=1): the author IS the owner
+        if ws not in owner_of:
+            try:
+                res = (
+                    client.table("workspaces").select("owner_id").eq("id", ws).limit(1).execute()
+                ).data or []
+                owner_of[ws] = (res[0].get("owner_id") if res else None) or row.get("user_id")
+            except Exception:  # noqa: BLE001 — fall back to the author
+                owner_of[ws] = row.get("user_id")
+        return owner_of[ws]
 
     by_user: dict[str, list[RadarHub]] = {}
     for row in rows:
@@ -246,15 +281,18 @@ def discover_radar_hubs(client) -> dict[str, list[RadarHub]]:
         if topic is None:
             logger.warning("[RADAR] %s is not a single-level hub declaration; skipping", path)
             continue
+        key = _owner(row)
+        if not key:
+            continue
         hub = parse_radar_yaml(
             row.get("content") or "",
             topic=topic,
             declaration_path=path,
-            user_id=row.get("user_id"),
+            user_id=key,
         )
         if hub is None:
             continue
-        by_user.setdefault(row["user_id"], []).append(hub)
+        by_user.setdefault(key, []).append(hub)
     return by_user
 
 

@@ -148,10 +148,42 @@ def _src(rel: str) -> str:
 def test_radar_routes_are_owner_keyed():
     src = _src("routes/radar.py")
     assert "_acting_owner" in src
-    assert 'discover_radar_hubs(auth.client).get(actor' in src
+    # The scan is WORKSPACE-scoped and the lookup key is the acting owner
+    # (ADR-501 + the Hat-B follow-on: keying discovery on the file's AUTHOR
+    # filed a member-authored hub under the member and hid an owner-authored
+    # one from them).
+    assert "workspace_id=_acting_workspace(auth)" in src
+    assert ".get(actor, [])" in src
     # No data query keys on the raw caller anymore.
     assert '.eq("user_id", auth.user_id)' not in src
     assert "_read_declaration(auth.client, actor" in src  # the 409 guard sees the workspace
+
+
+def test_radar_discovery_groups_by_workspace_owner():
+    """The grouping key must be the workspace's owner, not the file's author —
+    both the request path and the scheduler look up by that key."""
+    src = _src("services/radar.py")
+    assert "workspace_id: Optional[str] = None" in src
+    assert "acting_workspace_owner" in src or "owner_id" in src
+    assert 'by_user.setdefault(key, []).append(hub)' in src
+
+
+def test_http_edit_door_consults_the_principal_gate():
+    """ADR-501 S1 completion (Hat-B probe): PATCH /api/workspace/file wrote
+    straight through — the grant consult lived only on the primitive path."""
+    src = _src("routes/workspace.py")
+    fn = src.index("async def edit_workspace_file")
+    gate = src.index("_is_path_locked_for_principal", fn)
+    write = src.index("write_revision(\n            auth.client", fn)
+    assert gate < write, "the grant gate must precede the write"
+
+
+def test_conversation_reads_use_the_cast_client():
+    """chat_sessions/session_messages RLS is creator-scoped; a cast member
+    reading with their own JWT silently gets nothing."""
+    src = _src("routes/lanes.py")
+    assert "def _cast_read_client" in src
+    assert 'auth.client.table("session_messages")' not in src
 
 
 def test_nav_recurrences_workspace_scoped():
