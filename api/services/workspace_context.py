@@ -107,7 +107,9 @@ def account_scope_filter(user_id: str) -> tuple:
     return ("user_id", user_id)
 
 
-def acting_workspace_owner(client, user_id: str) -> str:
+def acting_workspace_owner(
+    client, user_id: str, workspace_id: Optional[str] = None
+) -> str:
     """Resolve the OWNER user id of the acting workspace (ADR-408 D2).
 
     The Freddie/wake stack is keyed by the workspace owner's user_id (its
@@ -120,11 +122,27 @@ def acting_workspace_owner(client, user_id: str) -> str:
     (their own lane — never a block).
     """
     try:
-        ws = effective_workspace_id(user_id)
+        # ADR-501 (probe 2026-07-29): pass the EXPLICIT binding when the caller
+        # holds it. Omitting it fell through to the contextvar/owner path, so a
+        # member resolved their OWN workspace and every owner-keyed stack
+        # (radar, emissions, the wake) ran against the wrong one.
+        ws = effective_workspace_id(user_id, workspace_id)
         if not ws:
             return user_id
+        # SERVICE client, deliberately: `workspaces` RLS is
+        # `owner_id = auth.uid()`, so a MEMBER resolving the owner of a
+        # workspace they hold an active grant in reads ZERO rows and silently
+        # falls back to themselves — which is exactly the wrong key for every
+        # owner-keyed lookup downstream. The owner id of a workspace the caller
+        # is already bound to is not a secret; `effective_workspace_id` above
+        # is the authorization step (a member only resolves a workspace they
+        # reach). Passing `client` in is preserved for callers that hand us a
+        # service client already; we no longer DEPEND on them doing so.
+        from services.supabase import get_service_client
+
         row = (
-            client.table("workspaces")
+            get_service_client()
+            .table("workspaces")
             .select("owner_id")
             .eq("id", ws)
             .limit(1)

@@ -85,7 +85,9 @@ async def get_emissions(auth: UserClient, limit: int = 100) -> list[Emission]:
     sees the workspace's sends, not an empty lens. Owner: byte-identical.
     """
     from services.workspace_context import acting_workspace_owner
-    user_id = acting_workspace_owner(auth.client, auth.user_id)
+    user_id = acting_workspace_owner(
+        auth.client, auth.user_id, getattr(auth, "workspace_id", None)
+    )
     client = auth.client
     emissions: list[Emission] = []
 

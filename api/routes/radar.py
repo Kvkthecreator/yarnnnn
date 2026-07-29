@@ -133,7 +133,9 @@ def _acting_owner(auth) -> str:
     Same seam as the addressed wake (routes/feed.py): resolve at the boundary,
     key the stack by the owner. Owner sessions resolve to themselves."""
     from services.workspace_context import acting_workspace_owner
-    return acting_workspace_owner(auth.client, auth.user_id)
+    return acting_workspace_owner(
+        auth.client, auth.user_id, getattr(auth, "workspace_id", None)
+    )
 
 
 def _read_declaration(client, user_id: str, topic: str) -> Optional[str]:

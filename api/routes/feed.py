@@ -1041,7 +1041,9 @@ async def global_chat(
         # in the member's own thread (session_id). Owner fallback ==
         # auth.user_id — byte-identical in N=1.
         from services.workspace_context import acting_workspace_owner
-        wake_user_id = acting_workspace_owner(wake_client, auth.user_id)
+        wake_user_id = acting_workspace_owner(
+            wake_client, auth.user_id, getattr(auth, "workspace_id", None)
+        )
 
         # Assemble route-layer inputs: conversation_window + workspace_state.
         # The wake source assembles the rest (governance envelope, operating

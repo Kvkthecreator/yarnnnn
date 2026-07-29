@@ -204,7 +204,33 @@ def test_activity_and_heartbeat_workspace_scoped():
 
 def test_emissions_owner_keyed():
     src = _src("routes/emissions.py")
-    assert "acting_workspace_owner(auth.client, auth.user_id)" in src
+    assert "acting_workspace_owner(" in src
+    # The EXPLICIT binding must ride along (probe 2026-07-29): without it the
+    # resolver falls through to the contextvar/owner path and a member
+    # resolves their OWN workspace's owner.
+    idx = src.index("acting_workspace_owner(")
+    assert 'getattr(auth, "workspace_id", None)' in src[idx: idx + 200]
+
+
+def test_acting_workspace_owner_takes_the_binding_and_service_client():
+    """`workspaces` RLS is owner-only, so a member's own client resolves ZERO
+    rows and silently falls back to themselves — the wrong key for every
+    owner-keyed stack downstream."""
+    src = _src("services/workspace_context.py")
+    fn = src.index("def acting_workspace_owner")
+    window = src[fn: fn + 2200]
+    assert "workspace_id: Optional[str] = None" in window
+    assert "effective_workspace_id(user_id, workspace_id)" in window
+    assert "get_service_client()" in window
+
+
+def test_owner_keyed_routes_pass_the_binding():
+    """Every acting_workspace_owner caller that HOLDS an auth must pass it."""
+    for rel in ("routes/radar.py", "routes/emissions.py", "routes/feed.py"):
+        src = _src(rel)
+        for idx in [i for i in range(len(src)) if src.startswith("acting_workspace_owner(", i)]:
+            call = src[idx: idx + 220]
+            assert 'getattr(auth, "workspace_id", None)' in call, f"{rel} @ {idx}"
 
 
 def test_alpha_evaluator_workspace_scoped():
