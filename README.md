@@ -1,8 +1,8 @@
 # YARNNN
 
-**Autonomous AI that knows your work.**
+**Your true AI-first workspace — co-work like never before.**
 
-YARNNN connects to Slack, Gmail, Notion, and Calendar, accumulates context over time, and creates persistent agents that handle recurring knowledge work. The system is built around supervision, not repeated prompting: agents run, deliver work, and improve through feedback and history.
+Work with ChatGPT, Gemini, and Claude together in one shared workspace: dedicated apps, a shared file system, documents you build with AI — and every change signed by whoever made it, human or not.
 
 ## Quick Start
 

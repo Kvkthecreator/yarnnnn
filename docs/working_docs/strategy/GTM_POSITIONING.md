@@ -1,136 +1,146 @@
 # YARNNN GTM Positioning & Messaging
 
-**Last Updated:** 2026-06-10 (v4.0 — full rewrite. Judgment-seat lead, cumulative-workspace product identity, psychographic ICP, act-shape personas, high-ACV motion. Supersedes v3.0 entirely.)
+**Last Updated:** 2026-07-29 (v5.0 — the canon-lock re-cut. Product sentence installed, ICP externalized to `ICP.md`, motion inverted to free-to-value/expand-by-head, activation re-pointed at the growth loop. §1/§2/§5/§6 replaced; §3/§4 revised; the mechanism discipline and the §4 posture rule preserved verbatim.)
 
 **Grounded in:**
-- [ESSENCE.md](../../ESSENCE.md) v14 (the cumulative workspace)
-- [NARRATIVE.md](../../NARRATIVE.md) v5 (story sequencing)
-- [cumulative-workspace-product-formulation-2026-06-10.md](../../analysis/cumulative-workspace-product-formulation-2026-06-10.md) (ratified formulation + June-2026 competitive reassessment)
-- [usp-spine-and-act-shape-personas-2026-06-09.md](../../analysis/usp-spine-and-act-shape-personas-2026-06-09.md) (spine, USP, psychographic, act-shape map)
-- [positioning-judgment-seat-psychographic-2026-06-08.md](../../analysis/positioning-judgment-seat-psychographic-2026-06-08.md) (Axiom-8 psychographic, bounded-operation wedge, motion-fit)
+- [CANON-LOCK-2026-07-29](CANON-LOCK-2026-07-29.md) — the operator-ratified source of truth for one-liner, ICP, motion, and activation
+- [ESSENCE.md](../../ESSENCE.md) v17 (the canon sentences)
+- [ICP.md](ICP.md) v1 (the ICP's owning document)
+- [NARRATIVE.md](../../NARRATIVE.md) v6 (story sequencing)
+- [GROWTH-LOOP.md](../go-to-market/GROWTH-LOOP.md) (activation)
+- ADR-457 · ADR-465 · ADR-490 · ADR-437 · ADR-460
 
-**What changed in v4.0:** Everything load-bearing. v3.0 ("five domain experts, $19/month, pre-scaffolded roster, intelligence-hungry professional, volume self-serve") predates ADR-205 (roster retired), ADR-216 (orchestration vs judgment), ADR-231 (task sunset), ADR-282/310/312, the judgment-seat reframe, and the June-2026 platform moves. Nothing from v3.0 survives as copy; the accumulated-intelligence *instinct* survives, re-grounded as the cumulative workspace.
+**What changed in v5.0:** Everything the 2026-07-29 drift pass bannered. v4's standing-delegate lead, solo-operator ICP, per-operation pricing, and demo-led activation all described a product and price list that no longer exist (drift ledger: [GTM-RECUT-PROPOSAL-2026-07-29](GTM-RECUT-PROPOSAL-2026-07-29.md)). **Supersedes** v4.0 §1/§2/§5/§6 entirely; **amends** §3/§4. The v4 mechanism discipline and posture rule carry forward verbatim.
 
 ---
 
 ## 1. Core Positioning
 
-**Product identity:**
-> **The workspace where work is cumulative** — run by agents you own, under a judgment you control.
+The canon sentences (one per slot, replace-never-accumulate — ESSENCE v17 §The Canon Sentences):
 
-**The frame (one phrase):**
-> A **standing delegate** for the operation you can't be present for.
+**The product sentence (the buyer, the site, the deck cover):**
+> # your true AI-first workspace.
+> # co-work like never before.
+>
+> Work with ChatGPT, Gemini, and Claude together in one shared workspace.
+> Dedicated apps, a shared file system, documents you build with AI —
+> and every change signed by whoever made it, human or not.
 
-**The USP:**
-> A standing delegate that **produces the work — and makes the calls — on your behalf, the way you would, on a workspace where nothing resets.**
+The final clause is non-optional: *"AI-first"* is a capability adjective and the mechanism discipline requires its mechanism in the same visual field. *"Human or not"* lands attribution and declares co-work species-blind.
 
-**The contrast hook:**
-> Everyone's selling you delegates. Nobody's selling the seat that holds them accountable.
+**The hook (opens the deck and the site):**
+> **Every AI keeps its own copy of your work. You don't.**
 
-**The internal spine** (word-assignments; see usp-spine doc §1):
-Entrust (the handoff) → Judgment (the substance) → Continuity (the absence) → Compounding (the payoff). The noun is **delegate**, always welded to **judgment**, never to **task**.
+**The recognition sentence (what the buyer says about themselves):**
+> **"I use three different AIs, and I'm the only thing connecting them."**
 
-**The asset metaphor** (for expanded copy and demos):
-> The substrate is the asset. The agents are the labor. The Reviewer is the management. The artifacts are the dividends. Buyers come for the dividends; they stay for the asset.
+**The moat sentence (investors and internal discipline only — never the product sentence, ADR-457 §1):**
+> **yarnnn is the system of record where human and AI work settles.** (Ratified ADR-414 D1.)
 
-**The ratified umbrella hero** (2026-06-10, noun-pass resolution — see [layman-noun-pass-verb-frame-2026-06-10.md](../../analysis/layman-noun-pass-verb-frame-2026-06-10.md)):
-> **The work you run shouldn't reset.**
-> YARNNN is the workspace where it compounds. Agents you own produce it. Corrections carry forward. A judgment seat answers for what ships — even when you're not there.
-> *(vertical chips: a newsletter · a portfolio · a shop · a pipeline · a book of business)*
+**The mechanism discipline** (preserved verbatim from v4 — the best rule in the retiring doc):
+> Capability adjectives (*persistent, compounds, autonomous, runs in your absence*) **never appear without their mechanism** (*owned, attributed, judged against what actually happened*).
+
+In layman copy the mechanism word is **signed** (CANON-LOCK §5).
 
 ### Retired copy seeds — do not use
 
-- *"It runs on your behalf. It gets better the longer it does."* — verbally commoditized (Hermes, OpenAI workspace agents, Cowork memory-curation all market this sentence's content as of June 2026).
-- Any bare capability adjective — *persistent, autonomous, compounds, self-improving, runs while you sleep* — without its mechanism (*owned, attributed, judged against what actually happened*).
-- All v3.0 copy: "five domain experts," "$19/month," "your AI team," "pre-built roster," "organizational intelligence team."
+All v4 leads: *"standing delegate"* · *"the seat that holds them accountable"* · *"under a judgment you control"* · *"The work you run shouldn't reset"* + the vertical chips (every one names solo work). Plus the full CANON-LOCK §5 retired list: the judgment seat · delegation dial · persona (entity class) · cast · agents you own · five domain experts · the trust dial is the pricing axis · operator (external copy) · $19/mo · per-operation pricing · the Specialist palette · "the team you build by chatting". Prior generations' retired seeds (v3.0 and earlier) stay retired.
 
 ---
 
-## 2. The ICP — Psychographic, Not Occupation
+## 2. The ICP
 
-**The frame:**
-> Someone with **something that's theirs to run**, that they care about getting right, that they **can't be continuously present for** — and who **refuses to let it reset** every time they step away.
+**The ICP now has an owning document: [ICP.md](ICP.md).** Summary here; that doc wins on conflict.
 
-**The sharpened wedge:**
-> The operator of a **bounded operation** — a portfolio, a content channel, a deal pipeline, a small product, a book of business — with a **repeating consequential decision** and a **track record they're not learning from.**
+> **Plural · Consequential · Continuing.** The register is the AI power user doing real work — prosumer and small-team, not the scarce senior operator. The anti-ICP is the single-AI user, filtered implicitly by the hero itself. The unit of value is a commons; the unit of arrival is a person (ADR-465).
 
-**The felt pain (layman-resonant):**
-> "I keep starting over, and I can't tell if I'm actually getting better at this."
+**The messaging cut, per species of second principal** (ICP.md §3):
 
-Three qualifiers do the filtering: *theirs to run* (they bear the consequence — the principal, not a delegate-of-a-delegate), *can't be present* (non-presence is the entry condition; second-job / overloaded / off-clock are scenarios of it), *refuses to reset* (the wince is the willingness-to-pay filter — separates the customer from the hobbyist).
-
-**Range proof (one psychographic, many occupations):** A&R deciding which artist to sign · PM deciding what to ship · solo founder deciding where to spend runway · trader deciding whether to take a position · partnerships lead deciding which deal to pursue. Different jobs; one relationship to the work.
-
-**~~OPEN ITEM~~ RESOLVED (2026-06-10 noun pass):** there is no single layman noun — **the noun varies by vertical; the verb is universal.** The self-identification is *"I run a ___"*; umbrella copy keys on the run-relationship merged with the canon nouns (**"the work you run"** + *compounds/reset*); vertical surfaces use the natural operation-noun (newsletter · portfolio · shop · pipeline · book of business). "Solopreneur" = channel/SEO vocabulary only (2026's consolidated umbrella person-noun, but it excludes double-jobbers, in-company consequence-bearers, and traders); "operator" stays internal. The felt-pain sentence is a *recognition* hook, not a search hook (no organic search presence) — SEO load falls on category terms; the identity hook converts on-page. Full evidence + ratified hero: [layman-noun-pass-verb-frame-2026-06-10.md](../../analysis/layman-noun-pass-verb-frame-2026-06-10.md).
+| Species | Message | Channel |
+|---|---|---|
+| **External AI** (`foreign-llm`/`a2a`) | *"Co-work with the AI you already use."* The activation species — free, day one, no invite. | Connector directories, MCP-facing surfaces |
+| **Agents at the desk** | Engagement copy only — they are **the member's hands, never marketed as colleagues or a second principal** (ADR-460; the ledger says `member:… via …`). | In-product |
+| **A human colleague** | *"Two of you work free."* The revenue species — the invite is the proof moment and the growth moment (ADR-490). | The share link, invite surfaces |
 
 ---
 
-## 3. The Persona Reality — Act-Shape Map
+## 3. The Act-Shape Map
 
-Personas key on **what shape the consequential act is**, not on integration coverage (correction landed 2026-06-09):
+Personas key on **what shape the act is**, not on integration coverage. Revised in v5: a row added for the act the product now leads with, and Transaction demoted.
 
-| Act shape | The act IS… | Built today? | Personas |
+| Act shape | The act IS… | Built today? | Notes |
 |---|---|---|---|
-| **Artifact** | substrate creation — WriteFile + compose (text, articles-with-images, decks, briefs, memos) | ✅ kernel, universal, zero integration debt | author · creator · analyst · researcher · evaluator |
-| **Transaction** | external API write | ✅ where integration exists (Alpaca, Lemon Squeezy) | trader · store-operator |
-| **Message** | send (email today; social = commodity headless add) | ✅ email; ⚠️ social via thin last-mile | newsletter operator · outreach dealmaker |
-
-The artifact class is a **full delegate on day one with zero platform connections** — for it, the substrate IS the act. Publish/distribution is a commodity last-mile (absorb via headless/integration; never build custom) — but the *cadence-and-voice continuity of shipping* is the moat applied to output and stays inside the product.
-
-**The competitive caveat on the artifact class (2026-06-10):** it is the broadest served persona AND the least differentiated terrain — voice-and-cadence content is the incumbents' home turf at $20–200/mo, and artifact ground truth is the slow kind, which mutes the calibration story. Consequence: artifact operators are *served and sold from day one*, but differentiation copy for them must carry the **cumulative mechanism** (provenance, consistency, correction-compounding), never bare delegate language.
+| **Think → settle** | multi-engine dialogue over the commons, distilled into an attributed, cited file | ✅ kernel (`/chat` + settle) | The lead act-shape of the desk (ADR-457). **GTM caveat**: settle itself is fenced as a lead until proven used (ADR-457 D8.2) — market the thinking-that-lands outcome, not the verb. |
+| **Artifact** | substrate creation — files + composed documents, decks, pages | ✅ kernel, universal, zero integration debt | Broadest served class AND least differentiated terrain; copy for it must carry the cumulative mechanism (provenance, consistency, correction-compounding), never bare capability language. (v4 caveat, still correct, more urgent — Studio is the deep-investment app.) |
+| **Message** | send (email today; social = commodity last-mile) | ✅ email; ⚠️ social via thin last-mile | Distribution is the derivative last mile; never build custom. |
+| **Transaction** | external API write (trades, commerce) | ⚠️ where integration exists | **Demoted in v5**: consequential autonomous transaction depends on the Rung-2 judgment layer ADR-380 §5 scoped out of the vision. Served, not sold. |
 
 ---
 
-## 4. Competitive Landscape & Objection Handling (June 2026)
+## 4. Competitive Landscape — Three Camps
 
-| Competitor class | What they have | What they structurally lack | The line |
+Re-cut in v5 per CANON-LOCK §3.3: the primary frame is **three camps**, and the third is new to the canon — it is what **"true"** in the headline is aimed at.
+
+| Camp | Who | What they lack | The line |
 |---|---|---|---|
-| **Platform agents** (OpenAI workspace agents, Claude Cowork) | Scheduled, cloud-hosted delegates; persistent project workspaces; memory-curation marketed as improvement | Owned/attributed substrate; independent judgment; the seat (self-audit problem) | "They grade their own homework. Your seat here has a track record you can read." |
-| **Memory layer** (Mem0, Zep, Cognee, Acontext, MemoryLake) | Portable, persistent memory infra | An operation: no action loop, no judgment, no ground truth. Context with no action loop is a wiki. | "Memory remembers. It doesn't decide, and it doesn't answer for outcomes." |
-| **Chief-of-staff / agent products** (Hermes et al.) | Delegation UX, approval checkboxes | A calibration record; attribution; a governance boundary the agent can't cross | "An approval button isn't judgment. Judgment has a track record." |
-| **DIY** (files + git + CLAUDE.md + scheduled Claude Code) | ~80% of Layer 1 for a technical user | The calibration loop (git has no 'was this judgment right'), the governance boundary, packaging for non-technical operators | "Git versions your files. It doesn't know if your calls were good." |
+| **Model makers** | OpenAI · Google · Anthropic | Neutrality. One vendor, sealed. | "Your context lives in their product, not yours." |
+| **Agent memory** | Mem0 · Zep · Cognee | A place to work. Memory without a workspace. | "Memory remembers. It doesn't co-work." |
+| **AI-retrofitted workspaces** | Notion · Slack · Google Workspace | AI as a principal. Built for humans, AI bolted on. | "Their AI is a feature inside a human tool. Here, AI is a principal in the workspace." |
 
-**Posture rule:** capability parity arrives in waves; never argue capability. Differentiate on structure, ownership, accountability — what waves don't wash out. Concede incumbent strength fully (it makes the gap argument stronger: the more delegates, the bigger the accountability gap).
+Secondary rows (objection handling, not the frame): **chief-of-staff / agent products** (approval checkboxes without an attributed record) and **DIY** (files + git + scheduled CLI agents — git versions files but has no multi-principal grant model and no layman packaging).
+
+**Posture rule** (preserved verbatim from v4): capability parity arrives in waves; never argue capability. Differentiate on structure, ownership, accountability — what waves don't wash out. Concede incumbent strength fully (it makes the gap argument stronger: the more delegates, the bigger the accountability gap).
+
+**The engine rule** (ADR-420 §10): naming three models is positioning; a model-count comparison table is the treadmill. Never compete on engine count.
 
 ---
 
 ## 5. Motion & Pricing
 
-**Motion:** high-ACV, low-velocity, expansion-led. Land narrow on bounded operations with fast feedback loops; expand within the account/operation; grow through tight communities that talk to themselves (traders↔traders, creators↔creators). Hundreds of operators paying real money is a real business. This is structurally NOT a volume/self-serve product — the psychographic is senior, consequence-bearing, scarce; low volume is the correct shape.
+**Motion (CANON-LOCK §3.1):**
+> **Free-to-value, expand by head. Two revenue legs: seats and usage.**
 
-**Pricing direction (ratified 2026-06-10; pricing ADR pending):**
-- **Per-operation seat**, order-of $150–500/mo, **tiered by delegation level** (manual < bounded < autonomous) — the trust dial the operator already controls (AUTONOMY) is the pricing axis: pay more as you delegate more.
-- The usage ledger (ADR-291 balance, 2× cache-inclusive) survives as **cost floor + transparency**, not as the price.
-- **Layer-1 substrate stays cheap/free** — the interop trojan (your context follows you into every LLM; the workspace advertises the operation).
+- **Seats** — two humans free per workspace; $20/mo per human from the third (ADR-490). Revenue scales with the invite; the product's proof moment *is* inviting someone into the commons.
+- **Usage** — PAYG at provider cost × 1.30. Thin, so it needs volume — which is why *plural* qualifies the ICP.
+- **Shape** — prosumer / small-team, land-free-and-expand. Early Figma or Linear, not a vertical seat.
 
-**Why this pricing is defensible:** the product's value is the call made correctly and the asset that compounds — not compute. Pricing on compute anchored it to the commodity layer (v3.0's error).
+**RETIRED — explicit overrule, not a quiet edit**: v4's *"premium, high-ACV, low-velocity, expansion-led … Hundreds of operators paying real money is a real business — never a volume play"* described a company the price list dissolved (CANON-LOCK §3.1).
+
+**Pricing facts (from ADR-490 — quote these, never the old ones):** two humans free per workspace · $20/mo per human from the third · usage pay-as-you-go, funded by the $3 signup grant and top-ups · hard stop at zero · **no monthly allowance** · **no solo plan to buy** · AI principals free and unlimited · dollars shown only at purchase, consumption shown as usage-%.
+
+**"Seat" means exactly one thing in external copy: a human head** (ADR-445/490). The other two historical meanings (a running program at $149–499; an AI persona entity) are dead and purged.
 
 ---
 
 ## 6. Activation
 
-**Market the psychographic; onboard through a loop that closes in one session.** Two first-session assets, used by act-shape:
+**Owned by [GROWTH-LOOP.md](../go-to-market/GROWTH-LOOP.md)** — summary here; that doc carries the loop, metrics, and falsifiers.
 
-1. **Correction compounds** (artifact class): author/upload context → generate an artifact with visible provenance → fix one substrate file → watch multiple artifacts improve. The cumulative-workspace demo. Never ask a stranger to imagine Day 90.
-2. **Verdict reconciles** (transaction/fast-loop class): bring a real decision you're facing this week → watch the seat reason it against your declared rules → see the outcome reconcile into the calibration trail.
+> **Activated = the first co-work moment: two distinct principals with attributed revisions on the same file** (CANON-LOCK §4.1). Not signups, not tasks, not connectors attached.
 
-**Cold-start finesse — the retrospective audit:** ingest the operator's *existing* track record (trade log, published corpus, deal history) and reconcile *past* decisions on day one. Instant calibration trail, instant wince, no tenure required. This converts the product's biggest structural objection (compounding takes time) into the first-session payoff.
+Two channels only (ADR-437) — there is no third, and there is no wizard:
 
-**Wedge sequencing (ratified):** the demo/wedge leads with fast-ground-truth bounded operations; the artifact class is served and sold from day one with mechanism-led copy. Lead-vertical call still belongs to the bottom-up vocabulary pass (§2 open item).
+1. **Cold discovery — lead door: connect your AI first.** Primary CTA: **"Co-work with the AI you already use."** The second principal exists before the member has authored anything; the first thing they see at the desk is a write they didn't make, signed by something that isn't them.
+2. **Invited / shared** — `/s/{token}` → broad member grant → land on the shared artifact with `trace` visible, inside a populated commons (ADR-437 Phase D, ADR-465 — shipped).
+
+What activation is **not**: no setup wizard, no workspace constitution, no program pick, no roster discovery, no first-task ceremony, no blank-canvas empty state. Entry is a flow, not a ceremony (ADR-465; CANON-LOCK §4.3).
 
 ---
 
 ## 7. Open Items & Follow-ups
 
-1. ~~**The layman ICP noun**~~ — **RESOLVED 2026-06-10** (verb-frame; see §2). The wedge pressure-test ("isn't this just hobbyists?") remains live for the first real-stranger conversations — the wince/consequence filter is the answer to stress.
-2. ~~**Pricing ADR**~~ — **RATIFIED 2026-06-10 as [ADR-334](../../adr/ADR-334-per-operation-pricing.md)**: Supervised $149 / Delegated $299 / Autonomous $499 per operation/month (entitlement = settable AUTONOMY ceiling; included usage $15/$30/$60 via existing refill machinery); bare workspace free forever (the ADR-172 balance model re-scoped to Layer-1); 14-day no-card trial with $10 grant; annual = 10×. The /pricing page rewrites against it.
-3. ~~**Path-A proof decision**~~ — **RATIFIED 2026-06-10: judgment trail, not returns.** The site's proof asset is the real record — attributed verdicts, calibration entries reconciling calls against outcomes, the seat refusing a pressure-edit (ADR-319) — with **no P&L or performance claims anywhere**. Zero regulatory surface, unfakeable, works in flat months. Encoded as a global rule in [SITE-COPY-SPEC-v1](../go-to-market/SITE-COPY-SPEC-v1-2026-06-10.md).
-4. **Lead-vertical call** — which bounded-operation community gets the first concentrated push.
+Reset in v5. Seeded from CANON-LOCK §9 — both prior ICP documents died holding unanswered founder-validation questions; these are the two that must not suffer the same fate:
+
+1. **Three real instances of a multi-principal ledger** — any species. Until they exist, the second-principal table (ICP.md §3) is theory. Readable from the existing ledger; no new telemetry needed.
+2. **How many AIs a real prospect actually uses, and whether the fragmentation registers as a grievance or as normal life.** The entire triad rests on *plural* being **felt**, not merely true. Founder conversations, not deduction.
+3. **The ICP.md §5 demographics stub** — age, income, company size, AI spend, which AIs and how many, tool stack, switch trigger, decision channels. Validated, then dated.
+4. **The wedge falsifier watch** (CANON-LOCK §8.1) — 60–90 days after leading with the MCP door: do connector-origin users open the desk? Guardrail metric lives in GROWTH-LOOP.md.
+5. **ADR-457 D8.3 re-cut** — the "MCP dwarfs desk" falsifier as written would fire on success; it must be re-cut to distinguish MCP-as-acquisition-door (expected) from MCP-as-the-whole-product (the real failure). Owed to the ADR, noted in GROWTH-LOOP.md.
 
 ---
 
 ## Usage Notes
 
-Update this document when: positioning is tested against real audiences; the layman noun lands; the pricing ADR ratifies; a platform ships an attributed-substrate or independent-judgment equivalent; activation data reveals which first-session asset converts.
+Update this document when: CANON-LOCK is amended (this doc quotes it, never forks it); a §7 item resolves; a §8 falsifier in CANON-LOCK fires or clears; a platform ships a multi-vendor attributed commons; activation data reveals which channel converts.
 
-Reference this for all external communication: landing pages, docs, marketing, sales conversations, investor decks. Sequencing discipline lives in NARRATIVE.md; product essence in ESSENCE.md.
+Reference this for all external communication: landing pages, docs, marketing, sales conversations, investor decks. Sequencing discipline lives in NARRATIVE.md v6; product essence and the canon sentences in ESSENCE.md v17; the ICP in ICP.md; the loop in GROWTH-LOOP.md.

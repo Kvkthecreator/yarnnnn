@@ -1,3 +1,27 @@
+> # ⛔ DOC-STATUS (2026-07-29): ARCHIVED — do not use
+>
+> This analysis is from **2026-04-01** and reasons about a product that no longer exists.
+> It is retained for lineage only.
+>
+> **What it assumes that is gone:**
+> - A pre-scaffolded roster of five domain-expert agents (ADR-140) — framing retired by **ADR-460**.
+> - Tasks as the user-facing work unit — sunset by **ADR-231**.
+> - Deliverable/report automation as the job-to-be-done — superseded by the desk model, **ADR-457**.
+> - A solo "intelligence-hungry professional" ICP — the workspace is now a multi-principal commons
+>   (**ADR-404/445/465/490**); **ADR-465**: *"a one-member commons is a diary."*
+> - $19/mo volume pricing — superseded twice (**ADR-445**, then **ADR-490**).
+>
+> **Still worth reading for one thing:** its "automation paradox" argument (high-pain work is too
+> high-stakes to trust AI; low-stakes work isn't painful enough to pay for) is a durable diagnostic
+> and should be re-run against whatever ICP the next pass ratifies.
+>
+> **Superseded by:** the forthcoming `ICP.md`. Until that lands, current ICP thinking lives in
+> ADR-404, ADR-445, ADR-465, ADR-490, ADR-492, ADR-493 — not here.
+>
+> *(Applied 2026-07-29 by the GTM/ICP drift pass — `docs/working_docs/strategy/GTM-RECUT-PROPOSAL-2026-07-29.md`. Banner only; no content rewritten. The re-cut itself is blocked on the ICP + one-liner discourse.)*
+
+---
+
 # ICP & Core Value Prop Analysis — April 2026
 
 **Date:** 2026-04-01

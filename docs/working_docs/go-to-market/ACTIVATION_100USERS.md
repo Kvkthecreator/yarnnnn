@@ -1,3 +1,33 @@
+> # ⛔ DOC-STATUS (2026-07-29): ARCHIVED — do not execute
+>
+> Dated **2026-04-01**. Every product surface this plan routes through has since been deleted,
+> and its tracking tables were never filled (v2 and v3 were both written and never run).
+>
+> **Surfaces it assumes, and their fate:**
+> - `/setup` onboarding wizard → **deleted in full**, ADR-437 Phase A (*"delete, not repair"*).
+> - A five-expert roster + "roster view" → framing retired, **ADR-460**.
+> - "TP" as the orchestrator that suggests the first task → renamed, then dissolved.
+> - Tasks as the activation unit → **ADR-231** (the DB scheduling index survives; the user-facing
+>   unit does not). "Tasks Created" is therefore not a measurable activation metric.
+> - $19/mo Pro with unlimited tasks, 90 days free → superseded by **ADR-490** (two humans free,
+>   $20/additional head, usage PAYG at cost x1.30, monthly allowance retired).
+>
+> **The model that replaces it:** **ADR-437** reframes the question from *"what does onboarding look
+> like"* to *"how does a stranger become an activated principal in a commons"* — two channels only
+> (cold discovery, invited/shared). **ADR-465** then re-cut Share from an activation phase to a
+> **system primitive**, giving the loop end-to-end via `/s/{token}`.
+>
+> **Superseded by:** [`GROWTH-LOOP.md`](GROWTH-LOOP.md) (shipped 2026-07-29). The ratified
+> activation metric is **time-to-first-co-work-moment** (two distinct principals with attributed
+> revisions on the same file — CANON-LOCK §4.1) + share→accept conversion — not signups, not tasks.
+>
+> **Keep from this doc:** only the method — budget-boxed channel tests, read-the-results matrices,
+> and a tracking table someone actually fills.
+>
+> *(Applied 2026-07-29 by the GTM/ICP drift pass — `docs/working_docs/strategy/GTM-RECUT-PROPOSAL-2026-07-29.md`. Banner only; no content rewritten. The re-cut itself is blocked on the ICP + one-liner discourse.)*
+
+---
+
 # ACTIVATION_100USERS.md
 
 **Objective:** 100 paying users. Not followers. Not impressions. Users.

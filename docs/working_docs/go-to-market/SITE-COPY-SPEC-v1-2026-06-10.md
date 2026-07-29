@@ -1,3 +1,40 @@
+> # ⚠️ DOC-STATUS (2026-07-29): DO NOT IMPLEMENT — v2 required
+>
+> The 2026-07-04 staleness note below understates it. Naming the specific dead facts:
+>
+> **Pricing — every number and the unit itself.** The spec prices *"Supervised $149 · Delegated $299
+> · Autonomous $499, per operation / month"* and states *"the workspace itself is never paid."*
+> Live: **ADR-490** — two humans free per workspace, **$20/mo per human beyond the 2nd**, usage
+> pay-as-you-go at provider cost x1.30, monthly allowance retired, and **ADR-416**: *"the billing
+> unit is the workspace, not the user."* "Seat" in this spec means a running program; in live canon
+> it means a **human head**. The `CTA.seatCheckout` guard in §0.8 guards a checkout for a product
+> that no longer exists.
+>
+> **ICP.** *"the operator of a bounded operation (a newsletter · a portfolio · a shop · a pipeline ·
+> a book of business)"* — every one of those nouns names solo work. **ADR-465**: *"a one-member
+> commons is a diary … the act that creates the second principal is the act that switches the moat
+> on."* The vertical-chip strategy is downstream of an ICP decision that has not been made.
+>
+> **`/how-it-works` funnel.** *"1. Pick your operation → 2. Write the constitution → 3. Connect and
+> bring in your reality"* — `/setup` was deleted in full (**ADR-437** Phase A), the workspace has no
+> constitution (**ADR-421**), and **ADR-465** rules *"entry is a flow, not a ceremony."*
+>
+> **What is missing entirely.** No share link, no invite, no second-principal moment. The growth
+> mechanic canon now names — the `/s/{token}` unified door (**ADR-465** D2) — does not appear
+> anywhere in this spec.
+>
+> **Motion.** *"premium, high-ACV, expansion-led … never a volume play"* is inverted by ADR-490's
+> price shape and ADR-445's stated bet (*"solo = low-revenue by design"*).
+>
+> **Still valid:** the §0 global copy rules — the bare-capability ban and the mechanism-in-the-same-
+> breath discipline. Carry them into v2 verbatim.
+>
+> **v2 is blocked on** the ICP + one-liner discourse, then GTM_POSITIONING v5.
+>
+> *(Applied 2026-07-29 by the GTM/ICP drift pass — `docs/working_docs/strategy/GTM-RECUT-PROPOSAL-2026-07-29.md`. Banner only; no content rewritten.)*
+
+---
+
 # Site Copy Spec v1 — Full-Site Refactor to Canon (2026-06-10)
 
 > **STALENESS NOTE (2026-07-04, ADR-404)**: the live pages have moved past this spec twice — first to the "Shared memory for AI + human work" framing, then the **ADR-404 commons-first re-center** (team invites first-class; automatic connector capture de-emphasized — the capture lane is dormant behind `CONNECTOR_CAPTURE_ENABLED`; no outbound multi-model orchestration promised). Do not implement against this spec without reconciling; a v2 spec is the right vehicle for the next full pass.

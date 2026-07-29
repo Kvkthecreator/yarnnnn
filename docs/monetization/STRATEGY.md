@@ -1,3 +1,31 @@
+> # ⚠️ DOC-STATUS (2026-07-29): SUPERSEDED — two pricing regimes stale
+>
+> This document describes the **ADR-396 Type-B** model (plan tier + included allowance + overage).
+> That model has been replaced twice since. **Do not quote any number in this file.**
+>
+> | This doc says | Live canon | Source |
+> |---|---|---|
+> | Free $0 / Starter $19 / Pro $49 | Two humans free per workspace; $20/mo per human beyond the 2nd; **no solo plan exists to buy** | **ADR-490** §1 |
+> | Allowances $0 / $15 / $45 | `monthly_allowance_usd: 0` on all tiers — **the allowance retires** | **ADR-490** §1③ |
+> | Billing rates = 2x provider cost | `cost_usd` stays provider-truthful; margin lands in a new `billed_usd` at **x1.30** | **ADR-490** §2 |
+> | Billing unit = the user's balance | *"The billing unit is the workspace, not the user. Human seats scale the tier."* | **ADR-416** |
+> | (no seat concept) | Seat = a **human head**. AI principals are never seats and never charged. | **ADR-445** |
+>
+> **Still accurate:** the $3 signup grant, top-ups ($10/$25/$50), hard-stop at zero,
+> `execution_events` as the one ledger, and the hide-dollars display posture.
+>
+> **Read instead:** ADR-445 (two-axis collapse) → ADR-490 (two free seats + PAYG margin) →
+> ADR-491 (where billing/usage now live in the UI).
+>
+> **Open debt this file does not cover:** Radar's packaging. ADR-486 §5 deferred it to R3; R3
+> shipped unveiled 2026-07-28, so standing sweeps now draw the PAYG meter with no packaging story.
+>
+> *(Applied 2026-07-29 by the GTM/ICP drift pass — `docs/working_docs/strategy/GTM-RECUT-PROPOSAL-2026-07-29.md`. Banner only; no content rewritten. The re-cut itself is blocked on the ICP + one-liner discourse.)*
+>
+> **Customer-facing pricing facts**: quote [CANON-LOCK-2026-07-29 §3.5](../working_docs/strategy/CANON-LOCK-2026-07-29.md) — the operator-ratified statement of the ADR-490 shape.
+
+---
+
 # yarnnn Platform Billing Strategy
 
 > **⭐ Model ratified + SHIPPED 2026-07-01 — [ADR-396](../adr/ADR-396-the-pricing-model-type-b-subscription-over-the-metered-balance.md) (Implemented).** A **Type-B subscription over the metered balance** (plan tier + included allowance + overage; activity transparent, dollars not shown — the Claude pattern). One meter (LLM judgment invocations), two gates (connector retention [built] + count [candidate]), the moat's reads free. Overage = hard-stop + top-up the existing `balance_usd` — **no credit currency**. **The tier NUMBERS are SET as launch-test values** (Free $0 / Starter $19 / Pro $49; allowances $0/$15/$45; retention 7/30/90 d) — hypotheses to test in front of a first user, reversible; single source `services/billing_tiers.py::TIER_CONFIG`. See also [UNIT-ECONOMICS](./UNIT-ECONOMICS-2026-07-01.md) + [METERING-CARVE](./METERING-CARVE-2026-07-01.md).
