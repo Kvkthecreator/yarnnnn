@@ -87,7 +87,35 @@ incident:
 3. **Radar's discovery grouped by the file's AUTHOR**, so an owner-authored hub
    was unreachable for a member. Now scans the acting workspace and groups by
    that workspace's OWNER — the key both the request path and the scheduler
-   already look up by.
+   already look up by. (Its owner lookup needs the SERVICE client: `workspaces`
+   RLS is `owner_id = auth.uid()`, so a member resolving their own granted
+   workspace's owner read zero rows and fell back to the author — the join key
+   missed and the list stayed empty even though the member could read the
+   declaration file itself.)
+4. **The explicit binding must be PASSED, not inferred.** Five route call sites
+   invoked `effective_workspace_id(user_id)` without `auth.workspace_id` — the
+   value `get_user_client` had already resolved fail-closed from
+   `X-Workspace-Id`. Dropping the strongest signal left resolution to the
+   contextvar, so a member resolved their OWN workspace and every conversation
+   in the shared one 404'd.
+
+**The shape underneath three of these four**: an application layer that
+authorizes correctly, sitting on an RLS policy written when a workspace had
+exactly one human. Each returned EMPTY rather than an error, so every
+application-level check passed. `workspace_files` had received a grant-aware
+policy back in migration 189 — which is precisely why Files worked and made the
+rest look like isolated bugs rather than one class. **When a multi-principal
+read comes back empty rather than erroring, read `pg_policies` before reading
+more application code.**
+
+## 6b. The probe as a standing asset
+
+`api/scripts/operator/probe_adr501_503_member_session.py` stays in the tree. It
+drives the live API as both real principals (harness JWT mint, real
+`X-Workspace-Id`) and asserts the whole member session end to end: binding,
+the write ceiling, the wallet split, and the direct-conversation contract.
+Re-run it after any change to grants, RLS, or workspace resolution — it is the
+only check in the repo that can see all four layers at once.
 
 ## 7. Validation
 
