@@ -23,22 +23,30 @@ timeline + ADR-489 weight rows — rooms currently write NO attention surface, h
 "start a room from here" settle-bridge affordance; D4 comment-thread mounts (the store carries
 `binding`/`resolved_at` from birth). Ratification of §8 still open — the build followed the
 operator's explicit order, not a status flip.
-**FIFTH PASS 2026-07-29 — D2 SUPERSEDED by [ADR-495](ADR-495-the-conversation-one-object-scope-and-cast.md).**
+**FIFTH PASS 2026-07-29 — D2 SUPERSEDED by [ADR-495](ADR-495-the-conversation-one-object-one-cast.md).**
 The operator's lifecycle question ("a member is in a lane and wants to invite another Agent or a
-person — shouldn't there be one approach?") exposed that D6.b stated ONE reason for TWO walls,
-and covers only one of them: the privacy ratchet is real, but it never justified blocking
-**Agent**-invite, which D6.c explicitly permits and the code contradicted from day one
-(`lane_meta["agent"]` is a scalar, `routes/lanes.py:287`). ADR-495 collapses lanes and rooms into
-**one Conversation object** (`scope` + `cast`) living in `chat_sessions`; the migration-225 tables
-`conversations`/`conversation_messages` are **dropped** (prod read 2026-07-29: 0 rows, never used
-— the collapse is delete-the-empty-one, not a two-way merge), `conversation_members` is retained
-and re-pointed. D6.b's *concern* is preserved absolutely and promoted: a human invite into a
-private conversation **FORKS** (settle-seeded child, private turns never exposed) instead of
-being refused — the member's intuitive gesture now yields the disclosure-safe outcome by
-construction. The rooms build is not wasted: it proved the shape, shipped the cast table ADR-495
-keeps, and validated never-ambient + addressing-as-selection, all of which survive the fold.
-This ADR's D1 (Chat owns the grammar), D3 (the mention split), D4 (binding-capable from birth),
-§6 non-goals, and D6.a/c/d/e all stand unchanged.)
+person — shouldn't there be one approach?") opened a three-pass discourse that ended by dissolving
+this ADR's scope model. Pass 1 found D6.b stated ONE reason for TWO walls and justified only one:
+**Agent**-invite was blocked by nothing but a scalar (`lane_meta["agent"]`, `routes/lanes.py:287`)
+while D6.c explicitly permitted it. Pass 2 benchmarked the proposed repair against conventional
+chat handling and rejected it (no chat product seeds a new conversation with a generated summary
+of the old one). **Pass 3 — the operator's species-blind challenge — reached the primitive:
+treat Agents and humans alike as participants, and `scope: private|shared` is revealed as a proxy
+for "how many humans", i.e. species law in substrate costume, which ADR-405 forbids.** The tell:
+the design agonized over whether adding a HUMAN exposes history and never once asked the same of
+adding an AGENT mid-conversation — same act, same disclosure, only the species differed.
+ADR-495 therefore collapses lanes and rooms into **one Conversation object = participants + turns**,
+living in `chat_sessions`, with **no scope field at all**; privacy becomes a read grant scoped to
+the cast, and the one remaining question is the **visibility window** ("from when may this
+participant read?", anchored on `session_messages.sequence_number`) asked identically of humans
+and Agents. The migration-225 tables `conversations`/`conversation_messages` are **dropped**
+(prod read 2026-07-29: 0 rows, never used — the collapse is delete-the-empty-one, not a two-way
+merge); `conversation_members` is retained, re-pointed, and gains one column. D6.b's *concern* is
+preserved and relocated to the visibility window — a stronger, species-blind home that also
+protects the case D6.b's wall left unasked. The rooms build is not wasted: it proved the shape,
+shipped the cast table ADR-495 keeps, and validated never-ambient + addressing-as-selection, all
+of which survive the fold. This ADR's D1 (Chat owns the grammar), D3 (the mention split), D4
+(binding-capable from birth), §6 non-goals, and D6.a/c/d/e all stand unchanged.)
 **Dimensions:** Channel (primary — Axiom 6) + Identity (addressing) + Substrate (scope flip)
 **Relates to:** ADR-457 (Think·Make — D2 divergence amendment applied here), ADR-460 (Agents =
 named hands; the cast model rooms inherit), ADR-411 (the lane contract rooms extend), ADR-408
@@ -98,14 +106,16 @@ that wants discussion mounts a bound Conversation.
 
 ## 3. D2 — Scope is the seam, and scope decides the store's class
 
-> **SUPERSEDED 2026-07-29 by [ADR-495](ADR-495-the-conversation-one-object-scope-and-cast.md) D1/D2.**
-> The seam-is-scope finding STANDS and is the foundation ADR-495 builds on. What is superseded is
-> the *substrate consequence* drawn below — that scope decides which **store** a conversation
-> lives in. ADR-495 makes scope an explicit, indexed, append-only **column** on one store
-> (`chat_sessions`) rather than a property of table identity, which satisfies DP35's actual
-> concern (no row silently mixes classes, no row changes class mid-life) without a second object.
-> The invariants listed at the end of this section — never-ambient, attribution verbatim,
-> no merge/CRDT — carry forward unchanged.
+> **SUPERSEDED 2026-07-29 by [ADR-495](ADR-495-the-conversation-one-object-one-cast.md) D1/D2 —
+> scope is not the seam, and scope is not a field.** The species-blind pass found that
+> `private|shared` is a proxy for *how many humans*, which ADR-405 forbids: what this section calls
+> a "private lane" is a conversation with two participants (the member and Freddie), and it reads
+> as private only if one participant class is silently assumed not to count as a reader. ADR-495
+> deletes the scope field entirely. A Conversation is **participants + turns**; readability follows
+> **cast membership** (a grant question, which is where DP35 always wanted it — so DP35 needs no
+> amendment); the surviving question is the **visibility window**, asked identically of every
+> participant. The invariants listed at the end of this section — never-ambient, attribution
+> verbatim, no merge/CRDT — carry forward unchanged.
 
 The three-axes discourse already found that once the lane's model pin dissolves, lane-vs-room
 collapses to one seam: **scope**. This ADR names the substrate consequence:
@@ -217,16 +227,18 @@ definition); you + Agents only ⇒ a private lane. The "composed-create vs creat
 question collapses: creation is always composed (you pick at least one interlocutor — the live
 door already works this way), *and* invite remains a room-level act afterwards.
 
-**D6.b — Scope is set at birth and never flips** *(operator-ruled 2026-07-28; **AMENDED 2026-07-29
-by [ADR-495](ADR-495-the-conversation-one-object-scope-and-cast.md) D4** — the rule below stated
-one reason for two walls and justified only one. The **privacy ratchet is preserved absolutely**:
-no human ever reads a private conversation's prior turns, and ADR-495 makes retroactive disclosure
-structurally unrepresentable [scope is append-only]. What changes: the settle-bridge stops being a
-separate verb the member must think of and **becomes the semantics of the invite gesture itself** —
-inviting a human to a private conversation FORKS a settle-seeded shared child. And the wall on
-**Agent**-invite falls entirely; it was never justified by this rule, and D6.c below says so.
-The store-crossing dividend claimed in the last sentence is retired — it was an implementation
-consequence of a layout ADR-495 removes)*. A human is never
+**D6.b — Scope is set at birth and never flips** *(operator-ruled 2026-07-28; **RETIRED 2026-07-29
+by [ADR-495](ADR-495-the-conversation-one-object-one-cast.md) D2** — there is no scope to set,
+because there is no scope field. This rule stated one reason for two walls and justified only one
+of them, and the reason it gave was keyed on species: a conversation "is private" only if Freddie,
+who reads every word, is assumed not to count as a reader. The **privacy concern is preserved and
+strengthened** — it relocates to the **visibility window** ["from when may this participant read?",
+anchored on `session_messages.sequence_number`], asked of every participant regardless of class, at
+per-invite granularity, and which therefore also covers the Agent-invite case this rule left
+entirely unasked. The store-crossing dividend claimed in the last sentence is retired: it was an
+implementation consequence of a layout ADR-495 removes. The lane→room settle-bridge below is
+retired with it — adding a participant is adding a participant; it costs no metered settle and
+creates no second conversation)*. A human is never
 invited into an existing private lane. The lane→room bridge is **settle**: "start a room from
 here" creates a *new* shared conversation seeded with the settled distillate — never the raw
 transcript. This is ADR-457 D2 made mechanical (diverge privately, settle publicly; the
@@ -234,7 +246,7 @@ transcript is never the system of record), and it dissolves the DP35 store-cross
 no conversation row ever changes store class mid-life.
 
 **D6.c — Agents are always additive.** *(**IMPLEMENTED 2026-07-29 by
-[ADR-495](ADR-495-the-conversation-one-object-scope-and-cast.md) D3** — this clause was correct
+[ADR-495](ADR-495-the-conversation-one-object-one-cast.md) D3** — this clause was correct
 canon the code contradicted from the day it was written: `lane_meta["agent"]` is a SCALAR fixed at
 creation [`routes/lanes.py:287`], so no lane could ever hold a second Agent. ADR-495 retires the
 scalar into the cast, making this rule real.)* Inviting an Agent into a private lane crosses no scope
@@ -290,14 +302,16 @@ snapshot, never on one clock.
 
 ## 8. Ratification points
 
-> **2026-07-29 status:** points **2** and **8** are superseded/amended by
-> [ADR-495](ADR-495-the-conversation-one-object-scope-and-cast.md) and ratify there instead
-> (one object, scope-as-column, invite-that-forks). Every other point below stands as written
-> and is still open. Points 9 and 11 remain operator-ruled in-discourse.
+> **2026-07-29 status:** points **2**, **8** and **9** are superseded/retired by
+> [ADR-495](ADR-495-the-conversation-one-object-one-cast.md) and ratify there instead
+> (one Conversation = participants + turns; no scope field; one species-blind invite carrying a
+> visibility window). Every other point below stands as written and is still open. Point 11
+> remains operator-ruled in-discourse.
 
 1. D1 ownership (Chat owns the grammar; mounts elsewhere) — the operator's stated thesis.
 2. ~~D2 scope-decides-store-class (shared conversations are workspace content).~~ **→ ADR-495 D1/D2**
-   (the seam-is-scope finding stands; the two-store consequence does not).
+   — retired in full. Scope is not the seam and not a field; the cast is the model, and
+   readability follows participation.
 3. D3 mention split (content = Chat; attention = OS; second To-do source; material-to-the-
    mentioned weight rule).
 4. D4 closing ruling (c) on the inversion's side — this is the one previously held-open ruling.
@@ -311,11 +325,13 @@ snapshot, never on one clock.
 7. The declared amendment surface (header **Amends** block): ADR-408 D6's rooms rejection
    superseded as direction; ADR-410 §2's closed source-list widened on rooms landing; ADR-489 D1
    weight rows for conversation entries.
-8. D6.a person-first door (stands) + ~~scope-at-birth~~ **→ ADR-495 D4** (scope is set at birth and
-   a row's scope never mutates — that much holds; what changes is that a human invite into a
-   private conversation FORKS rather than being refused).
-9. D6.b settle-bridge — *already operator-ruled in-discourse 2026-07-28* (no human invite into a
-   private lane; "start a room from here" seeds the distillate); listed for the record.
+8. D6.a person-first door (**stands** — and its "one species-blind picker" instinct is exactly what
+   ADR-495 generalizes) + ~~scope-at-birth~~ **→ ADR-495 D1/D2**, retired: nothing is set at birth
+   because there is no scope field; you pick participants, and that is the whole act.
+9. ~~D6.b settle-bridge~~ **→ ADR-495 D2/D3**, retired. The *concern* (no disclosure by surprise)
+   is preserved as the visibility window; the *mechanism* is not — adding a participant costs no
+   metered settle and creates no second conversation. Recorded as retired rather than deleted so a
+   future session does not re-derive it.
 10. D6.d engines-by-invitation (no in-chat engine swap; registry config edits allowed, per-turn
     attribution keeps history honest).
 11. D6.e the invite·keep·share triad — settle re-home *already operator-ruled in-discourse
