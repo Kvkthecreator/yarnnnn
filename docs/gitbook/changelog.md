@@ -7,6 +7,12 @@ Notable updates to YARNNN and these docs.
 
 ## July 2026
 
+### Pricing: two free seats, usage pay-as-you-go (Jul 28–29)
+- **The free plan now covers two people** — you and one teammate. The paid plan starts at the third person, at $20/mo each.
+- **The monthly included-usage allowance is retired.** Usage is pay-as-you-go from one shared balance the whole workspace draws — top it up whenever; it never expires.
+- Your balance now reads as **dollars remaining** rather than a percentage, so you can see what you hold before choosing a top-up
+- Dropping back to two people cancels the paid plan at the end of the period you already paid for — nothing is lost
+
 ### Images went internal (Jul 28)
 - The Images app left the Dock while it's polished to parity — it's an internal preview for now, not part of the shipped desk
 - Existing compositions are untouched: they stay in Files with their full history, and open normally

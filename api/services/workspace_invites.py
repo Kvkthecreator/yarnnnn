@@ -73,8 +73,11 @@ def create_invite(
     svc = _svc()
 
     # ADR-445 §6/§7 — the free→paid boundary gate. This is the ONLY headcount gate:
-    # a FREE workspace is solo (included_seats: 1 = the owner); inviting a 2nd human
-    # requires the paid plan. A PAID workspace grows its team freely — each new human
+    # a FREE workspace covers TWO humans (included_seats: 2 = the owner + one
+    # teammate, ADR-490 §1①); inviting the 3RD human requires the paid plan. (The
+    # comment said "solo / a 2nd human" — the pre-ADR-490 boundary; the CODE below
+    # reads `tier_included_seats` so it has always been correct, but the prose
+    # named the wrong rule.) A PAID workspace grows its team freely — each new human
     # is a billed seat (ADR-445 §4), never blocked. So the gate fires ONLY on tiers
     # that offer no in-tier paid resolution, i.e. `free`. Projected human count =
     # active human members + still-pending invites + this one. AI principals are

@@ -1345,13 +1345,13 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
             ))
 
         # ADR-445 §6 — proactive seat awareness. Human seats = active grants with a
-        # human role. `included_seats` = the tier's billing baseline (free = 1 solo;
-        # paid = 1, the owner, additional humans billed). `seats_available` means
-        # "another human may be invited without an upgrade" — which mirrors the
-        # invite gate EXACTLY: a PAID (or exempt) workspace can always invite (the
-        # team grows freely, each new human a billed seat); a FREE workspace can
-        # invite only until it hits its solo cap. Computed from the rows in hand +
-        # one tier read.
+        # human role. `included_seats` = the tier's billing baseline — TWO on every
+        # tier post-ADR-490 §1① (the owner + one teammate free; the 3rd human is
+        # the free→paid boundary). `seats_available` means "another human may be
+        # invited without an upgrade" — which mirrors the invite gate EXACTLY: a
+        # PAID (or exempt) workspace can always invite (the team grows freely, each
+        # new human a billed seat); a FREE workspace can invite only until it fills
+        # its two included seats. Computed from the rows in hand + one tier read.
         human_seats = 0
         included_seats = 0
         seats_available = True

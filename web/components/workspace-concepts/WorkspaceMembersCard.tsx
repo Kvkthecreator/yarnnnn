@@ -496,14 +496,24 @@ export function WorkspaceMembersCard({
       {variant === 'full' && canInvite && (
         <div className="rounded-lg border border-border p-3">
           {/* ADR-445 §6 — proactive seat awareness AT the invite affordance. The
-              only headcount gate is the free→paid boundary: a Free workspace is
-              solo, so inviting a teammate needs the paid plan. A paid workspace
-              grows freely (each new human a billed seat) — `available` is always
-              true there, so this warning never shows. Surfaced before it's hit as
-              a surprise 402. */}
+              only headcount gate is the free→paid boundary: a Free workspace
+              covers TWO humans (ADR-490 §1① — the owner + one teammate), so the
+              3rd person needs the paid plan. A paid workspace grows freely (each
+              new human a billed seat) — `available` is always true there, so this
+              warning never shows. Surfaced before it's hit as a surprise 402.
+
+              COPY FIX 2026-07-29: this said "The free plan is for one person" —
+              the pre-ADR-490 boundary. ADR-490 moved free to two humans and the
+              backend gate + `workspace_invites` copy followed; this string was
+              the one that didn't, so a free workspace at its limit was told the
+              wrong reason it was blocked. Derived from `included_seats` now, so a
+              future boundary move cannot leave it stale again. */}
           {seatInfo && !seatInfo.available && (
             <p className="mb-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">The free plan is for one person.</span>
+              <span className="font-medium text-foreground">
+                The free plan covers{' '}
+                {seatInfo.included === 1 ? 'one person' : `${seatInfo.included} people`}.
+              </span>
               <span className="text-amber-600 dark:text-amber-400">
                 {' '}Upgrade to the paid plan to invite your team.
               </span>

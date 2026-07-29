@@ -58,7 +58,7 @@ Yes, at several levels. **⌘Z** in Studio. **Revert** on any previous revision 
 
 ### What does it cost?
 
-Free for one person. $20/mo per teammate you add. Plus shared usage — $15/mo included on the paid plan, then top up.
+Free for two people. $20/mo for each teammate beyond the first two. Usage is pay-as-you-go from a shared balance the whole workspace draws — top up whenever you like; it never expires.
 
 ### Do connected AIs cost a seat?
 

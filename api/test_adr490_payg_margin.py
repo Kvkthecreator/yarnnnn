@@ -22,6 +22,7 @@ Usage:
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -203,6 +204,48 @@ def main() -> int:
           "The free plan covers two people" in invites_src)
     check("old solo invite copy removed",
           "The free plan is for one person" not in invites_src)
+
+    # The boundary is stated on FOUR surfaces, and this gate only ever checked
+    # ONE (workspace_invites.py). So the FE warning at the invite affordance kept
+    # saying "The free plan is for one person" for a full day after ADR-490 moved
+    # the boundary — the operator hit it live: a 1-human free workspace told to
+    # upgrade with the pre-490 reason. A boundary stated in N places needs a gate
+    # that sweeps N places (cf. [[feedback_gates_grep_text_not_execution]]).
+    print("\n[boundary-copy] every surface that STATES the boundary says two")
+    web = Path(__file__).parent.parent / "web"
+    docs = Path(__file__).parent.parent / "docs"
+    stale = []
+    for root, pats in ((web, ("*.ts", "*.tsx")), (docs / "gitbook", ("*.md",))):
+        for pat in pats:
+            for p in root.rglob(pat):
+                if ".next" in p.parts or "node_modules" in p.parts:
+                    continue
+                txt = p.read_text(errors="ignore")
+                # Strip code comments before scanning: a comment DOCUMENTING the
+                # retired boundary is the opposite of the defect, and grepping
+                # prose punishes the fix's own explanation (the same trap this
+                # session hit twice — scan RENDERED copy, not commentary).
+                scan = re.sub(r"/\*.*?\*/", "", txt, flags=re.S)
+                scan = re.sub(r"^\s*//.*$", "", scan, flags=re.M)
+                for line in scan.splitlines():
+                    low = line.lower()
+                    if "free plan is for one person" in low or (
+                        "free for one person" in low and "Jul 12–22" not in line
+                    ):
+                        # The dated changelog entry is a HISTORICAL record of what
+                        # shipped that week — correcting it would falsify history.
+                        if "changelog" in str(p) and "Jul 12" in txt[:txt.find(line)][-400:]:
+                            continue
+                        stale.append(f"{p.relative_to(root.parent)}: {line.strip()[:60]}")
+    check("no surface still states the one-person boundary", not stale,
+          "; ".join(stale[:3]))
+
+    members_card = web / "components" / "workspace-concepts" / "WorkspaceMembersCard.tsx"
+    if members_card.exists():
+        src_mc = members_card.read_text()
+        check("the invite warning DERIVES the count (cannot go stale again)",
+              "seatInfo.included === 1 ? 'one person'" in src_mc
+              and "${seatInfo.included} people" in src_mc)
 
     # ── 5. Migration 224 shape ───────────────────────────────────────────────
     print("\n[migration] 224 — billed_usd + both RPCs coalesce")
