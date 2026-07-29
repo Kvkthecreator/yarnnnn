@@ -179,24 +179,48 @@ export function ChatSurface() {
       (lane.agent && data?.agents?.find((a) => a.slug === lane.agent)) || null,
     [data],
   );
+  // Direct conversations (2+ humans, no agent in the cast): the conversation
+  // is WITH the other humans, so it is labeled by THEM — never by the dormant
+  // engine (operator-observed 2026-07-29: a chat with a person read "Claude
+  // Sonnet" in the list and header). The cast rides on every list row
+  // (ADR-495 D1), so this derives locally.
+  const laneOtherHumans = useCallback(
+    (lane: { agent?: string | null; participants?: Participant[] }) => {
+      if (lane.agent) return [];
+      const cast = lane.participants ?? [];
+      if (cast.some((p) => p.member_kind === 'agent')) return [];
+      return cast
+        .filter((p) => p.member_kind === 'human' && p.principal_id && p.principal_id !== userId)
+        .map(
+          (p) =>
+            people.find((x) => x.principal_id === p.principal_id)?.label ||
+            `member-${p.principal_id!.slice(0, 8)}`,
+        );
+    },
+    [people, userId],
+  );
   const laneLabel = useCallback(
-    (lane: { agent?: string | null; model: string }) =>
-      laneAgent(lane)?.name || modelLabel(lane.model),
-    [laneAgent, modelLabel],
+    (lane: { agent?: string | null; model: string; participants?: Participant[] }) => {
+      const humans = laneOtherHumans(lane);
+      if (humans.length) return humans.join(', ');
+      return laneAgent(lane)?.name || modelLabel(lane.model);
+    },
+    [laneAgent, laneOtherHumans, modelLabel],
   );
   // The second line: `role · engine`. The operator's rule — a nickname must
   // still say what it IS, at minimum the model and the role. Identity leads;
   // the technical fact rides quietly behind it. A lane with no agent shows its
   // engine alone, which is honest: that IS what it is.
   const laneSubLabel = useCallback(
-    (lane: { agent?: string | null; model: string }) => {
+    (lane: { agent?: string | null; model: string; participants?: Participant[] }) => {
+      if (laneOtherHumans(lane).length) return 'Direct chat';
       const a = laneAgent(lane);
       if (!a) return modelLabel(lane.model);
       return [a.kernel === false ? a.role : null, a.engine || modelLabel(lane.model)]
         .filter(Boolean)
         .join(' · ');
     },
-    [laneAgent, modelLabel],
+    [laneAgent, laneOtherHumans, modelLabel],
   );
 
   // Flat recents — pinned first (Phase-A hygiene), then updated_at desc
@@ -714,6 +738,17 @@ export function ChatSurface() {
                     </span>
                   </span>
                 </SurfaceLink>
+              ) : laneOtherHumans(activeLane).length ? (
+                /* Direct conversation: it is WITH the other humans — the
+                   dormant engine stays out of the header. */
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium truncate">
+                    {laneOtherHumans(activeLane).join(', ')}
+                  </span>
+                  <span className="block text-[10px] text-muted-foreground truncate">
+                    Direct chat
+                  </span>
+                </span>
               ) : (
                 /* No colleague (pre-registry / Studio / derive lane): its
                    engine IS what it is — naming it is honest, not a gap. */
@@ -754,6 +789,11 @@ export function ChatSurface() {
               laneId={activeLane.id}
               laneName={activeLane.name}
               modelLabel={modelLabel(activeLane.model)}
+              isDirect={laneOtherHumans(activeLane).length > 0}
+              viewerId={userId}
+              principalLabels={Object.fromEntries(
+                people.map((p) => [p.principal_id, p.label]),
+              )}
               actionsContainer={laneActionsEl}
               suggestions={deriveSuggestions}
               // Phase-A hygiene: the first turn auto-names a default-named

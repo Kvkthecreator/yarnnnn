@@ -404,6 +404,25 @@ export function UserMenu({ email }: UserMenuProps) {
                       {tierLabel} · {balanceReadout.remainingLabel} left
                     </span>
                   )}
+                  {/* Per-role (2026-07-29): the wallet is billing-authority
+                      information — a member's glance shows the plan and who
+                      holds the money, consistent with the pane's 403 state.
+                      The dollar-free exhausted/low states still warn. */}
+                  {!balanceReadout && balance && balance.billing_authority === false && tierLabel && (
+                    <span
+                      className={
+                        balance.balance_exhausted || balance.balance_low
+                          ? 'block text-[11px] text-destructive'
+                          : 'block text-[11px] text-muted-foreground'
+                      }
+                    >
+                      {balance.balance_exhausted
+                        ? `${tierLabel} · balance spent — ask the owner`
+                        : balance.balance_low
+                          ? `${tierLabel} · balance low — owner-managed`
+                          : `${tierLabel} · managed by the owner`}
+                    </span>
+                  )}
                 </span>
                 <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
               </button>

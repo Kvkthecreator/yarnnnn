@@ -303,6 +303,9 @@ type LaneStreamHandlers = {
     artifacts: string[];
     /** Present when the turn auto-named a default-named lane (Phase A). */
     lane_name?: string;
+    /** True when the turn was a human-to-human broadcast (no engine reply) —
+     *  the mount drops its reply placeholder instead of marking "[no reply]". */
+    direct?: boolean;
   }) => void;
   onError?: (message: string) => void;
 };
@@ -346,6 +349,7 @@ async function streamLaneTurn(
           tools_called: (evt.tools_called as string[]) ?? [],
           artifacts: (evt.artifacts as string[]) ?? [],
           lane_name: typeof evt.lane_name === "string" ? evt.lane_name : undefined,
+          direct: evt.direct === true,
         });
       }
     }
@@ -2494,20 +2498,26 @@ export const api = {
         total_agents: number;
       }>("/api/integrations/summary"),
 
-    // ADR-396: usage + subscription tier. Dollar fields are internal truth; the
-    // FE renders ACTIVITY (allowance consumed %, invocations) on customer
-    // surfaces, not raw dollars.
+    // ADR-396: usage + subscription tier. Per-role split (2026-07-29): the
+    // WALLET dollars are null unless the caller holds billing authority in the
+    // acting workspace — the same authority /subscription/status 403s on, so
+    // the menu glance and the Billing pane can never disagree. The boolean
+    // balance states ship to everyone (an empty pool stops every member's
+    // work); spend/tier stay commons-legible (DP29).
     getLimits: () =>
       request<{
-        balance_usd: number;
+        balance_usd: number | null;
         spend_usd: number;
-        raw_balance_usd: number;
-        allowance_usd: number;
-        topup_balance_usd: number;
+        raw_balance_usd: number | null;
+        allowance_usd: number | null;
+        topup_balance_usd: number | null;
         tier: "free" | "starter" | "pro";
         is_subscriber: boolean;
         subscription_plan: string | null;
         next_refill: string | null;
+        billing_authority: boolean;
+        balance_exhausted: boolean;
+        balance_low: boolean;
       }>("/api/user/limits"),
 
     // Usage tab expansion — spend breakdown + trend + activity (ADR-172)

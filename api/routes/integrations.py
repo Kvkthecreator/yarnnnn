@@ -1958,19 +1958,35 @@ async def update_coverage(
 class UserLimitsResponse(BaseModel):
     """Workspace balance + subscription tier (ADR-396: Type-B subscription).
 
-    Dollar fields are the internal truth; the FE renders the ACTIVITY (allowance
-    consumed %, invocation counts) on customer surfaces, not the raw dollars
-    (ADR-396 transparency contract). `tier` + `allowance_usd` drive that display.
+    PER-ROLE SPLIT (2026-07-29, operator-observed): the WALLET (remaining
+    dollars, top-up pool) is billing-authority information — the same
+    authority `/subscription/status` 403s on. A member's UserMenu was showing
+    the shared workspace's "$X left" while the Billing pane refused them the
+    same fact. So: dollar fields are None unless `billing_authority`; the
+    plan `tier` and `spend_usd` stay (a workspace fact + activity-shaped
+    consumption, member-visible per DP29 commons legibility); and the two
+    BOOLEAN balance states ride for everyone — an empty pool stops every
+    member's work, so the fact that it is low/exhausted is commons-legible
+    even when the number is not.
     """
-    balance_usd: float
+    balance_usd: Optional[float] = None
     spend_usd: float
-    raw_balance_usd: float
-    allowance_usd: float = 0.0
-    topup_balance_usd: float = 0.0
+    raw_balance_usd: Optional[float] = None
+    allowance_usd: Optional[float] = None
+    topup_balance_usd: Optional[float] = None
     tier: str = "free"
     is_subscriber: bool
     subscription_plan: Optional[str] = None
     next_refill: Optional[str] = None
+    # The caller's billing authority in the ACTING workspace (owner OR the
+    # `billing` grant scope — services.principal_grants.has_billing_authority,
+    # the same verdict the Billing pane's 403 derives from).
+    billing_authority: bool = True
+    # Dollar-free balance states, computed server-side so member surfaces can
+    # warn without the wallet: exhausted = hard-stopped at zero; low = under
+    # the $1 runway threshold the attention bell warns at.
+    balance_exhausted: bool = False
+    balance_low: bool = False
 
 
 class SelectedSourcesRequest(BaseModel):
@@ -2000,19 +2016,35 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
     - next_refill: ISO timestamp of next subscription billing (if subscriber)
     """
     from services.platform_limits import get_usage_summary
+    from services.principal_grants import has_billing_authority
+    from services.workspace_context import effective_workspace_id
 
     summary = get_usage_summary(auth.client, auth.user_id)
 
+    # Per-role wallet split (see UserLimitsResponse docstring): the dollar
+    # figures ship only to billing authority; the boolean states ship to all.
+    authority = True
+    try:
+        ws = effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))
+        if ws:
+            authority = has_billing_authority(auth.user_id, ws)
+    except Exception:  # noqa: BLE001 — display split, never block the read
+        authority = True
+
+    balance = float(summary["balance_usd"])
     return UserLimitsResponse(
-        balance_usd=summary["balance_usd"],
+        balance_usd=balance if authority else None,
         spend_usd=summary["spend_usd"],
-        raw_balance_usd=summary["raw_balance_usd"],
-        allowance_usd=summary.get("allowance_usd", 0.0),
-        topup_balance_usd=summary.get("topup_balance_usd", 0.0),
+        raw_balance_usd=summary["raw_balance_usd"] if authority else None,
+        allowance_usd=summary.get("allowance_usd", 0.0) if authority else None,
+        topup_balance_usd=summary.get("topup_balance_usd", 0.0) if authority else None,
         tier=summary.get("tier", "free"),
         is_subscriber=summary["is_subscriber"],
         subscription_plan=summary.get("subscription_plan"),
         next_refill=summary.get("next_refill"),
+        billing_authority=authority,
+        balance_exhausted=balance <= 0,
+        balance_low=0 < balance <= 1.0,
     )
 
 

@@ -86,6 +86,9 @@ interface LaneMessage {
   artifacts?: LaneArtifact[];
   /** Phase-A attachments: what this user turn carried (metadata, chips). */
   attachments?: Array<{ path: string; kind: 'image' | 'file'; name?: string }>;
+  /** Direct conversations (2+ humans, no agent): WHO wrote this user row.
+   *  Absent on solo-lane rows — every user row there is the viewer's own. */
+  authorPrincipalId?: string;
 }
 
 /** A composer attachment mid-flight: uploading → uploaded (path set) | failed. */
@@ -151,6 +154,14 @@ interface LanePanelProps extends LaneMountSlots {
   laneId: string;
   laneName: string;
   modelLabel: string;
+  /** Direct conversation (2+ humans, no agent in the cast): no engine replies;
+   *  foreign user rows left-align with an author label, and the transcript
+   *  refreshes on an interval so the other side's messages arrive. */
+  isDirect?: boolean;
+  /** The viewer's principal id — the own-vs-other test for user rows. */
+  viewerId?: string | null;
+  /** principal_id → display label (email) for foreign user-row authorship. */
+  principalLabels?: Record<string, string>;
   /** Phase-A hygiene: the turn auto-named a default-named lane (server truth
    *  rides the done frame) — the mount updates its list/header. */
   onLaneRenamed?: (name: string) => void;
@@ -168,6 +179,9 @@ export function LanePanel({
   laneId,
   laneName,
   modelLabel,
+  isDirect = false,
+  viewerId = null,
+  principalLabels,
   onArtifactWrite,
   emptyState,
   suggestions,
@@ -260,6 +274,10 @@ export function LanePanel({
       artifacts: toArtifacts(m.metadata?.artifacts),
       attachments:
         (m.metadata?.attachments as LaneMessage['attachments']) ?? undefined,
+      authorPrincipalId:
+        typeof m.metadata?.author_principal_id === 'string'
+          ? (m.metadata.author_principal_id as string)
+          : undefined,
     }));
 
   useEffect(() => {
@@ -291,6 +309,16 @@ export function LanePanel({
       /* non-fatal — the optimistic view stands */
     }
   }, [laneId]);
+
+  // Direct conversations: the other participant's messages arrive out-of-band
+  // (no stream to ride), so refresh on a slow interval while mounted. Paused
+  // mid-send so a resync never clobbers the optimistic rows. (Realtime is the
+  // deferred RLS work — session subscriptions are creator-scoped today.)
+  useEffect(() => {
+    if (!isDirect || sending) return;
+    const t = setInterval(() => void resyncMessages(), 15_000);
+    return () => clearInterval(t);
+  }, [isDirect, sending, resyncMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -399,14 +427,22 @@ export function LanePanel({
           tools_called,
           artifacts,
           lane_name,
+          direct,
         }: {
           rounds: number;
           tools_called: string[];
           artifacts: string[];
           lane_name?: string;
+          direct?: boolean;
         }) => {
           // Phase-A hygiene: the server auto-named this lane on first turn.
           if (lane_name) onLaneRenamed?.(lane_name);
+          // A direct-conversation turn is a broadcast — there is no reply, so
+          // the placeholder goes away rather than becoming "[no reply]".
+          if (direct) {
+            dropEmptyPlaceholder();
+            return;
+          }
           if (tools_called?.length) {
             setMessages((prev) =>
               prev.map((m) => (m.id === replyId ? { ...m, tools_called } : m)),
@@ -617,6 +653,17 @@ export function LanePanel({
           const thisDay = dayKey(m.created_at);
           const showDay = thisDay !== '' && thisDay !== prevDay;
           const isLast = i === messages.length - 1;
+          // Direct conversations: a user row someone ELSE wrote reads on the
+          // left with their name — own-vs-other, never all-right-aligned.
+          const foreign =
+            m.role === 'user' &&
+            !!m.authorPrincipalId &&
+            !!viewerId &&
+            m.authorPrincipalId !== viewerId;
+          const foreignLabel = foreign
+            ? principalLabels?.[m.authorPrincipalId!] ||
+              `member-${m.authorPrincipalId!.slice(0, 8)}`
+            : null;
           return (
             <div key={m.id} className="group">
               {showDay && (
@@ -635,14 +682,27 @@ export function LanePanel({
                   below, at row width, outside the bubble (ADR-236: render +
                   open, never edit). A tool-only turn shows only the card. */}
               {(m.content || m.role === 'user' || !m.artifacts?.length) && (
-                <div className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
+                <div
+                  className={cn(
+                    'flex',
+                    m.role === 'user' && !foreign ? 'justify-end' : 'justify-start',
+                    foreign && 'flex-col items-start gap-0.5',
+                  )}
+                >
+                  {foreignLabel && (
+                    <span className="text-[10px] text-muted-foreground px-1">
+                      {foreignLabel}
+                    </span>
+                  )}
                   <div
                     title={m.created_at ? formatAbsolute(m.created_at) : undefined}
                     className={cn(
                       'max-w-[85%] rounded-lg px-3 py-2 text-sm break-words',
-                      m.role === 'user'
+                      m.role === 'user' && !foreign
                         ? 'bg-primary text-primary-foreground whitespace-pre-wrap'
-                        : 'bg-muted text-foreground',
+                        : foreign
+                          ? 'bg-muted text-foreground whitespace-pre-wrap border border-border/60'
+                          : 'bg-muted text-foreground',
                     )}
                   >
                     {/* Streaming: an empty assistant bubble shows a live indicator
@@ -702,7 +762,7 @@ export function LanePanel({
                 <div
                   className={cn(
                     'flex gap-0.5 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity',
-                    m.role === 'user' ? 'justify-end' : 'justify-start',
+                    m.role === 'user' && !foreign ? 'justify-end' : 'justify-start',
                   )}
                 >
                   <button
@@ -718,7 +778,7 @@ export function LanePanel({
                       <Copy className="w-3 h-3" />
                     )}
                   </button>
-                  {m.role === 'user' && !m.id.startsWith('local-') && (
+                  {m.role === 'user' && !foreign && !m.id.startsWith('local-') && (
                     <button
                       type="button"
                       onClick={() => startEdit(m)}

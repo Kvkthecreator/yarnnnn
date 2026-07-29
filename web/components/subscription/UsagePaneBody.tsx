@@ -145,7 +145,26 @@ export function UsagePaneBody() {
       <div className="p-4 border border-border rounded-lg space-y-3">
         {(() => {
           const balance = deriveBalance(limits);
-          if (!balance) return null;
+          if (!balance) {
+            // Per-role (2026-07-29): a member sees the workspace's ACTIVITY
+            // (below) but not its wallet — the same split as the Billing
+            // pane's member state. The dollar-free states still surface.
+            if (limits && limits.billing_authority === false) {
+              return (
+                <>
+                  <h3 className="font-medium">Balance</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {limits.balance_exhausted
+                      ? "The workspace's balance is spent, so work is paused — the workspace owner manages billing and top-ups."
+                      : limits.balance_low
+                        ? "The workspace's balance is running low. The workspace owner manages billing and top-ups."
+                        : "This workspace's balance is managed by its owner. Your usage draws from the shared pool and appears below."}
+                  </p>
+                </>
+              );
+            }
+            return null;
+          }
           return (
             <>
               <div className="flex items-center justify-between">

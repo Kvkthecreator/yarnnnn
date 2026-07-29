@@ -47,19 +47,31 @@ export interface UsageLimits {
    * The server's already-netted effective balance (pool − spend-since-anchor) —
    * the same number `get_effective_balance` feeds the hard-stop gate. This is the
    * figure we render, so what the operator sees is what `check_draw` enforces.
+   *
+   * PER-ROLE (2026-07-29): null when the caller lacks billing authority in the
+   * acting workspace — the wallet is the owner's fact, the same one the Billing
+   * pane 403s a member on. `deriveBalance` returns null then; surfaces fall
+   * back to the boolean states below for warnings.
    */
-  balance_usd: number;
+  balance_usd: number | null;
   spend_usd: number;
-  raw_balance_usd: number;
+  raw_balance_usd: number | null;
   /**
    * RETIRED by ADR-490 §1③ — every tier grants 0. The field stays on the wire
    * (the banking/anchor engine still writes it; grandfathered grants bank down
    * through it) and is folded into the remaining balance below, never rendered
    * as its own tranche.
    */
-  allowance_usd: number;
-  topup_balance_usd: number;
+  allowance_usd: number | null;
+  topup_balance_usd: number | null;
   tier: SubscriptionTier;
+  /** The caller's billing authority in the acting workspace (server-derived —
+   *  owner OR the `billing` grant scope, the /subscription/status verdict). */
+  billing_authority?: boolean;
+  /** Dollar-free balance states, member-visible: the pool being empty stops
+   *  everyone's work even when the number is the owner's. */
+  balance_exhausted?: boolean;
+  balance_low?: boolean;
 }
 
 export interface BalanceReadout {
@@ -97,6 +109,10 @@ export function formatUsd(n: number): string {
  */
 export function deriveBalance(limits: UsageLimits | null | undefined): BalanceReadout | null {
   if (!limits) return null;
+  // Per-role wallet split: no billing authority → no dollar readout. The
+  // caller renders its member state (the pane's pointer, the menu's plan-only
+  // line) and warns from `balance_low`/`balance_exhausted` instead.
+  if (limits.billing_authority === false || limits.balance_usd == null) return null;
 
   const spend = Math.max(0, limits.spend_usd || 0);
   // Prefer the server's netted `balance_usd` (the effective-balance RPC — the

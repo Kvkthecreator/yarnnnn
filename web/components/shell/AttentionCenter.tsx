@@ -139,6 +139,9 @@ export function AttentionCenter() {
   const [activity, setActivity] = useState<PeerActivity[]>([]);
   const [upcoming, setUpcoming] = useState<UpcomingFire[]>([]);
   const [lowBalance, setLowBalance] = useState<number | null>(null);
+  // Whether the low-balance warning may show the dollar figure (billing
+  // authority) or the dollar-free member copy.
+  const [lowBalanceAuthority, setLowBalanceAuthority] = useState(true);
   const [lastSeen, setLastSeen] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // ADR-346: navigateToSurface (not foregroundSurface) — it writes the
@@ -242,8 +245,24 @@ export function AttentionCenter() {
       }
 
       if (limitsResult.status === 'fulfilled') {
-        const balance = (limitsResult.value as { balance_usd: number }).balance_usd;
-        setLowBalance(balance <= LOW_BALANCE_THRESHOLD_USD ? balance : null);
+        // Per-role (2026-07-29): balance_usd is null without billing
+        // authority; the dollar-free states still warn every member (an
+        // empty pool pauses everyone's work), just without the number.
+        const lim = limitsResult.value as {
+          balance_usd: number | null;
+          billing_authority?: boolean;
+          balance_exhausted?: boolean;
+          balance_low?: boolean;
+        };
+        if (lim.balance_usd != null) {
+          setLowBalance(lim.balance_usd <= LOW_BALANCE_THRESHOLD_USD ? lim.balance_usd : null);
+          setLowBalanceAuthority(true);
+        } else if (lim.balance_exhausted || lim.balance_low) {
+          setLowBalance(0);
+          setLowBalanceAuthority(false);
+        } else {
+          setLowBalance(null);
+        }
       }
 
       if (recurrencesResult.status === 'fulfilled') {
@@ -392,7 +411,9 @@ export function AttentionCenter() {
                 onClick={() => goTo('billing')}
                 className="w-full text-left px-3 py-2 text-xs text-amber-700 dark:text-amber-300 hover:bg-muted transition-colors border-b border-border/60"
               >
-                Balance is low (${lowBalance?.toFixed(2)}) — workspace hard-stops at $0
+                {lowBalanceAuthority
+                  ? `Balance is low ($${lowBalance?.toFixed(2)}) — workspace hard-stops at $0`
+                  : 'Workspace balance is low — work pauses at zero. The owner manages billing.'}
               </button>
             )}
 

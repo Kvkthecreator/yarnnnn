@@ -668,6 +668,59 @@ def _turn_stream_response(
     from services.lane_runner import lane_caller_identity, run_lane_turn_stream
     from services.narrative import write_narrative_entry
 
+    # HUMAN-TO-HUMAN CONVERSATIONS DON'T AUTO-REPLY (operator-observed
+    # 2026-07-29: "hey" addressed to a person got 'Claude Sonnet is
+    # working…'). The rule derives from the CAST at turn time (ADR-495 — the
+    # cast IS the conversation; ADR-408 A2 — the engine is the member's
+    # hands, never an uninvited participant): two or more humans with NO
+    # agent in the cast is a direct exchange — the turn persists and is
+    # readable by every participant, and nobody auto-replies. A solo cast
+    # keeps today's behavior (the engine IS that conversation); Add an Agent
+    # and replies begin, remove it and they stop. Stateless + retroactive —
+    # existing person-conversations become DMs without migration. Zero-cost
+    # path: no model call, so it runs BEFORE the draw gate.
+    try:
+        from services.conversation_cast import _svc as _cast_svc
+        cast = (
+            _cast_svc().table("conversation_members")
+            .select("member_kind")
+            .eq("conversation_id", lane["id"])
+            .execute()
+        ).data or []
+        humans = sum(1 for c in cast if c.get("member_kind") == "human")
+        agents = sum(1 for c in cast if c.get("member_kind") == "agent")
+    except Exception:  # noqa: BLE001 — cast unreadable → today's behavior
+        humans, agents = 1, 0
+    if humans >= 2 and agents == 0:
+        if persist_user:
+            # Attribution matters in a multi-human transcript: WHO said it is
+            # the ADR-209 member form, and `author_principal_id` lets the FE
+            # align own-vs-other bubbles (every viewer reads the same rows).
+            meta: dict = {"author_principal_id": auth.user_id}
+            if attachments_meta:
+                meta["attachments"] = attachments_meta
+            write_narrative_entry(
+                auth.client, lane["id"],
+                role="user",
+                summary=content,
+                pulse="addressed",
+                authored_by=f"member:{auth.user_id}",
+                extra_metadata=meta,
+            )
+
+        async def dm_stream():
+            # `direct: true` tells the FE this was a broadcast, not a turn —
+            # drop the reply placeholder instead of marking "[no reply]".
+            done: dict = {
+                "done": True, "direct": True,
+                "rounds": 0, "tools_called": [], "artifacts": [],
+            }
+            if renamed:
+                done["lane_name"] = renamed
+            yield f"data: {json.dumps(done)}\n\n"
+
+        return StreamingResponse(dm_stream(), media_type="text/event-stream")
+
     # THE draw gate (ADR-445 §9 closed / ADR-491 Phase 3) — a lane turn is a
     # costed, member-attributed draw of the shared pool; gate BEFORE the stream
     # starts (this runs in the handler body, so a block is a clean 402, not a
@@ -860,7 +913,7 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
     if req.replace_from_message_id:
         row_res = (
             auth.client.table("session_messages")
-            .select("id, role, sequence_number")
+            .select("id, role, sequence_number, metadata")
             .eq("session_id", lane_id)
             .eq("id", req.replace_from_message_id)
             .limit(1)
@@ -870,6 +923,13 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
         if not row:
             raise HTTPException(status_code=404, detail="Message not found in this lane")
         if row.get("role") != "user":
+            raise HTTPException(status_code=422, detail="Only your own messages can be edited")
+        # Multi-human conversations: "your own" means AUTHORED BY YOU, not any
+        # user row — edit-and-resend truncates the tail, which must never
+        # reach another participant's words. Rows without the stamp predate
+        # multi-human casts (solo lanes) and are the editor's own.
+        _author = ((row.get("metadata") or {}).get("author_principal_id"))
+        if _author and _author != auth.user_id:
             raise HTTPException(status_code=422, detail="Only your own messages can be edited")
         _delete_transcript_tail(auth, lane_id, int(row["sequence_number"]))
 
