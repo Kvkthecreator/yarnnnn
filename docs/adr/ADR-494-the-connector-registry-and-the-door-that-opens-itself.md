@@ -100,6 +100,16 @@ Applying `surface-preferences.ts`'s own test (*does replaying it answer a questi
 
 **Both ADR-491 normalizers are deleted.** They existed only to clean *persisted* stale values; nothing is persisted now, so a retired pane falls to the default-pane fallback by construction. One mechanism replaces a hand-written case per retirement — the Singular Implementation discipline applied to the fix itself. `settings.connector` (the ADR-392 Phase B Manage drill-in) is ephemeral too: it is document-identity-shaped by the same test.
 
+## 6a. D6 — The "New connection" blurb is capture-state-aware (follow-on, same day)
+
+D4 made the connected rows honest, and that immediately exposed a contradiction **within one pane**: a row reading *"Connected — not reading (capture is paused)"* sat directly above a blurb promising *"a capture reads the selected ones into your workspace."* Operator-caught on the deployed build.
+
+The blurb was the frozen-freshness error in its **forward-looking** form. Verified: while the lane is dormant, connecting a platform stores a credential and does nothing else — the watch seed is gated (`routes/integrations.py` Select) and the drain never runs (`unified_scheduler.py`). So the promise described a chain that cannot execute.
+
+The blurb now branches on `captureEnabled`. Dormant, it says what is actually true — the credential is held, yours, disconnectable, and nothing will be pulled in yet. The pane header ("Connect, see status, disconnect") is left unchanged: it promises no reading, so it was already accurate.
+
+**The general rule this makes explicit: a surface may not promise a capability whose mechanism is gated off.** D4 covers the past tense (don't claim a reading that happened before dormancy); D6 covers the future tense (don't promise one that can't happen after).
+
 ## 7. What was NOT done, and why
 
 - **The endpoints were not deleted.** ~470 lines of commerce/trading routes interleave with the live Lemon Squeezy webhook and scaffold helpers. Deleting them would break an independent live path for no gain the retirement doesn't already deliver. Retirement is enforced at the door.
@@ -108,7 +118,7 @@ Applying `surface-preferences.ts`'s own test (*does replaying it answer a questi
 
 ## 8. Validation
 
-- `api/test_adr494_connector_registry.py` — **26/26**, covering registry parity (membership · status · order), retirement semantics, both deleted literals as banned patterns, the guard call sites, the FE derivations, the one-flag-one-read invariant, the freshness gate, the ephemeral keys, and both deleted normalizers.
+- `api/test_adr494_connector_registry.py` — **29/29**, covering registry parity (membership · status · order), retirement semantics, both deleted literals as banned patterns, the guard call sites, the FE derivations, the one-flag-one-read invariant, the freshness gate, the ephemeral keys, both deleted normalizers, and the D6 capture-aware blurb (verified to FAIL when the unconditional promise is reintroduced).
 - Siblings green: `test_adr404_capture_dormancy.py` 28/28 · `test_adr341_two_settings_doors.py` 46/46.
 - `tsc --noEmit` clean; `next build` green (170/170 routes).
 - Prod receipts in §1b/§1c are reproducible: the `platform_connections` count query and the two `workspace_files` reads.

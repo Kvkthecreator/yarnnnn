@@ -165,6 +165,23 @@ check(
     "captureEnabled ? freshness[meta.provider] : undefined" in section,
     "a dormant connector would keep displaying a frozen pre-dormancy signal",
 )
+check(
+    "the 'New connection' blurb is capture-state-aware (ADR-494 D6)",
+    "won&apos;t pull anything in yet" in section,
+    "the blurb promised 'a capture reads the selected ones' unconditionally, "
+    "contradicting the 'capture is paused' row directly above it",
+)
+check(
+    "the read-promise lives ONLY inside the captureEnabled branch",
+    # Count in the JSX, not the file: the comment above the block QUOTES the old
+    # promise to explain why it moved, and a raw count would flag that as a
+    # duplicate. Strip /* */ comments first.
+    re.sub(r"/\*.*?\*/", "", section, flags=re.DOTALL).count(
+        "capture reads the selected ones into your workspace"
+    )
+    == 1,
+    "the promise must render once, under captureEnabled only",
+)
 
 # --- 6. ADR-494 D5: settings.pane is ephemeral, normalizers deleted ---------
 

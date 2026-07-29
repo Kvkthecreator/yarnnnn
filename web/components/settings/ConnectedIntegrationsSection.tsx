@@ -358,11 +358,30 @@ export function ConnectedIntegrationsSection({
                 <Plus className="h-4 w-4 text-muted-foreground" />
                 <h3 className="text-sm font-medium">New connection</h3>
               </div>
+              {/* ADR-494 D6 — the blurb is capture-state-aware. It previously
+                  promised, unconditionally, that "a capture reads the selected
+                  ones into your workspace" — which the SAME PANE now contradicts
+                  one row above ("capture is paused"). While the lane is dormant
+                  (ADR-404 D2) connecting stores a credential and nothing more:
+                  the seed is gated (integrations.py Select) and the drain never
+                  runs (unified_scheduler). Promising a read that cannot happen is
+                  the frozen-freshness error in its forward-looking form. */}
               <p className="text-xs text-muted-foreground">
-                Connect a platform to make it available to your operation. It
-                doesn&apos;t start reading on its own — after connecting, open
-                Manage to pick which channels, pages, or repos are in scope; a
-                capture reads the selected ones into your workspace.
+                {captureEnabled ? (
+                  <>
+                    Connect a platform to make it available to your operation. It
+                    doesn&apos;t start reading on its own — after connecting, open
+                    Manage to pick which channels, pages, or repos are in scope; a
+                    capture reads the selected ones into your workspace.
+                  </>
+                ) : (
+                  <>
+                    Connect a platform to hold its credential here — yours, in your
+                    account, ready to disconnect at any time. Reading from
+                    connected platforms is paused right now, so a new connection
+                    won&apos;t pull anything in yet.
+                  </>
+                )}
               </p>
               {available.map((meta) => {
                 const integration = integrations.find((i) => i.provider === meta.provider);
