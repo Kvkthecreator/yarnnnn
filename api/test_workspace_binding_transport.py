@@ -93,13 +93,46 @@ def test_no_new_handbuilt_api_fetch_without_binding() -> None:
     )
 
 
+def test_the_rebind_reloads() -> None:
+    """Every path that changes the acting workspace must reload the page.
+
+    The switcher says why, in its own comment: "a full reload is required so
+    every fetched surface rebinds to the new workspace". Both invite-accept
+    flows obey it via `window.location.assign`. The stale-pin self-heal
+    (ADR-499) was the one rebind that did not, and ~10 mount-only consumers are
+    written against the invariant — including GrantGate, whose `covers()` fails
+    OPEN on a stale roster, and the shell/attention keys, which write the old
+    workspace's values into the NEW workspace's server-side member_state row.
+
+    Behaviour (heals once, reloads once across a fan-out, leaves a healthy pin
+    and an ordinary 403 alone) is proven by execution in
+    `web/scripts/verify-heal-reload.mjs` — this asserts only the WIRING.
+    """
+    print("\nEvery acting-workspace rebind reloads")
+    src = _strip_comments(_read(WEB / "lib" / "api" / "client.ts"))
+    heal = src[src.find("staleWorkspacePin &&"):] if "staleWorkspacePin &&" in src else ""
+    heal = heal[: heal.find("throw new APIError")] if "throw new APIError" in heal else heal
+    _assert(bool(heal), "the self-heal branch is present")
+    _assert("window.location.reload" in heal, "the self-heal reloads after clearing the pin")
+    _assert("reloadScheduled" in src, "the reload is guarded (one per heal, not one per request)")
+
+    menu = _strip_comments(_read(WEB / "components" / "shell" / "UserMenu.tsx"))
+    _assert("window.location.assign" in menu, "the switcher hard-navigates")
+    for rel in ("app/invite/[token]/page.tsx", "app/s/[token]/page.tsx"):
+        flow = _strip_comments(_read(WEB / rel))
+        _assert("window.location.assign" in flow, f"{rel} hard-navigates on accept")
+
+
 def test_workspace_scoped_module_caches_are_binding_keyed() -> None:
     """A module-level cache holding workspace-scoped data must invalidate when
     the acting workspace rebinds.
 
-    The acting workspace can now change MID-SESSION without a reload (the
-    stale-pin self-heal in `client.ts`), so `let x = null` at module scope
-    outlives its binding. Both known caches key to it; this keeps them keyed.
+    Belt AND braces, deliberately. `test_the_rebind_reloads` now guarantees
+    every rebind reloads, which alone would make these caches safe — but that
+    is an invariant maintained across four call sites, and this is one line per
+    cache that holds even if a fifth appears without a reload. The caches were
+    written when the invariant was broken; keeping them keyed costs nothing and
+    removes the dependency between the two guarantees.
     """
     print("\nWorkspace-scoped module caches invalidate on rebind")
     for rel in ("lib/workspace/viewer.ts", "lib/freddie-persona.ts"):
@@ -116,6 +149,7 @@ if __name__ == "__main__":
     for fn in [
         test_every_api_transport_sends_the_binding,
         test_no_new_handbuilt_api_fetch_without_binding,
+        test_the_rebind_reloads,
         test_workspace_scoped_module_caches_are_binding_keyed,
     ]:
         fn()

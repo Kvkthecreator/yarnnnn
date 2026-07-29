@@ -185,6 +185,13 @@ export function clearActiveWorkspace(): void {
 /** Internal-only: marks the single self-heal retry so it can never loop. */
 type RequestOptions = RequestInit & { __retriedWithoutWorkspace?: boolean };
 
+/** One reload per heal, not one per in-flight request. A page load fans out
+ *  many parallel calls; with a revoked pin EVERY one of them 403s and heals, so
+ *  an unguarded schedule would queue N reloads and could cut short the healed
+ *  retries still resolving. Module-scoped because the heal is a page-level
+ *  event, not a per-call one. */
+let reloadScheduled = false;
+
 async function request<T>(
   endpoint: string,
   options: RequestOptions = {}
@@ -235,7 +242,41 @@ async function request<T>(
 
     if (staleWorkspacePin && !options.__retriedWithoutWorkspace) {
       clearActiveWorkspace();
-      return request<T>(endpoint, { ...options, __retriedWithoutWorkspace: true });
+      // THE ACTING WORKSPACE JUST CHANGED — so the page must reload.
+      //
+      // Clearing the pin rebinds every subsequent request to a DIFFERENT
+      // workspace, but the mounted tree doesn't know: every surface above this
+      // call fetched under the old binding and, being mount-only, never
+      // refetches. The switcher states the rule outright ("a full reload is
+      // required so every fetched surface rebinds to the new workspace" —
+      // `UserMenu.tsx`), and both invite-accept flows obey it. This path was
+      // the one rebind that didn't, and ~10 mount-only consumers are written
+      // against the reload invariant: GrantGate write affordances (which fail
+      // OPEN on a stale roster), WorkspaceDangerZone's owner-only destructive
+      // verbs, WorkspaceMembersCard's revoke menus, the shell window state and
+      // attention cursor — the last two WRITE the old workspace's values into
+      // the new workspace's server-side member_state key, so the corruption
+      // outlives the tab.
+      //
+      // Keying each consumer to the binding was considered and rejected: it is
+      // ~10 sites plus every future one, versus one line that restores an
+      // invariant the codebase already assumes.
+      //
+      // Order matters. The in-flight retry runs FIRST and its result is
+      // returned, so the call that triggered the heal still resolves normally
+      // (the caller sees success, not a torn-down promise); the reload is
+      // scheduled after, on a macrotask, so React can commit that result
+      // before the navigation. This is also why the reload is not `await`ed.
+      const healed = request<T>(endpoint, { ...options, __retriedWithoutWorkspace: true });
+      if (typeof window !== "undefined" && !reloadScheduled) {
+        reloadScheduled = true;
+        // A short delay, not zero: a page load fans out many parallel calls
+        // and they all heal at once. This lets the other in-flight retries
+        // settle before the navigation, so the reload is the LAST thing that
+        // happens rather than a race against them.
+        void healed.finally(() => setTimeout(() => window.location.reload(), 150));
+      }
+      return healed;
     }
 
     throw new APIError(response.status, response.statusText, data);
