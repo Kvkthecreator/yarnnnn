@@ -108,6 +108,19 @@ rest look like isolated bugs rather than one class. **When a multi-principal
 read comes back empty rather than erroring, read `pg_policies` before reading
 more application code.**
 
+5. **`acting_workspace_owner` carried both defects at once** — and was the real
+   cause of the radar red (finding 3's fix was one layer short). It inferred
+   the binding *and* read owner-only `workspaces` with the caller's client, so
+   for a member both halves failed silently and it returned the **member** as
+   "the owner" — a key nothing downstream had filed anything under. Now takes
+   the explicit binding and the service client.
+
+   *Process note worth keeping*: finding 3 shipped on sound reasoning and the
+   probe stayed red. Executing `discover_radar_hubs` locally proved it correct
+   in isolation, which is what located the upstream helper. **A red tells you
+   where, not that your fix was wrong — execute the unit you just fixed before
+   looking further.**
+
 ## 6b. The probe as a standing asset
 
 `api/scripts/operator/probe_adr501_503_member_session.py` stays in the tree. It
@@ -118,6 +131,20 @@ Re-run it after any change to grants, RLS, or workspace resolution — it is the
 only check in the repo that can see all four layers at once.
 
 ## 7. Validation
+
+**Final: the probe passes 22/22 against production** (`acc73fb` live,
+2026-07-29). Positive receipts: member write to `constitution/` + `persona/`
+refused 403 while the owner's is allowed 200 · the wallet split holds at the
+wire with the Billing pane's 403 agreeing · both principals read the same
+ledger (10/10) and the same radar hubs · a direct conversation broadcasts with
+`direct: true` and no engine text, both participants read the same one-row
+transcript, authorship is stamped, and a cross-author edit is refused 422.
+
+**Negative receipts (the ones that matter — every fix here WIDENED reach):**
+an unbound member sees only her own workspace (radar 0 · events 2 · roster 1 ·
+lanes 1), and a forged `X-Workspace-Id` naming a workspace she holds no grant
+in is refused **403**. Migration 227's policies are additive and read-only;
+`principal_grants` remains the sole authority.
 
 - `api/test_adr501_read_path_binding.py` — behavioral gate on D1 (the gate function executed with member/owner/no-grant/freddie-shaped auths) + sweep assertions.
 - Existing gates re-run green: ADR-373 grant-consult, ADR-499, ADR-500.
