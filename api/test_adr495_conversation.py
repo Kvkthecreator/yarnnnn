@@ -240,6 +240,38 @@ def test_falsifier_sees_every_conversation_turn() -> None:
     _assert('.eq("slug", "lane")' not in f, "the single-slug filter is gone")
 
 
+def test_cast_never_takes_a_caller_client() -> None:
+    """Live 500 on 2026-07-29: `create_lane` crashed at `add_participant` with
+    postgres 42501 — RLS violation. `conversation_members` is service-role-only
+    (migration 226), but every cast function TOOK a `client` and every caller
+    naturally handed it `auth.client`, the user-scoped one. The reads failed
+    silently (empty list = an empty conversation list); the write 500'd.
+
+    The parameter was the defect: it made the wrong client expressible. This
+    asserts the signatures cannot take one back, and that no call site reaches
+    the table with a request-scoped client.
+    """
+    print("\nRegression — the cast resolves its own service client")
+    src = _read(ROOT / "services" / "conversation_cast.py")
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name.startswith(
+            ("add_", "remove_", "find_", "list_", "visibility_", "current_max")
+        ):
+            args = [a.arg for a in node.args.args]
+            _assert(
+                "client" not in args,
+                f"{node.name}() takes no caller-supplied client",
+            )
+    _assert("get_service_client" in src, "the module resolves the service client itself")
+
+    lanes = _read(ROOT / "routes" / "lanes.py")
+    _assert(
+        'auth.client.table("conversation_members")' not in lanes,
+        "no route reads the cast table with the user client (RLS returns EMPTY)",
+    )
+
+
 def test_person_create_invents_no_agent_slug() -> None:
     """Live bug 2026-07-29: picking a person sent `agent: 'freddie'` — a slug
     that is not in the registry (sonnet/scout/designer/critic), so `create`
@@ -290,6 +322,7 @@ if __name__ == "__main__":
         test_never_ambient_survives,
         test_conversations_write_no_notification,
         test_falsifier_sees_every_conversation_turn,
+        test_cast_never_takes_a_caller_client,
         test_person_create_invents_no_agent_slug,
         test_last_human_cannot_be_removed,
     ]:

@@ -25,6 +25,23 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
+
+def _svc():
+    """The cast table is service-role-only RLS (migration 226), matching the
+    `wake_queue` / `member_state` precedent: the API mediates authorization
+    (workspace grant + cast membership), the table is not directly reachable.
+
+    THE BUG THIS FIXES (live 500, 2026-07-29): every function here took a
+    `client` and callers naturally passed `auth.client` — the USER-scoped
+    client, which RLS rejects with 42501. Creating any conversation crashed at
+    the first participant insert. Taking the client as a parameter was the
+    defect: it made the wrong client expressible. The module now resolves its
+    own, so no call site can get it wrong.
+    """
+    from services.supabase import get_service_client
+
+    return get_service_client()
+
 # ADR-495 D3 — class-differing DEFAULTS, overridable per invite. An Agent that
 # cannot see the conversation cannot be useful in it (and this preserves
 # today's behavior exactly); a colleague usually does not need your false
@@ -48,11 +65,11 @@ def default_window(member_kind: str, *, current_max_sequence: int) -> int:
     return current_max_sequence + 1
 
 
-def current_max_sequence(client: Any, conversation_id: str) -> int:
+def current_max_sequence(conversation_id: str) -> int:
     """Highest turn ordinal in the conversation; -1 when empty (so a
     from-now window on an empty conversation is 0 = everything that follows)."""
     rows = (
-        client.table("session_messages")
+        _svc().table("session_messages")
         .select("sequence_number")
         .eq("session_id", conversation_id)
         .order("sequence_number", desc=True)
@@ -62,10 +79,10 @@ def current_max_sequence(client: Any, conversation_id: str) -> int:
     return int(rows[0]["sequence_number"]) if rows else -1
 
 
-def list_participants(client: Any, conversation_id: str) -> list[dict]:
+def list_participants(conversation_id: str) -> list[dict]:
     """The cast, oldest first. One list — humans and Agents together."""
     return (
-        client.table("conversation_members")
+        _svc().table("conversation_members")
         .select("member_kind, principal_id, agent_slug, visible_from_sequence, invited_by, created_at")
         .eq("conversation_id", conversation_id)
         .order("created_at")
@@ -73,9 +90,7 @@ def list_participants(client: Any, conversation_id: str) -> list[dict]:
     ).data or []
 
 
-def find_participant(
-    client: Any,
-    conversation_id: str,
+def find_participant(conversation_id: str,
     *,
     principal_id: Optional[str] = None,
     agent_slug: Optional[str] = None,
@@ -84,7 +99,7 @@ def find_participant(
     if bool(principal_id) == bool(agent_slug):
         raise ValueError("give exactly one of principal_id / agent_slug")
     q = (
-        client.table("conversation_members")
+        _svc().table("conversation_members")
         .select("member_kind, principal_id, agent_slug, visible_from_sequence, invited_by")
         .eq("conversation_id", conversation_id)
     )
@@ -93,22 +108,20 @@ def find_participant(
     return rows[0] if rows else None
 
 
-def visibility_floor(client: Any, conversation_id: str, principal_id: str) -> Optional[int]:
+def visibility_floor(conversation_id: str, principal_id: str) -> Optional[int]:
     """From which turn ordinal may this principal read? None = not in the cast.
 
     THIS IS THE AUTHORIZATION PRIMITIVE. Membership is read permission; the
     window is how much. No species check: the same call answers for a human
     member and (via `agent_slug`) for a named hand.
     """
-    row = find_participant(client, conversation_id, principal_id=principal_id)
+    row = find_participant(conversation_id, principal_id=principal_id)
     if row is None:
         return None
     return int(row.get("visible_from_sequence") or 0)
 
 
-def add_participant(
-    client: Any,
-    conversation_id: str,
+def add_participant(conversation_id: str,
     *,
     workspace_id: Optional[str],
     member_kind: str,
@@ -132,7 +145,6 @@ def add_participant(
         raise ValueError("an agent participant needs agent_slug")
 
     existing = find_participant(
-        client,
         conversation_id,
         principal_id=principal_id if member_kind == HUMAN else None,
         agent_slug=agent_slug if member_kind == AGENT else None,
@@ -144,13 +156,13 @@ def add_participant(
         int(visible_from_sequence)
         if visible_from_sequence is not None
         else default_window(
-            member_kind, current_max_sequence=current_max_sequence(client, conversation_id)
+            member_kind, current_max_sequence=current_max_sequence(conversation_id)
         )
     )
     window = max(0, window)
 
     row = (
-        client.table("conversation_members")
+        _svc().table("conversation_members")
         .insert({
             "conversation_id": conversation_id,
             "workspace_id": workspace_id,
@@ -169,9 +181,7 @@ def add_participant(
     return {"added": True, "participant": row}
 
 
-def remove_participant(
-    client: Any,
-    conversation_id: str,
+def remove_participant(conversation_id: str,
     *,
     principal_id: Optional[str] = None,
     agent_slug: Optional[str] = None,
@@ -181,7 +191,7 @@ def remove_participant(
     Removal ends future read access. It does not un-read what was already
     seen — an honest limit, stated rather than implied (ADR-495 D6).
     """
-    q = client.table("conversation_members").delete().eq("conversation_id", conversation_id)
+    q = _svc().table("conversation_members").delete().eq("conversation_id", conversation_id)
     q = q.eq("principal_id", principal_id) if principal_id else q.eq("agent_slug", agent_slug)
     return bool((q.execute()).data)
 

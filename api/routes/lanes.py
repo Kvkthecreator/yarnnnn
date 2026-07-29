@@ -165,7 +165,7 @@ def _get_lane(auth: UserClient, lane_id: str) -> dict:
     if ws and row.get("workspace_id") and row["workspace_id"] != ws:
         raise HTTPException(status_code=404, detail="Conversation not found in this workspace")
 
-    floor = visibility_floor(auth.client, lane_id, auth.user_id)
+    floor = visibility_floor(lane_id, auth.user_id)
     if floor is None:
         # Not in the cast. The creator fallback covers conversations whose
         # participant row is missing (a failed backfill or a race at create):
@@ -174,7 +174,7 @@ def _get_lane(auth: UserClient, lane_id: str) -> dict:
             raise HTTPException(status_code=404, detail="Conversation not found")
         from services.conversation_cast import add_participant
         add_participant(
-            auth.client, lane_id,
+            lane_id,
             workspace_id=row.get("workspace_id"), member_kind="human",
             principal_id=auth.user_id, invited_by=auth.user_id,
             visible_from_sequence=0,
@@ -226,8 +226,10 @@ async def list_lanes(auth: UserClient, include_bound: bool = False) -> dict:
         # ADR-495 D2 — the list is CAST-SCOPED, not owner-scoped: a
         # conversation you were invited to is yours to see. `user_id` stays on
         # the row as the creator fact; it is no longer the read gate.
+        from services.conversation_cast import _svc as _cast_svc
+
         member_rows = (
-            auth.client.table("conversation_members")
+            _cast_svc().table("conversation_members")
             .select("conversation_id")
             .eq("principal_id", auth.user_id)
             .eq("member_kind", "human")
@@ -267,7 +269,7 @@ async def list_lanes(auth: UserClient, include_bound: bool = False) -> dict:
         # One batched read, not N.
         if lanes:
             casts = (
-                auth.client.table("conversation_members")
+                _cast_svc().table("conversation_members")
                 .select("conversation_id, member_kind, principal_id, agent_slug, visible_from_sequence")
                 .in_("conversation_id", [ln["id"] for ln in lanes])
                 .execute()
@@ -392,12 +394,12 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     from services.conversation_cast import add_participant
 
     add_participant(
-        auth.client, created["id"], workspace_id=ws, member_kind="human",
+        created["id"], workspace_id=ws, member_kind="human",
         principal_id=auth.user_id, invited_by=auth.user_id, visible_from_sequence=0,
     )
     if agent_slug:
         add_participant(
-            auth.client, created["id"], workspace_id=ws, member_kind="agent",
+            created["id"], workspace_id=ws, member_kind="agent",
             agent_slug=agent_slug, invited_by=auth.user_id, visible_from_sequence=0,
         )
     logger.info("[LANE] created lane=%s model=%s ws=%s", created["id"][:8], req.model, (ws or "-")[:8])
@@ -1171,8 +1173,10 @@ async def search_lanes(q: str, auth: UserClient) -> dict:
     if len(query) < 2:
         return {"matches": []}
 
+    from services.conversation_cast import _svc as _cast_svc
+
     member_rows = (
-        auth.client.table("conversation_members")
+        _cast_svc().table("conversation_members")
         .select("conversation_id, visible_from_sequence")
         .eq("principal_id", auth.user_id)
         .eq("member_kind", "human")
@@ -1307,7 +1311,7 @@ async def list_conversation_participants(lane_id: str, auth: UserClient) -> dict
     from services.conversation_cast import list_participants
 
     _get_lane(auth, lane_id)
-    return {"participants": list_participants(auth.client, lane_id)}
+    return {"participants": list_participants(lane_id)}
 
 
 @router.post("/lanes/{lane_id}/participants")
@@ -1349,7 +1353,7 @@ async def add_conversation_participant(
         raise HTTPException(status_code=422, detail=f"Unknown participant kind: {req.kind}")
 
     result = add_participant(
-        auth.client, lane_id,
+        lane_id,
         workspace_id=ws, member_kind=kind, invited_by=auth.user_id,
         principal_id=req.principal_id if kind == "human" else None,
         agent_slug=req.agent_slug if kind == "agent" else None,
@@ -1358,7 +1362,7 @@ async def add_conversation_participant(
     return {
         "added": result["added"],
         "participant": result["participant"],
-        "participants": list_participants(auth.client, lane_id),
+        "participants": list_participants(lane_id),
     }
 
 
@@ -1383,13 +1387,13 @@ async def remove_conversation_participant(
             status_code=422, detail="Pass exactly one of principal_id / agent_slug"
         )
     if principal_id:
-        humans = human_ids(list_participants(auth.client, lane_id))
+        humans = human_ids(list_participants(lane_id))
         if humans == [principal_id]:
             raise HTTPException(
                 status_code=422,
                 detail="That's the last person in this conversation — archive it instead.",
             )
     removed = remove_participant(
-        auth.client, lane_id, principal_id=principal_id, agent_slug=agent_slug
+        lane_id, principal_id=principal_id, agent_slug=agent_slug
     )
-    return {"removed": removed, "participants": list_participants(auth.client, lane_id)}
+    return {"removed": removed, "participants": list_participants(lane_id)}
