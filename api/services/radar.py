@@ -266,8 +266,20 @@ def discover_radar_hubs(client, *, workspace_id: Optional[str] = None) -> dict[s
             return row.get("user_id")  # pre-re-key row (N=1): the author IS the owner
         if ws not in owner_of:
             try:
+                # SERVICE client, deliberately: `workspaces` RLS is
+                # `owner_id = auth.uid()`, so a MEMBER resolving their own
+                # granted workspace's owner reads zero rows and falls back to
+                # the file's author — a key their request never looks up
+                # under, leaving the hub list empty (probe-verified). The
+                # owner id of a workspace the caller is already authorized in
+                # is not a secret; the authorization happened upstream (the
+                # scan is scoped to the acting workspace, and workspace_files
+                # RLS is grant-aware).
+                from services.supabase import get_service_client
+
                 res = (
-                    client.table("workspaces").select("owner_id").eq("id", ws).limit(1).execute()
+                    get_service_client()
+                    .table("workspaces").select("owner_id").eq("id", ws).limit(1).execute()
                 ).data or []
                 owner_of[ws] = (res[0].get("owner_id") if res else None) or row.get("user_id")
             except Exception:  # noqa: BLE001 — fall back to the author
