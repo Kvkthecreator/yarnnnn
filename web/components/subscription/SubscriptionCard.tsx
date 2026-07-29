@@ -27,6 +27,7 @@ import { useEffect, useState } from "react";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { api } from "@/lib/api/client";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 // `Users` dropped 2026-07-22 — the reference's seat row leads with the COUNT at
@@ -552,44 +553,69 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
             Usage is pay-as-you-go from this workspace&rsquo;s shared balance. A
             one-time top-up adds headroom; it never expires.
           </p>
-          {/* The chooser (2026-07-29): presets + Custom as ONE radio group. The
-              amount field appears only under Custom, so there is never a second
-              input silently disagreeing with the selected chip. */}
-          <div role="radiogroup" aria-label="Top-up amount" className="flex gap-2 flex-wrap">
-            {TOPUP_PRESETS.map((amt) => (
-              <Button
-                key={amt}
-                type="button"
-                role="radio"
-                aria-checked={topupChoice === amt}
-                variant={topupChoice === amt ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => setTopupChoice(amt)}
-                disabled={topupLoading}
-              >
-                ${amt}
-              </Button>
-            ))}
-            <Button
+          {/* The chooser (2026-07-29, re-shaped 2026-07-30): presets + Custom as
+              ONE radio group, rendered as SELECTABLE CARDS — not pills.
+
+              The first pass made them `Button`s, which put the amount options and
+              the confirm CTA in the same object class: same pill radius, same
+              family, sitting in one flow. The operator read a row of five similar
+              pills where two of them meant entirely different things (pick an
+              amount vs. charge my card). The reference (Claude → Billing → "Need
+              more usage?") separates them by KIND: amounts are bordered cards
+              with a ring on the selected one; the confirm is a dark pill, hard
+              right, across a divider. Adopted here — a selection is a card, an
+              action is a button. */}
+          <div
+            role="radiogroup"
+            aria-label="Top-up amount"
+            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2"
+          >
+            {TOPUP_PRESETS.map((amt) => {
+              const active = topupChoice === amt;
+              return (
+                <button
+                  key={amt}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setTopupChoice(amt)}
+                  disabled={topupLoading}
+                  className={cn(
+                    "rounded-lg border px-4 py-3 text-left transition-colors disabled:opacity-60",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    active
+                      ? "border-primary ring-1 ring-primary bg-primary/5"
+                      : "border-border hover:bg-muted/40",
+                  )}
+                >
+                  <span className="block text-base font-medium tabular-nums">${amt}</span>
+                </button>
+              );
+            })}
+            <button
               type="button"
               role="radio"
               aria-checked={topupChoice === "custom"}
-              variant={topupChoice === "custom" ? "secondary" : "outline"}
-              size="sm"
               onClick={() => setTopupChoice("custom")}
               disabled={topupLoading}
+              className={cn(
+                "rounded-lg border px-4 py-3 text-left transition-colors disabled:opacity-60",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                topupChoice === "custom"
+                  ? "border-primary ring-1 ring-primary bg-primary/5"
+                  : "border-border hover:bg-muted/40",
+              )}
             >
-              Custom
-            </Button>
+              <span className="block text-base font-medium">Other</span>
+            </button>
           </div>
           {topupChoice === "custom" && (
             <div className="space-y-1.5">
               <div
-                className={
-                  customInvalid
-                    ? "flex items-center gap-1 max-w-[12rem] rounded-md border border-destructive px-3 py-1.5"
-                    : "flex items-center gap-1 max-w-[12rem] rounded-md border border-border px-3 py-1.5"
-                }
+                className={cn(
+                  "flex items-center gap-1 max-w-[12rem] rounded-lg border px-3 py-2",
+                  customInvalid ? "border-destructive" : "border-border",
+                )}
               >
                 <span className="text-muted-foreground text-sm">$</span>
                 <input
@@ -612,21 +638,41 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
               </p>
             </div>
           )}
-          {/* The button NAMES the charge. "Top up" alone asked for a real payment
-              without stating its amount. */}
-          <Button
-            size="sm"
-            onClick={handleTopup}
-            disabled={topupLoading || topupUsd === null}
-          >
-            {topupLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : topupUsd !== null ? (
-              `Add ${formatUsd(topupUsd)}`
-            ) : (
-              "Add balance"
-            )}
-          </Button>
+          {/* The confirm row — across a divider, hard right (the reference's
+              separation). The amount cards above are a SELECTION; this is the
+              CHARGE, and the two must not read as one row of similar pills. The
+              button NAMES the amount ("Top up" alone asked for a real payment
+              without stating it), and the line at left restates what happens so
+              the commitment is legible before the click, not after. */}
+          <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+            <p className="text-xs text-muted-foreground">
+              {topupUsd !== null ? (
+                <>
+                  Adds <span className="font-medium text-foreground">{formatUsd(topupUsd)}</span> to
+                  this workspace&rsquo;s balance
+                  {balance && (
+                    <> — {formatUsd(balance.remainingUsd + topupUsd)} available after</>
+                  )}
+                  .
+                </>
+              ) : (
+                <>Choose an amount to continue.</>
+              )}
+            </p>
+            <Button
+              onClick={handleTopup}
+              disabled={topupLoading || topupUsd === null}
+              className="shrink-0"
+            >
+              {topupLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : topupUsd !== null ? (
+                `Add ${formatUsd(topupUsd)}`
+              ) : (
+                "Add balance"
+              )}
+            </Button>
+          </div>
         </section>
         )}
 

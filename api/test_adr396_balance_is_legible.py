@@ -160,6 +160,28 @@ def main() -> int:
           "spend + topups" not in usage_code
           and not any("% used" in s for s in _rendered_strings(usage_code)))
 
+    # ── 4b. The chooser and the charge are different OBJECT CLASSES ──────────
+    # 2026-07-30 operator feedback: rendered as `Button`s, the amount options and
+    # the confirm CTA shared a pill shape and sat in one flow — five similar pills
+    # where two meant entirely different things (pick an amount vs. charge my
+    # card). A selection is a CARD; an action is a BUTTON. Guarding the shape
+    # keeps a future refactor from collapsing them back together.
+    print("\n[affordance] the amount selection is a card, the charge is a button")
+    chooser = re.search(
+        r'role="radiogroup"\s+aria-label="Top-up amount".*?(?=\{topupChoice === "custom")',
+        card_src, re.S,
+    )
+    check("top-up radiogroup found", chooser is not None)
+    if chooser:
+        body = chooser.group(0)
+        check("amount options are not <Button> pills", "<Button" not in body)
+        check("selected option carries a ring cue", "ring-primary" in body)
+        check("options render as bordered cards", "rounded-lg border" in body)
+    check("the charge sits across a divider from the selection",
+          "border-t border-border pt-4" in card_src)
+    check("the CTA still names its amount",
+          "`Add ${formatUsd(topupUsd)}`" in card_src)
+
     # ── 5. Checkout rounding — BEHAVIOURAL ───────────────────────────────────
     print("\n[behavioural] the top-up charge rounds, never truncates")
     sub_src = (Path(__file__).parent / "routes" / "subscription.py").read_text()
