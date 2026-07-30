@@ -136,10 +136,35 @@ def run() -> bool:
             )
         ),
     )
+    # The check used to pin `onClick={onInsert}` verbatim, which broke the moment
+    # the handler grew a body (D4 gave it a `setOpen(null)` — see below). A
+    # literal is not the invariant; "the button is reachable in every type" is.
+    # Assert it by SHAPE: the button calls onInsert, and no mode/isPaged test
+    # guards it.
+    # The button's JSX, sliced from its label back to the enclosing tag — the
+    # region a mode guard would have to appear in to gate it.
+    _ins = toolbar.rfind("<button", 0, toolbar.find('/> Insert'))
+    _insert_btn = toolbar[_ins : toolbar.find('/> Insert')] if _ins > 0 else ""
     _check(
-        "Insert is UNGATED by type — no mode test on the button (ADR-505 D4: "
-        "'/' is universal, and its door inherits that)",
-        "onClick={onInsert}" in toolbar and "isPaged && onInsert" not in toolbar,
+        "Insert is UNGATED by type — no mode/isPaged test on the button "
+        "(ADR-505 D4: '/' is universal, and its door inherits that)",
+        "onInsert" in _insert_btn
+        and "isPaged" not in _insert_btn
+        and "mode ===" not in _insert_btn,
+    )
+    # ADR-506 D4 — Insert sits LAST IN THE LEFT CLUSTER, not centred on the row.
+    # It shipped absolutely-centred; rendered, that detached it from the controls
+    # it belongs with (a lone button in dead space on a document; across a gap
+    # from Re-arrange on a deck). The negative half is what a reader needs: the
+    # absolute-centring wrapper must not come back.
+    _check(
+        "Insert is laid out in the left cluster, NOT absolutely centred (D4)",
+        "absolute inset-x-0 flex justify-center" not in toolbar,
+    )
+    _check(
+        "moving INTO the cluster took on the cluster's dismissal duty — Insert "
+        "closes an open gallery (menuRef no longer counts it as 'outside')",
+        "setOpen(null);" in toolbar and "onInsert();" in toolbar,
     )
     _check(
         "the slash runtime still rides EDIT_SCRIPT (injected on opts.edit alone, "

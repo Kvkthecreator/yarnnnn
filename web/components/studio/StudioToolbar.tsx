@@ -361,9 +361,7 @@ export function StudioToolbar({
         </div>
       )}
 
-      </div>
-
-      {/* ── INSERT (ADR-506 D1) — the centre of the row ────────────────────
+      {/* ── INSERT (ADR-506 D1, re-placed by D4) ───────────────────────────
           A DOOR to the one insert gesture, never a second mechanism: it asks
           the runtime to type a '/' at a resolved caret, and everything after
           that is the gesture the member could have typed (ADR-505 D4 — "/ is
@@ -374,7 +372,7 @@ export function StudioToolbar({
           per-type kind subsetting behind it — that matrix is exactly what
           ADR-505 D4 deleted, and re-introducing it would rebuild the hole
           ADR-482 fell into. Every type gets the same button opening the same
-          palette; what DIFFERS per type is the page-grain pair to the left,
+          palette; what DIFFERS per type is the page-grain pair BEFORE it,
           which is the difference that is real.
 
           Why it exists at all, given `/` already works: ADR-505 D4 deleted the
@@ -383,21 +381,40 @@ export function StudioToolbar({
           this button explicitly open ("revisit only if `/` proves insufficient
           in use"); it did.
 
-          ABSOLUTELY centred on the ROW, not laid out between the two groups: a
-          flex `justify-center` sibling would re-centre whenever the page-grain
-          pair mounts (an async vocabulary fetch) or the crumb's name changes
-          length, so the button would drift under the member's cursor. It is
-          `pointer-events-none` at the wrapper so the invisible full-width strip
-          never swallows a click meant for the row beneath it. */}
-      <div className="pointer-events-none absolute inset-x-0 flex justify-center">
-        <button
-          type="button"
-          className={`${btn} pointer-events-auto`}
-          onClick={onInsert}
-          title="Insert a block — the same palette / opens at the caret"
-        >
-          <Plus className="h-3 w-3" /> Insert
-        </button>
+          LAST IN THE LEFT CLUSTER, not centred on the row (ADR-506 D4). It
+          shipped absolutely-centred, reasoning that a laid-out button would
+          "drift" when the page-grain pair mounts. Rendered, that reasoning
+          inverted: absolute centring detaches the button from the controls it
+          belongs with, so on a document it floats alone in dead space and on a
+          deck it sits across a gap from Re-arrange — reading as unrelated
+          chrome rather than the third verb in one toolbar. The toolbar's verbs
+          are ONE cluster and a member scans them left-to-right; the ordering
+          that carries meaning is grain (page · page · block), not position on
+          the row. The mount-time shift is a one-time settle, which is what
+          every other button in this row already does.
+
+          Ordered AFTER the pair on purpose: New ‹noun› and Re-arrange are
+          PAGE-grain and mode-gated; Insert is BLOCK-grain and universal. On a
+          flow document the pair is absent and Insert is simply the first
+          button — the same cluster, one verb shorter. */}
+      <button
+        type="button"
+        className={btn}
+        onClick={() => {
+          // Insert now lives INSIDE `menuRef` — the click-away boundary — so a
+          // press on it no longer counts as "outside" and the open gallery
+          // would survive, leaving the palette to open underneath a stale
+          // panel. Moving into the cluster means inheriting the cluster's
+          // dismissal duty: close explicitly. (Centred-and-outside, this was
+          // free; that is the kind of cost a re-placement quietly carries.)
+          setOpen(null);
+          onInsert();
+        }}
+        title="Insert a block — the same palette / opens at the caret"
+      >
+        <Plus className="h-3 w-3" /> Insert
+      </button>
+
       </div>
     </div>
   );

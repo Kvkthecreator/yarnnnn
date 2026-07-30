@@ -30,7 +30,8 @@
 
 ## 1. The question
 
-The operator asked for a centred Insert button spanning all document types. ADR-482 §7 had
+The operator asked for an Insert button spanning all document types, positioned by reference to
+where Re-arrange sits on a deck. ADR-482 §7 had
 already considered one and deferred it behind a named condition. So the question is not *would
 a button be nice* — it is **whether the condition ADR-482 set has now been met**, and if so,
 what shape the button takes without re-opening what ADR-505 closed.
@@ -73,7 +74,7 @@ vocabulary landed, then grew two. A boolean cannot express *don't know yet*.
 
 ### D1 — The centre of the row is INSERT, and the button is a DOOR
 
-A button labelled **Insert**, absolutely centred on the toolbar row, present in **every**
+A button labelled **Insert** on the toolbar row (placed by D4), present in **every**
 document type with no mode gate.
 
 **It types the slash.** The button does not post its own insert op, does not open its own
@@ -98,11 +99,9 @@ first — which is the anchor a click-then-type would have produced. `insertText
 manual text-node splice, because the browser then moves the caret past the character for us and
 leaves exactly the post-input state the existing opener re-reads.
 
-**Absolutely centred, not laid out between the groups.** A flex `justify-center` sibling would
-re-centre whenever the page-grain pair mounts (an async vocabulary fetch) or the crumb's name
-changes length — the button would drift under the member's cursor. It is `absolute inset-x-0`
-with a `pointer-events-none` wrapper so the invisible full-width strip never swallows a click
-meant for the row beneath it.
+**Placement: see D4.** This shipped absolutely centred on the row and was re-placed the same
+day, on sight, into the left cluster. The reasoning for both is in D4 rather than here, because
+the correction is the more instructive half.
 
 **The shared opener is extracted, not duplicated.** The typed `/` and the door call one
 `openSlashAtCaret()`. Two bodies would drift, and the drift would be invisible until one route
@@ -143,7 +142,47 @@ the ADR-482 hole is gone."* Re-introducing per-type kinds would mean:
 **What DOES differ per type is already correct and stays**: the page-grain pair to the left
 (New ‹slide|band› + Re-arrange) renders on `paged` only, because a `document` has no page unit
 to offer. That is the real per-type difference, it is where the operator saw Re-arrange, and the
-Insert button sits centred beside it in every type. The types differ where they actually differ.
+Insert button sits beside it in every type. The types differ where they actually differ.
+
+### D4 — Insert is LAST IN THE LEFT CLUSTER, not centred on the row
+
+D1 shipped the button `absolute inset-x-0 flex justify-center`, arguing that a laid-out button
+would "drift under the member's cursor" when the page-grain pair mounts or the crumb's name
+changes length. **Rendered, that reasoning inverted**, and the operator caught it on sight:
+*"the insert button should be aligned right next to left buttons (for reference, thus
+re-arrange for deck)."*
+
+**The original brief already said this**, and D1 read it too literally. It was *"it should be
+the center (where deck like type has the re-arrange)"* — and the parenthetical is the operative
+clause: **the place where Re-arrange lives**, i.e. the toolbar's control cluster, not the
+geometric midpoint of the row. "Center" named the *region between the crumb and the zoom*, which
+is where the whole cluster already sits. Taking the word and dropping the gloss produced a
+button centred in a region rather than placed in a cluster.
+
+Absolute centring does not stabilise the button — it **detaches** it from the controls it
+belongs with. On a `document` (no page-grain pair) it floats alone in the middle of an
+otherwise empty row, reading as unrelated chrome rather than a toolbar verb. On a `deck` it
+sits across a visible gap from Re-arrange, so the eye parses two clusters where there is one
+toolbar.
+
+The corrected principle: **the toolbar's verbs are ONE cluster, scanned left-to-right, and the
+ordering that carries meaning is GRAIN, not position on the row** — New ‹noun› (page) ·
+Re-arrange (page) · Insert (block). On a flow document the pair is absent and Insert is simply
+the first button: the same cluster, one verb shorter. The mount-time shift D1 feared is a
+one-time settle, which is what every other button in this row already does.
+
+**The cost the re-placement carries, and pays.** Moving inside `menuRef` means moving inside
+the **click-away boundary**, so a press on Insert no longer counts as "outside" and an open
+New-‹noun› gallery would survive — the palette would then open underneath a stale panel. The
+button therefore closes the panel explicitly (`setOpen(null)` before `onInsert()`). Centred and
+outside the cluster, this was free; joining a cluster means inheriting its dismissal duty. That
+is the kind of cost a placement change quietly carries, and it is why the gate now pins both
+halves (not-centred, and closes-the-gallery).
+
+**The general lesson**, recorded because this arc keeps re-learning it: a layout argument made
+from the code is a hypothesis about what the member will SEE. D1's was internally coherent and
+wrong, and one screenshot settled it. Chrome decisions want a render before they want an ADR
+paragraph.
 
 Two candidate narrowings were considered concretely and rejected: `metrics`/`button` as
 `paged`-shaped (a document can legitimately carry a metrics row or a CTA link), and `divider` as
@@ -158,12 +197,18 @@ door and not a mechanism.
 
 ## 5. Gates
 
-`api/test_studio_slash_anywhere.py` — **44/44** (was 36). Five new checks under
-*"the toolbar door (ADR-506 D1)"*: the invoke message exists across all three layers; **exactly
-one `yarnnn-slash-open` sender**; the door reuses the shared opener rather than posting its own;
-`onInsert` carries no mode test; and `slashFromToolbar` lives inside `EDIT_SCRIPT` — the last
-asserted with a new brace-blind `_script_body()` helper, because "is X inside runtime Y" is a
-real question a substring search cannot answer (the ADR-505 D6 lesson).
+`api/test_studio_slash_anywhere.py` — **46/46** (was 36). Seven new checks under
+*"the toolbar door"*: the invoke message exists across all three layers; **exactly one
+`yarnnn-slash-open` sender**; the door reuses the shared opener rather than posting its own;
+the button carries no mode/`isPaged` test **within its own JSX** (sliced from the label back to
+its tag — the region a guard would have to appear in); `slashFromToolbar` lives inside
+`EDIT_SCRIPT` (asserted with a new brace-blind `_script_body()` helper, because "is X inside
+runtime Y" is a real question a substring search cannot answer — the ADR-505 D6 lesson); and
+the two D4 halves — **not** absolutely centred, and Insert closes an open gallery.
+
+The ungated check was itself re-cut once, for the same reason as the proximity proxy below: it
+pinned `onClick={onInsert}` verbatim and broke the moment D4 gave the handler a body. A literal
+is not the invariant; *"no mode test guards this button"* is.
 
 One check in that gate was **re-cut, not merely widened**. It regexed `e.key !== '/' … yarnnn-
 slash-open` inside a character window (1200, widened to 2000 by ADR-480) — a proximity *proxy*
@@ -201,6 +246,10 @@ In ADR-482 §10's shape — **the act completes**, not the affordance appears:
    each.
 6. On a `deck`, the toolbar does not render the page-grain pair before the vocabulary lands and
    then grow it (D2 — watch a cold load with the network throttled).
+7. **(D4)** On a `deck`, Insert sits immediately right of Re-arrange with the row's ordinary
+   `gap-1` — no gap, no centring. On a `document` it is the row's first button, hard left.
+8. **(D4)** With the New ‹noun› gallery OPEN, clicking Insert closes it and the palette opens
+   over a clean row — not underneath a stale panel.
 
 ## 7. What is NOT decided here
 
@@ -223,6 +272,7 @@ In ADR-482 §10's shape — **the act completes**, not the affordance appears:
 `openSlashAtCaret` + the `yarnnn-slash-invoke` handler, all inside `EDIT_SCRIPT`) ·
 `web/components/studio/StudioCanvas.tsx` (the `slashInvoke` prop + its post) ·
 `web/components/studio/StudioSurface.tsx` (`invokeSlash` + the nonce; `mode={resolvedMode}`) ·
-`web/components/studio/StudioToolbar.tsx` (the centred Insert; the tri-state `mode`) ·
-`api/test_studio_slash_anywhere.py` (+8, one re-cut) · `api/test_studio_layout_mode.py` (+2) ·
+`web/components/studio/StudioToolbar.tsx` (Insert, last in the left cluster; the tri-state
+`mode`) · `api/test_studio_slash_anywhere.py` (+10, two re-cut) ·
+`api/test_studio_layout_mode.py` (+2) ·
 `docs/design/STUDIO.md` · `api/prompts/CHANGELOG.md`.
