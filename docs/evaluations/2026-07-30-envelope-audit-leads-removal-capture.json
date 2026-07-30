@@ -1,0 +1,162 @@
+{
+  "user_id": "4c106786-c9b4-41cb-982d-0f5a8cc35923",
+  "persona": "bare-kernel",
+  "slug": "bare-steward-sweep-1785414665",
+  "ledger": {
+    "event_id": "619b5d2d-6286-48f3-9dd3-1888b3675a22",
+    "status": "success",
+    "tool_rounds": 6,
+    "input_tokens": 19413,
+    "output_tokens": 2372,
+    "cache_read_tokens": 95164,
+    "cache_create_tokens": 22998,
+    "cost_usd": 0.208611,
+    "wake_source": "cron_tick",
+    "funnel_decision": "escalate"
+  },
+  "reasoning": "The substrate was clean except for one piece of unplaced raw intake. `operation/memory/q3-pricing-note.md` \u2014 a 2026-06-28 planning-call dump recording the team's decision to move Pro to $24/mo in Q4 \u2014 had been sitting unplaced since the last wake. I derived it into `operation/decisions/q3-pricing-change.md` with a `derived_from` citation to the raw. I also noticed the hold decision (`q3-pricing.md`) and the Q4 change decision had never been cross-referenced; they're consistent (hold through August, then raise in Q4) but the substrate gave no signal of that. Both files now point at each other. One standing gap remains: neither pricing decision has declared revisit criteria \u2014 I've flagged it in both files, but only the operator can supply the actual criteria. No platforms connected, no attribution anomalies, no recurrences active.",
+  "actions_taken": [
+    {
+      "tool": "ListFiles",
+      "input": {
+        "scope": "workspace"
+      },
+      "success": true,
+      "failure_reason": null,
+      "summary": "path=/workspace/",
+      "invocation_id": "619b5d2d-6286-48f3-9dd3-1888b3675a22"
+    },
+    {
+      "tool": "GetSystemState",
+      "input": {
+        "scope": "full"
+      },
+      "success": true,
+      "failure_reason": null,
+      "summary": "ok",
+      "invocation_id": "619b5d2d-6286-48f3-9dd3-1888b3675a22"
+    },
+    {
+      "tool": "ReadFile",
+      "input": {
+        "scope": "workspace",
+        "path": "operation/memory/competitor-scan.md"
+      },
+      "success": true,
+      "failure_reason": null,
+      "summary": "path=operation/memory/competitor-scan.md",
+      "invocation_id": "619b5d2d-6286-48f3-9dd3-1888b3675a22"
+    },
+    {
+      "tool": "ReadFile",
+      "input": {
+        "scope": "workspace",
+        "path": "operation/memory/q3-pricing-note.md"
+      },
+      "success": true,
+      "failure_reason": null,
+      "summary": "path=operation/memory/q3-pricing-note.md",
+      "invocation_id": "619b5d2d-6286-48f3-9dd3-1888b3675a22"
+    },
+    {
+      "tool": "ReadFile",
+      "input": {
+        "scope": "workspace",
+        "path": "operation/decisions/q3-pricing.md"
+      },
+      "success": true,
+      "failure_reason": null,
+      "summary": "path=operation/decisions/q3-pricing.md",
+      "invocation_id": "619b5d2d-6286-48f3-9dd3-1888b3675a22"
+    },
+    {
+      "tool": "WriteFile",
+      "input": {
+        "scope": "workspace",
+        "path": "operation/decisions/q3-pricing-change.md",
+        "content": "# Q3/Q4 Pricing Change Decision\n\n_Derived from raw planning-call intake (`operation/memory/q3-pricing-note.md`), originally saved 2026-06-28._\n\n## The decision\n\nThe team agreed to:\n- Move the **Pro tier from $19/mo to $24/mo** starting Q4.\n- Add an **annual plan at $230/yr** (equivalent to two months free).\n- Retain the **$3 signup grant**.\n\n**Rationale**: gross margin on Pro is thin after the model-cost increase; the annual plan is expected to lift retention past the 90-day churn cliff.\n\n## Relationship to the hold decision\n\nAs of 2026-07-10, a separate decision (`operation/decisions/q3-pricing.md`) records holding the $19 tier until August (re-confirmed 2026-07-10). These two decisions are consistent if read sequentially: hold through August, then execute the Q4 price change. No contradiction \u2014 but they have not been cross-referenced in the substrate until now.\n\n## Revisit criteria\n\n_(Not yet declared. Consider: what metric or date triggers a review of the $24 target price before Q4 rollout?)_\n\n## Source\n\nRaw intake: `operation/memory/q3-pricing-note.md`  \nPlanning call, 2026-06-28. Operator-attributed raw dump via `yarnnn:mcp:claude-desktop`.\n",
+        "message": "Place raw Q3 pricing intake; derive into decisions home with source citation",
+        "derived_from": [
+          "operation/memory/q3-pricing-note.md"
+        ]
+      },
+      "success": true,
+      "failure_reason": null,
+      "summary": "path=/workspace/operation/decisions/q3-pricing-change.md",
+      "invocation_id": "619b5d2d-6286-48f3-9dd3-1888b3675a22"
+    },
+    {
+      "tool": "EditFile",
+      "input": {
+        "scope": "workspace",
+        "path": "operation/decisions/q3-pricing.md",
+        "old_string": "## No revisit criteria\n- Criteria for revisiting this decision have not been recorded yet. Consider adding these or setting a reminder for review.\n## Decision Confirmation (2026-07-10)\nThe decision to hold the $19 tier until August is re-confirmed.\n\nSource: operator message (2026-07-10).",
+        "new_string": "## Revisit criteria\n- Criteria for revisiting this decision have not been recorded yet. Consider adding these or setting a reminder for review.\n\n## Decision Confirmation (2026-07-10)\nThe decision to hold the $19 tier until August is re-confirmed.\n\nSource: operator message (2026-07-10).\n\n## Related decisions\n- The Q4 price change (Pro \u2192 $24/mo, annual plan at $230/yr) is recorded separately at `operation/decisions/q3-pricing-change.md`, derived from the 2026-06-28 planning call. These two decisions are read as sequential: hold through August, then execute the Q4 change.",
+        "message": "Cross-reference Q4 pricing change decision; clarify sequential relationship"
+      },
+      "success": true,
+      "failure_reason": null,
+      "summary": "path=/workspace/operation/decisions/q3-pricing.md",
+      "invocation_id": "619b5d2d-6286-48f3-9dd3-1888b3675a22"
+    },
+    {
+      "tool": "WriteFile",
+      "input": {
+        "scope": "workspace",
+        "path": "persona/standing_intent.md",
+        "content": "# Standing Intent \u2014 system steward\n\n_Last updated: 2026-07-30T12:31:07Z_\n\n## Current posture\n\nDefault stewardship. No program activated. No platforms connected. No agents running.\n\n## What I'm watching for\n\n- Any intake that lands and needs placement\n- Platform connections declared but broken\n- Attribution anomalies in new revisions\n- Operator signals that a program should be activated\n\n## Notes from this wake (2026-07-30)\n\n**Intake placed:** `operation/memory/q3-pricing-note.md` was still sitting as raw intake \u2014 the note in the body explicitly flagged it as unplaced. I derived it into `operation/decisions/q3-pricing-change.md`, citing the raw as source.\n\n**Cross-reference added:** The hold decision (`operation/decisions/q3-pricing.md`) and the Q4 change decision (`operation/decisions/q3-pricing-change.md`) were unlinked. They're consistent \u2014 hold through August, then execute the Q4 price move \u2014 but nothing in the substrate said so. Added a cross-reference to both files.\n\n**Revisit criteria still missing:** Both pricing decisions lack declared revisit criteria. This is noted in both files. The operator should consider what triggers a review of the $24 target before Q4 rollout.\n\n**Competitor scan:** `operation/memory/competitor-scan.md` (operator-authored, 2026-07-30) is placed in its meaning-home. It's a training-data-based snapshot with a caveat about staleness \u2014 no action needed from the steward, but worth verifying before the Q4 pricing rollout.\n\n**No platforms connected. No attribution anomalies. No recurrences active.**\n\n## Substrate snapshot (a pointer to where the truth lives \u2014 read on demand for detail)\n\n**What changed since last wake:**\n- `operation/memory/competitor-scan.md` \u2014 operator: competitor scan (placed, no action needed)\n- `operation/memory/q3-pricing-note.md` \u2014 yarnnn:mcp:claude-desktop: raw intake \u2192 **now derived** into `operation/decisions/q3-pricing-change.md`\n- `operation/decisions/q3-pricing-change.md` \u2014 created this wake (derivation with source citation)\n- `operation/decisions/q3-pricing.md` \u2014 cross-reference added this wake\n",
+        "message": "Standing intent update: Q3 pricing intake placed, cross-reference added, wake summary"
+      },
+      "success": true,
+      "failure_reason": null,
+      "summary": "path=/workspace/persona/standing_intent.md",
+      "invocation_id": "619b5d2d-6286-48f3-9dd3-1888b3675a22"
+    }
+  ],
+  "freddie_writes": [
+    {
+      "path": "/workspace/persona/standing_intent.md",
+      "authored_by": "freddie:ai:freddie-sonnet-v8",
+      "message": "Standing intent update: Q3 pricing intake placed, cross-reference added, wake summary",
+      "created_at": "2026-07-30T12:31:57.21197+00:00"
+    },
+    {
+      "path": "/workspace/operation/decisions/q3-pricing.md",
+      "authored_by": "freddie:ai:freddie-sonnet-v8",
+      "message": "Cross-reference Q4 pricing change decision; clarify sequential relationship",
+      "created_at": "2026-07-30T12:31:41.916277+00:00"
+    },
+    {
+      "path": "/workspace/operation/decisions/q3-pricing-change.md",
+      "authored_by": "freddie:ai:freddie-sonnet-v8",
+      "message": "Place raw Q3 pricing intake; derive into decisions home with source citation",
+      "created_at": "2026-07-30T12:31:33.356842+00:00"
+    }
+  ],
+  "proposals": [],
+  "sentinels": {
+    "schedule_calls": 0,
+    "schedule_proposals": 0
+  },
+  "heuristic": {
+    "stewardship_half": true,
+    "not_capital_half": true,
+    "not_standdown_half": true,
+    "capital_hits": [],
+    "standdown_hits": [
+      "no program"
+    ],
+    "steward_hits": [
+      "derived_from",
+      "place",
+      "placement",
+      "attribution",
+      "attributed",
+      "steward",
+      "meaning-home",
+      "source"
+    ],
+    "touched_dump": true,
+    "touched_misattrib": true
+  }
+}

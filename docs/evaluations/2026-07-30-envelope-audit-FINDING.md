@@ -113,12 +113,42 @@ ways:
   ADR-364/389/390 arcs with standing gates, and deleting their loaders "exceeded the
   measured evidence."
 
-A removal probe (re-fire the bare-steward + an active-workspace wake with leads
-compressed to one header line) would cost ~$0.35 and settle it. Per the ADR-390
-discipline the burden is on the PROSE to justify itself — but the correction was a
-deliberate, documented retention eight days ago, and nothing has failed since. **This
-finding does not recommend the cut; it records the candidate and leaves the probe
-decision to the operator.**
+**RESOLVED same day (operator authorized the probe): the cut is REFUTED — the
+leads stay.** Probe: `api/scripts/operator/probe_commons_leads_removal_local.py`
+(wraps the standing bare-steward instrument; strips the lead paragraphs in-process
+via a `_volatile_suffix` wrapper — production code untouched; header + fact bodies
+retained; strip byte-receipted from the fired wake's own render: 2 leads rendered
+and removed, 813 chars, `full 3,791 → stripped 2,978`).
+
+Live wake receipts (bare-kernel `4c106786`, seeded per the standing instrument —
+unplaced dump + AI-voiced file stamped `operator`):
+- execution_event `619b5d2d-6286-48f3-9dd3-1888b3675a22` — success, 6 rounds,
+  2,372 out-tokens, $0.2086, slug `bare-steward-sweep-1785414665`.
+- Intake-placement: CLEAN — read the dump, derived it into
+  `operation/decisions/q3-pricing-change.md` with a `derived_from` citation,
+  cross-referenced the sibling decision (3 `freddie:`-authored revisions).
+- **Attribution catch: MISSED.** The steward READ the mis-attributed file
+  (action 3, `ReadFile operation/memory/competitor-scan.md`) and closed with
+  "no attribution anomalies" — a false negative on the seeded violation. The
+  attribution-fact DATA was in the envelope; only the lead pedagogy was absent.
+- Contrast: the 2026-06-30 concentrated-envelope run — same workspace, same
+  seed, leads present — caught it on wake 1 (verbatim in that finding).
+
+Read: the lead prose is load-bearing for the voice-vs-stamp catch, N=1 against
+N=1 on the same rig. This narrows ADR-403's Arm-B note ("the catch survived
+without the fact sections") — that wake's discovery ran without competing
+intake-placement work; under a real mixed situation the coaching is what turns
+the fact data into the catch. The three-halves heuristic passed on the strength
+of the placement half — the heuristic cannot see a missed catch, which is why
+the human read is authoritative (this is the second time the heuristic's PASS
+needed overriding detail; see the 06-30 three-halves false-positive note).
+
+Removal-over-addition cuts both ways: the discipline demands the probe before
+the cut, and this probe defended the prose. The ratchet ceiling (≤1,600) now
+guards a block with a live justification receipt. Machine capture:
+`2026-07-30-envelope-audit-leads-removal-capture.json` (this directory). Rig
+restored: seeds + derived residue deleted (the `q3-pricing.md` cross-reference
+edit remains as benign wake-authored content).
 
 ## 5. What landed (the ratchet)
 
@@ -143,12 +173,13 @@ dimension it defends.
 
 ## 6. Housekeeping surfaced
 
-- `api/scripts/operator/probe_envelope_collapse_local.py` is stale against main on
-  two hard breaks: `Recurrence(mode=...)` (field deleted, ADR-393) and the
-  `YARNNN_ENVELOPE_ARM` toggle (deleted, ADR-403 — both arms now render
-  byte-identical). Its known `action["path"]`-vs-`action["input"]["path"]`
-  instrumentation bug is also still in the file. Candidate: delete or re-cut it; its
-  Phase-1 job is superseded by the measurement probe pattern used here.
+- `api/scripts/operator/probe_envelope_collapse_local.py` — **DELETED same day**
+  (operator authorized). It was doubly stale against main: `Recurrence(mode=...)`
+  (field deleted, ADR-393) and the `YARNNN_ENVELOPE_ARM` toggle (deleted, ADR-403 —
+  both arms rendered byte-identical, so its A/B delta was structurally zero), plus
+  the known `action["path"]` instrumentation bug. Its Phase-1 measurement job is
+  superseded by the per-part probe pattern here; its Phase-2 live-fire job by the
+  standing bare-steward instrument.
 - `docs/architecture/reviewer-occupant.md` §symbols may still carry pre-rename
   vocabulary in places (the contract doc's ADR-414 banner is current; CLAUDE.md's
   rows were fixed in 58dbb3e).
