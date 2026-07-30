@@ -196,8 +196,20 @@ def _get_lane(auth: UserClient, lane_id: str) -> dict:
     row = (res.data or [None])[0]
     if not row:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    # FAIL CLOSED (ADR-501 class, audited 2026-07-30). This read
+    # `if ws and row.get("workspace_id") and …` — so a conversation whose
+    # `workspace_id` is NULL passed the check in EVERY workspace, and
+    # `visibility_floor` is workspace-blind, so it was openable by direct id
+    # from any workspace the caller could reach while being INVISIBLE in the
+    # list (whose queries `.eq("workspace_id", ws)` unconditionally). Openable
+    # but unlistable is the tell that the two paths disagreed.
+    #
+    # Migration 203 backfilled the column and added a BEFORE INSERT trigger, so
+    # a NULL is not expected — which is exactly why it must be refused rather
+    # than waved through: an unbound conversation row is a substrate defect, and
+    # serving it in whatever workspace happens to ask is the wrong answer to it.
     ws = _acting_workspace(auth)
-    if ws and row.get("workspace_id") and row["workspace_id"] != ws:
+    if ws and row.get("workspace_id") != ws:
         raise HTTPException(status_code=404, detail="Conversation not found in this workspace")
 
     floor = visibility_floor(lane_id, auth.user_id)
@@ -526,7 +538,11 @@ def _resolve_blob_storage_path(auth: UserClient, path: str) -> Optional[str]:
     res = (
         auth.client.table("workspace_files")
         .select("content_url")
-        .eq(*substrate_scope_filter(auth.user_id))
+        # The binding is PASSED, not inferred (ADR-501, commit 2a8c1d7). Dropping
+        # the second arg left `effective_workspace_id` to fall through to the
+        # contextvar/owner path — so a member attaching an image in a GRANTED
+        # workspace resolved their OWN and got "Attachment not found".
+        .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
         .eq("path", path)
         .limit(1)
         .execute()
@@ -551,7 +567,8 @@ def _mint_cas_url_for_path(auth: UserClient, path: str) -> Optional[str]:
         row = (
             auth.client.table("workspace_files")
             .select("head_version_id")
-            .eq(*substrate_scope_filter(auth.user_id))
+            # PASSED, not inferred — see `_resolve_blob_storage_path` above.
+            .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
             .eq("path", path)
             .limit(1)
             .execute()
@@ -951,6 +968,13 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
             .select("id, role, sequence_number, metadata")
             .eq("session_id", lane_id)
             .eq("id", req.replace_from_message_id)
+            # ADR-495 D2 — a member may only edit-and-resend from a turn INSIDE
+            # their window. The author check below is necessary but not
+            # sufficient: without this, a participant joined at "from now" could
+            # name a pre-window message id and truncate the transcript from a
+            # point they were never shown (the tail delete that follows is
+            # unclamped by design).
+            .gte("sequence_number", int(lane.get("_visible_from_sequence") or 0))
             .limit(1)
             .execute()
         )
@@ -995,6 +1019,11 @@ async def regenerate_lane_turn(lane_id: str, auth: UserClient):
         _cast_read_client(auth).table("session_messages")
         .select("id, role, content, sequence_number")
         .eq("session_id", lane_id)
+        # ADR-495 D2 — regenerate reruns the last user turn THIS participant can
+        # see. Unclamped, a member joined at "from now" on a quiet conversation
+        # would regenerate off a pre-window message — reading it back in the
+        # process, which is the disclosure the window exists to prevent.
+        .gte("sequence_number", int(lane.get("_visible_from_sequence") or 0))
         .order("sequence_number", desc=True)
         .limit(_HISTORY_WINDOW)
         .execute()
@@ -1207,13 +1236,25 @@ async def settle_lane_route(lane_id: str, auth: UserClient) -> dict:
             ),
         )
 
-    # The full conversation, oldest-first — a settle reads the whole thing,
-    # not the turn window (_fetch_history caps at _HISTORY_WINDOW for cost;
-    # settling half a conversation would distill half an understanding).
+    # The conversation as THIS PARTICIPANT may read it, oldest-first. A settle
+    # reads the whole of their window rather than the cost-capped turn window
+    # (_fetch_history caps at _HISTORY_WINDOW; settling half a conversation
+    # would distill half an understanding) — but "the whole thing" is bounded by
+    # the ADR-495 D2 window, not by the transcript.
+    #
+    # THE DISCLOSURE DEFECT THIS CLOSES (audited 2026-07-30): this read had no
+    # floor clamp while every sibling read has one (`lane_messages`,
+    # `_fetch_history`, `search_lanes`). A member invited at "from now" could
+    # settle and have the model distill turns from BEFORE their window into a
+    # durable, cited workspace file they then read at their leisure — the window
+    # made cosmetic by the one read that ignored it. `_get_lane` already put the
+    # floor on the row; using it is the whole fix.
+    floor = int(lane.get("_visible_from_sequence") or 0)
     msgs = (
         _cast_read_client(auth).table("session_messages")
         .select("role, content, sequence_number")
         .eq("session_id", lane_id)
+        .gte("sequence_number", floor)
         .order("sequence_number")
         .execute()
     ).data or []
@@ -1325,7 +1366,12 @@ async def archive_lane(lane_id: str, auth: UserClient) -> dict:
     """Archive a lane. Session legibility (ADR-412 D2): capture a prose
     summary on the way out (reusing the steward's session-summary machinery)
     so the lane's work is legible after it leaves the active list."""
-    _get_lane(auth, lane_id)
+    lane = _get_lane(auth, lane_id)
+    # ADR-495 D2 — the archiver summarizes only what THEY may read. Same
+    # unclamped-read defect as `settle` (audited 2026-07-30): the summary is
+    # durable and shown to the cast, so distilling pre-window turns into it
+    # leaks them exactly as a settle would.
+    floor = int(lane.get("_visible_from_sequence") or 0)
 
     # Best-effort summary — never block archive on it.
     summary: Optional[str] = None
@@ -1337,6 +1383,7 @@ async def archive_lane(lane_id: str, auth: UserClient) -> dict:
             _cast_read_client(auth).table("session_messages")
             .select("role, content, sequence_number")
             .eq("session_id", lane_id)
+            .gte("sequence_number", floor)
             .order("sequence_number")
             .limit(200)
             .execute()

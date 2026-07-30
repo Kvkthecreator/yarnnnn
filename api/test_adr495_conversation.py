@@ -100,20 +100,68 @@ def test_membership_is_read_permission() -> None:
 
 
 def test_window_is_enforced_at_every_read() -> None:
-    """A window that filters nothing is decoration. Three reads must clamp:
-    the transcript, the model's history, and search."""
-    print("\nD2 — the visibility window is enforced, not decorative")
-    lanes = _read(ROOT / "routes" / "lanes.py")
+    """A window that filters nothing is decoration. EVERY function that reads
+    `session_messages` must clamp to the acting participant's window.
+
+    THIS TEST USED TO COUNT: it asserted `.gte("sequence_number"` appeared >= 2
+    times in the file. Two reads (`settle_lane_route`, `archive_lane`) had NO
+    clamp and it passed anyway — the count was satisfied by the reads that were
+    already correct, so the gate was blind to exactly the defect it existed to
+    catch (audited 2026-07-30: a member invited "from now" could settle and have
+    pre-window turns distilled into a durable file). An aggregate count cannot
+    defend a per-call-site invariant.
+
+    So it now walks the AST and checks EACH reader by name. A new function that
+    reads the transcript without clamping fails here by construction — and a
+    reader added without being listed fails the completeness assert below.
+    """
+    print("\nD2 — the visibility window is enforced at every read, not counted")
+    import ast
+
+    src = _read(ROOT / "routes" / "lanes.py")
+    tree = ast.parse(src)
+
+    # Every function that reads session_messages must clamp — EXCEPT the two
+    # writers, named here with their reason. `_delete_transcript_tail` truncates
+    # a tail by author (the no-rewind rule, gated at its call sites);
+    # `lane_turn`'s edit-lookup selects ONE row by id and verifies its author.
+    # `search_lanes` clamps per-row against a `floors` map (many conversations,
+    # one query — a `.gte` can't express N different floors), asserted
+    # separately below. `_delete_transcript_tail` truncates a tail whose
+    # starting point its callers have already window-checked.
+    EXEMPT = {"_delete_transcript_tail", "search_lanes"}
+
+    readers: dict[str, bool] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if node.name in EXEMPT:
+            continue
+        body = ast.unparse(node)
+        # `.table('session_messages')` — the literal as it appears unparsed.
+        # (ast.dump renders it as `value='session_messages'`, so matching on a
+        # double-quoted form finds NOTHING and every reader silently vanishes
+        # from the check. The completeness assert below is what caught that.)
+        if "'session_messages'" not in body:
+            continue
+        # A read is clamped iff it constrains sequence_number from below.
+        readers[node.name] = '.gte(' in body and "'sequence_number'" in body
+
+    unclamped = sorted(n for n, ok in readers.items() if not ok)
     _assert(
-        lanes.count('.gte("sequence_number"') >= 2,
-        "transcript + model-history reads clamp on sequence_number",
+        not unclamped,
+        f"every session_messages reader clamps to the window (unclamped: {unclamped})",
     )
+    # Completeness: the four known readers must all be seen. If a refactor
+    # renames or merges them, this fails loudly rather than silently checking
+    # an empty set — the "0 of 0 passed" failure mode.
+    for name in (
+        "lane_messages", "_fetch_history", "settle_lane_route", "archive_lane",
+        "lane_turn", "regenerate_lane_turn",
+    ):
+        _assert(name in readers, f"{name} is a transcript reader the gate can see")
     _assert(
-        "visible_from" in lanes and "_fetch_history" in lanes,
-        "_fetch_history takes the acting participant's window",
-    )
-    _assert(
-        "floors.get(sid, 0)" in lanes,
+        "floors.get(sid, 0)" in src,
         "search never surfaces a turn below the viewer's window",
     )
 
