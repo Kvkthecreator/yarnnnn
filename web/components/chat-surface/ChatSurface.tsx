@@ -334,7 +334,27 @@ export function ChatSurface() {
   useWindowCrumb(
     'chat',
     activeLane
-      ? [{ label: activeLane.name, onClick: () => setParam({ lane: null }) }]
+      ? showDetail
+        ? [
+            // Two levels deep: the lane, then its details. Clicking the lane
+            // crumb closes the drill-in (not the lane) — the crumb path IS the
+            // navigation, so each level must return to exactly its own level.
+            {
+              label: activeLane.name,
+              onClick: () => setParam({ detail: null }),
+            },
+            { label: 'Details' },
+          ]
+        : [
+            {
+              label: activeLane.name,
+              // Leaving the lane clears the drill-in too — otherwise `detail`
+              // survives in the URL and the NEXT lane opens straight into its
+              // participants list. A launch restores postures, never drill-ins
+              // (the shell lesson: remembered state with no clearing path).
+              onClick: () => setParam({ lane: null, detail: null }),
+            },
+          ]
       : [],
   );
   // 2026-07-14 (operator ruling): Chat renders its OWN locator in-body — the
@@ -350,7 +370,13 @@ export function ChatSurface() {
   // back. So self-location is viewport-conditional: desktop (both columns, the
   // list IS the navigator) suppresses; drilled-in mobile yields to the OS
   // strip's `‹ {lane}` back chip. Same conditional shape Studio already uses.
-  useSelfLocatedSurface('chat', !(isNarrow && activeLane));
+  //
+  // 2026-07-30: the participants drill-in is a THIRD level, and it hides the
+  // in-body conversation header that would otherwise say where you are. It
+  // renders its own back chip, but the OS strip carries the full crumb path
+  // (Chat › ‹lane› › Details), so yield to it whenever the drill-in is open —
+  // on any width, since the drill-in owns the whole pane at every size.
+  useSelfLocatedSurface('chat', !((isNarrow && activeLane) || showDetail));
 
   const createLane = useCallback(async (agentSlug: string) => {
     if (!agentSlug) return;
@@ -367,7 +393,7 @@ export function ChatSurface() {
         updated_at: new Date().toISOString(),
       };
       setData((d) => (d ? { ...d, lanes: [...d.lanes, info] } : d));
-      setParam({ lane: info.id });
+      setParam({ lane: info.id, detail: null });
       setCreating(false);
     } catch (e) {
       // SHOW it. This swallowed a live 409 ("Lane limit reached") and the
@@ -411,7 +437,7 @@ export function ChatSurface() {
         });
         const listed = await api.lanes.list();
         setData(listed as LaneData);
-        setParam({ lane: created.id });
+        setParam({ lane: created.id, detail: null });
         setCreating(false);
       } catch (e) {
         if (created) {
@@ -433,7 +459,7 @@ export function ChatSurface() {
         setData((d) =>
           d ? { ...d, lanes: d.lanes.filter((l) => l.id !== laneId) } : d,
         );
-        if (activeLaneId === laneId) setParam({ lane: null });
+        if (activeLaneId === laneId) setParam({ lane: null, detail: null });
       } catch {}
     },
     [activeLaneId, setParam],
@@ -646,7 +672,7 @@ export function ChatSurface() {
             ) : (
             <button
               key={lane.id}
-              onClick={() => setParam({ lane: lane.id })}
+              onClick={() => setParam({ lane: lane.id, detail: null })}
               className={cn(
                 'w-full text-left px-3 py-2.5 border-b border-border/50 transition-colors group',
                 'flex items-start gap-2.5',
