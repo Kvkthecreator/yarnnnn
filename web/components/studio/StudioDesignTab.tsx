@@ -15,7 +15,7 @@
  *  - a slot → SLOT scope: name + role, plus the MEDIA slot's image picker —
  *    which is not a second insert route but the terminal step of the canvas
  *    "+ Add" on a media slot (onAddHere routes here by role). A flow slot's
- *    duplicate add-text button was deleted by ADR-489 D5.
+ *    duplicate add-text button was deleted by ADR-505 D5.
  *  - a block → BLOCK scope: SHAPING only — Turn into + block tokens
  *    (align/tone; media blocks add height/fit) + measures. The verb row
  *    (ask / duplicate / move / delete) left the pane 2026-07-24: the
@@ -1333,7 +1333,7 @@ export function StudioDesignTab({
               </div>
             )
           ) : (
-            /* ADR-489 D5: the flow-slot "+ Add text here" button is DELETED. It
+            /* ADR-505 D5: the flow-slot "+ Add text here" button is DELETED. It
                called the SAME `insertProseInSlot` as the empty slot's own "+ Add"
                on the canvas — one act with two mounts, and the canvas mount is
                the LOCATED one (the member is pointing at the slot). What the

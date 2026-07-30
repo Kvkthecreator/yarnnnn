@@ -31,7 +31,7 @@ export interface StudioShapeStyle {
 const SHAPE_STYLES: Record<string, StudioShapeStyle> = {
   document: { icon: FileText, color: 'text-sky-500' },
   deck: { icon: Presentation, color: 'text-amber-500' },
-  // ADR-489 D2: `web` absorbed `article` + `page`. The two retired slugs keep NO
+  // ADR-505 D2: `web` absorbed `article` + `page`. The two retired slugs keep NO
   // rows — the server resolves them to `web` before the FE ever sees them
   // (`canonical_layout_slug` at the kind lift), so a row here would be dead code
   // pretending a legacy artifact still has its own identity.

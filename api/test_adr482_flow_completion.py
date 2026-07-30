@@ -143,7 +143,7 @@ def run() -> bool:
         "D3 an unresolved mode gets NO pointer sheet",
         "(flow ? FLOW_POINTER_CSS : paged ? POINTER_CSS : '')" in proj,
     )
-    # ADR-489 D4: the gutter is deleted; what this gate now pins is that the
+    # ADR-505 D4: the gutter is deleted; what this gate now pins is that the
     # OBJECT grammar (box/handles/divider) is the paged-only injection.
     _check("D3 the object grammar injects only when paged", "if (opts?.edit && paged) {" in proj)
     _check("D3 add-here injects only when paged", "if (paged) {" in proj)

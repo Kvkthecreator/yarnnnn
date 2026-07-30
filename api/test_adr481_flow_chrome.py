@@ -60,12 +60,12 @@ def run() -> bool:
         set(STUDIO_ARRANGEMENTS) == {"deck", "web"},
     )
     _check(
-        # ADR-489 D2: `page` became `web` and gained the two long-form bands
+        # ADR-505 D2: `page` became `web` and gained the two long-form bands
         # (prose-header + prose), so the count is 6 + 2. Deck is untouched.
         "D1 deck/web arrangement rows: deck 11, web 6 W3 bands + 2 long-form",
         len(STUDIO_ARRANGEMENTS["deck"]) == 11 and len(STUDIO_ARRANGEMENTS["web"]) == 8,
     )
-    for slug in ("document",):  # ADR-489 D2: `article` merged into the paged `web`
+    for slug in ("document",):  # ADR-505 D2: `article` merged into the paged `web`
         body = build_skeleton(slug)
         body = body[body.index("<body>") :]
         _check(f"D1 the {slug} scaffold BODY has no data-arrange", "data-arrange" not in body)

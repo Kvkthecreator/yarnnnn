@@ -1,10 +1,10 @@
 """Regression gate — the gutter STAYS DELETED + cross-block arrow nav.
 
-Two halves, and the first one INVERTED by ADR-489 D4.
+Two halves, and the first one INVERTED by ADR-505 D4.
 
   The gutter (was F5 — gutter pointer-tracking): the hover gutter is DELETED on
   every mode. ADR-481 D2 removed it on `flow` (the caret IS the insertion point);
-  ADR-489 D4 removed the `paged` remainder — it was a third insert route behind
+  ADR-505 D4 removed the `paged` remainder — it was a third insert route behind
   `/` and the New-‹page› gallery, and web-page editors do not have one. Deleted
   with it: the `⋮⋮` drag-to-reorder and its drop-line (reorder is cut/paste in
   prose on `document`, Move up/down in the menu on `deck`/`web`).
@@ -59,7 +59,7 @@ def run() -> bool:
     web = Path(__file__).resolve().parent.parent / "web"
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
 
-    # ── The gutter stays deleted (ADR-489 D4) ───────────────────────────
+    # ── The gutter stays deleted (ADR-505 D4) ───────────────────────────
     _check(
         "no gutter bar is built (the `+` / ⋮⋮ rail)",
         "yarnnn-gutter" not in proj and "yg-handle" not in proj,

@@ -6,7 +6,7 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.07.30.1] - The three-type cut: document · deck · web (ADR-489)
+## [2026.07.30.1] - The three-type cut: document · deck · web (ADR-505)
 
 ### Changed
 - `services/studio.py` — `STUDIO_LAYOUTS` goes from four types to **three**:

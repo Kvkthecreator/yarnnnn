@@ -47,7 +47,7 @@ def run() -> bool:
         _check("GET /studio/templates EXECUTES (no NameError in the body)", True)
         _check(
             "…and serves both apps' layouts (Studio's + the IMAGES stage)",
-            # ADR-489 D1: the Studio set is document/deck/web.
+            # ADR-505 D1: the Studio set is document/deck/web.
             {"document", "deck", "web"} <= slugs and "image" in slugs,
         )
     except Exception as exc:  # noqa: BLE001

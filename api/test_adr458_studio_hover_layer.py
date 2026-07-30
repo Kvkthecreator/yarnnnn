@@ -3,7 +3,7 @@
 Static/structural checks (no DB, no LLM — FE-only; registries/posture
 untouched):
   1. The hover gutter (ADR-458 D4) is **DELETED** — ADR-481 D2 on `flow`,
-     ADR-489 D4 on `paged`. What this gate now asserts is the DELETION and the
+     ADR-505 D4 on `paged`. What this gate now asserts is the DELETION and the
      survival of what the deletion must not have taken (the shared pointer
      primitive, deck's object chrome). The full negative surface, including the
      `⋮⋮` drag and the row band, lives in test_studio_no_gutter_and_arrows.py;
@@ -40,7 +40,7 @@ def run() -> bool:
     surface = (web / "components/studio/StudioSurface.tsx").read_text()
     design = (web / "components/studio/StudioDesignTab.tsx").read_text()
 
-    # ── 1. The hover gutter is DELETED (ADR-481 D2 + ADR-489 D4) ────────
+    # ── 1. The hover gutter is DELETED (ADR-481 D2 + ADR-505 D4) ────────
     _check("no gutter rail: no .yarnnn-gutter, no bar append, no yg-handle",
            ".yarnnn-gutter" not in proj
            and "document.body.appendChild(bar)" not in proj

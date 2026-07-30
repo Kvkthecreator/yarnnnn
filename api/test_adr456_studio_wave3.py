@@ -74,7 +74,7 @@ def run() -> bool:
     _check("a background failure never touches the band's children",
            "if (kind === 'background') return;" in proj)
 
-    # ── 3. The banded layout — `page`, renamed `web` by ADR-489 D2 ───────
+    # ── 3. The banded layout — `page`, renamed `web` by ADR-505 D2 ───────
     # W3's band family is intact; the layout it belongs to absorbed `article`
     # and took the outward-facing name. The retired slug still RESOLVES (a
     # pre-cut artifact keeps rendering) but is never offered.
@@ -83,7 +83,7 @@ def run() -> bool:
     _check("the W3 band family survives the rename",
            set(STUDIO_ARRANGEMENTS.get("web", {}))
            >= {"hero", "content", "feature-grid", "testimonial", "cta", "footer"})
-    _check("ADR-489 D2 added the two long-form bands (the article shape)",
+    _check("ADR-505 D2 added the two long-form bands (the article shape)",
            {"prose-header", "prose"} <= set(STUDIO_ARRANGEMENTS.get("web", {})))
     _check("the hero leads the web scaffold",
            'data-arrange="hero"' in build_skeleton("web")
@@ -112,7 +112,7 @@ def run() -> bool:
            "skinVars" in design and "style[data-skin]" in design)
     # The gate asserted a SLUG test (`layout === 'document' || 'article'`) that
     # the FE had already replaced with the MODE seam — the correct spelling, and
-    # the one ADR-489 D2 needs (a `web` artifact is paged, so it must not offer
+    # the one ADR-505 D2 needs (a `web` artifact is paged, so it must not offer
     # measure; a bundle's own flow layout must).
     _check("Design tab: measure gated by MODE, never by a layout slug",
            "mode === 'flow' && t.applies.includes('document-flow')" in design

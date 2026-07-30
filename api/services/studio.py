@@ -168,7 +168,7 @@ _SHARED_CSS = """
     div[data-block="metrics"] .metric span { font-size: var(--text-xs, 0.8rem); color: var(--muted); }
 """.strip("\n")
 
-#: A layout's **mode** — the composition seam (2026-07-15; re-cut by ADR-489).
+#: A layout's **mode** — the composition seam (2026-07-15; re-cut by ADR-505).
 #:
 #:   paged (deck, web) — the CONTAINER is the unit. A slide IS a page; a web
 #:     band IS a section. "New slide/band" is a primary authoring act, and a
@@ -178,7 +178,7 @@ _SHARED_CSS = """
 #:     to insert; the outline is a derived table of contents, not structure
 #:     (Notion/Docs).
 #:
-#: MODE IS NOT THE GEOMETRY SEAM (ADR-489 D3). `paged` answers only *does this
+#: MODE IS NOT THE GEOMETRY SEAM (ADR-505 D3). `paged` answers only *does this
 #: type have page units*. Whether a coordinate space exists is a SEPARATE axis,
 #: derived from `.slide` ancestry via the `block-staged` predicate — which is why
 #: deck has x/y/z and `web` does not, while both are `paged`. The two questions
@@ -188,7 +188,7 @@ _SHARED_CSS = """
 #: 2560px — a percentage means something different at every width, and pinning it
 #: is the per-breakpoint-editing refusal in another costume). ADR-461 D4 stands.
 #:
-#: Arrangements are `paged`-ONLY (ADR-481 D1, hardened by ADR-489 D1): a flowing
+#: Arrangements are `paged`-ONLY (ADR-481 D1, hardened by ADR-505 D1): a flowing
 #: document has no page-grain unit. Two columns inside a document would be a
 #: BLOCK kind, not an arrangement.
 #:
@@ -197,7 +197,7 @@ _SHARED_CSS = """
 #: pedagogy.
 STUDIO_LAYOUT_MODES = ("flow", "paged")
 
-#: THE STUDIO TYPE SET IS THREE (ADR-489 D1) — `document` · `deck` · `web`, one
+#: THE STUDIO TYPE SET IS THREE (ADR-505 D1) — `document` · `deck` · `web`, one
 #: per medium the member actually works in:
 #:
 #:   document — CAPTURE. Notes, drafts, working docs. Continuous, internal,
@@ -211,7 +211,7 @@ STUDIO_LAYOUT_MODES = ("flow", "paged")
 #: Four types (document · deck · article · page) implied four coordinate systems
 #: where there were only ever three media, and `article` was the tell — a
 #: publishing shape wearing an internal-document chrome, never once used for real
-#: work. ADR-489 D2 merged it into `web`.
+#: work. ADR-505 D2 merged it into `web`.
 #:
 #: `canvas` IS NOT A STUDIO TYPE. It left for the IMAGES app as `image`
 #: (ADR-472 D1/D7, migrated by `scripts/oneshot/adr472_migrate_canvas_to_image`)
@@ -221,7 +221,7 @@ STUDIO_LAYOUT_MODES = ("flow", "paged")
 #: opens in the generic viewer and belongs to no app's recents. Do not add a row
 #: for it here; the app boundary is the MODULE (ADR-473 D2).
 STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
-    # ADR-489 D1: the CAPTURE medium. Notes, drafts, PRDs, meeting records —
+    # ADR-505 D1: the CAPTURE medium. Notes, drafts, PRDs, meeting records —
     # the type where information ARRIVES and is continuously revised, and the
     # workspace's centre of gravity (9 of 18 live artifacts at the cut, and the
     # only two with real authored substance). Its expressive scope is the
@@ -305,7 +305,7 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
   </div>
 </section>""",
     },
-    # ADR-489 D2: the OUTWARD type — `article` and `page` merged. Both answered
+    # ADR-505 D2: the OUTWARD type — `article` and `page` merged. Both answered
     # one question ("HTML for someone outside the workspace"); the split asked
     # the member to pre-classify an essay against a landing page before writing
     # a word, and neither was ever used for real work (2 articles + 1 page at
@@ -313,7 +313,7 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     # opens a blog post, `hero`/`cta` open a landing page, and the difference is
     # which bands you stack — a composition choice, not a type.
     #
-    # BAND-FIRST, NEVER OBJECT-FIRST (ADR-489 D3). No x/y/z here, ever: a web
+    # BAND-FIRST, NEVER OBJECT-FIRST (ADR-505 D3). No x/y/z here, ever: a web
     # page has a VIEWPORT, not a frame (ADR-461 D4), so a percentage position
     # means something different at every width and pinning it is per-breakpoint
     # editing. The reference class agrees — Medium, Substack, Ghost ship zero
@@ -534,7 +534,7 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
     },
     # ADR-456 D4 (Wave 3): the web layout's band family — the builder-class
     # section stack (hero · content · features · testimonial · CTA · footer),
-    # widened by ADR-489 D2 with the two LONG-FORM bands that carry what the
+    # widened by ADR-505 D2 with the two LONG-FORM bands that carry what the
     # `article` layout used to be (prose-header · prose). The registry key is
     # `web`; the `grain: page` field is unrelated — that is the page-GRAIN of the
     # arrangement (whole-page vs section-band), untouched by the rename.
@@ -1174,7 +1174,7 @@ aside[data-block="callout"][data-variant="warning"] { border-color: var(--warn, 
 html[data-font="serif"] body { font-family: var(--font-serif, Georgia, 'Times New Roman', serif); }
 html[data-font="sans"] body { font-family: var(--font-sans, system-ui, -apple-system, 'Segoe UI', sans-serif); }
 html[data-font="mono"] body { font-family: var(--font-mono, ui-monospace, 'SF Mono', Menlo, monospace); }
-/* The `article` selector serves LEGACY artifacts only — ADR-489 D2 merged the
+/* The `article` selector serves LEGACY artifacts only — ADR-505 D2 merged the
    `article` layout into `web`, and no scaffold emits an <article> root now. It
    stays because a pre-cut artifact still carries one and its measure must keep
    working (the ADR-481 D5 discipline: legacy renders, never migrates). */
@@ -1430,7 +1430,7 @@ def register_layouts(layouts: dict[str, dict], arrangements: dict[str, dict] | N
         _ARRANGEMENT_REGISTRY[slug] = rows
 
 
-#: Retired layout slugs → their successor (ADR-489 D2). A pre-cut artifact
+#: Retired layout slugs → their successor (ADR-505 D2). A pre-cut artifact
 #: carries `data-template="article"` in its own bytes, and ADR-209 forbids
 #: manufacturing a revision to fix a naming decision — so the slug resolves at
 #: READ time and the source is never rewritten (the ADR-481 D5 discipline:
@@ -1458,7 +1458,7 @@ def canonical_layout_slug(slug: str) -> str:
 def resolve_layout(slug: str) -> dict | None:
     """The layout row for a slug, from ANY registered app. None if unknown.
 
-    Retired Studio slugs resolve to their successor (ADR-489 D2) so a pre-cut
+    Retired Studio slugs resolve to their successor (ADR-505 D2) so a pre-cut
     artifact keeps rendering with the right mode, skin and chrome.
     """
     return _LAYOUT_REGISTRY.get(canonical_layout_slug(slug))
@@ -1791,7 +1791,7 @@ def artifact_kind(artifact_content: Optional[str]) -> dict[str, Optional[str]]:
     slug = extract_template(artifact_content or "")
     if not slug:
         return {"kind": None, "kind_label": UNKNOWN_KIND_LABEL}
-    # ADR-489 D2: a retired slug reports as its successor. The slug is what the
+    # ADR-505 D2: a retired slug reports as its successor. The slug is what the
     # FE keys its glyph and its app routing on, so returning the raw legacy
     # value would split one artifact's identity in two — kind `article` wearing
     # label "Web". One name, resolved once, at the lift.

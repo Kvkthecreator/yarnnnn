@@ -78,7 +78,7 @@ def run() -> bool:
         "every declared mode is a known one",
         all(l["mode"] in STUDIO_LAYOUT_MODES for l in STUDIO_LAYOUTS.values()),
     )
-    # ADR-489 D1/D2: the type set is THREE — document (flow) · deck (paged) ·
+    # ADR-505 D1/D2: the type set is THREE — document (flow) · deck (paged) ·
     # web (paged). `article` + `page` merged into `web`; `canvas` belongs to
     # IMAGES and is not a Studio layout at all.
     _check(
@@ -88,11 +88,11 @@ def run() -> bool:
         and STUDIO_LAYOUTS["document"]["mode"] == "flow",
     )
     _check(
-        "the Studio type set is exactly three (ADR-489 D1)",
+        "the Studio type set is exactly three (ADR-505 D1)",
         set(STUDIO_LAYOUTS) == {"document", "deck", "web"},
     )
     _check(
-        "the retired slugs resolve to `web` but are never OFFERED (ADR-489 D2)",
+        "the retired slugs resolve to `web` but are never OFFERED (ADR-505 D2)",
         canonical_layout_slug("article") == "web"
         and canonical_layout_slug("page") == "web"
         and "article" not in all_layouts()
@@ -106,7 +106,7 @@ def run() -> bool:
         "mode is NOT the geometry seam: web is paged yet reaches no x/y/z",
         # `block-staged` gates position on `.slide` ANCESTRY, not on mode — which
         # is exactly why `web` can share `paged` with `deck` and still have no
-        # coordinate space (ADR-489 D3 / ADR-461 D4: a page has a viewport).
+        # coordinate space (ADR-505 D3 / ADR-461 D4: a page has a viewport).
         all(
             "block-staged" in STUDIO_MEASURES[m]["applies"]
             for m in ("x", "y", "z")
@@ -237,7 +237,7 @@ def run() -> bool:
         in (web / "components/studio/StudioSurface.tsx").read_text(),
     )
 
-    # ── 4. the row band is GONE (ADR-489 D4) ────────────────────────────────
+    # ── 4. the row band is GONE (ADR-505 D4) ────────────────────────────────
     # This section used to assert the gutter's row geometry (rowAt + a 64px left
     # lane). The gutter is deleted on every mode, so the checks INVERT: the block
     # grain's one route is `/` at the caret and the page grain's is New ‹noun›.

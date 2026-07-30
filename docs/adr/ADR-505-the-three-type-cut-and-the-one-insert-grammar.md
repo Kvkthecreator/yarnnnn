@@ -1,4 +1,4 @@
-# ADR-489 — The three-type cut: one medium per type, one insert grammar
+# ADR-505 — The three-type cut: one medium per type, one insert grammar
 
 - **Status**: **Accepted + Implemented** (2026-07-30, operator-ratified through the
   studio-audit discourse — *"i'm underestimating just how far the ramifications of these

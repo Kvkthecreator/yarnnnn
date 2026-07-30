@@ -68,8 +68,8 @@ def run() -> bool:
     # ADR-459 D3: the kernel SEEDS the universal shapes; it does not BOUND the
     # set. `⊇` not `==` — a bundle shipping a fourth (alpha-trader's `tearsheet`)
     # must not turn this red (ADR-222: programs ship the templates).
-    # ADR-489 D1: the seeded set is THREE — document · deck · web.
-    _check("kernel seeds 3 layouts: document/deck/web (ADR-489 D1)",
+    # ADR-505 D1: the seeded set is THREE — document · deck · web.
+    _check("kernel seeds 3 layouts: document/deck/web (ADR-505 D1)",
            set(STUDIO_LAYOUTS) >= {"document", "deck", "web"})
     for slug, lay in STUDIO_LAYOUTS.items():
         _check(f"layout '{slug}': label/description/flow/skin/scaffold complete",

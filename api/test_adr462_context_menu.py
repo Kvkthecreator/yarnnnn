@@ -85,7 +85,7 @@ def main() -> bool:
         and "type: 'yarnnn-context-menu'," in proj,
     )
     _check(
-        # ADR-489 D4 deleted the gutter, so the format bar is the only injected
+        # ADR-505 D4 deleted the gutter, so the format bar is the only injected
         # chrome left to exempt (plus the add-here button on paged).
         "injected chrome keeps its own menu (the format bar is not the page)",
         "t.closest('.yarnnn-fmt')" in proj and ".yarnnn-gutter" not in proj,
@@ -135,7 +135,7 @@ def main() -> bool:
         in proj,
     )
     _check(
-        # The drop-line was the example; it died with the ⋮⋮ drag (ADR-489 D4).
+        # The drop-line was the example; it died with the ⋮⋮ drag (ADR-505 D4).
         # The invariant survives on the chrome that remains: one accent custom
         # property, never a scattered literal (ADR-482 D4).
         "transient gesture chrome rides ONE accent property, not literals",

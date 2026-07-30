@@ -826,7 +826,7 @@ export function pasteBlock(
  *  or just before its current next sibling) returns null so no empty revision
  *  lands.
  *
- *  MODULE-INTERNAL since ADR-489 D4: this was the drop handler for the `⋮⋮`
+ *  MODULE-INTERNAL since ADR-505 D4: this was the drop handler for the `⋮⋮`
  *  drag, which is deleted. Its one remaining caller is `moveBlock` (the menu's
  *  Move up/down), which expresses the accessible verb on top of it. Kept
  *  un-exported so the general form cannot grow a second caller without a

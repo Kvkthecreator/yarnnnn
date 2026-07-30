@@ -104,7 +104,7 @@ def run() -> bool:
         "function bindGesture(handle, subject, opts)" in proj,
     )
     _check(
-        # ADR-489 D4 deleted bindDrag (the ⋮⋮ reorder), which was the FIRST
+        # ADR-505 D4 deleted bindDrag (the ⋮⋮ reorder), which was the FIRST
         # caller. The primitive still earns its keep on the remaining callers —
         # that is the point of having extracted it, and this check now proves
         # the extraction survived losing its original client.
@@ -311,7 +311,7 @@ def run() -> bool:
     # framed -> handles, flowing -> gutter. The gutter's own row hit-test skips
     # any framed block (a placed thing has no row to be inserted between).
     _check(
-        # Was: "a framed block gets no gutter". The gutter is deleted (ADR-489
+        # Was: "a framed block gets no gutter". The gutter is deleted (ADR-505
         # D4) so the gate has ONE consumer now — handles — and the invariant it
         # protects is that `isMeasurable` stays the single frame question.
         "the frame gate is a single function, asked once (isMeasurable)",
