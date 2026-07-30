@@ -455,15 +455,11 @@ All other appearances of retired terms — prompts, active architecture docs, ne
 
 ---
 
-## Product promise (canonical one-liner)
+## Product promise (pointer — ADR-508)
 
-Every external-facing statement of what YARNNN is must be traceable to one of the two phrasings below. Other copy may riff on these for voice variation, but the substance must be preserved.
+> **Replaced 2026-07-30 (ADR-508 D4).** This section previously carried its own one-liner (*"Describe your work. Create the agents that do it."*) — a duplicate home for the product sentence, several generations stale. Duplicate homes are the seven-one-liners failure mode (ESSENCE v16); this one is deleted, not updated.
 
-**Primary:** *Describe your work. Create the agents that do it.*
-
-**Secondary (short form):** *Your work, your agents.*
-
-These replace the prior canonical one-liner ("Persistent agents with accumulated context do recurring work products for you") in user-facing copy. The prior framing remains valid for internal/architectural contexts where the accumulation mechanism is the point.
+The canonical product sentences live in **exactly one architecture-side place**: [ESSENCE.md §The Canon Sentences](../ESSENCE.md) (four labeled slots — MOAT · PRODUCT · HOOK · RECOGNITION; one sentence per slot, a new candidate replaces, never accumulates). The operator-ratified source of truth behind them is the live GTM canon lock ([CANON-LOCK-2026-07-30](../working_docs/strategy/CANON-LOCK-2026-07-30.md), working canon). This pointer is **non-normative**: kernel canon never depends on the GTM canon (ADR-508 D1); where the GTM depends on a kernel guarantee, that guarantee is an explicit invariant ADR (ADR-504 is the template).
 
 ---
 
