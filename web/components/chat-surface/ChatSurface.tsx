@@ -96,10 +96,6 @@ export function ChatSurface() {
   const [data, setData] = useState<LaneData | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  // ADR-492 D6.e — the conversation header hosts the conversation-level acts
-  // ("Keep this"); LanePanel portals its action in here so the header stays a
-  // single row and the transcript gets no extra ruled section.
-  const [laneActionsEl, setLaneActionsEl] = useState<HTMLDivElement | null>(null);
   // D4 — the FILTER facet (null = all lanes, the default view). ADR-460: it
   // filters by WHO you talked to, not by which engine ran — the last
   // spec-sheet surface in chat, re-axed. A lane with no agent (pre-registry,
@@ -829,7 +825,6 @@ export function ChatSurface() {
                   : null
               }
               onOpenDetails={() => setParam({ detail: 'participants' })}
-              actionsRef={setLaneActionsEl}
             />
             <LanePanel
               key={activeLane.id}
@@ -848,7 +843,6 @@ export function ChatSurface() {
               principalLabels={Object.fromEntries(
                 people.map((p) => [p.principal_id, p.label]),
               )}
-              actionsContainer={laneActionsEl}
               suggestions={deriveSuggestions}
               // Phase-A hygiene: the first turn auto-names a default-named
               // lane server-side; reflect it in the list + header.

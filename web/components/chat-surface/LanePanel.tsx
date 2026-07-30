@@ -40,12 +40,10 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { useAutoResize, COMPOSER_MAX_PX } from '@/hooks/useAutoResize';
 import {
   ArrowUp,
   Check,
-  NotebookPen,
   Copy,
   FileText,
   ImageIcon,
@@ -176,11 +174,6 @@ interface LanePanelProps extends LaneMountSlots {
   /** Phase-A attachments: may this lane's model receive images? (LANE_MODELS
    *  vision flag — the server guards regardless; this gates the affordance.) */
   visionCapable?: boolean;
-  /** ADR-492 D6.e — a host element in the mount's own header row for the
-   *  conversation-level acts ("Keep this"). When provided, the act portals
-   *  there (one header row, no extra ruled section); absent, LanePanel
-   *  renders its own slim action row (drawer/panel mounts). */
-  actionsContainer?: HTMLElement | null;
 }
 
 export function LanePanel({
@@ -197,7 +190,6 @@ export function LanePanel({
   artifactWrite = 'card',
   onLaneRenamed,
   visionCapable = true,
-  actionsContainer,
 }: LanePanelProps) {
   const [messages, setMessages] = useState<LaneMessage[]>([]);
   const [input, setInput] = useState('');
@@ -209,12 +201,6 @@ export function LanePanel({
   const abortRef = useRef<AbortController | null>(null);
   const [editing, setEditing] = useState<{ id: string; original: string } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  // Settle (ADR-457 D3): the "keep this" act + the note it lands. `settled`
-  // holds the landed note so the moment is SHOWN, not toasted away — this is
-  // the on-screen instant where episodic becomes cumulative, and a toast that
-  // vanishes is exactly the wrong shape for it.
-  const [settling, setSettling] = useState(false);
-  const [settled, setSettled] = useState<{ path: string; title: string } | null>(null);
   // Phase-A attachments: composer chips (upload → send as turn refs).
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -552,21 +538,6 @@ export function LanePanel({
     abortRef.current?.abort();
   }, []);
 
-  /** "Keep this" — settle the conversation into record (ADR-457 D3).
-   *  Fires only from the member's click: a settle is a gesture, never ambient. */
-  const settle = useCallback(async () => {
-    setSettling(true);
-    setError(null);
-    try {
-      const res = await api.lanes.settle(laneId);
-      setSettled({ path: res.path, title: res.title });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not settle this conversation');
-    } finally {
-      setSettling(false);
-    }
-  }, [laneId]);
-
   const startEdit = useCallback((m: LaneMessage) => {
     setEditing({ id: m.id, original: m.content });
     setInput(m.content);
@@ -586,40 +557,11 @@ export function LanePanel({
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      {/* "Keep this" (ADR-457 D3 settle) — a labeled, conversation-level act
-          (ADR-492 D6.e, operator-ruled 2026-07-28): it acts ON the whole
-          conversation, so it lives in the conversation header (portaled into
-          the mount's header row when the mount hosts one), never on the
-          composer. The unlabeled composer bookmark proved illegible — the
-          verb stays, the bookmark costume goes. Hidden until there is
-          something to keep. */}
-      {messages.length > 0 &&
-        (() => {
-          const keepButton = (
-            <button
-              type="button"
-              onClick={() => void settle()}
-              disabled={sending || settling}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-border text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-colors"
-              aria-label="Keep this — settle the conversation into a note in your files"
-              title="Distill this conversation into a note in your files"
-            >
-              {settling ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <NotebookPen className="w-3.5 h-3.5" />
-              )}
-              Keep this
-            </button>
-          );
-          return actionsContainer ? (
-            createPortal(keepButton, actionsContainer)
-          ) : (
-            <div className="flex items-center justify-end px-3 pt-2 shrink-0">
-              {keepButton}
-            </div>
-          );
-        })()}
+      {/* ADR-506: the "Keep this" (settle) act is DELETED. The pipeline it was
+          the middle of (think → settle → make) is retired for think ⇄ make, and
+          a member who wants a conversation kept now simply asks — the lane's
+          WriteFile + the conventions' placement/citation/format teaching absorb
+          it, with no dedicated button, route or metered verb. */}
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
         {loading && (
           <div className="text-xs text-muted-foreground py-6 text-center">
@@ -867,31 +809,6 @@ export function LanePanel({
             </div>
           );
         })}
-        {/* The settled note (ADR-457 D3) — the felt moment: the conversation
-            BECOMES a thing that stays. It lands at the transcript's end, in the
-            same ArtifactCard the lane's own writes use (a .md note is chat's
-            own material, so the card renders it inline — you SEE what you kept,
-            you don't get told it happened). Dismissible, not sticky: the note
-            is in the commons now; this frame is just the moment. */}
-        {settled && (
-          <div className="rounded-md border border-border bg-muted/30 p-2 space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <NotebookPen className="w-3 h-3" />
-                Kept — this conversation is now record
-              </span>
-              <button
-                type="button"
-                onClick={() => setSettled(null)}
-                className="p-0.5 rounded hover:bg-muted hover:text-foreground transition-colors"
-                aria-label="Dismiss"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-            <ArtifactCard path={settled.path} verb="WriteFile" attribution="you" />
-          </div>
-        )}
         {error && (
           <div className="text-xs text-destructive text-center">{error}</div>
         )}

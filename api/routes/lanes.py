@@ -1245,94 +1245,6 @@ async def patch_member_agent(slug: str, req: CreateAgentRequest, auth: UserClien
     return await _write_member_agent(req, auth, slug=slug, verb="updated")
 
 
-@router.post("/lanes/{lane_id}/settle")
-async def settle_lane_route(lane_id: str, auth: UserClient) -> dict:
-    """"Keep this" — turn this conversation into record (ADR-457 D3).
-
-    The member's gesture, NOT a model capability: it fires only on this call
-    (the never-ambient invariant), and the lane's model is the transport, not
-    the actor. Deliberately not a primitive — in CHAT_PRIMITIVES a model could
-    settle its own conversation unasked.
-
-    One bounded turn distills; the KERNEL places (ADR-457 D4), cites
-    (ADR-448/423), embeds (the retrieval fix), and meters (falsifier 2's
-    instrument). Returns the landed note so the FE can show the moment.
-    """
-    lane = _get_lane(auth, lane_id)
-    lane_meta = (lane.get("context_metadata") or {}).get("lane") or {}
-
-    from services.lane_runner import LANE_MODELS, unpriced_lane_model
-    from services.model_router import model_router_enabled
-    from services.settle import settle_lane
-
-    if not model_router_enabled():
-        raise HTTPException(status_code=503, detail="the model router is not enabled")
-    model = lane_meta.get("model") or ""
-    if model not in LANE_MODELS:
-        raise HTTPException(status_code=422, detail=f"lane model not routable: {model}")
-    # ADR-439 §4 — the PRE-CALL check: an unpriced model never routes in prod.
-    if unpriced_lane_model(model):
-        raise HTTPException(
-            status_code=422,
-            detail="this model has no billing rate configured and cannot run (ADR-439 §4)",
-        )
-
-    # THE draw gate (ADR-445 §9 closed / ADR-491 Phase 3) — a settle is one
-    # bounded costed turn; gate before it launches.
-    from services.platform_limits import check_draw
-    draw_ok, draw_reason, _draw_detail = check_draw(
-        auth.client,
-        auth.user_id,
-        workspace_id=getattr(auth, "workspace_id", None),
-        principal_id=getattr(auth, "principal_id", None) or auth.user_id,
-    )
-    if not draw_ok:
-        raise HTTPException(
-            status_code=402,
-            detail=(
-                "This workspace's balance is exhausted — top up to continue."
-                if draw_reason == "balance_exhausted"
-                else "You've reached your spend cap on this workspace — ask the owner to raise it."
-            ),
-        )
-
-    # The conversation as THIS PARTICIPANT may read it, oldest-first. A settle
-    # reads the whole of their window rather than the cost-capped turn window
-    # (_fetch_history caps at _HISTORY_WINDOW; settling half a conversation
-    # would distill half an understanding) — but "the whole thing" is bounded by
-    # the ADR-495 D2 window, not by the transcript.
-    #
-    # THE DISCLOSURE DEFECT THIS CLOSES (audited 2026-07-30): this read had no
-    # floor clamp while every sibling read has one (`lane_messages`,
-    # `_fetch_history`, `search_lanes`). A member invited at "from now" could
-    # settle and have the model distill turns from BEFORE their window into a
-    # durable, cited workspace file they then read at their leisure — the window
-    # made cosmetic by the one read that ignored it. `_get_lane` already put the
-    # floor on the row; using it is the whole fix.
-    floor = int(lane.get("_visible_from_sequence") or 0)
-    msgs = (
-        auth.client.table("session_messages")
-        .select("role, content, sequence_number")
-        .eq("session_id", lane_id)
-        .gte("sequence_number", floor)
-        .order("sequence_number")
-        .execute()
-    ).data or []
-
-    try:
-        result = await settle_lane(
-            auth,
-            lane_id=lane_id,
-            lane_meta=lane_meta,
-            messages=[{"role": m["role"], "content": m.get("content") or ""} for m in msgs],
-            member_label=getattr(auth, "email", None) or None,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
-
-    return result
-
-
 @router.patch("/lanes/{lane_id}")
 async def patch_lane(lane_id: str, req: LanePatchRequest, auth: UserClient) -> dict:
     """Phase-A hygiene: rename + pin. lane_meta-only writes."""
@@ -1427,10 +1339,10 @@ async def archive_lane(lane_id: str, auth: UserClient) -> dict:
     summary on the way out (reusing the steward's session-summary machinery)
     so the lane's work is legible after it leaves the active list."""
     lane = _get_lane(auth, lane_id)
-    # ADR-495 D2 — the archiver summarizes only what THEY may read. Same
-    # unclamped-read defect as `settle` (audited 2026-07-30): the summary is
-    # durable and shown to the cast, so distilling pre-window turns into it
-    # leaks them exactly as a settle would.
+    # ADR-495 D2 — the archiver summarizes only what THEY may read. The
+    # unclamped-read defect this guards was first audited on the retired
+    # `settle` verb (2026-07-30, ADR-506): the summary is durable and shown to
+    # the cast, so distilling pre-window turns into it would leak them.
     floor = int(lane.get("_visible_from_sequence") or 0)
 
     # Best-effort summary — never block archive on it.
@@ -1523,8 +1435,8 @@ async def add_conversation_participant(
     """Add a participant — human or Agent, one mechanism (ADR-495 D3).
 
     Adding a participant grants them read access from their window forward.
-    That is the whole act: no scope flip, no fork, no metered settle, no second
-    conversation.
+    That is the whole act: no scope flip, no fork, no metered distillation, no
+    second conversation.
     """
     from services.conversation_cast import add_participant, list_participants
 

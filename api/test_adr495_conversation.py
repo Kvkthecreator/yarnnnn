@@ -104,11 +104,11 @@ def test_window_is_enforced_at_every_read() -> None:
     `session_messages` must clamp to the acting participant's window.
 
     THIS TEST USED TO COUNT: it asserted `.gte("sequence_number"` appeared >= 2
-    times in the file. Two reads (`settle_lane_route`, `archive_lane`) had NO
-    clamp and it passed anyway — the count was satisfied by the reads that were
-    already correct, so the gate was blind to exactly the defect it existed to
-    catch (audited 2026-07-30: a member invited "from now" could settle and have
-    pre-window turns distilled into a durable file). An aggregate count cannot
+    times in the file. Two reads (the since-deleted `settle_lane_route`, and
+    `archive_lane`) had NO clamp and it passed anyway — the count was satisfied
+    by the reads that were already correct, so the gate was blind to exactly the
+    defect it existed to catch (audited 2026-07-30: a member invited "from now"
+    could distil pre-window turns into a durable file). An aggregate count cannot
     defend a per-call-site invariant.
 
     So it now walks the AST and checks EACH reader by name. A new function that
@@ -156,7 +156,9 @@ def test_window_is_enforced_at_every_read() -> None:
     # renames or merges them, this fails loudly rather than silently checking
     # an empty set — the "0 of 0 passed" failure mode.
     for name in (
-        "lane_messages", "_fetch_history", "settle_lane_route", "archive_lane",
+        # ADR-506 deleted `settle_lane_route`; `archive_lane` inherits the same
+        # unclamped-read defect class the settle audit first found (2026-07-30).
+        "lane_messages", "_fetch_history", "archive_lane",
         "lane_turn", "regenerate_lane_turn",
     ):
         _assert(name in readers, f"{name} is a transcript reader the gate can see")
@@ -251,7 +253,7 @@ def test_no_fork_no_settle_on_invite() -> None:
     code = "\n".join(
         ln for ln in add_block.splitlines() if not ln.strip().startswith(("#", '"""', "*", '"'))
     )
-    _assert("settle_lane" not in code, "no settle is invoked on invite")
+    _assert("settle_lane" not in code, "no distillation is invoked on invite")
     _assert("check_draw" not in code, "no draw gate — an invite is not a billable act")
     _assert(
         'table("chat_sessions").insert' not in code,

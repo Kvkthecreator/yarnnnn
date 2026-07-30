@@ -103,7 +103,7 @@ def main() -> int:
     print("\n[coverage] every costed member-facing entry calls check_draw")
     ENTRIES = [
         ("routes/feed.py", "the addressed steward turn"),
-        ("routes/lanes.py", "lane turns + regenerate (via _turn_stream_response) + settle"),
+        ("routes/lanes.py", "lane turns + regenerate (via _turn_stream_response)"),
         ("routes/studio.py", "the arrangement plan (costed judgment)"),
         ("routes/images.py", "compose (planning + per-image engine cost)"),
     ]
@@ -112,11 +112,15 @@ def main() -> int:
         n = len(re.findall(r"check_draw\(", src))
         check(f"{rel} gates with check_draw ({why})", n >= 1, "no check_draw call")
 
-    # lanes has TWO gate sites (the turn core + settle) — assert both so a
-    # future refactor can't silently drop one.
+    # lanes gates ONCE, at the turn core — and that is the invariant worth
+    # asserting: every metered path in the file funnels through the one site
+    # (streaming + regenerate both reach it via _turn_stream_response). ADR-506
+    # deleted the second site with the `settle` verb, so "gates at both" would
+    # now be a gate defending a path that no longer exists; what must never
+    # happen is a metered path added AROUND this one.
     lanes_src = (root / "routes/lanes.py").read_text()
-    check("lanes.py gates at BOTH the turn core and settle",
-          len(re.findall(r"check_draw\(", lanes_src)) >= 2)
+    check("lanes.py gates the turn core (the file's one metered choke point)",
+          len(re.findall(r"check_draw\(", lanes_src)) >= 1)
 
     # Singular Implementation: feed.py runs the ONE gate, not the two parts.
     feed_src = (root / "routes/feed.py").read_text()

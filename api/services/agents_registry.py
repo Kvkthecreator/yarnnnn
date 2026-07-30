@@ -64,10 +64,15 @@ logger = logging.getLogger(__name__)
 #:   REASON  (turn state into judgment)   → Thinker
 #:   PRODUCE (land authored revisions)    → Designer
 #: That is THREE — not four. The fourth operation, DERIVE (make sense of what
-#: came in, cited), is REAL but UN-ADDRESSED: it is the `settle` GESTURE
-#: (POST /lanes/{id}/settle), not a colleague you talk to — so it is not an
-#: agent (see the module's "Postures" section for where Critic went, and
-#: settle.py for the gesture). "Image maker" is not a fourth agent either: it is
+#: came in, cited), is REAL but not a COLLEAGUE: it is something you ASK for
+#: inside a conversation ("keep this as a note on the deal"), served by the
+#: lane's own WriteFile + the conventions' placement/citation teaching — so it is
+#: not an agent (see the module's "Postures" section for where Critic went).
+#: *(Until ADR-506 this named the dedicated `settle` gesture + its route. The
+#: gesture is deleted — the pipeline it was the middle of retired — and DERIVE is
+#: now un-addressed in the stronger sense: no verb at all, just an ask. The
+#: roster argument is unchanged and slightly cleaner: DERIVE was never a seat.)*
+#: "Image maker" is not a fourth agent either: it is
 #: a MODALITY of Designer's make (Axis-1 output-shape thinking, the first axis
 #: the codebase abandoned — AGENT-TAXONOMY §4).
 #:
@@ -148,7 +153,7 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
     # being misread. (A `bound_only` field lived here for one commit and was
     # removed the same day — see AGENT_ROW_KEYS.)
     #
-    # This row is why the deck in a Studio lane can be settled as "Maya made it"
+    # This row is why the deck in a Studio lane is attributed "Maya made it"
     # rather than "gemini-2.5-flash made it": the attribution the member reads
     # is a person, and the ledger underneath still says `member:{id} via {model}`
     # (ADR-460 D2 — the face is an Agent, the fact is your hands).
@@ -229,8 +234,9 @@ AGENT_ROW_KEYS = frozenset(
 # So Critic moves here. It STAYS on the roster — a member reaches for "break
 # this" as readily as "think this" — but it is structurally a posture over a base
 # agent (`based_on`), never a fourth operation. The next "should we add X?" is
-# then asked correctly: is X an addressed OPERATION (a base row), an un-addressed
-# GESTURE (settle), or a POSTURE over an operation (a row here / a member skill)?
+# then asked correctly: is X an addressed OPERATION (a base row), something a
+# member just ASKS FOR mid-conversation (no seat, no verb — DERIVE's shape since
+# ADR-506), or a POSTURE over an operation (a row here / a member skill)?
 #
 # THE SHAPE IS A MEMBER AGENT'S, KERNEL-SIDE. A posture is `based_on` a base
 # agent + a stance (its own `posture` text) + optionally its own engine — which

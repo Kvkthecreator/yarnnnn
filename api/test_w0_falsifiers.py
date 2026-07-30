@@ -114,16 +114,32 @@ def run() -> bool:
         "session_id=lane_id," in routes,
     )
 
-    print("\n── 3. falsifier 2 — the pre-settle distinction (why W0 is first) ──")
+    print("\n── 3. falsifier 2 — RETIRED, and read before removal (ADR-506) ──")
 
     src = (Path(__file__).parent / "services" / "falsifiers.py").read_text()
+    # The instrument is gone with the bet it measured (the think→settle→make
+    # pipeline). What this gate now protects is the DISCIPLINE: a falsifier is
+    # not deleted silently — its reading at deletion stays on the record, and it
+    # must say honestly that it did NOT fire on its own terms (4 settles, most
+    # recent 6 days prior = low adoption, not abandonment). A tombstone that
+    # claimed the verdict it never earned would be worse than no tombstone.
     _check(
-        "falsifier 2 reports `staged` (verb-exists) separately from `settles` (count)",
-        '"staged": ever > 0' in src and '"settles": settles' in src,
+        "falsifier 2 is retired, not silently dropped (the tombstone is present)",
+        "FALSIFIER 2 IS RETIRED" in src
+        and "def falsifier_2_settle_adoption(" not in src,
     )
     _check(
-        "…and says so in its own note (a zero pre-settle is not non-adoption)",
-        "is NOT " in src and "evidence of non-adoption" in src,
+        "…and the tombstone records the READING and the honest verdict",
+        "READ\n# BEFORE REMOVAL" in src or "READ BEFORE REMOVAL" in src
+        or "READ\n# BEFORE" in src,
+    )
+    _check(
+        "…and states the retirement was STRUCTURAL, not an adoption verdict",
+        "retired STRUCTURALLY" in src and "LOW ADOPTION, not abandonment" in src,
+    )
+    _check(
+        "falsifiers 1 + 3 survive (the desk-vs-hum thesis ADR-506 preserves)",
+        "def falsifier_1_surface_mix(" in src and "def falsifier_3_hum_vs_desk(" in src,
     )
 
     print("\n── 4. falsifier 3 needs no session_id (a different table) ──")

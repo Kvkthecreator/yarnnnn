@@ -58,8 +58,6 @@ interface ConversationHeaderProps {
   agentSlug?: string | null;
   /** Open the participants/details drill-in. */
   onOpenDetails: () => void;
-  /** Portal target for conversation-level acts ("Keep this"). */
-  actionsRef?: (el: HTMLDivElement | null) => void;
 }
 
 /** Stacked faces, newest behind — the conventional group avatar. */
@@ -95,7 +93,6 @@ export function ConversationHeader({
   participantCount,
   agentSlug,
   onOpenDetails,
-  actionsRef,
 }: ConversationHeaderProps) {
   const identity = (
     <>
@@ -149,8 +146,6 @@ export function ConversationHeader({
       )}
 
       <div className="ml-auto flex items-center gap-1 shrink-0">
-        {/* Conversation-level acts land here (portal target). */}
-        <div ref={actionsRef} className="flex items-center" />
         <button
           type="button"
           onClick={onOpenDetails}

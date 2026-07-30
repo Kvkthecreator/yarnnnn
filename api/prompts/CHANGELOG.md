@@ -24,6 +24,44 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.30.2] - The settle verb is deleted; distillation is an ASK (ADR-506)
+
+### Removed
+- `services/settle.py` — DELETED (380 LOC). It carried its own LLM-facing
+  distillation prompt (the transcript → note posture) and the bounded one-turn
+  contract. With the `think → settle → make` pipeline superseded by `think ⇄ make`
+  (ADR-506 D2), the verb has no seat: distillation is now something a member ASKS
+  for inside a conversation.
+- `POST /lanes/{lane_id}/settle` and the FE "Keep this" act (ADR-506 D3).
+
+### Changed
+- `services/agents_registry.py` — the base-roster derivation is re-cut. It
+  justified three base agents by DERIVE being "REAL but UN-ADDRESSED: the
+  `settle` GESTURE (POST /lanes/{id}/settle)". The argument gets *stronger*:
+  DERIVE is now un-addressed in the fuller sense — no verb at all, just an ask —
+  so it was never a seat. LLM-facing only insofar as the module's posture prose
+  is read by the roster; the agent rows themselves are unchanged.
+- Expected behavior: **no envelope change is needed, and none was made.** Verified
+  against the live surface rather than assumed — `lane_tools_openai()` declares
+  `WriteFile` with `derived_from` in its schema, `PARTICIPANT_FILESYSTEM_MODEL`
+  teaches placement ("Documents", meaning-folders, "you don't ask permission to
+  name a new folder"), and `build_lane_conventions` teaches read-before-write,
+  `derived_from` citation, `member via model` attribution and `.md` format. So
+  "save this as a note on the deal" is served by the tools the lane already holds.
+  `revision_kind` is not model-settable and does not need to be: the write door
+  defaults it to `derivation` when `derived_from` is present (ADR-448).
+
+### Known gap (noted, not closed — ADR-506 D4)
+- A lane's `WriteFile` does **not** embed. Per ADR-321 embedding is the explicit
+  `Embed` primitive, which is not in the lane's tool surface (and cannot be added
+  there — `LANE_SURFACE_EXTRA` additions must be in `READ_ONLY_PRIMITIVES`). So an
+  asked-for note is attributed, versioned and well-placed but **not retrievable by
+  `recall`/`QueryKnowledge`** until embedding is decided. This is PRE-EXISTING and
+  general (every lane write, since ADR-321); settle was the only lane-adjacent
+  writer that opted in, so its removal uncovers the hole rather than digging it.
+  Deliberately deferred — auto-embedding member-lane prose is an ADR-321 reversal
+  and must not ride a framing commit.
+
 ## [2026.07.30.1] - The three-type cut: document · deck · web (ADR-505)
 
 ### Changed

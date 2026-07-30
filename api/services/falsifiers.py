@@ -15,11 +15,11 @@ execution_events + session counts" is half right):
      "a lane with a binding is a studio lane"), and `session_id` is the join
      key that reconnects them.
 
-  2. settle unused              →  execution_events (the settle slug)
-     Needs the verb to exist. Pre-settle this reports staged=False — the
-     explicit "the verb does not exist yet" signal, so a zero can never be
-     misread as rejection. An unbuilt verb reads null; null is not evidence
-     of non-adoption.
+  2. settle unused              →  RETIRED (ADR-506, 2026-07-30)
+     Read before removal — the discipline this module exists for. It did NOT
+     fire on its own terms (4 settles, most recent 6 days prior: low adoption,
+     not abandonment); the verb was retired STRUCTURALLY when the
+     think→settle→make pipeline became think⇄make. See the tombstone below.
 
   3. MCP ≫ desk                 →  workspace_file_versions.authored_by
      Works TODAY, no dependency on 216: `yarnnn:mcp:*` (the hum) vs
@@ -144,57 +144,24 @@ def falsifier_1_surface_mix(
     }
 
 
-def falsifier_2_settle_adoption(
-    client: Any, workspace_id: str, days: int = 90, settle_slug: str = "settle"
-) -> dict:
-    """D8 falsifier 2 — "the settle verb goes unused after honest staging →
-    the compounding moment is not felt; GTM must not lead with it".
-
-    FIRES WHEN: staged is True and settles stay ~0 across the window.
-
-    PRE-SETTLE this returns settles=0, staged=False. That distinction is the
-    entire point of building this before the verb: an unbuilt verb reads zero,
-    and zero would otherwise be indistinguishable from "shipped and ignored" —
-    which is exactly what this falsifier fires on.
-    """
-    since = _window_start(days)
-
-    settles = len((
-        client.table("execution_events")
-        .select("id")
-        .eq("workspace_id", workspace_id)
-        .eq("slug", settle_slug)
-        .gte("created_at", since)
-        .execute()
-    ).data or [])
-
-    # Has the verb EVER fired? (all-time, not windowed — "staged" is about
-    # existence, not recent use.)
-    ever = len((
-        client.table("execution_events")
-        .select("id")
-        .eq("slug", settle_slug)
-        .limit(1)
-        .execute()
-    ).data or [])
-
-    mix = falsifier_1_surface_mix(client, workspace_id, days)
-    think_turns = mix["turns_by_surface"][SURFACE_THINK]
-
-    return {
-        "falsifier": 2,
-        "question": "is the settle verb used after honest staging?",
-        "window_days": days,
-        "staged": ever > 0,
-        "settles": settles,
-        "think_turns": think_turns,
-        # The rate at which thinking becomes record — the compounding signal.
-        "settles_per_think_turn": (settles / think_turns) if think_turns else None,
-        "note": (
-            "staged=False → the verb does not exist yet; a zero here is NOT "
-            "evidence of non-adoption"
-        ),
-    }
+# FALSIFIER 2 IS RETIRED (ADR-506, 2026-07-30).
+#
+# It asked "is the settle verb used after honest staging?" — and it was READ
+# BEFORE REMOVAL, which is the point of having built it. The reading at deletion
+# (prod, 2026-07-30): staged=True, settles=4 all-time, most recent 6 days prior.
+# That is LOW ADOPTION, not abandonment, and 4 events by one dogfooding operator
+# does not clear the "stay ~0 across the window" bar. So the verb was NOT retired
+# on this instrument's verdict.
+#
+# It was retired STRUCTURALLY: ADR-506 replaced the `think -> settle -> make`
+# pipeline with `think <-> make` over an open set of acts, and settle had no seat
+# once the middle term was gone. The usage data supports that reading rather than
+# the adoption one — 3 of the 4 settles were records of a make that had ALREADY
+# happened (the arrow ran make -> settle), which is the pipeline being wrong, not
+# the verb being ignored.
+#
+# The instrument dies with the bet it measured. Falsifiers 1 and 3 stand: both
+# test the desk-vs-hum investment thesis (ADR-457 D5), which ADR-506 preserves.
 
 
 def falsifier_3_hum_vs_desk(
@@ -250,6 +217,5 @@ def read_all(client: Any, workspace_id: str, days: int = 90) -> dict:
         "window_days": days,
         "read_at": datetime.now(timezone.utc).isoformat(),
         "falsifier_1": falsifier_1_surface_mix(client, workspace_id, days),
-        "falsifier_2": falsifier_2_settle_adoption(client, workspace_id, days),
         "falsifier_3": falsifier_3_hum_vs_desk(client, workspace_id, days),
     }

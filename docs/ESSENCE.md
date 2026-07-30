@@ -7,6 +7,7 @@
 **v14.1 amendment** (2026-06-10, ADR-332): the cumulative asset's world-facing half — the workspace also accumulates the declared universe's distilled history (the perception field). One paragraph added to Core Thesis.
 **v14.2 amendment** (2026-06-29, ADR-380 §5 + ADR-381): **the vision/moat re-cut.** ADR-380 §5 (operator, 2026-06-29) closed two open items in the conservative direction: **(a) Rung-2 autonomous judgment is scoped OUT of the vision** — the vision is the **multi-principal substrate commons + Freddie (the context-management OS)**: the substrate floor (Rung 0) operated by humans and external agents, stewarded by **Freddie** (Rung 1, the 1st-order substrate steward); the judgment layer (Rung 2 / persona agents taking consequential action) is an **optional future capability, not the destination**; **(b) the moat stays at "durable attributed memory" with `trace`/provenance (the walkable revision chain) named as its defensible core** — NOT re-framed to the commons-altitude, NOT led by the judgment seat. **This reverses v14.0's "the judgment seat leads" external posture** (line 6/145): the external lead is now the **authored, attributed, portable substrate + `trace`** (the proven, defensible, red-ocean-surviving core); the judgment seat is named as the future Rung-2 deepening, not the systemic moat. **management role renamed Reviewer → Freddie** (asset/labor/**Freddie**/dividends) per [ADR-381](adr/ADR-381-freddie-the-rung-1-substrate-steward.md) D1 — a relabel-keep-slug (the internal `reviewer` slug + `reviewer:` prefix + `/workspace/persona/` path unchanged; ADR-251 precedent). See [ADR-380](adr/ADR-380-the-activation-ladder-and-the-judgment-deferral-line.md) §5 + [ADR-381](adr/ADR-381-freddie-the-rung-1-substrate-steward.md) + the [two-order direction](analysis/freddie-as-the-workspace-agent-and-the-two-order-agent-model-2026-06-27.md).
 **v15.0 amendment** (2026-07-07, [ADR-414](adr/ADR-414-the-pure-workspace-genesis-system-agent-program-as-hire.md) D1): **the moat re-cut — position over feature.** The prior statement ("the authored, attributed, portable substrate — defended by `trace`") named the artifact, not the position; §The Moat is rewritten to the ratified form: **YARNNN is the system of record where human and AI work settles** — the invocation contract (ADR-413: projection in, attributed revision out, one ledger) is the moat's *mechanism*; the engines are fungible precisely because the memory is not; portability/attribution/accumulation are the three wedges; **`trace` is the proof surface, not the moat**; and the moat is **anti-fragile to model churn** (every new frontier engine makes the vendor-neutral commons more necessary). No strategy change — the ADR-380 §5 conservative lead (substrate commons + Freddie; judgment defers) stands; the wording catches up to the architecture ADR-413 already made true. Companion: programs are re-cut as **Altitude-3 hires** (ADR-414 D5) — a program installs a persona agent with its own home; it never re-persons the steward; Layer-2 prose below reads through that lens.
+**v18.0 amendment** (2026-07-30, [ADR-506](adr/ADR-506-the-acts-are-open-think-make-perceive.md)): **the acts are open — Think · Make · Perceive, and the pipeline retires.** Operator-ratified through the settle-axiom discourse. v16's two verbs become **three named acts over an OPEN set of apps** (Think→`/chat` · Make→`/studio`,`/images` · Perceive→`/radar`), with the openness stated as the model rather than as a caveat — *"apps can increase and the current list is not hard-fixed; we have a tendency to be current-state assessing when really we need to be expansive."* **The `think → settle → make` pipeline is SUPERSEDED** by `think ⇄ make` (perceive feeding both): the acts are **media** matched to the shape of the work (v16's durable observation, preserved), never stages in a flow. **The `settle` verb is DELETED** — service, route, "Keep this" button, portal chain, gate and metered slug: in live use the arrow ran *backwards* (3 of 4 settles were records of a make that had already happened), and distillation is now something a member simply ASKS FOR inside a conversation, served by the lane's own `WriteFile` + the conventions' placement/citation teaching. Settle also leaves the four staged moments — the surviving three (`trace` · correct-once-inherits · leave-with-everything) are all *demonstrations of the record*, which is what that list was always naming. `/files` (the record's mirror) and Settings (the management plane) are named as **not acts**. The moat statement is UNCHANGED (v15/ADR-414 D1) — "the system of record where human and AI work **settles**" is a property of the record, not a verb. Honest note: ADR-457 D8's falsifier 2 (settle adoption) was **read before removal and did NOT fire** on its own terms (4 settles, most recent 6 days prior = low adoption, not abandonment); the retirement is structural, not an adoption verdict. Falsifiers 1 + 3 stand.
 **v16.0 amendment** (2026-07-14, [ADR-457](adr/ADR-457-think-and-make-the-service-model.md)): **the desk and the record — the product and the moat are two layers.** Operator-ratified through a three-pass discourse (first-principles rederivation → adversarial re-check → live filesystem stress test). The v15 moat statement ("the system of record where human and AI work settles") **stands unchanged as the moat statement** — what v16 adds is the honest separation it always implied: **the record is the moat; the desk is the product.** The felt product is **a desk with two verbs — Think (`/chat`) and Make (`/studio`) — over a commons that remembers**; the ledger is felt at *staged moments* (trace/why · correct-once-everything-inherits · leave-with-everything · **settle**), never as the ambient experience itself — the OS pattern (the filesystem is invisible; the desk and the apps are felt). The era-1 posture (yarnnn as a Dropbox-like hum behind other AIs) is re-cut, not reversed: **the hum was demoted from product identity to product floor** — two doors, one moat (ADR-310) stands; investment priority moves to the desk, reversible against declared falsifiers (ADR-457 D8). New section §The Desk below; "What YARNNN Is Not" re-cut accordingly.
 **v17.0 amendment** (2026-07-29, [CANON-LOCK-2026-07-29](working_docs/strategy/CANON-LOCK-2026-07-29.md), closing [ADR-457](adr/ADR-457-think-and-make-the-service-model.md) §10.3 deferred item 3): **the canon sentences — one sentence per slot.** Two changes, no more. (a) A new §The Canon Sentences installs the four operator-ratified slots (MOAT · PRODUCT · HOOK · RECOGNITION) with audience labels and the maintenance rule *one sentence per slot; a new candidate replaces, never accumulates* — the seven-one-liners-in-one-document failure this rule exists to prevent was this document's own. (b) §Canonical Positioning is re-cut: the ADR-380 §5 substrate-led external lead (*"the authored, portable substrate leads — defended by `trace`"*), which the v16/ADR-457 amendment deliberately left in place pending this pass, is replaced by the locked product sentence and hero (capability forward, ownership in the possessive, the signed clause as the mechanism); the prior seeds move below the line as retired copy. §The Moat, §The Desk, and §What Stays Constant are untouched.
 **v15.1 amendment** (2026-07-13, [ADR-454](adr/ADR-454-the-two-verb-experience-converse-and-make-ambient-steward.md)): **the ambient steward — Freddie's posture resolved.** The product's two acting surfaces are Converse (`/chat`) and Make (`/studio`); Freddie's persona chrome (the summonable rail + FAB) is gated off. **Freddie remains the named management function** — in this narrative, on the brand surfaces (`/freddie`), and above all in the ledger (`freddie:` attribution, "Freddie derived…" activity rows — the derived form of the steward's presence, ADR-410) — but is **never a fronted chat character**: the operator meets Freddie in the record of his work, not in a conversation window. External copy keeps the name and the Rung-1 honesty band (ADR-380 D3) and must not promise an in-product "ask Freddie" chat affordance; the asset/labor/**Freddie**/dividends quad stands unchanged.
@@ -100,31 +101,48 @@ A **program** (alpha-trader, alpha-author, and future programs) is an applicatio
 
 This is where the operation runs in the operator's absence and improves through supervision. It is additive: a Layer-1 operator has portable context; a Layer-2 operator has *judged* portable context plus an operation that runs without them.
 
-## The Desk (v16 — the felt product)
+## The Desk (v18 — the felt product)
 
 The moat above is structural and largely invisible — which is correct and normal for an
 OS-class product: nobody opens a settlement layer to work. The **felt product** is the desk:
 
-> **A desk with two verbs — Think and Make — over a commons that remembers.**
+> **A desk of acts — Think, Make, Perceive — over a commons that remembers.**
 
-- **Think — `/chat`.** Workspace-scoped, grounded, multi-engine dialogue: research, ideation,
-  weighing, deciding — over *your* authored commons rather than a vendor's memory-scrapings. Its
-  defining property is that thinking here **lands**: the settle act distills a conversation's
-  insight into the commons as an attributed, cited, retrievable file — the on-screen moment
-  where episodic becomes cumulative. (Chat also remains the member's hands — file operations,
-  uploads, organizing — as means to the thinking end.)
-- **Make — `/studio`.** Artifact-scoped composition with direct manipulation: documents, decks,
-  pages — shaped by hand and by a bound lane, every edit an attributed revision. *Words for
-  exploring, hands for shaping.*
-- **The pipeline.** The two verbs compose: think → settle → make. Thinking distills into the
-  commons; making learns from the distillates. Multi-user, the same principle reads: *diverge
-  privately, settle publicly.*
+Each act is a **medium**, and each hosts apps. **Neither list is closed** — that openness is
+the model, not a caveat on it (ADR-506 D1):
+
+- **Think — dialogue.** Divergent work has no stable visual state, so its medium is
+  conversation: research, ideation, weighing, deciding — over *your* authored commons rather
+  than a vendor's memory-scrapings. Thinking here **lands**, because everything a lane writes
+  is an attributed revision in the commons. Apps: `/chat`. (Chat also remains the member's
+  hands — file operations, uploads, organizing — as means to the thinking end.)
+- **Make — the artifact.** Convergent work does have a stable visual state, so its medium is
+  direct manipulation: documents, decks, published pages, composed visuals — shaped by hand and
+  by a bound lane, every edit an attributed revision. Apps: `/studio`, `/images`.
+- **Perceive — the world arriving.** Standing attention on declared sources, distilled into
+  briefs the member reads. Apps: `/radar`.
+
+*Words for exploring, hands for shaping, attention for what arrives.*
+
+**There is no pipeline.** The acts compose freely — **think ⇄ make**, with perceive feeding
+both. Work oscillates: you think, you make, you look at what you made, you think again. Nothing
+has to pass through a distillation step to move between acts; the commons is the shared medium,
+and a mandatory verb in the middle was never required for it to work. *(v16 asserted
+`think → settle → make` and shipped `settle` as its middle term; in use the arrow ran
+backwards — three of four real settles were records of a make that had already happened. The
+pipeline and the verb are retired, ADR-506 D2/D3. "Settles" survives where it was always true:
+in the **moat statement** — the system of record where human and AI work settles — which is a
+property of the record, not a stage in a flow.)*
+
+**Two surfaces are deliberately not acts.** `/files` is the **record's mirror** — the moat made
+legible, not a verb. Settings is the **management plane**. Both sit at a different altitude
+than the acts, and calling them verbs would flatten two different things.
 
 The record beneath stays invisible until its **staged moments**: *why is this here* (`trace`),
-*correct once and everything after inherits it*, *leave with everything*, and *settle*. Those
-moments — not the ledger's ambient presence — are how the moat is felt. The interop face (the
-same commons reached from any LLM) remains the second door; the desk is where the product is
-experienced.
+*correct once and everything after inherits it*, and *leave with everything*. Those moments —
+not the ledger's ambient presence — are how the moat is felt; note that all three are
+**demonstrations of the record**, never workflow steps. The interop face (the same commons
+reached from any LLM) remains the second door; the desk is where the product is experienced.
 
 ## The System Shape
 
