@@ -2,6 +2,10 @@
 # The launch-path CURRENT suite is freddie-bare-workspace-steward.yaml (ADR-380/381).
 eval_suite_schema_version: 3
 eval_suite: alpha-trader-stewardship
+
+# DORMANT — DP24 two-sided read intact; blocked on a live hire grant + the same ADR-414 requires: re-point
+# (2026-07-31 eval-layer audit; machine-checked by api/test_eval_suite_gate.py)
+status: dormant
 suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B
 
 # The SELF-IMPROVING half of the alpha-trader product goal (the autonomous-loop

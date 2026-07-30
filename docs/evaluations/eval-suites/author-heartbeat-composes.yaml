@@ -2,6 +2,10 @@
 # The launch-path CURRENT suite is freddie-bare-workspace-steward.yaml (ADR-380/381).
 eval_suite_schema_version: 3
 eval_suite: author-heartbeat-composes
+
+# SUPERSEDED — thesis fired and FALSIFIED 2026-06-23 (2026-06-23-author-heartbeat-FALSIFICATION.md); author-unified-agent-composes explicitly superseded it. Keeping it armed is a dual-path. Do not fire.
+# (2026-07-31 eval-layer audit; machine-checked by api/test_eval_suite_gate.py)
+status: superseded
 suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B
 
 thesis: |

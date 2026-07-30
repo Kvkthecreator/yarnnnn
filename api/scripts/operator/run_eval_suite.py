@@ -130,6 +130,18 @@ def load_suite(path: Path) -> dict:
         )
     if not isinstance(raw["evals"], list) or not raw["evals"]:
         raise SuiteError("Suite manifest 'evals' must be a non-empty list")
+    # 2026-07-31 eval-layer audit: suites carry a machine-readable `status:`.
+    # A superseded suite REFUSES to fire — keeping a falsified/retired thesis
+    # armed is a dual-path (the author-heartbeat suite stayed armed for five
+    # weeks after its own falsification). Dormant suites load normally; their
+    # `requires:` pre-flight is the honest S2 refusal until re-pointed.
+    status = raw.get("status", "current")
+    if status == "superseded":
+        raise SuiteError(
+            f"Suite {raw['eval_suite']!r} is status: superseded — it does not "
+            "fire. See the suite header for the superseding receipt; re-cut "
+            "the manifest (new thesis, new status) if the question returns."
+        )
 
     raw.setdefault("description", "")
     raw.setdefault("budget", {})

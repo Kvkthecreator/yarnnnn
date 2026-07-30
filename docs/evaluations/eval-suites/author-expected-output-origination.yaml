@@ -2,6 +2,10 @@
 # The launch-path CURRENT suite is freddie-bare-workspace-steward.yaml (ADR-380/381).
 eval_suite_schema_version: 3
 eval_suite: author-expected-output-origination
+
+# SUPERSEDED — its single variable (governance/_expected_output.yaml) migrated twice — ->contract/ (ADR-366) then ->agents/{slug}/ (ADR-414); the suite would seed a file nothing reads. Do not fire.
+# (2026-07-31 eval-layer audit; machine-checked by api/test_eval_suite_gate.py)
+status: superseded
 suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B
 
 # The thesis IS the criterion (EVAL-ARCHITECTURE §2.B). Forensic read of the

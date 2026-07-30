@@ -1,5 +1,9 @@
 eval_suite_schema_version: 3
 eval_suite: freddie-bare-workspace-steward
+
+# CURRENT — the launch-path suite; persona + requires repaired by the 2026-07-31 eval-layer audit
+# (2026-07-31 eval-layer audit; machine-checked by api/test_eval_suite_gate.py)
+status: current
 suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B
 
 # The behavioral confirmation for ADR-383 (the consistent agent framework) +
@@ -88,7 +92,7 @@ description: |
   ../2026-07-03-freddie-bare-steward-sonnet-rerun/FINDING.md (all three
   halves hold on the landed ADR-402/403 Sonnet world; sentinel clean).
 
-persona: bare-workspace-steward    # a no-program workspace seeded with the ADR-383 steward defaults
+persona: bare-kernel    # the registered no-program persona (docs/alpha/personas.yaml:434 — program: null, bare forever). "bare-workspace-steward" was never a registry slug; the runner raised at OperatorProxy.from_persona (found by the 2026-07-31 eval-layer audit).
 
 budget:
   per_session_usd: 4.0
@@ -103,7 +107,14 @@ evals:
         contains: steward
       - path: /workspace/persona/principles.md
         contains: intake-placement
-      # And NO program active (bare workspace).
-      - path: /workspace/operation
-        absent_or_empty: true
+      # And NO program active (bare workspace). Asserted via the program-marker
+      # files the bare-steward probe's preflight also checks — `absent:` is a
+      # supported operator; the earlier `absent_or_empty:` on a directory prefix
+      # was NOT supported and silently inverted to must-be-present, permanently
+      # refusing the eval (2026-07-31 audit; check_preconditions now rejects
+      # unknown operators loudly).
+      - path: /workspace/operation/_risk.md
+        absent: true
+      - path: /workspace/operation/authored/_signal.md
+        absent: true
     accumulates: false

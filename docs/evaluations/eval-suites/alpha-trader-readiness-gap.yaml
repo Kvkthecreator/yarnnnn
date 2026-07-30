@@ -2,6 +2,10 @@
 # The launch-path CURRENT suite is freddie-bare-workspace-steward.yaml (ADR-380/381).
 eval_suite_schema_version: 3
 eval_suite: alpha-trader-readiness-gap
+
+# DORMANT — program-neutral thesis, vocabulary clean; blocked on a live alpha-trader hire grant + the requires: autonomy path re-point (agents/{slug}/_autonomy.yaml per ADR-414 D+E-2)
+# (2026-07-31 eval-layer audit; machine-checked by api/test_eval_suite_gate.py)
+status: dormant
 suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B
 
 # The INTENT-OWNERSHIP thesis — the defining probe of "what does the agent do

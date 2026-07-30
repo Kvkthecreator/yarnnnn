@@ -1,8 +1,10 @@
 <!--
   SESSION.md template — the artifact an eval-suite session emits.
-  Canonical shape per EVAL-SUITE-DISCIPLINE.md §6 (Proposed 2026-05-29).
+  Canonical shape per EVAL-SUITE-DISCIPLINE.md §6 (Proposed 2026-05-29;
+  aligned to schema v3 2026-07-31 — the `Read kind` header line was a v2
+  field the v3 rework deleted; this template lagged a schema version).
 
-  This is what the v2 runner scaffold (EVAL-SUITE-DISCIPLINE.md §8 C4/C5)
+  This is what the v3 runner scaffold (EVAL-SUITE-DISCIPLINE.md §8 C4/C5)
   targets. The runner fills only: header, §Preconditions, §Cost, and the
   per-eval prompt skeleton (situation + prior + receipt-pointers). It
   leaves THE READ BLANK — there are no Pass? cells to auto-fill, by design.
@@ -25,7 +27,6 @@
 **Persona**: {persona-slug}
 **Workspace**: `{user_id-prefix}` ({email})
 **Suite**: `docs/evaluations/eval-suites/{suite-slug}.yaml`
-**Read kind**: {judgment_coherence | substrate_responsiveness}
 **Evals fired**: {N} of {M}  ({K refused pre-flight — see §Preconditions})
 **Session cost**: ${total} (budget ${budget}) — {within | EXCEEDS}
 

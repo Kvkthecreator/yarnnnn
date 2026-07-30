@@ -2,6 +2,10 @@
 # The launch-path CURRENT suite is freddie-bare-workspace-steward.yaml (ADR-380/381).
 eval_suite_schema_version: 3
 eval_suite: yarnnn-author-responsiveness
+
+# DORMANT — mechanically the healthiest manifest (valid operators, declared accumulation); same ADR-414 + ADR-366 path migrations owed
+# (2026-07-31 eval-layer audit; machine-checked by api/test_eval_suite_gate.py)
+status: dormant
 suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B
 
 # Substrate-responsiveness is a FACET of the thesis read (the agent tracking

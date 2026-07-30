@@ -863,6 +863,11 @@ async def check_preconditions(user_id: str, requires: list[dict]) -> dict:
       - {path, absent: true}         — file must not exist
       - {path}                       — file must exist (present)
 
+    Any OTHER key set fails loudly with an UNSUPPORTED-operator detail
+    (2026-07-31: the prior fall-through silently treated unknown operators
+    as bare must-be-present, inverting `absent_or_empty:` in the CURRENT
+    suite into a permanent refusal).
+
     Returns {satisfied: bool, checks: [{assertion, ok, detail}]}. The runner
     refuses to fire an eval whose preconditions are not satisfied (§3, S2).
     No tokens are spent on a measurement that cannot honor its own contract.
@@ -918,10 +923,24 @@ async def check_preconditions(user_id: str, requires: list[dict]) -> dict:
         elif "not_contains" in assertion:
             ok = content is not None and assertion["not_contains"] not in content
             detail = "absent-substring" if ok else f"unexpected substring {assertion['not_contains']!r}"
-        else:
+        elif set(assertion.keys()) == {"path"}:
             # bare {path} → file must be present
             ok = content is not None
             detail = "present" if ok else "file absent (expected present)"
+        else:
+            # Unknown operator keys FAIL LOUDLY. The prior fall-through treated
+            # any unrecognized assertion as bare must-be-present — the CURRENT
+            # suite's `absent_or_empty:` inverted its own meaning and refused
+            # its eval permanently, and nothing said why (2026-07-31 eval-layer
+            # audit). S2 demands the situation be the situation it claimed;
+            # an assertion the harness cannot evaluate is a manifest bug, not
+            # a precondition result.
+            unknown = sorted(set(assertion.keys()) - {"path"})
+            ok = False
+            detail = (
+                f"UNSUPPORTED requires operator(s) {unknown} — supported: "
+                "absent | field+equals | contains | not_contains | bare path"
+            )
 
         checks.append({"assertion": assertion, "ok": ok, "detail": detail})
 

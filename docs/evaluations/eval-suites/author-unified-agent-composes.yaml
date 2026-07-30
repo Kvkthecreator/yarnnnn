@@ -2,6 +2,10 @@
 # The launch-path CURRENT suite is freddie-bare-workspace-steward.yaml (ADR-380/381).
 eval_suite_schema_version: 3
 eval_suite: author-unified-agent-composes
+
+# DORMANT — a one-shot prove-before-canon gate whose canon question ADR-355/ADR-365b already decided; retained as historical instrument
+# (2026-07-31 eval-layer audit; machine-checked by api/test_eval_suite_gate.py)
+status: dormant
 suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B
 
 thesis: |

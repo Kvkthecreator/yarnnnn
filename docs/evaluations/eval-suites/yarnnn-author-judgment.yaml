@@ -2,6 +2,10 @@
 # The launch-path CURRENT suite is freddie-bare-workspace-steward.yaml (ADR-380/381).
 eval_suite_schema_version: 3
 eval_suite: yarnnn-author-judgment
+
+# DORMANT — richest thesis in the layer; needs three migrations before any eval reads what it claims: autonomy->agents/{slug}/ (ADR-414), _preferences->contract/ (ADR-366), reflection verdict-source->action_proposals (ADR-364 D2a)
+# (2026-07-31 eval-layer audit; machine-checked by api/test_eval_suite_gate.py)
+status: dormant
 suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B
 
 # The thesis IS the criterion (EVAL-ARCHITECTURE §2.B). Forensic read of the
