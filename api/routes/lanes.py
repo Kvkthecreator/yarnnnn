@@ -720,46 +720,67 @@ def _turn_stream_response(
     from services.lane_runner import lane_caller_identity, run_lane_turn_stream
     from services.narrative import write_narrative_entry
 
-    # HUMAN-TO-HUMAN CONVERSATIONS DON'T AUTO-REPLY (operator-observed
-    # 2026-07-29: "hey" addressed to a person got 'Claude Sonnet is
-    # working…'). The rule derives from the CAST at turn time (ADR-495 — the
-    # cast IS the conversation; ADR-408 A2 — the engine is the member's
-    # hands, never an uninvited participant): two or more humans with NO
-    # agent in the cast is a direct exchange — the turn persists and is
-    # readable by every participant, and nobody auto-replies. A solo cast
-    # keeps today's behavior (the engine IS that conversation); Add an Agent
-    # and replies begin, remove it and they stop. Stateless + retroactive —
-    # existing person-conversations become DMs without migration. Zero-cost
-    # path: no model call, so it runs BEFORE the draw gate.
-    try:
-        from services.conversation_cast import _svc as _cast_svc
-        cast = (
-            _cast_svc().table("conversation_members")
-            .select("member_kind")
-            .eq("conversation_id", lane["id"])
-            .execute()
-        ).data or []
-        humans = sum(1 for c in cast if c.get("member_kind") == "human")
-        agents = sum(1 for c in cast if c.get("member_kind") == "agent")
-    except Exception:  # noqa: BLE001 — cast unreadable → today's behavior
-        humans, agents = 1, 0
-    if humans >= 2 and agents == 0:
-        if persist_user:
-            # Attribution matters in a multi-human transcript: WHO said it is
-            # the ADR-209 member form, and `author_principal_id` lets the FE
-            # align own-vs-other bubbles (every viewer reads the same rows).
-            meta: dict = {"author_principal_id": auth.user_id}
-            if attachments_meta:
-                meta["attachments"] = attachments_meta
-            write_narrative_entry(
-                auth.client, lane["id"],
-                role="user",
-                summary=content,
-                pulse="addressed",
-                authored_by=f"member:{auth.user_id}",
-                extra_metadata=meta,
-            )
+    # WHO IS IN THIS CONVERSATION decides both questions below: whether anyone
+    # auto-replies, and WHICH Agent does (ADR-495 D1/D3 — the cast IS the
+    # conversation; ADR-408 A2 — the engine is the member's hands, never an
+    # uninvited participant).
+    #
+    # Read ONCE, here. This used to be a `member_kind` count feeding a single
+    # boolean, while the REPLIER came from `lane_meta["agent"]` — the
+    # creation-time scalar ADR-495 D3 retired into the cast. The split meant an
+    # Agent added via CastBar after creation never replied (the cast said yes,
+    # lane_meta said nobody), and two Agents in a cast was unrepresentable.
+    # One read, one source of truth.
+    from services.conversation_cast import agent_slugs, list_participants
 
+    lane_id = lane["id"]
+    lane_meta = (lane.get("context_metadata") or {}).get("lane") or {}
+
+    try:
+        cast = list_participants(lane_id)
+    except Exception:  # noqa: BLE001 — cast unreadable → the lane's own Agent
+        cast = []
+    humans = sum(1 for c in cast if c.get("member_kind") == "human")
+    cast_agents = agent_slugs(cast)
+    # The lane's creation-time Agent is the FALLBACK, not the authority: it
+    # covers pre-cast lanes (Studio/derive bind a model with no participant
+    # rows) and an unreadable cast. When the cast has Agents, the cast wins.
+    responder = cast_agents[0] if cast_agents else lane_meta.get("agent")
+    # Nobody replies when the conversation holds people and no Agent. A solo
+    # cast keeps today's behavior (the engine IS that conversation). Add an
+    # Agent and replies begin; remove it and they stop — stateless and
+    # retroactive, so existing person-conversations became DMs with no
+    # migration. Zero-cost path: no model call, so it runs BEFORE the draw gate.
+    direct = humans >= 2 and not cast_agents
+
+    if persist_user:
+        # ONE user-row write for every conversation shape (the fix for the
+        # group cell, audited 2026-07-30). This lived on the direct branch
+        # ALONE, so a conversation with 2+ humans AND an Agent — the ordinary
+        # group chat — wrote its user rows with `authored_by="operator"` and NO
+        # `author_principal_id`. The FE aligns own-vs-other on that field, so
+        # every participant's message rendered right-aligned as the viewer's
+        # own and the transcript was unreadable. The old comment here said
+        # "attribution matters in a multi-human transcript" — true on both
+        # branches, implemented on one.
+        #
+        # `member:{user_id}` is the ADR-209 member form and is correct at every
+        # cast size: a turn is authored by the human who typed it, whatever else
+        # is in the room. There is no longer an "operator" spelling of a lane
+        # user row.
+        meta: dict = {"author_principal_id": auth.user_id}
+        if attachments_meta:
+            meta["attachments"] = attachments_meta
+        write_narrative_entry(
+            auth.client, lane_id,
+            role="user",
+            summary=content,
+            pulse="addressed",
+            authored_by=f"member:{auth.user_id}",
+            extra_metadata=meta,
+        )
+
+    if direct:
         async def dm_stream():
             # `direct: true` tells the FE this was a broadcast, not a turn —
             # drop the reply placeholder instead of marking "[no reply]".
@@ -795,9 +816,26 @@ def _turn_stream_response(
             ),
         )
 
-    lane_id = lane["id"]
-    lane_meta = (lane.get("context_metadata") or {}).get("lane") or {}
+    # `lane_id` + `lane_meta` are resolved above, before the cast read.
     model = lane_meta.get("model") or ""
+    # The RESPONDER's own engine, when the cast named someone other than the
+    # lane's creation-time Agent (i.e. an Agent invited later). ADR-460's rule
+    # that a lane's model is pinned is about not letting a registry edit
+    # retroactively relabel PAST turns — it is not a rule that a newly invited
+    # colleague must run on the previous one's engine. The pin still holds for
+    # the lane's own Agent: `responder == lane_meta["agent"]` resolves to the
+    # same stored model and nothing changes.
+    if responder and responder != lane_meta.get("agent"):
+        from services.agents_registry import find_member_agents, resolve_agent
+
+        try:
+            _resolved = resolve_agent(
+                responder, find_member_agents(auth.client, auth.user_id)
+            )
+        except Exception:  # noqa: BLE001 — registry read is best-effort
+            _resolved = None
+        if _resolved and _resolved.get("model"):
+            model = _resolved["model"]
 
     # ADR-495 D2 — the acting participant's window clamps the model's context,
     # so an answer is never conditioned on turns the asker cannot see.
@@ -807,19 +845,11 @@ def _turn_stream_response(
         visible_from=int(lane.get("_visible_from_sequence") or 0),
     )
 
-    if persist_user:
-        # Persist the member's message before the LLM call (the turn is real
-        # even if the provider errors — same posture as the steward thread).
-        write_narrative_entry(
-            auth.client, lane_id,
-            role="user",
-            summary=content,
-            pulse="addressed",
-            authored_by="operator",
-            extra_metadata=(
-                {"attachments": attachments_meta} if attachments_meta else None
-            ),
-        )
+    # The member's message was persisted above — ONE write for every cast
+    # shape. The second `write_narrative_entry` that used to live here (with
+    # `authored_by="operator"` and no `author_principal_id`) is DELETED, not
+    # kept alongside: two spellings of the same row is exactly the ambiguity
+    # that made the group cell unreadable.
 
     async def event_stream():
         def sse(obj: dict) -> str:
@@ -879,8 +909,11 @@ def _turn_stream_response(
                 derive_recipe=lane_meta.get("derive_recipe"),
                 derive_source=lane_meta.get("derive_source"),
                 # ADR-460 D4 — WHO the member is talking to: the Agent's
-                # posture composes at turn time from this slug.
-                agent=lane_meta.get("agent"),
+                # posture composes at turn time from this slug. ADR-495 D3: the
+                # slug comes from the CAST (`responder`, resolved above), so an
+                # Agent invited after creation actually answers; `lane_meta` is
+                # only the fallback for pre-cast (Studio/derive) lanes.
+                agent=responder,
                 # W0 / ADR-457 D8 — the falsifier join key: this turn's cost
                 # row carries the session it served, so the surface that asked
                 # (think / make / derive) is derivable at read time.

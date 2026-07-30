@@ -89,12 +89,18 @@ export function NewChatModal({ agents, people, onPick, onPickPerson, onClose }: 
         style={{ zIndex: Z_CONFIRM_BACKDROP }}
         onClick={onClose}
       />
+      {/* A centered card on a desktop, a BOTTOM SHEET on a phone — the
+          conventional mobile shape (thumb-reachable, no floating card fighting
+          the keyboard). `sm:` is the 640px breakpoint the OS uses everywhere;
+          below it the sheet pins to the bottom edge and clears the home
+          indicator. */}
       <div
-        className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none"
+        className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 pointer-events-none"
         style={{ zIndex: Z_CONFIRM_DIALOG }}
       >
         <div
-          className="pointer-events-auto w-full max-w-sm rounded-lg border border-border bg-card p-5 shadow-xl animate-in fade-in zoom-in-95 duration-150"
+          className="pointer-events-auto w-full sm:max-w-sm max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-lg border border-border bg-card p-5 shadow-xl animate-in fade-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-150"
+          style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
           role="dialog"
           aria-modal="true"
         >

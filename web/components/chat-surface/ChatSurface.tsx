@@ -36,9 +36,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Archive, Loader2, MessageCircle, Pencil, Pin, Plus, Search, X } from 'lucide-react';
 import { LanePanel } from './LanePanel';
-import { CastBar } from './CastBar';
+import { ConversationHeader, type HeaderFace } from './ConversationHeader';
+import { ConversationDetail } from './ConversationDetail';
 import { AgentFace } from '@/components/agents/AgentFace';
-import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { NewChatModal } from './NewChatModal';
 import { useWorkspaceMembers } from '@/lib/workspace/viewer';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -118,6 +118,10 @@ export function ChatSurface() {
   // cast size. ("lane" survives as the param slug only — relabel-keep-slug,
   // the same grandfathering as `session_type='lane'`.)
   const activeLaneId = getParam('lane');
+  // The participants drill-in, deep-linkable like every other intra-surface
+  // navigation (`chat.detail=participants`, ADR-358 D6) — the
+  // ManageConnectionSubsurface convention, not a modal.
+  const showDetail = getParam('detail') === 'participants';
   const { userId } = useSurfacePreferences();
   const { members: wsMembers } = useWorkspaceMembers();
   // The workspace's other humans — invitable into any conversation (ADR-495
@@ -186,9 +190,7 @@ export function ChatSurface() {
   // (ADR-495 D1), so this derives locally.
   const laneOtherHumans = useCallback(
     (lane: { agent?: string | null; participants?: Participant[] }) => {
-      if (lane.agent) return [];
       const cast = lane.participants ?? [];
-      if (cast.some((p) => p.member_kind === 'agent')) return [];
       return cast
         .filter((p) => p.member_kind === 'human' && p.principal_id && p.principal_id !== userId)
         .map(
@@ -199,8 +201,20 @@ export function ChatSurface() {
     },
     [people, userId],
   );
+  // Is an Agent in this conversation's cast? Separate from "are other humans
+  // here" — the two questions were conflated, and that conflation is what made
+  // group chat unreadable. `lane.agent` (the creation-time scalar) is the
+  // fallback for pre-cast lanes, matching the server's `responder` resolution.
+  const laneHasAgent = useCallback(
+    (lane: { agent?: string | null; participants?: Participant[] }) =>
+      (lane.participants ?? []).some((p) => p.member_kind === 'agent') || !!lane.agent,
+    [],
+  );
   const laneLabel = useCallback(
     (lane: { agent?: string | null; model: string; participants?: Participant[] }) => {
+      // People lead whenever there are people: a conversation with colleagues
+      // is named by them even when an Agent is also in the cast (the group
+      // case). Only a conversation with NO other humans is named by its Agent.
       const humans = laneOtherHumans(lane);
       if (humans.length) return humans.join(', ');
       return laneAgent(lane)?.name || modelLabel(lane.model);
@@ -213,14 +227,25 @@ export function ChatSurface() {
   // engine alone, which is honest: that IS what it is.
   const laneSubLabel = useCallback(
     (lane: { agent?: string | null; model: string; participants?: Participant[] }) => {
-      if (laneOtherHumans(lane).length) return 'Direct chat';
+      const humans = laneOtherHumans(lane);
+      if (humans.length) {
+        // A conversation with people says how many; when an Agent is also in
+        // the cast it says so too, because that is the fact a member most
+        // needs (something in this room answers). Counting +1 for the viewer.
+        const n = humans.length + 1;
+        const a = laneHasAgent(lane) ? laneAgent(lane) : null;
+        if (laneHasAgent(lane)) {
+          return `${n} people · with ${a?.name || modelLabel(lane.model)}`;
+        }
+        return n > 2 ? `${n} people` : 'Direct chat';
+      }
       const a = laneAgent(lane);
       if (!a) return modelLabel(lane.model);
       return [a.kernel === false ? a.role : null, a.engine || modelLabel(lane.model)]
         .filter(Boolean)
         .join(' · ');
     },
-    [laneAgent, laneOtherHumans, modelLabel],
+    [laneAgent, laneHasAgent, laneOtherHumans, modelLabel],
   );
 
   // Flat recents — pinned first (Phase-A hygiene), then updated_at desc
@@ -261,6 +286,33 @@ export function ChatSurface() {
     () => (activeLane ? laneAgent(activeLane) : null),
     [activeLane, laneAgent],
   );
+
+  // The header's stacked faces, in cast order, viewer excluded (you know you're
+  // here — every messaging app omits you from its own group avatar). Agents
+  // carry their picture; people fall back to an initial, which is what
+  // AgentFace already does when there's no avatar. Falls back to the lane's own
+  // Agent for pre-cast (Studio/derive) lanes so the header is never faceless.
+  const headerFaces = useMemo<HeaderFace[]>(() => {
+    if (!activeLane) return [];
+    const cast = activeLane.participants ?? [];
+    const faces: HeaderFace[] = [];
+    for (const p of cast) {
+      if (p.member_kind === 'agent') {
+        const a = data?.agents?.find((x) => x.slug === p.agent_slug);
+        faces.push({ name: a?.name || p.agent_slug || 'agent', avatarUrl: a?.avatar_url });
+      } else if (p.principal_id && p.principal_id !== userId) {
+        faces.push({
+          name:
+            people.find((x) => x.principal_id === p.principal_id)?.label ||
+            `member-${p.principal_id.slice(0, 8)}`,
+        });
+      }
+    }
+    if (!faces.length && activeAgent) {
+      faces.push({ name: activeAgent.name, avatarUrl: activeAgent.avatar_url });
+    }
+    return faces;
+  }, [activeLane, data, people, userId, activeAgent]);
 
   // ADR-450 D5: a derive-bound lane arrives with ONE starter chip — the
   // suggested ask in the member's words (click fills the composer, the member
@@ -702,94 +754,70 @@ export function ChatSurface() {
           isNarrow && !activeLane ? 'hidden' : 'flex',
         )}
       >
-        {activeLane ? (
+        {activeLane && showDetail && !activeLane.derive_recipe ? (
+          /* The participants drill-in OWNS the pane while open — one screen at a
+             time, on every width (ADR-297 D15). A side-by-side split would put
+             the cast back in competition with the transcript, which is the
+             crowding this refactor removed. */
+          <ConversationDetail
+            key={`detail-${activeLane.id}`}
+            laneId={activeLane.id}
+            laneName={activeLane.name}
+            agents={data?.agents ?? []}
+            people={people}
+            viewerId={userId}
+            initialParticipants={activeLane.participants}
+            onBack={() => setParam({ detail: null })}
+            onCastChanged={(participants) =>
+              updateLaneLocal(activeLane.id, { participants })
+            }
+          />
+        ) : activeLane ? (
           <>
-            {/* §6.10a — WHO leads, here as in the list row. This header used
-                to render the lane name + the ENGINE chip and nothing else, so
-                you clicked Lisa and the room you sat in said "GPT-5": the
-                decoupling inverted at its highest-traffic pixel. It survived
-                the build order because step 5 was scoped to the list's facet
-                and the conversation pane was never in the frame.
+            {/* ONE header row, conventional grammar (see ConversationHeader):
+                stacked faces · title · participant count · ⋯ → details.
 
-                The engine is NOT deleted — it rides behind the name as the
-                sub-label (ADR-463 §3: the technical fact stays visible, it
-                just isn't the headline). Same laneLabel/laneSubLabel pair the
-                list row uses: one rule, both places.
+                The four-jobs-in-one-row header this replaces (identity + lane
+                name + the whole cast as chips + an actions portal) wrapped at
+                three participants and was unusable on a phone. The cast now
+                lives behind ⋯, which is where every messaging app puts it and
+                the only shape that survives N participants.
 
-                The face is a LINK to the colleague's card (§6.10c) — the
-                `/chat`→`/agents` door. On mobile the OS back chip already
-                names the lane, so the lane's own title is dropped there; the
-                colleague is not, because that's the fact that was missing. */}
-            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border shrink-0">
-              {activeAgent ? (
-                <SurfaceLink
-                  to="agents"
-                  params={{ agent: activeAgent.slug }}
-                  className="flex items-center gap-2 min-w-0 rounded hover:bg-muted -mx-1 px-1 py-0.5 transition-colors"
-                  title={`About ${activeAgent.name}`}
-                >
-                  <AgentFace name={activeAgent.name} avatarUrl={activeAgent.avatar_url} />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium truncate">
-                      {activeAgent.name}
-                    </span>
-                    <span className="block text-[10px] text-muted-foreground truncate">
-                      {laneSubLabel(activeLane)}
-                    </span>
-                  </span>
-                </SurfaceLink>
-              ) : laneOtherHumans(activeLane).length ? (
-                /* Direct conversation: it is WITH the other humans — the
-                   dormant engine stays out of the header. */
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium truncate">
-                    {laneOtherHumans(activeLane).join(', ')}
-                  </span>
-                  <span className="block text-[10px] text-muted-foreground truncate">
-                    Direct chat
-                  </span>
-                </span>
-              ) : (
-                /* No colleague (pre-registry / Studio / derive lane): its
-                   engine IS what it is — naming it is honest, not a gap. */
-                <span className="px-1.5 py-px rounded-full bg-muted text-[10px] text-muted-foreground shrink-0">
-                  {modelLabel(activeLane.model)}
-                </span>
-              )}
-              {!isNarrow && (
-                <span className="text-sm text-muted-foreground truncate border-l border-border pl-2 ml-1">
-                  {activeLane.name}
-                </span>
-              )}
-              {/* ADR-495 D1 — the cast: who is in this conversation, and the
-                  one invite. A conversation IS participants + turns, so the
-                  participants belong in the header beside its name, not behind
-                  a menu. Suppressed on a bound (Studio/derive) lane: that
-                  lane's job is the artifact, and its cast is the pin. */}
-              {!activeLane.derive_recipe && (
-                <CastBar
-                  key={`cast-${activeLane.id}`}
-                  laneId={activeLane.id}
-                  agents={data?.agents ?? []}
-                  people={people}
-                  viewerId={userId}
-                  initialParticipants={activeLane.participants}
-                />
-              )}
-              {/* Conversation-level acts land here (portal target — keyed so a
-                  lane switch never leaves a stale action mounted). */}
-              <div
-                key={`actions-${activeLane.id}`}
-                ref={setLaneActionsEl}
-                className="ml-auto flex items-center shrink-0"
-              />
-            </div>
+                People lead whenever there are people — including the mixed
+                cast, which the old header could not express (it branched
+                agent-OR-humans, never both). */}
+            <ConversationHeader
+              key={`header-${activeLane.id}`}
+              title={laneLabel(activeLane)}
+              subtitle={laneSubLabel(activeLane)}
+              faces={headerFaces}
+              participantCount={
+                activeLane.participants?.length ??
+                laneOtherHumans(activeLane).length + 1
+              }
+              // Only a solo-Agent conversation has one card to open; in a group
+              // the faces open the details instead.
+              agentSlug={
+                activeAgent && !laneOtherHumans(activeLane).length
+                  ? activeAgent.slug
+                  : null
+              }
+              onOpenDetails={() => setParam({ detail: 'participants' })}
+              actionsRef={setLaneActionsEl}
+            />
             <LanePanel
               key={activeLane.id}
               laneId={activeLane.id}
               laneName={activeLane.name}
               modelLabel={modelLabel(activeLane.model)}
-              isDirect={laneOtherHumans(activeLane).length > 0}
+              // Freshness follows the PEOPLE, not the absence of an Agent
+              // (audited 2026-07-30). This was `laneOtherHumans(...).length > 0`
+              // back when that helper returned [] whenever an Agent was in the
+              // cast — so a 3-person chat with an Agent got NO polling and the
+              // others' messages never arrived until remount. Any conversation
+              // with another human needs out-of-band refresh, because their
+              // turns don't ride the asker's stream.
+              hasOtherHumans={laneOtherHumans(activeLane).length > 0}
               viewerId={userId}
               principalLabels={Object.fromEntries(
                 people.map((p) => [p.principal_id, p.label]),

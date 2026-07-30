@@ -61,6 +61,7 @@ import { api } from '@/lib/api/client';
 import { formatDaySeparator, formatAbsolute } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { AgentFace } from '@/components/agents/AgentFace';
 import { ArtifactCard } from './ArtifactCard';
 
 /** Day label for a message's separator (local date). '' when no timestamp. */
@@ -154,10 +155,17 @@ interface LanePanelProps extends LaneMountSlots {
   laneId: string;
   laneName: string;
   modelLabel: string;
-  /** Direct conversation (2+ humans, no agent in the cast): no engine replies;
-   *  foreign user rows left-align with an author label, and the transcript
-   *  refreshes on an interval so the other side's messages arrive. */
-  isDirect?: boolean;
+  /** Another human is in this conversation's cast — so their turns arrive
+   *  out-of-band (they don't ride the viewer's stream) and the transcript must
+   *  refresh on an interval.
+   *
+   *  RENAMED from `isDirect` (audited 2026-07-30). "Direct" bundled two
+   *  independent facts — "other humans are here" and "no Agent is here" — and
+   *  the polling gate wanted only the first. Under the old name a group chat
+   *  WITH an Agent polled never, so peers' messages never arrived. Whether
+   *  anyone auto-replies is the SERVER's decision from the cast; the client
+   *  only needs to know if it must go looking for turns it won't be pushed. */
+  hasOtherHumans?: boolean;
   /** The viewer's principal id — the own-vs-other test for user rows. */
   viewerId?: string | null;
   /** principal_id → display label (email) for foreign user-row authorship. */
@@ -179,7 +187,7 @@ export function LanePanel({
   laneId,
   laneName,
   modelLabel,
-  isDirect = false,
+  hasOtherHumans = false,
   viewerId = null,
   principalLabels,
   onArtifactWrite,
@@ -315,10 +323,10 @@ export function LanePanel({
   // mid-send so a resync never clobbers the optimistic rows. (Realtime is the
   // deferred RLS work — session subscriptions are creator-scoped today.)
   useEffect(() => {
-    if (!isDirect || sending) return;
+    if (!hasOtherHumans || sending) return;
     const t = setInterval(() => void resyncMessages(), 15_000);
     return () => clearInterval(t);
-  }, [isDirect, sending, resyncMessages]);
+  }, [hasOtherHumans, sending, resyncMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -664,6 +672,16 @@ export function LanePanel({
             ? principalLabels?.[m.authorPrincipalId!] ||
               `member-${m.authorPrincipalId!.slice(0, 8)}`
             : null;
+          // Consecutive-run grouping (the conventional messaging shape): a run
+          // of turns from the SAME person shows the face + name once, at the
+          // top. Repeating both on every line is the noise that made a
+          // multi-human transcript hard to scan.
+          const prev = i > 0 ? messages[i - 1] : null;
+          const startsRun =
+            !prev ||
+            prev.role !== m.role ||
+            prev.authorPrincipalId !== m.authorPrincipalId ||
+            showDay;
           return (
             <div key={m.id} className="group">
               {showDay && (
@@ -681,17 +699,32 @@ export function LanePanel({
               {/* The bubble is speech. An artifact is not speech — it renders
                   below, at row width, outside the bubble (ADR-236: render +
                   open, never edit). A tool-only turn shows only the card. */}
+              {/* A foreign row's author name sits ABOVE the bubble, indented
+                  past the avatar gutter, and only at the top of a run — the
+                  conventional grouping. Its own row rather than a wrapper, so
+                  the bubble's own layout below is untouched. */}
+              {foreign && startsRun && (
+                <span className="block pl-[1.875rem] pb-0.5 text-[10px] text-muted-foreground">
+                  {foreignLabel}
+                </span>
+              )}
               {(m.content || m.role === 'user' || !m.artifacts?.length) && (
                 <div
                   className={cn(
                     'flex',
                     m.role === 'user' && !foreign ? 'justify-end' : 'justify-start',
-                    foreign && 'flex-col items-start gap-0.5',
+                    // A foreign row gets an avatar GUTTER: the face on the left,
+                    // the bubble beside it. Continuation rows keep the gutter
+                    // width (an empty span) so their bubbles stay aligned under
+                    // the first — the face appears once per run.
+                    foreign && 'items-end gap-1.5',
                   )}
                 >
-                  {foreignLabel && (
-                    <span className="text-[10px] text-muted-foreground px-1">
-                      {foreignLabel}
+                  {foreign && (
+                    <span className="w-6 shrink-0">
+                      {startsRun && (
+                        <AgentFace name={foreignLabel || '?'} size="sm" />
+                      )}
                     </span>
                   )}
                   <div
@@ -865,7 +898,14 @@ export function LanePanel({
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-border p-2 shrink-0">
+      {/* The composer sits on the bottom edge, so on a phone it must clear the
+          home indicator / gesture bar — otherwise the send button sits under
+          it. `env(safe-area-inset-bottom)` is the one honest signal for that
+          (a fixed px guess is wrong on every other device). */}
+      <div
+        className="border-t border-border p-2 shrink-0"
+        style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+      >
         {/* Phase-A edit-and-resend: the banner names the mode; Esc cancels.
             Sending replaces the tail from the edited message (transcript
             only — the ledger keeps what already landed). */}
