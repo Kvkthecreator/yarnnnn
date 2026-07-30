@@ -120,24 +120,40 @@ def _acting_workspace(auth: UserClient) -> Optional[str]:
     return effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))
 
 
-def _cast_read_client(auth: UserClient):
-    """The client conversation READS go through (ADR-502 §7, Hat-B 2026-07-29).
+def _conversation_write_client(auth: UserClient):
+    """The client conversation-level WRITES go through (migration 228).
 
-    `chat_sessions` + `session_messages` RLS is `user_id = auth.uid()` — the
-    row belongs to its CREATOR. That predates multi-human conversations
-    (ADR-495): a cast member reading with their own JWT silently gets nothing
-    back, so a conversation they were correctly cast into is invisible, its
-    turns 404, and the whole shared-conversation feature is dead at N>1 while
-    every application-level check passes. Probe-verified live.
+    RENAMED + NARROWED from `_cast_read_client`. That helper existed because
+    `chat_sessions` / `session_messages` RLS was `user_id = auth.uid()` — the row
+    belonged to its CREATOR, a policy older than the cast (ADR-495) — so a member
+    correctly cast in read nothing back and shared conversations were dead at
+    N>1. Every READ was routed through the service client to get around it.
 
-    Authorization is NOT weakened: every caller of this client already gates on
-    the ADR-495 primitive — cast membership (`visibility_floor`) plus the
-    acting-workspace match — before touching a row. This is the same posture
-    `conversation_cast._svc` documents for its own table: the API mediates,
-    the table is not directly reachable. The alternative (a cast-aware RLS
-    policy) is the right long-run shape and stays open; it needs a migration
-    with a subquery over `conversation_members`, and this unblocks the feature
-    without one.
+    **Migration 228 moved that answer into the database**, which is where
+    migrations 221 and 227 already argued it belongs ("make the table tell the
+    truth to any authorized reader"). `chat_sessions` SELECT is now cast
+    membership ∩ workspace grant; `session_messages` SELECT additionally
+    enforces the ADR-495 D2 visibility window. So every READ in this module uses
+    `auth.client` and is checked by the table itself — the application gate is
+    now defence in depth rather than the only defence.
+
+    What legitimately remains service-side, and why the policies deliberately do
+    NOT grant it to a participant:
+
+    - **Session-row mutation by a non-creator** — auto-name, pin/rename, archive,
+      the `updated_at` touch. A participant who did not create the conversation
+      has no UPDATE policy on it (the creator owns the row), yet renaming on
+      first turn and touching `updated_at` on every turn must work for ANY
+      participant. These are system-mediated acts, gated in Python by
+      `_get_lane` (cast membership + acting workspace) before they run.
+    - **Transcript-tail delete** — participants have no DELETE on
+      `session_messages` at all: a transcript is append-only (ADR-406's appender
+      rule). Edit-and-resend truncates as a system act, gated by the author
+      check in `lane_turn`.
+
+    Keeping the name honest matters: the old one said "read" while the module
+    used it for fifteen reads AND writes, which is how the workaround quietly
+    became the architecture.
     """
     from services.supabase import get_service_client
 
@@ -186,7 +202,7 @@ def _get_lane(auth: UserClient, lane_id: str) -> dict:
     from services.conversation_cast import visibility_floor
 
     res = (
-        _cast_read_client(auth).table("chat_sessions")
+        auth.client.table("chat_sessions")
         .select("id, user_id, workspace_id, status, context_metadata, created_at, updated_at")
         .eq("id", lane_id)
         .eq("session_type", "lane")
@@ -286,7 +302,7 @@ async def list_lanes(auth: UserClient, include_bound: bool = False) -> dict:
         if not my_conversations:
             return _lane_envelope(auth, enabled, [])
         q = (
-            _cast_read_client(auth).table("chat_sessions")
+            auth.client.table("chat_sessions")
             .select("id, user_id, workspace_id, status, context_metadata, created_at, updated_at, summary")
             .in_("id", my_conversations)
             .eq("session_type", "lane")
@@ -435,6 +451,12 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     created = (res.data or [None])[0]
     if not created:
         raise HTTPException(status_code=500, detail="Lane creation failed")
+    # The cast rows take the workspace THE ROW ACTUALLY GOT, not the local `ws`
+    # (which is None when the acting binding didn't resolve). Migration 203's
+    # BEFORE INSERT trigger fills it from the owner, so the stored value is
+    # authoritative and always present — and since migration 228 the cast's
+    # `workspace_id` is NOT NULL, so guessing here would be a constraint error.
+    ws = created.get("workspace_id") or ws
     # ADR-495 D1 — the cast is born with the conversation: the creator, plus
     # the Agent they picked. Both at window 0 (they see everything from turn
     # one — there is nothing prior to withhold).
@@ -461,7 +483,7 @@ async def lane_messages(lane_id: str, auth: UserClient) -> dict:
     # 0 (every pre-existing participant) is a no-op filter.
     floor = int(lane.get("_visible_from_sequence") or 0)
     res = (
-        _cast_read_client(auth).table("session_messages")
+        auth.client.table("session_messages")
         .select("id, role, content, metadata, created_at")
         .eq("session_id", lane_id)
         .gte("sequence_number", floor)
@@ -498,7 +520,7 @@ def _fetch_history(
     see — the window would be cosmetic. 0 is a no-op.
     """
     q = (
-        _cast_read_client(auth).table("session_messages")
+        auth.client.table("session_messages")
         .select("role, content, sequence_number")
         .eq("session_id", lane_id)
         .gte("sequence_number", visible_from)
@@ -520,7 +542,12 @@ def _delete_transcript_tail(auth: UserClient, lane_id: str, from_sequence: int) 
     only — the no-rewind rule: substrate writes from discarded turns stand on
     the ledger (the transcript is episodic; the ledger is truth)."""
     (
-        _cast_read_client(auth).table("session_messages")
+        # SERVICE CLIENT, deliberately: migration 228 gives participants no
+        # DELETE policy on `session_messages` — a transcript is append-only
+        # (ADR-406's appender rule). Truncation is a system-mediated act, gated
+        # by the author check in `lane_turn` before it runs. With `auth.client`
+        # this silently deletes NOTHING and edit-and-resend duplicates the tail.
+        _conversation_write_client(auth).table("session_messages")
         .delete()
         .eq("session_id", lane_id)
         .gte("sequence_number", from_sequence)
@@ -667,7 +694,7 @@ def _maybe_autoname(auth: UserClient, lane: dict, content: str) -> Optional[str]
         head = head.rsplit(" ", 1)[0] if " " in head else head
     lane_meta["name"] = head
     try:
-        _cast_read_client(auth).table("chat_sessions").update(
+        _conversation_write_client(auth).table("chat_sessions").update(
             {"context_metadata": {**meta_all, "lane": lane_meta}}
         ).eq("id", lane["id"]).execute()
     except Exception as exc:
@@ -890,7 +917,7 @@ def _turn_stream_response(
                 extra_metadata=extra,
             )
             try:
-                _cast_read_client(auth).table("chat_sessions").update(
+                _conversation_write_client(auth).table("chat_sessions").update(
                     {"updated_at": "now()"}
                 ).eq("id", lane_id).execute()
             except Exception:
@@ -997,7 +1024,7 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
     # run an ordinary turn with the edited content.
     if req.replace_from_message_id:
         row_res = (
-            _cast_read_client(auth).table("session_messages")
+            auth.client.table("session_messages")
             .select("id, role, sequence_number, metadata")
             .eq("session_id", lane_id)
             .eq("id", req.replace_from_message_id)
@@ -1049,7 +1076,7 @@ async def regenerate_lane_turn(lane_id: str, auth: UserClient):
         raise HTTPException(status_code=409, detail="Lane is archived")
 
     rows_res = (
-        _cast_read_client(auth).table("session_messages")
+        auth.client.table("session_messages")
         .select("id, role, content, sequence_number")
         .eq("session_id", lane_id)
         # ADR-495 D2 — regenerate reruns the last user turn THIS participant can
@@ -1284,7 +1311,7 @@ async def settle_lane_route(lane_id: str, auth: UserClient) -> dict:
     # floor on the row; using it is the whole fix.
     floor = int(lane.get("_visible_from_sequence") or 0)
     msgs = (
-        _cast_read_client(auth).table("session_messages")
+        auth.client.table("session_messages")
         .select("role, content, sequence_number")
         .eq("session_id", lane_id)
         .gte("sequence_number", floor)
@@ -1324,7 +1351,7 @@ async def patch_lane(lane_id: str, req: LanePatchRequest, auth: UserClient) -> d
         changed = True
     if changed:
         merged = {**meta_all, "lane": lane_meta}
-        _cast_read_client(auth).table("chat_sessions").update(
+        _conversation_write_client(auth).table("chat_sessions").update(
             {"context_metadata": merged}
         ).eq("id", lane_id).execute()
         lane = {**lane, "context_metadata": merged}
@@ -1356,7 +1383,7 @@ async def search_lanes(q: str, auth: UserClient) -> dict:
     floors = {m["conversation_id"]: int(m.get("visible_from_sequence") or 0) for m in member_rows}
 
     lq = (
-        _cast_read_client(auth).table("chat_sessions")
+        auth.client.table("chat_sessions")
         .select("id")
         .in_("id", list(floors.keys()))
         .eq("session_type", "lane")
@@ -1370,7 +1397,7 @@ async def search_lanes(q: str, auth: UserClient) -> dict:
         return {"matches": []}
 
     res = (
-        _cast_read_client(auth).table("session_messages")
+        auth.client.table("session_messages")
         .select("session_id, content, created_at, sequence_number")
         .in_("session_id", lane_ids)
         .ilike("content", f"%{query}%")
@@ -1413,7 +1440,7 @@ async def archive_lane(lane_id: str, auth: UserClient) -> dict:
         from services.session_continuity import generate_session_summary
 
         msgs = (
-            _cast_read_client(auth).table("session_messages")
+            auth.client.table("session_messages")
             .select("role, content, sequence_number")
             .eq("session_id", lane_id)
             .gte("sequence_number", floor)
@@ -1438,7 +1465,7 @@ async def archive_lane(lane_id: str, auth: UserClient) -> dict:
     update: dict = {"status": "archived"}
     if summary:
         update["summary"] = summary
-    _cast_read_client(auth).table("chat_sessions").update(update).eq("id", lane_id).execute()
+    _conversation_write_client(auth).table("chat_sessions").update(update).eq("id", lane_id).execute()
     return {"success": True, "summary": summary}
 
 
@@ -1502,7 +1529,24 @@ async def add_conversation_participant(
     from services.conversation_cast import add_participant, list_participants
 
     lane = _get_lane(auth, lane_id)
-    ws = lane.get("workspace_id") or _acting_workspace(auth)
+    # THE CONVERSATION'S workspace, never the inviter's acting one. This read
+    # `lane.get("workspace_id") or _acting_workspace(auth)`, so inviting into a
+    # workspace-less conversation stamped the participant row with whatever
+    # workspace the INVITER happened to be acting in — a cast row that disagreed
+    # with its own parent. Harmless while the column was never read; migration
+    # 228 makes it load-bearing (NOT NULL + FK, and the workspace bound in the
+    # RLS policy), so the fallback is removed rather than left as a trap.
+    #
+    # `_get_lane` has already refused a conversation whose workspace doesn't
+    # match the acting one (and, since 228, one with no workspace at all cannot
+    # exist: every live row is bound, migration 203's trigger fills it on
+    # insert). So the parent's value is both correct and always present.
+    ws = lane.get("workspace_id")
+    if not ws:
+        raise HTTPException(
+            status_code=409,
+            detail="This conversation isn't bound to a workspace — reopen it and try again.",
+        )
 
     kind = (req.kind or "").strip().lower()
     if kind == "human":

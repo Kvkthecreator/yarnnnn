@@ -143,6 +143,16 @@ def add_participant(conversation_id: str,
         raise ValueError("a human participant needs principal_id")
     if member_kind == AGENT and not agent_slug:
         raise ValueError("an agent participant needs agent_slug")
+    # `workspace_id` is NOT NULL since migration 228 — it went from a
+    # written-but-never-read column to the home of the RLS workspace bound. Say
+    # so here rather than letting a NULL reach the database as a constraint
+    # violation: the caller's mistake is passing a workspace-less conversation,
+    # and that reads better than a Postgres error string.
+    if not workspace_id:
+        raise ValueError(
+            "a participant needs the CONVERSATION's workspace_id "
+            "(never the inviter's acting workspace)"
+        )
 
     existing = find_participant(
         conversation_id,

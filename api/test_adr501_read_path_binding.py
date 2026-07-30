@@ -178,12 +178,42 @@ def test_http_edit_door_consults_the_principal_gate():
     assert gate < write, "the grant gate must precede the write"
 
 
-def test_conversation_reads_use_the_cast_client():
-    """chat_sessions/session_messages RLS is creator-scoped; a cast member
-    reading with their own JWT silently gets nothing."""
+def test_conversation_reads_go_through_rls_not_around_it():
+    """INVERTED by migration 228, deliberately.
+
+    This test used to assert `def _cast_read_client` exists and that NO read
+    used `auth.client` — because `chat_sessions`/`session_messages` RLS was
+    creator-scoped (migration 008, older than the cast) and a member correctly
+    cast in read nothing back. Routing every read through the service client was
+    the honest unblock at the time (ADR-502 §6a).
+
+    Migration 228 moved that answer into the DATABASE: SELECT is now cast
+    membership ∩ workspace grant, and `session_messages` additionally enforces
+    the ADR-495 D2 visibility window. So the premise this test encoded is gone,
+    and the test now guards the opposite invariant — reads go THROUGH the
+    policy, and the service client is reserved for the writes the policy
+    deliberately withholds from a participant.
+    """
     src = _src("routes/lanes.py")
-    assert "def _cast_read_client" in src
-    assert 'auth.client.table("session_messages")' not in src
+    assert "def _cast_read_client" not in src, (
+        "the read workaround is retired; migration 228 made the table answer"
+    )
+    assert "def _conversation_write_client" in src
+
+    # Every SELECT on the two conversation tables uses the user client, so RLS
+    # is the floor rather than application code being the only defence.
+    for tbl in ('chat_sessions', 'session_messages'):
+        for line in src.splitlines():
+            if f'_conversation_write_client(auth).table("{tbl}")' in line:
+                # Writes are allowed on the service client — but ONLY writes.
+                assert ('.update(' in line) or ('.table("session_messages")' in line), line
+
+    # The service client survives for exactly the withheld acts: session-row
+    # mutation by a non-creator, and the append-only transcript's tail delete.
+    assert '_conversation_write_client(auth).table("chat_sessions").update(' in src
+    assert '_conversation_write_client(auth).table("session_messages")' in src
+    # And no conversation READ hides behind it.
+    assert '_conversation_write_client(auth).table("chat_sessions")\n        .select' not in src
 
 
 def test_nav_recurrences_workspace_scoped():
