@@ -65,9 +65,6 @@ export interface PointerEvent2 {
   slot: string | null;
   /** ADR-453 D5 — the enclosing page's arrangement slug (role lookups). */
   arrange: string | null;
-  /** ADR-458 — the hover gutter's ⋮⋮ asked for the Design tab (select AND
-   *  flip the right column; the verbs' one home). */
-  design?: boolean;
 }
 
 interface StudioCanvasProps {
@@ -115,7 +112,6 @@ interface StudioCanvasProps {
   onEnterBlock?: (afterBlockId: string) => void;
   /** F1: the member DRAGGED a block via the ⋮⋮ handle — move it before
    *  `beforeBlockId` (null = end of its parent). Lands one reorder revision. */
-  onReorder?: (blockId: string, beforeBlockId: string | null) => void;
   /** ADR-466 P8: a bounding-box gesture landed — any combination of position
    *  (x/y, a body drag) and width (w, a corner handle; a west handle on a
    *  positioned block moves origin AND width together), all as PERCENTS of
@@ -228,7 +224,6 @@ export function StudioCanvas({
   onEditExited,
   onEditEntered,
   onEnterBlock,
-  onReorder,
   onRatio,
   onGeometry,
   onGeometryMany,
@@ -417,7 +412,6 @@ export function StudioCanvas({
           pageIndex: typeof d.pageIndex === 'number' ? d.pageIndex : null,
           slot: typeof d.slot === 'string' ? d.slot : null,
           arrange: typeof d.arrange === 'string' ? d.arrange : null,
-          design: d.design === true,
         });
       } else if (d.type === 'yarnnn-point-clear') {
         onPointClear?.();
@@ -448,8 +442,6 @@ export function StudioCanvas({
         onEditEntered?.(d.blockId);
       } else if (d.type === 'yarnnn-enter-block' && typeof d.afterBlockId === 'string') {
         onEnterBlock?.(d.afterBlockId);
-      } else if (d.type === 'yarnnn-reorder' && typeof d.blockId === 'string') {
-        onReorder?.(d.blockId, typeof d.beforeBlockId === 'string' ? d.beforeBlockId : null);
       } else if (d.type === 'yarnnn-geometry' && typeof d.blockId === 'string') {
         onGeometry?.(d.blockId, {
           x: typeof d.x === 'number' ? d.x : undefined,
@@ -551,7 +543,7 @@ export function StudioCanvas({
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [onPoint, onPointClear, onEdit, onFlowEdit, onEditExited, onEditEntered, onEnterBlock, onReorder, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen, onSlashFilter, onSlashClose, onSlashMove, onSlashEnter, onSlashTaken, onKeyVerb, onGeometry, onGeometryMany, onGroup, onRatio, onContextMenu, onUndo, onRedo]);
+  }, [onPoint, onPointClear, onEdit, onFlowEdit, onEditExited, onEditEntered, onEnterBlock, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen, onSlashFilter, onSlashClose, onSlashMove, onSlashEnter, onSlashTaken, onKeyVerb, onGeometry, onGeometryMany, onGroup, onRatio, onContextMenu, onUndo, onRedo]);
 
   return (
     <iframe

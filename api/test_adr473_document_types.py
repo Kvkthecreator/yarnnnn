@@ -71,7 +71,8 @@ def run() -> bool:
     )
     _check(
         "the inverse lookup partitions the types — no type in both apps",
-        kinds_for_app("studio") == {"document", "deck", "article", "page"}
+        # ADR-489 D1/D2: three Studio types (`article` + `page` → `web`).
+        kinds_for_app("studio") == {"document", "deck", "web"}
         and kinds_for_app("images") == {"image"}
         and not (kinds_for_app("studio") & kinds_for_app("images")),
     )

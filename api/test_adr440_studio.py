@@ -37,8 +37,10 @@ def run() -> bool:
 
     # ADR-459 D3: kernel SEEDS, never BOUNDS — `⊇` so a bundle-shipped layout
     # (ADR-222 "programs ship the templates") doesn't turn the ratchet red.
-    _check("kernel seeds four templates: document/deck/article + page (ADR-456 W3)",
-           set(STUDIO_TEMPLATES) >= {"document", "deck", "article", "page"})
+    # ADR-489 D1: THREE types — document (capture) · deck (present) · web
+    # (publish). `article` + `page` merged into `web`; `canvas` is IMAGES'.
+    _check("kernel seeds three templates: document/deck/web (ADR-489 D1)",
+           set(STUDIO_TEMPLATES) >= {"document", "deck", "web"})
     for slug, t in STUDIO_TEMPLATES.items():
         _check(f"template '{slug}' has label/description/skeleton",
                all(t.get(k) for k in ("label", "description", "skeleton")))

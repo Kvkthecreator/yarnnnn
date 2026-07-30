@@ -168,39 +168,73 @@ _SHARED_CSS = """
     div[data-block="metrics"] .metric span { font-size: var(--text-xs, 0.8rem); color: var(--muted); }
 """.strip("\n")
 
-#: A layout's **mode** — the composition seam (2026-07-15). Two honest kinds of
-#: artifact were wearing one workbench:
+#: A layout's **mode** — the composition seam (2026-07-15; re-cut by ADR-489).
 #:
-#:   paged (deck, page) — the CONTAINER is the unit. A slide IS a page; a
-#:     landing band IS a section. "New slide/section" is the primary authoring
-#:     act, and a navigator strip is real navigation (PowerPoint/Keynote).
+#:   paged (deck, web) — the CONTAINER is the unit. A slide IS a page; a web
+#:     band IS a section. "New slide/band" is a primary authoring act, and a
+#:     navigator strip is real navigation (PowerPoint/Keynote/Wix).
 #:
-#:   flow  (document, article) — BLOCKS are the unit and they flow. There is no
-#:     section to insert; the outline is a derived table of contents, not
-#:     structure. Insert is located at the pointer, never at "the document"
+#:   flow  (document) — BLOCKS are the unit and they flow. There is no section
+#:     to insert; the outline is a derived table of contents, not structure
 #:     (Notion/Docs).
 #:
-#: The chrome DERIVES from this: the paged affordances (the New-‹noun› gallery,
-#: the navigator strip) are native to `paged` and were bolted onto `flow`, where
-#: they fight the model — the tell was the 2026-07-14 ruling that a document's
-#: outline "doesn't earn its width" and ships collapsed. An affordance defaulted
-#: off is usually one that does not belong.
+#: MODE IS NOT THE GEOMETRY SEAM (ADR-489 D3). `paged` answers only *does this
+#: type have page units*. Whether a coordinate space exists is a SEPARATE axis,
+#: derived from `.slide` ancestry via the `block-staged` predicate — which is why
+#: deck has x/y/z and `web` does not, while both are `paged`. The two questions
+#: were conflated under one word; naming them apart is what let `web` merge
+#: article+page without inheriting the deck object grammar. A slide has a FRAME
+#: (16:9, always — a percentage is stable); a web page has a VIEWPORT (390px to
+#: 2560px — a percentage means something different at every width, and pinning it
+#: is the per-breakpoint-editing refusal in another costume). ADR-461 D4 stands.
 #:
-#: Arrangements survive in `flow` — but as a BLOCK the pointer inserts (a
-#: two-column band, a metrics band), never as a page unit. That reframing is
-#: what keeps the capability without the collision.
+#: Arrangements are `paged`-ONLY (ADR-481 D1, hardened by ADR-489 D1): a flowing
+#: document has no page-grain unit. Two columns inside a document would be a
+#: BLOCK kind, not an arrangement.
 #:
 #: NB: distinct from each layout's `flow` KEY below, which is prose describing
 #: the layout's markup shape to the lane. `mode` is the machine seam; `flow` is
 #: pedagogy.
 STUDIO_LAYOUT_MODES = ("flow", "paged")
 
+#: THE STUDIO TYPE SET IS THREE (ADR-489 D1) — `document` · `deck` · `web`, one
+#: per medium the member actually works in:
+#:
+#:   document — CAPTURE. Notes, drafts, working docs. Continuous, internal,
+#:              revised forever. Notion-class, never Word-class (no pagination,
+#:              ADR-480 D6). The workspace's centre of gravity.
+#:   deck     — PRESENT. A framed stage, spoken over. PowerPoint-class: the only
+#:              type with a coordinate space, because the only one with a frame.
+#:   web      — PUBLISH. A banded page read by someone OUTSIDE the workspace.
+#:              Medium/Wix-class: band sequence + typography, no placement.
+#:
+#: Four types (document · deck · article · page) implied four coordinate systems
+#: where there were only ever three media, and `article` was the tell — a
+#: publishing shape wearing an internal-document chrome, never once used for real
+#: work. ADR-489 D2 merged it into `web`.
+#:
+#: `canvas` IS NOT A STUDIO TYPE. It left for the IMAGES app as `image`
+#: (ADR-472 D1/D7, migrated by `scripts/oneshot/adr472_migrate_canvas_to_image`)
+#: and lives in `services/images/stage.py::STAGE`. It is absent from this table,
+#: absent from RETIRED_LAYOUT_SLUGS (a Studio alias would re-claim it), and
+#: `app_for_kind("canvas")` returns None on purpose — a stale `canvas` artifact
+#: opens in the generic viewer and belongs to no app's recents. Do not add a row
+#: for it here; the app boundary is the MODULE (ADR-473 D2).
 STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
+    # ADR-489 D1: the CAPTURE medium. Notes, drafts, PRDs, meeting records —
+    # the type where information ARRIVES and is continuously revised, and the
+    # workspace's centre of gravity (9 of 18 live artifacts at the cut, and the
+    # only two with real authored substance). Its expressive scope is the
+    # markdown-grade essentials (headings, prose, lists, quote, callout, table,
+    # image, divider) — deliberately NOT a layout surface. Every region
+    # mechanism (arrangements, slots, geometry) is absent BY DEFINITION here,
+    # not by measurement: a capture surface that asks "where on the page" has
+    # stopped being a capture surface.
     "document": {
         "app": "studio",
         "label": "Document",
         "mode": "flow",
-        "description": "An internal working document — sections under one title.",
+        "description": "Notes, drafts, working documents — capture and revise.",
         "flow": (
             "one <main> holding an <h1> title and a short lede <p>, then blocks "
             "flowing vertically. Clarity over polish."
@@ -271,54 +305,37 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
   </div>
 </section>""",
     },
-    "article": {
+    # ADR-489 D2: the OUTWARD type — `article` and `page` merged. Both answered
+    # one question ("HTML for someone outside the workspace"); the split asked
+    # the member to pre-classify an essay against a landing page before writing
+    # a word, and neither was ever used for real work (2 articles + 1 page at
+    # the cut, all `test-*`). The band stack serves both: a `prose-header` band
+    # opens a blog post, `hero`/`cta` open a landing page, and the difference is
+    # which bands you stack — a composition choice, not a type.
+    #
+    # BAND-FIRST, NEVER OBJECT-FIRST (ADR-489 D3). No x/y/z here, ever: a web
+    # page has a VIEWPORT, not a frame (ADR-461 D4), so a percentage position
+    # means something different at every width and pinning it is per-breakpoint
+    # editing. The reference class agrees — Medium, Substack, Ghost ship zero
+    # positional control; the tools that do (Framer/Webflow) pay with a
+    # breakpoint editor we refuse. Geometry is unreachable here STRUCTURALLY:
+    # `block-staged` tests `.slide` ancestry and a web band is not a slide.
+    "web": {
         "app": "studio",
-        "label": "Article",
-        "mode": "flow",
-        "description": "A publishing shape — blog post, essay, announcement.",
-        "flow": (
-            "one <article> with a <header> (h1 title, .subtitle promise, .byline "
-            "— the header is a flow container; its title/subtitle/byline ARE "
-            "heading blocks, data-block=\"heading\", so the member can edit them "
-            "in place) followed by blocks of flowing prose; figures carry cited "
-            "images. Written to be read by someone outside the workspace."
-        ),
-        "skin": """
-    article { max-width: 42rem; margin: 0 auto; padding: 3.5rem 1.5rem; }
-    header { margin-bottom: 2.5rem; }
-    header h1 { font-size: var(--text-3xl, 2.2rem); margin-bottom: 0.75rem; }
-    header .subtitle { font-size: var(--text-lg, 1.15rem); color: var(--muted); }
-    header .byline { font-size: var(--text-sm, 0.85rem); color: var(--muted); margin-top: 1rem;
-                     letter-spacing: 0.02em; }
-    article [data-block="prose"] p { margin: 1rem 0; }
-""".strip("\n"),
-        # ADR-481 D1: FLAT (see the document scaffold above). The <header> is a
-        # flow container, not an arrangement — it stays.
-        "scaffold": """<article>
-  <header>
-    <h1 data-block="heading" data-block-id="t1">Untitled article</h1>
-    <p class="subtitle" data-block="heading" data-block-id="t2">The one-sentence promise to the reader.</p>
-    <p class="byline" data-block="heading" data-block-id="t3">Byline · Date</p>
-  </header>
-  <div data-block="prose" data-block-id="b1"><p>Opening paragraph.</p></div>
-</article>""",
-    },
-    # ADR-456 D4 (Wave 3): the fourth layout — the landing page. Full-width
-    # section BANDS (each an arrangement) with the content column centered
-    # inside; heroes carry a cited background (data-ref-kind="background").
-    "page": {
-        "app": "studio",
-        "label": "Page",
+        "label": "Web",
         "mode": "paged",
-        "description": "A landing page — hero, features, call to action.",
+        "description": "A published page — blog post, essay, landing page.",
         "flow": (
             "one <main> of full-width section BANDS, each <section data-arrange=…> "
-            "stacked vertically: a hero (kicker + h1 promise + tagline + button), "
-            "then content/feature/testimonial bands, closing on a call-to-action. "
-            "Band content centers itself; a band may wear a cited background image "
-            "(data-ref + data-ref-kind=\"background\" on the section) with a "
-            "data-scrim for legibility. Written to convert a visitor, not to be "
-            "read top-to-bottom."
+            "stacked vertically. A blog post or essay opens with a `prose-header` "
+            "band (kicker/h1/standfirst/byline) and continues in `content` bands; "
+            "a landing page opens with a `hero` (kicker + h1 promise + tagline + "
+            "button), stacks feature/testimonial bands, and closes on a "
+            "call-to-action. Band content centers itself in a reading column; a "
+            "band may wear a cited background image (data-ref + "
+            "data-ref-kind=\"background\" on the section) with a data-scrim for "
+            "legibility. Written to be read by someone OUTSIDE the workspace — "
+            "never position blocks (a page has a viewport, not a frame)."
         ),
         "skin": """
     section[data-arrange] { padding: 4rem 1.5rem; }
@@ -329,6 +346,17 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
               text-transform: uppercase; margin-bottom: 1rem; }
     .tagline { font-size: var(--text-lg, 1.2rem); color: var(--muted); }
     section[data-arrange] h2 { font-size: var(--text-2xl, 1.8rem); margin-bottom: 1rem; }
+    /* The long-form band: a narrower reading column than a landing band, and a
+       byline. This is the article shape, expressed as a band. */
+    section[data-arrange="prose-header"] { padding: 5rem 1.5rem 2rem; }
+    section[data-arrange="prose-header"] > *,
+    section[data-arrange="prose"] > * { max-width: 42rem; }
+    section[data-arrange="prose-header"] .standfirst { font-size: var(--text-lg, 1.15rem);
+              color: var(--muted); }
+    section[data-arrange="prose-header"] .byline { font-size: var(--text-sm, 0.85rem);
+              color: var(--muted); margin-top: 1rem; letter-spacing: 0.02em; }
+    section[data-arrange="prose"] { padding: 1rem 1.5rem; }
+    section[data-arrange="prose"] [data-block="prose"] p { margin: 1rem 0; }
 """.strip("\n"),
         "scaffold": """<main>
   <section data-arrange="hero">
@@ -504,9 +532,40 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
 </section>""",
         },
     },
-    # ADR-456 D4 (Wave 3): the page layout's band family — the builder-class
-    # section stack (hero · content · features · testimonial · CTA · footer).
-    "page": {
+    # ADR-456 D4 (Wave 3): the web layout's band family — the builder-class
+    # section stack (hero · content · features · testimonial · CTA · footer),
+    # widened by ADR-489 D2 with the two LONG-FORM bands that carry what the
+    # `article` layout used to be (prose-header · prose). The registry key is
+    # `web`; the `grain: page` field is unrelated — that is the page-GRAIN of the
+    # arrangement (whole-page vs section-band), untouched by the rename.
+    "web": {
+        "prose-header": {
+            "label": "Article header",
+            "description": "The long-form opening — kicker, title, standfirst, byline.",
+            "grain": "page",
+            # `main`/flow, not `heading`: the byline sits alongside the headings
+            # and the role ladder routes flow content PAST a heading-role slot.
+            "slots": [{"name": "main", "role": "flow"}],
+            "fragment": """<section data-arrange="prose-header">
+  <div data-slot="main">
+    <p class="kicker" data-block="heading" data-block-id="k1">Kicker</p>
+    <h1 data-block="heading" data-block-id="t1">The title of the piece.</h1>
+    <p class="standfirst" data-block="heading" data-block-id="s1">The one-sentence promise to the reader.</p>
+    <p class="byline" data-block="heading" data-block-id="y1">Byline · Date</p>
+  </div>
+</section>""",
+        },
+        "prose": {
+            "label": "Prose",
+            "description": "A narrow reading column — the body of a post or essay.",
+            "grain": "page",
+            "slots": [{"name": "main", "role": "flow"}],
+            "fragment": """<section data-arrange="prose">
+  <div data-slot="main">
+    <div data-block="prose" data-block-id="b1"><p>Start writing.</p></div>
+  </div>
+</section>""",
+        },
         "hero": {
             "label": "Hero",
             "description": "The headline band — kicker, promise, tagline, button.",
@@ -610,8 +669,8 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
 #   page-multicol — pages whose arrangement has ≥2 flow slots
 #   page-deck     — deck slides only
 #   document      — the artifact ROOT (<html>), all layouts (ADR-455)
-#   document-flow — the artifact root, document/article only (a deck is a
-#                   fixed 16:9 stage and a page is full-width bands — measure
+#   document-flow — the artifact root, `flow` layouts only (document; a deck is
+#                   a fixed 16:9 stage and web is full-width bands — measure
 #                   applies to neither)
 #   document-deck — the artifact root, deck only (slide numbers, ADR-456)
 #   page-bg       — a page/section carrying a cited background image
@@ -646,7 +705,7 @@ APPLIES_TARGETS: dict[str, str] = {
     "page-multicol": "a page whose arrangement has 2+ flow slots",
     "page-bg": "a page carrying a cited background image",
     "document": "the artifact root (<html>)",
-    "document-flow": "the artifact root, document/article only",
+    "document-flow": "the artifact root, a document only",
     "document-deck": "the artifact root, deck only",
 }
 
@@ -798,7 +857,7 @@ STUDIO_TOKENS: dict[str, dict] = {
         "values": [
             {"value": "wide", "label": "Wide"},
         ],
-        "description": "the content column width on a document/article (absence = the layout default)",
+        "description": "the content column width on a document (absence = the layout default)",
     },
     # ADR-472 D3: the `aspect` token (wide/portrait/story slugs, scoped
     # `document-canvas`) is DELETED, not moved to IMAGES. It only ever existed
@@ -857,7 +916,7 @@ STUDIO_TOKENS: dict[str, dict] = {
 STUDIO_MEASURES: dict[str, dict] = {
     "w": {
         "label": "Width",
-        # Deck + media only. NOT document/article/page — they reflow.
+        # Deck + media only. NOT document or web — they reflow.
         "applies": ["block-staged", "media"],
         "unit": "%",
         "min": 10,
@@ -1028,7 +1087,7 @@ div[data-block="gallery"] figcaption { font-size: var(--text-xs, 0.75rem); }
    exact bug ADR-461 B1 removed from `align`, in the row next door.
    Measured (992px slide, 64px pad, inner 864): h1 auto 544 / fill 544 → 864.
    Scoped `.slide` (0,2,0) so it wins where the cap is set, and stays out of
-   document/article/page, whose measure is the whole point of the grain. */
+   a document, whose measure is the whole point of the grain. */
 .slide [data-size="fill"] { max-width: none; }
 /* A hugged box is only as wide as its text, so `text-align` — which aligns the
    text INSIDE the box — has nothing left to move. Aligning it is a margin act.
@@ -1051,7 +1110,7 @@ div[data-block="gallery"] figcaption { font-size: var(--text-xs, 0.75rem); }
    ratio is its own. The `.slide` scope is not decoration — it IS the boundary,
    and it is what a deck slide and an IMAGES stage share (ADR-472 D2 — the
    shared object layer, consumed by both apps).
-   Nothing here applies to document/article/page, which reflow and would have
+   Nothing here applies to document or web, which reflow and would have
    no answer at 40rem. */
 .slide [data-w], [data-block="figure"][data-w], [data-block="chart"][data-w],
 [data-block="gallery"][data-w] { width: var(--yw, auto); max-width: 100%; }
@@ -1115,6 +1174,10 @@ aside[data-block="callout"][data-variant="warning"] { border-color: var(--warn, 
 html[data-font="serif"] body { font-family: var(--font-serif, Georgia, 'Times New Roman', serif); }
 html[data-font="sans"] body { font-family: var(--font-sans, system-ui, -apple-system, 'Segoe UI', sans-serif); }
 html[data-font="mono"] body { font-family: var(--font-mono, ui-monospace, 'SF Mono', Menlo, monospace); }
+/* The `article` selector serves LEGACY artifacts only — ADR-489 D2 merged the
+   `article` layout into `web`, and no scaffold emits an <article> root now. It
+   stays because a pre-cut artifact still carries one and its measure must keep
+   working (the ADR-481 D5 discipline: legacy renders, never migrates). */
 html[data-measure="wide"] main, html[data-measure="wide"] article { max-width: 64rem; }
 /* The slide IS the frame (ADR-461 D3/D4). `position: relative` makes it the
    containing block, so anything positioned inside a slide resolves against the
@@ -1130,7 +1193,7 @@ html[data-pagenum="on"] body { counter-reset: slide; }
 html[data-pagenum="on"] .slide { counter-increment: slide; }
 html[data-pagenum="on"] .slide::after { content: counter(slide); position: absolute;
   right: 1.25rem; bottom: 0.9rem; font-size: var(--text-xs, 0.7rem); color: var(--muted, #6b6b6b); }
-/* Responsive stacking (ADR-456 W1): document/article multi-column bands stack
+/* Responsive stacking (ADR-456 W1): web multi-column bands stack
    on narrow screens; a deck slide is a fixed 16:9 stage, exempt.
    This `:not(.slide)` STAYS — unlike the one retired above, it does not depend
    on skin state. It encodes a real difference in kind: a slide has no
@@ -1150,7 +1213,7 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 #:     stacking (ADR-456) — block/arrangement CSS lives HERE, not the layout
 #:     skin, precisely so this retrofit carries it into existing artifacts.
 #: v4: Wave-3 (ADR-456) — cited page backgrounds (data-ref-kind="background"
-#:     + scrim/bg-pos), the generic non-slide .cols (document/article
+#:     + scrim/bg-pos), the generic non-slide .cols (web
 #:     two-column made real), page-band accents, --radius adoption.
 # v9 (2026-07-16, DESIGN-SYSTEMS.md §5): the WIDENED theme contract. The
 # coverage probe measured that the five point-vars (--ink/--paper/--muted/
@@ -1367,19 +1430,52 @@ def register_layouts(layouts: dict[str, dict], arrangements: dict[str, dict] | N
         _ARRANGEMENT_REGISTRY[slug] = rows
 
 
+#: Retired layout slugs → their successor (ADR-489 D2). A pre-cut artifact
+#: carries `data-template="article"` in its own bytes, and ADR-209 forbids
+#: manufacturing a revision to fix a naming decision — so the slug resolves at
+#: READ time and the source is never rewritten (the ADR-481 D5 discipline:
+#: legacy renders, never migrates; it converges when the member next edits).
+#:
+#: This is an alias, NOT a dual implementation: there is one `web` row and one
+#: `web` arrangement roster. Nothing may be ADDED here — a new retirement earns
+#: a row, and a slug that never shipped is simply unknown.
+RETIRED_LAYOUT_SLUGS: dict[str, str] = {
+    "article": "web",
+    "page": "web",
+}
+
+
+def canonical_layout_slug(slug: str) -> str:
+    """A retired layout slug mapped to its live successor; any other slug as-is.
+
+    The one place a legacy `data-template` value is reinterpreted. `canvas` is
+    deliberately ABSENT — it belongs to the IMAGES app (ADR-472 D1), never to
+    Studio, so it must resolve through the IMAGES registration or not at all.
+    """
+    return RETIRED_LAYOUT_SLUGS.get(slug, slug)
+
+
 def resolve_layout(slug: str) -> dict | None:
-    """The layout row for a slug, from ANY registered app. None if unknown."""
-    return _LAYOUT_REGISTRY.get(slug)
+    """The layout row for a slug, from ANY registered app. None if unknown.
+
+    Retired Studio slugs resolve to their successor (ADR-489 D2) so a pre-cut
+    artifact keeps rendering with the right mode, skin and chrome.
+    """
+    return _LAYOUT_REGISTRY.get(canonical_layout_slug(slug))
 
 
 def all_layouts() -> dict[str, dict]:
-    """Every registered layout across apps (the vocabulary surface reads this)."""
+    """Every registered layout across apps (the vocabulary surface reads this).
+
+    Live types only — a retired slug is resolvable (``resolve_layout``) but never
+    OFFERED, so the create picker shows three Studio types and not five.
+    """
     return dict(_LAYOUT_REGISTRY)
 
 
 def resolve_arrangements(slug: str) -> dict:
     """The arrangement roster for a layout, from any registered app."""
-    return _ARRANGEMENT_REGISTRY.get(slug, {})
+    return _ARRANGEMENT_REGISTRY.get(canonical_layout_slug(slug), {})
 
 
 # Studio registers its document types with the shared resolver (ADR-472 D2).
@@ -1591,7 +1687,7 @@ an ordinary edit — versioned and revertible like any other.
 
 ## Arrangements (where content goes on a page/section)
 Each page or section carries an ARRANGEMENT — data-arrange="<slug>" on the
-page element (a deck slide, or a document/article <section>), with
+page element (a deck slide, or a web <section> band), with
 data-slot="<name>" regions that hold blocks. The arrangement is the
 composition (grids, columns, slots); the block is the content; keep them
 distinct. When you author a new page/section, annotate it with data-arrange
@@ -1695,6 +1791,11 @@ def artifact_kind(artifact_content: Optional[str]) -> dict[str, Optional[str]]:
     slug = extract_template(artifact_content or "")
     if not slug:
         return {"kind": None, "kind_label": UNKNOWN_KIND_LABEL}
+    # ADR-489 D2: a retired slug reports as its successor. The slug is what the
+    # FE keys its glyph and its app routing on, so returning the raw legacy
+    # value would split one artifact's identity in two — kind `article` wearing
+    # label "Web". One name, resolved once, at the lift.
+    slug = canonical_layout_slug(slug)
     known = resolve_layout(slug)
     if not known:
         # Deferred import: bundle_reader reads the program bundles off disk;

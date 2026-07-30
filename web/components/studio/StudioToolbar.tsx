@@ -226,8 +226,10 @@ export function StudioToolbar({
           PAGE-grain pair below (paged layouts — a flow artifact has no page
           unit to offer). */}
       {/* `+` not `▾`: New ADDS something (the OS teaches `+` as "insert"
-          everywhere else — the gutter's + is the same promise at the row
-          grain); Layout picks among options, so it carries no +. */}
+          everywhere else); Re-arrange picks among options, so it carries no +.
+          ADR-489 D4: the PAGE grain is this button's alone — the block grain is
+          `/` at the caret, and the gutter that used to offer a third route is
+          deleted. */}
       {isPaged && arrangements.length > 0 && (
         <button type="button" className={btn} onClick={() => setOpen(open === 'new' ? null : 'new')}>
           <LayoutGrid className="h-3 w-3" /> New {pageNoun} <Plus className="h-3 w-3" />
@@ -259,8 +261,9 @@ export function StudioToolbar({
           job — "the acknowledgment" — for a world where every affordance was
           selection-gated (ADR-458 §1: "click → toolbar chip + Design tab"), so
           the chip was the receipt proving the click landed. ADR-458 moved the
-          entrance to HOVER (the gutter's + / ⋮⋮ need no selection), and the
-          receipt lost its errand: there is no longer a gated act it unlocks.
+          entrance to HOVER, and the receipt lost its errand: there is no longer
+          a gated act it unlocks. (That hover layer is itself deleted now —
+          ADR-489 D4 — which only deepens the reason.)
 
           What remained was a third rendering of one fact — the navigator
           already rings the slide indigo, the canvas already marks it, and the

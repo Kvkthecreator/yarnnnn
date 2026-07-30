@@ -79,7 +79,6 @@ import {
   insertBlockInSlot,
   mergeBlock,
   moveBlock,
-  moveBlockTo,
   nudgeZ,
   movePage,
   movePageTo,
@@ -504,8 +503,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       arrange: p.arrange,
       text: p.text,
     });
-    // ADR-458: the gutter's ⋮⋮ selects AND opens the Design tab (one home).
-    if (p.design) setRightTab('design');
   }, []);
   const onPointClear = useCallback(() => {
     setCtxMenu(null); // same reason as onPoint — a click on empty canvas
@@ -1418,19 +1415,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     [file, vocabulary, writeAndAdvance],
   );
 
-  // F1 — the ⋮⋮ drag dropped: move `blockId` before `beforeBlockId` (null =
-  // end of its parent) as ONE structural revision. moveBlockTo filters a no-op
-  // drop (onto itself / already in place) → null → applyOp stays silent.
-  const handleReorder = useCallback(
-    (blockId: string, beforeBlockId: string | null) => {
-      void applyOp(
-        (html) => moveBlockTo(html, blockId, beforeBlockId),
-        `Studio: move block`,
-      );
-    },
-    [applyOp],
-  );
-
   // F6 — Enter-split / Backspace-merge, the OPTIMISTIC path. The runtime already
   // mutated the live DOM (split the block / merged into the previous) and moved
   // the caret; here we land the matching SOURCE revision WITHOUT a reload
@@ -1603,7 +1587,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     ctx: { blockId: string; beforeInner: string | null; afterInner: string | null; empty: boolean };
   } | null>(null);
 
-  // Land a fragment at a LOCATED insertion context (the slash/gutter point):
+  // Land a fragment at a LOCATED insertion context (the caret/slash point):
   // an empty block is replaced (insert-after + delete — one revision; headings
   // are never deleted, they anchor pages); a mid-sentence point splits so the
   // sentence keeps its tail; otherwise the block lands after the anchor.
@@ -2354,7 +2338,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 onEditExited={() => setEditingBlockId(null)}
                 onEditEntered={(id) => setEditingBlockId(id)}
                 onEnterBlock={onEnterBlock}
-                onReorder={handleReorder}
                 onRatio={handleRatio}
                 onGeometry={handleGeometry}
                 onGeometryMany={handleGeometryMany}
@@ -2554,7 +2537,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               // ADR-487 D9 — the applied-system cue routes to the manage panel
               // (the third render state), the SAME param the landing card sets.
               onOpenSystem={(manifestPath) => setParam({ system: relPath(manifestPath) })}
-              onAddTextInSlot={insertProseInSlot}
               onInsertImageInSlot={insertImageInSlot}
               onSetPageBackground={handleSetPageBackground}
               onRemovePageBackground={handleRemovePageBackground}

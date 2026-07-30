@@ -104,12 +104,16 @@ def run() -> bool:
         "function bindGesture(handle, subject, opts)" in proj,
     )
     _check(
-        "bindDrag is a CALLER of it (the extraction is proven, not asserted)",
-        "bindGesture(handle, function () { return curBlock; }" in proj,
+        # ADR-489 D4 deleted bindDrag (the ⋮⋮ reorder), which was the FIRST
+        # caller. The primitive still earns its keep on the remaining callers —
+        # that is the point of having extracted it, and this check now proves
+        # the extraction survived losing its original client.
+        "the divider is a CALLER of it (the extraction outlived its first client)",
+        "bindGesture(divider, function () { return dividerCols; }" in proj,
     )
     _check(
-        "the divider is its SECOND caller (the primitive earns its keep)",
-        "bindGesture(divider, function () { return dividerCols; }" in proj,
+        "a resize grip is another caller (2+ callers = a real primitive)",
+        proj.count("bindGesture(") >= 3,
     )
     _check(
         "click-suppression is ONE flag with ONE setter (no per-gesture cross-talk)",
@@ -307,8 +311,11 @@ def run() -> bool:
     # framed -> handles, flowing -> gutter. The gutter's own row hit-test skips
     # any framed block (a placed thing has no row to be inserted between).
     _check(
-        "a framed block gets no gutter (one gate, two affordances, never both)",
-        "if (isMeasurable(b)) continue;" in proj,
+        # Was: "a framed block gets no gutter". The gutter is deleted (ADR-489
+        # D4) so the gate has ONE consumer now — handles — and the invariant it
+        # protects is that `isMeasurable` stays the single frame question.
+        "the frame gate is a single function, asked once (isMeasurable)",
+        "function isMeasurable(" in proj and proj.count("function isMeasurable(") == 1,
     )
     # The preview must speak the COMMIT's units, or the block jumps on release.
     # The two questions are separate functions on purpose: "is this measurable?"

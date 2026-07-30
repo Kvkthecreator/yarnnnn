@@ -193,7 +193,7 @@ def run() -> bool:
     )
     _check(
         "no literal backtick inside the new runtime additions",
-        "`" not in proj.split("const GUTTER_SCRIPT = `", 1)[1].split("`;", 1)[0],
+        "`" not in proj.split("const OBJECT_SCRIPT = `", 1)[1].split("`;", 1)[0],
     )
 
     # ── D6: the boundary projections (relocated 2026-07-24: Export lives

@@ -74,19 +74,24 @@ def run() -> bool:
     _check("a background failure never touches the band's children",
            "if (kind === 'background') return;" in proj)
 
-    # ── 3. The page layout ───────────────────────────────────────────────
-    _check("page is the fourth layout (templates derive)",
-           "page" in STUDIO_LAYOUTS and "page" in STUDIO_TEMPLATES)
-    _check("the page band family",
-           set(STUDIO_ARRANGEMENTS.get("page", {}))
-           == {"hero", "content", "feature-grid", "testimonial", "cta", "footer"})
-    _check("the hero leads the page scaffold",
-           'data-arrange="hero"' in build_skeleton("page")
-           and 'data-template="page"' in build_skeleton("page"))
+    # ── 3. The banded layout — `page`, renamed `web` by ADR-489 D2 ───────
+    # W3's band family is intact; the layout it belongs to absorbed `article`
+    # and took the outward-facing name. The retired slug still RESOLVES (a
+    # pre-cut artifact keeps rendering) but is never offered.
+    _check("web is the banded layout (templates derive)",
+           "web" in STUDIO_LAYOUTS and "web" in STUDIO_TEMPLATES)
+    _check("the W3 band family survives the rename",
+           set(STUDIO_ARRANGEMENTS.get("web", {}))
+           >= {"hero", "content", "feature-grid", "testimonial", "cta", "footer"})
+    _check("ADR-489 D2 added the two long-form bands (the article shape)",
+           {"prose-header", "prose"} <= set(STUDIO_ARRANGEMENTS.get("web", {})))
+    _check("the hero leads the web scaffold",
+           'data-arrange="hero"' in build_skeleton("web")
+           and 'data-template="web"' in build_skeleton("web"))
     _check("cta band rides the tone token (no new mechanism)",
-           'data-tone="accent"' in STUDIO_ARRANGEMENTS["page"]["cta"]["fragment"])
+           'data-tone="accent"' in STUDIO_ARRANGEMENTS["web"]["cta"]["fragment"])
     _check("feature-grid declares three flow slots",
-           [s["role"] for s in STUDIO_ARRANGEMENTS["page"]["feature-grid"]["slots"]]
+           [s["role"] for s in STUDIO_ARRANGEMENTS["web"]["feature-grid"]["slots"]]
            == ["flow", "flow", "flow"])
     # The base rule later widened to all [data-arrange] (kernel evolution); the
     # deck exemption lives in the responsive STACKING rule, which is the part
@@ -105,8 +110,13 @@ def run() -> bool:
     design = (web / "components/studio/StudioDesignTab.tsx").read_text()
     _check("Design tab: the read-only theme panel parses the applied skin's vars",
            "skinVars" in design and "style[data-skin]" in design)
-    _check("Design tab: measure gated to document/article only (page = full-width bands)",
-           "layout === 'document' || layout === 'article'" in design)
+    # The gate asserted a SLUG test (`layout === 'document' || 'article'`) that
+    # the FE had already replaced with the MODE seam — the correct spelling, and
+    # the one ADR-489 D2 needs (a `web` artifact is paged, so it must not offer
+    # measure; a bundle's own flow layout must).
+    _check("Design tab: measure gated by MODE, never by a layout slug",
+           "mode === 'flow' && t.applies.includes('document-flow')" in design
+           and "layout === 'article'" not in design)
     _check("Design tab: the background picker + page-bg token gate",
            "onSetPageBackground" in design and "page-bg" in design
            and "Set background…" in design)

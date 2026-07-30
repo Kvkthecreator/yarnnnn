@@ -6,6 +6,45 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.30.1] - The three-type cut: document · deck · web (ADR-489)
+
+### Changed
+- `services/studio.py` — `STUDIO_LAYOUTS` goes from four types to **three**:
+  `document` (CAPTURE — flow, Notion-class) · `deck` (PRESENT — paged, framed) ·
+  `web` (PUBLISH — paged, banded). `article` + `page` merged into `web`;
+  `STUDIO_ARRANGEMENTS["page"]` → `["web"]` and gains two long-form bands
+  (`prose-header`, `prose`) carrying what the `article` layout used to be, so the
+  roster is 8. The `document` description is re-cut from "An internal working
+  document — sections under one title." to "Notes, drafts, working documents —
+  capture and revise."; `web`'s `flow` pedagogy names BOTH shapes (blog post
+  opens with `prose-header`; landing page with `hero`) and states the geometry
+  refusal explicitly ("never position blocks — a page has a viewport, not a
+  frame").
+- `services/studio.py` — the `mode` docstring is re-cut: **mode is not the
+  geometry seam**. `paged` answers only *does this type have page units*; the
+  coordinate space is a separate axis derived from `.slide` ancestry
+  (`block-staged`), which is why deck has x/y/z and `web` does not while both are
+  `paged`. Two mode values remain.
+- `services/studio.py` — `APPLIES_TARGETS["document-flow"]` and the `measure`
+  token description drop the retired type names ("document/article only" → "a
+  document only"). These are SERVED strings the lane reads, so a stale type name
+  there teaches the model a layout that no longer exists.
+- Expected behavior: the lane's authoring posture (`_blocks_grammar` /
+  `_arrangements_grammar` / `_tokens_grammar`, all derived from the registries)
+  now teaches three types and 8 web arrangements. Asked for a blog post it
+  reaches for `prose-header` + `prose` bands rather than the deleted `article`
+  layout; it is no longer told a `document` can carry arrangements (it never
+  could since ADR-481 D1, but the type set implied a peer that did); and it is
+  never taught `document-flow` tokens as belonging to a type that is now paged.
+
+### Added
+- `services/studio.py` — `RETIRED_LAYOUT_SLUGS` + `canonical_layout_slug()`: the
+  ONE place a legacy `data-template` value is reinterpreted (`article`/`page` →
+  `web`), consulted by `resolve_layout` / `resolve_arrangements` /
+  `artifact_kind`. An alias, not a dual implementation — one `web` row, one
+  roster. `canvas` is deliberately absent (it belongs to IMAGES per ADR-472 D1).
+  No substrate is rewritten (ADR-209); a legacy artifact converges on next edit.
+
 ## [2026.07.28.1] - Radar's resident is Researcher (ADR-486 binding, operator-ratified)
 
 ### Changed

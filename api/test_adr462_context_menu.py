@@ -85,8 +85,10 @@ def main() -> bool:
         and "type: 'yarnnn-context-menu'," in proj,
     )
     _check(
-        "injected chrome keeps its own menu (the gutter/format bar are not the page)",
-        "t.closest('.yarnnn-gutter') || t.closest('.yarnnn-fmt')" in proj,
+        # ADR-489 D4 deleted the gutter, so the format bar is the only injected
+        # chrome left to exempt (plus the add-here button on paged).
+        "injected chrome keeps its own menu (the format bar is not the page)",
+        "t.closest('.yarnnn-fmt')" in proj and ".yarnnn-gutter" not in proj,
     )
     _check(
         "the runtime answers the FRAME gate (only it can see the DOM)",
@@ -133,9 +135,14 @@ def main() -> bool:
         in proj,
     )
     _check(
-        "transient gesture chrome keeps its accent (drop-line = a prediction)",
-        "background: var(--yarnnn-chrome-accent);\n  border-radius: 2px; pointer-events: none;"
-        in proj,
+        # The drop-line was the example; it died with the ⋮⋮ drag (ADR-489 D4).
+        # The invariant survives on the chrome that remains: one accent custom
+        # property, never a scattered literal (ADR-482 D4).
+        "transient gesture chrome rides ONE accent property, not literals",
+        "--yarnnn-chrome-accent: #6366f1;" in proj
+        # Exactly one DECLARATION. The other occurrence is the comment above it
+        # recording that it used to be scattered — history, not a second literal.
+        and proj.count("--yarnnn-chrome-accent: #6366f1;") == 1,
     )
 
     print("\n── D8: the frame is NAMED while it is being measured against ──")

@@ -1,21 +1,29 @@
-"""Regression gate — Studio gutter pointer-tracking + cross-block arrow nav.
+"""Regression gate — the gutter STAYS DELETED + cross-block arrow nav.
 
-Two polish fixes from the ADR audit:
+Two halves, and the first one INVERTED by ADR-489 D4.
 
-  F5 (gutter tracking): the hover gutter pinned to the block TOP and only
-  repositioned when the pointer crossed to a NEW block — so on a tall block it
-  visibly did NOT follow the mouse. Fix: showFor(block, pointerY) centers the
-  bar on the cursor clamped to the block's bounds; mousemove repositions on
-  EVERY move within the block; the exit grace-timer drops 300ms → 150ms.
+  The gutter (was F5 — gutter pointer-tracking): the hover gutter is DELETED on
+  every mode. ADR-481 D2 removed it on `flow` (the caret IS the insertion point);
+  ADR-489 D4 removed the `paged` remainder — it was a third insert route behind
+  `/` and the New-‹page› gallery, and web-page editors do not have one. Deleted
+  with it: the `⋮⋮` drag-to-reorder and its drop-line (reorder is cut/paste in
+  prose on `document`, Move up/down in the menu on `deck`/`web`).
 
-  F6 (arrow traversal): only one block edited at a time and the caret couldn't
-  leave it. Fix: ArrowUp on the first visual line / ArrowDown on the last enters
-  the adjacent TEXT block (caret at end / start) — one continuous flow, pure
-  in-iframe caret motion, no write door. Mid-block arrows stay native.
+  The checks below are therefore NEGATIVE — they assert the affordance has not
+  come back, and that its deletion did not take the shared pointer primitive
+  (`bindGesture`) or deck's object grammar with it. That grammar lived in a
+  constant NAMED `GUTTER_SCRIPT` while being ~92% object chrome; the rename to
+  `OBJECT_SCRIPT` is asserted here because the stale name is what made "delete
+  the gutter" look like a 1,167-line deletion.
+
+  F6 (arrow traversal): ArrowUp on the first visual line / ArrowDown on the last
+  enters the adjacent TEXT block (caret at end / start) — pure in-iframe caret
+  motion, no write door. Mid-block arrows stay native. UNCHANGED and still live
+  on `paged`, where a block is an enclosure.
 
 Static/structural checks (no DB, no LLM):
 
-Run:  cd api && python3 test_studio_gutter_and_arrows.py
+Run:  cd api && python3 test_studio_no_gutter_and_arrows.py
 Exit code is authoritative (0 = pass).
 """
 
@@ -51,31 +59,42 @@ def run() -> bool:
     web = Path(__file__).resolve().parent.parent / "web"
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
 
-    # ── F5: gutter tracks the pointer vertically ─────────────────────────
-    # (Re-pinned for ADR-466 P9: showFor converts visual→layout coordinates
-    #  first — pointerY becomes `py = (pointerY + scrollY) / z` and the clamp
-    #  runs against the converted `top`/`bottom` — same centering + clamping
-    #  behavior, now honest under body.style.zoom.)
+    # ── The gutter stays deleted (ADR-489 D4) ───────────────────────────
     _check(
-        "showFor takes a pointerY and centers the bar on the cursor",
-        "function showFor(block, pointerY)" in proj
-        and "py - h / 2" in proj,
+        "no gutter bar is built (the `+` / ⋮⋮ rail)",
+        "yarnnn-gutter" not in proj and "yg-handle" not in proj,
     )
     _check(
-        "the bar is clamped to the block's own top/bottom",
-        "Math.max(py - h / 2, top), bottom - h" in proj,
+        "no row-band hover geometry (rowAt / the 64px gutter lane)",
+        "function rowAt(" not in proj and "BAND_LEFT_REACH" not in proj,
     )
     _check(
-        "mousemove repositions on EVERY move within the block (not only a new block)",
-        "showFor(blk, e.clientY);" in proj,
+        "no ⋮⋮ drag-to-reorder: no bindDrag, no drop-line, no yarnnn-reorder",
+        "function bindDrag(" not in proj
+        and "yarnnn-dropline" not in proj
+        and "yarnnn-dragging" not in proj
+        and "yarnnn-reorder" not in proj,
     )
     _check(
-        "the exit grace-timer is shortened to 150ms",
-        "hideTimer = setTimeout(function () { hideTimer = null; hide(); }, 150)" in proj,
+        "the parent has no reorder consumer left (no onReorder / handleReorder)",
+        "onReorder" not in (web / "components/studio/StudioCanvas.tsx").read_text()
+        and "handleReorder"
+        not in (web / "components/studio/StudioSurface.tsx").read_text(),
+    )
+    # The deletion must NOT have taken the shared primitive or the object chrome.
+    _check(
+        "bindGesture SURVIVES (the shared pointer primitive, ADR-461 D2)",
+        "function bindGesture(" in proj,
     )
     _check(
-        "scroll re-anchors to the block top (no pointer during scroll)",
-        "showFor(curBlock, null)" in proj,
+        "deck's object grammar survives (bounding box + handles + group resize)",
+        "yarnnn-selbox" in proj
+        and "yarnnn-geometry" in proj
+        and "yarnnn-geometry-many" in proj,
+    )
+    _check(
+        "the script is named for what it IS (OBJECT_SCRIPT, not GUTTER_SCRIPT)",
+        "const OBJECT_SCRIPT = " in proj and "const GUTTER_SCRIPT = " not in proj,
     )
 
     # ── F6: cross-block arrow traversal ──────────────────────────────────

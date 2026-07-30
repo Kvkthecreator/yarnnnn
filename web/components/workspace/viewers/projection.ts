@@ -482,10 +482,6 @@ const POINTER_SCRIPT = `
     if (t && t.closest && t.closest('.yarnnn-add-here')) return;
     // ADR-456 W2: the format bar owns its clicks (injected chrome, not content).
     if (t && t.closest && t.closest('.yarnnn-fmt')) return;
-    // ADR-458: the hover gutter owns its clicks too (this listener runs in the
-    // CAPTURE phase — without the ignore it would clear the selection before
-    // the gutter button's own handler ever fires).
-    if (t && t.closest && t.closest('.yarnnn-gutter')) return;
     // The grips own their presses (move/resize/divider — body-appended
     // chrome): a press that never became a gesture must NOT read as a margin
     // click and clear the very selection the grip belongs to.
@@ -652,7 +648,7 @@ const POINTER_SCRIPT = `
   document.addEventListener('contextmenu', function (e) {
     var t = e.target;
     // Injected chrome owns its own context menu (i.e. none) — never the page's.
-    if (t && t.closest && (t.closest('.yarnnn-gutter') || t.closest('.yarnnn-fmt')
+    if (t && t.closest && (t.closest('.yarnnn-fmt')
         || t.closest('.yarnnn-add-here'))) return;
     // While a block is being edited, a right-click INSIDE that same block yields
     // to the browser's NATIVE menu (spellcheck suggestions, cut/copy/paste) —
@@ -849,7 +845,7 @@ const POINTER_SCRIPT = `
       reportScroll(); // trailing: capture where the scroll actually settled
     }, 120);
   }, true);
-  // ── Keyboard verbs (ADR-482 D2, relocated from GUTTER_SCRIPT) ──────────
+  // ── Keyboard verbs (ADR-482 D2, relocated from the gutter script) ──────
   //
   // Injected in BOTH grains, because the menu that advertises these keys is
   // rendered in both. Guards ask __yarnnnCaretLive (a caret question), never
@@ -884,7 +880,7 @@ const POINTER_SCRIPT = `
     var blk = selectedBlock();
     if (!blk) return;
     var t = e.target;
-    if (t && t.closest && (t.closest('.yarnnn-gutter') || t.closest('.yarnnn-fmt'))) return;
+    if (t && t.closest && t.closest('.yarnnn-fmt')) return;
     var id = blk.getAttribute('data-block-id');
     if (!id) return;
     var mod = e.metaKey || e.ctrlKey;
@@ -1049,21 +1045,6 @@ const EDIT_CSS = `
 [data-block][contenteditable="true"] [data-ref] {
   outline: 1px dashed rgba(var(--yarnnn-chrome-accent-rgb),0.5); cursor: default;
 }
-/* ADR-458: the hover gutter — + and ⋮⋮ beside the hovered block (injected
-   chrome, body-appended; the pointer runtime ignores its clicks). */
-.yarnnn-gutter {
-  position: absolute; z-index: 9998; display: flex; align-items: center;
-}
-.yarnnn-gutter button {
-  all: unset; cursor: pointer; color: #9ca3af;
-  font: 600 14px/1 system-ui, sans-serif; padding: 2px 4px; border-radius: 4px;
-}
-.yarnnn-gutter button:hover { background: rgba(0,0,0,0.08); color: #4b5563; }
-.yarnnn-gutter .yg-handle { cursor: grab; font-size: 12px; letter-spacing: -3px; }
-/* F1: the ⋮⋮ drag — the grabbed block dims, a drop-line follows the cursor
-   between blocks (Notion's blue indicator). Body-appended chrome, never in a
-   block, so it can't leak into a commit. */
-.yarnnn-gutter .yg-handle:active { cursor: grabbing; }
 /* The column divider (ADR-461 D3) — a snap handle on the gap between two
    columns. Body-appended chrome like the gutter, so it can never leak into a
    commit. It drags through the ratio token's STOPS, never free pixels. */
@@ -1146,12 +1127,6 @@ const EDIT_CSS = `
   content: attr(data-label); position: absolute; top: -1.05rem; left: 0;
   font: 600 0.6rem system-ui, sans-serif; letter-spacing: 0.06em;
   text-transform: uppercase; color: rgba(16,185,129,0.95); white-space: nowrap;
-}
-.yarnnn-dragging { opacity: 0.4; }
-.yarnnn-dropline {
-  position: absolute; z-index: 9997; height: 2px; background: var(--yarnnn-chrome-accent);
-  border-radius: 2px; pointer-events: none; display: none;
-  box-shadow: 0 0 0 1px rgba(var(--yarnnn-chrome-accent-rgb),0.3);
 }
 `;
 
@@ -2231,21 +2206,34 @@ const EDIT_SCRIPT = `
 })();
 `;
 
-// ── The hover gutter (ADR-458) ────────────────────────────────────────────
+// ── The object grammar (`paged` only) ─────────────────────────────────────
 //
-// The layer Notion surfaces on hover: + (open the block palette here) and ⋮⋮
-// (select the block + open the Design tab — the verbs' one home) beside the
-// hovered block, NO selection needed. Injected chrome, body-appended (never
-// inside a block — commits can't see it). Desktop-pointer only; hides for the
-// block being edited (the format bar owns that space). The ⋮⋮ handle DRAGS the
-// block (F1 — pointer-events reorder with a drop-line, all in-frame; a click
-// without a drag still selects + opens the Design tab).
+// The direct-manipulation layer for a framed medium: the bounding box with its
+// eight handles, the border-band move, group resize, the column divider, and
+// the selected block's keyboard. Injected chrome, body-appended (never inside a
+// block — commits can't see it). Desktop-pointer only.
+//
+// ADR-489 D4: THE HOVER GUTTER IS DELETED (all modes). It was ADR-458's Notion
+// layer — a `+` and a `⋮⋮` handle beside the hovered block — and ADR-481 D2 had
+// already removed it on `flow` (the caret IS the insertion point, so an
+// affordance pointing at a place answers a question a continuous surface never
+// asks). What remained was a third insert route on `paged` behind `/` and the
+// gallery, and web-page editors do not have one. Deleted with it: the `⋮⋮`
+// drag-to-reorder (F1) and its drop-line — on `document` reorder is now cut and
+// paste in continuous prose (the browser's own, priced and accepted), on
+// `deck`/`web` it is the menu's Move up/down. `bindGesture` SURVIVES: it was
+// always the shared pointer primitive (ADR-461 D2) and the resize/divider/box
+// gestures are its other callers.
+//
+// The script was named GUTTER_SCRIPT while holding all of the above; the name
+// described its first 90 lines and hid the other thousand. Renamed to what it
+// is, so a future reader deleting "the gutter" cannot delete deck's object
+// grammar by following a stale name.
 
-const GUTTER_SCRIPT = `
+const OBJECT_SCRIPT = `
 (function () {
   if (!window.matchMedia || !window.matchMedia('(hover: hover)').matches) return;
   var PAGE_SEL = 'section.slide, [data-arrange]';
-  var bar = null, plusBtn = null, curBlock = null, hideTimer = null;
 
   // ADR-466 P9: every piece of body-appended chrome here (gutter, dropline,
   // divider, frame label, bounding box) positions from getBoundingClientRect,
@@ -2269,112 +2257,12 @@ const GUTTER_SCRIPT = `
     for (var i = 0; i < all.length; i++) { if (all[i] === page) return i; }
     return null;
   }
-
-  function build() {
-    if (bar) return;
-    bar = document.createElement('div');
-    bar.className = 'yarnnn-gutter';
-    bar.style.display = 'none';
-    plusBtn = document.createElement('button');
-    plusBtn.type = 'button'; plusBtn.textContent = '+'; plusBtn.title = 'Add a block';
-    plusBtn.addEventListener('click', function (e) {
-      e.preventDefault(); e.stopPropagation();
-      if (!curBlock) return;
-      // The SAME palette the slash trigger opens (ADR-456 W2) — one palette,
-      // two entrances; the parent's routing (convert-on-empty / insert-after)
-      // is unchanged.
-      var rect = curBlock.getBoundingClientRect();
-      parent.postMessage({ type: 'yarnnn-slash-open',
-        blockId: curBlock.getAttribute('data-block-id'),
-        empty: (curBlock.textContent || '').trim() === '',
-        rect: { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width } }, '*');
-    });
-    var handle = document.createElement('button');
-    handle.type = 'button'; handle.className = 'yg-handle';
-    handle.textContent = '\\u22EE\\u22EE'; handle.title = 'Drag to move · click for options';
-    // CLICK (no gesture past threshold) → select + open the Design tab. Any
-    // bindGesture that passed its threshold sets gestureSuppressClick; a click
-    // that WAS a gesture is suppressed here so a drop never also opens the
-    // Design tab. Consumed on read — the flag never outlives the click it
-    // belongs to (it used to stay true until the NEXT click, which is exactly
-    // the leak a second gesture source would have tripped over).
-    handle.addEventListener('click', function (e) {
-      e.preventDefault(); e.stopPropagation();
-      if (gestureSuppressClick) { gestureSuppressClick = false; return; }
-      if (!curBlock) return;
-      // Select in-frame through the pointer runtime's OWN selection state
-      // (one selection, not two), then tell the parent to select AND open
-      // the Design tab (design: true) — the verbs' one home.
-      if (window.__yarnnnSelect) window.__yarnnnSelect(curBlock);
-      var slotEl = curBlock.closest ? curBlock.closest('[data-slot]') : null;
-      var pageEl = curBlock.closest ? curBlock.closest('[data-arrange]') : null;
-      parent.postMessage({ type: 'yarnnn-point',
-        tag: curBlock.tagName.toLowerCase(),
-        text: (curBlock.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 120),
-        dataRef: curBlock.getAttribute('data-ref') || null,
-        blockId: curBlock.getAttribute('data-block-id') || null,
-        blockKind: curBlock.getAttribute('data-block') || null,
-        slideIndex: slideIndexOf(curBlock),
-        pageIndex: pageIndexOf(curBlock),
-        slot: slotEl ? (slotEl.getAttribute('data-slot') || null) : null,
-        arrange: pageEl ? (pageEl.getAttribute('data-arrange') || null) : null,
-        design: true }, '*');
-    });
-    bindDrag(handle);
-    bar.appendChild(plusBtn);
-    bar.appendChild(handle);
-    document.body.appendChild(bar);
-  }
-
-  // ── F1: the ⋮⋮ pointer-drag (real block reorder, all in-frame) ─────────
-  // Grab the handle, the block dims + a drop-line follows the cursor between
-  // its SAME-PARENT sibling blocks (v1 — cross-slot is the follow-on), release
-  // posts ONE yarnnn-reorder {blockId, beforeBlockId} → the parent lands one
-  // revision. Pointer Events (not HTML5 DnD — brittle under sandbox); geometry
-  // stays in-frame so the body.style.zoom transform never desyncs the coords.
-  var dropline = null;
   // The ONE click-suppression authority (ADR-461 D2). Every gesture bound via
   // bindGesture sets this the moment it passes its threshold; the click handler
   // consumes it. One flag, one setter (bindGesture), one consumer — so a second
   // gesture source cannot cross-talk with the first, which is what a per-gesture
   // flag would have produced.
   var gestureSuppressClick = false;
-  function ensureDropline() {
-    if (dropline) return dropline;
-    dropline = document.createElement('div');
-    dropline.className = 'yarnnn-dropline';
-    document.body.appendChild(dropline);
-    return dropline;
-  }
-  // The same-parent sibling blocks, in document order (drop candidates).
-  function siblingBlocksOf(block) {
-    var out = [];
-    var p = block.parentElement;
-    if (!p) return out;
-    var kids = p.children;
-    for (var i = 0; i < kids.length; i++) {
-      if (kids[i].hasAttribute && kids[i].hasAttribute('data-block')) out.push(kids[i]);
-    }
-    return out;
-  }
-  /** bindGesture — the ONE pointer-gesture primitive (ADR-461 D2).
-   *
-   *  D2 says gestures compose existing ops rather than becoming a second write
-   *  path. That was aspirational: the drag was bound to one handle, read a
-   *  module-global the gutter owns, and hard-coded the Y axis and reorder
-   *  semantics. A second gesture (resize) built beside it would have been a
-   *  second gesture SYSTEM, and the two would have shared one click-suppression flag
-   *  — a global that stays true after a drop and resets on the next click, so
-   *  cross-talk would read as "the UI sometimes eats a click".
-   *
-   *  What is genuinely shared: pointer capture, the arm/threshold state machine
-   *  (a press under the threshold is still a CLICK, never a gesture), in-frame
-   *  edge auto-scroll, and the click-suppression handshake. What is not: the
-   *  axis, the hit-test, the feedback, the message. Those are the caller's.
-   *
-   *  opts: { axis: 'y'|'xy', threshold, onStart(el,e), onMove(el,e,d), onEnd(el,moved) }
-   *  The move delta carries {dx, dy} from the press origin. Returns nothing; binds listeners.
-   */
   function bindGesture(handle, subject, opts) {
     var el = null, startX = 0, startY = 0, armed = false, moved = false;
     var threshold = opts.threshold == null ? 5 : opts.threshold;
@@ -2418,191 +2306,6 @@ const GUTTER_SCRIPT = `
     handle.addEventListener('pointerup', end);
     handle.addEventListener('pointercancel', end);
   }
-
-  /** The reorder gesture — the FIRST caller of bindGesture, and its proof.
-   *  What remains here is only what is genuinely the drag's own: the Y-axis
-   *  sibling hit-test, the drop-line, and the reorder message. Pointer capture,
-   *  the arm/threshold machine, edge-scroll and click-suppression all moved to
-   *  the primitive (ADR-461 D2 — "gestures over existing ops", now true rather
-   *  than aspirational). Behaviour is unchanged; that is the point. */
-  function bindDrag(handle) {
-    var beforeId = null;      // the block id to drop before (null = end)
-
-    bindGesture(handle, function () { return curBlock; }, {
-      axis: 'y',
-      onStart: function () { beforeId = null; },
-      onMove: function (dragging, e) {
-        if (!dragging.classList.contains('yarnnn-dragging')) {
-          dragging.classList.add('yarnnn-dragging');
-          ensureDropline();
-        }
-        // The same-parent sibling the cursor is nearest to, and whether the
-        // drop lands ABOVE or BELOW it → the drop-line position + beforeId.
-        var sibs = siblingBlocksOf(dragging);
-        var placed = false;
-        for (var i = 0; i < sibs.length; i++) {
-          var s = sibs[i];
-          if (s === dragging) continue;
-          var r = s.getBoundingClientRect();
-          var mid = r.top + r.height / 2;
-          if (e.clientY < mid) {
-            var dz = zf();
-            dropline.style.display = 'block';
-            dropline.style.left = ((r.left + window.scrollX) / dz) + 'px';
-            dropline.style.width = (r.width / dz) + 'px';
-            dropline.style.top = ((r.top + window.scrollY) / dz - 1) + 'px';
-            beforeId = s.getAttribute('data-block-id');
-            placed = true;
-            break;
-          }
-        }
-        if (!placed) {
-          // Past every sibling → drop at the END (beforeId null); line under
-          // the last sibling that isn't the dragged block.
-          var last = null;
-          for (var j = sibs.length - 1; j >= 0; j--) { if (sibs[j] !== dragging) { last = sibs[j]; break; } }
-          if (last) {
-            var lr = last.getBoundingClientRect();
-            var lz = zf();
-            dropline.style.display = 'block';
-            dropline.style.left = ((lr.left + window.scrollX) / lz) + 'px';
-            dropline.style.width = (lr.width / lz) + 'px';
-            dropline.style.top = ((lr.bottom + window.scrollY) / lz + 1) + 'px';
-          }
-          beforeId = null;
-        }
-      },
-      onEnd: function (dragging, moved) {
-        dragging.classList.remove('yarnnn-dragging');
-        if (dropline) dropline.style.display = 'none';
-        if (moved) {
-          var id = dragging.getAttribute('data-block-id');
-          // Post the reorder — the parent computes moveBlockTo and lands ONE
-          // revision. A no-op drop (onto itself / already in place) is filtered
-          // parent-side (moveBlockTo returns null).
-          if (id && beforeId !== id) {
-            parent.postMessage({ type: 'yarnnn-reorder', blockId: id, beforeBlockId: beforeId }, '*');
-          }
-        }
-        beforeId = null;
-      },
-    });
-  }
-
-  // F5: position the gutter beside the block, tracking the pointer VERTICALLY so
-  // it follows the mouse down a tall block (Notion) instead of pinning to the
-  // block top. pointerY (viewport) centers the bar on the cursor, clamped to
-  // the block's own top/bottom so it never floats past the block's edges.
-  function showFor(block, pointerY) {
-    build();
-    curBlock = block;
-    var rect = block.getBoundingClientRect();
-    bar.style.display = 'flex';
-    // The bar's own offsetWidth/Height are already LAYOUT px; the rect and
-    // pointerY are visual. Convert the rect into layout space first, then do
-    // all the math in one coordinate system (ADR-466 P9).
-    var z = zf();
-    var w = bar.offsetWidth || 42;
-    var h = bar.offsetHeight || 22;
-    var left = (rect.left + window.scrollX) / z;
-    var top = (rect.top + window.scrollY) / z;
-    var bottom = (rect.bottom + window.scrollY) / z;
-    bar.style.left = Math.max(2, left - w - 4) + 'px';
-    var topV;
-    if (pointerY != null) {
-      // center on the cursor, clamped inside [top, bottom - h]
-      var py = (pointerY + window.scrollY) / z;
-      topV = Math.min(Math.max(py - h / 2, top), bottom - h);
-    } else {
-      topV = top + 1;
-    }
-    bar.style.top = topV + 'px';
-  }
-  function hide() {
-    if (bar) bar.style.display = 'none';
-    curBlock = null;
-  }
-
-  // ── The ROW BAND (2026-07-15) ────────────────────────────────────────────
-  // Resolve the pointer to a row by GEOMETRY, not by hit-testing e.target.
-  //
-  // The old rule was e.target.closest('[data-block]') — the gutter appeared
-  // only while the pointer was literally inside a block's text box. But the bar
-  // DRAWS in the left margin (rect.left - w - 4), which is OUTSIDE that box: to
-  // reach the +, you had to leave the region that summoned it, and a 150ms
-  // timer began hiding it. The affordance lived outside the area that kept it
-  // alive, with dead space between. Hence "sometimes it's there, sometimes it
-  // isn't" — it depended on pixel-exact containment.
-  //
-  // Notion owns the whole ROW: a horizontal band spanning the content column,
-  // top-to-bottom of the block, INCLUDING the left lane where the handles sit.
-  // Hover anywhere in the band and the row is yours; travelling to the + never
-  // leaves it. That is what this does — find the block whose vertical extent
-  // contains the pointer (nearest, if between blocks), and claim it as long as
-  // the pointer is within the band's horizontal reach (the content column plus
-  // the gutter lane to its left).
-  var BAND_LEFT_REACH = 64;  // px left of the block box — the gutter lane
-  var BAND_RIGHT_REACH = 24; // px right — a little forgiveness, no dead edge
-
-  function rowAt(x, y) {
-    var blocks = document.querySelectorAll('[data-block]');
-    var best = null, bestDist = Infinity;
-    for (var i = 0; i < blocks.length; i++) {
-      var b = blocks[i];
-      // A ROW is a thing in FLOW. A block inside a frame (a slide, a media
-      // box) is placed, not stacked — it has no row above or below to be
-      // inserted between, and its gesture is the corner handle, not the
-      // gutter. One gate (measurableFrame) decides both affordances, so the
-      // two can never both appear on the same block: framed → handles,
-      // flowing → gutter. ADR-461 D4's "boundary made visible", applied to
-      // the gutter as well as to the handle it was already applied to.
-      if (isMeasurable(b)) continue;
-      // Skip a block nested inside another annotated block: the ROW is the
-      // outermost unit (a checklist's li is not its own row).
-      if (b.parentElement && b.parentElement.closest && b.parentElement.closest('[data-block]')) continue;
-      var r = b.getBoundingClientRect();
-      if (r.height === 0) continue;
-      if (x < r.left - BAND_LEFT_REACH || x > r.right + BAND_RIGHT_REACH) continue;
-      // Inside the block's vertical extent → this row, unambiguously.
-      if (y >= r.top && y <= r.bottom) return b;
-      // Otherwise remember the nearest, so the gaps BETWEEN blocks still
-      // resolve to a row (no flicker crossing a margin).
-      var d = y < r.top ? r.top - y : y - r.bottom;
-      if (d < bestDist) { bestDist = d; best = b; }
-    }
-    // Only claim a near-miss if it is genuinely close — past that, the pointer
-    // is in open space (below the last block, in a page margin) and no row owns
-    // it. 24px ≈ one line's leading.
-    return bestDist <= 24 ? best : null;
-  }
-
-  document.addEventListener('mousemove', function (e) {
-    var t = e.target;
-    if (t && t.closest && t.closest('.yarnnn-gutter')) {
-      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
-      return;
-    }
-    var blk = rowAt(e.clientX, e.clientY);
-    if (blk) {
-      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
-      var editingId = window.__yarnnnEditingId ? window.__yarnnnEditingId() : null;
-      if (editingId != null && blk.getAttribute('data-block-id') === editingId) { hide(); return; }
-      // F5: reposition on EVERY move within the row so the gutter tracks the
-      // pointer vertically (Notion) instead of pinning to the block top.
-      showFor(blk, e.clientY);
-      return;
-    }
-    // A short grace delay bridges the gap between the block and the gutter
-    // (F5: 150ms, down from 300 — the old lag read as sluggishness on exit).
-    if (!hideTimer) hideTimer = setTimeout(function () { hideTimer = null; hide(); }, 150);
-  });
-  // Rects go stale on scroll — re-anchor to the block top (no pointer during
-  // scroll), or hide if the block left the DOM.
-  document.addEventListener('scroll', function () {
-    if (curBlock && curBlock.isConnected) showFor(curBlock, null);
-    else hide();
-  }, true);
-
   // ── The column divider (ADR-461 D3) — snap-handle resize ────────────────
   // ADR-453 D7 named this exactly: "column-divider ... handles that step
   // through token stops (2-1 -> 1-1 -> 1-2), NEVER free pixels". So the drag
@@ -2715,8 +2418,8 @@ const GUTTER_SCRIPT = `
    *  block the slide itself lays out. Nearest-first, always.  */
   /** IS this block measurable? — the ADR-461 D4 gate. A yes/no about
    *  RESPONSIVE OBLIGATION: a slide has a fixed 16:9 stage, a media block has
-   *  its intrinsic ratio; a document/article/page block has only a viewport to
-   *  guess at. This is what decides handles-vs-gutter, and it must keep asking
+   *  its intrinsic ratio; a document or web block has only a viewport to
+   *  guess at. This is what decides whether a block gets HANDLES, and it must ask
    *  about the SLIDE (a column inside a document reflows just as its page
    *  does — being a column does not create a frame). */
   function isMeasurable(block) {
@@ -3332,7 +3035,7 @@ const GUTTER_SCRIPT = `
   // caret has nothing to bite (the Backspace-empty rule above handles it);
   // on a DIFFERENT block, the selection is the member's real subject.
   // ADR-482 D2: the keyboard VERBS (⌘C/⌘V/⌘D/⌫) moved to the pointer runtime.
-  // They lived here only by historical accident, and GUTTER_SCRIPT is not
+  // They lived here only by historical accident, and the object script is not
   // injected on flow (ADR-481 D2) — so on every document the right-click menu
   // advertised shortcut hints for keys that did nothing. An affordance's
   // injection site must follow its LIFETIME, not the script it was first
@@ -3357,8 +3060,8 @@ const GUTTER_SCRIPT = `
     // A live caret owns its own undo — don't steal the native text stack.
     if (window.__yarnnnEditingId && window.__yarnnnEditingId() != null) return;
     var t = e.target;
-    // Injected chrome (gutter/format bar) is never an undo subject.
-    if (t && t.closest && (t.closest('.yarnnn-gutter') || t.closest('.yarnnn-fmt'))) return;
+    // Injected chrome (the format bar) is never an undo subject.
+    if (t && t.closest && t.closest('.yarnnn-fmt')) return;
     e.preventDefault();
     parent.postMessage({ type: e.shiftKey ? 'yarnnn-redo' : 'yarnnn-undo' }, '*');
   });
@@ -3609,18 +3312,18 @@ export async function resolveArtifactHtml(
       doc.body?.appendChild(addHere);
     }
     if (opts?.edit && paged) {
-      // ADR-458: the hover gutter (after the pointer — it uses the pointer's
+      // The object grammar (after the pointer — it uses the pointer's
       // __yarnnnSelect + the edit runtime's __yarnnnEditingId).
       //
-      // ADR-481 D2: NOT on flow. The gutter answers "insert HERE" — meaningful
-      // when blocks were enclosures with gaps between them, meaningless once
-      // the caret IS the insertion point (ADR-480). An affordance that points
-      // at a place answers a question a continuous surface never asks. Insert
-      // on flow is `/` at the caret and right-click — both already built, both
-      // better suited. This is a removal, not a replacement.
-      const gutter = doc.createElement('script');
-      gutter.textContent = GUTTER_SCRIPT;
-      doc.body?.appendChild(gutter);
+      // `paged` ONLY, and now for the ORIGINAL reason rather than the gutter's:
+      // this script draws the bounding box, the handles and the divider — the
+      // chrome of a medium where a block is an ENCLOSURE (ADR-480). On `flow` a
+      // block is an annotation, the browser owns the caret, and there is no
+      // object to box. ADR-489 D4 deleted the gutter that used to ride along
+      // here; what remains is geometry, and geometry needs a frame.
+      const objects = doc.createElement('script');
+      objects.textContent = OBJECT_SCRIPT;
+      doc.body?.appendChild(objects);
     }
   }
   const doctype = '<!doctype html>\n';

@@ -47,7 +47,15 @@ def run() -> bool:
     web = root / "web"
     sys.path.insert(0, str(root / "api"))
 
-    from services.studio import STUDIO_ARRANGEMENTS, STUDIO_LAYOUTS, STUDIO_LAYOUT_MODES
+    from services.studio import (
+        RETIRED_LAYOUT_SLUGS,
+        STUDIO_ARRANGEMENTS,
+        STUDIO_LAYOUTS,
+        STUDIO_LAYOUT_MODES,
+        STUDIO_MEASURES,
+        all_layouts,
+        canonical_layout_slug,
+    )
 
     surface = (web / "components/studio/StudioSurface.tsx").read_text()
     toolbar = (web / "components/studio/StudioToolbar.tsx").read_text()
@@ -70,12 +78,41 @@ def run() -> bool:
         "every declared mode is a known one",
         all(l["mode"] in STUDIO_LAYOUT_MODES for l in STUDIO_LAYOUTS.values()),
     )
+    # ADR-489 D1/D2: the type set is THREE — document (flow) · deck (paged) ·
+    # web (paged). `article` + `page` merged into `web`; `canvas` belongs to
+    # IMAGES and is not a Studio layout at all.
     _check(
         "the seam matches the registry's own shape: container-native = paged",
         STUDIO_LAYOUTS["deck"]["mode"] == "paged"
-        and STUDIO_LAYOUTS["page"]["mode"] == "paged"
-        and STUDIO_LAYOUTS["document"]["mode"] == "flow"
-        and STUDIO_LAYOUTS["article"]["mode"] == "flow",
+        and STUDIO_LAYOUTS["web"]["mode"] == "paged"
+        and STUDIO_LAYOUTS["document"]["mode"] == "flow",
+    )
+    _check(
+        "the Studio type set is exactly three (ADR-489 D1)",
+        set(STUDIO_LAYOUTS) == {"document", "deck", "web"},
+    )
+    _check(
+        "the retired slugs resolve to `web` but are never OFFERED (ADR-489 D2)",
+        canonical_layout_slug("article") == "web"
+        and canonical_layout_slug("page") == "web"
+        and "article" not in all_layouts()
+        and "page" not in all_layouts(),
+    )
+    _check(
+        "`canvas` is NOT a Studio layout — it left for IMAGES (ADR-472 D1)",
+        "canvas" not in STUDIO_LAYOUTS and "canvas" not in RETIRED_LAYOUT_SLUGS,
+    )
+    _check(
+        "mode is NOT the geometry seam: web is paged yet reaches no x/y/z",
+        # `block-staged` gates position on `.slide` ANCESTRY, not on mode — which
+        # is exactly why `web` can share `paged` with `deck` and still have no
+        # coordinate space (ADR-489 D3 / ADR-461 D4: a page has a viewport).
+        all(
+            "block-staged" in STUDIO_MEASURES[m]["applies"]
+            for m in ("x", "y", "z")
+        )
+        and "section[data-arrange]" in STUDIO_LAYOUTS["web"]["skin"]
+        and ".slide" not in STUDIO_LAYOUTS["web"]["skin"],
     )
     _check(
         "the vocabulary endpoint serves mode (so the FE never hardcodes a slug)",
@@ -200,26 +237,26 @@ def run() -> bool:
         in (web / "components/studio/StudioSurface.tsx").read_text(),
     )
 
-    # ── 4. the gutter owns the ROW, by geometry ─────────────────────────────
+    # ── 4. the row band is GONE (ADR-489 D4) ────────────────────────────────
+    # This section used to assert the gutter's row geometry (rowAt + a 64px left
+    # lane). The gutter is deleted on every mode, so the checks INVERT: the block
+    # grain's one route is `/` at the caret and the page grain's is New ‹noun›.
+    # The full negative surface lives in test_studio_no_gutter_and_arrows.py.
     _check(
-        "the gutter resolves a row by GEOMETRY (not e.target hit-testing)",
-        "function rowAt(x, y) {" in proj and "var blk = rowAt(e.clientX, e.clientY);" in proj,
+        "no row-band geometry survives (rowAt / BAND_*_REACH)",
+        "function rowAt(" not in proj
+        and "BAND_LEFT_REACH" not in proj
+        and "BAND_RIGHT_REACH" not in proj,
     )
+    # `/` is the block grain's one route on BOTH modes. The invariant that makes
+    # it ungated: the slash runtime rides EDIT_SCRIPT, which is injected on
+    # `opts.edit` alone — no `paged`/`flow` branch. A mode gate here would be the
+    # ADR-482 D3 race (chrome conditioned on an async mode value) rebuilt.
     _check(
-        "the band reaches LEFT of the block — the lane the bar draws in",
-        "var BAND_LEFT_REACH = 64;" in proj,
-    )
-    _check(
-        "a gap BETWEEN blocks still resolves to the nearest row (no flicker)",
-        "return bestDist <= 24 ? best : null;" in proj,
-    )
-    _check(
-        "the ROW is the outermost block (a checklist's li is not its own row)",
-        "if (b.parentElement && b.parentElement.closest && b.parentElement.closest('[data-block]')) continue;" in proj,
-    )
-    _check(
-        "open space owns no row (below the last block, a page margin)",
-        "if (x < r.left - BAND_LEFT_REACH || x > r.right + BAND_RIGHT_REACH) continue;" in proj,
+        "`/` is mode-UNGATED: its runtime (EDIT_SCRIPT) injects on opts.edit alone",
+        "yarnnn-slash-open" in proj
+        and "editScript.textContent = EDIT_SCRIPT;" in proj
+        and "if (paged) {\n      const addHere" in proj,  # the paged gate exists, but for add-here
     )
 
     # ── 5. the standing trap ────────────────────────────────────────────────

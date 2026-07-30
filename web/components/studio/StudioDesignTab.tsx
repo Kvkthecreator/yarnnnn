@@ -12,8 +12,10 @@
  *  - a page (slide/section) → PAGE scope: the Re-arrange thumbnail gallery +
  *    page tokens (tone; valign on deck slides; column ratio on multi-column
  *    arrangements) + Duplicate / Move / Delete.
- *  - a slot → SLOT scope: name + role, and the role-gated quick-add (flow →
- *    a text block; media → the workspace image picker).
+ *  - a slot → SLOT scope: name + role, plus the MEDIA slot's image picker —
+ *    which is not a second insert route but the terminal step of the canvas
+ *    "+ Add" on a media slot (onAddHere routes here by role). A flow slot's
+ *    duplicate add-text button was deleted by ADR-489 D5.
  *  - a block → BLOCK scope: SHAPING only — Turn into + block tokens
  *    (align/tone; media blocks add height/fit) + measures. The verb row
  *    (ask / duplicate / move / delete) left the pane 2026-07-24: the
@@ -155,7 +157,6 @@ interface StudioDesignTabProps {
    *  constants AND workspace state; only the second half goes stale). */
   onImported?: () => void;
   /** EXECUTE: role-gated slot adds (ADR-453 D5). */
-  onAddTextInSlot: (slot: string, slideIndex: number | null, pageIndex: number | null) => void;
   onInsertImageInSlot: (
     path: string,
     slot: string,
@@ -520,7 +521,6 @@ export function StudioDesignTab({
   onRemoveDesignSystem,
   onOpenSystem,
   onImported,
-  onAddTextInSlot,
   onInsertImageInSlot,
   onSetPageBackground,
   onRemovePageBackground,
@@ -1333,15 +1333,19 @@ export function StudioDesignTab({
               </div>
             )
           ) : (
-            <button
-              type="button"
-              className={askBtn}
-              onClick={() =>
-                onAddTextInSlot(selection.slot!, selection.slideIndex, selection.pageIndex)
-              }
-            >
-              + Add text here
-            </button>
+            /* ADR-489 D5: the flow-slot "+ Add text here" button is DELETED. It
+               called the SAME `insertProseInSlot` as the empty slot's own "+ Add"
+               on the canvas — one act with two mounts, and the canvas mount is
+               the LOCATED one (the member is pointing at the slot). What the
+               panel keeps is the MEDIA branch above, which is not a duplicate:
+               the canvas "+ Add" on a media slot routes INTO it (onAddHere,
+               role === 'media'), so this is that act's terminal step and its
+               documented home (STUDIO.md — "this scope is the image picker's
+               home"). A flow slot now shows its name and role only. */
+            <p className="text-xs text-muted-foreground">
+              Takes text — click <span className="font-medium">+ Add</span> on the
+              slot itself, or type <span className="font-medium">/</span> on the canvas.
+            </p>
           )}
         </div>
       )}

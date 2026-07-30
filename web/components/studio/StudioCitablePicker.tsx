@@ -7,7 +7,7 @@
  * The picker-backed kinds (Image / Table / Gallery) used to live in the
  * toolbar's `Media ▾` because a palette row "that half-opens a different panel"
  * had no host. This IS that host: picking Image/Table/Gallery in the slash /
- * gutter palette swaps to this panel at the same anchor, and the pick lands a
+ * located palette swaps to this panel at the same anchor, and the pick lands a
  * CITED block at the located insertion point. With no orphan kinds left, the
  * Media button retired (the STUDIO.md named follow-on, executed).
  *

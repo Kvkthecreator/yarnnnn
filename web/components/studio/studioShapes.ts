@@ -17,7 +17,7 @@
  */
 
 import {
-  FileText, Presentation, Newspaper, LayoutTemplate, Image as ImageGlyph,
+  FileText, Presentation, LayoutTemplate, Image as ImageGlyph,
   File as FileGlyph,
 } from 'lucide-react';
 
@@ -31,8 +31,11 @@ export interface StudioShapeStyle {
 const SHAPE_STYLES: Record<string, StudioShapeStyle> = {
   document: { icon: FileText, color: 'text-sky-500' },
   deck: { icon: Presentation, color: 'text-amber-500' },
-  article: { icon: Newspaper, color: 'text-violet-500' },
-  page: { icon: LayoutTemplate, color: 'text-emerald-500' },
+  // ADR-489 D2: `web` absorbed `article` + `page`. The two retired slugs keep NO
+  // rows — the server resolves them to `web` before the FE ever sees them
+  // (`canonical_layout_slug` at the kind lift), so a row here would be dead code
+  // pretending a legacy artifact still has its own identity.
+  web: { icon: LayoutTemplate, color: 'text-emerald-500' },
   // ADR-482 D7: the IMAGES stage (ADR-472) had no row, so it fell to the
   // neutral glyph everywhere this table is read — correct by the fallback's
   // design, but the shape is known and deserves its own mark.

@@ -98,13 +98,13 @@ def run() -> bool:
         )
 
     # ── D2 — the keyboard verbs and the selection cue reach flow ──────────
-    gutter_start = proj.index("const GUTTER_SCRIPT = `")
-    gutter = proj[gutter_start : proj.index("`;", gutter_start)]
+    object_start = proj.index("const OBJECT_SCRIPT = `")
+    objects = proj[object_start : proj.index("`;", object_start)]
     pointer_start = proj.index("const POINTER_SCRIPT = `")
     pointer = proj[pointer_start : proj.index("`;", pointer_start)]
     _check(
-        "D2 the keyboard verb handler LEFT GUTTER_SCRIPT",
-        "yarnnn-key-verb" not in gutter,
+        "D2 the keyboard verb handler LEFT the gutter script",
+        "yarnnn-key-verb" not in objects,
     )
     _check(
         "D2 the keyboard verb handler is in POINTER_SCRIPT (both grains)",
@@ -143,7 +143,9 @@ def run() -> bool:
         "D3 an unresolved mode gets NO pointer sheet",
         "(flow ? FLOW_POINTER_CSS : paged ? POINTER_CSS : '')" in proj,
     )
-    _check("D3 the gutter injects only when paged", "if (opts?.edit && paged) {" in proj)
+    # ADR-489 D4: the gutter is deleted; what this gate now pins is that the
+    # OBJECT grammar (box/handles/divider) is the paged-only injection.
+    _check("D3 the object grammar injects only when paged", "if (opts?.edit && paged) {" in proj)
     _check("D3 add-here injects only when paged", "if (paged) {" in proj)
 
     # ── D4 — the edit outline is paged-only; the blues share one token ────
@@ -336,7 +338,7 @@ def run() -> bool:
     # ── Preserved — paged is untouched ────────────────────────────────────
     _check(
         "PRESERVED the selection box + handles still live in GUTTER_SCRIPT",
-        "yarnnn-selbox" in gutter,
+        "yarnnn-selbox" in objects,
     )
     _check(
         "PRESERVED paste stays plain-text in BOTH grains (the §7 refusal)",

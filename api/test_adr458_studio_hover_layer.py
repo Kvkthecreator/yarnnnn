@@ -1,15 +1,16 @@
-"""ADR-458 regression gate — the Studio hover layer and the one settings home.
+"""ADR-458 regression gate — the one settings home (the hover layer is RETIRED).
 
 Static/structural checks (no DB, no LLM — FE-only; registries/posture
 untouched):
-  1. The hover gutter: injected chrome (body-appended, .yarnnn-gutter),
-     desktop-pointer-gated (hover: hover); + posts the SAME yarnnn-slash-open
-     the slash trigger uses (one palette, two entrances); ⋮⋮ selects through
-     the pointer runtime's OWN selection (__yarnnnSelect) and posts the point
-     payload with design:true; the gutter hides for the editing block; the
-     pointer runtime ignores gutter clicks (capture-phase requirement).
-  2. The design flag: canvas passes it; the surface flips the right column to
-     the Design tab on it.
+  1. The hover gutter (ADR-458 D4) is **DELETED** — ADR-481 D2 on `flow`,
+     ADR-489 D4 on `paged`. What this gate now asserts is the DELETION and the
+     survival of what the deletion must not have taken (the shared pointer
+     primitive, deck's object chrome). The full negative surface, including the
+     `⋮⋮` drag and the row band, lives in test_studio_no_gutter_and_arrows.py;
+     kept here is the ADR-458-specific half: the `+`/`⋮⋮` rail and the
+     `design:true` handshake that flipped the right column.
+  2. The one settings home (ADR-458 D3) — UNCHANGED and still live. This is the
+     decision the ADR is now remembered for.
   3. The one settings home: the Design tab's document scope carries the File
      section (Copy link · Duplicate · Rename · Move · Trash) wired to the
      SHARED useFileOrganizeVerbs implementation (no forked flows, no direct
@@ -39,34 +40,29 @@ def run() -> bool:
     surface = (web / "components/studio/StudioSurface.tsx").read_text()
     design = (web / "components/studio/StudioDesignTab.tsx").read_text()
 
-    # ── 1. The hover gutter ──────────────────────────────────────────────
-    _check("gutter is injected chrome (body-appended, .yarnnn-gutter)",
-           "GUTTER_SCRIPT" in proj
-           and "document.body.appendChild(bar)" in proj
-           and ".yarnnn-gutter" in proj)
-    _check("desktop-pointer only (hover: hover media gate)",
+    # ── 1. The hover gutter is DELETED (ADR-481 D2 + ADR-489 D4) ────────
+    _check("no gutter rail: no .yarnnn-gutter, no bar append, no yg-handle",
+           ".yarnnn-gutter" not in proj
+           and "document.body.appendChild(bar)" not in proj
+           and "yg-handle" not in proj)
+    _check("the desktop-pointer gate SURVIVES (the object grammar still needs it)",
            "matchMedia('(hover: hover)')" in proj)
-    _check("+ opens the SAME palette (posts yarnnn-slash-open — one palette, two entrances)",
-           proj.count("yarnnn-slash-open") >= 2)
-    _check("⋮⋮ selects through the pointer's OWN selection (__yarnnnSelect)",
+    _check("`/` remains the block grain's route (the palette kept its entrance)",
+           "yarnnn-slash-open" in proj)
+    _check("__yarnnnSelect survives — the box + the parent's select-by-id use it",
            "window.__yarnnnSelect = function" in proj
-           and "window.__yarnnnSelect(curBlock)" in proj)
-    _check("⋮⋮ posts the point payload with design:true",
-           "design: true" in proj)
-    _check("gutter hides for the block being edited",
-           "__yarnnnEditingId" in proj
-           and "blk.getAttribute('data-block-id') === editingId) { hide(); return; }" in proj)
-    _check("pointer runtime ignores gutter clicks (capture-phase requirement)",
-           "closest('.yarnnn-gutter')) return;" in proj)
-    _check("gutter injected only on the editing canvas (opts.edit)",
-           "gutter.textContent = GUTTER_SCRIPT" in proj)
-
-    # ── 2. The design flag ───────────────────────────────────────────────
-    _check("canvas passes the design flag on the point payload",
-           "design: d.design === true" in canvas
-           and "design?: boolean" in canvas)
-    _check("surface flips to the Design tab on the flag",
-           "if (p.design) setRightTab('design');" in surface)
+           and "window.__yarnnnSelect(curBlock)" not in proj)
+    _check("the design:true handshake is GONE end to end (runtime → canvas → surface)",
+           "design: true" not in proj
+           and "design?: boolean" not in canvas
+           and "design: d.design === true" not in canvas
+           and "if (p.design) setRightTab('design');" not in surface)
+    # The DECLARATION, not the word: the header comment names the old identifier
+    # on purpose (it records why the rename happened).
+    _check("the script is renamed to what it holds (OBJECT_SCRIPT)",
+           "const OBJECT_SCRIPT = " in proj and "const GUTTER_SCRIPT = " not in proj)
+    _check("bindGesture + the bounding box survive the deletion",
+           "function bindGesture(" in proj and "yarnnn-selbox" in proj)
 
     # ── 3. The one settings home ─────────────────────────────────────────
     # (Re-presented 2026-07-24: the verb-chip row became a FILE CARD — the name

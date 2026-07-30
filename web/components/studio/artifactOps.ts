@@ -821,13 +821,17 @@ export function pasteBlock(
 }
 
 /** Move a block so it sits immediately BEFORE `beforeBlockId`, or — when
- *  `beforeBlockId` is null — to the END of its own parent. The general reorder
- *  the ⋮⋮ drag posts on drop (F1). v1 keeps a move within the block's own
- *  parent (same slot/flow); the runtime only offers same-parent siblings as
- *  drop targets, so `beforeBlockId` (when set) is always a sibling. A no-op
- *  (dropping a block onto itself or just before its current next sibling)
- *  returns null so no empty revision lands. */
-export function moveBlockTo(
+ *  `beforeBlockId` is null — to the END of its own parent. A move stays within
+ *  the block's own parent (same slot/flow). A no-op (moving a block onto itself
+ *  or just before its current next sibling) returns null so no empty revision
+ *  lands.
+ *
+ *  MODULE-INTERNAL since ADR-489 D4: this was the drop handler for the `⋮⋮`
+ *  drag, which is deleted. Its one remaining caller is `moveBlock` (the menu's
+ *  Move up/down), which expresses the accessible verb on top of it. Kept
+ *  un-exported so the general form cannot grow a second caller without a
+ *  decision — a new positional move belongs to a gesture that has an ADR. */
+function moveBlockTo(
   html: string,
   blockId: string,
   beforeBlockId: string | null,

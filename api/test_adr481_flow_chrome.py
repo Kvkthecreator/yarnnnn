@@ -57,13 +57,15 @@ def run() -> bool:
     # ── D1 — flow serves no arrangements; the scaffolds are flat ───────────
     _check(
         "D1 the arrangement registry serves PAGED layouts only",
-        set(STUDIO_ARRANGEMENTS) == {"deck", "page"},
+        set(STUDIO_ARRANGEMENTS) == {"deck", "web"},
     )
     _check(
-        "D1 deck/page arrangement rows are untouched (11 + 6)",
-        len(STUDIO_ARRANGEMENTS["deck"]) == 11 and len(STUDIO_ARRANGEMENTS["page"]) == 6,
+        # ADR-489 D2: `page` became `web` and gained the two long-form bands
+        # (prose-header + prose), so the count is 6 + 2. Deck is untouched.
+        "D1 deck/web arrangement rows: deck 11, web 6 W3 bands + 2 long-form",
+        len(STUDIO_ARRANGEMENTS["deck"]) == 11 and len(STUDIO_ARRANGEMENTS["web"]) == 8,
     )
-    for slug in ("document", "article"):
+    for slug in ("document",):  # ADR-489 D2: `article` merged into the paged `web`
         body = build_skeleton(slug)
         body = body[body.index("<body>") :]
         _check(f"D1 the {slug} scaffold BODY has no data-arrange", "data-arrange" not in body)
