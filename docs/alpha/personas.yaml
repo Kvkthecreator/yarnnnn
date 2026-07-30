@@ -431,6 +431,32 @@ personas:
   #     graduation moments are the highest-value evals.
   # ─────────────────────────────────────────────────────────────────────
 
+  - slug: kvk-yarnnn
+    label: "KVK yarnnn-domain account (bare rig, operator-owned)"
+    # Registered 2026-07-31 (eval-layer audit follow-up): this live owner
+    # grant existed with no persona row, making it unreachable from the
+    # harness. It is the OPERATOR'S OWN empty account (created 2026-01-28,
+    # 0 files, 0 execution_events at registration) — safe as a probe
+    # subject. The other two persona-less owner grants at audit time
+    # (s.colopy@ccgrhc.com, b.tharalson@gmail.com) are REAL EXTERNAL
+    # SIGNUPS and were deliberately NOT registered: this registry is the
+    # probe-target roster, and probes seed/delete substrate and fire
+    # funded wakes on their subjects. Never add a real user here.
+    program: null
+    email: kvkthecreator@yarnnn.com
+    user_id: 67c5c637-501d-43d1-836a-a15ff32b5901
+    workspace_id: bf5b25a9-477f-462e-b7f3-65812f489411  # ADR-373 workspace_id from the owner grant (post-re-key it is NOT user_id)
+    platform:
+      kind: none
+      provider: none
+    context_domains: []
+    credentials_env: {}
+    expected:
+      agent_count: 1
+      active_roles: [thinking_partner]
+      scaffolded_recurrences: []
+      platform_connections: 0
+
   - slug: bare-kernel
     label: "Bare-kernel Stage-0 floor (un-mandated seat, stays bare forever)"
     # Explicit null per _shared.py 2026-06-11: a DECLARED bare-kernel
