@@ -114,7 +114,7 @@ def run() -> bool:
         "session_id=lane_id," in routes,
     )
 
-    print("\n── 3. falsifier 2 — RETIRED, and read before removal (ADR-506) ──")
+    print("\n── 3. falsifier 2 — RETIRED, and read before removal (ADR-507) ──")
 
     src = (Path(__file__).parent / "services" / "falsifiers.py").read_text()
     # The instrument is gone with the bet it measured (the think→settle→make
@@ -138,7 +138,7 @@ def run() -> bool:
         "retired STRUCTURALLY" in src and "LOW ADOPTION, not abandonment" in src,
     )
     _check(
-        "falsifiers 1 + 3 survive (the desk-vs-hum thesis ADR-506 preserves)",
+        "falsifiers 1 + 3 survive (the desk-vs-hum thesis ADR-507 preserves)",
         "def falsifier_1_surface_mix(" in src and "def falsifier_3_hum_vs_desk(" in src,
     )
 

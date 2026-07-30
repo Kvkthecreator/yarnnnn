@@ -156,7 +156,7 @@ def test_window_is_enforced_at_every_read() -> None:
     # renames or merges them, this fails loudly rather than silently checking
     # an empty set — the "0 of 0 passed" failure mode.
     for name in (
-        # ADR-506 deleted `settle_lane_route`; `archive_lane` inherits the same
+        # ADR-507 deleted `settle_lane_route`; `archive_lane` inherits the same
         # unclamped-read defect class the settle audit first found (2026-07-30).
         "lane_messages", "_fetch_history", "archive_lane",
         "lane_turn", "regenerate_lane_turn",

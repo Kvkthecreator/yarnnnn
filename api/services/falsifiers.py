@@ -15,7 +15,7 @@ execution_events + session counts" is half right):
      "a lane with a binding is a studio lane"), and `session_id` is the join
      key that reconnects them.
 
-  2. settle unused              →  RETIRED (ADR-506, 2026-07-30)
+  2. settle unused              →  RETIRED (ADR-507, 2026-07-30)
      Read before removal — the discipline this module exists for. It did NOT
      fire on its own terms (4 settles, most recent 6 days prior: low adoption,
      not abandonment); the verb was retired STRUCTURALLY when the
@@ -144,7 +144,7 @@ def falsifier_1_surface_mix(
     }
 
 
-# FALSIFIER 2 IS RETIRED (ADR-506, 2026-07-30).
+# FALSIFIER 2 IS RETIRED (ADR-507, 2026-07-30).
 #
 # It asked "is the settle verb used after honest staging?" — and it was READ
 # BEFORE REMOVAL, which is the point of having built it. The reading at deletion
@@ -153,7 +153,7 @@ def falsifier_1_surface_mix(
 # does not clear the "stay ~0 across the window" bar. So the verb was NOT retired
 # on this instrument's verdict.
 #
-# It was retired STRUCTURALLY: ADR-506 replaced the `think -> settle -> make`
+# It was retired STRUCTURALLY: ADR-507 replaced the `think -> settle -> make`
 # pipeline with `think <-> make` over an open set of acts, and settle had no seat
 # once the middle term was gone. The usage data supports that reading rather than
 # the adoption one — 3 of the 4 settles were records of a make that had ALREADY
@@ -161,7 +161,7 @@ def falsifier_1_surface_mix(
 # the verb being ignored.
 #
 # The instrument dies with the bet it measured. Falsifiers 1 and 3 stand: both
-# test the desk-vs-hum investment thesis (ADR-457 D5), which ADR-506 preserves.
+# test the desk-vs-hum investment thesis (ADR-457 D5), which ADR-507 preserves.
 
 
 def falsifier_3_hum_vs_desk(

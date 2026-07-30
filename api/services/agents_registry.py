@@ -68,7 +68,7 @@ logger = logging.getLogger(__name__)
 #: inside a conversation ("keep this as a note on the deal"), served by the
 #: lane's own WriteFile + the conventions' placement/citation teaching — so it is
 #: not an agent (see the module's "Postures" section for where Critic went).
-#: *(Until ADR-506 this named the dedicated `settle` gesture + its route. The
+#: *(Until ADR-507 this named the dedicated `settle` gesture + its route. The
 #: gesture is deleted — the pipeline it was the middle of retired — and DERIVE is
 #: now un-addressed in the stronger sense: no verb at all, just an ask. The
 #: roster argument is unchanged and slightly cleaner: DERIVE was never a seat.)*
@@ -236,7 +236,7 @@ AGENT_ROW_KEYS = frozenset(
 # agent (`based_on`), never a fourth operation. The next "should we add X?" is
 # then asked correctly: is X an addressed OPERATION (a base row), something a
 # member just ASKS FOR mid-conversation (no seat, no verb — DERIVE's shape since
-# ADR-506), or a POSTURE over an operation (a row here / a member skill)?
+# ADR-507), or a POSTURE over an operation (a row here / a member skill)?
 #
 # THE SHAPE IS A MEMBER AGENT'S, KERNEL-SIDE. A posture is `based_on` a base
 # agent + a stance (its own `posture` text) + optionally its own engine — which

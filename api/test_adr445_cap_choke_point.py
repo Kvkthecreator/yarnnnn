@@ -114,7 +114,7 @@ def main() -> int:
 
     # lanes gates ONCE, at the turn core — and that is the invariant worth
     # asserting: every metered path in the file funnels through the one site
-    # (streaming + regenerate both reach it via _turn_stream_response). ADR-506
+    # (streaming + regenerate both reach it via _turn_stream_response). ADR-507
     # deleted the second site with the `settle` verb, so "gates at both" would
     # now be a gate defending a path that no longer exists; what must never
     # happen is a metered path added AROUND this one.

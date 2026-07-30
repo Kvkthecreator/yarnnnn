@@ -1341,7 +1341,7 @@ async def archive_lane(lane_id: str, auth: UserClient) -> dict:
     lane = _get_lane(auth, lane_id)
     # ADR-495 D2 — the archiver summarizes only what THEY may read. The
     # unclamped-read defect this guards was first audited on the retired
-    # `settle` verb (2026-07-30, ADR-506): the summary is durable and shown to
+    # `settle` verb (2026-07-30, ADR-507): the summary is durable and shown to
     # the cast, so distilling pre-window turns into it would leak them.
     floor = int(lane.get("_visible_from_sequence") or 0)
 

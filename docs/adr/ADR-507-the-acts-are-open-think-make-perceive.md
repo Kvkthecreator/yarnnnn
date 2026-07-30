@@ -1,4 +1,4 @@
-# ADR-506 — The acts are open: Think · Make · Perceive, and the pipeline retires
+# ADR-507 — The acts are open: Think · Make · Perceive, and the pipeline retires
 
 - **Status**: **Accepted + Implemented** (2026-07-30, operator-ratified through the
   settle-axiom discourse — *"i think that keep this, settle should not be the axiom. think →

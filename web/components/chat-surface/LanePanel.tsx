@@ -557,7 +557,7 @@ export function LanePanel({
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      {/* ADR-506: the "Keep this" (settle) act is DELETED. The pipeline it was
+      {/* ADR-507: the "Keep this" (settle) act is DELETED. The pipeline it was
           the middle of (think → settle → make) is retired for think ⇄ make, and
           a member who wants a conversation kept now simply asks — the lane's
           WriteFile + the conventions' placement/citation/format teaching absorb

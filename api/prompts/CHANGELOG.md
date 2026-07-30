@@ -6,7 +6,7 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.07.30.2] - The insert door (ADR-506)
+## [2026.07.30.2] - The insert door (ADR-507)
 
 ### Changed
 - **Nothing LLM-facing.** Recorded here because the change lands in the studio
@@ -16,7 +16,7 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
   a DOOR onto the existing `/` gesture, not a new mechanism: it posts
   `yarnnn-slash-invoke`, and the runtime resolves an insertion point and TYPES
   the `/`. `STUDIO_BLOCKS` is untouched — no `applies` column, no per-type kind
-  subsetting (ADR-506 D3 declines it; ADR-505 D4 deleted that matrix). The
+  subsetting (ADR-507 D3 declines it; ADR-505 D4 deleted that matrix). The
   served vocabulary is byte-identical, so the lane's posture is unchanged.
 - Expected behavior: none for the AI hand. For the member, block insert becomes
   reachable without knowing to type `/` — which ADR-505 D4 had left as the sole
@@ -24,15 +24,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.07.30.2] - The settle verb is deleted; distillation is an ASK (ADR-506)
+## [2026.07.30.2] - The settle verb is deleted; distillation is an ASK (ADR-507)
 
 ### Removed
 - `services/settle.py` — DELETED (380 LOC). It carried its own LLM-facing
   distillation prompt (the transcript → note posture) and the bounded one-turn
   contract. With the `think → settle → make` pipeline superseded by `think ⇄ make`
-  (ADR-506 D2), the verb has no seat: distillation is now something a member ASKS
+  (ADR-507 D2), the verb has no seat: distillation is now something a member ASKS
   for inside a conversation.
-- `POST /lanes/{lane_id}/settle` and the FE "Keep this" act (ADR-506 D3).
+- `POST /lanes/{lane_id}/settle` and the FE "Keep this" act (ADR-507 D3).
 
 ### Changed
 - `services/agents_registry.py` — the base-roster derivation is re-cut. It
@@ -51,7 +51,7 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
   `revision_kind` is not model-settable and does not need to be: the write door
   defaults it to `derivation` when `derived_from` is present (ADR-448).
 
-### Known gap (noted, not closed — ADR-506 D4)
+### Known gap (noted, not closed — ADR-507 D4)
 - A lane's `WriteFile` does **not** embed. Per ADR-321 embedding is the explicit
   `Embed` primitive, which is not in the lane's tool surface (and cannot be added
   there — `LANE_SURFACE_EXTRA` additions must be in `READ_ONLY_PRIMITIVES`). So an
