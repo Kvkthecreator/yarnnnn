@@ -22,6 +22,23 @@ smaller and over-determined.)
 > **Not built, per D6:** notifications/attention wiring (deferred to post-stabilization by operator
 > ruling), human-`@mention` parsing, streaming for multi-participant conversations. A peer's
 > message still reaches no attention surface — the standing honest gap.
+>
+> **D2 is now enforced by the DATABASE (migration 228, 2026-07-30).** As shipped, D2 was an
+> application promise: `chat_sessions`/`session_messages` RLS stayed creator-scoped (migration 008,
+> older than the cast), so ADR-502 §6a routed every conversation read around RLS through the service
+> client — 20 of `routes/lanes.py`'s 24 queries ran with RLS off and the whole read binding was
+> Python. Migration 228 moves the answer into the table: `chat_sessions` SELECT is cast membership ∩
+> workspace grant (**not** `is_workspace_member` alone — D2's "not by workspace grant-holders at
+> large" is the point), and `session_messages` SELECT enforces the **visibility window**, so a
+> from-now participant cannot read earlier turns even with a raw JWT. `append_session_message` — a
+> `SECURITY DEFINER` function with **no** membership check since migration 008 — now checks.
+> `conversation_members.workspace_id` went from written-but-never-read to `NOT NULL` + FK + indexed.
+> Only `lane` rows follow the cast: the steward's `thinking_partner` sessions carry no cast and keep
+> the creator rule (a cast-only policy would have blacked out the steward rail). The three ADR-495
+> **group-cell** defects — attribution written on one branch only, the responder read from the
+> retired `lane_meta["agent"]` scalar rather than the cast, and freshness disabled by an Agent's
+> presence — were fixed in commits `68b12a5` / `7356f15`. Behavioural proof:
+> `api/scripts/probes/probe_conversation_rls.sql` (9 checks, live).
 **Dimensions:** Identity (primary — the cast is the model) + Substrate (one store) + Channel (one
 surface grammar)
 **Relates to:** ADR-405 (the witness dial — **§5's test is the instrument that killed this ADR's
