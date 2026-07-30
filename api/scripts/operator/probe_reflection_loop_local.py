@@ -269,7 +269,7 @@ async def phase2_live(client, user_id: str) -> bool:
     slug = f"reflection-probe-{int(_t.time())}"
     recurrence = Recurrence(
         slug=slug, schedule="0 10 * * 1", prompt=ask,
-        mode="judgment", required_capabilities=[], options={},
+        required_capabilities=[], options={},
     )
     print(f"[phase2] firing {slug} through _invoke_recurrence_wake (faithful cron_tick path)...")
     out = await _invoke_recurrence_wake(

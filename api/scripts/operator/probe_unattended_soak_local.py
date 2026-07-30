@@ -114,7 +114,7 @@ async def _fire_one(client, user_id: str, idx: int) -> dict:
     slug = f"soak-{idx}-{int(_t.time())}"  # fresh slug per fire (dodge 60s min-interval skip)
     rec = Recurrence(
         slug=slug, schedule="0 10 * * 1", prompt=FRAMING_PROMPT,
-        mode="judgment", required_capabilities=[], options={"produces_owed_output": True},
+        required_capabilities=[], options={"produces_owed_output": True},
     )
     out = await _invoke_recurrence_wake(
         client, user_id, recurrence=rec, wake_source="cron_tick", context="",

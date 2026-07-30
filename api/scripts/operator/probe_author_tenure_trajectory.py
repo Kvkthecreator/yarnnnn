@@ -364,7 +364,7 @@ async def _fire_one(client, idx: int) -> dict:
     slug = f"trajectory-{idx}-{int(_t.time())}"
     rec = Recurrence(
         slug=slug, schedule="0 10 * * 1", prompt=prompt,
-        mode="judgment", required_capabilities=[], options={"produces_owed_output": True},
+        required_capabilities=[], options={"produces_owed_output": True},
     )
     out = await _invoke_recurrence_wake(
         client, USER_ID, recurrence=rec, wake_source="cron_tick", context="",

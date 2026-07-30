@@ -51,7 +51,7 @@ async def main() -> int:
     slug = f"cache-probe-{int(_t.time())}"
     recurrence = Recurrence(
         slug=slug, schedule="0 10 * * 1", prompt=FRAMING_PROMPT,
-        mode="judgment", required_capabilities=[],
+        required_capabilities=[],
         options={"produces_owed_output": True},
     )
     print(f"[cache-probe] firing {slug} through _invoke_recurrence_wake (production path)...")

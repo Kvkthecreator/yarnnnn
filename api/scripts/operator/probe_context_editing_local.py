@@ -111,7 +111,7 @@ async def _fire(client, *, context_edit: bool, label: str, keep: str | None = No
     slug = f"ctxedit-{'on' if context_edit else 'off'}-{int(_t.time())}"
     recurrence = Recurrence(
         slug=slug, schedule="0 12 * * 1,4", prompt=COHERENCE_PROMPT,
-        mode="judgment", required_capabilities=[],
+        required_capabilities=[],
         options={"produces_owed_output": True},
     )
     print(f"\n[{label}] firing {slug} "

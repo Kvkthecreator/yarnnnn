@@ -68,7 +68,6 @@ async def main() -> int:
         slug="weekly-piece",
         schedule="0 10 * * 1",
         prompt=FRAMING_PROMPT,           # FRAMING — the ask-builder must override
-        mode="judgment",
         required_capabilities=[],
         options={"produces_owed_output": True},   # the ADR-360 opt-in flag
     )
