@@ -91,23 +91,30 @@ Per EVAL-SUITE-DISCIPLINE §0, these gates check only the MACHINE half (does the
 instrument physically run). Whether a dormant suite's *thesis* is still true is a
 MIND question that stays with the human read — deliberately ungated.
 
-## 3. What is deliberately NOT fixed (operator decisions, named)
+## 3. Operator decisions — named same day, RESOLVED same day
 
-1. **The six dormant program suites' `requires:` re-points.** Blocked behind the
-   alpha-trader/alpha-author **re-hire decision** (ADR-414 owed item). Fixing paths
-   now would be unverifiable (nothing to fire against) — "verify before finishing"
-   says don't. Each suite's status header + the README name the exact migrations
-   owed: autonomy → `agents/{slug}/` (all six), `_preferences`/`_expected_output` →
-   `contract/` (author suites, ADR-366), reflection verdict-source →
-   `action_proposals` (yarnnn-author-judgment, ADR-364 D2a).
-2. **Deleting the three superseded manifests.** The runner now refuses them and the
-   gate enforces their status; they stay as historical artifact. If the operator
-   prefers deletion (Singular Implementation), it is a one-commit act.
+*(As first written this section listed items 1–2 as open; the operator resolved
+them within hours. Corrected count: five dormant suites, not six.)*
+
+1. **The five dormant program suites: RETIRED** (operator-directed). Re-pointing
+   their `requires:` was unverifiable (zero hire grants — nothing to fire against),
+   and the codebase evolved significantly past the dormant-program approach. All
+   five deleted; setups, thesis-verdict states (falsifier discipline: which theses
+   were FALSIFIED vs DECIDED-ELSEWHERE vs EXERCISED-UNDECIDED), and re-cut guidance
+   recorded in `eval-suites/RETIRED-SUITES.md`. Full manifests retrievable at
+   `git show 90c7d67:docs/evaluations/eval-suites/<name>.yaml`.
+2. **The three superseded manifests: DELETED** (same direction, same record).
 3. **The discipline-doc "Reviewer" vocabulary** — ADR-381 D1 relabel-keep-slug makes
    this internal-slug usage; a full re-write is cosmetic and was not done.
-4. **Three live owner-grants with no persona row** (`00ab9036`, `4db2e863`,
-   `67c5c637`) are unreachable from the harness — fine if intentional (they are not
-   rig subjects), noted for completeness.
+4. **Three live owner-grants with no persona row** — resolved with a split, because
+   identification changed the picture: `67c5c637` is the operator's own empty
+   account (`kvkthecreator@yarnnn.com`, created 2026-01-28, 0 files) → registered
+   as persona `kvk-yarnnn` (program: null, bare rig). **`00ab9036`
+   (s.colopy@ccgrhc.com) and `4db2e863` (b.tharalson@gmail.com) are REAL EXTERNAL
+   SIGNUPS** (0 files, 0 events, but real people) — deliberately NOT registered:
+   the persona registry is the probe-target roster, and probes seed, delete, and
+   fire funded wakes on their subjects. Making a real user's workspace
+   harness-reachable is a safety hazard, not a completeness win.
 
 ## Reproduce
 
