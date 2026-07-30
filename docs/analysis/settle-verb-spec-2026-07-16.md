@@ -1,6 +1,10 @@
 # The Settle Verb — Spec
 
-**Status**: Spec, ready to build. Implements the **ratified direction** of [ADR-457](../adr/ADR-457-think-and-make-the-service-model.md) **D3** (the verb) onto **D4** (the think-home convention). Sequenced as step 2 by [ADR-460](../adr/ADR-460-agents-one-concept-independent-facts-one-gate.md) §8 — after W0, before the Agent registry.
+> **SUPERSEDED (2026-07-30) — historical. Settle was built, ran in production, and was then DELETED by [ADR-507](../adr/ADR-507-the-acts-are-open-think-make-perceive.md) D3.** `api/services/settle.py` and `POST /api/lanes/{id}/settle` no longer exist; do not build against §8 below. The `think → settle → make` pipeline this spec sits inside was superseded by `think ⇄ make` over an open set of acts, and the verb had no seat in it. Retirement was **structural**, not a falsifier firing — ADR-457 D8's falsifier 2 was read before removal (staged=True, 4 settles, most recent 6 days prior) and did **not** fire; see the tombstone in `api/services/falsifiers.py`.
+>
+> Three of the spec's placement helpers outlived it and now live in `api/services/radar.py` (`extract_title`, `strip_fence`, `_unique_path`) — the §5 ladder's mechanics were never settle-specific. The fourth, `slugify`, was deliberately NOT carried forward: it is the lossy key [ADR-469](../adr/ADR-469-the-name-is-lifted-the-path-is-a-key.md) replaced with `services/naming.py::path_slug`.
+
+**Status**: Superseded — was: Spec, ready to build. Implements the **ratified direction** of [ADR-457](../adr/ADR-457-think-and-make-the-service-model.md) **D3** (the verb) onto **D4** (the think-home convention). Sequenced as step 2 by [ADR-460](../adr/ADR-460-agents-one-concept-independent-facts-one-gate.md) §8 — after W0, before the Agent registry.
 **Date**: 2026-07-16
 **Relates to**: ADR-457 D3/D4/D8 · ADR-450 (DERIVE_RECIPES — the precedent this reuses and the seam it does **not** cross) · ADR-448 (`derived_from` — the reference edge) · ADR-423 (`revision_kind='derivation'`) · ADR-401 (the derive organ that never fired) · ADR-325 (embed as a gated primitive) · ADR-411 D4 (`member:` attribution) · ADR-307 (the one gate) · DP32 (retain + attribute + cite).
 

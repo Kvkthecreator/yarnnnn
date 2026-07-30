@@ -331,6 +331,19 @@ check("composed yaml round-trips through parse_radar_yaml",
 check("composed yaml carries sources for TrackWebSources",
       _routes._declared_sources(composed)[0]["url"] == "https://example.com/feed")
 
+# The briefs shelf reads each brief's own title. EXECUTED, not grepped: this is
+# the one radar path a module-level import check can't defend, because
+# `_title_of` resolves its reader inside the function body. It shipped broken on
+# 2026-07-30 (ADR-507 deleted `services/settle.py`, which it imported from) and
+# 500'd `GET /api/radar/hubs` in prod — the sweep gate above caught the WRITER's
+# identical dead import, but nothing called the READER.
+check("_title_of reads a brief's leading heading",
+      _routes._title_of("# Pricing moved\n\nbody") == "Pricing moved")
+check("_title_of falls back on a heading-less brief",
+      _routes._title_of("plain first line") == "plain first line")
+check("_title_of survives an empty brief (the shelf renders, not 500s)",
+      _routes._title_of("") == "Untitled note")
+
 # route handlers executed against a stateful fake
 class RouteFakeQuery(FakeQuery):
     def __init__(self, table, store):

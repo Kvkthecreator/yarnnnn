@@ -12,7 +12,10 @@ The first standing (unaddressed) derive organ. A HUB is one meaning-folder
       - id: anthropic-blog        # file IS the watch declaration; the intake
         url: https://...          # primitive reads its `sources:` key directly
 
-One sweep = the ADR-486 D4 loop, the settle pattern made standing:
+One sweep = the ADR-486 D4 loop. It was modelled on the settle pattern made
+standing; ADR-507 deleted that verb, and the placement mechanics it shared with
+this module now live HERE (``extract_title`` / ``strip_fence`` / ``_unique_path``
+below) — they were never settle-specific:
 
     intake  — TrackWebSources fetches the declared sources, retains raws
               (revision_kind='observation', inbound/web/), distills
@@ -80,6 +83,74 @@ BRIEFS_DIR = "briefs"
 #: the `_studio_max_tokens` logic, inverted.
 _BRIEF_MAX_TOKENS = 2048
 _BRIEF_TIMEOUT_S = 120.0
+
+
+# ── placement (kernel-deterministic; the model never holds these levers) ─────
+#
+# These three helpers were `services/settle.py`'s until ADR-507 deleted that
+# module. They are re-homed here because radar is their only caller and because
+# NONE of them was ever settle-specific: reading a note's title, unfencing a
+# model's reply, and refusing to overwrite are the mechanics of placing ANY
+# derived note. The pattern outlived the verb, which is why the module docstring
+# still names it as this loop's origin.
+#
+# The fourth, settle's `slugify`, is deliberately NOT re-homed: it was the lossy
+# `[^a-z0-9]+` key ADR-469 replaced. Under a title with no Latin characters it
+# collapsed to the constant `note`, so four Korean-titled briefs on one day
+# collided on one path. `services.naming.path_slug` + `disambiguate` is the
+# canonical split (the path is a key, the name is the artifact's own fact), and
+# the date prefix + `_unique_path` already give collisions a second guard.
+
+
+def extract_title(note: str) -> str:
+    """The note's title, from its leading `# Title` line. Pure.
+
+    Falls back to the first non-empty line, then to a generic. The model is
+    contracted to lead with `# Title`; this never trusts that blindly.
+    """
+    for line in (note or "").splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        if s.startswith("#"):
+            return s.lstrip("#").strip() or "Untitled note"
+        return s[:120]
+    return "Untitled note"
+
+
+def strip_fence(note: str) -> str:
+    """Drop a whole-note ``` fence if the model wrapped it despite the contract.
+
+    Pure. Only strips when the note OPENS with a fence and CLOSES with one —
+    a fenced code block *inside* the note is content and stays.
+    """
+    s = (note or "").strip()
+    if not s.startswith("```"):
+        return s
+    lines = s.splitlines()
+    if len(lines) < 2 or not lines[-1].strip().startswith("```"):
+        return s
+    return "\n".join(lines[1:-1]).strip()
+
+
+def _unique_path(client: Any, user_id: str, workspace_id: Optional[str], path: str) -> str:
+    """Collision → -2, -3. NEVER overwrite: two sweeps of one hub are two acts,
+    and the ledger's job is to keep both."""
+    base, ext = (path[:-3], ".md") if path.endswith(".md") else (path, "")
+    candidate, n = path, 1
+    while True:
+        try:
+            q = client.table("workspace_files").select("path").eq("path", candidate)
+            if workspace_id:
+                q = q.eq("workspace_id", workspace_id)
+            else:
+                q = q.eq("user_id", user_id)
+            if not (q.limit(1).execute().data or []):
+                return candidate
+        except Exception:
+            return candidate  # fail-open: a collision check is not worth the act
+        n += 1
+        candidate = f"{base}-{n}{ext}"
 
 
 def resolve_radar_resident() -> tuple[str, str]:
@@ -605,7 +676,6 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
         )
         return {"success": False, "slug": hub.slug, "error_reason": "derive_raised"}
 
-    from services.settle import extract_title, slugify, strip_fence, _unique_path
     note = strip_fence(routed.text or "")
     derive_ms = int((datetime.now(timezone.utc) - derive_started).total_seconds() * 1000)
 
@@ -621,11 +691,12 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
         return {"success": True, "slug": hub.slug, "no_brief": True}
 
     # ── 3. place (kernel-deterministic; never overwrites) ────────────────
+    from services.naming import path_slug
     title = extract_title(note)
     date = started.strftime("%Y-%m-%d")
     path = _unique_path(
         client, user_id, None,
-        f"{hub.root}/{BRIEFS_DIR}/{date}-{slugify(title)}.md",
+        f"{hub.root}/{BRIEFS_DIR}/{date}-{path_slug(title)}.md",
     )
 
     # ── 4. write + cite (ADR-423 kind, ADR-448 edges) ────────────────────

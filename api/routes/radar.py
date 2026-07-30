@@ -151,7 +151,10 @@ def _read_declaration(client, user_id: str, topic: str) -> Optional[str]:
 
 
 def _title_of(content: str) -> str:
-    from services.settle import extract_title
+    # The brief's own leading `# Title` — the same reader the writer used, so
+    # the shelf shows what the file says. (Was `services.settle`'s until
+    # ADR-507 deleted that module; re-homed to the writer, `services/radar.py`.)
+    from services.radar import extract_title
     return extract_title(content or "")
 
 

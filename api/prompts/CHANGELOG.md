@@ -24,6 +24,43 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.30.3] - Radar's placement helpers survive settle's deletion
+
+### Fixed
+- `services/radar.py` + `routes/radar.py` — ADR-507 deleted `services/settle.py`
+  while radar still imported four helpers from it, both imports FUNCTION-LOCAL
+  (so nothing failed at import time and the deploy went out green).
+  `GET /api/radar/hubs` and the hub detail view 500'd in production with
+  `ModuleNotFoundError: No module named 'services.settle'`.
+- The three surviving helpers (`extract_title`, `strip_fence`, `_unique_path`)
+  are re-homed into `services/radar.py`, radar's own writer and their only
+  caller. None was ever settle-specific — reading a note's title, unfencing a
+  model's reply, and refusing to overwrite are the mechanics of placing ANY
+  derived note. Radar's docstring already called this "the settle pattern made
+  standing"; the pattern outlived the verb.
+
+### Changed
+- The brief's filename slug now routes through `services/naming.py::path_slug`
+  instead of resurrecting settle's `slugify`. Settle's was the lossy
+  `[^a-z0-9]+` key ADR-469 replaced: under a title with no Latin characters it
+  collapsed to the constant `note`, so several non-Latin-titled briefs on one
+  day would collide on one path. Latin titles are byte-identical
+  (`AI pricing moves` → `ai-pricing-moves` either way), so this is a
+  correctness gain with no behavior change on the observed corpus.
+- Expected behavior: no LLM-facing change. The distillation posture, the brief
+  contract, and the NO_BRIEF sentinel are untouched — this is placement
+  mechanics only, all on the kernel's side of the settle division of labour
+  (the model never held these levers).
+
+### Discipline
+- The ADR-486 gate ALREADY covered the writer's identical dead import (it runs
+  `run_radar_sweep` end-to-end through placement) — it was simply not run after
+  ADR-507 landed. The genuinely undefended path was the READER, `_title_of`,
+  which nothing called. Three executed checks added there and falsified against
+  the broken tree before being kept.
+
+---
+
 ## [2026.07.30.2] - The settle verb is deleted; distillation is an ASK (ADR-507)
 
 ### Removed
