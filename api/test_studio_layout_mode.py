@@ -210,7 +210,25 @@ def run() -> bool:
         "New ‹noun› is PAGED-only (flow has no page unit to offer)",
         "{isPaged && arrangements.length > 0 && (" in toolbar,
     )
-    _check("the toolbar takes isPaged as kernel-derived data", "isPaged: boolean;" in toolbar)
+    # ADR-506 D2 — the toolbar takes the TRI-STATE mode, not a boolean. The
+    # boolean was derived with `?? 'flow'`, so it could not tell "this is a
+    # document" from "the vocabulary has not landed yet", and a deck's toolbar
+    # rendered empty for the first frames and then grew two buttons. This is
+    # ADR-482 D3 (chrome waits for the mode) reaching the toolbar. The
+    # affirmative test — `mode === 'paged'` — is what makes an unresolved mode
+    # withhold rather than guess.
+    _check(
+        "the toolbar takes the TRI-STATE mode as kernel-derived data",
+        "mode: 'flow' | 'paged' | undefined;" in toolbar,
+    )
+    _check(
+        "and derives isPaged by the AFFIRMATIVE test (unresolved withholds)",
+        "const isPaged = mode === 'paged';" in toolbar,
+    )
+    _check(
+        "the surface hands it the RESOLVED mode, never the ?? 'flow' default",
+        "mode={resolvedMode}" in surface,
+    )
 
     # ── 3. the located insert ───────────────────────────────────────────────
     # ADR-466 D4 completed the arc: insert is located with NO exceptions. The

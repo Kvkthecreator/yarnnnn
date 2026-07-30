@@ -191,6 +191,11 @@ interface StudioCanvasProps {
    *  the runtime knows which text node holds the run, so it does the deleting
    *  and answers with onSlashTaken. */
   slashTake?: { filterLen: number; nonce: number } | null;
+  /** ADR-506 D1: the toolbar's Insert. Asks the runtime to TYPE the '/' at a
+   *  resolved caret — the button is a door to the one insert gesture, not a
+   *  second mechanism (ADR-505 D4). The runtime answers with the ordinary
+   *  onSlashOpen, so everything downstream is unchanged. Nonce for repeats. */
+  slashInvoke?: { nonce: number } | null;
   /** ADR-447: scroll the canvas to this slide (the navigator selected it). A
    *  monotonic nonce forces the scroll even when re-selecting the same slide. */
   scrollToSlide?: { index: number; nonce: number } | null;
@@ -243,6 +248,7 @@ export function StudioCanvas({
   onSlashTaken,
   scrollToSlide,
   slashTake,
+  slashInvoke,
   scrollToBlock,
   zoom = 1,
 }: StudioCanvasProps) {
@@ -389,6 +395,15 @@ export function StudioCanvas({
     if (!win || !slashTake) return;
     win.postMessage({ type: 'yarnnn-slash-take', filterLen: slashTake.filterLen }, '*');
   }, [slashTake]);
+
+  // ADR-506 D1: the toolbar's Insert. The parent cannot place a caret inside an
+  // opaque-origin frame, so it ASKS — the runtime resolves the insertion point,
+  // types the '/', and opens the palette through the ordinary path.
+  useEffect(() => {
+    const win = iframeRef.current?.contentWindow;
+    if (!win || !slashInvoke) return;
+    win.postMessage({ type: 'yarnnn-slash-invoke' }, '*');
+  }, [slashInvoke]);
 
   // ADR-455: when the outline selects a heading, scroll the canvas to it.
   useEffect(() => {

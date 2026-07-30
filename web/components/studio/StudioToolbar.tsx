@@ -122,8 +122,19 @@ interface StudioToolbarProps {
   /** The artifact's current layout slug — selects the arrangement set + noun. */
   layout: string;
   /** The layout's composition mode (kernel-named). `paged` gets the New-‹noun›
-   *  gallery; `flow` has no page unit to offer. */
-  isPaged: boolean;
+   *  gallery; `flow` has no page unit to offer.
+   *
+   *  ADR-506 D2 — TRI-STATE, not a boolean. `undefined` means the vocabulary
+   *  has not landed yet, and the page-grain pair must render NOTHING rather
+   *  than guess: a boolean derived with `?? 'flow'` cannot tell "this is a
+   *  document" from "we don't know yet", so a deck's toolbar flashed empty and
+   *  then grew two buttons. This is ADR-482 D3 (chrome waits for the mode)
+   *  applied one level out, to the toolbar that D3 never reached. */
+  mode: 'flow' | 'paged' | undefined;
+  /** EXECUTE: open the block palette at the caret (ADR-506 D1). Universal and
+   *  ungated — the SAME palette `/` opens, in every type, with no per-type
+   *  subsetting (ADR-505 D4). */
+  onInsert: () => void;
   /** EXECUTE: add a new page (slide/section) from the gallery. */
   onAddArrangement: (fragment: string, label: string) => void;
   /** EXECUTE: re-lay the CURRENT page (ADR-466 D5 — the PowerPoint pair: Layout
@@ -145,7 +156,8 @@ interface StudioToolbarProps {
 export function StudioToolbar({
   vocabulary,
   layout,
-  isPaged,
+  mode,
+  onInsert,
   onAddArrangement,
   onApplyArrangement,
   planning,
@@ -153,6 +165,11 @@ export function StudioToolbar({
   currentArrange,
   hasPageAnchor,
 }: StudioToolbarProps) {
+  // ADR-506 D2: the AFFIRMATIVE test (the ADR-482 D3 idiom). An unresolved mode
+  // renders no page-grain chrome rather than guessing `flow` — `mode === 'paged'`
+  // is false for both "document" and "not yet known", and only the first of
+  // those is a claim.
+  const isPaged = mode === 'paged';
   // ADR-447/453: a deck's page is a "slide"; a document/article's is a
   // "section" — the operator word follows the layout.
   const pageNoun = layout === 'deck' ? 'slide' : 'section';
@@ -227,7 +244,7 @@ export function StudioToolbar({
           unit to offer). */}
       {/* `+` not `▾`: New ADDS something (the OS teaches `+` as "insert"
           everywhere else); Re-arrange picks among options, so it carries no +.
-          ADR-489 D4: the PAGE grain is this button's alone — the block grain is
+          ADR-505 D4: the PAGE grain is this button's alone — the block grain is
           `/` at the caret, and the gutter that used to offer a third route is
           deleted. */}
       {isPaged && arrangements.length > 0 && (
@@ -263,7 +280,7 @@ export function StudioToolbar({
           the chip was the receipt proving the click landed. ADR-458 moved the
           entrance to HOVER, and the receipt lost its errand: there is no longer
           a gated act it unlocks. (That hover layer is itself deleted now —
-          ADR-489 D4 — which only deepens the reason.)
+          ADR-505 D4 — which only deepens the reason.)
 
           What remained was a third rendering of one fact — the navigator
           already rings the slide indigo, the canvas already marks it, and the
@@ -344,6 +361,43 @@ export function StudioToolbar({
         </div>
       )}
 
+      </div>
+
+      {/* ── INSERT (ADR-506 D1) — the centre of the row ────────────────────
+          A DOOR to the one insert gesture, never a second mechanism: it asks
+          the runtime to type a '/' at a resolved caret, and everything after
+          that is the gesture the member could have typed (ADR-505 D4 — "/ is
+          deliberately universal and ungated"; ADR-466 D4 — "insert is located
+          with no exceptions").
+
+          UNGATED BY TYPE, deliberately. There is no `mode` test here and no
+          per-type kind subsetting behind it — that matrix is exactly what
+          ADR-505 D4 deleted, and re-introducing it would rebuild the hole
+          ADR-482 fell into. Every type gets the same button opening the same
+          palette; what DIFFERS per type is the page-grain pair to the left,
+          which is the difference that is real.
+
+          Why it exists at all, given `/` already works: ADR-505 D4 deleted the
+          hover gutter on every mode, so `/` became the ONLY block-insert route
+          anywhere — discoverable only by already knowing it. ADR-482 §7 left
+          this button explicitly open ("revisit only if `/` proves insufficient
+          in use"); it did.
+
+          ABSOLUTELY centred on the ROW, not laid out between the two groups: a
+          flex `justify-center` sibling would re-centre whenever the page-grain
+          pair mounts (an async vocabulary fetch) or the crumb's name changes
+          length, so the button would drift under the member's cursor. It is
+          `pointer-events-none` at the wrapper so the invisible full-width strip
+          never swallows a click meant for the row beneath it. */}
+      <div className="pointer-events-none absolute inset-x-0 flex justify-center">
+        <button
+          type="button"
+          className={`${btn} pointer-events-auto`}
+          onClick={onInsert}
+          title="Insert a block — the same palette / opens at the caret"
+        >
+          <Plus className="h-3 w-3" /> Insert
+        </button>
       </div>
     </div>
   );

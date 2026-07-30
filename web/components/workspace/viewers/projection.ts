@@ -1617,13 +1617,67 @@ const EDIT_SCRIPT = `
     parent.postMessage({ type: 'yarnnn-slash-close' }, '*');
   }
 
-  document.addEventListener('keydown', function (e) {
-    if (e.key !== '/' || !editHost()) return;
-    if (fmtInput && document.activeElement === fmtInput) return;
-    var caret = slashCaret();
+  // ADR-506 D1 — the toolbar's Insert TYPES THE SLASH. The button is a DOOR to
+  // the one insert gesture, never a second mechanism (ADR-505 D4: "/ is
+  // deliberately universal and ungated"; ADR-466 D4: "insert is located with no
+  // exceptions"). So it does not post its own take: it lands a real '/' at a
+  // real caret and lets the keydown handler below run unmodified. Everything
+  // downstream — the anchor, the live filter, the run-splice on pick — is the
+  // gesture the member could have typed, because it IS that gesture.
+  //
+  // The one thing a click has that a keystroke does not is the ABSENCE of a
+  // caret: the member may never have focused the document. So this resolves an
+  // insertion point first (caret → last block → the host itself), focuses it,
+  // and only then synthesizes. insertText (not a manual text-node splice) is
+  // what makes the browser move the caret past the character for us, leaving
+  // exactly the post-input state the handler's setTimeout re-reads.
+  // (No backticks anywhere in here: this body lives INSIDE a template string.)
+  function slashFromToolbar() {
+    var host = editHost();
+    if (!host) {
+      // Paged with nothing being edited: enter the last block, which gives the
+      // gesture the same anchor a click-then-type would have produced.
+      var blocks = document.querySelectorAll('[data-block]');
+      var last = blocks.length ? blocks[blocks.length - 1] : null;
+      var lastId = last && last.getAttribute ? last.getAttribute('data-block-id') : null;
+      if (!lastId) return;
+      enter(lastId);
+      host = editHost();
+      if (!host) return;
+    }
+    if (host.focus) host.focus();
+    var sel = window.getSelection();
+    var inHost = false;
+    if (sel && sel.rangeCount) {
+      var anc = sel.getRangeAt(0).commonAncestorContainer;
+      var ancEl = anc && anc.nodeType === 1 ? anc : (anc ? anc.parentElement : null);
+      inHost = !!(ancEl && host.contains(ancEl));
+    }
+    if (!inHost || caretInIsland()) {
+      // No usable caret (or one parked inside a citation island, which owns its
+      // own text): put it at the END of the host's content — the place a member
+      // who clicked "Insert" without clicking into the prose means by "here".
+      var r = document.createRange();
+      r.selectNodeContents(host);
+      r.collapse(false);
+      if (!sel) return;
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+    // Synthesize. beforeinput/input fire, so the keydown listener's own
+    // post-input setTimeout path is NOT what runs here — we call the opener
+    // directly with the caret we just guaranteed.
+    document.execCommand('insertText', false, '/');
+    openSlashAtCaret();
+  }
+
+  // The opener, extracted (ADR-506 D1) so the typed '/' and the toolbar's
+  // Insert share ONE body rather than two that drift. Call AFTER the '/' has
+  // landed in the DOM; the caret arg is the pre-input caret, used only to pick
+  // the anchor element (the post-input re-read below resolves the actual run).
+  function openSlashAtCaret(caret) {
+    if (!caret) caret = slashCaret();
     if (!caret) return;
-    if (caretInIsland()) return; // a citation island owns its own text
-    // NO preventDefault + NO exit: the '/' lands and the caret keeps typing.
     // ADR-480: the palette anchors on the caret's OWN BLOCK, never the edit
     // host — on flow the host is the whole document, whose rect would put the
     // palette at the top of the page instead of beside the line being typed.
@@ -1681,6 +1735,16 @@ const EDIT_SCRIPT = `
       parent.postMessage({ type: 'yarnnn-slash-open', blockId: id, empty: empty,
         rect: { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width } }, '*');
     }, 0);
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== '/' || !editHost()) return;
+    if (fmtInput && document.activeElement === fmtInput) return;
+    var caret = slashCaret();
+    if (!caret) return;
+    if (caretInIsland()) return; // a citation island owns its own text
+    // NO preventDefault + NO exit: the '/' lands and the caret keeps typing.
+    openSlashAtCaret(caret);
   }, true);
 
   // While the palette is open the DOCUMENT still has the caret, so the palette's
@@ -2128,6 +2192,8 @@ const EDIT_SCRIPT = `
     if (!d || typeof d !== 'object') return;
     if (d.type === 'yarnnn-edit-enter' && typeof d.blockId === 'string') enter(d.blockId);
     else if (d.type === 'yarnnn-edit-exit') exit(false);
+    // ADR-506 D1 — the toolbar's Insert, routed into the ONE gesture.
+    else if (d.type === 'yarnnn-slash-invoke') slashFromToolbar();
     else if (d.type === 'yarnnn-slash-take') {
       // A pick landed. Delete the '/'+filter run the member typed so the text
       // the block keeps never contains the gesture, then hand the parent BOTH
@@ -2213,7 +2279,7 @@ const EDIT_SCRIPT = `
 // the selected block's keyboard. Injected chrome, body-appended (never inside a
 // block — commits can't see it). Desktop-pointer only.
 //
-// ADR-489 D4: THE HOVER GUTTER IS DELETED (all modes). It was ADR-458's Notion
+// ADR-505 D4: THE HOVER GUTTER IS DELETED (all modes). It was ADR-458's Notion
 // layer — a `+` and a `⋮⋮` handle beside the hovered block — and ADR-481 D2 had
 // already removed it on `flow` (the caret IS the insertion point, so an
 // affordance pointing at a place answers a question a continuous surface never
@@ -3319,7 +3385,7 @@ export async function resolveArtifactHtml(
       // this script draws the bounding box, the handles and the divider — the
       // chrome of a medium where a block is an ENCLOSURE (ADR-480). On `flow` a
       // block is an annotation, the browser owns the caret, and there is no
-      // object to box. ADR-489 D4 deleted the gutter that used to ride along
+      // object to box. ADR-505 D4 deleted the gutter that used to ride along
       // here; what remains is geometry, and geometry needs a frame.
       const objects = doc.createElement('script');
       objects.textContent = OBJECT_SCRIPT;

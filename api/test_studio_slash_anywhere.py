@@ -41,11 +41,32 @@ def _check(label: str, cond: bool) -> None:
 WEB = Path(__file__).resolve().parent.parent / "web"
 
 
+def _script_body(src: str, name: str) -> str:
+    """The body of a `const NAME = \\`…\\`` runtime template, brace-blind.
+
+    The runtimes are TEMPLATE STRINGS, so "is X inside script Y" is a real
+    question a substring search cannot answer — and ADR-505 D6's lesson is that
+    a reader who cannot see which script holds what deletes the wrong thing.
+    """
+    marker = f"const {name} = `"
+    i = src.find(marker)
+    if i < 0:
+        return ""
+    i += len(marker)
+    j = i
+    while j < len(src):
+        if src[j] == "`" and src[j - 1] != "\\":
+            return src[i:j]
+        j += 1
+    return ""
+
+
 def run() -> bool:
     proj = (WEB / "components/workspace/viewers/projection.ts").read_text()
     palette = (WEB / "components/studio/StudioSlashPalette.tsx").read_text()
     surface = (WEB / "components/studio/StudioSurface.tsx").read_text()
     canvas = (WEB / "components/studio/StudioCanvas.tsx").read_text()
+    toolbar = (WEB / "components/studio/StudioToolbar.tsx").read_text()
 
     # ── 1. the trigger fires ANYWHERE ───────────────────────────────────────
     print("\n-- the trigger --")
@@ -57,16 +78,25 @@ def run() -> bool:
         "'/' is NOT preventDefault'd — the character lands as text like Notion",
         "if (e.key !== '/'" not in proj or "slash-open" in proj,
     )
-    # The window measures "the '/' handler still reaches its message" — a
-    # proximity proxy for the path being intact, not a length budget. Widened
-    # 1200 → 2000 by ADR-480, which added the flow ANCHOR resolution inside
-    # this handler (on flow the palette anchors on the caret's own block, not
-    # the edit host — the host is the whole document there, whose rect would
-    # put the palette at the top of the page). The path is unchanged.
-    m = re.search(r"e\.key !== '/'[\s\S]{0,2000}?yarnnn-slash-open", proj)
-    _check("the '/' handler still reaches the slash-open message", bool(m))
-    if m:
-        body = m.group(0)
+    # ADR-506 D1 re-cut this from a PROXIMITY PROXY to the actual path. It used
+    # to regex `e.key !== '/' … yarnnn-slash-open` within a char window (1200,
+    # widened to 2000 by ADR-480) — a stand-in for "the path is intact" that was
+    # really a length budget, and it broke the moment the opener was EXTRACTED
+    # so the typed '/' and the toolbar's Insert could share one body. The code
+    # was correct; the proxy described a shape it no longer had.
+    #
+    # Now it asserts the two hops by name: the keydown guard delegates to the
+    # opener, and the opener is what posts the message. A window still bounds
+    # each hop (a hop that grows past its own function is worth a look), but a
+    # refactor that keeps the path honest no longer fails for its distance.
+    hop1 = re.search(r"e\.key !== '/'[\s\S]{0,800}?openSlashAtCaret\(caret\)", proj)
+    hop2 = re.search(
+        r"function openSlashAtCaret\([\s\S]{0,4000}?yarnnn-slash-open", proj
+    )
+    _check("the '/' keydown delegates to the shared opener", bool(hop1))
+    _check("the shared opener reaches the slash-open message", bool(hop2))
+    if hop1 and hop2:
+        body = hop1.group(0) + hop2.group(0)
         _check(
             "the trigger does NOT preventDefault (the '/' must reach the text)",
             "e.preventDefault()" not in body,
@@ -78,6 +108,43 @@ def run() -> bool:
     _check(
         "the runtime reports the caret offset so the '/' can be removed on pick",
         "slashStart" in proj,
+    )
+
+    # ── 1b. the toolbar's Insert is a DOOR, not a second mechanism (ADR-506) ─
+    # The falsifier's shape is ADR-482 §10's lesson: assert the ACT completes,
+    # not that the affordance appears. So the load-bearing check here is that
+    # there is still exactly ONE sender of yarnnn-slash-open — the button has
+    # to route INTO the gesture, and a second sender would mean it grew its own
+    # insert path (the ADR-466 D4 / ADR-505 D4 refusal).
+    print("\n-- the toolbar door (ADR-506 D1) --")
+    _check(
+        "the button asks the runtime to TYPE the '/' (it cannot place a caret "
+        "in an opaque-origin frame itself)",
+        "yarnnn-slash-invoke" in proj
+        and "yarnnn-slash-invoke" in canvas
+        and "slashInvoke" in surface,
+    )
+    _check(
+        "the door routes into the ONE gesture — still a single slash-open sender",
+        proj.count("type: 'yarnnn-slash-open'") == 1,
+    )
+    _check(
+        "the door reuses the shared opener rather than posting its own message",
+        bool(
+            re.search(
+                r"function slashFromToolbar\([\s\S]{0,2500}?openSlashAtCaret\(\)", proj
+            )
+        ),
+    )
+    _check(
+        "Insert is UNGATED by type — no mode test on the button (ADR-505 D4: "
+        "'/' is universal, and its door inherits that)",
+        "onClick={onInsert}" in toolbar and "isPaged && onInsert" not in toolbar,
+    )
+    _check(
+        "the slash runtime still rides EDIT_SCRIPT (injected on opts.edit alone, "
+        "with no paged/flow branch) — so the door is ungated STRUCTURALLY",
+        "function slashFromToolbar" in _script_body(proj, "EDIT_SCRIPT"),
     )
 
     # ── 2. dismissal is load-bearing ────────────────────────────────────────

@@ -1548,6 +1548,16 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   } | null>(null);
   const [slashTake, setSlashTake] = useState<{ filterLen: number; nonce: number } | null>(null);
   const slashNonce = useRef(0);
+  // ADR-506 D1 — the toolbar's Insert. The parent cannot place a caret inside
+  // the opaque-origin canvas, so it ASKS the runtime to type the '/' itself;
+  // the palette then opens through the ordinary onSlashOpen path. A nonce
+  // (the slashTake pattern) so clicking Insert twice fires twice.
+  const [slashInvoke, setSlashInvoke] = useState<{ nonce: number } | null>(null);
+  const invokeNonce = useRef(0);
+  const invokeSlash = useCallback(() => {
+    invokeNonce.current += 1;
+    setSlashInvoke({ nonce: invokeNonce.current });
+  }, []);
   const onSlashPick = useCallback(
     (kind: string, label: string, fragment: string) => {
       // The ref, not the state: the close that races this pick has already
@@ -2254,7 +2264,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               <StudioToolbar
                 vocabulary={vocabulary}
                 layout={template}
-                isPaged={isPaged}
+                mode={resolvedMode}
+                onInsert={invokeSlash}
                 onAddArrangement={handleAddArrangement}
                 onApplyArrangement={handleApplyArrangement}
                 planning={planning}
@@ -2355,6 +2366,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 onSlashEnter={onSlashEnter}
                 onSlashTaken={onSlashTaken}
                 slashTake={slashTake}
+                slashInvoke={slashInvoke}
                 scrollToSlide={scrollToSlide}
                 scrollToBlock={scrollToBlock}
                 zoom={zoom}

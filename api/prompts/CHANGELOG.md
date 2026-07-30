@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.07.30.2] - The insert door (ADR-506)
+
+### Changed
+- **Nothing LLM-facing.** Recorded here because the change lands in the studio
+  chrome the lane's posture is derived from, and a reader checking "did the AI
+  hand's grammar move?" deserves an explicit no.
+- `StudioToolbar` gains a centred **Insert** button in every document type. It is
+  a DOOR onto the existing `/` gesture, not a new mechanism: it posts
+  `yarnnn-slash-invoke`, and the runtime resolves an insertion point and TYPES
+  the `/`. `STUDIO_BLOCKS` is untouched — no `applies` column, no per-type kind
+  subsetting (ADR-506 D3 declines it; ADR-505 D4 deleted that matrix). The
+  served vocabulary is byte-identical, so the lane's posture is unchanged.
+- Expected behavior: none for the AI hand. For the member, block insert becomes
+  reachable without knowing to type `/` — which ADR-505 D4 had left as the sole
+  route on every type when it deleted the hover gutter.
+
+---
+
 ## [2026.07.30.1] - The three-type cut: document · deck · web (ADR-505)
 
 ### Changed
