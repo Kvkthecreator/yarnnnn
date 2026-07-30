@@ -1,7 +1,10 @@
 # yarnnn — Canon Lock
 
+> ## ⛔ SUPERSEDED — 2026-07-30
+> **Superseded in full by [CANON-LOCK-2026-07-30](CANON-LOCK-2026-07-30.md)** (operator-ratified re-cut discourse, 2026-07-30). What changed: the psychographic center moved from *plural-AI fragmentation* to *the copy-paste seam of the small AI-first team* (ease · share · out-of-box); the hook and recognition slots were replaced; the subhead was re-cut (model names → connector chips, "nothing to set up" enters guarded by a new falsifier); the ICP triad re-derived (plural·consequential·continuing → **AI-first·shared·self-serve**); the anti-ICP re-cut two-sided (procurement buyer + AI-dabbler; the single-AI user readmitted). The moat slot, the headline pair, the motion, the wedge structure, the species table, and falsifiers 1/3/4 carried forward. This file is preserved as derivation lineage — do not quote it as canon.
+
 **Date**: 2026-07-29
-**Status**: **LOCKED.** Operator-ratified in the 2026-07-29 ICP/one-liner discourse.
+**Status**: ⛔ **SUPERSEDED** (was: LOCKED — operator-ratified in the 2026-07-29 ICP/one-liner discourse).
 **Authority**: This document is the source of truth for the one-liner, the ICP, the GTM motion, and the activation model. Where NARRATIVE, GTM_POSITIONING, ICP, GROWTH-LOOP, the site spec, or the deck disagree with this document, they are wrong and get revised.
 **Derivation**: `ICP-ONELINER-DISCOURSE-2026-07-29.md` → `ONELINER-ICP-GTM-PROPOSAL-2026-07-29.md` → `CANON-ADOPTED-2026-07-29.md`. Drift evidence: `GTM-RECUT-PROPOSAL-2026-07-29.md`.
 **Not in scope**: architecture. This document never overrides an ADR; where it depends on one, §7 names it.

@@ -2,7 +2,7 @@
 
 **Your true AI-first workspace — co-work like never before.**
 
-Work with ChatGPT, Gemini, and Claude together in one shared workspace: dedicated apps, a shared file system, documents you build with AI — and every change signed by whoever made it, human or not.
+One shared workspace for you, your people, and the AI you already use. Nothing to set up — connect, co-work on shared files and documents, share with a link. And every change signed by whoever made it, human or not.
 
 ## Quick Start
 

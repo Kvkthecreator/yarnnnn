@@ -1,4 +1,6 @@
-# DOC-STATUS INDEX — `docs/working_docs/strategy/` (2026-07-29)
+# DOC-STATUS INDEX — `docs/working_docs/strategy/` (2026-07-29; amended 2026-07-30)
+
+> **2026-07-30 amendment**: the canon re-locked as **[CANON-LOCK-2026-07-30](CANON-LOCK-2026-07-30.md)** (working canon — the copy-paste seam center; AI-first · shared · self-serve). The 07-29 lock is **superseded** (banner applied). Same-day cascade: ESSENCE v19 · ICP.md v2 · NARRATIVE v7 · GTM_POSITIONING v6 · GROWTH-LOOP v1.1 · README subhead.
 
 **Read this before quoting anything in this folder.**
 
@@ -9,10 +11,11 @@ written back here.
 
 | File | Date | Status |
 |---|---|---|
-| `CANON-LOCK-2026-07-29.md` | 2026-07-29 | ✅ **LOCKED.** Operator-ratified source of truth for one-liner, ICP, motion, activation. Everything below derives from it. |
-| `CANON-ADOPTED-2026-07-29.md` | 2026-07-29 | ✅ **Current.** The reasoning behind the locked hero + second-order implications. |
-| `ICP.md` | 2026-07-29 (v1) | ✅ **Current — the ICP's owning document** (new; ends the ICP-as-§2-of-a-positioning-doc failure). §5 demographics stub is OWED founder validation. |
-| `GTM_POSITIONING.md` | **2026-07-29 (v5)** | ✅ **Current.** Rewritten from CANON-LOCK. §1/§2/§5/§6 replaced, §3/§4 revised; mechanism discipline + posture rule carried verbatim. |
+| `CANON-LOCK-2026-07-30.md` | 2026-07-30 | ✅ **LOCKED (working canon).** Operator-ratified source of truth for one-liner, ICP, motion, activation. Everything below derives from it. |
+| `CANON-LOCK-2026-07-29.md` | 2026-07-29 | ⛔ **Superseded** by CANON-LOCK-2026-07-30 (banner applied). Lineage only. |
+| `CANON-ADOPTED-2026-07-29.md` | 2026-07-29 | ⚠️ **Partly superseded (2026-07-30)** — the headline reasoning stands; the subhead/hook/recognition/ICP derivations are superseded by CANON-LOCK-2026-07-30. Lineage. |
+| `ICP.md` | **2026-07-30 (v2)** | ✅ **Current — the ICP's owning document.** v2: AI-first · shared · self-serve; two-sided anti-ICP; single-AI user readmitted. §6 demographics stub OWED founder validation. |
+| `GTM_POSITIONING.md` | **2026-07-30 (v6)** | ✅ **Current.** Re-cut from CANON-LOCK-2026-07-30; mechanism discipline + posture rule carried verbatim; act-shape map aligned to ADR-507. |
 | `ONELINER-ICP-GTM-PROPOSAL-2026-07-29.md` | 2026-07-29 | ⚠️ **Partly superseded** — §2 (product-sentence proposal) superseded by CANON-ADOPTED; the rest stands as derivation. |
 | `ICP_ANALYSIS_APRIL_2026.md` | 2026-04-01 | ⛔ **Archived** — see its own banner. |
 | `YARNNN - ICP Deep-Dive v3.docx` | 2026-04-01 | ⛔ **Archived.** "Profile A: The Senior Operator — five domain experts that learn your business, $19/mo." Assumes the ADR-140 roster (retired, ADR-460), the $19 price (superseded twice), and a solo buyer (inverted, ADR-465). Its §7 founder-validation questions were never answered. |
