@@ -7,7 +7,7 @@ import { SpotlightCard, BentoGrid } from "@/components/landing/SpotlightCard";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = getMarketingMetadata({
-  title: "Invest — the shared memory layer for AI + human work",
+  title: "Invest — the system of record where human and AI work settles",
   description:
     "The neutral, attributed memory layer for AI + human work — one place the operator owns, that every model and teammate reads and writes, with every change traceable. Premium, high-ACV, expansion-led.",
   path: "/invest",
@@ -47,7 +47,7 @@ export default function InvestPage() {
           {/* Hero — shared-memory thesis */}
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              <span className="text-[#de5a2b]">Shared memory for AI + human work.</span>
+              <span className="text-[#de5a2b]">The system of record where human and AI work settles.</span>
               <br />
               <span className="text-white/50">
                 The neutral layer no model maker can build.

@@ -31,6 +31,10 @@ const nextConfig = {
       // (genesis is empty, ADR-414; activation reframes to cold-landing + the
       // shared-artifact wedge). Bookmark-safe transport to the dock anchor.
       { source: '/setup', destination: '/chat', permanent: false },
+      // Canon v2 (2026-07-30) — the /freddie marketing page is retired: Freddie
+      // is the ambient steward (ADR-454), not a fronted marketing character,
+      // and the page sat outside the ratified canon's scope. Bookmark-safe.
+      { source: '/freddie', destination: '/', permanent: false },
     ];
   },
 };

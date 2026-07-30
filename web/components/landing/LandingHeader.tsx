@@ -17,7 +17,6 @@ export default function LandingHeader({ inverted }: LandingHeaderProps) {
     : "text-muted-foreground hover:text-foreground";
 
   const navLinks = [
-    { href: "/freddie", label: "Freddie" },
     { href: "/how-it-works", label: "How it works" },
     { href: "/pricing", label: "Pricing" },
     { href: "/faq", label: "FAQ" },

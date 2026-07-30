@@ -214,32 +214,7 @@ export default function LandingPage() {
           </ScrollReveal>
         </section>
 
-        {/* ─── Section 5 — Freddie (stewardship, engagement) ─────────────── */}
-        <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
-          <ScrollReveal className="max-w-4xl mx-auto">
-            <div className="text-xs font-mono text-[#1a1a1a]/30 uppercase tracking-wider mb-4">
-              In beta
-            </div>
-            <h2 className="text-2xl md:text-3xl font-medium mb-6 text-[#1a1a1a]">
-              Meet Freddie, a second set of eyes.
-            </h2>
-
-            <p className="text-[#1a1a1a]/50 leading-relaxed max-w-2xl mb-6">
-              Freddie is the agent that tends the workspace: he reads what you connect,
-              keeps it in order, and records every change so you can trace it. He only
-              ever does as much as you allow.
-            </p>
-
-            <Link
-              href="/freddie"
-              className="inline-block text-sm font-medium text-[#de5a2b] hover:text-[#de5a2b]/80 transition-colors"
-            >
-              Meet Freddie →
-            </Link>
-          </ScrollReveal>
-        </section>
-
-        {/* ─── Section 6 — The insight (Beat 4) ──────────────────────────── */}
+        {/* ─── Section 5 — The insight (Beat 4) ──────────────────────────── */}
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <ScrollReveal className="max-w-3xl mx-auto">
             <h2 className="text-2xl md:text-3xl font-medium mb-8 text-[#1a1a1a] leading-tight">
@@ -259,7 +234,7 @@ export default function LandingPage() {
           </ScrollReveal>
         </section>
 
-        {/* ─── Section 7 — Pricing teaser + CTA (Beat 6) ─────────────────── */}
+        {/* ─── Section 6 — Pricing teaser + CTA (Beat 6) ─────────────────── */}
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <ScrollReveal className="max-w-3xl mx-auto text-center">
             <h2 className="text-2xl md:text-3xl font-medium mb-4 text-[#1a1a1a]">

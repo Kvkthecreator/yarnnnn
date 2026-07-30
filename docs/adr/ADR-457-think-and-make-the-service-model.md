@@ -192,13 +192,28 @@ Within 60–90 days of the chat waves shipping, three signals — all readable f
 
 1. Sessions concentrate in Studio and chat is used only as a command line → Think was the wrong
    frame for chat; chat reverts to hands+capture and thinking stays external.
-2. The settle verb goes unused after honest staging → the compounding moment is not felt; GTM
-   must not lead with it.
-3. MCP traffic dwarfs desk traffic among real users → the hum is the true wedge; investment
-   priority flips back per D5.
+2. ~~The settle verb goes unused after honest staging → the compounding moment is not felt; GTM
+   must not lead with it.~~ **RETIRED with the verb** (ADR-507, 2026-07-30 — read before removal;
+   did not fire on its own terms; the retirement was structural, not an adoption verdict).
+3. ~~MCP traffic dwarfs desk traffic among real users → the hum is the true wedge; investment
+   priority flips back per D5.~~ **RE-CUT 2026-07-30** (CANON-LOCK-2026-07-30 §8.4 — the owed
+   correction): as originally written this falsifier **fires on success**, because MCP dominance
+   in *acquisition traffic* is the ratified canon's expected pattern (the MCP door is the lead
+   door, GROWTH-LOOP Channel 1). The re-cut distinguishes the two readings:
+   - **MCP as the acquisition door** — connector-origin traffic dominating signups — is
+     *expected and good*; it does NOT flip investment priority, and D5 (the desk is where the
+     product is experienced and retention lives) stands.
+   - **MCP as the whole product** — connector-origin users who never open the desk: no second
+     surface, no share — is the real failure. That condition is owned by the canon's wedge
+     falsifier (CANON-LOCK-2026-07-30 §8.1, the desk-return guardrail metric in GROWTH-LOOP §5):
+     if it fires within 60–90 days of the lead door shipping, the *GTM lead* reverts to the
+     shared team commons. Investment priority flips back per D5 only if desk sessions among
+     *retained* users also collapse — the original signal, now scoped to the population it
+     actually indicts.
 
 These are printed here so future sessions evaluate the bet against declared criteria rather than
-re-litigating it.
+re-litigating it. (Falsifier 1 stands unchanged; 2 retired with its verb; 3 re-cut against the
+2026-07-30 canon — the amendments are recorded inline rather than silently rewritten.)
 
 ## 9. Shipped in this pass (code)
 

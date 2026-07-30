@@ -229,14 +229,14 @@ No setup wizard · no workspace constitution · no program pick · no roster dis
 - **ADR-378** — no org-above-workspace layer. No "for your company", no team accounts — and under v2 this ceiling is a *positioning asset* (§0: a room, not an org tree).
 - **ADR-457 D5** — two doors, one commons. The interop face is promoted in GTM priority, never at the cost of the desk.
 - **ADR-507** — the acts are open (Think · Make · Perceive); the settle verb is deleted; no copy may name settle/keep as a product act. The moat sentence's "settles" is a property of the record.
-- **ADR-504 (Proposed — ratification owed)** — the interop principal invariant. The Shared qualifier and the activation species both stand on it; if it collapses, "co-work with the AI you already use" becomes one principal wearing a second face.
+- **ADR-504 (Accepted — operator-ratified 2026-07-30)** — the interop principal invariant. The Shared qualifier and the activation species both stand on it; the ratification binds: collapsing interop attribution into member attribution now requires superseding that ADR in the open. The companion signature-grammar enforcement (write-door taxonomy validation + gate) landed the same day.
 
 ## 8. Falsifiers — armed, and evaluated against declared criteria
 
 1. **The wedge** (unchanged). Within 60–90 days of leading with the MCP door: if connector-origin users do not open the desk — no second surface, no share — then MCP is a feature of other people's products, not a door into ours. Revert the lead to the shared team commons.
 2. **Settle — RETIRED with the verb** (ADR-507). Read before removal; did not fire on its own terms (low adoption ≠ abandonment); the retirement was structural. No successor needed — nothing in this canon leads with settle.
 3. **Radar/briefs** (unchanged, ADR-486 D8.2) — fenced out of the lead until proven opened.
-4. **Correction owed to ADR-457 D8.3** (unchanged) — as written it fires on success; re-cut to distinguish MCP-as-acquisition-door (expected) from MCP-as-whole-product (the real failure, falsifier 1). Owed to an ADR amendment pass.
+4. **ADR-457 D8.3 — re-cut LANDED (2026-07-30, same-day amendment pass).** MCP-as-acquisition-door (expected) is distinguished from MCP-as-whole-product (the real failure, owned by falsifier 1's desk-return guardrail) in ADR-457 §D8 itself.
 5. **The ease claim (new in v2).** If the median cold-signup → first-co-work-moment is not measured in **minutes** once the lead door ships, *"nothing to set up"* comes out of the subhead — the claim is aspiration, not copy. Same ledger query as the primary metric; no new telemetry.
 
 ## 9. Validation state — receipts, and what is still owed

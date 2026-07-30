@@ -702,6 +702,17 @@ def write_revision(
     """
     if not authored_by or not authored_by.strip():
         raise ValueError("authored_by is required and must be non-empty")
+    # The signature grammar is product surface ("every change signed by
+    # whoever made it" — CANON-LOCK-2026-07-30 §1): an author string outside
+    # the ADR-209 taxonomy would land an unparseable signature on the ledger,
+    # so it is rejected at the door rather than retained. Live malformed
+    # precedent this closes: free-text forms like "<email> via <model>" from
+    # the pre-ADR-411 lane era (2026-07-07..16).
+    if not is_valid_author(authored_by):
+        raise ValueError(
+            f"authored_by {authored_by!r} is outside the attribution taxonomy "
+            f"(ADR-209/411; valid prefixes: {', '.join(VALID_AUTHOR_PREFIXES)})"
+        )
     if not message or not message.strip():
         raise ValueError("message is required and must be non-empty")
     # ADR-427 Phase 2: exactly one content form. `content` (str, possibly "")
@@ -908,6 +919,17 @@ def delete_live_file(
     """
     if not authored_by or not authored_by.strip():
         raise ValueError("authored_by is required and must be non-empty")
+    # The signature grammar is product surface ("every change signed by
+    # whoever made it" — CANON-LOCK-2026-07-30 §1): an author string outside
+    # the ADR-209 taxonomy would land an unparseable signature on the ledger,
+    # so it is rejected at the door rather than retained. Live malformed
+    # precedent this closes: free-text forms like "<email> via <model>" from
+    # the pre-ADR-411 lane era (2026-07-07..16).
+    if not is_valid_author(authored_by):
+        raise ValueError(
+            f"authored_by {authored_by!r} is outside the attribution taxonomy "
+            f"(ADR-209/411; valid prefixes: {', '.join(VALID_AUTHOR_PREFIXES)})"
+        )
     if not message or not message.strip():
         raise ValueError("message is required and must be non-empty")
 

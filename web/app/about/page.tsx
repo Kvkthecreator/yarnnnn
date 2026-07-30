@@ -10,17 +10,17 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA, PRIMARY_CTA_LABEL } from "@/lib/cta";
 
 export const metadata: Metadata = getMarketingMetadata({
-  title: "About — the memory layer no AI company can build",
+  title: "About — the AI-first workspace no AI company can build",
   description:
-    "A single AI company's memory is locked to its own app, by design. The memory that works across all of them can't be owned by any one of them. So we built it — and here's what we believe.",
+    "A single AI company's workspace is locked to its own models, by design. The shared workspace that works across all of them can't be owned by any one of them. So we built it — and here's what we believe.",
   path: "/about",
   keywords: [
     "about yarnnn",
-    "ai memory you own",
-    "neutral ai memory",
-    "cross-llm memory",
+    "ai-first workspace",
+    "ai workspace you own",
+    "neutral ai workspace",
+    "cross-llm workspace",
     "model-agnostic ai",
-    "portable ai memory",
   ],
 });
 

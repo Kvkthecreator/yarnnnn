@@ -26,7 +26,7 @@ const faqSections: FaqSection[] = [
       {
         question: "How is this different from ChatGPT or Claude's memory?",
         answer:
-          "Their memory is walled to their own app — you can't read inside it, version it, or take it with you. yarnnn is one memory that lives outside any single AI: every model reads and writes it, every change is signed and dated, and it's yours to export. Write it in Claude, and it's there in ChatGPT.",
+          "Their memory is walled to their own app — you can't read inside it, version it, or take it with you. yarnnn is a shared workspace that lives outside any single AI: every model you connect works in the same files you do, every change is signed and dated — human or not — and it's all yours to export. Write it with Claude, and it's there when you open ChatGPT.",
       },
       {
         question: "Is my data mine?",
@@ -41,7 +41,7 @@ const faqSections: FaqSection[] = [
       {
         question: "Does it work across my team, not just me?",
         answer:
-          "Yes — invite teammates by email and they join the same shared workspace. You, your people, and your AIs all write the same memory, every change signed with its author's name, and you can narrow or revoke anyone's access at any time. Working solo is just the simplest case.",
+          "Yes — share a link or invite by email and a teammate lands in the same shared workspace. You, your people, and your AIs all work in the same files, every change signed with its author's name, and you can narrow or revoke anyone's access at any time. Two people work free.",
       },
     ],
   },
@@ -105,9 +105,9 @@ const faqSections: FaqSection[] = [
 const allFaqItems = faqSections.flatMap((s) => s.items);
 
 export const metadata = getMarketingMetadata({
-  title: "FAQ — shared memory for AI + human work",
+  title: "FAQ — your true AI-first workspace",
   description:
-    "How yarnnn differs from ChatGPT and Claude memory, what 'trace' is, how it works across your AIs and your team, pricing, and how to get started.",
+    "How yarnnn differs from ChatGPT and Claude's built-in memory, what 'trace' is, how co-work with your AIs and your team actually lands, pricing, and how to get started.",
   path: "/faq",
   keywords: [
     "yarnnn faq",

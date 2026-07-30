@@ -1,7 +1,8 @@
 # ADR-504 — The Interop Principal Invariant: an External LLM Is a First-Class Principal in the Ledger
 
-**Status**: **Proposed — awaiting operator ratification.** Doc-only; changes no code, no schema, no gate, and no other ADR. Drafted 2026-07-29 from the CANON-LOCK §7 kernel-invariant request.
-**Date**: 2026-07-29
+**Status**: **Accepted — operator-ratified 2026-07-30** (the canon-v2 discourse session; "do the owed ones" ratification). Doc-only at ratification; the companion signature-grammar enforcement (author-taxonomy validation at `write_revision`/`delete_live_file` + `api/test_author_grammar_gate.py`) landed in the same pass — it enforces the *shape* of attribution the invariant protects the *classes* of.
+**Ratification note (2026-07-30)**: under [CANON-LOCK-2026-07-30](../working_docs/strategy/CANON-LOCK-2026-07-30.md) this invariant became MORE load-bearing than when drafted — the v2 ICP's **Shared** qualifier counts a single connected AI as a real second principal (the single-AI user readmitted), so the entire activation model now stands on `foreign-llm`/`a2a` staying principal-grade even at N=1 AIs.
+**Date**: 2026-07-29 (drafted) · 2026-07-30 (ratified)
 **Authors**: KVK (operator, via the canon-lock discourse) + Claude (collaborator)
 **Hat**: A (states a kernel invariant; the GTM documents that depend on it are Hat-A canon consumers)
 **Dimension**: Identity (Axiom 2 — who acts)
@@ -51,4 +52,4 @@ ADR-460 was a correct collapse: a named preset at the desk *is* the member's han
 
 ---
 
-*Awaiting operator ratification. Until ratified, this document binds nothing; the live behavior it describes is already true in code.*
+*Ratified 2026-07-30. The invariant now binds: any future pass that would record an interop write as member-derived attribution must supersede this ADR explicitly, in the open.*
