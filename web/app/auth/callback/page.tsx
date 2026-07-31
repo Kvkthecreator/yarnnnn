@@ -27,12 +27,41 @@ function CallbackHandler() {
         return;
       }
 
-      // Wait for Supabase to process the OAuth callback
-      // The auth-helpers automatically detect hash fragments and exchange them
       setStatus("Verifying session...");
 
-      // Give Supabase client time to process the callback
-      // It auto-detects the hash fragment or code parameter
+      // MAGIC-LINK / EMAIL-OTP BRANCH (2026-07-31).
+      //
+      // The cookie-backed `createClientComponentClient` does NOT auto-detect an
+      // implicit `#access_token=...` fragment, and it only exchanges a `?code=`
+      // param for PKCE. A Supabase `magiclink` / `recovery` / `invite` link
+      // arrives as `?token_hash=&type=` (or the equivalent fragment), so before
+      // this branch existed every such link died here with "Could not establish
+      // session" — observed against production while standing up the
+      // settings-surfaces click-pass. Verified: POST /auth/v1/verify returns a
+      // valid session for the same token the page was discarding.
+      //
+      // verifyOtp() consumes the token AND persists the session through the
+      // auth-helpers cookie writer, which is what middleware.ts reads.
+      const hashParams = new URLSearchParams(
+        typeof window !== "undefined" ? window.location.hash.replace(/^#/, "") : ""
+      );
+      const tokenHash = searchParams.get("token_hash") ?? hashParams.get("token_hash");
+      const otpType = (searchParams.get("type") ?? hashParams.get("type")) as
+        | "magiclink" | "recovery" | "invite" | "email" | "signup" | null;
+
+      if (tokenHash && otpType) {
+        const { error: otpError } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: otpType,
+        });
+        if (otpError) {
+          router.replace(
+            `/auth/login?error=otp_error&message=${encodeURIComponent(otpError.message)}${nextParam}`
+          );
+          return;
+        }
+      }
+
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError) {

@@ -31,6 +31,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from urllib.parse import quote, urlparse
 
 import httpx
 
@@ -47,13 +48,36 @@ load_dotenv(_API_ROOT.parent / ".env")
 #: declared test principal (the owner/member instrument + the rigs). Adding a
 #: real user here is the same category error as adding one to personas.yaml.
 ALLOWED_EMAILS = {
-    "kvkthecreator@gmail.com",   # owner of d5b9029b (the live workspace)
+    # --- the click-pass pair (rig-only, fully disposable) ---------------
+    "kvkthecreator@yarnnn.com",  # OWNER principal — kvk-yarnnn rig, ws bf5b25a9
+    "testacct@yarnnn.com",       # GUEST principal — owns NO workspace, never signed in
+    # --- other rig principals (persona workspaces) ---------------------
+    "alpha-trader-2@yarnnn.com",
+    "yarnnn-author@yarnnn.com",
+    "netflix-script-author@yarnnn.com",
+    "korea-thriller-shorts@yarnnn.com",
+    "bare-kernel@yarnnn.com",
+    "anr-scout@yarnnn.com",
+    # --- live-workspace principals -------------------------------------
+    # Retained for read-mostly passes on d5b9029b. PREFER the rig pair above:
+    # rigs are disposable, so mutating steps can run for real instead of being
+    # attempted-and-restored against live substrate.
+    "kvkthecreator@gmail.com",   # owner of d5b9029b
     "seulkim88@gmail.com",       # member of d5b9029b + owner of 4ca9c664
-    "kvkthecreator@yarnnn.com",  # kvk-yarnnn rig (ws bf5b25a9)
-    "testacct@yarnnn.com",       # unprovisioned rig
 }
 
-DEFAULT_SITE = os.environ.get("YARNNN_SITE_URL", "https://yarnnn.com")
+#: The canonical origin. MUST match the origin the app actually serves on —
+#: Supabase redirects to it verbatim, and a bare-apex value gets 301'd to the
+#: www host, which drops the URL FRAGMENT carrying the access token.
+DEFAULT_SITE = os.environ.get("YARNNN_SITE_URL", "https://www.yarnnn.com")
+
+#: Magic-link tokens arrive in the URL *fragment*, which only a page that mounts
+#: the Supabase client can consume. Landing on the marketing root leaves the
+#: fragment unread and the session unestablished (observed 2026-07-31 during the
+#: settings click-pass: localStorage empty, immediate bounce to /auth/login).
+#: /auth/callback is the route that exchanges the fragment and then honors
+#: `next`, so every minted link is routed through it.
+CALLBACK_PATH = "/auth/callback"
 
 
 def mint_browser_link(email: str, redirect_to: str) -> str:
@@ -92,17 +116,20 @@ def mint_browser_link(email: str, redirect_to: str) -> str:
             raise SystemExit(f"generate_link failed [{r.status_code}]: {r.text}")
         payload = r.json()
         props = payload.get("properties") or payload
-        # `action_link` is the NAVIGABLE url (verify endpoint + token + redirect).
-        link = props.get("action_link")
-        if not link:
-            token_hash = props.get("hashed_token") or props.get("token_hash")
-            if not token_hash:
-                raise SystemExit(f"no action_link or token_hash in response: {payload}")
-            link = (
-                f"{supabase_url}/auth/v1/verify?token={token_hash}"
-                f"&type=magiclink&redirect_to={redirect_to}"
-            )
-        return link
+        token_hash = props.get("hashed_token") or props.get("token_hash")
+        if not token_hash:
+            raise SystemExit(f"no hashed_token in response: {payload}")
+
+        # Deliberately NOT the returned `action_link`. Supabase rewrites its
+        # `redirect_to` to the project Site URL whenever the requested URL is
+        # absent from the Redirect-URLs allow-list — silently, with a 200. That
+        # lands the token on the marketing root, which mounts no Supabase client
+        # and therefore never consumes it.
+        #
+        # Instead hand the token straight to /auth/callback, which consumes a
+        # `token_hash` via verifyOtp() and then forwards to `next`. That keeps
+        # this instrument independent of dashboard allow-list config.
+        return f"{redirect_to}&token_hash={token_hash}&type=magiclink"
 
 
 def main() -> None:
@@ -114,7 +141,14 @@ def main() -> None:
         )
     email = sys.argv[1].strip()
     path = sys.argv[2] if len(sys.argv) > 2 else "/workspace-settings"
-    redirect_to = path if path.startswith("http") else f"{DEFAULT_SITE}{path}"
+    # Route through /auth/callback (which consumes the fragment) and let it
+    # forward to the requested in-app destination via `next`.
+    if path.startswith("http"):
+        next_path = urlparse(path).path or "/"
+    else:
+        next_path = path
+    redirect_to = f"{DEFAULT_SITE}{CALLBACK_PATH}?next={quote(next_path, safe='')}"
+    # NOTE: mint_browser_link appends `&token_hash=...&type=magiclink`.
 
     link = mint_browser_link(email, redirect_to)
     print(f"\n# browser session for: {email}")
