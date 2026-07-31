@@ -15,7 +15,7 @@ import {
   getSoftwareApplicationSchema,
   getWebSiteSchema,
 } from "@/lib/metadata";
-import { CTA } from "@/lib/cta";
+import { CTA, LEAD_DOOR_CTA_LABEL } from "@/lib/cta";
 
 /**
  * Landing page — CANON-LOCK-2026-07-30 (working canon).
@@ -35,7 +35,7 @@ import { CTA } from "@/lib/cta";
 export const metadata: Metadata = getMarketingMetadata({
   title: "your true AI-first workspace | yarnnn",
   description:
-    "One shared workspace for you, your people, and the AI you already use. Nothing to set up — connect, co-work on shared files and documents, share with a link. Every change signed by whoever made it, human or not.",
+    "One workspace for you, your people, and the AI you already use. Nothing to set up — and every change signed by whoever made it, human or not.",
   path: "/",
   keywords: [
     "ai workspace",
@@ -45,7 +45,7 @@ export const metadata: Metadata = getMarketingMetadata({
     "work with chatgpt and claude together",
     "shared workspace for ai and humans",
     "ai collaboration workspace",
-    "ai memory you own",
+    "ai workspace you own",
     "cross-llm workspace",
   ],
 });
@@ -91,9 +91,9 @@ export default function LandingPage() {
 
                 {/* The subhead (Slot 2, working canon — signed clause non-optional) */}
                 <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-10 max-w-xl mx-auto lg:mx-0 font-light">
-                  One shared workspace for you, your people, and the AI you already use.
-                  Nothing to set up — connect, co-work on shared files and documents, share
-                  with a link. And every change signed by whoever made it, human or not.
+                  One workspace for you, your people, and the AI you already use.
+                  Nothing to set up — and every change signed by whoever made it,
+                  human or not.
                 </p>
 
                 {/* CTA — the lead door (GROWTH-LOOP Channel 1) + connector chips */}
@@ -103,7 +103,7 @@ export default function LandingPage() {
                       href={CTA.signup}
                       className="inline-block px-8 py-4 bg-[#1a1a1a] text-white text-lg font-medium rounded-full hover:bg-[#1a1a1a]/90 transition-all"
                     >
-                      Co-work with the AI you already use
+                      {LEAD_DOOR_CTA_LABEL}
                     </Link>
                     <Link
                       href={CTA.howItWorks}
@@ -251,7 +251,7 @@ export default function LandingPage() {
                 href={CTA.signup}
                 className="inline-block px-8 py-4 bg-[#1a1a1a] text-white text-lg font-medium rounded-full hover:bg-[#1a1a1a]/90 transition-all"
               >
-                Co-work with the AI you already use
+                {LEAD_DOOR_CTA_LABEL}
               </Link>
               <Link
                 href={CTA.pricing}

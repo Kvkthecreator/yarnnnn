@@ -19,12 +19,12 @@ const STAGES = [
   {
     label: "Day 1",
     bars: 3,
-    body: "It’s yours from the start. Add a note or connect a tool, and it’s instantly there in every AI you use.",
+    body: "It works from the start. Connect your AI and the first signed file lands — a workspace, already in motion.",
   },
   {
     label: "Day 30",
     bars: 7,
-    body: "Your corrections have added up. Whatever AI you open starts from the same, better memory.",
+    body: "The record has added up. You, your people, and every AI you use start from the same files — fix a detail once and it stays fixed.",
   },
   {
     label: "Day 90",
@@ -61,7 +61,7 @@ export function CompoundsStepper() {
       onBlurCapture={() => setPaused(false)}
     >
       {/* Tabs */}
-      <div className="flex gap-2 mb-8" role="tablist" aria-label="How your memory compounds over time">
+      <div className="flex gap-2 mb-8" role="tablist" aria-label="How your workspace compounds over time">
         {STAGES.map((s, i) => {
           const isActive = active === i;
           return (

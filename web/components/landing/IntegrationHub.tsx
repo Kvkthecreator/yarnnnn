@@ -63,20 +63,20 @@ const ChatGptIcon = () => <Glyph>G</Glyph>;
 // Brand color: #1a1a1a — all nodes use this with slight opacity variation
 const BEAM_COLOR = "#1a1a1a";
 
-// Interop framing (2026-06-29): the rooms you work in (left) connect THROUGH yarnnn
-// (center) to the one durable memory you own (right). Beams flow both ways — write it
-// in any room, read it from the next.
+// Workspace framing (CANON-LOCK v2, 2026-07-31): the AI rooms you work in (left)
+// connect THROUGH yarnnn (center) to the one shared workspace you own (right).
+// Beams flow both ways — work in any room, and it lands as signed files here.
 const nodes: NodeDef[] = [
   // The AI rooms you work in (left)
   { id: "claude", label: "Claude", icon: <ClaudeIcon />, side: "left" },
   { id: "chatgpt", label: "ChatGPT", icon: <ChatGptIcon />, side: "left" },
   { id: "slack", label: "Slack", icon: <SlackIcon />, side: "left" },
   { id: "notion", label: "Notion", icon: <NotionIcon />, side: "left" },
-  // What accumulates — the one memory you own (right)
-  { id: "notes", label: "Notes", icon: <DocsIcon />, side: "right" },
-  { id: "decisions", label: "Decisions", icon: <ChatIcon />, side: "right" },
+  // What accumulates — the one workspace you own (right)
+  { id: "files", label: "Files", icon: <DocsIcon />, side: "right" },
+  { id: "documents", label: "Documents", icon: <Glyph>◇</Glyph>, side: "right" },
+  { id: "agents", label: "Agents", icon: <ChatIcon />, side: "right" },
   { id: "history", label: "History", icon: <Glyph>↺</Glyph>, side: "right" },
-  { id: "context", label: "Context", icon: <Glyph>◇</Glyph>, side: "right" },
 ];
 
 const leftNodes = nodes.filter((n) => n.side === "left");
@@ -283,10 +283,10 @@ export function IntegrationHub() {
             </div>
           </div>
 
-          {/* Right — the one memory you own */}
+          {/* Right — the one workspace you own */}
           <div className="flex flex-col items-center gap-6">
             <div className="text-[9px] text-[#1a1a1a]/20 uppercase tracking-[0.2em] font-medium">
-              One memory
+              One workspace
             </div>
             {rightNodes.map((node) => (
               <div key={node.id} ref={assignRef(node.id)} className="group flex flex-col items-center gap-1.5">
@@ -305,7 +305,7 @@ export function IntegrationHub() {
       {/* Subtitle */}
       <div className="text-center mt-6">
         <p className="text-xs text-[#1a1a1a]/25 tracking-wide">
-          Write it in any AI. It&apos;s in your memory, everywhere.
+          Work in any AI. It lands in your workspace, signed.
         </p>
       </div>
     </div>

@@ -9,10 +9,19 @@ import { ScrollReveal } from "@/components/landing/ScrollReveal";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA, PRIMARY_CTA_LABEL } from "@/lib/cta";
 
+/**
+ * About — the thesis page (CANON-LOCK-2026-07-30, re-cut 2026-07-31).
+ *
+ * Reframed off the memory-layer era: yarnnn is a workspace — file system,
+ * documents, agents, chat — not a memory plugin. This page absorbs the
+ * "why it's different" argument that used to live on /how-it-works; that
+ * page now carries product mechanics only.
+ */
+
 export const metadata: Metadata = getMarketingMetadata({
   title: "About — the AI-first workspace no AI company can build",
   description:
-    "A single AI company's workspace is locked to its own models, by design. The shared workspace that works across all of them can't be owned by any one of them. So we built it — and here's what we believe.",
+    "The real work happens with AI now, and it deserves a real workspace — not a chat scroll. One that works across every AI can't be owned by any one of them. So we built it.",
   path: "/about",
   keywords: [
     "about yarnnn",
@@ -20,40 +29,74 @@ export const metadata: Metadata = getMarketingMetadata({
     "ai workspace you own",
     "neutral ai workspace",
     "cross-llm workspace",
-    "model-agnostic ai",
+    "shared workspace for ai and humans",
   ],
 });
 
 const BELIEFS = [
   {
-    title: "Your memory should be yours",
-    body: "Built once, kept forever, and available everywhere. The memory is the thing that lasts; the AI models come and go. Everywhere else, it's locked inside someone else's app.",
-    sub: "Day 1 it exists. Day 90 it's irreplaceable — not from lock-in, but because it added up.",
+    title: "Work made with AI is real work",
+    body: "Drafts, decisions, analysis — the actual thinking happens in AI chats now. But a chat scroll is where work goes to disappear. Real work deserves a real place to land: files you can open next week, organize, build on, and hand to someone else.",
+    sub: "A workspace, not a chat log.",
   },
   {
-    title: "Written by you, not guessed",
-    body: "Your notes, your rules, your voice — written by you, kept forever, and never quietly changed. Every edit has a name and a date on it.",
-    sub: "Authored, not inferred.",
+    title: "Every change signed, human or not",
+    body: "You, your teammates, your agents, and every AI you connect write into the same place — and every change carries the name of whoever made it. Not as a compliance feature: it's what makes co-working with AI trustworthy at all.",
+    sub: "If you can't see who wrote it, you can't build on it.",
   },
   {
     title: "Neutral across every AI",
-    body: "One memory, available to every tool, with no company in the middle deciding what you're allowed to take with you. The portability is the whole point.",
-    sub: "A locked-in memory can't do this. That's the moat.",
+    body: "Each AI company's workspace is sealed to its own models — that's the business model. A workspace where all of them work as first-class participants can't belong to any one of them. Being neutral across rivals is the one thing a rival can't do.",
+    sub: "So nobody builds it. That's why we did.",
   },
   {
-    title: "Built for more than one of you",
-    body: "Invite your teammates and they work in the same shared workspace — you, your people, your tools, and even your own AI assistants all add to the same memory, and you can always see who added what. On your own is just the simplest case.",
-    sub: "One memory, many contributors.",
+    title: "Yours to keep, yours to take",
+    body: "The files are yours. The history is yours. Models improve every few months — what compounds is the signed record of the work, kept in one place you own. Every new model makes your workspace more valuable, not less.",
+    sub: "The AI will change. Your record shouldn't.",
   },
   {
-    title: "A checker, separate from the doer (beta)",
-    body: "The assistant that does the work shouldn't be the one that decides it's good. So important calls go to a separate checker, against rules you set, measured against what actually happened.",
-    sub: "Keeping them separate is what makes handing over more trust safe, not reckless.",
+    title: "A room, not an org tree",
+    body: "yarnnn is built for small teams — a few people and their AIs around the same work. No admin console, no procurement, no rollout. You start alone, invite one person, and it's already doing its job.",
+    sub: "Two people work free. The product does the selling.",
   },
   {
     title: "Receipts, not claims",
-    body: "377 decisions written down in the open; every change tracked at the source; built for real use and run on our own work.",
+    body: "Nearly four hundred numbered architecture decisions written down in the open. Every change in every workspace tracked at the source. Built for real use, and run daily on our own work.",
     sub: "The record is the proof.",
+  },
+];
+
+const NOT_LIST = [
+  {
+    title: "Not another AI chat app",
+    desc: "Chat is one app inside the workspace, grounded in your files. The product is the workspace itself — where the work lands, not where it scrolls by.",
+  },
+  {
+    title: "Not a memory plugin",
+    desc: "Memory layers remember things about you. yarnnn holds the work itself — documents, files, decisions — with memory as a byproduct of a record you own.",
+  },
+  {
+    title: "Not AI bolted onto a doc tool",
+    desc: "Retrofitted workspaces treat AI as a feature for humans to click. Here AI works in the same file system you do, under its own name — a participant, not a button.",
+  },
+  {
+    title: "Not an enterprise suite",
+    desc: "No SSO checklist, no admin hierarchy, no pilot program. A workspace is a room. If your team needs an org tree, we're honestly not for you.",
+  },
+];
+
+const WHO_ITEMS = [
+  {
+    title: "You work with AI every day",
+    desc: "The AI output is the work, not a garnish. You want it to land somewhere real the moment it's made — not ferried out of a chat window by hand.",
+  },
+  {
+    title: "Someone else needs to see it",
+    desc: "A co-founder, a client, a teammate — or just your own AI on another device. The moment work is shared, who-wrote-what starts to matter.",
+  },
+  {
+    title: "You'd rather own than rent",
+    desc: "You've watched tools come and go. You want the work you've built up — files, decisions, history — in a place that outlasts any one model or vendor.",
   },
 ];
 
@@ -80,38 +123,38 @@ export default function AboutPage() {
         <LandingHeader inverted />
 
         <main className="flex-1">
-          {/* Hero — self-audit thesis */}
+          {/* Hero — the neutrality thesis, workspace-era */}
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              We built the <span className="text-[#de5a2b]">memory layer</span>
+              We built the <span className="text-[#de5a2b]">AI-first workspace</span>
               <br />
-              <span className="text-white/50">the AI giants can&apos;t.</span>
+              <span className="text-white/50">no AI company can.</span>
             </h1>
             <div className="max-w-2xl space-y-6 text-white/50">
               <p>
-                Every AI tool has memory now. But each one&apos;s memory is locked inside its own
-                app — that&apos;s the whole point of it. None of them will ever let your context
-                follow you to a competitor.
+                The real work moved into AI chats — the drafts, the decisions, the analysis.
+                And chats are where work disappears: scrolled past, unfindable next week,
+                invisible to the people it was made for.
               </p>
               <p>
-                A memory that works across all of them can&apos;t belong to any one of them. It has
-                to be neutral — and being neutral across your rivals is the one thing a rival
-                can&apos;t do. So nobody builds it, because nobody can.
+                Every AI company would love to be where that work lives. But each one&apos;s
+                workspace is sealed to its own models, by design. A workspace where{" "}
+                <em className="not-italic text-white/70">all</em> of them work — alongside you
+                and your team — can&apos;t belong to any one of them. It has to be neutral,
+                and neutral across rivals is the one thing a rival can&apos;t be.
               </p>
               <p>
-                So we did: one place that holds everything your AI tools know about you, that you
-                own, that keeps a full history of every change, and that any model can read. Under
-                the hood, it&apos;s git&apos;s model for memory — every change signed, versioned,
-                and yours.
+                So we built it: a real workspace — a shared file system, documents you build
+                with AI, agents ready out of the box — where everything lands as a signed,
+                versioned file you own, whoever made it.
               </p>
               <p className="text-white font-medium">
-                We built it ourselves, run it on our own work, and write down every decision in the
-                open.
+                We run our own company on it, and we write down every decision in the open.
               </p>
             </div>
           </section>
 
-          {/* What we believe — current canon */}
+          {/* What we believe */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <ScrollReveal className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-16">What we believe</h2>
@@ -141,24 +184,7 @@ export default function AboutPage() {
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {([
-                  {
-                    title: "Not a memory locked to one app",
-                    desc: "Your memory isn't trapped inside ChatGPT or Claude. It's one place both can read — and one you can take anywhere.",
-                  },
-                  {
-                    title: "Not a plain folder of files",
-                    desc: "A storage folder hands you back files. yarnnn hands you back the story too: who wrote each version, and exactly how it changed.",
-                  },
-                  {
-                    title: "Not a notes app",
-                    desc: "Notes just sit there. This is memory you and your AIs author together — organized, attributed, and feeding straight into every AI you use.",
-                  },
-                  {
-                    title: "Not an AI that grades its own homework (beta)",
-                    desc: "When the checker arrives, it's separate and neutral — measured against what really happened, not a company judging its own model.",
-                  },
-                ] as const).map((item) => (
+                {NOT_LIST.map((item) => (
                   <SpotlightCard key={item.title} variant="dark" spotlightSize={300}>
                     <div className="p-6">
                       <h3 className="text-lg font-medium mb-2">{item.title}</h3>
@@ -170,43 +196,17 @@ export default function AboutPage() {
             </ScrollReveal>
           </section>
 
-          {/* Who it's for — bounded-operation psychographic */}
+          {/* Who it's for */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <ScrollReveal className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">Who yarnnn is for</h2>
               <p className="text-white/50 mb-12 max-w-xl">
-                Anyone tired of re-explaining themselves to every new AI — and anyone who wants the
-                context they&apos;ve built to be theirs to keep.
+                Small teams — starting at one — who already work with AI every day, and are
+                tired of being the bridge between their AI and everyone else.
               </p>
 
-              <div className="flex flex-wrap gap-3 mb-12">
-                {["people who use ChatGPT and Claude", "small teams", "people building their own AI agents", "anyone whose work lives in five apps"].map(
-                  (chip) => (
-                    <span
-                      key={chip}
-                      className="px-4 py-2 rounded-full bg-white/[0.04] border border-white/10 text-sm text-white/60"
-                    >
-                      {chip}
-                    </span>
-                  ),
-                )}
-              </div>
-
               <div className="space-y-4">
-                {([
-                  {
-                    title: "You use more than one AI",
-                    desc: "If you bounce between ChatGPT, Claude, and a few tools and you're tired of repeating yourself, this gives all of them the same memory.",
-                  },
-                  {
-                    title: "You've built up context worth keeping",
-                    desc: "Notes, decisions, history — the stuff that makes an AI actually useful for you. Keep it in one place you own instead of scattered and rented.",
-                  },
-                  {
-                    title: "You want to hand off more, safely (beta)",
-                    desc: "When you're ready, add a checker that reviews important work against your rules — so you can step back without losing the thread.",
-                  },
-                ] as const).map((item) => (
+                {WHO_ITEMS.map((item) => (
                   <SpotlightCard key={item.title} variant="dark" spotlightSize={400}>
                     <div className="p-6">
                       <h3 className="text-base font-medium mb-2">{item.title}</h3>
@@ -215,18 +215,24 @@ export default function AboutPage() {
                   </SpotlightCard>
                 ))}
               </div>
+
+              {/* The recognition sentence (canon Slot 4) */}
+              <blockquote className="mt-12 border-l-2 border-[#de5a2b]/50 pl-6">
+                <p className="text-xl md:text-2xl font-light text-white/70 italic">
+                  &ldquo;I&apos;m the human clipboard between my AI and my team.&rdquo;
+                </p>
+                <p className="mt-3 text-sm text-white/35">If that&apos;s you, this is the fix.</p>
+              </blockquote>
             </ScrollReveal>
           </section>
 
           {/* CTA */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <ScrollReveal className="max-w-3xl mx-auto text-center">
-              <h2 className="text-2xl md:text-3xl font-medium mb-6">
-                Your memory should follow you.
-              </h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-6">Stop being the clipboard.</h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Start free. Add a note or connect a tool, watch it show up in every AI you use, and
-                add the checker when you&apos;re ready.
+                Start free — you and a teammate, your files, and every AI you already use,
+                working in one place.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Link

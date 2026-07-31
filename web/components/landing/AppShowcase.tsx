@@ -1,15 +1,25 @@
 "use client";
 
 /**
- * AppShowcase — the feature-forward product chapter (CANON-LOCK-2026-07-30).
+ * AppShowcase — the feature-forward product chapter (CANON-LOCK-2026-07-30,
+ * mocks rebuilt 2026-07-31 against the shipped surfaces).
  *
- * Four built-in apps rendered as miniature product mocks, modeled on the IR
- * deck's product chapter (slides 7–10): Chat · Studio · Files · Agents.
+ * Four built-in apps rendered as miniature product mocks. Each mock mirrors
+ * the REAL surface's structure and vocabulary (not an invented layout):
+ *  - Chat: identity-first lane header ("Lisa" / "Critic · GPT-5"), assistant
+ *    bubble, an ArtifactCard (replies land as files), "Message Lisa…" composer.
+ *  - Studio: slide strip with position numbers + selection ring, canvas slide,
+ *    the bound chat that lands revisions ("r7 · current").
+ *  - Files: the Finder list — Name · Author · When columns, accent-dot +
+ *    RESOLVED attribution labels ("You", "ChatGPT (via MCP)"), never raw
+ *    substrate strings.
+ *  - Agents: the real kernel roster (Thinker / Researcher / Designer, real
+ *    blurbs), engine as the quiet third line, the "Make one" door.
  *
  * Roster-rule note (CANON-LOCK §5): app names are ALLOWED here — this is the
  * product chapter. They stay out of the hero/subhead/above-the-fold.
- * Honesty rule (ADR-460): desk agents are presented as things you hire that
- * work under your name — never as "colleagues on the ledger" / principals.
+ * Honesty rule (ADR-460): desk agents work on your files as you — their edits
+ * are attributed to you. Never presented as principals/colleagues-on-the-ledger.
  */
 
 import { ScrollReveal } from "@/components/landing/ScrollReveal";
@@ -35,7 +45,7 @@ function WindowFrame({
         </span>
         <span className="text-xs font-mono text-[#1a1a1a]/40 ml-2">{title}</span>
         {badge && (
-          <span className="ml-auto text-[10px] font-mono uppercase tracking-wider text-[#de5a2b]/70 bg-[#de5a2b]/[0.07] rounded-full px-2 py-0.5">
+          <span className="ml-auto text-[10px] font-mono uppercase tracking-wider text-[#de5a2b]/70 bg-[#de5a2b]/[0.07] rounded-full px-2 py-0.5 whitespace-nowrap">
             {badge}
           </span>
         )}
@@ -45,78 +55,114 @@ function WindowFrame({
   );
 }
 
-function EngineChip({ name }: { name: string }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-[#1a1a1a]/[0.08] bg-white/80 px-2 py-0.5 text-[10px] font-mono text-[#1a1a1a]/50">
-      {name}
-    </span>
-  );
-}
-
-/* ── 1 · Chat ──────────────────────────────────────────────────────────── */
+/* ── 1 · Chat — identity-first lane + a reply that lands as a file ─────── */
 
 function ChatMock() {
   return (
-    <WindowFrame title="Chat › positioning memo" badge="every reply grounded">
+    <WindowFrame title="Chat › Lisa" badge="replies land as files">
       <div className="space-y-3">
-        <div className="flex items-start gap-2.5">
-          <span className="w-6 h-6 rounded-full bg-indigo-500/10 text-indigo-600 text-[10px] font-medium flex items-center justify-center shrink-0">
+        {/* Conversation header — the real grammar: name leads, role · engine rides behind */}
+        <div className="flex items-center gap-2.5 pb-2 border-b border-[#1a1a1a]/[0.05]">
+          <span className="w-7 h-7 rounded-full bg-indigo-500/10 text-indigo-600 text-[11px] font-medium flex items-center justify-center shrink-0">
             L
           </span>
           <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-medium text-[#1a1a1a]/80">Lisa · Critic</span>
-              <EngineChip name="GPT-5" />
-            </div>
-            <p className="text-xs text-[#1a1a1a]/55 leading-relaxed rounded-xl rounded-tl-sm bg-[#1a1a1a]/[0.03] px-3 py-2">
-              Their memory is inferred and locked to one model. Yours is authored and
-              portable — that&apos;s the line that survives. I pulled your own framing to check.
-            </p>
-            <p className="mt-1.5 text-[10px] font-mono text-emerald-700/60">
-              grounded in 4 workspace files
-            </p>
+            <p className="text-xs font-medium text-[#1a1a1a]/85 leading-tight">Lisa</p>
+            <p className="text-[10px] text-[#1a1a1a]/40 leading-tight">Critic · GPT-5</p>
           </div>
         </div>
+
+        {/* Assistant bubble */}
+        <p className="text-xs text-[#1a1a1a]/55 leading-relaxed rounded-xl rounded-tl-sm bg-[#1a1a1a]/[0.03] px-3 py-2 max-w-[92%]">
+          The pricing section undercuts your own claim — I tightened it against the
+          numbers in your metrics file and saved the memo.
+        </p>
+
+        {/* ArtifactCard — the landed file, the real grounding story */}
+        <div className="rounded-xl border border-[#1a1a1a]/[0.08] bg-white overflow-hidden max-w-[92%]">
+          <div className="flex items-center gap-2 px-3 py-2 bg-[#1a1a1a]/[0.02]">
+            <span className="text-xs font-medium text-[#1a1a1a]/80 truncate">
+              positioning-memo.md
+            </span>
+            <span className="text-[10px] text-[#1a1a1a]/35">revised · context/</span>
+            <span className="ml-auto rounded-md border border-[#1a1a1a]/[0.1] px-2 py-0.5 text-[10px] font-medium text-[#1a1a1a]/60">
+              Open
+            </span>
+          </div>
+        </div>
+
+        {/* Composer — the real placeholder grammar */}
         <div className="flex items-center gap-2 rounded-xl border border-[#1a1a1a]/[0.07] bg-white px-3 py-2">
-          <span className="text-xs text-[#1a1a1a]/30 flex-1">Ask over your workspace…</span>
-          <span className="text-[10px] font-mono text-[#1a1a1a]/25">⏎</span>
+          <span className="text-xs text-[#1a1a1a]/30 flex-1">Message Lisa…</span>
+          <span className="w-5 h-5 rounded-full bg-[#1a1a1a] text-white text-[10px] flex items-center justify-center">
+            ↑
+          </span>
         </div>
       </div>
     </WindowFrame>
   );
 }
 
-/* ── 2 · Studio ────────────────────────────────────────────────────────── */
+/* ── 2 · Studio — slide strip + canvas + the bound chat landing revisions ── */
+
+const SLIDES = [
+  { n: "1", caption: "Traction", active: true },
+  { n: "2", caption: "Model", active: false },
+  { n: "3", caption: "The ask", active: false },
+];
 
 function StudioMock() {
   return (
-    <WindowFrame title="Studio › investor update · deck" badge="every edit a revision">
+    <WindowFrame title="Studio / investor-update · Deck" badge="every edit a revision">
       <div className="flex gap-3">
-        <div className="flex flex-col gap-1.5 shrink-0">
-          {["01", "02", "03"].map((n, i) => (
-            <span
-              key={n}
-              className={`w-10 h-7 rounded border text-[9px] font-mono flex items-center justify-center ${
-                i === 0
-                  ? "border-[#de5a2b]/40 bg-[#de5a2b]/[0.06] text-[#de5a2b]/70"
-                  : "border-[#1a1a1a]/[0.08] bg-white text-[#1a1a1a]/30"
-              }`}
-            >
-              {n}
-            </span>
+        {/* The slide strip — position number · thumbnail · caption, selection ring */}
+        <div className="flex flex-col gap-2 shrink-0 w-[76px]">
+          <span className="text-[8px] font-medium uppercase tracking-wide text-[#1a1a1a]/30">
+            Slides
+          </span>
+          {SLIDES.map((s) => (
+            <div key={s.n} className="flex items-stretch gap-1">
+              <span className="w-3 text-[9px] font-medium text-[#1a1a1a]/35 text-right leading-none pt-1.5">
+                {s.n}
+              </span>
+              <div className="flex-1">
+                <div
+                  className={`h-8 rounded-sm border bg-white ${
+                    s.active
+                      ? "border-indigo-400 ring-1 ring-indigo-400"
+                      : "border-[#1a1a1a]/[0.1]"
+                  }`}
+                >
+                  <div className="h-1 w-2/3 bg-[#1a1a1a]/[0.12] rounded-sm mt-1.5 ml-1.5" />
+                  <div className="h-0.5 w-1/2 bg-[#1a1a1a]/[0.06] rounded-sm mt-1 ml-1.5" />
+                </div>
+                <p className="text-[8px] text-[#1a1a1a]/35 truncate mt-0.5">{s.caption}</p>
+              </div>
+            </div>
           ))}
         </div>
-        <div className="flex-1 rounded-lg border border-[#1a1a1a]/[0.08] bg-white p-3">
-          <p className="text-sm font-medium text-[#1a1a1a]/85 mb-1">Traction</p>
-          <p className="text-xs text-[#1a1a1a]/50 mb-3">3× retention vs. baseline</p>
-          <div className="rounded-lg bg-[#1a1a1a]/[0.03] px-2.5 py-2">
+
+        {/* Canvas + the bound chat */}
+        <div className="flex-1 min-w-0">
+          <div className="rounded-lg border border-[#1a1a1a]/[0.08] bg-white p-3">
+            <p className="text-sm font-medium text-[#1a1a1a]/85 mb-1">Traction</p>
+            <p className="text-xs text-[#1a1a1a]/50">3× retention vs. baseline</p>
+          </div>
+          <div className="rounded-lg bg-[#1a1a1a]/[0.03] px-2.5 py-2 mt-2">
             <p className="text-[10px] text-[#1a1a1a]/45 leading-relaxed">
-              <span className="font-medium text-[#1a1a1a]/60">You:</span> lead this slide with
-              the strongest number.
+              <span className="font-medium text-[#1a1a1a]/60">You:</span> lead this slide
+              with the strongest number.
             </p>
             <p className="text-[10px] text-[#1a1a1a]/45 leading-relaxed mt-1">
-              <span className="font-medium text-indigo-600/70">Lane:</span> done — pulled
-              &ldquo;3× retention&rdquo; from your metrics file. Revision saved.
+              <span className="font-medium text-indigo-600/70">Lisa:</span> done — pulled
+              &ldquo;3× retention&rdquo; from your metrics file.
+            </p>
+            <p className="mt-1.5 text-[9px] font-mono text-[#1a1a1a]/35">
+              r7{" "}
+              <span className="rounded bg-[#de5a2b]/[0.08] text-[#de5a2b]/70 px-1 py-px">
+                current
+              </span>{" "}
+              · saved as a revision
             </p>
           </div>
         </div>
@@ -125,23 +171,23 @@ function StudioMock() {
   );
 }
 
-/* ── 3 · Files ─────────────────────────────────────────────────────────── */
+/* ── 3 · Files — the Finder list with resolved, signed attribution ─────── */
 
 const FILE_ROWS = [
-  { name: "wedge.md", author: "you", meta: "v12 · 2h", tone: "text-[#1a1a1a]/70" },
-  { name: "competitor-scan.md", author: "Sana · your agent", meta: "v4 · 1d", tone: "text-indigo-600/80" },
-  { name: "pricing-decision.md", author: "Claude", meta: "v7 · 2d", tone: "text-[#de5a2b]/80" },
-  { name: "market-read.md", author: "GPT-5", meta: "v2 · 5d", tone: "text-emerald-700/80" },
+  { name: "positioning-memo.md", author: "You", dot: "bg-sky-500", when: "2h" },
+  { name: "q3-pricing-note.md", author: "ChatGPT (via MCP)", dot: "bg-amber-400", when: "1d" },
+  { name: "competitor-scan.md", author: "Claude (via MCP)", dot: "bg-amber-400", when: "2d" },
+  { name: "launch-plan.md", author: "Mara", dot: "bg-teal-500", when: "5d" },
 ];
 
 function FilesMock() {
   return (
-    <WindowFrame title="Files › documents / positioning" badge="every write signed">
+    <WindowFrame title="Files › Context" badge="every write signed">
       <div className="rounded-lg border border-[#1a1a1a]/[0.07] bg-white overflow-hidden">
-        <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-3 py-1.5 border-b border-[#1a1a1a]/[0.06] text-[9px] font-mono uppercase tracking-wider text-[#1a1a1a]/30">
+        <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-3 py-1.5 border-b border-[#1a1a1a]/[0.06] text-[9px] font-medium uppercase tracking-wide text-[#1a1a1a]/30">
           <span>Name</span>
-          <span>Last authored by</span>
-          <span>Version</span>
+          <span>Author</span>
+          <span className="text-right">When</span>
         </div>
         {FILE_ROWS.map((r) => (
           <div
@@ -149,29 +195,48 @@ function FilesMock() {
             className="grid grid-cols-[1fr_auto_auto] gap-3 px-3 py-2 border-b border-[#1a1a1a]/[0.04] last:border-0 items-center"
           >
             <span className="text-xs text-[#1a1a1a]/70 font-mono truncate">{r.name}</span>
-            <span className={`text-[10px] font-medium ${r.tone}`}>{r.author}</span>
-            <span className="text-[10px] font-mono text-[#1a1a1a]/30">{r.meta}</span>
+            <span className="flex items-center gap-1.5 text-[10px] font-medium text-[#1a1a1a]/60">
+              <span className={`h-1.5 w-1.5 rounded-full ${r.dot}`} />
+              {r.author}
+            </span>
+            <span className="text-[10px] font-mono text-[#1a1a1a]/30 text-right">{r.when}</span>
           </div>
         ))}
       </div>
+      {/* The revision-history grammar, verbatim from the product */}
       <p className="mt-2.5 text-[10px] font-mono text-[#1a1a1a]/30">
-        every version kept · walk any line back to who decided it
+        Revision history (12) · r12 current · revert · diff
       </p>
     </WindowFrame>
   );
 }
 
-/* ── 4 · Agents ────────────────────────────────────────────────────────── */
+/* ── 4 · Agents — the real kernel roster + the Make-one door ───────────── */
 
 const AGENT_CARDS = [
-  { initial: "T", name: "Thinker", desc: "Reasons over your files, argues back", engine: "GPT-5" },
-  { initial: "R", name: "Researcher", desc: "Goes and finds out, brings sources", engine: "Gemini" },
-  { initial: "D", name: "Designer", desc: "Makes the artifact — decks, docs, pages", engine: "Claude" },
+  {
+    initial: "T",
+    name: "Thinker",
+    desc: "Thinks a problem through with you — writing, judgment, hard calls.",
+    engine: "GPT-5",
+  },
+  {
+    initial: "R",
+    name: "Researcher",
+    desc: "Digs through material fast — the workspace and the web, with sources.",
+    engine: "Gemini",
+  },
+  {
+    initial: "D",
+    name: "Designer",
+    desc: "Makes the thing itself — decks, docs, the artifact in front of you.",
+    engine: "Claude",
+  },
 ];
 
 function AgentsMock() {
   return (
-    <WindowFrame title="Agents › set up an agent" badge="swap the engine, keep the name">
+    <WindowFrame title="Agents" badge="swap the engine, keep the name">
       <div className="space-y-2">
         {AGENT_CARDS.map((a) => (
           <div
@@ -184,10 +249,19 @@ function AgentsMock() {
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-[#1a1a1a]/80">{a.name}</p>
               <p className="text-[10px] text-[#1a1a1a]/45 truncate">{a.desc}</p>
+              <p className="text-[9px] text-[#1a1a1a]/30 mt-0.5">Runs on {a.engine}</p>
             </div>
-            <EngineChip name={a.engine} />
           </div>
         ))}
+        {/* The hire door — the real dashed affordance + name placeholder */}
+        <div className="flex items-center gap-3 rounded-lg border border-dashed border-[#1a1a1a]/[0.15] px-3 py-2">
+          <span className="w-7 h-7 rounded-full border border-dashed border-[#1a1a1a]/[0.2] text-[#1a1a1a]/35 text-xs flex items-center justify-center shrink-0">
+            +
+          </span>
+          <p className="text-[10px] text-[#1a1a1a]/35 italic truncate">
+            Name them — Lisa, Marcus, whoever
+          </p>
+        </div>
       </div>
     </WindowFrame>
   );
@@ -200,28 +274,28 @@ const SECTIONS = [
     id: "chat",
     kicker: "Think · Chat",
     title: "Think out loud, over your own files.",
-    body: "Grounded, multi-engine conversation over your shared workspace. Ask a named agent you set up once; the best engine for the job rides behind the name — and what you decide lands in the record, not in a scroll you'll never find again.",
+    body: "Conversation grounded in your workspace — with agents you name, on whichever engine suits the job. And what comes out of it doesn't die in the scroll: replies land as real files, saved where you and your team can find them.",
     Mock: ChatMock,
   },
   {
     id: "studio",
     kicker: "Make · Studio",
     title: "Shape documents, decks and pages — by hand and by AI.",
-    body: "Compose directly, or ask the lane bound to the artifact. Both land as the same signed revision, and every figure you cite carries its source — the artifact knows where every claim came from.",
+    body: "Compose directly on the canvas, or ask in the built-in chat — every reply becomes an edit to the artifact in front of you. Both land as the same signed revision, so the document carries its own history: who changed what, and why.",
     Mock: StudioMock,
   },
   {
     id: "files",
     kicker: "The record · Files",
     title: "One shared file system — every change signed.",
-    body: "You, your people, and your AIs all write into the same place. Every version is kept, every write carries a name — human or not — and you can walk any file back to who decided what, and why.",
+    body: "You, your people, and every AI you connect write into the same place. Every write carries a name — You, a teammate, ChatGPT — every version is kept, and any file can be walked back revision by revision.",
     Mock: FilesMock,
   },
   {
     id: "agents",
     kicker: "Intelligence · Agents",
-    title: "Set up an agent in a click.",
-    body: "Three starting points — a thinker, a researcher, a designer. Name one, give it a manner, and it works on your files under your name, on whichever engine suits the job. Swap the engine any time; the agent and its work stay.",
+    title: "Agents ready out of the box.",
+    body: "A thinker, a researcher, a designer — ready to talk from the first minute. Hire one, give it a name and a manner, and it works on your files as you, with every edit kept in the file's history. Swap the engine any time; the name and the work stay.",
     Mock: AgentsMock,
   },
 ];

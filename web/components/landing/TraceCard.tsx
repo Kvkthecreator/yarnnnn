@@ -34,7 +34,7 @@ const REVISIONS: Revision[] = [
     author: "Claude",
     kind: "model",
     when: "today",
-    change: "Refined the positioning line to “one memory, every AI.”",
+    change: "Tightened the positioning line in pitch.md.",
   },
   {
     author: "you",

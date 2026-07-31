@@ -48,3 +48,11 @@ export const CTA = {
 
 /** Default primary-CTA label until the Stage-B swap (spec §0.6). */
 export const PRIMARY_CTA_LABEL = "Start free";
+
+/**
+ * Lead-door CTA label (landing hero + closing section). CANON-LOCK-2026-07-30
+ * Channel 1 is "connect your AI first"; the 07-31 operator re-cut tersened the
+ * label from the full canon sentence — the connector chips directly under the
+ * button carry the "which AIs" work.
+ */
+export const LEAD_DOOR_CTA_LABEL = "Connect your AI";
