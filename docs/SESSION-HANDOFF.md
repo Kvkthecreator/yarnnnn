@@ -1,100 +1,85 @@
-# SESSION HANDOFF — E2E sign-off: workspace-settings + user-settings surfaces
+# SESSION HANDOFF — settings-surfaces E2E: Phase 1 DONE, Phase 2 blocked on pairing
 
-> Written 2026-07-31 (the eval-layer-audit / closed-loop session). Delete this
-> file after absorbing it. Operator intent: define the verification criteria
-> (none exist yet for these surfaces), run the browser passes, and verdict the
-> settings surfaces as production-ready or not.
+> Rewritten 2026-07-31 at `849f2ae` (supersedes the Phase-1 brief written at
+> `c42a25e`, now absorbed). Delete this file in the commit that absorbs it.
 
-## Describe
+## Where the arc stands
 
-The E2E closed-loop direction is ratified and its infrastructure is live
-(memory: `project_e2e_closed_loop_direction.md`;
-`docs/evaluations/VERIFICATION.md`; the verification-radar SessionStart hook).
-Claude Code acts as the operator's testing principal via Claude in Chrome. This
-is the first real production sign-off pass: workspace-settings and user/account-
-settings surfaces + their workflows. DEFINING the criteria is Phase 1 of this
-session, not a prerequisite for it.
+**Phase 1 (DEFINE the criteria) is COMPLETE and committed at `849f2ae`.**
+**Phase 2 (RUN the passes) has NOT started — it is blocked on a precondition.**
 
-Owed items these surfaces carry (memory-receipted, do not re-derive):
-- The ADR-501 "human member-session click-pass" has been OWED since the
-  workspace-binding audit — this session discharges it.
-- GrantGate on 6 regions (owed, same audit) — verify current state, don't assume.
-- ADR-382 roster dial rows (open per ADR-490/491 state) and the ADR-495
-  "you were added" notification (deferred by design) — KNOWN-DEFERRED; record
-  as such, do not fail sign-off on them.
+### The blocker
 
-Test principals (the declared roster, memory-receipted):
-- kvkthecreator@gmail.com (`kvk`, 2abf3f96) — OWNER of the live workspace d5b9029b.
-- seulkim88@gmail.com (2be30ac5) — MEMBER of d5b9029b + owner of its own ws
-  4ca9c664. The owner/member pair is the core instrument.
-- Rigs for anything destructive: `kvk-yarnnn` (67c5c637, ws bf5b25a9),
-  `bare-kernel`, testacct@yarnnn.com (500f3ae7 — NO grants yet; provision if needed).
-- Login: magic links via `api/scripts/alpha_ops/_shared.py` generate_link machinery.
+The session that wrote Phase 1 had **no browser tools**. Two ToolSearch sweeps
+returned only `WebFetch`. `/config chrome=true` sets the *preference*; it does
+not perform the *pairing*. The operator must run `/chrome` → **Enable** in an
+interactive session with the Chrome extension installed, then start a FRESH
+session (tool schemas load at startup, not hot-reload).
 
-## Preconditions (check before anything else)
+Phase 2 was deliberately NOT faked via API-only probing — that is half a sweep,
+and the half that cannot see the defect class this pass hunts (ADR-501: the
+ceiling was display-only; the endpoint still accepted the call).
 
-1. Browser tools present? ToolSearch for chrome/browser tools. If absent, the
-   Claude-in-Chrome pairing isn't enabled — STOP and tell the operator to run
-   `/chrome` → Enable by default. Do not fall back to API-only and call it E2E.
-2. Read the verification radar's output (fires at SessionStart). If the web lane
-   is due for unrelated changes, note it; this session's passes discharge it
-   only for what they actually cover.
-3. Local stack or prod? Default: prod (the sign-off target is what users get),
-   read-mostly on d5b9029b; destructive/seeded flows on rigs only.
+### Also owed
 
-## Task — three phases, in order
+`849f2ae` is committed on local `main` but **NOT PUSHED** — the push was denied
+by the permission classifier. Push it, or re-run with approval.
 
-**Phase 1 — DEFINE the criteria.** Derive the surface + workflow inventory from
-CODE, not memory: the FE `SurfaceRegistry` and the workspace-settings /
-account-settings pane components (`web/`), cross-checked against
-`docs/design/WORKSPACE.md` (per-tab contracts) and the governing ADRs (491
-settings re-cut · 445 seat-sync/billing · 396/490 balance-legibility/pricing ·
-501/502/503 binding+wallet · 373/386/431 members + AI connections · 404
-invites). For each surface/workflow write a manifest in the
-Describe/Task/Guardrails/Exit shape — formalize `suite_kind: browser` in the
-eval-suites registry (status: current), extending `api/test_eval_suite_gate.py`
-to validate the new kind (gate proven red before trusted green). Every
-manifest's Exit criteria must pair a DOM observation with a SUBSTRATE receipt
-for each state-changing step (revision id / DB row / grant state / webhook
-effect). If scope feels ambiguous, get operator sign-off on the manifest set
-before firing; otherwise proceed.
+## What Phase 1 landed
 
-**Phase 2 — RUN the passes.** As owner (kvk) and as member (seulkim88), through
-the real browser: every settings pane renders correct data for that principal;
-every verb does what it claims AND writes what it claims (verify in DB with the
-service key); every member-invisible or member-forbidden affordance is actually
-absent/refused SERVER-SIDE, not display-only (the ADR-501 lesson: the gate
-keyed on transport, not grant role — enumerate the DOORS). Billing: verify
-usage-display (no raw dollars for members per ADR-503 wallet-follows-grant);
-do NOT complete real checkout — stop at the LemonSqueezy handoff and record the
-boundary. Members/AI-connections: narrow/revoke verbs on a RIG pairing only —
-never revoke seulkim's live member grant (the standing test pair); restore any
-state you change. DangerZone/purge: rig workspaces ONLY, never d5b9029b.
+- `docs/evaluations/eval-suites/settings-surfaces-click-pass.yaml` — the
+  manifest (authority). Four-sided thesis; 10 steps; every `mutates: true` step
+  carries `receipt:` + `restore:`.
+- `docs/evaluations/OPERATOR-PACKET-settings-click-pass.md` — the portable form
+  for a browser principal with NO repo access (Claude desktop / Cowork). Splits
+  the pass into a DOM half (browser records) and a SUBSTRATE half (repo
+  verifies). Has a fill-in report template in §6.
+- `api/scripts/operator/browser_login_link.py` — mints a navigable single-use
+  magic link. Roster-guarded in code; refuses non-test emails (verified).
+- `api/test_eval_suite_gate.py` — `suite_kind: browser` + the per-step receipt
+  invariant + `test_llm_runner_refuses_browser_suites`. Proven RED twice.
+- README + VERIFICATION.md updated; the stale `permission.py` pointer in
+  `GrantGate.tsx` corrected.
 
-**Phase 3 — VERDICT.** Per surface: READY / READY-WITH-FIXES / NOT-READY, with
-receipts. Fix what's small and obvious in-session (separate commits, gates, the
-usual discipline); NOT-READY items get a named defect with reproduction. Write
-the finding (`docs/evaluations/`, dated, session records per
-EVAL-SUITE-DISCIPLINE §6 — screenshots where load-bearing). Mark the validated
-lanes (`mark-validated.sh`) ONLY for what the passes actually covered. Commit
-manifests + gate + finding + ledger; push to main.
+## Phase 2 — how to run it (two viable paths)
 
-## Guardrails
+**Path A (preferred): Claude in Chrome, in-repo.** Pair, restart, then drive the
+manifest directly — DOM and substrate receipts in one session.
 
-- d5b9029b is LIVE substrate: read-mostly; deliberate writes reversible and
-  reverted or tombstoned; reset-to-clean (S2) before any seeded scenario.
-- Real externals (s.colopy@ccgrhc.com, b.tharalson@gmail.com) are NEVER subjects.
-- No real payments, no external emails/sends from test flows.
-- `git commit --only`; never `git add -A`; concurrent lanes are active.
-- A green gate you didn't watch fail is an unrun gate; a pass without a
-  substrate receipt is narrative.
+**Path B: Claude desktop drives the browser, repo session verifies.** Hand the
+operator packet to desktop Claude. It fills in §6 and hands it back; a repo
+session runs the receipt queries and pairs them. This path exists because
+desktop reportedly has working browser access.
 
-## Exit criteria
+Either way: **the receipts are not optional.** A returned §6 with DOM
+observations but no substrate queries closes nothing.
 
-- A committed browser-manifest set covering both settings surfaces, gate-checked.
-- Owner AND member passes executed with per-step receipts.
-- A finding with per-surface verdicts and the sign-off summary: production-ready
-  / named defects / known-deferred.
-- Ledger updated for covered lanes; everything pushed to main.
-- "These surfaces are NOT ready, here's the defect list" is an acceptable
-  outcome — a receipted negative is a real result.
+## Phase 3 — still owed
+
+Per-surface verdict (READY / READY-WITH-FIXES / NOT-READY) with receipts; the
+dated finding under `docs/evaluations/`; `mark-validated.sh web` ONLY for what
+the passes actually covered; commit + push.
+
+## Findings already receipted (do not re-derive)
+
+- **"GrantGate on 6 regions" is ONE region.** Only call site:
+  `web/components/agents/SystemAgentPanes.tsx:109`, gating Autonomy on
+  `governance/`. Members / Billing / DangerZone / the whole account door gate by
+  other means (`readOnly` prop, 403 catch, `can_clear`) or not at all. This is
+  thesis half 4 of the manifest — a coverage *decision* to make, not a bug to
+  fix silently.
+- **ADR-501's fix is real** (`_is_path_locked_for_principal` derives class from
+  the grant's ROLE when the write axis is NULL). Receipted NEGATIVE on the
+  suspicion. Live member-session behavior is still unproven — that is step C.
+- **Live grant state**: seulkim88's member grant on `d5b9029b` is `active` with
+  `scopes` / `read_scopes` / `write_scopes` ALL NULL → every caller takes the
+  class-default fall-through. The grant-honored branch is unexercised in prod.
+- **L4 reset** passes `workspace_id=None`, so `_purge_scope` falls back to
+  `user_id`: a member's reset deletes only their own rows. Correct, but resting
+  on an implicit default.
+
+## Guardrails (unchanged, still binding)
+
+`d5b9029b` read-mostly · never revoke seulkim's grant · destructive verbs on rigs
+only · billing stops at the LemonSqueezy handoff · real externals are never
+subjects · `git commit --only`, never `git add -A`.
