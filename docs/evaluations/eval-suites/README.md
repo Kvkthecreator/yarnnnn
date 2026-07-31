@@ -17,6 +17,7 @@ receipts: [`../2026-07-31-eval-layer-audit-FINDING.md`](../2026-07-31-eval-layer
 |---|---|---|---|
 | `freddie-bare-workspace-steward.yaml` | Freddie (Rung 1, bare workspace, steward defaults) | `thesis` | **current** — the launch-path suite. Repaired 2026-07-31 (persona `bare-kernel`; supported `absent:` program-marker asserts); pre-flight verified live 4/4. Latest full run: [`../2026-07-03-freddie-bare-steward-sonnet-rerun/`](../2026-07-03-freddie-bare-steward-sonnet-rerun/FINDING.md) |
 | `settings-surfaces-click-pass.yaml` | the two settings doors, owner × member | `browser` | **current** — registered 2026-07-31, not yet run. Portable form: [`../OPERATOR-PACKET-settings-click-pass.md`](../OPERATOR-PACKET-settings-click-pass.md) |
+| `studio-editing-click-pass.yaml` | the Studio editing surface, `document` × `deck` | `browser` | **current** — registered 2026-07-31, **not yet run** (browser tools were not present in the authoring session; they freeze at session start). Covers the interaction-polish pass (`4318904`), the ADR-509 insert re-cut (`817eecd`), the colour swatch row (`f5a9515`) and the four interaction debts (`9c79a57`) — every one of which is keyboard/scroll/focus-shaped and therefore invisible to a static gate. Baseline receipts EXECUTED against prod before registration. |
 
 ## The two suite kinds
 

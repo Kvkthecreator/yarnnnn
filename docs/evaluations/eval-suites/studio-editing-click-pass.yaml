@@ -1,0 +1,343 @@
+eval_suite_schema_version: 3
+eval_suite: studio-editing-click-pass
+
+# CURRENT (browser lane) — the owed sign-off for the 2026-07-31 Studio arc:
+# the interaction-polish pass (4318904), the ADR-509 insert re-cut (817eecd),
+# the colour swatch row (f5a9515), and the four interaction debts (9c79a57).
+#
+# NOTE ON THE LANE: `suite_kind: browser` is NOT fired by run_eval_suite.py
+# (VALID_SUITE_KINDS = {"thesis"}; the separation is gate-asserted). The firing
+# instrument is a BROWSER PRINCIPAL — Claude in Chrome. Method:
+# docs/evaluations/BROWSER-CLICK-PASS-PLAYBOOK.md — read it first.
+#
+# ⭐ TOOLS FREEZE AT SESSION START. If /chrome → Enable was clicked after the
+# session began, the browser tools are not present and no retry summons them.
+# Start a FRESH session and verify with an exact-name ToolSearch (`select:...`);
+# a keyword search returns WebFetch and reads as a false negative.
+status: current
+suite_kind: browser
+
+thesis: |
+  The Studio's editing surface behaves correctly for the two media it now
+  distinguishes — `document` (flow) and `deck` (paged) — after four commits that
+  changed the insert grammar, the keyboard, and the chrome.
+
+  This suite exists because EVERY defect it covers is invisible to a static
+  gate. The gates prove a route EXISTS; only a browser can prove the act
+  COMPLETES. That distinction is the arc's own recurring lesson: ADR-482's hole
+  was an insert route that was present in the codebase, reachable, opening and
+  filtering — and never completing.
+
+  FOUR SIDES, all must hold:
+
+  1. THE MEDIUM SEAM (ADR-509). `/` is flow's gesture and paged's mouse route is
+     the toolbar button + the right-click row. PASS: on a deck, typing `/`
+     inserts a literal slash and opens NO palette, AND both mouse routes reach
+     every block kind. FAIL: the slash still opens a palette on a deck (the gate
+     is display-only), or a kind is unreachable by mouse — which is the exact
+     10-of-13 coverage hole ADR-509 was written to close, re-opened.
+
+  2. THE KEYBOARD (9c79a57 + 4318904). ⌘Z reverses a structural op on a
+     DOCUMENT — it previously did nothing there, because the only producer lived
+     in the paged-only runtime. Tab does not end the writing session. A
+     dismissed slash palette does not swallow the next Enter. Escape closes the
+     right-click menu.
+
+  3. THE CHROME (4318904 + 9c79a57). Menus clamp to the viewport with their
+     submenu expanded, close on canvas scroll, and the format bar shows a focus
+     ring. The palette's arrow-driven highlight stays visible.
+
+  4. NO REGRESSION IN THE WRITE PATH. Every act above is a free, attributed,
+     id-preserving revision through the one door (ADR-209). The substrate half
+     of each step is a NEW revision row with the expected author and message —
+     never a rewritten history, never a lost block id.
+
+description: |
+  The owed click-pass for the Studio editing arc. Answers: "did four commits of
+  keyboard, insert-route and chrome changes actually work for a member, or only
+  satisfy their gates?"
+
+  READ-MOSTLY on the live workspace, and that is a deliberate narrowing. Unlike
+  the settings pass, this suite needs no second principal and no lifecycle — the
+  subject is one member editing their own artifacts. What it DOES need is real
+  artifacts of both media with real revision history, which the live workspace
+  has and a fresh rig would not. Every step appends a revision (the substrate is
+  append-only, ADR-209), so "restore" means deleting nothing: the new revision
+  is itself the receipt, and the prior head remains addressable.
+
+  Artifacts are created fresh per run where a step would otherwise mutate a
+  document the operator cares about (prd-for-yarnnn, 106 revisions). Those are
+  read-only subjects here.
+
+principals:
+  - owner:kvkthecreator@gmail.com   # kvk, owner of d5b9029b
+
+workspace: d5b9029b-bd4e-4757-9fcb-e2b139fd4913   # LIVE — read-mostly
+
+# Baseline EXECUTED 2026-07-31 (psql; §4 — a manifest is not authority until its
+# queries have run). ⭐ Two earlier drafts of these were DEAD: one used the path
+# prefix `operation/%` (the real prefix is `/workspace/operation/%`), the other
+# joined revisions on `workspace_file_versions.file_id`, a column that does not
+# exist — revisions join by (workspace_id, path). Both looked right.
+baseline:
+  # SELECT f.path, (SELECT count(*) FROM workspace_file_versions v
+  #                  WHERE v.workspace_id=f.workspace_id AND v.path=f.path) AS revs
+  #   FROM workspace_files f
+  #  WHERE f.workspace_id='d5b9029b-bd4e-4757-9fcb-e2b139fd4913'
+  #    AND f.lifecycle='active' AND f.path LIKE '%.html' ORDER BY f.path;
+  flow_subject: /workspace/operation/hello/document.html          # 21 revisions
+  paged_subject: /workspace/operation/test-deck-2/deck.html       # 27 revisions
+  read_only: /workspace/operation/prd-for-yarnnn/document.html    # 106 — never mutated here
+  # Legacy slugs still live, so ADR-505 D2's READ-TIME alias is exercisable:
+  legacy_article: /workspace/operation/test-article/article.html  # 1 revision
+  legacy_page: /workspace/operation/test-page/page.html           # 2 revisions
+
+guardrails: |
+  - prd-for-yarnnn is READ-ONLY in this suite. It is the workspace's most
+    developed document (106 revisions); use `hello` as the flow subject.
+  - Never delete a revision or a file. The substrate is append-only (ADR-209);
+    every step's "restore" is a further revision, never a rewrite.
+  - Do not touch the IMAGES artifacts (untitled-image, untitled-canvas) — a
+    different app (ADR-472/488), out of scope, and `canvas` is deliberately not
+    a Studio type (ADR-505 D1).
+  - One isolated browser context. Single principal here, but name it anyway so
+    a later two-principal cut inherits the habit.
+  - Assert you reached the APP before concluding anything about a deploy — bot
+    protection returns 403 pages that read as "not deployed" (playbook §2).
+  - FE and API deploy SEPARATELY. All four commits under test are FE-only
+    (projection.ts + web/components/studio/**) plus gates; confirm the Vercel
+    deploy for 9c79a57 has landed before running, or every step tests old code.
+
+known_deferred:
+  - Paste fidelity (ADR-482 §7) — forced text/plain is a security decision.
+  - "List indent on Tab — deliberately not built (ADR-509: structure belongs to
+     the block grammar, not a keypress)."
+  - "The slash while typing inside a slot on a deck — removed by ADR-509 with
+     the cost priced and accepted. Its ABSENCE is step 1's expectation, not a
+     defect."
+
+steps:
+  # ------------------------------------------------------ 1. THE MEDIUM SEAM
+  - step: deck-has-no-slash
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/test-deck-2/deck.html
+    action: |
+      Open the deck. Double-click a text block to place a caret, type "/".
+      ADR-509 D1 falsifier 1.
+    expect_dom: |
+      A literal "/" appears in the text and NO palette opens. If a palette
+      opens, the FLOW_MODE gate is not live in the deployed bundle.
+    mutates: false     # a caret + a typed char that is not committed
+    restore: |
+      Press ⌘Z (or delete the character) before leaving; do not blur into a
+      commit. If it commits, the next step's revision count absorbs it — note it.
+
+  - step: document-still-has-slash
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/hello/document.html
+    action: Place the caret in a paragraph and type "/". ADR-509 falsifier 2.
+    expect_dom: |
+      The palette OPENS at the caret, filters as you type after the slash, and
+      lists every kind. This is the control for the previous step — if BOTH
+      types opened no palette, the bundle is stale rather than the gate working.
+    mutates: false
+
+  - step: deck-toolbar-insert-is-a-real-menu
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/test-deck-2/deck.html
+    action: |
+      With NOTHING selected, click the toolbar's Insert. Then pick Callout.
+      ADR-509 falsifier 3 + the coverage claim.
+    expect_dom: |
+      A menu opens anchored under the button, headed "Insert into this slide" or
+      "Insert into slide N" — the target is NAMED (D3). Picking Callout lands a
+      callout on that slide.
+    mutates: true
+    receipt: |
+      psql: SELECT authored_by, message, created_at
+              FROM workspace_file_versions
+             WHERE workspace_id='d5b9029b-bd4e-4757-9fcb-e2b139fd4913'
+               AND path='/workspace/operation/test-deck-2/deck.html'
+             ORDER BY created_at DESC LIMIT 1;
+      Expect ONE new row, authored_by='operator', message naming the block
+      ("Studio: add Callout block"). A toast without this row means the menu
+      rendered and the op never landed — the ADR-482 failure mode exactly.
+    restore: |
+      Delete the inserted block via right-click → Delete (a further revision;
+      never a history rewrite).
+
+  - step: deck-right-click-insert-is-located
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/test-deck-2/deck.html
+    action: |
+      Right-click a block on a slide. ADR-509 falsifier 4.
+    expect_dom: |
+      "Insert block…" is the FIRST row. Choosing it opens the same menu at the
+      click point. On the document subject the row must be ABSENT.
+    mutates: false     # opening the menu only; the landing is covered above
+
+  - step: deck-bare-canvas-right-click-offers-insert
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/test-deck-2/deck.html
+    action: Right-click empty canvas away from any block. ADR-509 falsifier 5.
+    expect_dom: |
+      A menu appears offering Insert (previously this yielded NO menu — ADR-482
+      D9's "no acts = no menu", whose act-set ADR-509 grew by one).
+    mutates: false
+
+  # ------------------------------------------------------ 2. THE KEYBOARD
+  - step: undo-works-on-a-document
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/hello/document.html
+    action: |
+      THE HEADLINE STEP of 9c79a57. Insert a block via "/" → Divider. Click
+      OUTSIDE the text so no caret is live. Press ⌘Z.
+    expect_dom: |
+      The divider disappears — the op is reversed. Before this commit ⌘Z did
+      NOTHING on a document (the only producer lived in the paged-only runtime),
+      while the undo stack silently filled.
+    mutates: true
+    receipt: |
+      psql: SELECT message, created_at FROM workspace_file_versions
+             WHERE workspace_id='d5b9029b-bd4e-4757-9fcb-e2b139fd4913'
+               AND path='/workspace/operation/hello/document.html'
+             ORDER BY created_at DESC LIMIT 3;
+      Expect the insert revision AND a following revision that reverses it —
+      undo is a WRITE (revert-as-write, ADR-406), never a history rewrite. Two
+      new rows, not zero and not a deletion.
+    restore: |
+      The undo IS the restore. Confirm the head no longer contains the divider.
+
+  - step: undo-does-not-steal-a-live-caret
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/hello/document.html
+    action: |
+      Place the caret IN a paragraph, type a few words, and press ⌘Z while the
+      caret is still live. The guard under test is __yarnnnCaretLive.
+    expect_dom: |
+      The BROWSER's native undo rewinds the typing, keystroke-wise. It must NOT
+      rewind the document to a structural snapshot — that is what would happen
+      if the handler asked __yarnnnEditingId (null on flow while a caret lives),
+      and it is the ADR-482 D2 trap this move had to avoid.
+    mutates: false     # typing that is undone before any commit
+    restore: Ensure the paragraph reads as it did; blur only when unchanged.
+
+  - step: tab-does-not-end-the-session
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/hello/document.html
+    action: Place the caret mid-paragraph and press Tab.
+    expect_dom: |
+      A tab character is inserted and THE CARET REMAINS. Previously Tab took the
+      contenteditable default — focus left the root, the blur handler fired, the
+      edit committed and the caret was lost mid-sentence.
+    mutates: false
+    restore: Delete the inserted tab before blurring.
+
+  - step: dismissed-palette-does-not-swallow-enter
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/hello/document.html
+    action: |
+      The 4318904 headline. Type "/" mid-sentence so the palette opens, then
+      CLICK into a different paragraph to dismiss it. Now press Enter.
+    expect_dom: |
+      Enter breaks the line normally. Before the fix the keyboard interception
+      guarded on the ANCHOR (kept alive through a dismiss, deliberately, because
+      a pointer press may BE the pick) rather than on VISIBILITY — so the next
+      Enter was swallowed exactly once, with no chrome on screen to explain it.
+    mutates: false
+    restore: Undo the line break if it committed.
+
+  - step: escape-closes-the-right-click-menu
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/test-deck-2/deck.html
+    action: Right-click a block, then press Escape WITHOUT moving the mouse.
+    expect_dom: |
+      The menu closes. It previously could not: the listener was on the parent
+      window, but a right-click leaves focus INSIDE the sandboxed canvas, so the
+      key never reached it — the menu was mouse-only dismissal in both modes.
+    mutates: false
+
+  # ------------------------------------------------------ 3. THE CHROME
+  - step: menu-clamps-with-its-submenu-open
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/test-deck-2/deck.html
+    action: |
+      Right-click a PROSE block in the LOWER THIRD of the window, then open
+      "Turn into" (it expands inline, up to 7 rows).
+    expect_dom: |
+      The whole expanded menu stays on screen. The clamp is measured from the
+      rendered box and re-runs on expansion; it used to be a static
+      `innerHeight - 330` guess at the COLLAPSED height, so the expanded rows
+      fell below the viewport, unreachable and unscrollable.
+    mutates: false
+
+  - step: menus-close-on-canvas-scroll
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/test-deck-2/deck.html
+    action: |
+      Right-click a block near the top, then scroll the CANVAS with the wheel.
+      Repeat for the Insert menu.
+    expect_dom: |
+      Both menus close. The parent's capture-phase scroll listener is deaf to
+      the iframe's scroller, so the menu previously stayed pinned to a page
+      coordinate while the block it named travelled away.
+    mutates: false
+
+  - step: palette-highlight-stays-visible
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/hello/document.html
+    action: Open the palette with "/" and press ↓ seven or more times.
+    expect_dom: |
+      The list scrolls to keep the highlighted row visible. The list shows ~6
+      rows and the registry ships 13 kinds, so without scrollIntoView the
+      highlight walked below the fold and Enter picked an unseen block.
+    mutates: false
+
+  - step: format-bar-shows-a-focus-ring
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/hello/document.html
+    action: |
+      Select text to raise the format bar, then TAB to its buttons.
+      (Keyboard only — the ring is :focus-visible, so a mouse press won't show it.)
+    expect_dom: |
+      The focused button shows a visible ring. `all: unset` had stripped the UA
+      ring while leaving the buttons in tab order.
+    mutates: false
+
+  # ------------------------------------------------------ 4. LEGACY + WRITE PATH
+  - step: legacy-slugs-resolve-and-are-never-offered
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/test-article/article.html
+    action: |
+      Open the legacy `article` artifact, then open the New-artifact picker.
+      ADR-505 D2's read-time alias, live.
+    expect_dom: |
+      The artifact OPENS and behaves as `web` (paged: the toolbar shows the
+      page-grain pair; the type glyph/label reads Web, not Article). The create
+      picker offers exactly THREE types — document, deck, web — never article
+      or page.
+    mutates: false
+    receipt: |
+      psql: SELECT count(*) FROM workspace_file_versions
+             WHERE workspace_id='d5b9029b-bd4e-4757-9fcb-e2b139fd4913'
+               AND path='/workspace/operation/test-article/article.html';
+      MUST remain 1. Opening a legacy artifact resolves at READ time and must
+      manufacture NO revision — ADR-209 forbids a write to fix a naming
+      decision, and a rewrite here would be the defect.
+
+  - step: colour-swatches-render-resolved-values
+    principal: owner
+    surface: /studio?studio.file=/workspace/operation/test-deck-2/deck.html
+    action: |
+      Select a block, open Properties/Design. Inspect the Colour row under
+      Typography (f5a9515).
+    expect_dom: |
+      Colour sits DIRECTLY under Typography as a row of swatches (not a
+      dropdown), showing the applied system's RESOLVED colours, with Auto as a
+      slashed dot and the current role NAMED beside the row. It must show only
+      pickable roles — never --paper / --ink-06 / --deck-stage (ADR-487 D9:
+      member-invisible identity is not shown in the applied register).
+      The applied-system cue (the route to the manage panel) must still be
+      present — it was moved to its own section precisely so a block whose only
+      tokens are palette-backed does not lose it.
+    mutates: false
