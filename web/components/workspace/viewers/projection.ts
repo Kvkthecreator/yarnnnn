@@ -727,6 +727,41 @@ const POINTER_SCRIPT = `
     parent.postMessage({ type: 'yarnnn-canvas-escape' }, '*');
   }, true);
 
+  // ── Undo / Redo (⌘Z / ⌘⇧Z) ───────────────────────────────────────────────
+  //
+  // RE-HOMED here 2026-07-31 from the paged-only OBJECT_SCRIPT, where it meant
+  // ⌘Z did not exist at all on a document — no producer in the frame, and the
+  // parent cannot hear a key pressed inside an opaque-origin iframe. Every
+  // structural op (a slash insert, a delete, a turn-into) pushed a snapshot the
+  // member had no way to pop. This runtime is injected on BOTH modes, which is
+  // what makes undo mode-independent.
+  //
+  // Undo is NOT scoped to a selected block — it reverses the LAST op whether or
+  // not anything is selected, so it is a top-level listener rather than an
+  // extension of the selected-block handler (which returns early on no
+  // selection). The parent owns the snapshot stack (one HTML string per whole
+  // op); the runtime only hears the key and asks.
+  //
+  // THE GUARD IS THE CARET QUESTION, NOT THE SESSION QUESTION. When a text
+  // caret is live, undo belongs to the platform — the browser's native
+  // contentEditable stack rewinds typing keystroke by keystroke, better than a
+  // whole-op stack can. It must ask __yarnnnCaretLive: the old code asked
+  // __yarnnnEditingId, which is null on FLOW while a caret is very much live
+  // (ADR-480 D1), so on flow it would have stolen ⌘Z mid-sentence and rewound
+  // the member's paragraph to a structural snapshot. That is the exact trap
+  // ADR-482 D2 named for the text keys, and re-homing this without switching
+  // the guard would have walked straight into it.
+  document.addEventListener('keydown', function (e) {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    if ((e.key || '').toLowerCase() !== 'z') return;
+    if (window.__yarnnnCaretLive && window.__yarnnnCaretLive()) return;
+    var t = e.target;
+    // Injected chrome (the format bar) is never an undo subject.
+    if (t && t.closest && t.closest('.yarnnn-fmt')) return;
+    e.preventDefault();
+    parent.postMessage({ type: e.shiftKey ? 'yarnnn-redo' : 'yarnnn-undo' }, '*');
+  });
+
   // ADR-458: the hover gutter selects THROUGH this runtime's own selection
   // state (one selection, not two) — exposed like __yarnnnEditingId.
   window.__yarnnnSelect = function (el) {
@@ -1052,9 +1087,25 @@ const FMT_CSS = `
   font: 600 12px/1 system-ui, sans-serif; padding: 4px 7px; border-radius: 4px;
 }
 .yarnnn-fmt button:hover { background: rgba(255,255,255,0.15); }
+/* all:unset above strips the UA focus ring, and the buttons stay in tab
+   order — so a keyboard member could land on B/I/code/Link with no indication
+   of where they were. Put a ring back explicitly. :focus-visible, so it appears
+   for the keyboard and not on every mouse press (the reason the UA ring is
+   itself :focus-visible on modern browsers). Same reasoning as the ADR-482 D8
+   suppression, in the opposite direction: there we removed a ring the browser
+   drew and we did not want; here we restore one we removed and do need. */
+.yarnnn-fmt button:focus-visible {
+  outline: 2px solid #e5e7eb; outline-offset: 1px; background: rgba(255,255,255,0.15);
+}
 .yarnnn-fmt input {
   font: 12px system-ui, sans-serif; border: 0; border-radius: 4px;
   padding: 4px 6px; width: 220px; outline: none;
+}
+/* The link input suppressed its outline with nothing in its place. It is the
+   one field in this bar a member TYPES into, so an unfocusable-looking focused
+   field is the worst case of the three. */
+.yarnnn-fmt input:focus-visible {
+  outline: 2px solid #60a5fa; outline-offset: 1px;
 }
 `;
 
@@ -1399,6 +1450,27 @@ const EDIT_SCRIPT = `
       var text = (e.clipboardData || window.clipboardData).getData('text/plain');
       if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
         document.execCommand('insertText', false, text);
+      }
+    });
+    // TAB MUST NOT END THE WRITING SESSION. The root is contenteditable, so Tab
+    // took the browser default — move focus OUT of the editable — which fired
+    // the blur listener above, committed, and dropped the caret mid-paragraph.
+    // In every writing tool (Word, Google Docs, Notion) Tab is an indent or a
+    // no-op; it never ends the session. Swallow it and insert a tab character,
+    // which is the plainest honest reading of the key in continuous prose.
+    //
+    // Deliberately NOT a list-indent gesture: that is a structural op on a
+    // block, and this is the medium where the browser owns structure
+    // (ADR-480 D1). If list nesting is wanted it belongs in the block grammar,
+    // not smuggled in through a keypress here.
+    root.addEventListener('keydown', function (e) {
+      if (e.key !== 'Tab') return;
+      // Shift+Tab has no matching outdent, so let it do nothing rather than
+      // insert a tab the member did not ask for.
+      e.preventDefault();
+      if (e.shiftKey) return;
+      if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
+        document.execCommand('insertText', false, String.fromCharCode(9));
       }
     });
   }
@@ -3201,30 +3273,14 @@ const OBJECT_SCRIPT = `
   // injection site must follow its LIFETIME, not the script it was first
   // written into. The gutter keeps what is genuinely gutter: '+', ⋮⋮, selbox.
 
-  // ── Undo / Redo (⌘Z / ⌘⇧Z) ───────────────────────────────────────────────
-  //
-  // Unlike the verb keys above, undo is NOT scoped to a selected block — it
-  // reverses the LAST edit whether or not anything is selected, so it gets its
-  // own top-level listener instead of extending the selected-block handler
-  // (which returns early on no selection). The parent owns the snapshot stack
-  // (one HTML string per whole op); the runtime only hears the key and asks.
-  //
-  // The one guard is the same as ⌘C/⌘V above: when a text caret is LIVE, undo
-  // belongs to the platform — the browser's native contentEditable stack
-  // rewinds the member's typing, keystroke by keystroke, better than we could.
-  // Our stack takes over the moment the caret leaves (edits commit on blur as
-  // whole ops). So: caret live → let it through; no caret → claim it.
-  document.addEventListener('keydown', function (e) {
-    if (!(e.metaKey || e.ctrlKey)) return;
-    if ((e.key || '').toLowerCase() !== 'z') return;
-    // A live caret owns its own undo — don't steal the native text stack.
-    if (window.__yarnnnEditingId && window.__yarnnnEditingId() != null) return;
-    var t = e.target;
-    // Injected chrome (the format bar) is never an undo subject.
-    if (t && t.closest && t.closest('.yarnnn-fmt')) return;
-    e.preventDefault();
-    parent.postMessage({ type: e.shiftKey ? 'yarnnn-redo' : 'yarnnn-undo' }, '*');
-  });
+  // ── Undo / Redo MOVED (2026-07-31) ───────────────────────────────────────
+  // It lived here, in the paged-only OBJECT_SCRIPT, so ⌘Z simply DID NOT EXIST
+  // on a document: no producer, and the parent has no keyboard listener of its
+  // own (the canvas is an opaque-origin frame, so the key never leaves it).
+  // Meanwhile every structural op kept pushing snapshots onto a stack nobody
+  // could pop. Its injection site now follows its LIFETIME — the same rule the
+  // keyboard verbs above were re-homed by — so it sits in the pointer runtime,
+  // which is injected on BOTH modes. See "Undo / Redo" there.
 
   function syncBox() {
     // P11 (operator read of P10 — the PowerPoint convention): the box

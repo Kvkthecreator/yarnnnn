@@ -156,7 +156,15 @@ export function StudioBlockMenu({
     const close = () => onClose();
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     const onFrameKey = (e: MessageEvent) => {
-      if ((e.data as { type?: string } | null)?.type === 'yarnnn-canvas-escape') onClose();
+      const t = (e.data as { type?: string } | null)?.type;
+      // SCROLL IS THE SAME BLIND SPOT as Escape. The capture-phase `scroll`
+      // listener below cannot hear the iframe's own scroller (opaque origin),
+      // so a menu anchored to a point stayed pinned while the block it names
+      // travelled away — exactly the lie the scroll listener exists to prevent,
+      // and it was only ever prevented for parent-side scrollers. The runtime
+      // already reports in-frame scrolling for the canvas's position restore;
+      // this listens to the same message.
+      if (t === 'yarnnn-canvas-escape' || t === 'yarnnn-scroll-pos') onClose();
     };
     window.addEventListener('click', close);
     window.addEventListener('contextmenu', close);

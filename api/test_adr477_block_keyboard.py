@@ -105,7 +105,21 @@ def main() -> bool:
     _check(
         "text keys (⌘C/⌘V) stay with the editor whenever a caret exists — an "
         "empty selected block must not paste a BLOCK where text was meant",
-        "k === 'v' || k === 'c'" in proj and "__yarnnnEditingId() != null) return" in proj,
+        # RE-PINNED 2026-07-31. The second clause used to be
+        # `"__yarnnnEditingId() != null) return" in proj` — a whole-file
+        # substring that this rule's OWN code never satisfied: the C/V guard has
+        # always (correctly) asked __yarnnnCaretLive, the ADR-482 D2 idiom,
+        # because __yarnnnEditingId is null on flow WHILE a caret is live. The
+        # string was being satisfied by an unrelated neighbour, the paged-only
+        # undo handler, so this check was passing for the wrong reason and would
+        # not have failed if the C/V guard itself regressed. Moving undo to the
+        # pointer runtime (and onto the correct guard) removed the coincidence
+        # and exposed it. Now scoped to the guard's own expression.
+        re.search(
+            r"\(k === 'v' \|\| k === 'c'\)[\s\S]{0,160}?__yarnnnCaretLive\(\)\) return;",
+            proj,
+        )
+        is not None,
     )
 
     # ── D3: one body, N entrances (ADR-462 D10's standing rule) ──────────

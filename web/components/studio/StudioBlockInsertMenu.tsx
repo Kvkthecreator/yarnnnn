@@ -84,7 +84,13 @@ export function StudioBlockInsertMenu({
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     const onFrame = (e: MessageEvent) => {
       const t = (e.data as { type?: string } | null)?.type;
-      if (t === 'yarnnn-canvas-press' || t === 'yarnnn-canvas-escape') onClose();
+      // Scroll joins press and Escape: this menu is anchored to a point in the
+      // page, and the canvas scrolling underneath it moves what that point
+      // meant. The parent's own scroll listener is deaf to the iframe's
+      // scroller (opaque origin), so the runtime's report is the only route.
+      if (t === 'yarnnn-canvas-press' || t === 'yarnnn-canvas-escape' || t === 'yarnnn-scroll-pos') {
+        onClose();
+      }
     };
     window.addEventListener('mousedown', close);
     window.addEventListener('keydown', onKey);
