@@ -22,7 +22,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
-  Copy, ClipboardPaste, CopyPlus, Trash2, Type,
+  Copy, ClipboardPaste, CopyPlus, Plus, Trash2, Type,
   ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, ChevronRight, MessageSquare, Sparkles, SearchCheck, Link2, History,
 } from 'lucide-react';
 import type { StudioContextTarget } from './StudioCanvas';
@@ -67,6 +67,10 @@ export interface StudioBlockMenuProps {
    *  revision chain joins by that same id. */
   onCopyLink: () => void;
   onHistory: () => void;
+  /** Open the native block-insert menu at this right-click point — the LOCATED
+   *  half of the paged mouse insert route. Absent on flow (the caret answers
+   *  there), so the row simply does not render. */
+  onInsert?: () => void;
   /** ADR-482 D5: the layout's composition mode. The menu was mode-BLIND — it
    *  offered Move up/down against a continuous prose surface where a block is
    *  an ANNOTATION, not an enclosure (ADR-480 D2), so reordering "blocks" asks
@@ -129,7 +133,7 @@ const ICO = 'h-3.5 w-3.5';
 export function StudioBlockMenu({
   target, onClose, onCopy, onPaste, onDuplicate, onDelete,
   onTurnInto, blocks, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck, onAsk,
-  onCopyLink, onHistory, mode, hasClipboard,
+  onCopyLink, onHistory, onInsert, mode, hasClipboard,
 }: StudioBlockMenuProps) {
   const [turnOpen, setTurnOpen] = useState(false);
   // Dismissal. NOTE the parent-window blind spot: the Studio canvas is a
@@ -222,11 +226,15 @@ export function StudioBlockMenu({
   const top = clamped?.top
     ?? (typeof window !== 'undefined' ? Math.min(target.y, window.innerHeight - 330) : target.y);
 
-  // ADR-482 D9: no block and nothing to paste = no menu. Every row is gated, so
-  // this state would otherwise paint an empty bordered box — chrome that
-  // appears, says nothing, and must be dismissed. A menu with no acts is not a
-  // menu; the right-click simply does nothing, which is the honest answer.
-  if (!hasBlock && !hasClipboard) return null;
+  // ADR-482 D9: a menu with no acts is not a menu — an empty bordered box that
+  // appears, says nothing, and must be dismissed. The rule stands; what counts
+  // as "an act" grew. On `paged`, Insert is now a real act available on bare
+  // canvas (it lands on the current page), and it is precisely the case a
+  // right-click on an empty slide SHOULD serve — so suppressing here would
+  // re-hide the route this pass exists to give the mouse back. On flow the row
+  // is absent, so the original condition is what still decides.
+  const hasInsert = !!onInsert && isPaged;
+  if (!hasBlock && !hasClipboard && !hasInsert) return null;
 
   return (
     <div
@@ -236,6 +244,22 @@ export function StudioBlockMenu({
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
     >
+      {/* INSERT leads on `paged`, and only on paged. This is the LOCATED half
+          of the mouse insert route that replaced '/' there: the toolbar button
+          is discoverable, this is fast and lands at the thing you right-clicked.
+          On `flow` the row is absent — the caret IS the insertion point and '/'
+          still answers there, so a row here would be a third door to the same
+          act on the one medium that never needed it.
+          First, because inserting CREATES and every row below acts on something
+          that already exists. */}
+      {onInsert && isPaged && (
+        <>
+          <Row icon={<Plus className={ICO} />} onClick={() => run(onInsert)}>
+            Insert block…
+          </Row>
+          {(hasBlock || hasClipboard) && SEP}
+        </>
+      )}
       {hasBlock && (
         <Row icon={<Copy className={ICO} />} onClick={() => run(onCopy)} shortcut="⌘C">Copy</Row>
       )}

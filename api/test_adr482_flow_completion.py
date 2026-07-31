@@ -240,7 +240,15 @@ def run() -> bool:
     )
     _check(
         "D9 a menu with no acts does not render",
-        "if (!hasBlock && !hasClipboard) return null;" in menu,
+        # RE-PINNED by ADR-509. The RULE is unchanged — a menu with no acts is
+        # not a menu — but the set of acts grew by one on `paged`: Insert works
+        # on bare canvas (it lands on the current page), and a right-click on an
+        # empty slide is exactly the case it should serve. Pinning the old
+        # two-term literal would have forced that route back into hiding, which
+        # is the coverage hole ADR-509 exists to close. Still a real guard: the
+        # early return must remain, and must still consider block + clipboard.
+        "if (!hasBlock && !hasClipboard && !hasInsert) return null;" in menu
+        and "const hasInsert = !!onInsert && isPaged;" in menu,
     )
     _check(
         "D9 the surface passes the clipboard state",

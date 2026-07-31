@@ -1665,18 +1665,16 @@ const EDIT_SCRIPT = `
   // exactly the post-input state the handler's setTimeout re-reads.
   // (No backticks anywhere in here: this body lives INSIDE a template string.)
   function slashFromToolbar() {
+    // FLOW ONLY, matching the typed gesture it is a door onto. The paged branch
+    // that used to live here (enter() the last block to manufacture an anchor)
+    // is DELETED rather than left unreachable: on paged the toolbar's Insert now
+    // opens the native menu in the parent and never asks the runtime to type a
+    // '/', so a surviving branch would be a second insert path waiting to be
+    // called — the exact thing ADR-506 D1's one-sender invariant existed to
+    // prevent, and a latent route is how the ADR-482 hole stayed invisible.
+    if (!FLOW_MODE) return;
     var host = editHost();
-    if (!host) {
-      // Paged with nothing being edited: enter the last block, which gives the
-      // gesture the same anchor a click-then-type would have produced.
-      var blocks = document.querySelectorAll('[data-block]');
-      var last = blocks.length ? blocks[blocks.length - 1] : null;
-      var lastId = last && last.getAttribute ? last.getAttribute('data-block-id') : null;
-      if (!lastId) return;
-      enter(lastId);
-      host = editHost();
-      if (!host) return;
-    }
+    if (!host) return;
     if (host.focus) host.focus();
     var sel = window.getSelection();
     var inHost = false;
@@ -1772,6 +1770,25 @@ const EDIT_SCRIPT = `
 
   document.addEventListener('keydown', function (e) {
     if (e.key !== '/' || !editHost()) return;
+    // FLOW ONLY. The slash is the gesture of a TEXT CARET IN A LINEAR FLOW, and
+    // that is a fact about the medium rather than a preference.
+    //
+    // ADR-505 D4 made it universal on the strength of "Figma Slides, Pitch and
+    // Gamma in the deck class" — and two of those three are false. Figma Slides
+    // binds '/' to CURSOR CHAT; Pitch's quick menu is Cmd+K and its docs say so
+    // explicitly. Of seven slide editors surveyed only Gamma ships a block
+    // insert slash, and Gamma is a card/document hybrid, not a spatial canvas.
+    // Webflow and Framer both shipped a slash and both scoped it to rich-text
+    // contexts ONLY, deliberately not the canvas — the same line drawn here.
+    //
+    // On paged, insert is the mouse's: the toolbar's Insert button (discovery)
+    // and the right-click row (located), which together restored the ten kinds
+    // that were mouse-unreachable while '/' was the sole block-insert route.
+    //
+    // This is a gate on the MEDIUM, read from the DOM at keypress time — not on
+    // an async React value — so it cannot re-open the ADR-482 D3 race: FLOW_MODE
+    // is stamped on the served projection before any key can reach this.
+    if (!FLOW_MODE) return;
     if (fmtInput && document.activeElement === fmtInput) return;
     var caret = slashCaret();
     if (!caret) return;

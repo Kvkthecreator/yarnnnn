@@ -134,7 +134,9 @@ interface StudioToolbarProps {
   /** EXECUTE: open the block palette at the caret (ADR-506 D1). Universal and
    *  ungated — the SAME palette `/` opens, in every type, with no per-type
    *  subsetting (ADR-505 D4). */
-  onInsert: () => void;
+  /** Carries the button's own rect so the paged menu can drop from it; the
+   *  flow door ignores the point and types the '/' at the caret. */
+  onInsert: (at: { x: number; y: number }) => void;
   /** EXECUTE: add a new page (slide/section) from the gallery. */
   onAddArrangement: (fragment: string, label: string) => void;
   /** EXECUTE: re-lay the CURRENT page (ADR-466 D5 — the PowerPoint pair: Layout
@@ -400,7 +402,7 @@ export function StudioToolbar({
       <button
         type="button"
         className={btn}
-        onClick={() => {
+        onClick={(e) => {
           // Insert now lives INSIDE `menuRef` — the click-away boundary — so a
           // press on it no longer counts as "outside" and the open gallery
           // would survive, leaving the palette to open underneath a stale
@@ -408,9 +410,17 @@ export function StudioToolbar({
           // dismissal duty: close explicitly. (Centred-and-outside, this was
           // free; that is the kind of cost a re-placement quietly carries.)
           setOpen(null);
-          onInsert();
+          // The button's own rect anchors the paged menu, so it drops from the
+          // control the member just pressed. On flow the surface ignores the
+          // point and types the '/' at the caret instead (ADR-506 D1's door).
+          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          onInsert({ x: r.left, y: r.bottom + 4 });
         }}
-        title="Insert a block — the same palette / opens at the caret"
+        title={
+          isPaged
+            ? 'Insert a block — into the selected slot, or this page'
+            : 'Insert a block — the same palette / opens at the caret'
+        }
       >
         <Plus className="h-3 w-3" /> Insert
       </button>

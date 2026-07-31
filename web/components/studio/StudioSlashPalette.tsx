@@ -25,45 +25,10 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react';
-import {
-  AlignLeft,
-  BarChart3,
-  CheckSquare,
-  ChevronRight,
-  Code,
-  Heading1,
-  Image as ImageIcon,
-  List,
-  type LucideIcon,
-  Minus,
-  MessageSquareQuote,
-  Quote,
-  Table as TableIcon,
-  Type,
-} from 'lucide-react';
 import type { StudioVocabulary } from './StudioToolbar';
-
-/** kind → glyph. The kernel vocabulary ships no icon field (and shouldn't — an
- *  icon is presentation), so the mapping lives here. An unmapped kind falls back
- *  to the generic block glyph rather than rendering a hole. */
-const SLASH_ICONS: Record<string, LucideIcon> = {
-  prose: Type,
-  text: Type,
-  heading: Heading1,
-  callout: MessageSquareQuote,
-  quote: Quote,
-  checklist: CheckSquare,
-  list: List,
-  bullets: List,
-  divider: Minus,
-  toggle: ChevronRight,
-  code: Code,
-  chart: BarChart3,
-  figure: ImageIcon,
-  gallery: ImageIcon,
-  table: TableIcon,
-};
-const FALLBACK_ICON: LucideIcon = AlignLeft;
+// ONE rendered list, two mounts (this palette on flow; the native Insert menu
+// on paged). The icon map moved with it — see blockRows.tsx.
+import { BlockRow } from './blockRows';
 
 interface StudioSlashPaletteProps {
   vocabulary: StudioVocabulary | null;
@@ -135,44 +100,16 @@ export function StudioSlashPalette({
       className="absolute z-30 w-72 rounded-md border border-border bg-background p-1 shadow-lg"
     >
       <div className="max-h-72 overflow-y-auto">
-        {items.map((b, i) => {
-          const Icon = SLASH_ICONS[b.kind] ?? FALLBACK_ICON;
-          return (
-            <button
-              key={b.kind}
-              type="button"
-              // Keep the ARROW-DRIVEN highlight visible. The list scrolls at
-              // ~6 rows (max-h-72) but ships 13+ kinds, and the highlight is
-              // moved by ↓/↑ forwarded from the runtime — so without this the
-              // member could steer the selection onto a row below the fold,
-              // watch nothing move, and press Enter on a block they cannot see.
-              // `nearest` scrolls only when the row is actually out of view, so
-              // pointer-driven highlighting never yanks the list.
-              ref={
-                i === highlight
-                  ? (el) => el?.scrollIntoView({ block: 'nearest' })
-                  : undefined
-              }
-              // mousedown would fire the runtime's click-away first and close us.
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => onPick(b.kind, b.label, b.fragment)}
-              onMouseEnter={() => onHighlight(i)}
-              className={`flex w-full items-start gap-2.5 rounded px-2 py-1.5 text-left ${
-                i === highlight ? 'bg-muted/60' : 'hover:bg-muted/30'
-              }`}
-            >
-              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-muted/30">
-                <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-xs font-medium">{b.label}</span>
-                <span className="block text-[10px] leading-snug text-muted-foreground">
-                  {b.description}
-                </span>
-              </span>
-            </button>
-          );
-        })}
+        {items.map((b, i) => (
+          <BlockRow
+            key={b.kind}
+            item={b}
+            active={i === highlight}
+            scrollIntoViewWhenActive
+            onPick={() => onPick(b.kind, b.label, b.fragment)}
+            onHover={() => onHighlight(i)}
+          />
+        ))}
       </div>
     </div>
   );

@@ -46,6 +46,7 @@ import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { StudioCanvas, type PointerEvent2, type StudioContextTarget } from './StudioCanvas';
 import { StudioBlockMenu } from './StudioBlockMenu';
+import { StudioBlockInsertMenu } from './StudioBlockInsertMenu';
 import { StudioCitablePicker, PICKER_KINDS } from './StudioCitablePicker';
 import { StudioSlashPalette } from './StudioSlashPalette';
 import {
@@ -1640,6 +1641,120 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     [applyOp],
   );
 
+  // ── The MOUSE insert route on `paged` (deck / web) ──────────────────────
+  // '/' is gone on paged (see the runtime's FLOW-only gate), so this is the
+  // block-grain insert there. Two mounts — the toolbar button (discovery) and
+  // the right-click row (located) — open the SAME menu and land through the
+  // SAME ops the palette uses. One write path, three doors.
+  const [insertMenu, setInsertMenu] = useState<{
+    x: number;
+    y: number;
+    // The target is resolved AT OPEN TIME and named in the menu, so the member
+    // is never guessing where the block will go.
+    slot: string | null;
+    blockId: string | null;
+    slideIndex: number | null;
+    pageIndex: number | null;
+    label: string;
+  } | null>(null);
+
+  // Resolve where a paged insert lands, most specific first:
+  //   1. a selected BLOCK   → after it (the located answer)
+  //   2. a selected SLOT    → into it
+  //   3. otherwise          → append to the current page/slide
+  // Never "nowhere": a member who clicks Insert without selecting anything gets
+  // the block on the page they are looking at, which is what appending means on
+  // a paged surface. Mirrors the toolbar door's own caret ladder (ADR-506 D1).
+  const resolveInsertTarget = useCallback(() => {
+    const sel = selection;
+    const slideIndex = sel?.slideIndex ?? null;
+    const pageIndex = sel?.pageIndex ?? null;
+    if (sel?.blockId) {
+      return {
+        slot: null, blockId: sel.blockId, slideIndex, pageIndex,
+        label: sel.blockKind ? `after the ${sel.blockKind}` : 'after the selected block',
+      };
+    }
+    if (sel?.slot) {
+      return { slot: sel.slot, blockId: null, slideIndex, pageIndex, label: sel.slot };
+    }
+    const nth = (slideIndex ?? pageIndex);
+    // Same derivation the toolbar's New-‹noun› uses (deck speaks "slide",
+    // web speaks "section") — the chrome must not call one page two names.
+    const noun = template === 'deck' ? 'slide' : 'section';
+    return {
+      slot: null, blockId: null, slideIndex, pageIndex,
+      label: nth == null ? `this ${noun}` : `${noun} ${nth + 1}`,
+    };
+  }, [selection, template]);
+
+  const openInsertMenu = useCallback(
+    (x: number, y: number) => setInsertMenu({ x, y, ...resolveInsertTarget() }),
+    [resolveInsertTarget],
+  );
+
+  // The ONE place the toolbar's Insert forks by medium — and the only place the
+  // fork exists at all. `flow` keeps ADR-506 D1's door (the button types the '/'
+  // so the palette that opens is the one the member could have opened); `paged`
+  // opens the native menu, because there is no longer a '/' on paged to be a
+  // door onto. An unresolved mode falls to the paged menu deliberately: it needs
+  // no caret and no runtime round-trip, so it cannot mis-fire while the registry
+  // is still answering (the ADR-482 D3 lesson — chrome must not depend on an
+  // async mode value to be CORRECT, only to be optimal).
+  const onInsertPressed = useCallback(
+    (at: { x: number; y: number }) => {
+      if (resolvedMode === 'flow') { invokeSlash(); return; }
+      openInsertMenu(at.x, at.y);
+    },
+    [resolvedMode, invokeSlash, openInsertMenu],
+  );
+
+  // The pick lands through the EXISTING ops — insertBlockInSlot for a slot,
+  // insertBlock for a block anchor or a page append. The picker-backed kinds
+  // (figure/table/gallery) and chart route exactly as the palette routes them,
+  // so a cited insert behaves identically whichever door opened it.
+  const onInsertMenuPick = useCallback(
+    (kind: string, label: string, fragment: string) => {
+      const t = insertMenu;
+      setInsertMenu(null);
+      if (!t) return;
+      if (kind === 'chart') {
+        seedComposer(
+          'Create an SVG chart at ./assets/chart.svg, cite it in the document, showing: ',
+        );
+        return;
+      }
+      if (PICKER_KINDS.has(kind)) {
+        setCitePicker({
+          kind: kind as 'figure' | 'table' | 'gallery',
+          left: t.x,
+          top: t.y,
+          // An empty ctx blockId means "not a located caret pick" — the cite
+          // terminal falls through to the same anchor rules used here.
+          ctx: { blockId: t.blockId ?? '', beforeInner: null, afterInner: null, empty: false },
+        });
+        return;
+      }
+      if (t.slot) {
+        void applyOp(
+          (html) => insertBlockInSlot(html, fragment, t.slot as string, t.slideIndex, t.pageIndex),
+          `Studio: add ${label} block`,
+        );
+        return;
+      }
+      void applyOp(
+        (html) =>
+          insertBlock(html, fragment, {
+            blockId: t.blockId,
+            slideIndex: t.slideIndex,
+            pageIndex: t.pageIndex,
+          }),
+        `Studio: add ${label} block`,
+      );
+    },
+    [insertMenu, applyOp, seedComposer],
+  );
+
   const onSlashTaken = useCallback(
     (blockId: string, beforeInner: string | null, afterInner: string | null) => {
       const p = pendingPick.current;
@@ -2272,7 +2387,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 vocabulary={vocabulary}
                 layout={template}
                 mode={resolvedMode}
-                onInsert={invokeSlash}
+                onInsert={onInsertPressed}
                 onAddArrangement={handleAddArrangement}
                 onApplyArrangement={handleApplyArrangement}
                 planning={planning}
@@ -2466,6 +2581,26 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   onAsk={askAboutSelection}
                   onCopyLink={menuCopyBlockLink}
                   onHistory={menuHistory}
+                  // The LOCATED half of the paged mouse insert route. Opens the
+                  // same menu the toolbar opens, at the right-click point — so
+                  // the block lands where the member was already pointing. The
+                  // menu itself renders this row on `paged` only.
+                  onInsert={() => openInsertMenu(ctxMenu.x, ctxMenu.y)}
+                />
+              )}
+              {/* The native block-insert menu — the MOUSE route on `paged`,
+                  where '/' no longer exists. Two mounts open this one menu:
+                  the toolbar's Insert (discovery) and the right-click row
+                  (located). Both land through the same ops the flow palette
+                  uses, so there is one write path under all three doors. */}
+              {insertMenu && (
+                <StudioBlockInsertMenu
+                  vocabulary={vocabulary}
+                  x={insertMenu.x}
+                  y={insertMenu.y}
+                  targetLabel={insertMenu.label}
+                  onPick={onInsertMenuPick}
+                  onClose={() => setInsertMenu(null)}
                 />
               )}
             </div>

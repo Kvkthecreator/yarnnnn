@@ -89,7 +89,9 @@ def run() -> bool:
     # opener, and the opener is what posts the message. A window still bounds
     # each hop (a hop that grows past its own function is worth a look), but a
     # refactor that keeps the path honest no longer fails for its distance.
-    hop1 = re.search(r"e\.key !== '/'[\s\S]{0,800}?openSlashAtCaret\(caret\)", proj)
+    # Window widened by ADR-509: the keydown now carries the FLOW_MODE gate and
+    # the evidence for it, so the hop is longer in prose while unchanged in path.
+    hop1 = re.search(r"e\.key !== '/'[\s\S]{0,2600}?openSlashAtCaret\(caret\)", proj)
     hop2 = re.search(
         r"function openSlashAtCaret\([\s\S]{0,4000}?yarnnn-slash-open", proj
     )
@@ -145,12 +147,29 @@ def run() -> bool:
     # region a mode guard would have to appear in to gate it.
     _ins = toolbar.rfind("<button", 0, toolbar.find('/> Insert'))
     _insert_btn = toolbar[_ins : toolbar.find('/> Insert')] if _ins > 0 else ""
+    # RE-PINNED by ADR-509. The old check asserted that NO mode test touches the
+    # button — true while '/' was universal and the button was purely its door.
+    # ADR-509 made the slash flow's, so the button now forks by medium: on flow
+    # it types the '/', on paged it opens the native menu.
+    #
+    # The invariant that SURVIVES, and the one that was always the point: the
+    # button RENDERS AND ACTS IN EVERY TYPE. It is never withheld, never
+    # disabled, never conditional on the mode having resolved — only its
+    # destination differs. That is what this now asserts, plus the fork living in
+    # exactly ONE place (the surface), never smeared across the toolbar.
     _check(
-        "Insert is UNGATED by type — no mode/isPaged test on the button "
-        "(ADR-505 D4: '/' is universal, and its door inherits that)",
+        "Insert renders and acts in EVERY type — the button is never withheld",
         "onInsert" in _insert_btn
-        and "isPaged" not in _insert_btn
-        and "mode ===" not in _insert_btn,
+        # no conditional RENDER and no disabled state around the button itself
+        and "isPaged &&" not in _insert_btn
+        and "disabled" not in _insert_btn,
+    )
+    _check(
+        "the medium fork lives in the SURFACE, not the toolbar (one fork, one place)",
+        "const onInsertPressed" in surface
+        and "if (resolvedMode === 'flow') { invokeSlash(); return; }" in surface
+        # the toolbar may READ the mode for its tooltip; it must not ROUTE on it
+        and "invokeSlash()" not in toolbar,
     )
     # ADR-506 D4 — Insert sits LAST IN THE LEFT CLUSTER, not centred on the row.
     # It shipped absolutely-centred; rendered, that detached it from the controls
@@ -164,7 +183,10 @@ def run() -> bool:
     _check(
         "moving INTO the cluster took on the cluster's dismissal duty — Insert "
         "closes an open gallery (menuRef no longer counts it as 'outside')",
-        "setOpen(null);" in toolbar and "onInsert();" in toolbar,
+        # ADR-509 gave onInsert an argument (the button's own rect, so the paged
+        # menu drops from the control pressed), so the argless literal went
+        # stale. The DUTY is what matters and is unchanged: close, then act.
+        "setOpen(null);" in toolbar and "onInsert({ x:" in toolbar,
     )
     _check(
         "the slash runtime still rides EDIT_SCRIPT (injected on opts.edit alone, "
@@ -222,11 +244,22 @@ def run() -> bool:
     )
 
     # ── 3. the rows are Notion-shaped ───────────────────────────────────────
+    # RE-HOMED by ADR-509: the row markup + icon map moved OUT of the palette
+    # into `blockRows.tsx`, because the paged Insert menu renders the same rows.
+    # These checks follow the code — the invariant (every kind wears an icon
+    # resolved from its KIND, with a fallback) is unchanged and now defends BOTH
+    # doors at once instead of only the slash palette.
+    rows = (WEB / "components/studio/blockRows.tsx").read_text()
     print("\n-- the rows --")
-    _check("the palette renders an icon per row", "Icon" in palette)
+    _check("the palette renders the shared row component", "BlockRow" in palette)
+    _check("the shared row renders an icon per row", "Icon" in rows)
     _check(
         "the icon is resolved from the block KIND (the kernel ships no icon field)",
-        "SLASH_ICONS" in palette,
+        "BLOCK_ICONS[item.kind]" in rows,
+    )
+    _check(
+        "the icon map is SINGULAR — the palette no longer keeps its own copy",
+        "SLASH_ICONS" not in palette,
     )
     _check(
         "every offered kind has an icon mapped (no silent blank)",
