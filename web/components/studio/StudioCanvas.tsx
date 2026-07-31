@@ -348,12 +348,35 @@ export function StudioCanvas({
   // prefers the slide.
   const scrollPosRef = useRef<{ y: number; slide: number | null }>({ y: 0, slide: null });
 
+  // FLOW caret restore (see commandEdit). `mode` as a ref because commandEdit is
+  // a stable callback; `hadFocus` so we only ever RESTORE focus the member had,
+  // never TAKE it; `flowCaret` names the block to land in — the block the member
+  // was last working in, which the runtime reports as it points/edits. Null is
+  // fine and means "just make the root editable and focused again".
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const hadFocusRef = useRef(false);
+  const flowCaretRef = useRef<string | null>(null);
+
   const commandEdit = useCallback(() => {
     const win = iframeRef.current?.contentWindow;
     if (!win) return;
     const id = editingRef.current;
     if (id) win.postMessage({ type: 'yarnnn-edit-enter', blockId: id }, '*');
     else win.postMessage({ type: 'yarnnn-edit-exit' }, '*');
+    // FLOW: give the caret somewhere to live again. A structural op (a slash
+    // insert, a delete, a turn-into) swaps `srcDoc`, so the frame is re-parsed
+    // and focus leaves it — and on flow there is no per-block session for the
+    // branch above to restore (`editingRef` is null by ADR-480 D1), so nothing
+    // put it back. The member typed and watched the keystrokes go nowhere until
+    // they clicked into the prose again.
+    //
+    // Sends only when the member was ALREADY editing this frame (`hadFocusRef`)
+    // — opening an artifact must not steal focus from the rest of the page, and
+    // a foreign/AI write should not yank the caret to the canvas either.
+    if (!id && modeRef.current === 'flow' && hadFocusRef.current) {
+      win.postMessage({ type: 'yarnnn-flow-caret', blockId: flowCaretRef.current }, '*');
+    }
     // ADR-466 P9: restore the SELECTION too — a fresh load (optimistic-op
     // re-projection, foreign write) reset the runtime's state, so the bounding
     // box vanished the moment any gesture committed.
@@ -416,6 +439,14 @@ export function StudioCanvas({
     const handler = (e: MessageEvent) => {
       const d = e.data;
       if (!d || typeof d !== 'object') return;
+      // The member is interacting INSIDE the frame — so a caret we restore after
+      // a re-projection is one they had, not one we invented (see commandEdit).
+      // Any in-frame message proves the focus; the point/slash ones additionally
+      // name the block worth landing in.
+      if (typeof d.type === 'string' && d.type.startsWith('yarnnn-')) {
+        hadFocusRef.current = true;
+        if (typeof d.blockId === 'string') flowCaretRef.current = d.blockId;
+      }
       if (d.type === 'yarnnn-point' && typeof d.tag === 'string') {
         onPoint?.({
           tag: d.tag,

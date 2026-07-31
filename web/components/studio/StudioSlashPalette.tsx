@@ -141,6 +141,18 @@ export function StudioSlashPalette({
             <button
               key={b.kind}
               type="button"
+              // Keep the ARROW-DRIVEN highlight visible. The list scrolls at
+              // ~6 rows (max-h-72) but ships 13+ kinds, and the highlight is
+              // moved by ↓/↑ forwarded from the runtime — so without this the
+              // member could steer the selection onto a row below the fold,
+              // watch nothing move, and press Enter on a block they cannot see.
+              // `nearest` scrolls only when the row is actually out of view, so
+              // pointer-driven highlighting never yanks the list.
+              ref={
+                i === highlight
+                  ? (el) => el?.scrollIntoView({ block: 'nearest' })
+                  : undefined
+              }
               // mousedown would fire the runtime's click-away first and close us.
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => onPick(b.kind, b.label, b.fragment)}

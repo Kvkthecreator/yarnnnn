@@ -706,6 +706,27 @@ const POINTER_SCRIPT = `
     }, '*');
   });
 
+  // ── Escape reaches the PARENT's chrome (the same bridge shape as the press) ──
+  // A right-click opens the block menu in the PARENT document, but leaves focus
+  // inside this frame — so the parent's own keydown listener never hears the
+  // member's Escape, and the menu could only be dismissed with the mouse. Every
+  // conventional context menu closes on Escape.
+  //
+  // Bridged rather than handled here for the same reason the canvas-press is:
+  // the chrome lives in the parent, so the parent must decide what closes.
+  // This runtime is injected on BOTH modes, which is what makes the fix
+  // mode-independent — EDIT_SCRIPT's Escape handler (caret to block-select) is
+  // gated on a live editingEl, null on flow by design (ADR-480 D1) and null on
+  // paged after a plain right-click, so neither mode had a route.
+  //
+  // Not preventDefault'd and not stopped: this only ANNOUNCES the key. The edit
+  // runtime's own Escape still lifts the caret to block-select where it applies,
+  // and the palette's own handler still closes it first — a bridge, not a claim.
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    parent.postMessage({ type: 'yarnnn-canvas-escape' }, '*');
+  }, true);
+
   // ADR-458: the hover gutter selects THROUGH this runtime's own selection
   // state (one selection, not two) — exposed like __yarnnnEditingId.
   window.__yarnnnSelect = function (el) {
@@ -1554,6 +1575,15 @@ const EDIT_SCRIPT = `
   // happens.
   var slashStart = -1; // caret offset of the '/' within its text node
   var slashNode = null; // the text node the '/' landed in
+  // Is the palette ON SCREEN right now? Distinct from the anchor above, and the
+  // distinction is load-bearing. hideSlash() dismisses the palette but KEEPS
+  // the anchor (a pointer press may BE the pick — see the mousedown below), so
+  // after a click-away the anchor is still live while nothing is displayed.
+  // The keyboard interception below must follow the VISIBLE palette, not the
+  // anchor: guarding it on slashStart alone let a dismissed palette swallow
+  // the member's next Enter / Arrow / Escape exactly once, with no chrome on
+  // screen to explain where the keystroke went.
+  var slashOpen = false;
 
   function slashCaret() {
     var sel = window.getSelection();
@@ -1604,6 +1634,7 @@ const EDIT_SCRIPT = `
   // it is what made a click-pick a silent no-op (see the mousedown below).
   function hideSlash() {
     if (slashStart < 0) return;
+    slashOpen = false; // the palette leaves the screen; the anchor stays
     parent.postMessage({ type: 'yarnnn-slash-close' }, '*');
   }
 
@@ -1614,6 +1645,7 @@ const EDIT_SCRIPT = `
     if (slashStart < 0) return;
     slashStart = -1;
     slashNode = null;
+    slashOpen = false;
     parent.postMessage({ type: 'yarnnn-slash-close' }, '*');
   }
 
@@ -1732,6 +1764,7 @@ const EDIT_SCRIPT = `
       if (at < 0 || (node.textContent || '').charAt(at) !== '/') return;
       slashNode = node;
       slashStart = at;
+      slashOpen = true;
       parent.postMessage({ type: 'yarnnn-slash-open', blockId: id, empty: empty,
         rect: { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width } }, '*');
     }, 0);
@@ -1755,7 +1788,12 @@ const EDIT_SCRIPT = `
   // alone would still let it run and split the block we are picking into — one
   // gesture, two ops, racing on one head.
   document.addEventListener('keydown', function (e) {
-    if (slashStart < 0) return;
+    // VISIBILITY, not the anchor. These three keys are stolen from the document
+    // only while the member can SEE the palette they steer. After a click-away
+    // the anchor is deliberately still live (the press may be the pick), but the
+    // palette is gone — and a member pressing Enter to break a line is writing,
+    // not picking. Guarding on slashStart swallowed that keystroke once.
+    if (!slashOpen) return;
     if (e.key === 'Escape') {
       e.preventDefault(); e.stopImmediatePropagation();
       closeSlash();
@@ -1781,6 +1819,11 @@ const EDIT_SCRIPT = `
     if (run === null) { closeSlash(); return; }
     // A run that grows a word with a space in it is prose, not a filter.
     if (run.indexOf(' ') >= 0) { closeSlash(); return; }
+    // Only a VISIBLE palette gets re-filtered. The anchor survives a dismiss so
+    // a click-pick can still take it, but re-reporting the run would make the
+    // dismissed palette pop back open on the member's next keystroke — a menu
+    // that returns after you dismissed it reads as broken, not helpful.
+    if (!slashOpen) return;
     parent.postMessage({ type: 'yarnnn-slash-filter', filter: run }, '*');
   }, true);
 
@@ -2192,6 +2235,39 @@ const EDIT_SCRIPT = `
     if (!d || typeof d !== 'object') return;
     if (d.type === 'yarnnn-edit-enter' && typeof d.blockId === 'string') enter(d.blockId);
     else if (d.type === 'yarnnn-edit-exit') exit(false);
+    // ── Put the caret back after a structural op on FLOW ──────────────────
+    // A slash-insert (or any op) rewrites the file content, which swaps the
+    // iframe's srcDoc — the frame is destroyed and re-parsed, so the caret and
+    // the frame's focus go with it. On paged, yarnnn-edit-enter restores the
+    // per-block session; on flow editingId is null by design (ADR-480 D1), so
+    // there was nothing to restore and the member's next keystroke went nowhere
+    // until they clicked back into the prose. Every writing tool leaves the
+    // caret in the block it just inserted.
+    //
+    // Deliberately NOT part of the write path: this only moves a caret in the
+    // re-parsed DOM. It never commits, never re-enters a per-block session
+    // (which is what enter() refuses on flow at its own chokepoint), and it is
+    // a no-op when the block is gone.
+    else if (d.type === 'yarnnn-flow-caret' && FLOW_MODE) {
+      var target = typeof d.blockId === 'string'
+        ? document.querySelector('[data-block-id="' + d.blockId + '"]')
+        : null;
+      if (target) {
+        enterFlow(); // the root may be freshly re-parsed and not yet editable
+        try {
+          var fr = document.createRange();
+          fr.selectNodeContents(target);
+          fr.collapse(!!d.toStart);
+          var fs = window.getSelection();
+          fs.removeAllRanges(); fs.addRange(fr);
+          // focus() on the ROOT, not the block: the root is what carries
+          // contenteditable on flow, and focusing a child would be the nested
+          // editable ADR-482 D8 removed.
+          var froot = flowRoot();
+          if (froot && froot.focus) froot.focus({ preventScroll: true });
+        } catch (err) {}
+      }
+    }
     // ADR-506 D1 — the toolbar's Insert, routed into the ONE gesture.
     else if (d.type === 'yarnnn-slash-invoke') slashFromToolbar();
     else if (d.type === 'yarnnn-slash-take') {
@@ -2238,6 +2314,7 @@ const EDIT_SCRIPT = `
       var halves = splitHalves(host); // null host/island → parent falls back
       slashStart = -1;
       slashNode = null;
+      slashOpen = false; // the pick consumed the palette; stop stealing keys
       // Silent — the parent's op is the sole writer (the one-gesture-two-ops
       // trap). On flow there is no per-block session to leave; calling exit()
       // there would be a no-op that reads as though one were open.

@@ -190,10 +190,31 @@ def run() -> bool:
     )
     # Esc lives in the RUNTIME, not the palette: the document owns the caret
     # while the filter is typed, so the palette never sees the keystroke.
+    #
+    # RE-PINNED 2026-07-31 to `slashOpen`. The guard used to be
+    # `if (slashStart < 0) return;` — the ANCHOR, a DOM fact — and this gate
+    # pinned that spelling. But `hideSlash()` deliberately keeps the anchor
+    # through a dismiss (a pointer press may BE the pick), so after a click-away
+    # the anchor was live while nothing was on screen, and these three keys were
+    # stolen from the document exactly once: the member's next Enter produced no
+    # newline and no chrome explained where it went. The interception now follows
+    # the VISIBLE palette. Pinning the old spelling would pin the defect.
     _check(
         "Esc still dismisses (intercepted in the runtime, which has the keyboard)",
-        re.search(r"if \(slashStart < 0\) return;[\s\S]{0,200}?'Escape'[\s\S]{0,120}?closeSlash", proj)
+        re.search(r"if \(!slashOpen\) return;[\s\S]{0,200}?'Escape'[\s\S]{0,120}?closeSlash", proj)
         is not None,
+    )
+    _check(
+        "the key interception follows the VISIBLE palette, never the bare anchor",
+        # The anchor alone must not gate the keyboard steal again. Both the
+        # keydown steal and the keyup re-filter ask `slashOpen`.
+        proj.count("if (!slashOpen) return;") >= 2
+        and re.search(r"if \(slashStart < 0\) return;[\s\S]{0,200}?'Escape'", proj) is None,
+    )
+    _check(
+        "a dismiss keeps the anchor (a pointer press may BE the pick) but hides",
+        re.search(r"function hideSlash\(\)[\s\S]{0,220}?slashOpen = false", proj) is not None
+        and re.search(r"function hideSlash\(\)[\s\S]{0,220}?slashStart = -1", proj) is None,
     )
     _check(
         "a filter with no match self-dismisses (typing a URL must not strand a menu)",
@@ -285,7 +306,9 @@ def run() -> bool:
     # element in the same phase, so preventDefault alone would still let it run
     # and split the very block being picked into — two ops, one head, one loses.
     print("\n-- one gesture, one op --")
-    nav = re.search(r"if \(slashStart < 0\) return;[\s\S]{0,700}?yarnnn-slash-enter", proj)
+    # RE-PINNED 2026-07-31 alongside the Esc check above — the handler is now
+    # located by the visibility guard, not the anchor guard.
+    nav = re.search(r"if \(!slashOpen\) return;[\s\S]{0,700}?yarnnn-slash-enter", proj)
     _check("the palette's key handler is findable", bool(nav))
     if nav:
         _check(

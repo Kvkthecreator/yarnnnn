@@ -335,7 +335,14 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
 
   // ── The artifact itself (the surface owns the load; canvas projects) ───
   const [reloadKey, setReloadKey] = useState(0);
-  const { file: loadedFile, loading, notFound } = useFileLoad(artifactPath ?? '', { reloadKey });
+  // `error` is read, not discarded. useFileLoad deliberately separates a 404
+  // ("no longer at this path") from a real load failure, and Studio was throwing
+  // that distinction away: any 500 fell into the notFound branch and told the
+  // member their artifact "does not exist yet" — the most alarming possible
+  // reading of a transient server error, on a surface whose whole promise is
+  // that the record is durable.
+  const { file: loadedFile, loading, notFound, error: loadError } =
+    useFileLoad(artifactPath ?? '', { reloadKey });
 
   // ── Invisible save (the local CAS-base override) ──────────────────────────
   // A member's own edit lands as a revision, but the canvas ALREADY shows the
@@ -2325,6 +2332,23 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
           {loading ? (
             <div className="flex flex-1 items-center justify-center text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          ) : loadError && !file ? (
+            /* A real failure says so, and offers the retry — never "it doesn't
+               exist", which reads as data loss. reloadKey is the same refetch
+               the 409 path uses. */
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Couldn’t load {relPath(artifactPath)}. The artifact is still there — the
+                request failed.
+              </p>
+              <button
+                type="button"
+                onClick={() => setReloadKey((k) => k + 1)}
+                className="rounded border border-border px-2.5 py-1 text-xs hover:bg-accent"
+              >
+                Try again
+              </button>
             </div>
           ) : notFound || !file ? (
             <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">

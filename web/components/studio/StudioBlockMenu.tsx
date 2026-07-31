@@ -20,7 +20,7 @@
  * behaviour and its visual conventions, and nothing else.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Copy, ClipboardPaste, CopyPlus, Trash2, Type,
   ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, ChevronRight, MessageSquare, Sparkles, SearchCheck, Link2, History,
@@ -136,23 +136,37 @@ export function StudioBlockMenu({
   // SANDBOXED IFRAME, so a click on the artifact fires in the frame's own
   // document and these parent listeners never hear it. The canvas's point
   // message closes the menu for that case (StudioSurface.onPoint) — these
-  // cover the parent chrome (rails, panels, toolbar) plus Escape, a second
-  // right-click elsewhere, and any scroll (a menu anchored to a point is a lie
-  // once the point moves).
+  // cover the parent chrome (rails, panels, toolbar), a second right-click
+  // elsewhere, and any scroll (a menu anchored to a point is a lie once the
+  // point moves).
+  //
+  // ESCAPE IS THE SAME BLIND SPOT, and the parent-window listener below did NOT
+  // cover it despite this comment once claiming so: a right-click leaves focus
+  // INSIDE the frame, so the member's Escape fires in the frame's document and
+  // `window.addEventListener('keydown', …)` here never runs. The menu could only
+  // be dismissed with the mouse. The runtime now bridges the key out as
+  // `yarnnn-canvas-escape` (the `yarnnn-canvas-press` shape); both routes are
+  // kept because focus may legitimately be on either side — the parent listener
+  // still serves a menu opened while focus is in the parent chrome.
   useEffect(() => {
     const close = () => onClose();
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onFrameKey = (e: MessageEvent) => {
+      if ((e.data as { type?: string } | null)?.type === 'yarnnn-canvas-escape') onClose();
+    };
     window.addEventListener('click', close);
     window.addEventListener('contextmenu', close);
     window.addEventListener('resize', close);
     window.addEventListener('scroll', close, true); // capture: any scroller
     window.addEventListener('keydown', onKey);
+    window.addEventListener('message', onFrameKey);
     return () => {
       window.removeEventListener('click', close);
       window.removeEventListener('contextmenu', close);
       window.removeEventListener('resize', close);
       window.removeEventListener('scroll', close, true);
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('message', onFrameKey);
     };
   }, [onClose]);
 
@@ -178,8 +192,35 @@ export function StudioBlockMenu({
 
   // The canvas is an iframe: its coordinates are frame-local. The caller passes
   // them already mapped to the page.
-  const left = typeof window !== 'undefined' ? Math.min(target.x, window.innerWidth - 250) : target.x;
-  const top = typeof window !== 'undefined' ? Math.min(target.y, window.innerHeight - 330) : target.y;
+  //
+  // The vertical clamp is MEASURED, not assumed. It used to be a static
+  // `innerHeight - 330`, a guess at the COLLAPSED height — but "Turn into"
+  // expands its targets INLINE, inside this same box (up to 7 rows for a prose
+  // block ≈ +170px). Nothing re-clamped on expansion and the box has no
+  // max-height, so a right-click in the lower third of the window pushed the
+  // expanded rows below the viewport, unreachable and unscrollable. Measuring
+  // the real box and re-running when `turnOpen` changes keeps the whole menu on
+  // screen at whatever height it actually is.
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const [clamped, setClamped] = useState<{ left: number; top: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    const MARGIN = 8; // never flush against the edge
+    setClamped({
+      left: Math.max(MARGIN, Math.min(target.x, window.innerWidth - width - MARGIN)),
+      top: Math.max(MARGIN, Math.min(target.y, window.innerHeight - height - MARGIN)),
+    });
+  }, [target.x, target.y, turnOpen, turnIntoKinds.length]);
+
+  // First paint uses the raw point (with the old conservative guard) so the menu
+  // never flashes at 0,0; the layout effect corrects it before the browser
+  // paints, then again whenever the submenu changes the height.
+  const left = clamped?.left
+    ?? (typeof window !== 'undefined' ? Math.min(target.x, window.innerWidth - 250) : target.x);
+  const top = clamped?.top
+    ?? (typeof window !== 'undefined' ? Math.min(target.y, window.innerHeight - 330) : target.y);
 
   // ADR-482 D9: no block and nothing to paste = no menu. Every row is gated, so
   // this state would otherwise paint an empty bordered box — chrome that
@@ -189,7 +230,8 @@ export function StudioBlockMenu({
 
   return (
     <div
-      className="fixed z-50 min-w-[228px] rounded-md border border-border bg-popover py-1 shadow-md"
+      ref={boxRef}
+      className="fixed z-50 max-h-[calc(100vh-16px)] min-w-[228px] overflow-y-auto rounded-md border border-border bg-popover py-1 shadow-md"
       style={{ left, top }}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
