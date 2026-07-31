@@ -36,6 +36,14 @@ class OwnerGrantImmutable(PermissionError):
     """Raised when a lifecycle verb targets the owner grant (ADR-386 D4)."""
 
 
+class ScopeEscalation(PermissionError):
+    """Raised when `narrow` is asked to WIDEN a grant's reachable set.
+
+    The verb only tightens. Distinct from OwnerGrantImmutable: that guards the
+    TARGET (the owner grant), this guards the DIRECTION of the change.
+    """
+
+
 def _svc():
     from services.supabase import get_service_client
     return get_service_client()
@@ -433,6 +441,44 @@ def narrow_grant(
 
     # read ⊇ write default: unspecified read axis mirrors write.
     effective_read = write_scopes if read_scopes is _UNSET else read_scopes
+
+    # NARROW MEANS NARROW (2026-07-31). The verb only ever tightens: the new set
+    # must be a subset of what the grant can reach TODAY. Without this the
+    # endpoint's name is a lie — it wrote whatever list it was handed, so
+    # "narrow" was a general-purpose grant rewriter and could WIDEN.
+    #
+    # Defense in depth, not the primary gate: the route is owner-only, so this
+    # bounds what even an OWNER may do through this verb. Widening is a
+    # different act and needs its own deliberate path.
+    #
+    # NULL polarity matters — NULL is "class default" (a NON-empty reachable
+    # set), not "nothing". Compare against the resolved class default so a
+    # NULL -> ['governance/'] transition is correctly seen as widening.
+    from services.principals import class_default_write_regions
+
+    def _ceiling(current: Any, role: str) -> set[str]:
+        return set(current) if current is not None else set(class_default_write_regions(role))
+
+    def _within(proposed: Optional[list[str]], ceiling: set[str], axis: str) -> None:
+        if proposed is None:  # back to class default is always a valid move
+            return
+        escalated = {
+            p for p in proposed
+            if not any(p == c or p.startswith(c) for c in ceiling)
+        }
+        if escalated:
+            raise ScopeEscalation(
+                f"narrow cannot widen the {axis} axis: "
+                f"{sorted(escalated)} is outside the current set {sorted(ceiling)}"
+            )
+
+    role = grant.get("role") or "member"
+    _within(write_scopes, _ceiling(grant.get("write_scopes"), role), "write")
+    _within(
+        None if read_scopes is _UNSET else effective_read,
+        _ceiling(grant.get("read_scopes"), role),
+        "read",
+    )
 
     updated = (
         _svc()

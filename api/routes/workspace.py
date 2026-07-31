@@ -1478,8 +1478,14 @@ async def narrow_member(principal_id: str, body: NarrowMemberRequest, auth: User
     writes but not reads). `scopes: []` is a deliberate DENY-ALL (the member may
     touch nothing); `scopes: ['operation/', ...]` narrows to those roots. The
     owner grant is immutable (403)."""
-    from services.principal_grants import narrow_grant, OwnerGrantImmutable, _UNSET
-    workspace_id = _resolve_caller_workspace(auth)
+    from services.principal_grants import (
+        narrow_grant, OwnerGrantImmutable, ScopeEscalation, _UNSET,
+    )
+    # Owner-only: narrowing is a GOVERNANCE verb. `OwnerGrantImmutable` below
+    # protects the TARGET from being the owner; it says nothing about the
+    # CALLER, so without this gate any member could rewrite any grant —
+    # including their own, widening it (2026-07-31 finding).
+    workspace_id = _require_owner_workspace(auth, "change a member's access")
     # write axis: prefer the powerbox field, fall back to the legacy `scopes`.
     write_scopes = body.write_scopes if body.write_scopes is not None else body.scopes
     if write_scopes is None:
@@ -1491,6 +1497,9 @@ async def narrow_member(principal_id: str, body: NarrowMemberRequest, auth: User
         narrow_grant(principal_id, workspace_id, write_scopes, body.connected_by, read_scopes=read_arg)
     except OwnerGrantImmutable:
         raise HTTPException(status_code=403, detail="the owner grant cannot be narrowed")
+    except ScopeEscalation as se:
+        # 403, not 422: this is an authority refusal, not a malformed body.
+        raise HTTPException(status_code=403, detail=str(se))
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:
@@ -1519,7 +1528,8 @@ async def revoke_member(
     from services.principal_grants import (
         evict_principal, cascade_member_ai_connections, OwnerGrantImmutable,
     )
-    workspace_id = _resolve_caller_workspace(auth)
+    # Owner-only: eviction is a GOVERNANCE verb (see narrow above).
+    workspace_id = _require_owner_workspace(auth, "revoke a member")
     try:
         result = evict_principal(principal_id, workspace_id, connected_by)
     except OwnerGrantImmutable:
@@ -1623,14 +1633,29 @@ class InviteAcceptResponse(BaseModel):
     role: str
 
 
-def _require_owner_workspace(auth: UserClient) -> str:
-    """The invite-manage verbs are owner-only (members can't invite members)."""
+def _require_owner_workspace(auth: UserClient, verb: str = "manage invites") -> str:
+    """Owner-gate for every GOVERNANCE verb (members can't govern members).
+
+    Governance = anything that mutates WHO may act or HOW FAR they may act:
+    invite / revoke-invite / narrow / revoke / spend-cap. Membership alone is
+    NOT authority — `_resolve_caller_workspace` answers "which workspace is this
+    caller in", never "may this caller govern it".
+
+    2026-07-31: `narrow` and `revoke` resolved the workspace with the bare
+    `_resolve_caller_workspace` and so accepted ANY member as a governor. A
+    member called `/narrow` against their OWN principal_id and added
+    `governance/` to their own write_scopes; the server returned 200 and the
+    grant row changed. Receipted on production against the rig workspace —
+    see docs/evaluations/findings/2026-07-31-member-can-widen-own-grant.md.
+    The `verb` arg exists so the refusal names the actual verb rather than
+    always saying "manage invites".
+    """
     from services.workspace_invites import workspace_owner_id
     workspace_id = _resolve_caller_workspace(auth)
     if not workspace_id:
         raise HTTPException(status_code=404, detail="No workspace")
     if workspace_owner_id(workspace_id) != auth.user_id:
-        raise HTTPException(status_code=403, detail="Only the workspace owner can manage invites")
+        raise HTTPException(status_code=403, detail=f"Only the workspace owner can {verb}")
     return workspace_id
 
 

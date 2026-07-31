@@ -2,7 +2,8 @@
 
 **Severity**: HIGH — privilege escalation. A member elevates their own write
 ceiling to any region, including `governance/`, with no owner involvement.
-**Status**: OPEN. Receipted on production against the rig workspace.
+**Status**: FIXED 2026-07-31 (see "Fix landed" below). Receipted on production
+against the rig workspace BEFORE the fix; the escalation reproduced live.
 **Found by**: the settings-surfaces click-pass (browser lane), step
 `member-cannot-narrow-or-revoke-server-side` — the ADR-501 step, doing exactly
 the job it was written for.
@@ -120,6 +121,60 @@ and stopped there deliberately.
 ## Scope limit (what this finding does NOT claim)
 
 It is **not** established that the escalated member could then write a
-`governance/` file. The pass stopped at the grant mutation and restored. The
-write-path consequence is the obvious follow-up probe and should be run before
-the fix, so the blast radius is documented rather than assumed.
+`governance/` file. The pass stopped at the grant mutation and restored.
+
+**This probe remains OWED and was NOT run.** The attempt to re-establish an
+escalated member session for it was refused by tooling policy (re-authenticating
+a principal specifically to demonstrate an escalation), and that refusal was not
+worked around. The blast radius past the grant layer is therefore *assumed, not
+measured*. It should be measured on a rig before this finding is considered
+fully closed — the fix does not depend on it, but the severity rating does.
+
+## Fix landed (2026-07-31)
+
+**`api/routes/workspace.py`**
+- `narrow_member` and `revoke_member` now call
+  `_require_owner_workspace(auth, verb)` instead of the bare
+  `_resolve_caller_workspace`. The helper gained a `verb` arg so the 403 names
+  the actual verb rather than always saying "manage invites".
+- `narrow_member` translates the new `ScopeEscalation` to **403** (an authority
+  refusal), not 422 — it is not a malformed body.
+
+**`api/services/principal_grants.py`**
+- New `ScopeEscalation(PermissionError)`, distinct from `OwnerGrantImmutable`:
+  that guards the TARGET, this guards the DIRECTION of the change.
+- `narrow_grant` enforces the subset invariant its name promises — the proposed
+  set must be reachable within the grant's current set. Defense in depth behind
+  the owner gate: an owner-only verb that can still widen is a footgun.
+- NULL polarity is handled explicitly: NULL means CLASS DEFAULT (a non-empty
+  reachable set), not "nothing". Resolved via `class_default_write_regions(role)`
+  so `NULL -> ['governance/']` is correctly read as widening. Getting this
+  wrong would have made the whole check a no-op for exactly the observed attack.
+
+**`api/test_governance_verbs_are_owner_gated.py`** (new)
+- PER-SITE assertions over 5 enumerated governance verbs — not a count. A
+  counting gate passes when a new route is added unguarded as long as some
+  other route gains a call.
+- A COMPLETENESS assert that fails when any new mutating `/workspace/members/*`
+  or `/workspace/invites/*` route appears unclassified. It earned its keep
+  immediately: it caught two routes whose real paths differed from what this
+  finding's author assumed (`/cap`, not `/spend-cap`; plus
+  `/workspace/invites/{invite_id}/revoke`). Both were already correctly gated.
+- `NON_GOVERNANCE_EXEMPT` carries `/workspace/invites/accept` with its reason
+  (the invitee accepts their own invite; authority is the token + email
+  binding).
+
+**Falsified three ways**, each restored after:
+1. Reverted `narrow` to the bare resolver → failed, naming the exact route.
+2. Removed the subset check → `test_narrow_cannot_widen` failed.
+3. Added a new unguarded `/workspace/members/{id}/promote` route → the
+   completeness assert failed. This is the case a counting gate misses.
+
+**Runtime-verified** (AST gates check text, not behavior) across six cases:
+`NULL -> [governance/]` refused; `NULL -> [operation/]` allowed;
+`[operation/] -> [operation/marketing/]` allowed; `[operation/] -> [governance/]`
+refused; `[operation/] -> []` (deny-all) allowed; `NULL -> None` allowed.
+
+Regression check: `test_adr386_member_lifecycle`, `test_adr404_member_invites`,
+`test_adr431_connecting_member`, `test_adr445_member_caps_scope`,
+`test_adr373_*` — all green.
