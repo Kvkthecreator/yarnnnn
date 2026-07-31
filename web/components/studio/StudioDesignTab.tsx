@@ -387,9 +387,28 @@ function FaceTokenSelect({
   );
 }
 
-/** A palette-backed token (tone / the D2 variant) as a visual select — the
- *  swatch is the applied system's RESOLVED value; a slashed dot is Auto. */
-function ColorTokenSelect({
+/** A palette-backed token as a LAID-OUT SWATCH ROW rather than a dropdown —
+ *  the colour half of the shaping pair, sitting directly under Typography.
+ *
+ *  Why a row and not the select: a colour choice is the one control whose whole
+ *  content is visible at a glance, so hiding N swatches behind a trigger costs a
+ *  click to see what the select could have shown outright. Typography cannot do
+ *  this (nine rungs, each needing its name and size to be legible), which is why
+ *  the two controls differ in shape while sharing a scope — the shape follows
+ *  what the choice IS, the same reasoning ADR-487 D3 v2 used to make Typography
+ *  a preview-select instead of a chip row.
+ *
+ *  ADR-487 D9 SAFETY — this is the APPLIED register, so it may only show slots
+ *  that are a CHOICE. It renders `token.values` (the served, member-actable
+ *  values) and nothing else: never the kernel vocabulary, never --paper /
+ *  --ink-06 / --deck-stage, which D9 named member-invisible identity and deleted
+ *  from the artifact side precisely because showing them is an anti-affordance.
+ *  Every swatch here is a value the member can pick; Auto is the absence.
+ *
+ *  The values are the applied system's RESOLVED colours (`swatches`), so the row
+ *  answers "what will this do when I pick it?" in the resolved value — D3 v2's
+ *  rule, which is why nothing here is a raw hex the member must decode. */
+function ColorTokenSwatches({
   token,
   current,
   swatches,
@@ -400,45 +419,57 @@ function ColorTokenSelect({
   swatches: Record<string, string>;
   onSet: (value: string | null) => void;
 }) {
-  const dot = (color: string | null) => (
-    <span
-      className="h-3.5 w-3.5 shrink-0 rounded-full border border-black/10"
-      style={
-        color
-          ? { background: color }
-          : {
-              backgroundImage:
-                'linear-gradient(135deg, transparent 45%, #bbb 45%, #bbb 55%, transparent 55%)',
-            }
-      }
-    />
+  const swatch = (color: string | null, active: boolean, label: string, onClick: () => void) => (
+    <button
+      key={label}
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      className={`flex h-7 w-7 items-center justify-center rounded-full border transition ${
+        active
+          ? 'border-foreground ring-2 ring-foreground/20'
+          : 'border-black/10 hover:border-foreground/40'
+      }`}
+    >
+      <span
+        className="h-4 w-4 rounded-full"
+        style={
+          color
+            ? { background: color }
+            : {
+                // Auto = the absence of a choice, drawn as the slashed dot the
+                // select already uses, so one idea keeps one glyph.
+                backgroundImage:
+                  'linear-gradient(135deg, transparent 45%, #bbb 45%, #bbb 55%, transparent 55%)',
+              }
+        }
+      />
+    </button>
   );
   const cur = token.values.find((v) => v.value === current) ?? null;
   return (
-    <StyleSelect
-      label={token.label}
-      description={token.description}
-      current={{
-        preview: dot(current ? swatches[current] ?? null : null),
-        label: cur?.label ?? 'Auto',
-      }}
-      options={[
-        {
-          key: '__auto',
-          preview: dot(null),
-          label: 'Auto',
-          active: current == null,
-          onPick: () => onSet(null),
-        },
-        ...token.values.map((v) => ({
-          key: v.value,
-          preview: dot(swatches[v.value] ?? null),
-          label: v.label,
-          active: current === v.value,
-          onPick: () => onSet(current === v.value ? null : v.value),
-        })),
-      ]}
-    />
+    <div>
+      <div className="flex items-baseline justify-between gap-2">
+        <p className={HEADING}>{token.label}</p>
+        {/* The resolved choice is NAMED, not only shown: a swatch alone cannot
+            say "accent", and the role is the thing the member is choosing
+            (ADR-487 D3 — every control names a role, never a raw value). */}
+        <span className="text-[10px] text-muted-foreground">{cur?.label ?? 'Auto'}</span>
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {swatch(null, current == null, 'Auto', () => onSet(null))}
+        {token.values.map((v) =>
+          swatch(swatches[v.value] ?? null, current === v.value, v.label, () =>
+            onSet(current === v.value ? null : v.value),
+          ),
+        )}
+      </div>
+      {token.description && (
+        <p className="mt-1 text-[10px] leading-snug text-muted-foreground">{token.description}</p>
+      )}
+    </div>
   );
 }
 
@@ -667,6 +698,7 @@ export function StudioDesignTab({
     return [];
   }, [scope, tokens, mediaKinds, selection, selectedEl, arrangements, layout]);
 
+
   // ── Document scope: root-grain tokens (ADR-455) + the design-system
   // picker (ADR-449 D5 homed) ──────────────────────────────────────────────
   const root = doc?.documentElement ?? null;
@@ -793,6 +825,24 @@ export function StudioDesignTab({
       },
     }),
     [skinMap],
+  );
+
+  // The palette-backed subset, split out so BLOCK scope can lift colour up
+  // beside Typography (the two shaping questions a member asks in sequence
+  // belong adjacent) while every other token keeps its existing home. A token is
+  // palette-backed iff resolved swatches exist for it — DERIVED, never a
+  // hard-coded key list, so a new palette token joins by supplying swatches
+  // rather than by editing this condition.
+  const colorTokens = useMemo(
+    () => (scope === 'block' ? applicable.filter((t) => !!tokenSwatches[t.key]) : []),
+    [scope, applicable, tokenSwatches],
+  );
+  // ...and its complement, so each token renders EXACTLY ONCE. Lifting without
+  // this would leave the control mounted twice in one panel — the duplicate-mount
+  // defect ADR-466 P12 and ADR-505 D5 each had to delete.
+  const nonColorTokens = useMemo(
+    () => (scope === 'block' ? applicable.filter((t) => !tokenSwatches[t.key]) : applicable),
+    [scope, applicable, tokenSwatches],
   );
 
   // ADR-487 D3 v2 — the Typography previews derive from the ARTIFACT'S OWN
@@ -1215,9 +1265,14 @@ export function StudioDesignTab({
           </div>
           {applicable.length > 0 && (
             <div className={SECTION}>
+              {/* Page scope uses the SAME swatch row as block scope. One idea,
+                  one presentation: leaving the dropdown here would put two
+                  shapes of "pick a colour" in one panel two scopes apart —
+                  precisely the drift ADR-487 D9 named when one word
+                  ("Typography") had two presentations in one scroll. */}
               {applicable.map((t) =>
                 tokenSwatches[t.key] ? (
-                  <ColorTokenSelect
+                  <ColorTokenSwatches
                     key={t.key}
                     token={t}
                     current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
@@ -1421,6 +1476,28 @@ export function StudioDesignTab({
                 </div>
               );
             })()}
+          {/* COLOUR sits directly under TYPOGRAPHY — the two shaping questions a
+              member asks in sequence ("how big / what role", then "what colour"),
+              so they belong adjacent rather than separated by the structural
+              verbs. Rendered as a laid-out SWATCH ROW: unlike the type ramp,
+              a palette's whole content is legible at a glance, so a dropdown
+              would hide behind a click exactly what it could have shown.
+              Palette-backed tokens are lifted here; every other token keeps its
+              existing home below, so this is a RELOCATION of one control, not a
+              second mount of it. */}
+          {colorTokens.length > 0 && (
+            <div className={SECTION}>
+              {colorTokens.map((t) => (
+                <ColorTokenSwatches
+                  key={t.key}
+                  token={t}
+                  current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
+                  swatches={tokenSwatches[t.key]}
+                  onSet={(v) => onSetToken('block', t.key, v)}
+                />
+              ))}
+            </div>
+          )}
           {/* Turn into (ADR-456 W2) — the id and tokens survive the conversion
               (a block with a citation refuses). On ramp blocks (prose/heading)
               the Typography select above OWNS the ramp, so this list carries
@@ -1454,40 +1531,41 @@ export function StudioDesignTab({
               </div>
             </div>
           )}
-          {applicable.length > 0 && (
+          {/* The remaining block tokens. Palette-backed ones are NOT here — they
+              were lifted to the swatch row under Typography, and `nonColorTokens`
+              is their complement, so every token still renders exactly once. */}
+          {nonColorTokens.length > 0 && (
             <div className={SECTION}>
-              {applicable.map((t) =>
-                tokenSwatches[t.key] ? (
-                  <ColorTokenSelect
-                    key={t.key}
-                    token={t}
-                    current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
-                    swatches={tokenSwatches[t.key]}
-                    onSet={(v) => onSetToken('block', t.key, v)}
-                  />
-                ) : (
-                  <TokenControl
-                    key={t.key}
-                    token={t}
-                    current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
-                    onSet={(v) => onSetToken('block', t.key, v)}
-                  />
-                ),
-              )}
-              {/* ADR-487 D9 — the block scope's route OUT. The controls above
-                  are painted in the system's values and the Typography
-                  description says "themed by the design system", but this scope
-                  named no system and offered no way to reach one: the member
-                  had to deselect, then find the picker row. Same one line, same
-                  component, as document scope. */}
-              {appliedSystem && (
-                <AppliedSystemCue
-                  name={appliedSystem.name}
-                  manifestPath={appliedSystem.manifest_path}
-                  onOpen={onOpenSystem}
-                  note="supplies these values."
+              {nonColorTokens.map((t) => (
+                <TokenControl
+                  key={t.key}
+                  token={t}
+                  current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
+                  onSet={(v) => onSetToken('block', t.key, v)}
                 />
-              )}
+              ))}
+            </div>
+          )}
+          {/* ADR-487 D9 — the block scope's route OUT. The controls above are
+              painted in the system's values and the Typography description says
+              "themed by the design system", but this scope named no system and
+              offered no way to reach one: the member had to deselect, then find
+              the picker row. Same one line, same component, as document scope.
+
+              ⭐ Its own section, gated on the SYSTEM rather than on a token list.
+              It used to live inside the token section, and splitting colour out
+              would have stranded it: a block whose only tokens are palette-backed
+              (the common case — a callout has tone + variant) would render an
+              empty complement, drop the section, and silently lose the route out
+              that D9 exists to provide. */}
+          {appliedSystem && (
+            <div className={SECTION}>
+              <AppliedSystemCue
+                name={appliedSystem.name}
+                manifestPath={appliedSystem.manifest_path}
+                onOpen={onOpenSystem}
+                note="supplies these values."
+              />
             </div>
           )}
           {/* ADR-485 follow-on — the SIZE read-back. A drag on the canvas
