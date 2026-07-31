@@ -35,11 +35,10 @@ Ratified ADR-414 D1. Unchanged through both locks. Never used as the product sen
 > # your true AI-first workspace.
 > # co-work like never before.
 
-**Subhead — working canon (re-cut in v2 around ease + share):**
+**Subhead — working canon (re-cut in v2 around ease + share; compressed 2026-07-31 by operator re-cut — the "connect, co-work, share with a link" middle clause came out as wordiness; the three deliberate moves below all survive):**
 
-> One shared workspace for you, your people, and the AI you already use.
-> Nothing to set up — connect, co-work on shared files and documents, share with a link.
-> And every change signed by whoever made it, human or not.
+> One workspace for you, your people, and the AI you already use.
+> Nothing to set up — and every change signed by whoever made it, human or not.
 
 Three deliberate moves: (1) **the three model names leave the hero** — *"the AI you already use"* does the out-of-box work better and stops spending the most expensive copy real estate on three competitor brands; the names move to the connector chips directly under the CTA, where the engine rule still permits them. (2) **"Nothing to set up" enters as a claim, and it is ledger-true today** — no wizard, no constitution, no program pick, no first-task ceremony (ADR-437 D1, ADR-414 D4 pure genesis — deleted, not hidden). It is guarded by falsifier 5 (§8). (3) **The signed clause is untouched and non-optional** — it remains the one line no competitor can write truthfully, and the mechanism the *"AI-first"* capability adjective requires in the same visual field.
 
@@ -65,14 +64,16 @@ Made with AI. Lost in the chat.                          ← hook
   your true AI-first workspace.                          ← headline
   co-work like never before.
 
-One shared workspace for you, your people, and the       ← subhead
-AI you already use. Nothing to set up — connect,
-co-work on shared files and documents, share with
-a link. And every change signed by whoever made it,
+One workspace for you, your people, and the              ← subhead
+AI you already use. Nothing to set up — and
+every change signed by whoever made it,
 human or not.
 
-[ Co-work with the AI you already use → ]                ← CTA (lead door)
-  ChatGPT · Claude · Gemini                              ← connector chips
+[ Connect your AI → ]                                    ← CTA (lead door; label
+  ChatGPT · Claude · Gemini                              ← connector chips   tersened 07-31 — the chips
+                                                           carry "which AIs"; the full
+                                                           sentence remains the channel's
+                                                           name in §4.2)
 
 …below the fold, at the conversion point:
 "I'm the human clipboard between my AI and my team."     ← recognition
@@ -178,7 +179,7 @@ Metric: **time-to-first-co-work-moment**, readable from the existing ledger with
 
 ### 4.2 Two channels only (unchanged)
 
-**Channel 1 — cold discovery. LEAD DOOR: connect your AI first.** Primary CTA: **"Co-work with the AI you already use."** The second principal exists before the member has authored anything; the first thing they see at the desk is a write they didn't make, signed by something that isn't them.
+**Channel 1 — cold discovery. LEAD DOOR: connect your AI first.** Primary CTA: **"Co-work with the AI you already use"** is the channel's canonical sentence; the rendered button label is the terse **"Connect your AI"** (07-31 operator re-cut — a CTA is a button, not a subhead; the connector chips beneath it carry the "which AIs" work). The second principal exists before the member has authored anything; the first thing they see at the desk is a write they didn't make, signed by something that isn't them.
 
 **Channel 2 — invited / shared.** `/s/{token}` → member grant → land on the shared artifact with `trace` visible, inside a populated commons (shipped — ADR-437 Phase D, ADR-465).
 
