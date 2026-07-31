@@ -1,0 +1,264 @@
+eval_suite_schema_version: 3
+eval_suite: settings-surfaces-click-pass
+
+# CURRENT (browser lane) — the first production sign-off pass for the two
+# settings doors. Registered 2026-07-31; machine-checked by
+# api/test_eval_suite_gate.py::test_browser_manifests_declare_a_receipt_for_every_mutating_step.
+#
+# NOTE ON THE LANE: `suite_kind: browser` is NOT fired by run_eval_suite.py
+# (VALID_SUITE_KINDS = {"thesis"}; the separation is gate-asserted). The firing
+# instrument is a BROWSER PRINCIPAL — Claude in Chrome, or the operator driving
+# Claude desktop from docs/evaluations/OPERATOR-PACKET-settings-click-pass.md.
+# The DOM half is observed in the browser; the SUBSTRATE half is verified
+# against the DB. Neither half closes a step alone.
+status: current
+suite_kind: browser
+
+thesis: |
+  The two settings doors — /workspace-settings (the operation: Access, Billing,
+  Usage, Autonomy, Danger Zone) and /settings (the account: Account, Connectors)
+  — are production-ready for a MULTI-PRINCIPAL workspace: every pane renders the
+  data that principal is entitled to, every verb writes what it claims, and
+  every affordance a member must not have is refused SERVER-SIDE, not merely
+  hidden.
+
+  The thesis is FOUR-SIDED — all must hold:
+
+  1. RENDER HALF. Each pane loads for both principals without error, and shows
+     principal-correct data: the owner sees the full roster + billing controls;
+     the member sees the workspace they belong to, with no raw wallet dollars
+     (ADR-503 — the wallet follows the grant, not the viewer).
+
+  2. WRITE HALF. Every mutating verb exercised produces the substrate change it
+     claims — a grant row transition, a member_state row, a retention value —
+     observable in the DB, not merely a toast in the UI.
+
+  3. CEILING HALF (the ADR-501 lesson, and the reason this suite exists). A
+     member's write ceiling is enforced at the SERVER. The pre-ADR-501 defect
+     was a display-only ceiling: the gate keyed on the TRANSPORT string
+     (`caller_identity` = "operator" for EVERY human browser session), so a
+     member's declared agent-class ceiling never bound. The fix
+     (services/primitives/workspace.py::_is_path_locked_for_principal) derives
+     the class from the GRANT'S ROLE when the write axis is NULL. This suite
+     reads whether that holds through a REAL member browser session — the half
+     no unit gate can see. PASS: the member's forbidden verb is refused with a
+     403 at the door AND leaves no substrate change. FAIL: it succeeds, or it
+     is merely absent from the DOM while the endpoint still accepts it.
+
+  4. GATE-COVERAGE HALF. GrantGate (ADR-412 D3) is the FE legibility layer.
+     Its coverage today is ONE region (Autonomy → governance/). Every other
+     governance-adjacent pane gates by other means (a `readOnly` prop, a 403
+     catch, a `can_clear` verdict) or not at all. This suite records which
+     panes present a member with an affordance whose refusal only becomes
+     visible AFTER the click — a legibility defect even where enforcement is
+     sound.
+
+  Single-variable per step: the same workspace (d5b9029b), the same pane, the
+  only variable is WHICH PRINCIPAL is logged in. That isolates grant-derived
+  behavior from surface behavior.
+
+description: |
+  The first production sign-off for the settings surfaces. Answers the
+  operator's question: "if I invite someone into my workspace tomorrow, do the
+  settings doors behave — and can they break or see something they shouldn't?"
+
+  Run as the OWNER/MEMBER pair on the live workspace (read-mostly). Destructive
+  verbs (revoke, purge, DangerZone) run on RIG workspaces only. Billing stops
+  at the LemonSqueezy handoff — no real payment is ever completed.
+
+# The instrument is the pair, not a persona workspace. `principals` names the
+# logged-in browser identities, NOT docs/alpha/personas.yaml slugs (browser
+# suites have no persona field — they are not fired by the LLM runner).
+principals:
+  - owner:kvkthecreator@gmail.com     # 2abf3f96-118b-4987-9d95-40f2d9be9a18, owner of d5b9029b
+  - member:seulkim88@gmail.com        # 2be30ac5-b3cf-46b1-aeb8-af39cd351af4, ACTIVE member grant on d5b9029b
+
+workspace: d5b9029b-bd4e-4757-9fcb-e2b139fd4913   # live — READ-MOSTLY
+
+guardrails: |
+  - d5b9029b is LIVE substrate. Read-mostly. Any deliberate write must be
+    reversible and restored in-session (each mutating step declares `restore:`).
+  - NEVER revoke seulkim88's member grant on d5b9029b — it is the standing test
+    instrument. Revoke/narrow verbs are exercised on a RIG pairing only.
+  - DangerZone / purge verbs: rig workspaces ONLY (bf5b25a9), never d5b9029b.
+  - Billing: STOP at the LemonSqueezy handoff. Record the redirect URL as the
+    boundary receipt. No real payment, ever.
+  - Real externals (s.colopy@ccgrhc.com, b.tharalson@gmail.com) are NEVER
+    subjects and are never invited, narrowed, or revoked.
+
+# KNOWN-DEFERRED — recorded, NOT sign-off failures (per the session brief).
+known_deferred:
+  - ADR-382 roster dial rows (open per the ADR-490/491 pricing re-cut)
+  - ADR-495 "you were added" notification (deferred by design)
+
+steps:
+  # ---------------------------------------------------------------- RENDER
+  - step: owner-renders-all-workspace-panes
+    principal: owner
+    surface: /workspace-settings
+    action: |
+      Visit each pane via the left nav: Access (members), Billing, Usage,
+      Autonomy, Danger Zone (the ?workspace-settings.pane= param).
+    expect_dom: |
+      All five panes render without an error state. Access lists BOTH the owner
+      and seulkim88 (member) under "People", plus any AI connections under
+      "AI connections". Billing shows the plan + balance. Usage shows the
+      spend-by-principal breakdown. Danger Zone shows both clear cards ENABLED.
+    mutates: false
+
+  - step: member-renders-workspace-panes
+    principal: member
+    surface: /workspace-settings
+    action: Same five panes, logged in as seulkim88.
+    expect_dom: |
+      Panes render without a crash or blank body. RECORD PRECISELY, per pane:
+      which controls are visible, which are disabled, which are absent. Danger
+      Zone's clear buttons must be DISABLED with the "Only the workspace owner
+      can clear shared content." copy (the can_clear verdict).
+    mutates: false
+
+  - step: member-billing-shows-no-raw-wallet
+    principal: member
+    surface: /workspace-settings?workspace-settings.pane=billing
+    action: Open Billing, then Usage, as the member.
+    expect_dom: |
+      ADR-503 (wallet follows the grant): the member must NOT see the owner's
+      raw balance/top-up controls as if they were their own wallet. Capture
+      what IS shown. A 403-derived read-only state is a PASS; a fully
+      functional top-up button for a member is a DEFECT.
+    mutates: false
+
+  - step: member-account-door-renders
+    principal: member
+    surface: /settings
+    action: Open the Account pane and the Connectors pane.
+    expect_dom: |
+      Account renders with the member's OWN stats (not the owner's). Connectors
+      lists the member's own AI connections. The "Your AI connections" block is
+      read-only (variant="compact" readOnly).
+    mutates: false
+
+  # ---------------------------------------------------------------- CEILING
+  - step: member-cannot-invite-server-side
+    principal: member
+    surface: /workspace-settings?workspace-settings.pane=members
+    action: |
+      THE ADR-501 STEP. First observe whether the invite box is even rendered
+      (canInvite hides it on a 403 from listInvites). Then, regardless of the
+      DOM, issue the underlying call from the MEMBER's authenticated browser
+      session (devtools console, credentials included):
+        POST /api/workspace/members/invite  {"email":"testacct@yarnnn.com"}
+      This is the enumerate-the-DOORS discipline: absence from the DOM is NOT
+      enforcement.
+    expect_dom: |
+      The invite box is absent or refuses. The direct POST returns 403 (or 4xx),
+      NOT 200.
+    mutates: true      # attempts a write; must FAIL
+    receipt: |
+      psql: SELECT count(*) FROM workspace_invites
+            WHERE workspace_id='d5b9029b-bd4e-4757-9fcb-e2b139fd4913'
+              AND email='testacct@yarnnn.com';
+      MUST be 0 — a refused invite leaves no row. If the count is 1, the
+      ceiling is display-only and this is a NOT-READY defect.
+    restore: |
+      If a row DID appear, revoke it immediately
+      (POST /api/workspace/invites/{id}/revoke as owner) and record the defect.
+
+  - step: member-cannot-narrow-or-revoke-server-side
+    principal: member
+    surface: /workspace-settings?workspace-settings.pane=members
+    action: |
+      As the member, attempt the governance verbs against the member's OWN
+      principal row (never the owner's, never a real external):
+        POST /api/workspace/members/{self}/narrow  {"write_scopes":["operation/"]}
+      Observe whether the row menu even offers them (governable = !readOnly &&
+      role !== 'owner').
+    expect_dom: The verbs are absent from the member's row menu; the direct POST is refused.
+    mutates: true      # attempts a write; must FAIL
+    receipt: |
+      psql: SELECT principal_id, role, scopes, write_scopes, status
+            FROM principal_grants
+            WHERE workspace_id='d5b9029b-bd4e-4757-9fcb-e2b139fd4913'
+              AND principal_id='2be30ac5-b3cf-46b1-aeb8-af39cd351af4';
+      write_scopes MUST remain NULL and status MUST remain 'active'. A member
+      who can narrow their own grant can also widen it.
+    restore: |
+      If write_scopes changed, restore to NULL:
+      UPDATE principal_grants SET write_scopes=NULL, scopes=NULL
+       WHERE principal_id='2be30ac5-b3cf-46b1-aeb8-af39cd351af4'
+         AND workspace_id='d5b9029b-bd4e-4757-9fcb-e2b139fd4913';
+
+  - step: member-cannot-clear-workspace-server-side
+    principal: member
+    surface: /workspace-settings?workspace-settings.pane=danger
+    action: |
+      The buttons are disabled by `can_clear`. Disabled is a DOM state, not a
+      gate — issue the calls directly from the member's session:
+        DELETE /api/account/work-history
+        DELETE /api/account/workspace
+      (_require_workspace_clear_authority should refuse both with 403.)
+    expect_dom: Buttons disabled with the owner-only copy; both DELETEs return 403.
+    mutates: true      # attempts a destructive write; must FAIL
+    receipt: |
+      psql: SELECT count(*) FROM workspace_files
+            WHERE workspace_id='d5b9029b-bd4e-4757-9fcb-e2b139fd4913';
+      Capture the count BEFORE and AFTER. It MUST be unchanged. This is the
+      single highest-consequence step in the suite: a member who can clear the
+      workspace destroys every principal's work.
+    restore: |
+      No restore is possible if this fails — which is why the count is captured
+      BEFORE. If it drops, STOP the pass immediately and escalate.
+
+  # ---------------------------------------------------------------- WRITE
+  - step: member-notification-prefs-round-trip
+    principal: member
+    surface: /settings (Account pane)
+    action: |
+      Toggle "Work delivered", then set "Workspace activity" to 'high'. These
+      are member-state writes — a member's OWN prefs, the correct thing for a
+      member to be able to write. Note the values BEFORE changing them.
+    expect_dom: Toggles reflect the new state and survive a reload.
+    mutates: true
+    receipt: |
+      psql: SELECT value FROM member_state
+            WHERE user_id='2be30ac5-b3cf-46b1-aeb8-af39cd351af4'
+              AND key='notification_prefs';
+      The JSON must contain the toggled values. This proves the write LANDED,
+      not merely that the UI echoed it optimistically.
+    restore: |
+      Set both controls back to their pre-step values through the UI and
+      re-verify the row matches the original JSON.
+
+  - step: owner-invite-lifecycle-on-rig
+    principal: owner
+    surface: /workspace-settings?workspace-settings.pane=members
+    action: |
+      On the RIG workspace (bf5b25a9, kvk-yarnnn) — NOT d5b9029b — invite
+      testacct@yarnnn.com, observe the pending row, then revoke it.
+      No email must actually reach a real inbox (testacct is a rig address).
+    expect_dom: |
+      The pending invite appears in the roster with a Revoke control; after
+      revoking, the row disappears.
+    mutates: true
+    receipt: |
+      psql (after invite): SELECT id, email, status FROM workspace_invites
+            WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411'
+              AND email='testacct@yarnnn.com';
+      -> one row, status pending.
+      psql (after revoke): the same row's status is 'revoked' (or the row is
+      gone). Record BOTH queries — the lifecycle is the receipt, not the toast.
+    restore: |
+      The revoke IS the restore. Confirm no active invite row remains on the
+      rig workspace at the end of the step.
+
+  # ---------------------------------------------------------------- BOUNDARY
+  - step: billing-checkout-stops-at-handoff
+    principal: owner
+    surface: /workspace-settings?workspace-settings.pane=billing
+    action: |
+      Click Top up (smallest amount). Follow the redirect UNTIL the
+      LemonSqueezy domain is reached, then STOP. Do not enter payment details.
+    expect_dom: |
+      The browser reaches a LemonSqueezy checkout URL. Record the URL (host +
+      path only, no query secrets) as the boundary receipt.
+    mutates: false     # no substrate change — the handoff is the boundary

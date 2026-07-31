@@ -13,9 +13,30 @@ through ADR-366/393/402/403/414 while the layer sat untouched from
 via `git show 90c7d67:docs/evaluations/eval-suites/<name>.yaml`. Audit
 receipts: [`../2026-07-31-eval-layer-audit-FINDING.md`](../2026-07-31-eval-layer-audit-FINDING.md).
 
-| suite | subject | status |
-|---|---|---|
-| `freddie-bare-workspace-steward.yaml` | Freddie (Rung 1, bare workspace, steward defaults) | **current** — the launch-path suite. Repaired 2026-07-31 (persona `bare-kernel`; supported `absent:` program-marker asserts); pre-flight verified live 4/4. Latest full run: [`../2026-07-03-freddie-bare-steward-sonnet-rerun/`](../2026-07-03-freddie-bare-steward-sonnet-rerun/FINDING.md) |
+| suite | subject | kind | status |
+|---|---|---|---|
+| `freddie-bare-workspace-steward.yaml` | Freddie (Rung 1, bare workspace, steward defaults) | `thesis` | **current** — the launch-path suite. Repaired 2026-07-31 (persona `bare-kernel`; supported `absent:` program-marker asserts); pre-flight verified live 4/4. Latest full run: [`../2026-07-03-freddie-bare-steward-sonnet-rerun/`](../2026-07-03-freddie-bare-steward-sonnet-rerun/FINDING.md) |
+| `settings-surfaces-click-pass.yaml` | the two settings doors, owner × member | `browser` | **current** — registered 2026-07-31, not yet run. Portable form: [`../OPERATOR-PACKET-settings-click-pass.md`](../OPERATOR-PACKET-settings-click-pass.md) |
+
+## The two suite kinds
+
+`suite_kind: thesis` is Suite B — fired by `run_eval_suite.py` against a persona
+workspace, read as a forensic trace. `suite_kind: browser` is the **E2E
+human-parity lane** (VERIFICATION.md): a click-pass manifest driven by a BROWSER
+principal, never by the LLM runner. The separation is gate-asserted
+(`test_llm_runner_refuses_browser_suites`) — `VALID_SUITE_KINDS` in the runner
+stays `{"thesis"}`, because firing a click-path as a wake would silently produce
+a thesis read of a suite that has no scenario.
+
+The "exactly one current suite" rule governs the **thesis** registry only; a
+current browser manifest does not contend for that slot (different firing
+instrument, different failure mode).
+
+A browser manifest's load-bearing field is per-step `mutates:` — any step that
+changes state MUST carry a `receipt:` (the substrate query proving it) and a
+`restore:` (how the change is reversed). The gate enumerates those steps and
+names the specific one that is missing a receipt; a browser pass without one is
+narrative, not evidence.
 
 Related instruments (probes, not YAML suites — held by
 `api/test_probe_staleness_gate.py`): the 6-ask addressed probe

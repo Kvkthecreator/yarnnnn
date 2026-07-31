@@ -14,8 +14,14 @@
  * class-default) from useViewerGrant — NEVER a role enum. This is the UI
  * twin of ADR-405's no-species-law: the same rule for every principal,
  * derived from the grant. Reads stay universal; FE gating is LEGIBILITY,
- * the server gate (permission.py) is enforcement — an unresolved grant
- * fails open here and is still enforced there.
+ * the server gate is enforcement — an unresolved grant fails open here and
+ * is still enforced there.
+ *
+ * The server gate is `api/services/primitives/workspace.py`
+ * ::_is_path_locked_for_principal (there is no `permission.py` — that
+ * pointer was stale). Per ADR-501 it derives the caller's class from the
+ * GRANT'S ROLE when the write axis is NULL, precisely so this component's
+ * displayed ceiling is the ceiling the server enforces.
  */
 
 import type { ReactNode } from 'react';

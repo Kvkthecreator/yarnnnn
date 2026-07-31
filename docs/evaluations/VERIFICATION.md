@@ -85,9 +85,17 @@ the declared TEST ACCOUNTS ONLY (the personas registry + `kvkthecreator@*` +
 
 - **Precondition**: the session has browser tools (operator: `/chrome` →
   Enable by default; extension v1.0.36+ signed in).
-- **Task shape**: click-pass manifests (forthcoming `suite_kind: browser` in
-  the eval-suites registry) follow Describe / Task / Guardrails / Exit; until
-  that lands, ad-hoc passes still follow it in the session itself.
+- **Task shape**: click-pass manifests carry `suite_kind: browser` in the
+  eval-suites registry (landed 2026-07-31) and follow Describe / Task /
+  Guardrails / Exit. Each step declares `expect_dom:`; each state-changing step
+  additionally declares `receipt:` (the substrate query) + `restore:` — held by
+  `api/test_eval_suite_gate.py`. The runner deliberately refuses this kind (a
+  browser principal fires it, not the LLM). First manifest:
+  `eval-suites/settings-surfaces-click-pass.yaml`, with a repo-free operator
+  form at `OPERATOR-PACKET-settings-click-pass.md`.
+- **Login**: `cd api && python3 -m scripts.operator.browser_login_link <email>`
+  mints a navigable single-use magic link (roster-guarded in code — it refuses
+  any email that is not a declared test principal).
 - **Guardrails**: destructive/seeded scenarios on rig accounts
   (`kvk-yarnnn`, `bare-kernel`, `testacct`) — the live workspace (`d5b9029b`)
   is read-mostly; reset-to-clean before seeded passes (S2).
