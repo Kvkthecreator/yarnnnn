@@ -339,6 +339,41 @@ Worth keeping: **a gate is not verified until it has been made to fail.** This
 one was written carefully, passed on the first run, and was measuring almost
 nothing.
 
+## SCOPE OF THE SIGN-OFF — read this before trusting the green lanes
+
+`web` and `api` are marked validated at this commit. That mark means: **do not
+re-run this pass for these changes.** It does NOT mean every settings behaviour
+is probed. Precisely what is and is not covered:
+
+**COVERED — live, two-principal, with substrate receipts**
+- Owner + member across both doors (`/workspace-settings`, `/settings`)
+- Joining lifecycle: cold guest -> invite -> accept -> member -> revoke
+- The governance ceiling (`narrow`) at BOTH layers: substrate unchanged AND a
+  real member JWT receiving `403` with its reason
+- Member-owned writes (notification prefs) round-tripped and reload-persisted
+- Billing withheld from members; checkout stops at the LemonSqueezy boundary
+
+**NOT COVERED — do not infer these from the green lane**
+1. **DangerZone (step 10) was verified by CODE PATH + live grant data, never by
+   a live member HTTP call.** The `api` lane exit criterion names config
+   inspection as insufficient for permission changes; this step is an explicit
+   exception to that bar, accepted because the two destructive routes provably
+   call `_require_workspace_clear_authority` and it returns False for a member
+   against real grant rows. Anyone strengthening this should issue the two
+   DELETEs with a member bearer.
+2. **The F1 blast radius past the grant layer is UNMEASURED.** A member could
+   corrupt their own grant row; whether that then permitted a `governance/`
+   FILE write was never tested. The fix closes the door regardless, but the
+   HIGH severity rating rests on an unmeasured downstream.
+3. **Roles other than owner/member** (`own-agent`, `foreign-llm`, `platform`,
+   `a2a`) were never exercised. The class-default fall-through is shared code,
+   so they are probably fine — "probably" is the operative word.
+4. **Multi-member workspaces (N>2)** and the paid-seat path were not exercised.
+   The rig ran exactly one owner and one guest on the free tier.
+
+If a later change touches member lifecycle, grants, or the settings surfaces,
+re-run the manifest rather than trusting this mark.
+
 ## All three fixes VERIFIED LIVE in production
 
 Not "the build is green" — driven through the browser against the deployed app,
