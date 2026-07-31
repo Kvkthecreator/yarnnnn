@@ -126,15 +126,30 @@ function regionLabel(region: string): string {
 
 /** The server's own refusal text, or `fallback` when it carried none.
  *
- * FastAPI puts the reason in `detail`, and for the governance verbs that reason
- * is already operator-grade ("Only the workspace owner can …", "narrow cannot
- * widen the write axis …"). Prefer it over anything invented client-side. */
+ * The reason is already operator-grade ("Only the workspace owner can change a
+ * member's access", "narrow cannot widen the write axis …"), so prefer it over
+ * anything invented client-side.
+ *
+ * TWO WIRE SHAPES, and reading only one is how this silently degrades: raw
+ * FastAPI raises surface as `{detail}`, while anything through the envelope
+ * middleware arrives as `{error: {code, message}}`. The governance verbs use
+ * the SECOND — verified by probing /narrow as a member (403
+ * `{"error":{"code":"forbidden","message":"Only the workspace owner …"}}`).
+ * A `detail`-only reader compiles, ships, and quietly shows the generic
+ * fallback forever. */
 function serverDetail(e: unknown, fallback: string): string {
-  const detail =
+  const data =
     e && typeof e === 'object' && 'data' in e
-      ? (e as { data?: { detail?: unknown } }).data?.detail
+      ? (e as { data?: unknown }).data
       : undefined;
-  return typeof detail === 'string' && detail.trim() ? detail : fallback;
+  if (data && typeof data === 'object') {
+    const d = data as { detail?: unknown; error?: { message?: unknown } };
+    const detail = d.detail;
+    if (typeof detail === 'string' && detail.trim()) return detail;
+    const message = d.error?.message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
 }
 
 export function WorkspaceMembersCard({

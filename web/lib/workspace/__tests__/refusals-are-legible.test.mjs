@@ -84,8 +84,17 @@ check('F4 prefers the SERVER\'s wording over an invented client message', () => 
   const src = read(MEMBERS_CARD);
   assert.ok(
     /function serverDetail\(/.test(src),
-    'serverDetail() helper is gone — the server\'s `detail` carries the actual ' +
-    'reason ("Only the workspace owner can…", "narrow cannot widen…")'
+    'serverDetail() helper is gone — the server carries the actual reason ' +
+    '("Only the workspace owner can…", "narrow cannot widen…")'
+  );
+  // BOTH wire shapes. The governance verbs answer through the envelope
+  // middleware as {error:{message}}, NOT FastAPI's {detail} — verified by
+  // probing /narrow as a member. Reading only `detail` compiles, ships, and
+  // silently shows the generic fallback forever.
+  assert.ok(
+    /\.detail/.test(src) && /error\?\.\s*message|error\?\.message/.test(src),
+    'serverDetail reads only one wire shape — it must handle {detail} AND ' +
+    '{error:{message}} or the real refusal text never reaches the operator'
   );
 });
 
