@@ -53,7 +53,7 @@ thesis: |
      visible AFTER the click — a legibility defect even where enforcement is
      sound.
 
-  Single-variable per step: the same workspace (d5b9029b), the same pane, the
+  Single-variable per step: the same workspace (bf5b25a9), the same pane, the
   only variable is WHICH PRINCIPAL is logged in. That isolates grant-derived
   behavior from surface behavior.
 
@@ -62,29 +62,50 @@ description: |
   operator's question: "if I invite someone into my workspace tomorrow, do the
   settings doors behave — and can they break or see something they shouldn't?"
 
-  Run as the OWNER/MEMBER pair on the live workspace (read-mostly). Destructive
-  verbs (revoke, purge, DangerZone) run on RIG workspaces only. Billing stops
-  at the LemonSqueezy handoff — no real payment is ever completed.
+  RE-CUT 2026-07-31 onto the RIG PAIR. The original cut ran owner/member on the
+  LIVE workspace read-mostly, which forced every ceiling step into
+  attempt-and-restore and left the whole JOINING half untestable (seulkim88's
+  grant already existed and may never be revoked). Both rig principals are
+  disposable, so the lifecycle runs FOR REAL: invite → accept → member → narrow
+  → revoke, each with a substrate receipt, each reversible by construction.
 
-# The instrument is the pair, not a persona workspace. `principals` names the
+  Billing stops at the LemonSqueezy handoff — no real payment is ever completed.
+
+# The instrument is the PAIR, not a persona workspace. `principals` names the
 # logged-in browser identities, NOT docs/alpha/personas.yaml slugs (browser
 # suites have no persona field — they are not fired by the LLM runner).
+#
+# Why the rig pair and not the live pair: the guest owns NO workspace and has
+# NEVER signed in (verified 2026-07-31), so it is a true cold principal — the
+# shape a real invitee actually arrives in. The live pair cannot test that.
 principals:
-  - owner:kvkthecreator@gmail.com     # 2abf3f96-118b-4987-9d95-40f2d9be9a18, owner of d5b9029b
-  - member:seulkim88@gmail.com        # 2be30ac5-b3cf-46b1-aeb8-af39cd351af4, ACTIVE member grant on d5b9029b
+  - owner:kvkthecreator@yarnnn.com   # 67c5c637-501d-43d1-836a-a15ff32b5901, owner of bf5b25a9
+  - guest:testacct@yarnnn.com        # 500f3ae7-0ffc-4a6b-8450-62834f34279c, NO grant anywhere at baseline
 
-workspace: d5b9029b-bd4e-4757-9fcb-e2b139fd4913   # live — READ-MOSTLY
+workspace: bf5b25a9-477f-462e-b7f3-65812f489411   # kvk-yarnnn RIG — disposable
+
+# Baseline captured 2026-07-31 before the pass (psql receipts):
+#   bf5b25a9 grants        = 1 (owner only, active)
+#   bf5b25a9 workspace_files = 0
+#   testacct principal_grants anywhere = 0 rows
+baseline:
+  rig_grants: 1
+  rig_files: 0
+  guest_grants_anywhere: 0
 
 guardrails: |
-  - d5b9029b is LIVE substrate. Read-mostly. Any deliberate write must be
-    reversible and restored in-session (each mutating step declares `restore:`).
-  - NEVER revoke seulkim88's member grant on d5b9029b — it is the standing test
-    instrument. Revoke/narrow verbs are exercised on a RIG pairing only.
-  - DangerZone / purge verbs: rig workspaces ONLY (bf5b25a9), never d5b9029b.
-  - Billing: STOP at the LemonSqueezy handoff. Record the redirect URL as the
-    boundary receipt. No real payment, ever.
+  - The RIG (bf5b25a9) is the subject. It is disposable — mutating verbs run for
+    real. Still record before/after receipts so a surprise is legible.
+  - The LIVE workspace (d5b9029b) is NOT a subject in this cut. Do not invite,
+    narrow, revoke, or clear anything there. If a step needs the live pair, it
+    belongs in a separate suite with its own read-mostly guardrail.
+  - NEVER revoke seulkim88's grant on d5b9029b — standing test instrument.
+  - Billing: STOP at the LemonSqueezy handoff. Record the redirect URL (host +
+    path, no query secrets) as the boundary receipt. No real payment, ever.
   - Real externals (s.colopy@ccgrhc.com, b.tharalson@gmail.com) are NEVER
     subjects and are never invited, narrowed, or revoked.
+  - Login is via api/scripts/operator/browser_login_link.py, which is roster-
+    guarded in code. Never set or read a principal's password.
 
 # KNOWN-DEFERRED — recorded, NOT sign-off failures (per the session brief).
 known_deferred:
@@ -92,6 +113,74 @@ known_deferred:
   - ADR-495 "you were added" notification (deferred by design)
 
 steps:
+  # ---------------------------------------------------------------- JOINING
+  # This half is NEW in the rig re-cut and is the reason for it. On the live
+  # pair the member already existed, so the act of BECOMING a member — the
+  # moment most likely to be broken, and the one a real operator performs first
+  # — was never exercised at all.
+
+  - step: guest-is-cold-before-invite
+    principal: guest
+    surface: /workspace-settings
+    action: |
+      Log in as the guest BEFORE any invite exists and open /workspace-settings.
+      This establishes what a principal with no grant to this workspace sees.
+    expect_dom: |
+      The guest must NOT see bf5b25a9's roster, billing, or files. Acceptable:
+      their own (auto-scaffolded) workspace, an empty state, or a refusal.
+      UNACCEPTABLE: any pane of the OWNER's workspace. Record which it is.
+    mutates: false
+    # Not marked mutating: GET /api/workspace/state may lazily scaffold the
+    # guest's OWN workspace (documented behavior, ADR-414 D4). That is the
+    # guest's own substrate, not the rig's — the rig receipt below proves the
+    # rig itself is untouched.
+    receipt: |
+      psql: SELECT count(*) FROM principal_grants
+            WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411';
+      MUST still be 1 (owner only). Merely LOOKING must never mint a grant.
+
+  - step: owner-invites-guest
+    principal: owner
+    surface: /workspace-settings?workspace-settings.pane=members
+    action: |
+      As the owner on the rig, invite testacct@yarnnn.com through the UI.
+      Record the invite row and the accept URL.
+    expect_dom: |
+      A pending invite row appears in the roster with a Revoke control.
+    mutates: true
+    receipt: |
+      psql: SELECT id, email, role, status FROM workspace_invites
+            WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411'
+              AND email='testacct@yarnnn.com';
+      Exactly one row, status 'pending'. Record the id AND the role it grants —
+      the role on the invite is what the accept will mint.
+    restore: |
+      Covered by the revoke step at the end of the joining half. If the pass
+      aborts before then, revoke the invite as owner.
+
+  - step: guest-accepts-and-becomes-member
+    principal: guest
+    surface: /invite
+    action: |
+      As the guest, open the accept URL and complete the join.
+    expect_dom: |
+      The guest lands in the workspace and can now see it. Record the FIRST
+      surface shown after accepting.
+    mutates: true
+    receipt: |
+      psql: SELECT id, role, status, scopes, read_scopes, write_scopes
+            FROM principal_grants
+            WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411'
+              AND principal_id='500f3ae7-0ffc-4a6b-8450-62834f34279c'
+              AND status='active';
+      Exactly one active row, role='member'. RECORD THE THREE SCOPE AXES —
+      if all three are NULL the grant-honored branch is unexercised and every
+      caller falls through to the class default (the live-pair condition,
+      ADR-501). Whether that fall-through is CORRECT is the ceiling half.
+      The invite row should now be 'accepted'.
+    restore: |
+      The revoke step at the end of the joining half restores baseline.
+
   # ---------------------------------------------------------------- RENDER
   - step: owner-renders-all-workspace-panes
     principal: owner
@@ -101,15 +190,15 @@ steps:
       Autonomy, Danger Zone (the ?workspace-settings.pane= param).
     expect_dom: |
       All five panes render without an error state. Access lists BOTH the owner
-      and seulkim88 (member) under "People", plus any AI connections under
+      and the newly-joined guest under "People", plus any AI connections under
       "AI connections". Billing shows the plan + balance. Usage shows the
       spend-by-principal breakdown. Danger Zone shows both clear cards ENABLED.
     mutates: false
 
   - step: member-renders-workspace-panes
-    principal: member
+    principal: guest
     surface: /workspace-settings
-    action: Same five panes, logged in as seulkim88.
+    action: Same five panes, logged in as the now-member guest.
     expect_dom: |
       Panes render without a crash or blank body. RECORD PRECISELY, per pane:
       which controls are visible, which are disabled, which are absent. Danger
@@ -118,7 +207,7 @@ steps:
     mutates: false
 
   - step: member-billing-shows-no-raw-wallet
-    principal: member
+    principal: guest
     surface: /workspace-settings?workspace-settings.pane=billing
     action: Open Billing, then Usage, as the member.
     expect_dom: |
@@ -129,7 +218,7 @@ steps:
     mutates: false
 
   - step: member-account-door-renders
-    principal: member
+    principal: guest
     surface: /settings
     action: Open the Account pane and the Connectors pane.
     expect_dom: |
@@ -140,7 +229,7 @@ steps:
 
   # ---------------------------------------------------------------- CEILING
   - step: member-cannot-invite-server-side
-    principal: member
+    principal: guest
     surface: /workspace-settings?workspace-settings.pane=members
     action: |
       THE ADR-501 STEP. First observe whether the invite box is even rendered
@@ -156,7 +245,7 @@ steps:
     mutates: true      # attempts a write; must FAIL
     receipt: |
       psql: SELECT count(*) FROM workspace_invites
-            WHERE workspace_id='d5b9029b-bd4e-4757-9fcb-e2b139fd4913'
+            WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411'
               AND email='testacct@yarnnn.com';
       MUST be 0 — a refused invite leaves no row. If the count is 1, the
       ceiling is display-only and this is a NOT-READY defect.
@@ -165,7 +254,7 @@ steps:
       (POST /api/workspace/invites/{id}/revoke as owner) and record the defect.
 
   - step: member-cannot-narrow-or-revoke-server-side
-    principal: member
+    principal: guest
     surface: /workspace-settings?workspace-settings.pane=members
     action: |
       As the member, attempt the governance verbs against the member's OWN
@@ -176,20 +265,29 @@ steps:
     expect_dom: The verbs are absent from the member's row menu; the direct POST is refused.
     mutates: true      # attempts a write; must FAIL
     receipt: |
-      psql: SELECT principal_id, role, scopes, write_scopes, status
+      psql: SELECT id, role, scopes, write_scopes, status
             FROM principal_grants
-            WHERE workspace_id='d5b9029b-bd4e-4757-9fcb-e2b139fd4913'
-              AND principal_id='2be30ac5-b3cf-46b1-aeb8-af39cd351af4';
-      write_scopes MUST remain NULL and status MUST remain 'active'. A member
-      who can narrow their own grant can also widen it.
+            WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411'
+              AND principal_id='500f3ae7-0ffc-4a6b-8450-62834f34279c'
+              AND status='active';
+      write_scopes MUST remain NULL. A member who can narrow their own grant
+      can also widen it.
+
+      NOTE — the `AND status='active'` filter is LOAD-BEARING, not tidiness.
+      A principal accumulates one grant row PER grant event; the live pair has
+      TWO rows for seulkim88 on d5b9029b (one revoked 2026-07-04, one active
+      2026-07-29). Without the filter this query returns both, and a DESTROYED
+      active grant still reads as a pass because the revoked row satisfies the
+      eyeball check. Always pin the status.
     restore: |
-      If write_scopes changed, restore to NULL:
+      If write_scopes changed, restore to NULL (pin the ACTIVE row):
       UPDATE principal_grants SET write_scopes=NULL, scopes=NULL
-       WHERE principal_id='2be30ac5-b3cf-46b1-aeb8-af39cd351af4'
-         AND workspace_id='d5b9029b-bd4e-4757-9fcb-e2b139fd4913';
+       WHERE principal_id='500f3ae7-0ffc-4a6b-8450-62834f34279c'
+         AND workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411'
+         AND status='active';
 
   - step: member-cannot-clear-workspace-server-side
-    principal: member
+    principal: guest
     surface: /workspace-settings?workspace-settings.pane=danger
     action: |
       The buttons are disabled by `can_clear`. Disabled is a DOM state, not a
@@ -201,7 +299,7 @@ steps:
     mutates: true      # attempts a destructive write; must FAIL
     receipt: |
       psql: SELECT count(*) FROM workspace_files
-            WHERE workspace_id='d5b9029b-bd4e-4757-9fcb-e2b139fd4913';
+            WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411';
       Capture the count BEFORE and AFTER. It MUST be unchanged. This is the
       single highest-consequence step in the suite: a member who can clear the
       workspace destroys every principal's work.
@@ -211,7 +309,7 @@ steps:
 
   # ---------------------------------------------------------------- WRITE
   - step: member-notification-prefs-round-trip
-    principal: member
+    principal: guest
     surface: /settings (Account pane)
     action: |
       Toggle "Work delivered", then set "Workspace activity" to 'high'. These
@@ -221,35 +319,56 @@ steps:
     mutates: true
     receipt: |
       psql: SELECT value FROM member_state
-            WHERE user_id='2be30ac5-b3cf-46b1-aeb8-af39cd351af4'
+            WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411'
+              AND principal_id='500f3ae7-0ffc-4a6b-8450-62834f34279c'
               AND key='notification_prefs';
       The JSON must contain the toggled values. This proves the write LANDED,
       not merely that the UI echoed it optimistically.
+
+      SCHEMA NOTE — member_state is keyed (workspace_id, principal_id, key).
+      There is NO user_id column; the pre-2026-07-31 form of this receipt
+      queried one and errored at runtime. member_state is also WORKSPACE-SCOPED,
+      which is itself part of the thesis: a member's prefs in one workspace must
+      not leak into another. At baseline the guest has NO notification_prefs row
+      at all, so absent -> present is the cleanest possible receipt.
     restore: |
       Set both controls back to their pre-step values through the UI and
       re-verify the row matches the original JSON.
 
-  - step: owner-invite-lifecycle-on-rig
+  # ---------------------------------------------------------------- LEAVING
+  # The invite half is covered by the JOINING steps above (this step used to
+  # re-do it; in the rig cut the join is real, so what remains untested is
+  # DEPARTURE — and departure is where a stale grant would silently persist).
+
+  - step: owner-revokes-guest-and-access-ends
     principal: owner
     surface: /workspace-settings?workspace-settings.pane=members
     action: |
-      On the RIG workspace (bf5b25a9, kvk-yarnnn) — NOT d5b9029b — invite
-      testacct@yarnnn.com, observe the pending row, then revoke it.
-      No email must actually reach a real inbox (testacct is a rig address).
+      As the owner, revoke the guest's membership from the roster. Then, in the
+      GUEST's still-open browser session, reload /workspace-settings.
+      The second half is the point: a revoke that only takes effect on next
+      login is a stale-session defect.
     expect_dom: |
-      The pending invite appears in the roster with a Revoke control; after
-      revoking, the row disappears.
+      The guest's row leaves the owner's roster. In the guest's session, the
+      reload no longer shows the rig workspace — refusal or their own workspace.
     mutates: true
     receipt: |
-      psql (after invite): SELECT id, email, status FROM workspace_invites
+      psql: SELECT id, role, status FROM principal_grants
             WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411'
-              AND email='testacct@yarnnn.com';
-      -> one row, status pending.
-      psql (after revoke): the same row's status is 'revoked' (or the row is
-      gone). Record BOTH queries — the lifecycle is the receipt, not the toast.
+              AND principal_id='500f3ae7-0ffc-4a6b-8450-62834f34279c';
+      NO row with status='active' may remain. Record every row returned —
+      a revoked row persisting alongside a new active one is the two-row
+      condition that makes unpinned status queries lie.
+
+      Then re-assert the opening baseline:
+      psql: SELECT count(*) FROM principal_grants
+            WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411'
+              AND status='active';
+      MUST be back to 1 (owner only).
     restore: |
-      The revoke IS the restore. Confirm no active invite row remains on the
-      rig workspace at the end of the step.
+      This step IS the restore for the whole joining half. If it fails, the rig
+      is left with a live guest grant — say so explicitly in the finding rather
+      than leaving it implied.
 
   # ---------------------------------------------------------------- BOUNDARY
   - step: billing-checkout-stops-at-handoff
