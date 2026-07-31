@@ -22,9 +22,29 @@ SAFETY — this is a Hat-B developer instrument:
   - Never paste a minted URL into a commit, an issue, or a chat log that leaves
     the operator's machine.
 
+CHOOSING THE PAIR (the lesson that reshaped the first click-pass):
+  Prefer a DISPOSABLE RIG pair over live principals. A live workspace with a
+  standing member forces every mutating step into attempt-and-restore, and makes
+  the whole JOINING half untestable — that member's grant already exists and may
+  never be revoked, so `becoming` a member (the first thing a real operator does,
+  and the most likely to be broken) cannot be exercised at all. On a rig the same
+  suite runs the real lifecycle: invite -> accept -> member -> narrow -> revoke.
+
+  A COLD principal — owns nothing, never signed in — is a distinct instrument:
+  it is the shape a real invitee arrives in. That state is CONSUMED on first use,
+  so verify it (0 grant rows anywhere) before the run.
+
+  Full method: docs/evaluations/BROWSER-CLICK-PASS-PLAYBOOK.md
+
+BROWSER SESSION NUANCE:
+  Use ONE ISOLATED BROWSER CONTEXT PER PRINCIPAL. Contexts share cookies, so
+  logging in as a second principal in the same context silently overwrites the
+  first — every later "member" observation is really the owner, and the pass
+  looks perfectly plausible while proving nothing.
+
 Usage:
-    cd api && python3 -m scripts.operator.browser_login_link seulkim88@gmail.com
-    cd api && python3 -m scripts.operator.browser_login_link kvkthecreator@gmail.com
+    cd api && python3 -m scripts.operator.browser_login_link testacct@yarnnn.com
+    cd api && python3 -m scripts.operator.browser_login_link kvkthecreator@yarnnn.com
 """
 from __future__ import annotations
 

@@ -6,6 +6,29 @@ This directory holds version-controlled captures of operator-proxy sessions and 
 
 This is the qualitative companion to `api/test_adr*.py` regression gates. Together they form the YARNNN evaluation discipline: regression gates assert structural invariants; evaluations capture behavioral shape across multi-turn interactions, measured against declared expected behavior.
 
+## TWO LANES — know which one you are in before writing anything
+
+They are graded differently, fired differently, and read differently. Most of
+this README, and all of EVAL-PHILOSOPHY / EVAL-ARCHITECTURE / EVAL-SUITE-DISCIPLINE,
+is about the FIRST lane.
+
+| | **Judgment lane** (`suite_kind: thesis`) | **Surface lane** (`suite_kind: browser`) |
+|---|---|---|
+| Question | Does the AGENT reason coherently against its mandate? | Does the SURFACE behave correctly for each principal? |
+| Fired by | `run_eval_suite.py` (the LLM runner) | a BROWSER principal — Claude in Chrome, or an operator with the packet |
+| Unit of output | a human **read**, in prose | **PASS/FAIL per step**, with receipts |
+| Why not scored | judgment is a spectrum; a `Pass?` cell loses the texture | surface behavior is deterministic — "mostly worked" means it failed |
+| Method doc | [EVAL-SUITE-DISCIPLINE.md](EVAL-SUITE-DISCIPLINE.md) | **[BROWSER-CLICK-PASS-PLAYBOOK.md](BROWSER-CLICK-PASS-PLAYBOOK.md)** |
+
+The runner **refuses** `suite_kind: browser` (`VALID_SUITE_KINDS = {"thesis"}`,
+gate-asserted): firing a click-path as an LLM wake would produce a thesis read
+of a suite that has no scenario. The separation is enforced, not conventional.
+
+**Before writing or running a browser suite, read the
+[Browser Click-Pass Playbook](BROWSER-CLICK-PASS-PLAYBOOK.md).** It is
+feature-agnostic — the Chrome nuances, principal-pair selection, receipt
+discipline, gate falsification, and run-record shape apply to any surface.
+
 ## Current instruments + baselines (Freddie / Rung-1 era, 2026-07-03)
 
 The current evaluation subject is **Freddie, the Rung-1 substrate steward** (ADR-380/381/383) — the trader/author program suites are Rung-2 dogfood, dormant on the launch path (see `eval-suites/`). The live instruments:
@@ -117,6 +140,8 @@ A new Claude session for either lane opens by reading the relevant session-start
 ```
 docs/evaluations/
   README.md                            # this file — discipline + index
+  BROWSER-CLICK-PASS-PLAYBOOK.md       # the SURFACE lane method (feature-agnostic) — read before any browser suite
+  OPERATOR-PACKET-*.md                 # portable form of a browser suite, for a principal with no repo access
   sessions/                            # persistent session-start guides (one per autonomy-loop thread)
     alpha-author-autonomy-loop.md
     alpha-trader-autonomy-loop.md

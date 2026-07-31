@@ -12,6 +12,31 @@ The shape of every lane follows the prompt-structure principles
 criteria). Standing rules that already bind: gates are proven RED before
 trusted green; a claim without a receipt is narrative; verify before finishing.
 
+## Writing a gate that actually bites (2026-07-31 — learned the hard way)
+
+"Proven RED before trusted green" is necessary and **not sufficient**. A gate
+written that day passed BOTH deliberate reintroductions of the defect it
+guarded: it sliced a fixed 1400-char window from each handler, the handlers sat
+~1330 chars apart, so one handler's window matched its NEIGHBOUR's code. A
+second assertion tested for the presence of an identifier, which survives
+deleting the assignment that gives it meaning. Both green, both measuring
+nothing.
+
+- **Falsify EVERY assertion, not the suite.** A suite can be green in aggregate
+  while one assertion is inert. Break each guarded thing in turn, watch that
+  specific assertion go red, restore.
+- **Bound the search to the construct** — brace-match a function body; never
+  slice a fixed character window.
+- **Assert the ASSIGNMENT, not the identifier.** `/flag/` stays green when the
+  line that sets it is deleted; `/flag = status === 403/` does not.
+- **Assert the RENDER, not just the state.** A fix that stores an error nobody
+  displays is not a fix — include that case in falsification.
+- **A COUNTING gate cannot defend a PER-SITE invariant.** Enumerate the sites,
+  assert per-site, and add a COMPLETENESS assert that fails when a new matching
+  site appears unclassified.
+- **AST/text gates check text, not behavior.** Where logic has subtle polarity
+  (NULL = "class default", not "nothing"), also verify at runtime.
+
 ---
 
 ## prompt — `api/agents/` · `api/services/primitives/` · `api/prompts/`
@@ -46,6 +71,12 @@ trusted green; a claim without a receipt is narrative; verify before finishing.
   slugs against the live `SurfaceRegistry`, never from memory.
 - **Exit**: build green; for UI changes, a click-pass session record with BOTH a
   DOM observation and a substrate receipt where the click writes.
+- **Method**: [BROWSER-CLICK-PASS-PLAYBOOK.md](BROWSER-CLICK-PASS-PLAYBOOK.md) —
+  feature-agnostic. Chrome nuances (tools freeze at session start; one isolated
+  context PER principal or the second login overwrites the first; an a11y
+  snapshot is not a DOM state check), principal-pair selection (prefer
+  disposable rigs — a live standing member makes the whole JOINING half
+  untestable), and the run-record shape.
 
 ## migrations — `supabase/migrations/`
 
@@ -103,3 +134,12 @@ the declared TEST ACCOUNTS ONLY (the personas registry + `kvkthecreator@*` +
   path, screenshots where load-bearing, and the SUBSTRATE receipt for every
   state-changing click (revision id / execution_event / proposal state). A
   browser pass without a substrate receipt is narrative.
+- **METHOD — read first**: [BROWSER-CLICK-PASS-PLAYBOOK.md](BROWSER-CLICK-PASS-PLAYBOOK.md).
+  Feature-agnostic; distilled from the 2026-07-31 settings pass. Covers the
+  Chrome traps that cost real hours (tools freeze at session start; ONE isolated
+  context per principal or the second login silently overwrites the first; an
+  a11y snapshot is NOT a DOM state check and produced a wrong finding; bot
+  protection returns 403 pages that read as "deploy not landed"), how to pick
+  the principal pair (a live standing member makes the whole JOINING half
+  untestable), receipt authoring (execute every query before calling the
+  manifest authority — two shipped dead), and the run-record shape.
