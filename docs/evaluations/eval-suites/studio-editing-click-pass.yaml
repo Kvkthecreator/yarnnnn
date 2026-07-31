@@ -14,6 +14,24 @@ eval_suite: studio-editing-click-pass
 # session began, the browser tools are not present and no retry summons them.
 # Start a FRESH session and verify with an exact-name ToolSearch (`select:...`);
 # a keyword search returns WebFetch and reads as a false negative.
+#
+# ⭐⭐ RUN 1 (2026-07-31) FOUND THE REAL BLOCKER, AND IT IS NOT TOOL AVAILABILITY.
+# The tools were present and the browser drove fine. The canvas is
+# `sandbox="allow-scripts"` with NO allow-same-origin (StudioCanvas.tsx:599) —
+# an opaque origin. Therefore:
+#   · the parent CANNOT read live canvas DOM (contentDocument null,
+#     __yarnnnCaretLive throws SecurityError), and an a11y snapshot is NOT a
+#     state check (playbook §2);
+#   · CDP-synthesized keystrokes DO NOT drive the in-frame runtime. Characters
+#     reach the contenteditable, but the palette never filtered on typed text
+#     and NEVER moved its highlight on 8 ArrowDowns. Keys must be heard by the
+#     runtime INSIDE the frame, which postMessages verbs out
+#     (StudioCanvas.tsx:134).
+# CONSEQUENCE: steps 1, 4–13 (every keyboard/canvas step) are UNOBSERVABLE by a
+# CDP browser principal. They need a HUMAN driving an operator packet, or a
+# same-origin instrument. Do not re-attempt them with chrome-devtools and do not
+# record a synthesized-input failure as a product defect.
+# Record: docs/evaluations/2026-07-31-studio-editing-click-pass/README.md
 status: current
 suite_kind: browser
 
@@ -95,6 +113,15 @@ baseline:
 guardrails: |
   - prd-for-yarnnn is READ-ONLY in this suite. It is the workspace's most
     developed document (106 revisions); use `hello` as the flow subject.
+  - ⭐ RUN 1 LESSON — "append-only" does NOT make a live subject safe. The
+    HISTORY is append-only; the HEAD CONTENT is live. Run 1's synthetic
+    keystrokes left `daddfadfadsf////` and a stray `cal` node in `hello`, and
+    the correcting backspaces collapsed the emptied block entirely (22106 →
+    22038 bytes). It was recoverable ONLY because a pre-session blob existed
+    (a8a7218…, revision dcf7e450) and was restored byte-identically via
+    POST /studio/artifacts/write. Next run: create a DISPOSABLE rig artifact as
+    the flow subject (playbook §3 prefers rigs over live principals for exactly
+    this). Do not type into a document the operator cares about.
   - Never delete a revision or a file. The substrate is append-only (ADR-209);
     every step's "restore" is a further revision, never a rewrite.
   - Do not touch the IMAGES artifacts (untitled-image, untitled-canvas) — a
@@ -159,9 +186,14 @@ steps:
              WHERE workspace_id='d5b9029b-bd4e-4757-9fcb-e2b139fd4913'
                AND path='/workspace/operation/test-deck-2/deck.html'
              ORDER BY created_at DESC LIMIT 1;
-      Expect ONE new row, authored_by='operator', message naming the block
-      ("Studio: add Callout block"). A toast without this row means the menu
-      rendered and the op never landed — the ADR-482 failure mode exactly.
+      Expect ONE new row, authored_by='operator'. The MESSAGE is the mechanical
+      door's default — "Studio: structural edit" (routes/studio.py:575), NOT a
+      block-naming string. (Run 1, 2026-07-31: the original expectation here
+      named "Studio: add Callout block", which no code path emits — the receipt
+      would have failed on message match even for a correct insert. Assert the
+      ROW and its authorship; do not assert a message the door never writes.)
+      A toast without this row means the menu rendered and the op never landed
+      — the ADR-482 failure mode exactly.
     restore: |
       Delete the inserted block via right-click → Delete (a further revision;
       never a history rewrite).

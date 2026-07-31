@@ -88,6 +88,39 @@ platform API (`mcp__render__list_deploys` for the API; the deploy status for
 the FE). Remember the FE and API deploy **separately** — an API fix is not live
 because Vercel finished.
 
+**A sandboxed iframe is a hard ceiling on the browser lane — check it BEFORE
+writing steps.** (2026-07-31, the Studio pass: tools present, browser driving,
+and the suite still could not run.) A surface rendered in an iframe with
+`sandbox="allow-scripts"` and no `allow-same-origin` is an **opaque origin**:
+
+- The parent cannot read live DOM inside it — `contentDocument` is `null`,
+  `contentWindow.<anything>` throws `SecurityError`. The DOM half of §1 has no
+  query to make, and an a11y snapshot is not a substitute (see above).
+- **CDP-synthesized keystrokes do not drive an in-frame runtime.** Characters
+  can reach a `contenteditable` while the runtime's key handlers never fire —
+  observed as: typed text landing in the document but *not* filtering the open
+  palette, and eight `ArrowDown`s never moving its highlight. Where the
+  architecture is "the runtime inside the frame hears keys and postMessages
+  verbs out", a synthetic keyboard is not the instrument.
+
+Consequence: **grep the component for `sandbox=` before writing a keyboard
+step.** If the surface is opaque-origin, the keyboard steps belong in the
+operator-packet lane (a human drives) or need a same-origin test build —
+and relaxing the sandbox changes the thing under test, so prefer the human.
+
+**Never record a synthesized-input failure as a product defect.** If an action
+does not land, first prove your input path can land *anything* on that surface.
+In the Studio pass three insert routes produced no block; that is the exact
+ADR-482 shape the suite hunts, and it was still **not** reported, because the
+same harness was independently proven unable to deliver input the runtime hears.
+A defect indistinguishable from a known harness limitation is not a finding.
+
+**Append-only history does not make a live subject safe to type into.** The
+revision chain is append-only; the *head content* is live. A synthetic keyboard
+damages real documents (stray characters, and a correcting backspace can
+collapse an emptied block outright). Use a disposable rig artifact — §3's
+rig-over-live preference applies to editing surfaces, not just to principals.
+
 **Two wire shapes for errors.** Raw FastAPI raises surface as `{detail}`;
 anything through the envelope middleware arrives as `{error: {code, message}}`.
 A client reading only one compiles, ships, and silently shows a generic
