@@ -272,3 +272,96 @@ DangerZone endpoints per the step-10 caveat.
 code-reading rather than live probes, and the three legibility findings are
 open. A lane marked green should mean a later session can trust it without
 re-reading this file.
+
+---
+
+# RUN 3 — 2026-07-31, the legibility fixes (F2/F3/F4)
+
+All three LOW findings are fixed (`bfcb178`, `a1ed9c0`). They were one defect
+shape — **yarnnn enforces correctly and says nothing** — so they got one fix
+shape: distinguish a real refusal from noise, and show the server's own words.
+
+## What changed
+
+**F4** — `onNarrow` / `onRevoke` / `onCap` were bare `try/finally` with NO
+`catch`. The 403 threw, `finally` cleared `busy`, and the dialog sat there.
+Each now catches and renders the refusal with `role="alert"`.
+
+**F2** — `refreshInvites` caught EVERY failure into `setCanInvite(false)`, so a
+transport blip right after a successful invite blanked the roster and hid the
+invite box. Only a 403 hides it now.
+
+**F3** — `fetchMembers` collapsed a 403 into `[]`, indistinguishable from an
+empty roster, so a revoked member rendered full pane chrome over data every
+pane was 403ing on. The roster read now exposes `forbidden` and
+`/workspace-settings` states plainly that access is gone. Keyed on 403
+specifically so a flaky network cannot lock a real member out.
+
+## The half-working fix, caught by driving it
+
+F4 shipped and the alert appeared live — but with the GENERIC fallback, not the
+server's wording. Two wire shapes: `serverDetail` read only FastAPI's
+`{detail}`, while the governance verbs answer through the envelope middleware
+as `{error:{code,message}}`. Probed directly rather than inferred:
+
+```
+POST /api/workspace/members/{self}/narrow   (member's own bearer)
+403 {"error":{"code":"forbidden",
+              "message":"Only the workspace owner can change a member's access"}}
+```
+
+A `detail`-only reader compiles, ships, and silently shows the fallback forever.
+Fixed in `a1ed9c0` to read both shapes; the gate now asserts both.
+
+**That probe also closes the receipt the run-2 record listed as OWED**: a real
+member HTTP call against the fixed endpoint, refused 403 with the reason. Step 9
+is now closed at BOTH layers — substrate unchanged AND an explicit 403.
+
+## The gate that was green and wrong
+
+`web/lib/workspace/__tests__/refusals-are-legible.test.mjs` (run from the REPO
+ROOT). Its first version **passed both deliberate reintroductions of the
+defect.** Cause: it read a fixed 1400-char window from each handler, and the
+handlers sit ~1330 chars apart — so `onNarrow`'s window reached into `onCap`
+and matched its NEIGHBOUR's `catch`. The F3 assertion had the same class of
+hole: it tested for the presence of the `membersForbidden` identifier, which
+survives deleting the assignment.
+
+Corrected to brace-match each handler body and assert the assignment itself.
+Then falsified four ways, each restored:
+
+1. strip `onNarrow`'s catch → RED
+2. delete the 403 discrimination → RED
+3. keep the catch, drop the render → RED (the "stores state nobody displays" case)
+4. revert to `detail`-only → RED
+
+Worth keeping: **a gate is not verified until it has been made to fail.** This
+one was written carefully, passed on the first run, and was measuring almost
+nothing.
+
+## All three fixes VERIFIED LIVE in production
+
+Not "the build is green" — driven through the browser against the deployed app,
+with substrate receipts.
+
+- **F4**: member's escalation attempt now renders `role="alert"` in the dialog.
+  Before: nothing at all. Server receipt: `403 {"error":{"code":"forbidden",
+  "message":"Only the workspace owner can change a member's access"}}`.
+- **F3**: revoked member's open session now shows *"You don't have access to
+  this workspace"* with actionable guidance; pane chrome is GONE (asserted
+  `stillShowsPaneChrome: false`). Before: full nav rendered over 403ing data.
+- **F2**: pending invite row appears immediately — `testacct@yarnnn.com ·
+  pending` — with NO manual reload, and the invite box stays visible. Before:
+  the roster blanked and the invite read as failed.
+
+Final state re-verified against baseline: rig 1 active grant / 0 pending
+invites / 0 files; guest 0 active grants / 0 pref rows; live workspace's
+seulkim88 grant untouched.
+
+## Verdict after run 3
+
+**READY FOR PRODUCTION** for the owner/member shapes this pass covers — see the
+verdict section in the session summary for the exact scope and the two residual
+items that do NOT block (the F1 blast-radius probe past the grant layer, and
+GrantGate coverage of the Members roster, which is a legibility improvement on
+an enforced surface, not a hole).
