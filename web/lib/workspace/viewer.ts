@@ -91,13 +91,28 @@ function syncCacheBinding(): void {
   }
 }
 
+/** Distinguishes "no access to this workspace" from "roster unavailable".
+ *
+ * A 403 is a FACT about the viewer (revoked, or never granted); any other
+ * failure is transport noise. Collapsing both to `[]` made a revoked member's
+ * settings surface render its full chrome as though nothing had changed —
+ * every pane 403'd underneath, so it was chrome without data (2026-07-31
+ * click-pass F3). Surfaces can now say so. */
+let membersForbidden = false;
+
 async function fetchMembers(): Promise<WorkspaceMemberRow[]> {
   try {
     const res = await api.workspace.getMembers();
+    membersForbidden = false;
     return res.members || [];
-  } catch {
+  } catch (e) {
     // Roster unavailable — resolution degrades to the generic labeler and
     // grant-derived affordances fail OPEN (the server gate still enforces).
+    const status =
+      e && typeof e === 'object' && 'status' in e
+        ? (e as { status?: number }).status
+        : undefined;
+    membersForbidden = status === 403;
     return [];
   }
 }
@@ -114,17 +129,22 @@ async function fetchMemberships(): Promise<WorkspaceMembershipRow[]> {
 export function useWorkspaceMembers(): {
   members: WorkspaceMemberRow[];
   loaded: boolean;
+  /** True when the roster read was REFUSED (403) — the viewer has no grant on
+   *  the bound workspace. Distinct from `members: []`, which also covers a
+   *  transport blip and an empty roster. */
+  forbidden: boolean;
 } {
-  const [state, setState] = useState<{ members: WorkspaceMemberRow[]; loaded: boolean }>({
-    members: [],
-    loaded: false,
-  });
+  const [state, setState] = useState<{
+    members: WorkspaceMemberRow[];
+    loaded: boolean;
+    forbidden: boolean;
+  }>({ members: [], loaded: false, forbidden: false });
   useEffect(() => {
     let cancelled = false;
     syncCacheBinding();
     if (!membersPromise) membersPromise = fetchMembers();
     membersPromise.then((members) => {
-      if (!cancelled) setState({ members, loaded: true });
+      if (!cancelled) setState({ members, loaded: true, forbidden: membersForbidden });
     });
     return () => {
       cancelled = true;

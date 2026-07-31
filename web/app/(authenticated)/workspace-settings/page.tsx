@@ -54,6 +54,7 @@ import { renderSystemAgentPane } from "@/components/agents/SystemAgentPanes";
 // operator-facing Program hire UI is retired, its lifecycle-drawer component
 // stays in the Setup sequence).
 import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
+import { useWorkspaceMembers } from "@/lib/workspace/viewer";
 import { WorkspaceDangerZone } from "@/components/workspace-concepts/WorkspaceDangerZone";
 // ADR-425 — the Perception group (Connectors · Sources) left this door:
 // Connectors → the account door (a credential is a human's account object),
@@ -139,6 +140,10 @@ const PANE_GROUPS: PaneGroup[] = [
 ];
 
 export default function WorkspaceSettingsPage() {
+  // ADR-412 D6 — the roster read is the surface's access probe. It is already
+  // fetched once per workspace bind and cached, so this adds no request.
+  const { forbidden: accessRefused } = useWorkspaceMembers();
+
   // ADR-494 D5 — the ADR-491 D3 `budget` → `usage` normalizer is DELETED. It
   // existed only to clean a PERSISTED retired pane value; `pane` is no longer
   // remembered (SURFACE_EPHEMERAL_PARAM_KEYS), so a stale value can no longer
@@ -210,6 +215,27 @@ export default function WorkspaceSettingsPage() {
         return null;
     }
   };
+
+  // A viewer with NO grant on the bound workspace (revoked, or never granted)
+  // gets a plain statement instead of the full pane chrome. Every pane's fetch
+  // 403s underneath, so the surface previously rendered its nav and headings
+  // over nothing at all — accurate refusal, unreadable presentation
+  // (2026-07-31 click-pass F3). `forbidden` is specifically a 403, never a
+  // transport blip, so a flaky network cannot lock a real member out of it.
+  if (accessRefused) {
+    return (
+      <div className="mx-auto max-w-lg px-6 py-16 text-center">
+        <h1 className="text-base font-semibold text-foreground">
+          You don&rsquo;t have access to this workspace
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Your access may have been revoked, or you may be viewing a workspace
+          you were never added to. Switch workspaces from the avatar menu, or
+          ask the owner to invite you again.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <SettingsPaneShell windowSlug="workspace-settings" paneGroups={PANE_GROUPS} defaultPane="members" renderPane={renderPane} />

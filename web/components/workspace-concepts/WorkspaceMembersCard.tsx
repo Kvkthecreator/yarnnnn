@@ -124,6 +124,19 @@ function regionLabel(region: string): string {
   return REGION_LABEL[region] ?? REGION_LABEL[region.replace(/\/?$/, '/')] ?? region;
 }
 
+/** The server's own refusal text, or `fallback` when it carried none.
+ *
+ * FastAPI puts the reason in `detail`, and for the governance verbs that reason
+ * is already operator-grade ("Only the workspace owner can …", "narrow cannot
+ * widen the write axis …"). Prefer it over anything invented client-side. */
+function serverDetail(e: unknown, fallback: string): string {
+  const detail =
+    e && typeof e === 'object' && 'data' in e
+      ? (e as { data?: { detail?: unknown } }).data?.detail
+      : undefined;
+  return typeof detail === 'string' && detail.trim() ? detail : fallback;
+}
+
 export function WorkspaceMembersCard({
   variant = 'full',
   scope = 'workspace',
@@ -144,6 +157,11 @@ export function WorkspaceMembersCard({
   // ADR-445 §7 Phase 4 — the per-member spend-cap dialog target.
   const [capTarget, setCapTarget] = useState<Member | null>(null);
   const [busy, setBusy] = useState(false);
+  // The server's refusal, in its own words. The governance verbs (narrow /
+  // revoke / cap) are owner-only and `narrow` additionally refuses a WIDENING
+  // change; both arrive as a 403 whose `detail` already explains why. Without
+  // somewhere to put it the throw was swallowed and the dialog just sat there.
+  const [governError, setGovernError] = useState<string | null>(null);
   // ADR-404 step 5 — human-member invites (owner-only; API 403s otherwise).
   type Invite = Awaited<ReturnType<typeof api.workspace.listInvites>>['invites'][number];
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -158,10 +176,20 @@ export function WorkspaceMembersCard({
       const res = await api.workspace.listInvites();
       setInvites(res.invites);
       setCanInvite(true);
-    } catch {
-      // 403 (member viewing) or transport failure — hide the invite affordance.
-      setInvites([]);
-      setCanInvite(false);
+    } catch (e) {
+      // ONLY a 403 means "this viewer is not the owner" — hide the affordance.
+      // A transport blip must NOT be read as a loss of authority: doing so
+      // blanked the roster right after a successful invite, so the owner saw an
+      // empty list and reasonably concluded the invite had failed (2026-07-31
+      // click-pass F2). Keep the last known roster and stay visible instead.
+      const status =
+        e && typeof e === 'object' && 'status' in e
+          ? (e as { status?: number }).status
+          : undefined;
+      if (status === 403) {
+        setInvites([]);
+        setCanInvite(false);
+      }
     }
   };
 
@@ -177,12 +205,7 @@ export function WorkspaceMembersCard({
       setLastInviteLink(created.invite_link ?? null);
       await refreshInvites();
     } catch (e) {
-      const detail =
-        e && typeof e === 'object' && 'data' in e &&
-        typeof (e as { data?: { detail?: unknown } }).data?.detail === 'string'
-          ? String((e as { data?: { detail?: unknown } }).data?.detail)
-          : 'Could not send the invite.';
-      setInviteError(detail);
+      setInviteError(serverDetail(e, 'Could not send the invite.'));
     } finally {
       setInviting(false);
     }
@@ -235,12 +258,15 @@ export function WorkspaceMembersCard({
 
   const onRevoke = async (m: Member) => {
     setBusy(true);
+    setGovernError(null);
     try {
       // ADR-431 — target the specific member's connection when a provider is
       // connected by several members (connected_by disambiguates the grant).
       await api.workspace.revokeMember(m.principal_id, m.connected_by);
       setRevokeTarget(null);
       await refresh();
+    } catch (e) {
+      setGovernError(serverDetail(e, 'Could not revoke this member.'));
     } finally {
       setBusy(false);
     }
@@ -248,6 +274,7 @@ export function WorkspaceMembersCard({
 
   const onNarrow = async (m: Member, writeScopes: string[], readScopes: string[]) => {
     setBusy(true);
+    setGovernError(null);
     try {
       // Two axes. Omit readScopes when it equals writeScopes (read ⊇ write, the
       // common case) so the backend applies its mirror default; pass it when the
@@ -261,6 +288,13 @@ export function WorkspaceMembersCard({
       });
       setNarrowTarget(null);
       await refresh();
+    } catch (e) {
+      // The server refuses this for two good reasons — the caller is not the
+      // owner, or the change would WIDEN rather than narrow. Both arrive as a
+      // 403 carrying the reason in `detail`. Before this, the throw was
+      // swallowed by a bare try/finally and the dialog just sat there
+      // (2026-07-31 click-pass F4): a correct refusal the operator could not see.
+      setGovernError(serverDetail(e, 'Could not change this member’s access.'));
     } finally {
       setBusy(false);
     }
@@ -269,10 +303,13 @@ export function WorkspaceMembersCard({
   // ADR-445 §7 Phase 4 — owner sets/clears a member's spend cap on the shared pool.
   const onCap = async (m: Member, capUsd: number | null) => {
     setBusy(true);
+    setGovernError(null);
     try {
       await api.workspace.capMember(m.principal_id, capUsd);
       setCapTarget(null);
       await refresh();
+    } catch (e) {
+      setGovernError(serverDetail(e, 'Could not set this member’s spend cap.'));
     } finally {
       setBusy(false);
     }
@@ -623,11 +660,16 @@ export function WorkspaceMembersCard({
                 </p>
               </div>
             </div>
+            {governError && (
+              <p role="alert" className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+                {governError}
+              </p>
+            )}
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => setRevokeTarget(null)}
+                onClick={() => { setGovernError(null); setRevokeTarget(null); }}
                 className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
               >
                 Cancel
@@ -652,7 +694,8 @@ export function WorkspaceMembersCard({
         <NarrowDialog
           member={narrowTarget}
           busy={busy}
-          onCancel={() => setNarrowTarget(null)}
+          error={governError}
+          onCancel={() => { setGovernError(null); setNarrowTarget(null); }}
           onConfirm={(write, read) => onNarrow(narrowTarget, write, read)}
         />
       )}
@@ -662,7 +705,8 @@ export function WorkspaceMembersCard({
         <CapDialog
           member={capTarget}
           busy={busy}
-          onCancel={() => setCapTarget(null)}
+          error={governError}
+          onCancel={() => { setGovernError(null); setCapTarget(null); }}
           onConfirm={(cap) => onCap(capTarget, cap)}
         />
       )}
@@ -679,11 +723,13 @@ export function WorkspaceMembersCard({
 function CapDialog({
   member,
   busy,
+  error,
   onCancel,
   onConfirm,
 }: {
   member: Member;
   busy: boolean;
+  error?: string | null;
   onCancel: () => void;
   onConfirm: (capUsd: number | null) => void;
 }) {
@@ -722,6 +768,11 @@ function CapDialog({
           <span className="text-xs text-muted-foreground">/ month</span>
         </div>
         {invalid && <p className="mt-1.5 text-xs text-destructive">Enter a positive dollar amount, or leave blank to clear.</p>}
+        {error && (
+          <p role="alert" className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+            {error}
+          </p>
+        )}
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
@@ -775,11 +826,13 @@ function normalizePrefix(p: string): string {
 function NarrowDialog({
   member,
   busy,
+  error,
   onCancel,
   onConfirm,
 }: {
   member: Member;
   busy: boolean;
+  error?: string | null;
   onCancel: () => void;
   onConfirm: (writeScopes: string[], readScopes: string[]) => void;
 }) {
@@ -923,6 +976,12 @@ function NarrowDialog({
             : `Read: ${readScopes.length} path${readScopes.length === 1 ? '' : 's'}` +
               ` · Write: ${denyAllWrite ? 'nothing (read-only)' : `${writeScopes.length} path${writeScopes.length === 1 ? '' : 's'}`}`}
         </p>
+
+        {error && (
+          <p role="alert" className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+            {error}
+          </p>
+        )}
 
         <div className="mt-4 flex justify-end gap-2">
           <button
