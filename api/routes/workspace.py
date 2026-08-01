@@ -3029,3 +3029,82 @@ async def get_workspace_setup_bundle(
 # get_recent_artifacts (files), judgment_log → the decisions read (activity),
 # MANDATE/autonomy → the workspace-settings reads. No new consumer; no caller
 # remains (HomeRenderer was the sole one).
+
+
+# =============================================================================
+# GET /workspace/export — the portability export (ADR-328 D4, via ADR-510)
+# =============================================================================
+# Category 1 leaves as a plain GIT REPOSITORY inside a zip: the authored
+# filesystem as the working tree, the full attributed revision chain as commit
+# history. Delivered as a ROUTE, not a primitive (ADR-328 Q2 — "download your
+# workspace" is an operator-sovereignty affordance, not an LLM-surface tool).
+# The manifest beside the repo DECLARES every omission (D8's binding
+# discipline: silent omission would make "portable" a lie). RLS scopes the row
+# walk to the caller's workspace; a powerbox-narrowed principal's export omits
+# ungranted paths and the manifest declares the count.
+
+
+@router.get("/workspace/export")
+def export_workspace(auth: UserClient):
+    """Download the workspace as a git repo in a zip (+ declared omissions)."""
+    import shutil
+    import tempfile
+    import zipfile
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    from fastapi.responses import StreamingResponse
+    from starlette.background import BackgroundTask
+
+    from services.export.git_export import build_workspace_export, manifest_markdown
+    from services.primitives.workspace import grant_read_scopes, path_under_scopes
+    from services.supabase import get_service_client
+    from services.workspace_context import effective_workspace_id
+
+    ws = effective_workspace_id(auth.user_id, None)
+    scopes = grant_read_scopes(auth)
+    readable = None if scopes is None else (lambda p: path_under_scopes(p, scopes))
+
+    tmp = tempfile.mkdtemp(prefix="yarnnn-export-")
+    try:
+        manifest = build_workspace_export(
+            auth.client,
+            get_service_client(),
+            user_id=auth.user_id,
+            workspace_id=ws,
+            out_dir=Path(tmp) / "workspace",
+            readable=readable,
+        )
+        stamp = datetime.now(timezone.utc)
+        (Path(tmp) / "EXPORT-MANIFEST.md").write_text(
+            manifest_markdown(
+                manifest, workspace_id=ws,
+                generated_at=stamp.isoformat(timespec="seconds"),
+            )
+        )
+        zip_path = Path(tmp) / "export.zip"
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for p in sorted(Path(tmp).rglob("*")):
+                if p == zip_path or p.is_dir():
+                    continue
+                zf.write(p, p.relative_to(tmp))
+
+        fh = open(zip_path, "rb")
+
+        def _cleanup(handle=fh, root=tmp):
+            handle.close()
+            shutil.rmtree(root, ignore_errors=True)
+
+        filename = f"yarnnn-export-{stamp:%Y%m%d}.zip"
+        return StreamingResponse(
+            fh,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(zip_path.stat().st_size),
+            },
+            background=BackgroundTask(_cleanup),
+        )
+    except Exception:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise

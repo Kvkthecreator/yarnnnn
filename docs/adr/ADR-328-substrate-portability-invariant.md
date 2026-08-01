@@ -1,5 +1,15 @@
 # ADR-328 — Substrate Portability Invariant: Layer 1 is Authoritative & Portable, Layer 2 is Reconstructable Cache
 
+> **D4 + D8 update (2026-08-01, [ADR-510](ADR-510-one-binary-lane-and-the-portability-export.md))**:
+> **D4 is IMPLEMENTED** — the Category-1 git export ships as `GET /api/workspace/export`
+> (pure-Python loose-object writer, `services/export/git_export.py`; gate
+> `api/test_adr510_git_export.py` verifies with an independent re-parser + `git fsck`).
+> **D8 is RESOLVED as option (c)** for substrate binaries (ADR-427 brought binary into
+> Category 1; ADR-510 migrated the last legacy-lane writer — the design-system import —
+> and repaired the live divergence); legacy raw-lane rows follow the declared-omission
+> discipline via `EXPORT-MANIFEST.md`. The Phase-1 canon package (DP26, GLOSSARY
+> vocabulary, the D3 reconstruction guard) remains owed to this ADR's own ratification.
+>
 > **Status**: PROPOSED (2026-06-08). **D8 RESOLVED by [ADR-427](ADR-427-binary-native-substrate-and-the-storage-seam.md) (Phases 1–3 Implemented 2026-07-20)** — binary is now Category-1: a content-addressed, attributed revision behind the stream-first storage seam (`services/storage_backend.py`; marker-row CAS + `workspace-cas` bucket, migration 219). `content_url` is no longer stored for versioned binary (serving URLs are minted per-request, ADR-427 D4); legacy raw-lane rows retain it until migrated. Drafted by KVK + Claude. **Verification-hardened 2026-06-08** — the receipt-backed `workspace_files` column audit (below) refined the original two-category model into THREE categories and surfaced one genuine portability gap (`content_url` binaries). The draft's clean "two layers" story was *too coarse* and is corrected here.
 > **Decision state (set 2026-06-08 by KVK)**: D1–D7 + D9 + Q1–Q5 are resolved and ready for ratification (the three-category invariant + reconstruction guard + git-export-as-Phase-2 + RLS-as-enforcement). **D8 (the `content_url` binary-portability gap) is DELIBERATELY LEFT OPEN** — not resolved to any option, flagged as a follow-on awaiting real pressure. **No code and no canon edits land until KVK reviews this ADR and ratifies.** This doc is review-ready, not implemented.
 > **Date**: 2026-06-08

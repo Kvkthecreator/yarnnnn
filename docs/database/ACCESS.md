@@ -4,7 +4,7 @@
 > tree — this repo is public and git history is permanent. All connection strings below reference
 > environment variables. Put the real values in a **gitignored** `docs/database/ACCESS.local.md`
 > (or your shell profile / a `.env` you never commit). If you ever see a raw password or key in a
-> tracked file, treat it as a leak: rotate it and purge it. See [ROTATION.md](ROTATION.md).
+> tracked file, treat it as a leak: rotate it and purge it.
 
 ## Supabase Project Details
 
@@ -22,8 +22,9 @@ Export the connection string in your shell (e.g. `~/.zshrc`), sourced from the S
 export SUPABASE_DB_URL="postgresql://postgres.noxgqcwynkzqabljjyon:<URL_ENCODED_PASSWORD>@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
 ```
 
-Prefer the **least-privilege** roles for day-to-day work rather than the `postgres` superuser
-(see [ROTATION.md](ROTATION.md) §Least-privilege roles):
+Prefer the **least-privilege** roles for day-to-day work rather than the `postgres` superuser.
+Create them once with `supabase/migrations/230_security_least_privilege_roles.sql` (fill in the
+passwords first), then use `yarnnn_readonly` for ad-hoc queries and `yarnnn_migrate` for DDL:
 
 ```bash
 export SUPABASE_DB_URL_RO="postgresql://yarnnn_readonly:<PW>@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"   # SELECT-only, for ad-hoc queries
@@ -157,4 +158,4 @@ for u in admin_client.auth.admin.list_users():
 
 ---
 
-See [MIGRATIONS.md](MIGRATIONS.md) for applied migration history and [ROTATION.md](ROTATION.md) for the credential-rotation runbook.
+See [MIGRATIONS.md](MIGRATIONS.md) for applied migration history.
