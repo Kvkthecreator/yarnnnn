@@ -1,5 +1,12 @@
 # ADR-462 — The block context menu: two entrances, one badge, a neutral page
 
+> **D3 refusal row clarified by [ADR-511](ADR-511-the-conventional-substrate.md)**
+> (2026-08-01): "Group / Frame selection — No" refused a **synthetic editor-side group
+> object** (a container in a shadow tree — the Figma model), and that refusal STANDS.
+> Selecting a **real DOM container** was never the thing refused: ADR-511 makes structural
+> containers (columns, slot-divs) selection subjects with identity. Persistent grouping, if
+> ever requested, is wrap-in-a-real-`<div>` — a revision, R1-compliant, never a shadow layer.
+
 - **Status**: **Accepted** (2026-07-16, operator-ratified through the 2026-07-16 right-click discourse — "think now we can implement, while documenting in process")
 - **Dimension**: Channel (primary — where the member reaches) + Mechanism (the free/metered line made visible)
 - **Amends**: ADR-458 D4 (the "one home for verbs" clause is narrowed to *settings*) · ADR-453 D7 (the accent inventory — selection goes neutral) · ADR-461 D3/D4 (D8 — the frame is the nearest layout parent, not always the slide; the gate and the resolver split)

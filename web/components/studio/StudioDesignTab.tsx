@@ -135,6 +135,8 @@ interface StudioDesignTabProps {
   /** ADR-466 D2: clear the selected block's x/y measures — the positioned
    *  block returns to the page's flow (one revision). */
   onReturnToFlow: () => void;
+  /** ADR-511 D4 — bounded container-layout properties (padding/gap/align/justify). */
+  onContainerLayout: (layout: Record<string, string | null>) => void;
   /** ADR-485 follow-on: the served measures (`vocabulary.measures`) — the Design
    *  tab reads a block's CURRENT w/h back from its --y* style so a member sees
    *  the size the drag authored. Empty until the vocabulary lands. */
@@ -546,6 +548,7 @@ export function StudioDesignTab({
   onPageVerb,
   onTurnInto,
   onReturnToFlow,
+  onContainerLayout,
   measures,
   onClearMeasure,
   onApplyDesignSystem,
@@ -584,20 +587,18 @@ export function StudioDesignTab({
   //
   // Derived from the served registry, never a layout slug (ADR-481 D4: the
   // ladder loses a grain BY DERIVATION, not by suppression).
-  const slotIsRegion = useMemo(() => {
-    if (!selection?.slot) return false;
-    const row = vocabulary?.arrangements?.[layout]?.find((a) => a.slug === selection.arrange);
-    if (!row) return true; // unknown arrangement: keep the grain, never hide a real slot
-    if (row.slots.length >= 2) return true;
-    return row.slots.find((s) => s.name === selection.slot)?.role === 'media';
-  }, [selection, vocabulary, layout]);
-
-  const scope: 'document' | 'block' | 'slot' | 'page' = !selection
+  // ADR-511 D3 — the structural grain: blockId + blockKind is a vocabulary
+  // BLOCK; blockId with no kind is a structural CONTAINER (a column/columns/
+  // slot-div carrying identity but no vocabulary). The ADR-453 slot scope and
+  // its registry region-gate are DELETED — a slot-div now selects as a
+  // container with real affordances (layout properties, the id-addressed
+  // verbs), so there is no grain left to hide.
+  const scope: 'document' | 'block' | 'container' | 'page' = !selection
     ? 'document'
-    : selection.blockId
+    : selection.blockId && selection.blockKind
       ? 'block'
-      : selection.slot && slotIsRegion
-        ? 'slot'
+      : selection.blockId
+        ? 'container'
         : selection.slideIndex != null || selection.pageIndex != null
           ? 'page'
           : 'document';
@@ -969,16 +970,18 @@ export function StudioDesignTab({
     };
   }, [fileMenu]);
 
-  // ── Slot scope: role-gated quick-add (media → the image picker) ─────────
+  // ── Container scope: role-gated quick-add (a media region keeps the image
+  // picker — the one job the old slot scope did that a plain container
+  // cannot, resolved from the registry while data-slot survives Phase 2). ──
   const slotRole = useMemo(() => {
-    if (scope !== 'slot' || !selection?.slot) return null;
+    if (scope !== 'container' || !selection?.slot) return null;
     const row = arrangements.find((a) => a.slug === selection.arrange);
     return row?.slots.find((s) => s.name === selection.slot)?.role ?? 'flow';
   }, [scope, selection, arrangements]);
 
   const [slotImages, setSlotImages] = useState<Array<{ path: string }> | null>(null);
   useEffect(() => {
-    if (scope !== 'slot' || slotRole !== 'media' || slotImages) return;
+    if (scope !== 'container' || slotRole !== 'media' || slotImages) return;
     api.studio
       .citable()
       .then((c) => setSlotImages(c.images))
@@ -1343,66 +1346,98 @@ export function StudioDesignTab({
         </>
       )}
 
-      {/* ── SLOT scope ─────────────────────────────────────────────────── */}
-      {scope === 'slot' && selection?.slot && (
-        <div className={SECTION}>
-          {/* A slot has a NAME (which region) and a ROLE (what it accepts),
-              and for the heading slots those two words are identical — so this
-              rendered the stutter "Slot · heading (heading)". Show the role
-              only when it says something the name does not. */}
-          <p className={HEADING}>
-            Slot · {selection.slot}
-            {slotRole && slotRole !== selection.slot ? ` (${slotRole})` : ''}
-          </p>
-          {slotRole === 'media' ? (
-            slotImages == null ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading images…
-              </div>
-            ) : slotImages.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                No images in the workspace yet — drop one into Files, or ask the chat for an SVG.
-              </p>
-            ) : (
-              <div className="space-y-1">
-                {slotImages.map((img) => (
-                  <button
-                    key={img.path}
-                    type="button"
-                    onClick={() =>
-                      onInsertImageInSlot(
-                        img.path,
-                        selection.slot!,
-                        selection.slideIndex,
-                        selection.pageIndex,
-                      )
-                    }
-                    className="flex w-full flex-col rounded px-2 py-1 text-left hover:bg-muted/40"
-                  >
-                    <span className="truncate text-xs">{baseName(img.path)}</span>
-                    <span className="truncate text-[10px] text-muted-foreground">
-                      {img.path.replace(/^\/workspace\//, '')}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )
-          ) : (
-            /* ADR-505 D5: the flow-slot "+ Add text here" button is DELETED. It
-               called the SAME `insertProseInSlot` as the empty slot's own "+ Add"
-               on the canvas — one act with two mounts, and the canvas mount is
-               the LOCATED one (the member is pointing at the slot). What the
-               panel keeps is the MEDIA branch above, which is not a duplicate:
-               the canvas "+ Add" on a media slot routes INTO it (onAddHere,
-               role === 'media'), so this is that act's terminal step and its
-               documented home (STUDIO.md — "this scope is the image picker's
-               home"). A flow slot now shows its name and role only. */
-            <p className="text-xs text-muted-foreground">
-              Takes text — click <span className="font-medium">+ Add</span> on the
-              slot itself, or type <span className="font-medium">/</span> on the canvas.
-            </p>
-          )}
-        </div>
+      {/* ── CONTAINER scope (ADR-511 D3/D4) ─────────────────────────────────
+          A structural container — a column, a columns row, a slot-div — is a
+          real element with identity: it duplicates/deletes/moves via the
+          right-click menu (the id-addressed ops need no special casing), and
+          this panel carries what only a container owns: its LAYOUT, as
+          bounded plain-CSS properties (never a raw CSS pane — D7). */}
+      {scope === 'container' && (
+        <>
+          <div className={SECTION}>
+            <p className={HEADING}>{selection?.label ?? 'group'}</p>
+            {slotRole === 'media' ? (
+              slotImages == null ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading images…
+                </div>
+              ) : slotImages.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No images in the workspace yet — drop one into Files, or ask the chat for an SVG.
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {slotImages.map((img) => (
+                    <button
+                      key={img.path}
+                      type="button"
+                      onClick={() =>
+                        onInsertImageInSlot(
+                          img.path,
+                          selection!.slot!,
+                          selection!.slideIndex,
+                          selection!.pageIndex,
+                        )
+                      }
+                      className="flex w-full flex-col rounded px-2 py-1 text-left hover:bg-muted/40"
+                    >
+                      <span className="truncate text-xs">{baseName(img.path)}</span>
+                      <span className="truncate text-[10px] text-muted-foreground">
+                        {img.path.replace(/^\/workspace\//, '')}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )
+            ) : null}
+          </div>
+          <div className={SECTION}>
+            <p className={HEADING}>Layout</p>
+            {(
+              [
+                { key: 'padding', label: 'Padding', options: [
+                  { v: '0', l: 'None' }, { v: '0.5rem', l: 'S' }, { v: '1rem', l: 'M' }, { v: '2rem', l: 'L' },
+                ] },
+                { key: 'gap', label: 'Gap', options: [
+                  { v: '0', l: 'None' }, { v: '0.5rem', l: 'S' }, { v: '1rem', l: 'M' }, { v: '2rem', l: 'L' },
+                ] },
+                { key: 'align', label: 'Align', options: [
+                  { v: 'flex-start', l: 'Start' }, { v: 'center', l: 'Center' },
+                  { v: 'flex-end', l: 'End' }, { v: 'stretch', l: 'Stretch' },
+                ] },
+                { key: 'justify', label: 'Justify', options: [
+                  { v: 'flex-start', l: 'Start' }, { v: 'center', l: 'Center' },
+                  { v: 'flex-end', l: 'End' }, { v: 'space-between', l: 'Between' },
+                ] },
+              ] as const
+            ).map((row) => {
+              const style = selectedEl?.getAttribute('style') ?? '';
+              const cssProp = { padding: 'padding', gap: 'gap', align: 'align-items', justify: 'justify-content' }[row.key];
+              const cur = style.match(new RegExp(`(?:^|;)\\s*${cssProp}\\s*:\\s*([^;]+)`))?.[1]?.trim() ?? null;
+              return (
+                <div key={row.key} className="flex items-center justify-between gap-2 py-0.5">
+                  <span className="text-[11px] text-muted-foreground">{row.label}</span>
+                  <div className="flex gap-1">
+                    {row.options.map((o) => (
+                      <button
+                        key={o.v}
+                        type="button"
+                        onClick={() => onContainerLayout({ [row.key]: cur === o.v ? null : o.v })}
+                        className={`rounded border px-1.5 py-0.5 text-[10px] transition-colors ${
+                          cur === o.v
+                            ? 'border-foreground/50 text-foreground'
+                            : 'border-border text-muted-foreground hover:bg-muted/40'
+                        }`}
+                      >
+                        {o.l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* ── BLOCK scope ────────────────────────────────────────────────── */}
@@ -1610,27 +1645,46 @@ export function StudioDesignTab({
               </p>
             </div>
           )}
-          {/* ADR-466 D2 — the positioned state's escape hatch. A block the
-              member dragged to a point (x/y measures) sits outside the page's
-              flow; this returns it (re-arranging the page also does). */}
-          {/* ADR-485 D4: the kernel rule is `.slide [data-block][data-x][data-y]`
-              — BOTH are required for the positioned state. Testing `data-x`
-              alone offered "Return to flow" on a block that was still in flow
-              (a lane can write one attribute without the other, since the
-              posture teaches them as prose), and clicking it landed a revision
-              that changed nothing visible. Read the state the kernel reads. */}
-          {selectedEl?.hasAttribute('data-x') && selectedEl?.hasAttribute('data-y') && (
-            <div className={SECTION}>
-              <p className={HEADING}>Position</p>
-              <button type="button" className={askBtn} onClick={onReturnToFlow}>
-                Return to flow
-              </button>
-              <p className="text-[10px] text-muted-foreground">
-                Dragged to a point on this slide — it no longer follows the
-                slide&apos;s layout. Re-arranging the slide also returns it.
-              </p>
-            </div>
-          )}
+          {/* ADR-511 D4 — Position is an explicit, visible, reversible state
+              (the Claude Design benchmark's Inline/Absolute, in operator
+              words). Flow is the default; dragging is what enters the
+              positioned state; "In flow" is the reversal. Shown on every
+              STAGED block so the state is legible before it surprises.
+              ADR-485 D4 unchanged: the kernel rule requires BOTH x and y —
+              read the state the kernel reads. */}
+          {!!selectedEl?.closest('.slide') && (() => {
+            const positioned =
+              selectedEl.hasAttribute('data-x') && selectedEl.hasAttribute('data-y');
+            const chip = (active: boolean) =>
+              `rounded border px-1.5 py-0.5 text-[10px] transition-colors ${
+                active
+                  ? 'border-foreground/50 text-foreground'
+                  : 'border-border text-muted-foreground hover:bg-muted/40'
+              }`;
+            return (
+              <div className={SECTION}>
+                <p className={HEADING}>Position</p>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    className={chip(!positioned)}
+                    onClick={positioned ? onReturnToFlow : undefined}
+                    disabled={!positioned}
+                  >
+                    In flow
+                  </button>
+                  <button type="button" className={chip(positioned)} disabled>
+                    Positioned
+                  </button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  {positioned
+                    ? 'Dragged to a point on this slide — it no longer follows the layout. "In flow" returns it.'
+                    : 'Follows the slide’s layout. Drag the block on the canvas to position it freely.'}
+                </p>
+              </div>
+            );
+          })()}
         </>
       )}
 

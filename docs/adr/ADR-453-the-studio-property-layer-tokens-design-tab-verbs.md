@@ -1,5 +1,13 @@
 # ADR-453 — The Studio property layer: tokens-not-pixels, the Design tab, and the grain-aligned verbs
 
+> **D5 SUPERSEDED by [ADR-511](ADR-511-the-conventional-substrate.md)** (2026-08-01): the
+> click-grain ladder (block → slot → page) is replaced by the **structural grain** — the DOM
+> tree is the interaction contract, not the arrangement registry. Structural containers are
+> selection subjects (identity-stamped, ADR-511 D5); the slot grain and the Design tab's slot
+> scope dissolve into **container** scope; the inert-slot marking pass is deleted; Esc walks
+> the real ancestor chain. The registry demotes to a starter-template catalog (ADR-511 D2).
+> D1–D4 and D6+ (tokens, the Design tab, grain-aligned verbs) are unchanged.
+
 > **Amended by [ADR-481](ADR-481-the-flow-chrome-rebuild-a-blank-document-is-a-blank-page.md) D1/D3**
 > (2026-07-22): D5's click-grain ladder loses the **slot** and **page** grains on `flow`
 > layouts — **by derivation, not by suppression**. ADR-466 P4 declined to remove them because

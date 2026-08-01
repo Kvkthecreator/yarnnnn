@@ -103,7 +103,10 @@ _check("and strips every geometry custom property",
 
 print("\n-- 4. D4: the positioned test reads BOTH attributes, as the kernel rule does --")
 _check("'Return to flow' requires data-x AND data-y",
-       re.search(r"hasAttribute\('data-x'\)\s*&&\s*selectedEl\?\.hasAttribute\('data-y'\)", tab)
+       # ADR-511 D4 loosened the spelling pin (the Position row rewrote the
+       # render); the invariant is unchanged — the positioned test reads BOTH
+       # attributes, exactly as the kernel rule does.
+       re.search(r"hasAttribute\('data-x'\)\s*&&\s*\w+\.hasAttribute\('data-y'\)", tab)
        is not None)
 _check("the kernel rule it mirrors still requires both",
        "[data-block][data-x][data-y]" in studio_py)

@@ -378,50 +378,59 @@ def run() -> bool:
         "{ cursor: text; }" in proj and "TEXT_KINDS_JS).map" in proj,
     )
     _check(
-        "P12 quiet while typing: no hover chrome inside a live edit; slots rest",
+        "P12 quiet while typing: no hover chrome inside a live edit; containers rest",
         '[contenteditable="true"] :hover' in proj
-        and 'body:has([contenteditable="true"]) [data-slot]:hover { outline: none; }' in proj,
+        and 'body:has([contenteditable="true"]) div[data-block-id]:not([data-block]):hover { outline: none; }'
+        in proj,
     )
 
-    # ── A slot is chrome only where it is a distinguishable region ────────
-    # 13 of 17 arrangements declare one flow slot that fills its own page, so
-    # hovering drew a dashed box around the whole slide and clicking selected
-    # it — the layout master offered as an object with none of an object's
-    # affordances. The premise being corrected is POINTER_CSS's own comment
-    # ("the Wix section-hover"): Wix builds pages of BANDS where a section is
-    # the unit; a slide's unit is the OBJECT. Both premises lived in one sheet.
+    # ── ADR-511 D3 re-cut: the inert-slot pass is DELETED ─────────────────
+    # The pass existed to hide a grain that offered "the layout master as an
+    # object with none of an object's affordances." Containers now HAVE
+    # affordances (selection, the id-addressed ops, layout properties), so
+    # what the frame chrome names, the member can select. These checks assert
+    # the new invariants — and that the old machinery stays deleted.
     tab = (web / "components/studio/StudioDesignTab.tsx").read_text()
     _check(
-        "the projection MARKS the page-filling slot inert (paged only)",
-        "data-slot-inert" in proj and "opts?.mode === 'paged'" in proj,
+        "ADR-511: the inert-slot marker is DELETED everywhere",
+        "data-slot-inert" not in proj and "data-slot-inert" not in tab,
     )
     _check(
-        "a 2+-slot page keeps its slots (a real sub-region: two-column, comparison)",
-        "if (slots.length >= 2) return;" in proj,
+        "ADR-511: the projection stamps operator-word labels (paged only)",
+        "data-yarnnn-label" in proj
+        and "labelForElement(el)" in proj
+        and "opts?.mode === 'paged'" in proj,
     )
     _check(
-        "a MEDIA slot keeps its chrome (full-bleed's picker home would vanish)",
-        "=== 'media') return;" in proj,
+        "ADR-511: the click ladder's structural rung (container between block and page)",
+        "CONTAINER_SEL = 'div[data-block-id]:not([data-block])'" in proj
+        and "t.closest(CONTAINER_SEL)" in proj,
     )
     _check(
-        "an EMPTY slot keeps its bounds (the ADR-466 P8 click-to-add placeholder)",
-        "if (!slot.querySelector('[data-block]')) return;" in proj,
+        "ADR-511: Esc walks the real ancestor chain (block → container → page → clear)",
+        "cur.parentElement.closest(CONTAINER_SEL)" in proj
+        and "cur.parentElement.closest(PAGE_SEL)" in proj,
     )
     _check(
-        "hover chrome is gated on the marker, not deleted outright",
-        "[data-slot]:not([data-slot-inert]):hover {" in proj,
+        "ADR-511: the Design tab's container scope replaced slotIsRegion (deleted)",
+        "slotIsRegion" not in tab and "'container'" in tab,
     )
     _check(
-        "the click ladder SKIPS an inert slot (it falls through to the page)",
-        "closest('[data-slot]:not([data-slot-inert])')" in proj,
+        "ADR-511: a MEDIA region keeps the image picker (container scope, registry role)",
+        "slotRole === 'media'" in tab and "onInsertImageInSlot" in tab,
     )
     _check(
-        "the Design tab derives the same predicate from the SERVED registry",
-        "slotIsRegion" in tab and "row.slots.length >= 2" in tab,
+        "ADR-511: an EMPTY declared region still gets identity (the picker's target)",
+        "el.hasAttribute('data-slot')" in ops,
     )
     _check(
-        "an unknown arrangement KEEPS the grain (never hide a real slot)",
-        "if (!row) return true;" in tab,
+        "ADR-511: container layout is BOUNDED plain CSS (never a raw CSS pane)",
+        "CONTAINER_LAYOUT_VALUES" in ops and "setContainerLayout" in ops,
+    )
+    _check(
+        "ADR-511: normalizeStructure runs at the ONE serialize seam",
+        "normalizeStructure(doc);" in ops
+        and "function serialize(doc: Document)" in ops,
     )
 
     # ── The GROUP is a transient selection, never markup ──────────────────

@@ -1,5 +1,16 @@
 # STUDIO — the living design doc
 
+> **ADR-511 (2026-08-01) re-cut the interaction contract — the conventional substrate.**
+> Selection derives from STRUCTURE, not annotation: the click ladder is block → structural
+> **container** (a real div carrying `data-block-id`, no vocabulary) → page; Esc walks the
+> real ancestor chain; the inert-slot pass and the Design tab's slot scope are DELETED
+> (container scope replaces them — layout properties, the media picker, the id-addressed
+> verbs); `normalizeStructure` runs at the one write seam on EVERY mode/depth, so
+> unannotated/imported HTML becomes editable on first write; the navigator carries the
+> selected page's structure tree in operator words (`structureLabels.ts`). Sections below
+> describing the slot grain / inert marking / slot scope are historical until the Phase-2
+> rewrite of this doc; where they conflict, ADR-511 wins.
+
 > The Studio is yarnnn's first authoring app (ADR-440) governed by the axiomatic model (ADR-443). This doc is the FE-facing contract: the philosophy, the operations and their operator words, the vocabulary and layout registries, and the surface contract. Derivations live in the four probe analyses (`the-authoring-app-claude-design-benchmark` · `the-studio-surface-lane-and-reference-model` · `the-studio-content-and-the-reference-mechanics` · `the-studio-axiomatic-model-components-and-layouts`). The next-horizon plan (the markdown ruling · the Notion/builder gap carve · Waves 1–4) is ADR-456.
 
 **The markdown ruling (ADR-456 D1)**: HTML is the sole canonical source for Studio artifacts; markdown is an interchange **projection** — import at creation ("New document from this .md", Wave 4), export at the boundary (with publish/exports, Wave 4) — never a second source format. `.md` stays the substrate's prose currency; `.html` the Studio's authored-artifact currency.

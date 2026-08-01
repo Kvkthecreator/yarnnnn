@@ -65,6 +65,10 @@ export interface PointerEvent2 {
   slot: string | null;
   /** ADR-453 D5 — the enclosing page's arrangement slug (role lookups). */
   arrange: string | null;
+  /** ADR-511 D3 — the operator-word name of the selected thing (slide,
+   *  columns, column, heading…), from the runtime's inlined label ladder.
+   *  blockId set + blockKind null = a structural CONTAINER selection. */
+  label?: string | null;
 }
 
 interface StudioCanvasProps {
@@ -458,6 +462,7 @@ export function StudioCanvas({
           pageIndex: typeof d.pageIndex === 'number' ? d.pageIndex : null,
           slot: typeof d.slot === 'string' ? d.slot : null,
           arrange: typeof d.arrange === 'string' ? d.arrange : null,
+          label: typeof d.label === 'string' ? d.label : null,
         });
       } else if (d.type === 'yarnnn-point-clear') {
         onPointClear?.();

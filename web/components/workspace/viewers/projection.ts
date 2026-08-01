@@ -38,6 +38,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api/client';
+import { labelForElement, labelForJS } from '@/components/studio/structureLabels';
 import type { WorkspaceFile } from '@/types';
 
 function artifactDir(artifactPath: string): string {
@@ -340,8 +341,8 @@ ${POINTABLE.split(',').map((s) => `${s}:hover:not([data-block] *):not([data-bloc
 [contenteditable="true"] :hover, [data-block][contenteditable="true"]:hover {
   outline: none !important;
 }
-body:has([contenteditable="true"]) [data-slot]:hover { outline: none; }
-body:has([contenteditable="true"]) [data-slot]:hover::after { content: none; }
+body:has([contenteditable="true"]) div[data-block-id]:not([data-block]):hover { outline: none; }
+body:has([contenteditable="true"]) div[data-block-id]:not([data-block]):hover::after { content: none; }
 /* Selection is NEUTRAL (ADR-462 D5). A saturated outline reads as the app
    asserting itself over the member's page — PowerPoint/Keynote/Figma all draw
    selection as a thin neutral rule, and reserve colour for what is NOT your
@@ -358,18 +359,21 @@ body:has([contenteditable="true"]) [data-slot]:hover::after { content: none; }
 .yarnnn-grouped {
   outline: 1px solid rgba(60,58,54,0.5) !important; outline-offset: 2px;
 }
-/* ADR-453 D5: slots are the interaction surface — outline + name on hover
-   (the Wix section-hover). position:relative only anchors the label.
-   NOT on a slot the projection marked INERT: where a page has one flow slot
-   that fills it, the outline drew a box around the whole slide and the label
-   named a region the member cannot act on. Wix hovers bands because a band is
-   the unit; a slide's unit is the object. See the projection's marking pass. */
-[data-slot] { position: relative; }
-[data-slot]:not([data-slot-inert]):hover {
+/* ADR-511 D3: structural CONTAINERS are selection subjects — a real DOM
+   element (a column, a columns row, a slot-div) carrying identity but no
+   vocabulary. The hover cue + name label light only when the pointer is over
+   the container's OWN surface (padding/gap), not over a child block — the cue
+   must agree with what the click would select (the grain rule, kept). The
+   label speaks operator words via the projection's data-yarnnn-label stamp
+   (structureLabels.ts — the file never says "div", the chrome never does
+   either). The old slot-only chrome + its inert-marking pass are DELETED:
+   what the frame names, the member can select. */
+div[data-block-id]:not([data-block]) { position: relative; }
+div[data-block-id]:not([data-block]):hover:not(:has([data-block]:hover)):not(:has(div[data-block-id]:not([data-block]):hover)) {
   outline: 1px dashed rgba(16,185,129,0.55); outline-offset: 2px;
 }
-[data-slot]:not([data-slot-inert]):hover::after {
-  content: attr(data-slot); position: absolute; top: -1rem; left: 0;
+div[data-block-id]:not([data-block]):hover:not(:has([data-block]:hover)):not(:has(div[data-block-id]:not([data-block]):hover))::after {
+  content: attr(data-yarnnn-label); position: absolute; top: -1rem; left: 0;
   font: 500 0.6rem system-ui, sans-serif; letter-spacing: 0.06em;
   text-transform: uppercase; color: rgba(16,185,129,0.9); pointer-events: none;
 }
@@ -451,7 +455,11 @@ const POINTER_SCRIPT = `
 (function () {
   var SEL = ${JSON.stringify(POINTABLE)};
   var PAGE_SEL = 'section.slide, [data-arrange]';
+  // ADR-511 D3: a structural CONTAINER is a real element carrying identity
+  // but no vocabulary — the selection rung between block and page.
+  var CONTAINER_SEL = 'div[data-block-id]:not([data-block])';
   var TEXT_KINDS = ${TEXT_KINDS_JS};
+  ${labelForJS('labelFor')}
   var cur = null;
 
   function slideIndexOf(el) {
@@ -551,6 +559,7 @@ const POINTER_SCRIPT = `
         dataRef: el.getAttribute('data-ref') || (blk && blk.getAttribute('data-ref')) || null,
         blockId: blk ? (blk.getAttribute('data-block-id') || null) : null,
         blockKind: blkKind,
+        label: labelFor(blk || el),
         slideIndex: slideIndexOf(el),
         pageIndex: pageIndexOf(el),
         slot: slotEl ? (slotEl.getAttribute('data-slot') || null) : null,
@@ -615,25 +624,29 @@ const POINTER_SCRIPT = `
         return;
       }
     } else {
-      // An INERT slot is not a selection grain — the ladder skips it and the
-      // click lands on the PAGE, which IS an object (tokens, duplicate,
-      // delete, re-arrange). Selecting a slot that fills its own slide handed
-      // back the layout master with none of an object's affordances.
-      var slot = t && t.closest ? t.closest('[data-slot]:not([data-slot-inert])') : null;
+      // ADR-511 D3: the structural rung — a click on a container's own
+      // surface (padding/gap, not a child block) selects the CONTAINER: a
+      // real element with identity, so every id-addressed op works on it.
+      // Then the page (which IS an object: tokens, duplicate, delete,
+      // re-arrange), then clear. The inert-slot skip is deleted with the
+      // inert pass itself — what the frame names, the member can select.
+      var cont = t && t.closest ? t.closest(CONTAINER_SEL) : null;
       var page = t && t.closest ? t.closest(PAGE_SEL) : null;
-      var hit = slot || page;
+      var hit = cont || page;
       if (hit) {
         mark = hit;
+        var hitSlot = hit.closest ? hit.closest('[data-slot]') : null;
         payload = {
           type: 'yarnnn-point',
           tag: hit.tagName.toLowerCase(),
           text: '',
           dataRef: null,
-          blockId: null,
+          blockId: cont ? (cont.getAttribute('data-block-id') || null) : null,
           blockKind: null,
+          label: labelFor(hit),
           slideIndex: slideIndexOf(hit),
           pageIndex: pageIndexOf(hit),
-          slot: slot ? (slot.getAttribute('data-slot') || null) : null,
+          slot: hitSlot ? (hitSlot.getAttribute('data-slot') || null) : null,
           arrange: arrangeOf(hit),
         };
       }
@@ -677,7 +690,10 @@ const POINTER_SCRIPT = `
     e.preventDefault();
     var el = t && t.closest ? t.closest(SEL) : null;
     var blk = el && el.closest ? el.closest('[data-block]') : null;
-    var mark = blk || el;
+    // ADR-511 D3: the structural rung mirrors the click ladder — right-click
+    // on a container's own surface selects the container, then menus.
+    var ctxCont = !el && t && t.closest ? t.closest(CONTAINER_SEL) : null;
+    var mark = blk || el || ctxCont;
     if (mark) {
       if (cur) cur.classList.remove('yarnnn-pointed');
       cur = mark;
@@ -703,10 +719,12 @@ const POINTER_SCRIPT = `
       tag: el ? el.tagName.toLowerCase() : null,
       text: mark ? (mark.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 120) : '',
       dataRef: (el && el.getAttribute('data-ref')) || (blk && blk.getAttribute('data-ref')) || null,
-      blockId: blk ? (blk.getAttribute('data-block-id') || null) : null,
+      blockId: blk ? (blk.getAttribute('data-block-id') || null)
+        : ctxCont ? (ctxCont.getAttribute('data-block-id') || null) : null,
       blockKind: blk ? (blk.getAttribute('data-block') || null) : null,
-      slideIndex: el ? slideIndexOf(el) : null,
-      pageIndex: el ? pageIndexOf(el) : null,
+      label: mark ? labelFor(mark) : null,
+      slideIndex: el ? slideIndexOf(el) : (ctxCont ? slideIndexOf(ctxCont) : null),
+      pageIndex: el ? pageIndexOf(el) : (ctxCont ? pageIndexOf(ctxCont) : null),
       slot: slotEl ? (slotEl.getAttribute('data-slot') || null) : null,
       arrange: el ? arrangeOf(el) : null,
       // The frame gate (ADR-461 D4) travels WITH the payload: the runtime is
@@ -738,6 +756,42 @@ const POINTER_SCRIPT = `
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
     parent.postMessage({ type: 'yarnnn-canvas-escape' }, '*');
+    // ── ADR-511 D3: Esc walks UP the real ancestor chain ──────────────────
+    // block -> container -> ... -> page -> clear (the Figma/Framer hierarchy
+    // walk; down is just clicking the thing). Generalizes the edit runtime's
+    // existing Esc (caret -> block-select), which still runs first: while a
+    // per-block session or a live caret owns Esc, the walk yields.
+    if (window.__yarnnnEditingId && window.__yarnnnEditingId() != null) return;
+    if (window.__yarnnnCaretLive && window.__yarnnnCaretLive()) return;
+    if (!cur) return;
+    var up = null;
+    if (cur.parentElement && cur.parentElement.closest) {
+      up = cur.parentElement.closest(CONTAINER_SEL);
+      if (!up && !cur.matches(PAGE_SEL)) up = cur.parentElement.closest(PAGE_SEL);
+    }
+    if (cur) cur.classList.remove('yarnnn-pointed');
+    if (!up) {
+      cur = null;
+      parent.postMessage({ type: 'yarnnn-point-clear' }, '*');
+      return;
+    }
+    cur = up;
+    up.classList.add('yarnnn-pointed');
+    var upSlot = up.closest ? up.closest('[data-slot]') : null;
+    var upIsCont = up.matches ? up.matches(CONTAINER_SEL) : false;
+    parent.postMessage({
+      type: 'yarnnn-point',
+      tag: up.tagName.toLowerCase(),
+      text: '',
+      dataRef: null,
+      blockId: upIsCont ? (up.getAttribute('data-block-id') || null) : null,
+      blockKind: null,
+      label: labelFor(up),
+      slideIndex: slideIndexOf(up),
+      pageIndex: pageIndexOf(up),
+      slot: upSlot ? (upSlot.getAttribute('data-slot') || null) : null,
+      arrange: arrangeOf(up),
+    }, '*');
   }, true);
 
   // ── Undo / Redo (⌘Z / ⌘⇧Z) ───────────────────────────────────────────────
@@ -1174,6 +1228,15 @@ const EDIT_CSS = `
    mode". Hiding the box during editing was the P8 rule from the era when the
    box trapped clicks — the pointer-transparent interior retired its cause. */
 .yarnnn-selbox-editing { border-style: dashed; }
+/* ADR-511 D4 — the out-of-flow tag: a POSITIONED block says so at its corner.
+   Absolute is a deliberate, visible exception; flow is the default. The
+   Design tab's Position row (In flow | Positioned) is the reversal. */
+.yarnnn-selbox-abs::after {
+  content: 'positioned'; position: absolute; right: 0; top: -1.15rem;
+  font: 500 0.6rem system-ui, sans-serif; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--yarnnn-chrome-accent);
+  pointer-events: none;
+}
 .yarnnn-selh {
   position: absolute; width: 10px; height: 10px;
   border: 1.5px solid var(--yarnnn-chrome-accent); background: #fff; border-radius: 50%;
@@ -2783,13 +2846,9 @@ const OBJECT_SCRIPT = `
    *  back to COLUMN, and the slide itself to SLIDE: never a class name, never
    *  a selector — the label is operator words (ADR-443 D3). */
   var frameEl = null;
-  function frameLabel(frame) {
-    var slot = frame.getAttribute && frame.getAttribute('data-slot');
-    if (slot) return slot;
-    if (frame.classList && frame.classList.contains('col')) return 'column';
-    if (frame.classList && frame.classList.contains('slide')) return 'slide';
-    return 'frame';
-  }
+  // ADR-511 D3: one label ladder (structureLabels.ts), inlined — the frame
+  // name and the selection chrome speak the same operator words.
+  ${labelForJS('frameLabel')}
   function showFrame(frame, txt) {
     if (!frameEl) {
       frameEl = document.createElement('div');
@@ -3218,6 +3277,12 @@ const OBJECT_SCRIPT = `
     box.className = positionable(block)
       ? 'yarnnn-selbox'
       : 'yarnnn-selbox yarnnn-selbox-static';
+    // ADR-511 D4 — positioned state is LEGIBLE: an out-of-flow block wears a
+    // corner tag, so absolute is a visible, deliberate exception (flow is the
+    // default). The Design tab's Position row is the reversal affordance.
+    if (block.hasAttribute('data-x') && block.hasAttribute('data-y')) {
+      box.className += ' yarnnn-selbox-abs';
+    }
   }
   function hideBox() {
     if (box) box.style.display = 'none';
@@ -3442,41 +3507,26 @@ export async function resolveArtifactHtml(
       section.remove();
     });
   }
-  // ── A slot is chrome only where it is a DISTINGUISHABLE REGION ──────────
-  // On 13 of 17 arrangements the page declares one flow slot, and that slot is
-  // coextensive with the page's content box (measured on a title slide: slot
-  // 992px, slide inner 992px, offset 0). Hovering it drew a dashed outline and
-  // a name label around the ENTIRE slide, and clicking selected it — so the
-  // member was offered the layout master as an object, with none of an
-  // object's affordances (its geometry belongs to the arrangement — the layer
-  // rule in STUDIO.md). PowerPoint refuses exactly this: a layout's content
-  // area is not selectable on the slide.
+  // ── ADR-511 D3: stamp operator-word labels on structural containers ─────
+  // The inert-slot marking pass that lived here is DELETED — it existed to
+  // hide a grain that offered "the layout master as an object with none of an
+  // object's affordances." Containers now HAVE affordances (selection, the
+  // id-addressed ops, layout properties), so the clash it papered over —
+  // chrome that named a region the member could not act on — dissolves the
+  // honest direction: what the frame names, the member can select.
   //
-  // The premise being corrected is in POINTER_CSS's own comment — "slots are
-  // the interaction surface (the Wix section-hover)". Wix builds PAGES OF
-  // BANDS, where a section is the unit you manipulate; PowerPoint builds
-  // SLIDES OF OBJECTS, where the content area is invisible scaffolding. Both
-  // premises live in one sheet today; this marks which slots get which.
-  //
-  // Two cases keep the chrome, and both are real regions:
-  //   · 2+ slots on the page — two-column / comparison / feature-grid, where
-  //     the outline names a genuine sub-region and `ratio` resizes it.
-  //   · a slot named `media` — picture-with-caption / full-bleed, where this
-  //     is the image picker's home (`onAddHere` routes role='media' here).
-  //
-  // Derived from the DOM, which is exact: `full-bleed` is the only single-slot
-  // media arrangement and its slot is literally named `media`. An EMPTY slot
-  // always keeps its bounds — that is the ADR-466 P8 "click to add"
-  // placeholder, a different affordance with a different job.
+  // This pass stamps `data-yarnnn-label` (render-side chrome only — the
+  // projected doc, never the source; flow edits can't leak it because flow
+  // flattens containers above, and paged edits commit per-block inners) so
+  // the hover cue's CSS can speak operator words via attr(). The predicate
+  // matches normalizeStructure's pass B: a div holding blocks, outside any
+  // block/citation.
   if (opts?.mode === 'paged') {
-    doc.querySelectorAll('[data-arrange]').forEach((page) => {
-      const slots = Array.from(page.querySelectorAll('[data-slot]'));
-      if (slots.length >= 2) return; // a real sub-region — chrome stays
-      slots.forEach((slot) => {
-        if (slot.getAttribute('data-slot') === 'media') return; // the picker's home
-        if (!slot.querySelector('[data-block]')) return; // empty: keep the placeholder
-        slot.setAttribute('data-slot-inert', '');
-      });
+    doc.querySelectorAll('div').forEach((el) => {
+      if (el.hasAttribute('data-block') || el.hasAttribute('data-ref')) return;
+      if (el.parentElement?.closest('[data-block], [data-ref]')) return;
+      if (!el.querySelector('[data-block]') && !el.hasAttribute('data-slot')) return;
+      el.setAttribute('data-yarnnn-label', labelForElement(el));
     });
   }
   if (opts?.pointer) {

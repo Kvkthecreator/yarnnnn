@@ -80,6 +80,7 @@ import {
   insertBlockInSlot,
   mergeBlock,
   moveBlock,
+  normalizeArtifact,
   nudgeZ,
   movePage,
   movePageTo,
@@ -89,6 +90,7 @@ import {
   removePageBackground,
   removeSkin,
   retrofitKernel,
+  setContainerLayout,
   setGeometry,
   setGeometryMany,
   setMeasure,
@@ -377,7 +379,14 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         head_version_id: localOverride.headVersionId,
       };
     }
-    return loadedFile;
+    // ADR-511 D5 — the load-side normalize: the working copy carries full
+    // identity (bare content promoted, containers stamped) from the moment it
+    // arrives, so the canvas can select what the ops can address. Nothing is
+    // written here — the identities land in the substrate with the first real
+    // write (migration-by-use). Idempotent on an already-annotated artifact.
+    return loadedFile.content
+      ? { ...loadedFile, content: normalizeArtifact(loadedFile.content) }
+      : loadedFile;
   }, [loadedFile, localOverride]);
 
   // The LIVE view of the artifact, readable inside a handler that fired in the
@@ -510,6 +519,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       slot: p.slot,
       arrange: p.arrange,
       text: p.text,
+      label: p.label ?? null,
     });
   }, []);
   const onPointClear = useCallback(() => {
@@ -1171,6 +1181,19 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       `Studio: return ${id} to flow`,
     );
   }, [applyOp, selection, geometrySpecs]);
+  // ADR-511 D4 — container layout: bounded plain-CSS properties on a selected
+  // structural container (padding / gap / align / justify), one revision each.
+  const handleContainerLayout = useCallback(
+    (layout: Record<string, string | null>) => {
+      const id = selection?.blockId;
+      if (!id) return;
+      void applyOp(
+        (html) => setContainerLayout(html, id, layout),
+        `Studio: layout ${id} container`,
+      );
+    },
+    [applyOp, selection],
+  );
   const handleBlockVerb = useCallback(
     (verb: StructVerb) => {
       const id = selection?.blockId;
@@ -2049,6 +2072,28 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     setMobilePane('canvas');
   }, []);
 
+  // ADR-511 D3 — a structure-tree pick (container OR block) from the
+  // navigator: same contract as the heading pick, generalized to any
+  // addressable node. The canvas outline follows via selectedBlockId.
+  const selectNodeFromNavigator = useCallback(
+    (node: { blockId: string; label: string; kind: string | null }) => {
+      setSelection({
+        blockId: node.blockId,
+        blockKind: node.kind,
+        slideIndex: null,
+        pageIndex: null,
+        slot: null,
+        arrange: null,
+        text: '',
+        label: node.label,
+      });
+      setEditingBlockId(null);
+      setScrollToBlock((s) => ({ blockId: node.blockId, nonce: (s?.nonce ?? 0) + 1 }));
+      setMobilePane('canvas');
+    },
+    [],
+  );
+
   // ── ADR-455: the file-verb completion (surface-bar ⋯) ────────────────────
   // Copy link — the member-facing deep link to this artifact (the workspace
   // is multi-member; distinct from the ADR-437 Share origin).
@@ -2166,24 +2211,45 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     setOpError('Too many copies of this artifact already — rename one first.');
   }, [artifactPath, file, setParam]);
 
-  // ADR-447 Phase 4 + ADR-453 D5: "+ Add here" in an empty slot, gated by the
-  // slot's ROLE from the vocabulary. A flow slot takes a prose block directly
-  // (the member edits it in place or asks the lane to fill it); a media slot
-  // takes a CITED image — select the slot and open the Design tab's picker.
+  // ADR-447 Phase 4, re-grained by ADR-511 D3: "+ Add here" in an empty slot,
+  // gated by the slot's ROLE from the vocabulary. A flow slot takes a prose
+  // block directly; a media slot takes a CITED image — select the slot's
+  // CONTAINER (it carries identity since the load-normalize) and open the
+  // Design tab's picker, which lives in container scope now.
   const onAddHere = useCallback(
     (slot: string, slideIndex: number | null, pageIndex: number | null, arrange: string | null) => {
       const role = vocabulary?.arrangements?.[template]
         ?.find((a) => a.slug === arrange)
         ?.slots.find((s) => s.name === slot)?.role;
       if (role === 'media') {
-        setSelection({ blockId: null, blockKind: null, slideIndex, pageIndex, slot, arrange, text: '' });
+        let containerId: string | null = null;
+        if (file?.content) {
+          const doc = new DOMParser().parseFromString(file.content, 'text/html');
+          const pages = doc.querySelectorAll('section.slide, [data-arrange]');
+          const page =
+            (slideIndex != null ? doc.querySelectorAll('section.slide')[slideIndex] : null) ??
+            (pageIndex != null ? pages[pageIndex] : null);
+          containerId =
+            page?.querySelector(`[data-slot="${CSS.escape(slot)}"]`)?.getAttribute('data-block-id') ??
+            null;
+        }
+        setSelection({
+          blockId: containerId,
+          blockKind: null,
+          slideIndex,
+          pageIndex,
+          slot,
+          arrange,
+          text: '',
+          label: slot,
+        });
         setEditingBlockId(null);
         setRightTab('design');
         return;
       }
       insertProseInSlot(slot, slideIndex, pageIndex);
     },
-    [vocabulary, template, insertProseInSlot],
+    [vocabulary, template, insertProseInSlot, file],
   );
 
   // ── MANAGE STATE (DESIGN-SYSTEMS.md §6) ─────────────────────────────────
@@ -2260,6 +2326,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               onReorderPages={reorderPagesFromNavigator}
               onDeletePages={deletePagesFromNavigator}
               onSelectHeading={selectHeadingFromNavigator}
+              onSelectNode={selectNodeFromNavigator}
             />
             {/* The resize divider — drag to set the strip width (persisted). A
                 hair-wide hit target over the right border; md+ only (on mobile
@@ -2701,6 +2768,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               onPageVerb={handlePageVerb}
               onTurnInto={handleTurnInto}
               onReturnToFlow={handleReturnToFlow}
+              onContainerLayout={handleContainerLayout}
               measures={vocabulary?.measures ?? []}
               onClearMeasure={handleClearMeasure}
               onApplyDesignSystem={handleApplyDesignSystem}

@@ -126,24 +126,26 @@ def run() -> bool:
     )
 
     # ── D2/D3 — blocks stay as annotations; ids are reconstructed ──────────
-    norm = _fn(ops, "normalizeBlockIds")
-    _check("D3 normalizeBlockIds exists", bool(norm))
+    # ADR-511 D5 re-cut: normalizeBlockIds (flow-only, one level) generalized
+    # to normalizeStructure (every mode, every depth, containers stamped). The
+    # D3 id-discipline invariants survive verbatim inside it.
+    norm = _fn(ops, "normalizeStructure")
+    _check("D3/ADR-511 normalizeStructure exists (normalizeBlockIds deleted)", bool(norm) and "function normalizeBlockIds" not in ops)
     _check(
-        "D3 rule 5 — a citation island is never re-minted (checked FIRST)",
-        "el.hasAttribute('data-ref')" in norm
-        and norm.find("data-ref") < norm.find("freshBlockId"),
+        "D3 rule 5 — a citation island is never re-minted",
+        "el.hasAttribute('data-ref')" in norm and "seen.add(kept)" in norm,
     )
     _check(
         "D3 rules 2/3/4 — absent OR already-claimed ids are re-minted",
         "if (!id || seen.has(id))" in norm,
     )
     _check(
-        "D3 collision domain includes blocks OUTSIDE the region",
-        "!region.contains(el)" in norm,
+        "ADR-511 the collision domain is the WHOLE document (blocks + containers)",
+        "querySelectorAll('[data-block], [data-block-id]')" in norm,
     )
     _check(
         "D3 document order is what makes 'the FIRST keeps it' true",
-        "querySelectorAll('[data-block]')" in norm,
+        "compareDocumentPosition" in norm,
     )
     flow_edit = _fn(ops, "editFlowRegion")
     _check("D1 editFlowRegion exists", bool(flow_edit))
@@ -156,8 +158,12 @@ def run() -> bool:
         "sanitizeInner(doc, newInner)" in flow_edit,
     )
     _check(
-        "D3 the normalize pass runs on every flow write",
-        "normalizeBlockIds(doc, region)" in flow_edit,
+        # ADR-511 D5: the pass moved INTO serialize() — the one write seam —
+        # so it runs on every write of every mode, flow included. (serialize
+        # is module-local, so slice it directly rather than via _fn.)
+        "D3 the normalize pass runs on every write (the serialize seam)",
+        "normalizeStructure(doc);"
+        in ops[ops.index("function serialize(") : ops.index("\n}", ops.index("function serialize("))],
     )
 
     # ── D4 — the retired simulation is gated OFF on flow, ALIVE on paged ───

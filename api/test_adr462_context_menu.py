@@ -162,10 +162,13 @@ def main() -> bool:
         "hideFrame();" in proj and "function hideFrame()" in proj,
     )
     _check(
+        # ADR-511 D3 re-cut: the frame label now inlines the ONE label ladder
+        # (structureLabels.ts labelForJS) — same operator words everywhere.
         "the label speaks the frame's OWN name, in operator words (never a "
-        "class name or a selector — ADR-443 D3)",
-        "var slot = frame.getAttribute && frame.getAttribute('data-slot');" in proj
-        and "return 'column';" in proj and "return 'slide';" in proj,
+        "class name or a selector — ADR-443 D3, one ladder per ADR-511)",
+        "labelForJS('frameLabel')" in proj
+        and "return 'column';" in _read("web/components/studio/structureLabels.ts")
+        and "return 'slide';" in _read("web/components/studio/structureLabels.ts"),
     )
     _check(
         "it borrows the slot label's grammar rather than inventing a second "

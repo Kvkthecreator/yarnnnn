@@ -128,7 +128,11 @@ def run() -> bool:
     # PAGED must keep everything this ADR removed from flow.
     paged_css = proj[proj.index("const POINTER_CSS") : proj.index("// ── The deck STAGE")]
     _check("D3 PAGED keeps its block-hover outline", "[data-block]:hover" in paged_css)
-    _check("D3 PAGED keeps its slot chrome", "[data-slot]:hover" in paged_css)
+    # ADR-511 D3: the slot chrome became CONTAINER chrome (same paged-only home).
+    _check(
+        "D3 PAGED keeps its container chrome (ADR-511 re-cut of the slot chrome)",
+        "div[data-block-id]:not([data-block]):hover" in paged_css,
+    )
 
     # ── D4 — the navigator is unchanged (verified, not assumed) ───────────
     outline = nav[nav.index("function extractOutline") :][:600]

@@ -162,8 +162,10 @@ t('D3: the served bounds reach the runtime via __yarnnnMeasureBounds',
 // ── 7. D4 — the positioned test reads BOTH attributes, as the kernel does ───
 {
   const tab = readFileSync('web/components/studio/StudioDesignTab.tsx', 'utf8');
+  // ADR-511 D4 loosened the spelling pin (the Position row rewrote the
+  // render); the invariant is unchanged — the positioned test reads BOTH.
   t("D4: 'Return to flow' requires data-x AND data-y (the kernel rule)",
-    /hasAttribute\('data-x'\)\s*&&\s*selectedEl\?\.hasAttribute\('data-y'\)/.test(tab));
+    /hasAttribute\('data-x'\)\s*&&\s*\w+\.hasAttribute\('data-y'\)/.test(tab));
 }
 
 // ── 8. D5 — the dead export is gone, with its false promise ────────────────

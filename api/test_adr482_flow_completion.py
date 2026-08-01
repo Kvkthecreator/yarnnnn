@@ -322,15 +322,18 @@ def run() -> bool:
             "D11 slash-open harness PASSES (element-node caret opens the palette)",
             p3.returncode == 0 and "7 passed, 0 failed" in p3.stdout,
         )
+    # ADR-511 D5 re-cut: normalizeBlockIds → normalizeStructure (every mode,
+    # every depth, tag-derived kinds). The D11 regression story is unchanged:
+    # bare Enter lines MUST become addressable prose blocks.
     _check(
-        "D11 normalizeBlockIds promotes bare block-level flow lines",
-        "el.setAttribute('data-block', 'prose');" in ops
-        and "const PROMOTABLE = new Set(['DIV', 'P']);" in ops,
+        "D11/ADR-511 normalizeStructure promotes bare block-level lines (tag-derived kinds)",
+        "el.setAttribute('data-block', PROMOTE_KIND[el.tagName]);" in ops
+        and "P: 'prose', DIV: 'prose'" in ops,
     )
     _check(
         "D11 promotion skips <br>-only lines and citation islands",
-        "if (el.hasAttribute('data-block') || el.hasAttribute('data-ref')) return;" in ops
-        and "=== '') return; // a <br>-only / empty line" in ops,
+        "if (el.hasAttribute('data-block') || el.hasAttribute('data-ref')) continue;" in ops
+        and "continue; // <br>-only / empty" in ops,
     )
     promote_gate = web / "scripts/gates/adr482_flow_promote.mjs"
     _check("D11 the promotion executing harness is committed", promote_gate.exists())
@@ -340,7 +343,7 @@ def run() -> bool:
         )
         _check(
             "D11 promotion harness PASSES (bare Enter divs become prose blocks)",
-            p4.returncode == 0 and "8 passed, 0 failed" in p4.stdout,
+            p4.returncode == 0 and "9 passed, 0 failed" in p4.stdout,
         )
 
     # ── Preserved — paged is untouched ────────────────────────────────────

@@ -237,8 +237,12 @@ def run() -> bool:
 
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
     _check(
-        "runtime: slot hover outline + name label",
-        "[data-slot]:hover" in proj and "content: attr(data-slot)" in proj,
+        # ADR-511 D3 re-cut: the slot-only hover chrome became CONTAINER chrome
+        # (a real element with identity, labeled in operator words via the
+        # projection's data-yarnnn-label stamp — structureLabels.ts).
+        "runtime: container hover outline + operator-word name label (ADR-511 D3)",
+        "div[data-block-id]:not([data-block]):hover" in proj
+        and "content: attr(data-yarnnn-label)" in proj,
     )
     _check(
         "runtime: the grain ladder (slot + page selection) + shared page index",
@@ -272,8 +276,9 @@ def run() -> bool:
 
     design_tab = (web / "components/studio/StudioDesignTab.tsx").read_text()
     _check(
-        "Design tab: scope-switching (document/page/slot/block)",
-        all(f"'{s}'" in design_tab for s in ("document", "page", "slot", "block")),
+        # ADR-511 D3 re-cut: the slot scope dissolved into CONTAINER scope.
+        "Design tab: scope-switching (document/page/container/block — ADR-511 D3)",
+        all(f"'{s}'" in design_tab for s in ("document", "page", "container", "block")),
     )
     _check(
         "Design tab: homes the design-system picker (ADR-449 D5)",

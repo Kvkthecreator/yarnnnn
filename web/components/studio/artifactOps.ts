@@ -19,6 +19,11 @@ function parse(html: string): Document {
 }
 
 function serialize(doc: Document): string {
+  // ADR-511 D5 — the one write seam normalizes structure on the way out:
+  // every op's result carries full identity (bare content promoted, structural
+  // containers stamped), so unannotated HTML becomes native on its first write
+  // (migration-by-use — no fleet migration, no write-on-open revision).
+  normalizeStructure(doc);
   return '<!doctype html>\n' + (doc.documentElement?.outerHTML ?? '');
 }
 
@@ -254,83 +259,108 @@ export function editBlockText(
   return { html: serialize(doc), landedId: blockId };
 }
 
-/** ADR-480 D3 — normalize-on-write: re-establish `data-block-id` identity
- *  across a region the BROWSER just edited.
+/** ADR-511 D5 — normalize structure: full identity across the WHOLE document,
+ *  every mode, every depth. Generalizes ADR-480 D3's flow-only, one-level
+ *  `normalizeBlockIds` (deleted — this is its singular replacement) so that
+ *  unannotated HTML — imports, agent output, template placeholders, the bare
+ *  elements native Enter mints — becomes addressable, and therefore editable,
+ *  on its first write. Runs at the one serialize seam.
  *
- *  On `flow` layouts contenteditable sits on the document root, so native
- *  editing splits, merges, duplicates and orphans block ids as the member
- *  types across boundaries. Identity is therefore PRESERVED (reconstructed
- *  after the fact) rather than ENFORCED (walled off before it) — the priced
- *  cost of the carve. The rules, in order:
+ *  Three passes, in order:
  *
- *    0. ADR-482 D11 — a bare block-level element the browser MINTED (a direct
- *       child of the flow root carrying content but no `data-block`) is
- *       PROMOTED to a prose block first, so the id pass below reaches it.
- *       Pressing Enter on a flow root inserts a native `<div>`/`<p>`; without
- *       promotion those accumulated as un-addressable, un-selectable content
- *       (verified in prod: a document of raw `<div>text</div>` siblings) AND
- *       they were the element-node lines where the '/' palette then dead-ended
- *       (projection.ts D11). Promoting them closes both.
- *    1. A surviving id on a recognizable block keeps its block.
- *    2. A DUPLICATED id (native split copied the attribute onto both halves)
- *       is kept by the FIRST in document order; later ones are re-minted.
- *    3. A new top-level element with no id is minted a fresh one.
- *    4. A block whose id vanished entirely is treated as NEW — a fresh id,
- *       never a guessed resurrection.
- *    5. Citation islands (`data-ref`) are never re-minted or restructured;
- *       they keep their identity unconditionally, so the ADR-448 reference
- *       edge (which lifts from data-ref, never data-block) is untouched.
+ *    A. PROMOTION — a content-bearing element outside any block/citation is
+ *       promoted into the block grammar with a tag-derived kind (headings →
+ *       heading, blockquote → quote, table → table, figure → figure, the
+ *       rest → prose). A `<div>` promotes only when it reads as content (no
+ *       block-level element children); a div that HOLDS blocks is structure,
+ *       pass B's subject. `<br>`-only / empty elements are left alone (the
+ *       annihilation guard already treats them as empty).
+ *    B. CONTAINER IDENTITY — a `<div>` that encloses at least one block and
+ *       is not itself inside a block/citation is stamped `data-block-id`
+ *       (identity WITHOUT vocabulary — never `data-block`). This is what
+ *       makes columns/rows/slots selectable and lets the id-addressed ops
+ *       (delete/duplicate/move/measure) work on them with no op-side change.
+ *    C. ID DISCIPLINE — unchanged from ADR-480 D3: a surviving id keeps its
+ *       element; a duplicated id (native split) is kept by the FIRST in
+ *       document order, later ones re-minted; an absent id is minted fresh;
+ *       a citation island (`data-ref`) is never re-minted or restructured
+ *       (the ADR-448 reference edge lifts from data-ref, untouched).
  *
- *  Content is never dropped. Mutates `region` in place. Returns the number of
- *  ids minted (0 = the member typed inside existing blocks, the common case). */
-export function normalizeBlockIds(doc: Document, region: Element): number {
-  // Rule 0: promote the bare block-level elements native Enter creates. Only
-  // DIRECT children of the region (that is what the flow root's contenteditable
-  // produces) and only genuine block-level tags with content — an inline stray
-  // or a `<br>`-only line is left alone (the annihilation guard already treats
-  // a `<br>`-only body as empty). A promoted div keeps its children verbatim;
-  // it gains `data-block="prose"` and, below, a fresh id. This is the ONE place
-  // restructuring is warranted: the browser authored a block, we name it.
-  const PROMOTABLE = new Set(['DIV', 'P']);
-  Array.from(region.children).forEach((el) => {
-    if (el.hasAttribute('data-block') || el.hasAttribute('data-ref')) return;
-    if (!PROMOTABLE.has(el.tagName)) return;
-    if ((el.textContent ?? '').trim() === '') return; // a <br>-only / empty line
-    el.setAttribute('data-block', 'prose');
-  });
+ *  Idempotent; content is never dropped; mutates `doc` in place. Returns the
+ *  number of ids minted (0 = fully annotated already, the common case). */
+const PROMOTE_KIND: Record<string, string> = {
+  H1: 'heading', H2: 'heading', H3: 'heading', H4: 'heading',
+  H5: 'heading', H6: 'heading',
+  BLOCKQUOTE: 'quote', TABLE: 'table', FIGURE: 'figure',
+  P: 'prose', DIV: 'prose', UL: 'prose', OL: 'prose', PRE: 'prose',
+};
+const BLOCK_LEVEL = new Set(Object.keys(PROMOTE_KIND).concat(['SECTION', 'MAIN', 'ARTICLE', 'HEADER', 'FOOTER']));
 
-  const seen = new Set<string>(
-    Array.from(doc.querySelectorAll('[data-block-id]'))
-      .filter((el) => !region.contains(el))
-      .map((el) => el.getAttribute('data-block-id') ?? '')
-      .filter(Boolean),
+export function normalizeStructure(doc: Document): number {
+  const root = doc.body;
+  if (!root) return 0;
+  const insideOwned = (el: Element): boolean =>
+    !!el.parentElement?.closest('[data-block], [data-ref]');
+  const isPage = (el: Element): boolean => el.matches(PAGE_SEL);
+
+  // Pass A — promotion, any depth. Snapshot first: promotion mutates the set.
+  for (const el of Array.from(root.querySelectorAll(Object.keys(PROMOTE_KIND).join(',')))) {
+    if (el.hasAttribute('data-block') || el.hasAttribute('data-ref')) continue;
+    if (insideOwned(el) || isPage(el)) continue;
+    if ((el.textContent ?? '').trim() === '') continue; // <br>-only / empty
+    if (el.tagName === 'DIV') {
+      // A div holding block-level children is structure (pass B), not content.
+      const holdsBlocks = Array.from(el.children).some((c) => BLOCK_LEVEL.has(c.tagName));
+      if (holdsBlocks) continue;
+    }
+    el.setAttribute('data-block', PROMOTE_KIND[el.tagName]);
+  }
+
+  // Pass B — container identity: divs that enclose blocks, outside any block.
+  // A DECLARED region (data-slot) is structure even while empty — the media
+  // picker's "+ Add here" selects it before it holds anything.
+  const containers = Array.from(root.querySelectorAll('div')).filter(
+    (el) =>
+      !el.hasAttribute('data-block') &&
+      !el.hasAttribute('data-ref') &&
+      !insideOwned(el) &&
+      !isPage(el) &&
+      (!!el.querySelector('[data-block]') || el.hasAttribute('data-slot')),
   );
+
+  // Pass C — id discipline over blocks + containers, document order.
+  const seen = new Set<string>();
   let minted = 0;
-  const annotated = [
-    ...(region.hasAttribute('data-block') ? [region] : []),
-    ...Array.from(region.querySelectorAll('[data-block]')),
-  ];
-  for (const el of annotated) {
-    // Rule 5: a citation island's identity is never touched.
+  const subjects = Array.from(root.querySelectorAll('[data-block], [data-block-id]'));
+  for (const c of containers) if (!subjects.includes(c)) subjects.push(c);
+  // Document order matters for first-wins dedup; re-sort the merged set.
+  subjects.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+  for (const el of subjects) {
     if (el.hasAttribute('data-ref')) {
       const kept = el.getAttribute('data-block-id');
       if (kept) seen.add(kept);
       continue;
     }
     const id = el.getAttribute('data-block-id');
-    // Rules 2/3/4 collapse to one test: an absent id, or one already claimed
-    // earlier in document order, is re-minted. Document order is what makes
-    // "the FIRST keeps it" true — querySelectorAll returns it.
     if (!id || seen.has(id)) {
       const fresh = freshBlockId(doc);
       el.setAttribute('data-block-id', fresh);
       seen.add(fresh);
       minted++;
     } else {
-      seen.add(id); // Rule 1
+      seen.add(id);
     }
   }
   return minted;
+}
+
+/** Normalize a raw artifact HTML string (ADR-511 D5's load-side entry): the
+ *  surface calls this once when content arrives, so the live canvas and every
+ *  subsequent op share one fully-addressed working copy; the identities land
+ *  in the substrate with the first real write. */
+export function normalizeArtifact(html: string): string {
+  const doc = parse(html);
+  return serialize(doc); // serialize() runs normalizeStructure
 }
 
 /** ADR-480 D1 — a flow-layout edit: the member wrote on ONE continuous
@@ -384,7 +414,8 @@ export function editFlowRegion(
   }
 
   region.innerHTML = sanitized;
-  normalizeBlockIds(doc, region);
+  // Identity re-establishment (splits/merges/native Enter) happens in
+  // serialize()'s normalizeStructure pass — the one seam (ADR-511 D5).
   return { html: serialize(doc), landedId: null };
 }
 
@@ -772,6 +803,57 @@ export function setPosition(
   }
   if (el.outerHTML === before) return null;
   return { html: serialize(doc), landedId: blockId };
+}
+
+/** ADR-511 D4 — container layout: bounded, id-addressed, plain CSS. The
+ *  property surface is an ALLOWLIST (never a raw CSS pane — D7); the substrate
+ *  is conventional inline style, so exports read as ordinary HTML and the lane
+ *  edits the same properties in its native tongue. `null` clears a property.
+ *  Works on any id-addressed element; the Design tab offers it on containers. */
+const CONTAINER_LAYOUT_PROPS: Record<string, string> = {
+  padding: 'padding',
+  gap: 'gap',
+  align: 'align-items',
+  justify: 'justify-content',
+};
+const CONTAINER_LAYOUT_VALUES: Record<string, Set<string>> = {
+  padding: new Set(['0', '0.5rem', '1rem', '1.5rem', '2rem', '3rem']),
+  gap: new Set(['0', '0.5rem', '1rem', '1.5rem', '2rem', '3rem']),
+  align: new Set(['flex-start', 'center', 'flex-end', 'stretch']),
+  justify: new Set(['flex-start', 'center', 'flex-end', 'space-between']),
+};
+export function setContainerLayout(
+  html: string,
+  id: string,
+  layout: Partial<Record<keyof typeof CONTAINER_LAYOUT_VALUES, string | null>>,
+): OpResult | null {
+  const doc = parse(html);
+  const el = doc.querySelector(`[data-block-id="${CSS.escape(id)}"]`);
+  if (!el) return null;
+  const before = el.outerHTML;
+  const cssOf = (k: string) => CONTAINER_LAYOUT_PROPS[k];
+  const touched = new Set(Object.keys(layout).map(cssOf).filter(Boolean));
+  const decls = (el.getAttribute('style') || '')
+    .split(';')
+    .map((d) => d.trim())
+    .filter((d) => d && !touched.has(d.split(':')[0]?.trim() ?? ''));
+  let needsFlex = false;
+  for (const [key, value] of Object.entries(layout)) {
+    const prop = cssOf(key);
+    if (!prop || value == null) continue;
+    if (!CONTAINER_LAYOUT_VALUES[key]?.has(value)) continue; // bounded surface
+    decls.push(`${prop}: ${value}`);
+    if (key === 'gap' || key === 'align' || key === 'justify') needsFlex = true;
+  }
+  // Flex properties need a flex context; declare it only when one is used and
+  // the element doesn't already lay out as flex from the skin.
+  if (needsFlex && !decls.some((d) => d.startsWith('display:') || d.startsWith('display '))) {
+    decls.push('display: flex');
+  }
+  if (decls.length) el.setAttribute('style', decls.join('; '));
+  else el.removeAttribute('style');
+  if (el.outerHTML === before) return null;
+  return { html: serialize(doc), landedId: id };
 }
 
 /** Delete the selected block (the missing mechanical basic — a member should

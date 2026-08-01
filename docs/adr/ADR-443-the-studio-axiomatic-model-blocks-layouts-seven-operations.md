@@ -1,5 +1,13 @@
 # ADR-443 — The Studio axiomatic model: blocks, layouts, and the seven operations
 
+> **Amended by [ADR-511](ADR-511-the-conventional-substrate.md)** (2026-08-01): D4's
+> *"layout flow containers are structure, not vocabulary blocks"* becomes **"structure is
+> addressable, never a vocabulary block"** — structural containers (columns, slot-divs)
+> carry `data-block-id` (identity WITHOUT `data-block` vocabulary) and are selection
+> subjects. R1 is not amended; it is honored in full — the DOM is the model, and the whole
+> model is now pointable. The annotation set is restated as two content annotations
+> (identity + provenance) plus the vocabulary grammar.
+
 > **Amended by ADR-453** (2026-07-13): the model gains the **property-token annotation family**
 > (`data-align`/`data-tone`/`data-height`/`data-fit`/`data-ratio`/`data-valign` — tokens, not
 > pixels) and a second MARKED head element, `<style data-kernel="true">` (versioned kernel token

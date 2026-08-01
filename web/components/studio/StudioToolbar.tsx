@@ -87,9 +87,11 @@ export interface StudioVocabulary {
   default_design_system: string | null;
 }
 
-/** The canvas selection (ADR-444/446, slot + page grains added by ADR-453):
- *  blockId set → block grain; slot set (no block) → slot grain; otherwise a
- *  page grain when slideIndex/pageIndex is known. */
+/** The canvas selection (ADR-444/446; the structural grain per ADR-511 D3):
+ *  blockId + blockKind → a vocabulary BLOCK; blockId with NO blockKind → a
+ *  structural CONTAINER (a column/columns/slot-div carrying identity but no
+ *  vocabulary); otherwise a page grain when slideIndex/pageIndex is known.
+ *  The ADR-453 slot grain is dissolved — a slot-div selects as a container. */
 export interface StudioSelection {
   blockId: string | null;
   blockKind: string | null;
@@ -98,6 +100,8 @@ export interface StudioSelection {
   slot: string | null;
   arrange: string | null;
   text: string;
+  /** ADR-511 D3 — the operator-word name (slide, columns, column, heading…). */
+  label?: string | null;
 }
 
 /** ADR-466 D5 — the galleries forewarn instead of post-failing: a slotless
