@@ -7,9 +7,14 @@
 > (container scope replaces them — layout properties, the media picker, the id-addressed
 > verbs); `normalizeStructure` runs at the one write seam on EVERY mode/depth, so
 > unannotated/imported HTML becomes editable on first write; the navigator carries the
-> selected page's structure tree in operator words (`structureLabels.ts`). Sections below
-> describing the slot grain / inert marking / slot scope are historical until the Phase-2
-> rewrite of this doc; where they conflict, ADR-511 wins.
+> selected page's structure tree in operator words (`structureLabels.ts`). **Phase 2
+> (same day)**: every interaction/op reader of `data-arrange`/`data-slot` is re-cut
+> structurally — ONE page selector (`STRUCTURAL_PAGE_SEL`), insert-into-selected-
+> container, `insertIntoContainer` (id-addressed; slot-name addressing deleted), the
+> "+ Add" placeholder on any empty leaf container. Per ADR-511 D8 the attributes
+> survive as INERT NAMES only (skins style them, labels read them, nothing gates on
+> them). Sections below describing the slot grain / inert marking / slot scope are
+> historical until this doc's full rewrite; where they conflict, ADR-511 wins.
 
 > The Studio is yarnnn's first authoring app (ADR-440) governed by the axiomatic model (ADR-443). This doc is the FE-facing contract: the philosophy, the operations and their operator words, the vocabulary and layout registries, and the surface contract. Derivations live in the four probe analyses (`the-authoring-app-claude-design-benchmark` · `the-studio-surface-lane-and-reference-model` · `the-studio-content-and-the-reference-mechanics` · `the-studio-axiomatic-model-components-and-layouts`). The next-horizon plan (the markdown ruling · the Notion/builder gap carve · Waves 1–4) is ADR-456.
 

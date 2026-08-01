@@ -21,7 +21,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
-import { labelForElement } from './structureLabels';
+import { labelForElement, STRUCTURAL_PAGE_SEL } from './structureLabels';
 
 interface OutlineEntry {
   level: number;
@@ -111,7 +111,7 @@ interface SlidePreview {
 // runtime's pageSel so indices agree across the navigator, the ops, and the
 // canvas scroll. This is the "both paged templates" seam: the strip is a
 // function of mode === 'paged', not the 'deck' slug (ADR-222).
-const PAGE_SEL = 'section.slide, [data-arrange]';
+const PAGE_SEL = STRUCTURAL_PAGE_SEL; // ADR-511 Phase 2 — the one structural page selector
 
 /** Project the artifact once, then slice it into per-page preview documents.
  *  Each preview doc = the artifact's <head> (styles) + one page's <body> markup;

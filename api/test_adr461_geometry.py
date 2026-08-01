@@ -330,7 +330,9 @@ def run() -> bool:
     )
     _check(
         "the frame is the NEAREST layout parent, not always the slide",
-        "block.closest('.col, [data-slot]')" in proj,
+        # ADR-511 Phase 2: nearest structural CONTAINER (identity, no
+        # vocabulary); .col/[data-slot] kept as legacy fallbacks.
+        "closest('div[data-block-id]:not([data-block]), .col, [data-slot]')" in proj,
     )
     _check(
         "the resize preview is a percent, not a pixel (no jump at the drop)",

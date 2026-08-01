@@ -10,6 +10,15 @@
  * we refuse).
  */
 
+/** ADR-511 Phase 2 — the ONE page selector, structural. A page is a deck
+ *  slide or a top-level section of the document body — identified by where
+ *  it SITS, never by a proprietary attribute. Legacy `section[data-arrange]`
+ *  pages match by position (they are main/body children); new pages need no
+ *  attribute at all. Every consumer (ops, both canvas runtimes, the
+ *  navigator, the surface's reconciliation) imports or inlines THIS constant
+ *  so indices always agree. */
+export const STRUCTURAL_PAGE_SEL = 'section.slide, :is(body, main, article) > section';
+
 /** Label a structural element from its cheap, serializable facts. Mirrors the
  *  logic `labelForJS()` inlines for the iframe runtime — change both together. */
 export function labelForElement(el: {

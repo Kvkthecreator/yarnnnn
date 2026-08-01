@@ -1,9 +1,9 @@
 # ADR-511 — The conventional substrate: selection derives from structure, not from annotation
 
-- **Status**: **Accepted; Phase 1 Implemented** (2026-08-01, operator-directed — *"a hard
+- **Status**: **Accepted; Phases 1–2 Implemented** (2026-08-01, operator-directed — *"a hard
   streamlining towards the claude design benchmark … i'd like to delegate the details to
   you in full"* — closing the 2026-08-01 click-grain audit, five rounds, receipts in the
-  audit trail below.)
+  audit trail below. Phase 2 same day, with the D8 amendment discovered during it.)
 - **Date**: 2026-08-01
 - **Dimension**: Studio interaction model + artifact format. No schema change, no
   migration, no new primitive — every new affordance is an existing op reached through a
@@ -74,9 +74,10 @@ The artifact format is **conventional HTML/CSS** plus:
 | `data-block="<kind>"` | **Grammar** — vocabulary blocks only, never containers | The palette / turn-into / token-applicability register. Kinds shadow semantic HTML wherever HTML has the element; the attribute earns its place only where HTML doesn't (callout, metrics, chart). |
 
 Everything else is scaffolding and dissolves on the D6 schedule: `data-arrange` and
-`data-slot` cease to be **interaction** concepts now (Phase 1) and cease to exist as
-attributes when their remaining functional readers are re-cut (Phase 2).
-`data-slot-inert` is deleted outright — no phase, no reader survives.
+`data-slot` cease to be **interaction** concepts now (Phase 1), and their remaining
+functional readers are re-cut structurally in Phase 2 — after which the attributes
+survive only as **inert names** (see D8: skins style them, labels read them, nothing
+gates on them). `data-slot-inert` is deleted outright — no phase, no reader survives.
 
 `data-*` is the HTML-sanctioned extension mechanism: the annotations export cleanly,
 every platform ignores them gracefully, and an importer that doesn't understand them
@@ -160,12 +161,18 @@ write-on-open).
   the navigator grows the structure tree (pages → containers → blocks, label-mapped,
   seeded from the existing slides+headings navigator) · the label map exported as the
   one vocabulary seam.
-- **Phase 2 (declared)**: `data-arrange`/`data-slot` attributes removed from templates
-  and strippable from existing artifacts at the write seam; the remaining functional
-  readers re-cut structurally — `PAGE_SEL` (page identity from `section` structure),
-  land-in-slot insert targeting (→ land-in-container), the media-slot picker (→
-  figure-content heuristic), the `ratio` token (→ container CSS via D4), "+ Add here"
-  (→ container-scoped).
+- **Phase 2 (Implemented 2026-08-01, as amended by D8)**: every remaining
+  **interaction/op reader** of `data-arrange`/`data-slot` re-cut structurally — the ONE
+  page selector (`STRUCTURAL_PAGE_SEL` in `structureLabels.ts`: a page is a deck slide
+  or a top-level body/main/article section, imported or inlined at all five consumer
+  sites so indices always agree) · insert targeting (a selected CONTAINER anchor is
+  appended INTO; unanchored inserts land in the page's first LEAF container —
+  `firstLeafContainer`, position not name) · `insertBlockInSlot` → `insertIntoContainer`
+  (id-addressed, same address as every other op; the add-here runtime carries the
+  container's identity) · the empty-region "+ Add" placeholder targets any empty leaf
+  container structurally (imported HTML included) · the multicol fallback counts
+  `.col` children · `measurableFrame` resolves the nearest identity-carrying container.
+  Attribute REMOVAL did not ship — see D8.
 - **Phase 3 (declared)**: drag snap/alignment guides; Hug/Fixed/Fill sizing idioms on
   containers.
 
@@ -182,6 +189,30 @@ gate (the counting-gate lesson).
 - **No DOM-inspector depth** — selection floor = attribution floor (D3).
 - **No new primitive, no eighth operation** — every affordance here is POINT or
   TRANSFORM parameterized by a new grain.
+
+### D8 — Legacy names are INERT BYTES, not stripped (the Phase-2 amendment)
+
+D6's original Phase-2 clause ("attributes removed from templates and strippable at the
+write seam") is **amended against evidence found during implementation**:
+
+- **The web skin styles `section[data-arrange]`** (padding, per-arrangement band rules —
+  `studio.py`), and every existing artifact carries a **baked copy** of that skin.
+  Stripping the attribute breaks rendering on live artifacts; re-cutting skins forks
+  styling between old markup + old skin and new markup + new skin.
+- **The flow flatten pass keys on `[data-arrange]`** to unwrap legacy flow scaffolds. A
+  seam-side strip that runs before projection would disarm the pass and resurrect the
+  dead-void rendering it exists to fix.
+- Region NAMES (`data-slot="side"`) feed the operator-word label map and the registry
+  role lookup — deleting them would fork the naming carrier for zero interaction gain.
+
+The ruling: **singular LOGIC, tolerant DATA.** After Phase 2 the attributes have zero
+interaction/op readers — the readers that remain are (a) CSS in skins, (b) the label
+map's name source, (c) registry template-application metadata (`applyArrangement`
+mapping content by declared role — template logic, the same class as the galleries),
+and (d) the legacy flow-flatten (self-retiring by use). `data-*` naming is conventional
+HTML; an attribute nothing gates on is a name, not a model. D1's annotation thesis is
+restated precisely: two annotations carry SEMANTICS nothing conventional can express
+(identity, provenance); `data-block` carries grammar; everything else is inert naming.
 
 ## Consequences
 

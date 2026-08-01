@@ -153,14 +153,15 @@ interface StudioCanvasProps {
   /** F6: the member pressed BACKSPACE at a block start — the runtime merged it
    *  into the previous block optimistically; land the source merge (no reload). */
   onMergeBlock?: (blockId: string, prevBlockId: string, mergedInner: string) => void;
-  /** ADR-447 Phase 4 + ADR-453 D5: the member clicked "+ Add here" in an empty
-   *  slot — the surface gates the add by the slot's ROLE (arrange + vocabulary
-   *  lookup) and targets the page (slideIndex for decks, pageIndex otherwise). */
+  /** ADR-447 Phase 4, re-addressed by ADR-511 Phase 2: the member clicked
+   *  "+ Add" in an empty region — `containerId` is the op address (identity);
+   *  slot/arrange ride along as legacy names for the registry ROLE lookup. */
   onAddHere?: (
     slot: string,
     slideIndex: number | null,
     pageIndex: number | null,
     arrange: string | null,
+    containerId: string | null,
   ) => void;
   /** ADR-456 W2: the member typed '/' in an empty context — the runtime
    *  committed + exited the edit; the surface opens the block palette anchored
@@ -563,6 +564,7 @@ export function StudioCanvas({
           typeof d.slideIndex === 'number' ? d.slideIndex : null,
           typeof d.pageIndex === 'number' ? d.pageIndex : null,
           typeof d.arrange === 'string' ? d.arrange : null,
+          typeof d.containerId === 'string' && d.containerId ? d.containerId : null,
         );
       } else if (
         d.type === 'yarnnn-slash-open' &&

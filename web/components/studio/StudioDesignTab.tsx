@@ -50,6 +50,7 @@ import {
   type StudioVocabulary,
 } from './StudioToolbar';
 import { studioShapeStyle } from './studioShapes';
+import { STRUCTURAL_PAGE_SEL } from './structureLabels';
 // ADR-487 D9: the Design tab reads the skin only to PAINT the controls
 // (skinVarMap + resolveSkinVar). The var-LIST parse belongs to the manage panel
 // alone now — the system-as-object register. Importing it here again would
@@ -58,7 +59,7 @@ import { resolveSkinVar, skinVarMap } from './skinVars';
 
 export type StructVerb = 'duplicate' | 'up' | 'down' | 'delete';
 
-const PAGE_SEL = 'section.slide, [data-arrange]';
+const PAGE_SEL = STRUCTURAL_PAGE_SEL; // ADR-511 Phase 2 — the one structural page selector
 
 /** The block kinds a block can be turned INTO (ADR-456 W2) — text kinds only,
  *  because the conversion rebuilds text units and a citation must never
@@ -159,12 +160,8 @@ interface StudioDesignTabProps {
    *  constants AND workspace state; only the second half goes stale). */
   onImported?: () => void;
   /** EXECUTE: role-gated slot adds (ADR-453 D5). */
-  onInsertImageInSlot: (
-    path: string,
-    slot: string,
-    slideIndex: number | null,
-    pageIndex: number | null,
-  ) => void;
+  /** ADR-511 Phase 2 — addressed by container IDENTITY, never by slot name. */
+  onInsertImageInSlot: (path: string, containerId: string) => void;
   /** EXECUTE: set/remove the page's cited background image (ADR-456 W3). */
   onSetPageBackground: (path: string) => void;
   onRemovePageBackground: () => void;
@@ -686,7 +683,7 @@ export function StudioDesignTab({
       const row = arrangements.find((a) => a.slug === arrangeSlug);
       const multicol = row
         ? row.slots.filter((s) => s.role !== 'heading').length >= 2
-        : (selectedEl?.querySelectorAll('[data-slot]').length ?? 0) >= 2;
+        : (selectedEl?.querySelectorAll('div.col').length ?? 0) >= 2; // ADR-511 Ph2: structural fallback
       const hasBg = selectedEl?.getAttribute('data-ref-kind') === 'background';
       return tokens.filter(
         (t) =>
@@ -1371,14 +1368,7 @@ export function StudioDesignTab({
                     <button
                       key={img.path}
                       type="button"
-                      onClick={() =>
-                        onInsertImageInSlot(
-                          img.path,
-                          selection!.slot!,
-                          selection!.slideIndex,
-                          selection!.pageIndex,
-                        )
-                      }
+                      onClick={() => onInsertImageInSlot(img.path, selection!.blockId!)}
                       className="flex w-full flex-col rounded px-2 py-1 text-left hover:bg-muted/40"
                     >
                       <span className="truncate text-xs">{baseName(img.path)}</span>

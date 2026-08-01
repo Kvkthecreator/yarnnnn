@@ -32,8 +32,13 @@ function extractConst(decl) {
   const end = src.indexOf(';\n', i);
   return src.slice(i, end + 1);
 }
+// ADR-511 Phase 2: PAGE_SEL is the structural constant, sourced from the ONE
+// vocabulary seam (structureLabels.ts) exactly as the real module imports it.
+const labelsSrc = readFileSync('web/components/studio/structureLabels.ts', 'utf8');
+const pageSelLit = labelsSrc.match(/export const STRUCTURAL_PAGE_SEL = ('[^']+');/)?.[1];
+if (!pageSelLit) throw new Error('gate: STRUCTURAL_PAGE_SEL literal not found');
 const prelude = [
-  extractConst("const PAGE_SEL = 'section.slide, [data-arrange]';"),
+  `const PAGE_SEL = ${pageSelLit};`,
   extractConst('const PROMOTE_KIND: Record<string, string> = {').replace(
     ': Record<string, string>',
     '',

@@ -14,6 +14,8 @@
  * new arrangement's first [data-slot].
  */
 
+import { STRUCTURAL_PAGE_SEL } from './structureLabels';
+
 function parse(html: string): Document {
   return new DOMParser().parseFromString(html, 'text/html');
 }
@@ -55,13 +57,33 @@ function materializeFragment(doc: Document, fragment: string): Element | null {
   return doc.importNode(root, true) as Element;
 }
 
+/** ADR-511 Phase 2 — structural containers of a page, document order: divs
+ *  outside any block/citation (the same predicate as normalizeStructure pass
+ *  B and the projection's label pass — one definition of "container"). */
+function containerTargets(page: Element): Element[] {
+  return Array.from(page.querySelectorAll('div')).filter(
+    (el) =>
+      !el.hasAttribute('data-block') &&
+      !el.hasAttribute('data-ref') &&
+      !el.parentElement?.closest('[data-block], [data-ref]'),
+  );
+}
+/** The first LEAF container — the innermost content region an unanchored
+ *  insert lands in (a column, never the columns row that holds it). Replaces
+ *  the `[data-slot]` targeting: position decides, not a proprietary name. */
+function firstLeafContainer(page: Element): Element | null {
+  const all = containerTargets(page);
+  return all.find((c) => !all.some((o) => o !== c && c.contains(o))) ?? null;
+}
+
 /** The default flow container new blocks append into when nothing is
- *  selected: the last slide's slot (deck), <main> (document), <article>. */
+ *  selected: the last slide's first leaf container (deck), <main> (document),
+ *  <article>. */
 function defaultFlow(doc: Document): Element {
   const slides = doc.querySelectorAll('section.slide');
   if (slides.length) {
     const last = slides[slides.length - 1];
-    return last.querySelector('[data-slot]') ?? last;
+    return firstLeafContainer(last) ?? last;
   }
   return doc.querySelector('main') ?? doc.querySelector('article') ?? doc.body;
 }
@@ -82,20 +104,21 @@ export interface OpAnchor {
   pageIndex?: number | null;
 }
 
-/** The selector that names a PAGE (a deck slide or an arranged section) —
- *  must match the canvas runtime's pageSel so indices agree. */
-const PAGE_SEL = 'section.slide, [data-arrange]';
+/** The selector that names a PAGE — ADR-511 Phase 2: STRUCTURAL, imported
+ *  from the one vocabulary seam so ops, both canvas runtimes, the navigator
+ *  and the surface always agree on indices. Legacy `[data-arrange]` sections
+ *  match by position (main/body children); the attribute is an inert name. */
+const PAGE_SEL = STRUCTURAL_PAGE_SEL;
 
-/** The page-grain arrangement element enclosing the anchor (ADR-447). A
- *  deck slide (`section.slide[data-arrange]`) and a document/article section
- *  (`section[data-arrange]`) are both `[data-arrange]` — so this finds either.
- *  `slideIndex` (the pointer's enclosing-slide index) still resolves a deck
- *  slide with no block (a title slide); `pageIndex` resolves any page. */
+/** The page-grain element enclosing the anchor (ADR-447; structural per
+ *  ADR-511 Phase 2). `slideIndex` (the pointer's enclosing-slide index) still
+ *  resolves a deck slide with no block (a title slide); `pageIndex` resolves
+ *  any page. */
 function arrangedPageAt(doc: Document, anchor: OpAnchor): Element | null {
   if (anchor.blockId) {
     const viaBlock = doc
       .querySelector(`[data-block-id="${CSS.escape(anchor.blockId)}"]`)
-      ?.closest('[data-arrange]');
+      ?.closest(PAGE_SEL);
     if (viaBlock) return viaBlock;
   }
   const slides = doc.querySelectorAll('section.slide');
@@ -119,14 +142,20 @@ export function insertBlock(
   const doc = parse(html);
   const el = materializeFragment(doc, fragment);
   if (!el) return null;
-  const afterBlock = anchor.blockId
+  const anchorEl = anchor.blockId
     ? doc.querySelector(`[data-block-id="${CSS.escape(anchor.blockId)}"]`)
     : null;
-  if (afterBlock?.parentElement) {
-    afterBlock.insertAdjacentElement('afterend', el);
+  // ADR-511 Phase 2 — the anchor decides structurally: a selected BLOCK →
+  // insert after it; a selected CONTAINER (identity, no vocabulary) → append
+  // INTO it (this is what makes a column an explicit insert target); no
+  // anchor → the page's first leaf container, else the page itself.
+  if (anchorEl?.parentElement && anchorEl.hasAttribute('data-block')) {
+    anchorEl.insertAdjacentElement('afterend', el);
+  } else if (anchorEl && !anchorEl.hasAttribute('data-block')) {
+    anchorEl.appendChild(el);
   } else {
     const page = arrangedPageAt(doc, anchor);
-    const target = page ? (page.querySelector('[data-slot]') ?? page) : defaultFlow(doc);
+    const target = page ? (firstLeafContainer(page) ?? page) : defaultFlow(doc);
     target.appendChild(el);
   }
   return { html: serialize(doc), landedId: el.getAttribute('data-block-id') };
@@ -162,30 +191,21 @@ export function galleryFragment(
   return root.outerHTML;
 }
 
-/** Insert a block into a NAMED slot (ADR-447 Phase 4 — the empty-slot
- *  "+ Add here"). Targets `[data-slot="<slot>"]` within the given slide (deck)
- *  or the first matching slot in the artifact. Appends the block there; a
- *  placeholder "+ Add here" button in the slot is ignored (it is not a
- *  [data-block]). */
-export function insertBlockInSlot(
+/** Insert a block into a CONTAINER by identity (ADR-511 Phase 2 re-cut of
+ *  the slot-name-addressed insertBlockInSlot — the empty-region "+ Add here"
+ *  and the media picker both land here). The container carries data-block-id
+ *  from the load-normalize, so the address is the same one every other op
+ *  uses. A placeholder "+ Add here" button inside is ignored (not a block). */
+export function insertIntoContainer(
   html: string,
   fragment: string,
-  slot: string,
-  slideIndex: number | null,
-  pageIndex?: number | null,
+  containerId: string,
 ): OpResult | null {
   const doc = parse(html);
   const el = materializeFragment(doc, fragment);
   if (!el) return null;
-  const scope =
-    slideIndex != null
-      ? (doc.querySelectorAll('section.slide')[slideIndex] ?? doc)
-      : pageIndex != null
-        ? (doc.querySelectorAll(PAGE_SEL)[pageIndex] ?? doc)
-        : doc;
-  const target =
-    (scope as ParentNode).querySelector?.(`[data-slot="${CSS.escape(slot)}"]`) ?? null;
-  if (!target) return null;
+  const target = doc.querySelector(`[data-block-id="${CSS.escape(containerId)}"]`);
+  if (!target || target.hasAttribute('data-block')) return null;
   target.appendChild(el);
   return { html: serialize(doc), landedId: el.getAttribute('data-block-id') };
 }
@@ -201,7 +221,7 @@ export function insertArrangement(
   const doc = parse(html);
   const el = materializeFragment(doc, fragment);
   if (!el) return null;
-  const pages = doc.querySelectorAll('[data-arrange]');
+  const pages = doc.querySelectorAll(PAGE_SEL);
   const after = arrangedPageAt(doc, anchor) ?? (pages.length ? pages[pages.length - 1] : null);
   if (after?.parentElement) after.insertAdjacentElement('afterend', el);
   else (doc.querySelector('main') ?? doc.querySelector('article') ?? doc.body).appendChild(el);

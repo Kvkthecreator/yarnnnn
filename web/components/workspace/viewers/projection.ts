@@ -38,7 +38,11 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api/client';
-import { labelForElement, labelForJS } from '@/components/studio/structureLabels';
+import {
+  labelForElement,
+  labelForJS,
+  STRUCTURAL_PAGE_SEL,
+} from '@/components/studio/structureLabels';
 import type { WorkspaceFile } from '@/types';
 
 function artifactDir(artifactPath: string): string {
@@ -454,7 +458,7 @@ html[data-template="image"] .slide { flex: 0 0 auto; }
 const POINTER_SCRIPT = `
 (function () {
   var SEL = ${JSON.stringify(POINTABLE)};
-  var PAGE_SEL = 'section.slide, [data-arrange]';
+  var PAGE_SEL = '${STRUCTURAL_PAGE_SEL}'; // ADR-511 Phase 2 — the one structural page selector
   // ADR-511 D3: a structural CONTAINER is a real element carrying identity
   // but no vocabulary — the selection rung between block and page.
   var CONTAINER_SEL = 'div[data-block-id]:not([data-block])';
@@ -1057,7 +1061,7 @@ const POINTER_SCRIPT = `
 
 const ADD_HERE_SCRIPT = `
 (function () {
-  var PAGE_SEL = 'section.slide, [data-arrange]';
+  var PAGE_SEL = '${STRUCTURAL_PAGE_SEL}'; // ADR-511 Phase 2 — the one structural page selector
   function slideIndexOf(el) {
     var slide = el.closest ? el.closest('section.slide') : null;
     if (!slide) return null;
@@ -1073,15 +1077,30 @@ const ADD_HERE_SCRIPT = `
     return null;
   }
   function decorate() {
-    var slots = document.querySelectorAll('[data-slot]');
+    // ADR-511 Phase 2 — STRUCTURAL: any empty LEAF container earns the
+    // placeholder (imported HTML included), not just a [data-slot]-named one.
+    // Same container predicate as the pointer runtime and normalizeStructure.
+    var divs = document.querySelectorAll('div');
+    var slots = [];
+    for (var d = 0; d < divs.length; d++) {
+      var el = divs[d];
+      if (el.hasAttribute('data-block') || el.hasAttribute('data-ref')) continue;
+      if (el.parentElement && el.parentElement.closest('[data-block], [data-ref]')) continue;
+      slots.push(el);
+    }
     for (var i = 0; i < slots.length; i++) {
       var slot = slots[i];
-      // Empty = no block inside AND no existing affordance.
+      // Empty = no block inside AND no child container (a leaf region).
       if (slot.querySelector('[data-block]')) {
         slot.classList.remove('yarnnn-slot-open'); // filled — bounds retire
         continue;
       }
-      // ADR-466 P8: an empty slot shows its dashed bounds ALWAYS on a deck
+      var isLeaf = true;
+      for (var j = 0; j < slots.length; j++) {
+        if (slots[j] !== slot && slot.contains(slots[j])) { isLeaf = false; break; }
+      }
+      if (!isLeaf) continue;
+      // ADR-466 P8: an empty region shows its dashed bounds ALWAYS on a deck
       // (the PowerPoint placeholder grammar) — the class is styling-only.
       slot.classList.add('yarnnn-slot-open');
       if (slot.querySelector('.yarnnn-add-here')) continue;
@@ -1095,14 +1114,17 @@ const ADD_HERE_SCRIPT = `
       // promises a choice rather than a specific block.
       btn.textContent = '+ Add';
       btn.setAttribute('data-slot-name', slot.getAttribute('data-slot') || '');
+      // ADR-511 Phase 2 — the container's IDENTITY is the op address (the
+      // load-normalize stamped it); slot/arrange ride along as legacy names
+      // for the parent's registry ROLE lookup (media → the picker).
+      btn.setAttribute('data-container-id', slot.getAttribute('data-block-id') || '');
       btn.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation();
-        // ADR-453 D5: arrange + pageIndex ride along so the parent can gate
-        // the add by the slot's ROLE (vocabulary lookup) and target the page.
         var page = this.closest ? this.closest('[data-arrange]') : null;
         parent.postMessage({
           type: 'yarnnn-add-here',
           slot: this.getAttribute('data-slot-name'),
+          containerId: this.getAttribute('data-container-id') || null,
           slideIndex: slideIndexOf(this),
           pageIndex: pageIndexOf(this),
           arrange: page ? (page.getAttribute('data-arrange') || null) : null,
@@ -2541,7 +2563,7 @@ const EDIT_SCRIPT = `
 const OBJECT_SCRIPT = `
 (function () {
   if (!window.matchMedia || !window.matchMedia('(hover: hover)').matches) return;
-  var PAGE_SEL = 'section.slide, [data-arrange]';
+  var PAGE_SEL = '${STRUCTURAL_PAGE_SEL}'; // ADR-511 Phase 2 — the one structural page selector
 
   // ADR-466 P9: every piece of body-appended chrome here (gutter, dropline,
   // divider, frame label, bounding box) positions from getBoundingClientRect,
@@ -2759,7 +2781,12 @@ const OBJECT_SCRIPT = `
     if (!isMeasurable(block)) return null;
     var kind = block.getAttribute('data-block');
     if (kind && MEASURE_MEDIA[kind]) return block.parentElement;
-    var col = block.closest ? block.closest('.col, [data-slot]') : null;
+    // ADR-511 Phase 2 — the frame is the nearest structural CONTAINER
+    // (identity, no vocabulary); .col/[data-slot] kept as legacy fallbacks
+    // for projections that predate the load-normalize.
+    var col = block.parentElement && block.parentElement.closest
+      ? block.parentElement.closest('div[data-block-id]:not([data-block]), .col, [data-slot]')
+      : null;
     if (col && col !== block) return col;
     return block.closest ? block.closest('.slide') : null;
   }

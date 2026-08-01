@@ -36,6 +36,7 @@ import { NewArtifactModal, slugify } from './NewArtifactModal';
 import { registerKindApps } from '@/lib/file-types';
 import { StudioNewMenu } from './StudioNewMenu';
 import { studioShapeStyle } from './studioShapes';
+import { STRUCTURAL_PAGE_SEL } from './structureLabels';
 import { isColorValue, parseSkinVars } from './skinVars';
 import { OpenArtifactModal } from './OpenArtifactModal';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
@@ -77,7 +78,7 @@ import {
   galleryFragment,
   insertArrangement,
   insertBlock,
-  insertBlockInSlot,
+  insertIntoContainer,
   mergeBlock,
   moveBlock,
   normalizeArtifact,
@@ -480,7 +481,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       if (!sel || (sel.slideIndex == null && sel.pageIndex == null) || !content) return sel;
       const doc = new DOMParser().parseFromString(content, 'text/html');
       const slideCount = doc.querySelectorAll('section.slide').length;
-      const pageCount = doc.querySelectorAll('section.slide, [data-arrange]').length;
+      const pageCount = doc.querySelectorAll(STRUCTURAL_PAGE_SEL).length;
       const staleSlide = sel.slideIndex != null && sel.slideIndex >= slideCount;
       const stalePage = sel.pageIndex != null && sel.pageIndex >= pageCount;
       return staleSlide || stalePage ? null : sel;
@@ -1325,37 +1326,37 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     () => void applyOp((html) => removeSkin(html), 'Studio: remove design system'),
     [applyOp],
   );
-  // Slot-scoped adds (the Design tab's slot scope + the role-gated add-here).
-  const insertProseInSlot = useCallback(
-    (slot: string, slideIndex: number | null, pageIndex: number | null) => {
+  // Container-scoped adds (the Design tab's container scope + the role-gated
+  // add-here) — ADR-511 Phase 2: addressed by IDENTITY, never by slot name.
+  const insertProseInContainer = useCallback(
+    (containerId: string, regionName: string | null) => {
       const proseFragment = vocabulary?.blocks.find((b) => b.kind === 'prose')?.fragment;
       if (!proseFragment) return;
       // "+ Add text" adds TEXT. The prose block's registry markup is
       // `<h2>Heading</h2><p>…</p>` — the right default for the palette (where
       // the member picked "Text" as a section unit) and the wrong one here:
-      // clicking an empty slot produced a heading nobody asked for, and it read
-      // as the slot "defaulting to a specific format". Strip the heading for
-      // the slot-add; the member can Turn into / type one if they want it.
+      // clicking an empty region produced a heading nobody asked for. Strip
+      // the heading for this gesture; the member can Turn into one at will.
       //
       // The registry is NOT changed — the lane and the palette share that
       // markup, and this is a property of the ADD GESTURE, not of the block.
       const bare = proseFragment.replace(/<h[1-6][^>]*>.*?<\/h[1-6]>/i, '');
       void applyOp(
-        (html) => insertBlockInSlot(html, bare, slot, slideIndex, pageIndex),
-        `Studio: add text to ${slot}`,
+        (html) => insertIntoContainer(html, bare, containerId),
+        `Studio: add text to ${regionName ?? containerId}`,
       );
     },
     [applyOp, vocabulary],
   );
-  const insertImageInSlot = useCallback(
-    (path: string, slot: string, slideIndex: number | null, pageIndex: number | null) => {
+  const insertImageInContainer = useCallback(
+    (path: string, containerId: string) => {
       const base = vocabulary?.blocks.find((b) => b.kind === 'figure')?.fragment;
       if (!base) return;
       const rel = relPath(path);
       const fragment = base.replace(/data-ref="[^"]*"/, `data-ref="${rel}"`);
       void applyOp(
-        (html) => insertBlockInSlot(html, fragment, slot, slideIndex, pageIndex),
-        `Studio: insert image ${rel} into ${slot}`,
+        (html) => insertIntoContainer(html, fragment, containerId),
+        `Studio: insert image ${rel}`,
       );
     },
     [applyOp, vocabulary],
@@ -1732,8 +1733,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     [resolvedMode, invokeSlash, openInsertMenu],
   );
 
-  // The pick lands through the EXISTING ops — insertBlockInSlot for a slot,
-  // insertBlock for a block anchor or a page append. The picker-backed kinds
+  // The pick lands through the EXISTING ops — insertBlock for every anchor
+  // (a container anchor appends INTO it, ADR-511 Phase 2). The picker-backed kinds
   // (figure/table/gallery) and chart route exactly as the palette routes them,
   // so a cited insert behaves identically whichever door opened it.
   const onInsertMenuPick = useCallback(
@@ -1758,13 +1759,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         });
         return;
       }
-      if (t.slot) {
-        void applyOp(
-          (html) => insertBlockInSlot(html, fragment, t.slot as string, t.slideIndex, t.pageIndex),
-          `Studio: add ${label} block`,
-        );
-        return;
-      }
+      // (ADR-511 Phase 2: the slot-name branch is gone — a selected container
+      // is a blockId anchor, and insertBlock appends INTO a container anchor.)
       void applyOp(
         (html) =>
           insertBlock(html, fragment, {
@@ -2211,28 +2207,23 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     setOpError('Too many copies of this artifact already — rename one first.');
   }, [artifactPath, file, setParam]);
 
-  // ADR-447 Phase 4, re-grained by ADR-511 D3: "+ Add here" in an empty slot,
-  // gated by the slot's ROLE from the vocabulary. A flow slot takes a prose
-  // block directly; a media slot takes a CITED image — select the slot's
-  // CONTAINER (it carries identity since the load-normalize) and open the
-  // Design tab's picker, which lives in container scope now.
+  // ADR-447 Phase 4, re-addressed by ADR-511 Phase 2: "+ Add" in an empty
+  // region. The runtime carries the container's IDENTITY; the registry role
+  // (looked up by the legacy names while they exist) routes media regions to
+  // the Design tab's picker in container scope; everything else takes prose.
   const onAddHere = useCallback(
-    (slot: string, slideIndex: number | null, pageIndex: number | null, arrange: string | null) => {
+    (
+      slot: string,
+      slideIndex: number | null,
+      pageIndex: number | null,
+      arrange: string | null,
+      containerId: string | null,
+    ) => {
+      if (!containerId) return; // an unaddressed region cannot take an op
       const role = vocabulary?.arrangements?.[template]
         ?.find((a) => a.slug === arrange)
         ?.slots.find((s) => s.name === slot)?.role;
       if (role === 'media') {
-        let containerId: string | null = null;
-        if (file?.content) {
-          const doc = new DOMParser().parseFromString(file.content, 'text/html');
-          const pages = doc.querySelectorAll('section.slide, [data-arrange]');
-          const page =
-            (slideIndex != null ? doc.querySelectorAll('section.slide')[slideIndex] : null) ??
-            (pageIndex != null ? pages[pageIndex] : null);
-          containerId =
-            page?.querySelector(`[data-slot="${CSS.escape(slot)}"]`)?.getAttribute('data-block-id') ??
-            null;
-        }
         setSelection({
           blockId: containerId,
           blockKind: null,
@@ -2241,15 +2232,15 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
           slot,
           arrange,
           text: '',
-          label: slot,
+          label: slot || 'group',
         });
         setEditingBlockId(null);
         setRightTab('design');
         return;
       }
-      insertProseInSlot(slot, slideIndex, pageIndex);
+      insertProseInContainer(containerId, slot || null);
     },
-    [vocabulary, template, insertProseInSlot, file],
+    [vocabulary, template, insertProseInContainer],
   );
 
   // ── MANAGE STATE (DESIGN-SYSTEMS.md §6) ─────────────────────────────────
@@ -2776,7 +2767,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               // ADR-487 D9 — the applied-system cue routes to the manage panel
               // (the third render state), the SAME param the landing card sets.
               onOpenSystem={(manifestPath) => setParam({ system: relPath(manifestPath) })}
-              onInsertImageInSlot={insertImageInSlot}
+              onInsertImageInSlot={insertImageInContainer}
               onSetPageBackground={handleSetPageBackground}
               onRemovePageBackground={handleRemovePageBackground}
               fileVerbs={{

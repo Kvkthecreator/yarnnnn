@@ -174,12 +174,14 @@ def main() -> int:
     _check("onInsertMenuPick is findable", bool(pick))
     if pick:
         _check(
-            "it lands through insertBlockInSlot / insertBlock — no new op",
-            "insertBlockInSlot(" in pick.group(0) and "insertBlock(" in pick.group(0),
+            # ADR-511 Phase 2: the slot-name branch dissolved — insertBlock
+            # handles every anchor (a container anchor appends INTO it).
+            "it lands through insertBlock — no new op",
+            "insertBlock(" in pick.group(0) and "insertBlockInSlot(" not in pick.group(0),
         )
         _check(
             "every landing goes through applyOp (the one attributed door)",
-            pick.group(0).count("applyOp(") >= 2,
+            pick.group(0).count("applyOp(") >= 1,
         )
 
     print("\n-- the toolbar tells the truth per medium --")

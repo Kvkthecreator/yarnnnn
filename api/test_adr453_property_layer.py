@@ -231,8 +231,12 @@ def run() -> bool:
         "ensureKernelStyle" in ops and "data-kernel-v" in ops and "insertBefore" in ops,
     )
     _check(
-        "artifactOps: page anchoring extends to pageIndex over the shared PAGE_SEL",
-        "pageIndex" in ops and "'section.slide, [data-arrange]'" in ops,
+        # ADR-511 Phase 2: the shared selector is STRUCTURAL, imported from the
+        # one vocabulary seam so ops/runtimes/navigator indices always agree.
+        "artifactOps: page anchoring extends to pageIndex over the ONE structural PAGE_SEL",
+        "pageIndex" in ops and "const PAGE_SEL = STRUCTURAL_PAGE_SEL;" in ops
+        and "'section.slide, :is(body, main, article) > section'"
+        in (web / "components/studio/structureLabels.ts").read_text(),
     )
 
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
