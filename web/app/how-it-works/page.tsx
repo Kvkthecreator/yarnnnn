@@ -7,6 +7,10 @@ import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { SpotlightCard } from "@/components/landing/SpotlightCard";
 import { ScrollReveal } from "@/components/landing/ScrollReveal";
 import { StepFlow } from "@/components/landing/StepFlow";
+import { FilesReplica } from "@/components/landing/product/FilesReplica";
+import { AgentsReplica } from "@/components/landing/product/AgentsReplica";
+import { StudioReplica } from "@/components/landing/product/StudioReplica";
+import { ConnectReplica } from "@/components/landing/product/ConnectReplica";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA, PRIMARY_CTA_LABEL } from "@/lib/cta";
 
@@ -40,21 +44,41 @@ const STEPS = [
     number: "01",
     title: "Your workspace is a real file system",
     body: "Not a chat scroll — files and folders you own. Everything anyone makes here, human or AI, lands as a file you can open next week: named, organized, findable. The workspace starts empty and working; there's nothing to set up.",
+    extra: (
+      <div className="mt-6 max-w-xl">
+        <FilesReplica className="shadow-xl" />
+      </div>
+    ),
   },
   {
     number: "02",
     title: "Agents are ready out of the box",
     body: "From the first minute you can talk to named agents — a thinker, a researcher, a designer. They read your files, answer grounded in what's actually there, and write their work back into the same file system. The best engine for the job rides behind each name, and you can swap it any time.",
+    extra: (
+      <div className="mt-6 max-w-xl">
+        <AgentsReplica className="shadow-xl" />
+      </div>
+    ),
   },
   {
     number: "03",
     title: "Build documents, decks and pages — and keep them",
     body: "Studio is where artifacts take shape: write directly, or ask an agent to draft against your files. Either way, every edit lands as a signed revision with full history — you can walk any document back to who changed what, when, and why.",
+    extra: (
+      <div className="mt-6 max-w-xl">
+        <StudioReplica className="shadow-xl" />
+      </div>
+    ),
   },
   {
     number: "04",
     title: "Connect the AI you already use",
     body: "Attach ChatGPT, Claude, or Gemini and it works in the same file system, under its own name. The thinking you're already doing in a chat window finally has somewhere to land — no more ferrying it out by hand.",
+    extra: (
+      <div className="mt-6 max-w-xl">
+        <ConnectReplica className="shadow-xl" />
+      </div>
+    ),
   },
   {
     number: "05",
