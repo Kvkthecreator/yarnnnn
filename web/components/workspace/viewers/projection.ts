@@ -80,6 +80,21 @@ function markBroken(el: Element, ref: string): void {
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|avif)$/i;
 
+/** A binary's directly-renderable URL (ADR-427 D4 / ADR-510).
+ *
+ *  `GET /workspace/file` returns one of two shapes in `content_url`: the
+ *  legacy stored `/api/documents/blob?storage_path=…` reference (needs an
+ *  authenticated resolve to a signed URL — a browser element src can't send
+ *  the Bearer header), or a MINTED absolute URL for a CAS-lane binary —
+ *  already fetchable, used as-is. blobUrl() REJECTS absolute URLs by design
+ *  (no storage_path param), so without this fork every CAS-lane citation
+ *  silently fell to the catch and the asset never rendered. */
+async function servingUrl(contentUrl: string): Promise<string> {
+  if (/^(https?:|data:|blob:)/i.test(contentUrl)) return contentUrl;
+  const { url } = await api.documents.blobUrl(contentUrl);
+  return url;
+}
+
 /** A workspace-absolute `url("/workspace/…")` inside a stylesheet's text. */
 const CSS_WORKSPACE_URL = /url\(\s*["']?(\/workspace\/[^"')]+)["']?\s*\)/g;
 
@@ -107,8 +122,7 @@ async function resolveStyleUrls(el: HTMLStyleElement): Promise<void> {
         if (p.toLowerCase().endsWith('.svg') && file.content) {
           resolved.set(p, `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`);
         } else if (file.content_url) {
-          const { url } = await api.documents.blobUrl(file.content_url);
-          resolved.set(p, url);
+          resolved.set(p, await servingUrl(file.content_url));
         }
       } catch {
         /* a missing cited asset degrades to the fallback — never a broken skin */
@@ -151,8 +165,7 @@ async function resolveOne(el: Element, artifactPath: string): Promise<void> {
       return;
     }
     if (isImg && file.content_url) {
-      const { url } = await api.documents.blobUrl(file.content_url);
-      (el as HTMLImageElement).src = url;
+      (el as HTMLImageElement).src = await servingUrl(file.content_url);
       return;
     }
     if (isImg && IMAGE_EXT.test(path) && !file.content_url) {
@@ -171,7 +184,7 @@ async function resolveOne(el: Element, artifactPath: string): Promise<void> {
         return;
       }
       if (file.content_url) {
-        const { url } = await api.documents.blobUrl(file.content_url);
+        const url = await servingUrl(file.content_url);
         (el as HTMLElement).style.backgroundImage = `url("${url}")`;
       }
       return;

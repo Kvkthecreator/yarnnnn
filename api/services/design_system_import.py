@@ -11,13 +11,16 @@ entry point plus a flatten — never an interpretation of the vendor's schema.
 Parsing one schema per vendor is the road not taken; `_ds_manifest.json` is
 EVIDENCE (we read one field from it) and never a second contract.
 
-THE FONT (ADR-462 D13). A design system's `@font-face` is a CITATION, not an
-inline: Pacifico is 411KB base64 against a 120KB skin ceiling — arithmetic, not
-taste. But `workspace_blobs.content` is TEXT (ADR-427 Phase 1; Phase 2/3's
-object-store driver is reserved, not built), so a TTF cannot go down the
-ordinary substrate path at all. It rides the lane images already use: the
-ADR-395 `documents` bucket, with `workspace_files.content_url` pointing at the
-stable blob endpoint. One binary lane, two callers.
+THE BINARIES (ADR-510, superseding this module's ADR-462 D13 bucket lane). A
+design system's fonts and logos are cited by the skin's `@font-face` /
+`url()`s. They land as ORDINARY BINARY REVISIONS through the one write door —
+`write_revision(content_bytes=…)` routes bytes through the ADR-427 storage
+seam (CAS), attributed and parent-pointered like any other substrate write,
+and the serving URL is minted at read (ADR-427 D4), never stored. The
+2026-07-16 shape (documents bucket + stored `content_url`) is DELETED: it
+predated ADR-427 Phase 2 and left the substrate's own record of every binary
+empty — bytes the revision chain could not see and an export could not carry
+(the lane divergence the 2026-07-31 audit receipted).
 
 This module PLANS and EXECUTES through the one write door; it never invents a
 second. Every write is `write_revision` (ADR-209/444).
@@ -26,8 +29,7 @@ second. Every write is `write_revision` (ADR-209/444).
 from __future__ import annotations
 
 import logging
-import posixpath
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -41,22 +43,6 @@ _FONT_SUFFIXES = (".woff2", ".woff", ".ttf", ".otf")
 
 #: Image binaries a design system ships (logos, brand marks).
 _IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif")
-
-_FONT_MIME = {
-    ".woff2": "font/woff2",
-    ".woff": "font/woff",
-    ".ttf": "font/ttf",
-    ".otf": "font/otf",
-}
-
-_IMAGE_MIME = {
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".webp": "image/webp",
-    ".gif": "image/gif",
-    ".svg": "image/svg+xml",
-}
 
 
 def classify(rel_path: str) -> str:
@@ -74,10 +60,9 @@ def classify(rel_path: str) -> str:
         return "skin"
     if low.endswith(_FONT_SUFFIXES):
         return "font"
-    # An SVG is TEXT — the one "image" that is ordinary substrate. It needs no
-    # bucket (and the bucket rejects image/svg+xml anyway, verified live), so
-    # it lands as content like any other file and the projection resolves it as
-    # it already does for the cited SVGs in the live workspace.
+    # An SVG is TEXT — the one "image" that is ordinary substrate. It lands as
+    # content like any other file and the projection resolves it as it already
+    # does for the cited SVGs in the live workspace.
     if low.endswith(".svg"):
         return "doc"
     if low.endswith(_IMAGE_SUFFIXES):
@@ -87,31 +72,6 @@ def classify(rel_path: str) -> str:
     if low.endswith((".md", ".txt")) and "/" not in rel_path:
         return "doc"
     return "vendor"
-
-
-def binary_mime(rel_path: str) -> str:
-    """The content-type a binary is uploaded with.
-
-    Load-bearing, not cosmetic: the `documents` bucket enforces an
-    allowed_mime_types list, so a wrong type is a 415 rather than a bad
-    header. The first real import sent `application/octet-stream` for every
-    PNG (a font-only lookup with an octet-stream default) and the bucket
-    rejected all five logos.
-    """
-    low = rel_path.lower()
-    for suf, mime in {**_FONT_MIME, **_IMAGE_MIME}.items():
-        if low.endswith(suf):
-            return mime
-    return "application/octet-stream"
-
-
-#: The `documents` bucket accepts font types (operator added font/woff2, woff,
-#: ttf, otf on 2026-07-16; verified live — 12 types, the original 8 intact).
-#: Kept as a named constant rather than deleted: it is the one line that says
-#: whether the binary lane is open, and if the bucket policy ever narrows the
-#: import must go back to warning instead of half-landing a design system whose
-#: @font-face points at nothing (ADR-462 D13).
-FONT_UPLOAD_SUPPORTED = True
 
 
 def import_design_system(
@@ -126,9 +86,11 @@ def import_design_system(
     """Write an export into the workspace as a conforming design system.
 
     `files` maps rel_path → bytes. Text lands as ordinary substrate through the
-    one write door; fonts/images land in the ADR-395 bucket with a
-    `content_url` row (the binary lane images already use). Returns a receipt:
-    what landed, what was skipped, and every warning the flatten produced.
+    one write door; fonts/images land through the SAME door as binary revisions
+    (`content_bytes` → the ADR-427 CAS seam; type derived from the bytes,
+    serving URL minted at read). Returns a receipt: what landed, what was
+    skipped, and every warning produced — a binary that fails to land is
+    NAMED in the receipt, never silently dropped.
 
     The manifest is written LAST and only if an entry point was found — a
     folder without one is not a design system, and half-writing one would make
@@ -174,38 +136,34 @@ def import_design_system(
         )
         written.append(path)
 
-    # 2. The binaries the skin may cite — the ADR-395 lane (D13).
+    # 2. The binaries the skin may cite — the SAME door, binary lane (ADR-510).
+    #    The CAS upload needs the service client (the workspace-cas bucket is
+    #    seam-managed, like every uploaded binary — routes/documents does the
+    #    same); attribution stays the operator's via authored_by + user_id.
     fonts: list = []
-    fonts_deferred: list = []
     for rel, data in files.items():
         kind = classify(rel)
         if kind not in ("font", "image") or not isinstance(data, bytes):
             continue
-        if kind == "font" and not FONT_UPLOAD_SUPPORTED:
-            # NAMED, not swallowed: the skin's @font-face will cite a path with
-            # no bytes, so the face falls back to the stack beside it. The
-            # member is told; the import still lands (a design system is its
-            # tokens far more than its wordmark).
-            fonts_deferred.append(rel)
-            warnings.append(
-                f"font not uploaded ({rel}): the storage bucket allows no font "
-                f"types. The @font-face will fall back until the bucket's "
-                f"allowed_mime_types gains font/woff2|woff|ttf|otf."
+        path = f"{folder}/{rel}"
+        try:
+            write_revision(
+                service_client or db_client, user_id=user_id, path=path,
+                content_bytes=data,
+                authored_by="operator",
+                message=f"Import {display_name}: {rel} (binary)",
+                revision_kind="observation",
             )
+        except Exception as exc:  # noqa: BLE001 — NAMED in the receipt, never silent
+            logger.warning("[DS_IMPORT] binary write failed for %s: %s", rel, exc)
+            warnings.append(f"binary write failed: {rel} ({exc})")
             continue
-        url = _put_binary(
-            service_client or db_client, user_id=user_id, rel=rel, data=data,
-            folder=folder, display_name=display_name, db_client=db_client,
-        )
-        if url:
-            written.append(f"{folder}/{rel}")
-            if kind == "font":
-                fonts.append(rel)
-        else:
-            warnings.append(f"binary upload failed: {rel}")
+        written.append(path)
+        if kind == "font":
+            fonts.append(rel)
 
     # 3. The manifest — LAST, and only now that its sources exist.
-    def _read(abs_path: str) -> Optional[str]:
+    def _read(abs_path: str) -> str | None:
         return text.get(abs_path[len(folder):].lstrip("/"))
 
     _css, sources, flat_warnings = flatten_css(entry, _read, folder)
@@ -234,47 +192,7 @@ def import_design_system(
         "written": written,
         "sources": sources,
         "fonts": fonts,
-        "fonts_deferred": fonts_deferred,
         "maps": seeded_maps,
         "skipped": sorted({r for r in files if classify(r) == "vendor"}),
         "warnings": warnings,
     }
-
-
-def _put_binary(
-    service: Any, *, user_id: str, rel: str, data: bytes,
-    folder: str, display_name: str, db_client: Any,
-) -> Optional[str]:
-    """A font/image into the ADR-395 bucket + its workspace_files row.
-
-    NOT workspace_blobs: `content` is TEXT there (ADR-427 Phase 1) and a TTF is
-    not utf-8. The `documents` bucket is the binary lane that already exists —
-    the same one an uploaded image rides, so the projection's content_url
-    resolution works on this for free.
-    """
-    from services.documents import blob_content_url
-
-    path = f"{folder}/{rel}"
-    storage_path = f"{user_id}/design-system/{posixpath.basename(folder)}/{rel}"
-    try:
-        service.storage.from_("documents").upload(
-            path=storage_path,
-            file=data,
-            file_options={"content-type": binary_mime(rel), "upsert": "true"},
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[DS_IMPORT] storage upload failed for %s: %s", rel, exc)
-        return None
-
-    url = blob_content_url(storage_path)
-    from services.authored_substrate import write_revision
-
-    # The row carries the ADDRESS, not the bytes — content stays empty, which
-    # is exactly the ADR-395 raw-upload shape.
-    write_revision(
-        db_client, user_id=user_id, path=path, content="",
-        authored_by="operator", message=f"Import {display_name}: {rel} (binary)",
-        content_url=url, content_type=binary_mime(rel),
-        revision_kind="observation",
-    )
-    return url

@@ -254,21 +254,24 @@ def run() -> int:
         and imp.classify("_ds_bundle.js") == "vendor"
         and imp.classify("components/forms/Input.prompt.md") == "vendor",
     )
+    # ADR-510: binaries ride the ONE door's binary lane (content_bytes → the
+    # ADR-427 CAS seam). The 2026-07-16 bucket lane (documents bucket + stored
+    # content_url) is DELETED — it left the substrate's record of every binary
+    # empty (the 2026-07-31 audit's lane divergence). The executable half of
+    # this invariant lives in test_adr510_one_binary_lane.py; this pin only
+    # guards against the bucket lane's REVIVAL in this module.
     passed &= _check(
-        "import: the mime is the BUCKET's, not a guess (an octet-stream PNG "
-        "is a 415, which is how the first real import lost five logos)",
-        imp.binary_mime("a/b.png") == "image/png"
-        and imp.binary_mime("a/b.woff2") == "font/woff2",
+        "import: binaries go through write_revision(content_bytes), never a "
+        "second (bucket) lane",
+        "content_bytes=data" in imp_src
+        and 'storage.from_' not in imp_src
+        and "blob_content_url" not in imp_src,
     )
-    # The INVARIANT, not the state: whichever way the flag sits, an unsupported
-    # font must WARN rather than half-land a design system whose @font-face
-    # points at nothing. (The flag flipped True on 2026-07-16 when the operator
-    # opened the bucket; a gate pinned to `is False` would have gone red on a
-    # correct change — the ADR-461 lesson, one arc later.)
+    # The INVARIANT, not the state: a binary the lane cannot take must WARN
+    # rather than half-land a design system whose @font-face points at nothing.
     passed &= _check(
-        "import: a font the lane cannot take is WARNED, never silently dropped",
-        "fonts_deferred" in imp_src and "font not uploaded" in imp_src
-        and "FONT_UPLOAD_SUPPORTED" in imp_src,
+        "import: a binary that fails to land is WARNED, never silently dropped",
+        "binary write failed" in imp_src and "warnings.append" in imp_src,
     )
     passed &= _check(
         "import: a folder with no CSS entry point REFUSES (half-writing one "

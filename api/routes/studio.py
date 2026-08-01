@@ -334,6 +334,7 @@ async def import_design_system_route(
     import zipfile
 
     from services.design_system_import import import_design_system
+    from services.supabase import get_service_client
 
     raw = await file.read()
     if len(raw) > _MAX_IMPORT_BYTES:
@@ -378,6 +379,9 @@ async def import_design_system_route(
     result = import_design_system(
         auth.client, user_id=auth.user_id, folder=folder,
         display_name=display, files=files,
+        # ADR-510: the binary lane rides the ADR-427 CAS seam, which is
+        # seam-managed storage (service client) — same as routes/documents.
+        service_client=get_service_client(),
     )
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Import failed."))

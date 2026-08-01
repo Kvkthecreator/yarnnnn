@@ -114,26 +114,23 @@ reports what it could not read. Three sub-bugs the real bytes caught:
 ### The binary lane — fonts and images (ADR-462 D13)
 
 A design system's `@font-face` is a **citation, not an inline** — arithmetic, not taste:
-Pacifico is 411 KB base64 against a 120 KB skin ceiling (3.4× over). But two walls:
+Pacifico is 411 KB base64 against a 120 KB skin ceiling (3.4× over).
 
-1. `workspace_blobs.content` is **TEXT** (ADR-427 Phase 1; the object-store driver is
-   Phase 2/3, reserved and unbuilt) — a TTF cannot go down the ordinary substrate path.
-2. The `documents` bucket enforces `allowed_mime_types`.
+**The lane (ADR-510, superseding the 2026-07-16 bucket shape).** Binaries land as ordinary
+**binary revisions** through the one write door — `write_revision(content_bytes=…)` routes
+bytes through the ADR-427 CAS seam, attributed and parent-pointered; the serving URL is
+minted at read (ADR-427 D4), never stored. Classification (`design_system_import.py`):
 
-So binaries ride the **ADR-395 lane images already use**: the `documents` bucket, with
-`workspace_files.content_url` pointing at the stable blob endpoint. `content` stays empty
-(the raw-upload shape); the row carries the address. Classification (`design_system_import.py`):
-
-- `skin` (`.css`) + `doc` (`.md`, `.svg` — SVG is TEXT, no bucket) → ordinary substrate.
-- `font` / `image` (`.ttf/.woff2/.png/…`) → the bucket, one `content_url` row each.
+- `skin` (`.css`) + `doc` (`.md`, `.svg` — SVG is TEXT, no binary lane needed) → text substrate.
+- `font` / `image` (`.ttf/.woff2/.png/…`) → binary revisions via the same door.
 - `vendor` (everything else: bundles, components, lint configs) → skipped, named in the receipt.
 
-**The font gap that was, and is closed**: the bucket shipped no font MIME types, so an upload
-was a 415. `FONT_UPLOAD_SUPPORTED` gated it — the import *warned* rather than half-landing a
-skin whose `@font-face` points at nothing. On 2026-07-16 the operator added
-`font/woff2|woff|ttf|otf` to the bucket; the flag flipped `True`; Pacifico now round-trips
-byte-identical. **The flag stays a named constant** — if the bucket policy ever narrows, the
-import goes back to warning.
+**History of the lane**: the 2026-07-16 import predated ADR-427 Phase 2, so binaries rode the
+`documents` bucket with a stored `content_url` (and `FONT_UPLOAD_SUPPORTED` gated the bucket's
+font MIME policy). That shape left the substrate's own record of every binary EMPTY — the
+revision chain saw a zero-byte blob while the bytes lived out-of-band, so a substrate export
+would have shipped nothing (the 2026-07-31 audit's lane-divergence finding). ADR-510 deleted
+the bucket lane; a binary that fails to land is warned in the receipt, never silently dropped.
 
 ### Serving the font (ADR-462 D13, projection side)
 
