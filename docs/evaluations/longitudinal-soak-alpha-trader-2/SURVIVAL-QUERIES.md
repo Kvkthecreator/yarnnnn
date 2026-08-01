@@ -9,7 +9,7 @@
 > **Connection**: `PSQL` from [`../../database/ACCESS.md`](../../database/ACCESS.md) — extract with `grep -oE 'postgresql://[^"]+' docs/database/ACCESS.md | head -1`.
 
 ```bash
-PSQL='postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
+PSQL='${SUPABASE_DB_URL}'
 UID2='29a74c63-0c9c-4998-b8bb-56dd0d810a4e'   # NB: avoid bare $UID in zsh (reserved) — use UID2 or inline the literal
 ```
 

@@ -1,0 +1,24 @@
+# Gitleaks config — YARNNN secret-scanning gate (Phase 1 security audit, 2026-08-01)
+# Extends the default ruleset; adds an allowlist for known non-secret placeholders.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholders, examples, and URL-encode reference tables that are not live secrets."
+regexes = [
+  # Documented placeholders — angle-bracket / your-key style
+  '''<URL_ENCODED_PASSWORD>''',
+  '''<sb_secret_\.\.\.>''',
+  '''<your-key>''',
+  '''your-service-key''',
+  # api/.env.example intentionally ships placeholder names
+  '''SUPABASE_SERVICE_KEY=your-service-key''',
+  # Test fixture: a hand-built unsigned JWT *payload* (no secret), used to assert teardown
+  '''eyJzdWIiOiJ1c2VyLTEyMyIsImVtYWlsIjoidEBleGFtcGxlLmNvbSJ9\.''',
+]
+paths = [
+  '''.*\.example$''',
+  '''node_modules/.*''',
+  '''.*/package-lock\.json$''',
+  '''.*/pnpm-lock\.yaml$''',
+]

@@ -4,7 +4,7 @@ Applied migrations in reverse-chronological order. See `supabase/migrations/` fo
 
 To run a migration:
 ```bash
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/<file>.sql
+psql "${SUPABASE_DB_URL}" -f supabase/migrations/<file>.sql
 ```
 
 Note: this log has gaps between 100 and 158. Authoritative source is `supabase/migrations/*.sql` — recent entries below are added as they ship; intermediate migrations are preserved in-repo.

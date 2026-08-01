@@ -37,7 +37,7 @@ Everything below the ground-truth read is **shared across all programs** (person
 ## §2 The three reads (run in order; each is a query + a prose write)
 
 ```bash
-PSQL='postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
+PSQL='${SUPABASE_DB_URL}'
 # Subject: set per soak. alpha-trader-2 = 29a74c63-0c9c-4998-b8bb-56dd0d810a4e
 UID='<soak-user-id>'
 GROUND_TRUTH='/workspace/operation/trading/_money_truth.md'   # per §1 — the program's declared path

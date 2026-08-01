@@ -1,0 +1,8 @@
+# Pre-commit hooks (Phase 1 security gate, 2026-08-01).
+# Install once:  pip install pre-commit && pre-commit install
+# Runs gitleaks on staged changes before every commit — the local mirror of the CI gate.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks

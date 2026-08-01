@@ -262,25 +262,23 @@ class ProdClient:
 
 
 # Supabase direct DB access (for verify.py) — separate from ProdClient since
-# verify is read-only and we have the service key anyway.
-PG_CONN_STRING = (
-    "postgresql://postgres.noxgqcwynkzqabljjyon:"
-    "yarNNN%21%21%40%40%23%23%24%24"
-    "@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
-)
-
-
+# verify is read-only. Connection string comes from the environment; never
+# hardcode credentials (this repo is public). See docs/database/ACCESS.md.
 def pg_connect():
     """Return a psycopg2 connection to the shared Supabase Postgres.
 
-    Connection string is the one documented in docs/database/ACCESS.md.
-    URL-encoded password is intentional — do not "simplify".
+    Reads the connection string from SUPABASE_DB_URL (URL-encoded password).
     """
+    conn_string = os.environ.get("SUPABASE_DB_URL")
+    if not conn_string:
+        raise SystemExit(
+            "SUPABASE_DB_URL not set — export it (see docs/database/ACCESS.md) before running verify."
+        )
     try:
         import psycopg2  # type: ignore[import-untyped]
     except ImportError as exc:
         raise SystemExit("Missing dependency: psycopg2-binary. pip install psycopg2-binary") from exc
-    return psycopg2.connect(PG_CONN_STRING)
+    return psycopg2.connect(conn_string)
 
 
 # ----------------------------------------------------------------------------

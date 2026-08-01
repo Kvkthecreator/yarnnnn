@@ -5,7 +5,7 @@
 > **Subject**: `user_id = 89f467f1-3ff9-4877-a898-ff5599ab4b08` (anr-scout).
 
 ```bash
-PSQL='postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
+PSQL='${SUPABASE_DB_URL}'
 ANR='89f467f1-3ff9-4877-a898-ff5599ab4b08'
 ```
 

@@ -106,3 +106,7 @@ docs/analysis/src_claudeCC/
 
 # ADR-335 Crawl-B local validation venv (Python 3.11, mcp SDK) — not source
 api/.venv-mcp/
+
+# Local, uncommitted credential material (Phase 1 security purge, 2026-08-01)
+docs/database/ACCESS.local.md
+.secrets.local

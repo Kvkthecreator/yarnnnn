@@ -10,9 +10,9 @@
 ### Required Environment Variables
 
 ```bash
-# api/.env
+# api/.env  — NEVER commit this file (it is gitignored); values from the Supabase/provider dashboards
 SUPABASE_URL=https://noxgqcwynkzqabljjyon.supabase.co
-SUPABASE_SERVICE_KEY=sb_secret_-8NWVKf09Cf56mO3JrjPqw_5FqL423G
+SUPABASE_SERVICE_KEY=<sb_secret_...>   # RLS bypass — SECRET
 ANTHROPIC_API_KEY=<your-key>
 OPENAI_API_KEY=<your-key>  # Required for embeddings/skill detection
 ```
@@ -39,9 +39,9 @@ Best for testing backend logic without HTTP overhead.
 import asyncio
 import os
 
-# Set env vars
-os.environ["SUPABASE_URL"] = "https://noxgqcwynkzqabljjyon.supabase.co"
-os.environ["SUPABASE_SERVICE_KEY"] = "sb_secret_-8NWVKf09Cf56mO3JrjPqw_5FqL423G"
+# Read env vars (set them in your gitignored api/.env — never hardcode)
+assert os.environ.get("SUPABASE_URL"), "SUPABASE_URL required"
+assert os.environ.get("SUPABASE_SERVICE_KEY"), "SUPABASE_SERVICE_KEY required"
 
 from supabase import create_client
 
@@ -126,7 +126,7 @@ curl -X POST http://localhost:8000/api/chat \
 Query available test users:
 
 ```bash
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" \
+psql "${SUPABASE_DB_URL}" \
   -c "SELECT id, email FROM auth.users LIMIT 5;"
 ```
 
@@ -137,7 +137,7 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 ### Direct SQL Access
 
 ```bash
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
+psql "${SUPABASE_DB_URL}"
 ```
 
 ### Common Debug Queries

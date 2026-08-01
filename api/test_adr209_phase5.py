@@ -65,11 +65,13 @@ def get_client():
 
 def _pg_connstr() -> str:
     """Direct psycopg connection string for tests that need EXPLAIN / DDL
-    introspection beyond what the Supabase Python client exposes."""
-    return (
-        "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24"
-        "@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
-    )
+    introspection beyond what the Supabase Python client exposes.
+
+    Read from the environment — never hardcode credentials (public repo)."""
+    conn = os.environ.get("SUPABASE_DB_URL")
+    if not conn:
+        raise RuntimeError("SUPABASE_DB_URL required for direct-psql tests")
+    return conn
 
 
 def _psql(sql: str) -> str:

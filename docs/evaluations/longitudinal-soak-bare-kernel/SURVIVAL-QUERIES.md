@@ -7,7 +7,7 @@
 > **Connection**: `PSQL` from [`../../database/ACCESS.md`](../../database/ACCESS.md).
 
 ```bash
-PSQL='postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
+PSQL='${SUPABASE_DB_URL}'
 BK='4c106786-c9b4-41cb-982d-0f5a8cc35923'
 ```
 

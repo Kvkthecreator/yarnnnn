@@ -61,7 +61,7 @@ Web available at: http://localhost:3000
 ### Direct SQL Access
 
 ```bash
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
+psql "${SUPABASE_DB_URL}"
 ```
 
 ### Run Migrations

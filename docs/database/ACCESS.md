@@ -1,114 +1,121 @@
 # Database Access Guide
 
+> **Security (2026-08-01):** Credentials MUST NOT live in this file or anywhere in the tracked
+> tree — this repo is public and git history is permanent. All connection strings below reference
+> environment variables. Put the real values in a **gitignored** `docs/database/ACCESS.local.md`
+> (or your shell profile / a `.env` you never commit). If you ever see a raw password or key in a
+> tracked file, treat it as a leak: rotate it and purge it. See [ROTATION.md](ROTATION.md).
+
 ## Supabase Project Details
 
 **Project Reference**: `noxgqcwynkzqabljjyon`
 **Region**: `ap-southeast-1` (Singapore)
 **Dashboard**: https://supabase.com/dashboard/project/noxgqcwynkzqabljjyon
 
-## Quick Access (Copy-Paste Ready)
+## One-Time Setup (local, uncommitted)
 
-### psql Command Line (Recommended)
+Export the connection string in your shell (e.g. `~/.zshrc`), sourced from the Supabase dashboard
+→ Project Settings → Database → Connection string. Never paste the literal value into a tracked file.
 
 ```bash
-# Working connection string with URL-encoded password
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
+# In ~/.zshrc — real value never committed
+export SUPABASE_DB_URL="postgresql://postgres.noxgqcwynkzqabljjyon:<URL_ENCODED_PASSWORD>@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
 ```
 
-**Important**: The password must be URL-encoded in the connection string. Don't use PGPASSWORD env var with special characters.
+Prefer the **least-privilege** roles for day-to-day work rather than the `postgres` superuser
+(see [ROTATION.md](ROTATION.md) §Least-privilege roles):
 
-### Password Reference
-
-- **Raw password**: `yarNNN!!@@##$$`
-- **URL-encoded**: `yarNNN%21%21%40%40%23%23%24%24`
-
-## Connection String Formats
-
-### Transaction Pooler (Port 6543) - For Serverless/API
-```
-postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true
-```
-
-### Session Pooler (Port 5432) - For Long-Lived Connections
-```
-postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
-```
-
-## Environment Variables
-
-For Render API deployment:
 ```bash
-DATABASE_URL=postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true
-SUPABASE_URL=https://noxgqcwynkzqabljjyon.supabase.co
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5veGdxY3d5bmt6cWFibGpqeW9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1NzgyMzAsImV4cCI6MjA4NTE1NDIzMH0.XnE9rO-7ipQH_9F5Xx0wdSlQK1MM-00y0c3ny6cP6Ic
-SUPABASE_SERVICE_KEY=sb_secret_-8NWVKf09Cf56mO3JrjPqw_5FqL423G
+export SUPABASE_DB_URL_RO="postgresql://yarnnn_readonly:<PW>@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"   # SELECT-only, for ad-hoc queries
+export SUPABASE_DB_URL_MIGRATE="postgresql://yarnnn_migrate:<PW>@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" # DDL, for migrations
+```
+
+## Quick Access
+
+### psql Command Line
+
+```bash
+# Ad-hoc read-only queries — uses the readonly role
+psql "$SUPABASE_DB_URL_RO"
+
+# Full access (migrations, DDL) — superuser or migrate role
+psql "$SUPABASE_DB_URL"
+```
+
+**Note**: The password contains special characters and must be **URL-encoded** inside the
+connection string (`!`→`%21`, `@`→`%40`, `#`→`%23`, `$`→`%24`, `%`→`%25`, `&`→`%26`).
+Don't use `PGPASSWORD` with special characters.
+
+## Connection String Shapes (ports)
+
+| Purpose | Port | Notes |
+|---------|------|-------|
+| Transaction pooler (serverless/API) | `6543` | append `?pgbouncer=true` |
+| Session pooler (long-lived) | `5432` | for GUI tools / long connections |
+
+Both use host `aws-1-ap-southeast-1.pooler.supabase.com`, database `postgres`,
+user `postgres.noxgqcwynkzqabljjyon` (or a least-privilege role).
+
+## Environment Variables (Render)
+
+Set these in the Render dashboard for **all 3 services** (see CLAUDE.md §5 for the parity matrix) —
+never in a tracked file. Names only:
+
+```bash
+DATABASE_URL          # transaction-pooler connection string, ?pgbouncer=true
+SUPABASE_URL          # https://noxgqcwynkzqabljjyon.supabase.co
+SUPABASE_ANON_KEY     # public anon JWT (safe client-side, but keep out of git)
+SUPABASE_SERVICE_KEY  # sb_secret_… — RLS bypass; SECRET; API + Scheduler + MCP only
 ```
 
 ## Running Migrations via psql
 
-### Run SQL File
 ```bash
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/001_initial_schema.sql
+# Run a SQL file
+psql "$SUPABASE_DB_URL_MIGRATE" -f supabase/migrations/001_initial_schema.sql
+
+# Run inline SQL
+psql "$SUPABASE_DB_URL_RO" -c "SELECT * FROM agents LIMIT 5;"
+
+# Verify tables
+psql "$SUPABASE_DB_URL_RO" -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;"
 ```
-
-### Run Inline SQL
-```bash
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -c "SELECT * FROM tasks LIMIT 5;"
-```
-
-### Verify Tables
-```bash
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;"
-```
-
-## Password Encoding Reference
-
-| Character | Encoded |
-|-----------|---------|
-| `!` | `%21` |
-| `@` | `%40` |
-| `#` | `%23` |
-| `$` | `%24` |
-| `%` | `%25` |
-| `&` | `%26` |
-
-Example: `yarNNN!!@@##$$` → `yarNNN%21%21%40%40%23%23%24%24`
 
 ## GUI Tools (TablePlus, DBeaver, pgAdmin)
 
 - **Host**: `aws-1-ap-southeast-1.pooler.supabase.com`
 - **Port**: `6543` (transaction pooler) or `5432` (session pooler)
 - **Database**: `postgres`
-- **User**: `postgres.noxgqcwynkzqabljjyon`
-- **Password**: `yarNNN!!@@##$$`
+- **User**: `postgres.noxgqcwynkzqabljjyon` (or a least-privilege role)
+- **Password**: from the dashboard — never recorded here
 - **SSL**: Required
 
 ## Troubleshooting
 
 ### "password authentication failed"
-- PGPASSWORD env var doesn't work well with special characters
-- Use the URL-encoded password directly in the connection string instead
+- `PGPASSWORD` doesn't work well with special characters — put the URL-encoded password
+  directly in the connection string instead.
 
 ### "Tenant or user not found"
-- Verify the region is correct (`aws-0-ap-southeast-1`)
-- Double-check all special characters are encoded
+- Verify the region (`ap-southeast-1`) and that every special character is URL-encoded.
 
 ### Connection Timeout
-- Add `?sslmode=require` to connection string
-- Try session pooler (port 5432) instead of transaction pooler (6543)
+- Add `?sslmode=require`; try the session pooler (5432) instead of the transaction pooler (6543).
 
 ## API Testing with User JWT
 
-For testing production API endpoints that require user authentication (e.g., `/api/chat`, `/api/agents/{id}/run`), you need a valid user JWT — service keys don't work on `UserClient`-protected routes.
+For production API endpoints requiring user auth (`/api/chat`, `/api/agents/{id}/run`), you need a
+valid **user JWT** — service keys don't work on `UserClient`-protected routes.
 
 ### Generate a JWT via Magic Link OTP
 
 ```python
+import os
 from supabase import create_client
 
-SERVICE_KEY = "sb_secret_-8NWVKf09Cf56mO3JrjPqw_5FqL423G"
-ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5veGdxY3d5bmt6cWFibGpqeW9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1NzgyMzAsImV4cCI6MjA4NTE1NDIzMH0.XnE9rO-7ipQH_9F5Xx0wdSlQK1MM-00y0c3ny6cP6Ic"
-URL = "https://noxgqcwynkzqabljjyon.supabase.co"
+SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]   # never hardcode
+ANON_KEY    = os.environ["SUPABASE_ANON_KEY"]
+URL         = os.environ["SUPABASE_URL"]
 
 # Step 1: Generate magic link (requires service key — admin endpoint)
 admin_client = create_client(URL, SERVICE_KEY)
@@ -116,7 +123,7 @@ link_resp = admin_client.auth.admin.generate_link({
     "type": "magiclink",
     "email": "kvkthecreator@gmail.com",
 })
-otp = link_resp.properties.email_otp  # e.g., "47010531"
+otp = link_resp.properties.email_otp
 
 # Step 2: Verify OTP to get access token (uses anon key)
 anon_client = create_client(URL, ANON_KEY)
@@ -131,33 +138,23 @@ jwt = auth_resp.session.access_token  # Valid ~1 hour
 ### Use the JWT
 
 ```bash
-# Chat endpoint (SSE streaming)
 curl -N "https://yarnnn-api.onrender.com/api/chat" \
   -H "Authorization: Bearer $JWT" \
   -H "Content-Type: application/json" \
   -d '{"content": "Hello", "include_context": true}'
 
-# Trigger agent run
 curl -X POST "https://yarnnn-api.onrender.com/api/agents/{agent_id}/run" \
   -H "Authorization: Bearer $JWT"
 ```
-
-### Known User IDs
-
-| Email | User ID |
-|---|---|
-| kvkthecreator@gmail.com | `2abf3f96-118b-4987-9d95-40f2d9be9a18` |
-| kvkthecreator@yarnnn.com | `67c5c637-501d-43d1-836a-a15ff32b5901` |
 
 ### List All Users (Admin)
 
 ```python
 admin_client = create_client(URL, SERVICE_KEY)
-users = admin_client.auth.admin.list_users()
-for u in users:
+for u in admin_client.auth.admin.list_users():
     print(f"{u.id} {u.email}")
 ```
 
 ---
 
-See [MIGRATIONS.md](MIGRATIONS.md) for applied migration history.
+See [MIGRATIONS.md](MIGRATIONS.md) for applied migration history and [ROTATION.md](ROTATION.md) for the credential-rotation runbook.

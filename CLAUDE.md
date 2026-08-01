@@ -399,6 +399,7 @@ The rule that matters every session: **use current names.** `agents` not `delive
 | Wake Drainer (ADR-298 Phase 3) | `api/services/wake_drainer.py` — drainer pulls pending wakes, respects paced-lane pace cap + single-in-flight constraint, dispatches to source-specific Reviewer-invocation body. `drain_next_for_user`, `drain_user_until_empty`, `drain_all_users_with_pending`, `drain_can_acquire_for_user`, `paced_lane_eligible_to_drain`. Called from scheduler tick after walker block. Phase 3 Implemented 2026-05-22. |
 | Pace / cadence | No `services/pace.py` — DELETED. Pace state reads via `api/services/wake.py` + `budget.py`; the substrate path constant is in `services/workspace_paths.py`. Cost governance is `governance/_budget.yaml` (ADR-327). |
 | Bundle minimum_pace gate (ADR-298 Phase 4) | **DELETED by ADR-327** — `minimum_pace` removed from all bundle manifests, `bundle_reader.get_minimum_pace` deleted (tombstone at `bundle_reader.py:66`), the activation pace gate + D8 default-pace seed removed from `fork_reference_workspace` (tombstone `programs.py:597`). Cost governance is `governance/_budget.yaml` only. This row is retained as a tombstone so stale references are caught. |
+| Workspace Export (ADR-328 D4 / ADR-510) | `api/services/export/git_export.py` — Category 1 → a plain git repo (pure-Python loose objects) + `EXPORT-MANIFEST.md` declaring omissions; served by `GET /api/workspace/export`. Binary substrate has ONE lane: `write_revision(content_bytes=…)` → the ADR-427 CAS seam (ADR-510 deleted the design-system import's bucket lane). |
 | MCP Server | `api/mcp_server/` (ADR-075 infra + ADR-169 tool surface: 3 intent-shaped tools — `work_on_this`, `pull_context`, `remember_this`; fifth caller of `execute_primitive()` per ADR-164) |
 | MCP Composition | `api/services/mcp_composition.py` (ADR-169: `compose_subject_context`, `compose_active_candidates`, `classify_memory_target` two-branch, `stamp_provenance`, `derive_client_name`, `extract_domain_from_path`) |
 | MCP Feature Docs | `docs/features/mcp/` — `README.md` (entry), `tool-contracts.md`, `workflows.md`, `architecture.md` (ADR-169 canonical product framing) |
@@ -436,7 +437,7 @@ cd api && uvicorn main:app --reload --port 8000
 cd web && pnpm dev
 
 # Run SQL migration
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/XXX_name.sql
+psql "${SUPABASE_DB_URL}" -f supabase/migrations/XXX_name.sql
 
 # Check recent commits
 git log --oneline -20

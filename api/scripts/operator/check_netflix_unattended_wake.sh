@@ -15,7 +15,7 @@
 # a revision id, or a proposal id. Quote them verbatim in any finding.
 
 set -euo pipefail
-PSQL="postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres"
+PSQL="${SUPABASE_DB_URL}"
 NETFLIX="23cc7951-b6c7-471c-ac38-657d931db6f7"
 WS="341ec5b9-1cb6-4178-993e-94c7842d33b1"
 
