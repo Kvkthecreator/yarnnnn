@@ -2674,12 +2674,27 @@ async def handle_commerce_webhook(request: "Request"):
     from services.workspace import UserMemory
     from datetime import datetime, timezone
 
+    import os
+
     body = await request.body()
     signature = request.headers.get("X-Signature", "")
 
-    # Verify webhook signature using the commerce connection's webhook secret
-    # For Phase 2, we trust the source (LS webhook IPs) — signature verification
-    # is added when the user configures their webhook secret in settings.
+    # Verify the Lemon Squeezy webhook signature (HMAC-SHA256 of the raw body
+    # with the store's signing secret). Security (2026-08-01): previously this
+    # trusted any caller, so an attacker could POST a forged payload with an
+    # arbitrary custom_data.user_id and write files into that victim's
+    # workspace. We now FAIL CLOSED — no valid signature, no write.
+    webhook_secret = os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET", "")
+    if not webhook_secret:
+        # Not a live capability without the secret configured. Refuse rather
+        # than silently accepting unauthenticated writes.
+        logger.error("[COMMERCE_WEBHOOK] LEMONSQUEEZY_WEBHOOK_SECRET unset — rejecting webhook")
+        raise HTTPException(status_code=503, detail="Webhook signature verification not configured")
+
+    expected = hmac.new(webhook_secret.encode(), body, hashlib.sha256).hexdigest()
+    if not signature or not hmac.compare_digest(expected, signature):
+        logger.warning("[COMMERCE_WEBHOOK] Invalid webhook signature — rejecting")
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     try:
         payload = json.loads(body)

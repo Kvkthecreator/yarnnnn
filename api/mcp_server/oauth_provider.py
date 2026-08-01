@@ -10,9 +10,11 @@ Flow (ADR-310 D4 — real login, multi-user):
 2. Client redirects user to /authorize
 3. /authorize writes a PENDING auth code (user_id=NULL) and redirects the
    operator to {APP_URL}/mcp/authorize (the web app)
-4. Web app authenticates the operator, then calls GET /api/mcp/oauth-callback
-   (on the API service, JWT-scoped), which binds the real Supabase user_id
-   onto the pending code and bounces back to the client redirect_uri
+4. Web app authenticates the operator, describes the client via
+   GET /api/mcp/oauth-consent, shows an approve/deny screen, and only on
+   approval calls POST /api/mcp/oauth-callback (on the API service,
+   JWT-scoped), which binds the real Supabase user_id onto the pending code
+   and bounces back to the client redirect_uri
 5. Client exchanges code for access token (POST /token) — a code whose
    user_id is still NULL is rejected, so login is mandatory
 6. Client uses access token on /mcp requests; each request resolves its own

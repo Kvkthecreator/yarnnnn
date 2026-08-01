@@ -2986,9 +2986,17 @@ export const api = {
   // code, then navigates the browser to the returned redirect_url (back to
   // the OAuth client — Claude.ai / ChatGPT / etc.).
   mcp: {
+    // Read-only: describe the client behind a pending code for the consent
+    // screen. Binds nothing (security 2026-08-01 — no auto-bind on page load).
+    consentInfo: (code: string) =>
+      request<{ client_name: string | null; client_id: string; redirect_host: string }>(
+        `/api/mcp/oauth-consent?code=${encodeURIComponent(code)}`
+      ),
+    // Binds the operator to the code — POST, called only on explicit Approve.
     completeAuthorize: (code: string) =>
       request<{ redirect_url: string }>(
-        `/api/mcp/oauth-callback?code=${encodeURIComponent(code)}`
+        `/api/mcp/oauth-callback?code=${encodeURIComponent(code)}`,
+        { method: "POST" }
       ),
   },
 
