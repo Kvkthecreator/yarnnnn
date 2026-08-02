@@ -60,12 +60,20 @@ def create_share(
     artifact_path: Optional[str] = None,
     label: Optional[str] = None,
     ttl_days: Optional[int] = DEFAULT_SHARE_TTL_DAYS,
+    role: str = "member",
 ) -> dict[str, Any]:
     """Mint a share link for an artifact (or a bare workspace share).
 
     Link-based: no per-recipient row. Re-sharing the same artifact mints a new
     link (multiple links to one artifact are fine — each is a durable token).
+
+    `role` is the grant SHAPE the sharer chose (ADR-465 D3, ratified 2026-08-02):
+      - "member" (default) — accept mints the broad class-default grant.
+      - "viewer" — accept mints a birth-narrowed member grant (write deny-all,
+        read scoped to the artifact) so "just look at this" never over-grants.
     """
+    if role not in ("member", "viewer"):
+        raise ShareError("invalid_role", f"Unknown share role {role!r} (member|viewer)")
     expires_at = (
         (_now() + timedelta(days=ttl_days)).isoformat() if ttl_days else None
     )
@@ -73,7 +81,7 @@ def create_share(
         "workspace_id": workspace_id,
         "artifact_path": artifact_path,
         "label": label,
-        "role": "member",
+        "role": role,
         "token": secrets.token_urlsafe(24),
         "shared_by": shared_by,
         "status": "active",
@@ -176,16 +184,36 @@ def accept_share(*, token: str, user_id: str) -> dict[str, Any]:
             "grant_id": None,
         }
 
-    # Broad-by-default (ADR-437 D4.2): scopes=None → class-default member write
-    # regions at the gate (ADR-373 D3). The powerbox narrows later if the owner
-    # wants (ADR-434); the share never gates by default.
+    # The grant shape follows the share row (ADR-465 D3):
+    #   member → broad-by-default (ADR-437 D4.2): scopes=None → class-default
+    #            member write regions at the gate (ADR-373 D3).
+    #   viewer → birth-narrowed member grant: the powerbox axes applied at
+    #            accept-time (write_scopes=[] deny-all; read_scopes scoped to
+    #            the artifact, or class-default read for a bare share). ONE
+    #            grant model (ADR-437 D4.3) — the role column stays 'member';
+    #            the narrowing lives on the axes.
+    # Either way ensure_principal_grant returns an EXISTING active grant
+    # untouched, so a member who opens a view link is never downgraded.
     from services.principal_grants import ensure_principal_grant
-    grant = ensure_principal_grant(
-        principal_id=user_id,
-        workspace_id=workspace_id,
-        role="member",
-        granted_by=f"share:{share['shared_by']}",
-    )
+
+    share_role = share.get("role") or "member"
+    if share_role == "viewer":
+        artifact = share.get("artifact_path")
+        grant = ensure_principal_grant(
+            principal_id=user_id,
+            workspace_id=workspace_id,
+            role="member",
+            granted_by=f"share-view:{share['shared_by']}",
+            write_scopes=[],
+            read_scopes=[artifact] if artifact else None,
+        )
+    else:
+        grant = ensure_principal_grant(
+            principal_id=user_id,
+            workspace_id=workspace_id,
+            role="member",
+            granted_by=f"share:{share['shared_by']}",
+        )
 
     _svc().table("workspace_shares").update({
         "last_accepted_at": _now().isoformat(),
@@ -196,6 +224,8 @@ def accept_share(*, token: str, user_id: str) -> dict[str, Any]:
         "workspace_id": workspace_id,
         "workspace_name": share.get("workspace_name"),
         "artifact_path": share.get("artifact_path"),
-        "role": "member",
+        # The share's shape, not the grant row's role — the accept surface shows
+        # the honest consequence ("View {artifact} — read-only" vs full access).
+        "role": share_role,
         "grant_id": grant.get("id"),
     }

@@ -112,9 +112,12 @@ export default function ShareAcceptPage() {
                   <span className="text-muted-foreground">Shared with you:</span>{" "}
                   {artifact}
                 </h1>
+                {/* The honest consequence (ADR-465 D3): a viewer link grants
+                    read-only reach; a member link grants full access. */}
                 <p className="mt-2 text-sm text-muted-foreground">
-                  From {wsName}. Open it to join the workspace — a shared,
-                  attributed commons where every change records who made it.
+                  {preview?.role === "viewer"
+                    ? `From ${wsName}. View it read-only — you'll see the document and who changed it, and can change nothing.`
+                    : `From ${wsName}. Open it to join the workspace with full access — a shared, attributed commons where every change records who made it.`}
                 </p>
               </>
             ) : (
@@ -137,7 +140,9 @@ export default function ShareAcceptPage() {
                 className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
               >
                 {accepting && <Loader2 className="h-4 w-4 animate-spin" />}
-                {artifact ? "Open & join" : "Accept & join"}
+                {preview?.role === "viewer"
+                  ? "View read-only"
+                  : artifact ? "Open & join" : "Accept & join"}
               </button>
             )}
             {error && <p className="mt-3 text-xs text-destructive">{error}</p>}

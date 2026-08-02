@@ -2131,14 +2131,19 @@ export const api = {
     // ADR-437 D4 — the shared-artifact wedge. A share is the invite's
     // link-based, broad-by-default sibling: create a link on an artifact,
     // anyone who opens it and accepts joins the commons as a member.
-    createShare: (artifactPath?: string, label?: string, ttlDays?: number) =>
+    // ADR-465 D3: role picks the grant shape — "member" (broad, default) |
+    // "viewer" (birth-narrowed read-only grant on accept).
+    createShare: (
+      artifactPath?: string, label?: string, ttlDays?: number,
+      role: "member" | "viewer" = "member",
+    ) =>
       request<{
         id: string; artifact_path: string | null; label: string | null;
         role: string; status: string; created_at?: string;
         expires_at?: string | null; share_link?: string | null;
       }>(`/api/workspace/shares`, {
         method: "POST",
-        body: JSON.stringify({ artifact_path: artifactPath, label, ttl_days: ttlDays }),
+        body: JSON.stringify({ artifact_path: artifactPath, label, ttl_days: ttlDays, role }),
       }),
 
     listShares: () =>

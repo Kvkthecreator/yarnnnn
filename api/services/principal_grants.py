@@ -228,6 +228,8 @@ def ensure_principal_grant(
     scopes: Optional[list[str]] = None,
     granted_by: str = "system:adr386-lifecycle",
     connected_by: Optional[str] = None,
+    write_scopes: Optional[list[str]] = None,
+    read_scopes: Optional[list[str]] = None,
 ) -> dict:
     """Lazily ensure an active grant for (principal_id, workspace_id, connected_by)
     (ADR-386 D1 + ADR-431 D2).
@@ -238,6 +240,13 @@ def ensure_principal_grant(
     grants — the second no longer no-ops onto the first. For human/agent grants
     `connected_by` is redundant (the index coalesces it to `principal_id`), so
     their behavior is byte-identical to pre-431.
+
+    `write_scopes` / `read_scopes` (ADR-465 D3, share-as-view) birth-narrow the
+    powerbox axes **on the INSERT branch only** — an EXISTING active grant is
+    returned untouched, which is exactly the don't-downgrade guarantee a
+    view-link accept needs (a member who later opens a view link keeps their
+    broader grant). Polarity per axis (powerbox): None → class default;
+    [] → explicit deny-all; [..] → allow-list.
 
     Returns the grant row dict. Best-effort at the call site (the OAuth hook
     wraps it so a failure never breaks the connect flow — the consult still
@@ -259,19 +268,23 @@ def ensure_principal_grant(
     if existing.data:
         return existing.data[0]
 
-    inserted = (
-        svc.table("principal_grants")
-        .insert({
-            "principal_id": principal_id,
-            "workspace_id": workspace_id,
-            "role": role,
-            "scopes": scopes,  # None → class default at the gate (ADR-373 D3)
-            "granted_by": granted_by,
-            "status": "active",
-            "connected_by": connected_by,  # ADR-431 — the authorizing member
-        })
-        .execute()
-    )
+    row: dict[str, Any] = {
+        "principal_id": principal_id,
+        "workspace_id": workspace_id,
+        "role": role,
+        "scopes": scopes,  # None → class default at the gate (ADR-373 D3)
+        "granted_by": granted_by,
+        "status": "active",
+        "connected_by": connected_by,  # ADR-431 — the authorizing member
+    }
+    # ADR-465 D3: birth-narrowed axes (insert-only — see docstring). The legacy
+    # `scopes` mirror follows write_scopes, matching narrow_grant's convention.
+    if write_scopes is not None:
+        row["write_scopes"] = write_scopes
+        row["scopes"] = write_scopes
+    if read_scopes is not None:
+        row["read_scopes"] = read_scopes
+    inserted = svc.table("principal_grants").insert(row).execute()
     logger.info(
         "[ADR-386/431] auto-provisioned %s grant for principal=%s workspace=%s connected_by=%s",
         role, principal_id, workspace_id, connected_by,

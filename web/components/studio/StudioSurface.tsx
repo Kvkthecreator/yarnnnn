@@ -2100,11 +2100,14 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   }, [artifactPath]);
   // Share — mint a /s/{token} grant link for THIS artifact and copy it
   // (ADR-437 D4 / ADR-465). Unlike copyArtifactLink (the in-app member
-  // deep-link), the recipient becomes a broad member of the commons on accept.
-  // Throws on failure so the Properties tab's Share button surfaces the error.
-  const shareArtifact = useCallback(async () => {
+  // deep-link), the recipient becomes a principal of the commons on accept —
+  // broad member by default, or a read-only viewer (ADR-465 D3 second shape).
+  // Throws on failure so the Share panel surfaces the error.
+  const shareArtifact = useCallback(async (mode: 'member' | 'viewer' = 'member') => {
     if (!artifactPath) throw new Error('No artifact open');
-    const res = await api.workspace.createShare(relPath(artifactPath));
+    const res = await api.workspace.createShare(
+      relPath(artifactPath), undefined, undefined, mode,
+    );
     if (!res.share_link) throw new Error('No share link returned');
     // Clipboard may be denied in a non-secure context; the link still exists
     // (listed under Files/Shares), so a copy failure is not a share failure.

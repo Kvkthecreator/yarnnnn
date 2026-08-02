@@ -32,6 +32,9 @@ class ShareCreateRequest(BaseModel):
     artifact_path: Optional[str] = None
     label: Optional[str] = None
     ttl_days: Optional[int] = None  # None = a durable link (never expires)
+    # ADR-465 D3 — the grant shape: "member" (broad, default) | "viewer"
+    # (birth-narrowed read-only grant; "just look at this" never over-grants).
+    role: str = "member"
 
 
 class ShareSummary(BaseModel):
@@ -100,6 +103,7 @@ async def create_workspace_share(body: ShareCreateRequest, auth: UserClient) -> 
             artifact_path=body.artifact_path,
             label=body.label,
             ttl_days=body.ttl_days,
+            role=body.role,
         )
     except ShareError as e:
         raise HTTPException(status_code=400, detail=str(e))

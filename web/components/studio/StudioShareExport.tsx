@@ -25,8 +25,10 @@ import { FileOutput, Share2 } from 'lucide-react';
 
 interface StudioShareExportProps {
   /** Mint a /s/{token} membership link for this artifact and copy it
-   *  (ADR-437 D4 / ADR-465). Resolves on success, rejects on failure. */
-  share: () => Promise<void>;
+   *  (ADR-437 D4 / ADR-465). `mode` picks the grant shape (ADR-465 D3):
+   *  'member' = full access (default) · 'viewer' = read-only (the artifact +
+   *  its trace, no write membership). Resolves on success, rejects on failure. */
+  share: (mode?: 'member' | 'viewer') => Promise<void>;
   /** The browser's print over the resolved projection (ADR-466 D6). */
   print: () => void;
   /** Copy the interop-face reference (recall/trace via the yarnnn connector). */
@@ -66,13 +68,18 @@ export function StudioShareExport({ share, print, copyAiRef, exportPng }: Studio
   }, [open]);
 
   // ── Share: mint-and-copy with transient copied/error state ──────────────
+  // Two shapes, one act (ADR-465 D3): full-access member link | read-only
+  // viewer link. The transient state remembers which was minted so the honest-
+  // consequence line below matches the link on the clipboard.
   const [sharing, setSharing] = useState(false);
   const [shareState, setShareState] = useState<'idle' | 'copied' | 'error'>('idle');
-  const runShare = useCallback(async () => {
+  const [sharedMode, setSharedMode] = useState<'member' | 'viewer'>('member');
+  const runShare = useCallback(async (mode: 'member' | 'viewer') => {
     setSharing(true);
     setShareState('idle');
+    setSharedMode(mode);
     try {
-      await share();
+      await share(mode);
       setShareState('copied');
       setTimeout(() => setShareState('idle'), 2500);
     } catch {
@@ -144,15 +151,42 @@ export function StudioShareExport({ share, print, copyAiRef, exportPng }: Studio
             Share
           </p>
           <div className="space-y-1.5 px-1 pb-1">
-            <button type="button" className={act} onClick={runShare} disabled={sharing}>
-              {sharing ? 'Creating link…' : shareState === 'copied' ? 'Link copied ✓' : 'Share…'}
-            </button>
+            <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                className={act}
+                onClick={() => void runShare('member')}
+                disabled={sharing}
+                title="A link that adds whoever opens it to your workspace with full access"
+              >
+                {sharing && sharedMode === 'member'
+                  ? 'Creating link…'
+                  : shareState === 'copied' && sharedMode === 'member'
+                    ? 'Link copied ✓'
+                    : 'Full access link'}
+              </button>
+              <button
+                type="button"
+                className={act}
+                onClick={() => void runShare('viewer')}
+                disabled={sharing}
+                title="A read-only link — they see this artifact and its history, and can change nothing"
+              >
+                {sharing && sharedMode === 'viewer'
+                  ? 'Creating link…'
+                  : shareState === 'copied' && sharedMode === 'viewer'
+                    ? 'Link copied ✓'
+                    : 'View-only link'}
+              </button>
+            </div>
             <p className="text-[10px] leading-snug text-muted-foreground">
               {shareState === 'error'
                 ? 'Could not create the share link. Try again.'
                 : shareState === 'copied'
-                  ? 'Anyone with the link can open this and join your workspace with full access. Manage or revoke shares from Files.'
-                  : 'Creates a link. Whoever opens it joins your workspace with full access — narrow it later.'}
+                  ? sharedMode === 'viewer'
+                    ? 'Anyone with the link can see this artifact and who changed it — read-only, no write access. Manage or revoke shares from Files.'
+                    : 'Anyone with the link can open this and join your workspace with full access. Manage or revoke shares from Files.'
+                  : 'Full access lets them work in your workspace; view-only shows this artifact and its history without write access.'}
             </p>
           </div>
         </div>
