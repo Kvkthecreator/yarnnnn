@@ -1,10 +1,16 @@
 # ADR-465 — Share: the membership primitive, and the two-doors unification
 
-> **Status**: **Proposed** (2026-07-18, doc-first per CLAUDE.md — drafted for operator
+> **Status**: **Partially ratified** (2026-08-02, via [ADR-512](ADR-512-the-file-is-the-unit-of-interop.md) §7
+> and the file-as-the-what operator discourse): **D1 (share is the membership primitive), D3
+> (`share-as-view` — build the second shape), and D5 (the interop `share` verb, as direction)
+> are operator-ratified. D2 (join-only genesis) and D4 (the switcher) remain OPEN** — the
+> genesis-invariant amendment still needs its own explicit yes (§6 q1). **Phase D
+> (`share-as-view`) is IMPLEMENTED 2026-08-02** in the ADR-512 pass (migration 231 +
+> birth-narrowed viewer grant + honest accept copy); Phase F (the MCP verb) waits on B/C.
+> _Originally:_ Proposed (2026-07-18, doc-first per CLAUDE.md — drafted for operator
 > ratification BEFORE code). Derived from the 2026-07-18 first-principles reassessment of Share:
 > the operator's thesis that Share is not an artifact convenience but a **first-class primitive**,
 > tested against the axioms (not the ADRs) and against the live genesis/auth seam with receipts.
-> **Ruling requested**: proceed to phase the code, or amend the decisions below.
 **Date**: 2026-07-18
 **Authors**: KVK (operator) + Claude (collaborator)
 **Hat**: A (system canon — real-operator-facing)

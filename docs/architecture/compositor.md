@@ -49,6 +49,15 @@ closed.
 mirrored on the FE `Surface` type. Chrome (top-bar, launcher, chat-drawer)
 is neither register — it is the window manager's own framing.
 
+> **STALE SECTION — corrected 2026-08-02 (the ADR-512 canon pass; drift flagged by the
+> chat-architecture audit).** The two paragraphs below describe the pre-ADR-454
+> chat-drawer/rail model and are preserved as history only. **ADR-454 D3 gated the
+> steward's chat chrome off entirely** (`STEWARD_CHROME_ENABLED`); the live chat is a
+> **windowed kernel surface** — a `SurfaceRegistry` row (`chat`), launcher-tier primary,
+> dock anchor + default landing per ADR-435 — an app under the Think act (ADR-507), not
+> chrome and not a rail. The `Viewing:`/`surfaceOverride` binding described below died
+> with the drawer. Read the FE `SurfaceRegistry` + `kernel_surfaces.py` for the live set.
+
 **Chat is the command rail, not an overlay (ADR-316).** The chat-drawer
 chrome lives in the `main-rail` region — a flex sibling of `SurfaceViewport`
 inside `main` that *reduces* the surface area when open, never occluding it.

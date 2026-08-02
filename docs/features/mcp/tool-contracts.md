@@ -1,4 +1,13 @@
-# MCP Tool Contracts — the memory verbs
+# MCP Tool Contracts — the file verbs
+
+> **ADR-512 (2026-08-02)**: the surface is FOUR verbs — `open` / `remember` / `recall` /
+> `trace` — one species-blind file contract, served compound (server-composed, one round)
+> per ADR-368's channel constraint. **`open`** is the deterministic read: pass a
+> workspace-relative path or a `yarnnn://workspace/{path}` handle (the D5 grammar; Studio's
+> "Copy AI reference" emits it) and get content + attribution + the recent revision summary
+> in one call — the exact-version guarantee `recall` (search-shaped) cannot make. The
+> memory-verb contracts below stand unchanged; "memory" reads as the workspace's memory
+> region, not the surface's identity.
 
 > **Parent**: [README.md](README.md)
 > **Audience**: engineers implementing the MCP server tools, and LLM hosts (Claude, GPT, Gemini) that consume them

@@ -1,6 +1,15 @@
 # ADR-368 — The Memory-First Interop Surface: remember / recall / trace
 
 > **Status**: **Accepted** (2026-06-25). Operator-ratified through the discourse trail below.
+> **D1's ontology ruling superseded by [ADR-512](ADR-512-the-file-is-the-unit-of-interop.md)
+> (2026-08-02)**: the surface's *identity* is no longer "the user's memory mental model" —
+> the record's unit is the attributed **file**, and the memory verbs are re-described as
+> compounds over the file plane (the v19 canon lock moved the ICP to the copy-paste seam,
+> whose mental model is shared files, dissolving this ADR's ontology premise). **Correction 1
+> (the ~3–5-round consumer-host budget → server-side composition) is PRESERVED as a binding
+> constraint** on every consumer binding, and D3–D6 (the dump model, operator-visibility,
+> the gate, the audit lens, per-request identity, protocol-agnostic verbs) stand unchanged.
+> The verbs keep their names (rename is evidence-gated, ADR-512 §9); `open` joins them.
 > **Amended by [ADR-373](ADR-373-multi-principal-workspace-and-the-re-key.md) (2026-06-26)**: the placement seat (D5) is confirmed **workspace-level, not per-user** — exactly as the placement adapter's own code comment already stated. The wake-scope re-key (`wake_scope = auth.user_id → resolved workspace_id`) is the named one-line change when the workspace becomes multi-principal; the memory verbs, the dump→placement model, and the integrity wake are otherwise unchanged. Single-writer-per-path means a multi-principal commons needs no merge layer — semantic conflict across principals is reconciled by the seat (ADR-373 D5).
 > **Date**: 2026-06-25
 > **Authors**: KVK + Claude
