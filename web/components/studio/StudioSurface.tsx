@@ -2165,17 +2165,19 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     await exportArtifactPng(file.content, artifactPath, artifactDisplayName);
   }, [file, artifactPath]);
 
-  // The AI-native reference (the interop face, ADR-368/310): a handle any
-  // connected LLM can use to reach this artifact through the yarnnn MCP
-  // connector — complementing the /s/{token} membership link (ADR-465).
+  // The AI-native reference (ADR-512 D5): the canonical yarnnn://workspace/…
+  // handle any connected LLM resolves with the interop `open` verb (the
+  // exact-version read) — complementing the /s/{token} membership link
+  // (ADR-465). The handle is the kernel grammar; the sentence around it is
+  // host guidance.
   const copyAiReference = useCallback(async () => {
     if (!artifactPath) throw new Error('No artifact open');
     const rel = relPath(artifactPath);
     const name = artifactDisplayName;
     await navigator.clipboard.writeText(
-      `"${name}" — a yarnnn artifact at ${rel}. ` +
-        `With the yarnnn connector (MCP), recall "${name}" to read it — ` +
-        `trace shows who changed it and when.`,
+      `"${name}" — yarnnn://workspace/${rel} ` +
+        `(with the yarnnn connector, \`open\` this reference to read the exact ` +
+        `current version; \`trace\` shows who changed it and when).`,
     );
   }, [artifactPath]);
   // Duplicate — read the open artifact, write it at a -copy sibling through

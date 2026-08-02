@@ -1,31 +1,39 @@
 """
-YARNNN MCP Server — ADR-368 (memory-first surface) + ADR-075 (infrastructure)
+YARNNN MCP Server — ADR-512 (the file is the unit of interop) over ADR-368
+(server-side composition) + ADR-075 (infrastructure)
 
-Three memory verbs expose YARNNN as a portable memory across every LLM the user
-touches. Shaped on the user's own mental model — put in, get out, trace history:
+Four verbs expose the user's SHARED, ATTRIBUTED WORKSPACE to every LLM they
+touch — one species-blind file contract (ADR-512 D2/D3), served compound:
 
-    remember  — save something into memory (writes the operation/ commons)
-    recall    — pull what the user already knows about a subject (ranked read)
-    trace     — show how a recorded fact changed over time (the revision chain)
+    open      — read an EXACT file by reference/path (content + attribution +
+                recent revisions; the exact-version read, ADR-512 D4)
+    remember  — attributed write into the memory region (the inbound/ raw lane)
+    recall    — ranked search over the accumulated commons
+    trace     — the attributed revision chain of a fact (the differentiator)
 
 Each verb composes kernel primitives SERVER-SIDE into a one-round result, so the
 host LLM (claude.ai / ChatGPT / Gemini connectors, which chain only ~3-5 tool
-rounds per turn) never has to compose by chaining. The raw kernel primitives
-remain available defer-loaded for agentic hosts (Claude Code/Desktop) that do.
+rounds per turn) never has to compose by chaining (ADR-368 Correction 1 — the
+binding channel constraint ADR-512 preserves). The raw kernel primitives remain
+the stated direction for agentic hosts (defer-loaded; still unbuilt).
 
-Design invariants (ADR-368):
-    1. Memory mental model is the surface — not the kernel's verb taxonomy.
+Design invariants:
+    1. The FILE is the unit on every face (ADR-512 D1); "memory" is a region of
+       the file plane, not the surface's identity. Verb ontology never varies by
+       principal species (ADR-512 D2) — only the grant/lock-set does.
     2. Zero YARNNN-internal LLM calls on the serving path.
-    3. Writes route to the operation/ commons ONLY (the one root the mcp caller
-       may write per CALLER_WRITE_POLICY); the pre-368 five-target enum is gone.
+    3. Writes route to the roots CALLER_WRITE_POLICY["mcp"] grants — the
+       pre-368 five-target enum is gone; open/recall/trace are pure reads.
     4. recall RETURNS material; the host LLM explains (retrieval, not synthesis).
-    5. Every write carries ADR-162 provenance + fires the integrity wake
-       (ADR-310 D2: the seat validates foreign writes against ground-truth).
-    6. Operator-visibility: every call emits a session-INDEPENDENT narrative
-       entry (ADR-368 D4) so the cross-room operator sees what entered.
+       open is EXACT; it never falls back to search (the two guarantees stay
+       distinct — that is the point of having both).
+    5. Every write carries ADR-162 provenance; every call emits a
+       session-INDEPENDENT narrative entry (ADR-368 D4) so the cross-room
+       operator sees what entered.
 
-Deferred (ADR-368 §6): delegation-from-foreign-LLM (work_on_this as an addressed
-wake) — additive when demand + the sync-vs-stream hinge are resolved.
+Deferred: delegation-from-foreign-LLM (ADR-368 §6); the `share` membership verb
+(ADR-465 D5 — ratified as direction, held on the Phase B/C genesis decisions);
+rename/removal of remember/recall (ADR-512 §9 — evidence-gated).
 
 Two-layer auth (ADR-075, unchanged):
     Transport: OAuth 2.1 (Claude.ai, ChatGPT) + static bearer (Claude Desktop)
@@ -294,25 +302,40 @@ _server_url = os.environ.get(
 
 mcp = HostGatedFastMCP(
     "yarnnn",
+    # ADR-512: the connector's identity is the user's SHARED, ATTRIBUTED
+    # WORKSPACE — files that humans and AIs work on together, every change
+    # signed by whoever made it — not "a memory feature". The verbs are one
+    # file contract served compound: open (exact read) · remember (attributed
+    # write into the memory region) · recall (ranked search) · trace (the
+    # revision chain).
     instructions=(
-        "YARNNN is the user's durable, attributed memory — the knowledge they "
-        "record persists across sessions, intact and with full provenance. "
-        "Three verbs:\n"
+        "YARNNN is the user's shared, attributed workspace — the files they and "
+        "their team work on with AI, where every change is signed by whoever "
+        "made it (human or AI) and nothing is lost. You are a principal in that "
+        "workspace, acting under your own grant. Four verbs:\n"
+        "  • open     — read an EXACT file when you have its reference (a\n"
+        "               yarnnn://workspace/… handle or a workspace-relative path,\n"
+        "               e.g. one the user pasted). Returns the current content +\n"
+        "               who last changed it + recent attributed revisions. Exact\n"
+        "               means exact: open never guesses — use recall to search.\n"
         "  • remember — save something worth keeping (a decision, insight, fact,\n"
-        "               preference). The write is durable and immediately\n"
-        "               available on the next recall.\n"
-        "  • recall   — pull what the user already knows about a subject when\n"
-        "               they reference something they might track. YARNNN returns\n"
-        "               the material + a `confidence` signal; YOU explain it in\n"
-        "               your own voice. On confidence='ambiguous' (several matches,\n"
-        "               none dominant) ASK which they mean — don't guess the first.\n"
-        "  • trace    — show how a recorded fact changed over time (who changed\n"
-        "               it, when, what the change was) — YARNNN's distinguishing\n"
-        "               capability, which a plain storage connector cannot show.\n\n"
-        "Use these proactively — YARNNN is supposed to be ambient. Don't wait for "
-        "the user to ask: recall before reasoning about something they track, and "
-        "remember when they share something worth keeping. You are reading and "
-        "writing the user's durable memory — not asking YARNNN to do work for you."
+        "               preference). The write is durable, signed as yours, and\n"
+        "               immediately available on the next recall — from ANY AI\n"
+        "               the user works with, not just you.\n"
+        "  • recall   — pull what the workspace already holds about a subject\n"
+        "               when the user references something they track. YARNNN\n"
+        "               returns the material + a `confidence` signal; YOU explain\n"
+        "               it in your own voice. On confidence='ambiguous' (several\n"
+        "               matches, none dominant) ASK which they mean.\n"
+        "  • trace    — show how a file or recorded fact changed over time (who\n"
+        "               changed it, when, what the change was) — the attributed\n"
+        "               provenance a plain storage connector cannot show.\n\n"
+        "Use these proactively — the workspace is supposed to be ambient. If the "
+        "user pastes a yarnnn reference or names a specific document, open it "
+        "before reasoning about it; recall before reasoning about something they "
+        "track; remember when they conclude something worth keeping. You are "
+        "reading and writing the user's shared workspace — not asking YARNNN to "
+        "do work for you."
     ),
     lifespan=lifespan,
     # OAuth 2.1 provider — Claude.ai connectors + ChatGPT developer mode
@@ -694,6 +717,71 @@ async def trace(
     return _present("trace", result, client_name=client_name)
 
 
+@mcp.tool(
+    # The registered tool NAME is `open` (the member-facing verb, ADR-512 D4);
+    # the Python symbol is `open_file` so the module never shadows the builtin.
+    name="open",
+    # open is a pure READ of one exact file — content + attribution + recent
+    # revisions, composed server-side in one round (ADR-512 D4). No widget
+    # (text/structured channels only); no affordance meta.
+    annotations=ToolAnnotations(
+        title="Open",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
+async def open_file(
+    ctx: Context,
+    reference: str,
+    revisions: int = 5,
+) -> dict:
+    """Open an EXACT file from the user's yarnnn workspace by its reference.
+
+    Call this when you hold a reference to a specific file — a
+    `yarnnn://workspace/…` handle (the user may paste one, e.g. from Studio's
+    "Copy AI reference"), a workspace-relative path like `operation/reports/q3.md`,
+    or a `/workspace/…` absolute path. This is the exact-version read: you get
+    THIS file's current content, who last changed it, and its recent attributed
+    revisions — so you and the user are looking at the same version, not a copy.
+
+    `open` never searches or guesses: an unknown path returns `found: false`.
+    When you only know the subject (not the path), use `recall`; for the full
+    revision chain with diffs, use `trace`. Large files return truncated with
+    `truncated: true`.
+
+    Args:
+        reference: The file reference — yarnnn://workspace/{path}, /workspace/{path},
+            or a bare workspace-relative path. Required.
+        revisions: How many recent revisions to summarize (default 5, max 10).
+    """
+    auth = resolve_request_client()
+    client_name = mcp_composition.derive_client_name_from_token(auth)
+    if client_name == "unknown":
+        client_name = mcp_composition.derive_client_name(
+            getattr(ctx.request_context, "request", None)
+        )
+    result = await mcp_composition.compose_open(
+        auth=auth, reference=reference, revisions=revisions,
+    )
+    found = bool(result.get("found"))
+    _emit_mcp_narrative(
+        auth, tool="open", weight="routine",
+        summary=(
+            f"{client_name} opened {result.get('path') or reference!r}"
+            if found else f"{client_name} tried to open {reference!r} (not found)"
+        ),
+        body=(
+            f"reference: {reference}\npath: {result.get('path') or '(unresolved)'}\n"
+            f"found: {found}"
+        ),
+        client_name=client_name,
+        extra_metadata={"reference": reference, "found": found},
+    )
+    return _present("open", result, client_name=client_name)
+
+
 # =============================================================================
 # ADR-372 submission-readiness — explicit output schemas
 # =============================================================================
@@ -717,6 +805,20 @@ _REVISION_SCHEMA = {
 }
 
 _OUTPUT_SCHEMAS = {
+    "open": {
+        "type": "object",
+        "properties": {
+            "found": {"type": "boolean", "description": "false = no file at that exact reference (open never searches — use recall)"},
+            "reference": {"type": "string", "description": "the canonical yarnnn://workspace/… handle for this file (ADR-512 D5)"},
+            "path": {"type": ["string", "null"], "description": "the ledger's absolute path (/workspace/…)"},
+            "content": {"type": ["string", "null"], "description": "the file's exact current content (capped; see truncated)"},
+            "truncated": {"type": "boolean", "description": "true when content was cut at the cap"},
+            "authored_by": {"type": ["string", "null"], "description": "who made the most recent revision"},
+            "last_updated": {"type": ["string", "null"]},
+            "history": {"type": "array", "items": _REVISION_SCHEMA, "description": "recent revisions, newest first (no diffs — trace has those)"},
+            "explanation": {"type": "string"},
+        },
+    },
     "remember": {
         "type": "object",
         "properties": {

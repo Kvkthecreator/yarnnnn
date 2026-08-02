@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.02.1] - The file is the unit of interop (ADR-512): `open` verb + connector re-frame
+
+### Changed
+- `mcp_server/server.py` (`instructions` block + module docstring): the connector's
+  self-description re-cut from "the user's durable, attributed memory" to **"the
+  user's shared, attributed workspace"** — the memory identity contradicted ESSENCE
+  §What-YARNNN-Is-Not ("not a memory feature") and the v19 canon lock (the ICP's
+  mental model is shared files, not ambient memory). Observed failure: the surface
+  taught every foreign LLM the ontology the canon retired 2026-07-30.
+- `mcp_server/server.py`: new **`open`** tool (registered name `open`, symbol
+  `open_file`) — the deterministic path/handle read (ADR-512 D4): content + head
+  attribution + recent revision summary in one server-composed round. Read-only
+  annotated; output schema declared. Instructions teach it as the exact-version
+  read that `recall` (search) is not, and tell the host to open a pasted
+  `yarnnn://workspace/…` reference before reasoning about the file.
+- `services/mcp_composition.py`: `compose_open` + the ADR-512 D5 handle grammar
+  (`parse_file_reference` / `format_file_reference`, `yarnnn://workspace/{path}`).
+- `services/primitives/registry.py`: stale comment corrected (claimed InferContext
+  survived "via MCP remember_this" — both deleted; live surface is
+  open/remember/recall/trace).
+- Expected behavior: hosts holding a file reference read the exact file instead of
+  semantic-searching for it (the exact-version guarantee); remember/recall/trace
+  behavior unchanged (ADR-512 is additive; renames are evidence-gated). Gate:
+  `python3 test_adr512_open_verb.py` (10 checks).
+
+---
+
 ## [2026.07.30.2] - The insert door (ADR-507)
 
 ### Changed

@@ -43,8 +43,10 @@ from .embed import EMBED_TOOL, handle_embed
 # ADR-314 D4: InferWorkspace DELETED. The first-act-scaffold path (ADR-235 D1.a)
 # was dissolved by Direction A (bundle-fork is the constitution-creation event,
 # no conversational /init); the primitive went invocation-dead when the chat
-# agent was removed (ADR-257) and is now removed. InferContext survives — it is
-# live via MCP remember_this (identity/brand foreign-LLM writes).
+# agent was removed (ADR-257) and is now removed. (A stale clause here claimed
+# InferContext survived "via MCP remember_this" — both are gone: InferContext
+# deleted per ADR-324 above; the ADR-169 intent tools deleted per ADR-368. The
+# live MCP surface is open/remember/recall/trace per ADR-512.)
 from .schedule import SCHEDULE_TOOL, handle_schedule  # ADR-261 §3 — renamed from ManageRecurrence
 from .manage_hook import MANAGE_HOOK_TOOL, handle_manage_hook  # ADR-296 v2 D2 — substrate-event hook lifecycle
 from .compose import COMPOSE_TOOL, handle_compose  # ADR-262 D4 — callable primitive wrapping the in-API compose engine

@@ -1071,6 +1071,157 @@ async def _embed_revision_diffs(
 
 
 # =============================================================================
+# ADR-512 — `open`: the deterministic file read, and the D5 handle grammar
+# =============================================================================
+# The record's unit is the attributed file (ADR-512 D1); `open` is the verb that
+# names one. Where `recall` is search-shaped (rank-and-hope), `open` is the
+# exact-version read: a caller holding a reference gets THIS file — content +
+# attribution + the recent revision summary — composed server-side in one round
+# (the ADR-368 Correction-1 constraint holds; the host chains nothing).
+
+#: ADR-512 D5 — the canonical cross-boundary file reference. Transport-neutral
+#: text; Studio's "Copy AI reference" emits it, `open` accepts it, and future
+#: bindings (A2A / direct-API) resolve the same form. Names a FILE, never a
+#: revision; carries no authorization (reach is always the caller's grant).
+YARNNN_REF_SCHEME = "yarnnn://workspace/"
+
+#: `open` returns at most this much content; larger files are truncated with an
+#: honest flag (a consumer host's context is finite; trace/recall stay available
+#: for the rest). Generous enough for every prose artifact in live workspaces.
+OPEN_CONTENT_CAP = 24_000
+
+
+def parse_file_reference(reference: Optional[str]) -> Optional[str]:
+    """Normalize a cross-boundary file reference to a workspace-relative path.
+
+    Accepts the three honest spellings of the same name (ADR-512 D5):
+      · `yarnnn://workspace/operation/x.md`  (the canonical handle)
+      · `/workspace/operation/x.md`          (the ledger's absolute form)
+      · `operation/x.md`                     (bare workspace-relative)
+
+    Returns the workspace-relative path (no leading slash), or None when the
+    reference is empty, another scheme, or escapes the workspace (`..`).
+    """
+    ref = (reference or "").strip().strip("\"'")
+    if not ref:
+        return None
+    lowered = ref.lower()
+    if lowered.startswith(YARNNN_REF_SCHEME):
+        ref = ref[len(YARNNN_REF_SCHEME):]
+    elif "://" in ref:
+        return None  # some other scheme — not a yarnnn reference
+    elif ref.startswith("/workspace/"):
+        ref = ref[len("/workspace/"):]
+    ref = ref.lstrip("/").strip()
+    if not ref or ".." in ref.split("/"):
+        return None
+    return ref
+
+
+def format_file_reference(path: str) -> str:
+    """The canonical handle for a workspace path (ADR-512 D5) — the emit half."""
+    rel = parse_file_reference(path) or (path or "").lstrip("/")
+    return f"{YARNNN_REF_SCHEME}{rel}"
+
+
+async def compose_open(
+    auth: Any,
+    reference: str,
+    revisions: int = 5,
+) -> dict:
+    """Drive `open` — the deterministic path/handle read (ADR-512 D4).
+
+    Resolves the reference (D5 grammar) to the exact stored file and returns
+    content + head attribution + the recent revision summary in one round. A
+    miss is a miss: `open` never falls back to search (that is `recall`'s
+    contract — keeping the two verbs' guarantees distinct is the point).
+    """
+    from services.primitives.registry import execute_primitive
+
+    rel = parse_file_reference(reference)
+    if rel is None:
+        return {
+            "success": False, "error": "invalid_reference",
+            "message": (
+                "Not a yarnnn file reference. Pass a workspace-relative path "
+                "(e.g. operation/reports/q3.md) or a yarnnn://workspace/… handle."
+            ),
+            "reference": reference,
+        }
+
+    # The ledger stores canonical absolute paths (`/workspace/…`) — same key
+    # compose_trace reads with (the 2026-06-25 bare-path zero-rows lesson).
+    abs_path = "/workspace/" + rel
+    try:
+        rows = (
+            auth.client.table("workspace_files")
+            .select("path, content, updated_at")
+            .eq(*_substrate_scope(auth))
+            .eq("path", abs_path)
+            .limit(1)
+            .execute()
+        ).data or []
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[MCP] open read failed for %s: %s", abs_path, exc)
+        return {"success": False, "error": "read_failed", "message": str(exc), "reference": reference}
+
+    if not rows:
+        return {
+            "success": True, "found": False,
+            "reference": format_file_reference(rel), "path": abs_path,
+            "explanation": (
+                f"No file exists at `{rel}` in this workspace. `open` is exact — "
+                "if you're not sure of the path, use `recall` to search by subject."
+            ),
+        }
+
+    content = rows[0].get("content") or ""
+    truncated = len(content) > OPEN_CONTENT_CAP
+    if truncated:
+        content = content[:OPEN_CONTENT_CAP]
+
+    # The recent revision summary — attribution riding the read (ADR-311 D3:
+    # riders are the fields the substrate already carries). Best-effort: a
+    # history failure never breaks the read.
+    history: list[dict] = []
+    try:
+        lr = await execute_primitive(
+            auth, "ListRevisions",
+            {"path": abs_path, "limit": max(1, min(int(revisions or 5), 10))},
+        )
+        history = [
+            {
+                "authored_by": rev.get("authored_by"),
+                "when": rev.get("created_at"),
+                "change": rev.get("message"),
+                "revision_id": rev.get("id"),
+            }
+            for rev in (lr.get("revisions") or [])
+        ]
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("[MCP] open revision summary failed (non-fatal): %s", exc)
+
+    head_author = history[0].get("authored_by") if history else None
+    return {
+        "success": True, "found": True,
+        "reference": format_file_reference(rel),
+        "path": abs_path,
+        "content": content,
+        "truncated": truncated,
+        "authored_by": head_author,
+        "last_updated": rows[0].get("updated_at"),
+        "history": history,
+        "returned": len(history),
+        "explanation": (
+            f"The exact current content of `{rel}`"
+            + (f", last revised by {head_author}" if head_author else "")
+            + f" — with its {len(history)} most recent attributed revision(s). "
+            "Use `trace` for the full chain with diffs."
+        ),
+    }
+
+
+# =============================================================================
 # ADR-310 D2 / ADR-368 D5 — the moat seam: foreign DUMP → Reviewer PLACEMENT
 # =============================================================================
 #
