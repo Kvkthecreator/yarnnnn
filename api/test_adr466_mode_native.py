@@ -427,6 +427,19 @@ def run() -> bool:
         "ADR-511: container layout is BOUNDED plain CSS (never a raw CSS pane)",
         "CONTAINER_LAYOUT_VALUES" in ops and "setContainerLayout" in ops,
     )
+    # 2026-08-02 click-pass finding: a bare `display: flex` defaults to ROW and
+    # horizontally re-flowed every block-flow container (title slide's kicker/
+    # h1/subtitle side by side). The flex context must preserve the container's
+    # axis: column explicitly for block containers, row only for structural row
+    # containers (.col children). Assert the ASSIGNMENT, not an identifier.
+    _scl_start = ops.index("export function setContainerLayout")
+    _scl_body = ops[_scl_start : ops.index("\n}", _scl_start)]
+    _check(
+        "ADR-511: the added flex context preserves the container's axis "
+        "(flex-direction: column pushed for non-row containers)",
+        "'flex-direction: column'" in _scl_body
+        and "classList.contains('col')" in _scl_body,
+    )
     _check(
         "ADR-511: normalizeStructure runs at the ONE serialize seam",
         "normalizeStructure(doc);" in ops

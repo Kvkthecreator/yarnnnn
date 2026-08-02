@@ -865,10 +865,24 @@ export function setContainerLayout(
     decls.push(`${prop}: ${value}`);
     if (key === 'gap' || key === 'align' || key === 'justify') needsFlex = true;
   }
-  // Flex properties need a flex context; declare it only when one is used and
-  // the element doesn't already lay out as flex from the skin.
-  if (needsFlex && !decls.some((d) => d.startsWith('display:') || d.startsWith('display '))) {
-    decls.push('display: flex');
+  // Flex properties need a flex context — but a flex context must not flip the
+  // container's visual axis. A bare `display: flex` defaults to ROW, which
+  // horizontally re-flowed every block-flow container (the title slide's
+  // kicker/h1/subtitle landed side by side). Row containers are recognized
+  // structurally (.col children — the same signal the multicol fallback
+  // counts); everything else keeps vertical flow explicitly. A container that
+  // already carries `display: flex` without a direction (the pre-fix write)
+  // is healed on its next layout write — this surface offers no direction
+  // control, so that state can only be the old bug's residue.
+  if (needsFlex) {
+    const hasDisplay = decls.some((d) => /^display\s*:/.test(d));
+    const displayIsFlex = decls.some((d) => /^display\s*:\s*flex\b/.test(d));
+    if (!hasDisplay) decls.push('display: flex');
+    const isRow = Array.from(el.children).some((c) => c.classList.contains('col'));
+    const hasDirection = decls.some((d) => /^flex-direction\s*:/.test(d));
+    if (!isRow && !hasDirection && (!hasDisplay || displayIsFlex)) {
+      decls.push('flex-direction: column');
+    }
   }
   if (decls.length) el.setAttribute('style', decls.join('; '));
   else el.removeAttribute('style');
