@@ -63,14 +63,11 @@ set +x
 echo "→ applying $(basename "$MIGRATION")$([[ $DRY_RUN == 1 ]] && echo ' (DRY RUN — will ROLLBACK)')"
 
 if [[ $DRY_RUN == 1 ]]; then
-  # Wrap in an explicit transaction that rolls back. -v ON_ERROR_STOP aborts on
-  # the first error so a failure is loud.
-  {
-    echo "BEGIN;"
-    cat "$MIGRATION"
-    echo ""
-    echo "ROLLBACK;"
-  } | psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 --single-transaction
+  # Preview: run inside one transaction and ROLLBACK. We append ROLLBACK and let
+  # --single-transaction supply the opening BEGIN (no manual BEGIN — that would
+  # double-open and warn). ON_ERROR_STOP aborts loudly on the first error.
+  { cat "$MIGRATION"; echo ""; echo "ROLLBACK;"; } \
+    | psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 --single-transaction
 else
   # Real apply: single transaction, stop on first error.
   psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 --single-transaction -f "$MIGRATION"
