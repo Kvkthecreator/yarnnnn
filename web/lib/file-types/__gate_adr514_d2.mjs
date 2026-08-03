@@ -101,6 +101,33 @@ check('2d Chat is the reference handler and accepts multiple',
 check('2e Chat rides the existing bind param, not a new receiving contract',
   /surface: 'chat', param: 'cite'/.test(handlers));
 
+// ── 2bis. the cite RECEIVER exists (the delivery actually lands) ─────────────
+// Declaring a delivery is not delivering it: the first D2 commit shipped the
+// registry row while nothing consumed `chat.cite`, so Open-With-Chat navigated
+// to a surface that ignored the file. These assert the receiving half.
+const lane = read('components/chat-surface/LanePanel.tsx');
+const chatSurface = read('components/chat-surface/ChatSurface.tsx');
+
+check('2f ChatSurface READS the cite param',
+  /getParam\('cite'\)/.test(chatSurface));
+
+check('2g cited paths are handed to the composer',
+  /citePaths=\{citePaths\}/.test(chatSurface));
+
+check('2h the composer BINDS them via the existing attach path (no upload)',
+  /citePaths\.forEach\(attachWorkspaceFile\)/.test(lane));
+
+check('2i the bind is consumed ONCE (a re-render cannot re-attach)',
+  /citedOnce/.test(lane) && /citedOnce\.current === key/.test(lane));
+
+check('2j the param is CLEARED after consumption (an act, not window state)',
+  /onCiteConsumed=\{\(\) => setParam\(\{ cite: null \}\)\}/.test(chatSurface));
+
+// Plural by construction — the whole reason reference delivery answers
+// multi-select and folders.
+check('2k the receiver is plural (a multi-selection arrives whole)',
+  /citePaths\?: string\[\]/.test(lane) && /split\(' '\)/.test(chatSurface));
+
 // ── 3. the Finder grammar (D2.2) ─────────────────────────────────────────────
 check('3a Open With renders ONLY when the set has >1 handler',
   /handlers && handlers\.length > 1/.test(menu));

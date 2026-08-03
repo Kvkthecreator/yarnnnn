@@ -176,6 +176,16 @@ interface LanePanelProps extends LaneMountSlots {
   /** Phase-A attachments: may this lane's model receive images? (LANE_MODELS
    *  vision flag — the server guards regardless; this gates the affordance.) */
   visionCapable?: boolean;
+  /**
+   * ADR-514 D2.3 — workspace paths arriving by `reference` delivery ("Open
+   * With → Chat"). They bind as composer chips exactly like the picker's own
+   * output. Plural by nature: a reference is the one delivery a multi-selection
+   * (or a folder) can have.
+   */
+  citePaths?: string[];
+  /** Called once the cited paths have been bound, so the surface can clear the
+   *  deep-link param (an open act, not durable window state). */
+  onCiteConsumed?: () => void;
 }
 
 export function LanePanel({
@@ -192,6 +202,8 @@ export function LanePanel({
   artifactWrite = 'card',
   onLaneRenamed,
   visionCapable = true,
+  citePaths,
+  onCiteConsumed,
 }: LanePanelProps) {
   const [messages, setMessages] = useState<LaneMessage[]>([]);
   const [input, setInput] = useState('');
@@ -246,6 +258,24 @@ export function LanePanel({
     },
     [visionCapable, modelLabel],
   );
+
+  // ADR-514 D2.3 — arrival by `reference` DELIVERY. "Open With → Chat" from the
+  // Finder navigates here with the cited paths; opening a file with Chat means
+  // the file arrives as CITED MATERIAL, not as chat's subject. It lands as the
+  // same bind the composer's own picker produces (no upload, no copy) — which
+  // is why reference delivery needed no new receiving contract.
+  //
+  // Consumed ONCE per set of paths: the ref guard keeps a re-render (or the
+  // param lingering in the URL) from re-attaching what the operator removed.
+  const citedOnce = useRef<string | null>(null);
+  useEffect(() => {
+    if (!citePaths?.length) return;
+    const key = citePaths.join(' ');
+    if (citedOnce.current === key) return;
+    citedOnce.current = key;
+    citePaths.forEach(attachWorkspaceFile);
+    onCiteConsumed?.();
+  }, [citePaths, attachWorkspaceFile, onCiteConsumed]);
 
   /** Upload files into the raw lane (ADR-395) and track them as chips. */
   const addFiles = useCallback(

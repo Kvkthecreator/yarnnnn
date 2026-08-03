@@ -118,6 +118,15 @@ export function ChatSurface() {
   // navigation (`chat.detail=participants`, ADR-358 D6) — the
   // ManageConnectionSubsurface convention, not a modal.
   const showDetail = getParam('detail') === 'participants';
+  // ADR-514 D2.3 — files arriving by `reference` delivery ("Open With → Chat").
+  // Space-separated (paths cannot contain spaces here) so one param carries a
+  // multi-selection; memoized so the identity is stable and the composer's
+  // consume-once guard is not re-armed by every render.
+  const citeParam = getParam('cite');
+  const citePaths = useMemo(
+    () => (citeParam ? citeParam.split(' ').filter(Boolean) : undefined),
+    [citeParam],
+  );
   const { userId } = useSurfacePreferences();
   const { members: wsMembers } = useWorkspaceMembers();
   // The workspace's other humans — invitable into any conversation (ADR-495
@@ -852,6 +861,11 @@ export function ChatSurface() {
               visionCapable={
                 data.models.find((m) => m.id === activeLane.model)?.vision ?? true
               }
+              // ADR-514 D2.3 — "Open With → Chat" hands the cited paths here.
+              // Space-separated because a reference is naturally plural (a
+              // multi-selection or a folder); the composer binds each one.
+              citePaths={citePaths}
+              onCiteConsumed={() => setParam({ cite: null })}
             />
           </>
         ) : (
