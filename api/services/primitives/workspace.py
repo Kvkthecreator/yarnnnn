@@ -830,6 +830,12 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
     # ADR-448: the reference edge — source paths this content was made from.
     # The write door normalizes + marks the revision as a derivation.
     derived_from = input.get("derived_from") or None
+    # ADR-512 §8a: the CAS rider — the head revision the caller based this
+    # write on (ADR-406 expected_parent_version_id). The ledger's linearity
+    # guard makes the compare-and-set atomic; a lost race surfaces as a
+    # structured stale_write below instead of a silent overwrite. Optional:
+    # None keeps every existing caller byte-identical.
+    expected_parent_version_id = input.get("expected_parent_version_id") or None
 
     # Empty-content guard (2026-06-11): a missing `content` key silently
     # defaulted to "" and overwrote real substrate with 0-byte files — the
@@ -915,15 +921,36 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
         resolved_author = authored_by or caller
         resolved_message = message or f"WriteFile workspace {path}"
 
-        ok = await um.write(
-            path,
-            new_content,
-            summary=f"Workspace write: {path}",
-            authored_by=resolved_author,
-            message=resolved_message,
-            revision_kind=revision_kind,
-            derived_from=derived_from,
-        )
+        from services.authored_substrate import StaleWriteError
+
+        try:
+            ok = await um.write(
+                path,
+                new_content,
+                summary=f"Workspace write: {path}",
+                authored_by=resolved_author,
+                message=resolved_message,
+                revision_kind=revision_kind,
+                derived_from=derived_from,
+                expected_parent_version_id=expected_parent_version_id,
+            )
+        except StaleWriteError as stale:
+            # ADR-512 §8a / ADR-406: the base moved. Return WHO moved past the
+            # caller (a conflict is a witness moment, ADR-405); resolution is
+            # revert-as-write — re-read, merge, re-save. Never a hidden merge.
+            head = stale.current_head or {}
+            return {
+                "success": False,
+                "error": "stale_write",
+                "message": str(stale),
+                "current_head": {
+                    "revision_id": head.get("id"),
+                    "authored_by": head.get("authored_by"),
+                    "when": head.get("created_at"),
+                    "change": head.get("message"),
+                },
+                "expected": stale.expected_parent_version_id,
+            }
 
         abs_path = f"/workspace/{path}"
         if not ok:

@@ -4,6 +4,10 @@
 > session: full share/chat audit → axiomatic re-derivation → the Finder verb mapping).
 > Phase 1 implemented in the same pass: the `open` verb + the connector self-description
 > re-frame + the handle grammar + ADR-465 Phase D (`share-as-view`).
+> **Amended 2026-08-03 (§8a — the `save` verb, operator delegation "implement all
+> tiers")**: the write half of the exact-version guarantee ships with read-before-write
+> CAS conflict semantics. Tier 2 of the same delegation landed D6's Get-Info reach panel
+> + attach-as-bind; ADR-513 + ADR-465 B/C/F landed as the arrival arc.
 > **Date**: 2026-08-02
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Hat**: A (kernel invariant + interop surface; the GTM canon consumes it per ADR-508 D3)
@@ -178,6 +182,33 @@ here. ADR-465 Phase D ships with this ADR's pass; Phase F waits on the Phase B/C
 the Get Info panel; unauthenticated artifact view (its own ADR — it touches the public
 boundary); ADR-368's deferred-primitives back door for agentic hosts (still unbuilt;
 still the stated direction).
+
+## 8a. Amendment (2026-08-03) — `save`: the write half of the exact-version guarantee
+
+The consumer binding gains **`save(reference, content, base_revision?, message?)`** —
+an attributed revision to a named file, from any host. The design question §8 deferred
+(conflict semantics over a boundary where the host holds no session) resolves onto the
+kernel's own CAS seam (ADR-406), not a new mechanism:
+
+- **Read-before-write is the contract.** For an EXISTING file, `base_revision` (the
+  head revision id `open` returned) is **required** — omitted → `base_required` + the
+  current head's attribution, never a write. Last-write-wins is refused: it would
+  corrupt the exact-version guarantee `open` established. For a NEW file, `base_revision`
+  is omitted and the write creates it.
+- **The race is closed at the ledger, not by a check.** The WriteFile primitive threads
+  `expected_parent_version_id` into `write_revision`, whose ADR-406 linearity guard
+  (migration 197) makes the compare-and-set atomic. A lost race returns a structured
+  `stale_write` conflict carrying the intervening head's attribution — *who* moved past
+  you, when, and why (ADR-405: a conflict is a witness moment) — and the host's
+  resolution is revert-as-write: re-`open`, merge in its own context, `save` again.
+- **All consequence at the gate, unchanged** (ADR-311 D4): `save` dispatches through
+  `execute_primitive` under the mcp caller identity — `CALLER_WRITE_POLICY["mcp"]`
+  bounds what it can touch (the operation commons; never governance/persona/system),
+  attribution rides ADR-288, and the empty-content guard + kernel-style retrofit apply
+  as to every write. `save` adds no second write door.
+- **Scope**: overwrite of one named file. No append mode (remember owns accumulation),
+  no multi-file transactions, no delete/move (in-app verbs; a foreign principal asking
+  to reorganize the commons is a conversation, not a syscall).
 
 ## 9. Rejected alternatives
 

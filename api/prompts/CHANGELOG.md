@@ -6,6 +6,28 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.03.2] - The save verb (ADR-512 §8a): the write half of exact-version
+
+### Changed
+- `mcp_server/server.py`: new **`save`** tool — attributed overwrite of one named
+  file. The docstring + instructions TEACH the contract: read-before-write
+  (base_revision from open required for existing files; omitted only to create),
+  stale_write means re-open-merge-resave (never blind retry), writes land signed
+  as the connector principal.
+- `services/mcp_composition.py::compose_save` — enforces base_required/not_found
+  before any write; dispatches through execute_primitive (no second write door);
+  returns the new head so follow-up saves chain.
+- `services/primitives/workspace.py::handle_write_file` — gains the optional
+  ADR-406 CAS rider (`expected_parent_version_id` → um.write) and maps
+  StaleWriteError to a structured `stale_write` carrying the intervening head's
+  attribution. Existing callers byte-identical (rider defaults None).
+- Expected behavior: a foreign host can now complete the full co-work loop
+  (open → edit in its own context → save with base) with the exact-version
+  guarantee running both directions. Gate: `python3 test_adr512_save_verb.py`
+  (11 checks); ADR-406's own gate re-run green (5/5).
+
+---
+
 ## [2026.08.03.1] - The arrival arc (ADR-513 + ADR-465 B/C/F): `share` verb joins the connector
 
 ### Changed

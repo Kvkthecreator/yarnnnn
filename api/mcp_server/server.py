@@ -330,6 +330,10 @@ mcp = HostGatedFastMCP(
         "  • trace    — show how a file or recorded fact changed over time (who\n"
         "               changed it, when, what the change was) — the attributed\n"
         "               provenance a plain storage connector cannot show.\n"
+        "  • save     — write a document back as an attributed revision, signed\n"
+        "               as you. Read-before-write: pass base_revision from open;\n"
+        "               a stale_write means someone changed it since — re-open,\n"
+        "               merge, save again. Omit base_revision only to create.\n"
         "  • share    — mint a link for a file (or the workspace) when the user\n"
         "               wants someone else in: 'member' grants full access,\n"
         "               'viewer' is read-only. You relay the link; whoever opens\n"
@@ -787,6 +791,75 @@ async def open_file(
 
 
 @mcp.tool(
+    # ADR-512 §8a — the write half of the exact-version guarantee. Overwrites
+    # are never destructive in the ledger sense (every prior version stays on
+    # the attributed chain, ADR-209) and blind overwrites are refused by the
+    # base_revision contract, so destructiveHint stays False honestly.
+    annotations=ToolAnnotations(
+        title="Save",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+)
+async def save(
+    ctx: Context,
+    reference: str,
+    content: str,
+    base_revision: Optional[str] = None,
+    message: Optional[str] = None,
+) -> dict:
+    """Save content to an EXACT file in the user's yarnnn workspace, as an attributed revision.
+
+    Call this when the user asks you to update a specific document — "apply
+    that edit to the proposal", "save this version back". Pass the same
+    reference `open` takes (yarnnn://workspace/… or a workspace-relative path)
+    and the FULL new content (this is an overwrite, not a patch).
+
+    THE CONTRACT — read before write: for an existing file you MUST pass
+    `base_revision` = the head revision id you got from `open` (history[0].
+    revision_id). If someone changed the file since, you get `stale_write`
+    with WHO changed it — re-open, merge their change with yours in your own
+    reasoning, and save again with the new base. Never retry a stale save
+    with the same content unexamined. Omit `base_revision` only to CREATE a
+    new file.
+
+    Your write lands signed as you in the workspace ledger — the user and
+    their team see exactly what you changed, beside every human change. Use
+    `remember` for notes/observations; `save` is for named documents.
+
+    Args:
+        reference: The file — yarnnn://workspace/{path} or workspace-relative path.
+        content: The full new content. Required, non-empty.
+        base_revision: The head revision id from open (required for existing files).
+        message: Optional one-line description of the change.
+    """
+    auth = resolve_request_client()
+    client_name = mcp_composition.derive_client_name_from_token(auth)
+    if client_name == "unknown":
+        client_name = mcp_composition.derive_client_name(
+            getattr(ctx.request_context, "request", None)
+        )
+    result = await mcp_composition.compose_save(
+        auth=auth, reference=reference, content=content,
+        base_revision=base_revision, message=message,
+    )
+    outcome = "saved" if result.get("success") else (result.get("error") or "failed")
+    _emit_mcp_narrative(
+        auth, tool="save", weight="material" if result.get("success") else "routine",
+        summary=f"{client_name} {outcome}: {result.get('path') or reference}",
+        body=(
+            f"reference: {reference}\noutcome: {outcome}\n"
+            f"message: {message or '(none)'}\nrevision: {result.get('revision_id') or '(n/a)'}"
+        ),
+        client_name=client_name,
+        extra_metadata={"outcome": outcome, "revision_id": result.get("revision_id")},
+    )
+    return _present("save", result, client_name=client_name)
+
+
+@mcp.tool(
     # ADR-465 D5 (ratified via ADR-512 §7; built with ADR-513) — the membership
     # verb beside the content verbs: the commons ABI's access half. Mints a
     # share row and returns the link for the host to RELAY (yarnnn sends
@@ -924,6 +997,17 @@ _REVISION_SCHEMA = {
 }
 
 _OUTPUT_SCHEMAS = {
+    "save": {
+        "type": "object",
+        "properties": {
+            "reference": {"type": "string", "description": "the canonical handle of the saved file"},
+            "path": {"type": ["string", "null"]},
+            "created": {"type": "boolean", "description": "true when this save created a new file"},
+            "revision_id": {"type": ["string", "null"], "description": "the NEW head — pass as base_revision on a follow-up save"},
+            "current_head": {"type": "object", "description": "on stale_write/base_required: who holds the head you must read first (revision_id, authored_by, when)"},
+            "explanation": {"type": "string"},
+        },
+    },
     "share": {
         "type": "object",
         "properties": {

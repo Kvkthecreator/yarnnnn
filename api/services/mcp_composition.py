@@ -1221,6 +1221,124 @@ async def compose_open(
     }
 
 
+async def compose_save(
+    auth: Any,
+    reference: str,
+    content: str,
+    base_revision: Optional[str] = None,
+    message: Optional[str] = None,
+) -> dict:
+    """Drive `save` — the attributed write to a named file (ADR-512 §8a).
+
+    Read-before-write is the contract: an EXISTING file requires
+    `base_revision` (the head id `open` returned); the ledger's ADR-406
+    linearity guard makes the compare-and-set atomic, and a lost race returns
+    the intervening head's attribution. A NEW file is created with no base.
+    All consequence stays at the gate — this dispatches WriteFile through
+    execute_primitive under the mcp caller identity; the caller's lock-set
+    (CALLER_WRITE_POLICY['mcp']) and the empty-content guard apply unchanged.
+    """
+    from services.primitives.registry import execute_primitive
+
+    rel = parse_file_reference(reference)
+    if rel is None:
+        return {
+            "success": False, "error": "invalid_reference",
+            "message": (
+                "Not a yarnnn file reference. Pass a workspace-relative path "
+                "or a yarnnn://workspace/… handle."
+            ),
+        }
+    abs_path = "/workspace/" + rel
+
+    # Head lookup — the read-before-write enforcement (never trust the host's
+    # memory of whether the file exists; the ledger answers).
+    try:
+        head_rows = (
+            auth.client.table("workspace_file_versions")
+            .select("id, authored_by, created_at, message")
+            .eq(*_substrate_scope(auth))
+            .eq("path", abs_path)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        ).data or []
+    except Exception as exc:  # noqa: BLE001
+        return {"success": False, "error": "head_lookup_failed", "message": str(exc)}
+
+    head = head_rows[0] if head_rows else None
+    if head and not base_revision:
+        return {
+            "success": False, "error": "base_required",
+            "message": (
+                f"`{rel}` already exists — open it first and pass the head "
+                "revision id as base_revision. save never overwrites blind "
+                "(the exact-version guarantee runs both ways)."
+            ),
+            "current_head": {
+                "revision_id": head.get("id"),
+                "authored_by": head.get("authored_by"),
+                "when": head.get("created_at"),
+            },
+        }
+    if base_revision and not head:
+        return {
+            "success": False, "error": "not_found",
+            "message": f"No file exists at `{rel}` — omit base_revision to create it.",
+        }
+
+    result = await execute_primitive(
+        auth,
+        "WriteFile",
+        {
+            "scope": "workspace",
+            "path": rel,
+            "content": content,
+            "mode": "overwrite",
+            "message": message or f"save via interop: {rel}",
+            "expected_parent_version_id": base_revision,
+        },
+    )
+    if result.get("error") == "stale_write":
+        # Re-shape onto the open/save vocabulary; the host re-opens and merges.
+        result["message"] = (
+            (result.get("message") or "The file moved since you opened it.")
+            + " Re-open the file, merge your change over the current version, "
+            "and save again with the new base_revision."
+        )
+        return result
+    if not result.get("success"):
+        return result
+
+    # Return the new head so a follow-up save can chain without re-opening.
+    try:
+        new_head = (
+            auth.client.table("workspace_file_versions")
+            .select("id")
+            .eq(*_substrate_scope(auth))
+            .eq("path", abs_path)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        ).data or []
+        new_rev = new_head[0]["id"] if new_head else None
+    except Exception:  # noqa: BLE001
+        new_rev = None
+    return {
+        "success": True,
+        "reference": format_file_reference(rel),
+        "path": abs_path,
+        "created": head is None,
+        "revision_id": new_rev,
+        "explanation": (
+            f"Saved `{rel}` as an attributed revision"
+            + (" (new file)" if head is None else "")
+            + ". Your write is signed as you in the workspace ledger; "
+            "trace shows it beside every other change."
+        ),
+    }
+
+
 # =============================================================================
 # ADR-310 D2 / ADR-368 D5 — the moat seam: foreign DUMP → Reviewer PLACEMENT
 # =============================================================================
