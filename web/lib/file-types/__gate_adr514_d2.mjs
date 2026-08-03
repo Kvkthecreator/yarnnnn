@@ -80,6 +80,42 @@ check('1e overriding to the existing default is a no-op',
 check('1f a single-handler set is never re-ranked',
   ids(applyDefaultOverride([{ id: 'text.viewer' }], 'chat.app'))[0] === 'text.viewer');
 
+// ── 1bis. the per-file STORE is wired end to end (D2.4) ─────────────────────
+// The algebra above is inert unless something persists an override AND the open
+// path reads it. A setting that does not change what Open does is decoration —
+// assert both halves, not just the affordance.
+const details = read('components/workspace/NodeDetailsPanel.tsx');
+const client = read('lib/api/client.ts');
+const docsRoute = read('../api/routes/documents.py');
+
+check('1g the store is metadata-only — no revision minted for a preference',
+  /def set_launch_handler/.test(docsRoute) &&
+    !/write_revision\(/.test(
+      docsRoute.slice(docsRoute.indexOf('def set_launch_handler'),
+                      docsRoute.indexOf('class DuplicateRequest'))));
+
+check('1h the store consults the grant (every door, ADR-501 S1)',
+  /_is_path_locked_for_principal/.test(
+    docsRoute.slice(docsRoute.indexOf('def set_launch_handler'),
+                    docsRoute.indexOf('class DuplicateRequest'))));
+
+check('1i the client exposes the binding',
+  /setLaunchHandler: \(path: string, handlerId: string \| null\)/.test(client));
+
+check('1j Get Info renders the row ONLY when the file has a choice',
+  /function FileOpensWith/.test(details) &&
+    /if \(handlers\.length < 2\) return null;/.test(details));
+
+// The load-bearing half: openPath must APPLY the override, or the setting is
+// cosmetic — exactly the "declared but not consumed" shape that shipped in
+// cfc8e87 for the cite param.
+check('1k the OPEN path applies the override (the setting is not cosmetic)',
+  /applyDefaultOverride\(/.test(filesPage) &&
+    /launch\s*\n?\s*\?\.handler|launch\?\.handler/.test(filesPage));
+
+check('1l choosing the registry default CLEARS the override (no dead rows)',
+  /=== handlers\[0\]\.id \? null : id/.test(details));
+
 // ── 2. the delivery axis + cardinality (D2.3) ────────────────────────────────
 // Closed at two values. Checked against the CODE, not the prose — the header
 // names edit/reason/observe precisely to record that they were rejected, so a

@@ -934,6 +934,75 @@ async def move_document(body: MoveRequest, auth: UserClient):
     return {"success": True, "path": dst}
 
 
+class LaunchHandlerRequest(BaseModel):
+    path: str
+    # None clears the override — the file reverts to the registry's default.
+    handler_id: Optional[str] = None
+
+
+@router.post("/documents/launch-handler")
+async def set_launch_handler(body: LaunchHandlerRequest, auth: UserClient):
+    """Bind this file's default handler (ADR-514 D2.4 — the per-file override).
+
+    The macOS Get Info "Open with:" binding. Per-FILE only: the per-TYPE scope
+    is deliberately deferred (operator ruling 2026-08-03), so a default lives ON
+    the file, travels with it through move/rename, and needs no workspace-wide
+    preferences layer to reconcile.
+
+    A metadata-only write — the file's CONTENT is untouched, so this does NOT
+    go through `write_revision` and mints no revision. That is the ADR-209
+    declared exception ("workspace_files.metadata-only updates that do NOT
+    mutate content"), not a bypass: an Open-With preference is not an authored
+    act and would be noise in the attribution chain.
+
+    The handler id is stored UNVALIDATED against the registry on purpose — the
+    registry is FE code and evolves independently. A stale id falls through to
+    the registry default at resolve time (`applyDefaultOverride`), so a
+    removed app can never make a file unopenable.
+    """
+    path = body.path if body.path.startswith("/") else "/" + body.path
+
+    # ADR-501 S1: the grant consult belongs on EVERY door, not just the
+    # primitive path. Setting a file's default is a write to that file's row.
+    from services.primitives.workspace import _is_path_locked_for_principal
+
+    if _is_path_locked_for_principal(auth, path):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Your grant in this workspace does not permit writing {path}. "
+                "The workspace owner can widen it from the Access pane."
+            ),
+        )
+
+    rows = (
+        auth.client.table("workspace_files")
+        .select("metadata")
+        .eq("path", path)
+        .limit(1)
+        .execute()
+    ).data or []
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No file at {path}")
+
+    metadata = dict(rows[0].get("metadata") or {})
+    launch = dict(metadata.get("launch") or {})
+    if body.handler_id:
+        launch["handler"] = body.handler_id
+    else:
+        launch.pop("handler", None)
+    if launch:
+        metadata["launch"] = launch
+    else:
+        metadata.pop("launch", None)
+
+    auth.client.table("workspace_files").update({"metadata": metadata}).eq(
+        "path", path
+    ).execute()
+
+    return {"success": True, "path": path, "handler_id": body.handler_id}
+
+
 class DuplicateRequest(BaseModel):
     path: str
 

@@ -1021,6 +1021,16 @@ export const api = {
         { method: "POST", body: JSON.stringify({ path, new_path: newPath }) }
       ),
 
+    // ADR-514 D2.4: bind this file's default handler (the Get Info "Open
+    // with:" row). Per-FILE only — per-type config is deferred. Pass null to
+    // clear and fall back to the registry default. Metadata-only: no revision
+    // is minted, because a launch preference is not an authored act.
+    setLaunchHandler: (path: string, handlerId: string | null) =>
+      request<{ success: boolean; path: string; handler_id: string | null }>(
+        "/api/documents/launch-handler",
+        { method: "POST", body: JSON.stringify({ path, handler_id: handlerId }) }
+      ),
+
     // ADR-514 D1: duplicate a file as an attributed derivation. The caller
     // names only the source — the kernel resolves the free `-copy` sibling and
     // writes derived_from, so the copy traces back to its original.

@@ -432,18 +432,33 @@ def test_grep_gate_mutations(client) -> None:
         out = subprocess.run(cmd, capture_output=True, text=True)
         hits = [line for line in out.stdout.splitlines() if line.strip()]
 
-        # Two permitted exceptions:
-        #   services/authored_substrate.py — the write path itself
-        #   services/primitives/workspace.py — embedding-only metadata update
+        # Permitted exceptions — each is a NON-content mutation, which is what
+        # the ADR-209 module docstring already carves out ("metadata-only
+        # updates that do NOT mutate content"). The gate guards the CONTENT
+        # write path; it is not a ban on touching the row.
+        #   services/authored_substrate.py     — the write path itself
+        #   services/primitives/workspace.py   — embedding-only metadata update
+        #   routes/documents.py::set_launch_handler — ADR-514 D2.4, the per-file
+        #     Open-With binding. A launch preference is not an authored act and
+        #     must NOT mint a revision, or every default change would be noise
+        #     in the attribution chain. Allowlisted BY LINE CONTENT (the
+        #     metadata write), not by file, so an unrelated content mutation
+        #     added to documents.py still trips the gate.
         permitted = {
             "services/authored_substrate.py",
             "services/primitives/workspace.py",
         }
+        permitted_lines = {
+            'routes/documents.py': '.update({"metadata": metadata})',
+        }
 
         violations = []
         for line in hits:
-            if not any(p in line for p in permitted):
-                violations.append(line)
+            if any(p in line for p in permitted):
+                continue
+            if any(f in line and frag in line for f, frag in permitted_lines.items()):
+                continue
+            violations.append(line)
 
         ok = len(violations) == 0
         record(

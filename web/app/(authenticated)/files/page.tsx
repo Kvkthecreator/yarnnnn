@@ -63,7 +63,7 @@ import {
   resolveDeclarationApplication,
   resolveSurfaceApplication,
 } from '@/lib/file-types';
-import { resolveHandlers } from '@/lib/file-types/handlers';
+import { resolveHandlers, applyDefaultOverride } from '@/lib/file-types/handlers';
 import { NewFolderModal } from '@/components/workspace/NewFolderModal';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
@@ -683,15 +683,25 @@ export default function ContextPage() {
     }
     void (async () => {
       let kind: string | null = null;
+      let override: string | null = null;
       try {
         const file = await api.workspace.getFile(path);
         kind = extractTemplate(file.content ?? '');
+        // ADR-514 D2.4: the file's own default binding, if the operator set one.
+        override =
+          (file.metadata as { launch?: { handler?: string } } | undefined)?.launch
+            ?.handler ?? null;
       } catch {
-        /* fall through to the default app */
+        /* fall through to the registry default */
       }
-      const app = resolveSurfaceApplication(path, undefined, kind);
-      if (app) {
-        navigateToSurface(app.surface, { [app.param]: path });
+      // The override re-ranks the set; a stale id falls through, so a removed
+      // app can never strand the file (applyDefaultOverride).
+      const chosen = applyDefaultOverride(
+        resolveHandlers({ paths: [path], isFolder: false, kind }),
+        override,
+      )[0];
+      if (chosen && chosen.open.via === 'surface') {
+        navigateToSurface(chosen.open.surface, { [chosen.open.param]: path });
         return;
       }
       selectInline();

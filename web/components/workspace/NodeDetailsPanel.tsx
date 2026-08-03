@@ -29,7 +29,7 @@
  * is selected).
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Loader2, FileText, Folder } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -41,6 +41,7 @@ import {
 } from '@/lib/workspace/attribution';
 import { operatorCanOrganize, organizeBlockedReason } from '@/lib/workspace/ownership';
 import { fileLegibilityState, legibilityDescriptor } from '@/lib/workspace/legibility';
+import { resolveHandlers } from '@/lib/file-types/handlers';
 import type { WorkspaceTreeNode } from '@/types';
 
 // ADR-388 D3: author label + accent come from the ONE shared attribution
@@ -310,11 +311,81 @@ export function NodeDetailsPanel({ node, onSelectPath, onRevert }: NodeDetailsPa
         // renders its own "Revision history" header. ADR-400.
         <div className="space-y-3">
           <FileProperties node={node} />
+          <FileOpensWith path={node.path} />
           <FileReach path={node.path} />
           <FileShares path={node.path} />
           <RevisionHistoryPanel path={node.path} onRevert={onRevert} />
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ── Opens with — the per-file default binding (ADR-514 D2.4) ───────────────
+// The macOS Get Info "Open with:" row. Per-FILE only (per-type config is
+// deferred), so the default lives ON the file and travels with it. Renders only
+// when the file HAS a choice — a single-handler file has nothing to bind, and a
+// dropdown of one is noise.
+
+function FileOpensWith({ path }: { path: string }) {
+  const handlers = useMemo(
+    () => resolveHandlers({ paths: [path], isFolder: false }),
+    [path],
+  );
+  const [override, setOverride] = useState<string | null | undefined>(undefined);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.workspace
+      .getFile(path)
+      .then((f) => {
+        if (cancelled) return;
+        const launch = (f.metadata as { launch?: { handler?: string } } | undefined)?.launch;
+        setOverride(launch?.handler ?? null);
+      })
+      .catch(() => { if (!cancelled) setOverride(null); });
+    return () => { cancelled = true; };
+  }, [path]);
+
+  if (handlers.length < 2) return null;
+
+  // The effective default: the override when it still names a live handler,
+  // else the registry's first. A STALE override reads as the registry default
+  // here for the same reason it resolves that way — it must never strand a file.
+  const effective = handlers.some((h) => h.id === override) ? override : handlers[0].id;
+
+  const pick = async (id: string) => {
+    setSaving(true);
+    const next = id === handlers[0].id ? null : id; // choosing the registry default clears
+    try {
+      await api.documents.setLaunchHandler(path, next);
+      setOverride(next);
+    } catch {
+      /* the select reverts on the next read; nothing durable changed */
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-md border border-border/60 bg-muted/10 px-3 py-2">
+      <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        Opens with
+      </p>
+      <select
+        value={effective ?? handlers[0].id}
+        disabled={saving || override === undefined}
+        onChange={(e) => void pick(e.target.value)}
+        className="w-full rounded border border-border bg-background px-2 py-1 text-xs"
+      >
+        {handlers.map((h, i) => (
+          <option key={h.id} value={h.id}>
+            {h.label}{i === 0 ? ' (default)' : ''}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
