@@ -956,6 +956,7 @@ export default function ContextPage() {
               onRename={openRename}
               onMove={openMove}
               onDelete={handleTreeDelete}
+              onDuplicate={(node) => organizeVerbs.onDuplicate({ path: node.path, name: node.name })}
               onMoveByDrag={commitMove}
               canOrganize={operatorCanOrganize}
             />

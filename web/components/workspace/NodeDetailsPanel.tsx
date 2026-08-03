@@ -379,8 +379,20 @@ function FileReach({ path }: { path: string }) {
 // vs view-only) and a revoke. Revocation is the control that makes a public
 // capability link honest (ADR-513 D4: dark means dark).
 
+/** Both spellings of one path compare equal.
+ *
+ *  A share row's `artifact_path` is whatever the minting origin passed —
+ *  ABSOLUTE (`/workspace/operation/x.html`) from the cockpit + the MCP share
+ *  verb, workspace-RELATIVE from callers that pre-strip. Comparing one spelling
+ *  against the other silently matched nothing, so the whole share section
+ *  (including its Revoke) rendered `null` while a live public link kept serving
+ *  — found live 2026-08-03. Normalize both sides; never compare raw. */
+function shareKey(path: string): string {
+  return (path.startsWith('/workspace/') ? path.slice('/workspace/'.length) : path).replace(/^\/+/, '');
+}
+
 function FileShares({ path }: { path: string }) {
-  const rel = path.startsWith('/workspace/') ? path.slice('/workspace/'.length) : path.replace(/^\//, '');
+  const rel = shareKey(path);
   const [shares, setShares] = useState<Array<{
     id: string; artifact_path: string | null; role: string; status: string;
   }> | null>(null);
@@ -389,7 +401,9 @@ function FileShares({ path }: { path: string }) {
   const load = () => {
     api.workspace
       .listShares()
-      .then((r) => setShares(r.shares.filter((s) => s.artifact_path === rel)))
+      .then((r) => setShares(r.shares.filter(
+        (s) => s.artifact_path != null && shareKey(s.artifact_path) === rel,
+      )))
       .catch(() => setShares(null));
   };
   useEffect(load, [rel]);

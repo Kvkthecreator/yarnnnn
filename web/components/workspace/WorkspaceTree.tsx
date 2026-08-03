@@ -34,6 +34,14 @@ interface WorkspaceTreeProps {
   onMove?: (node: WorkspaceTreeNode) => void;
   onDelete?: (node: WorkspaceTreeNode) => void;
   /**
+   * ADR-514 D1 — duplicate as an attributed derivation. The tree took a
+   * hand-listed subset of the verb bundle, so when Duplicate joined the kernel
+   * it reached the grid + recents but NOT here: right-clicking a file in the
+   * Explorer offered no Duplicate at all (found live 2026-08-03). One prop, so
+   * the tree carries the same verbs as every other mount.
+   */
+  onDuplicate?: (node: WorkspaceTreeNode) => void;
+  /**
    * ADR-400 Wave B (2026-07-03) — drag-and-drop move. A file dragged onto a
    * folder calls this with (fromPath, destFolderPath). The native muscle-memory
    * gesture; the menu "Move to…" folder-picker is the deliberate/accessible
@@ -51,13 +59,13 @@ interface ContextMenuState {
   y: number;
 }
 
-export function WorkspaceTree({ nodes, selectedPath, onSelect, onGetInfo, onRename, onMove, onDelete, onMoveByDrag, canOrganize }: WorkspaceTreeProps) {
+export function WorkspaceTree({ nodes, selectedPath, onSelect, onGetInfo, onRename, onMove, onDelete, onDuplicate, onMoveByDrag, canOrganize }: WorkspaceTreeProps) {
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   // ADR-400 Wave B: which folder path is the current drag-over drop target
   // (for the highlight). Lifted here so only one row highlights at a time.
   const [dropTarget, setDropTarget] = useState<string | null>(null);
 
-  const hasMenu = !!(onGetInfo || onRename || onMove || onDelete);
+  const hasMenu = !!(onGetInfo || onRename || onMove || onDelete || onDuplicate);
   const openMenu = hasMenu
     ? (node: WorkspaceTreeNode, e: React.MouseEvent) => {
         e.preventDefault();
@@ -112,6 +120,7 @@ export function WorkspaceTree({ nodes, selectedPath, onSelect, onGetInfo, onRena
           onRename={onRename ? () => onRename(menu.node) : undefined}
           onMove={onMove ? () => onMove(menu.node) : undefined}
           onDelete={onDelete ? () => onDelete(menu.node) : undefined}
+          onDuplicate={onDuplicate ? () => onDuplicate(menu.node) : undefined}
         />
       )}
     </div>
