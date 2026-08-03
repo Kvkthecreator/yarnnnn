@@ -3,7 +3,9 @@
 **Status**: **D1 Implemented** (2026-08-03, `b2d4224`; tree mount fixed `740f726` after the
 click-pass) · **D2 Implemented except the override STORES** (2026-08-03 — the handler set,
 the Finder grammar, Chat-as-reference-handler, and the D2.6 prop-wall removal are built and
-gated; D2.4's persistence is the named next increment, see its status note).
+gated, and the D2.3 cite delivery lands at the composer as of `fbf347d`; D2.4's per-FILE
+store is the one remaining increment and its per-TYPE half is deliberately deferred —
+see its status note).
 D2 was re-cut on the LaunchServices model after the operator rejected the first
 "intent-claim" draft: *"as close as technically and architecturally possible to existing
 operating systems."* That draft is not preserved inline; its two surviving findings are
@@ -190,12 +192,30 @@ to learn.
 
 ### D2.4 — The per-file default override
 
-> **Status (2026-08-03):** the resolution ALGEBRA is built and gated
-> (`applyDefaultOverride`, executed in `__gate_adr514_d2.mjs` checks 1a–1f, including
-> the stale-override fallthrough). The two STORES below are not yet written — nothing
-> persists an override today, so `resolveHandlers` returns registry rank and the
-> algebra is a no-op waiting for its input. Wiring the stores + the Get Info affordance
-> is the next increment; the ordering contract will not change under it.
+> **Status (2026-08-03), AMENDED — the per-TYPE scope is DEFERRED.** Operator ruling:
+> *"deliberately defer implementing per workspace configuration and for now just focus
+> on hardening and verifying the open with and thus file defaults."*
+>
+> So the override has exactly ONE scope: **per-file, stored on the file itself.** That
+> is the more file-native shape regardless — a default that lives in workspace-wide
+> config is a preferences system; a default that lives on the file travels with it, is
+> visible in Get Info beside everything else about that file, and needs no reconciliation
+> when the file moves.
+>
+> - **BUILT + GATED:** the resolution algebra (`applyDefaultOverride`, executed in
+>   `__gate_adr514_d2.mjs` checks 1a–1f) including the stale-override fallthrough.
+> - **DEFERRED (not "next increment"):** `/workspace/_launch.yaml` per-type config. It
+>   stays specified below so the shape is on record, but nothing should build it until
+>   a real case demands a default that spans files.
+> - **OWED, the remaining increment:** the per-FILE store —
+>   `workspace_files.metadata.launch.handler`, a metadata write endpoint (none exists
+>   today; the metadata column is read-only from the FE), and the Get Info "Open with:"
+>   affordance. Until then the algebra is a no-op awaiting input, and the registry rank
+>   is the default for every file.
+>
+> Resolution order collapses accordingly to **per-file → registry rank**. The
+> three-level form below is retained as the shape a future per-type scope would slot
+> into without changing the contract.
 
 macOS binds a default at two scopes: per-type (Get Info → "Change All…") and per-file (Get Info
 → "Open with:"). yarnnn should mirror both, and the storage follows the existing conventions
