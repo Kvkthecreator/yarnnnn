@@ -2024,7 +2024,10 @@ export const api = {
         method: "DELETE",
       }),
 
-    getMembers: () =>
+    // ADR-512 D6 Get-Info: pass `path` to additionally get each principal's
+    // reach over that file (can_read / can_write, computed by the gate's own
+    // powerbox matcher server-side — never re-derived here).
+    getMembers: (path?: string) =>
       request<{
         members: Array<{
           principal_id: string;
@@ -2047,13 +2050,15 @@ export const api = {
           connected_by_label: string | null; // the authorizing member's email (or the viewer's own)
           connected_by_is_you: boolean; // true when the viewer authorized this connection
           spend_cap_usd: number | null; // ADR-445 §7 Phase 4 — owner-set cap on the shared pool (null = uncapped)
+          can_read?: boolean | null; // ADR-512 D6 — only when ?path= was passed
+          can_write?: boolean | null;
         }>;
         grant_consult_active: boolean;
         // ADR-445 §6 — proactive seat awareness at the members surface.
         human_seats: number; // active human members
         included_seats: number; // the tier's billing baseline (Free = 1, solo)
         seats_available: boolean; // whether another human may be invited without an upgrade (paid = always true)
-      }>("/api/workspace/members"),
+      }>(`/api/workspace/members${path ? `?path=${encodeURIComponent(path)}` : ""}`),
 
     // NARROW (ADR-386 D2; powerbox 2026-07-10) — set a member's read + write
     // scope axes. Path prefixes at arbitrary depth; `[]` on an axis is a

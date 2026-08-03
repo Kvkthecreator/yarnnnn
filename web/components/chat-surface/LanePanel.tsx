@@ -46,6 +46,7 @@ import {
   Check,
   Copy,
   FileText,
+  FolderOpen,
   ImageIcon,
   Loader2,
   Paperclip,
@@ -55,6 +56,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react';
+import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
 import { api } from '@/lib/api/client';
 import { formatDaySeparator, formatAbsolute } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
@@ -203,6 +205,10 @@ export function LanePanel({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   // Phase-A attachments: composer chips (upload → send as turn refs).
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  // Attach-from-workspace (ADR-512 D6): a BIND — the chip carries an EXISTING
+  // artifact's path (no upload, no copy); the turn references the one
+  // attributed file, exactly like a lane-produced ArtifactCard in reverse.
+  const [workspacePickOpen, setWorkspacePickOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   // The composer grows with what you're writing, then holds and scrolls — the
@@ -211,6 +217,35 @@ export function LanePanel({
   // from scrollHeight. Shared with the shell drawer's composer — one rule.
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useAutoResize(textareaRef, input);
+
+  /** Bind an EXISTING workspace artifact as a chip (ADR-512 D6 — no upload,
+   *  no copy; the reference is the attachment). */
+  const attachWorkspaceFile = useCallback(
+    (path: string) => {
+      setWorkspacePickOpen(false);
+      const name = path.split('/').filter(Boolean).pop() || path;
+      const isImage = /\.(png|jpe?g|webp|gif)$/i.test(name);
+      if (isImage && !visionCapable) {
+        setError(`${modelLabel} cannot see images — attach documents instead.`);
+        return;
+      }
+      setAttachments((prev) =>
+        prev.some((a) => a.path === path)
+          ? prev
+          : [
+              ...prev,
+              {
+                key: `ref-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                name,
+                kind: isImage ? 'image' : 'file',
+                uploading: false,
+                path,
+              },
+            ],
+      );
+    },
+    [visionCapable, modelLabel],
+  );
 
   /** Upload files into the raw lane (ADR-395) and track them as chips. */
   const addFiles = useCallback(
@@ -900,10 +935,37 @@ export function LanePanel({
             disabled={sending}
             className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 shrink-0 transition-colors"
             aria-label="Attach a file"
-            title="Attach"
+            title="Attach (upload)"
           >
             <Paperclip className="w-4 h-4" />
           </button>
+          {/* Attach-from-workspace (ADR-512 D6): a BIND, not a copy — the chip
+              references the existing artifact by path (the ADR-448 grammar);
+              nothing forks, the conversation points at the one attributed
+              file. Inside the commons this needs no grant change; the
+              cross-boundary grant interstitial arrives with viewer-scoped
+              casts (named deferred). */}
+          <button
+            type="button"
+            onClick={() => setWorkspacePickOpen(true)}
+            disabled={sending}
+            className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 shrink-0 transition-colors"
+            aria-label="Attach a workspace file"
+            title="Attach from workspace"
+          >
+            <FolderOpen className="w-4 h-4" />
+          </button>
+          <WorkspacePickerModal
+            open={workspacePickOpen}
+            mode="file"
+            title="Attach from workspace"
+            subtitle="Reference an existing file — nothing is copied"
+            confirmLabel="Attach"
+            emptyMessage="Nothing in the workspace yet."
+            selectable={() => true}
+            onClose={() => setWorkspacePickOpen(false)}
+            onConfirm={attachWorkspaceFile}
+          />
           <textarea
             ref={textareaRef}
             value={input}

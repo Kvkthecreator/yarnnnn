@@ -310,9 +310,125 @@ export function NodeDetailsPanel({ node, onSelectPath, onRevert }: NodeDetailsPa
         // renders its own "Revision history" header. ADR-400.
         <div className="space-y-3">
           <FileProperties node={node} />
+          <FileReach path={node.path} />
+          <FileShares path={node.path} />
           <RevisionHistoryPanel path={node.path} onRevert={onRevert} />
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ── Reach — "who can reach this file" (ADR-512 D6) ─────────────────────────
+// The Get-Info answer Finder taught everyone to look for: per-principal
+// read/write over THIS path, computed server-side by the same powerbox
+// matcher the gate consults (the panel and the gate cannot disagree).
+
+function FileReach({ path }: { path: string }) {
+  const [rows, setRows] = useState<Array<{
+    principal_id: string; role: string; label: string | null;
+    can_read?: boolean | null; can_write?: boolean | null;
+  }> | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api.workspace
+      .getMembers(path)
+      .then((r) => { if (alive) setRows(r.members); })
+      .catch(() => { if (alive) setRows(null); });
+    return () => { alive = false; };
+  }, [path]);
+
+  if (!rows || rows.length === 0) return null;
+  const reachable = rows.filter((m) => m.can_read || m.can_write);
+  if (reachable.length === 0) return null;
+
+  return (
+    <div>
+      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        Who can reach this
+      </p>
+      <ul className="space-y-1">
+        {reachable.map((m) => (
+          <li key={m.principal_id} className="flex items-center gap-2 text-xs">
+            <span className="min-w-0 flex-1 truncate">
+              {m.label || m.principal_id}
+              <span className="ml-1 text-muted-foreground">({m.role})</span>
+            </span>
+            <span
+              className={cn(
+                'shrink-0 rounded px-1.5 py-0.5 text-[10px]',
+                m.can_write
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                  : 'bg-muted text-muted-foreground',
+              )}
+            >
+              {m.can_write ? 'can edit' : m.can_read ? 'read-only' : '—'}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+
+// ── Shares — the "Manage Shared File…" row (ADR-465/513) ───────────────────
+// The live share links that point at THIS artifact: their shape (full access
+// vs view-only) and a revoke. Revocation is the control that makes a public
+// capability link honest (ADR-513 D4: dark means dark).
+
+function FileShares({ path }: { path: string }) {
+  const rel = path.startsWith('/workspace/') ? path.slice('/workspace/'.length) : path.replace(/^\//, '');
+  const [shares, setShares] = useState<Array<{
+    id: string; artifact_path: string | null; role: string; status: string;
+  }> | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = () => {
+    api.workspace
+      .listShares()
+      .then((r) => setShares(r.shares.filter((s) => s.artifact_path === rel)))
+      .catch(() => setShares(null));
+  };
+  useEffect(load, [rel]);
+
+  const revoke = async (id: string) => {
+    setBusy(id);
+    try {
+      await api.workspace.revokeShare(id);
+      load();
+    } catch {
+      /* the row stays; the next load shows the truth */
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!shares || shares.length === 0) return null;
+  return (
+    <div>
+      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        Share links to this file
+      </p>
+      <ul className="space-y-1">
+        {shares.map((s) => (
+          <li key={s.id} className="flex items-center gap-2 text-xs">
+            <span className="min-w-0 flex-1 truncate text-muted-foreground">
+              {s.role === 'viewer' ? 'View-only link' : 'Full-access link'}
+            </span>
+            <button
+              type="button"
+              onClick={() => void revoke(s.id)}
+              disabled={busy === s.id}
+              className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+            >
+              {busy === s.id ? 'Revoking…' : 'Revoke'}
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

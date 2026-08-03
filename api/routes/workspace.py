@@ -125,6 +125,11 @@ class WorkspaceMember(BaseModel):
     # ADR-445 §7 Phase 4 — the per-member spend cap on the shared pool (owner-set).
     # None = uncapped (the default). The owner is never capped.
     spend_cap_usd: Optional[float] = None
+    # ADR-512 D6 Get-Info ("who can reach this file"): populated ONLY when the
+    # request carries ?path= — per-principal reach over that path, computed
+    # with the one powerbox matcher (never re-derived FE-side).
+    can_read: Optional[bool] = None
+    can_write: Optional[bool] = None
 
 
 class WorkspaceMembersResponse(BaseModel):
@@ -1189,7 +1194,9 @@ async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsRes
 
 
 @router.get("/workspace/members", response_model=WorkspaceMembersResponse)
-async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
+async def get_workspace_members(
+    auth: UserClient, path: Optional[str] = None
+) -> WorkspaceMembersResponse:
     """List the principals with an active grant to this workspace (ADR-373 D2).
 
     Read-only legibility surface for the Workspace Members panel. Humanizes each
@@ -1197,6 +1204,13 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
     its resolved write-region set (explicit grant scopes, else the class
     default). At N=1 this is just the owner; the surface is multi-principal-ready
     so a future member / foreign-LLM grant appears the moment it is written.
+
+    ?path= (ADR-512 D6, the Get-Info panel): additionally computes each
+    principal's reach OVER THAT PATH — can_read / can_write — using the same
+    powerbox matcher the gate consults (`path_under_scopes`), so the panel and
+    the gate can never disagree. Owner: always both. Axis semantics: NULL →
+    class default (read-all; write per class regions); [] → deny-all; [..] →
+    longest-prefix allow-list.
     """
     try:
         workspace_id = auth.workspace_id
@@ -1346,6 +1360,26 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
                 else:
                     connected_by_label = human_emails.get(cb)
 
+            # ADR-512 D6 Get-Info: per-path reach, via the ONE powerbox matcher
+            # (the same call the gate makes — panel and gate cannot disagree).
+            can_read: Optional[bool] = None
+            can_write: Optional[bool] = None
+            if path:
+                from services.primitives.workspace import path_under_scopes
+                rel = path[len("/workspace/"):] if path.startswith("/workspace/") else path.lstrip("/")
+                if role == "owner":
+                    can_read = can_write = True
+                else:
+                    # Read axis: NULL → class default read-all (matcher's None
+                    # polarity is exactly that); [] → deny-all; [..] → allow-list.
+                    can_read = path_under_scopes(rel, raw_read)
+                    # Write axis: NULL → the class-default write regions.
+                    can_write = path_under_scopes(
+                        rel,
+                        raw_write if raw_write is not None
+                        else _class_default_write_regions(role),
+                    )
+
             members.append(WorkspaceMember(
                 principal_id=principal_id,
                 role=role,
@@ -1364,6 +1398,8 @@ async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
                 connected_by_label=connected_by_label,
                 connected_by_is_you=connected_by_is_you,
                 spend_cap_usd=member_caps.get(principal_id),
+                can_read=can_read,
+                can_write=can_write,
             ))
 
         # ADR-445 §6 — proactive seat awareness. Human seats = active grants with a
