@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Info, ExternalLink, Pencil, FolderInput, Trash2, Share2, MoreVertical, CopyPlus } from 'lucide-react';
+import { Info, ExternalLink, Pencil, FolderInput, Trash2, Share2, MoreVertical, CopyPlus, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 
@@ -48,6 +48,26 @@ export interface FileVerbs {
   /** Duplicate as an attributed derivation (ADR-514 D1) — the kernel resolves
    *  the copy's name and writes the derived_from edge. */
   onDuplicate?: (t: { path: string; name: string }) => void;
+  /**
+   * ADR-514 D2.2 — open with a NON-default handler. `Open` already fires the
+   * default; this is the submenu's pick. The surface resolves the handler set
+   * (`resolveHandlers`) and performs the open, because how a handler opens —
+   * surface navigation vs inline mount — is the surface's business.
+   */
+  onOpenWith?: (t: { path: string; name: string }, handlerId: string) => void;
+  /**
+   * The ordered handler set for the target, `[0]` = default. Supplied by the
+   * surface (it knows the file's kind); the menu only renders it. Absent or
+   * length ≤ 1 → no Open With submenu, which is most files.
+   */
+  handlersFor?: (t: { path: string; name: string; isFile: boolean }) => MenuHandler[];
+}
+
+
+/** The shape Open With needs from a handler — id + label, already ordered. */
+export interface MenuHandler {
+  id: string;
+  label: string;
 }
 
 /** A caller-supplied menu entry (ADR-455) — the additive extension point so a
@@ -80,13 +100,17 @@ export interface FileContextMenuProps {
   onShare?: (t: FileMenuTarget) => void;
   /** Duplicate the target as an attributed derivation (ADR-514 D1, files only). */
   onDuplicate?: (t: FileMenuTarget) => void;
+  /** Open the target with a non-default handler (ADR-514 D2.2). */
+  onOpenWith?: (t: FileMenuTarget, handlerId: string) => void;
+  /** The target's ordered handler set, `[0]` = default (ADR-514 D2.2). */
+  handlers?: MenuHandler[];
   /** Surface-specific verbs (ADR-455) — rendered above the organize group. */
   extraItems?: FileMenuExtraItem[];
 }
 
 export function FileContextMenu({
   target, x, y, onClose, onOpen, onProperties, onRename, onMove, onDelete, onShare,
-  onDuplicate, extraItems,
+  onDuplicate, onOpenWith, handlers, extraItems,
 }: FileContextMenuProps) {
   useEffect(() => {
     const close = () => onClose();
@@ -117,6 +141,15 @@ export function FileContextMenu({
         <MenuItem icon={<ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onOpen)}>
           Open
         </MenuItem>
+      )}
+      {/* ADR-514 D2.2 — Open With, directly under Open (the Finder ordering).
+          Renders ONLY when the file has more than one handler; a single-handler
+          file shows no submenu at all, so nothing changes for most files. */}
+      {onOpenWith && handlers && handlers.length > 1 && (
+        <OpenWithItem
+          handlers={handlers}
+          onPick={(id) => { onOpenWith(target, id); onClose(); }}
+        />
       )}
       {onProperties && (
         <MenuItem icon={<Info className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onProperties)}>
@@ -157,6 +190,57 @@ export function FileContextMenu({
         <MenuItem icon={<Trash2 className="w-3.5 h-3.5 text-destructive" />} onClick={() => run(onDelete)} danger>
           Move to Trash
         </MenuItem>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Open With ▸ — the handler submenu (ADR-514 D2.2).
+ *
+ * The Finder grammar: the ordered handler set, the first marked `(default)`,
+ * opening on hover like a native submenu. It is deliberately NOT a flat list of
+ * rows in the parent menu — Open stays the one-click act, and this is secondary
+ * optionality the operator has to reach for.
+ */
+function OpenWithItem({
+  handlers, onPick,
+}: {
+  handlers: MenuHandler[];
+  onPick: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent/60"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+        <span className="flex-1">Open With</span>
+        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+      </button>
+      {open && (
+        <div className="absolute left-full top-0 -mt-1 ml-px min-w-[180px] rounded-md border border-border bg-popover py-1 shadow-md">
+          {handlers.map((h, i) => (
+            <button
+              key={h.id}
+              type="button"
+              onClick={() => onPick(h.id)}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent/60"
+            >
+              <span className="flex-1">{h.label}</span>
+              {i === 0 && (
+                <span className="text-xs text-muted-foreground">(default)</span>
+              )}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -207,7 +291,11 @@ export function useFileContextMenu(
   // tells a surface whether to show the kebab; the menu + verbs are identical.
   const coarse = useCoarsePointer();
 
-  const hasVerbs = !!(verbs && (verbs.onOpen || verbs.onProperties || verbs.onRename || verbs.onMove || verbs.onDelete || verbs.onShare || verbs.onDuplicate));
+  // Any wired verb earns the menu. Enumerating them here was the same defect
+  // shape as WorkspaceTree's prop wall (ADR-514 D2.6) — a verb added to the
+  // bundle but forgotten in the list would leave the menu silently unopenable
+  // on surfaces that wire only that verb.
+  const hasVerbs = !!(verbs && Object.values(verbs).some(Boolean));
 
   const openMenu = useCallback((target: FileMenuTarget, e: React.MouseEvent) => {
     if (!hasVerbs) return;
@@ -258,6 +346,8 @@ export function useFileContextMenu(
       onDelete={verbs.onDelete ? () => verbs.onDelete!(state.target) : undefined}
       onShare={verbs.onShare ? () => verbs.onShare!(state.target) : undefined}
       onDuplicate={verbs.onDuplicate ? () => verbs.onDuplicate!(state.target) : undefined}
+      onOpenWith={verbs.onOpenWith}
+      handlers={verbs.handlersFor?.(state.target)}
       extraItems={extraItemsFor?.(state.target)}
     />
   ) : null;

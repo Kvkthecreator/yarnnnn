@@ -12,7 +12,7 @@ import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, B
 import { cn } from '@/lib/utils';
 import type { WorkspaceTreeNode } from '@/types';
 import { FileIcon } from '@/components/workspace/FileIcon';
-import { FileContextMenu, type FileMenuTarget } from '@/components/workspace/FileContextMenu';
+import { FileContextMenu, type FileMenuTarget, type FileVerbs } from '@/components/workspace/FileContextMenu';
 import { fileLegibilityState, type FileLegibilityState } from '@/lib/workspace/legibility';
 import { resolveRootIcon } from '@/lib/workspace/root-icons';
 
@@ -21,26 +21,21 @@ interface WorkspaceTreeProps {
   selectedPath?: string;
   onSelect: (node: WorkspaceTreeNode) => void;
   /**
-   * Right-click "Properties" → open the node Details panel (ADR-400).
+   * ADR-514 D2.6 — the verb bundle, WHOLE. This prop replaced a hand-listed
+   * subset (`onGetInfo`/`onRename`/`onMove`/`onDelete`/`onDuplicate`), which was
+   * a standing defect generator: every new verb had to be threaded through the
+   * wall by hand, and one that wasn't simply vanished from this mount. That is
+   * exactly how Duplicate shipped absent from the Explorer while the grid — same
+   * FileContextMenu — offered it (found live 2026-08-03), and why Share… was
+   * missing here too. Taking `FileVerbs` whole means a verb wired once reaches
+   * every mount, and Open With (a variable-length submenu, not a single
+   * callback) becomes expressible at all.
+   *
+   * The menu stays OPTIMISTIC (ADR-400 Amendment 1): it offers the verb; the
+   * parent's handler + the backend decide and surface an honest error on the
+   * rare carve. No defensive greying.
    */
-  onGetInfo?: (node: WorkspaceTreeNode) => void;
-  /**
-   * ADR-400 operator verbs — the human reorganizes their workspace. The menu is
-   * OPTIMISTIC (Amendment 1): it offers the verb; the parent's handler + the
-   * backend decide + surface an honest error on the rare carve. No defensive
-   * greying.
-   */
-  onRename?: (node: WorkspaceTreeNode) => void;
-  onMove?: (node: WorkspaceTreeNode) => void;
-  onDelete?: (node: WorkspaceTreeNode) => void;
-  /**
-   * ADR-514 D1 — duplicate as an attributed derivation. The tree took a
-   * hand-listed subset of the verb bundle, so when Duplicate joined the kernel
-   * it reached the grid + recents but NOT here: right-clicking a file in the
-   * Explorer offered no Duplicate at all (found live 2026-08-03). One prop, so
-   * the tree carries the same verbs as every other mount.
-   */
-  onDuplicate?: (node: WorkspaceTreeNode) => void;
+  verbs?: FileVerbs;
   /**
    * ADR-400 Wave B (2026-07-03) — drag-and-drop move. A file dragged onto a
    * folder calls this with (fromPath, destFolderPath). The native muscle-memory
@@ -59,13 +54,14 @@ interface ContextMenuState {
   y: number;
 }
 
-export function WorkspaceTree({ nodes, selectedPath, onSelect, onGetInfo, onRename, onMove, onDelete, onDuplicate, onMoveByDrag, canOrganize }: WorkspaceTreeProps) {
+export function WorkspaceTree({ nodes, selectedPath, onSelect, verbs, onMoveByDrag, canOrganize }: WorkspaceTreeProps) {
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   // ADR-400 Wave B: which folder path is the current drag-over drop target
   // (for the highlight). Lifted here so only one row highlights at a time.
   const [dropTarget, setDropTarget] = useState<string | null>(null);
 
-  const hasMenu = !!(onGetInfo || onRename || onMove || onDelete || onDuplicate);
+  // Any wired verb earns the menu — no per-verb enumeration to fall out of date.
+  const hasMenu = !!(verbs && Object.values(verbs).some(Boolean));
   const openMenu = hasMenu
     ? (node: WorkspaceTreeNode, e: React.MouseEvent) => {
         e.preventDefault();
@@ -109,18 +105,18 @@ export function WorkspaceTree({ nodes, selectedPath, onSelect, onGetInfo, onRena
         />
       ))}
 
-      {menu && (
+      {menu && verbs && (
+        // ADR-514 D2.6: spread the bundle — every verb the caller wired reaches
+        // this mount, including ones added after this file was last touched.
+        // `onOpen` defaults to the tree's own select so a click and the menu's
+        // Open are the same act.
         <FileContextMenu
+          {...verbs}
           target={menu.target}
           x={menu.x}
           y={menu.y}
           onClose={() => setMenu(null)}
-          onOpen={() => onSelect(menu.node)}
-          onProperties={onGetInfo ? () => onGetInfo(menu.node) : undefined}
-          onRename={onRename ? () => onRename(menu.node) : undefined}
-          onMove={onMove ? () => onMove(menu.node) : undefined}
-          onDelete={onDelete ? () => onDelete(menu.node) : undefined}
-          onDuplicate={onDuplicate ? () => onDuplicate(menu.node) : undefined}
+          onOpen={verbs.onOpen ?? (() => onSelect(menu.node))}
         />
       )}
     </div>

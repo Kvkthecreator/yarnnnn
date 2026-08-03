@@ -63,6 +63,7 @@ import {
   resolveDeclarationApplication,
   resolveSurfaceApplication,
 } from '@/lib/file-types';
+import { resolveHandlers } from '@/lib/file-types/handlers';
 import { NewFolderModal } from '@/components/workspace/NewFolderModal';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
@@ -696,6 +697,37 @@ export default function ContextPage() {
       selectInline();
     })();
   }, [navigateToSurface]);
+  // ADR-514 D2.2 — the handler set for a menu target. `Open` above fires the
+  // default; this is what makes the ALTERNATIVES visible. The set is derived
+  // from the same two registries openPath consults, merged into one ordered
+  // list (lib/file-types/handlers), so the menu and the open funnel can never
+  // disagree about what can open a file.
+  const handlersFor = useCallback(
+    (t: { path: string; isFile: boolean }) =>
+      resolveHandlers({ paths: [t.path], isFolder: !t.isFile })
+        .map((h) => ({ id: h.id, label: h.label })),
+    [],
+  );
+
+  // Open the target with a NON-default handler. Surface navigation and inline
+  // mount are peers here — which one a handler uses is the handler's own
+  // declaration, not a branch the caller re-derives.
+  const openWith = useCallback(
+    (t: { path: string }, handlerId: string) => {
+      const handler = resolveHandlers({ paths: [t.path], isFolder: false })
+        .find((h) => h.id === handlerId);
+      if (!handler) return;
+      if (handler.open.via === 'surface') {
+        navigateToSurface(handler.open.surface, { [handler.open.param]: t.path });
+        return;
+      }
+      setShowTrash(false);
+      setSelectedPath(t.path);
+      activateBodyRef.current();
+    },
+    [navigateToSurface],
+  );
+
   // Mirror into the ref so the earlier loadExplorer + post-mount effect route
   // deep-links through this exact funnel (see openPathRef declaration).
   openPathRef.current = openPath;
@@ -800,7 +832,11 @@ export default function ContextPage() {
     // ADR-514 D1: derive a sibling copy — the kernel names it and records the
     // derived_from edge, so trace on the copy walks back to this file.
     onDuplicate: organizeVerbs.onDuplicate,
-  }), [openPath, openRename, openMove, handleTreeDelete, handleShare, organizeVerbs]);
+    // ADR-514 D2.2: Open fires the default; these expose the rest.
+    handlersFor,
+    onOpenWith: openWith,
+  }), [openPath, openRename, openMove, handleTreeDelete, handleShare, organizeVerbs,
+       handlersFor, openWith]);
 
   // Upload success (2026-07-01): after files land in the Intake raw lane
   // (inbound/uploads/{principal}/{slug}.{ext}, ADR-395), refresh the tree AND
@@ -952,11 +988,10 @@ export default function ContextPage() {
               nodes={treeNodes}
               selectedPath={selectedPath || undefined}
               onSelect={handleExplorerSelect}
-              onGetInfo={handleGetInfo}
-              onRename={openRename}
-              onMove={openMove}
-              onDelete={handleTreeDelete}
-              onDuplicate={(node) => organizeVerbs.onDuplicate({ path: node.path, name: node.name })}
+              // ADR-514 D2.6: the WHOLE bundle — the same verbs the grid and the
+              // folder listing get. The tree previously took a hand-listed
+              // subset, which is how Duplicate (and Share…) went missing here.
+              verbs={fileVerbs}
               onMoveByDrag={commitMove}
               canOrganize={operatorCanOrganize}
             />

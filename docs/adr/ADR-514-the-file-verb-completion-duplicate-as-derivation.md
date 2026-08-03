@@ -1,10 +1,13 @@
 # ADR-514: The File-Verb Completion — Duplicate as Derivation
 
 **Status**: **D1 Implemented** (2026-08-03, `b2d4224`; tree mount fixed `740f726` after the
-click-pass) · **D2 Accepted, not yet built** (2026-08-03 — re-cut on the LaunchServices model
-after the operator rejected the first "intent-claim" draft: *"as close as technically and
-architecturally possible to existing operating systems."* The rejected draft is not preserved
-inline; its two surviving findings are carried into D2.1 and D2.3.)
+click-pass) · **D2 Implemented except the override STORES** (2026-08-03 — the handler set,
+the Finder grammar, Chat-as-reference-handler, and the D2.6 prop-wall removal are built and
+gated; D2.4's persistence is the named next increment, see its status note).
+D2 was re-cut on the LaunchServices model after the operator rejected the first
+"intent-claim" draft: *"as close as technically and architecturally possible to existing
+operating systems."* That draft is not preserved inline; its two surviving findings are
+carried into D2.1 and D2.3.
 **Date**: 2026-08-03
 **Dimension**: Substrate (a new kernel verb) + Channel (which app opens a file, and how it is
 delivered)
@@ -186,6 +189,13 @@ row that governs delivery and cardinality — never a taxonomy of relationships 
 to learn.
 
 ### D2.4 — The per-file default override
+
+> **Status (2026-08-03):** the resolution ALGEBRA is built and gated
+> (`applyDefaultOverride`, executed in `__gate_adr514_d2.mjs` checks 1a–1f, including
+> the stale-override fallthrough). The two STORES below are not yet written — nothing
+> persists an override today, so `resolveHandlers` returns registry rank and the
+> algebra is a no-op waiting for its input. Wiring the stores + the Get Info affordance
+> is the next increment; the ordering contract will not change under it.
 
 macOS binds a default at two scopes: per-type (Get Info → "Change All…") and per-file (Get Info
 → "Open with:"). yarnnn should mirror both, and the storage follows the existing conventions
