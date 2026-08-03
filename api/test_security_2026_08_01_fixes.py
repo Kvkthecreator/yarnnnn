@@ -122,12 +122,73 @@ def test_mcp_bind_is_post_only():
     _check("POST" not in consent, "mcp: /oauth-consent does NOT write (no POST)")
 
 
+def test_rate_limiter():
+    from mcp_server.rate_limit import _FixedWindow, _bucket_for
+
+    w = _FixedWindow()
+    allowed = [w.hit("k", 3, 60, 100.0) for _ in range(4)]
+    _check(allowed == [True, True, True, False], "rate-limit: 4th request in a 3/window is blocked")
+    _check(w.hit("k", 3, 60, 161.0) is True, "rate-limit: window resets after it elapses")
+    _check(_bucket_for("/token") == "/token", "rate-limit: /token is throttled")
+    _check(_bucket_for("/register") == "/register", "rate-limit: /register is throttled")
+    _check(_bucket_for("/") is None, "rate-limit: the protocol root is NOT throttled")
+
+
+def test_refresh_token_expiry_wired():
+    # The fix is DB-backed (mig 232 adds expires_at/rotated_at) so we can't
+    # exercise the DB here; assert the CODE writes expiry + checks reuse, so a
+    # regression that drops either is caught. Grep the source for the invariants.
+    src = open("mcp_server/oauth_provider.py").read()
+    _check("REFRESH_TOKEN_LIFETIME" in src and src.count('"expires_at"') >= 3,
+           "refresh-token: expires_at written on issue + rotation")
+    _check("rotated_at" in src and "revoking family" in src,
+           "refresh-token: reuse detection revokes the token family")
+    _check(src.count("mcp_oauth_refresh_tokens\").delete()") >= 1,
+           "refresh-token: expiry/reuse paths delete the stale token")
+
+
+def test_jwt_signature_verified():
+    # Verify the auth JWT decode rejects forged tokens when a secret is set.
+    os.environ["SUPABASE_JWT_SECRET"] = "test-secret-please-ignore-32bytes-min"
+    os.environ.pop("SUPABASE_JWT_ALLOW_UNVERIFIED", None)
+    import importlib
+    import services.supabase as sb
+    importlib.reload(sb)
+    import jwt
+
+    secret = "test-secret-please-ignore-32bytes-min"
+    good = jwt.encode({"sub": "u1", "aud": "authenticated"}, secret, algorithm="HS256")
+    _check(sb.decode_jwt_payload(good).get("sub") == "u1", "jwt: valid signature accepted")
+
+    forged = jwt.encode({"sub": "attacker", "aud": "authenticated"}, "wrong", algorithm="HS256")
+    rejected = False
+    try:
+        sb.decode_jwt_payload(forged)
+    except ValueError:
+        rejected = True
+    _check(rejected, "jwt: forged signature rejected (impersonation blocked)")
+
+    none_tok = jwt.encode({"sub": "attacker", "aud": "authenticated"}, "", algorithm="none")
+    none_rejected = False
+    try:
+        sb.decode_jwt_payload(none_tok)
+    except ValueError:
+        none_rejected = True
+    _check(none_rejected, "jwt: alg=none downgrade rejected")
+
+
 if __name__ == "__main__":
     print("test_security_2026_08_01_fixes")
     print("A. webhook fails closed")
     test_webhook_fails_closed()
     print("B. mcp bind is post-on-consent")
     test_mcp_bind_is_post_only()
+    print("C. mcp auth rate limiting")
+    test_rate_limiter()
+    print("D. mcp refresh-token expiry + reuse detection")
+    test_refresh_token_expiry_wired()
+    print("E. main-api JWT signature verification")
+    test_jwt_signature_verified()
     if FAIL:
         print(f"\n{len(FAIL)} FAILED:")
         for f in FAIL:

@@ -29,6 +29,12 @@ if __name__ == "__main__":
 
         port = int(os.environ.get("PORT", "8000"))
         app = mcp.streamable_http_app()
+
+        # Security (2026-08-03): throttle the OAuth auth paths (/token,
+        # /register, /authorize) against online guessing + registration spam.
+        from mcp_server.rate_limit import AuthRateLimitMiddleware
+        app = AuthRateLimitMiddleware(app)
+
         uvicorn.run(app, host="0.0.0.0", port=port)
     else:
         mcp.run(transport="stdio")

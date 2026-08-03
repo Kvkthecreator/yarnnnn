@@ -14,13 +14,27 @@
 
 ## One-Time Setup (local, uncommitted)
 
-Export the connection string in your shell (e.g. `~/.zshrc`), sourced from the Supabase dashboard
-→ Project Settings → Database → Connection string. Never paste the literal value into a tracked file.
+Two ways to hold the connection string, both keeping it out of the tracked tree:
+
+**(A) Shell profile** — export it in `~/.zshrc` (real value never committed):
 
 ```bash
-# In ~/.zshrc — real value never committed
 export SUPABASE_DB_URL="postgresql://postgres.noxgqcwynkzqabljjyon:<URL_ENCODED_PASSWORD>@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
 ```
+
+**(B) Repo-local `.secrets.local`** (gitignored) — preferred when a tool/agent should run
+migrations from the repo without inheriting your interactive shell. Copy `.secrets.local.example`
+to `.secrets.local` and fill in the one line. Then apply migrations through the secure runner,
+which sources `.secrets.local`, runs in a single transaction, and never echoes the secret:
+
+```bash
+cp .secrets.local.example .secrets.local     # then paste the real string into it
+scripts/db/run-migration.sh --dry-run supabase/migrations/229_security_enable_rls_on_tasks.sql  # BEGIN…ROLLBACK preview
+scripts/db/run-migration.sh supabase/migrations/229_security_enable_rls_on_tasks.sql             # real apply
+```
+
+`.secrets.local` is the ONLY place a live credential may sit locally; it is gitignored and must
+never be committed or pasted into chat.
 
 Prefer the **least-privilege** roles for day-to-day work rather than the `postgres` superuser.
 Create them once with `supabase/migrations/230_security_least_privilege_roles.sql` (fill in the

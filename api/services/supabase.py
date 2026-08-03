@@ -24,22 +24,68 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _unverified_payload(token: str) -> dict:
+    """Base64-decode the JWT payload WITHOUT signature verification. Internal —
+    callers must go through decode_jwt_payload, which verifies when it can."""
+    parts = token.split(".")
+    if len(parts) != 3:
+        raise ValueError("Invalid JWT format")
+    payload = parts[1]
+    padding = 4 - len(payload) % 4
+    if padding != 4:
+        payload += "=" * padding
+    return json.loads(base64.urlsafe_b64decode(payload))
+
+
 def decode_jwt_payload(token: str) -> dict:
-    """Decode JWT payload without verification (Supabase handles verification via RLS)."""
+    """Decode + VERIFY the Supabase user JWT.
+
+    Security (2026-08-03): previously this base64-decoded the payload WITHOUT
+    checking the signature, trusting `sub` for the app's own authorization
+    (resolve_workspace_for_principal, principal_id stamping). PostgREST re-checks
+    the signature at the DB layer, but any service-client path that trusts
+    auth.user_id would accept a FORGED token. We now verify the HS256 signature
+    against SUPABASE_JWT_SECRET so a forged identity is rejected before it reaches
+    any authorization decision.
+
+    Rollout (2026-08-03): when SUPABASE_JWT_SECRET is present we verify and a
+    forged/invalid signature is REJECTED. When it is absent we fall back to the
+    old unverified decode but log an error every time — this keeps the deploy
+    NON-BREAKING while the env var is provisioned on the Render services. Once
+    the secret is confirmed set everywhere, flip `_REQUIRE_JWT_VERIFICATION` (or
+    set SUPABASE_JWT_REQUIRE=1) to fail closed on a missing secret. Tracked as
+    the follow-up to the 2026-08-03 JWT audit.
+    """
     try:
-        # JWT format: header.payload.signature
-        parts = token.split(".")
-        if len(parts) != 3:
-            raise ValueError("Invalid JWT format")
+        import jwt as _pyjwt
 
-        # Decode payload (add padding if needed)
-        payload = parts[1]
-        padding = 4 - len(payload) % 4
-        if padding != 4:
-            payload += "=" * padding
+        secret = os.environ.get("SUPABASE_JWT_SECRET")
+        if secret:
+            try:
+                # Supabase signs user JWTs HS256; audience is "authenticated".
+                return _pyjwt.decode(
+                    token,
+                    secret,
+                    algorithms=["HS256"],
+                    audience="authenticated",
+                    options={"verify_aud": True},
+                )
+            except _pyjwt.InvalidTokenError as e:
+                raise ValueError(f"JWT signature/claims invalid: {e}")
 
-        decoded = base64.urlsafe_b64decode(payload)
-        return json.loads(decoded)
+        # No secret configured. Hard-fail only if explicitly required; otherwise
+        # fall back (logged) so provisioning the env var is a safe, ordered step.
+        if os.environ.get("SUPABASE_JWT_REQUIRE") == "1":
+            logger.error("[AUTH] SUPABASE_JWT_SECRET unset but SUPABASE_JWT_REQUIRE=1 — rejecting")
+            raise ValueError("JWT verification required but SUPABASE_JWT_SECRET unset")
+        logger.error(
+            "[AUTH] SUPABASE_JWT_SECRET unset — JWT decoded WITHOUT signature "
+            "verification (transitional). Set SUPABASE_JWT_SECRET on API + Scheduler, "
+            "then SUPABASE_JWT_REQUIRE=1 to fail closed."
+        )
+        return _unverified_payload(token)
+    except ValueError:
+        raise
     except Exception as e:
         raise ValueError(f"Failed to decode JWT: {e}")
 

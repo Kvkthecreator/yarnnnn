@@ -295,12 +295,13 @@ class YarnnnOAuthProvider(
             "expires_at": (now + timedelta(seconds=ACCESS_TOKEN_LIFETIME)).isoformat(),
         }).execute()
 
-        # Store refresh token
+        # Store refresh token WITH expiry (security 2026-08-03 — mig 232).
         self._client().table("mcp_oauth_refresh_tokens").insert({
             "token": refresh_token,
             "client_id": client.client_id,
             "user_id": user_id,
             "scopes": scopes,
+            "expires_at": (now + timedelta(seconds=REFRESH_TOKEN_LIFETIME)).isoformat(),
         }).execute()
 
         # Delete used auth code
@@ -338,6 +339,34 @@ class YarnnnOAuthProvider(
             return None
 
         row = result.data[0]
+        now = datetime.now(timezone.utc)
+
+        # Reuse detection (security 2026-08-03 — mig 232): a token marked
+        # rotated_at has already been consumed. Presenting it again means the
+        # token was replayed (likely theft). Revoke the whole family — every
+        # live refresh token for this (user, client) — so neither the thief nor
+        # the legitimate client keeps a valid chain; both must re-authorize.
+        if row.get("rotated_at"):
+            logger.warning(
+                "[MCP OAuth] Reuse of rotated refresh token for user %s client %s — revoking family",
+                str(row["user_id"])[:8], client.client_id,
+            )
+            self._client().table("mcp_oauth_refresh_tokens").delete().eq(
+                "user_id", row["user_id"]
+            ).eq("client_id", client.client_id).execute()
+            return None
+
+        # Expiry check (security 2026-08-03 — mig 232). Rows predating the
+        # column were backfilled to created_at + 30d, so expires_at is present.
+        expires_at = row.get("expires_at")
+        if expires_at:
+            exp = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+            if exp < now:
+                self._client().table("mcp_oauth_refresh_tokens").delete().eq(
+                    "token", refresh_token
+                ).execute()
+                return None
+
         return YarnnnRefreshToken(
             token=row["token"],
             client_id=row["client_id"],
@@ -368,16 +397,22 @@ class YarnnnOAuthProvider(
             "expires_at": (now + timedelta(seconds=ACCESS_TOKEN_LIFETIME)).isoformat(),
         }).execute()
 
-        # Store new refresh token
+        # Store new refresh token WITH expiry (security 2026-08-03 — mig 232).
         self._client().table("mcp_oauth_refresh_tokens").insert({
             "token": new_refresh,
             "client_id": client.client_id,
             "user_id": user_id,
             "scopes": effective_scopes,
+            "expires_at": (now + timedelta(seconds=REFRESH_TOKEN_LIFETIME)).isoformat(),
         }).execute()
 
-        # Delete old refresh token (rotation)
-        self._client().table("mcp_oauth_refresh_tokens").delete().eq("token", refresh_token.token).execute()
+        # Soft-mark the old refresh token as rotated instead of deleting it, so a
+        # later REPLAY is detectable as reuse (security 2026-08-03 — mig 232).
+        # A background gc reaps rotated/expired rows; load_refresh_token treats a
+        # rotated token as a theft signal and revokes the family.
+        self._client().table("mcp_oauth_refresh_tokens").update(
+            {"rotated_at": now.isoformat()}
+        ).eq("token", refresh_token.token).execute()
 
         logger.info(f"[MCP OAuth] Rotated tokens for user {user_id}")
 
