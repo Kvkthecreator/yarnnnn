@@ -27,6 +27,71 @@ def _check(label, ok, detail=""):
     return bool(ok)
 
 
+def _check_capability_headers_execute():
+    """2c — EXECUTE GET /s/{token} and read the headers off real responses.
+
+    A grep cannot see this defect: the strings are present in the source and the
+    404/410 still ship bare. So we drive the app and assert on what the wire
+    carries, for the miss (404) and the revoked (410) paths as well as the 200.
+    """
+    out = []
+    try:
+        from fastapi.testclient import TestClient
+    except Exception as exc:  # noqa: BLE001
+        # Say it plainly — an unrun check must never read as a passing one.
+        return [_check("2c EXECUTING header gate", False,
+                       f"could not import TestClient ({exc}) — check did NOT run")]
+
+    import os
+    from unittest.mock import patch
+
+    # Boot-time env validation is not what this check is about. Supply a dummy
+    # only when the real one is absent (CI/Render already sets it).
+    os.environ.setdefault("INTEGRATION_ENCRYPTION_KEY",
+                          "ZmFrZS1rZXktZm9yLWhlYWRlci1nYXRlLW9ubHktMDAwMDA=")
+
+    try:
+        from main import app
+    except Exception as exc:  # noqa: BLE001
+        return [_check("2c EXECUTING header gate", False,
+                       f"could not import app ({exc}) — check did NOT run")]
+
+    client = TestClient(app, raise_server_exceptions=False)
+    want = {"cache-control": "no-store", "x-robots-tag": "noindex, nofollow"}
+
+    # (a) 404 — no share at that token.
+    with patch("services.workspace_shares.get_share_by_token", return_value=None):
+        resp = client.get("/api/s/definitely-not-a-real-token")
+    out.append(_check("2c-404 status", resp.status_code == 404, str(resp.status_code)))
+    for h, v in want.items():
+        out.append(_check(f"2c-404 carries {h}",
+                          resp.headers.get(h) == v,
+                          f"got {resp.headers.get(h)!r} (want {v!r})"))
+
+    # (b) 410 — the revoked link. THE response revocation depends on.
+    revoked = {"id": "s1", "token": "t", "status": "revoked", "role": "member",
+               "workspace_id": "w1", "artifact_path": None, "label": None,
+               "expires_at": None, "workspace_name": "W"}
+    with patch("services.workspace_shares.get_share_by_token", return_value=revoked):
+        resp = client.get("/api/s/revoked-token")
+    out.append(_check("2c-410 status", resp.status_code == 410, str(resp.status_code)))
+    for h, v in want.items():
+        out.append(_check(f"2c-410 carries {h}",
+                          resp.headers.get(h) == v,
+                          f"got {resp.headers.get(h)!r} (want {v!r})"))
+
+    # (c) 200 — the happy path must not regress.
+    active = dict(revoked, status="active")
+    with patch("services.workspace_shares.get_share_by_token", return_value=active):
+        resp = client.get("/api/s/active-token")
+    out.append(_check("2c-200 status", resp.status_code == 200, str(resp.status_code)))
+    for h, v in want.items():
+        out.append(_check(f"2c-200 carries {h}",
+                          resp.headers.get(h) == v,
+                          f"got {resp.headers.get(h)!r} (want {v!r})"))
+    return out
+
+
 def main():
     results = []
     from routes import shares as r
@@ -51,10 +116,13 @@ def main():
     results.append(_check(
         "2b preview enforces expiry (marks expired on read)",
         "expires_at" in prev_src and '"expired"' in prev_src))
-    results.append(_check(
-        "2c no-store + noindex headers",
-        '"Cache-Control"' in prev_src and "no-store" in prev_src
-        and '"X-Robots-Tag"' in prev_src and "noindex" in prev_src))
+    # 2c EXECUTES the error paths. The former grep-only version of this check
+    # passed while BOTH the 404 and the 410 shipped bare: the route sets the
+    # headers on the injected Response, then `raise HTTPException` discards it
+    # (main.py's handler builds a fresh JSONResponse from exc.headers alone).
+    # Found live 2026-08-03. A capability link that goes dark must not be
+    # cacheable — that is exactly the response revocation depends on.
+    results.extend(_check_capability_headers_execute())
 
     # 3. the projection boundary
     model_fields = set(r.SharePreviewResponse.model_fields.keys())

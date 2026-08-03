@@ -170,6 +170,14 @@ PUBLIC_CONTENT_CAP = 400_000
 #: The walk is a demonstration, not an archive — the full chain is members-only.
 PUBLIC_WALK_CAP = 12
 
+#: ADR-513 D4 — a capability link is neither cacheable by intermediaries nor
+#: indexable, on EVERY status. One constant so an added `raise` cannot silently
+#: ship a bare error response (the 2026-08-03 live defect).
+_CAPABILITY_HEADERS = {
+    "Cache-Control": "no-store",
+    "X-Robots-Tag": "noindex, nofollow",
+}
+
 
 @router.get("/s/{token}", response_model=SharePreviewResponse)
 async def preview_share(token: str, response: Response) -> SharePreviewResponse:
@@ -194,20 +202,30 @@ async def preview_share(token: str, response: Response) -> SharePreviewResponse:
 
     # Capability links must be neither cached by intermediaries nor indexed;
     # revocation must be the end of them (ADR-513 D4).
-    response.headers["Cache-Control"] = "no-store"
-    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    #
+    # Setting them on `response` covers the 200 ONLY. `raise HTTPException`
+    # discards the injected Response — main.py's app-level handler builds a fresh
+    # JSONResponse carrying just `exc.headers` — so every error exit must carry
+    # them explicitly (found live 2026-08-03: the 404 and the 410 both shipped
+    # bare). The REVOKED response is precisely the one that most needs no-store:
+    # without it an intermediary may keep serving a cached copy of the
+    # pre-revocation 200, and revocation stops being the end of the link.
+    response.headers.update(_CAPABILITY_HEADERS)
 
     share = get_share_by_token(token)
     if share is None:
-        raise HTTPException(status_code=404, detail="Share link not found")
+        raise HTTPException(status_code=404, detail="Share link not found",
+                            headers=dict(_CAPABILITY_HEADERS))
     if share["status"] != "active":
-        raise HTTPException(status_code=410, detail=f"This share link is {share['status']}")
+        raise HTTPException(status_code=410, detail=f"This share link is {share['status']}",
+                            headers=dict(_CAPABILITY_HEADERS))
     expires = share.get("expires_at")
     if expires and datetime.fromisoformat(str(expires).replace("Z", "+00:00")) < datetime.now(timezone.utc):
         get_service_client().table("workspace_shares").update({"status": "expired"}).eq(
             "id", share["id"]
         ).execute()
-        raise HTTPException(status_code=410, detail="This share link has expired")
+        raise HTTPException(status_code=410, detail="This share link has expired",
+                            headers=dict(_CAPABILITY_HEADERS))
 
     out = SharePreviewResponse(
         workspace_name=share.get("workspace_name"),

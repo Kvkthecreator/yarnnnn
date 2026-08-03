@@ -112,19 +112,32 @@ logger = logging.getLogger(__name__)
 def _present(tool_name: str, result: dict, *, client_name: str | None = None):
     """Wrap a tool's result in the standard envelope (ADR-372 D4).
 
-    A tool with no affordance returns the bare dict (FastMCP serializes it;
-    those tools advertise no outputSchema). An affordance-bearing tool ALWAYS
-    returns a CallToolResult with both channels populated; the widget `_meta` is
-    attached only when the calling host renders widgets (ADR-372 D4 gate, ADR-379
-    Host Profile registry). The widget dialect (ADR-379 D3b) is the host's
-    declared `widget_dialect` — only "openai" is wired today. Non-widget hosts get
-    the same full result, minus the pointer they cannot render.
+    EVERY tool that advertises an outputSchema returns a CallToolResult with both
+    channels populated — affordance or not. The widget `_meta` is attached only
+    when the calling host renders widgets (ADR-372 D4 gate, ADR-379 Host Profile
+    registry). The widget dialect (ADR-379 D3b) is the host's declared
+    `widget_dialect` — only "openai" is wired today. Non-widget hosts get the same
+    full result, minus the pointer they cannot render.
+
+    A tool with NEITHER an affordance NOR a declared schema returns the bare dict
+    (FastMCP serializes it).
+
+    The affordance check alone is NOT the right gate — that was the 2026-08-03
+    live break. The block above explains why a bare dict + a declared schema is a
+    hard error ("outputSchema defined but no structured output returned"); the
+    original code keyed the envelope on `affordance_for(...)` under the assumption,
+    true when written, that affordance-less tools advertise no schema. ADR-512
+    then added schemas for `open` / `save` / `share` without affordances, arming
+    the documented latent break: all three verbs failed at EVERY MCP host, and
+    `save` failed AFTER committing its revision — the caller saw an error for a
+    write that landed. The schema is what the protocol validates, so the schema is
+    what the envelope must key on.
     """
     affordance = presentation_affordances.affordance_for(tool_name)
-    if affordance is None:
+    if affordance is None and tool_name not in _OUTPUT_SCHEMAS:
         return result
     meta = None
-    if presentation_hosts.renders_widgets(client_name):
+    if affordance is not None and presentation_hosts.renders_widgets(client_name):
         try:
             dialect = presentation_hosts.widget_dialect(client_name)
             meta = presentation_registry.tool_response_meta(affordance.widget, dialect=dialect)
