@@ -1,16 +1,21 @@
 # ADR-514: The File-Verb Completion — Duplicate as Derivation
 
-**Status**: **D1 Implemented** (2026-08-03) · **D2 OPEN — the framing is being re-cut**
-(operator, 2026-08-03: the "intent-claim" framing below is the WRONG frame — think closer to a
-pure-OS, file-native approach. D2 as written is preserved only as the rejected first attempt; do
-not build from it. The forcing case it identifies is real; the modelling is not.)
+**Status**: **D1 Implemented** (2026-08-03, `b2d4224`; tree mount fixed `740f726` after the
+click-pass) · **D2 Accepted, not yet built** (2026-08-03 — re-cut on the LaunchServices model
+after the operator rejected the first "intent-claim" draft: *"as close as technically and
+architecturally possible to existing operating systems."* The rejected draft is not preserved
+inline; its two surviving findings are carried into D2.1 and D2.3.)
 **Date**: 2026-08-03
-**Dimension**: Substrate (a new kernel verb) + Channel (which app claims a file, and for what)
+**Dimension**: Substrate (a new kernel verb) + Channel (which app opens a file, and how it is
+delivered)
 
-**Amends**: ADR-451 (the "Open with" picker deferral resolves — but the second claimant is a
-*relationship*, not a second renderer) · ADR-436 (the app registry's row gains an intent) ·
-ADR-473 D2 (the runtime-learned kind→app table gains a second axis) · ADR-448 (the reference
-edge gains its first operator-initiated producer)
+**Amends**: ADR-451 (the "Open with" picker deferral RESOLVES — the second handler for `.html`
+has existed since ADR-451 shipped, hidden in an if/else fallthrough rather than a registry row) ·
+ADR-436 (the renderer table and the surface-app table MERGE into one ordered handler set —
+LaunchServices does not distinguish pane from window) · ADR-473 D2 (the runtime-learned kind→app
+binding becomes a row in that one set; program rows append and may default only for
+program-introduced types) · ADR-309 (the type layer is unchanged and remains the UTI analog) ·
+ADR-448 (the reference edge gains its first operator-initiated producer)
 **Preserves**: ADR-400 Amendment 1 (the optimistic model — the FE offers, the backend decides) ·
 ADR-209 (`write_revision` stays the single write path) · ADR-452 D5 ("Learn from" is a creation
 act homed on the Studio landing, not a file operation)
@@ -91,69 +96,155 @@ Open question for implementation (not blocking ratification): whether duplicatin
 in scope. Recommendation: **no** for v1 — a folder duplicate is a recursive multi-write with its
 own failure semantics, and no observed demand. Files-only, stated as a limit.
 
-## D2 — Open With  ⚠️ **REJECTED FRAMING — preserved as the first attempt, do not build**
+## D2 — Open, Open With, and the handler set (the LaunchServices cut)
 
-> **Operator ruling (2026-08-03):** *"inherit via intent is the wrong framing. think closer to
-> pure OS, file-native approach."* The section below models the problem as apps declaring an
-> *intent* toward a file (edit/reason/observe) — a claim taxonomy layered over two registries.
-> That is the frame being rejected. What survives is the **forcing case** (§D2-context: the
-> second claimant is not a second renderer) and the **honest gap** (Chat has no receiving
-> contract). The re-cut happens before any D2 code lands.
->
-> Recorded because a rejected attempt is evidence: the next pass should be able to see what was
-> tried and why it read as un-OS-like, rather than re-deriving it.
+**Ratified framing (operator, 2026-08-03): "as close as technically and architecturally
+possible to existing operating systems."** The first draft of D2 invented a claim taxonomy
+(apps declare an `edit`/`reason`/`observe` *intent*). That was rejected as un-OS-like, and
+rightly: **macOS has no such vocabulary.** Word, Pages and TextEdit do not declare intents
+toward a `.docx` — each is *registered as a handler for the type*, the set is ordered, and one
+is marked `(default)`. The concept is LaunchServices, and the vocabulary is: **type → handler
+set → default binding.**
 
-### (rejected) The app registry's row gains an INTENT
+### D2.1 — The three layers already exist; only the middle one is degenerate
 
-ADR-451 D3 deferred the "Open with" picker "until a second installed app claims the same format,"
-and built for that future correctly: `resolveApps` already returns an *ordered list*, and ADR-473
-D2 made the kind→app table runtime-learned so a program-shipped type routes without an FE deploy.
-
-**The deferral's forcing case has arrived — in a shape ADR-451 did not anticipate.** It assumed
-the second claimant would be another *renderer* (a rival viewer for `.html`). The operator's
-actual case is "Open with Chat" beside "Open with Studio" — and Chat is not a renderer. Chat does
-not draw `_watch.yaml`; it *reasons about* it. That is a second **relationship** to the same file,
-not a second rendering of it.
-
-So the registry row widens from *"this app renders this format"* to *"this app claims this file,
-for this relationship."* Claim kinds, v1:
-
-| Intent | Meaning | Claimant |
+| LaunchServices | yarnnn today | State |
 |---|---|---|
-| `edit` | opens the file as an authoring canvas | Studio, Images |
-| `reason` | takes the file as material to think about | Chat |
-| `observe` | opens the file's standing view | Radar (the ADR-486 declaration claim) |
+| **UTI** — what type is this? | `resolveViewerApplication` (path + content-type → 9 kinds, 3-tier fallback with a terminal) | Complete. Its own header already cites "macOS UTI + default-application binding." |
+| **Handler set** — who can open it? | `resolveApps` returns an ordered list — but `APPS_BY_TYPE` is built so every type has exactly ONE row; and a SECOND, separate table (`resolveSurfaceApplication`) holds the surface-owning apps | **Degenerate.** The shape is right, the set is always a singleton, and it is split across two tables. |
+| **Default binding** — which one wins? | `resolveApps[0]` / `DEFAULT_ARTIFACT_APP` | Implicit but correct — first wins. |
 
-The default remains the highest-ranked claim for the file's type — so today's single-claim files
-open exactly as they do now, byte-identical. **"Open With" renders only when a file has more than
-one claim**, which is precisely ADR-436's stance ("render only when `length > 1`") reached at last
-by a real case rather than a hypothetical one.
+The gap is not a missing concept. It is that **the two registries are the same layer wearing
+two coats**: `resolveApps` (in-frame renderers) and `resolveSurfaceApplication` (surface-owning
+apps — Studio, Images, Radar). LaunchServices does not distinguish "opens in a pane" from
+"opens in a window"; how a handler presents itself is the handler's business, not the
+registry's.
 
-This preserves the macOS reference the operator cited: Finder lists Preview *and* Photoshop for a
-`.png` because both open it — differently. It does not list every installed app.
+Proof the split is already under strain: the Files open path
+(`files/page.tsx::openPath`) asks `resolveSurfaceApplication` first and falls through to the
+inline viewer when nothing claims the file. **That fallthrough IS a two-entry handler set,
+hardcoded as an if/else.** An `.html` artifact genuinely has two handlers today — Studio (the
+authoring surface) and the web viewer (the Quick Look render). ADR-451 D3 deferred the picker
+"until a second app claims the same format"; that condition has been met since ADR-451 shipped.
+It was invisible because the alternative lived in an else-branch instead of a registry row.
 
-### The receiving contract (the honest gap)
+### D2.2 — One handler set, ordered, first is default
 
-`navigateToSurface('chat')` exists but **takes no file parameter**. Studio and Images receive a
-file through a window-namespaced param (`studio.file`, `images.file`); Chat has no equivalent.
-So "Open with Chat" is not merely a registry row — it needs Chat to accept a file as an open
-target.
+The two tables merge into ONE lookup:
 
-The natural shape, and the one this ADR proposes: **opening a file with Chat starts a turn with
-that file bound** — the same *bind* (not upload, not copy) that ADR-512 D6 already built for
-attach-from-workspace in the composer. The file arrives as a chip referencing its existing path.
-This reuses a shipped mechanism rather than inventing a second one.
+```
+resolveHandlers(path, contentType, kind?) -> Handler[]     // ordered; [0] is the default
+```
 
-This is the piece most likely to want operator discourse; it is called out here rather than
-buried in implementation.
+A `Handler` row carries: `id`, the types it claims, an operator-readable `label`, how it opens
+(in-frame renderer vs. surface navigation), and its rank. Merging the *table* does not merge
+the *callers*: `FileBody` asks for the in-frame handler, Files asks for the default handler.
+**One table, two queries** — no mount re-derives a type, which is ADR-309's standing rule.
 
-## D3 — What is deliberately NOT built
+- **`Open`** fires `handlers[0]`. Byte-identical to today for every single-handler file.
+- **`Open With ›`** is a SUBMENU, rendered iff `handlers.length > 1`, listing every handler with
+  `(default)` marked on the first — the Finder grammar exactly.
 
-- **No per-file default overrides** ("always open this file with X"). macOS has it; we have no
-  demand signal, and it needs a persistence story. Deferred, explicitly.
+`Open` therefore keeps working with no picker in sight; `Open With` is pure secondary
+optionality. This is the whole of the operator's instruction.
+
+### D2.3 — Chat IS a handler; its HANDLING is reference, not render
+
+Chat stays in Open With. The user-experience reading is decisive: **Chat is an app you pick to
+open something with**, and demoting it to some separate "Send to…" verb would be a taxonomy the
+OS does not have — the same mistake the rejected draft made, one layer down.
+
+What differs is not whether Chat is a handler but **what opening means for it.** The registry
+gains ONE axis, and it is mechanical, not semantic:
+
+| Delivery | Meaning | Handlers |
+|---|---|---|
+| `document` | the handler takes custody of the file and opens it as its subject | Studio, Images, Radar, the in-frame viewers |
+| `reference` | the handler receives the file as *cited material*, not as its subject | Chat |
+
+This is a statement about **how the file is delivered to the app**, which is exactly what
+LaunchServices itself encodes (open-document vs. open-in-place vs. the print/service verbs
+sharing a registry). It is not a claim about the app's inner relationship to the content.
+
+The distinction earns its keep by answering questions `document` cannot:
+
+- **Multi-select.** `document` delivery is single-subject: opening five files in Studio means
+  five documents. `reference` delivery is naturally plural — five files become five citations
+  in one turn. Open With on a multi-selection therefore lists only handlers that accept the
+  selection's cardinality.
+- **Folders.** A folder has no `document` handler (nothing "opens" a directory as a subject
+  except the Finder itself). It DOES have a `reference` handler: "Open with Chat" on a folder
+  cites the folder — its listing, and its members as reachable context. This is the first
+  coherent answer to what right-clicking a folder should offer beyond navigation.
+- **No receiving contract needed.** `navigateToSurface('chat')` takes no file param, and the
+  earlier draft treated that as a blocker. Under `reference` delivery it is not: the delivery
+  mechanism is the ADR-512 D6 **bind** that already shipped (a chip referencing the existing
+  path — no upload, no copy). Chat receives citations, and it already knows how.
+
+So: one registry, one ordering, one `(default)`. `document` vs `reference` is a property of the
+row that governs delivery and cardinality — never a taxonomy of relationships the operator has
+to learn.
+
+### D2.4 — The per-file default override
+
+macOS binds a default at two scopes: per-type (Get Info → "Change All…") and per-file (Get Info
+→ "Open with:"). yarnnn should mirror both, and the storage follows the existing conventions
+rather than inventing a table.
+
+- **Per-file** override lives on the file's own metadata — the `workspace_files.metadata`
+  jsonb, keyed `launch.handler`. It travels with the file through move/rename (metadata rides
+  the row), it is per-workspace by construction, and it needs no migration.
+- **Per-type** override is workspace configuration, so it belongs in the machine-parsed lane as
+  `/workspace/_launch.yaml` (ADR-254: underscore prefix = machine-parsed, `yaml.safe_load`),
+  a flat `type → handler_id` map. Operator/agent-editable like any other `_*.yaml`.
+- **Resolution order** is the OS one, most-specific first: per-file override → per-type override
+  → registry rank. A missing or unknown handler id **falls through silently** to the next level;
+  a stale override must never make a file unopenable. This is the same terminal-fallback
+  discipline ADR-309 already applies to types.
+- **Surfacing** is Get Info, not a new panel — `NodeDetailsPanel` is already the Finder Get Info
+  (ADR-329/400) and already carries reach and share rows.
+
+**Deliberately deferred inside D2.4:** the "Change All…" bulk apply (write the per-type row from
+a per-file choice) — the storage supports it; the affordance waits for demand.
+
+### D2.5 — What programs may claim
+
+`registerKindApps` (ADR-473 D2) already lets a program bind its document type to an app at
+runtime, so program rows join the handler set for their type. The kernel boundary holds as:
+**a program row APPENDS to the handler set and may take default only for a type the program
+itself introduced.** A program cannot displace a kernel app as the default for a kernel type.
+This keeps ADR-436's one-file ratchet meaningful — programs add rows, never re-rank the kernel.
+
+### D2.6 — The prop-wall lesson (structural, and load-bearing)
+
+The 2026-08-03 click-pass found Duplicate missing from the Files tree because `WorkspaceTree`
+takes a **hand-listed prop subset** (`onGetInfo/onRename/onMove/onDelete`) rather than the
+`FileVerbs` bundle — so a verb wired everywhere else silently skipped one mount, and the commit
+message over-claimed the blast radius. `Share…` is STILL missing from the tree for the same
+reason.
+
+Open With makes this worse if left alone: it is not one verb but a *variable-length submenu*,
+and a prop wall cannot carry it. **D2 therefore requires `WorkspaceTree` (and any other
+hand-listing mount) to accept the `FileVerbs` bundle whole.** This is not scope creep — it is
+the precondition that stops the next verb repeating the same defect.
+
+### D2.7 — What is deliberately NOT built
+
+- **No "App Store…" / "Other…" rows.** Both presuppose installable third-party apps; the
+  one-file ratchet stays red until an App(principal) ADR flips it.
+- **No new relationship vocabulary.** `document`/`reference` is a delivery axis, and it is
+  closed at two values until a real third case appears.
+- **No bulk "Change All…" affordance** (D2.4).
+- **No folder `document` handler** — folders get `reference` handlers only.
+
+## D3 — What is deliberately NOT built (ADR-wide)
+
+Per-decision exclusions live with their decision (D1's folder-duplicate limit, D2.7's
+Open-With exclusions). ADR-wide:
+
 - **No third-party app rows.** The one-file ratchet (`apps.tsx` header) stays red until an
-  App(principal) ADR flips it. Intent-claims widen the row's *shape*, not who may write rows.
-- **No folder duplicate** (see D1).
+  App(principal) ADR flips it. D2 widens the row's *shape* and merges two tables; it does not
+  change who may write rows.
 - **The boundary acts** — see §6.
 
 ---
@@ -188,18 +279,34 @@ All three are *wiring* gaps over shipped, correct implementations. None needs a 
 
 ## Consequences
 
-- One new kernel primitive (`DuplicateFile`), one deleted client-side re-implementation.
-- Every duplicate made from ratification forward records its parent; **existing duplicates stay
+**D1 (done):**
+- One new kernel primitive (`DuplicateFile`), two deleted client-side re-implementations.
+- Every duplicate from ratification forward records its parent; **existing duplicates stay
   orphaned** (no backfill — the origin was never captured and cannot be inferred).
-- The Files menu gains Duplicate and (where a file has >1 claim) Open With.
-- ADR-451's picker deferral closes; ADR-436's `length > 1` condition becomes reachable.
-- Chat gains a file-open contract, reusing the ADR-512 D6 bind.
+
+**D2 (accepted, unbuilt):**
+- Two registries become one ordered handler set; `Open` fires `handlers[0]` — byte-identical for
+  every single-handler file, which is most of them.
+- `Open With ›` appears on `.html` immediately (Studio + web viewer), with no new app installed:
+  ADR-451's deferral condition was already met, hidden in a fallthrough.
+- Chat becomes a listed handler with `reference` delivery — which is also what makes Open With
+  answerable for **multi-selections and folders**, neither of which has a `document` handler.
+- Get Info gains the per-file "Open with:" binding; `/workspace/_launch.yaml` carries per-type.
+- `WorkspaceTree` must take the `FileVerbs` bundle whole (D2.6) — the precondition, not an extra.
 
 ## Gates owed
 
-- Executing gate for `DuplicateFile`: format-agnostic (assert a non-`.html` path duplicates),
-  `derived_from` written (assert the edge lands), suffix resolution server-side (assert no client
-  probe), and the ADR-320 lock-set still refuses a locked root.
-- A gate asserting `StudioSurface.tsx` no longer contains a local duplicate implementation
-  (Singular Implementation, enforced).
-- Registry gate: every claim row declares an intent; the picker renders iff `claims.length > 1`.
+**D1 — landed** (`test_adr514_duplicate_verb.py`, 21/21, falsified against a removed
+`derived_from`): format-agnostic, edge written, server-side suffix, lock-set refusal, and no
+surviving client-side implementation.
+
+**D2 — owed, and they must EXECUTE, not count:**
+- Resolution order, run as a table: per-file override → per-type override → registry rank, with
+  an **unknown handler id falling through** rather than making a file unopenable.
+- `handlers.length > 1` ⇒ the submenu renders with exactly one `(default)`; `== 1` ⇒ no submenu.
+- Cardinality: a multi-selection offers only handlers that accept it; a folder offers `reference`
+  handlers only and no `document` handler.
+- **Per-mount, not per-count** (the D2.6 lesson): assert Open With is reachable from EVERY file
+  mount — tree, grid, folder listing, Studio recents. A counting gate cannot see one mount
+  missing a prop; that is precisely how Duplicate shipped absent from the tree
+  (`feedback_counting_gate_cannot_defend_per_site`).
