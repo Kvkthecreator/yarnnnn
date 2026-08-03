@@ -26,7 +26,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
-import { ArrowLeft, Check, Copy, FileText, FolderOpen, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, Plus, Upload } from 'lucide-react';
+import { ArrowLeft, Check, FileText, FolderOpen, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, Plus, Upload } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { AUTHORING_APPS } from '@/lib/apps/authoring';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -2185,32 +2185,15 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   }, [artifactPath]);
   // Duplicate — read the open artifact, write it at a -copy sibling through
   // the one mechanical door (never overwrite an existing copy), open the copy.
-  const duplicateArtifact = useCallback(async () => {
-    if (!artifactPath || !file?.content) return;
-    const base = artifactPath.replace(/\.html$/, '');
-    for (let i = 1; i <= 5; i++) {
-      const target = i === 1 ? `${base}-copy.html` : `${base}-copy-${i}.html`;
-      try {
-        await api.workspace.getFile(target);
-        continue; // exists — try the next suffix
-      } catch {
-        /* free — create here */
-      }
-      try {
-        await api.studio.writeArtifact(
-          target,
-          file.content,
-          null,
-          `Studio: duplicate ${baseName(artifactPath)}`,
-        );
-        setParam({ file: relPath(target) });
-      } catch (e) {
-        setOpError(e instanceof Error ? e.message : 'Duplicate failed.');
-      }
-      return;
-    }
-    setOpError('Too many copies of this artifact already — rename one first.');
-  }, [artifactPath, file, setParam]);
+  // ADR-514 D1: the kernel owns duplicate. The pre-514 body lived here — a
+  // browser-side `-copy` probe (TOCTOU-racy, capped at 5, `.html`-only) that
+  // wrote no derived_from, leaving every duplicate an attribution orphan. The
+  // shared verb resolves the name server-side and cites the source; the
+  // surface's only job is to follow the copy (onAfterMutate re-points ?file).
+  const duplicateArtifact = useCallback(() => {
+    if (!artifactPath) return;
+    organizeVerbs.onDuplicate({ path: artifactPath, name: artifactDisplayName });
+  }, [artifactPath, artifactDisplayName, organizeVerbs]);
 
   // ADR-447 Phase 4, re-addressed by ADR-511 Phase 2: "+ Add" in an empty
   // region. The runtime carries the container's IDENTITY; the registry role
@@ -2986,28 +2969,15 @@ function StudioStart({
     const url = `${window.location.origin}/desktop?${app.slug}.file=${encodeURIComponent(relPath(path))}`;
     void navigator.clipboard.writeText(url);
   }, []);
+  // ADR-514 D1: duplicate is the KERNEL's verb. The pre-514 body here read the
+  // content into the browser, probed for a free `-copy` name (capped at 5), and
+  // swallowed every error — and recorded no derived_from, so the copy had no
+  // recorded origin. `organizeVerbs.onDuplicate` is the one shared path.
   const duplicateRecent = useCallback(
-    async (path: string) => {
-      try {
-        const f = await api.workspace.getFile(path);
-        const base = path.replace(/\.html$/, '');
-        for (let i = 1; i <= 5; i++) {
-          const target = i === 1 ? `${base}-copy.html` : `${base}-copy-${i}.html`;
-          try {
-            await api.workspace.getFile(target);
-            continue; // exists — next suffix
-          } catch {
-            /* free */
-          }
-          await api.studio.writeArtifact(target, f.content ?? '', null, `Studio: duplicate ${baseName(path)}`);
-          loadRecents();
-          return;
-        }
-      } catch {
-        /* best-effort — a failed duplicate leaves the recents untouched */
-      }
+    (path: string) => {
+      organizeVerbs.onDuplicate({ path, name: baseName(path) });
     },
-    [loadRecents],
+    [organizeVerbs],
   );
 
   // The shared right-click / kebab menu (ADR-400 Amendment 1), wired to the
@@ -3032,10 +3002,13 @@ function StudioStart({
       onRename: (t) => renameRecent(t.path),
       onMove: (t) => organizeVerbs.onMove(t),
       onDelete: (t) => organizeVerbs.onDelete(t),
+      // ADR-514 D1: Duplicate is a SHARED verb now, so it leaves the Studio
+      // extras and joins the organize group (one menu, one ordering, every
+      // surface). Copy link stays an extra — it is genuinely Studio-specific.
+      onDuplicate: (t) => organizeVerbs.onDuplicate(t),
     },
     (t) => [
       { id: 'copy-link', label: 'Copy link', icon: <Link2 className="h-3.5 w-3.5 text-muted-foreground" />, onClick: () => copyRecentLink(t.path) },
-      { id: 'duplicate', label: 'Duplicate', icon: <Copy className="h-3.5 w-3.5 text-muted-foreground" />, onClick: () => void duplicateRecent(t.path) },
     ],
   );
 

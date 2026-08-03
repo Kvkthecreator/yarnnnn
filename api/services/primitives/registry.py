@@ -61,6 +61,7 @@ from .workspace import (
     EDIT_FILE_TOOL, handle_edit_file,
     DELETE_FILE_TOOL, handle_delete_file,
     MOVE_FILE_TOOL, handle_move_file,
+    DUPLICATE_FILE_TOOL, handle_duplicate_file,
     SEARCH_FILES_TOOL, handle_search_files,
     QUERY_KNOWLEDGE_TOOL, handle_query_knowledge,
     LIST_FILES_TOOL, handle_list_files,
@@ -289,6 +290,8 @@ CHAT_PRIMITIVES = [
     EDIT_FILE_TOOL,
     DELETE_FILE_TOOL,
     MOVE_FILE_TOOL,
+    # ADR-514 D1: DuplicateFile — derive a sibling copy (derived_from edge).
+    DUPLICATE_FILE_TOOL,
     SEARCH_FILES_TOOL,
     LIST_FILES_TOOL,
     # ADR-325: Embed — explicit make-AI-ready (consequential, autonomy-gated).
@@ -613,6 +616,7 @@ HANDLERS: dict[str, Callable] = {
     "EditFile": handle_edit_file,
     "DeleteFile": handle_delete_file,
     "MoveFile": handle_move_file,
+    "DuplicateFile": handle_duplicate_file,
     "SearchFiles": handle_search_files,
     "QueryKnowledge": handle_query_knowledge,
     "ListFiles": handle_list_files,

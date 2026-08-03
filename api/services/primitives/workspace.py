@@ -314,6 +314,46 @@ destination — if the destination must be replaced, DeleteFile it first
 }
 
 
+DUPLICATE_FILE_TOOL = {
+    "name": "DuplicateFile",
+    "description": """Duplicate a workspace file as an attributed derivation (ADR-514 D1).
+
+Writes a sibling copy at the first free `-copy` / `-copy-N` name, resolved
+server-side. The new revision cites the original via derived_from and is
+recorded as a 'derivation', so trace on the copy walks back to the file it came
+from — a duplicate is a derivation with a parent, not an anonymous clone.
+
+Works on ANY file (the extension is preserved whatever it is); binaries are
+duplicated by blob reference, so no bytes are copied. Files only — folders are
+not duplicated. Governance locks apply exactly as for WriteFile.
+
+  DuplicateFile(path='operation/specs/launch-plan.md')""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Path of the file to duplicate (same addressing as WriteFile).",
+            },
+            "scope": {
+                "type": "string",
+                "enum": ["workspace", "agent"],
+                "description": "Address-space selector, same semantics as WriteFile.",
+            },
+            "authored_by": {
+                "type": "string",
+                "description": "ADR-209 attribution. Defaults to the caller identity from auth.",
+            },
+            "message": {
+                "type": "string",
+                "description": "Why this file is being duplicated (recorded on the new revision; optional).",
+            },
+        },
+        "required": ["path"],
+    },
+}
+
+
 SEARCH_FILES_TOOL = {
     "name": "SearchFiles",
     "description": """Search the workspace filesystem for content (file layer).
@@ -681,6 +721,12 @@ def _resolve_gate_paths(name: str, input: dict) -> list[str]:
     WriteFile / EditFile / DeleteFile address one path; MoveFile addresses
     two (source + destination) — a move into or out of a governance-locked
     subtree must DENY just like a write would.
+
+    DuplicateFile (ADR-514 D1) addresses one INPUT path, but writes a sibling
+    the caller never names. The destination is a sibling by construction, so it
+    shares the source's directory and therefore its topology root — gating the
+    source gates the write. (If duplicate ever grows a destination argument,
+    it must join MoveFile's two-key branch.)
     """
     keys = ("path", "new_path") if name == "MoveFile" else ("path",)
     paths: list[str] = []
@@ -1252,6 +1298,122 @@ async def handle_delete_file(auth: Any, input: dict) -> dict:
     return {"success": True, "scope": scope, "path": abs_path,
             "tombstone_revision_id": tombstone_id,
             "note": "Revision chain retained — restore via ReadRevision + WriteFile."}
+
+
+#: ADR-514 D1: how many `-copy-N` suffixes to try before giving up. The kernel
+#: resolves the free name in ONE query (below), so this is a defensive bound on
+#: a pathological directory, not the client-probe cap it replaces.
+_DUPLICATE_SUFFIX_LIMIT = 200
+
+
+def _duplicate_target_path(abs_src: str, taken: set[str]) -> Optional[str]:
+    """The first free `-copy` / `-copy-N` sibling of `abs_src` (ADR-514 D1).
+
+    Format-agnostic by construction: the extension is split off whatever it is
+    (`.html`, `.yaml`, `.md`, none at all) and re-attached after the suffix, so
+    `_watch.yaml` duplicates to `_watch-copy.yaml`. `taken` is the set of live
+    sibling paths read in one query — no per-candidate round trip (the
+    client-side probe this replaces was a TOCTOU race).
+    """
+    head, _, tail = abs_src.rpartition("/")
+    stem, dot, ext = tail.partition(".")
+    suffix = f".{ext}" if dot else ""
+    for i in range(1, _DUPLICATE_SUFFIX_LIMIT + 1):
+        candidate_leaf = f"{stem}-copy{suffix}" if i == 1 else f"{stem}-copy-{i}{suffix}"
+        candidate = f"{head}/{candidate_leaf}" if head else candidate_leaf
+        if candidate not in taken:
+            return candidate
+    return None
+
+
+async def handle_duplicate_file(auth: Any, input: dict) -> dict:
+    """Handle DuplicateFile primitive (ADR-514 D1) — derive a sibling copy.
+
+    A duplicate is a DERIVATION, not a clone: the new revision carries
+    ``derived_from=[source]`` and ``revision_kind='derivation'`` (ADR-448 /
+    ADR-423), so ``trace`` on the copy walks back to the file it came from.
+    The pre-ADR-514 implementation lived in the browser (Studio's
+    ``duplicateArtifact``) and recorded no origin at all — every duplicate made
+    before this primitive is an attribution orphan.
+
+    Format-agnostic (any extension, or none) and byte-free for binaries: the
+    copy re-references the source's existing blob by sha via ``content_ref``
+    (ADR-427 §4c), so duplicating a 40MB PDF moves no bytes. Files only —
+    folder duplication is out of scope (ADR-514 D1).
+    """
+    from services.authored_substrate import write_revision
+    from services.workspace import get_agent_slug
+
+    path = input.get("path", "")
+    scope = input.get("scope") or _default_file_scope(auth)
+    if not path:
+        return {"success": False, "error": "missing_path", "message": "path is required"}
+
+    if scope == "workspace":
+        abs_src = f"/workspace/{_normalize_workspace_rel(path)}"
+    else:
+        agent = getattr(auth, "agent", None)
+        if not agent:
+            return {"success": False, "error": "no_agent_context",
+                    "message": "DuplicateFile scope='agent' requires agent context."}
+        abs_src = f"/agents/{get_agent_slug(agent)}/{path}"
+
+    # Siblings in one read: the source row (proves it exists) plus every live
+    # path in its directory (resolves the free suffix without N probes).
+    parent = abs_src.rpartition("/")[0]
+    rows = (
+        auth.client.table("workspace_files")
+        .select("path")
+        .eq("user_id", auth.user_id)
+        .like("path", f"{parent}/%")
+        .execute()
+    ).data or []
+    taken = {r["path"] for r in rows}
+    if abs_src not in taken:
+        return {"success": False, "error": "file_not_found", "message": f"No live file at {abs_src}."}
+
+    abs_dst = _duplicate_target_path(abs_src, taken)
+    if abs_dst is None:
+        return {"success": False, "error": "too_many_copies",
+                "message": f"More than {_DUPLICATE_SUFFIX_LIMIT} copies of {abs_src} already exist."}
+
+    # The source's CURRENT blob, reused by sha. Re-hashing the text denorm would
+    # point a binary duplicate at the empty-string blob (the denorm is '' for
+    # binary by contract — ADR-427 D4), so the head revision is authoritative.
+    head_rows = (
+        auth.client.table("workspace_file_versions")
+        .select("id, blob_sha")
+        .eq("path", abs_src)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    ).data or []
+    if not head_rows:
+        return {"success": False, "error": "no_revision",
+                "message": f"{abs_src} has no revision chain to duplicate from."}
+
+    resolved_author, base_message = _resolved_author_and_message(
+        auth, input, f"duplicate {abs_src} -> {abs_dst}"
+    )
+
+    try:
+        revision_id = write_revision(
+            auth.client,
+            user_id=auth.user_id,
+            path=abs_dst,
+            content_ref=head_rows[0]["blob_sha"],
+            authored_by=resolved_author,
+            message=f"DuplicateFile: from {abs_src} — {base_message}",
+            summary=f"Duplicated from {abs_src}",
+            revision_kind="derivation",
+            derived_from=[abs_src],
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("[ADR-514] duplicate failed for %s", abs_src)
+        return {"success": False, "error": "duplicate_failed", "message": str(exc)}
+
+    return {"success": True, "scope": scope, "path": abs_src,
+            "new_path": abs_dst, "revision_id": revision_id}
 
 
 async def handle_move_file(auth: Any, input: dict) -> dict:

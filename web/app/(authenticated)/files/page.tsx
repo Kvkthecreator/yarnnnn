@@ -797,7 +797,10 @@ export default function ContextPage() {
     onMove: openMove,
     onDelete: handleTreeDelete,
     onShare: handleShare,
-  }), [openPath, openRename, openMove, handleTreeDelete, handleShare]);
+    // ADR-514 D1: derive a sibling copy — the kernel names it and records the
+    // derived_from edge, so trace on the copy walks back to this file.
+    onDuplicate: organizeVerbs.onDuplicate,
+  }), [openPath, openRename, openMove, handleTreeDelete, handleShare, organizeVerbs]);
 
   // Upload success (2026-07-01): after files land in the Intake raw lane
   // (inbound/uploads/{principal}/{slug}.{ext}, ADR-395), refresh the tree AND

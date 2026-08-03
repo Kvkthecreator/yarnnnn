@@ -934,6 +934,38 @@ async def move_document(body: MoveRequest, auth: UserClient):
     return {"success": True, "path": dst}
 
 
+class DuplicateRequest(BaseModel):
+    path: str
+
+
+@router.post("/documents/duplicate")
+async def duplicate_document(body: DuplicateRequest, auth: UserClient):
+    """Duplicate a file as an attributed derivation (ADR-514 D1).
+
+    The destination is derived server-side (the first free `-copy` sibling), so
+    the caller names only the source. Organize reach is checked on the source;
+    the copy is a sibling by construction, so it lands in the same topology root.
+    Delegates to the DuplicateFile primitive (attributed, gated, derived_from).
+    """
+    src = body.path if body.path.startswith("/") else "/" + body.path
+
+    if not operator_can_organize(src):
+        raise HTTPException(
+            status_code=403,
+            detail="This file is managed by the system and can't be duplicated.",
+        )
+
+    from services.primitives.registry import execute_primitive
+    result = await execute_primitive(auth, "DuplicateFile", {
+        "path": src, "scope": "workspace",
+    })
+    if not (isinstance(result, dict) and result.get("success")):
+        err = (result or {}).get("error", "duplicate_failed")
+        detail = (result or {}).get("message", "Duplicate failed")
+        raise HTTPException(status_code=404 if err == "file_not_found" else 400, detail=detail)
+    return {"success": True, "path": src, "new_path": result.get("new_path")}
+
+
 # =============================================================================
 # CREATE FOLDER — ADR-424 D2/D6: the operator makes a top-level PEER folder
 # =============================================================================

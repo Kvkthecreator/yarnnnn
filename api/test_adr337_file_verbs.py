@@ -153,8 +153,13 @@ check(
     {"EditFile", "DeleteFile", "MoveFile"} <= GATE_QUEUEABLE_PRIMITIVES,
 )
 check(
-    "path-addressed set is exactly the four write verbs",
-    _PATH_ADDRESSED_QUEUEABLE == frozenset({"WriteFile", "EditFile", "DeleteFile", "MoveFile"}),
+    # Exact-set on purpose: a new path-addressed verb must be a CONSCIOUS
+    # addition here, never a silent one — an unlisted verb writes without the
+    # topology gate resolving its path. ADR-514 D1 added DuplicateFile.
+    "path-addressed set is exactly the five write verbs",
+    _PATH_ADDRESSED_QUEUEABLE == frozenset({
+        "WriteFile", "EditFile", "DeleteFile", "MoveFile", "DuplicateFile",
+    }),
 )
 check(
     "new verbs are consequential (fail-closed, not read_only)",

@@ -155,7 +155,7 @@ GATE_QUEUEABLE_PRIMITIVES: frozenset[str] = frozenset({
 #: dual-path-addressed — the gate checks BOTH source and destination via
 #: `_resolve_gate_paths`.
 _PATH_ADDRESSED_QUEUEABLE: frozenset[str] = frozenset({
-    "WriteFile", "EditFile", "DeleteFile", "MoveFile",
+    "WriteFile", "EditFile", "DeleteFile", "MoveFile", "DuplicateFile",
 })
 
 

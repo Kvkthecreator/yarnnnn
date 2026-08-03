@@ -69,6 +69,8 @@ export interface FileOrganizeVerbs {
   onRename: (t: FileOrganizeTarget) => void;
   onMove: (t: FileOrganizeTarget) => void;
   onDelete: (t: FileOrganizeTarget) => void;
+  /** ADR-514 D1 — derive a sibling copy (kernel-resolved name + derived_from). */
+  onDuplicate: (t: FileOrganizeTarget) => void;
   /**
    * Commit a move directly (from → destFolder), bypassing the picker modal —
    * the drag-and-drop fast path. `onMove` is the deliberate (modal) path; this
@@ -114,6 +116,31 @@ export function useFileOrganizeVerbs(
       setRenameTarget(t);
     },
     [carveGuard],
+  );
+
+  // ADR-514 D1: duplicate is a DERIVATION, resolved kernel-side. The FE names
+  // only the source — the free `-copy` name and the derived_from edge are the
+  // primitive's to write (the pre-514 Studio version probed for a free name in
+  // the browser, capped at 5, and recorded no origin at all).
+  const onDuplicate = useCallback(
+    async (t: FileOrganizeTarget) => {
+      if (await carveGuard(t.path)) return;
+      try {
+        const r = await runAction(() => api.documents.duplicate(t.path), {
+          pending: 'Duplicating…',
+          success: 'Duplicated',
+          error: (e) =>
+            e instanceof APIError
+              ? (e.data as { detail?: string })?.detail || 'Duplicate failed'
+              : 'Duplicate failed',
+        });
+        // Land on the copy — the macOS gesture (the duplicate becomes current).
+        if (r?.new_path) onAfterMutate?.(r.new_path, t.path);
+      } catch {
+        /* error toast already surfaced; stop */
+      }
+    },
+    [carveGuard, runAction, onAfterMutate],
   );
 
   const commitRename = useCallback(
@@ -230,5 +257,5 @@ export function useFileOrganizeVerbs(
     </>
   );
 
-  return { verbs: { onRename, onMove, onDelete, commitMove }, modals };
+  return { verbs: { onRename, onMove, onDelete, onDuplicate, commitMove }, modals };
 }

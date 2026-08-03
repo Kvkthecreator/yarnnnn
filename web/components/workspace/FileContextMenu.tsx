@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Info, ExternalLink, Pencil, FolderInput, Trash2, Share2, MoreVertical } from 'lucide-react';
+import { Info, ExternalLink, Pencil, FolderInput, Trash2, Share2, MoreVertical, CopyPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 
@@ -45,6 +45,9 @@ export interface FileVerbs {
   onDelete?: (t: { path: string; name: string }) => void;
   /** Share a link to this artifact (ADR-437 D4 — the cockpit share origin). */
   onShare?: (t: { path: string; name: string }) => void;
+  /** Duplicate as an attributed derivation (ADR-514 D1) — the kernel resolves
+   *  the copy's name and writes the derived_from edge. */
+  onDuplicate?: (t: { path: string; name: string }) => void;
 }
 
 /** A caller-supplied menu entry (ADR-455) — the additive extension point so a
@@ -75,12 +78,15 @@ export interface FileContextMenuProps {
   onDelete?: (t: FileMenuTarget) => void;
   /** Share a link to the target (ADR-437 D4). */
   onShare?: (t: FileMenuTarget) => void;
+  /** Duplicate the target as an attributed derivation (ADR-514 D1, files only). */
+  onDuplicate?: (t: FileMenuTarget) => void;
   /** Surface-specific verbs (ADR-455) — rendered above the organize group. */
   extraItems?: FileMenuExtraItem[];
 }
 
 export function FileContextMenu({
-  target, x, y, onClose, onOpen, onProperties, onRename, onMove, onDelete, onShare, extraItems,
+  target, x, y, onClose, onOpen, onProperties, onRename, onMove, onDelete, onShare,
+  onDuplicate, extraItems,
 }: FileContextMenuProps) {
   useEffect(() => {
     const close = () => onClose();
@@ -131,7 +137,12 @@ export function FileContextMenu({
           {it.label}
         </MenuItem>
       ))}
-      {isFile && (onRename || onMove || onDelete) && <div className="my-1 h-px bg-border/60" />}
+      {isFile && (onRename || onMove || onDelete || onDuplicate) && <div className="my-1 h-px bg-border/60" />}
+      {isFile && onDuplicate && (
+        <MenuItem icon={<CopyPlus className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onDuplicate)}>
+          Duplicate
+        </MenuItem>
+      )}
       {isFile && onRename && (
         <MenuItem icon={<Pencil className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onRename)}>
           Rename…
@@ -196,7 +207,7 @@ export function useFileContextMenu(
   // tells a surface whether to show the kebab; the menu + verbs are identical.
   const coarse = useCoarsePointer();
 
-  const hasVerbs = !!(verbs && (verbs.onOpen || verbs.onProperties || verbs.onRename || verbs.onMove || verbs.onDelete || verbs.onShare));
+  const hasVerbs = !!(verbs && (verbs.onOpen || verbs.onProperties || verbs.onRename || verbs.onMove || verbs.onDelete || verbs.onShare || verbs.onDuplicate));
 
   const openMenu = useCallback((target: FileMenuTarget, e: React.MouseEvent) => {
     if (!hasVerbs) return;
@@ -246,6 +257,7 @@ export function useFileContextMenu(
       onMove={verbs.onMove ? () => verbs.onMove!(state.target) : undefined}
       onDelete={verbs.onDelete ? () => verbs.onDelete!(state.target) : undefined}
       onShare={verbs.onShare ? () => verbs.onShare!(state.target) : undefined}
+      onDuplicate={verbs.onDuplicate ? () => verbs.onDuplicate!(state.target) : undefined}
       extraItems={extraItemsFor?.(state.target)}
     />
   ) : null;

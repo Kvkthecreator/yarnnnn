@@ -6,6 +6,30 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.03.3] - DuplicateFile (ADR-514 D1): duplicate is a derivation
+
+### Changed
+- `services/primitives/workspace.py`: new **`DuplicateFile`** tool + handler. The
+  description teaches the two properties that distinguish it from a clone: the
+  copy CITES its source (`derived_from`, so `trace` walks back) and the free
+  `-copy` name is resolved server-side, not probed by the caller. States its
+  limits in-schema: files only (no folders), any extension, binaries by blob
+  reference.
+- `services/primitives/registry.py`: registered in HANDLERS + CHAT_PRIMITIVES.
+- `services/primitives/permission.py`: added to `_PATH_ADDRESSED_QUEUEABLE` so
+  the ADR-320 topology gate resolves its path — a duplicate into a locked root
+  DENYs exactly like a write.
+- Expected behavior: an LLM caller asked to "make a copy of X" now has a verb
+  for it, and the copy is attributed to a parent instead of appearing as an
+  origin-less file. Previously there was NO kernel duplicate — the only
+  implementations were two browser-side copies in Studio (`.html`-only, capped
+  at 5, TOCTOU-racy, recording no origin); both are deleted.
+- Gates: `python3 test_adr514_duplicate_verb.py` (21 checks, falsified against a
+  removed `derived_from`); `test_adr337_file_verbs.py` 36/36 (its exact-set
+  assertion on the path-addressed verbs widened four → five, deliberately).
+
+---
+
 ## [2026.08.03.2] - The save verb (ADR-512 §8a): the write half of exact-version
 
 ### Changed

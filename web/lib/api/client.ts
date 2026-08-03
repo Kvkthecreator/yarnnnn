@@ -1021,6 +1021,15 @@ export const api = {
         { method: "POST", body: JSON.stringify({ path, new_path: newPath }) }
       ),
 
+    // ADR-514 D1: duplicate a file as an attributed derivation. The caller
+    // names only the source — the kernel resolves the free `-copy` sibling and
+    // writes derived_from, so the copy traces back to its original.
+    duplicate: (path: string) =>
+      request<{ success: boolean; path: string; new_path: string }>(
+        "/api/documents/duplicate",
+        { method: "POST", body: JSON.stringify({ path }) }
+      ),
+
     // ADR-424 D2: create a top-level PEER folder (a peer of Documents/Downloads).
     // Folders are implicit, so this seeds the folder's first file (README.md).
     createFolder: (path: string) =>
