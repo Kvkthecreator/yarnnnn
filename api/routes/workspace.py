@@ -1461,8 +1461,10 @@ class MemberLifecycleResponse(BaseModel):
 def _resolve_caller_workspace(auth: UserClient) -> str:
     workspace_id = auth.workspace_id
     if not workspace_id:
-        from services.supabase import resolve_owner_workspace_id
-        workspace_id = resolve_owner_workspace_id(auth.user_id)
+        # ADR-465 D2: member-aware fallback — a member-only admin (owns no
+        # workspace) resolves to their newest active grant instead of 404ing.
+        from services.supabase import resolve_workspace_for_principal
+        workspace_id = resolve_workspace_for_principal(auth.user_id)
     if not workspace_id:
         raise HTTPException(status_code=404, detail="no workspace for this caller")
     return workspace_id
@@ -2660,6 +2662,20 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
         resolve_judgment_home,
         compute_capability_gaps,
     )
+
+    # ─── Step 0: the cold-user door (ADR-465 D2 — lazy owner-genesis) ────
+    # The migration-106 auto-mint trigger is retired (migration 233); the
+    # workspaces row now mints HERE, and only for a principal who resolves NO
+    # workspace at all (no owner row, no grants — the cold sign-up). A
+    # share-first arrival holds a member grant, so auth.workspace_id is set
+    # and this door never fires: join-only genesis is real (no phantom
+    # owner-workspace). The contextvar is re-stamped so every downstream
+    # substrate read in this request scopes to the fresh workspace.
+    if not auth.workspace_id:
+        from services.supabase import ensure_owner_workspace
+        from services.workspace_context import set_request_workspace
+        auth.workspace_id = ensure_owner_workspace(auth.user_id)
+        set_request_workspace(auth.workspace_id)
 
     um = UserMemory(auth.client, auth.user_id)
 

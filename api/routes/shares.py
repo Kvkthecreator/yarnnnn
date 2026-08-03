@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
 
 from services.supabase import UserClient, principal_reaches_workspace, resolve_owner_workspace_id
@@ -52,12 +52,28 @@ class ShareListResponse(BaseModel):
     shares: list[ShareSummary]
 
 
+class WalkEntry(BaseModel):
+    """One step of the public attribution walk (ADR-513 D2) — metadata only:
+    who, when, what-message. Never revision content, never diffs."""
+    authored_by: Optional[str] = None
+    when: Optional[str] = None
+    change: Optional[str] = None
+
+
 class SharePreviewResponse(BaseModel):
     workspace_name: Optional[str] = None
     artifact_path: Optional[str] = None
     label: Optional[str] = None
     role: str
     status: str
+    # ADR-513: the public projection — the shared artifact + its walk. The
+    # response model IS the boundary (D2): additions here are additions to
+    # what an anonymous reader can see; keep deliberate.
+    artifact_name: Optional[str] = None
+    artifact_kind: Optional[str] = None      # "html" | "text"
+    artifact_content: Optional[str] = None   # current content only, capped
+    truncated: bool = False
+    walk: list[WalkEntry] = []
 
 
 class ShareAcceptResponse(BaseModel):
@@ -148,25 +164,97 @@ async def revoke_workspace_share(share_id: str, auth: UserClient) -> dict:
 
 # ── The one accept surface: preview / accept ──────────────────────────────────
 
-@router.get("/s/{token}", response_model=SharePreviewResponse)
-async def preview_share(token: str, auth: UserClient) -> SharePreviewResponse:
-    """Accept-page preview: workspace name + the shared artifact + state.
+#: ADR-513: the public content cap — generous for prose; a capability link is a
+#: view, not an export lane (the git export is the egress door, ADR-510).
+PUBLIC_CONTENT_CAP = 400_000
+#: The walk is a demonstration, not an archive — the full chain is members-only.
+PUBLIC_WALK_CAP = 12
 
-    Auth-gated (a principal must be signed in to see + accept), but any
-    authenticated principal may preview — the link is not email-locked.
+
+@router.get("/s/{token}", response_model=SharePreviewResponse)
+async def preview_share(token: str, response: Response) -> SharePreviewResponse:
+    """The PUBLIC artifact view (ADR-513) — no auth: the token is the capability.
+
+    A stranger clicking a share link sees the artifact + its attribution walk
+    (who · when · what-message) before any sign-up ask — the moat demonstrated
+    on contact (ADR-437 D4, made literal). Accepting (becoming a principal)
+    stays auth-gated on the POST below. Lifecycle is enforced here too (D4):
+    a revoked or expired link goes dark — this closes the pre-existing hole
+    where inactive shares still previewed.
+
+    The anonymous reader is NOT a principal: service-client reads scoped by
+    the share's own workspace, projected through the response model (D2 — the
+    narrow boundary: no shared_by, no workspace_id, no revision content/diffs,
+    no second file).
     """
+    from datetime import datetime, timezone
+
+    from services.supabase import get_service_client
     from services.workspace_shares import get_share_by_token
+
+    # Capability links must be neither cached by intermediaries nor indexed;
+    # revocation must be the end of them (ADR-513 D4).
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Robots-Tag"] = "noindex, nofollow"
 
     share = get_share_by_token(token)
     if share is None:
         raise HTTPException(status_code=404, detail="Share link not found")
-    return SharePreviewResponse(
+    if share["status"] != "active":
+        raise HTTPException(status_code=410, detail=f"This share link is {share['status']}")
+    expires = share.get("expires_at")
+    if expires and datetime.fromisoformat(str(expires).replace("Z", "+00:00")) < datetime.now(timezone.utc):
+        get_service_client().table("workspace_shares").update({"status": "expired"}).eq(
+            "id", share["id"]
+        ).execute()
+        raise HTTPException(status_code=410, detail="This share link has expired")
+
+    out = SharePreviewResponse(
         workspace_name=share.get("workspace_name"),
         artifact_path=share.get("artifact_path"),
         label=share.get("label"),
         role=share["role"],
         status=share["status"],
     )
+
+    artifact_rel = share.get("artifact_path")
+    if artifact_rel:
+        svc = get_service_client()
+        abs_path = artifact_rel if artifact_rel.startswith("/workspace/") \
+            else "/workspace/" + artifact_rel.lstrip("/")
+        rows = (
+            svc.table("workspace_files")
+            .select("path, content")
+            .eq("workspace_id", share["workspace_id"])
+            .eq("path", abs_path)
+            .limit(1)
+            .execute()
+        ).data or []
+        if rows:
+            content = rows[0].get("content") or ""
+            out.truncated = len(content) > PUBLIC_CONTENT_CAP
+            out.artifact_content = content[:PUBLIC_CONTENT_CAP]
+            leaf = abs_path.rsplit("/", 1)[-1]
+            out.artifact_name = share.get("label") or leaf
+            out.artifact_kind = "html" if leaf.lower().endswith((".html", ".htm")) else "text"
+            walk_rows = (
+                svc.table("workspace_file_versions")
+                .select("authored_by, created_at, message")
+                .eq("workspace_id", share["workspace_id"])
+                .eq("path", abs_path)
+                .order("created_at", desc=True)
+                .limit(PUBLIC_WALK_CAP)
+                .execute()
+            ).data or []
+            out.walk = [
+                WalkEntry(
+                    authored_by=r.get("authored_by"),
+                    when=r.get("created_at"),
+                    change=r.get("message"),
+                )
+                for r in walk_rows
+            ]
+    return out
 
 
 @router.post("/s/{token}/accept", response_model=ShareAcceptResponse)

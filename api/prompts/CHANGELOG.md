@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.03.1] - The arrival arc (ADR-513 + ADR-465 B/C/F): `share` verb joins the connector
+
+### Changed
+- `mcp_server/server.py`: new **`share`** tool (ADR-465 D5/Phase F) — mints a share
+  link via `create_share` (one transport, three origins) and RELAYS it (no outbound
+  send, ADR-404). `access: member|viewer` picks the grant shape; instructions teach
+  it as the fifth verb. Narrative weight `material` (a membership act).
+- Context the host should know: the link is now PUBLICLY readable (ADR-513 — the
+  artifact + its attribution walk render for anyone with the link; joining stays
+  auth-gated), so "share this with X" genuinely works from inside a foreign LLM.
+- Expected behavior: hosts can complete the share loop end-to-end (recall/open →
+  share → relay link). Gate: `python3 test_adr465_share_as_view.py` (15 checks).
+
+---
+
 ## [2026.08.02.1] - The file is the unit of interop (ADR-512): `open` verb + connector re-frame
 
 ### Changed

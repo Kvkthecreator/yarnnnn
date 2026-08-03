@@ -1,12 +1,17 @@
 # ADR-465 — Share: the membership primitive, and the two-doors unification
 
-> **Status**: **Partially ratified** (2026-08-02, via [ADR-512](ADR-512-the-file-is-the-unit-of-interop.md) §7
-> and the file-as-the-what operator discourse): **D1 (share is the membership primitive), D3
-> (`share-as-view` — build the second shape), and D5 (the interop `share` verb, as direction)
-> are operator-ratified. D2 (join-only genesis) and D4 (the switcher) remain OPEN** — the
-> genesis-invariant amendment still needs its own explicit yes (§6 q1). **Phase D
-> (`share-as-view`) is IMPLEMENTED 2026-08-02** in the ADR-512 pass (migration 231 +
-> birth-narrowed viewer grant + honest accept copy); Phase F (the MCP verb) waits on B/C.
+> **Status**: **Ratified except D4** (D1/D3/D5 on 2026-08-02 via [ADR-512](ADR-512-the-file-is-the-unit-of-interop.md) §7;
+> **D2 join-only genesis ratified 2026-08-03** by the operator's continued-delegation ruling
+> on the Tier-1 arrival arc — the §6 q1 explicit yes). **D4 (the switcher) remains OPEN.**
+> **Implemented**: Phase D (`share-as-view`) 2026-08-02 (migration 231 + birth-narrowed
+> viewer grant + honest accept copy) · **Phases B/C (join-only genesis) 2026-08-03**
+> (migration 233 retires the trigger-106 auto-mint; `ensure_owner_workspace` lazy genesis at
+> the cold-user door; member-aware tolerance at the three audited 1:1 sites — the full-caller
+> audit found the rest already None-safe via ADR-373/501/503; gate
+> `api/test_adr465_join_only_genesis.py` 10/10) · **Phase F (the MCP `share` verb)
+> 2026-08-03** (mints via `create_share`, relays the link, member|viewer access — landing
+> beside [ADR-513](ADR-513-the-public-artifact-view.md)'s public view, which makes the link
+> readable before sign-in). Phase E (guest legibility/switcher) still awaits D4.
 > _Originally:_ Proposed (2026-07-18, doc-first per CLAUDE.md — drafted for operator
 > ratification BEFORE code). Derived from the 2026-07-18 first-principles reassessment of Share:
 > the operator's thesis that Share is not an artifact convenience but a **first-class primitive**,

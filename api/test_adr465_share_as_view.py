@@ -91,6 +91,21 @@ def main():
         'role: "member" | "viewer" = "member"' in client_src
         and "ttl_days: ttlDays, role" in client_src))
 
+    # 6. Phase F — the MCP share verb (ADR-465 D5, built 2026-08-03).
+    # Source-text checks (the mcp package ships only on the Render service).
+    with open("mcp_server/server.py", encoding="utf-8") as f:
+        server_src = f.read()
+    results.append(_check(
+        "6a MCP share verb registered, reusing create_share (one transport, three origins)",
+        "async def share(" in server_src and "create_share(" in server_src))
+    results.append(_check(
+        "6b share validates access enum and resolves the member-aware workspace",
+        '("member", "viewer")' in server_src
+        and "resolve_workspace_for_principal(auth.user_id)" in server_src))
+    results.append(_check(
+        "6c share RELAYS (returns the link; no outbound send — ADR-404 honesty)",
+        "share_link" in server_src and "smtp" not in server_src.lower()))
+
     ok = all(results)
     print(f"\n{'ALL PASS' if ok else 'FAILURES'} — {sum(results)}/{len(results)}")
     return 0 if ok else 1

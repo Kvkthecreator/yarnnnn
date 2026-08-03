@@ -329,7 +329,11 @@ mcp = HostGatedFastMCP(
         "               matches, none dominant) ASK which they mean.\n"
         "  • trace    — show how a file or recorded fact changed over time (who\n"
         "               changed it, when, what the change was) — the attributed\n"
-        "               provenance a plain storage connector cannot show.\n\n"
+        "               provenance a plain storage connector cannot show.\n"
+        "  • share    — mint a link for a file (or the workspace) when the user\n"
+        "               wants someone else in: 'member' grants full access,\n"
+        "               'viewer' is read-only. You relay the link; whoever opens\n"
+        "               it sees the work and who made it, no account needed.\n\n"
         "Use these proactively — the workspace is supposed to be ambient. If the "
         "user pastes a yarnnn reference or names a specific document, open it "
         "before reasoning about it; recall before reasoning about something they "
@@ -782,6 +786,121 @@ async def open_file(
     return _present("open", result, client_name=client_name)
 
 
+@mcp.tool(
+    # ADR-465 D5 (ratified via ADR-512 §7; built with ADR-513) — the membership
+    # verb beside the content verbs: the commons ABI's access half. Mints a
+    # share row and returns the link for the host to RELAY (yarnnn sends
+    # nothing outbound — ADR-404 honesty line: models come IN).
+    annotations=ToolAnnotations(
+        title="Share",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+)
+async def share(
+    ctx: Context,
+    reference: Optional[str] = None,
+    access: str = "member",
+) -> dict:
+    """Create a share link for the user's yarnnn workspace (or one exact file in it).
+
+    Call this when the user asks to share their work — "share this with my
+    team", "send this doc to Alex", "make a link for this". Pass the file's
+    reference (a yarnnn://workspace/… handle or workspace-relative path) to
+    share that artifact; omit it to share the workspace itself.
+
+    Returns a link. YOU relay it — in this conversation, for the user to send.
+    Whoever opens the link SEES the artifact and who changed it (no account
+    needed); joining the workspace requires signing in.
+
+    `access` picks what accepting grants (the user's choice, not yours — ask if
+    unclear): "member" = full access to work in the workspace (the default);
+    "viewer" = read-only (they see the document and its history, and can
+    change nothing).
+
+    Args:
+        reference: Optional file to share — yarnnn://workspace/{path},
+            /workspace/{path}, or a bare workspace-relative path.
+        access: "member" (full access, default) | "viewer" (read-only).
+    """
+    auth = resolve_request_client()
+    client_name = mcp_composition.derive_client_name_from_token(auth)
+    if client_name == "unknown":
+        client_name = mcp_composition.derive_client_name(
+            getattr(ctx.request_context, "request", None)
+        )
+
+    if access not in ("member", "viewer"):
+        return _present("share", {
+            "success": False, "error": "invalid_access",
+            "message": "access must be 'member' (full) or 'viewer' (read-only)",
+        }, client_name=client_name)
+
+    artifact_rel = None
+    if reference:
+        artifact_rel = mcp_composition.parse_file_reference(reference)
+        if artifact_rel is None:
+            return _present("share", {
+                "success": False, "error": "invalid_reference",
+                "message": (
+                    "Not a yarnnn file reference. Pass a workspace-relative path "
+                    "or a yarnnn://workspace/… handle, or omit it to share the workspace."
+                ),
+            }, client_name=client_name)
+
+    try:
+        from services.deep_links import app_url
+        from services.supabase import resolve_workspace_for_principal
+        from services.workspace_shares import ShareError, create_share
+
+        workspace_id = resolve_workspace_for_principal(auth.user_id)
+        if not workspace_id:
+            return _present("share", {
+                "success": False, "error": "no_workspace",
+                "message": "No workspace resolved for this user.",
+            }, client_name=client_name)
+        row = create_share(
+            workspace_id=workspace_id,
+            shared_by=auth.user_id,
+            artifact_path=artifact_rel,
+            role=access,
+        )
+        link = f"{app_url()}/s/{row['token']}"
+    except ShareError as exc:
+        return _present("share", {
+            "success": False, "error": exc.code, "message": str(exc),
+        }, client_name=client_name)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[MCP] share mint failed: %s", exc)
+        return _present("share", {
+            "success": False, "error": "share_failed", "message": str(exc),
+        }, client_name=client_name)
+
+    # A membership act is material to the operator (ADR-368 D4 visibility).
+    _emit_mcp_narrative(
+        auth, tool="share", weight="material",
+        summary=f"{client_name} minted a {access} share link"
+        + (f" for {artifact_rel}" if artifact_rel else " for the workspace"),
+        body=f"artifact: {artifact_rel or '(workspace)'}\naccess: {access}\nshare_id: {row.get('id')}",
+        client_name=client_name,
+        extra_metadata={"artifact": artifact_rel, "access": access, "share_id": row.get("id")},
+    )
+    return _present("share", {
+        "success": True,
+        "share_link": link,
+        "access": access,
+        "artifact": artifact_rel,
+        "explanation": (
+            f"A {('read-only' if access == 'viewer' else 'full-access')} share link. "
+            "Relay it to the user — anyone who opens it sees the "
+            + ("document and who changed it" if artifact_rel else "workspace invitation")
+            + "; joining requires sign-in. The user can revoke it from Files."
+        ),
+    }, client_name=client_name)
+
+
 # =============================================================================
 # ADR-372 submission-readiness — explicit output schemas
 # =============================================================================
@@ -805,6 +924,15 @@ _REVISION_SCHEMA = {
 }
 
 _OUTPUT_SCHEMAS = {
+    "share": {
+        "type": "object",
+        "properties": {
+            "share_link": {"type": "string", "description": "the /s/{token} capability link — relay it to the user; reading needs no account, joining does"},
+            "access": {"type": "string", "enum": ["member", "viewer"], "description": "what accepting grants: member = full access; viewer = read-only"},
+            "artifact": {"type": ["string", "null"], "description": "the shared file (workspace-relative), or null for a workspace share"},
+            "explanation": {"type": "string"},
+        },
+    },
     "open": {
         "type": "object",
         "properties": {

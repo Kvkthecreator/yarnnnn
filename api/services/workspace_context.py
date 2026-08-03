@@ -62,8 +62,11 @@ def effective_workspace_id(
         return ctx
     if user_id:
         try:
-            from services.supabase import resolve_owner_workspace_id
-            return resolve_owner_workspace_id(user_id)
+            # ADR-465 D2 (join-only genesis): a member-only principal owns no
+            # workspace, so the fallback must honor grants — the
+            # member-aware resolver, not the owner-only one.
+            from services.supabase import resolve_workspace_for_principal
+            return resolve_workspace_for_principal(user_id)
         except Exception:  # pragma: no cover — resolution is best-effort
             return None
     return None

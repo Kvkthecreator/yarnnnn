@@ -139,20 +139,57 @@ class AuthenticatedClient:
 
 
 def resolve_owner_workspace_id(user_id: str) -> Optional[str]:
-    """Resolve the workspace id a human user owns (ADR-373 D1).
+    """Resolve the workspace id a human user owns (ADR-373 D1, amended ADR-465 D2).
 
-    The N=1 resolver: each user owns exactly one workspace. The binding unit is
-    the EXISTING ``workspaces`` table (the billing/account root from
-    001_initial_schema.sql), keyed by ``owner_id`` — confirmed 1:1 with users
-    and already covering every substrate owner (migration 189 pre-flight). Uses
-    the service client (the lookup must not depend on the caller's own RLS,
-    which is mid-transition). Returns None if no workspace row exists yet —
-    callers then fall back to ``user_id`` scoping, byte-identical in N=1.
+    The zero-or-one resolver: a user owns AT MOST one workspace (ADR-465 D2
+    join-only genesis, ratified 2026-08-03 — was "exactly one" under the
+    migration-106 auto-mint trigger, retired by migration 233). A member-only
+    principal (arrived through a share/invite, never took an owner-act) owns
+    none, and every caller either tolerates None or routes through
+    ``resolve_workspace_for_principal`` (which falls back to the newest active
+    grant). Owner-genesis is lazy and explicit: ``ensure_owner_workspace``,
+    called from the cold-user door only — never from an accept path.
 
     Cached per-process: the owner→workspace mapping is stable, so this is safe
     to memoize and keeps the hot auth path off a per-request DB round-trip.
+    (``ensure_owner_workspace`` clears the cache on mint.)
     """
     return _resolve_owner_workspace_id_cached(user_id)
+
+
+def ensure_owner_workspace(user_id: str) -> str:
+    """Mint the caller's owner workspace if none exists (ADR-465 D2 — lazy genesis).
+
+    The trigger-106 auto-mint moved up into the app, where it can be
+    CONDITIONAL: this is called only from the cold-user door (the first
+    ``/workspace/state`` fetch of a principal who resolves NO workspace at all
+    — no owner row, no grants). A share-first arrival holds a member grant, so
+    the door never fires for them: join-only is real. Idempotent (re-checks
+    under the service client before inserting; the row shape mirrors the
+    retired trigger — name + owner_id; balance rides the column DEFAULT,
+    migration 144).
+    """
+    existing = resolve_owner_workspace_id(user_id)
+    if existing:
+        return existing
+    client = get_service_client()
+    # Re-check uncached (the lru may hold a stale None from earlier in-process).
+    fresh = (
+        client.table("workspaces").select("id").eq("owner_id", user_id).limit(1).execute()
+    )
+    if fresh.data:
+        _resolve_owner_workspace_id_cached.cache_clear()
+        return fresh.data[0]["id"]
+    inserted = (
+        client.table("workspaces")
+        .insert({"name": "My Workspace", "owner_id": user_id})
+        .execute()
+    )
+    if not inserted.data:
+        raise RuntimeError(f"owner-workspace mint failed for {user_id}")
+    _resolve_owner_workspace_id_cached.cache_clear()
+    logger.info("[ADR-465 D2] lazily minted owner workspace for %s", user_id)
+    return inserted.data[0]["id"]
 
 
 @lru_cache(maxsize=4096)

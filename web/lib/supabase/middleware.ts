@@ -47,7 +47,11 @@ const PROTECTED_PREFIXES = [
   "/system-agent", // ADR-454 D4 — redirect stub → /workspace-settings?pane=autonomy (the ADR-426 door reversed)
   "/integrations",
   "/invite", // ADR-404 step 5 — invite-accept page (login-bounce preserves ?next)
-  "/s", // ADR-437 D4 — the shared-artifact accept page (login-bounce preserves ?next)
+  // "/s" REMOVED (ADR-513): the share link is a PUBLIC capability — anyone
+  // with it may READ (the artifact + its attribution walk); becoming a
+  // principal (accept) stays auth-gated at the API + in-page (the Accept
+  // action bounces to login with ?next). NB /settings /sources /setup
+  // /schedule /system* are separately listed — removing "/s" uncovers nothing.
   "/docs",
   "/chat", // ADR-412 D3 — the Chat surface (lanes workbench), a real authenticated surface
   "/studio", // ADR-440 — the Studio authoring surface (bound lane + live canvas)

@@ -76,12 +76,15 @@ def _ensure_foreign_llm_grant(user_id: str, client_id: str, granted_by: str) -> 
     out.
     """
     try:
-        from services.supabase import resolve_owner_workspace_id
+        # ADR-465 D2: member-aware — a member-only principal connecting their
+        # AI provisions the foreign-llm grant into the commons they act in
+        # (their newest active grant), per the ADR-431 connecting-member model.
+        from services.supabase import resolve_workspace_for_principal
         from services.principal_grants import (
             ensure_principal_grant, resolve_provider_id_for_client,
         )
 
-        workspace_id = resolve_owner_workspace_id(user_id)
+        workspace_id = resolve_workspace_for_principal(user_id)
         if workspace_id:
             # ADR-373 D2.a: the member is the PROVIDER (host-id), not the churning
             # OAuth client_id. Resolve the stable host-id so re-registrations map

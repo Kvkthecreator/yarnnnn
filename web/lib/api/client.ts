@@ -2158,10 +2158,16 @@ export const api = {
         { method: "POST" },
       ),
 
+    // ADR-513: public (no auth) — the token is the read capability. Returns
+    // the artifact's current content + the attribution walk for the landing
+    // page; 410 when revoked/expired.
     previewShare: (token: string) =>
       request<{
         workspace_name: string | null; artifact_path: string | null;
         label: string | null; role: string; status: string;
+        artifact_name?: string | null; artifact_kind?: string | null;
+        artifact_content?: string | null; truncated?: boolean;
+        walk?: Array<{ authored_by: string | null; when: string | null; change: string | null }>;
       }>(`/api/s/${encodeURIComponent(token)}`),
 
     acceptShare: (token: string) =>
