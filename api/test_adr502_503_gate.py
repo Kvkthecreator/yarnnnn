@@ -148,11 +148,71 @@ def test_polling_follows_the_people_not_the_absence_of_an_agent():
     chat = (WEB / "components/chat-surface/ChatSurface.tsx").read_text()
     assert "hasOtherHumans={laneOtherHumans(activeLane).length > 0}" in chat
     # laneOtherHumans must NOT bail out when an Agent is in the cast — that
-    # early return is what disabled group-chat freshness.
-    helper = chat[chat.index("const laneOtherHumans") : chat.index("const laneHasAgent")]
+    # early return is what disabled group-chat freshness. Anchored on the NEXT
+    # declaration rather than a named sibling: this used to slice to
+    # `const laneHasAgent`, which was deleted when naming went species-blind,
+    # so the gate crashed on a change it had no opinion about.
+    start = chat.index("const laneOtherHumans")
+    helper = chat[start : chat.index("const lane", start + 10)]
     assert "member_kind === 'agent'" not in helper, (
         "who the PEOPLE are cannot depend on whether an Agent is also present"
     )
+
+
+def test_the_room_is_named_species_blind():
+    """A group is a group whatever its members are (ADR-495 D1 + ADR-405 §5).
+
+    Operator-observed 2026-08-03: a cast of {you, Lisa, Thinker} rendered as
+    "Lisa · Critic · GPT-5" with a "3 people" chip — naming ran the humans
+    first and fell through to "the lane's Agent" when there were none, so one
+    member became the room's whole identity and the other vanished. A group of
+    three read as a 1:1 with a spec sheet.
+    """
+    chat = (WEB / "components/chat-surface/ChatSurface.tsx").read_text()
+    # The title comes from EVERY participant but the viewer, not from humans.
+    assert "const laneOthers" in chat
+    start = chat.index("const laneLabel")
+    body = chat[start : chat.index("const lane", start + 10)]
+    assert "laneOthers(lane)" in body, "the title is derived from the whole cast"
+    assert "laneOtherHumans" not in body, (
+        "the title must not ask which participants are human"
+    )
+    # ONE count, read by both the chip and the sub-label, so they cannot
+    # disagree (the shipped pair did: whole-cast vs humans+1).
+    assert "const laneMemberCount" in chat
+    assert "participantCount={laneMemberCount(activeLane)}" in chat
+    # And the chip says "members", never "people", for a mixed cast.
+    header = (WEB / "components/chat-surface/ConversationHeader.tsx").read_text()
+    assert "{participantCount} members" in header
+    assert "{participantCount} people" not in header
+
+
+def test_add_is_a_first_class_header_act():
+    """Growing the cast is the primary act on a conversation from outside the
+    transcript. It was reachable only inside Details, which read as 'there is
+    no invite here' (operator-observed 2026-08-03)."""
+    header = (WEB / "components/chat-surface/ConversationHeader.tsx").read_text()
+    assert "onAddParticipant" in header, "the header carries a dedicated add act"
+    assert "UserPlus" in header
+    chat = (WEB / "components/chat-surface/ChatSurface.tsx").read_text()
+    # It routes to its OWN door, landing with the invite already open.
+    assert "onAddParticipant={() => setParam({ detail: 'add' })}" in chat
+    assert "startAdding={detailParam === 'add'}" in chat
+    detail = (WEB / "components/chat-surface/ConversationDetail.tsx").read_text()
+    assert "useState(startAdding)" in detail
+
+
+def test_the_invite_names_its_next_step():
+    """Almost every live workspace has ONE human, so the People section was
+    empty with no hint that adding a colleague is possible — and the workspace
+    invite lives on another surface with nothing linking to it."""
+    detail = (WEB / "components/chat-surface/ConversationDetail.tsx").read_text()
+    assert "Invite someone to the workspace" in detail
+    # The pane slug is VERIFIED against workspace-settings' own switch, not
+    # guessed (`access` was the first guess and does not exist).
+    assert "params={{ pane: 'members' }}" in detail
+    ws = (WEB / "app/(authenticated)/workspace-settings/page.tsx").read_text()
+    assert 'case "members":' in ws, "the linked pane exists"
 
 
 # ---------------------------------------------------------------------------

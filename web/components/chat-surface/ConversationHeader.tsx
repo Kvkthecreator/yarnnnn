@@ -3,13 +3,15 @@
 /**
  * ConversationHeader — one row that says WHO you are talking to (ADR-495 D1).
  *
- * THE GRAMMAR (conventional messaging, per the operator's ruling 2026-07-30):
+ * THE GRAMMAR (conventional messaging, per the operator's rulings 2026-07-30 +
+ * 2026-08-03):
  *
- *     [stacked faces] Title              · N people        [⋯]
+ *     [stacked faces] Title       · N members        [+] [⋯]
  *
  * That is the whole header. It is deliberately the shape Messenger / iMessage /
  * Slack converged on, because the job is the same one: name the room, say how
- * many are in it, and put everything else one tap away.
+ * many are in it, offer the one act that grows it, and put everything else one
+ * tap away.
  *
  * WHAT IT REPLACES. The shipped header did four jobs in one flex row: identity
  * (face + name + sub-label), the lane name behind a divider, the FULL cast as a
@@ -19,19 +21,29 @@
  * conventional app puts it, and which is the only shape that survives N
  * participants.
  *
- * WHO LEADS (unchanged rule, now applied to the mixed cast too): people lead
- * whenever there are people — a conversation with colleagues is named by them
- * even when an Agent is also in the room. Only a conversation with no other
- * humans is named by its Agent. The engine is never the headline; it rides in
- * the sub-label, where it stays visible without pretending to be the
- * counterpart (ADR-460 D4 / ADR-463 §3).
+ * WHO LEADS — SPECIES-BLIND (corrected 2026-08-03, ADR-495 D1 + ADR-405 §5).
+ * The room is named by EVERY participant but the viewer, in cast order, without
+ * asking what kind each one is. A group is a group whether its members are
+ * people, Agents, or both.
+ *
+ * The rule this replaces named the room after "the other humans" and fell
+ * through to "the lane's Agent" when there were none — so a cast of {you, Lisa,
+ * Thinker} rendered as "Lisa · Critic · GPT-5": one member promoted to be the
+ * room's entire identity and the other silently dropped, a group of three
+ * reading as a 1:1 with a spec sheet. That fall-through was species law wearing
+ * a naming convention — humans made a group, Agents made a counterpart.
+ *
+ * The engine is never the headline. In a 1:1 with an Agent it rides in the
+ * sub-label (`Critic · GPT-5`), where it stays visible without pretending to be
+ * the counterpart (ADR-460 D4 / ADR-463 §3); in a group the sub-label says the
+ * size instead, because no single member's spec describes the room.
  *
  * The faces are a LINK when a single Agent is the counterpart (the
  * `/chat`→`/agents` door, §6.10c). In a group there is no single card to open,
  * so the faces open the drill-in instead — one gesture, one destination.
  */
 
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, UserPlus } from 'lucide-react';
 import { AgentFace } from '@/components/agents/AgentFace';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { cn } from '@/lib/utils';
@@ -44,20 +56,26 @@ export interface HeaderFace {
 }
 
 interface ConversationHeaderProps {
-  /** The room's name — people when there are people, else the Agent/engine. */
+  /** The room's name — EVERY participant but the viewer, species-blind. A
+   *  group is named by its cast; a 1:1 by its counterpart, whatever it is. */
   title: string;
-  /** The quiet second line: `N people · with Lisa`, `Critic · GPT-5`, … */
+  /** The quiet second line: `N members` for a group, `Critic · GPT-5` or
+   *  `Direct chat` for a 1:1. */
   subtitle?: string;
   /** Up to three faces, stacked. Empty renders no avatar cluster. */
   faces: HeaderFace[];
-  /** Total participants including the viewer — rendered as the count chip when
-   *  greater than two (a 1:1 needs no count; "2 people" is noise). */
+  /** Total participants including the viewer, humans AND Agents. Rendered as
+   *  the count chip above two (a 1:1 needs no count — the title names it). */
   participantCount: number;
   /** When exactly one Agent is the counterpart, its slug — the faces become a
    *  link to its card. Absent in groups. */
   agentSlug?: string | null;
   /** Open the participants/details drill-in. */
   onOpenDetails: () => void;
+  /** Open the add-participant flow — the dedicated header act. Separate from
+   *  `onOpenDetails` because ADDING is not the same job as INSPECTING, and
+   *  burying the invite inside the roster made it read as absent. */
+  onAddParticipant: () => void;
 }
 
 /** Stacked faces, newest behind — the conventional group avatar. */
@@ -93,6 +111,7 @@ export function ConversationHeader({
   participantCount,
   agentSlug,
   onOpenDetails,
+  onAddParticipant,
 }: ConversationHeaderProps) {
   const identity = (
     <>
@@ -132,8 +151,10 @@ export function ConversationHeader({
         </button>
       )}
 
-      {/* The count — the one fact the old header never showed. Suppressed at
-          two, where it would only restate what the title already says. */}
+      {/* The count. "members", never "people" — a cast is humans AND Agents,
+          and calling a room of {you, Lisa, Thinker} "3 people" is the species
+          assumption showing through the chrome (operator-observed 2026-08-03).
+          Suppressed at two, where the title already names the counterpart. */}
       {participantCount > 2 && (
         <button
           type="button"
@@ -141,11 +162,25 @@ export function ConversationHeader({
           className="shrink-0 px-1.5 py-px rounded-full bg-muted text-[10px] text-muted-foreground hover:text-foreground transition-colors"
           title="See who's in this conversation"
         >
-          {participantCount} people
+          {participantCount} members
         </button>
       )}
 
       <div className="ml-auto flex items-center gap-1 shrink-0">
+        {/* ADD — a FIRST-CLASS header act (operator ruling 2026-08-03).
+            Growing the cast is the primary thing you do to a conversation from
+            outside the transcript, and every conventional messaging app puts it
+            on the header for that reason. It was previously reachable only
+            inside Details, which read as "there is no invite here". */}
+        <button
+          type="button"
+          onClick={onAddParticipant}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          aria-label="Add someone to this conversation"
+          title="Add people or agents"
+        >
+          <UserPlus className="w-4 h-4" />
+        </button>
         <button
           type="button"
           onClick={onOpenDetails}

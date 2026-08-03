@@ -117,7 +117,12 @@ export function ChatSurface() {
   // The participants drill-in, deep-linkable like every other intra-surface
   // navigation (`chat.detail=participants`, ADR-358 D6) — the
   // ManageConnectionSubsurface convention, not a modal.
-  const showDetail = getParam('detail') === 'participants';
+  // Two doors into ONE pane: `participants` inspects the cast, `add` opens the
+  // same pane with the invite already open. Separate params because they are
+  // separate ACTS (the header offers both), one component because they are the
+  // same place — a second component would be two rosters to keep in step.
+  const detailParam = getParam('detail');
+  const showDetail = detailParam === 'participants' || detailParam === 'add';
   // ADR-514 D2.3 — files arriving by `reference` delivery ("Open With → Chat").
   // Space-separated (paths cannot contain spaces here) so one param carries a
   // multi-selection; memoized so the identity is stable and the composer's
@@ -206,51 +211,88 @@ export function ChatSurface() {
     },
     [people, userId],
   );
-  // Is an Agent in this conversation's cast? Separate from "are other humans
-  // here" — the two questions were conflated, and that conflation is what made
-  // group chat unreadable. `lane.agent` (the creation-time scalar) is the
-  // fallback for pre-cast lanes, matching the server's `responder` resolution.
-  const laneHasAgent = useCallback(
-    (lane: { agent?: string | null; participants?: Participant[] }) =>
-      (lane.participants ?? []).some((p) => p.member_kind === 'agent') || !!lane.agent,
-    [],
+  // `laneHasAgent` was DELETED here (2026-08-03). It existed so the sub-label
+  // could say "N people · with Lisa" — singling one member out as the room's
+  // real counterpart, which is the species assumption this pass removes. With
+  // naming species-blind, no caller needs to ask what kind a participant is.
+  // (`laneOtherHumans` survives above: the polling gate genuinely needs "is
+  // another HUMAN here", because only a human's turns arrive out-of-band.)
+  //
+  // EVERY participant but the viewer, in cast order, species-blind (ADR-495 D1
+  // + ADR-405 §5). This is the list a conventional messaging app names a room
+  // from: it does not ask what KIND each member is, only who is present.
+  //
+  // THE DEFECT THIS FIXES (operator-observed 2026-08-03): naming used to run
+  // `laneOtherHumans` first and fall through to "the lane's Agent" when there
+  // were no other humans. A cast of {you, Lisa, Thinker} therefore rendered as
+  // "Lisa · Critic · GPT-5" — one participant promoted to be the room's whole
+  // identity, and the other silently dropped. A group of three read as a 1:1
+  // with a spec sheet. That fall-through was species law: humans made a group,
+  // Agents made a counterpart.
+  const laneOthers = useCallback(
+    (lane: { agent?: string | null; model: string; participants?: Participant[] }) => {
+      const cast = lane.participants ?? [];
+      const out = cast
+        .filter((p) => !(p.member_kind === 'human' && p.principal_id === userId))
+        .map((p) =>
+          p.member_kind === 'agent'
+            ? data?.agents?.find((a) => a.slug === p.agent_slug)?.name ||
+              p.agent_slug ||
+              'agent'
+            : people.find((x) => x.principal_id === p.principal_id)?.label ||
+              `member-${(p.principal_id || '').slice(0, 8)}`,
+        );
+      if (out.length) return out;
+      // Pre-cast lanes (Studio/derive, pre-registry) have no participant rows:
+      // their Agent — or failing that their engine — IS the counterpart.
+      const a = laneAgent(lane);
+      return a?.name ? [a.name] : [modelLabel(lane.model)];
+    },
+    [data, people, userId, laneAgent, modelLabel],
   );
   const laneLabel = useCallback(
-    (lane: { agent?: string | null; model: string; participants?: Participant[] }) => {
-      // People lead whenever there are people: a conversation with colleagues
-      // is named by them even when an Agent is also in the cast (the group
-      // case). Only a conversation with NO other humans is named by its Agent.
-      const humans = laneOtherHumans(lane);
-      if (humans.length) return humans.join(', ');
-      return laneAgent(lane)?.name || modelLabel(lane.model);
-    },
-    [laneAgent, laneOtherHumans, modelLabel],
+    (lane: { agent?: string | null; model: string; participants?: Participant[] }) =>
+      // One rule at every cast size: the room is named by who is in it.
+      laneOthers(lane).join(', '),
+    [laneOthers],
   );
-  // The second line: `role · engine`. The operator's rule — a nickname must
-  // still say what it IS, at minimum the model and the role. Identity leads;
-  // the technical fact rides quietly behind it. A lane with no agent shows its
-  // engine alone, which is honest: that IS what it is.
+  // How many are in this conversation — EVERY participant, species-blind. The
+  // ONE count; the header chip and the sub-label both read it, so they can
+  // never disagree (the shipped pair did: the chip counted the whole cast
+  // while the sub-label counted humans+1).
+  const laneMemberCount = useCallback(
+    (lane: { agent?: string | null; model: string; participants?: Participant[] }) =>
+      lane.participants?.length ?? laneOthers(lane).length + 1,
+    [laneOthers],
+  );
+  // The second line: a group says its size; a 1:1 says what the counterpart is
+  // (`role · engine` for an Agent — ADR-463 §3, the technical fact stays
+  // visible but is never the headline).
   const laneSubLabel = useCallback(
     (lane: { agent?: string | null; model: string; participants?: Participant[] }) => {
-      const humans = laneOtherHumans(lane);
-      if (humans.length) {
-        // A conversation with people says how many; when an Agent is also in
-        // the cast it says so too, because that is the fact a member most
-        // needs (something in this room answers). Counting +1 for the viewer.
-        const n = humans.length + 1;
-        const a = laneHasAgent(lane) ? laneAgent(lane) : null;
-        if (laneHasAgent(lane)) {
-          return `${n} people · with ${a?.name || modelLabel(lane.model)}`;
-        }
-        return n > 2 ? `${n} people` : 'Direct chat';
-      }
+      // A GROUP (3+ in the cast, any mix) says its size and nothing else. It
+      // used to say "3 people · with Lisa", which was wrong twice: "people" for
+      // a cast that is mostly Agents, and one member singled out as the room's
+      // real counterpart. `laneMemberCount` is the single count both this and
+      // the header chip read.
+      const n = laneMemberCount(lane);
+      if (n > 2) return `${n} members`;
+      // A 1:1 names WHAT the counterpart is — for an Agent that is its role +
+      // engine (ADR-463 §3: the technical fact stays visible, just not as the
+      // headline); for a person there is nothing to spec, so it says the shape
+      // of the conversation instead. Both are "what is this thing I'm talking
+      // to", asked once, answered per counterpart.
+      const others = (lane.participants ?? []).filter(
+        (p) => !(p.member_kind === 'human' && p.principal_id === userId),
+      );
+      if (others.length === 1 && others[0].member_kind === 'human') return 'Direct chat';
       const a = laneAgent(lane);
       if (!a) return modelLabel(lane.model);
       return [a.kernel === false ? a.role : null, a.engine || modelLabel(lane.model)]
         .filter(Boolean)
         .join(' · ');
     },
-    [laneAgent, laneHasAgent, laneOtherHumans, modelLabel],
+    [laneAgent, laneMemberCount, modelLabel, userId],
   );
 
   // Flat recents — pinned first (Phase-A hygiene), then updated_at desc
@@ -798,6 +840,10 @@ export function ChatSurface() {
             people={people}
             viewerId={userId}
             initialParticipants={activeLane.participants}
+            // `detail=add` lands with the invite already open — the header's
+            // Add is one gesture to the act, not one gesture to a roster the
+            // member then has to find the invite inside of.
+            startAdding={detailParam === 'add'}
             onBack={() => setParam({ detail: null })}
             onCastChanged={(participants) =>
               updateLaneLocal(activeLane.id, { participants })
@@ -822,18 +868,19 @@ export function ChatSurface() {
               title={laneLabel(activeLane)}
               subtitle={laneSubLabel(activeLane)}
               faces={headerFaces}
-              participantCount={
-                activeLane.participants?.length ??
-                laneOtherHumans(activeLane).length + 1
-              }
-              // Only a solo-Agent conversation has one card to open; in a group
-              // the faces open the details instead.
+              participantCount={laneMemberCount(activeLane)}
+              // The faces link to a card only when a SINGLE Agent is the whole
+              // counterpart. In a group — any mix — there is no one card that
+              // describes the room, so they open the details instead.
               agentSlug={
-                activeAgent && !laneOtherHumans(activeLane).length
+                activeAgent && laneMemberCount(activeLane) <= 2
                   ? activeAgent.slug
                   : null
               }
               onOpenDetails={() => setParam({ detail: 'participants' })}
+              // The dedicated invite act: straight to the add flow, not to the
+              // roster with the invite hidden inside it.
+              onAddParticipant={() => setParam({ detail: 'add' })}
             />
             <LanePanel
               key={activeLane.id}

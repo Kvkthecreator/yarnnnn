@@ -31,8 +31,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, Loader2, Trash2, UserPlus, X } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Check, Loader2, Trash2, UserPlus, X } from 'lucide-react';
 import { AgentFace } from '@/components/agents/AgentFace';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { api, type Participant } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
@@ -54,6 +55,8 @@ interface ConversationDetailProps {
   people: DetailPersonChoice[];
   viewerId?: string | null;
   initialParticipants?: Participant[];
+  /** Open with the invite popover already showing (the header's Add door). */
+  startAdding?: boolean;
   /** Close the drill-in (clears the `chat.detail` param). */
   onBack: () => void;
   /** The cast changed — the parent refreshes its list row + header. */
@@ -67,13 +70,14 @@ export function ConversationDetail({
   people,
   viewerId,
   initialParticipants,
+  startAdding = false,
   onBack,
   onCastChanged,
 }: ConversationDetailProps) {
   const [participants, setParticipants] = useState<Participant[]>(
     initialParticipants ?? [],
   );
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(startAdding);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // ADR-495 D2 — the window the NEXT invite carries. Offered for both classes;
@@ -378,9 +382,43 @@ export function ConversationDetail({
                   </>
                 )}
 
-                {invitablePeople.length === 0 && invitableAgents.length === 0 && (
-                  <p className="px-2 py-2 text-[11px] text-muted-foreground">
-                    Everyone available is already here.
+                {/* THE DEAD END THIS CLOSES (operator-observed 2026-08-03).
+                    `people` lists EXISTING workspace members, and almost every
+                    live workspace has exactly one human — so the popover showed
+                    Agents only, with no People heading and no hint that adding
+                    a colleague is even possible. The member's next step is to
+                    invite them to the WORKSPACE, which lives on Settings →
+                    Access with nothing linking to it. Say the fact and open the
+                    door; a bare "everyone is already here" was true and
+                    useless. */}
+                {invitablePeople.length === 0 && (
+                  <div className="px-2 pt-2 pb-1">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground/70 pb-1">
+                      People
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {people.length === 0
+                        ? "You're the only person in this workspace."
+                        : 'Everyone in this workspace is already here.'}
+                    </p>
+                    <SurfaceLink
+                      to="workspace-settings"
+                      // Pane `members` — VERIFIED against the switch in
+                      // `workspace-settings/page.tsx`, not guessed. (`access`
+                      // was my first guess and does not exist; it would have
+                      // shipped a link to the default pane.)
+                      params={{ pane: 'members' }}
+                      className="mt-1 inline-flex items-center gap-1 text-[11px] text-foreground/80 hover:text-foreground underline underline-offset-2"
+                    >
+                      Invite someone to the workspace
+                      <ArrowUpRight className="w-3 h-3" />
+                    </SurfaceLink>
+                  </div>
+                )}
+
+                {invitableAgents.length === 0 && invitablePeople.length === 0 && (
+                  <p className="px-2 pt-2 pb-1 text-[11px] text-muted-foreground">
+                    Every agent is already in this conversation.
                   </p>
                 )}
               </div>
