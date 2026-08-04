@@ -402,6 +402,17 @@ export function StudioCanvas({
     commandEdit();
   }, [editingBlockId, commandEdit]);
 
+  // ADR-516 D5 — a PARENT-side selection (the navigator's structure tree, the
+  // Design tab) reaches the LIVE runtime too, not only the reload-restore
+  // above (ADR-466 P9's `yarnnn-select-block` fired solely on fresh load, so a
+  // tree click switched the pane scope while the canvas drew nothing — the
+  // selection was real and invisible, on blocks and containers alike).
+  useEffect(() => {
+    if (!selectedBlockId || editingRef.current) return;
+    const win = iframeRef.current?.contentWindow;
+    if (win) win.postMessage({ type: 'yarnnn-select-block', blockId: selectedBlockId }, '*');
+  }, [selectedBlockId]);
+
   // On zoom change (operator zoom OR auto-fit rescale), command it (no reload
   // needed — view-only).
   useEffect(() => {
