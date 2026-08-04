@@ -1,343 +1,213 @@
-# STUDIO — the living design doc
+# STUDIO — the interaction contract
 
-> **ADR-511 (2026-08-01) re-cut the interaction contract — the conventional substrate.**
-> Selection derives from STRUCTURE, not annotation: the click ladder is block → structural
-> **container** (a real div carrying `data-block-id`, no vocabulary) → page; Esc walks the
-> real ancestor chain; the inert-slot pass and the Design tab's slot scope are DELETED
-> (container scope replaces them — layout properties, the media picker, the id-addressed
-> verbs); `normalizeStructure` runs at the one write seam on EVERY mode/depth, so
-> unannotated/imported HTML becomes editable on first write; the navigator carries the
-> selected page's structure tree in operator words (`structureLabels.ts`). **Phase 2
-> (same day)**: every interaction/op reader of `data-arrange`/`data-slot` is re-cut
-> structurally — ONE page selector (`STRUCTURAL_PAGE_SEL`), insert-into-selected-
-> container, `insertIntoContainer` (id-addressed; slot-name addressing deleted), the
-> "+ Add" placeholder on any empty leaf container. Per ADR-511 D8 the attributes
-> survive as INERT NAMES only (skins style them, labels read them, nothing gates on
-> them). Sections below describing the slot grain / inert marking / slot scope are
-> historical until this doc's full rewrite; where they conflict, ADR-511 wins.
+> **Full rewrite, 2026-08-04** (the rewrite ADR-511 D6 owed, landed with ADR-516). The
+> pre-rewrite doc was the accreted history of ADR-440→509 — correct decisions narrated in
+> the order they were made, which meant every new affordance was designed against partial
+> memory of the whole. This doc inverts that: the **grain × medium matrix** is the
+> contract, every cell is *shipped*, *declared*, or *refused* — no blank cells — and the
+> history lives in the ADRs (ADR-LEDGER routes). Where an old section is gone, its ruling
+> survives as a matrix cell or a normative rule; nothing was un-decided by this rewrite.
 
-> The Studio is yarnnn's first authoring app (ADR-440) governed by the axiomatic model (ADR-443). This doc is the FE-facing contract: the philosophy, the operations and their operator words, the vocabulary and layout registries, and the surface contract. Derivations live in the four probe analyses (`the-authoring-app-claude-design-benchmark` · `the-studio-surface-lane-and-reference-model` · `the-studio-content-and-the-reference-mechanics` · `the-studio-axiomatic-model-components-and-layouts`). The next-horizon plan (the markdown ruling · the Notion/builder gap carve · Waves 1–4) is ADR-456.
+Studio is yarnnn's authoring app (ADR-440) governed by the axiomatic model (ADR-443):
+**HTML-native** (the artifact IS the file — no shadow/JSON model, R1), **AI-native** (the
+lane co-authors in its pretraining tongue), one kernel vocabulary that teaches and never
+validates (R4). Since ADR-511 the substrate is **conventional HTML/CSS plus exactly three
+annotations** — identity (`data-block-id`, on blocks AND structural containers),
+provenance (`data-ref`), grammar (`data-block="<kind>"`, vocabulary blocks only). Every
+other `data-*` the file may carry is an **inert name** (ADR-511 D8): skins style it,
+labels read it, nothing gates on it, nothing writes it.
 
-**The markdown ruling (ADR-456 D1)**: HTML is the sole canonical source for Studio artifacts; markdown is an interchange **projection** — import at creation ("New document from this .md", Wave 4), export at the boundary (with publish/exports, Wave 4) — never a second source format. `.md` stays the substrate's prose currency; `.html` the Studio's authored-artifact currency.
+## The objects
 
-## Philosophy (operator-authored, 2026-07-12; ratified with refinements by ADR-443)
+Four, all real DOM elements; there is no parallel tree.
 
-Studio is an **HTML-native, AI-native editing system** built from first principles — an axiomatic model for creating, editing, and transforming structured content, not an emulation of legacy desktop applications.
-
-- **HTML-native** — HTML is the canonical source of truth, not an export format.
-- **Component-native** — content is composed from reusable semantic blocks, not pages or proprietary formats.
-- **Layout-native** — layout defines presentation and constraints, not the content model.
-- **AI-native** — AI operates on blocks and document semantics, not raw text or binary files.
-- **Format-agnostic** — documents, decks and published pages are different renderings of the same structured content.
-- **Interoperable by design** — one artifact renders, transforms, and (later) exports across formats with structure and intent preserved.
-
-**The refinements that make this hold** (ADR-443 D1): the DOM is the model — no shadow content layer (R1); layout is a binding inside the artifact and switching it is an authored revision (R2); blocks are owned, citations are borrowed (R3); one kernel vocabulary that teaches and never validates (R4); Studio authors one type — agnosticism is about renderings, not editors (R5).
-
-## The four layers (the composition model)
-
-An artifact is composed from four orthogonal layers. Each answers one question; each is a thin `data-*` annotation on real HTML (the DOM is the model, never a JSON tree):
-
-| Layer | Answers | Annotation | Status |
+| Object | DOM anchor | Selection scope | Carries |
 |---|---|---|---|
-| **Layout** | what *kind* of artifact | `data-template` (document/deck/web) | live (ADR-443; the set cut to three by ADR-505 D1) |
-| **Mode** | *how the artifact composes* — the seam the chrome derives from | the layout registry's `mode` (kernel data, served on `GET /studio/vocabulary`) | live (2026-07-15) — **`paged`** (deck, web): the CONTAINER is the unit, so the New-‹noun› gallery + the navigator strip are native. **`flow`** (document): BLOCKS are the unit and they flow — no page unit, no arrangements, insert is at the CARET. The kernel names the category; the FE never tests a layout slug. **Mode is NOT the geometry seam** (ADR-505 D3) — it answers only *does this type have page units*; the coordinate space is a separate axis keyed on `.slide` ancestry (`block-staged`), which is why deck has `x`/`y`/`z` and `web` does not |
-| **Arrangement** | *where content goes* on a page/section — grids, slots, overlays, sizings | `data-arrange` + `data-slot` | live (ADR-447) — per-type, page-grain shipped; section-band nesting is phase 2 |
-| **Block** | what a content unit *is* | `data-block` + `data-block-id` | live (ADR-443/446) |
-| **Skin** | how it *looks* (design system: palette/type/mood) | `<style data-skin="true" data-ref="…">` — marked + cited | live (ADR-449 + import ADR-462 D11/D13/D14 + apply DESIGN-SYSTEMS.md §5). **Housing + import + apply all built**: the kernel token contract is a ~14-slot families vocabulary (widened from five), a `maps:` synonym bridge handles vendor names, and the coverage probe's "paints today" bucket went 4 → 17. See [DESIGN-SYSTEMS.md](DESIGN-SYSTEMS.md) §5 (the histogram is the ground truth) before touching apply. |
-| **Property tokens** | *placement + emphasis* of one block/page/artifact — align, tone, sizing presets, column ratio, typography, width, breathing room, slide numbers, background scrim/focus | `data-align` / `data-tone` / `data-height` / `data-fit` / `data-ratio` / `data-valign` / `data-pad` / `data-scrim` / `data-bg-pos` (block/page) + `data-font` / `data-measure` / `data-pagenum` on the ROOT (document grain, ADR-455/456) | live (ADR-453/455/456) — tokens not pixels; styled by the marked `<style data-kernel="true">` element (v10), themed by the skin's custom properties; absence = default |
-| **Measures** | *bounded geometry* of one block — size in its frame, and (deck) a positioned point | `data-w`/`data-h` + `--yw`/`--yh` (deck + media — the corner grip); `data-x`/`data-y` + `--yx`/`--yy` (**deck only** — the move grip; presence of both = the positioned state, absence = in flow) | live (ADR-461 D3/D4 + ADR-466 D2) — a property whose *mechanism* is pre-declared (one kernel `var()` rule) while its *value* rides the element; free only where a frame bounds it. A positioned block exits the slot contract (the honest remainder) and **returns to flow when the page is re-arranged** or via the Properties "Return to flow" hatch; the lane preserves member-authored geometry (posture, CHANGELOG 2026.07.20.1) |
-| **Background** | a *cited image* behind a page/section band | `data-ref` + `data-ref-kind="background"` (+ `data-ref-rev` pin) on the page element; the PROJECTION materializes `background-image` (the source never carries inline style); scrim/focus via the tokens above | live (ADR-456 W3) — set/removed from the Design tab's page scope; the same citation edge as every other `data-ref` (trace/dependents/delete-warn for free) |
+| **Artifact root** | `<html>` | `document` (nothing selected) | `data-template` (document/deck/web — ADR-505's three, one per medium), document-grain tokens (`font`/`measure`/`pagenum`), the marked `<style data-kernel>`/`<style data-skin>` elements |
+| **Page** | `STRUCTURAL_PAGE_SEL` — a deck slide (`section.slide`) or a top-level body/main/article section. Position-addressed, never attribute-gated | `page` | inline layout style (ADR-516), meaning tokens (`tone`, `ratio`, `scrim`, `bg-pos`), the background citation |
+| **Structural container** | `div[data-block-id]:not([data-block])` — a column, a columns row, a named region. Identity without vocabulary (ADR-511 D3), stamped by `normalizeStructure` at load + write | `container` | inline layout style; a *name* (a `data-slot` inert name, or class `cols`/`col`) feeding the label map; a media *role* via the registry |
+| **Block** | `[data-block]` + `data-block-id` | `block` | block tokens (`size`/`align`/`tone`/`variant`, media tokens), measures (`data-w/h/x/y` — deck-staged), `data-ref` citations |
 
-Arrangement is the composition layer PowerPoint's New-Slide flyout and Wix's section stacks both name: *Title Slide · Two Content · Comparison · Picture-with-Caption* (page grain) and drop-in *two-column / three-grid / image-overlay* bands (section grain), nested. It is orthogonal to blocks (what) and skin (how). See ADR-447.
+**The group is a transient selection, never markup** — shift/⌘-click on staged frames;
+the set moves as one revision (`setGeometryMany`); ungroup is deselection. A persisted
+group wrapper would be a second structural layer competing with the real tree (ADR-462
+D3's refusal, clarified by ADR-511: what it refuses is the *synthetic editor-side
+object*; selecting a real container was never the refused thing). Persistent grouping,
+if ever wanted, is wrap-in-a-real-`<div>` — a revision.
 
-## The object model — what an annotation attaches to *(2026-07-24)*
+**The selection floor is the attribution floor** (ADR-511 D3, normative): text nodes,
+`<br>`, inline spans are never selection subjects — selection bottoms out at what can
+carry identity. No DOM-inspector depth.
 
-The layers above name the annotations. This names the **objects they attach to, and the relations between them** — the half that was never written down, and whose absence is a recurring bug source rather than a documentation gap (§"Why this is here", below).
+**Operator words, everywhere** (ADR-443 D3, normative): the file says
+`<section>`/`<div>`/`<h2>`; the chrome says *slide / columns / column / heading* — one
+label map, `structureLabels.ts`, consumed by the canvas runtimes, the navigator, the
+Design tab and the menus. The chrome never says "div".
 
-### The objects
+## THE INTERACTION CONTRACT — grain × medium
 
-Four, and only four. Each is a real DOM element; there is no parallel tree.
+The three media (one per type, ADR-505): **deck** (`paged`, 16:9 staged frame — the only
+coordinate space), **document** (`flow`, one continuous writing surface), **web**
+(`paged`, full-width bands, viewport — band-first, never object-first). `mode` answers
+*does this type have page units*; the FRAME answers *is there a coordinate space*
+(`block-staged` = `.slide` ancestry) — two axes, deliberately not one (ADR-505 D3).
 
-| Object | DOM anchor | Contained by | Selection scope | Carries |
-|---|---|---|---|---|
-| **Artifact root** | `<html>` | — | `document` *(nothing selected)* | `data-template`, document-grain tokens (`font`/`measure`/`pagenum`), the marked `<style>` elements |
-| **Page** | `[data-arrange]` — a deck slide, a web band | root | `page` | `data-arrange`, page tokens (`tone`/`pad`/`valign`/`ratio`/`scrim`/`bg-pos`), the background citation |
-| **Slot** | `[data-slot]` | page | `slot` | `data-slot` (a **name** + a **role**). Carries no property tokens — it is a *region contract*, not a styled object |
-| **Block** | `[data-block]` + `data-block-id` | slot, page, or the flow root | `block` | block tokens (`size`/`align`/`tone`), media tokens, measures, `data-ref` citations |
+Legend: ✅ shipped · 🔜 declared (built when its phase lands, never by accident) ·
+🚫 refused (a decision, not a gap).
 
-**Containment is the load-bearing relation.** A token's behavior depends not only on the object it sits on but on what that object sits *inside* — the same `data-size="fill"` behaves differently on a deck slide than in a document, because the deck skin caps prose width and the document's grain does not. A model that named only the object could not express that, which is exactly how a Width control shipped inert (2026-07-24, kernel v12).
+### Click / hit-test (one ladder — innermost addressable wins, ADR-511 D3)
 
-**Two objects are mode-conditional** (see Mode, above): on `flow` (document) a page is *not* a composition unit and a **slot does not exist at all** — ADR-481 D1 made flow scaffolds flat, so the click-grain ladder loses both grains by derivation rather than by suppression. Slots and page arrangements are `paged` concepts (deck/web). This is the single largest source of "the panel looks different on a document," and it is intended.
-
-### The slot contract — the containment hinge *(hardened 2026-07-24)*
-
-A slot is a **named region inside a page** — the HTML container it looks like. It carries exactly two fields, and no more:
-
-- **name** — *which* region (`main` · `side` · `left` · `right` · `a`/`b`/`c` · `media` · `caption` · `heading`). Used to preserve position intent through a re-arrange (`side` → `side`).
-- **role** — *what it accepts* (`heading` · `flow` · `media`). Used to route blocks: a media block seeks a media slot, flow content never lands in one, and **heading-role slots are skipped by the flow fallback**.
-
-**The slot decides a block's parent.** A block's container is the slot when the arrangement has one, the page directly when it does not, and the flow root on `document`. That is why re-arrange, the Design tab's scope ladder, and the lane's posture all read this one relation — and why they must share one definition of it.
-
-**Heading blocks are never carried.** `carriedBlocksOf` sweeps every non-heading block for redistribution; headings anchor the page and stay put. This is why a `heading`-named slot is genuinely a different kind of region from a content slot — it holds title matter that re-arrange leaves alone. It is also why `content` arrangements put their `<h2>` **outside** the slot, as a direct page child, with the slot holding body content only. That asymmetry is deliberate; preserve it when authoring new arrangements.
-
-**THE INVARIANT: declared slots == shipped slots.** An arrangement's `slots` list is a contract read by three surfaces for three purposes — the re-arrange op (distributes by name+role), `arrangementCarryNote` (forewarns when a target has nowhere to put content), and the lane's posture (teaches slots as composition regions). Two of those read the **declaration** and one reads the **shipped markup**, so a fragment that omits a slot it declares makes them disagree.
-
-That was live: five arrangements (deck `title`/`section-header`/`closing`, page `hero`/`cta`) declared a `heading` slot and shipped no `[data-slot]` at all. The lane authored the wrapper anyway — it followed the declaration — while the kernel's own fragment did not, so **re-arrange refused content on a hand-scaffolded title slide and accepted it on a lane-authored one.** Resolved by shipping what is declared (Option A, 2026-07-24): every arrangement and both `paged` scaffolds now ship their declared slots, and `test_adr443_studio_model.py` §2b enforces it. `hero`/`cta` were re-declared `main`/`flow` rather than `heading` — those bands carry a button alongside their headings, and the role must describe what the region actually holds.
-
-**A slot is CHROME only where it is a distinguishable region** *(2026-07-24)*. 13 of 17 arrangements declare a single flow slot that is coextensive with its page's content box (measured on a title slide: slot 992px, slide inner 992px, offset 0). Hovering it outlined the whole slide and clicking selected it — offering **the layout master as an object**, with none of an object's affordances, because its geometry belongs to the arrangement (the layer rule above). PowerPoint refuses exactly this: a layout's content area is not selectable on the slide; you change it via Layout, which is our `Re-arrange`.
-
-The premise being corrected was written in `POINTER_CSS`: *"slots are the interaction surface — the Wix section-hover."* **Wix builds pages of BANDS**, where a section is the unit you manipulate; **PowerPoint builds slides of OBJECTS**, where the content area is invisible scaffolding. Both premises lived in one stylesheet — right for the banded layout (`page`, now `web`), wrong for a deck.
-
-The projection now marks a page-filling slot `data-slot-inert`, and hover + the click ladder gate on it (the ladder falls through to the **page**, which *is* an object — tokens, duplicate, delete, re-arrange). Three cases keep their chrome: **2+ slots** (two-column · comparison · feature-grid — a real sub-region, resized by `ratio`), a **media** slot (`picture-with-caption` · `full-bleed` — this scope is the image picker's home; `onAddHere` routes `role='media'` here deliberately), and an **empty** slot (the ADR-466 P8 dashed click-to-add placeholder, a different affordance with a different job). Derived from the DOM/registry, never a layout slug — and an unknown arrangement keeps the grain, so a new slot is never hidden by default.
-
-**A slot is not a GROUP** — and the group is what a member reaching to "resize this region" usually wants. A slot is *declared by the arrangement* and identical on every page using it; a group is *authored ad hoc* on one page. Making slots draggable would move the layout on one slide while every sibling kept the declared position — registry and markup disagreeing again, the exact class this doc exists to prevent.
-
-### The group — a transient selection, never markup *(built 2026-07-24)*
-
-Shift/⌘-click adds a block to the selection; the set moves together; **ungroup is deselection**. Staged frames only (deck slide / canvas artboard) — moving a set together needs a coordinate space to move it *in*, which is ADR-461 D4's rule and the same reason `x`/`y` are `block-staged`. On `flow`, shift-click stays the browser's range-selection, untouched.
-
-**The substrate decided the design, not taste.** A persisted `<div data-group>` fails against two existing invariants: `applyArrangement` calls `returnToFlow()` on every block it carries (stripping `x`/`y`/`w`/`h`/`z`), so a wrapper would be orphaned by the next re-arrange; and `carriedBlocksOf` skips any block nested inside another block, so a wrapper would hide its own children from every sweep that redistributes content. A group surviving in the file would be **a second structural layer competing with the arrangement** — precisely the confusion the inert-slot pass removed. So the group lives in the member's selection, and what it writes is what a group has always written in PowerPoint: each member's *own* geometry.
-
-Three properties worth keeping true:
-
-- **One selection, not two.** `group` rides *alongside* `cur` rather than replacing it: `cur` stays the primary (the block the box, handles and Properties scope follow), and the group is the additional members. Every existing reader of `__yarnnnSelected()` still gets exactly one element; only the move gesture consults the group.
-- **One gesture, one revision.** A group drop posts a single `yarnnn-geometry-many` carrying every member's landed position, and `setGeometryMany` folds them into one revision by *reusing* `setGeometry` per member — one clamp, no second write path. N revisions would make the history unreadable and a single undo insufficient.
-- **Offsets are captured once.** Each rider's offset from the dragged block is measured at drag start and held for the whole gesture; recomputing per frame would compound rounding and let the set drift apart mid-drag. Riders clamp to the frame by the same rule as the primary, so a member cannot leave the frame just because the dragged block is still inside it.
-
-The cue (`yarnnn-grouped`) is a runtime class, and the serializer's chrome strip is now **enumerated over a list** rather than hard-coded to one class — ADR-484's defect was exactly that a runtime class had no single place that knew it must be stripped. Any future cue belongs in `CHROME_CLASSES`.
-
-**Group resize follows FIGMA** *(2026-07-24)*: a multi-selection resizes **proportionally within its bounding box** — every member's position *and* size scale by the same ratio relative to that box, so the set's internal layout is preserved. The handle's opposite corner anchors (a west drag pins the box's right edge). It scales the **box, never the type**: a text block gets wider, its font does not grow — Figma's own resize-vs-scale distinction, and the only one expressible here, since the kernel has `w`/`h` measures and no scale transform. The union is captured **once** at gesture start, for the same reason the move's offsets are. Commit reads each member's *landed* rect back from the DOM rather than recomputing from the ratio, so what is written is what the member saw, and lands as ONE revision. Verified in Chrome: box scaled exactly 1.50×, anchor held, relative layout preserved.
-
-*Not built*: keyboard grouping (`⌘G`), which would imply a **persisted** group — that is what ⌘G means to a PowerPoint user, and it is the structure the substrate refuses. Building the shortcut without the persistence would make it lie.
-
-**Slots do NOT map to heading levels.** Considered and declined (2026-07-24). `h1`, `h2`, and `<p class="kicker">` all carry `data-block="heading"`: the **HTML tag** carries the typographic level, the **block kind** carries "this is a heading," and the **slot** carries the region. Fusing level into the slot would encode a combinatorial table (a `main` slot holds an h2 on one arrangement and prose on another) and break the moment an arrangement wants an h2 in `side`. The two-field slot contract is sufficient; the gap was never granularity, it was enforcement.
-
-*Naming caution:* `heading` currently names three different things — a slot name, a slot role, and a block kind. Disambiguating the vocabulary is unresolved; until then, read the position, not the word.
-
-### Who owns width — the layer rule *(decided 2026-07-24)*
-
-> **The arrangement owns REGION geometry. The block owns its own width WITHIN a region. A slot has no size of its own.**
-
-**A slot takes no size token, and should not gain one.** `data-size` (`applies: ["block"]`) is a block property; a slot's width is already determined structurally by its arrangement, which is what an arrangement *is*:
-
-| Slot | Width | Owner |
-|---|---|---|
-| `heading` on a title slide | the full slide (992px measured) | block flow |
-| `main` + `side` on two-column | an even split (476 / 476) | `[data-arrange] .col { flex: 1 }` |
-| the same, re-weighted | 2:1 or 1:2 | the `ratio` token |
-
-Adding a size token to the slot layer would put a second width mechanism against a working one, and when two mechanisms disagree the higher-specificity rule wins **silently** — which is exactly the failure that made `Fill` render as `Auto` (kernel v12). *If per-slot width control is ever wanted, the correct move is more `ratio` values on the arrangement, never a size token on the slot.*
-
-This matches the convention rather than inventing one: a PowerPoint placeholder's size comes from its layout master, and Figma's Hug/Fill lives on the object while auto-layout owns the region. **Neither Hug nor Fill is the right slot default — the concept does not belong at that layer.** The block default stays *absence* (the flow's natural width), the same convention every token uses.
-
-### `paged` composes by REGION; `flow` composes by SEQUENCE *(2026-07-24)*
-
-The document type is not a simpler deck. It is a different object model, and the difference is structural rather than a matter of degree:
-
-| | document (`flow`) | deck (`paged`) | web (`paged`) |
+| | deck | document | web |
 |---|---|---|---|
-| Arrangements | **0** | 11 | 8 |
-| Slots in the scaffold | **0** | 2 | 2 |
-| Objects that exist | root · block | root · page · slot · block | root · page · slot · block |
-| Property tokens reachable | 6 | 13 | 13 |
-| Measures reachable | `w`/`h`, media only | all five, incl. `x`/`y`/`z` | `w`/`h`, media only |
-| Frame | viewport | **16:9 fixed stage** | viewport |
+| text | ✅ second click on selected block enters caret (P10 object grammar: FIRST click selects — box + handles; dblclick enters directly) | ✅ click = caret, natively (the root is `contenteditable`; blocks are annotations, not walls — ADR-480) | ✅ as deck, minus geometry |
+| block | ✅ first click selects (box, handles, move band) | ✅ click places caret; objects (figure/table/…) select as units | ✅ selects (box, static — no coordinate space) |
+| container | ✅ click on its own surface (padding/gap, not a child) selects; static box (ADR-516 D5) | — (flow has no containers by derivation, ADR-481 D1) | ✅ as deck |
+| page | ✅ click on the page margin selects the slide | — (no page unit) | ✅ selects the band |
+| empty space | ✅ clears selection | ✅ caret follows | ✅ clears |
 
-**MODE IS NOT THE GEOMETRY SEAM (ADR-505 D3).** `deck` and `web` share `paged` and differ on geometry, because `paged` only ever answered *does this type have page units*. Whether a **coordinate space** exists is a separate axis the registry already carried: the `block-staged` predicate tests `.slide` **ancestry**, not mode. A `web` band is not a `.slide`, so `x`/`y`/`z` are structurally unreachable there — no gate, no flag, no suppression code. The two questions were conflated under one word; naming them apart is what let `web` absorb article+page without inheriting deck's object grammar.
+### Hover cue (the cue lights what the click would select — the 2026-07-21 rule)
 
-> **`mode` answers *how it composes* (sequence vs page units). The FRAME answers *is there a coordinate space*.**
-
-`web` is **band-first, never object-first**, and this is a standing refusal rather than an unbuilt feature: a slide is 16:9 always, so "40% from the left" is stable; a web page is 390px to 2560px, so the same percentage means something different at every width and pinning it is the per-breakpoint-editing refusal in another costume (ADR-461 D4 + ADR-456 stop-lines). The reference class agrees — Medium, Substack and Ghost ship **zero** positional control; the tools that do (Framer, Webflow) pay for it with a breakpoint editor.
-
-**Two of the four objects do not exist on a document at all.** ADR-481 D1 made flow scaffolds flat, so a document has no page unit and no slot — which means everything in the slot contract above (declared-vs-shipped, the role ladder, re-arrange distribution) is **`paged`-only by construction**, not by suppression.
-
-A slide answers *where on the frame*; a document answers *what comes next*. **Region questions — slots, arrangements, position, ratio — are meaningless in a sequence**, and the code already refuses them by derivation. This one sentence predicts every asymmetry in this doc: why slots are paged-only, why `x`/`y`/`z` are `block-staged`, why `measure` (the reading column) is `document-flow`, why the navigator is a slide-strip on one and an outline on the other.
-
-**The single deliberate crossover is MEDIA.** `w`/`h` apply to `media` blocks *anywhere*, a document included, because an image carries an intrinsic ratio that is its own frame (ADR-461 D4). So a document has exactly one island of geometry — and that island is the boundary to watch, because it is where a "let it resize here too" request will arrive. The refusal that keeps `flow` from acquiring a coordinate space is ADR-461 D4's: **a slide has a frame, a page has a viewport.**
-
-**Therefore, deliberately NOT built**: a slot size token · arrangements on `flow` · a unified inspector across the two modes. Each would fuse a seam the code currently keeps clean.
-
-### The `applies` vocabulary — one string doing two fields' work
-
-The kernel gates every property token by an `applies` value (`STUDIO_TOKENS[*]['applies']`, served on `GET /studio/vocabulary`). All ten values decompose the same way — **an object × an optional condition**:
-
-| `applies` | Object | Condition | Predicate kind |
+| | deck | document | web |
 |---|---|---|---|
-| `block` | block | — | — |
-| `media` | block | kind ∈ figure/chart/gallery | block **kind** |
-| `block-staged` | block | inside a `.slide` frame | **ancestry** |
-| `page` | page | — | — |
-| `page-deck` | page | layout = deck | **layout** |
-| `page-multicol` | page | arrangement has ≥2 flow slots | **arrangement shape** |
-| `page-bg` | page | has `data-ref-kind="background"` | **element state** |
-| `document` | root | — | — |
-| `document-flow` | root | mode = flow | **mode** |
-| `document-deck` | root | layout = deck | **layout** |
+| block | ✅ dashed outline, innermost only | ✅ NONE on prose (the I-beam/caret is the cue — ADR-481 D3); objects keep a quiet cue | ✅ as deck |
+| container | ✅ outline + green operator-word label | — | ✅ |
+| empty leaf container | ✅ "+ Add" placeholder, dashed bounds always (the PowerPoint placeholder grammar; imported HTML included — ADR-511 Ph2) | — | ✅ |
 
-Three objects, each with an optional predicate; the hyphen is a second field in disguise. The predicates are five genuinely different kinds of test, which is why the flat list reads as arbitrary — it isn't, but the structure is implicit.
+### Selection chrome
 
-`APPLIES_TARGETS` (in `services/studio.py`) is the machine-readable half: value → the phrase naming where it may sit. Both hands read it (below).
+| | deck | document | web |
+|---|---|---|---|
+| block | ✅ accented box + 8 handles + border-band move; persists through editing (dashed = text mode, P11); `positioned` corner tag when out of flow (ADR-511 D4) | ✅ neutral outline on OBJECT kinds only; prose selection is the caret/range | ✅ box, static variant (no move — no stage) |
+| container | ✅ static box — border only, NO handles, NO move band (ADR-516 D5: the chrome must not promise gestures the grain lacks) | — | ✅ same |
+| page | ✅ Design-tab scope + strip highlight | — | ✅ |
+| group | ✅ same neutral rule on every member | 🚫 (browser range-selection owns flow) | ✅ |
 
-### One grammar, both hands — including *where*
+### Drag
 
-ADR-453 R4 says one registry serves the Design tab and the lane. That was true of the token **values** and, until 2026-07-24, false of the **containment**: the Design tab gated its controls by `applies`, while `_tokens_grammar()` emitted only key/values/description — so the AI hand was told `data-pagenum` exists and never told it belongs on the root. Every posture line now carries its grain (`[on the artifact root, deck only]`). *Measures* still teach their containment in hand-written posture prose rather than deriving it — accurate today, a drift risk, and the smaller sibling of the same asymmetry.
+| | deck | document | web |
+|---|---|---|---|
+| block | ✅ drag → positioned (`data-x/y`, absolute — the stage's grammar); frame-clamped; snap to column dividers | 🚫 positional drag (no frame); reorder = cut/paste in continuous prose (the medium's own reorder) | 🚫 positional (viewport ≠ frame, ADR-461 D4 — the per-breakpoint refusal); 🔜 reorder-drag between bands |
+| container | 🔜 **Phase 3: drag = REORDER within flow, per medium** (extends ADR-509 "the gesture follows the medium" — never positional on any medium) | — | 🔜 same |
+| resize | ✅ blocks: 8 handles, `w/h` measures (deck; media anywhere — an image's intrinsic ratio is its own frame); group resize scales the bounding box (Figma) | media only | media only |
+| snap guides | 🔜 Phase 3 (siblings + frame during drag) | — | 🔜 |
 
-### Why this is here (the bug class it exists to prevent)
+### Keyboard
 
-Three defects share one root — a relation the model could not express:
+| | deck | document | web |
+|---|---|---|---|
+| verbs | ✅ ⌫ delete · ⌘C/⌘V/⌘D · Esc lifts caret→block | ✅ same, caret-guarded (the caret owns text keys — ADR-482 D2) | ✅ |
+| Esc-walk | ✅ editing → block → container → … → page → clear (the real ancestor chain, ADR-511 D3; no drill-down gesture — down is clicking the thing) | ✅ caret → block → clear | ✅ |
+| undo | ✅ ⌘Z/⇧⌘Z — snapshot stack in the pointer runtime (both modes) | ✅ | ✅ |
+| owed | arrows nudge/resize, ⌘]/[ z-order, Tab cycle (declared since ADR-477) | ⌘B/⌘I, Tab list indent | band reorder keys |
 
-1. **`align` shipped a phantom value** (ADR-461 B1): `data-align="start"` was declared with no kernel rule, so picking "Left" wrote an attribute that rendered nothing.
-2. **`size` shipped inert** (kernel v12): `Fill` declared `applies: ["block"]`, but its real behavior depended on the block's *grain-parent*; the deck skin's reading measure out-specified it and Fill rendered identically to Auto on every heading and paragraph.
-3. **The lane wrote misplaced tokens**: it received the grammar with the containment stripped.
+### Insert (the route follows the medium — ADR-509)
 
-In all three, the gate passed. **Presence of a selector is not evidence of an effect**, and nothing in the model made containment checkable. Naming the relation is what lets a gate test it — the current gates now assert the defeating condition, not the declaration.
+| | deck | document | web |
+|---|---|---|---|
+| routes | ✅ toolbar **Insert** (discovery) + right-click row (located) — one menu, two mounts; target resolved and NAMED ("Insert into slide 3"): selected block → after it; selected CONTAINER → into it; else the page's first leaf container (`firstLeafContainer` — position, not name) | ✅ `/` at the caret (the linear-flow gesture) + right-click; toolbar Insert | ✅ as deck |
+| page grain | ✅ **New slide** + **Re-arrange** (the gallery's one mount, toolbar) | — (no page unit) | ✅ New band |
+| refused | 🚫 slash as sole route on paged · 🚫 the hover gutter (deleted every mode, ADR-505 D4) · 🚫 per-medium menu subsetting (both doors offer every kind — what differs is which door, never what's in it) | | |
 
-### Open questions (deliberately not resolved here)
+### The pane (Design tab) — scope follows selection
 
-- **`slot` carries no tokens** — RESOLVED as a correct absence (2026-07-24). A slot is a region contract (name + role); every property one might want (padding, alignment) belongs to the page or the block. The slot's significance is *containment*, not styling.
-- **`heading` names three things** (a slot name, a slot role, a block kind) — **DECLINED, not deferred** (2026-07-24). Measured first: 2 live artifacts carry `data-slot="heading"` in 3 places. Renaming would need either a rewrite of member content (ADR-209 forbids manufacturing revisions for a naming preference) or a projection-time alias — a compatibility shim Singular Implementation rejects. The cost is real; the benefit is cosmetic, because **position already disambiguates**: the three live in different fields (`slots[].name`, `slots[].role`, `data-block`), no `applies` value is ambiguous, and no code path has to guess which sense is meant. Revisit only if a *third* consumer starts reading the word without its field.
-- **Should `applies` become `(scope, grain)`?** The table above is the argument for it: `page-deck` → `(page, deck)` would make the two fields real and let a gate check a token against the skin that might defeat it. It touches the served contract and the FE gating, so it is a **named follow-on, not taken** — deferred until the surface stabilizes.
-- **Should measures derive their posture line** the way tokens now do? Same asymmetry, smaller blast radius.
-
-## The seven operations × operator words (ADR-443 D2/D3)
-
-The operations are internal vocabulary. **The chrome speaks the right column, always.**
-
-| Operation | The chrome says | Where it lives |
+| scope | rows | mechanism |
 |---|---|---|
-| CREATE | **Create** / "New" | start state: layout picker + name + place |
-| COMPOSE | **Insert** (the toolbar button — every type) · **right-click → Insert block…** (`paged`) · **/** at the caret (**`flow` only**) · **New ‹slide\|band›** + **Re-arrange** (`paged` only) | **THE INSERT ROUTE FOLLOWS THE MEDIUM (ADR-509).** The slash is the gesture of a TEXT CARET IN A LINEAR FLOW, so it is `flow`'s; `paged` (deck/web) inserts with the MOUSE. ADR-505 D4 had made `/` universal on the strength of "Figma Slides, Pitch and Gamma in the deck class" — and **two of those three are false**: Figma Slides binds `/` to CURSOR CHAT, Pitch's quick menu is Cmd+K and its docs say so explicitly. Of seven slide editors surveyed only Gamma ships a block-insert slash (and Gamma is a card/document hybrid, not a spatial canvas); Webflow and Framer both shipped one and both scoped it to rich-text contexts ONLY, deliberately not the canvas. **No surveyed tool ships slash as the sole or primary insert route** — a visible mouse affordance is universal, and where the docs reveal an ordering they present it FIRST (Notion's `+`, Gamma's insert bar as "Option 1", Gutenberg's `+` inserter). Studio had it inverted on `paged`: ADR-505 D4 deleted the gutter and left `/` the only block-insert route, so **10 of 13 registry kinds were mouse-unreachable on a deck** (callout, quote, checklist, divider, toggle, button, table, metrics, chart, gallery). **TWO MOUNTS, ONE MENU (ADR-509 D2)** — the toolbar button is the DISCOVERY route (visible without knowing), the right-click row is the LOCATED route (fast, at the thing you clicked). PowerPoint's ribbon is discoverable but not located; a context menu is located but invisible; shipping only one repeats a failure this canon already made. They are one menu with two mounts, the shape ADR-462 D1 ratified — never a second write path. One rendered list lives in `web/components/studio/blockRows.tsx` and serves the `flow` palette too, so a kind added to the served vocabulary appears in all three doors with no second edit. **THE TARGET IS RESOLVED AND NAMED (ADR-509 D3)**: a selected block → after it; a selected slot → into it; otherwise → append to the current page. Never "nowhere". The menu STATES the destination ("Insert into slide 3") — on a spatial surface an insert with an unstated target is the ambiguity that makes members undo and retry. **PER-MEDIUM IS NOT PER-TYPE SUBSETTING (ADR-509 D4)**: ADR-506 D3's refusal is intact — both doors offer EVERY kind from one list, `StudioSlashPalette` still takes no `mode` prop, and nothing filters. What differs is *which door opens*, a property of the medium resolved before any content renders, not *what is in the menu*. The ADR-482 D3 async race stays closed: the slash gate reads `FLOW_MODE` from the served projection at keypress time, never an async React value. **Cost, accepted**: `/` no longer works while typing inside a slot on a deck — the one thing it did there that the mouse could not. The member selects and uses the toolbar or right-click, which is what PowerPoint, Google Slides, Keynote and Squarespace all require; the trade buys back ten kinds that had no mouse route at all. **Slash mechanics (`flow`)**: `/` typed anywhere opens the palette anchored at the block; the `/` lands as ordinary text and the caret never leaves the document, so what the member types after it IS the filter (the palette has no input of its own — focusing one would end the edit the gesture depends on). That is what makes `and/or` and URLs safe: the menu opens, matches nothing, and dismisses itself. Dismissal is load-bearing: Esc, a click in **either** document (the palette lives in the parent and is structurally blind to clicks inside the iframe — the runtime reports those), a caret that leaves the run, and a no-match filter all close it. ⭐ The keyboard interception follows the **visible** palette (`slashOpen`), never the bare anchor: `hideSlash()` keeps the anchor through a dismiss because a pointer press may BE the pick, so guarding the key-steal on the anchor let a dismissed palette swallow the member's next Enter exactly once. On a pick the runtime deletes the `/`+filter run (only it knows which text node holds it) and reports the halves around the caret: an empty block **CONVERTS** in place, a mid-sentence one **SPLITS** so the sentence keeps its tail (one op — `splitBlockAndInsert` — never two, which would race on the same head), and an uncomputable split (a citation island) falls back to insert-after. Cited kinds (Image/Table/Gallery) open `StudioCitablePicker` at the same anchor from EITHER door. **The gutter is DELETED on every mode** (see the interaction model). **The gallery and Re-arrange stay DISTINCT** — two nouns (*add a page* = CREATE at page grain; *re-lay this page* = TRANSFORM at page grain) sharing only a chooser UI; merging them would leave a member unsure whether a new slide appears or the current one is overwritten, the ambiguity ADR-466 D5's amber `content → new ‹page›` note exists to resolve. |
-| TRANSFORM | **Edit** — double-click the block and type, or ask in plain words; **bold/italic/code/link** on a text selection (the floating format bar); **Turn into** (block kind conversion); **Re-arrange** / token controls for shape | in place on the canvas (ADR-446/456 W2); the Design tab for arrangement + property tokens + Turn into (ADR-453/456); the lane (chat) for judgment work |
-| POINT | **Select** (click) | the click-grain ladder (ADR-453 D5, `paged`): click a block → its slot's padding → the page margin; slots outline + name themselves on hover; the selection anchors ops and drives the Design tab's scope. On `flow` the ladder holds block + document only — a slot is a paged concept and there is no page unit (ADR-481 D1, by derivation). **The hover gutter is DELETED (ADR-505 D4)** — see the interaction model |
-| CITE | **Insert from workspace** | the Image/Table pickers; media slots take a cited image via the Design tab; `data-ref` under the hood |
-| PROJECT | *(implicit)* — the canvas; **Share** · **Export** (the Properties document scope) | the live canvas. Three ways OUT (ADR-466 D6): **Copy link** (in-app member deep-link) · **Share** (the `/s/{token}` membership link, ADR-437/465) · **Export** — *Print/PDF* (the browser's print over the resolved projection; a deck prints one slide per landscape page — no render engine, ADR-417) + *Copy AI reference* (the interop-face handle: recall/trace via the yarnnn connector). Markdown export = ADR-456 W4; publish (serve-without-grant) deferred |
-| TRACE | **History** | revision history / Files detail; block-grain lens later |
+| document | typography faces, measure/pagenum, design system (worn, not listed — ADR-487 D9), File/Share/Export tail (every scope) | tokens (meaning) |
+| page | verbs (dup/up/down/delete) · **LAYOUT: padding + vertical-align presets** (slide) / spacing (band) · tone · columns ratio · background + scrim/focus | **inline-CSS presets, one op** (ADR-516 D1/D3) · tokens for meaning |
+| container | media picker (media-role regions) · **LAYOUT: padding/gap/align/justify/width Hug\|Fill** | inline-CSS presets, same op (ADR-511 D4 + ADR-516 D4) |
+| block | typography ramp · tone/variant swatches · turn-into · width/align tokens · size readback · **Position: In flow \| Positioned** (deck) | tokens + measures |
 
-Plus the page verbs *(ADR-453; paired by ADR-466 D5; one-mounted 2026-07-21)*: **New slide/band** (add a page from the gallery) and **Re-arrange** (re-lay the CURRENT page — relabeled from "Layout"; the act's name, not the noun's) sit together in the toolbar — the PowerPoint pair and the gallery's ONE mount; the Design tab's page-scope Re-arrange section was deleted as a full duplicate (DP29 — one act, one home). A deck's page is a "slide", a web page's a "band". These are the ONLY two page grains — a document has none (ADR-505 D1). Every act is a free, id-preserving, attributed reflow. **Arrangement changes are role-aware and never dead-end (ADR-466 D5)**: carried blocks map to slots by ROLE first (a figure seeks the media slot, flow content never fills one), then by slot name (side → side), then the first flow slot; applying a slotless arrangement (title / section-header / closing / hero / cta) to a page that holds content **moves that content to a new content page right after it** — one compound revision, forewarned in the gallery by an amber `content → new ‹page›` note. The old red-banner refusal survives only for a layout with no slotted arrangement at all. Delete / Duplicate / Move up / Move down exist at both block and page grain (the Design tab's verb rows). *(There is no "Change layout" — the artifact's TYPE is fixed at creation; ADR-447 D7.5 deleted the type-switcher. Composition happens WITHIN the type.)*
+**The layout boundary (ADR-516 D6, normative): geometry converges on inline CSS; meaning
+stays tokens.** A layout value means itself (`padding: 3.5rem 4rem`); a meaning value is
+themed indirection (`data-tone="accent"` resolves through the skin's custom properties).
+`ratio` is the named holdout — a stop over a sibling *pair*, the divider gesture's
+grammar. Legacy `data-valign`/`data-pad` are inert names: kernel CSS honors them on
+untouched artifacts; a layout write strips them from the element it touches. **No raw
+CSS pane, ever** — the property surface is a bounded allowlist at every grain (D7).
 
-## The block vocabulary (kernel-seeded — `services/studio.py`, served via `GET /studio/vocabulary`)
+## The one write path
 
-| Group | Kind | The chrome says |
-|---|---|---|
-| Content | `prose` | Text |
-| Content | `callout` | Callout |
-| Content | `quote` | Quote |
-| Content | `checklist` | Checklist |
-| Content | `divider` | Divider *(ADR-456 W1)* |
-| Content | `toggle` | Toggle *(native `<details>/<summary>` — script-free; ADR-456 W1)* |
-| Content | `button` | Button *(a styled `<a>` CTA, themed via the palette variables; ADR-456 W1)* |
-| Data | `table` | Table *(from a workspace CSV — cited)* |
-| Data | `metrics` | Metrics |
-| Data | `chart` | Chart *(authored SVG in `./assets/`)* |
-| Media | `figure` | Image *(workspace image — cited)* |
-| Media | `gallery` | Gallery *(a grid of cited workspace images — the Insert palette opens a multi-select picker; ADR-456 W1)* |
+Every mechanical op is a compute over the artifact's source, landing through
+`POST /studio/artifacts/write` as ONE attributed CAS-guarded revision (`authored_by=
+"operator"`); the lane's judgment edits land through the same door. `normalizeStructure`
+runs at the serialize seam, every mode, every depth: bare text elements are promoted into
+the grammar (tag-derived kinds), structural containers are stamped with identity, ids are
+preserved/deduped first-wins, citation islands untouched. **Unannotated HTML — imports,
+agent output, legacy — is editable by definition**; an artifact opened un-normalized
+converges on its first write (migration-by-use, never a fleet sweep — ADR-209).
 
-Annotation spec: `data-block="<kind>"` + `data-block-id="<short-id>"` on top-level content units. Layout flow containers (slides, `<main>`, and `<article>` on legacy artifacts) are structure, not blocks. Unannotated content stays valid — the vocabulary is grammar, not schema.
+The feel contract: **pixels never wait for the network** (optimistic override, ADR-466
+P8) · a member's own write never reloads the canvas · a 409 is courteous (refetch,
+recompute on top, retry once — ADR-466 D7) · every op is byte-identical-no-op safe.
+Direct editing maps to the SOURCE, never the projection; the revision is the atom — no
+keystroke CRDT (ADR-406). Editing grain per medium (ADR-480): on `paged` the block is an
+ENCLOSURE (runtime owns the caret); on `flow` the block is an ANNOTATION
+(`contenteditable` on the root; the browser owns selection/undo/⌘F; ids reconstructed at
+the write seam, not enforced).
 
-## The layouts (kernel-seeded)
+## Vocabulary, templates, skins (the kernel registries — `services/studio.py`)
 
-**THE TYPE SET IS THREE (ADR-505 D1) — one medium per type.** Four types implied four coordinate systems where there were only ever three media, and `article` was the tell: a *publishing* shape wearing an *internal-document* chrome (`mode: flow`, 0 arrangements, a narrower `max-width` as its entire distinction from `document`), never once used for real work.
+- **Block vocabulary**: 13 kinds (prose · callout · quote · checklist · divider · toggle
+  · button | table · metrics · chart | figure · gallery), served on
+  `GET /studio/vocabulary`. Grammar, not schema — unannotated content stays valid.
+- **Arrangements are STARTER TEMPLATES** (ADR-511 D2): applying one is an authored
+  transformation whose result is live, editable structure — selectable containers whose
+  layout is CSS — never a frozen master. Role-aware content carry (media seeks media,
+  same-name preserves position intent, headings anchor and are NOT carried); a slotless
+  target moves content to a new page rather than dead-ending (ADR-466 D5).
+- **Skins / design systems** (ADR-449/487): the ~14-slot custom-property families
+  contract; worn inside an artifact, listed inside the manage state (`studio.system=`);
+  the kernel `<style data-kernel>` (versioned, write-door retrofit) names categories,
+  never instances.
+- **Measures** (ADR-461): value-carrying geometry (`data-w/h` + `--yw/--yh` anywhere
+  media; `data-x/y` deck-staged only) — the bounded exception for continuous values;
+  two-clamp rule (preview + write) from the served spec.
+- **The name is ONE fact** (ADR-459/469/483): `<title>` first, titleized meaning-folder
+  as fallback; rename is the crumb, renames the folder (per-file attributed moves),
+  IME-composition-guarded; only a flow h1 is a title and only an untouched placeholder
+  is ever replaced.
 
-| Slug | The chrome says | Job | Convention | Mode | Flow |
-|---|---|---|---|---|---|
-| `document` | Document | **CAPTURE** — notes, drafts, working docs; continuous, internal, revised forever | Notion, never Word (no pagination, ADR-480 D6) | `flow` | continuous `<main>`, sections under headings. **FLAT** — no arrangements, no slots, BY DEFINITION (a capture surface that asks *where on the page* has stopped being one) |
-| `deck` | Deck | **PRESENT** — a framed stage, spoken over | PowerPoint / Keynote | `paged` | `<section class="slide">` containers, one idea each. The ONLY type with a coordinate space, because the only one with a frame |
-| `web` | Web | **PUBLISH** — a banded page read by someone OUTSIDE the workspace | Medium / Substack / Wix | `paged` | full-width section BANDS in one `<main>`; content column centered inside each; bands may wear a cited background (ADR-456 W3). Band-first, **never** object-first (D3 below) |
+## Normative rules (settled — do not re-litigate without an ADR)
 
-**`article` + `page` merged into `web` (ADR-505 D2).** Both answered one question — *HTML for someone outside the workspace* — and the split asked the member to pre-classify an essay against a landing page before writing a word. The band stack serves both: `prose-header` + `prose` open a blog post (the two long-form bands this merge added, carrying what `article` was), `hero`/`cta` open a landing page. Which bands you stack is a **composition** choice, not a type. The retired slugs **resolve but are never offered** — `RETIRED_LAYOUT_SLUGS` + `canonical_layout_slug()` map them to `web` inside `resolve_layout`/`resolve_arrangements`/`artifact_kind`, so a pre-cut artifact keeps rendering while `all_layouts()` (the create picker) shows three. **The source is never rewritten** (ADR-209: no manufactured revision for a naming decision; ADR-481 D5: legacy renders, and converges on next edit).
+1. **The DOM is the model** (ADR-443 R1) — no shadow layer; the interaction contract is
+   the DOM tree, not a registry (ADR-511 superseding ADR-453 D5).
+2. **Selection floor = attribution floor** — blocks and identity-carrying containers,
+   never inline nodes.
+3. **No shadow group object** — transient selection or a real wrapper div.
+4. **Operator words** — the label map is the one vocabulary seam; "div" is a word the
+   trace never uses.
+5. **Geometry = CSS, meaning = tokens** (ADR-516 D6) — a new layout need is a new
+   allowlist value, not a new token row; a new meaning needs the themed indirection.
+6. **The chrome promises only what the grain has** — hover, selection and cursor cues
+   must agree with the ladder and with the available gestures ("honest about
+   inertness").
+7. **One write door, one op per intent** — a new affordance is an existing op reached
+   through a new grain before it is ever a new op (ADR-462 D1).
+8. **The gesture follows the medium** (ADR-509, extended by the drag row above) — drag
+   means position on a stage, reorder in a flow, and nothing positional on a viewport.
+9. **Inert names are tolerated, never load-bearing** (ADR-511 D8) — singular LOGIC,
+   tolerant DATA; attribute stripping happens per-element at an authored write only.
 
-**`canvas` IS NOT A STUDIO TYPE and never re-becomes one.** It left for the IMAGES app as `image` (ADR-472 D1/D7) and lives in `services/images/stage.py::STAGE`. Absent from `STUDIO_LAYOUTS`, absent from `RETIRED_LAYOUT_SLUGS` (a Studio alias would re-claim it), and `app_for_kind("canvas")` returns `None` on purpose — the one stale `canvas.html` opens in the generic viewer and belongs to no app's recents. The app boundary is the MODULE (ADR-473 D2).
+## Standing refusals
 
-A **template = layout × [page arrangement] × starter blocks** (assembled by `build_skeleton`; since ADR-453 the skeleton also bakes the marked `<style data-kernel="true">` token stylesheet). The artifact's TYPE is fixed at creation (ADR-447 D7.5 — no in-artifact type switch); when the lane is asked to change layout it preserves every block and its id, replaces the UNMARKED skin + flow, updates `data-template`, and lands an attributed revision — the marked `data-kernel` and `data-skin` elements survive every switch.
+No raw CSS pane · no DOM-inspector depth · no preview-then-describe edit loop (revisions,
+not NL round-trips) · no fourth type / no positioned web (ADR-505) · no pagination
+(ADR-480 D6) · no keystroke CRDT · no per-breakpoint editing · no web-font CDNs · no
+forms · no JS carousels · no databases/linked views · no synced blocks (that is `data-ref`
+at block grain, later) · no second source format (markdown is a projection — ADR-456 D1)
+· no editing viewer-owned formats · no owned render engine (ADR-417). The standing drift
+test (ADR-440 §7): *does this force a definitional question about the app format, or is
+it just a better editor?*
 
-## The arrangements *(live, ADR-447 — generalizes ADR-444's slide masters; the interaction contract per ADR-453 D5)*
+## Phase 3 (declared, in order) + named follow-ons
 
-**One registry row → six projections** (ADR-453): the markup fragment · the CSS · the derived wireframe thumbnail (New/Re-arrange galleries) · the canvas affordances (slot hover-outlines + names, `+ Add here`, the click-grain ladder) · the Design tab's page controls · the lane's posture grammar. Slot `role` is the interaction gate: `flow` slots take blocks (add-here inserts prose), `media` slots take a cited image (add-here opens the Design tab's picker), `heading` slots anchor. Adding an arrangement stays one registry row.
-
-An **arrangement** says *where content goes* on a page or section: grids, slots, overlays, sizings. It is per-document-type and nested — page → section → slot → block:
-
-- **Page arrangements** (whole canvas): deck → `title · content · two-column · comparison · quote · picture-with-caption · section-header` + `agenda · big-number · full-bleed · closing` (ADR-456 W1); web → `hero · content · feature-grid · testimonial · cta · footer` (W3 — the builder band family) + `prose-header · prose` (ADR-505 D2 — the two long-form bands carrying what `article` was). The PowerPoint New-Slide grain. **`paged` ONLY since ADR-481 D1** — the former `document` (`title-lede · two-column · checklist-section · metrics-band`) and `article` (`section · pull-quote · lead-image`) rows are DELETED: a flowing document has no page-grain unit, and the registry serving rows for one produced the empty-slot void. Two columns in a document would be a block kind, not an arrangement.
-- **Section arrangements** (drop-in bands, cross-type — phase 2): `two-column · three-grid · image-overlay · sidebar · full-bleed-band`. The Wix section-stack grain.
-- **Arrangement/block CSS lives in the versioned KERNEL element, not the layout skin** (ADR-456 W1 mechanism ruling): the kernel element is the only style that retrofits into existing artifacts, so new kinds/arrangements light up in old artifacts on first touch. **The retrofit is applied once at the member write door** (`writeAndAdvance` → `retrofitKernel`), not op-by-op — so EVERY mechanical write upgrades and no op can forget. It is byte-identical when the artifact is already current, so it never manufactures a revision on its own, and it never downgrades a newer kernel. *(Until 2026-07-15 only 5 of 21 ops threaded the kernel through, so an artifact upgraded only if you happened to touch it via an arrangement/token/background op — live artifacts sat at v3, and pre-ADR-453 decks carried no kernel element at all. That was harmless only because kernel CSS had stayed strictly additive; the write-door retrofit is what makes the "first touch" promise actually true.)* Inside the sheet, block/arrangement rules come first and token rules last — a token wins at equal specificity. Responsive stacking is kernel CSS too, scoped `[data-arrange]:not(.slide) .cols` — web bands stack on narrow screens; a deck slide is a fixed 16:9 stage, exempt.
-
-Annotation: `data-arrange="<slug>"` on the page/section element; `data-slot="main|left|right|media|…"` on its regions; blocks fill slots; slots may hold sub-arrangement bands (the recursion). Grid/overlay/sizing is CSS in the arrangement's skin fragment — HTML-native, no layout DSL, no JSON tree. Applying/switching an arrangement is the same free CAS-guarded reflow that moves blocks between slots today (`applySlideLayout`, generalized) — blocks move intact, ids preserved, heading blocks anchor rather than flow. Grammar not schema: an un-arranged artifact stays valid.
-
-## The interaction model (ADR-458 D4)
-
-**Insert is the toolbar button in every type — plus `/` at the caret on `flow`, and right-click → Insert block… on `paged` (ADR-509) · click selects (the grain ladder, `paged`) · double-click edits (in place) · right-click acts · the Design tab is the one home for settings.**
-
-**THE HOVER GUTTER IS DELETED ON EVERY MODE (ADR-505 D4).** ADR-481 D2 removed it on `flow` (the caret IS the insertion point, so an affordance pointing at a *place* answers a question a continuous surface never asks); ADR-505 D4 removed the `paged` remainder — it was a third insert route behind `/` and the New-‹page› gallery, and web-page editors do not have one. **⭐ That left `/` as the SOLE block-insert route on `paged`, and ADR-509 corrected it**: no surveyed editor ships slash as the only route, and 10 of 13 registry kinds had become mouse-unreachable on a deck. The gutter stays deleted — what returned is not the gutter but a NAMED, targeted menu with two mounts (the toolbar button and a right-click row), which is the affordance PowerPoint/Squarespace/Wix actually ship. Deleted with it: the `⋮⋮` **drag-to-reorder** and its drop-line. Priced and accepted: on `document` reorder is cut/paste in continuous prose (the browser's own — which is what a capture medium's reorder actually is); on `deck`/`web` it is the menu's Move up/down. **`bindGesture` survives** — it was always the shared pointer primitive (ADR-461 D2), and the divider + resize gestures are its remaining callers. So does the empty-slot dashed `+ Add` placeholder, which is a *slot* affordance (the PowerPoint "click to add" grammar), not a gutter.
-
-*The script that held the gutter was named `GUTTER_SCRIPT` while being ~92% object chrome — 1,167 lines of bounding box, eight handles, border-band move, group resize, column divider, block keyboard and undo/redo, of which the bar was the first ~90. Renamed **`OBJECT_SCRIPT`** (ADR-505 D6): a reader following the old name to "delete the gutter" would have deleted deck's entire object grammar and ADR-479's undo. A stale name is a latent deletion hazard, and the gate now pins the rename.*
-
-**THE EDITING GRAIN IS PER-MODE (ADR-480, 2026-07-22)** — the axiom: **attribution binds to the FILE, addressing binds to sub-file STRUCTURE, editing binds to neither — it binds to what the MEDIUM is.** The three were fused because the block was believed constitutionally required at all three; the substrate says otherwise (`write_revision` takes a *path*, `authored_substrate.py` contains `data-block` **zero** times, `data-block` is contained entirely in the APP layer — the Studio registry/routes + the IMAGES app — with zero occurrences in the substrate, primitives, permission gate or MCP face, and the ADR-448 reference edge lifts from `data-ref`, never `data-block`). Blocks are a Studio **rendering-and-addressing convention**, not the attribution grain. So:
-
-- **`paged` (deck · page · canvas) — the block is an ENCLOSURE.** One block editable at a time; the object grammar above (bounding box, eight handles, border-band move) is correct and untouched. `Enter` splits, `Backspace` merges, an empty block closes itself (ADR-477 §1a) — the runtime owns the caret because the medium is a frame of objects.
-- **`flow` (document) — the block is an ANNOTATION.** `contenteditable` sits on the **flow root** (`<main>`/`<article>`), entered once: one continuous writing surface. Cross-block drag-selection, `⌘A`, multi-paragraph copy, `⌘F` and native undo work because **the browser** provides them, not a simulation. `data-block`/`data-block-id` stay in the markup and stay addressable (AI direct-edit, Ask-about-this, turn-into, the navigator outline) — they simply stop being walls the caret cannot cross.
-
-**Ids are PRESERVED, not asserted (ADR-480 D3 — normalize-on-write).** Native editing splits, merges and orphans ids, so every flow commit runs a normalize pass before the write door: a surviving id keeps its block; a **duplicated** id (native split copied the attribute) is kept by the FIRST in document order and re-minted on the rest; a new top-level element is minted; a vanished id is treated as new rather than resurrected; **citation islands (`data-ref`) are never re-minted or restructured**. Addressability on flow is *reconstructed* rather than *enforced* — deliberately weaker than paged, and the priced cost of the carve.
-
-**What this DELETED on flow (ADR-480 D4)** — not disabled, deleted (Singular Implementation): `splitBlock`/`splitBlockAndInsert` on Enter, `mergeBlock` on Backspace-at-start, `caretAtBlockStart`, the cross-block ARROW traversal (whose own comment read *"the document behaves as one continuous flow"* — a simulation of the browser), the empty-block-closes rule, and the one-gesture-two-ops race guards those paths required. **All of it survives for `paged`**, where blocks are still enclosures. The argument for the whole carve: we deleted a hand-rolled text editor and used the browser's, retiring a class of recurring boundary defect rather than patching its next instance. *(The recurrence is the tell: ADR-462, ADR-466 P9/P10/P11/P12 and ADR-477 each diagnosed a chrome defect on the document type, fixed it honestly, and reaffirmed the model — and the friction returned. Five passes sharing one untested premise.)*
-
-**THE FLOW CHROME IS ITS OWN (ADR-481, 2026-07-22)** — ADR-480 moved the editing grain; the chrome drawn *around* the blocks stayed inherited from the Notion benchmark, so a document's substrate went continuous while its surface kept narrating a block structure nobody was thinking in (a gutter floating in an empty gap, a dead vertical void, hover boxes chasing the pointer across prose). Rebuilt from the axiom:
-
-- **Flow serves NO arrangements** (D1). `document`/`article` scaffolds are FLAT — `h1`, lede, `h2`, prose. The void was `<section data-arrange="title-lede">` wrapping an empty `<div data-slot="main">`: **a slot is a PAGED concept** (a PowerPoint placeholder, a Wix band region), and on a flowing document it renders as dead space wearing an `+ Add here` and a gutter attached to nothing. Killing the structure kills the void, the add-here and the slot chrome in one move. Arrangements stay first-class on `deck`/`web` (`page` at the time of writing — renamed by ADR-505 D2). *Two columns inside a document would be a **block kind** (one registry row, flowing with the text), never a page arrangement — not built.* Measured before deciding: across all 4 live flow artifacts, **every** arrangement was the scaffold's own and **zero** were member-authored — a feature that existed and was never used.
-- **The caret IS the insertion point; the gutter is DELETED on flow** (D2). The gutter answered *"insert **here**"* — meaningful when blocks were enclosures with gaps between them, meaningless once the caret is the location. Insert is **`/` at the caret** + **right-click**, both already built and both better suited; this is a removal, not a replacement. One addition: a CSS-only cold-start hint (`main:empty::before` → *"Type / for blocks, or just start writing"*) that vanishes on the first keystroke and never reaches serialized source.
-- **The hover cue retires on flow; the caret is the cue** (D3). No `[data-block]:hover` outline over prose — the I-beam and the caret already say where a click lands. **Objects stay objects**: figure/table/chart/gallery/metrics keep the pointer cursor, a quiet hover cue, and the neutral selection outline. `FLOW_POINTER_CSS` vs `POINTER_CSS`, chosen by mode at projection.
-- **The click-grain ladder loses slot + page on flow BY DERIVATION** (amends ADR-453 D5). ADR-466 P4 declined this because a document's `[data-arrange]` band was then the only re-arrangeable unit; D1 removes the band, so the grains disappear structurally — no suppression code, no flag.
-- **The navigator is UNCHANGED** (D4) — `extractOutline` reads `h1, h2` and resolves `data-block-id`, never arrangements or slots. Verified rather than assumed; a good sign for the axiom (it was already mode-native).
-- **Legacy artifacts flatten at PROJECTION, never by migration** (D5). Live flow artifacts carry the old scaffold's sections; the projection unwraps `[data-arrange]`/`[data-slot]` and lifts children in document order. **The SOURCE is untouched** — rewriting live content to fix a chrome problem would manufacture revisions nobody authored (ADR-209) — and because ADR-480's flow writes serialize what the member edited, a legacy artifact **flattens permanently on its next edit**: migration by use, attributed to whoever actually typed. Validated against the real production PRD: zero body arrangements after projection, **zero block ids lost, zero citations lost**.
-
-**On flow, RIGHT-CLICK LEADS (ADR-480 D5)** — turn-into/duplicate/delete reach for the context menu (ADR-462) and the inline format bar (ADR-456 W2), both already built. ADR-367 D3 tiered redundancy is preserved and the Design tab is still the dwell — what changes is which tier *leads*: the menu that appears where the pointer already is, rather than chrome in the margin. *(D5 originally said the gutter "recedes to insert"; ADR-481 D2 went further and DELETED it on flow — the caret is the insertion point. Insert on flow is `/` at the caret + right-click.)* **Performance was explicitly NOT a justification** (ADR-480 D7): writes were already per-block, debounced and optimistic (ADR-466 P8); the normalize pass costs a DOM walk per commit while the retired `syncBox`-per-input saves one — a wash, measured before the carve so no later reader infers a win never claimed.
-
-**THE SEAM BETWEEN THE TWO PASSES (ADR-482, 2026-07-23)** — ADR-480 moved the grain and ADR-481 rebuilt the chrome; both were right in isolation, and a hole opened where they met. **`/` had no working terminal step on flow**: `yarnnn-slash-take` guarded on `editingEl`, which only the per-block `enter()` assigns — and ADR-480 D1 stopped calling `enter()` on flow. ADR-481 D2 then removed the gutter `+` that had been masking it, *on the stated ground that `/` was already built*. It was built, reachable, opened and filtered; it never completed. **Insert was unreachable on the document type by every route.** The generalized lesson, recorded because this is the arc's second premise-level defect: *when an ADR deletes an affordance because "the replacement is already built," the replacement must be **exercised in that mode**, not merely present in the codebase* — the falsifier's shape is "the act completes," never "the affordance appears."
-
-Four more seam defects closed with it:
-- **The keyboard verbs were dead on flow** (D2) — `⌘C`/`⌘V`/`⌘D`/`⌫` lived inside `GUTTER_SCRIPT`, which ADR-481 D2 correctly stopped injecting on flow, so the right-click menu advertised keys that did nothing. They move to the pointer runtime (injected in *both* grains). Their guard becomes a **caret** question (`__yarnnnCaretLive`) rather than a per-block-session one (`__yarnnnEditingId`, null on flow while a caret is very much live) — otherwise text keys would be stolen from a member mid-sentence. An affordance's injection site must follow its **lifetime**, not the script it was first written into.
-- **The mode RACE** (D3) — `mode` is `undefined` until the vocabulary answers, and every `!== 'flow'` test read that as *paged*, so a flow document's first frames projected the paged gutter, hover cue and edit outline before re-projecting. That flash is the indigo box in the operator's click pass. **The mode gates the grain; the chrome WAITS for the mode** — an unresolved projection now draws no mode-specific chrome at all, matching the "show less, flash nothing" default. The editing grain keeps its conservative `undefined` → per-block behavior, because defaulting a deck to flow would put `contenteditable` on its root for a frame.
-- **Selection and the blues** (D2/D4) — flow left-click set its internal pointer but never applied the neutral `.yarnnn-pointed` cue while right-click did, so selection was visible on one button and not the other. `EDIT_CSS`'s 2px indigo outline is now **paged-only** (on flow the `contenteditable` lands on `main` — or `<article>` on a legacy artifact — so the selector cannot match — gating makes the intent legible rather than accidental), and the six `#6366f1` literals collapse to one `--yarnnn-chrome-accent` custom property.
-- **The menu was mode-blind** (D5) — `StudioBlockMenu` had no mode prop, so **Move up/down** were offered against continuous prose where a block is an annotation, not an enclosure. Withdrawn on flow (the op survives; the menu stops advertising it where it does not describe the medium). Rows that act on an addressable *region* — copy, duplicate, delete, turn-into, the AI acts, link, history — are kept, because addressing survives the dissolution.
-
-**Properties is ordered by SCOPE (ADR-482 D6)** — `File`/`Share`/`Export` are mode- and scope-invariant by deliberate design, but rendered *last*, so a block selection read `HEADING · T1 → WIDTH → ALIGN → TONE → FILE` and the file's own identity sat under the properties of whatever happened to be clicked. The invariant block now **leads**: the panel reads outermost-in (*this file* → *this selection*), which makes the fixed half a stable header rather than a drifting footer. Rename was already Singular (the Properties row and the crumb click arm one input with one commit path) — the problem was never two implementations, it was that the one implementation was at the bottom. **The breadcrumb carries the document-type glyph** (D7) from the `studioShapes` registry that already had three consumers; `image` gains its row, and the crumb's root label goes app-aware so IMAGES stops reading "Images" on its landing and "Studio /…" once a stage is open.
-
-**Still open, recorded honestly**: **paste is a plain-text sanitizer in both grains**, not a formatting preserver — no `text/html` path exists anywhere, so ADR-480 D1's "multi-paragraph span with structure intact" holds for copy *out* only. Loosening it needs an allow-list sanitizer and is a **security** carve (the comment's own reason: *no HTML injection through the clipboard* — the same reasoning that rejected the same-DOM ceiling). A second asymmetry belongs with it: the menu's `⌘C` writes an in-memory block clipboard, not the OS one, so `⌘C` here then `⌘V` in another app does nothing. Both are ADR-482 §7's deferral, and neither should ride in a chrome commit.
-
-**On a paged canvas, selection is a BOUNDING BOX (ADR-466 P8→P10)**: a selected framed block wears a solid accented box in the full PowerPoint grammar. **On a staged frame the object grammar wins the first click** (P10): first click *selects* — box, border band, handles; a second click on the already-selected block enters text at the caret; double-click enters directly; flow layouts keep the Notion click-to-caret. **The box interior is pointer-transparent** — clicks fall through to the content; **move lives on the border band** (four thin strips riding the edges, `cursor: move` — the conventional near-the-border zone; deck only, since position needs the fixed stage). **Eight handles resize** with directional cursors — corners drive both axes, edge midpoints one (`ew`/`ns`); a west or north handle on a positioned block anchors the opposite edge, so origin and size change together; height is the registry's `h` measure (`--yh`), wired end-to-end. **The box persists through text editing** (P11 — the PowerPoint convention): the handles stay reachable while the caret is live; the border goes dashed as the text-mode cue. Every gesture lands as **one geometry revision** (`yarnnn-geometry` → `setGeometry`: any mix of x/y/w, clamped from the served bound — the two-clamp rule unchanged). Empty slots on a deck slide wear their **dashed placeholder bounds always** (the PowerPoint "click to add" grammar), not only on hover. Framed blocks are placed, not stacked, which is why `isMeasurable` gates handles at all (the gutter it used to gate alongside them is deleted — ADR-505 D4); flow blocks never get the box; a box press never clears the selection it belongs to. *(The framed box is deliberately accented — ADR-462 D5's neutral ruling now covers the flow selection outline only.)* **P9 made the box honest (ADR-466 §6)**: it anchors on **blocks only** — a slot or page selection gets no box (slots keep their dashed bound + add-here) and a geometry op never fires without a `data-block-id`; all body-appended chrome divides its visual rects by the effective zoom (`body.style.zoom` = deck fit-scale × member zoom rescales layout, not the viewport — the one accessor is `window.__yarnnnZf`), so the box hugs the block at every zoom; the parent re-commands selection by id after every re-projection (`yarnnn-select-block`), so the box survives an optimistic write; and move/resize are frame-bounded on the trailing edge too (x ≤ 100 − w%; an east resize is bounded by the room to the block's right).
-
-**The keyboard (ADR-477, 2026-07-21)** — the canvas is a sandboxed iframe, so **keys land in its document or nowhere**: every shortcut lives in the runtime and posts an EXISTING verb out (`yarnnn-key-verb`), never a new op. The standing rules are ADR-462's two falsifiers: **every shortcut the chrome advertises has a handler** (labels are a promise), and **a verb key and its menu row run the same function**.
-
-*Universal* — `⌫`/`Delete` removes the selected block · `⌘C`/`⌘V`/`⌘D` copy / paste-after / duplicate · `Esc` lifts caret → block-select. **Owed**: `Esc` again to deselect · `Enter` to edit the selected block · `↑`/`↓` to move selection · `Tab` to cycle.
-
-*Deck / canvas (object-first)* — **owed**: arrows nudge position, `⇧arrows` coarse, `⌥arrows` resize, `⌘]`/`⌘[` z-order (the `nudgeZ` verbs exist), `Tab` cycles objects in the slide. Position keys are confined to `block-staged` — ADR-466 D2's scope guard.
-
-*Flow (document, caret-first)* — Notion semantics; **owed**: `⌘B`/`⌘I` (today mouse-only) and `Tab` indent/outdent in lists. **No positional keys** — ADR-461 D4's refusal is not relaxed by a keyboard. *Web (band-first)* — **owed**: `↑`/`↓` between bands, `⌘⇧↑`/`⌘⇧↓` to reorder; no positional keys, same reason.
-
-**Two rules decide who owns a key.** (1) **An empty block closes itself**: Backspace at the start of an emptied block *removes* it rather than merging — the merge path needs a previous TEXT block, and where there is none (top of document, after a figure/table/divider) the block used to survive its own emptying, because `contenteditable` has no concept of a block. A block holding a citation or image is never "empty". (2) **The verb-key guard asks whether the CARET has a claim on the key** — live *in this block* and with *text to act on* — not whether anything is editing. That older guard was correct while SELECTED and EDITING were exclusive; **ADR-466 P11 made the box persist through editing**, so a block routinely looks selected while `editingId` is non-null and every verb key silently died (Delete worked only after an `Esc` nothing advertised). Text keys are stricter: `⌘C`/`⌘V` return to the editor whenever a caret exists at all — `⌘V` in an empty block means *paste text*, never *paste a block*. **`⌘Z` is deliberately unbound**: revert-as-write is ratified (ADR-453 D7) and History is unbuilt, and advertising it first would repeat the exact defect ADR-462 D10 fixed.
-
-**~~The gutter owns the ROW, resolved by GEOMETRY (2026-07-15)~~ — RETIRED with the gutter (ADR-505 D4).** `rowAt(x, y)` and its 64px left lane are deleted. Kept here as the *lesson*, which outlives its mechanism: the affordance drew in the left margin, **outside** the block box that armed it, so travelling to the `+` left the region that summoned it and started a 150ms hide — "sometimes it's there, sometimes it isn't". **An affordance must live inside the area that keeps it alive.** The row band was the fix; deleting the affordance is the stronger one.
-
-## The surface contract
-
-- **Start state**: layout picker (operator words + one-line descriptions) → name → meaning-placed path (`operation/…`, never an app-named root) → Create. Below: "Continue where you left off" (recent artifacts, clickable) + open-by-path fallback. **A first-order "Design systems" section (DESIGN-SYSTEMS.md §6, decided 2026-07-18, to build)** sits below recents: empty → two create paths (Import a `.zip` = a modal; Derive from a source = the learn-from flow, whose `LEARN_TARGETS` already carries `design-system`); populated → a card per system (name · `--accent` swatch · "worn by N artifacts") that opens the manage state. This is Job B (manage the workspace's identity); Job A (wear it) stays in the open-artifact Design-tab picker.
-- **Manage state (the THIRD render state, DESIGN-SYSTEMS.md §6, to build)**: keyed on a new `studio.system=<manifest-path>` param, sibling to `studio.file`. NOT the landing, NOT an artifact workbench — a dedicated panel (`Studio › ‹System Name›`) reading a design system that exists: **worn by N artifacts** (the ADR-448 dependents, each openable), its files, the read-only theme panel (§5 widened vocabulary), Re-import, and the deferred token-editor slot. Accepted as a deliberate surface-area growth ("mirror once, compose few" resists it) because a first-order object earns a composed act-surface and the panel is the only clean home for the var-editor.
-- **Workbench** — three columns, three jobs (ADR-447; the right column split into two TABS by ADR-453): **navigator (left — a per-type navigator, COLLAPSIBLE via a toolbar toggle, ADR-455:** a slide strip of **visual previews** for a deck (each slide a scaled real render, PowerPoint/Preview.app style — clicking one scrolls the canvas to it), a **navigational outline** for a document — clicking a heading selects its block and scrolls the canvas to it (the Docs/Word nav-pane contract)) · **canvas (center — see + touch:** sandboxed projection; the **click-grain ladder** — a block, a slot's padding, a page's margin (slots outline + name themselves on hover); **double-click a block to edit its text in place**, empty slots show `+ Add here` (role-gated); a **zoom** view control (−/%/+) scales the render on screen without touching the file), with the toolbar over it — one left-packed cluster ordered by GRAIN: **New ‹slide|band› · Re-arrange** (`paged` only — a flow document has no page unit to offer) then **`Insert` in EVERY type** (ADR-506 D1/D4: the door onto `/`, last in the cluster) · **the right column — Chat | Design tabs (ADR-453 D4, the Canva model — never a fourth column):** Chat = the bound lane (the judgment path; teaching empty state + starter chips; stays MOUNTED under either tab so a streaming turn survives a switch); **Design = the scope-switching inspector** — document scope (**the one settings home, ADR-458**: typography Ag-chips + width tokens [ADR-455] + the design-system picker [ADR-449 D5] + the theme panel [W3] + the **File section** — Copy link · Duplicate · Rename · Move · Trash, the same shared `useFileOrganizeVerbs` flows the Files surface uses; trash falls back to the landing) / page scope (page tokens + Background + Duplicate/Move/Delete — the Re-arrange gallery left for the toolbar, its one mount, 2026-07-21) / slot scope (name + role, plus the MEDIA slot's image picker — which is not a second insert route but the TERMINAL STEP of the canvas `+ Add` on a media slot, routed here by role; the flow-slot add-text duplicate was deleted by ADR-505 D5) / block scope (tokens + Turn into + Ask about this + Duplicate/Move/Delete). **The File / Share / Export sections are the panel's fixed TAIL — rendered in EVERY scope** (2026-07-21): they are document-global acts, and scope-gating them under "nothing selected" hid them exactly while a section was selected. *(The surface-bar "File actions" ⋯ is deleted — ADR-458 reversed ADR-455's placement; the Studio's surface bar is crumb-only.)* **The hover gutter is DELETED** (ADR-458 D4 → ADR-481 D2 on flow → ADR-505 D4 on paged); entry to the Design tab is select-then-Design, the PowerPoint convention. Freddie's floating rail is suppressed on `studio` (like `/chat`), so the Studio's own chat owns the right edge. **On mobile (< md)** the three columns collapse to one pane at a time (Slides/Outline · Canvas · Chat) via a bottom tab bar — canvas-first. Identity lives in the **surface bar** (ADR-442): the artifact crumb. *(The type-switcher is deleted — see the refusals.)*
-- **The name is ONE fact** (2026-07-15): the file's name, the crumb, and the artifact's own title are the same name. The artifact's name is its **meaning folder**, never its leaf — `operation/prd-for-yarnnn/document.html` is "Prd for yarnnn"; the leaf is a TYPE marker (`document`/`deck`/`web`.html) that names the layout. One resolver (`artifact_name`, ADR-459 as amended by ADR-469) serves the landing card, the crumb, and the title — **two sources in order: the artifact's own `<title>` (exact, unicode, what the member typed), then the titleized meaning folder as fallback.** The path is an ASCII identity KEY and is lossy on purpose (`sdㄴ` keys to `sd`, `한글 문서` to `untitled`) — so the folder is the FALLBACK half and must never be read as the name on its own. ADR-483 completed that lift at its last unmigrated caller, the workbench crumb, which had kept a path-only copy and so showed a Latin fragment of any non-Latin name. The FE reads the placeholder set from `GET /studio/vocabulary` (`placeholder_titles`) rather than re-deriving it — a deck/web scaffold h1 is a thesis ("The headline promise."), not "Untitled ‹label›", so a re-derivation would drift. **CREATE** titles the artifact as well as the file. **RENAME** renames the **meaning folder** — `POST /studio/artifacts/rename` moves every file under it (one attributed `MoveFile` each), then retitles so the h1 follows; the shared leaf-rename modal is no longer wired for the Studio, because renaming `document.html` → `report.html` renamed the TYPE and left the artifact's name untouched. It is the Studio's own endpoint, not the generic move, because the folder-is-the-name and h1-is-a-title knowledge lives with the layout registry — the filesystem must not hold Studio's opinion. Not atomic (MoveFile is per-path, there is no multi-path transaction): a partial failure stops and reports what moved rather than pretending. **The rename affordance is the CRUMB** — click the name where it is shown (the Finder model), commit on Enter or blur, never per-keystroke (each intermediate state would be a real folder move). **An IME composition owns Enter first** (ADR-483): while `isComposing` is true the first Enter commits the *syllable*, not the field, so the handler returns early — without that guard a Korean rename committed a half-formed jamo as the name (`sdㄴ`), which then slugged to `sd`. The same guard sits on the named door's modal; it is one bug in two places, not a Studio-specific rule. The Design tab's Rename row and the landing's context-menu Rename both focus that same crumb: one rename path, one meaning. Two guards: only a **`flow`** layout's h1 is a title (a deck's h1 is its title slide's thesis, a web page's its headline — authored content a filename has no business dictating), and only the untouched scaffold placeholder is ever replaced (once the member authors a title, their words win). The `<title>` element always follows — it is metadata, never authored. *(Until 2026-07-15 there were THREE names: the landing said "Prd for yarnnn", the crumb said "document.html", and the h1 said "Untitled document" — and the two the member could see were the two that weren't its name.)*
-- **Pixels never wait for the network (ADR-466 P8, 2026-07-20)**: every mechanical op paints OPTIMISTICALLY — the override advances the moment the op computes (this tick), and the durable CAS write queues behind it (content advances now; the head advances on the server ack; the courteous-409 retry recovers a conflicting write). Before this, the override was set only after the API ack, so every reorder/insert/re-arrange sat on a full round-trip before the canvas moved — the "performative slow" that read as a rendering problem but was the network gating the pixels.
-- **A member's own write never reloads the canvas** (2026-07-15): the FE computes the new source locally, so it already HAS the answer — the write is durability, not the source of truth for the pixels. The local override carries the new content into the canvas, which re-projects on any content change; `reloadKey` (refetch + discard the override) is reserved for the cases that genuinely need authoritative server state: a **foreign (lane) write**, and a **409 that survives the courteous retry**. **The courteous 409 (ADR-466 D7, 2026-07-20)**: because every mechanical op is a *compute over content*, a conflict first refetches the authoritative head, recomputes the member's op on top of the foreign change, and retries ONCE — typed text and structural intent survive, and the override keeps its original anchor so nothing flashes. Only a second conflict (or an op that no longer applies to the fresh content) falls back to the destructive reload, and the banner then shows the server's own conflict detail (who wrote in between) rather than a generic error. *(Until 2026-07-15 every structural op reloaded. The reload was redundant — the canvas already re-projects on content change — and worse: the `[reloadKey]` effect nulls the override, so the canvas fell back to the PRE-EDIT content, re-projected the old shape, then re-applied the very bytes computed locally a moment earlier. Every insert/move/delete flashed backwards and scrolled to the top — "any change, the page gets refreshed, and I don't know if it was reflected". A split/merge still re-projects when a half carries a citation, which must resolve.)*
-- **Mutation is two-path, one door** (ADR-444 + ADR-446): the **lane** writes judgment edits (metered); the **member** writes mechanical edits (structural ops via the toolbar, and **block text typed in place on the canvas** — free). Both land through the one write door (`POST /studio/artifacts/write`, `authored_by="operator"`, CAS-guarded). The palette pickers and the "Ask about this" chip action prefill the lane's composer; nothing else is a write path. (ADR-236's *point* — one attributed door, no silent second path — is unbroken; its *letter* is amended to let the canvas edit.)
-- **Direct editing maps to the source, never the projection** (ADR-446): the canvas renders a projection (citations resolved, executables stripped, runtime injected). A block edit emits `{data-block-id, new inner}`; the FE applies it to the artifact's SOURCE html, restores any cited object inside the block to its living-reference form (citations are `contentEditable=false` islands), sanitizes, and lands one debounced revision (blur / idle-2s). The revision is the atom — no keystroke-realtime CRDT, ever.
-- **Inline formatting (ADR-456 W2)**: a non-collapsed text selection inside the editing block raises a floating **format bar** (in-frame injected chrome, body-appended so it can never leak into a commit): **B / I** (execCommand, `b`/`i` normalized to `strong`/`em` at the write door — semantic tags, never styles), **code** (a range wrap), **Link** (the bar swaps to a URL input; the blur guard keeps the edit session alive while it has focus; `javascript:` stripped at the door). Formatting is *semantic*, not styling — no collision with the raw-color refusal.
-- **Turn into (ADR-456 W2)**: the Design tab's block scope converts a block between the TEXT kinds (prose · callout · quote · checklist · toggle) — `convertBlock` keeps the block's id and its property tokens, rebuilds the text units into the target's shape, refuses blocks containing citations (a `data-ref` never flattens to text), and lands as one ordinary revision. Structured/cited kinds and headings are not conversion targets.
-- **Canvas security posture**: the projection pass strips all artifact-authored executables and injects only the kernel pointer + edit runtime; the iframe is `sandbox="allow-scripts"` on an opaque origin; typed content is sanitized on write-back; on projection failure the canvas renders blank, never raw. The projection **never resolves into a `<style>` element** — the marked `data-skin`/`data-kernel` elements carry `data-ref` as an EDGE citation only (the ADR-456 W3 skin-stomp fix).
-- **Theme (ADR-456 W3; contract widened 2026-07-16, DESIGN-SYSTEMS.md §5)**: the design system's custom-property **contract** is the set of variables the kernel chrome consumes. The coverage probe measured that the original five (`--ink`/`--paper`/`--muted`/`--accent`/`--radius`) paint only ~3% of a real system and miss the geometry (hairlines, pill radii, type scale), so the contract is now a **~14-slot *families* vocabulary**: color (`--ink`/`--paper`/`--muted`/`--accent`), an ink ramp (`--ink-06`/`--ink-10` — the hairlines), a radius scale (`--radius-sm|md|lg|pill` — the pill button), a type scale (`--text-xs…5xl`), and semantic `--fresh`/`--danger`/`--warn`. Every kernel literal is now `var(--slot, LITERAL)` so a skin-less artifact is byte-identical and a skin that ships a slot themes it (`STUDIO_KERNEL_CSS` v9). A declarative **`maps:` field** in `_design.yaml` bridges a vendor's private name (`--yarn-orange`) to a kernel category (`--accent`), seeded conservatively at import. The kernel still names categories, never instances (ADR-222). **Two registers (ADR-487 D9, 2026-07-29): inside an artifact the system is WORN, never listed; inside the system it is LISTED, never worn.** The Design tab's artifact-side var-list is **deleted** — the painted controls already carry every slot that is a member CHOICE (tone/variant colours, the three faces, the nine type rungs), and what the list uniquely added (`--paper`, `--ink-06`, `--deck-stage`, `--danger`, the four `--radius-*`) is exactly the member-invisible identity set. It also read the artifact's own copy of the skin, which goes stale against the system after a re-import. What the tab keeps is the **applied-system cue** — one shared component at document + block scope naming the system and routing into the manage state (which also fixes block scope, painted in the system's values but formerly offering no way to reach it). The manage state (`studio.system=`) is the **sole** var-list mount, parsed from the *resolved* `skin_element` (`web/components/studio/skinVars.ts`); **the theme's files are the source of truth** — change a value through the chat, then Apply again to pick it up. **ADR-487 extends the contract into the editing grammar**: the face slots (`--font-serif/sans/mono` behind the `font` token), the semantic trio wired to callout variants, system-painted controls (tone swatches, face previews, type readback), the member-playable heading ramp, and the workspace-default system (`operation/_studio.yaml`, birth-apply). The mechanical var-editor's `PATCH` permission shipped (`_is_design_system_editable` — a `.css`/`_design.yaml` under a folder with a manifest); the editor **UI** remains a named follow-on, pending the var→owning-source design pass the 6-file flatten creates.
-
-## Named follow-ons (agreed, not yet built)
-
-- **Editing the h1 in place does not rename the artifact** — the rename affordance is the CRUMB (click the name where it is shown). Making the h1 itself lead would mean every keystroke MOVES substrate identity, breaking every `data-ref` that cites the path; it needs debounce + dependent-rewriting on the ADR-448 reference edge. The crumb gives the same "rename in place" feel at a grain that matches what a rename actually is: one deliberate act.
-- **A rename does not rewrite dependents.** `MoveFile` never has — a rename already breaks a `data-ref` that cites the old path, and the folder rename inherits that. `list_dependents` (ADR-448 D6) already answers "what cites this?", so the fix is a rewrite pass at move time, for every mover (Files included), not a Studio special case.
-
-## What Studio is NOT (the standing refusals)
-
-**Not a fourth type, and not a positioned web page (ADR-505).** The type set is THREE — one per medium (capture · present · publish). A fourth would imply a fourth coordinate system; `article` was exactly that mistake and its merge into `web` is not to be reversed by re-splitting "essay" from "landing page" (which bands you stack is a composition choice). And **`web` never acquires a coordinate space**: no `x`/`y`/`z`, no drag-to-position, no free placement — a page has a VIEWPORT, not a frame (ADR-461 D4), so a percentage means something different at every width and pinning it is per-breakpoint editing. The reference class agrees (Medium/Substack/Ghost: zero positional control). **No third insert route** either: `/` adds a block, the gallery adds a page, right-click acts — the gutter is deleted and does not come back, and a new positional gesture needs an ADR, not a convenience.
-
-No shadow/JSON content model · no widget/plugin ABI (blocks are semantic HTML + skin, never embedded editors) · **no PAGINATION** (ADR-480 D6 — Word-style page breaks on flow layouts: pagination is a *print* abstraction, Studio is HTML-native by axiom [ADR-417, no owned render engine] and responsive by kernel CSS, and deciding where text breaks across a fixed page is the per-breakpoint-editing refusal in another costume. The two legitimate wants beneath the ask are already served: print fidelity by the ADR-466 D6 print-projection, and the *felt boundedness* of a page by `max-width` + margin + paper-ground styling — a token question, not a model question. Notion/Linear/Craft refuse it for the same reason; Docs paginates because it targets paper, and shipped "pageless" as the escape) · no *second* write path — in-place editing lands as debounced attributed revisions through the ONE write door (ADR-446), not a parallel one · **no keystroke-realtime CO-EDITING (CRDT)** — the revision is the atom, single-writer-per-path, no merge (ADR-406/286; "real time" means the manipulation feels immediate, not operational-transform co-editing) · no editing of viewer-owned formats (a PDF is citable, not Studio-editable) · no raster generation engine (rented at the boundary when demanded — ADR-417) · **the ADR-456 stop-lines**: no second source format (markdown = projection, D1) · no block-as-page recursion or arbitrary block trees (native `ul>li` + toggle content are the allowed nesting) · no databases/linked views (the cited `table` is the stronger primitive) · no synced-block mechanism (that is `data-ref` at block grain — a future citation, never a new mechanism) · no JS carousels (CSS scroll-snap is the offer) · no forms · no per-breakpoint editing · no web-font CDNs. The standing drift test (ADR-440 §7): *does this force a definitional question about the app format, or is it just a better editor?* — with the operator's 2026-07-12 widening on record: **direct text editing is in scope** (a webpage editor's in-place edit, committed as a revision).
+1. **Container drag = reorder, per medium** (the matrix's 🔜 cells) — with drop
+   indicators; never positional.
+2. **Snap/alignment guides** on block drag (siblings + frame).
+3. **Breadcrumb at the selection** (the ancestor chain the Esc-walk already walks) —
+   the one industry-standard affordance not yet declared elsewhere.
+4. Owed keyboard rows (arrows/nudge/Tab-cycle · ⌘B/⌘I on flow · band reorder keys).
+5. Carried follow-ons: h1-rename-in-place (needs dependent-rewriting on the ADR-448
+   edge) · rename does not rewrite dependents (every mover's gap, not Studio's) ·
+   `text/html` paste (a security carve — allow-list sanitizer first) · measures deriving
+   their posture line · `applies` → `(scope, grain)`.
