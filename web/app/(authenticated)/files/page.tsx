@@ -60,6 +60,8 @@ import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
 import {
   extractTemplate,
   isArtifactCandidate,
+  knownKind,
+  rememberKind,
   resolveDeclarationApplication,
   resolveSurfaceApplication,
 } from '@/lib/file-types';
@@ -687,6 +689,7 @@ export default function ContextPage() {
       try {
         const file = await api.workspace.getFile(path);
         kind = extractTemplate(file.content ?? '');
+        rememberKind(path, kind); // the menu's sync resolution reads this cache
         // ADR-514 D2.4: the file's own default binding, if the operator set one.
         override =
           (file.metadata as { launch?: { handler?: string } } | undefined)?.launch
@@ -712,11 +715,44 @@ export default function ContextPage() {
   // from the same two registries openPath consults, merged into one ordered
   // list (lib/file-types/handlers), so the menu and the open funnel can never
   // disagree about what can open a file.
+  //
+  // ADR-518 click-pass run-1 finding: openPath resolved WITH the file's kind
+  // (it reads content) while this menu resolution did not — so the menu
+  // showed "Studio (default)" for a document and never listed Docs. The kind
+  // rides the shared PATH_KIND cache (rememberKind at every content read);
+  // when the menu opens on an artifact whose kind is not yet known, a
+  // fire-and-forget read fills the cache and `kindTick` re-renders the open
+  // menu with the honest set. Until it lands, the kind-less order (the
+  // pre-ADR-518 behavior) shows — never a wrong route, only a stale label.
+  const [kindTick, setKindTick] = useState(0);
+  const kindFetchInFlight = useRef<Set<string>>(new Set());
   const handlersFor = useCallback(
-    (t: { path: string; isFile: boolean }) =>
-      resolveHandlers({ paths: [t.path], isFolder: !t.isFile })
-        .map((h) => ({ id: h.id, label: h.label })),
-    [],
+    (t: { path: string; isFile: boolean }) => {
+      const kind = t.isFile ? knownKind(t.path) : undefined;
+      if (
+        t.isFile &&
+        !kind &&
+        isArtifactCandidate(t.path) &&
+        !kindFetchInFlight.current.has(t.path)
+      ) {
+        kindFetchInFlight.current.add(t.path);
+        void api.workspace
+          .getFile(t.path)
+          .then((f) => {
+            rememberKind(t.path, extractTemplate(f.content ?? ''));
+            setKindTick((n) => n + 1);
+          })
+          .catch(() => {
+            /* kind stays unknown; the kind-less order stands */
+          })
+          .finally(() => kindFetchInFlight.current.delete(t.path));
+      }
+      return resolveHandlers({ paths: [t.path], isFolder: !t.isFile, kind })
+        .map((h) => ({ id: h.id, label: h.label }));
+    },
+    // kindTick re-arms the callback so the OPEN menu re-reads the cache.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [kindTick],
   );
 
   // Open the target with a NON-default handler. Surface navigation and inline
@@ -724,8 +760,11 @@ export default function ContextPage() {
   // declaration, not a branch the caller re-derives.
   const openWith = useCallback(
     (t: { path: string }, handlerId: string) => {
-      const handler = resolveHandlers({ paths: [t.path], isFolder: false })
-        .find((h) => h.id === handlerId);
+      const handler = resolveHandlers({
+        paths: [t.path],
+        isFolder: false,
+        kind: knownKind(t.path), // same cache as the menu that offered the id
+      }).find((h) => h.id === handlerId);
       if (!handler) return;
       if (handler.open.via === 'surface') {
         navigateToSurface(handler.open.surface, { [handler.open.param]: t.path });

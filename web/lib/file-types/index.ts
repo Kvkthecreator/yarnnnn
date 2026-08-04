@@ -190,6 +190,29 @@ export function appForKind(kind?: string | null): string | null {
   return KIND_TO_APP.get(kind) ?? null;
 }
 
+/**
+ * The per-path KIND cache (ADR-518 click-pass run-1 finding).
+ *
+ * A file's kind lives in its own bytes (`data-template`, ADR-473 D1), so any
+ * caller that has not read the content cannot resolve the owning app — and
+ * the context menu / Get Info are sync render paths that must not fetch per
+ * row. Pre-ADR-518 the omission was invisible: the kind-less fallback
+ * (DEFAULT_ARTIFACT_APP) matched every Studio-owned type. With a second
+ * authoring app the menu showed "Studio (default)" for a document and never
+ * listed Docs. Whoever reads content REMEMBERS the kind here; sync callers
+ * consult it and pass what is known — the association itself stays served
+ * (ADR-473 D3), this caches only the file's own declared type.
+ */
+const PATH_KIND = new Map<string, string>();
+
+export function rememberKind(path: string, kind: string | null | undefined): void {
+  if (path && kind) PATH_KIND.set(path, kind);
+}
+
+export function knownKind(path: string): string | undefined {
+  return PATH_KIND.get(path);
+}
+
 /** Could this path be an authoring-app artifact at all? (ADR-473)
  *  A cheap path-only pre-check so the Finder reads content ONLY for files that
  *  might route to an app — never for a `.md`, an image, or an arrival. */

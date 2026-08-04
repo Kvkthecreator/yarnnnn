@@ -1,0 +1,230 @@
+eval_suite_schema_version: 3
+eval_suite: adr518-docs-studio-split-click-pass
+
+# CURRENT (browser lane) — production sign-off for ADR-518 (Docs and Studio —
+# the writing app and the layout app): the /docs surface mounts, the type→app
+# association routes document→Docs and deck/web→Studio end-to-end (creation
+# scoping, recents scoping, Files open, Open With), the owned deep-link params
+# still work, and the legacy ADR-249 /docs pages are gone. Registered
+# 2026-08-04; machine-checked by api/test_eval_suite_gate.py.
+#
+# NOTE ON THE LANE: `suite_kind: browser` — fired by a browser principal
+# (chrome-devtools MCP), never by run_eval_suite.py. Receipts here are
+# authed-API reads executed from the principal's own page context (the API is
+# authoritative for files/recents/vocabulary; no RLS claim is made by this
+# suite, so no psql half is required — that distinguishes it from the ADR-517
+# suite, whose subject WAS the policy layer).
+status: current
+suite_kind: browser
+
+thesis: |
+  ADR-518 is live end-to-end: the authoring housing is two apps over one
+  shared machinery, and every derived consumer of the one `app` declaration
+  actually derives.
+
+  Four-sided — all must hold:
+
+  1. THE DOOR EXISTS. /docs mounts the shared authoring surface as Docs
+     (header, create menu, recents), reachable from the shell (Launcher; the
+     Dock row where the reseed applies — a curated Dock is deliberately
+     untouched and is recorded as observed, not failed).
+
+  2. OWNERSHIP SCOPES EVERYTHING, DERIVED. Docs offers ONLY the document
+     type and lists ONLY document artifacts; Studio offers ONLY deck · web
+     and its recents exclude documents. Both follow from the served `app`
+     field (vocabulary), never a FE list — asserted by reading the
+     vocabulary from the same session that observed the menus.
+
+  3. THE FINDER ROUTES BY KIND. Opening a document file from Files lands in
+     Docs (docs.file param); Open With shows the handler set. The owned
+     deep-link (?studio.file=<document>) still opens — present intent always
+     wins over default routing.
+
+  4. THE DELETION HELD. The legacy ADR-249 /docs/{id} upload-detail page
+     answers 404 — the route is gone, not redirected; /docs itself is the
+     app, not a redirect.
+
+  Single-principal by design: ADR-518 changes housing, not governance — no
+  grant, share, or RLS surface moved, so one owner context is the honest
+  instrument (the playbook's principal-pair rule keys on governance claims).
+
+description: |
+  First browser pass over ADR-518 (6228e16 docs · dd2b5dd code, pushed
+  2026-08-04). The unit gate (api/test_adr518_docs_app.py, 27/27, falsified
+  via de-registration) covers the registry, association, and housing rows;
+  THIS suite covers what it cannot: the deployed FE actually mounting /docs,
+  the runtime KIND_TO_APP association driving real menus and real routing in
+  a real session, the Dock/Launcher presence, and the deleted legacy routes
+  answering 404 in production.
+
+  API deploy verified live at dd2b5dd (dep-d9or1p0ae00c7397qja0, Render)
+  BEFORE the pass. FE (Vercel) deploys separately — detected behaviorally:
+  the Docs row in the Launcher ships only in dd2b5dd, so its presence IS the
+  FE-deploy receipt.
+
+principals:
+  - owner:kvkthecreator@yarnnn.com   # 67c5c637-501d-43d1-836a-a15ff32b5901, owner of the rig
+
+workspace: bf5b25a9-477f-462e-b7f3-65812f489411   # kvk-yarnnn RIG — disposable
+artifact: (created by step 3 — an untitled document born in Docs; trashed at cleanup)
+
+# Baseline captured at run time from the owner session (authed API reads,
+# recorded in the run record before any mutating step):
+#   rig artifact roster (paths + kinds) — pinned so cleanup can re-assert it
+#   Docs recents count · Studio recents count
+baseline:
+  captured_at_run: true
+
+guardrails: |
+  - The RIG (bf5b25a9) is the subject; the LIVE workspace (d5b9029b) is never
+    touched.
+  - Real externals are never subjects.
+  - Login via api/scripts/operator/browser_login_link.py only (roster-guarded
+    in code). Never set or read a password. Never paste a minted URL anywhere
+    that leaves this machine.
+  - One isolated browser context; identity re-asserted from the session
+    before any observation is trusted.
+  - The only mutation is the test document this suite itself creates; it is
+    trashed at cleanup and the roster re-asserted against baseline.
+  - In-canvas (inside-iframe) interactions are NOT exercised — the sandboxed
+    iframe blocks synthesized input (receipted 2026-08-01) and ADR-518
+    changed nothing in-canvas.
+
+known_deferred:
+  - "in-canvas editing lanes (typing, drag) — human-owed, unchanged by
+    ADR-518 (the split is housing; the canvas is shared machinery)."
+  - "dock-reseed on an UN-curated dock — the owner's dock may be curated, in
+    which case the reseed deliberately does not fire (ADR-518 D5 inherits the
+    ADR-488 rule: authored Docks are never rewritten). The Launcher lane
+    covers reachability either way; a fresh-principal dock observation is
+    owed to the next cold-rig run."
+  - "member-pair lanes — no governance surface moved in ADR-518; covered by
+    the standing ADR-501/517 suites."
+
+steps:
+  # ------------------------------------------------------------ DEPLOYS
+  - step: deploys-live-before-observations
+    principal: owner
+    surface: (Render API + the shell)
+    action: |
+      Assert the API deploy at dd2b5dd is status=live (Render). Then log in
+      and open /desktop; the FE receipt is behavioral — the Docs app row
+      renders in the Launcher (ships only in dd2b5dd).
+    expect_dom: |
+      Launcher search/summon finds "Docs" with the file-text glyph; its row
+      opens /docs.
+    mutates: false
+
+  # ------------------------------------------------------------ THE DOOR
+  - step: docs-surface-mounts-as-docs
+    principal: owner
+    surface: /docs
+    action: |
+      Open the Docs surface. Observe the landing header, the create (New)
+      menu's offered shapes, and the recents shelf.
+    expect_dom: |
+      Header reads "Docs". The New menu offers ONLY the Document shape —
+      no Deck, no Web, no Image. Recents (if any) are document artifacts
+      only.
+    mutates: false
+
+  - step: dock-presence-recorded-honestly
+    principal: owner
+    surface: /desktop
+    action: |
+      Observe the Dock. If the owner's dock was un-curated, the 2026-08-04
+      reseed generation shows Chat · Docs · Studio · Radar · Files · Agents;
+      if curated, Docs may be absent BY DESIGN — record which case was
+      observed, and that right-click keep can pin it.
+    expect_dom: |
+      Either the reseeded six-app Dock, or a curated Dock recorded as such
+      (not a failure) with Docs reachable via the Launcher.
+    mutates: false
+
+  # ------------------------------------------------------------ OWNERSHIP
+  - step: create-document-in-docs
+    principal: owner
+    surface: /docs
+    action: |
+      Create a new (untitled) document from the Docs landing. Record the
+      created path.
+    expect_dom: |
+      The workbench opens with the crumb rooted "Docs /"; the canvas renders
+      the document scaffold (Untitled document).
+    mutates: true
+    receipt: |
+      Authed GET /api/workspace/file?path=<created> from the session:
+      content carries data-template="document"; the head revision exists and
+      is operator-attributed.
+
+  - step: studio-offers-layout-media-only
+    principal: owner
+    surface: /studio
+    action: |
+      Open Studio's landing. Observe the New menu and the recents shelf.
+    expect_dom: |
+      The New menu offers Deck and Web ONLY (no Document). Recents exclude
+      the document created in the prior step; deck/web artifacts still
+      listed.
+    mutates: false
+
+  - step: vocabulary-carries-the-association
+    principal: owner
+    surface: (in-page authed fetch)
+    action: |
+      From the owner session, GET /api/studio/vocabulary and read
+      layouts[].app.
+    expect_dom: |
+      document→docs · deck→studio · web→studio; the served association is
+      exactly what the menus derived from (steps above), closing the
+      no-FE-list loop (ADR-473 D3).
+    mutates: false
+
+  # ------------------------------------------------------------ THE FINDER
+  - step: files-open-routes-document-to-docs
+    principal: owner
+    surface: /files
+    action: |
+      Locate the created document in Files. Right-click: observe Open With's
+      handler set. Fire Open.
+    expect_dom: |
+      Open lands in the DOCS surface (the docs.file param carries the path;
+      the Docs workbench renders it). Open With lists the handler set with
+      the default first.
+    mutates: false
+
+  - step: studio-deep-link-still-opens
+    principal: owner
+    surface: /desktop?studio.file=<created document rel path>
+    action: |
+      Navigate the owned deep-link form directly.
+    expect_dom: |
+      The artifact opens (present intent wins; the param is OWNED). Recorded
+      as which surface mounted it — Studio is acceptable and expected: the
+      param names the surface explicitly.
+    mutates: false
+
+  # ------------------------------------------------------------ DELETION
+  - step: legacy-docs-id-is-gone
+    principal: owner
+    surface: /docs/workspace%2Fuploads%2Fnope.md
+    action: |
+      Navigate the ADR-249 upload-detail URL shape directly.
+    expect_dom: |
+      404 (the app-router not-found) — not the old detail page, not a
+      redirect to /files.
+    mutates: false
+
+  # ------------------------------------------------------------ CLEANUP
+  - step: cleanup-trash-test-document
+    principal: owner
+    surface: /files
+    action: |
+      Trash the document created by this suite. Re-read the artifact roster.
+    expect_dom: |
+      The roster matches the pre-run baseline; Docs recents no longer list
+      the test document.
+    mutates: true
+    receipt: |
+      Authed files listing equals the baseline roster captured before step
+      create-document-in-docs.

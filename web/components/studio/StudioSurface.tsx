@@ -2366,7 +2366,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               <button
                 type="button"
                 onClick={() => setParam({ file: null })}
-                title="Back to Studio"
+                title={`Back to ${app.label}`}
                 className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
               >
                 {/* ADR-482 D7: app-aware, matching the landing. The label is
@@ -3261,8 +3261,15 @@ function StudioStart({
         ) : (
           <div className="rounded-lg border border-dashed border-border p-8 text-center">
             <p className="text-sm text-muted-foreground">
+              {/* ADR-518: the offer derives from THIS app's served templates —
+                  the hardcoded list had gone stale twice (article/page died in
+                  ADR-505; the split made it cross-app). */}
               Nothing here yet — hit <span className="font-medium text-foreground/80">New</span>{' '}
-              to start your first document, deck, article, or page.
+              to start your first{' '}
+              {templates && templates.length
+                ? templates.map((t) => t.label.toLowerCase()).join(' or ')
+                : 'artifact'}
+              .
             </p>
           </div>
         )}

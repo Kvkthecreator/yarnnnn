@@ -186,6 +186,22 @@ def run() -> bool:
         "docs: { id: 'docs', resident: 'designer' }" in auth
         and "images: { id: 'images', resident: 'designer' }" in auth,
     )
+    # Run-1 finding (2026-08-04 click-pass): the menu/Get-Info handler
+    # resolutions omitted `kind`, so a document's menu read "Studio (default)"
+    # and never listed Docs. Per-SITE assertions (a counting gate cannot
+    # defend a per-site invariant): every sync resolution consults the shared
+    # PATH_KIND cache; every content read remembers into it.
+    fp = (root / "web/app/(authenticated)/files/page.tsx").read_text()
+    _check(
+        "files menu + openWith resolve WITH the cached kind (run-1 fix)",
+        fp.count("knownKind(t.path)") == 2 and "rememberKind(path, kind)" in fp,
+    )
+    ndp = (root / "web/components/workspace/NodeDetailsPanel.tsx").read_text()
+    _check(
+        "Get Info's Opens-with resolves WITH the file's kind (run-1 fix)",
+        "resolveHandlers({ paths: [path], isFolder: false, kind })" in ndp
+        and "rememberKind(path, k)" in ndp,
+    )
 
     ok = all(c for _, c in _results)
     print(f"\n{'ALL PASS' if ok else 'FAILURES'} — {sum(c for _, c in _results)}/{len(_results)}")

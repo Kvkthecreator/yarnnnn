@@ -42,6 +42,7 @@ import {
 import { operatorCanOrganize, organizeBlockedReason } from '@/lib/workspace/ownership';
 import { fileLegibilityState, legibilityDescriptor } from '@/lib/workspace/legibility';
 import { resolveHandlers } from '@/lib/file-types/handlers';
+import { extractTemplate, knownKind, rememberKind } from '@/lib/file-types';
 import type { WorkspaceTreeNode } from '@/types';
 
 // ADR-388 D3: author label + accent come from the ONE shared attribution
@@ -329,9 +330,14 @@ export function NodeDetailsPanel({ node, onSelectPath, onRevert }: NodeDetailsPa
 // dropdown of one is noise.
 
 function FileOpensWith({ path }: { path: string }) {
+  // ADR-518 click-pass run-1 finding: resolve WITH the file's kind, else a
+  // document's row read "Studio (default)" and never offered Docs. This
+  // panel reads the file anyway (for the override), so the kind rides the
+  // same fetch and lands in the shared PATH_KIND cache.
+  const [kind, setKind] = useState<string | null | undefined>(() => knownKind(path));
   const handlers = useMemo(
-    () => resolveHandlers({ paths: [path], isFolder: false }),
-    [path],
+    () => resolveHandlers({ paths: [path], isFolder: false, kind }),
+    [path, kind],
   );
   const [override, setOverride] = useState<string | null | undefined>(undefined);
   const [saving, setSaving] = useState(false);
@@ -342,6 +348,9 @@ function FileOpensWith({ path }: { path: string }) {
       .getFile(path)
       .then((f) => {
         if (cancelled) return;
+        const k = extractTemplate(f.content ?? '');
+        rememberKind(path, k);
+        setKind(k);
         const launch = (f.metadata as { launch?: { handler?: string } } | undefined)?.launch;
         setOverride(launch?.handler ?? null);
       })
