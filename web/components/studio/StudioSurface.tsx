@@ -28,12 +28,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 import { ArrowLeft, Check, FileText, FolderOpen, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, Plus, Upload } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
-import { AUTHORING_APPS } from '@/lib/apps/authoring';
+import { residentFor } from '@/lib/apps/authoring';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { LearnFromFlowModal } from './LearnFromFlowModal';
 import { NewDesignSystemModal } from './NewDesignSystemModal';
 import { NewArtifactModal, slugify } from './NewArtifactModal';
-import { registerKindApps } from '@/lib/file-types';
+import { appForKind, registerKindApps } from '@/lib/file-types';
 import { StudioNewMenu } from './StudioNewMenu';
 import { studioShapeStyle } from './studioShapes';
 import { STRUCTURAL_PAGE_SEL } from './structureLabels';
@@ -217,27 +217,32 @@ const TEMPLATE_SUGGESTIONS: Record<string, string[]> = {
 };
 
 /**
- * The authoring-surface app config (ADR-472 D1/D2).
+ * The authoring-surface app config (ADR-472 D1/D2, extended by ADR-518).
  *
- * Studio and IMAGES are two APPS over one shared authoring machinery: the same
- * bound lane, the same object layer, the same live render. What differs is the
- * surface slug (which param namespace the window manager reads), the templates
- * offered, and the app's own chrome. Parameterizing beats forking 2,500 lines
- * — the dual-approach smell the hooks discipline forbids.
+ * Docs, Studio and IMAGES are three APPS over one shared authoring machinery:
+ * the same bound lane, the same object layer, the same live render. What
+ * differs is the surface slug (which param namespace the window manager
+ * reads), the templates offered, and the app's own chrome. Parameterizing
+ * beats forking 2,500 lines — the dual-approach smell the hooks discipline
+ * forbids.
  */
 export interface AuthoringApp {
-  /** Surface slug — the param namespace (`studio.file` vs `images.file`) AND
+  /** Surface slug — the param namespace (`docs.file` vs `studio.file`) AND
    *  the app identity the kernel's type→app association keys on (ADR-473 D2).
    *  Which shapes this app offers and which artifacts are its own are both
    *  DERIVED from that association — never listed here (ADR-473 D3). */
-  slug: 'studio' | 'images';
+  slug: 'docs' | 'studio' | 'images';
+  /** Operator-readable app name — the one fact the chrome shows (ADR-518 D7
+   *  retired the per-site slug ternaries in favor of this declaration). */
+  label: string;
   /** Dimensions-first creation (ADR-472 D3) — a raster artifact is born at a
    *  size. Not derivable from ownership, so it stays an app property. */
   dimensionsFirst?: boolean;
 }
 
-export const STUDIO_APP: AuthoringApp = { slug: 'studio' };
-export const IMAGES_APP: AuthoringApp = { slug: 'images', dimensionsFirst: true };
+export const DOCS_APP: AuthoringApp = { slug: 'docs', label: 'Docs' };
+export const STUDIO_APP: AuthoringApp = { slug: 'studio', label: 'Studio' };
+export const IMAGES_APP: AuthoringApp = { slug: 'images', label: 'Images', dimensionsFirst: true };
 
 export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {}) {
   const { get: getParam, set: setParam } = useSurfaceParam(app.slug);
@@ -324,11 +329,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     api.lanes
       .create({
         name: baseName(artifactPath),
-        // ADR-467 D1 — the app's declared RESIDENT (Studio→Designer), read
-        // from the authoring-app registration rather than a string literal.
+        // ADR-467 D1 — THIS app's declared RESIDENT, read from the
+        // authoring-app registration rather than a string literal (ADR-518:
+        // three apps share this surface, so the lookup keys on the app).
         // The lane stays the mind (ADR-440 D3); residency is the creation-time
         // default made legible, and a settle from here attributes to a person.
-        agent: AUTHORING_APPS.studio.resident,
+        agent: residentFor(app.slug),
         artifact_path: artifactPath,
       })
       .then(() => refreshLanes())
@@ -2363,11 +2369,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 title="Back to Studio"
                 className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
               >
-                {/* ADR-482 D7: app-aware, matching the landing (:2762). The
-                    workbench hardcoded the literal, so the IMAGES app read
-                    "Images" on its landing and "Studio /…" once a stage was
-                    open — the same app naming itself two ways. */}
-                {app.slug === 'images' ? 'Images' : 'Studio'}
+                {/* ADR-482 D7: app-aware, matching the landing. The label is
+                    the app's own declaration (ADR-518 D7) — no per-site slug
+                    ternary to fall out of date when an app joins. */}
+                {app.label}
               </button>
               <span className="text-muted-foreground/40">/</span>
               {/* The name is renamed WHERE IT IS SHOWN (the Finder/macOS model)
@@ -3095,8 +3100,8 @@ function StudioStart({
       await api.lanes.create({
         name: `Learn: ${source.name}`.slice(0, 60),
         // A canvas target IS an authoring lane (it carries `artifact_path`), so
-        // it gets the app's same declared resident (ADR-467 D1).
-        agent: AUTHORING_APPS.studio.resident,
+        // it gets THIS app's declared resident (ADR-467 D1 via ADR-518).
+        agent: residentFor(app.slug),
         artifact_path: res.path,
         derive_recipe: target.recipe,
         derive_source: source.path,
@@ -3150,7 +3155,7 @@ function StudioStart({
             <div className="flex items-center gap-2">
               <Palette className="h-5 w-5 text-muted-foreground" />
               <h1 className="text-lg font-semibold">
-                {app.slug === 'images' ? 'Images' : 'Studio'}
+                {app.label}
               </h1>
             </div>
             <p className="max-w-md text-sm text-muted-foreground">
@@ -3344,7 +3349,13 @@ function StudioStart({
 
         <LearnFromFlowModal
           open={learnOpen}
-          targets={LEARN_TARGETS}
+          // ADR-518 via ADR-473 D3/D4: an app offers only derive targets whose
+          // artifact type it OWNS, resolved through the served kind→app
+          // association (never a hardcoded type list). Folder targets
+          // (template: null → chat lane) are app-free and offered everywhere.
+          targets={LEARN_TARGETS.filter(
+            (t) => !t.template || appForKind(t.template) === app.slug,
+          )}
           onClose={() => setLearnOpen(false)}
           onStart={learnFrom}
         />

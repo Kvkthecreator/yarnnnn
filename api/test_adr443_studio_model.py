@@ -68,9 +68,14 @@ def run() -> bool:
     # ADR-459 D3: the kernel SEEDS the universal shapes; it does not BOUND the
     # set. `⊇` not `==` — a bundle shipping a fourth (alpha-trader's `tearsheet`)
     # must not turn this red (ADR-222: programs ship the templates).
-    # ADR-505 D1: the seeded set is THREE — document · deck · web.
-    _check("kernel seeds 3 layouts: document/deck/web (ADR-505 D1)",
-           set(STUDIO_LAYOUTS) >= {"document", "deck", "web"})
+    # ADR-505 D1: the seeded set is THREE — document · deck · web — now across
+    # TWO app tables (ADR-518: Docs owns document via services/docs.py; Studio
+    # keeps deck/web). The registry is the kernel's one view.
+    import services.docs  # noqa: F401 — registers the document row (ADR-518)
+    from services.studio import all_layouts as _all_layouts
+    _check("kernel seeds 3 layouts: Docs document + Studio deck/web (ADR-505 D1 via ADR-518)",
+           set(_all_layouts()) >= {"document", "deck", "web"}
+           and set(STUDIO_LAYOUTS) >= {"deck", "web"})
     for slug, lay in STUDIO_LAYOUTS.items():
         _check(f"layout '{slug}': label/description/flow/skin/scaffold complete",
                all(lay.get(k) for k in ("label", "description", "flow", "skin", "scaffold")))

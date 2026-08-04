@@ -44,11 +44,13 @@ def _h1(html: str):
 
 def main() -> int:
     from services.naming import disambiguate, path_slug
+    import services.docs  # noqa: F401 — registers the document row (ADR-518)
     from services.studio import (
-        STUDIO_LAYOUTS,
-        STUDIO_TEMPLATES,
+        all_layouts,
+        all_templates,
         artifact_name,
         extract_title,
+        resolve_layout,
         set_artifact_title,
     )
 
@@ -60,8 +62,10 @@ def main() -> int:
     client = (root / "web/lib/api/client.ts").read_text()
 
     print("── 1. THE UNTITLED ARTIFACT renders correctly, unnamed ────────")
-    for slug, lay in STUDIO_LAYOUTS.items():
-        sk = STUDIO_TEMPLATES[slug]["skeleton"]
+    # ADR-518: swept across the REGISTRY (Docs' document + Studio's deck/web +
+    # the IMAGES stage) so the flow medium keeps its coverage after the carve.
+    for slug, lay in all_layouts().items():
+        sk = all_templates()[slug]["skeleton"]
         expect = f"Untitled {lay['label'].lower()}"
         _check(f"{slug}: <title> is the placeholder", extract_title(sk) == expect)
         # It must read back as "Untitled ‹kind›" AT ITS REAL PLACEMENT — the
@@ -83,7 +87,7 @@ def main() -> int:
     # the lift made content win, such a file read as "Untitled document" — and a
     # member clicking a card so labelled opened `prd-for-yarnnn`. Found by
     # browser test 2026-07-20; one live file was affected.
-    doc_sk = STUDIO_TEMPLATES["document"]["skeleton"]
+    doc_sk = all_templates()["document"]["skeleton"]
     _check(
         "a stale placeholder falls THROUGH to the real folder name",
         artifact_name("/workspace/operation/prd-for-yarnnn/document.html", doc_sk)
@@ -108,7 +112,7 @@ def main() -> int:
     # derived from the path) makes the h1 look AUTHORED, so set_artifact_title's
     # placeholder guard then refuses to replace it — the member's later rename
     # would silently no-op on the h1, forever.
-    doc = STUDIO_TEMPLATES["document"]["skeleton"]
+    doc = all_templates()["document"]["skeleton"]
     renamed_from_placeholder = set_artifact_title(doc, "My real name", set_h1=True)
     _check(
         "a rename REPLACES the untouched placeholder (the offer works)",
@@ -138,7 +142,9 @@ def main() -> int:
     from services.studio import STUDIO_ARTIFACT_REGION
 
     def _untitled_path_pure(template: str, existing: list[str]) -> str:
-        lay = STUDIO_LAYOUTS.get(template)
+        # Mirrors the route's own lookup (resolve_layout — registry-wide since
+        # ADR-518), never a single app's table.
+        lay = resolve_layout(template)
         label = lay["label"].lower() if lay else template
         base = path_slug(f"untitled {label}")
         prefix = STUDIO_ARTIFACT_REGION
@@ -171,7 +177,7 @@ def main() -> int:
     for _ in range(3):
         _seen.append(_untitled_path_pure("document", _seen))
     _check("repeated New produces 3 distinct real paths", len(set(_seen)) == 3)
-    for slug, lay in STUDIO_LAYOUTS.items():
+    for slug, lay in all_layouts().items():
         base = path_slug(f"untitled {lay['label'].lower()}")
         taken: set[str] = set()
         keys: list[str] = []

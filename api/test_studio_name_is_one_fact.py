@@ -63,9 +63,10 @@ def _title(html: str) -> str | None:
 def run() -> bool:
     root = Path(__file__).resolve().parent.parent
     sys.path.insert(0, str(root / "api"))
+    import services.docs  # noqa: F401 — registers the document row (ADR-518)
     from services.studio import (
-        STUDIO_LAYOUTS,
-        STUDIO_TEMPLATES,
+        all_layouts,
+        all_templates,
         artifact_name,
         set_artifact_title,
     )
@@ -91,30 +92,36 @@ def run() -> bool:
     )
 
     # ── 2. CREATE titles the artifact ───────────────────────────────────────
-    for slug, lay in STUDIO_LAYOUTS.items():
+    # ADR-518: swept across the registry so the flow medium (Docs' document)
+    # keeps its coverage after the carve.
+    for slug, lay in all_layouts().items():
         path = f"/workspace/operation/q3-board-review/{slug}.html"
         is_flow = lay["mode"] == "flow"
-        out = set_artifact_title(STUDIO_TEMPLATES[slug]["skeleton"], artifact_name(path), set_h1=is_flow)
+        out = set_artifact_title(all_templates()[slug]["skeleton"], artifact_name(path), set_h1=is_flow)
         if is_flow:
             _check(f"CREATE titles a {slug} (flow: the h1 IS the title)", _h1(out) == "Q3 board review")
         else:
             _check(
                 f"CREATE leaves a {slug}'s h1 alone (paged: it's a thesis/headline)",
-                _h1(out) == _h1(STUDIO_TEMPLATES[slug]["skeleton"]),
+                _h1(out) == _h1(all_templates()[slug]["skeleton"]),
             )
         _check(f"CREATE always sets a {slug}'s <title> (metadata, never authored)",
                _title(out) == "Q3 board review")
 
     # ── 3. the guards ───────────────────────────────────────────────────────
-    authored = STUDIO_TEMPLATES["document"]["skeleton"].replace("Untitled document", "My real title")
+    authored = all_templates()["document"]["skeleton"].replace("Untitled document", "My real title")
     out = set_artifact_title(authored, "Something Else", set_h1=True)
     _check("an AUTHORED title is never overwritten (their words win)", _h1(out) == "My real title")
     _check("…but the <title> still follows (it is metadata)", _title(out) == "Something Else")
     _check(
-        "the placeholder set is DERIVED from the registry (a scaffold edit can't orphan it)",
-        "_SCAFFOLD_TITLES: frozenset[str] = frozenset(" in (root / "api/services/studio.py").read_text(),
+        # ADR-518 D3: maintained at REGISTRATION (register_layouts extracts
+        # each incoming scaffold's title), so every app's scaffolds are
+        # covered — a scaffold edit or a new app still can't orphan it.
+        "the placeholder set is DERIVED at registration (a scaffold edit can't orphan it)",
+        "_SCAFFOLD_TITLES: set[str] = set()" in (root / "api/services/studio.py").read_text()
+        and "_SCAFFOLD_TITLES.add(title)" in (root / "api/services/studio.py").read_text(),
     )
-    out = set_artifact_title(STUDIO_TEMPLATES["document"]["skeleton"], "<script>alert(1)</script>")
+    out = set_artifact_title(all_templates()["document"]["skeleton"], "<script>alert(1)</script>")
     _check("the title is escaped (it lands in html)", "<script>" not in out.split("</head>")[1])
 
     # ── 4. RENAME retitles ──────────────────────────────────────────────────

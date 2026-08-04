@@ -47,6 +47,7 @@ def run() -> bool:
     web = root / "web"
     sys.path.insert(0, str(root / "api"))
 
+    import services.docs  # noqa: F401 — registers the document row (ADR-518)
     from services.studio import (
         RETIRED_LAYOUT_SLUGS,
         STUDIO_ARRANGEMENTS,
@@ -85,11 +86,14 @@ def run() -> bool:
         "the seam matches the registry's own shape: container-native = paged",
         STUDIO_LAYOUTS["deck"]["mode"] == "paged"
         and STUDIO_LAYOUTS["web"]["mode"] == "paged"
-        and STUDIO_LAYOUTS["document"]["mode"] == "flow",
+        and all_layouts()["document"]["mode"] == "flow",
     )
     _check(
-        "the Studio type set is exactly three (ADR-505 D1)",
-        set(STUDIO_LAYOUTS) == {"document", "deck", "web"},
+        # ADR-518 D1: the type SET is still ADR-505's three, housed across two
+        # apps — Studio's table carries its own two; Docs registers document.
+        "the media are three, housed two-and-one (ADR-505 D1 via ADR-518)",
+        set(STUDIO_LAYOUTS) == {"deck", "web"}
+        and set(all_layouts()) >= {"document", "deck", "web"},
     )
     _check(
         "the retired slugs resolve to `web` but are never OFFERED (ADR-505 D2)",

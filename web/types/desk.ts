@@ -34,7 +34,8 @@ export type KernelSurfaceSlug =
   // ADR-297 parity gate parses the union up to the first semicolon and reads
   // quoted names.)
   | 'chat'  // ADR-412 D3 — the lanes surface; ADR-435 — the dock anchor (Home deleted)
-  | 'studio'  // ADR-440 — the first authoring app (bound lane + live canvas)
+  | 'docs'  // ADR-518 — the writing app (document · flow), carved from Studio
+  | 'studio'  // ADR-440 — the layout app (deck · web; re-cut by ADR-518)
   | 'images'  // ADR-472 — the second authoring app (stages, rendered rasters)
   | 'radar'   // ADR-486 — the standing app (topic hubs, sweeps, cited briefs)
   | 'recurrence'
@@ -121,7 +122,8 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   // (navigable == allowlist == registry∪panes) holds with them out of all three.
   // ADR-491 D3: `budget` LEFT (pane dissolved into Usage; slug retired).
   // ADR-491 D1: `billing` + `usage` join (pane-grade on the workspace door).
-  'chat', 'studio', 'images', 'radar', 'recurrence', 'billing', 'usage', 'autonomy',
+  // ADR-518: `docs` joins — the writing app, carved from Studio.
+  'chat', 'docs', 'studio', 'images', 'radar', 'recurrence', 'billing', 'usage', 'autonomy',
   'files', 'agents', 'queue', 'notifications', 'activity',
   // ADR-425 D2: `sources` LEFT the allowlist (hidden, redirect-stub only).
   // ADR-454 D4: the system-agent slug LEFT too (door reversed; hidden row).

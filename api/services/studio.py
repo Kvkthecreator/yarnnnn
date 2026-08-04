@@ -197,16 +197,22 @@ _SHARED_CSS = """
 #: pedagogy.
 STUDIO_LAYOUT_MODES = ("flow", "paged")
 
-#: THE STUDIO TYPE SET IS THREE (ADR-505 D1) — `document` · `deck` · `web`, one
-#: per medium the member actually works in:
+#: THE MEDIA ARE THREE (ADR-505 D1) — `document` · `deck` · `web`, one type per
+#: medium the member actually works in — and THE HOUSINGS ARE TWO (ADR-518 D1):
 #:
 #:   document — CAPTURE. Notes, drafts, working docs. Continuous, internal,
 #:              revised forever. Notion-class, never Word-class (no pagination,
-#:              ADR-480 D6). The workspace's centre of gravity.
+#:              ADR-480 D6). The workspace's centre of gravity. OWNED BY DOCS —
+#:              the row lives in `services/docs.py::DOCS_LAYOUTS` (the app
+#:              boundary is the MODULE, ADR-473 D2) and registers below.
 #:   deck     — PRESENT. A framed stage, spoken over. PowerPoint-class: the only
 #:              type with a coordinate space, because the only one with a frame.
 #:   web      — PUBLISH. A banded page read by someone OUTSIDE the workspace.
 #:              Medium/Wix-class: band sequence + typography, no placement.
+#:
+#: This table therefore carries STUDIO'S OWN TWO — the paged/layout media. The
+#: type SET is unchanged by the split (no fourth type, ADR-505 stands); only
+#: the housing moved, exactly as `canvas` once did.
 #:
 #: Four types (document · deck · article · page) implied four coordinate systems
 #: where there were only ever three media, and `article` was the tell — a
@@ -221,42 +227,6 @@ STUDIO_LAYOUT_MODES = ("flow", "paged")
 #: opens in the generic viewer and belongs to no app's recents. Do not add a row
 #: for it here; the app boundary is the MODULE (ADR-473 D2).
 STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
-    # ADR-505 D1: the CAPTURE medium. Notes, drafts, PRDs, meeting records —
-    # the type where information ARRIVES and is continuously revised, and the
-    # workspace's centre of gravity (9 of 18 live artifacts at the cut, and the
-    # only two with real authored substance). Its expressive scope is the
-    # markdown-grade essentials (headings, prose, lists, quote, callout, table,
-    # image, divider) — deliberately NOT a layout surface. Every region
-    # mechanism (arrangements, slots, geometry) is absent BY DEFINITION here,
-    # not by measurement: a capture surface that asks "where on the page" has
-    # stopped being a capture surface.
-    "document": {
-        "app": "studio",
-        "label": "Document",
-        "mode": "flow",
-        "description": "Notes, drafts, working documents — capture and revise.",
-        "flow": (
-            "one <main> holding an <h1> title and a short lede <p>, then blocks "
-            "flowing vertically. Clarity over polish."
-        ),
-        "skin": """
-    main { max-width: 46rem; margin: 0 auto; padding: 3rem 1.5rem; }
-    h1 { font-size: var(--text-3xl, 2rem); margin-bottom: 0.5rem; }
-    section[data-block] { margin-top: 2rem; }
-    section[data-block] h2 { font-size: var(--text-xl, 1.3rem); margin-bottom: 0.75rem; }
-""".strip("\n"),
-        # ADR-481 D1: FLAT. A blank document is a blank page — no arrangement
-        # wrapper, no empty slot. The old scaffold shipped a `title-lede`
-        # section around an empty `data-slot="main"`, which on a flowing
-        # document renders as a dead vertical void wearing an "+ Add here"
-        # and a gutter attached to nothing. A slot is a PAGED concept.
-        "scaffold": """<main>
-  <h1 data-block="heading" data-block-id="t1">Untitled document</h1>
-  <p class="lede" data-block="heading" data-block-id="t2">One sentence on what this document is for.</p>
-  <h2 data-block="heading" data-block-id="t3">First section</h2>
-  <div data-block="prose" data-block-id="b1"><p>Start here.</p></div>
-</main>""",
-    },
     "deck": {
         "app": "studio",
         "label": "Deck",
@@ -1329,14 +1299,18 @@ def ensure_kernel_style_in_html(artifact_html: str) -> str:
 #: Every layout's scaffolded h1 text — the ONLY strings `set_artifact_title`
 #: may overwrite. DERIVED from the registry, so editing a scaffold can never
 #: silently orphan this list and start overwriting a member's authored title.
-_SCAFFOLD_TITLES: frozenset[str] = frozenset(
-    re.sub(r"<[^>]+>", "", m.group(1)).strip()
-    for m in (
-        re.search(r"<h1\b[^>]*>(.*?)</h1>", lay["scaffold"], re.S)
-        for lay in STUDIO_LAYOUTS.values()
-    )
-    if m
-)
+#: Every registered layout's scaffolded h1 placeholder — maintained by
+#: `register_layouts` as each app's table arrives (ADR-518 D3), so the set
+#: covers Docs' document and IMAGES' stage as well as Studio's own rows.
+#: (The prior frozen derivation read STUDIO_LAYOUTS only, which silently
+#: missed the IMAGES scaffold and would have lost `document` at the carve.)
+_SCAFFOLD_TITLES: set[str] = set()
+
+
+def _scaffold_title(lay: dict) -> str | None:
+    """The h1 placeholder a layout's scaffold ships, tags stripped."""
+    m = re.search(r"<h1\b[^>]*>(.*?)</h1>", lay.get("scaffold", ""), re.S)
+    return re.sub(r"<[^>]+>", "", m.group(1)).strip() if m else None
 
 
 def set_artifact_title(html: str, title: str, *, set_h1: bool = True) -> str:
@@ -1406,8 +1380,16 @@ _ARRANGEMENT_REGISTRY: dict[str, dict] = {}
 
 
 def register_layouts(layouts: dict[str, dict], arrangements: dict[str, dict] | None = None) -> None:
-    """Register an app's document types with the shared machinery (ADR-472 D2)."""
+    """Register an app's document types with the shared machinery (ADR-472 D2).
+
+    Also maintains `_SCAFFOLD_TITLES` (ADR-518 D3): the placeholder-title set
+    must cover every app's scaffolds, and registration is the one door they
+    all arrive through.
+    """
     for slug, row in layouts.items():
+        title = _scaffold_title(row)
+        if title:
+            _SCAFFOLD_TITLES.add(title)
         existing = _LAYOUT_REGISTRY.get(slug)
         if existing is not None and existing is not row:
             # Grammar, not schema (ADR-443 §6 — no exceptions from this
@@ -1487,8 +1469,15 @@ def build_skeleton(layout: str, title: str | None = None) -> str:
     """
     # Grammar, not schema (ADR-443 §6 — no exceptions from this module): an
     # unknown layout falls back to `document` the way every other resolution
-    # site does, rather than gating creation.
-    lay = resolve_layout(layout) or STUDIO_LAYOUTS["document"]
+    # site does, rather than gating creation. Resolved through the REGISTRY
+    # (ADR-518 D3 — `document` is Docs' row, and the kernel never imports an
+    # app); the last-resort clause covers import-time callers that run before
+    # every app has registered.
+    lay = (
+        resolve_layout(layout)
+        or resolve_layout("document")
+        or next(iter(_LAYOUT_REGISTRY.values()))
+    )
     placeholder = f"Untitled {lay['label'].lower()}"
     html = f"""<!doctype html>
 <html data-template="{layout}">
@@ -1929,7 +1918,14 @@ def build_studio_posture(artifact_path: str, artifact_content: str) -> str:
     yields a posture: the lane can (re)create the file at the bound path.
     """
     template = extract_template(artifact_content) or "document"
-    layout = resolve_layout(template) or STUDIO_LAYOUTS["document"]
+    # Registry-resolved fallback (ADR-518 D3): `document` is Docs' row now, and
+    # the kernel never imports an app. The last-resort clause keeps an
+    # unknown template postured even before every app has registered.
+    layout = (
+        resolve_layout(template)
+        or resolve_layout("document")
+        or next(iter(_LAYOUT_REGISTRY.values()))
+    )
     outline = extract_outline(artifact_content)
     outline_section = (
         "- Current outline:\n" + "\n".join(f"  {h}" for h in outline)

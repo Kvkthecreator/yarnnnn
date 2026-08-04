@@ -250,14 +250,38 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "Your model-pinned helper conversations — isolated lanes over the shared workspace. The transcript stays private to each lane; the work lands in files, attributed to you via the lane's model.",
     },
     {
+        # ADR-518 (2026-08-04) — DOCS, the WRITING app. Carved from Studio
+        # along the mode seam ({document} vs {deck, web}): the flow medium's
+        # caret-first editor gets its own door, recents, and default handler,
+        # over the SAME shared authoring machinery (one grammar, one write
+        # door — the split is housing, not a fork; the /images precedent
+        # re-run). Owns the `document` type via services/docs.py's registered
+        # row (the app boundary is the MODULE, ADR-473 D2). Unveiled in full
+        # from day one (ADR-518 D5): its distinctive capability — the flow
+        # editor — is the system's most-exercised medium, so the ADR-486 D7
+        # bar is met at ship; the ADR-488 hidden-tier precedent does not apply.
+        "slug": "docs",
+        "launcher_tier": "primary",  # ADR-518 D5 — full unveil
+        "register": "application",
+        "title": "Docs",
+        "archetype": "document",
+        "substrate_paths": [],  # artifacts are meaning-placed; no app namespace
+        "icon_key": "file-text",
+        "default_pinned": True,  # ships in the Dock (dock-reseed generation 2026-08-04)
+        "route": "/docs",
+        "summary": "Write documents as living artifacts — notes, drafts, PRDs captured and revised at the caret: a model-pinned lane drafts and patches the file while the page re-renders it, every citation a live workspace reference, every edit an attributed revision.",
+    },
+    {
         # ADR-440 (2026-07-10) — the Studio, the first AUTHORING app (the
         # second app class after ADR-436's viewer renderers). One surface ↔
-        # one operator act: AUTHOR AN ARTIFACT — the first honest DP29
-        # composition since ADR-435 deleted Home. Left pane = a BOUND lane
+        # one operator act — re-cut by ADR-518 to the LAYOUT half: LAY OUT AN
+        # ARTIFACT (deck · web, the paged media). The writing half (document)
+        # moved to the Docs app; the machinery underneath is one
+        # implementation, three consumers. Left pane = a BOUND lane
         # (ADR-411 machinery + an artifact binding + the authoring posture);
         # right pane = the live canvas over one self-contained HTML artifact.
-        # Templates: Document · Deck · Article (kernel constants,
-        # services/studio.py — apps bring program, not substrate, D6).
+        # Types: Deck · Web (kernel constants, services/studio.py — apps
+        # bring program, not substrate, D6).
         "slug": "studio",
         "launcher_tier": "primary",  # ADR-440 D2 — the probe needs traffic
         "register": "application",
@@ -268,7 +292,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "default_pinned": True,  # 2026-07-22 — the primary apps ship in the Dock
         # (five at first; four since ADR-488 took Images internal).
         "route": "/studio",
-        "summary": "Author documents, decks, and articles as living artifacts: a model-pinned lane drafts and patches the file while the canvas re-renders it — every citation a live workspace reference, every edit an attributed revision.",
+        "summary": "Lay out decks and web pages as living artifacts: a model-pinned lane drafts and patches the file while the canvas re-renders it — every citation a live workspace reference, every edit an attributed revision.",
     },
     {
         # ADR-472 (2026-07-20) — IMAGES, the SECOND authoring app. Carved out

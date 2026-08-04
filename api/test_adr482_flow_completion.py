@@ -291,8 +291,10 @@ def run() -> bool:
         "studioShapeStyle(template)" in surface,
     )
     _check(
+        # ADR-518 D7: the label is the app's own declaration, not a per-site
+        # slug ternary — three apps share this surface now.
         "D7 the crumb's root label is app-aware",
-        "{app.slug === 'images' ? 'Images' : 'Studio'}" in surface,
+        "{app.label}" in surface,
     )
 
     # ── D11 — the '/' opens from an element-node caret; Enter's bare divs ──

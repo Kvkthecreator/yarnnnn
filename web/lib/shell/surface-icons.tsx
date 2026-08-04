@@ -20,6 +20,7 @@ import {
   Box,
   Clock,
   CreditCard,
+  FileText,
   FolderKanban,
   FolderOpen,
   Home,
@@ -84,6 +85,10 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // the Workspace Settings sidebar glyphs.
   'credit-card': CreditCard,
   'bar-chart-3': BarChart3,
+  // ADR-518: the DOCS app glyph — the writing app's text-document family,
+  // registered with the surface so Launcher, Dock, and page header wear the
+  // same object from day one (the Images icon lesson).
+  'file-text': FileText,
   // 2026-06-03: home glyph for the Home surface (post ADR-312
   // cockpit→home rename). Replaces square-activity, which no longer
   // matched the surface name.

@@ -194,9 +194,11 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
           navigateToSurface('files', { platform: newSurface.platform });
           return;
         case 'document-viewer':
-          // /docs/{id} is an operator-external public page (D19.4), not a
-          // kernel surface — stays a route push (transport, not nav).
-          router.push(`/docs/${newSurface.documentId}`);
+          // ADR-518: the ADR-249 /docs/{id} upload-detail page is deleted
+          // (Files carries that job; /docs is the Docs authoring app now).
+          // A stored legacy chip degrades to the Files surface, like its
+          // document-list sibling.
+          navigateToSurface('files');
           return;
         case 'atomic':
           // TP handed off an atomic surface directly — open it.

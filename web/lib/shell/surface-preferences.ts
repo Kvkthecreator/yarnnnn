@@ -59,20 +59,21 @@ const WINDOW_STATE_KEY_PREFIX = 'yarnnn:shell:window-state:';
 // ORDER is meaning, not registry-declaration accident (the Dock renders `kept`
 // in its stored order, so this array IS the on-screen order):
 //
-//     Chat  │  Studio  Radar  │  Files  Agents
-//     think    make   perceive   <-- the record -->
+//     Chat  │  Docs  Studio  Radar  │  Files  Agents
+//     think     make (write · lay out)  perceive   <-- the record -->
 //
 // Chat first (ADR-457's Think verb — the steward's voice + the activation
-// landing). Then the MAKER (ADR-457 Make; Images, its sibling canvas app,
-// rejoins here when ADR-488 §5 re-unveils it) and the STANDING PERCEIVER
-// (ADR-486). Then what the making settles into: the record (Files) and its
-// residents (Agents).
+// landing). Then the MAKERS (ADR-457 Make, split by ADR-518: Docs writes,
+// Studio lays out; Images, their sibling canvas app, rejoins here when
+// ADR-488 §5 re-unveils it) and the STANDING PERCEIVER (ADR-486). Then what
+// the making settles into: the record (Files) and its residents (Agents).
 //
 // Keep/unkeep is untouched — the right-click toggle still governs; only the
-// starting state stops being near-empty. Mobile: five 36px icons + the launcher
-// ≈ 216px, inside a 375px viewport, and the Dock already overflow-x scrolls.
+// starting state stops being near-empty. Mobile: six 36px icons + the launcher
+// ≈ 252px, inside a 375px viewport, and the Dock already overflow-x scrolls.
 export const DEFAULT_KEPT_SURFACES: string[] = [
   'chat',
+  'docs', // ADR-518 — the writing app (full unveil, D5)
   'studio',
   'radar', // ADR-486 unveil (2026-07-28) — the standing app joins the Dock
   'files',
@@ -255,6 +256,13 @@ const DOCK_RESEED_GENERATIONS: Array<{ keyPrefix: string; previous: string[] }> 
   {
     keyPrefix: 'yarnnn:shell:dock-reseed-2026-07-28-radar:',
     previous: ['chat', 'studio', 'images', 'files', 'agents'],
+  },
+  // 2026-08-04 — +docs (ADR-518 D5, the writing app's full unveil). An
+  // un-curated five-app Dock converges to Chat · Docs · Studio · Radar ·
+  // Files · Agents in one read; a curated Dock is untouched, as ever.
+  {
+    keyPrefix: 'yarnnn:shell:dock-reseed-2026-08-04-docs:',
+    previous: ['chat', 'studio', 'radar', 'files', 'agents'],
   },
 ];
 
@@ -538,9 +546,11 @@ export type WindowStateMap = Record<string, WindowState>;
 const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
   // ADR-167 list/detail: `?agents.agent={slug}`. There are no panes here.
   agents: ['agent'],
-  // The authoring apps (ADR-440 Studio / ADR-472 Images). `file` names the open
-  // artifact; `system` names an open design-system manifest. Both are OWNED
-  // (a delivered deep-link must work) but neither is REMEMBERED — see below.
+  // The authoring apps (ADR-518 Docs / ADR-440 Studio / ADR-472 Images).
+  // `file` names the open artifact; `system` names an open design-system
+  // manifest. All are OWNED (a delivered deep-link must work) but none is
+  // REMEMBERED — see below.
+  docs: ['file', 'system'],
   studio: ['file', 'system'],
   images: ['file', 'system'],
 };
@@ -602,6 +612,7 @@ const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
 // in-session writes all work — those carry PRESENT intent) but are stripped
 // from the REMEMBERED set, so a bare launch lands on the surface's front door.
 const SURFACE_EPHEMERAL_PARAM_KEYS: Record<string, readonly string[]> = {
+  docs: ['file', 'system'], // ADR-518 — same document-identity rule as its siblings
   studio: ['file', 'system'],
   images: ['file', 'system'],
   // The roster's front door is the roster (see "a drill-in on a roster" above).

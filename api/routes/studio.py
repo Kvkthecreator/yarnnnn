@@ -36,6 +36,10 @@ from services.supabase import UserClient
 # must not be pruned as "unused".
 import services.images  # noqa: F401  (import for registration side-effect)
 
+# ADR-518 D3: same contract for the Docs app — importing it registers the
+# `document` type (carved out of STUDIO_LAYOUTS) with the shared registry.
+import services.docs  # noqa: F401  (import for registration side-effect)
+
 # The cross-app layout resolver (ADR-472 D2). Module-level: the endpoints below
 # use these at request time, so a function-local import in ONE handler would
 # leave the others with a NameError — which is exactly what shipped and broke
@@ -188,11 +192,10 @@ async def get_vocabulary(auth: UserClient) -> dict:
         STUDIO_ARRANGEMENTS,
         STUDIO_BLOCKS,
         STUDIO_KERNEL_CSS_VERSION,
-        # Underscore-named but module-canonical: it is the ONE derived scaffold
-        # set (`test_studio_name_is_one_fact` gates its declaration verbatim, so
-        # it is not renamed for a second reader).
+        # Underscore-named but module-canonical: it is the ONE scaffold-title
+        # set, maintained by register_layouts across every app's registration
+        # (ADR-518 D3), so it is not renamed for a second reader.
         _SCAFFOLD_TITLES,
-        STUDIO_LAYOUTS,
         STUDIO_MEASURES,
         STUDIO_TOKENS,
         compose_kernel_style_element,
@@ -806,7 +809,7 @@ def _retitle_to(auth: UserClient, path: str, title: str | None = None) -> dict:
     genuinely missing artifact.
     """
     from services.authored_substrate import write_revision
-    from services.studio import STUDIO_LAYOUTS, artifact_name, set_artifact_title
+    from services.studio import artifact_name, set_artifact_title
     from services.workspace_context import substrate_scope_filter
 
     row = (
@@ -936,7 +939,7 @@ def _untitled_path(auth: UserClient, template: str) -> str:
     member's Move verb; neither is forced by where it was born.
     """
     from services.naming import disambiguate, path_slug
-    from services.studio import STUDIO_ARTIFACT_REGION, STUDIO_LAYOUTS
+    from services.studio import STUDIO_ARTIFACT_REGION
     from services.workspace_context import substrate_scope_filter
 
     lay = resolve_layout(template)
@@ -1023,13 +1026,13 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     # Only a `flow` layout's h1 IS the title — a deck's h1 is the title slide's
     # thesis, a page's is its headline, and a filename has no business
     # dictating those (see set_artifact_title's guards). <title> is always set.
-    from services.studio import STUDIO_LAYOUTS, set_artifact_title
+    from services.studio import set_artifact_title
 
-    # `.get`, not a bare subscript: creation validates `req.template` against
-    # STUDIO_TEMPLATES (which is derived 1:1 from STUDIO_LAYOUTS today), but a
-    # future bundle-shipped template could live in one and not the other — a
-    # bare `STUDIO_LAYOUTS[req.template]` would then 500. An unknown layout is
-    # not flow (its h1 stays authored), matching artifact_kind's own fallback.
+    # Resolved through the registry, never a table subscript: `req.template`
+    # may belong to any registered app (Docs' document, an IMAGES stage, a
+    # future bundle-shipped shape) — a bare table lookup would 500 on every
+    # type its module doesn't own. An unknown layout is not flow (its h1 stays
+    # authored), matching artifact_kind's own fallback.
     _layout = resolve_layout(req.template)
     is_flow = bool(_layout and _layout["mode"] == "flow")
 

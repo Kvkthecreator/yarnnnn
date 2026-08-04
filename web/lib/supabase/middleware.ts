@@ -52,7 +52,7 @@ const PROTECTED_PREFIXES = [
   // principal (accept) stays auth-gated at the API + in-page (the Accept
   // action bounces to login with ?next). NB /settings /sources /setup
   // /schedule /system* are separately listed — removing "/s" uncovers nothing.
-  "/docs",
+  "/docs", // ADR-518 — the Docs authoring surface (the writing app; was the ADR-249 upload pages)
   "/chat", // ADR-412 D3 — the Chat surface (lanes workbench), a real authenticated surface
   "/studio", // ADR-440 — the Studio authoring surface (bound lane + live canvas)
   // Legacy routes still protected for redirect stubs

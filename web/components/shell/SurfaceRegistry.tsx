@@ -38,6 +38,10 @@ import ChatPage from '@/app/(authenticated)/chat/page';
 // lane (left) + the live artifact canvas (right).
 import StudioPage from '@/app/(authenticated)/studio/page';
 import ImagesPage from '@/app/(authenticated)/images/page';
+// ADR-518 — Docs: the WRITING app, carved from Studio along the mode seam.
+// Same shared authoring machinery, parameterized (one implementation, three
+// consumers); owns the `document` type via the served app declaration.
+import DocsPage from '@/app/(authenticated)/docs/page';
 // ADR-486 — AI Radar: the STANDING app (topic hubs, scheduled sweeps, cited
 // briefs). Dedicated app from day one (the Images lesson); search-only tier
 // until the R3 unveil.
@@ -92,7 +96,8 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   // slug is removed from the union; persisted dock state is normalized → the
   // default, and the old URLs are next.config redirects.
   chat: ChatPage,  // ADR-412 D3 — the lanes workbench; ADR-435 — the dock anchor (Home deleted)
-  studio: StudioPage,  // ADR-440 — the first authoring app (bound lane + live canvas)
+  docs: DocsPage,      // ADR-518 — the writing app (document · flow · caret-first)
+  studio: StudioPage,  // ADR-440 — the layout app (deck · web, re-cut by ADR-518)
   images: ImagesPage,  // ADR-472 — the second authoring app (stages → rendered rasters)
   radar: RadarPage,    // ADR-486 — the standing app (hubs → sweeps → cited briefs)
   recurrence: RecurrencePage,

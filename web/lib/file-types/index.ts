@@ -170,6 +170,7 @@ const KIND_TO_APP = new Map<string, string>();
 
 /** The surfaces that can own an artifact type, by app slug (ADR-473 D2). */
 const APP_SURFACES: Record<string, SurfaceApplication> = {
+  docs: { surface: 'docs', param: 'file', label: 'Docs' }, // ADR-518 — the writing app
   studio: { surface: 'studio', param: 'file', label: 'Studio' },
   images: { surface: 'images', param: 'file', label: 'Images' },
 };

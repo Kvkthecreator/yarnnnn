@@ -48,9 +48,11 @@ def run() -> bool:
     nav = (web / "components/studio/StudioNavigator.tsx").read_text()
     toolbar = (web / "components/studio/StudioToolbar.tsx").read_text()
 
+    import services.docs  # noqa: F401, E402 — registers the document row (ADR-518)
     from services.studio import (  # noqa: E402
         STUDIO_ARRANGEMENTS,
         STUDIO_LAYOUTS,
+        all_layouts,
         build_skeleton,
     )
 
@@ -76,8 +78,10 @@ def run() -> bool:
         body = body[body.index("<body>") :]
         _check(f"D1 the {slug} scaffold KEEPS its arrangement", "data-arrange" in body)
     _check(
+        # ADR-518: the flow side lives in Docs' table now — the seam spans the
+        # REGISTRY, not one app's rows.
         "D1 the mode seam still names both kinds",
-        {v["mode"] for v in STUDIO_LAYOUTS.values()} >= {"flow", "paged"},
+        {v["mode"] for v in all_layouts().values()} >= {"flow", "paged"},
     )
     # The toolbar derives from the served set — no flag, no slug test.
     _check(

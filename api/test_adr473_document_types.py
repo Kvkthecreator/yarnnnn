@@ -70,11 +70,16 @@ def run() -> bool:
         app_for_kind("tearsheet-from-a-bundle") is None and app_for_kind(None) is None,
     )
     _check(
-        "the inverse lookup partitions the types — no type in both apps",
-        # ADR-505 D1/D2: three Studio types (`article` + `page` → `web`).
-        kinds_for_app("studio") == {"document", "deck", "web"}
+        "the inverse lookup partitions the types — no type in two apps",
+        # ADR-505 D1/D2 via ADR-518 D1: three media across three apps —
+        # Docs' document; Studio's deck + web (`article`/`page` → `web`);
+        # IMAGES' image.
+        kinds_for_app("docs") == {"document"}
+        and kinds_for_app("studio") == {"deck", "web"}
         and kinds_for_app("images") == {"image"}
-        and not (kinds_for_app("studio") & kinds_for_app("images")),
+        and not (kinds_for_app("docs") & kinds_for_app("studio"))
+        and not (kinds_for_app("studio") & kinds_for_app("images"))
+        and not (kinds_for_app("docs") & kinds_for_app("images")),
     )
 
     # ── §3 + §4 Serving AND execution ────────────────────────────────────

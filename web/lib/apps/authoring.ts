@@ -25,6 +25,17 @@ export interface AuthoringAppRegistration {
 }
 
 export const AUTHORING_APPS: Record<string, AuthoringAppRegistration> = {
+  // ADR-518 D6 — Docs, the writing app. Designer is triple-resident (Docs ·
+  // Studio · IMAGES, ADR-467 D3); a writing-postured resident is a separate,
+  // demand-gated decision, so today's honest declaration is the resident that
+  // already carries the authoring lane.
+  docs: { id: 'docs', resident: 'designer' },
   studio: { id: 'studio', resident: 'designer' },
-  // IMAGES (ADR-468) adds its row when it ships: { id: 'images', resident: 'designer' }
+  images: { id: 'images', resident: 'designer' }, // ADR-472/488 — shipped, internal tier
 };
+
+/** The declared resident for an authoring app (ADR-467 D1). Falls back to
+ *  Studio's — a missing registration must never block lane creation. */
+export function residentFor(appId: string): string {
+  return (AUTHORING_APPS[appId] ?? AUTHORING_APPS.studio).resident;
+}
