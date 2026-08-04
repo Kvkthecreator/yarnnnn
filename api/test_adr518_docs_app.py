@@ -202,6 +202,22 @@ def run() -> bool:
         "resolveHandlers({ paths: [path], isFolder: false, kind })" in ndp
         and "rememberKind(path, k)" in ndp,
     )
+    # Run-1 SECOND finding: the kind→app map itself was session-lazy
+    # (populated only by authoring-surface fetches) — a fresh session's Files
+    # routed every kind to the default app. The association must load at
+    # every consult site: openPath (with the content read), the menu (once
+    # per surface), Get Info (with its read).
+    ftx = (root / "web/lib/file-types/index.ts").read_text()
+    _check(
+        "ensureKindApps exists: idempotent, retry-on-failure, registers served rows",
+        "export function ensureKindApps" in ftx
+        and "KIND_APPS_LOADED = null; // retry on the next consult" in ftx,
+    )
+    _check(
+        "every consult site LOADS the association (openPath + menu + Get Info)",
+        fp.count("ensureKindApps()") == 2
+        and "Promise.all([api.workspace.getFile(path), ensureKindApps()])" in ndp,
+    )
 
     ok = all(c for _, c in _results)
     print(f"\n{'ALL PASS' if ok else 'FAILURES'} — {sum(c for _, c in _results)}/{len(_results)}")

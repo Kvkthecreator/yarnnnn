@@ -184,6 +184,32 @@ export function registerKindApps(rows: Array<{ slug: string; app?: string }>): v
   }
 }
 
+/**
+ * Load the served association on demand (ADR-518 click-pass run-1, second
+ * finding). `registerKindApps` used to run only from the authoring surfaces'
+ * vocabulary fetches — so a session that went straight to Files consulted an
+ * EMPTY map, and `appForKind` fell to the default app for every kind: a
+ * document double-clicked in a fresh session routed to Studio. The
+ * association must load wherever it is CONSULTED, not where authoring
+ * surfaces happen to fetch. Idempotent one-shot (module promise); a failed
+ * fetch clears it so the next consult retries. Dynamic import keeps the api
+ * client out of this module's static graph.
+ */
+let KIND_APPS_LOADED: Promise<void> | null = null;
+
+export function ensureKindApps(): Promise<void> {
+  if (KIND_APPS_LOADED) return KIND_APPS_LOADED;
+  KIND_APPS_LOADED = import('@/lib/api/client')
+    .then(({ api }) => api.studio.vocabulary())
+    .then((v) => {
+      registerKindApps((v.layouts as Array<{ slug: string; app?: string }>) || []);
+    })
+    .catch(() => {
+      KIND_APPS_LOADED = null; // retry on the next consult
+    });
+  return KIND_APPS_LOADED;
+}
+
 /** Which app owns a document type — null when nothing claims it (D6). */
 export function appForKind(kind?: string | null): string | null {
   if (!kind) return null;

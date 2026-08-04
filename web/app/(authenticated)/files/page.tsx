@@ -58,6 +58,7 @@ import { operatorCanOrganize } from '@/lib/workspace/ownership';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
 import {
+  ensureKindApps,
   extractTemplate,
   isArtifactCandidate,
   knownKind,
@@ -687,7 +688,14 @@ export default function ContextPage() {
       let kind: string | null = null;
       let override: string | null = null;
       try {
-        const file = await api.workspace.getFile(path);
+        // Run-1 second finding: the kind→app MAP is as lazy as the kind — a
+        // fresh session that never mounted an authoring surface consulted an
+        // empty association and routed every kind to the default app. The
+        // association loads WITH the content read, before any resolution.
+        const [file] = await Promise.all([
+          api.workspace.getFile(path),
+          ensureKindApps(),
+        ]);
         kind = extractTemplate(file.content ?? '');
         rememberKind(path, kind); // the menu's sync resolution reads this cache
         // ADR-514 D2.4: the file's own default binding, if the operator set one.
@@ -726,26 +734,32 @@ export default function ContextPage() {
   // pre-ADR-518 behavior) shows — never a wrong route, only a stale label.
   const [kindTick, setKindTick] = useState(0);
   const kindFetchInFlight = useRef<Set<string>>(new Set());
+  const assocEnsured = useRef(false);
   const handlersFor = useCallback(
     (t: { path: string; isFile: boolean }) => {
       const kind = t.isFile ? knownKind(t.path) : undefined;
-      if (
-        t.isFile &&
-        !kind &&
-        isArtifactCandidate(t.path) &&
-        !kindFetchInFlight.current.has(t.path)
-      ) {
-        kindFetchInFlight.current.add(t.path);
-        void api.workspace
-          .getFile(t.path)
-          .then((f) => {
-            rememberKind(t.path, extractTemplate(f.content ?? ''));
-            setKindTick((n) => n + 1);
-          })
-          .catch(() => {
-            /* kind stays unknown; the kind-less order stands */
-          })
-          .finally(() => kindFetchInFlight.current.delete(t.path));
+      if (t.isFile && isArtifactCandidate(t.path)) {
+        // Run-1 second finding: load the served kind→app association the
+        // first time an artifact's menu resolves in this surface — once per
+        // mount (the done-guard keeps the resolved promise from ticking a
+        // render loop).
+        if (!assocEnsured.current) {
+          assocEnsured.current = true;
+          void ensureKindApps().then(() => setKindTick((n) => n + 1));
+        }
+        if (!kind && !kindFetchInFlight.current.has(t.path)) {
+          kindFetchInFlight.current.add(t.path);
+          void api.workspace
+            .getFile(t.path)
+            .then((f) => {
+              rememberKind(t.path, extractTemplate(f.content ?? ''));
+              setKindTick((n) => n + 1);
+            })
+            .catch(() => {
+              /* kind stays unknown; the kind-less order stands */
+            })
+            .finally(() => kindFetchInFlight.current.delete(t.path));
+        }
       }
       return resolveHandlers({ paths: [t.path], isFolder: !t.isFile, kind })
         .map((h) => ({ id: h.id, label: h.label }));

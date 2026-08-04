@@ -42,7 +42,7 @@ import {
 import { operatorCanOrganize, organizeBlockedReason } from '@/lib/workspace/ownership';
 import { fileLegibilityState, legibilityDescriptor } from '@/lib/workspace/legibility';
 import { resolveHandlers } from '@/lib/file-types/handlers';
-import { extractTemplate, knownKind, rememberKind } from '@/lib/file-types';
+import { ensureKindApps, extractTemplate, knownKind, rememberKind } from '@/lib/file-types';
 import type { WorkspaceTreeNode } from '@/types';
 
 // ADR-388 D3: author label + accent come from the ONE shared attribution
@@ -344,9 +344,10 @@ function FileOpensWith({ path }: { path: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    api.workspace
-      .getFile(path)
-      .then((f) => {
+    // The association loads WITH the content read (run-1 second finding) —
+    // a kind resolved against an unloaded map is the default app in disguise.
+    Promise.all([api.workspace.getFile(path), ensureKindApps()])
+      .then(([f]) => {
         if (cancelled) return;
         const k = extractTemplate(f.content ?? '');
         rememberKind(path, k);
