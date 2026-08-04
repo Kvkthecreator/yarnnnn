@@ -24,9 +24,15 @@ interface NewFolderModalProps {
   onClose: () => void;
   /** Called with the folder name (validated non-empty, slash-free). */
   onSubmit: (name: string) => void | Promise<void>;
+  /**
+   * Display name of the folder the new one is created INSIDE (the folder-node
+   * / folder-canvas scoped act). Absent = the top-level peer act. The modal
+   * states the destination either way — never a silent placement.
+   */
+  destinationName?: string;
 }
 
-export function NewFolderModal({ open, onClose, onSubmit }: NewFolderModalProps) {
+export function NewFolderModal({ open, onClose, onSubmit, destinationName }: NewFolderModalProps) {
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -65,7 +71,9 @@ export function NewFolderModal({ open, onClose, onSubmit }: NewFolderModalProps)
         >
           <h3 className="text-base font-semibold text-card-foreground">New folder</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            A folder for your work — it sits alongside Documents and Downloads.
+            {destinationName
+              ? <>It will be created inside <span className="font-medium text-foreground/80">{destinationName}</span>.</>
+              : 'A folder for your work — it sits alongside Documents and Downloads.'}
           </p>
           <input
             ref={inputRef}

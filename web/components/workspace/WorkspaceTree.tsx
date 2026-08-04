@@ -7,12 +7,12 @@
  * Click folder → expand/collapse. Click file → notify parent to open in main panel.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, Boxes, Lock, Archive } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WorkspaceTreeNode } from '@/types';
 import { FileIcon } from '@/components/workspace/FileIcon';
-import { FileContextMenu, type FileMenuTarget, type FileVerbs } from '@/components/workspace/FileContextMenu';
+import { useFileContextMenu, type FileVerbs } from '@/components/workspace/FileContextMenu';
 import { fileLegibilityState, type FileLegibilityState } from '@/lib/workspace/legibility';
 import { resolveRootIcon } from '@/lib/workspace/root-icons';
 
@@ -47,28 +47,37 @@ interface WorkspaceTreeProps {
   canOrganize?: (path: string) => boolean;
 }
 
-interface ContextMenuState {
-  target: FileMenuTarget;
-  node: WorkspaceTreeNode;
-  x: number;
-  y: number;
-}
-
 export function WorkspaceTree({ nodes, selectedPath, onSelect, verbs, onMoveByDrag, canOrganize }: WorkspaceTreeProps) {
-  const [menu, setMenu] = useState<ContextMenuState | null>(null);
   // ADR-400 Wave B: which folder path is the current drag-over drop target
   // (for the highlight). Lifted here so only one row highlights at a time.
   const [dropTarget, setDropTarget] = useState<string | null>(null);
 
-  // Any wired verb earns the menu — no per-verb enumeration to fall out of date.
-  const hasMenu = !!(verbs && Object.values(verbs).some(Boolean));
-  const openMenu = hasMenu
+  // The menu's Open falls back to the tree's own select, so a click and the
+  // menu's Open are the same act even when the caller wired no onOpen.
+  const menuVerbs = useMemo<FileVerbs | undefined>(() => {
+    if (!verbs || verbs.onOpen) return verbs;
+    return {
+      ...verbs,
+      onOpen: (t) => {
+        const node = findNodeByPath(nodes, t.path);
+        if (node) onSelect(node);
+      },
+    };
+  }, [verbs, nodes, onSelect]);
+
+  // The SHARED open-state machine (useFileContextMenu) — the same one the
+  // folder listing, RecentsView grid and Studio recents mount. The tree
+  // previously kept a local useState + a raw spread of the bundle straight
+  // into the menu component, which could not translate `handlersFor` (a
+  // function on FileVerbs) into `handlers` (the resolved array the menu
+  // renders) — so Open With ▸ silently never appeared on this mount. Third
+  // recurrence of the per-mount drift class (Duplicate, Share…, then Open
+  // With); the hook is the one translation site, so a verb wired once now
+  // reaches every mount identically.
+  const { openMenu, menu, hasVerbs } = useFileContextMenu(menuVerbs);
+  const onNodeContextMenu = hasVerbs
     ? (node: WorkspaceTreeNode, e: React.MouseEvent) => {
-        e.preventDefault();
-        setMenu({
-          target: { path: node.path, name: node.name, isFile: node.type === 'file' },
-          node, x: e.clientX, y: e.clientY,
-        });
+        openMenu({ path: node.path, name: node.name, isFile: node.type === 'file' }, e);
       }
     : undefined;
 
@@ -100,25 +109,12 @@ export function WorkspaceTree({ nodes, selectedPath, onSelect, verbs, onMoveByDr
           depth={0}
           selectedPath={selectedPath}
           onSelect={onSelect}
-          onContextMenu={openMenu}
+          onContextMenu={onNodeContextMenu}
           dnd={dnd}
         />
       ))}
 
-      {menu && verbs && (
-        // ADR-514 D2.6: spread the bundle — every verb the caller wired reaches
-        // this mount, including ones added after this file was last touched.
-        // `onOpen` defaults to the tree's own select so a click and the menu's
-        // Open are the same act.
-        <FileContextMenu
-          {...verbs}
-          target={menu.target}
-          x={menu.x}
-          y={menu.y}
-          onClose={() => setMenu(null)}
-          onOpen={verbs.onOpen ?? (() => onSelect(menu.node))}
-        />
-      )}
+      {menu}
     </div>
   );
 }
@@ -299,6 +295,15 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu, dnd }: T
       )}
     </div>
   );
+}
+
+function findNodeByPath(nodes: WorkspaceTreeNode[], targetPath: string): WorkspaceTreeNode | null {
+  for (const node of nodes) {
+    if (node.path === targetPath) return node;
+    const hit = findNodeByPath(node.children || [], targetPath);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 function nodeContainsPath(node: WorkspaceTreeNode, targetPath: string): boolean {

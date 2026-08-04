@@ -337,7 +337,7 @@ export default function ContextPage() {
   // ADR-400 polish (2026-07-03): the universal action-feedback layer replaces
   // window.alert/confirm/prompt for the operator's file verbs. See
   // docs/design/ACTION-FEEDBACK.md.
-  const { runAction } = useFeedback();
+  const { runAction, toast } = useFeedback();
   // Touch parity (2026-07-12): the canvas New Folder / Add Files verbs live in a
   // right-click menu (mouse-only). On a coarse pointer we surface them as
   // buttons in the Explorer header — the Finder-parity clean look stays on
@@ -781,17 +781,41 @@ export default function ContextPage() {
   const openMove = organizeVerbs.onMove;
   const handleTreeDelete = organizeVerbs.onDelete;
 
-  // New Folder — ADR-424 D2: create a top-level PEER folder (peer of Documents/
-  // Downloads). The modal collects a name; this seeds the folder's first file.
+  // New Folder — ADR-424 D2: create a folder. `newFolderParent` scopes the act:
+  // null = a top-level PEER (peer of Documents/Downloads); a folder path =
+  // create INSIDE it (the folder-node menu verb, and the canvas menu when a
+  // folder's contents are on screen — the Finder folder-window-background
+  // grammar). The modal collects a name and states the destination; this seeds
+  // the folder's first file. The parent travels VERBATIM in its own field —
+  // the backend sanitizes only the new leaf, so an existing parent segment
+  // (`_adr427-probe`) is never rewritten en route.
   const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [newFolderParent, setNewFolderParent] = useState<{ path: string; name: string } | null>(null);
+  const openNewFolder = useCallback((parent: { path: string; name: string } | null) => {
+    // Virtual /explorer/ groups aren't substrate — refuse honestly up front
+    // (the same pre-empt-the-obvious-carve posture as useFileOrganizeVerbs).
+    if (parent && !parent.path.startsWith('/workspace/')) {
+      toast({ kind: 'error', message: 'You can’t create a folder here — this is a grouping, not a real folder.' });
+      return;
+    }
+    setNewFolderParent(parent);
+    setNewFolderOpen(true);
+  }, [toast]);
+  const closeNewFolder = useCallback(() => {
+    setNewFolderOpen(false);
+    setNewFolderParent(null);
+  }, []);
   const commitNewFolder = useCallback(async (name: string) => {
     try {
-      const r = await runAction(() => api.documents.createFolder(name), {
+      const parentRel = newFolderParent
+        ? newFolderParent.path.replace(/^\/workspace\//, '')
+        : null;
+      const r = await runAction(() => api.documents.createFolder(name, parentRel), {
         pending: 'Creating folder…',
         success: 'Folder created',
         error: (e) => (e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Could not create the folder' : 'Could not create the folder'),
       });
-      setNewFolderOpen(false);
+      closeNewFolder();
       await loadExplorer();
       // Jump to the seeded README so the new folder is visible + selected —
       // through THE ONE DOOR (openPath). The seed is markdown today (falls
@@ -799,7 +823,7 @@ export default function ContextPage() {
       // site outside the funnel.
       if (r?.seeded) openPath(r.seeded);
     } catch { /* error toast already surfaced; keep the modal open to retry */ }
-  }, [runAction, loadExplorer, openPath]);
+  }, [runAction, loadExplorer, openPath, newFolderParent, closeNewFolder]);
 
   // Move (deliberate, modal) + drag-move (gesture) both route through the shared
   // hook — `openMove` opens the picker, `commitMove` is the drag fast-path.
@@ -845,8 +869,12 @@ export default function ContextPage() {
     // ADR-514 D2.2: Open fires the default; these expose the rest.
     handlersFor,
     onOpenWith: openWith,
+    // Folder-scoped create — right-click a folder (tree or listing) → a new
+    // folder INSIDE it. The Explorer "New > Folder" grammar; the canvas menu
+    // stays the sibling-level act.
+    onNewFolder: (t: { path: string; name: string }) => openNewFolder(t),
   }), [openPath, openRename, openMove, handleTreeDelete, handleShare, organizeVerbs,
-       handlersFor, openWith]);
+       handlersFor, openWith, openNewFolder]);
 
   // Upload success (2026-07-01): after files land in the Intake raw lane
   // (inbound/uploads/{principal}/{slug}.{ext}, ADR-395), refresh the tree AND
@@ -940,7 +968,7 @@ export default function ContextPage() {
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => setNewFolderOpen(true)}
+              onClick={() => openNewFolder(null)}
               aria-label="New folder"
               className="rounded p-1 text-muted-foreground hover:bg-accent/60 hover:text-foreground"
             >
@@ -1131,7 +1159,17 @@ export default function ContextPage() {
           x={canvasMenu.x}
           y={canvasMenu.y}
           onClose={() => setCanvasMenu(null)}
-          onNewFolder={() => setNewFolderOpen(true)}
+          // Finder folder-window grammar: the background of an open REAL folder
+          // creates inside that folder. Recents / a virtual /explorer/ group /
+          // an open file keep the top-level peer act (there is no honest
+          // "here" to create into).
+          onNewFolder={() =>
+            openNewFolder(
+              selectedNode?.type === 'folder' && selectedNode.path.startsWith('/workspace/')
+                ? { path: selectedNode.path, name: selectedNode.name }
+                : null,
+            )
+          }
           onAddFiles={() => openUpload()}
         />
       )}
@@ -1162,11 +1200,13 @@ export default function ContextPage() {
           Studio). Files feeds the hook its own `treeNodes` for the picker. */}
       {organizeModals}
 
-      {/* ADR-424 D2: New Folder — create a top-level peer of Documents/Downloads. */}
+      {/* ADR-424 D2: New Folder — top-level peer, or inside the folder the act
+          was scoped to (destination stated in the modal, never silent). */}
       <NewFolderModal
         open={newFolderOpen}
-        onClose={() => setNewFolderOpen(false)}
+        onClose={closeNewFolder}
         onSubmit={commitNewFolder}
+        destinationName={newFolderParent?.name}
       />
 
     </>

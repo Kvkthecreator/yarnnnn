@@ -1040,12 +1040,14 @@ export const api = {
         { method: "POST", body: JSON.stringify({ path }) }
       ),
 
-    // ADR-424 D2: create a top-level PEER folder (a peer of Documents/Downloads).
-    // Folders are implicit, so this seeds the folder's first file (README.md).
-    createFolder: (path: string) =>
+    // ADR-424 D2: create a folder — a top-level PEER (no parent) or INSIDE an
+    // existing folder (parent = its workspace-relative path, sent verbatim so
+    // the backend never re-sanitizes existing segments). Folders are implicit,
+    // so this seeds the folder's first file (README.md).
+    createFolder: (path: string, parent?: string | null) =>
       request<{ success: boolean; path: string; seeded: string }>(
         "/api/documents/folder",
-        { method: "POST", body: JSON.stringify({ path }) }
+        { method: "POST", body: JSON.stringify(parent ? { path, parent } : { path }) }
       ),
 
     // ADR-127: Share file to global user_shared/ staging area

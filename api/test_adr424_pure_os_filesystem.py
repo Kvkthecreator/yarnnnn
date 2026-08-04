@@ -109,6 +109,27 @@ def run() -> int:
     ok &= _check("create-folder seeds via WriteFile (the write path), README.md",
                  "WriteFile" in cf_src and "README.md" in cf_src)
 
+    # ── folder-node New Folder (2026-08-04): parent is ADDRESSING, not naming ──
+    # The parent names an EXISTING folder, so it must NOT pass through the
+    # segment sanitizer (which lowercases + rewrites `_` → `-`): sanitizing an
+    # existing segment silently reroutes the new folder. Only the new leaf is
+    # sanitized. The parent IS validated (no traversal), and the composed path
+    # still hits the operator_can_organize guard downstream.
+    from routes.documents import CreateFolderRequest
+    ok &= _check("create-folder accepts an optional parent field",
+                 "parent" in CreateFolderRequest.model_fields
+                 and CreateFolderRequest.model_fields["parent"].default is None)
+    parent_block = cf_src[cf_src.index("if body.parent"):] if "if body.parent" in cf_src else ""
+    ok &= _check("parent segments are NOT re-sanitized (verbatim addressing)",
+                 bool(parent_block)
+                 and "_sanitize_folder_segment" not in parent_block.split("readme_path")[0])
+    ok &= _check("parent rejects traversal segments",
+                 '".."' in parent_block)
+    # The sanitizer really is lossy on existing names — the reason verbatim
+    # matters. If this ever stops holding, the verbatim lane can be dropped.
+    ok &= _check("sanitizer is lossy on underscore-prefixed existing names",
+                 _sanitize_folder_segment("_adr427-probe") != "_adr427-probe")
+
     return 0 if ok else 1
 
 

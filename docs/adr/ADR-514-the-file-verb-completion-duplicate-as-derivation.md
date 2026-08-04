@@ -258,6 +258,24 @@ and a prop wall cannot carry it. **D2 therefore requires `WorkspaceTree` (and an
 hand-listing mount) to accept the `FileVerbs` bundle whole.** This is not scope creep — it is
 the precondition that stops the next verb repeating the same defect.
 
+> **Amendment (2026-08-04) — the spread was half the fix; the hook is the whole one.** The
+> bundle-whole cut shipped as a raw `{...verbs}` spread into the menu component, and the third
+> recurrence of the class arrived immediately: `FileVerbs` carries `handlersFor` (a function)
+> while the menu takes `handlers` (the resolved array), and only `useFileContextMenu` performs
+> that translation — so **Open With ▸ never rendered in the tree** while working in the grid and
+> Recents (an audit finding, 2026-08-04). The corrected invariant: **every mount goes through
+> the shared `useFileContextMenu` hook; nothing but the hook renders `<FileContextMenu>`
+> directly.** The tree's local open-state machine is deleted; the gate now asserts hook-usage
+> per mount, the singular JSX mount site by enumeration, and the translation line itself
+> (`__gate_adr514_d2.mjs` 4b/4b2/4b3). The same pass made the open FILE a mount too (4b4):
+> right-clicking the file you just opened offers its own verbs instead of bubbling to the
+> canvas menu — previously the focused object was the only context on the surface with no menu
+> at all, the inverse of the Finder. And the menu gained its first folder-scoped verb, **New
+> Folder** (create inside the target — the Explorer "New > Folder" grammar; gate section 5),
+> with the destination stated in the modal and the parent travelling verbatim in its own
+> request field so existing path segments are never re-sanitized en route
+> (`create_folder.parent`, ADR-424 lane).
+
 ### D2.7 — What is deliberately NOT built
 
 - **No "App Store…" / "Other…" rows.** Both presuppose installable third-party apps; the

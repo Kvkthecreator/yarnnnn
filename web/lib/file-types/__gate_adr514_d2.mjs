@@ -185,15 +185,58 @@ check('4a WorkspaceTree takes the verb bundle WHOLE (no hand-listed props)',
     !/onDuplicate\?: \(node/.test(tree) &&
     !/onRename\?: \(node/.test(tree));
 
-check('4b WorkspaceTree SPREADS the bundle into the menu',
-  /\{\.\.\.verbs\}/.test(tree));
+// 2026-08-04: the raw `{...verbs}` spread this check used to REQUIRE was itself
+// a defect — FileVerbs carries `handlersFor` (a function) while the menu takes
+// `handlers` (the resolved array), and only useFileContextMenu translates. The
+// spread skipped the translation, so Open With ▸ never rendered in the tree.
+// Every mount must go through the shared hook; nothing but the hook may render
+// <FileContextMenu> directly.
+check('4b WorkspaceTree renders its menu through the SHARED hook (no local spread)',
+  /useFileContextMenu\(/.test(tree) &&
+    !/<FileContextMenu/.test(tree) &&
+    !/\{\.\.\.verbs\}/.test(tree));
+
+check('4b2 the hook is the ONE translation site (handlersFor → handlers)',
+  /handlers=\{verbs\.handlersFor\?\.\(state\.target\)\}/.test(menu));
+
+// Completeness, not a pinned spelling (the counting-gate lesson): enumerate
+// every JSX mount of <FileContextMenu> across the FE — the hook's own render
+// must be the only one.
+import { readdirSync, statSync } from 'node:fs';
+const walk = (dir, out = []) => {
+  for (const name of readdirSync(join(WEB, dir))) {
+    const rel = `${dir}/${name}`;
+    if (name === 'node_modules' || name.startsWith('.')) continue;
+    if (statSync(join(WEB, rel)).isDirectory()) walk(rel, out);
+    else if (/\.(tsx|ts)$/.test(name)) out.push(rel);
+  }
+  return out;
+};
+// `<FileContextMenu` followed by whitespace = a JSX mount with props; a prose
+// mention in a comment is `<FileContextMenu>` (no whitespace) and is not one.
+const jsxMounts = [...walk('components'), ...walk('app')]
+  .filter((f) => /<FileContextMenu\s/.test(read(f)));
+check('4b3 exactly ONE <FileContextMenu> JSX mount — the hook itself',
+  jsxMounts.length === 1 && jsxMounts[0].endsWith('FileContextMenu.tsx'),
+  jsxMounts.join(', '));
+
+// The open FILE is a mount too (2026-08-04): right-clicking the file you just
+// opened must offer the file's own verbs, not bubble to the canvas menu. The
+// bundle reaches FileView through ContentViewer, and FileView mounts the hook.
+const contentViewer = read('components/workspace/ContentViewer.tsx');
+check('4b4 the open file (FileView) is a verb mount',
+  /<FileView[\s\S]{0,200}verbs=\{verbs\}/.test(contentViewer) &&
+    /function FileView\([\s\S]{0,800}useFileContextMenu\(verbs\)/.test(contentViewer));
 
 check('4c the Files page hands the tree the same bundle the grid gets',
   /verbs=\{fileVerbs\}/.test(filesPage));
 
-check('4d no mount enumerates verbs to decide the menu exists',
-  /Object\.values\(verbs\)\.some\(Boolean\)/.test(tree) &&
-    /Object\.values\(verbs\)\.some\(Boolean\)/.test(menu));
+// The any-verb-earns-the-menu decision lives in the HOOK alone; a mount that
+// re-derives it (as the tree once did) is a second state machine waiting to
+// drift.
+check('4d only the hook decides whether the menu exists',
+  /Object\.values\(verbs\)\.some\(Boolean\)/.test(menu) &&
+    !/Object\.values\(verbs\)/.test(tree));
 
 check('4e the handler set is wired into the shared bundle (reaches every mount)',
   /handlersFor,/.test(filesPage) && /onOpenWith: openWith/.test(filesPage));
@@ -203,6 +246,22 @@ check('4e the handler set is wired into the shared bundle (reaches every mount)'
 check('4f menu + open funnel share one resolver',
   /resolveHandlers/.test(filesPage) &&
     /from '@\/lib\/file-types\/handlers'/.test(filesPage));
+
+// ── 5. folder-scoped create (2026-08-04) ─────────────────────────────────────
+// A folder target offers "New Folder" (create INSIDE it — the Explorer grammar);
+// files never do. The destination folder travels in its own VERBATIM field so
+// the backend never re-sanitizes an existing segment into a different path.
+check('5a New Folder renders for FOLDER targets only',
+  /\{!isFile && onNewFolder &&/.test(menu));
+
+check('5b the hook threads onNewFolder like every other verb',
+  /onNewFolder=\{verbs\.onNewFolder/.test(menu));
+
+check('5c the page wires it into the ONE bundle (reaches every mount)',
+  /onNewFolder: \(t/.test(filesPage));
+
+check('5d the parent is its own field, not a concatenated re-sanitized path',
+  /createFolder\(name, parentRel\)/.test(filesPage));
 
 // ── report ───────────────────────────────────────────────────────────────────
 let failed = 0;

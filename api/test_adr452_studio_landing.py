@@ -67,13 +67,17 @@ def run() -> int:
     )
 
     # ── 2. the Files open branch ──────────────────────────────────────────
-    # NOTE (2026-07-24): the call gained a `kind` arg at ADR-473
-    # (`resolveSurfaceApplication(path, undefined, kind)`), so match the verb
-    # name + its navigate, not the stale 1-arg literal this asserted before.
+    # NOTE (2026-07-24): the call gained a `kind` arg at ADR-473.
+    # NOTE (2026-08-04): ADR-514 D2 merged the two registries into ONE ordered
+    # handler set — openPath now consults `resolveHandlers` (+ the D2.4
+    # override) and navigates on the chosen handler's own declaration. The
+    # invariant this defends is unchanged: the funnel consults the shared
+    # resolver and navigates to the owning app; only the resolver's name moved.
     passed &= _check(
         "Files open path consults the resolver + navigates",
-        "resolveSurfaceApplication(path" in files_page
-        and "navigateToSurface(app.surface, { [app.param]: path })" in files_page,
+        "resolveHandlers({ paths: [path]" in files_page
+        and "navigateToSurface(chosen.open.surface, { [chosen.open.param]: path })"
+        in files_page,
     )
     passed &= _check(
         "chat FileOpenModal NOT branched (ADR-441 preview stands)",

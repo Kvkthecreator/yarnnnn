@@ -110,6 +110,7 @@ export function ContentViewer({
       showHeader={showHeader}
       onOpenChatDraft={onOpenChatDraft}
       onDeleted={onDeleted}
+      verbs={verbs}
     />
   );
 }
@@ -294,14 +295,25 @@ function FileView({
   showHeader,
   onOpenChatDraft,
   onDeleted,
+  verbs,
 }: {
   path: string;
   showHeader: boolean;
   onOpenChatDraft?: (prompt: string) => void;
   onDeleted?: () => void;
+  /**
+   * The operator's file verbs → right-click menu on the OPEN file itself.
+   * Without this, right-clicking a file you'd just opened bubbled to the
+   * Files canvas menu (New Folder / Add Files) — the open file was the one
+   * context on the surface that lost its own verbs the moment it gained
+   * focus (the inverse of the Finder, where the focused object is the most
+   * verb-rich). Same bundle, same menu, same gates as every other mount.
+   */
+  verbs?: FileVerbs;
 }) {
   const { confirm, runAction } = useFeedback();
   const [deleting, setDeleting] = useState(false);
+  const { openMenu, menu } = useFileContextMenu(verbs);
   // ADR-436 §6: the shared file-load hook (was a hand-written getFile + revision
   // state machine). `withRevision` fetches the ADR-209 Phase-4 head author in
   // parallel (surfaced on the header); a 404 is an honest `notFound` state (a
@@ -391,7 +403,14 @@ function FileView({
   const filename = file.path.split('/').pop() || file.path;
 
   return (
-    <div className="h-full overflow-auto">
+    <div
+      className="h-full overflow-auto"
+      // Right-click on the open file = the file's own menu (it claims the
+      // event via preventDefault, so the page's canvas menu stays background-
+      // only). Right-clicks inside a blob preview's iframe never reach here —
+      // that's the iframe's own context, not a regression.
+      onContextMenu={verbs ? (e) => openMenu({ path: file.path, name: filename, isFile: true }, e) : undefined}
+    >
       {showHeader ? (
         <div className="border-b border-border bg-muted/20 px-4 py-3">
           <div className="flex items-start justify-between gap-4">
@@ -482,6 +501,7 @@ function FileView({
             history live one click away. */}
         <FileBody file={file} />
       </div>
+      {menu}
     </div>
   );
 }

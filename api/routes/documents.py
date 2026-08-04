@@ -1042,7 +1042,14 @@ async def duplicate_document(body: DuplicateRequest, auth: UserClient):
 class CreateFolderRequest(BaseModel):
     #: Workspace-relative path of the new folder (e.g. "the-acme-deal" or
     #: "operation/projects/q3"). A top-level value creates a peer of Documents.
+    #: Every segment is sanitized (it is NEW naming).
     path: str
+    #: Optional workspace-relative path of an EXISTING folder to create inside
+    #: (the folder-node "New Folder" verb). Validated but passed through
+    #: VERBATIM — sanitizing an existing segment would silently reroute the
+    #: folder (`_adr427-probe` → `-adr427-probe`). Only the new leaf is naming;
+    #: the parent is addressing.
+    parent: Optional[str] = None
 
 
 def _sanitize_folder_segment(seg: str) -> str:
@@ -1083,6 +1090,19 @@ async def create_folder(body: CreateFolderRequest, auth: UserClient):
         raise HTTPException(status_code=400, detail="Enter a folder name.")
 
     rel_folder = "/".join(segments)
+
+    # An EXISTING parent folder to create inside (the folder-node verb).
+    # Validated — no traversal, no absolute escape — but NOT re-sanitized:
+    # its segments already exist in the substrate, and rewriting them
+    # (lowercasing, `_` → `-`) would silently create the folder somewhere else.
+    if body.parent:
+        parent_raw = body.parent.strip().strip("/")
+        if parent_raw.startswith("workspace/"):
+            parent_raw = parent_raw[len("workspace/"):]
+        parent_segments = [s.strip() for s in parent_raw.split("/") if s.strip()]
+        if not parent_segments or any(s == ".." or s == "." for s in parent_segments):
+            raise HTTPException(status_code=400, detail="That destination folder isn't valid.")
+        rel_folder = "/".join(parent_segments) + "/" + rel_folder
     readme_path = f"{rel_folder}/README.md"
     abs_folder = f"/workspace/{rel_folder}"
     abs_readme = f"/workspace/{readme_path}"

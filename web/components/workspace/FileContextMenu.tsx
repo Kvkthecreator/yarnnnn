@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Info, ExternalLink, Pencil, FolderInput, Trash2, Share2, MoreVertical, CopyPlus, ChevronRight } from 'lucide-react';
+import { Info, ExternalLink, Pencil, FolderInput, FolderPlus, Trash2, Share2, MoreVertical, CopyPlus, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 
@@ -61,6 +61,14 @@ export interface FileVerbs {
    * length ≤ 1 → no Open With submenu, which is most files.
    */
   handlersFor?: (t: { path: string; name: string; isFile: boolean }) => MenuHandler[];
+  /**
+   * Create a folder INSIDE the target (folders only — the Explorer "New >
+   * Folder" grammar; Finder reaches the same act via the folder window's
+   * background menu, which a tree row cannot express). Optimistic like every
+   * organize verb: the handler + backend decide, and refuse honestly on the
+   * carve (system/, inbound/, virtual groups).
+   */
+  onNewFolder?: (t: { path: string; name: string }) => void;
 }
 
 
@@ -104,13 +112,15 @@ export interface FileContextMenuProps {
   onOpenWith?: (t: FileMenuTarget, handlerId: string) => void;
   /** The target's ordered handler set, `[0]` = default (ADR-514 D2.2). */
   handlers?: MenuHandler[];
+  /** Create a folder inside the target (folders only). */
+  onNewFolder?: (t: FileMenuTarget) => void;
   /** Surface-specific verbs (ADR-455) — rendered above the organize group. */
   extraItems?: FileMenuExtraItem[];
 }
 
 export function FileContextMenu({
   target, x, y, onClose, onOpen, onProperties, onRename, onMove, onDelete, onShare,
-  onDuplicate, onOpenWith, handlers, extraItems,
+  onDuplicate, onOpenWith, handlers, onNewFolder, extraItems,
 }: FileContextMenuProps) {
   useEffect(() => {
     const close = () => onClose();
@@ -170,6 +180,17 @@ export function FileContextMenu({
           {it.label}
         </MenuItem>
       ))}
+      {/* Folder-scoped create (Explorer "New > Folder"): a folder target offers
+          creating INSIDE it. Files never do — creating a sibling is the canvas
+          menu's act on the folder you're looking at. */}
+      {!isFile && onNewFolder && (
+        <>
+          <div className="my-1 h-px bg-border/60" />
+          <MenuItem icon={<FolderPlus className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onNewFolder)}>
+            New Folder
+          </MenuItem>
+        </>
+      )}
       {isFile && (onRename || onMove || onDelete || onDuplicate) && <div className="my-1 h-px bg-border/60" />}
       {isFile && onDuplicate && (
         <MenuItem icon={<CopyPlus className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onDuplicate)}>
@@ -348,6 +369,7 @@ export function useFileContextMenu(
       onDuplicate={verbs.onDuplicate ? () => verbs.onDuplicate!(state.target) : undefined}
       onOpenWith={verbs.onOpenWith}
       handlers={verbs.handlersFor?.(state.target)}
+      onNewFolder={verbs.onNewFolder ? () => verbs.onNewFolder!(state.target) : undefined}
       extraItems={extraItemsFor?.(state.target)}
     />
   ) : null;
