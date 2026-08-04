@@ -1141,56 +1141,6 @@ async def create_folder(body: CreateFolderRequest, auth: UserClient):
     return {"success": True, "path": abs_folder, "seeded": abs_readme}
 
 
-# =============================================================================
-# SHARE FILE — ADR-127: TP-Level User-Shared File Staging
-# =============================================================================
-
-class ShareFileRequest(BaseModel):
-    filename: str
-    content: str
-
-
-@router.post("/share")
-async def share_file_global(
-    body: ShareFileRequest,
-    auth: UserClient = None,
-):
-    """ADR-127: Share a file to the global user_shared/ staging area."""
-    import re
-    from services.authored_substrate import write_revision
-
-    filename = body.filename.strip()
-    if not filename:
-        raise HTTPException(status_code=400, detail="filename is required")
-    content = body.content
-    if not content or not content.strip():
-        raise HTTPException(status_code=400, detail="content is required")
-
-    safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '-', filename).strip('-')
-    if not safe_filename:
-        raise HTTPException(status_code=400, detail="Invalid filename")
-
-    path = f"/user_shared/{safe_filename}"
-
-    try:
-        write_revision(
-            auth.client,
-            user_id=auth.user_id,
-            path=path,
-            content=content,
-            authored_by="operator",
-            author_identity_uuid=auth.user_id,  # ADR-410/412 viewer pass — which human
-            message=f"share user file {safe_filename}",
-            summary=f"User shared: {safe_filename}",
-            lifecycle="ephemeral",
-        )
-    except Exception as e:
-        logger.error(f"[SHARE] Failed to write user_shared file: {e}")
-        raise HTTPException(status_code=500, detail="Failed to share file")
-
-    return {
-        "success": True,
-        "path": path,
-        "filename": safe_filename,
-        "message": "File shared. TP can reference it in conversation.",
-    }
+# `POST /api/share` (ADR-127 user_shared/ staging) DELETED — ADR-517 D7,
+# executing ADR-515 D8: zero FE callers, and it squatted the product's most
+# load-bearing word. The share mechanism is routes/shares.py.

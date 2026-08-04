@@ -104,15 +104,17 @@ def _acting_workspace(auth: UserClient) -> str:
 async def create_workspace_share(body: ShareCreateRequest, auth: UserClient) -> ShareSummary:
     """Mint a share link for an artifact (ADR-437 D4 — the cockpit origin).
 
-    Any principal with a grant to the workspace may share (a member shares
-    within the commons, ADR-408 D1 free-for-all). Accepting the link mints a
-    broad member grant (ADR-437 D4.2).
+    Minting a grant is governance (ADR-517 D3): write-holders mint, viewers
+    never, and the workspace dial (`share_mint_policy`) can tighten to
+    owner-only. The gate is `assert_may_mint_share` — the same one the MCP
+    origin calls (species-blind, ADR-405).
     """
     from services.deep_links import app_url
-    from services.workspace_shares import ShareError, create_share
+    from services.workspace_shares import ShareError, assert_may_mint_share, create_share
 
     workspace_id = _acting_workspace(auth)
     try:
+        assert_may_mint_share(auth.user_id, workspace_id)
         share = create_share(
             workspace_id=workspace_id,
             shared_by=auth.user_id,
@@ -122,7 +124,7 @@ async def create_workspace_share(body: ShareCreateRequest, auth: UserClient) -> 
             role=body.role,
         )
     except ShareError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=403 if e.code == "mint_forbidden" else 400, detail=str(e))
 
     return ShareSummary(
         id=share["id"],
@@ -154,10 +156,15 @@ async def list_workspace_shares(auth: UserClient) -> ShareListResponse:
 
 @router.post("/workspace/shares/{share_id}/revoke")
 async def revoke_workspace_share(share_id: str, auth: UserClient) -> dict:
-    from services.workspace_shares import revoke_share
+    """ADR-517 D4 — the owner revokes any link; the minter revokes their own."""
+    from services.workspace_shares import ShareError, revoke_share
 
     workspace_id = _acting_workspace(auth)
-    if not revoke_share(workspace_id, share_id):
+    try:
+        revoked = revoke_share(workspace_id, share_id, revoked_by=auth.user_id)
+    except ShareError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    if not revoked:
         raise HTTPException(status_code=404, detail="No active share with that id")
     return {"success": True, "id": share_id}
 
@@ -235,11 +242,12 @@ async def preview_share(token: str, response: Response) -> SharePreviewResponse:
         status=share["status"],
     )
 
-    artifact_rel = share.get("artifact_path")
-    if artifact_rel:
+    # ADR-517 D5: artifact_path is stored in the canonical absolute spelling
+    # (normalized at create_share, backfilled by migration 234) — no reader-side
+    # compensation.
+    abs_path = share.get("artifact_path")
+    if abs_path:
         svc = get_service_client()
-        abs_path = artifact_rel if artifact_rel.startswith("/workspace/") \
-            else "/workspace/" + artifact_rel.lstrip("/")
         rows = (
             svc.table("workspace_files")
             .select("path, content")

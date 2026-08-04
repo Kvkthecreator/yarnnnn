@@ -938,8 +938,8 @@ async def share(
 
     try:
         from services.deep_links import app_url
-        from services.supabase import resolve_workspace_for_principal
-        from services.workspace_shares import ShareError, create_share
+        from services.supabase import principal_reaches_workspace, resolve_workspace_for_principal
+        from services.workspace_shares import ShareError, assert_may_mint_share, create_share
 
         workspace_id = resolve_workspace_for_principal(auth.user_id)
         if not workspace_id:
@@ -947,6 +947,16 @@ async def share(
                 "success": False, "error": "no_workspace",
                 "message": "No workspace resolved for this user.",
             }, client_name=client_name)
+        # ADR-517 D3 — gate parity with the cockpit origin (species-blind):
+        # the reach check this origin always should have had, then the same
+        # mint-authority gate (write-holders mint; viewers never; the
+        # workspace dial can tighten to owner-only).
+        if not principal_reaches_workspace(auth.user_id, workspace_id):
+            return _present("share", {
+                "success": False, "error": "no_grant",
+                "message": "You do not have a grant to this workspace.",
+            }, client_name=client_name)
+        assert_may_mint_share(auth.user_id, workspace_id)
         row = create_share(
             workspace_id=workspace_id,
             shared_by=auth.user_id,

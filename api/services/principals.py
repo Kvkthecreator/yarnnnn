@@ -55,7 +55,12 @@ def role_class(role: Optional[str]) -> Optional[str]:
 
 def class_default_write_regions(role: str) -> list[str]:
     """The write-region set a role inherits from its class default (the
-    complement of the class's locked prefixes in CALLER_WRITE_POLICY)."""
+    complement of the class's locked prefixes in CALLER_WRITE_POLICY).
+
+    ADR-517 D6: a viewer's class default IS deny-all — even a hypothetical
+    axes-less viewer grant inherits nothing."""
+    if role == "viewer":
+        return []
     from services.workspace_paths import CALLER_WRITE_POLICY
     klass = _ROLE_TO_CLASS.get(role, "agent")
     locked = set(CALLER_WRITE_POLICY.get(klass, ()))

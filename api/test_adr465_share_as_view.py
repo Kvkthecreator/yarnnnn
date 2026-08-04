@@ -49,8 +49,9 @@ def main():
         "2b read axis scopes to the artifact (None for a bare share)",
         "read_scopes=[artifact] if artifact else None" in src_accept))
     results.append(_check(
-        "2c one grant model — the grant row role stays 'member' in BOTH branches",
-        src_accept.count('role="member"') == 2 and 'role="viewer"' not in src_accept))
+        "2c role-honest grants (ADR-517 D1, amending ADR-437 D4.3) — the viewer "
+        "branch mints role='viewer'; the member branch stays 'member'",
+        src_accept.count('role="viewer"') == 1 and src_accept.count('role="member"') == 1))
     results.append(_check(
         "2d the response reports the SHARE's shape (honest accept copy)",
         '"role": share_role,' in src_accept))

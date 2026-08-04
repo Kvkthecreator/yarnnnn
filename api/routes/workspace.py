@@ -1151,7 +1151,9 @@ async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsRes
             .select("workspace_id, role")
             .eq("principal_id", auth.user_id)
             .eq("status", "active")
-            .in_("role", ["member"])
+            # ADR-517 D6 — viewer included: a viewer must be able to enter
+            # the workspace they can view. (Seats stay owner|member.)
+            .in_("role", ["member", "viewer"])
             .execute()
         ).data or []
         for r in rows:
@@ -1172,7 +1174,7 @@ async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsRes
             except Exception:
                 pass
             memberships.append(WorkspaceMembership(
-                workspace_id=ws_id, role="member", label=label,
+                workspace_id=ws_id, role=r.get("role") or "member", label=label,
                 is_active=(ws_id == acting),
             ))
     except Exception as e:
@@ -1269,7 +1271,7 @@ async def get_workspace_members(
         # connection; may not appear as a roster row of their own).
         human_ids: set[str] = set()
         for r in rows:
-            if r.get("role") in ("owner", "member"):
+            if r.get("role") in ("owner", "member", "viewer"):
                 human_ids.add(r["principal_id"])
             if r.get("connected_by"):
                 human_ids.add(str(r["connected_by"]))
@@ -1333,7 +1335,7 @@ async def get_workspace_members(
             )
 
             label: Optional[str] = None
-            if role in ("owner", "member"):
+            if role in ("owner", "member", "viewer"):
                 label = human_emails.get(principal_id)
                 if label and principal_id == auth.user_id:
                     label = f"{label} (you)"

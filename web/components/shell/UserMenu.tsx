@@ -144,7 +144,7 @@ export function UserMenu({ email }: UserMenuProps) {
   // [owner + member roles], AI principals excluded [they live on the Members /
   // AI-Connections surfaces, not this glance]). Rendered as "N people (Role)".
   const humanCount = members.filter(
-    (m) => m.role === 'owner' || m.role === 'member',
+    (m) => m.role === 'owner' || m.role === 'member' || m.role === 'viewer',
   ).length;
   const peopleLabel =
     humanCount > 0 ? `${humanCount} ${humanCount === 1 ? 'person' : 'people'}` : null;

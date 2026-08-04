@@ -55,7 +55,10 @@ export type WorkspaceMembersVariant = 'full' | 'compact';
  * principals only: humans, external LLMs reaching in over MCP, and (future,
  * ADR-382) Altitude-3 persona agents.
  */
-const HUMAN_ROLES = ['owner', 'member'] as const;
+// ADR-517 D6 — `viewer` is a first-class human role (role-honest grants): it
+// renders in the roster (an invisible principal is an ungovernable one) but is
+// NOT a billing seat (HUMAN_SEAT_ROLES stays owner|member, server-side).
+const HUMAN_ROLES = ['owner', 'member', 'viewer'] as const;
 // ADR-497 — the DISPLAY vocabulary carries only roles something can actually
 // create. `foreign-llm` is minted by the MCP OAuth flow
 // (`oauth_provider.py::_ensure_foreign_llm_grant`); `own-agent` by program
@@ -105,6 +108,7 @@ interface WorkspaceMembersCardProps {
 const ROLE_META: Record<string, { label: string; icon: typeof Users; tone: string }> = {
   owner: { label: 'Owner', icon: ShieldCheck, tone: 'text-emerald-600 dark:text-emerald-400' },
   member: { label: 'Member', icon: User, tone: 'text-blue-600 dark:text-blue-400' },
+  viewer: { label: 'Viewer', icon: User, tone: 'text-muted-foreground' },
   'own-agent': { label: 'Agent', icon: Bot, tone: 'text-violet-600 dark:text-violet-400' },
   'foreign-llm': { label: 'External LLM', icon: Cpu, tone: 'text-amber-600 dark:text-amber-400' },
 };

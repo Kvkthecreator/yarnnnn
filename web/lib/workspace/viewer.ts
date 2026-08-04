@@ -38,7 +38,7 @@ import {
 /** One principal of the acting workspace (GET /api/workspace/members row). */
 export interface WorkspaceMemberRow {
   principal_id: string;
-  role: string; // owner | member | own-agent | foreign-llm | platform | a2a
+  role: string; // owner | member | viewer | own-agent | foreign-llm | platform | a2a
   label: string | null;
   write_regions: string[];
   scopes_explicit: boolean;
@@ -48,7 +48,8 @@ export interface WorkspaceMemberRow {
 /** One workspace the caller can act in (GET /api/workspace/memberships row). */
 export interface WorkspaceMembershipRow {
   workspace_id: string;
-  role: 'owner' | 'member';
+  // ADR-517 D6 — viewer included: a viewer can enter the workspace they view.
+  role: 'owner' | 'member' | 'viewer';
   label: string;
   is_active: boolean;
 }

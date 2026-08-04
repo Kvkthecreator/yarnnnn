@@ -53,6 +53,71 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _canonical_artifact_path(path: Optional[str]) -> Optional[str]:
+    """ADR-517 D5 — ONE spelling for workspace_shares.artifact_path: absolute
+    (`/workspace/…`, the substrate's own path identity). The write is the
+    normalizer; readers must not compensate (migration 234 backfilled the
+    historical rows, and the 2026-08-03 unrevocable-link defect class ends
+    here)."""
+    if not path:
+        return None
+    return path if path.startswith("/workspace/") else "/workspace/" + path.lstrip("/")
+
+
+def assert_may_mint_share(user_id: str, workspace_id: str) -> None:
+    """ADR-517 D3 — the mint-authority gate, called by BOTH origins (cockpit
+    route + MCP `share` verb; species-blind per ADR-405).
+
+    Minting a grant is governance ("anything that mutates WHO may act",
+    routes/workspace.py::_require_owner_workspace) — so the free-for-all
+    (ADR-437 D4 / ADR-408 D1) is narrowed:
+
+      1. The owner always may.
+      2. The workspace dial (`workspaces.share_mint_policy`): 'owner-only'
+         refuses every non-owner.
+      3. Otherwise write-holders mint: a `viewer`-role grant may not, and an
+         explicit write-deny-all member (`write_scopes = []`) may not — a
+         member narrowed to nothing is a viewer in fact.
+
+    Raises ShareError('mint_forbidden', …) — the escalation door ADR-515 §6.1
+    named (a read-only holder minting a member link) closes here.
+    """
+    if _workspace_owner_id(workspace_id) == user_id:
+        return
+
+    ws = (
+        _svc().table("workspaces")
+        .select("share_mint_policy")
+        .eq("id", workspace_id)
+        .limit(1)
+        .execute()
+    ).data or []
+    if ws and (ws[0].get("share_mint_policy") or "write-holders") == "owner-only":
+        raise ShareError(
+            "mint_forbidden",
+            "Only the workspace owner may create share links in this workspace",
+        )
+
+    grants = (
+        _svc().table("principal_grants")
+        .select("role, write_scopes")
+        .eq("principal_id", user_id)
+        .eq("workspace_id", workspace_id)
+        .eq("status", "active")
+        .limit(1)
+        .execute()
+    ).data or []
+    if not grants:
+        raise ShareError("mint_forbidden", "You do not have a grant to this workspace")
+    grant = grants[0]
+    if grant.get("role") == "viewer" or grant.get("write_scopes") == []:
+        raise ShareError(
+            "mint_forbidden",
+            "A view-only grant cannot create share links (ADR-517: minting a "
+            "grant is governance — ask the workspace owner)",
+        )
+
+
 def create_share(
     *,
     workspace_id: str,
@@ -67,9 +132,12 @@ def create_share(
     Link-based: no per-recipient row. Re-sharing the same artifact mints a new
     link (multiple links to one artifact are fine — each is a durable token).
 
+    Authorization is the CALLER's job: routes/shares.py and the MCP verb both
+    call `assert_may_mint_share` first (ADR-517 D3).
+
     `role` is the grant SHAPE the sharer chose (ADR-465 D3, ratified 2026-08-02):
       - "member" (default) — accept mints the broad class-default grant.
-      - "viewer" — accept mints a birth-narrowed member grant (write deny-all,
+      - "viewer" — accept mints a birth-narrowed viewer grant (write deny-all,
         read scoped to the artifact) so "just look at this" never over-grants.
     """
     if role not in ("member", "viewer"):
@@ -79,7 +147,7 @@ def create_share(
     )
     row = {
         "workspace_id": workspace_id,
-        "artifact_path": artifact_path,
+        "artifact_path": _canonical_artifact_path(artifact_path),
         "label": label,
         "role": role,
         "token": secrets.token_urlsafe(24),
@@ -105,7 +173,30 @@ def list_shares(workspace_id: str) -> list[dict[str, Any]]:
     ).data or []
 
 
-def revoke_share(workspace_id: str, share_id: str) -> bool:
+def revoke_share(workspace_id: str, share_id: str, *, revoked_by: str) -> bool:
+    """Revoke a share link — ADR-517 D4: the owner revokes any link; the
+    minter revokes their own. (The prior any-grant-holder rule was the mint
+    hole's mirror — a denial door instead of an escalation door.)
+
+    Raises ShareError('revoke_forbidden', …) when the caller is neither.
+    Returns False only when no active share matches (not-found semantics).
+    """
+    rows = (
+        _svc().table("workspace_shares")
+        .select("id, shared_by")
+        .eq("id", share_id)
+        .eq("workspace_id", workspace_id)
+        .eq("status", "active")
+        .limit(1)
+        .execute()
+    ).data or []
+    if not rows:
+        return False
+    if revoked_by != rows[0].get("shared_by") and _workspace_owner_id(workspace_id) != revoked_by:
+        raise ShareError(
+            "revoke_forbidden",
+            "Only the workspace owner or the link's creator may revoke it",
+        )
     result = (
         _svc().table("workspace_shares")
         .update({"status": "revoked"})
@@ -187,11 +278,13 @@ def accept_share(*, token: str, user_id: str) -> dict[str, Any]:
     # The grant shape follows the share row (ADR-465 D3):
     #   member → broad-by-default (ADR-437 D4.2): scopes=None → class-default
     #            member write regions at the gate (ADR-373 D3).
-    #   viewer → birth-narrowed member grant: the powerbox axes applied at
-    #            accept-time (write_scopes=[] deny-all; read_scopes scoped to
-    #            the artifact, or class-default read for a bare share). ONE
-    #            grant model (ADR-437 D4.3) — the role column stays 'member';
-    #            the narrowing lives on the axes.
+    #   viewer → role='viewer' (ADR-517 D1, amending ADR-437 D4.3's
+    #            role-stays-member): the axes still carry the narrowing
+    #            (write_scopes=[] deny-all; read_scopes scoped to the
+    #            artifact), and now the DATABASE can see the shape it
+    #            enforces — migration 234's write policies exclude
+    #            viewer-role grants. Widening a viewer is a re-grant (role
+    #            change by the owner), never an axes edit.
     # Either way ensure_principal_grant returns an EXISTING active grant
     # untouched, so a member who opens a view link is never downgraded.
     from services.principal_grants import ensure_principal_grant
@@ -202,7 +295,7 @@ def accept_share(*, token: str, user_id: str) -> dict[str, Any]:
         grant = ensure_principal_grant(
             principal_id=user_id,
             workspace_id=workspace_id,
-            role="member",
+            role="viewer",
             granted_by=f"share-view:{share['shared_by']}",
             write_scopes=[],
             read_scopes=[artifact] if artifact else None,
