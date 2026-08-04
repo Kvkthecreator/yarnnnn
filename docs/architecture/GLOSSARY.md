@@ -218,6 +218,26 @@ The workspace-root layout canonized by [ADR-320](../adr/ADR-320-constitution-reg
 
 ---
 
+## Reach & Sharing (ADR-517, FOUNDATIONS Derived Principle 36)
+
+The vocabulary of who-may-reach-what. **One word, two grants — always disambiguate:** the
+**reach grant** (`principal_grants` — who may reach the workspace, this section) and the
+**autonomy grant** (`governance/` — how far an *agent's decisions* bind, ADR-366; see the
+Permission Topology section above). They share nothing but the word.
+[grants-and-reach.md](grants-and-reach.md) is the singular deep reference.
+
+| Term | Meaning | Note |
+|---|---|---|
+| **Grant (reach)** | The one authorization fact: a `principal_grants` row — workspace-scoped, carrying `role` + the powerbox axes (`read_scopes`/`write_scopes`, path prefixes). Species-blind (ADR-405): human, viewer, and connected AI differ in handling, never in kind. | Enforcement is two-layer by ADR-517 R1: RLS carries membership + the role-binary (viewer excluded from substrate writes, migration 234); the primitive layer carries prefix narrowing. |
+| **Share** | The **mechanism that executes against the grant system** — a `workspace_shares` capability link whose accept mints a grant (`member` broad, or `viewer` birth-narrowed). Not a policy of its own: minting is governance, gated by `assert_may_mint_share` (write-holders mint; viewers never; the `share_mint_policy` dial can tighten to owner-only). | Two origins (cockpit + MCP verb), one accept surface (`/s/{token}`, ADR-513). `artifact_path` stores ONE spelling — absolute — normalized at the write (ADR-517 D5). |
+| **Viewer** | A first-class grant role (ADR-517 D1, amending ADR-437 D4.3): read scoped to the shared artifact, write deny-all — enforced at the DB, not only in Python. Renders in the roster; enters the switcher; **is not a billing seat** (`HUMAN_SEAT_ROLES` stays owner\|member). Widening a viewer is a **re-grant** (owner role-change), never an axes edit. | "Just look at this" never over-grants — and the database can see the shape it enforces. |
+| **Invite** | The share's email-locked sibling (`workspace_invites`): workspace-scoped only (no artifact context), `member` only, **owner-only** to mint, accept requires email match. | The two doors never merged because invites carry no `artifact_path` — a missing capability, not vocabulary drift (ADR-515 §4). |
+| **`share_mint_policy`** | The workspace governance dial (`workspaces` column): `write-holders` (default) \| `owner-only`. | The upstream ceiling; the per-act choice (member/viewer) operates within it. |
+| **Publicness** | **Derivable, never stored**: a file is public iff a live share link covers it. No per-file ACL, no visibility attribute — a second source of truth would drift (DP36 diagnostic). | "What is exposed?" is answered by reading the live links, not a file property. |
+| **Export** (contrast) | Not a reach act at all: bytes leave, attribution and revocability are lost — irreversible egress governed by *honesty* (the declared-omissions manifest, ADR-510), not authorization. Never inside a share surface (ADR-515 D5). | The share/export carve is semantic: revocable grant vs irreversible copy. |
+
+---
+
 ## The Six Dimensions (FOUNDATIONS Axiom 0)
 
 Every mechanic in YARNNN occupies a cell in six orthogonal dimensions. These are the axiomatic vocabulary that governs every other term in this glossary. Each dimension answers one interrogative:
@@ -467,6 +487,7 @@ The canonical product sentences live in **exactly one architecture-side place**:
 
 | Date | Change |
 |------|--------|
+| 2026-08-04 | v3.5 — **Reach & Sharing section ([ADR-517](../adr/ADR-517-grants-govern-share-executes.md); companion FOUNDATIONS v9.20 DP36 + new [grants-and-reach.md](grants-and-reach.md)).** The previously-undefined sharing vocabulary lands: **Grant (reach)** disambiguated from the autonomy grant (one word, two concepts — the 2026-08-04 audit found the glossary defined neither); **Share** (the mechanism that executes against the grant system, gated by mint authority), **Viewer** (first-class role, DB-enforced, not a seat), **Invite** (email-locked sibling), **`share_mint_policy`** (the governance dial), **Publicness** (derivable from live links, never stored), **Export** (the contrast entry — egress governed by honesty, not authorization). |
 | 2026-07-08 | v3.1.1 — **Naming-drift policy folded into §Exceptions** ([naming-drift policy](../analysis/naming-drift-policy-2026-07-08.md)). The §Exceptions table gains its **governing rule** (rename to the render layer by default; boundary-map at the API contract; keep-slug below; migrate a DB column only under the three-part §2.1 threshold) — the table is now the rule's instance set, not a pile of one-offs. New row: the `action_proposals.reviewer_*` columns (kept) with their `agent_*` API boundary-map (`routes/proposals.py::serialize_proposal`). Surfaced from ADR-414 F2a. |
 | 2026-07-30 | v3.4 — **The acts are OPEN ([ADR-507](../adr/ADR-507-the-acts-are-open-think-make-perceive.md); companion FOUNDATIONS v9.19 + ESSENCE v18 + SERVICE-MODEL v2.1).** "The Two Verbs" → **"The Acts — Think · Make · Perceive"**, over an **unbounded app set** (a new app needs no ADR; a new act does, and the bar is a medium the others don't cover). Perceive promoted to a felt act. The pipeline **superseded** by `think ⇄ make`. The **`settle` verb deleted** — distillation survives as an ASK inside a conversation, served by the lane's `WriteFile` + the conventions' teaching. `/files` (mirror) + Settings (management plane) named **not acts**. Staged moments cut 4 → 3 (all three are demonstrations of the record). Open follow-on named: lane writes don't embed. |
 | 2026-07-14 | v3.3 — **Think · Make, the service model ([ADR-457](../adr/ADR-457-think-and-make-the-service-model.md); companion FOUNDATIONS v9.18 + ESSENCE v16 + SERVICE-MODEL v2.0).** The verb pair renames (both verbs name the job; labels stay Chat/Studio). New section "The Two Verbs — Think · Make": the five-act derivation, the pipeline think→settle→make, the settle act, the think-home convention (D4), the floor-leverage test, and the desk/record two-layer statement. The stale "Home stays the front page" clause in the Three-Altitudes section retired (ADR-435/454). |
