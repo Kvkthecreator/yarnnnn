@@ -1,5 +1,7 @@
 # ADR-507 — The acts are open: Think · Make · Perceive, and the pipeline retires
 
+> **⚠️ Amended by [ADR-518](ADR-518-docs-and-studio-the-writing-app-and-the-layout-app.md) (2026-08-04)**: the Make act's app list is `docs` · `studio` · `images` — the growth rule ran as designed (a new app is a row under an existing act), with an ADR anyway because the split re-cut an existing app's scope, not merely added a row.
+
 - **Status**: **Accepted + Implemented** (2026-07-30, operator-ratified through the
   settle-axiom discourse — *"i think that keep this, settle should not be the axiom. think →
   make have their dedicated surfaces… and thus, apps can increase and the current list is not

@@ -1,5 +1,7 @@
 # ADR-451: Open-by-Format — the Surface-Owning App
 
+> **⚠️ Amended by [ADR-518](ADR-518-docs-and-studio-the-writing-app-and-the-layout-app.md) (2026-08-04)**: the `.html`-claiming surface apps are now two — Docs (document) and Studio (deck · web), resolved per KIND through the served `app` field (ADR-473 D2), with the handler-set mechanics per ADR-514 D2. D1's "one row: Studio claims `.html`" is historical.
+
 **Status**: Accepted (2026-07-13, operator-ratified — "fully aligned"). The completion of the
 ADR-436/438 open model the operator's pure-OS reading demanded: Files is the Finder; opening a
 file whose default app **owns a surface** routes to that app, instead of rendering it flat inside

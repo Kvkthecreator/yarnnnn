@@ -1,5 +1,7 @@
 # ADR-505 — The three-type cut: one medium per type, one insert grammar
 
+> **⚠️ Amended by [ADR-518](ADR-518-docs-and-studio-the-writing-app-and-the-layout-app.md) (2026-08-04)**: the three types gain their housing column — `document` → **Docs** (the writing app); `deck` · `web` → **Studio** (the layout app). The type SET, D2's read-time aliasing, and D3's mode/frame seam are untouched; D1's table simply stopped being one app's table.
+
 - **Status**: **Accepted + Implemented** (2026-07-30, operator-ratified through the
   studio-audit discourse — *"i'm underestimating just how far the ramifications of these
   modes go… ironically, in that light, i actually think we need to simplify"*). Each

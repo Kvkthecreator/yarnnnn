@@ -1,5 +1,7 @@
 # ADR-466 — The mode-native carve: one grammar, N native editors
 
+> **⚠️ Amended by [ADR-518](ADR-518-docs-and-studio-the-writing-app-and-the-layout-app.md) (2026-08-04)**: the ruling completes — one substrate grammar, N mode-native editors, **in two app housings**. The flow editor's housing is now the Docs app (`/docs`); Studio houses the paged editors (deck · web). Nothing in this ADR's interaction contracts or grammar changes; only the sentence "one app" was never true of it, and now nothing implies it.
+
 - **Status**: **Implemented — CLOSED** (2026-07-21). All phases Done (§6: P1–P8 the carve +
   optimistic writes; P9–P12 the operator-feedback hardening loop — grain/coordinate honesty,
   PowerPoint box grammar, box-through-editing, the flow-mouse pass + inspector

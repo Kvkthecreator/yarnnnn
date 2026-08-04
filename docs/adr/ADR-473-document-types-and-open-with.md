@@ -1,5 +1,7 @@
 # ADR-473: Document Types and "Open With" — LaunchServices for Artifacts
 
+> **⚠️ Amended by [ADR-518](ADR-518-docs-and-studio-the-writing-app-and-the-layout-app.md) (2026-08-04)**: the `app` field's value set gains `docs` — the `document` row moved to `services/docs.py` (the app boundary is the MODULE, D2) and declares `"app": "docs"`. §5's "the Nth app costs one field" ran exactly as written; D3/D4's derived scoping carried recents, creation, and routing with zero new filters.
+
 > **Status**: **Accepted** (2026-07-21) — operator-ratified, implementation delegated. Completes the ADR-472 carve by giving the two authoring apps a real **type→app association**, and generalizes it so the Nth app costs one row.
 > **Date**: 2026-07-21
 > **Dimension**: **Channel** (Axiom 6 — which app opens what) primary; **Substrate** (Axiom 1 — the type is lifted from the artifact, never stored beside it) secondary.

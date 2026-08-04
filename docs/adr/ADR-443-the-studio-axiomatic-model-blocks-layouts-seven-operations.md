@@ -1,5 +1,7 @@
 # ADR-443 — The Studio axiomatic model: blocks, layouts, and the seven operations
 
+> **⚠️ Amended by [ADR-518](ADR-518-docs-and-studio-the-writing-app-and-the-layout-app.md) (2026-08-04)**: the model now governs THREE authoring apps over one grammar — Docs (document) joined Studio (deck · web) and IMAGES (image). R4's "one vocabulary, one home" stands: the home is the kernel module (`services/studio.py`), which every app's table registers into. R5's scope guard reads per app: each authoring app authors artifacts of its own registered types; format-agnosticism still never means editing viewer types. The seven operations stay closed.
+
 > **Amended by [ADR-511](ADR-511-the-conventional-substrate.md)** (2026-08-01): D4's
 > *"layout flow containers are structure, not vocabulary blocks"* becomes **"structure is
 > addressable, never a vocabulary block"** — structural containers (columns, slot-divs)

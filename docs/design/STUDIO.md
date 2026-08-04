@@ -8,7 +8,16 @@
 > history lives in the ADRs (ADR-LEDGER routes). Where an old section is gone, its ruling
 > survives as a matrix cell or a normative rule; nothing was un-decided by this rewrite.
 
-Studio is yarnnn's authoring app (ADR-440) governed by the axiomatic model (ADR-443):
+> **Housing amendment, 2026-08-04 ([ADR-518](../adr/ADR-518-docs-and-studio-the-writing-app-and-the-layout-app.md))**:
+> the authoring housing is TWO apps over this one contract — **Docs** (`/docs`) houses the
+> flow medium (`document`, the matrix's document column); **Studio** (`/studio`) houses the
+> paged media (`deck` · `web`). Everything in this doc — the matrix, the grammar, the one
+> write door, the registries — is the SHARED machinery both apps (and IMAGES) mount; a
+> medium's column is now also its app's interaction contract. Where this doc says "Studio"
+> of shared machinery, read "the authoring apps".
+
+This doc is the interaction contract of yarnnn's authoring apps (ADR-440 · ADR-518),
+governed by the axiomatic model (ADR-443):
 **HTML-native** (the artifact IS the file — no shadow/JSON model, R1), **AI-native** (the
 lane co-authors in its pretraining tongue), one kernel vocabulary that teaches and never
 validates (R4). Since ADR-511 the substrate is **conventional HTML/CSS plus exactly three
@@ -147,6 +156,11 @@ the write seam, not enforced).
 
 ## Vocabulary, templates, skins (the kernel registries — `services/studio.py`)
 
+> Per-app layout tables register into these shared registries (ADR-472 D2 via ADR-518 D3):
+> `services/docs.py` carries `document`; `services/studio.py` carries `deck` · `web`;
+> `services/images/stage.py` carries `image`. The app boundary is the module; the
+> machinery below is one implementation, three consumers.
+
 - **Block vocabulary**: 13 kinds (prose · callout · quote · checklist · divider · toggle
   · button | table · metrics · chart | figure · gallery), served on
   `GET /studio/vocabulary`. Grammar, not schema — unannotated content stays valid.
@@ -195,8 +209,10 @@ not NL round-trips) · no fourth type / no positioned web (ADR-505) · no pagina
 (ADR-480 D6) · no keystroke CRDT · no per-breakpoint editing · no web-font CDNs · no
 forms · no JS carousels · no databases/linked views · no synced blocks (that is `data-ref`
 at block grain, later) · no second source format (markdown is a projection — ADR-456 D1)
-· no editing viewer-owned formats · no owned render engine (ADR-417). The standing drift
-test (ADR-440 §7): *does this force a definitional question about the app format, or is
+· no editing viewer-owned formats · no owned render engine (ADR-417) · no forked
+machinery per app (ADR-518 D2 — the split is housing; a second write path or a forked
+runtime is the refused shape). The standing drift test (ADR-440 §7, held by Docs and
+Studio alike): *does this force a definitional question about the app format, or is
 it just a better editor?*
 
 ## Phase 3 (declared, in order) + named follow-ons

@@ -1,5 +1,7 @@
 # ADR-467 — App residency and the cast: apps have residents, the open surface offers the roster
 
+> **⚠️ Amended by [ADR-518](ADR-518-docs-and-studio-the-writing-app-and-the-layout-app.md) (2026-08-04)**: `AUTHORING_APPS` gains the `docs` row — Designer is **triple-resident** (Docs · Studio · IMAGES), per D3's own multi-residency rule. The FE lookup keys on the mounting app (`residentFor(app.slug)`), no longer a hardcoded `.studio` read.
+
 > **Status**: **Accepted + Implemented** (2026-07-20, operator-ratified in the per-agent-hardening macro discourse; code landed same day, commit `3c900cb` — §7 items 1–4: uniform surface + loud schema guard + declared residency + generalized gate. Gates: `test_agent_registry` 155/155, `test_adr411_lanes` 14/14; `next build` clean). Remaining: the Designer hardening pass (D5) runs as its own arc.
 > **Date**: 2026-07-20
 > **Authors**: KVK (operator) + Claude (collaborator)
