@@ -293,10 +293,14 @@ def run() -> bool:
     )
     # (Re-pinned for ADR-466 P10/P11: syncBox resolves a target — selection,
     #  or the editing block — and the measurable gate still decides the box.)
+    # (Amended by ADR-516 D5: a structural CONTAINER is the one declared
+    #  exception — it earns the STATIC box for selection legibility. Blocks
+    #  stay measurable-gated; geometry ops fire for neither grain here.)
     _check(
         "an UNFRAMED block gets no box (the boundary is felt, not just documented)",
         "function isMeasurable(block)" in proj
-        and "if (target && target.isConnected && isMeasurable(target)) {" in proj
+        and "if (target && target.isConnected && (isMeasurable(target) || isContainerEl(target))) {"
+        in proj
         and "showBox(target);" in proj,
     )
     # The handle follows the SELECTION, not the pointer: it draws at the block's

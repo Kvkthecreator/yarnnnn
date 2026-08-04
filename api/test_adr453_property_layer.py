@@ -52,11 +52,24 @@ def run() -> bool:
         compose_kernel_style_element,
     )
 
-    # ── 1. The token registry (D1; document grain added by ADR-455) ──────
+    # ── 1. The token registry (D1; document grain added by ADR-455;
+    #       LAYOUT rows cut by ADR-516 — geometry converges on CSS presets,
+    #       meaning stays tokens) ─────────────────────────────────────────
     _check(
-        "the ADR-453 six + the ADR-455 document families",
-        {"align", "tone", "height", "fit", "ratio", "valign", "font", "measure"}
+        "the meaning-token families (ADR-516 D6 boundary)",
+        {"align", "tone", "height", "fit", "ratio", "font", "measure"}
         <= set(STUDIO_TOKENS),
+    )
+    _check(
+        "ADR-516 D2: valign/pad are GONE from the registry (layout is CSS "
+        "presets through the one op, never a token synonym)",
+        "valign" not in STUDIO_TOKENS and "pad" not in STUDIO_TOKENS,
+    )
+    _check(
+        "ADR-516 D2: the legacy rules REMAIN as inert names (ADR-511 D8 — "
+        "artifacts written before the cut still render)",
+        '.slide[data-valign="start"]' in STUDIO_KERNEL_CSS
+        and '.slide[data-pad="s"]' in STUDIO_KERNEL_CSS,
     )
     valid_applies = {"block", "media", "page", "page-multicol", "page-deck", "document",
                      "document-flow", "document-deck",  # document-deck: ADR-456 W1

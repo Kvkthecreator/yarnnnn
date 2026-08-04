@@ -536,6 +536,61 @@ function VerbRow({ noun, onVerb }: { noun: string; onVerb: (v: StructVerb) => vo
 const SECTION = 'space-y-2 border-b border-border p-3';
 const HEADING = 'text-[10px] font-medium uppercase tracking-wide text-muted-foreground';
 
+/** ADR-516 D1/D3 — the ONE layout-row presentation, at every grain that has
+ *  layout (container AND page). Bounded presets writing literal CSS through
+ *  `setContainerLayout`; pressed-state reads the element's inline style first,
+ *  a legacy token (`data-valign`/`data-pad`) as display-only fallback. */
+function LayoutRows({
+  rows,
+  styleAttr,
+  legacy,
+  onSet,
+}: {
+  rows: ReadonlyArray<{
+    key: string;
+    label: string;
+    css: string;
+    options: ReadonlyArray<{ v: string; l: string }>;
+  }>;
+  styleAttr: string;
+  legacy?: (cssProp: string) => string | null;
+  onSet: (layout: Record<string, string | null>) => void;
+}) {
+  return (
+    <>
+      {rows.map((row) => {
+        const cur =
+          styleAttr
+            .match(new RegExp(`(?:^|;)\\s*${row.css}\\s*:\\s*([^;]+)`))?.[1]
+            ?.trim() ??
+          legacy?.(row.css) ??
+          null;
+        return (
+          <div key={row.key} className="flex items-center justify-between gap-2 py-0.5">
+            <span className="text-[11px] text-muted-foreground">{row.label}</span>
+            <div className="flex gap-1">
+              {row.options.map((o) => (
+                <button
+                  key={o.v}
+                  type="button"
+                  onClick={() => onSet({ [row.key]: cur === o.v ? null : o.v })}
+                  className={`rounded border px-1.5 py-0.5 text-[10px] transition-colors ${
+                    cur === o.v
+                      ? 'border-foreground/50 text-foreground'
+                      : 'border-border text-muted-foreground hover:bg-muted/40'
+                  }`}
+                >
+                  {o.l}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 export function StudioDesignTab({
   vocabulary,
   layout,
@@ -1263,6 +1318,51 @@ export function StudioDesignTab({
             </p>
             <VerbRow noun={pageNoun} onVerb={onPageVerb} />
           </div>
+          {/* ADR-516 D3 — the page IS a container: layout rows in the same
+              language as container scope (bounded CSS presets, one op). The
+              legacy valign/pad tokens read as pressed-state fallback only;
+              a write strips them from this element (D2, convergence-by-use). */}
+          <div className={SECTION}>
+            <p className={HEADING}>Layout</p>
+            {layout === 'deck' && !!selectedEl?.matches('section.slide') ? (
+              <LayoutRows
+                rows={[
+                  { key: 'padding', label: 'Padding', css: 'padding', options: [
+                    { v: '2rem 2.5rem', l: 'S' }, { v: '3.5rem 4rem', l: 'M' }, { v: '4.5rem 5.5rem', l: 'L' },
+                  ] },
+                  { key: 'justify', label: 'Vertical align', css: 'justify-content', options: [
+                    { v: 'flex-start', l: 'Top' }, { v: 'center', l: 'Middle' }, { v: 'flex-end', l: 'Bottom' },
+                  ] },
+                ]}
+                styleAttr={selectedEl?.getAttribute('style') ?? ''}
+                legacy={(css) => {
+                  const valign = selectedEl?.getAttribute('data-valign');
+                  const pad = selectedEl?.getAttribute('data-pad');
+                  if (css === 'justify-content' && valign) return `flex-${valign}`;
+                  if (css === 'padding' && pad === 's') return '2rem 2.5rem';
+                  if (css === 'padding' && pad === 'l') return '4.5rem 5.5rem';
+                  return null;
+                }}
+                onSet={onContainerLayout}
+              />
+            ) : (
+              <LayoutRows
+                rows={[
+                  { key: 'padY', label: 'Spacing', css: 'padding-block', options: [
+                    { v: '0.25rem', l: 'Tight' }, { v: '1rem', l: 'M' }, { v: '2.5rem', l: 'Airy' },
+                  ] },
+                ]}
+                styleAttr={selectedEl?.getAttribute('style') ?? ''}
+                legacy={(css) => {
+                  const pad = selectedEl?.getAttribute('data-pad');
+                  if (css === 'padding-block' && pad === 's') return '0.25rem';
+                  if (css === 'padding-block' && pad === 'l') return '2.5rem';
+                  return null;
+                }}
+                onSet={onContainerLayout}
+              />
+            )}
+          </div>
           {applicable.length > 0 && (
             <div className={SECTION}>
               {/* Page scope uses the SAME swatch row as block scope. One idea,
@@ -1383,49 +1483,31 @@ export function StudioDesignTab({
           </div>
           <div className={SECTION}>
             <p className={HEADING}>Layout</p>
-            {(
-              [
-                { key: 'padding', label: 'Padding', options: [
+            <LayoutRows
+              rows={[
+                { key: 'padding', label: 'Padding', css: 'padding', options: [
                   { v: '0', l: 'None' }, { v: '0.5rem', l: 'S' }, { v: '1rem', l: 'M' }, { v: '2rem', l: 'L' },
                 ] },
-                { key: 'gap', label: 'Gap', options: [
+                { key: 'gap', label: 'Gap', css: 'gap', options: [
                   { v: '0', l: 'None' }, { v: '0.5rem', l: 'S' }, { v: '1rem', l: 'M' }, { v: '2rem', l: 'L' },
                 ] },
-                { key: 'align', label: 'Align', options: [
+                { key: 'align', label: 'Align', css: 'align-items', options: [
                   { v: 'flex-start', l: 'Start' }, { v: 'center', l: 'Center' },
                   { v: 'flex-end', l: 'End' }, { v: 'stretch', l: 'Stretch' },
                 ] },
-                { key: 'justify', label: 'Justify', options: [
+                { key: 'justify', label: 'Justify', css: 'justify-content', options: [
                   { v: 'flex-start', l: 'Start' }, { v: 'center', l: 'Center' },
                   { v: 'flex-end', l: 'End' }, { v: 'space-between', l: 'Between' },
                 ] },
-              ] as const
-            ).map((row) => {
-              const style = selectedEl?.getAttribute('style') ?? '';
-              const cssProp = { padding: 'padding', gap: 'gap', align: 'align-items', justify: 'justify-content' }[row.key];
-              const cur = style.match(new RegExp(`(?:^|;)\\s*${cssProp}\\s*:\\s*([^;]+)`))?.[1]?.trim() ?? null;
-              return (
-                <div key={row.key} className="flex items-center justify-between gap-2 py-0.5">
-                  <span className="text-[11px] text-muted-foreground">{row.label}</span>
-                  <div className="flex gap-1">
-                    {row.options.map((o) => (
-                      <button
-                        key={o.v}
-                        type="button"
-                        onClick={() => onContainerLayout({ [row.key]: cur === o.v ? null : o.v })}
-                        className={`rounded border px-1.5 py-0.5 text-[10px] transition-colors ${
-                          cur === o.v
-                            ? 'border-foreground/50 text-foreground'
-                            : 'border-border text-muted-foreground hover:bg-muted/40'
-                        }`}
-                      >
-                        {o.l}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+                // ADR-516 D4 — the container's width as intent: Hug | Fill,
+                // the ADR-461 D1 pair at the container grain (Fixed refused).
+                { key: 'width', label: 'Width', css: 'width', options: [
+                  { v: 'fit-content', l: 'Hug' }, { v: '100%', l: 'Fill' },
+                ] },
+              ]}
+              styleAttr={selectedEl?.getAttribute('style') ?? ''}
+              onSet={onContainerLayout}
+            />
           </div>
         </>
       )}

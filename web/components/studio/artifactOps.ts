@@ -832,23 +832,44 @@ export function setPosition(
  *  Works on any id-addressed element; the Design tab offers it on containers. */
 const CONTAINER_LAYOUT_PROPS: Record<string, string> = {
   padding: 'padding',
+  padY: 'padding-block',
   gap: 'gap',
   align: 'align-items',
   justify: 'justify-content',
+  width: 'width',
 };
 const CONTAINER_LAYOUT_VALUES: Record<string, Set<string>> = {
-  padding: new Set(['0', '0.5rem', '1rem', '1.5rem', '2rem', '3rem']),
+  // Single-value steps serve containers; the two-value forms are the deck
+  // slide's own padding presets (ADR-516 D1 — page presets carry the medium's
+  // values, in the same allowlist).
+  padding: new Set([
+    '0', '0.5rem', '1rem', '1.5rem', '2rem', '3rem',
+    '2rem 2.5rem', '3.5rem 4rem', '4.5rem 5.5rem',
+  ]),
+  // A web band breathes on the block axis only — its inline padding belongs
+  // to the band skin's centered content column.
+  padY: new Set(['0.25rem', '1rem', '2.5rem']),
   gap: new Set(['0', '0.5rem', '1rem', '1.5rem', '2rem', '3rem']),
   align: new Set(['flex-start', 'center', 'flex-end', 'stretch']),
   justify: new Set(['flex-start', 'center', 'flex-end', 'space-between']),
+  // ADR-516 D4 — the container's width as INTENT (Hug | Fill), the ADR-461 D1
+  // pair at the container grain. `Fixed` stays refused: continuous.
+  width: new Set(['fit-content', '100%']),
 };
 export function setContainerLayout(
   html: string,
-  id: string,
+  /** id-addressed for containers; null + anchor for a PAGE (ADR-516 D1 — the
+   *  page is a container, addressed by position like every other page op). */
+  id: string | null,
   layout: Partial<Record<keyof typeof CONTAINER_LAYOUT_VALUES, string | null>>,
+  anchor?: OpAnchor,
 ): OpResult | null {
   const doc = parse(html);
-  const el = doc.querySelector(`[data-block-id="${CSS.escape(id)}"]`);
+  const el = id
+    ? doc.querySelector(`[data-block-id="${CSS.escape(id)}"]`)
+    : anchor
+      ? arrangedPageAt(doc, anchor)
+      : null;
   if (!el) return null;
   const before = el.outerHTML;
   const cssOf = (k: string) => CONTAINER_LAYOUT_PROPS[k];
@@ -886,8 +907,14 @@ export function setContainerLayout(
   }
   if (decls.length) el.setAttribute('style', decls.join('; '));
   else el.removeAttribute('style');
+  // ADR-516 D2 — convergence-by-use: a layout write single-sources THIS
+  // element. The legacy layout tokens (inert names per ADR-511 D8 — kernel CSS
+  // still honors them on untouched artifacts) leave the element the member is
+  // actually re-laying; inline style would win the cascade anyway.
+  el.removeAttribute('data-valign');
+  el.removeAttribute('data-pad');
   if (el.outerHTML === before) return null;
-  return { html: serialize(doc), landedId: id };
+  return { html: serialize(doc), landedId: id ?? el.getAttribute('data-block-id') };
 }
 
 /** Delete the selected block (the missing mechanical basic — a member should

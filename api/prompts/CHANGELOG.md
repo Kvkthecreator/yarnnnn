@@ -6,6 +6,25 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.04.1] - ADR-516: the layout tokens leave the lane's grammar
+
+### Changed
+- `services/studio.py`: `valign` + `pad` rows deleted from `STUDIO_TOKENS`.
+  The served vocabulary and `_tokens_grammar()`'s posture prose both shrink
+  by two rows — an ADR-306-shaped ablation, not an addition. Layout on pages
+  and containers is bounded inline-CSS presets through the one Studio op
+  (`setContainerLayout`, ADR-516 D1); the lane already speaks `padding` and
+  `justify-content` from pretraining, so the private synonyms were prompt tax.
+  Kernel rules for the attributes remain (legacy inert names, ADR-511 D8).
+- Observed failure class: the two-language pane — the same member intent
+  ("give this thing breathing room") reached a token on the page grain and
+  literal CSS one rung down on the container grain (2026-08-04 audit).
+- Expected behavior: the lane authors slide/band spacing as ordinary inline
+  style; it stops emitting `data-valign`/`data-pad` (which nothing offers or
+  teaches anymore); artifacts carrying them still render.
+- Gates: `python3 test_adr453_property_layer.py` (registry cut + legacy-rules-
+  remain assertions) + `test_adr466_mode_native.py` (ADR-516 D1–D5 block).
+
 ## [2026.08.03.3] - DuplicateFile (ADR-514 D1): duplicate is a derivation
 
 ### Changed

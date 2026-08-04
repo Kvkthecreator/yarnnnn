@@ -440,6 +440,38 @@ def run() -> bool:
         "'flex-direction: column'" in _scl_body
         and "classList.contains('col')" in _scl_body,
     )
+    # ── ADR-516: layout is ONE mechanism; the container is legible ────────
+    _check(
+        "ADR-516 D1: the one layout op resolves a PAGE anchor (the page is a "
+        "container — id-addressed OR anchor-addressed, same op)",
+        "arrangedPageAt(doc, anchor)" in _scl_body
+        and "id: string | null" in _scl_body,
+    )
+    _check(
+        "ADR-516 D2: a layout write strips the element's legacy layout tokens "
+        "(convergence-by-use — data-valign/data-pad leave the touched element)",
+        "removeAttribute('data-valign')" in _scl_body
+        and "removeAttribute('data-pad')" in _scl_body,
+    )
+    _check(
+        "ADR-516 D4: container width is Hug|Fill in the allowlist (Fixed "
+        "refused — continuous)",
+        "'fit-content', '100%'" in ops and "width: 'width'" in ops,
+    )
+    _check(
+        "ADR-516 D3: the page scope speaks the same layout rows (LayoutRows "
+        "mounted at page scope with the slide's own padding presets)",
+        "function LayoutRows" in tab
+        and "'3.5rem 4rem'" in tab
+        and tab.count("<LayoutRows") >= 3,
+    )
+    _check(
+        "ADR-516 D5: a selected container earns the STATIC box (border only "
+        "— no handles, no move band, no promised gesture)",
+        "yarnnn-selbox-container" in proj
+        and ".yarnnn-selbox-container .yarnnn-selh" in proj
+        and "isContainerEl(target)" in proj,
+    )
     _check(
         "ADR-511: normalizeStructure runs at the ONE serialize seam",
         "normalizeStructure(doc);" in ops

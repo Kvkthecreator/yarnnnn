@@ -1182,15 +1182,23 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       `Studio: return ${id} to flow`,
     );
   }, [applyOp, selection, geometrySpecs]);
-  // ADR-511 D4 — container layout: bounded plain-CSS properties on a selected
-  // structural container (padding / gap / align / justify), one revision each.
+  // ADR-511 D4 + ADR-516 D1 — layout is ONE mechanism: bounded plain-CSS
+  // presets on a selected structural container (id-addressed) OR on the
+  // selected PAGE (anchor-addressed — the page is a container). One revision.
   const handleContainerLayout = useCallback(
     (layout: Record<string, string | null>) => {
-      const id = selection?.blockId;
-      if (!id) return;
+      const id = selection?.blockId ?? null;
+      const anchor = {
+        blockId: null,
+        slideIndex: selection?.slideIndex ?? null,
+        pageIndex: selection?.pageIndex ?? null,
+      };
+      if (!id && anchor.slideIndex == null && anchor.pageIndex == null) return;
       void applyOp(
-        (html) => setContainerLayout(html, id, layout),
-        `Studio: layout ${id} container`,
+        (html) => setContainerLayout(html, id, layout, anchor),
+        id
+          ? `Studio: layout ${id} container`
+          : `Studio: layout page ${anchor.slideIndex ?? anchor.pageIndex}`,
       );
     },
     [applyOp, selection],

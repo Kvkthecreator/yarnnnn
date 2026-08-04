@@ -1259,6 +1259,12 @@ const EDIT_CSS = `
   text-transform: uppercase; color: var(--yarnnn-chrome-accent);
   pointer-events: none;
 }
+/* ADR-516 D5 — a selected structural CONTAINER is legible: the box, border
+   only. No handles, no move band — a container is flow structure, and the
+   chrome must not promise gestures the grain lacks (the "honest about
+   inertness" rule at the new grain). Geometry stays measurable-gated. */
+.yarnnn-selbox-container .yarnnn-selh,
+.yarnnn-selbox-container .yarnnn-selmove { display: none; }
 .yarnnn-selh {
   position: absolute; width: 10px; height: 10px;
   border: 1.5px solid var(--yarnnn-chrome-accent); background: #fff; border-radius: 50%;
@@ -3290,6 +3296,13 @@ const OBJECT_SCRIPT = `
     return box;
   }
 
+  // ADR-516 D5: a structural container (identity, no vocabulary) is a
+  // selection subject (ADR-511 D3) and earns the box — the static, handle-less
+  // variant. Same selector the pointer runtime's rung uses.
+  function isContainerEl(el) {
+    return !!(el && el.matches && el.matches('div[data-block-id]:not([data-block])'));
+  }
+
   function showBox(block) {
     ensureBox();
     selBlock = block;
@@ -3301,6 +3314,10 @@ const OBJECT_SCRIPT = `
     box.style.width = (r.width / z + 2) + 'px';
     box.style.height = (r.height / z + 2) + 'px';
     // The band is honest about inertness: no move cursor where no move exists.
+    if (isContainerEl(block)) {
+      box.className = 'yarnnn-selbox yarnnn-selbox-static yarnnn-selbox-container';
+      return;
+    }
     box.className = positionable(block)
       ? 'yarnnn-selbox'
       : 'yarnnn-selbox yarnnn-selbox-static';
@@ -3406,7 +3423,7 @@ const OBJECT_SCRIPT = `
           (window.CSS && CSS.escape ? CSS.escape(editing) : editing) + '"]');
       } catch (err) { target = null; }
     }
-    if (target && target.isConnected && isMeasurable(target)) {
+    if (target && target.isConnected && (isMeasurable(target) || isContainerEl(target))) {
       showBox(target);
       if (editing != null) box.className += ' yarnnn-selbox-editing';
       syncFrameContext();

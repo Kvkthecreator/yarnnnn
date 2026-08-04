@@ -800,25 +800,14 @@ STUDIO_TOKENS: dict[str, dict] = {
         ],
         "description": "column weighting on a multi-column page (absence = even)",
     },
-    "valign": {
-        "label": "Vertical align",
-        "applies": ["page-deck"],
-        "values": [
-            {"value": "start", "label": "Top"},
-            {"value": "end", "label": "Bottom"},
-        ],
-        "description": "where the slide's content sits (absence = centered)",
-    },
-    # ADR-456 Wave 1: breathing room on a page/section — presets, never pixels.
-    "pad": {
-        "label": "Spacing",
-        "applies": ["page"],
-        "values": [
-            {"value": "s", "label": "Tight"},
-            {"value": "l", "label": "Airy"},
-        ],
-        "description": "the page/section's breathing room (absence = the layout default)",
-    },
+    # ADR-516 D2 — `valign` and `pad` are DELETED from this registry. They were
+    # the page grain's two LAYOUT tokens; layout now writes bounded inline-CSS
+    # presets through the one op (the page is a container — ADR-516 D1), so a
+    # private synonym for `justify-content`/`padding` was prompt tax under
+    # ADR-306. Their kernel rules below REMAIN (ADR-511 D8: inert names on
+    # legacy artifacts); a layout write strips the attribute from the element
+    # it touches (convergence-by-use). Meaning-tokens (tone/variant/scrim/…)
+    # are NOT layout and stay.
     # ADR-456 W3: the cited-background pair — a page/section wearing a
     # data-ref-kind="background" citation styles it with these, never inline.
     "scrim": {
@@ -1160,6 +1149,10 @@ aside[data-block="callout"][data-variant="warning"] { border-color: var(--warn, 
 [data-fit="contain"] img { object-fit: contain; }
 [data-ratio="2-1"] .cols .col:first-child { flex: 2; }
 [data-ratio="1-2"] .cols .col:last-child { flex: 2; }
+/* LEGACY INERT NAMES (ADR-516 D2, per the ADR-511 D8 ruling): valign/pad left
+   the token registry — layout writes are inline-CSS presets now — but the
+   attributes live on in artifacts written before the cut, so these rules keep
+   honoring them. Nothing writes them; a layout write strips them per-element. */
 .slide[data-valign="start"] { justify-content: flex-start; }
 .slide[data-valign="end"] { justify-content: flex-end; }
 .slide[data-pad="s"] { padding: 2rem 2.5rem; }
