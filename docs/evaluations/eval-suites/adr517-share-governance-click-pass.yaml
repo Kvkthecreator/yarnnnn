@@ -1,0 +1,328 @@
+eval_suite_schema_version: 3
+eval_suite: adr517-share-governance-click-pass
+
+# CURRENT (browser lane) — production sign-off for ADR-517 (grants govern,
+# share executes): the mint-authority gate, the role-honest viewer, the
+# DB-level viewer write-exclusion (migration 234), governed revoke, canonical
+# path spelling end-to-end, and the dead-endpoint deletion. Registered
+# 2026-08-04; machine-checked by api/test_eval_suite_gate.py.
+#
+# NOTE ON THE LANE: `suite_kind: browser` — fired by a browser principal
+# (Claude in Chrome), never by run_eval_suite.py. Every step has a DOM half
+# and a SUBSTRATE half (psql); ceiling steps issue the underlying call and
+# record the RAW status even where the control is absent (a hidden control
+# proves nothing). Header assertions go over the wire with curl — a browser
+# fetch cannot see X-Robots-Tag.
+status: current
+suite_kind: browser
+
+thesis: |
+  ADR-517 is live end-to-end: the grant system governs reach and the share
+  mechanism can no longer act outside it.
+
+  Four-sided — all must hold:
+
+  1. THE HONEST ROLE. Accepting a view-only link mints role='viewer' (not an
+     axes-narrowed 'member') — observable as a DB row, and the viewer renders
+     in the roster and reaches the workspace switcher (an invisible principal
+     is an ungovernable one).
+
+  2. THE CEILING, TWO LAYERS. A viewer's mint attempt is refused SERVER-SIDE
+     (403 mint_forbidden — the ADR-515 §6.1 escalation door), and a viewer's
+     substrate WRITE is refused AT THE DATABASE (migration 234's RLS
+     write-exclusion — the layer no unit gate can see through a real user JWT).
+     PASS requires the raw status code AND an unchanged substrate count; a
+     missing button is a DOM state, not a gate.
+
+  3. GOVERNED TRANSPORT. Revoke is owner-or-minter (a viewer revoking the
+     owner's link gets 403). The minted share row stores the CANONICAL
+     ABSOLUTE artifact_path, and Get Info's FileShares section finds it (the
+     2026-08-03 unrevocable-link defect class, retested end-to-end). A revoked
+     link serves 410 WITH no-store + X-Robots-Tag on the wire.
+
+  4. THE DELETION. POST /api/share (ADR-127) answers 404/405 — the route is
+     gone, not gated.
+
+  Single-variable per step: same rig workspace, same artifact; the only
+  variable is WHICH PRINCIPAL acts (owner vs viewer-born guest vs anonymous).
+
+description: |
+  First browser pass over the ADR-517 arc (e27452c docs · bbebbda feat ·
+  529bc39 canon; migration 234 applied live 2026-08-04). The unit gate
+  (api/test_adr517_grants_govern.py, 23/23, authority logic executed against
+  a fake client) covers the gate's decision table; THIS suite covers what the
+  unit gate cannot: the real JWT against real RLS, the real UI mint/revoke
+  path, the real wire headers, and the roster/switcher render for a
+  viewer-role principal.
+
+  API deploy verified live at 529bc39 (dep-d9oncb3bc2fs739l1dkg) BEFORE the
+  pass. FE (Vercel) deploys separately — the viewer roster-label step records
+  which FE build answered (fallback label 'viewer' from ROLE_META's default
+  arm is acceptable and noted, not a failure; the label entry shipped in
+  bbebbda).
+
+principals:
+  - owner:kvkthecreator@yarnnn.com   # 67c5c637-501d-43d1-836a-a15ff32b5901, owner of the rig
+  - guest:testacct@yarnnn.com        # 500f3ae7-0ffc-4a6b-8450-62834f34279c — becomes the VIEWER
+
+workspace: bf5b25a9-477f-462e-b7f3-65812f489411   # kvk-yarnnn RIG — disposable
+artifact: /workspace/operation/untitled-deck/deck.html   # the share subject
+
+# Baseline captured + EXECUTED 2026-08-04 (psql receipts, §4 discipline):
+#   rig active grants                = 1 (owner only)
+#   guest active grants ANYWHERE     = 0 (one REVOKED member row on the rig
+#                                        remains from the 2026-07-31 settings
+#                                        pass — receipts below pin
+#                                        status='active' for exactly this
+#                                        reason; the guest is functionally
+#                                        cold but NOT row-empty)
+#   rig active workspace_shares      = 0
+#   rig share_mint_policy            = 'write-holders' (default)
+#   rig workspace_files              = 6
+baseline:
+  rig_active_grants: 1
+  guest_active_grants_anywhere: 0
+  rig_active_shares: 0
+  rig_dial: write-holders
+  rig_files: 6
+
+guardrails: |
+  - The RIG (bf5b25a9) is the subject; the LIVE workspace (d5b9029b) is never
+    touched — no share is minted there, nothing is revoked there.
+  - NEVER revoke seulkim88's grant on d5b9029b — standing test instrument.
+  - Real externals are never subjects.
+  - Login via api/scripts/operator/browser_login_link.py only (roster-guarded
+    in code). Never set or read a password. Never paste a minted URL anywhere
+    that leaves this machine.
+  - One isolated browser context PER principal (owner / guest / anon);
+    identity re-asserted from the page before any observation is trusted.
+  - The RLS write probe (step viewer-write-refused-at-db) targets a probe
+    path (operation/untitled-deck/_adr517-probe.md) that does not exist at
+    baseline — never the live deck.html head.
+  - The dial stays 'write-holders' throughout this cut (see known_deferred).
+
+known_deferred:
+  - "dial-owner-only lane (a write-holding MEMBER refused by the dial) —
+    requires a member principal this cut does not mint; the dial's decision
+    table is covered by the EXECUTED unit gate (test_adr517 A4). Owed to a
+    member-pair run alongside the ADR-515 FE phases."
+  - "viewer-promotion re-grant affordance — not built yet (grants-and-reach.md
+    §8 owed ledger); not a subject here."
+  - "Files one-click member mint (ADR-515 D7 over-grant) — known, unchanged by
+    ADR-517, closed by ADR-515 phases 3+; recorded, not retested."
+
+steps:
+  # ---------------------------------------------------------- MINT (owner)
+  - step: owner-mints-viewer-share-from-studio
+    principal: owner
+    surface: /desktop?studio.file=operation/untitled-deck/deck.html
+    action: |
+      As the owner, open the deck in Studio, open the header Share popover,
+      click "View-only link". Record the copied /s/{token} link.
+    expect_dom: |
+      The popover offers BOTH "Full access link" and "View-only link" with
+      consequence copy; clicking View-only yields a link (toast/confirmation).
+    mutates: true
+    receipt: |
+      psql: SELECT id, artifact_path, role, status, shared_by
+            FROM workspace_shares
+            WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411'
+              AND status='active';
+      Exactly one row: role='viewer', shared_by=owner uuid, and
+      artifact_path='/workspace/operation/untitled-deck/deck.html' — the
+      CANONICAL ABSOLUTE spelling (ADR-517 D5; Studio sends relative, the
+      WRITE must normalize).
+    restore: |
+      The owner-revokes step at the end. If the pass aborts: revoke via
+      POST /api/workspace/shares/{id}/revoke as owner, or psql UPDATE
+      status='revoked'.
+
+  - step: anon-preview-serves-with-capability-headers
+    principal: anon (no context — curl)
+    surface: /s/{token}
+    action: |
+      curl -si the API preview (GET /api/s/{token}) BEFORE any accept.
+      Wire-level deliberately: browser fetch cannot observe X-Robots-Tag.
+    expect_dom: |
+      (Wire, not DOM.) HTTP 200; body carries the artifact content and the
+      attribution walk; headers carry Cache-Control: no-store AND
+      X-Robots-Tag: noindex, nofollow.
+    mutates: false
+    receipt: |
+      The recorded response headers + a body marker (the artifact name).
+      psql: rig active grants MUST still be 1 — merely previewing never mints.
+
+  # ------------------------------------------------------- JOIN (guest→viewer)
+  - step: guest-accepts-viewer-link
+    principal: guest
+    surface: /s/{token}
+    action: |
+      In the guest's isolated context, log in (magic link), open the share
+      link, accept. Record the first surface shown after accepting.
+    expect_dom: |
+      The accept page presents the view-only shape honestly ("read-only" /
+      "view" language, not full-access language); after accepting the guest
+      lands on the artifact.
+    mutates: true
+    receipt: |
+      psql: SELECT id, role, status, write_scopes, read_scopes, granted_by
+            FROM principal_grants
+            WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411'
+              AND principal_id='500f3ae7-0ffc-4a6b-8450-62834f34279c'
+              AND status='active';
+      Exactly one ACTIVE row with role='viewer' (THE ADR-517 D1 receipt — the
+      pre-517 code wrote role='member' here), write_scopes='{}',
+      read_scopes='{/workspace/operation/untitled-deck/deck.html}',
+      granted_by='share-view:<owner uuid>'. The old REVOKED member row from
+      the 2026-07-31 pass must remain revoked and untouched.
+    restore: |
+      The cleanup step revokes this grant (owner act) and re-asserts the
+      guest is grant-less.
+
+  - step: viewer-reaches-switcher-and-roster
+    principal: guest (switcher half) + owner (roster half)
+    surface: guest UserMenu · owner /workspace-settings Access pane
+    action: |
+      Guest context: open the user menu; the rig workspace must be listed
+      (the ADR-517 D6 switcher inclusion — pre-517 the .in_ filter dropped
+      viewers). Owner context: open the Access roster; the guest must render
+      as a row.
+    expect_dom: |
+      Guest: rig workspace present in memberships. Owner: guest row visible;
+      label 'Viewer' (new ROLE_META) or fallback 'viewer' if the FE deploy
+      predates bbebbda — record WHICH, with the FE build evidence.
+    mutates: false
+    receipt: |
+      GET /api/workspace/memberships as guest → the rig row with
+      role='viewer' (raw JSON recorded). The roster API
+      (GET /api/workspace/members as owner) → guest row role='viewer'.
+
+  # -------------------------------------------------- CEILING (the core)
+  - step: viewer-mint-refused-at-server
+    principal: guest
+    surface: wire (in-page fetch with the guest's own JWT)
+    action: |
+      From the guest context, POST /api/workspace/shares with
+      X-Workspace-Id: bf5b25a9… and body {role:'member'} (the §6.1 escalation
+      shape: a bare workspace-wide member link). Record the RAW status + body.
+      There is no UI control for this as a viewer — that is exactly why the
+      call is issued directly (a hidden control proves nothing).
+    expect_dom: |
+      (Wire.) HTTP 403, body naming the refusal (mint_forbidden — "view-only
+      grant cannot create share links"). NOT 200, NOT 400.
+    mutates: false
+    receipt: |
+      psql: SELECT count(*) FROM workspace_shares
+            WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411'
+              AND status='active';
+      MUST still be 1 (the owner's viewer link only). No second share row.
+
+  - step: viewer-write-refused-at-db
+    principal: guest
+    surface: wire (direct PostgREST INSERT with the guest's JWT)
+    action: |
+      From the guest context, attempt a DIRECT supabase-rest INSERT into
+      workspace_files (path=/workspace/operation/untitled-deck/_adr517-probe.md,
+      workspace_id=rig) using the guest session's access token — bypassing the
+      app layer entirely. This is migration 234's teeth: the layer
+      test_adr517 cannot reach.
+    expect_dom: |
+      (Wire.) The INSERT is REFUSED by RLS — PostgREST 401/403 with a
+      row-level-security violation (42501). NOT a 201.
+    mutates: false
+    # Not marked mutating: the expected outcome is refusal. The receipt
+    # proves nothing landed; if it DID land the step FAILS and the row is
+    # deleted in cleanup.
+    receipt: |
+      psql: SELECT count(*) FROM workspace_files
+            WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411';
+      MUST still equal baseline (6). Also record the raw PostgREST error.
+
+  - step: viewer-revoke-refused
+    principal: guest
+    surface: wire (in-page fetch with the guest's JWT)
+    action: |
+      As the guest, POST /api/workspace/shares/{share_id}/revoke against the
+      owner's live link. (ADR-517 D4: owner-or-minter; the guest is neither.)
+    expect_dom: |
+      (Wire.) HTTP 403, body naming owner-or-creator. The link keeps serving:
+      GET /api/s/{token} still 200.
+    mutates: false
+    receipt: |
+      psql: SELECT status FROM workspace_shares
+            WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411'
+              AND status='active';
+      The owner's share row is still 'active'.
+
+  # ------------------------------------------------ TRANSPORT + DELETION
+  - step: dead-endpoint-is-gone
+    principal: owner
+    surface: wire
+    action: |
+      POST /api/share (the deleted ADR-127 route) with any JSON body, owner
+      JWT. Record the raw status.
+    expect_dom: |
+      (Wire.) 404 or 405 — the route does not exist. NOT 200, NOT 403 (a 403
+      would mean it still exists behind a gate).
+    mutates: false
+    receipt: |
+      psql: SELECT count(*) FROM workspace_files WHERE path LIKE '/user_shared/%'
+            AND workspace_id IS NOT NULL AND created_at > now() - interval '1 hour';
+      0 new rows — nothing wrote to the staging area.
+
+  - step: owner-revokes-via-get-info
+    principal: owner
+    surface: /desktop?files.file=operation/untitled-deck/deck.html (Get Info)
+    action: |
+      As the owner, open Get Info on the deck. The FileShares section must
+      LIST the live view-only link (this is the canonical-spelling test
+      end-to-end: the row was minted absolute; a spelling mismatch renders
+      the section null — the 2026-08-03 defect). Click Revoke.
+    expect_dom: |
+      Before: one row labeled 'View-only link' with a Revoke control.
+      After: the row is gone (or marked revoked).
+    mutates: true
+    receipt: |
+      psql: SELECT status FROM workspace_shares
+            WHERE workspace_id='bf5b25a9-477f-462e-b7f3-65812f489411'
+            ORDER BY created_at DESC LIMIT 1;
+      'revoked'.
+    restore: |
+      This IS the restore for the mint step. Nothing further.
+
+  - step: revoked-link-goes-dark-with-headers
+    principal: anon (curl)
+    surface: /s/{token}
+    action: |
+      curl -si the revoked link.
+    expect_dom: |
+      (Wire.) HTTP 410 AND the capability headers PRESENT on the error
+      (Cache-Control: no-store, X-Robots-Tag) — the ad4c45f defect class,
+      retested on the wire after this arc touched the route.
+    mutates: false
+    receipt: |
+      The recorded 410 response headers.
+
+  # ---------------------------------------------------------- CLEANUP
+  - step: cleanup-revoke-viewer-grant-and-reassert-baseline
+    principal: owner
+    surface: "/workspace-settings Access pane (fallback psql)"
+    action: |
+      As the owner, revoke the guest's viewer grant from the roster (the rail
+      governs standing reach). Then re-run EVERY baseline receipt.
+    expect_dom: |
+      The guest row leaves the active roster.
+    mutates: true
+    receipt: |
+      psql (all must match baseline):
+        rig active grants = 1 (owner only);
+        guest ACTIVE grants anywhere = 0;
+        rig active shares = 0;
+        rig share_mint_policy = 'write-holders';
+        rig workspace_files = 6;
+        live workspace d5b9029b grants COUNT unchanged from pre-pass read;
+        seulkim88's d5b9029b grant still active (guardrail re-check).
+    restore: |
+      Terminal step — this is the restore. If the roster revoke fails, psql:
+      UPDATE principal_grants SET status='revoked' WHERE workspace_id='bf5b25a9-…'
+      AND principal_id='500f3ae7-…' AND status='active' AND role='viewer';

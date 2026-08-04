@@ -50,7 +50,7 @@ Two layers, each guaranteeing a different thing:
 
 | Layer | Guarantees | Where |
 |---|---|---|
-| **RLS** (Postgres) | Membership + the **role-binary**: any active grant reads; a `viewer`-role grant cannot INSERT/UPDATE/DELETE `workspace_files` / insert `workspace_file_versions` (migration 234) | migrations 189/198/221/234 |
+| **RLS** (Postgres) | Membership + the **role-binary**: any active grant reads; a `viewer`-role grant cannot INSERT/UPDATE/DELETE `workspace_files` / insert `workspace_file_versions` (migration 234; migration 235 dropped the pre-ADR-373 legacy `user_id` policies that OR'd around both predicates — found live by the 2026-08-04 click-pass) | migrations 189/198/221/234/235 |
 | **Primitive layer** (Python) | **Path-prefix narrowing** on both axes | `grant_read_scopes` / `path_under_scopes` / `read_scope_db_prefixes` in `services/primitives/workspace.py` |
 
 > **The contract**: any code path that reads or writes substrate on the user-scoped client
