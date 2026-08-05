@@ -1,6 +1,6 @@
 # ADR-523: The history is a lineage, not a pile of snapshots — undo/redo at the grain the member edited
 
-> **Status**: **Proposed** (2026-08-06). Derived from an audit of the Studio/Docs
+> **Status**: **Accepted + Implemented** (2026-08-06). Derived from an audit of the Studio/Docs
 > client-state model, asked for directly: *"is there a better way of handling client side
 > and performance… and then, make undo and redo not just one command but more like other
 > more web based interactive systems? figma, google docs."* The audit found the refresh

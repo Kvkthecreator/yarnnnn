@@ -112,7 +112,7 @@ Legend: ✅ shipped · 🔜 declared (built when its phase lands, never by accid
 |---|---|---|---|
 | verbs | ✅ ⌫ delete · ⌘C/⌘V/⌘D · Esc lifts caret→block | ✅ **objects only** — figure/table/chart/gallery/divider keep the unit verb; on prose the keys belong to the platform (ADR-521 D6: a unit verb on a paragraph is the enclosure re-asserting itself, and it deleted whole paragraphs on an emptied block or a cross-block range). Text keys stay caret-guarded (ADR-482 D2) | ✅ |
 | Esc-walk | ✅ editing → block → container → … → page → clear (the real ancestor chain, ADR-511 D3; no drill-down gesture — down is clicking the thing) | ✅ caret → block → clear | ✅ |
-| undo | ✅ ⌘Z/⇧⌘Z — snapshot stack in the pointer runtime (both modes) | ✅ | ✅ |
+| undo | ✅ ⌘Z/⇧⌘Z — a lineage stack in the SURFACE (ADR-523 D1; the runtime only forwards the key, and yields it entirely to the browser while a flow caret is live per ADR-482 D2). An entry carries `structural`, so a non-structural undo does not reload the frame; text edits coalesce at the member's pauses (600ms, D3), so ⌘Z rewinds a phrase, not the whole blur-batched revision. Bounded by bytes (D2); cleared only by a FOREIGN write (D4) | ✅ | ✅ |
 | list indent | — (deck Tab is block-cycle territory, owed) | ✅ Tab/⇧Tab in a list nests/unnests (ADR-521 D4); Tab in prose = a literal tab; Tab never ends the session | — |
 | owed | arrows nudge/resize, ⌘]/[ z-order, Tab cycle (declared since ADR-477) | — | band reorder keys |
 
