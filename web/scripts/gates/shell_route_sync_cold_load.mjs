@@ -85,15 +85,16 @@ const WITH_ROUTELESS = [...ROSTER, { slug: 'program-x', title: 'X' }];
 const layoutSrc = readFileSync('web/components/shell/AuthenticatedLayout.tsx', 'utf8');
 const refAt = layoutSrc.indexOf('const lastSyncedPathname = useRef');
 const effAt = layoutSrc.indexOf('useEffect(() => {', refAt);
-const effEnd = layoutSrc.indexOf('}, [pathname, composition.surfaces, foregroundSurface]);', effAt);
+const effEnd = layoutSrc.indexOf('}, [pathname, composition.surfaces, foregroundSurface, hydrated]);', effAt);
 if (effAt < 0 || effEnd < 0) {
   console.log('[FAIL] could not extract the effect body — the anchor drifted');
   process.exit(1);
 }
 const effBody = layoutSrc.slice(effAt + 'useEffect(() => {'.length, effEnd);
 
-/** Replay a sequence of {pathname, surfaces} effect runs; returns the
- *  foreground calls in order. */
+/** Replay a sequence of {pathname, surfaces, hydrated} effect runs; returns
+ *  the foreground calls in order. `hydrated` defaults true so the pre-existing
+ *  scenarios read as post-restore runs. */
 function replay(body, runs) {
   const lastSyncedPathname = { current: null };
   const calls = [];
@@ -103,10 +104,11 @@ function replay(body, runs) {
     'lastSyncedPathname',
     'foregroundSurface',
     'resolveRouteSurface',
+    'hydrated',
     body,
   );
   for (const r of runs) {
-    fire(r.pathname, { surfaces: r.surfaces }, lastSyncedPathname, (slug) => calls.push(slug), resolveRouteSurface);
+    fire(r.pathname, { surfaces: r.surfaces }, lastSyncedPathname, (slug) => calls.push(slug), resolveRouteSurface, r.hydrated ?? true);
   }
   return calls;
 }
@@ -136,6 +138,23 @@ const unroutable = [
 ];
 t('an unroutable pathname never fires foreground', replay(effBody, unroutable).length === 0);
 
+// The RESTORE race (browser-observed 2026-08-05: the same cold /docs load
+// foregrounded Docs on one run, the remembered surface on the next): the
+// sync must never fire before the mount restore has landed (hydrated), so
+// the URL's explicit intent deterministically outranks remembered posture.
+// Sequence: roster lands BEFORE the restore (the losing order pre-guard) —
+// the sync defers, then fires after hydration.
+const rosterBeforeRestore = [
+  { pathname: '/docs', surfaces: SEEDED, hydrated: false },
+  { pathname: '/docs', surfaces: ROSTER, hydrated: false }, // roster won the fetch race
+  { pathname: '/docs', surfaces: ROSTER, hydrated: true },  // restore landed; sync now runs
+];
+t('the sync never fires before the restore (hydrated gate)', replay(effBody, rosterBeforeRestore).join(',') === 'docs');
+t(
+  'pre-hydration runs do not stamp (the sync still fires after)',
+  replay(effBody, [{ pathname: '/docs', surfaces: ROSTER, hydrated: false }]).length === 0,
+);
+
 // ── FALSIFIER: the pre-fix body (stamp before match) races again ───────────
 const preFix = `
     if (pathname === lastSyncedPathname.current) return;
@@ -146,6 +165,18 @@ const preFix = `
 `;
 console.log('mutated: restored the pre-fix stamp-before-match effect body (in memory)');
 t('FALSIFIER: the pre-fix body drops the cold-load foreground (the race returns)', replay(preFix, coldLoad).length === 0);
+
+// ── FALSIFIER: without the hydrated gate, the sync fires under the restore ─
+{
+  const mutated = effBody.replace(/\s*if \(!hydrated\) return;[^\n]*\n/, '\n');
+  console.log('mutated: removed the hydrated gate from the effect body (in memory)');
+  if (mutated === effBody) {
+    t('FALSIFIER: the hydrated-gate removal actually mutated the source', false);
+  } else {
+    const fired = replay(mutated, [{ pathname: '/docs', surfaces: ROSTER, hydrated: false }]);
+    t('FALSIFIER: without the gate, the sync fires BEFORE the restore (clobberable)', fired.join(',') === 'docs');
+  }
+}
 
 // ── FALSIFIER: the pre-hardening resolver crashes on a route-less row ──────
 {

@@ -100,7 +100,7 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { data: composition } = useComposition();
-  const { foregroundSurface, navigateToSurface, foregrounded, closeSurface } =
+  const { foregroundSurface, navigateToSurface, foregrounded, closeSurface, hydrated } =
     useSurfacePreferences();
 
   // ADR-297 D13: when the URL deep-links to an atomic kernel surface,
@@ -145,15 +145,30 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
   // on an unresolved pathname are a cheap null find with NO foreground
   // call, so the 2026-06-01 loop cannot return. Decision extracted pure
   // (lib/shell/route-sync.ts) and executed by its gate.
+  // 2026-08-05 (same-day follow-up, browser-observed): the sync must also
+  // OUTRANK the mount restore deterministically. useSurfacePreferences'
+  // one-time restore (`setForegrounded(remembered)`) lands when auth
+  // resolves; the roster lands when its fetch resolves — two independent
+  // races. Pre-fix the restore always won (the sync never fired on a cold
+  // load); the stamp-on-match fix alone made it a coin flip (observed: the
+  // same cold /docs load foregrounded Docs on one run, the remembered
+  // Studio on the next). The URL is EXPLICIT intent; the restore is
+  // remembered posture — intent wins. Gating on `hydrated` (flips in the
+  // same commit as the restore's setForegrounded) guarantees the sync runs
+  // AFTER the restore, whichever fetch wins. Known edge, accepted: the
+  // ADR-407 server-side shell read (fresh device only, no local state) can
+  // still land after the sync; a fresh device's bare-route deep link may
+  // mis-foreground once. Same-device loads are deterministic.
   const lastSyncedPathname = useRef<string | null>(null);
   useEffect(() => {
+    if (!hydrated) return; // the mount restore hasn't landed — never sync under it
     if (pathname === lastSyncedPathname.current) return; // no-op on churn
     if (!composition.surfaces || composition.surfaces.length === 0) return;
     const slug = resolveRouteSurface(pathname, composition.surfaces);
     if (!slug) return; // unresolved — NOT stamped; retry when the roster lands
     lastSyncedPathname.current = pathname;
     foregroundSurface(slug);
-  }, [pathname, composition.surfaces, foregroundSurface]);
+  }, [pathname, composition.surfaces, foregroundSurface, hydrated]);
 
   // D18 §4: ⌘W (macOS) / Ctrl+W (others) closes the foregrounded
   // window. macOS-standard 'close window' binding. Works regardless
