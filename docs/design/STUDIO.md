@@ -41,8 +41,11 @@ Four, all real DOM elements; there is no parallel tree.
 the set moves as one revision (`setGeometryMany`); ungroup is deselection. A persisted
 group wrapper would be a second structural layer competing with the real tree (ADR-462
 D3's refusal, clarified by ADR-511: what it refuses is the *synthetic editor-side
-object*; selecting a real container was never the refused thing). Persistent grouping,
-if ever wanted, is wrap-in-a-real-`<div>` — a revision.
+object*; selecting a real container was never the refused thing). Persistent grouping
+is **Group as a verb** (ADR-519 D2, declared — Phase B): wrap the multi-selection in a
+real `<div data-block-id>` as one authored revision; Ungroup unwraps. The wrapper *is*
+a structural container — Figma's Group ≡ a container with no layout declared; no group
+node type exists.
 
 **The selection floor is the attribution floor** (ADR-511 D3, normative): text nodes,
 `<br>`, inline spans are never selection subjects — selection bottoms out at what can
@@ -117,14 +120,19 @@ Legend: ✅ shipped · 🔜 declared (built when its phase lands, never by accid
 | page grain | ✅ **New slide** + **Re-arrange** (the gallery's one mount, toolbar) | — (no page unit) | ✅ New band |
 | refused | 🚫 slash as sole route on paged · 🚫 the hover gutter (deleted every mode, ADR-505 D4) · 🚫 per-medium menu subsetting (both doors offer every kind — what differs is which door, never what's in it) | | |
 
-### The pane (Design tab) — scope follows selection
+### The pane (Design tab) — one spine, scope follows selection (ADR-519 D3)
 
-| scope | rows | mechanism |
-|---|---|---|
-| document | typography faces, measure/pagenum, design system (worn, not listed — ADR-487 D9), File/Share/Export tail (every scope) | tokens (meaning) |
-| page | verbs (dup/up/down/delete) · **LAYOUT: padding + vertical-align presets** (slide) / spacing (band) · tone · columns ratio · background + scrim/focus | **inline-CSS presets, one op** (ADR-516 D1/D3) · tokens for meaning |
-| container | media picker (media-role regions) · **LAYOUT: padding/gap/align/justify/width Hug\|Fill** | inline-CSS presets, same op (ADR-511 D4 + ADR-516 D4) |
-| block | typography ramp · tone/variant swatches · turn-into · width/align tokens · size readback · **Position: In flow \| Positioned** (deck) | tokens + measures |
+**The spine is fixed**: Identity → Position → Layout → Style → Content. A scope renders
+only the sections its grain has — it never re-orders or renames a section. The member
+learns the panel once.
+
+| section | document | page | container | block | mechanism |
+|---|---|---|---|---|---|
+| **Identity** — label + verb row | name + file verbs (every scope) | ✅ verbs (dup/up/down/delete) | ✅ verbs (dup/delete — Phase A parity; ops were right-click-only) | ✅ verbs | existing id-addressed ops |
+| **Position** — In flow \| Positioned · X/Y readback | — | — | — | ✅ deck-staged only (numeric *entry* = Phase C) | measures, two-clamp |
+| **Layout** | — | ✅ padding + vertical-align (slide) / spacing (band) · columns ratio | ✅ padding/gap/align/justify/width Hug\|Fill (direction = Phase C) | size Hug\|Fill · width/align tokens · W/H readback | **inline-CSS presets, one op** (ADR-516) · tokens |
+| **Style** | typography faces · measure/pagenum · design system (worn, not listed — ADR-487 D9) | tone · scrim/focus | — | typography ramp · tone/variant swatches | tokens (meaning — ADR-516 D6 boundary) |
+| **Content** | — | background citation | media picker (media-role regions) | turn-into | existing |
 
 **The layout boundary (ADR-516 D6, normative): geometry converges on inline CSS; meaning
 stays tokens.** A layout value means itself (`padding: 3.5rem 4rem`); a meaning value is
@@ -215,17 +223,25 @@ runtime is the refused shape). The standing drift test (ADR-440 §7, held by Doc
 Studio alike): *does this force a definitional question about the app format, or is
 it just a better editor?*
 
-## Phase 3 (declared, in order) + named follow-ons
+## The forward roster (re-based onto ADR-519's phases, 2026-08-05)
 
-1. **Container drag = reorder, per medium** (the matrix's 🔜 cells) — with drop
-   indicators; never positional.
-2. **Snap/alignment guides** on block drag (siblings + frame).
-3. ✅ **Breadcrumb at the selection** (the ancestor chain the Esc-walk already walks) —
-   shipped 2026-08-05: `SelectionBreadcrumb` over the canvas, paged media only
-   (flow's chain is caret → block → clear); segments select through the
-   navigator's existing paths (rule 7 — a new reach, not a new op).
-4. Owed keyboard rows (arrows/nudge/Tab-cycle · ⌘B/⌘I on flow · band reorder keys).
-5. Carried follow-ons: h1-rename-in-place (needs dependent-rewriting on the ADR-448
-   edge) · rename does not rewrite dependents (every mover's gap, not Studio's) ·
-   `text/html` paste (a security carve — allow-list sanitizer first) · measures deriving
-   their posture line · `applies` → `(scope, grain)`.
+The standing Phase-3 cells are absorbed into ADR-519's schedule; cells are marked
+shipped here only as they land.
+
+- **Phase A — the spine** (pure FE recomposition): the pane matrix above · container
+  verb-row parity · X/Y readback.
+- **Phase B — selection completion**: onGroup wiring + multi scope (align/distribute) ·
+  Group/Ungroup verbs · ⌘-click deep select · **page identity stamped at the normalize
+  seam** (retires the ADR-516 page-anchor resolver by use) · chrome/breadcrumb/
+  navigator multi-select consistency.
+- **Phase C — layout completion**: Direction row (containers only) · align-self ·
+  numeric X/Y/W/H entry (two-clamp) · then the standing pair: snap/alignment guides on
+  block drag · container drag = reorder per medium (drop indicators, never positional).
+- ✅ **Breadcrumb at the selection** — shipped 2026-08-05: `SelectionBreadcrumb` over
+  the canvas, paged media only (flow's chain is caret → block → clear); segments select
+  through the navigator's existing paths (rule 7 — a new reach, not a new op).
+- Owed keyboard rows (arrows/nudge/Tab-cycle · ⌘B/⌘I on flow · band reorder keys).
+- Carried follow-ons: h1-rename-in-place (needs dependent-rewriting on the ADR-448
+  edge) · rename does not rewrite dependents (every mover's gap, not Studio's) ·
+  `text/html` paste (a security carve — allow-list sanitizer first) · measures deriving
+  their posture line · `applies` → `(scope, grain)`.
