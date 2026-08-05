@@ -23,7 +23,9 @@ LANES = {
     "web":        (["web/"],
                    "cd web && pnpm build (tsc alone is not verification); UI change -> browser click-pass (E2E lane)"),
     "migrations": (["supabase/migrations/"],
-                   "psql apply per ACCESS.md + PostgREST cache refresh + RLS probe if policies touched"),
+                   "apply via scripts/db/run-migration.sh (--dry-run first); verify the LIVE object "
+                   "(pg_policies/\\d+) — the runner's exit code is not verification; RLS touched -> "
+                   "falsify as the real principal in a ROLLBACK txn; then mark-validated.sh migrations"),
     "evals":      (["api/scripts/operator/", "docs/evaluations/eval-suites/", "docs/alpha/personas.yaml"],
                    "staleness gates (test_probe_staleness_gate + test_eval_suite_gate)"),
     "claude-md":  (["CLAUDE.md"],

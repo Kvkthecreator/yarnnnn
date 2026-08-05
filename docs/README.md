@@ -57,8 +57,9 @@ docs/
 │
 ├── database/            # Database documentation
 │   ├── ACCESS.md        # Connection strings, credentials
-│   ├── SCHEMA.md        # Table descriptions and relationships
-│   └── MIGRATIONS.md    # Migration history and notes
+│   └── SCHEMA.md        # Table descriptions and relationships
+│                        # (migration history: supabase/migrations/ is authoritative —
+│                        #  the hand-kept MIGRATIONS.md was retired 2026-08-05)
 │
 ├── development/         # Developer guides
 │   ├── SETUP.md         # Local environment setup

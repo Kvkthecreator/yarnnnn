@@ -172,4 +172,19 @@ for u in admin_client.auth.admin.list_users():
 
 ---
 
-See [MIGRATIONS.md](MIGRATIONS.md) for applied migration history.
+## Migration History
+
+`supabase/migrations/*.sql` is the **single authoritative record** — the filename carries the
+number and the intent, and each file's header comment carries the reasoning. Read it with
+`ls supabase/migrations/ | sort` and `git log -- supabase/migrations/<file>.sql`.
+
+There is deliberately **no hand-maintained migration log**. `docs/database/MIGRATIONS.md` was
+retired 2026-08-05: its newest entry was migration 176 (2026-05-18, still labelled "pending
+apply") while 236 had shipped, and it self-described gaps between 100 and 158. A ledger that
+must be updated by hand stops being updated, and a stale ledger is worse than none — it is a
+second source of truth that disagrees with the first (CLAUDE.md §2, Singular Implementation).
+
+**When you ship a migration**, the durable record is the migration file itself. Put the why in
+its header comment — what defect it closes, what was falsified, what the blast radius is — the
+way `236_adr495_creator_reads_the_conversation_it_creates.sql` does. That comment travels with
+the DDL and cannot drift from it.
