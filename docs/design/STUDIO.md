@@ -138,13 +138,21 @@ Legend: ✅ shipped · 🔜 declared (built when its phase lands, never by accid
 only the sections its grain has — it never re-orders or renames a section. The member
 learns the panel once.
 
-| section | document | page | container | block | mechanism |
-|---|---|---|---|---|---|
-| **Identity** — label + **path + Contents** (ADR-520 D4: the structure's ONE home; the navigator is the filmstrip) + verb row | name + file verbs (every scope) | ✅ verbs · Contents | ✅ path · verbs · Contents | ✅ path · verbs | existing id-addressed ops; path = the breadcrumb's climbChain |
-| **Position** — In flow \| Positioned · X/Y **fields** (ADR-520 D3: numeric entry, two-clamp) | — | — | — | ✅ deck-staged only | measures, two-clamp |
-| **Layout** | — | ✅ padding + vertical-align glyphs (slide) / spacing (band) · columns ratio | ✅ padding/gap/**align+justify glyph rows**/width Hug\|Fill · **W/H fields (staged — ADR-520 D2)** (direction = Phase C) | size Hug\|Fill · width/align tokens · **W/H fields** | **inline-CSS presets, one op** (ADR-516) · tokens |
-| **Style** | typography faces · measure/pagenum · design system (worn, not listed — ADR-487 D9) | tone · scrim/focus | — | typography ramp · tone/variant swatches | tokens (meaning — ADR-516 D6 boundary) |
-| **Content** | — | background citation | media picker (media-role regions) | turn-into | existing |
+**The block column is split by TIER (ADR-525 D1), not by grain.** A block on flow is an
+*annotation* and a block on a stage is an *enclosure* (ADR-480) — one column could not say
+that, so the pane composed the enclosure grammar for both and Docs rendered a layout
+surface it does not have. The runtime declares the tier on the selection; the pane, the
+right-click menu and the keyboard all READ it. **`block (text)` = prose on flow.
+`block (object)` = a figure/table/chart/divider anywhere, and every block on a paged
+medium.**
+
+| section | document | page | container | block (text) | block (object) | mechanism |
+|---|---|---|---|---|---|---|
+| **Identity** — label + **path + Contents** (ADR-520 D4: the structure's ONE home; the navigator is the filmstrip) + verb row | name + file verbs (every scope) | ✅ verbs · Contents | ✅ path · verbs · Contents | ✅ path · **NO verb row** (ADR-525 D3 — Duplicate/Up/Down/Delete are enclosure verbs; the menu already refused Move on flow) | ✅ path · verbs | existing id-addressed ops; path = the breadcrumb's climbChain |
+| **Position** — In flow \| Positioned · X/Y **fields** (ADR-520 D3: numeric entry, two-clamp) | — | — | — | — | ✅ deck-staged only | measures, two-clamp |
+| **Layout** | — | ✅ padding + vertical-align glyphs (slide) / spacing (band) · columns ratio | ✅ padding/gap/**align+justify glyph rows**/width Hug\|Fill · **W/H fields (staged — ADR-520 D2)** (direction = Phase C) | 🚫 **the whole section** (ADR-525 D3 — "no layout surface", rule 10; Hug\|Fill is a container row and flow has no containers) | size Hug\|Fill · width/align tokens · **W/H fields** | **inline-CSS presets, one op** (ADR-516) · tokens |
+| **Style** | typography faces · measure/pagenum · design system (worn, not listed — ADR-487 D9) | tone · scrim/focus | — | ✅ typography ramp · tone (meaning, not geometry) | ✅ typography ramp · tone/variant swatches | tokens (meaning — ADR-516 D6 boundary) |
+| **Content** | — | background citation | media picker (media-role regions) | ✅ turn-into (structure tier — ADR-521 D2) | ✅ turn-into | existing |
 
 **The layout boundary (ADR-516 D6, normative): geometry converges on inline CSS; meaning
 stays tokens.** A layout value means itself (`padding: 3.5rem 4rem`); a meaning value is
@@ -226,6 +234,16 @@ the write seam, not enforced).
     Docs / Word): text-tier affordances follow the selection wherever it runs;
     structure-tier affordances address the blocks the selection intersects. There is no
     second selection mode.
+11. **The selection carries its tier; no surface re-derives it** (ADR-525) — the
+    projection runtime is the only party that can see both the DOM and the medium, so it
+    declares `text | object | structure` on the selection payload, and the pane, the
+    right-click menu and the keyboard all READ that one field. The rule this replaced was
+    real but scattered: ADR-484 guarded the cue at two click sites, so five other
+    selection routes boxed prose, and three parent-side surfaces each derived their own
+    answer — the pane offered Move up/down on a Docs paragraph while the menu on the same
+    block refused it. **One chokepoint may paint the selection cue** (`__yarnnnSelect`),
+    defended by a completeness assertion, because a per-site invariant cannot be defended
+    by executing one site.
 
 ## Standing refusals
 
