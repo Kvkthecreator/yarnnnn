@@ -1,5 +1,16 @@
 # ADR-484 — The cue that boxed prose, and leaked into the substrate
 
+> **Amended by [ADR-525](ADR-525-the-selection-carries-its-tier.md) (2026-08-06).** D1's
+> rule is upheld verbatim and now enforced at a chokepoint instead of two call sites. The
+> guard shipped here lived in the two CLICK branches, so five other selection routes —
+> `__yarnnnSelect`'s parent re-command (ADR-516 D5), the backspace-merge, the
+> Esc-from-edit, the Esc-walk and the container ladder — boxed prose anyway, and this
+> ADR's gate stayed green at 14/14 because it executed only the two guarded branches. The
+> operator re-reported the same symptom one day after ADR-516 D5 shipped. ADR-525 D2 moves
+> the guard into `__yarnnnSelect` and adds a completeness assertion (no site outside that
+> function may paint the cue). **§6's owed click-pass is carried forward there** — it was
+> never run, which is why the regression went unseen.
+
 - **Status**: **Accepted** (2026-07-23, operator-reported — *"i thought the document is now one
   big flow, i still see outlined block selections for this newly created document"*)
 - **Date**: 2026-07-23

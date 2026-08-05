@@ -1,5 +1,13 @@
 # ADR-519 — The object hierarchy is four grains, and the pane speaks one grammar
 
+> **Extended by [ADR-525](ADR-525-the-selection-carries-its-tier.md) (2026-08-06).** D1's
+> closing scope sentence — *"document is Docs' housing (ADR-518) and outside this ADR"* —
+> was true in canon and false in code: `StudioDesignTab` never received the app identity
+> and composed block scope with no medium term, so a Docs paragraph rendered this ADR's
+> pane spine in full (verb row, Layout, Width Hug|Fill, Align). ADR-525 splits the pane's
+> block column by TIER so the exclusion this ADR declared is the one the surface obeys.
+> The four grains and the spine ordering are unchanged.
+
 - **Status**: **Accepted** (2026-08-05, operator-ratified — *"let's proceed per the
   assessment and recommended next steps direction on containers as stated"*). Prepared
   from the operator's directive: *"the hierarchy of html to slides needs a similar

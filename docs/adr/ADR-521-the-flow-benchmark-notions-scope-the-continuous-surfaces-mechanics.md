@@ -1,5 +1,14 @@
 # ADR-521: The flow benchmark — Notion's scope, the continuous surface's mechanics
 
+> **Extended by [ADR-525](ADR-525-the-selection-carries-its-tier.md) (2026-08-06).** D6
+> fixed the verb tier at `selectedBlock()` — the right chokepoint, but only for the
+> consumer INSIDE the iframe. The two parent-side consumers were never given the kind
+> question, so the Design pane offered Duplicate/Up/Down/Delete + Width + Align on a flow
+> paragraph and the right-click menu offered Duplicate/Delete, each re-deriving its own
+> answer from a payload that carried none. ADR-525 promotes D6's rule from a keyboard
+> gate to a declared field on the selection (`text | object | structure`), which is also
+> what makes D1's *"no layout surface"* true at the pane. §1 item 3's residue is closed.
+
 > **Status**: **Accepted + Implemented** (2026-08-05). D1–D5 + D7 shipped `a99d1d9`·`5abb52a`;
 > **D6 executed the same day** (§7) — the deferred audit found a real defect (unit verbs
 > destroying prose blocks on flow) and landed its fix. The operator click-pass is the one
