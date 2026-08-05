@@ -1111,9 +1111,45 @@ const POINTER_SCRIPT = `
     if (blk.getAttribute('data-block-id') !== editing) return false;
     return (blk.textContent || '').trim() !== '';
   }
+  // ADR-521 D6: the block VERB tier is an OBJECT tier on flow.
+  //
+  // The audit ADR-521 §7 deferred, executed. These keys were written for the
+  // enclosure grain (ADR-482 D2, eight days before ADR-480 flipped it) and they
+  // ask only "is a block selected, and does the caret have a claim on it" —
+  // never "is this subject prose or an object". On flow that is unsound,
+  // because the click handler sets cur on EVERY block including prose (it
+  // withholds only the visual cue, ADR-484), so a paragraph is a live verb
+  // subject while looking like nothing is selected.
+  //
+  // Two windows made Delete/Backspace destroy a whole paragraph:
+  //   1. an EMPTIED paragraph — caretOwnsKeyIn requires non-empty text, so
+  //      clearing a paragraph and pressing Backspace again to merge up deleted
+  //      the block instead of merging;
+  //   2. a CROSS-BLOCK RANGE — the subject ADR-521 D2 just made first-class.
+  //      startContainer sits in the FIRST block of the range, so inBlk is
+  //      false for cur, and Backspace over an h1-prose-li selection deleted a
+  //      whole block instead of the selected range.
+  // Both commit a revision through applyOp — real loss, undo-recoverable only.
+  //
+  // The law (D2): text-tier affordances follow the SELECTION; structure-tier
+  // affordances address the blocks it intersects. A unit verb on a prose block
+  // is neither — it is the enclosure asserting itself. So on flow the verbs
+  // keep exactly the subjects that still have no caret to speak for them:
+  // OBJECT kinds (figure, table, chart, gallery, divider). For prose the keys
+  // go back to the platform, where Backspace means "delete the selection or
+  // merge" — the continuous-surface mechanic ADR-521 D1 committed to.
+  //
+  // Paged is untouched: there the block IS an enclosure and the unit verb is
+  // the correct grain (ADR-480's per-mode axiom).
+  function verbSubjectAllowed(blk) {
+    var flow = window.__yarnnnFlowMode ? window.__yarnnnFlowMode() : false;
+    if (!flow) return true;
+    return TEXT_KINDS.indexOf(blk.getAttribute('data-block')) === -1;
+  }
   function selectedBlock() {
     var sel = window.__yarnnnSelected ? window.__yarnnnSelected() : null;
     if (!sel || !sel.isConnected) return null;
+    if (!verbSubjectAllowed(sel)) return null;
     return caretOwnsKeyIn(sel) ? null : sel;
   }
 

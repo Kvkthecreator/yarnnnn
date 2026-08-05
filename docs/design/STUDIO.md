@@ -110,7 +110,7 @@ Legend: ✅ shipped · 🔜 declared (built when its phase lands, never by accid
 
 | | deck | document | web |
 |---|---|---|---|
-| verbs | ✅ ⌫ delete · ⌘C/⌘V/⌘D · Esc lifts caret→block | ✅ same, caret-guarded (the caret owns text keys — ADR-482 D2) | ✅ |
+| verbs | ✅ ⌫ delete · ⌘C/⌘V/⌘D · Esc lifts caret→block | ✅ **objects only** — figure/table/chart/gallery/divider keep the unit verb; on prose the keys belong to the platform (ADR-521 D6: a unit verb on a paragraph is the enclosure re-asserting itself, and it deleted whole paragraphs on an emptied block or a cross-block range). Text keys stay caret-guarded (ADR-482 D2) | ✅ |
 | Esc-walk | ✅ editing → block → container → … → page → clear (the real ancestor chain, ADR-511 D3; no drill-down gesture — down is clicking the thing) | ✅ caret → block → clear | ✅ |
 | undo | ✅ ⌘Z/⇧⌘Z — snapshot stack in the pointer runtime (both modes) | ✅ | ✅ |
 | list indent | — (deck Tab is block-cycle territory, owed) | ✅ Tab/⇧Tab in a list nests/unnests (ADR-521 D4); Tab in prose = a literal tab; Tab never ends the session | — |
@@ -267,8 +267,15 @@ shipped here only as they land.
   through the navigator's existing paths (rule 7 — a new reach, not a new op).
 - Owed keyboard rows (arrows/nudge/Tab-cycle on deck · band reorder keys). ✅ ⌘B/⌘I on
   flow + Tab list indent + `text/html` paste — shipped 2026-08-05 (ADR-521).
+- ✅ **The pointer-runtime block-verb residue audit** (ADR-521 D6, deferred around the
+  concurrent ADR-520 lane) — executed 2026-08-05. Finding: the verb keys asked only
+  "is a block selected, does the caret claim it", never the KIND, while the flow click
+  handler makes every block — prose included — a live subject (it withholds only the
+  cue, ADR-484). Backspace therefore deleted a whole paragraph in two reachable
+  windows: an **emptied** block (the caret guard requires non-empty text) and a
+  **cross-block range** (the range's `startContainer` sits in its first block, so the
+  in-block test fails for the selected one). Fixed at `selectedBlock()`, the single
+  gate every verb reads: on flow the tier is an OBJECT tier; paged is untouched.
 - Carried follow-ons: h1-rename-in-place (needs dependent-rewriting on the ADR-448
   edge) · rename does not rewrite dependents (every mover's gap, not Studio's) ·
-  the pointer-runtime block-verb residue audit against ADR-521 D2's two tiers (deferred
-  around the concurrent ADR-520 lane) · measures deriving their posture line ·
-  `applies` → `(scope, grain)`.
+  measures deriving their posture line · `applies` → `(scope, grain)`.

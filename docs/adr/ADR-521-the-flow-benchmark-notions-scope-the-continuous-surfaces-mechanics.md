@@ -1,6 +1,12 @@
 # ADR-521: The flow benchmark — Notion's scope, the continuous surface's mechanics
 
-> **Status**: **Accepted** (2026-08-05) — operator-ratified in full ("proceed in the full
+> **Status**: **Accepted + Implemented** (2026-08-05). D1–D5 + D7 shipped `a99d1d9`·`5abb52a`;
+> **D6 executed the same day** (§7) — the deferred audit found a real defect (unit verbs
+> destroying prose blocks on flow) and landed its fix. The operator click-pass is the one
+> open item: it is human-driven by necessity (the flow runtime lives in an opaque-origin
+> iframe, so synthesized keys cannot drive it) — packet at
+> [`docs/evaluations/OPERATOR-PACKET-adr521-flow-format-click-pass.md`](../evaluations/OPERATOR-PACKET-adr521-flow-format-click-pass.md).
+> Operator-ratified in full ("proceed in the full
 > streamlining: drafting ADR, updating existing docs scope, clean-up legacy code and docs,
 > to full implementation scope") after a two-pass framing discourse: the operator named the
 > seam from live use ("it's confusing the legacy studio apps approach with the notion like
@@ -124,14 +130,43 @@ Pasted structure (headings, lists, quotes) is legal because the write seam alrea
 promises it: `normalizeStructure` promotes bare elements into the grammar at every write
 (STUDIO.md, "unannotated HTML is editable by definition").
 
-## 7. D6 — The legacy residue audit (named-deferred, with a receipt)
+## 7. D6 — The legacy residue audit (deferred at ratification; **executed 2026-08-05**)
 
 The third grammar's residue — enclosure-era block-verb keys in the pointer runtime
-addressing flow prose — is **deferred, not dropped**: that exact region of
-`POINTER_SCRIPT` is under active concurrent edit by the ADR-520 lane at ratification
+addressing flow prose — was **deferred, not dropped**: that exact region of
+`POINTER_SCRIPT` was under active concurrent edit by the ADR-520 lane at ratification
 time, and two lanes in one region is the refused shape. The audit lands as a follow-on
 against D2's two tiers: object *kinds* (figure, table) rightly keep unit selection;
 prose-range verbs that assume enclosure are retired from flow.
+
+**Executed the same day the ADR-520 lane landed. It found a defect, not just residue.**
+
+The verb keys (⌫ delete · ⌘C/⌘V/⌘D) asked two questions — *is a block selected* and
+*does the caret have a claim on it* — and never the third one this ADR makes decisive:
+**is the subject prose or an object.** That was survivable under the enclosure grain the
+keys were written for (ADR-482 D2, eight days before ADR-480 flipped it), but not after:
+the flow click handler sets the selection on **every** block including prose, withholding
+only the visual *cue* (ADR-484). A paragraph was therefore a live verb subject while
+looking like nothing was selected, and `⌫` reached the parent's `deleteBlock` in two
+reachable windows:
+
+1. **An emptied paragraph.** The caret guard requires non-empty text, so clearing a
+   paragraph and pressing Backspace again to merge up **deleted the block** instead.
+2. **A cross-block range** — the subject D2 had just made first-class. The range's
+   `startContainer` sits in its *first* block, so the in-block test fails for the
+   selected one, and Backspace over an h1→prose→li selection **deleted a whole block**
+   instead of the selected range.
+
+Both commit a revision through `applyOp`: real content loss, recoverable only by ⌘Z or
+the revision chain. The fix is one gate at `selectedBlock()` — the single chokepoint
+every verb reads — so on flow the verb tier is an **object tier**, and prose hands the
+keys back to the platform, where Backspace means "delete the selection or merge": the
+continuous-surface mechanic D1 committed to. Paged is untouched; there the block *is* an
+enclosure and the unit verb is the correct grain (ADR-480's per-mode axiom).
+
+This is the D2 law reaching one rung further than the format tier: **the text tier
+follows the selection, the structure tier addresses intersected blocks, and the object
+tier addresses only what has no caret to speak for it.**
 
 ## 8. D7 — Refusals (the benchmark is mechanics, not chrome mimicry)
 
@@ -151,6 +186,8 @@ prose-range verbs that assume enclosure are retired from flow.
 | ADR-505 D1 | The medium-convention cell sharpened by banner: "Notion, never Word" binds scope (pagination/layout), not selection mechanics. |
 | ADR-456 W2 | The format bar's *mechanism* re-derived for the flow grain (banner); the bar, slash, and turn-into affordances stand. |
 | ADR-480 | The flow Tab ruling ("never a list-indent gesture") superseded by D4 (banner); the axiom, the grain, and every other ruling stand untouched. |
+| ADR-482 D2 | The keyboard-verb guard sharpened by D6 (2026-08-05): the caret question it introduced is necessary but not sufficient on flow — the verb tier must also ask the block KIND. Its caret-vs-session correction stands; the text keys still ask `__yarnnnCaretLive`. |
+| STUDIO.md (verbs row) | The `document` cell rewritten from "same, caret-guarded" — which D6 falsified for prose — to **objects only**; the roster's residue-audit follow-on moves to shipped. |
 
 Preserved untouched: ADR-443 R1 (DOM is the model) · ADR-446 D2 (sanitize contract —
 now two gates deep on paste) · ADR-480 D1/D6 · ADR-505 type set · ADR-509 · ADR-511 ·

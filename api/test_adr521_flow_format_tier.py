@@ -115,6 +115,55 @@ _check("D5: unknown wrappers unwrap (children survive, the wrapper dies)",
 _check("runtime hygiene: EDIT_SCRIPT's only interpolation is the declared TEXT_KINDS",
        edit.count("${") == 1 and "${TEXT_KINDS_JS}" in edit)
 
+# The OTHER half of the same discipline, learned the hard way 2026-08-05: a
+# literal backtick inside a runtime's body closes the template early. The D6
+# comment used `inBlk`/`cur` as prose quoting and webpack failed the whole
+# build. `${` was already pinned; the backtick was not, on EITHER runtime.
+_pm = re.search(r"const POINTER_SCRIPT = `\n(.*?)\n`;", src, re.DOTALL)
+_check("runtime hygiene: POINTER_SCRIPT extracted", bool(_pm))
+_check("runtime hygiene: no literal backtick inside either runtime body "
+       "(it would close the template and break the build)",
+       "`" not in edit and bool(_pm) and "`" not in _pm.group(1))
+
+# ── D6: the block VERB tier is an OBJECT tier on flow (the deferred audit) ──
+#
+# ADR-521 §7 deferred the pointer-runtime residue because that region was under
+# concurrent ADR-520 edit. Executed 2026-08-05. The finding: the verb keys
+# (⌫ delete · ⌘C/⌘V/⌘D) were written for the enclosure grain and asked only
+# "is a block selected and does the caret claim it" — never whether the subject
+# is prose or an object. Because the flow click handler sets `cur` on EVERY
+# block (withholding only the cue, ADR-484), a paragraph was a live verb
+# subject, and two windows made Backspace delete a whole paragraph: an EMPTIED
+# one (caretOwnsKeyIn requires non-empty text) and a CROSS-BLOCK RANGE (the
+# range's startContainer sits in the first block, so `inBlk` is false for cur).
+#
+# Bounded to the construct — the verb handler's own source slice, brace-free
+# but delimited by its two named neighbours, never a fixed character window.
+_vi = src.index("function caretOwnsKeyIn")
+_vj = src.index("// ── The empty-slot affordance")
+verbs = src[_vi:_vj]
+
+# Read the REAL declaration rather than restating it — a hardcoded copy here
+# would keep passing after someone adds an object kind to the text set.
+_tk = re.search(r"const TEXT_KINDS_JS = JSON\.stringify\((\[[^\]]*\])\)", src)
+_check("D6: the TEXT_KINDS declaration is readable (the kind partition is sourced)",
+       bool(_tk))
+TEXT_KINDS_DECL = _tk.group(1) if _tk else ""
+
+_check("D6: the flow verb-subject gate exists and asks the KIND, not the caret",
+       "function verbSubjectAllowed(blk)" in verbs
+       and "TEXT_KINDS.indexOf(blk.getAttribute('data-block')) === -1" in verbs)
+# The ASSIGNMENT/call, not the identifier — a gate nobody calls is not a gate.
+_check("D6: selectedBlock() consults it BEFORE handing any verb a subject",
+       "if (!verbSubjectAllowed(sel)) return null;" in verbs
+       and verbs.index("if (!verbSubjectAllowed(sel)) return null;")
+           < verbs.index("return caretOwnsKeyIn(sel) ? null : sel;"))
+_check("D6: paged keeps the unit verb (the gate is flow-scoped, not global)",
+       "if (!flow) return true;" in verbs)
+_check("D6: the verb tier still reaches OBJECT kinds on flow "
+       "(TEXT_KINDS excludes figure/table/chart/gallery/divider)",
+       all(k not in TEXT_KINDS_DECL for k in ("figure", "table", "chart", "gallery", "divider")))
+
 # ── Canon: the ADR + STUDIO.md carry the ruling ─────────────────────────────
 adr = DOCS / "adr" / "ADR-521-the-flow-benchmark-notions-scope-the-continuous-surfaces-mechanics.md"
 _check("ADR-521 exists", adr.exists())
