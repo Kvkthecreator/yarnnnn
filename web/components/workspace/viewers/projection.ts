@@ -1048,6 +1048,42 @@ const POINTER_SCRIPT = `
           window.__yarnnnSelect(selTarget);
         }
       } catch (err) {}
+    } else if (d.type === 'yarnnn-patch' && typeof d.blockId === 'string' &&
+               typeof d.html === 'string') {
+      // ADR-524 D1 — replace ONE block in place. The whole point: the document
+      // is not re-parsed, so scroll, caret, selection and zoom are never
+      // destroyed and need no restoring. The parent only sends this for
+      // block-local ops (D2); anything structural still swaps srcdoc.
+      //
+      // The payload is already PROJECTED (projectBlock, D3) — citations
+      // stamped + resolved, executables stripped. This runtime does not
+      // sanitize; it trusts the same pass that produced the document it is
+      // living in, and no other source may use this verb.
+      try {
+        var pTarget = document.querySelector('[data-block-id="' +
+          (window.CSS && CSS.escape ? CSS.escape(d.blockId) : d.blockId) + '"]');
+        if (pTarget) {
+          // Never patch the block the member is editing: its DOM is the live
+          // caret host, and replacing the element under an active caret drops
+          // the cursor mid-word. The commit that produced this patch came FROM
+          // that block anyway, so the DOM already shows the result.
+          var editingNow = window.__yarnnnEditingId && window.__yarnnnEditingId();
+          var caretLive = window.__yarnnnCaretLive && window.__yarnnnCaretLive();
+          if (editingNow !== d.blockId && !(caretLive && pTarget.contains(
+                document.activeElement))) {
+            var holder = document.createElement('div');
+            holder.innerHTML = d.html;
+            var fresh = holder.firstElementChild;
+            if (fresh) {
+              var wasSelected = pTarget.classList.contains('yarnnn-pointed');
+              pTarget.replaceWith(fresh);
+              // Re-assert selection on the NEW element — the old one carried
+              // the class and is now detached.
+              if (wasSelected && window.__yarnnnSelect) window.__yarnnnSelect(fresh);
+            }
+          }
+        }
+      } catch (err) {}
     } else if (d.type === 'yarnnn-restore-scroll') {
       // The parent captured the pre-reload position (the runtime reports it on
       // scroll below) and restores it after a STRUCTURAL reload so the canvas
@@ -4042,6 +4078,58 @@ export async function resolveArtifactHtml(
   }
   const doctype = '<!doctype html>\n';
   return doctype + (doc.documentElement?.outerHTML ?? html);
+}
+
+/**
+ * ADR-524 D3 — project ONE block, for the patch channel.
+ *
+ * The patch path exists so a one-block change stops re-parsing the whole
+ * document (D1). But a patch must never be raw source: the canvas iframe is
+ * `allow-scripts` on an opaque origin precisely because THIS pass is what
+ * strips artifact-authored executables, and the citation contract (ADR-446 D3)
+ * requires `data-src-html` to be stamped BEFORE resolution or the source form
+ * is unrecoverable at commit time. So the patch payload comes from here — the
+ * same transforms as the full pass, scoped to a single block — never from
+ * markup assembled parent-side.
+ *
+ * What this deliberately does NOT do, because the live frame already has it:
+ * head/style injection, runtime script injection, flow flattening (a structural
+ * re-parent — not block-local, and flow edits are not patchable per D2), and
+ * the paged container labelling (it stamps ancestors, not the block).
+ *
+ * Returns null when the block is not found or carries no id — the caller then
+ * falls back to a full swap, which is always correct.
+ */
+export async function projectBlock(
+  html: string,
+  blockId: string,
+  artifactPath: string,
+): Promise<string | null> {
+  if (!html || !blockId) return null;
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const block = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+  if (!block) return null;
+
+  // Citation islands INSIDE this block get the same stamp-then-resolve order as
+  // the full pass. The block itself can be a citation (a figure with data-ref),
+  // so the scope is self-or-descendant, not just descendants.
+  const cited: Element[] = [];
+  if (block.hasAttribute('data-ref')) cited.push(block);
+  cited.push(...Array.from(block.querySelectorAll('[data-ref]')));
+  cited.forEach((el) => {
+    if (el.tagName === 'STYLE') return; // never a style element (ADR-462 D13)
+    el.setAttribute('data-src-html', encodeURIComponent(el.outerHTML));
+  });
+  await Promise.all(cited.map((el) => resolveOne(el, artifactPath)));
+
+  // The security floor: the same strip the full pass applies, over this
+  // subtree. `stripExecutable` takes a Document, so run it on a detached doc
+  // holding only this block — the patch must not be able to smuggle a script
+  // into a frame that runs scripts.
+  const carrier = document.implementation.createHTMLDocument('');
+  carrier.body.appendChild(carrier.importNode(block, true));
+  stripExecutable(carrier);
+  return carrier.body.firstElementChild?.outerHTML ?? null;
 }
 
 /** The Web Viewer's projection hook (ADR-441 D3). Resolves citations when the

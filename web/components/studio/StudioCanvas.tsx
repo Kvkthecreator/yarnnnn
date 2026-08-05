@@ -211,6 +211,16 @@ interface StudioCanvasProps {
   scrollToSlide?: { index: number; nonce: number } | null;
   /** ADR-455: scroll the canvas to this heading block (the outline navigates). */
   scrollToBlock?: { blockId: string; nonce: number } | null;
+  /** ADR-524 D1 — a projected block to swap in place, instead of re-parsing the
+   *  whole document. The nonce re-fires an identical patch.
+   *
+   *  `appliedFor` is the FULL artifact content this patch brings the live DOM
+   *  into agreement with. The canvas uses it to skip the re-projection that
+   *  would otherwise swap srcDoc for the same change one tick later — without
+   *  it the patch is pointless, since srcDoc is re-fed on every content change.
+   *  It is the patch's own claim about what it achieved, so a patch that fails
+   *  to send simply leaves the ordinary re-projection in charge. */
+  patch?: { blockId: string; html: string; nonce: number; appliedFor: string } | null;
   /** ADR-447: zoom the rendered document (a VIEW control — 1 = 100%). Never a
    *  file change; the artifact's real dimensions are untouched. */
   zoom?: number;
@@ -271,6 +281,7 @@ export function StudioCanvas({
   slashTake,
   slashInvoke,
   scrollToBlock,
+  patch,
   zoom = 1,
   stage = false,
   onScrollPos,
@@ -319,10 +330,27 @@ export function StudioCanvas({
   // returns a fresh object on every reload even when content is byte-identical,
   // which would needlessly reload the iframe and flash it blank).
   const content = file.content;
+  // ADR-524 D1 — the content a PATCH already applied to the live DOM. Re-
+  // projecting for it would swap srcDoc and re-parse the document, which is
+  // precisely the demolition the patch exists to avoid: the effect below would
+  // undo the optimization on the very next tick, because `content` changed.
+  //
+  // This is why the patch had to reach into the projection effect and not just
+  // add a message: `reload` was never the mechanism (applyOp has passed
+  // reload:false for a long time). srcDoc is re-fed on EVERY content change,
+  // including a plain text edit, so a patch that does not also suppress the
+  // re-projection buys nothing at all.
+  const patchedContentRef = useRef<string | null>(null);
+  if (patch && patch.appliedFor != null) patchedContentRef.current = patch.appliedFor;
   useEffect(() => {
     let cancelled = false;
     if (content == null) {
       setProjected(null);
+      return;
+    }
+    if (content === patchedContentRef.current) {
+      // The live DOM already shows this exact content — the patch put it there.
+      // Nothing to do; the next NON-patched change re-projects normally.
       return;
     }
     // ADR-446: `edit: true` stamps citation islands + injects the edit runtime
@@ -482,6 +510,22 @@ export function StudioCanvas({
     if (!win || !scrollToBlock) return;
     win.postMessage({ type: 'yarnnn-scroll-to-block', blockId: scrollToBlock.blockId }, '*');
   }, [scrollToBlock]);
+
+  // ADR-524 D1 — the patch channel. A block-local op sends its projected block
+  // here instead of swapping srcDoc, so the document is never re-parsed and the
+  // member's scroll/caret/selection/zoom survive untouched.
+  //
+  // `patch` carries a nonce like the other command props, so re-patching the
+  // same block with the same html still fires. The projection happens in the
+  // SURFACE (it is async and needs the artifact path); this only forwards.
+  useEffect(() => {
+    const win = iframeRef.current?.contentWindow;
+    if (!win || !patch) return;
+    win.postMessage(
+      { type: 'yarnnn-patch', blockId: patch.blockId, html: patch.html },
+      '*',
+    );
+  }, [patch]);
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {

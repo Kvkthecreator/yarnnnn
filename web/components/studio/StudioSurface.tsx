@@ -42,7 +42,7 @@ import { STRUCTURAL_PAGE_SEL } from './structureLabels';
 import { isColorValue, parseSkinVars } from './skinVars';
 import { OpenArtifactModal } from './OpenArtifactModal';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
-import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
+import { resolveArtifactHtml, projectBlock } from '@/components/workspace/viewers/projection';
 import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
 import { useSelfLocatedSurface, useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
@@ -866,6 +866,46 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // so the gallery can say it is thinking (the call is ~2-4s).
   const [planning, setPlanning] = useState(false);
 
+  // ── ADR-524 D1/D2 — the patch channel ────────────────────────────────────
+  // A block-local op sends its projected block to the runtime instead of
+  // swapping srcDoc. srcDoc is a WHOLE-DOCUMENT handoff: the browser discards
+  // the live document and rebuilds it, destroying scroll/caret/selection/zoom,
+  // which is why commandEdit exists to put all four back. A patch changes one
+  // element in place, so there is nothing to restore.
+  const [patch, setPatch] = useState<{
+    blockId: string;
+    html: string;
+    nonce: number;
+    /** The full artifact content this patch brings the live DOM in line with —
+     *  the canvas skips its re-projection for exactly this string. */
+    appliedFor: string;
+  } | null>(null);
+  const patchNonce = useRef(0);
+  // D2: patchability is decided by the OP and defaults to NO. A wrong patch
+  // leaves the canvas silently disagreeing with substrate; a redundant full
+  // swap only blinks. So this is an allowlist of ops proven block-local, and a
+  // new op is a full swap until someone deliberately adds it here.
+  const sendPatch = useCallback(
+    async (blockId: string, html: string) => {
+      if (!artifactPath) return false;
+      try {
+        const projected = await projectBlock(html, blockId, artifactPath);
+        if (!projected) return false; // block vanished / unaddressable → full swap
+        patchNonce.current += 1;
+        setPatch({
+          blockId,
+          html: projected,
+          nonce: patchNonce.current,
+          appliedFor: html,
+        });
+        return true;
+      } catch {
+        return false; // projection failed → the caller falls back to a reload
+      }
+    },
+    [artifactPath],
+  );
+
   // The shared write core: POST the computed html, advance the local CAS base
   // (content + head) so the NEXT write chains off it without a refetch. Returns
   // true on success. `reload` decides whether the iframe re-projects: STRUCTURAL
@@ -940,6 +980,11 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       compute: (liveHtml: string) => string | null,
       message: string,
       reload: boolean,
+      /** ADR-524 D2 — the block this op is local to, when it IS block-local.
+       *  Present = try the patch channel (no srcDoc swap, nothing to restore);
+       *  absent = the ordinary path. Ignored when `reload` is true: a
+       *  structural op is not patchable by definition. */
+      patchBlockId?: string | null,
     ): Promise<boolean> => {
       if (!artifactPath) return Promise.resolve(false);
       // ── STAGE 1 — OPTIMISTIC, this tick (ADR-466 P8): pixels never wait for
@@ -1003,6 +1048,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         headVersionId: cur?.headVersionId ?? live?.head ?? '',
       }));
       if (reload) setReloadKey((k) => k + 1);
+      // ADR-524 D1/D2 — a block-local op patches instead of re-parsing. Fire
+      // and forget: the projection is async, but the override above has ALREADY
+      // advanced, so if the patch never lands the canvas still converges on the
+      // next ordinary re-projection. A patch is an optimization over a correct
+      // path, never the thing correctness depends on.
+      if (!reload && patchBlockId) void sendPatch(patchBlockId, html);
 
       // ── STAGE 2 — DURABILITY, queued: one attributed CAS revision. ──
       const run = async (): Promise<boolean> => {
@@ -1079,7 +1130,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       writeTail.current = next.catch(() => false);
       return next;
     },
-    [artifactPath, loadedFile],
+    [artifactPath, loadedFile, sendPatch, trimHistory],
   );
 
   // ⌘Z — restore the previous state; ⌘⇧Z — re-apply the one just undone.
@@ -1689,10 +1740,18 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // INVISIBLE SAVE: the member already typed the result into the live iframe
       // DOM, so this durable revision lands WITHOUT reloading the canvas
       // (reload: false) — no blank flash, no caret jump, no scroll reset.
+      //
+      // ADR-524 D2: reload:false was never enough on its own. The canvas re-
+      // projects on every CONTENT change, so this "invisible" save still swapped
+      // srcDoc and re-parsed the document a tick later. Naming the block makes
+      // it patchable, which suppresses that re-projection. The runtime skips a
+      // patch aimed at the block being edited, so a live caret is never
+      // disturbed — the DOM there already shows what the member typed.
       void writeAndAdvance(
         (liveHtml) => editBlockText(liveHtml, blockId, newInner)?.html ?? null,
         `${app.label}: edit ${blockId} block`,
         false,
+        blockId,
       );
     },
     [file, writeAndAdvance],
@@ -2851,6 +2910,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 slashInvoke={slashInvoke}
                 scrollToSlide={scrollToSlide}
                 scrollToBlock={scrollToBlock}
+                patch={patch}
                 zoom={zoom}
                 // ADR-520 D1 — a deck edits on the STAGE (one slide shown);
                 // web stays a scroll (bands are a viewport medium, ADR-505).

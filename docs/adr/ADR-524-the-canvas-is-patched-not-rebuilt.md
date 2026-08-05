@@ -34,10 +34,24 @@ back (`yarnnn-edit-enter`, `yarnnn-select-block`, `yarnnn-zoom`, `yarnnn-restore
 That restore machinery is careful and it works. But it is **compensation for demolition** —
 and the demolition is the thing the member perceives as a refresh.
 
-ADR-523 D1 narrowed *when* this happens (a non-structural undo stops passing `reload=true`)
-and that was the right shape, but it was applied to exactly one caller. Every structural op
-— insert, delete, move, split, turn-into, re-arrange — still swaps `srcDoc`, and swapping
-`srcDoc` re-parses the entire document even when one paragraph changed.
+**The `reload` flag was never what caused this, and that correction is the finding.** Tracing
+it: `applyOp` already passes `reload: false` (a prior fix — the reload was worse than
+redundant, nulling the override and flashing the pre-edit content back), and ADR-523 D1 made
+undo conditional too. So the reload flag is *already* off for essentially every member op.
+Yet the canvas still rebuilds — because `StudioCanvas` re-projects on **`file.content`
+change**, unconditionally, and feeds the result to `srcDoc`:
+
+```
+content changes → resolveArtifactHtml(...) → setProjected(html) → srcDoc swap → full re-parse
+```
+
+`reloadKey` was only ever one of several ways to reach that line. **Every content change
+re-parses the document — including a plain text edit that passes `reload: false`.** The
+"invisible save" comment on the text path describes an intent the render path does not
+honour: the write is invisible, the *re-projection* is not.
+
+That is why narrowing the reload flag (ADR-523 D1) improved undo but did not remove the
+symptom the operator reports on ordinary edits. The flag was never the mechanism.
 
 **The fundamental correction is to stop replacing a document in order to change a block.**
 
