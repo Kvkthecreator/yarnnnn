@@ -1,5 +1,7 @@
 # ADR-480 — The editing grain: a document is one writing surface
 
+> **⚠️ Amended by [ADR-521](ADR-521-the-flow-benchmark-notions-scope-the-continuous-surfaces-mechanics.md) (2026-08-05)**: the flow runtime's Tab ruling ("deliberately NOT a list-indent gesture") is superseded — Tab in a list indents (⇧Tab outdents), the native `ul > li` nesting ADR-456 D2 sanctions; a keyboard entrance to a structural op has slash's legitimacy. The axiom, the grain, and every other ruling stand untouched.
+
 - **Status**: **Accepted** (2026-07-22, operator-ratified through the editing-grain
   discourse — *"we've pinned the assumption that, because it's attribution-native, we need
   block level for document type. However, is this really the right way?"* → the premise was

@@ -113,7 +113,16 @@ Legend: ✅ shipped · 🔜 declared (built when its phase lands, never by accid
 | verbs | ✅ ⌫ delete · ⌘C/⌘V/⌘D · Esc lifts caret→block | ✅ same, caret-guarded (the caret owns text keys — ADR-482 D2) | ✅ |
 | Esc-walk | ✅ editing → block → container → … → page → clear (the real ancestor chain, ADR-511 D3; no drill-down gesture — down is clicking the thing) | ✅ caret → block → clear | ✅ |
 | undo | ✅ ⌘Z/⇧⌘Z — snapshot stack in the pointer runtime (both modes) | ✅ | ✅ |
-| owed | arrows nudge/resize, ⌘]/[ z-order, Tab cycle (declared since ADR-477) | ⌘B/⌘I, Tab list indent | band reorder keys |
+| list indent | — (deck Tab is block-cycle territory, owed) | ✅ Tab/⇧Tab in a list nests/unnests (ADR-521 D4); Tab in prose = a literal tab; Tab never ends the session | — |
+| owed | arrows nudge/resize, ⌘]/[ z-order, Tab cycle (declared since ADR-477) | — | band reorder keys |
+
+### Inline format (the text tier follows the selection — ADR-521)
+
+| | deck | document | web |
+|---|---|---|---|
+| bar + ⌘B/⌘I | ✅ within the editing block (the enclosure grain caps the range) | ✅ follows the range, cross-block: per-block-intersection, deterministic toggle (any eligible part unformatted → apply everywhere), heading-aware (bold on a heading is a no-op, never an un-bold) | ✅ as deck |
+| paste | ✅ `text/html` behind the allowlist — allowed tags only, every attribute stripped (`href` survives, `javascript:` rejected), media dropped (media enters as cited figures, never pasted bytes), plain-text fallback; commit-time `sanitizeInner` is the second gate (ADR-446 D2) | ✅ same | ✅ same |
+| refused | 🚫 caret-state formatting pipeline (collapsed ⌘B stays browser-native) · 🚫 block-set selection mode on flow (the browser range IS the selection) | | |
 
 ### Insert (the route follows the medium — ADR-509)
 
@@ -212,6 +221,11 @@ the write seam, not enforced).
    means position on a stage, reorder in a flow, and nothing positional on a viewport.
 9. **Inert names are tolerated, never load-bearing** (ADR-511 D8) — singular LOGIC,
    tolerant DATA; attribute stripping happens per-element at an authored write only.
+10. **The flow benchmark is two-axis** (ADR-521) — scope is Notion-class (the vocabulary,
+    no pagination, no layout surface); mechanics are continuous-surface class (Google
+    Docs / Word): text-tier affordances follow the selection wherever it runs;
+    structure-tier affordances address the blocks the selection intersects. There is no
+    second selection mode.
 
 ## Standing refusals
 
@@ -222,7 +236,9 @@ forms · no JS carousels · no databases/linked views · no synced blocks (that 
 at block grain, later) · no second source format (markdown is a projection — ADR-456 D1)
 · no editing viewer-owned formats · no owned render engine (ADR-417) · no forked
 machinery per app (ADR-518 D2 — the split is housing; a second write path or a forked
-runtime is the refused shape). The standing drift test (ADR-440 §7, held by Docs and
+runtime is the refused shape) · no block-set selection mode on flow (ADR-521 — the
+browser range IS the selection; a second selection mode would rebuild the deleted
+editor). The standing drift test (ADR-440 §7, held by Docs and
 Studio alike): *does this force a definitional question about the app format, or is
 it just a better editor?*
 
@@ -249,8 +265,10 @@ shipped here only as they land.
 - ✅ **Breadcrumb at the selection** — shipped 2026-08-05: `SelectionBreadcrumb` over
   the canvas, paged media only (flow's chain is caret → block → clear); segments select
   through the navigator's existing paths (rule 7 — a new reach, not a new op).
-- Owed keyboard rows (arrows/nudge/Tab-cycle · ⌘B/⌘I on flow · band reorder keys).
+- Owed keyboard rows (arrows/nudge/Tab-cycle on deck · band reorder keys). ✅ ⌘B/⌘I on
+  flow + Tab list indent + `text/html` paste — shipped 2026-08-05 (ADR-521).
 - Carried follow-ons: h1-rename-in-place (needs dependent-rewriting on the ADR-448
   edge) · rename does not rewrite dependents (every mover's gap, not Studio's) ·
-  `text/html` paste (a security carve — allow-list sanitizer first) · measures deriving
-  their posture line · `applies` → `(scope, grain)`.
+  the pointer-runtime block-verb residue audit against ADR-521 D2's two tiers (deferred
+  around the concurrent ADR-520 lane) · measures deriving their posture line ·
+  `applies` → `(scope, grain)`.

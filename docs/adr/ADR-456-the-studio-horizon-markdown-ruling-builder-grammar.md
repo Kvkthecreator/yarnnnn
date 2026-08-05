@@ -1,5 +1,7 @@
 # ADR-456 — The Studio horizon: the markdown ruling, the Notion/builder gap carve, and the wave plan
 
+> **⚠️ Amended by [ADR-521](ADR-521-the-flow-benchmark-notions-scope-the-continuous-surfaces-mechanics.md) (2026-08-05)**: Wave 2's format-bar *mechanism* (the bare `execCommand` toggle + `surroundContents` wrap) is re-derived for the flow grain it predated by eight days — per-block-intersection segmentation, deterministic toggle, heading-aware; `text/html` paste ships behind the allowlist. The bar, slash-insert, and turn-into *affordances* stand exactly as ratified here.
+
 > **Status**: **Accepted** (2026-07-14, operator-ratified via the 2026-07-13→14 horizon discourse:
 > "aligned in full … as you propose on the sequencing let's proceed"). The umbrella ADR for the
 > Studio's next horizon across its three formats; **Wave 1 ships with this ADR**, later waves land

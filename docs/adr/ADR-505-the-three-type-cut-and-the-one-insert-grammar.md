@@ -2,6 +2,8 @@
 
 > **⚠️ Amended by [ADR-518](ADR-518-docs-and-studio-the-writing-app-and-the-layout-app.md) (2026-08-04)**: the three types gain their housing column — `document` → **Docs** (the writing app); `deck` · `web` → **Studio** (the layout app). The type SET, D2's read-time aliasing, and D3's mode/frame seam are untouched; D1's table simply stopped being one app's table.
 
+> **⚠️ Sharpened by [ADR-521](ADR-521-the-flow-benchmark-notions-scope-the-continuous-surfaces-mechanics.md) (2026-08-05)**: D1's medium-convention cell — "Notion, never Word" — binds **scope** (no pagination, no layout surface; its own parenthetical says so), never selection mechanics. The full benchmark is two-axis: Notion's scope, the continuous surface's (Google Docs / Word) mechanics — selection and formatting follow the range wherever it runs.
+
 - **Status**: **Accepted + Implemented** (2026-07-30, operator-ratified through the
   studio-audit discourse — *"i'm underestimating just how far the ramifications of these
   modes go… ironically, in that light, i actually think we need to simplify"*). Each
