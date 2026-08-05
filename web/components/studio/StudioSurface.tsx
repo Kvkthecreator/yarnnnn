@@ -1320,6 +1320,32 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       if (file?.content && a.slots.length > 0) {
         const blocks = blocksForPlan(file.content, anchor);
         if (blocks && blocks.length > 0) {
+          // The content BEFORE the preview touched anything. Both settle paths
+          // compute from this, never from live state: the preview has already
+          // advanced the override, so re-applying an arrangement on top of it
+          // would arrange an arranged page.
+          const preArrangeHtml = file.content;
+          // ── ADR-524 D4 — preview mechanically, settle to the judgment ─────
+          // ADR-466 P8 said pixels never wait for the network; the planner was
+          // the one gesture still doing so, because a judgment (not a write)
+          // sat in front of it. The member watched a spinner for 2-4s on a
+          // VISUAL operation while the surface already held enough to show
+          // them something: the mechanical ladder that is ALREADY this path's
+          // fallback. So run it now, as pure view state, and settle to the
+          // plan when it lands.
+          //
+          // The preview is NEVER written (ADR-209: no revision nobody
+          // authored, and one gesture must not produce two). It paints the
+          // override only; the write door is reached exactly once, below,
+          // with whichever result settles.
+          const previewed = applyArrangement(file.content, a.fragment, anchor, slotRoles);
+          if (previewed) {
+            setLocalOverride((cur) => ({
+              anchorHead: loadedFile?.head_version_id ?? null,
+              content: previewed.html,
+              headVersionId: cur?.headVersionId ?? liveRef.current?.head ?? '',
+            }));
+          }
           setPlanning(true);
           try {
             const { placements } = await api.studio.planArrangement({
@@ -1328,8 +1354,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               arrangement: a.slug,
             });
             if (placements) {
+              // Settle to the judgment. `applyOp` computes from LIVE state
+              // inside the write queue, and the preview advanced `liveRef` —
+              // so compute the plan from the PRE-preview content instead, or
+              // the arrangement would be applied twice.
               return await applyOp(
-                (html) => applyArrangementPlan(html, a.fragment, anchor, placements),
+                () => applyArrangementPlan(preArrangeHtml, a.fragment, anchor, placements),
                 `${app.label}: change arrangement to ${a.label}`,
               );
             }
@@ -1337,6 +1367,15 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
             /* the planner is unreachable — the mechanical ladder still works */
           } finally {
             setPlanning(false);
+          }
+          // No plan (refused / unreachable / exhausted balance): the preview IS
+          // the result — ADR-479's existing degraded path, now reached without
+          // the member having waited to discover it. Land it as the one write.
+          if (previewed) {
+            return await applyOp(
+              () => applyArrangement(preArrangeHtml, a.fragment, anchor, slotRoles),
+              `${app.label}: change arrangement to ${a.label}`,
+            );
           }
         }
       }

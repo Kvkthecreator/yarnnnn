@@ -281,7 +281,12 @@ export function StudioToolbar({
           onClick={() => setOpen(open === 'layout' ? null : 'layout')}
         >
           <LayoutTemplate className="h-3 w-3" />
-          {planning ? 'Re-arranging…' : 'Re-arrange'}
+          {/* ADR-524 D4: the page has ALREADY re-arranged mechanically by the
+              time this shows — the judgment is refining that placement, not
+              producing the first one. "Refining…" says which of the two the
+              member is looking at; "Re-arranging…" would imply nothing had
+              happened yet, which is now false. */}
+          {planning ? 'Refining…' : 'Re-arrange'}
         </button>
       )}
 
