@@ -540,8 +540,26 @@ function AppliedSystemCue({
   );
 }
 
-/** The structural verb row (Duplicate / Move up / Move down / Delete). */
-function VerbRow({ noun, onVerb }: { noun: string; onVerb: (v: StructVerb) => void }) {
+/** The structural verb row (Duplicate / Move up / Move down / Delete).
+ *
+ *  `reorder` gates the two MOVE verbs alone (ADR-525 follow-up, 2026-08-06). The
+ *  row was withdrawn wholesale on the text tier, which closed the pane-vs-menu
+ *  contradiction for prose and PRESERVED it for objects: a figure in a Docs
+ *  artifact still offered Move up/down here while `StudioBlockMenu` refused the
+ *  same verbs on the same block (it gates on `isPaged`, not on tier). Same fault
+ *  pattern, one tier over — the tier D3 declared "untouched" and did not examine.
+ *  Reordering is an ENCLOSURE act: it presumes a sequence of boxes. A figure on
+ *  flow is an object (it has a box) but it sits in continuous prose (there is no
+ *  sequence to step through), so the medium decides this, not the tier. */
+function VerbRow({
+  noun,
+  onVerb,
+  reorder = true,
+}: {
+  noun: string;
+  onVerb: (v: StructVerb) => void;
+  reorder?: boolean;
+}) {
   const btn =
     'inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground';
   return (
@@ -549,12 +567,21 @@ function VerbRow({ noun, onVerb }: { noun: string; onVerb: (v: StructVerb) => vo
       <button type="button" className={btn} onClick={() => onVerb('duplicate')}>
         <Copy className="h-3 w-3" /> Duplicate
       </button>
-      <button type="button" className={btn} onClick={() => onVerb('up')} title={`Move ${noun} up`}>
-        <ArrowUp className="h-3 w-3" /> Up
-      </button>
-      <button type="button" className={btn} onClick={() => onVerb('down')} title={`Move ${noun} down`}>
-        <ArrowDown className="h-3 w-3" /> Down
-      </button>
+      {reorder && (
+        <>
+          <button type="button" className={btn} onClick={() => onVerb('up')} title={`Move ${noun} up`}>
+            <ArrowUp className="h-3 w-3" /> Up
+          </button>
+          <button
+            type="button"
+            className={btn}
+            onClick={() => onVerb('down')}
+            title={`Move ${noun} down`}
+          >
+            <ArrowDown className="h-3 w-3" /> Down
+          </button>
+        </>
+      )}
       <button
         type="button"
         className={`${btn} hover:border-red-300 hover:text-red-600`}
@@ -1842,7 +1869,16 @@ export function StudioDesignTab({
             <p className={HEADING}>{selection?.label ?? selection?.blockKind ?? 'block'}</p>
             {pathRow}
             {!isTextTier && (
-              <VerbRow noun={selection?.label ?? 'block'} onVerb={onElementVerb} />
+              <VerbRow
+                noun={selection?.label ?? 'block'}
+                onVerb={onElementVerb}
+                // ADR-525 follow-up: on FLOW the move verbs are withheld even
+                // for objects — the menu already refused them there and the
+                // pane must say the same thing. `moveBlock` still reaches a
+                // flow block through ⌥↑/⌥↓ (the structure-tier keyboard door);
+                // what is refused here is the ENCLOSURE presentation of it.
+                reorder={mode !== 'flow'}
+              />
             )}
           </div>
           {/* Position (ADR-511 D4) — an explicit, visible, reversible state.

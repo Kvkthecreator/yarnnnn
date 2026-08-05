@@ -149,5 +149,30 @@ t(
   /isStaged && t\.applies\.includes\('block-staged'\)/.test(pane),
 );
 
+// ── 7. The follow-up (2026-08-06) — the OBJECT tier's half of the same law ─
+// D3 withdrew the whole verb row on the text tier and declared the object tier
+// "untouched" — which closed the pane-vs-menu contradiction for prose and
+// PRESERVED it for figures: the pane offered Move up/down on a figure in a Docs
+// artifact while StudioBlockMenu refused the same verbs on the same block (it
+// gates on isPaged, not on tier). Same fault pattern, one tier over.
+t(
+  'follow-up: VerbRow can withhold the MOVE verbs alone (not only the whole row)',
+  /reorder = true/.test(pane) && /\{reorder && \(/.test(pane),
+);
+t(
+  'follow-up: the block scope withholds move on FLOW (matching the menu)',
+  /reorder=\{mode !== 'flow'\}/.test(pane),
+);
+// FALSIFIER: an always-true reorder gate re-opens the contradiction.
+t(
+  'FALSIFIER: an ungated reorder prop would NOT match the flow test',
+  !/reorder=\{true\}/.test(pane),
+);
+// The menu's side of the same law, pinned so the two cannot drift apart again.
+t(
+  'follow-up: the menu still refuses move on flow (the rule the pane now matches)',
+  /hasBlock && isPaged/.test(menu),
+);
+
 console.log(`\nADR-525: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 1 - 1 : 1);

@@ -10,7 +10,7 @@ Notes, drafts, PRDs, meeting records — the internal working documents your wor
 
 Open Docs and you either pick up where you left off, or start a new document. You name it and choose where it lives — Docs doesn't own a folder; documents go where they make sense in your workspace, next to the rest of your work.
 
-You write at the caret, like any good editor. The outline on the left is a derived table of contents, not a structure you maintain. Type `/` anywhere to insert something richer than text:
+You write at the caret, like any good editor. The **outline** in the right-hand panel is a derived table of contents — your headings, read back to you in order. Click one to jump to it. It is not a structure you maintain: write a heading and it appears there. Type `/` anywhere to insert something richer than text:
 
 Text · Callout · Quote · Checklist · Divider · Toggle · Button · Table · Metrics · Chart · Figure · Gallery
 

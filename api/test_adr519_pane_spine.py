@@ -89,7 +89,12 @@ _check("container Content: the media picker survives the move (onInsertImageInSl
 # BLOCK: Identity → Position → Layout → Style (Typography → Colour → cue) →
 # Content (Turn into).
 ordered(block_r, "block scope spine: Identity → Position → Layout → Style → Content",
-        "VerbRow noun={selection?.label ?? 'block'} onVerb={onElementVerb}",
+        # The Identity anchor is the VerbRow's MOUNT, not its argument spelling:
+        # the props went multi-line when `reorder` landed (ADR-525 follow-up,
+        # 2026-08-06) and a one-line pin failed on a row that still renders.
+        # Pin what the assertion is ABOUT (Identity precedes Position), never a
+        # formatting accident — the "don't pin a spelling" discipline.
+        "<VerbRow",
         ">Position</p>",
         ">Layout</p>",
         'label="Typography"',
