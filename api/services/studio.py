@@ -670,6 +670,15 @@ APPLIES_TARGETS: dict[str, str] = {
     "block-callout": "a callout block",
     "media": "a media block (figure/chart/gallery)",
     "block-staged": "a block on a staged frame (a deck slide or a canvas artboard)",
+    # ADR-525 D4 — the term the vocabulary was missing. It had `document-flow`
+    # and `block-staged` but nothing for "a flow block", so a token could not
+    # say which MEDIUM it belonged to at the block grain, and `size`/`align`
+    # were declared on the widest grain ("block") while meaning the narrow one.
+    # The FE's pane composes by tier (D3); this is the same fact in the registry,
+    # which matters because the LANE reads this grammar too (R4, one grammar for
+    # both hands) — without it the AI hand keeps being told a paragraph has a
+    # width. Declared for completeness of the vocabulary; see `size`/`align`.
+    "block-flow": "a block in a flowing document (never a staged frame)",
     "page": "any page/slide element",
     "page-deck": "a deck slide",
     "page-multicol": "a page whose arrangement has 2+ flow slots",
@@ -689,18 +698,29 @@ STUDIO_TOKENS: dict[str, dict] = {
     # value the kernel cannot pre-declare a selector for, and is D3's bounded
     # exception (deck + media only), not this row's business.
     # Absence = the flow's natural width — the pad/valign/fit convention.
+    # ADR-525 D4 — re-keyed from the widest grain ("block") to what it always
+    # MEANT. The description below has said so in its own words since the token
+    # shipped ("absence = the flow's natural width"): this is a box's width, and
+    # on flow a text block has no box. Now: a block on a staged frame, or a
+    # media object anywhere (a figure on flow IS a box and keeps the row).
+    # The measure half of this registry was narrowed correctly long ago
+    # (x/y/w/h are all `block-staged`); the token half was missed, which is why
+    # a Docs paragraph rendered WIDTH: Auto | Hug | Fill.
     "size": {
         "label": "Width",
-        "applies": ["block"],
+        "applies": ["block-staged", "media"],
         "values": [
             {"value": "hug", "label": "Hug"},
             {"value": "fill", "label": "Fill"},
         ],
         "description": "how wide the block sits (absence = the flow's own width)",
     },
+    # ADR-525 D4 — re-keyed with `size`, same reasoning: alignment "within the
+    # block's region" presupposes a region, which a paragraph in a continuous
+    # surface does not have (its region is the measure, set at document scope).
     "align": {
         "label": "Align",
-        "applies": ["block"],
+        "applies": ["block-staged", "media"],
         # `start` is GONE (ADR-461 B1, 2026-07-15): it was declared here but no
         # `[data-align="start"]` rule ever existed in the kernel, so picking
         # "Left" wrote an attribute that rendered nothing — two UI states, one

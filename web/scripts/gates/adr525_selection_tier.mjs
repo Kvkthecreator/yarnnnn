@@ -1,0 +1,153 @@
+// Executing check of ADR-525 — the selection carries its tier.
+//
+// The claim under test: ONE declaration (the runtime's `tierOf`) is read by
+// every surface, so the pane, the menu and the keyboard cannot answer one block
+// three ways. This gate executes the REAL bodies (extracted from source, never
+// re-typed) and carries a falsifier per claim — a gate that cannot fail is not
+// a gate.
+//
+// Run from the REPO ROOT: node web/scripts/gates/adr525_selection_tier.mjs
+import { readFileSync } from 'fs';
+
+const proj = readFileSync('web/components/workspace/viewers/projection.ts', 'utf8');
+const pane = readFileSync('web/components/studio/StudioDesignTab.tsx', 'utf8');
+const menu = readFileSync('web/components/studio/StudioBlockMenu.tsx', 'utf8');
+const studio = readFileSync('api/services/studio.py', 'utf8');
+
+let pass = 0,
+  fail = 0;
+const t = (label, cond) => {
+  console.log((cond ? '[PASS] ' : '[FAIL] ') + label);
+  cond ? pass++ : fail++;
+};
+
+// ── 1. D1 — the tier derivation, executed ──────────────────────────────────
+const tierIdx = proj.indexOf('function tierOf(el) {');
+if (tierIdx === -1) {
+  console.error('[FAIL] tierOf() not found — ADR-525 D1 is not implemented');
+  process.exit(1);
+}
+const tierBody = proj.slice(proj.indexOf('{', tierIdx) + 1, proj.indexOf('\n  }', tierIdx));
+const TEXT_KINDS = ['prose', 'callout', 'quote', 'checklist', 'toggle', 'heading'];
+
+function tierOf(flow, blockKind) {
+  const el = { getAttribute: (k) => (k === 'data-block' ? blockKind : null) };
+  const win = { __yarnnnFlowMode: () => flow };
+  return new Function('window', 'TEXT_KINDS', 'el', `${tierBody}`)(win, TEXT_KINDS, el);
+}
+
+// On FLOW, prose is text — the caret speaks for it.
+t("D1: prose on flow  → 'text'", tierOf(true, 'prose') === 'text');
+t("D1: heading on flow → 'text'", tierOf(true, 'heading') === 'text');
+t("D1: callout on flow → 'text'", tierOf(true, 'callout') === 'text');
+// Objects are objects in BOTH media — nothing else can speak for them.
+t("D1: figure on flow  → 'object'", tierOf(true, 'figure') === 'object');
+t("D1: table on flow   → 'object'", tierOf(true, 'table') === 'object');
+t("D1: divider on flow → 'object'", tierOf(true, 'divider') === 'object');
+// On PAGED every block is an enclosure (ADR-480 D1) — prose included.
+t("D1: prose on paged   → 'object' (the enclosure grain)", tierOf(false, 'prose') === 'object');
+t("D1: heading on paged → 'object'", tierOf(false, 'heading') === 'object');
+// No data-block at all = a container/page.
+t("D1: a container → 'structure'", tierOf(true, null) === 'structure');
+t("D1: a page on paged → 'structure'", tierOf(false, null) === 'structure');
+
+// FALSIFIER: drop the medium term; prose on flow would read as an object and
+// the whole ADR collapses back to the medium-blind shape it replaced.
+const noMedium = tierBody.replace(
+  /var flow = window\.__yarnnnFlowMode \? window\.__yarnnnFlowMode\(\) : false;/,
+  'var flow = false;',
+);
+const falsified1 = (() => {
+  const el = { getAttribute: (k) => (k === 'data-block' ? 'prose' : null) };
+  return new Function('window', 'TEXT_KINDS', 'el', noMedium)(
+    { __yarnnnFlowMode: () => true },
+    TEXT_KINDS,
+    el,
+  );
+})();
+t("FALSIFIER: without the medium term prose on flow reads 'object'", falsified1 === 'object');
+
+// ── 2. D1 — the tier is STAMPED on every payload a consumer reads ──────────
+// A declaration nothing carries is not a declaration. Count the point emitters
+// and assert each one stamps a tier.
+const pointEmitters = [...proj.matchAll(/type: 'yarnnn-point',/g)].length;
+const tierStamps = [...proj.matchAll(/tier: /g)].length;
+t(
+  `D1: every yarnnn-point emitter stamps a tier (${pointEmitters} emitters, ${tierStamps} stamps)`,
+  tierStamps >= pointEmitters,
+);
+// Scoped to the payload literal itself (from the type key to its closing
+// `}, '*')`) rather than a fixed character window — a comment or a new field
+// must not be able to push the stamp out of range and report a false failure.
+const ctxStart = proj.indexOf("type: 'yarnnn-context-menu',");
+const ctxPayload = ctxStart === -1 ? '' : proj.slice(ctxStart, proj.indexOf("}, '*');", ctxStart));
+t(
+  'D1: the context-menu payload carries the tier too (D5 reads it)',
+  /\btier: /.test(ctxPayload),
+);
+
+// ── 3. D1 — ONE kind list, shared. Never two copies. ──────────────────────
+t(
+  'D1: TEXT_BLOCK_KINDS is exported for the FE fallback',
+  /export const TEXT_BLOCK_KINDS/.test(proj),
+);
+t(
+  'D1: the runtime derives its injected list FROM that export (no second copy)',
+  /const TEXT_KINDS_JS = JSON\.stringify\(TEXT_BLOCK_KINDS\)/.test(proj),
+);
+t(
+  'D1: the pane imports the shared list rather than re-enumerating it',
+  /import \{ TEXT_BLOCK_KINDS \}/.test(pane) &&
+    !/'prose',\s*'callout',\s*'quote'/.test(pane),
+);
+
+// ── 4. D3 — the pane composes by tier ─────────────────────────────────────
+t('D3: the pane derives isTextTier from the declaration', /const isTextTier =/.test(pane));
+t(
+  'D3: the pane READS selection.tier (never re-derives the rule)',
+  /selection\.tier \?\?/.test(pane),
+);
+t(
+  'D3: the verb row is withheld on the text tier',
+  /\{!isTextTier && \(\s*<VerbRow/.test(pane),
+);
+t(
+  'D3: the Layout section is withheld on the text tier',
+  /\{!isTextTier && \(nonColorTokens\.length > 0/.test(pane),
+);
+// The tiers that must be UNTOUCHED — Studio's pane is byte-identical (D3).
+t(
+  'D3: Typography survives (turn-into by another door, ADR-487 D3)',
+  /label="Typography"/.test(pane),
+);
+t('D3: Turn into survives (structure tier, ADR-521 D2)', /Turn into/.test(pane));
+
+// ── 5. D5 — the menu reads the SAME field ────────────────────────────────
+t('D5: the menu derives its tier from the target', /const isTextTier = target\.tier === 'text'/.test(menu));
+t(
+  'D5: Duplicate/Delete are withheld on the text tier',
+  /\{!isTextTier && \([\s\S]{0,400}?Duplicate[\s\S]{0,300}?Delete/.test(menu),
+);
+// The pane-vs-menu contradiction this ADR closes: BOTH now gate on one field.
+t(
+  'D5: the pane and the menu gate on the same declared field',
+  /isTextTier/.test(pane) && /isTextTier/.test(menu),
+);
+
+// ── 6. D4 — the registry gained the term and re-keyed the two tokens ──────
+t('D4: block-flow enters the applies vocabulary', /"block-flow":/.test(studio));
+t(
+  'D4: `size` no longer claims the widest grain',
+  /"size": \{\s*"label": "Width",\s*"applies": \["block-staged", "media"\]/.test(studio),
+);
+t(
+  'D4: `align` no longer claims the widest grain',
+  /"align": \{\s*"label": "Align",\s*"applies": \["block-staged", "media"\]/.test(studio),
+);
+t(
+  'D4: the pane gates TOKENS on block-staged (not only measures)',
+  /isStaged && t\.applies\.includes\('block-staged'\)/.test(pane),
+);
+
+console.log(`\nADR-525: ${pass} passed, ${fail} failed`);
+process.exit(fail === 0 ? 1 - 1 : 1);

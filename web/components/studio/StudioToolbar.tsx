@@ -107,6 +107,19 @@ export interface StudioSelection {
    *  from here to the next heading. Null on paged media. */
   headingId?: string | null;
   headingText?: string | null;
+  /** ADR-525 D1 — what KIND of thing this selection is, declared by the
+   *  projection runtime (the one party that sees both the DOM and the medium).
+   *
+   *    text      — prose on flow. The caret speaks for it: no box, no unit
+   *                verbs, no geometry. Still addressable (ADR-480).
+   *    object    — a figure/table/chart/divider anywhere, and EVERY block on a
+   *                paged medium (ADR-480 D1: there the block is an enclosure).
+   *    structure — a container or page.
+   *
+   *  Read it; never re-derive it. Three surfaces derived their own answer and
+   *  disagreed — the pane offered Move up/down on a Docs paragraph while the
+   *  right-click menu refused it on the same block. */
+  tier?: 'text' | 'object' | 'structure' | null;
 }
 
 /** ADR-466 D5 — the galleries forewarn instead of post-failing: a slotless

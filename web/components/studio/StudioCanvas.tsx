@@ -46,6 +46,10 @@ export interface StudioContextTarget {
   /** ADR-471 D-d: both x/y markers present — the positioned state. Gates the
    *  z verbs (Bring forward/backward order POSITIONED blocks). */
   positioned: boolean;
+  /** ADR-525 D1 — the selection's tier, declared by the runtime. Gates the
+   *  ENCLOSURE verbs (Duplicate/Delete) the same way `framed` gates geometry:
+   *  the runtime is the only side that can see both the DOM and the medium. */
+  tier?: 'text' | 'object' | 'structure' | null;
 }
 
 export interface PointerEvent2 {
@@ -74,6 +78,12 @@ export interface PointerEvent2 {
    *  heading IS what "this section" resolves to: from here to the next one. */
   headingId?: string | null;
   headingText?: string | null;
+  /** ADR-525 D1 — the selection's TIER, declared by the runtime (the one party
+   *  that sees both the DOM and the medium): `text` on flow prose (the caret
+   *  speaks for it), `object` for a figure/table/chart anywhere and for EVERY
+   *  block on a paged medium, `structure` for a container/page. Read it; the
+   *  pane and the menu both gate on this one field so they cannot disagree. */
+  tier?: 'text' | 'object' | 'structure' | null;
 }
 
 interface StudioCanvasProps {
@@ -554,6 +564,11 @@ export function StudioCanvas({
           // ADR-522 D4 — the enclosing heading on flow ("this section").
           headingId: typeof d.headingId === 'string' ? d.headingId : null,
           headingText: typeof d.headingText === 'string' ? d.headingText : null,
+          // ADR-525 D1 — the selection's tier, as the runtime declared it.
+          tier:
+            d.tier === 'text' || d.tier === 'object' || d.tier === 'structure'
+              ? d.tier
+              : null,
         });
       } else if (d.type === 'yarnnn-point-clear') {
         onPointClear?.();

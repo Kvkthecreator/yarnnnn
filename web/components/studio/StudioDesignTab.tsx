@@ -71,6 +71,10 @@ import { labelForElement, STRUCTURAL_PAGE_SEL } from './structureLabels';
 // alone now — the system-as-object register. Importing it here again would
 // re-create the deleted artifact-side list, so the ADR-455 gate forbids it.
 import { resolveSkinVar, skinVarMap } from './skinVars';
+// ADR-525 D1 — the ONE text-kind list, shared with the projection runtime that
+// declares the tier. Imported rather than re-enumerated so the pane's fallback
+// cannot drift from the runtime's rule.
+import { TEXT_BLOCK_KINDS } from '../workspace/viewers/projection';
 
 export type StructVerb = 'duplicate' | 'up' | 'down' | 'delete';
 
@@ -858,6 +862,28 @@ export function StudioDesignTab({
   const mode = vocabulary?.layouts.find((l) => l.slug === layout)?.mode ?? 'flow';
   const pageNoun = mode === 'paged' && layout === 'deck' ? 'slide' : 'section';
 
+  /** ADR-525 D3 — the TEXT tier: prose on a continuous writing surface.
+   *
+   *  The pane used to compose block scope from `applies` + kind alone, with no
+   *  medium term anywhere (one `mode` branch existed in this whole file, and it
+   *  was document scope). So a Docs paragraph rendered the full enclosure
+   *  grammar — Duplicate/Up/Down/Delete, Width Hug|Fill, Align — which is
+   *  exactly what ADR-521 D1 and STUDIO.md rule 10 mean by "no layout surface".
+   *
+   *  Read from the runtime's declaration, never re-derived (D1). The fallback
+   *  covers only the frame before a tier-stamped payload arrives (an older
+   *  projection still live in the iframe). It reads the SAME exported kind list
+   *  the runtime derives from — not a second copy of the rule — so an added
+   *  block kind cannot make the two disagree. */
+  const isTextTier = selection
+    ? (selection.tier ??
+        (mode === 'flow' &&
+        selection.blockKind &&
+        (TEXT_BLOCK_KINDS as readonly string[]).includes(selection.blockKind)
+          ? 'text'
+          : 'object')) === 'text'
+    : false;
+
   // ADR-485 follow-on — the SIZE measures a block can carry (w/h), and which of
   // them apply at this scope (ADR-461 D4 `applies`: block-staged = a block on a
   // fixed frame; media = a media block anywhere). This is the read-back the
@@ -966,9 +992,15 @@ export function StudioDesignTab({
       // ADR-487 D2: kind-gated grain (the `media` precedent) — the callout's
       // semantic register applies to callouts alone.
       const isCallout = selection?.blockKind === 'callout';
+      // ADR-525 D4 — `block-staged` now gates TOKENS, not only measures. The
+      // measure half read this grain correctly from the start (sizeMeasures);
+      // the token half never did, so a token declaring the narrow grain would
+      // have rendered everywhere. Same `.slide` ancestry test, one meaning.
+      const isStaged = !!selectedEl?.closest('.slide');
       return tokens.filter(
         (t) =>
           t.applies.includes('block') ||
+          (isStaged && t.applies.includes('block-staged')) ||
           (isMedia && t.applies.includes('media')) ||
           (isCallout && t.applies.includes('block-callout')),
       );
@@ -1795,11 +1827,23 @@ export function StudioDesignTab({
           implementation behind three entrances). */}
       {scope === 'block' && (
         <>
-          {/* Identity — the operator-word kind + the ancestor path + verbs. */}
+          {/* Identity — the operator-word kind + the ancestor path + verbs.
+
+              ADR-525 D3: the VERB ROW is withdrawn on the text tier. Duplicate/
+              Up/Down/Delete are ENCLOSURE verbs, and on flow the block is an
+              annotation, not an enclosure (ADR-480). Up/Down are the two the
+              right-click menu ALREADY refuses on flow (StudioBlockMenu: "on
+              flow the member edits one continuous surface") — the pane offered
+              them anyway, so one op had two contradictory answers on one block.
+              Delete/Duplicate are what ADR-521 D6 retired from the keyboard for
+              the same reason. Withdrawing the row whole is what makes the pane
+              and the menu agree, because both now read one field. */}
           <div className={SECTION}>
             <p className={HEADING}>{selection?.label ?? selection?.blockKind ?? 'block'}</p>
             {pathRow}
-            <VerbRow noun={selection?.label ?? 'block'} onVerb={onElementVerb} />
+            {!isTextTier && (
+              <VerbRow noun={selection?.label ?? 'block'} onVerb={onElementVerb} />
+            )}
           </div>
           {/* Position (ADR-511 D4) — an explicit, visible, reversible state.
               Flow is the default; dragging is what enters the positioned
@@ -1859,8 +1903,16 @@ export function StudioDesignTab({
               height/fit) + the W/H size readback (ADR-485 follow-on), one
               section per the spine. Palette-backed tokens are NOT here — they
               live in Style, and `nonColorTokens` is their complement, so
-              every token still renders exactly once. */}
-          {(nonColorTokens.length > 0 || sizeMeasures.length > 0) && (
+              every token still renders exactly once.
+
+              ADR-525 D3: withheld on the TEXT tier. Width Hug|Fill is a
+              CONTAINER row (ADR-516 D4) and flow has no containers by
+              derivation (ADR-481 D1); a paragraph in a continuous surface has
+              no box to size or align. This is STUDIO.md rule 10's "no layout
+              surface" — stated four times in canon, never true at the surface
+              until now. Objects on flow (a figure) keep the section: they ARE
+              boxes, and D4 re-keys the two tokens that were mis-declared. */}
+          {!isTextTier && (nonColorTokens.length > 0 || sizeMeasures.length > 0) && (
             <div className={SECTION}>
               <p className={HEADING}>Layout</p>
               {nonColorTokens.map((t) => (

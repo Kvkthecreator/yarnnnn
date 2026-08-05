@@ -43,43 +43,101 @@ function mkEl(tag, blockKind, classes = []) {
   return el;
 }
 
-// ── 1. THE CUE SCOPE — execute the real flow branch ────────────────────────
-// Extracted verbatim so a future edit to the guard is caught here.
-const i = src.indexOf('if (flowMode) {');
-const flowBranch = src.slice(src.indexOf('{', i) + 1, src.indexOf('parent.postMessage(payload', i));
+// ── 1. THE CUE SCOPE — execute the real CHOKEPOINT ─────────────────────────
+// ADR-525 D2 re-pointed this section. It used to execute the left-click flow
+// branch, which is where ADR-484 put its guard — and that is exactly why the
+// defect came back: the guard lived at the CALL SITES, so `__yarnnnSelect`
+// (reached by the parent re-command, the backspace-merge, the Esc-from-edit and
+// the Esc-walk) boxed prose while this gate stayed green at 14/14. A gate over
+// two of six routes is a gate over the wrong extent.
+//
+// Now: execute the one function that may draw a box, and separately ASSERT that
+// it is the only one (§1b). Enumerate + completeness-assert + falsify.
+const sel = src.indexOf('window.__yarnnnSelect = function (el) {');
+const selBody = src.slice(src.indexOf('{', sel + 30) + 1, src.indexOf('\n  };', sel));
+
+const tierIdx = src.indexOf('function tierOf(el) {');
+const tierBody = src.slice(src.indexOf('{', tierIdx) + 1, src.indexOf('\n  }', tierIdx));
 
 const TEXT_KINDS = ['prose', 'callout', 'quote', 'checklist', 'toggle', 'heading'];
 
-function clickFlow(blockKind) {
-  const blk = mkEl('div', blockKind);
-  const fn = new Function('cur', 'blk', 'TEXT_KINDS', flowBranch + '; return blk;');
-  fn(null, blk, TEXT_KINDS);
-  return blk.classList.contains('yarnnn-pointed');
+/** Execute the real __yarnnnSelect + the real tierOf, in the given medium. */
+function selectIn(flow, blockKind) {
+  const el = mkEl('div', blockKind);
+  const win = { __yarnnnFlowMode: () => flow };
+  const fn = new Function(
+    'window',
+    'TEXT_KINDS',
+    'el',
+    'cur',
+    'clearGroup',
+    `function tierOf(el) {${tierBody}}
+     var __sel = function (el) {${selBody}};
+     __sel(el); return el;`,
+  );
+  fn(win, TEXT_KINDS, el, null, () => {});
+  return el.classList.contains('yarnnn-pointed');
 }
 
 // The regression: prose must NOT be boxed. This is the operator's report.
-t('cue: clicking PROSE draws no outline (the regression)', clickFlow('prose') === false);
-t('cue: clicking a HEADING draws no outline', clickFlow('heading') === false);
-t('cue: clicking a QUOTE draws no outline', clickFlow('quote') === false);
-t('cue: clicking a CHECKLIST draws no outline', clickFlow('checklist') === false);
+t('cue: clicking PROSE draws no outline (the regression)', selectIn(true, 'prose') === false);
+t('cue: clicking a HEADING draws no outline', selectIn(true, 'heading') === false);
+t('cue: clicking a QUOTE draws no outline', selectIn(true, 'quote') === false);
+t('cue: clicking a CHECKLIST draws no outline', selectIn(true, 'checklist') === false);
 
 // Objects keep it — there is no caret to stand in for the cue.
-t('cue: a FIGURE is still selected visibly', clickFlow('figure') === true);
-t('cue: a TABLE is still selected visibly', clickFlow('table') === true);
-t('cue: a CHART is still selected visibly', clickFlow('chart') === true);
-t('cue: a DIVIDER is still selected visibly', clickFlow('divider') === true);
+t('cue: a FIGURE is still selected visibly', selectIn(true, 'figure') === true);
+t('cue: a TABLE is still selected visibly', selectIn(true, 'table') === true);
+t('cue: a CHART is still selected visibly', selectIn(true, 'chart') === true);
+t('cue: a DIVIDER is still selected visibly', selectIn(true, 'divider') === true);
 
-// FALSIFIER: restore ADR-482 D2's unconditional apply; prose boxes again.
-const preFix = flowBranch.replace(
-  /if \(cur && TEXT_KINDS\.indexOf\(cur\.getAttribute\('data-block'\)\) === -1\) \{\s*cur\.classList\.add\('yarnnn-pointed'\);\s*\}/,
-  "if (cur) cur.classList.add('yarnnn-pointed');",
+// ADR-525 D1 — on PAGED every block is an enclosure (ADR-480 D1), prose too.
+t('cue: PROSE on a PAGED medium still boxes (the enclosure grain)', selectIn(false, 'prose') === true);
+t('cue: a HEADING on PAGED still boxes', selectIn(false, 'heading') === true);
+
+// FALSIFIER: restore the unconditional apply; prose boxes again on flow.
+const preFix = selBody.replace(
+  /if \(tierOf\(el\) !== 'text'\) el\.classList\.add\('yarnnn-pointed'\);/,
+  "el.classList.add('yarnnn-pointed');",
 );
 const falsified = (() => {
-  const blk = mkEl('div', 'prose');
-  new Function('cur', 'blk', 'TEXT_KINDS', preFix)(null, blk, TEXT_KINDS);
-  return blk.classList.contains('yarnnn-pointed');
+  const el = mkEl('div', 'prose');
+  const win = { __yarnnnFlowMode: () => true };
+  new Function(
+    'window',
+    'TEXT_KINDS',
+    'el',
+    'cur',
+    'clearGroup',
+    `function tierOf(el) {${tierBody}}
+     var __sel = function (el) {${preFix}};
+     __sel(el);`,
+  )(win, TEXT_KINDS, el, null, () => {});
+  return el.classList.contains('yarnnn-pointed');
 })();
 t('FALSIFIER: the pre-fix unconditional apply DOES box prose', falsified === true);
+
+// ── 1b. COMPLETENESS (ADR-525 D2) — the chokepoint is the ONLY box site ────
+// The invariant this gate exists to defend is per-site, and a per-site
+// invariant cannot be defended by executing one site. Enumerate every place
+// that paints the class and assert exactly one survives, inside the function.
+const addSites = [...src.matchAll(/classList\.add\('yarnnn-pointed'\)/g)].map((m) => m.index);
+const selStart = src.indexOf('window.__yarnnnSelect = function (el) {');
+const selEnd = src.indexOf('\n  };', selStart);
+const outside = addSites.filter((idx) => idx < selStart || idx > selEnd);
+t(
+  `completeness: exactly ONE site paints the cue (found ${addSites.length})`,
+  addSites.length === 1,
+);
+t(
+  `completeness: no box site outside __yarnnnSelect (found ${outside.length})`,
+  outside.length === 0,
+);
+// FALSIFIER for the completeness assertion itself — a gate that cannot fail is
+// not a gate. Injecting a second site must trip it.
+const withLeak = src.slice(0, selStart) + "el.classList.add('yarnnn-pointed');\n  " + src.slice(selStart);
+const leakSites = [...withLeak.matchAll(/classList\.add\('yarnnn-pointed'\)/g)];
+t('FALSIFIER: an injected second box site IS detected', leakSites.length === 2);
 
 // ── 2. THE LEAK — execute the real readSourceInner sanitizer ───────────────
 const rsi = src.indexOf('function readSourceInner(el)');

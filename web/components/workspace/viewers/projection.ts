@@ -254,7 +254,18 @@ const POINTABLE =
 // (figure/gallery/table/metrics/chart) stay select-only. Kept in sync with the
 // StudioDesignTab TURN_INTO_KINDS + the heading anchor kind. (Declared before
 // POINTER_CSS, which derives the cursor:text rule from it.)
-const TEXT_KINDS_JS = JSON.stringify(['prose', 'callout', 'quote', 'checklist', 'toggle', 'heading']);
+// ADR-525 D1: exported so the FE's tier fallback reads the SAME list the
+// runtime derives from, rather than re-enumerating it (a second copy would
+// drift the moment a kind is added — the re-derivation this ADR exists to end).
+export const TEXT_BLOCK_KINDS = [
+  'prose',
+  'callout',
+  'quote',
+  'checklist',
+  'toggle',
+  'heading',
+] as const;
+const TEXT_KINDS_JS = JSON.stringify(TEXT_BLOCK_KINDS);
 
 // ── ADR-481 D2/D3: the FLOW pointer chrome ────────────────────────────────
 //
@@ -488,6 +499,27 @@ const POINTER_SCRIPT = `
   ${labelForJS('labelFor')}
   var cur = null;
 
+  // ADR-525 D1 — the selection's TIER, declared by the one party that can see
+  // both the DOM and the medium. Every consumer READS this; none re-derives it.
+  //
+  //   text      — prose on a continuous surface. The caret speaks for it, so it
+  //               gets no box, no unit verbs, no geometry.
+  //   object    — a figure/table/chart/divider anywhere, AND every block on a
+  //               paged medium (ADR-480 D1: there the block IS an enclosure).
+  //               Nothing else can speak for it, so it earns the box.
+  //   structure — a container or a page: its own frame speaks for it.
+  //
+  // This mints NO new judgment — it is the rule the cue already applied at five
+  // scattered sites (ADR-484 + ADR-521 D6), moved to the payload so the pane,
+  // the menu and the keyboard cannot disagree about one block.
+  function tierOf(el) {
+    if (!el || !el.getAttribute) return null;
+    var kind = el.getAttribute('data-block');
+    if (!kind) return 'structure';
+    var flow = window.__yarnnnFlowMode ? window.__yarnnnFlowMode() : false;
+    return flow && TEXT_KINDS.indexOf(kind) !== -1 ? 'text' : 'object';
+  }
+
   function slideIndexOf(el) {
     var slide = el && el.closest ? el.closest('section.slide') : null;
     if (!slide) return null;
@@ -614,6 +646,9 @@ const POINTER_SCRIPT = `
         pageIndex: pageIndexOf(el),
         slot: slotEl ? (slotEl.getAttribute('data-slot') || null) : null,
         arrange: arrangeOf(el),
+        // ADR-525 D1 — the tier travels WITH the selection, so the pane, the
+        // menu and the keyboard read one answer instead of deriving three.
+        tier: tierOf(blk || el),
       };
       // ADR-522 D4: the enclosing "section" on flow — the nearest heading at
       // or above this block. Null on a paged medium (a slide is the unit
@@ -649,24 +684,14 @@ const POINTER_SCRIPT = `
       // handler consumes the click that starts a multi-block range.
       var flowMode = window.__yarnnnFlowMode ? window.__yarnnnFlowMode() : false;
       if (flowMode) {
-        if (cur) cur.classList.remove('yarnnn-pointed');
-        cur = blk || null;
-        // ADR-484: the selection cue is applied to OBJECTS ONLY on flow.
-        //
-        // ADR-482 D2 saw a real asymmetry (right-click outlined, left-click did
-        // not) and resolved it the wrong direction on prose: it made left-click
-        // match right-click, when on a continuous writing surface NEITHER
-        // should box a paragraph. Clicking into prose places a caret — the
-        // caret IS the feedback, and a rule around the paragraph re-asserts the
-        // per-block enclosure ADR-480 dissolved. FLOW_POINTER_CSS already drew
-        // this line for the hover cue (object kinds only); the selection cue
-        // now honours the same boundary.
-        //
-        // An OBJECT (figure/table/chart/gallery/divider) is still selected as a
-        // unit — there is no caret to stand in for the cue, so it keeps it.
-        if (cur && TEXT_KINDS.indexOf(cur.getAttribute('data-block')) === -1) {
-          cur.classList.add('yarnnn-pointed');
-        }
+        // ADR-525 D2: the cue decision moved to __yarnnnSelect (the one place
+        // that may draw a box). ADR-484's reasoning is unchanged and now lives
+        // there: on a continuous writing surface, clicking into prose places a
+        // caret and the caret IS the feedback; a rule around the paragraph
+        // re-asserts the enclosure ADR-480 dissolved. An OBJECT keeps the cue —
+        // nothing else can speak for it. This branch simply selects and posts.
+        if (blk) window.__yarnnnSelect(blk);
+        else { if (cur) cur.classList.remove('yarnnn-pointed'); cur = null; }
         parent.postMessage(payload, '*');
         return;
       }
@@ -706,6 +731,7 @@ const POINTER_SCRIPT = `
           pageIndex: pageIndexOf(hit),
           slot: hitSlot ? (hitSlot.getAttribute('data-slot') || null) : null,
           arrange: arrangeOf(hit),
+          tier: tierOf(hit), // ADR-525 D1 — a container/page is 'structure'.
         };
       }
     }
@@ -715,9 +741,11 @@ const POINTER_SCRIPT = `
       parent.postMessage({ type: 'yarnnn-point-clear' }, '*');
       return;
     }
-    if (cur) cur.classList.remove('yarnnn-pointed');
-    cur = mark;
-    mark.classList.add('yarnnn-pointed');
+    // ADR-525 D2 — through the chokepoint. This branch only ever marks a
+    // container or page (structure tier, which always earns its frame), so the
+    // guard is a no-op here; it routes through anyway so that ONE function owns
+    // the cue and the completeness assertion can be absolute.
+    window.__yarnnnSelect(mark);
     parent.postMessage(payload, '*');
   }, true);
 
@@ -753,19 +781,11 @@ const POINTER_SCRIPT = `
     var ctxCont = !el && t && t.closest ? t.closest(CONTAINER_SEL) : null;
     var mark = blk || el || ctxCont;
     if (mark) {
-      if (cur) cur.classList.remove('yarnnn-pointed');
-      cur = mark;
-      // ADR-482 D9: on FLOW, prose is never boxed — not by left-click (already
-      // corrected) and not by right-click either. The left-click fix landed one
-      // direction only, so right-clicking a paragraph still drew the enclosure
-      // ADR-480 dissolved; the operator's third pass caught it on a document
-      // whose ONLY structure is prose. An object (figure/table/chart/gallery)
-      // still gets the cue in both grains: there is no caret to stand in for it.
-      var flowNow = window.__yarnnnFlowMode ? window.__yarnnnFlowMode() : false;
-      var markKind = mark.getAttribute ? mark.getAttribute('data-block') : null;
-      if (!flowNow || TEXT_KINDS.indexOf(markKind) === -1) {
-        mark.classList.add('yarnnn-pointed');
-      }
+      // ADR-482 D9 (its rule, now enforced at ADR-525 D2's chokepoint): on FLOW
+      // prose is never boxed — not by left-click and not by right-click. An
+      // object still gets the cue in both grains: there is no caret to stand in
+      // for it. The local guard is gone because __yarnnnSelect owns it.
+      window.__yarnnnSelect(mark);
     } else if (cur) {
       cur.classList.remove('yarnnn-pointed');
       cur = null;
@@ -781,6 +801,9 @@ const POINTER_SCRIPT = `
         : ctxCont ? (ctxCont.getAttribute('data-block-id') || null) : null,
       blockKind: blk ? (blk.getAttribute('data-block') || null) : null,
       label: mark ? labelFor(mark) : null,
+      // ADR-525 D1/D5 — the same tier the point payload carries, so the menu
+      // and the pane cannot answer one block two ways.
+      tier: mark ? tierOf(mark) : null,
       slideIndex: el ? slideIndexOf(el) : (ctxCont ? slideIndexOf(ctxCont) : null),
       pageIndex: el ? pageIndexOf(el) : (ctxCont ? pageIndexOf(ctxCont) : null),
       slot: slotEl ? (slotEl.getAttribute('data-slot') || null) : null,
@@ -827,14 +850,16 @@ const POINTER_SCRIPT = `
       up = cur.parentElement.closest(CONTAINER_SEL);
       if (!up && !cur.matches(PAGE_SEL)) up = cur.parentElement.closest(PAGE_SEL);
     }
-    if (cur) cur.classList.remove('yarnnn-pointed');
     if (!up) {
+      if (cur) cur.classList.remove('yarnnn-pointed');
       cur = null;
       parent.postMessage({ type: 'yarnnn-point-clear' }, '*');
       return;
     }
-    cur = up;
-    up.classList.add('yarnnn-pointed');
+    // ADR-525 D2 — through the chokepoint (this site boxed 'up' directly and so
+    // inherited no guard; the Esc-walk climbs to a container/page, which earns
+    // the frame, but the cue decision belongs to one function regardless).
+    window.__yarnnnSelect(up);
     var upSlot = up.closest ? up.closest('[data-slot]') : null;
     var upIsCont = up.matches ? up.matches(CONTAINER_SEL) : false;
     parent.postMessage({
@@ -849,6 +874,7 @@ const POINTER_SCRIPT = `
       pageIndex: pageIndexOf(up),
       slot: upSlot ? (upSlot.getAttribute('data-slot') || null) : null,
       arrange: arrangeOf(up),
+      tier: tierOf(up), // ADR-525 D1
     }, '*');
   }, true);
 
@@ -889,12 +915,25 @@ const POINTER_SCRIPT = `
 
   // ADR-458: the hover gutter selects THROUGH this runtime's own selection
   // state (one selection, not two) — exposed like __yarnnnEditingId.
+  //
+  // ADR-525 D2 — this is the ONE place in the system that may draw a selection
+  // box, and it cannot draw one on prose. ADR-484 put its guard at the two
+  // CLICK sites instead of here, so every other selection route inherited
+  // nothing: the parent re-command (ADR-516 D5, which re-opened the defect on
+  // Docs one day after it shipped for Studio), the backspace-merge, the
+  // Esc-from-edit and the Esc-walk all boxed prose. A guard at the chokepoint
+  // is inherited by the NEXT route for free — the failure this ADR closes.
+  //
+  // The block stays SELECTED on flow (ADR-480: still addressable — the pane
+  // scopes to it, Typography and Turn into act on it, ADR-522's focus reads
+  // it). Only the enclosure CUE is withheld, because the caret is already
+  // saying where the member is.
   window.__yarnnnSelect = function (el) {
     if (!el || !el.classList) return;
     if (cur) cur.classList.remove('yarnnn-pointed');
     clearGroup();
     cur = el;
-    el.classList.add('yarnnn-pointed');
+    if (tierOf(el) !== 'text') el.classList.add('yarnnn-pointed');
   };
   // ── The GROUP (2026-07-24) — a transient multi-selection, never markup ───
   // Shift/⌘-click adds a block to the selection; the set moves together and
@@ -2833,6 +2872,14 @@ const EDIT_SCRIPT = `
       blockKind: el.getAttribute('data-block') || null,
       slideIndex: null, pageIndex: null,
       slot: slotEl ? (slotEl.getAttribute('data-slot') || null) : null,
+      // ADR-525 D1 — the edit runtime is a separate script, so it derives the
+      // tier from its own FLOW_MODE/TEXT_KINDS rather than reaching for the
+      // pointer runtime's tierOf. Same rule, stated once per scope.
+      tier: (function () {
+        var k = el.getAttribute('data-block');
+        if (!k) return 'structure';
+        return FLOW_MODE && TEXT_KINDS.indexOf(k) !== -1 ? 'text' : 'object';
+      })(),
       arrange: pageEl ? (pageEl.getAttribute('data-arrange') || null) : null }, '*');
   }, true);
 

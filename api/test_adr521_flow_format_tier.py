@@ -145,10 +145,19 @@ verbs = src[_vi:_vj]
 
 # Read the REAL declaration rather than restating it — a hardcoded copy here
 # would keep passing after someone adds an object kind to the text set.
-_tk = re.search(r"const TEXT_KINDS_JS = JSON\.stringify\((\[[^\]]*\])\)", src)
+#
+# ADR-525 D1 re-pointed this: the list is now the exported `TEXT_BLOCK_KINDS`
+# (the FE's tier fallback reads the same array the runtime injects, so the two
+# cannot drift), and TEXT_KINDS_JS derives from it. The assertion's INTENT is
+# unchanged — source the partition, never restate it — so it follows the name.
+_tk = re.search(r"export const TEXT_BLOCK_KINDS = (\[[^\]]*\])", src)
 _check("D6: the TEXT_KINDS declaration is readable (the kind partition is sourced)",
        bool(_tk))
 TEXT_KINDS_DECL = _tk.group(1) if _tk else ""
+# The injected list must still DERIVE from that one declaration — if someone
+# re-inlines a literal here, the export and the runtime can disagree silently.
+_check("D6: the runtime's injected list derives from the one declaration",
+       "const TEXT_KINDS_JS = JSON.stringify(TEXT_BLOCK_KINDS)" in src)
 
 _check("D6: the flow verb-subject gate exists and asks the KIND, not the caret",
        "function verbSubjectAllowed(blk)" in verbs

@@ -187,6 +187,13 @@ export function StudioBlockMenu({
   // ADR-482 D5: `paged` is the affirmative test — an unresolved mode withholds
   // enclosure-shaped rows rather than guessing them on (the D3 principle).
   const isPaged = mode === 'paged';
+  // ADR-525 D5 — the ENCLOSURE verbs (Duplicate/Delete) read the runtime's tier.
+  // This menu already refused Move up/down on flow with the right reasoning
+  // ("reordering is an enclosure verb"), but kept Duplicate/Delete — the same
+  // unit verbs ADR-521 D6 retired from the keyboard for the same reason. Turn
+  // into STAYS: it is structure-tier (ADR-521 D2), reachable from a caret, and
+  // is Docs' own affordance. The AI rows stay too — they act on text.
+  const isTextTier = target.tier === 'text';
 
   // The legal conversions for THIS block (ADR-456 W2 + ADR-479 D5): a text kind
   // that isn't already what it is, and never a citation — `convertBlock`
@@ -285,13 +292,24 @@ export function StudioBlockMenu({
       )}
       {hasBlock && (
         <>
-          {SEP}
-          <Row icon={<CopyPlus className={ICO} />} onClick={() => run(onDuplicate)} shortcut="⌘D">
-            Duplicate
-          </Row>
-          <Row icon={<Trash2 className={ICO} />} onClick={() => run(onDelete)} shortcut="⌫">
-            Delete
-          </Row>
+          {/* ADR-525 D5 — the unit verbs are withheld on the text tier: on flow
+              a paragraph is an annotation, not an enclosure, and ⌘D/⌫ already
+              belong to the platform there (ADR-521 D6). Objects keep them. */}
+          {!isTextTier && (
+            <>
+              {SEP}
+              <Row
+                icon={<CopyPlus className={ICO} />}
+                onClick={() => run(onDuplicate)}
+                shortcut="⌘D"
+              >
+                Duplicate
+              </Row>
+              <Row icon={<Trash2 className={ICO} />} onClick={() => run(onDelete)} shortcut="⌫">
+                Delete
+              </Row>
+            </>
+          )}
           {SEP}
           {/* ADR-479 D5 — Turn into, in one gesture. Shown only when the
               conversion is LEGAL: a text kind, and never a citation (a figure
