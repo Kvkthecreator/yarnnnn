@@ -40,6 +40,7 @@ import type { DeskSurface } from '@/types/desk';
 import { ShellCompositor } from './ShellCompositor';
 import { ShellChromeProvider } from './ShellChromeContext';
 import { useComposition } from '@/lib/compositor/useComposition';
+import { resolveRouteSurface } from '@/lib/shell/route-sync';
 import {
   SurfacePreferencesProvider,
   useSurfacePreferences,
@@ -133,18 +134,25 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
   // navigation), not open-set churn. Guard with a last-synced-pathname
   // ref so a re-run triggered by callback-identity change (same pathname)
   // is a no-op. Same shape as the D18.3 re-fire guard.
+  //
+  // 2026-08-05 cold-load fix (the ADR-518 click-pass run-1 recorded race):
+  // a pathname is stamped synced ONLY once it RESOLVES to a surface. The
+  // first run races the roster fetch and sees the seeded chrome-only
+  // composition (routes all empty); stamping before the match meant the
+  // real roster's arrival on the same pathname no-op'd, and a cold bare
+  // route (`/docs`) kept the remembered foreground. An unresolved pathname
+  // now stays unsynced and re-resolves when the roster lands; churn re-runs
+  // on an unresolved pathname are a cheap null find with NO foreground
+  // call, so the 2026-06-01 loop cannot return. Decision extracted pure
+  // (lib/shell/route-sync.ts) and executed by its gate.
   const lastSyncedPathname = useRef<string | null>(null);
   useEffect(() => {
     if (pathname === lastSyncedPathname.current) return; // no-op on churn
     if (!composition.surfaces || composition.surfaces.length === 0) return;
+    const slug = resolveRouteSurface(pathname, composition.surfaces);
+    if (!slug) return; // unresolved — NOT stamped; retry when the roster lands
     lastSyncedPathname.current = pathname;
-    const sorted = [...composition.surfaces].sort(
-      (a, b) => b.route.length - a.route.length
-    );
-    const match = sorted.find(
-      (s) => s.route && (pathname === s.route || pathname.startsWith(s.route + '/'))
-    );
-    if (match) foregroundSurface(match.slug);
+    foregroundSurface(slug);
   }, [pathname, composition.surfaces, foregroundSurface]);
 
   // D18 §4: ⌘W (macOS) / Ctrl+W (others) closes the foregrounded
