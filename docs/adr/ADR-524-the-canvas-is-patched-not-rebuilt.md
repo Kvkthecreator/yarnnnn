@@ -1,6 +1,6 @@
 # ADR-524: The canvas is patched, not rebuilt — and a judgment shows its work early
 
-> **Status**: **Proposed** (2026-08-06). Derived from an operator report of the symptom,
+> **Status**: **Accepted + Implemented** (2026-08-06). Derived from an operator report of the symptom,
 > not of a cause: *"whenever I request a slide re-arrange, or make slight changes in the
 > details of a slide or doc, it seems to create either refresh or lag."* The audit found
 > **two different causes wearing one symptom**, and the operator's own decomposition — the
