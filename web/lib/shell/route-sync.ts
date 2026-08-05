@@ -22,15 +22,27 @@ export interface RouteSurfaceEntry {
   route: string;
 }
 
+/** The served roster is BEST-EFFORT at the program tier: the resolver
+ *  guarantees only slug + title on a bundle-contributed row
+ *  (composition_resolver._resolve_program_surfaces — bad entries are logged
+ *  and skipped, not normalized). The FE type says `route: string`; the wire
+ *  does not. A non-string route is a route-less row: it never matches and
+ *  must never crash the sort. */
+function routeOf(s: RouteSurfaceEntry): string {
+  return typeof s.route === 'string' ? s.route : '';
+}
+
 /** Resolve which surface (if any) the pathname foregrounds. Longest-prefix
- *  wins; route-less entries (the seeded chrome-only composition) never match. */
+ *  wins; route-less entries (the seeded chrome-only composition, a program
+ *  row that omitted its route) never match. */
 export function resolveRouteSurface(
   pathname: string,
   surfaces: RouteSurfaceEntry[],
 ): string | null {
-  const sorted = [...surfaces].sort((a, b) => b.route.length - a.route.length);
-  const match = sorted.find(
-    (s) => s.route && (pathname === s.route || pathname.startsWith(s.route + '/')),
-  );
+  const sorted = [...surfaces].sort((a, b) => routeOf(b).length - routeOf(a).length);
+  const match = sorted.find((s) => {
+    const route = routeOf(s);
+    return route && (pathname === route || pathname.startsWith(route + '/'));
+  });
   return match?.slug ?? null;
 }

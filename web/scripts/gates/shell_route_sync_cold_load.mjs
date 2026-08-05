@@ -27,14 +27,21 @@ const t = (label, cond) => {
 };
 
 // ── 1. The pure resolver, executed ──────────────────────────────────────────
+// Compile the module tail (routeOf + resolveRouteSurface) with types
+// stripped; the factory returns the real resolver.
 const pureSrc = readFileSync('web/lib/shell/route-sync.ts', 'utf8');
-const fnAt = pureSrc.indexOf('export function resolveRouteSurface');
-// The signature is multi-line; its opening brace is the FIRST `{` after the
-// declaration (the interface above closes before fnAt).
-const fnBody = pureSrc
-  .slice(pureSrc.indexOf('{', fnAt) + 1, pureSrc.lastIndexOf('}'))
-  .replace(/: RouteSurfaceEntry\[\]/g, '');
-const resolveRouteSurface = new Function('pathname', 'surfaces', fnBody);
+const compileResolver = (src) => {
+  const start = src.indexOf('function routeOf');
+  const code = src
+    .slice(start)
+    .replace(/: RouteSurfaceEntry\[\]/g, '')
+    .replace(/: RouteSurfaceEntry/g, '')
+    .replace(/: string \| null/g, '')
+    .replace(/: string/g, '')
+    .replace(/export function/g, 'function');
+  return new Function(code + '\nreturn resolveRouteSurface;')();
+};
+const resolveRouteSurface = compileResolver(pureSrc);
 
 const SEEDED = [
   { slug: 'chat', route: '' },
@@ -59,6 +66,20 @@ t(
   ]) === 'file-detail',
 );
 t('an unroutable pathname resolves null against a full roster', resolveRouteSurface('/desktop', ROSTER) === null);
+
+// The wire contract is BEST-EFFORT at the program tier
+// (composition_resolver._resolve_program_surfaces guarantees only slug +
+// title): a route-less row must never crash the sort and never match. This
+// crashed in prod on 2026-08-05 ("Cannot read properties of undefined
+// (reading 'length')") before the routeOf hardening.
+const WITH_ROUTELESS = [...ROSTER, { slug: 'program-x', title: 'X' }];
+{
+  let crashed = false, res = 'unset';
+  try { res = resolveRouteSurface('/desktop', WITH_ROUTELESS); } catch { crashed = true; }
+  t('a route-less program row never crashes the resolver', !crashed);
+  t('a route-less program row never matches', res === null);
+  t('a route-less row does not shadow real routes', resolveRouteSurface('/docs', WITH_ROUTELESS) === 'docs');
+}
 
 // ── 2. The real effect body, replayed ───────────────────────────────────────
 const layoutSrc = readFileSync('web/components/shell/AuthenticatedLayout.tsx', 'utf8');
@@ -125,6 +146,20 @@ const preFix = `
 `;
 console.log('mutated: restored the pre-fix stamp-before-match effect body (in memory)');
 t('FALSIFIER: the pre-fix body drops the cold-load foreground (the race returns)', replay(preFix, coldLoad).length === 0);
+
+// ── FALSIFIER: the pre-hardening resolver crashes on a route-less row ──────
+{
+  const mutated = pureSrc
+    .replace(/routeOf\(b\)\.length - routeOf\(a\)\.length/, 'b.route.length - a.route.length');
+  console.log('mutated: restored the direct b.route.length sort (in memory)');
+  if (mutated === pureSrc) {
+    t('FALSIFIER: the sort de-hardening actually mutated the source', false);
+  } else {
+    let crashed = false;
+    try { compileResolver(mutated)('/desktop', [...ROSTER, { slug: 'program-x', title: 'X' }]); } catch { crashed = true; }
+    t('FALSIFIER: the un-hardened sort DOES crash on a route-less row', crashed);
+  }
+}
 
 console.log(`\nshell route-sync cold load: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
