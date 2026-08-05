@@ -119,14 +119,18 @@ def run() -> bool:
     surface = (web / "components/studio/StudioSurface.tsx").read_text()
     _check("Copy link + Duplicate live on (re-homed to the Design tab by ADR-458)",
            "copyArtifactLink" in surface and "duplicateArtifact" in surface)
-    _check("Duplicate never overwrites an existing copy (probe-then-create)",
-           "-copy.html" in surface and "continue; // exists" in surface)
+    # ADR-514 D1 re-cut: the FE probe-then-create loop is gone — duplicate is
+    # the kernel derivation (DuplicateFile), reached through the ONE shared
+    # organize-verbs path.
+    _check("Duplicate rides the kernel derivation (organizeVerbs.onDuplicate)",
+           "organizeVerbs.onDuplicate" in surface)
 
-    nav = (web / "components/studio/StudioNavigator.tsx").read_text()
-    _check("navigator: outline entries carry the heading block id",
-           "blockId: h.getAttribute('data-block-id')" in nav)
-    _check("navigator: outline entries are clickable (onSelectHeading)",
-           "onSelectHeading" in nav and "onClick={() => onSelectHeading(h.blockId!)}" in nav)
+    # ADR-518 follow-through: the flow outline died with the mode split — the
+    # navigator is the paged strip; block picks ride the structure tree
+    # (onSelectNode) and the same scroll bridge below.
+    nav = (web / "components/studio/PagedNavigator.tsx").read_text()
+    _check("navigator: structure-tree picks are clickable (onSelectNode)",
+           "onClick={() => onSelectNode?.(n)}" in nav)
 
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
     _check("runtime: yarnnn-scroll-to-block (the outline's scroll bridge)",

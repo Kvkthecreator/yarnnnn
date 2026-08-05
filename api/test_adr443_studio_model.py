@@ -333,19 +333,19 @@ def run() -> bool:
            '"arrangements"' in src and '"grain"' in src and '"slots"' in src)
 
     # ── 10. ADR-447 workbench restructure (nav · canvas · chat) ──────────
-    nav = (repo / "web/components/studio/StudioNavigator.tsx").read_text()
-    _check("per-type navigator: paged page previews + doc/article outline",
-           # buildSlidePreviews → buildPagePreviews and the deck-slug gate →
-           # isPaged (the paged card strip now serves deck slides AND page
-           # sections; ADR-222 — the kernel names the category, the FE derives
-           # from mode). See test_studio_paged_navigator for the full contract.
-           "buildPagePreviews" in nav and "extractOutline" in nav
-           and "if (isPaged)" in nav)
+    # ADR-518 follow-through: the navigator is PAGED-ONLY (PagedNavigator).
+    # The flow outline died with the mode split — the mount is isPaged-gated
+    # in the surface, and the component carries no mode flag at all. See
+    # test_studio_paged_navigator for the full contract.
+    nav = (repo / "web/components/studio/PagedNavigator.tsx").read_text()
+    _check("paged navigator: page previews, no mode flag, no outline remnant",
+           "buildPagePreviews" in nav and "extractOutline" not in nav
+           and "isPaged" not in nav)
     _check("deck slides render as VISUAL previews (scaled projected iframe)",
            "resolveArtifactHtml" in nav and "transform: `scale(${scale})`" in nav
            and 'sandbox=""' in nav)
     _check("surface mounts the navigator + selects slides from it",
-           "StudioNavigator" in surface and "selectSlideFromNavigator" in surface)
+           "PagedNavigator" in surface and "selectSlideFromNavigator" in surface)
     # ADR-453 D4: the right column carries Chat | Design tabs (the lane stays
     # the chat tab's body; the column itself is unchanged — right, border-l).
     _check("chat lane is the RIGHT column (border-l on the lane column)",

@@ -26,10 +26,12 @@ def _check(label: str, cond: bool, detail: str = "") -> None:
 
 def run() -> bool:
     # ── 1. The program module ────────────────────────────────────────────
+    import services.docs  # noqa: F401 — registers the document row (ADR-518 D3)
     from services.studio import (
         STUDIO_ARTIFACT_REGION,
         STUDIO_LANE_MAX_TOKENS,
         STUDIO_TEMPLATES,
+        all_templates,
         build_studio_posture,
         extract_outline,
         extract_template,
@@ -38,10 +40,14 @@ def run() -> bool:
     # ADR-459 D3: kernel SEEDS, never BOUNDS — `⊇` so a bundle-shipped layout
     # (ADR-222 "programs ship the templates") doesn't turn the ratchet red.
     # ADR-505 D1: THREE types — document (capture) · deck (present) · web
-    # (publish). `article` + `page` merged into `web`; `canvas` is IMAGES'.
-    _check("kernel seeds three templates: document/deck/web (ADR-505 D1)",
-           set(STUDIO_TEMPLATES) >= {"document", "deck", "web"})
-    for slug, t in STUDIO_TEMPLATES.items():
+    # (publish). ADR-518: the housing is per-app (document lives in
+    # services/docs.py), so the three-type set is a REGISTRY fact — Studio's
+    # own table carries only its layout media.
+    _check("registry serves three types: document/deck/web (ADR-505 D1, ADR-518 housings)",
+           set(all_templates()) >= {"document", "deck", "web"})
+    _check("Studio's own table is the layout media only (document moved house)",
+           set(STUDIO_TEMPLATES) == {"deck", "web"})
+    for slug, t in all_templates().items():
         _check(f"template '{slug}' has label/description/skeleton",
                all(t.get(k) for k in ("label", "description", "skeleton")))
         _check(f"skeleton '{slug}' is self-describing (data-template)",

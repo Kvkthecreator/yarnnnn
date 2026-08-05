@@ -26,7 +26,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
-import { ArrowLeft, Check, FileText, FolderOpen, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, Plus, Upload } from 'lucide-react';
+import { ArrowLeft, Check, FileText, FolderOpen, Image as ImageIcon, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, Plus, Upload } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { residentFor } from '@/lib/apps/authoring';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -58,7 +59,8 @@ import {
 } from './StudioToolbar';
 import { StudioDesignTab, type StructVerb } from './StudioDesignTab';
 import { StudioShareExport } from './StudioShareExport';
-import { StudioNavigator } from './StudioNavigator';
+import { PagedNavigator } from './PagedNavigator';
+import { SelectionBreadcrumb } from './SelectionBreadcrumb';
 import {
   applyArrangement,
   applyArrangementMovingContent,
@@ -197,7 +199,9 @@ function extractTemplate(html: string): string {
 }
 
 /** Starter prompts per template — clickable chips while the lane is empty.
- *  Plain words, no model-speak: they teach what the Studio DOES. */
+ *  Plain words, no model-speak: they teach what the authoring apps DO.
+ *  (The `article` entry died with its type, ADR-505; `web` falls to the
+ *  document set at the lookup until it earns its own.) */
 const TEMPLATE_SUGGESTIONS: Record<string, string[]> = {
   document: [
     'Draft this document from these points: ',
@@ -208,11 +212,6 @@ const TEMPLATE_SUGGESTIONS: Record<string, string[]> = {
     'Draft a 6-slide deck that argues: ',
     'Rewrite the title slide to lead with the strongest number',
     'Add a slide that shows the table from a workspace file',
-  ],
-  article: [
-    'Draft this article from my rough notes: ',
-    'Give it a sharper title and subtitle',
-    'Add a closing section with a call to action',
   ],
 };
 
@@ -235,14 +234,40 @@ export interface AuthoringApp {
   /** Operator-readable app name — the one fact the chrome shows (ADR-518 D7
    *  retired the per-site slug ternaries in favor of this declaration). */
   label: string;
+  /** The landing's one-line invitation, in the app's own voice (ADR-518 D7 —
+   *  a writing app invites writing; a layout app invites shaping). */
+  tagline: string;
+  /** The landing glyph — the same family the dock wears for this app
+   *  (lib/shell/surface-icons), declared here so the landing never falls to
+   *  another app's icon. */
+  icon: LucideIcon;
   /** Dimensions-first creation (ADR-472 D3) — a raster artifact is born at a
    *  size. Not derivable from ownership, so it stays an app property. */
   dimensionsFirst?: boolean;
 }
 
-export const DOCS_APP: AuthoringApp = { slug: 'docs', label: 'Docs' };
-export const STUDIO_APP: AuthoringApp = { slug: 'studio', label: 'Studio' };
-export const IMAGES_APP: AuthoringApp = { slug: 'images', label: 'Images', dimensionsFirst: true };
+export const DOCS_APP: AuthoringApp = {
+  slug: 'docs',
+  label: 'Docs',
+  tagline:
+    'Name a document and start writing — or describe what you want in plain words and the draft takes shape live, pulling in your files, images, and data as it goes.',
+  icon: FileText,
+};
+export const STUDIO_APP: AuthoringApp = {
+  slug: 'studio',
+  label: 'Studio',
+  tagline:
+    'Pick a shape, name it, then describe what you want in plain words — it takes shape live, pulling in your files, images, and data as it goes.',
+  icon: Palette,
+};
+export const IMAGES_APP: AuthoringApp = {
+  slug: 'images',
+  label: 'Images',
+  tagline:
+    'Pick a size, name it, then describe the image in plain words — it renders live on the canvas.',
+  icon: ImageIcon,
+  dimensionsFirst: true,
+};
 
 export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {}) {
   const { get: getParam, set: setParam } = useSurfaceParam(app.slug);
@@ -864,7 +889,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     const current = liveRef.current?.content ?? '';
     redoStack.current.push(current);
     replaying.current = true;
-    void writeAndAdvance(() => prev, 'Studio: undo', true).finally(() => {
+    void writeAndAdvance(() => prev, `${app.label}: undo`, true).finally(() => {
       replaying.current = false;
     });
   }, [writeAndAdvance]);
@@ -875,7 +900,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     const current = liveRef.current?.content ?? '';
     undoStack.current.push(current);
     replaying.current = true;
-    void writeAndAdvance(() => nextState, 'Studio: redo', true).finally(() => {
+    void writeAndAdvance(() => nextState, `${app.label}: redo`, true).finally(() => {
       replaying.current = false;
     });
   }, [writeAndAdvance]);
@@ -960,7 +985,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     (fragment: string, label: string) =>
       applyOp(
         (html) => insertArrangement(html, fragment, anchor),
-        `Studio: add ${label}`,
+        `${app.label}: add ${label}`,
       ),
     [applyOp, anchor],
   );
@@ -1000,7 +1025,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
             if (placements) {
               return await applyOp(
                 (html) => applyArrangementPlan(html, a.fragment, anchor, placements),
-                `Studio: change arrangement to ${a.label}`,
+                `${app.label}: change arrangement to ${a.label}`,
               );
             }
           } catch {
@@ -1019,7 +1044,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         if (receiver) {
           return applyOp(
             (html) => applyArrangementMovingContent(html, a.fragment, anchor, receiver.fragment),
-            `Studio: change to ${a.label} — content moved to a new ${receiver.label.toLowerCase()} ${pageNoun}`,
+            `${app.label}: change to ${a.label} — content moved to a new ${receiver.label.toLowerCase()} ${pageNoun}`,
           );
         }
         setOpError(
@@ -1029,7 +1054,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       }
       return applyOp(
         (html) => applyArrangement(html, a.fragment, anchor, slotRoles),
-        `Studio: change arrangement to ${a.label}`,
+        `${app.label}: change arrangement to ${a.label}`,
       );
     },
     [applyOp, anchor, file, vocabulary, template],
@@ -1047,7 +1072,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     (grain: 'block' | 'page' | 'document', key: string, value: string | null) =>
       applyOp(
         (html) => setToken(html, { grain, anchor }, key, value),
-        value == null ? `Studio: clear ${key}` : `Studio: set ${key} to ${value}`,
+        value == null ? `${app.label}: clear ${key}` : `${app.label}: set ${key} to ${value}`,
       ),
     [applyOp, anchor],
   );
@@ -1060,7 +1085,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     (pageIndex: number, value: string | null) =>
       applyOp(
         (html) => setToken(html, { grain: 'page', anchor: { pageIndex } }, 'ratio', value),
-        value == null ? 'Studio: even columns' : `Studio: columns ${value}`,
+        value == null ? `${app.label}: even columns` : `${app.label}: columns ${value}`,
       ),
     [applyOp],
   );
@@ -1136,7 +1161,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       ].filter(Boolean);
       void applyOp(
         (html) => setGeometry(html, blockId, geo, specs),
-        `Studio: ${blockId} ${parts.join(' ') || 'geometry'}`,
+        `${app.label}: ${blockId} ${parts.join(' ') || 'geometry'}`,
       );
     },
     [applyOp, geometrySpecs],
@@ -1154,7 +1179,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const resized = moves.some((m) => m.geo.w != null || m.geo.h != null);
       void applyOp(
         (html) => setGeometryMany(html, moves, specs),
-        `Studio: ${resized ? 'resized' : 'moved'} ${moves.length} blocks together`,
+        `${app.label}: ${resized ? 'resized' : 'moved'} ${moves.length} blocks together`,
       );
     },
     [applyOp, geometrySpecs],
@@ -1172,7 +1197,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       if (!id || !s) return;
       void applyOp(
         (html) => setMeasure(html, id, key, null, s),
-        `Studio: clear ${id} ${key === 'w' ? 'width' : 'height'}`,
+        `${app.label}: clear ${id} ${key === 'w' ? 'width' : 'height'}`,
       );
     },
     [applyOp, selection, geometrySpecs],
@@ -1185,7 +1210,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     if (!id || !specs) return;
     void applyOp(
       (html) => setPosition(html, id, null, null, { x: specs.x, y: specs.y }),
-      `Studio: return ${id} to flow`,
+      `${app.label}: return ${id} to flow`,
     );
   }, [applyOp, selection, geometrySpecs]);
   // ADR-511 D4 + ADR-516 D1 — layout is ONE mechanism: bounded plain-CSS
@@ -1203,8 +1228,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       void applyOp(
         (html) => setContainerLayout(html, id, layout, anchor),
         id
-          ? `Studio: layout ${id} container`
-          : `Studio: layout page ${anchor.slideIndex ?? anchor.pageIndex}`,
+          ? `${app.label}: layout ${id} container`
+          : `${app.label}: layout page ${anchor.slideIndex ?? anchor.pageIndex}`,
       );
     },
     [applyOp, selection],
@@ -1214,12 +1239,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const id = selection?.blockId;
       if (!id) return;
       if (verb === 'delete') {
-        void applyOp((html) => deleteBlock(html, id), `Studio: delete ${id} block`);
+        void applyOp((html) => deleteBlock(html, id), `${app.label}: delete ${id} block`);
         onPointClear();
       } else if (verb === 'duplicate') {
-        void applyOp((html) => duplicateBlock(html, id), `Studio: duplicate ${id} block`);
+        void applyOp((html) => duplicateBlock(html, id), `${app.label}: duplicate ${id} block`);
       } else {
-        void applyOp((html) => moveBlock(html, id, verb), `Studio: move ${id} block ${verb}`);
+        void applyOp((html) => moveBlock(html, id, verb), `${app.label}: move ${id} block ${verb}`);
       }
     },
     [applyOp, selection, onPointClear],
@@ -1246,7 +1271,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // a paste is a new block, never a second element wearing one address.
       void applyOp(
         (src) => pasteBlock(src, html, after),
-        `Studio: paste block${after ? ` after ${after}` : ''}`,
+        `${app.label}: paste block${after ? ` after ${after}` : ''}`,
       );
     },
     [applyOp],
@@ -1262,10 +1287,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       if (verb === 'copy') return copyBlock(blockId);
       if (verb === 'paste') return pasteAfter(blockId);
       if (verb === 'duplicate') {
-        void applyOp((html) => duplicateBlock(html, blockId), `Studio: duplicate ${blockId} block`);
+        void applyOp((html) => duplicateBlock(html, blockId), `${app.label}: duplicate ${blockId} block`);
         return;
       }
-      void applyOp((html) => deleteBlock(html, blockId), `Studio: delete ${blockId} block`);
+      void applyOp((html) => deleteBlock(html, blockId), `${app.label}: delete ${blockId} block`);
       onPointClear();
     },
     [copyBlock, pasteAfter, applyOp, onPointClear],
@@ -1314,12 +1339,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     (verb: StructVerb) => {
       const noun = template === 'deck' ? 'slide' : 'section';
       if (verb === 'delete') {
-        void applyOp((html) => deletePage(html, anchor), `Studio: delete ${noun}`);
+        void applyOp((html) => deletePage(html, anchor), `${app.label}: delete ${noun}`);
         onPointClear();
       } else if (verb === 'duplicate') {
-        void applyOp((html) => duplicatePage(html, anchor), `Studio: duplicate ${noun}`);
+        void applyOp((html) => duplicatePage(html, anchor), `${app.label}: duplicate ${noun}`);
       } else {
-        void applyOp((html) => movePage(html, anchor, verb), `Studio: move ${noun} ${verb}`);
+        void applyOp((html) => movePage(html, anchor, verb), `${app.label}: move ${noun} ${verb}`);
       }
     },
     [applyOp, anchor, template, onPointClear],
@@ -1331,13 +1356,13 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const res = await api.studio.resolveDesignSystem(manifestPath);
       await applyOp(
         (html) => applySkin(html, res.skin_element),
-        `Studio: apply design system ${res.name}`,
+        `${app.label}: apply design system ${res.name}`,
       );
     },
     [applyOp],
   );
   const handleRemoveDesignSystem = useCallback(
-    () => void applyOp((html) => removeSkin(html), 'Studio: remove design system'),
+    () => void applyOp((html) => removeSkin(html), `${app.label}: remove design system`),
     [applyOp],
   );
   // Container-scoped adds (the Design tab's container scope + the role-gated
@@ -1357,7 +1382,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const bare = proseFragment.replace(/<h[1-6][^>]*>.*?<\/h[1-6]>/i, '');
       void applyOp(
         (html) => insertIntoContainer(html, bare, containerId),
-        `Studio: add text to ${regionName ?? containerId}`,
+        `${app.label}: add text to ${regionName ?? containerId}`,
       );
     },
     [applyOp, vocabulary],
@@ -1370,7 +1395,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const fragment = base.replace(/data-ref="[^"]*"/, `data-ref="${rel}"`);
       void applyOp(
         (html) => insertIntoContainer(html, fragment, containerId),
-        `Studio: insert image ${rel}`,
+        `${app.label}: insert image ${rel}`,
       );
     },
     [applyOp, vocabulary],
@@ -1390,7 +1415,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // (reload: false) — no blank flash, no caret jump, no scroll reset.
       void writeAndAdvance(
         (liveHtml) => editBlockText(liveHtml, blockId, newInner)?.html ?? null,
-        `Studio: edit ${blockId} block`,
+        `${app.label}: edit ${blockId} block`,
         false,
       );
     },
@@ -1413,7 +1438,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       if (!editFlowRegion(file.content, selector, newInner)) return; // no-op — no revision
       void writeAndAdvance(
         (liveHtml) => editFlowRegion(liveHtml, selector, newInner)?.html ?? null,
-        'Studio: edit document',
+        `${app.label}: edit document`,
         false,
       );
     },
@@ -1450,7 +1475,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
           newId = r.landedId;
           return r.html;
         },
-        `Studio: add block`,
+        `${app.label}: add block`,
         false, // the override re-projects; onLoad re-commands the caret
       ).then((ok) => {
         if (ok && newId) {
@@ -1479,7 +1504,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const hasCitation = /data-ref=/.test(beforeInner) || /data-ref=/.test(afterInner);
       void writeAndAdvance(
         (liveHtml) => splitBlock(liveHtml, blockId, newId, beforeInner, afterInner)?.html ?? null,
-        `Studio: split block`,
+        `${app.label}: split block`,
         hasCitation,
       );
     },
@@ -1492,7 +1517,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const hasCitation = /data-ref=/.test(mergedInner);
       void writeAndAdvance(
         (liveHtml) => mergeBlock(liveHtml, blockId, prevBlockId, mergedInner)?.html ?? null,
-        `Studio: merge block`,
+        `${app.label}: merge block`,
         hasCitation,
       );
     },
@@ -1664,17 +1689,17 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
             ?.getAttribute('data-block');
           if (anchorKind === 'heading') return inserted;
           return deleteBlock(inserted.html, blockId) ?? inserted;
-        }, `Studio: insert ${label}`);
+        }, `${app.label}: insert ${label}`);
         return;
       }
       if (beforeInner !== null && afterInner !== null && afterInner.trim() !== '') {
         void applyOp(
           (html) => splitBlockAndInsert(html, blockId, beforeInner, afterInner, fragment),
-          `Studio: insert ${label}`,
+          `${app.label}: insert ${label}`,
         );
         return;
       }
-      void applyOp((html) => insertBlock(html, fragment, { blockId }), `Studio: insert ${label}`);
+      void applyOp((html) => insertBlock(html, fragment, { blockId }), `${app.label}: insert ${label}`);
     },
     [applyOp],
   );
@@ -1782,7 +1807,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
             slideIndex: t.slideIndex,
             pageIndex: t.pageIndex,
           }),
-        `Studio: add ${label} block`,
+        `${app.label}: add ${label} block`,
       );
     },
     [insertMenu, applyOp, seedComposer],
@@ -1812,7 +1837,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       if (p.empty) {
         void applyOp(
           (html) => convertBlock(html, blockId, p.kind, p.fragment),
-          `Studio: turn block into ${p.label}`,
+          `${app.label}: turn block into ${p.label}`,
         );
         return;
       }
@@ -1823,13 +1848,13 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       if (beforeInner !== null && afterInner !== null && afterInner.trim() !== '') {
         void applyOp(
           (html) => splitBlockAndInsert(html, blockId, beforeInner, afterInner, p.fragment),
-          `Studio: add ${p.label} block`,
+          `${app.label}: add ${p.label} block`,
         );
         return;
       }
       void applyOp(
         (html) => insertBlock(html, p.fragment, { blockId }),
-        `Studio: add ${p.label} block`,
+        `${app.label}: add ${p.label} block`,
       );
     },
     [applyOp, seedComposer],
@@ -1869,12 +1894,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     (path: string) =>
       applyOp(
         (html) => setPageBackground(html, anchor, relPath(path)),
-        `Studio: set page background ${relPath(path)}`,
+        `${app.label}: set page background ${relPath(path)}`,
       ),
     [applyOp, anchor],
   );
   const handleRemovePageBackground = useCallback(
-    () => applyOp((html) => removePageBackground(html, anchor), 'Studio: remove page background'),
+    () => applyOp((html) => removePageBackground(html, anchor), `${app.label}: remove page background`),
     [applyOp, anchor],
   );
 
@@ -1883,7 +1908,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     (blockId: string, kind: string, label: string, fragment: string) => {
       void applyOp(
         (html) => convertBlock(html, blockId, kind, fragment),
-        `Studio: turn block into ${label}`,
+        `${app.label}: turn block into ${label}`,
       );
     },
     [applyOp],
@@ -2010,7 +2035,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // slide to its new index so the Design tab stays anchored to it.
   const reorderSlideFromNavigator = useCallback(
     (from: number, to: number) => {
-      void applyOp((html) => movePageTo(html, from, to), `Studio: move slide ${from + 1} → ${to + 1}`);
+      void applyOp((html) => movePageTo(html, from, to), `${app.label}: move slide ${from + 1} → ${to + 1}`);
       setSelection((sel) =>
         sel?.slideIndex === from ? { ...sel, slideIndex: to } : sel,
       );
@@ -2033,7 +2058,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const noun = template === 'deck' ? 'slides' : 'sections';
       void applyOp(
         (html) => movePages(html, indices, to),
-        `Studio: reorder ${indices.length} ${noun}`,
+        `${app.label}: reorder ${indices.length} ${noun}`,
       );
       setSelection((sel) => {
         if (sel?.slideIndex == null) return sel;
@@ -2055,32 +2080,18 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const noun = template === 'deck' ? 'slides' : 'sections';
       void applyOp(
         (html) => deletePages(html, indices),
-        `Studio: delete ${indices.length} ${noun}`,
+        `${app.label}: delete ${indices.length} ${noun}`,
       );
       onPointClear();
     },
     [applyOp, template, onPointClear],
   );
 
-  // ADR-455: the outline navigates — selecting a heading selects its BLOCK
-  // (anchoring the Design tab) and scrolls the canvas to it (deck parity).
+  // ADR-455: a navigator pick selects a BLOCK (anchoring the Design tab)
+  // and scrolls the canvas to it.
   const [scrollToBlock, setScrollToBlock] = useState<{ blockId: string; nonce: number } | null>(
     null,
   );
-  const selectHeadingFromNavigator = useCallback((blockId: string) => {
-    setSelection({
-      blockId,
-      blockKind: 'heading',
-      slideIndex: null,
-      pageIndex: null,
-      slot: null,
-      arrange: null,
-      text: '',
-    });
-    setEditingBlockId(null);
-    setScrollToBlock((s) => ({ blockId, nonce: (s?.nonce ?? 0) + 1 }));
-    setMobilePane('canvas');
-  }, []);
 
   // ADR-511 D3 — a structure-tree pick (container OR block) from the
   // navigator: same contract as the heading pick, generalized to any
@@ -2304,9 +2315,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
             } ${navActive ? 'flex w-full' : 'hidden'}`}
             style={{ width: navWidth }}
           >
-            <StudioNavigator
+            <PagedNavigator
               layout={template}
-              isPaged={isPaged}
               html={file?.content ?? ''}
               artifactPath={artifactPath}
               selectedSlide={
@@ -2318,7 +2328,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               onReorderSlide={reorderSlideFromNavigator}
               onReorderPages={reorderPagesFromNavigator}
               onDeletePages={deletePagesFromNavigator}
-              onSelectHeading={selectHeadingFromNavigator}
               onSelectNode={selectNodeFromNavigator}
             />
             {/* The resize divider — drag to set the strip width (persisted). A
@@ -2569,6 +2578,19 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 scrollToBlock={scrollToBlock}
                 zoom={zoom}
               />
+              {/* STUDIO.md Phase 3 §3 — the ancestor chain at the selection,
+                  paged media only (flow's chain is caret → block → clear).
+                  Selecting an ancestor rides the navigator's existing
+                  selection paths — no new op, a new reach (rule 7). */}
+              {isPaged && selection && (
+                <SelectionBreadcrumb
+                  html={file.content ?? ''}
+                  layout={template}
+                  selection={selection}
+                  onSelectPage={selectSlideFromNavigator}
+                  onSelectNode={selectNodeFromNavigator}
+                />
+              )}
               {slash && (
                 <StudioSlashPalette
                   vocabulary={vocabulary}
@@ -2624,13 +2646,13 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                     const id = ctxMenu?.blockId;
                     const gz = geometrySpecs()?.z;
                     if (id && gz)
-                      void applyOp((html) => nudgeZ(html, id, +1, gz), `Studio: bring ${id} forward`);
+                      void applyOp((html) => nudgeZ(html, id, +1, gz), `${app.label}: bring ${id} forward`);
                   }}
                   onBringBackward={() => {
                     const id = ctxMenu?.blockId;
                     const gz = geometrySpecs()?.z;
                     if (id && gz)
-                      void applyOp((html) => nudgeZ(html, id, -1, gz), `Studio: bring ${id} backward`);
+                      void applyOp((html) => nudgeZ(html, id, -1, gz), `${app.label}: bring ${id} backward`);
                   }}
                   onRewrite={menuRewrite}
                   onCheck={menuCheck}
@@ -2705,8 +2727,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
           <div className={`min-h-0 flex-1 flex-col ${rightTab === 'chat' ? 'flex' : 'hidden'}`}>
             {lanesEnabled === false ? (
               <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-                Lanes are not enabled on this deployment — the Studio&apos;s authoring
-                chat needs the model router. The canvas still renders the artifact.
+                Lanes are not enabled on this deployment — the authoring chat
+                needs the model router. The canvas still renders the artifact.
               </div>
             ) : boundLane ? (
               <LanePanel
@@ -2854,7 +2876,7 @@ const LEARN_TARGETS: Array<{
 
 /** A real render of the artifact, scaled down (the ADR-447 navigator
  *  technique): sandboxed srcDoc iframe, display-only. */
-function ArtifactThumb({ path }: { path: string }) {
+function ArtifactThumb({ path, fallbackIcon: FallbackIcon }: { path: string; fallbackIcon: LucideIcon }) {
   const [doc, setDoc] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -2879,7 +2901,9 @@ function ArtifactThumb({ path }: { path: string }) {
         />
       ) : (
         <div className="flex h-full items-center justify-center">
-          <Palette className="h-5 w-5 text-muted-foreground/40" />
+          {/* The pre-preview fallback wears THIS app's glyph (ADR-518 D7),
+              not Studio's palette on every app's recents. */}
+          <FallbackIcon className="h-5 w-5 text-muted-foreground/40" />
         </div>
       )}
     </div>
@@ -3153,15 +3177,15 @@ function StudioStart({
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2">
-              <Palette className="h-5 w-5 text-muted-foreground" />
+              {/* The app's own glyph + invitation (ADR-518 D7) — declared on
+                  the AuthoringApp, never another app's chrome. */}
+              <app.icon className="h-5 w-5 text-muted-foreground" />
               <h1 className="text-lg font-semibold">
                 {app.label}
               </h1>
             </div>
             <p className="max-w-md text-sm text-muted-foreground">
-              Pick a shape, name it, then describe what you want in plain words —
-              it takes shape live, pulling in your files, images, and data as it
-              goes.
+              {app.tagline}
             </p>
           </div>
           {/* The New / Open pair (the File-menu convention). Open browses an
@@ -3220,7 +3244,7 @@ function StudioStart({
                       onClick={() => onOpen(r.path)}
                       className="block w-full text-left"
                     >
-                      <ArtifactThumb path={r.path} />
+                      <ArtifactThumb path={r.path} fallbackIcon={app.icon} />
                       <span className="mt-2 flex items-center gap-1.5">
                         <ShapeIcon className={`h-4 w-4 shrink-0 ${shape.color}`} />
                         <span className="min-w-0 truncate text-sm font-medium">

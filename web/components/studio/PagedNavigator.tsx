@@ -1,35 +1,24 @@
 'use client';
 
 /**
- * StudioNavigator — the Studio's left rail (ADR-447 workbench restructure).
+ * PagedNavigator — the paged media's left rail (ADR-447 workbench
+ * restructure; ADR-518 carved the housing): a strip of page cards for the
+ * media where the page IS the unit — a deck's slides, a web artifact's
+ * bands/sections. Flow artifacts mount no navigator (the mount is
+ * paged-gated in StudioSurface; the old derived-outline renderer was
+ * deleted with the mode split).
  *
- * A PER-TYPE navigator: what it shows follows the artifact's layout —
- *   - deck    → a slide strip of VISUAL PREVIEWS (PowerPoint / Preview.app):
- *               one card per `[data-arrange]` slide, a scaled render of the
- *               real slide; clicking a card selects that slide.
- *   - article → the outline (h1/h2 headings) — a publishing shape reads as a
- *               table of contents.
- *   - document→ the outline too (sections under one title).
- *
- * The slide previews are REAL renders: the artifact is projected once
+ * The page previews are REAL renders: the artifact is projected once
  * (citations resolved to displayable content, executables stripped — the same
  * `resolveArtifactHtml` the canvas uses, but WITHOUT the pointer/edit runtime),
- * then each slide's HTML + the artifact's <style> is rendered in a small
+ * then each page's HTML + the artifact's <style> is rendered in a small
  * `sandbox=""` iframe scaled down with CSS transform. Previews are display-only
- * (no scripts); selecting a slide is a parent click on the card, not in-frame.
+ * (no scripts); selecting a page is a parent click on the card, not in-frame.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
 import { labelForElement, STRUCTURAL_PAGE_SEL } from './structureLabels';
-
-interface OutlineEntry {
-  level: number;
-  text: string;
-  /** The heading block's id (ADR-455) — present when the heading is annotated
-   *  (scaffolds + the posture stamp headings); makes the entry navigational. */
-  blockId: string | null;
-}
 
 /** ADR-511 D3 — one row of the selected page's structure tree: a container
  *  (identity, no vocabulary) or a block (leaf). Labels are operator words
@@ -212,28 +201,12 @@ function SlideThumb({ doc, index, isSlide }: { doc: string; index: number; isSli
   );
 }
 
-/** Extract h1/h2 outline from source html (document/article rail). */
-function extractOutline(html: string): OutlineEntry[] {
-  if (typeof window === 'undefined' || !html) return [];
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  return Array.from(doc.querySelectorAll('h1, h2'))
-    .map((h) => ({
-      level: h.tagName === 'H1' ? 1 : 2,
-      text: (h.textContent || '').replace(/\s+/g, ' ').trim(),
-      blockId: h.getAttribute('data-block-id'),
-    }))
-    .filter((h) => h.text)
-    .slice(0, 40);
-}
-
-interface StudioNavigatorProps {
-  /** The artifact's layout slug (document/deck/article/page/canvas). */
+interface PagedNavigatorProps {
+  /** The artifact's layout slug — names the page noun (deck → slides,
+   *  otherwise sections). The MOUNT is mode-gated (paged only), NOT a
+   *  'deck' slug test, so both paged templates get the management strip
+   *  (ADR-222 — the kernel names the category). */
   layout: string;
-  /** The composition mode (STUDIO_LAYOUT_MODES): 'paged' → the card strip
-   *  (deck slides, page sections); 'flow' → the outline. Derived from the
-   *  kernel's mode, NOT a 'deck' slug test, so both paged templates get the
-   *  management strip (ADR-222 — the kernel names the category). */
-  isPaged: boolean;
   /** The artifact's SOURCE html. */
   html: string;
   /** Absolute workspace path — the base for citation resolution in previews. */
@@ -256,17 +229,13 @@ interface StudioNavigatorProps {
   /** Delete a selection of pages as ONE compound revision (multi-select
    *  Delete). The parent confirms when >1. */
   onDeletePages?: (indices: number[]) => void;
-  /** ADR-455: select a heading by block id (document/article outline) —
-   *  selects the heading block AND scrolls the canvas to it (deck parity). */
-  onSelectHeading?: (blockId: string) => void;
   /** ADR-511 D3 — select a structure-tree node (container or block) on the
    *  selected page: sets the parent selection + outlines it on the canvas. */
   onSelectNode?: (node: { blockId: string; label: string; kind: string | null }) => void;
 }
 
-export function StudioNavigator({
+export function PagedNavigator({
   layout,
-  isPaged,
   html,
   artifactPath,
   selectedSlide,
@@ -274,9 +243,8 @@ export function StudioNavigator({
   onReorderSlide,
   onReorderPages,
   onDeletePages,
-  onSelectHeading,
   onSelectNode,
-}: StudioNavigatorProps) {
+}: PagedNavigatorProps) {
   const [previews, setPreviews] = useState<SlidePreview[] | null>(null);
   // Drag-to-reorder (PowerPoint): the index being dragged, and the gap the drop
   // would land in (0..N — a drop BEFORE page `dropAt`, or after the last).
@@ -293,10 +261,6 @@ export function StudioNavigator({
   const pageCount = previews?.length ?? 0;
 
   useEffect(() => {
-    if (!isPaged) {
-      setPreviews(null);
-      return;
-    }
     let cancelled = false;
     buildPagePreviews(html, artifactPath)
       .then((p) => !cancelled && setPreviews(p))
@@ -304,7 +268,7 @@ export function StudioNavigator({
     return () => {
       cancelled = true;
     };
-  }, [isPaged, html, artifactPath]);
+  }, [html, artifactPath]);
 
   // The parent's primary selection is always part of the multi-selection; keep
   // the two in sync when the parent selects a page from elsewhere (canvas click,
@@ -339,10 +303,10 @@ export function StudioNavigator({
   // carry identity). Only the selected card expands: the strip stays a strip.
   const structure = useMemo(
     () =>
-      isPaged && onSelectNode && selectedSlide != null
+      onSelectNode && selectedSlide != null
         ? buildStructure(html, selectedSlide)
         : [],
-    [isPaged, onSelectNode, selectedSlide, html],
+    [onSelectNode, selectedSlide, html],
   );
 
   // A card click with modifiers (PowerPoint/Finder): plain = select-one (parent
@@ -406,7 +370,7 @@ export function StudioNavigator({
   // when the navigator has focus — never steals the canvas's own keys.
   const onStripKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (!isPaged || pageCount === 0) return;
+      if (pageCount === 0) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         deleteSelection();
@@ -429,7 +393,7 @@ export function StudioNavigator({
         if (selectedSlide != null) setSelected(new Set([selectedSlide]));
       }
     },
-    [isPaged, pageCount, deleteSelection, selectedSlide, onSelectSlide],
+    [pageCount, deleteSelection, selectedSlide, onSelectSlide],
   );
 
   // Which gap does the pointer sit over? Walk the rendered cards, compare the
@@ -553,207 +517,161 @@ export function StudioNavigator({
     };
   }, [dragIndex, gapAtPointer, onReorderSlide, onReorderPages, selected]);
 
-  if (isPaged) {
-    const noun = layout === 'deck' ? 'Slides' : 'Sections';
-    const selCount = selected.size;
-    return (
-      <div
-        ref={stripRef}
-        tabIndex={0}
-        onKeyDown={onStripKeyDown}
-        className="flex h-full w-full flex-col overflow-y-auto p-2 outline-none"
-      >
-        <div className="flex items-center justify-between gap-2 px-1 pb-2 pt-1">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            {noun}
-          </p>
-          {/* The selection action bar — multi-select must not be a secret
-              keystroke. When >1 is selected, say so AND offer the act; Delete
-              (the key) still works, this is the discoverable path to it. */}
-          {selCount > 1 && onDeletePages && (
-            <span className="flex items-center gap-1.5">
-              <span className="text-[10px] text-muted-foreground">{selCount} selected</span>
-              <button
-                type="button"
-                onClick={deleteSelection}
-                className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-red-400 hover:text-red-600"
-              >
-                Delete
-              </button>
-            </span>
-          )}
-        </div>
-        <ul ref={listRef} className="relative w-full space-y-2">
-          {(previews ?? []).map((s) => (
-            <li key={s.index} data-slide-card className="relative">
-              {/* The drop-line: a prediction of where the dragged page will
-                  land (above this card when the gap === this index). */}
-              {dragIndex != null && dropAt === s.index && (
-                <span className="pointer-events-none absolute -top-1 left-0 right-0 z-10 h-0.5 rounded bg-indigo-500" />
-              )}
-              <div
-                role="button"
-                tabIndex={0}
-                // The WHOLE CARD is the drag handle (PowerPoint/Keynote — you
-                // grab the thumbnail, not a 12px number). A press arms the
-                // drag; it only becomes a drag past a small movement
-                // threshold, so a plain click still selects. Without this the
-                // card body had no pointer handler at all, so a press-and-drag
-                // fell through to the browser's native TEXT SELECTION — the
-                // operator-observed blue highlight over the card titles.
-                onPointerDown={(e) => {
-                  focusStrip(); // so Delete / arrows work right after a select
-                  if (!onReorderSlide && !onReorderPages) return;
-                  if (e.button !== 0) return; // left button only
-                  armDrag(s.index, e.clientY);
-                }}
-                onClick={(e) => {
-                  // A click that completed a drag must not also re-select.
-                  if (didDragRef.current) {
-                    didDragRef.current = false;
-                    return;
-                  }
+  const noun = layout === 'deck' ? 'Slides' : 'Sections';
+  const selCount = selected.size;
+  return (
+    <div
+      ref={stripRef}
+      tabIndex={0}
+      onKeyDown={onStripKeyDown}
+      className="flex h-full w-full flex-col overflow-y-auto p-2 outline-none"
+    >
+      <div className="flex items-center justify-between gap-2 px-1 pb-2 pt-1">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          {noun}
+        </p>
+        {/* The selection action bar — multi-select must not be a secret
+            keystroke. When >1 is selected, say so AND offer the act; Delete
+            (the key) still works, this is the discoverable path to it. */}
+        {selCount > 1 && onDeletePages && (
+          <span className="flex items-center gap-1.5">
+            <span className="text-[10px] text-muted-foreground">{selCount} selected</span>
+            <button
+              type="button"
+              onClick={deleteSelection}
+              className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-red-400 hover:text-red-600"
+            >
+              Delete
+            </button>
+          </span>
+        )}
+      </div>
+      <ul ref={listRef} className="relative w-full space-y-2">
+        {(previews ?? []).map((s) => (
+          <li key={s.index} data-slide-card className="relative">
+            {/* The drop-line: a prediction of where the dragged page will
+                land (above this card when the gap === this index). */}
+            {dragIndex != null && dropAt === s.index && (
+              <span className="pointer-events-none absolute -top-1 left-0 right-0 z-10 h-0.5 rounded bg-indigo-500" />
+            )}
+            <div
+              role="button"
+              tabIndex={0}
+              // The WHOLE CARD is the drag handle (PowerPoint/Keynote — you
+              // grab the thumbnail, not a 12px number). A press arms the
+              // drag; it only becomes a drag past a small movement
+              // threshold, so a plain click still selects. Without this the
+              // card body had no pointer handler at all, so a press-and-drag
+              // fell through to the browser's native TEXT SELECTION — the
+              // operator-observed blue highlight over the card titles.
+              onPointerDown={(e) => {
+                focusStrip(); // so Delete / arrows work right after a select
+                if (!onReorderSlide && !onReorderPages) return;
+                if (e.button !== 0) return; // left button only
+                armDrag(s.index, e.clientY);
+              }}
+              onClick={(e) => {
+                // A click that completed a drag must not also re-select.
+                if (didDragRef.current) {
+                  didDragRef.current = false;
+                  return;
+                }
+                onCardClick(s.index, {
+                  metaKey: e.metaKey,
+                  ctrlKey: e.ctrlKey,
+                  shiftKey: e.shiftKey,
+                });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
                   onCardClick(s.index, {
                     metaKey: e.metaKey,
                     ctrlKey: e.ctrlKey,
                     shiftKey: e.shiftKey,
                   });
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onCardClick(s.index, {
-                      metaKey: e.metaKey,
-                      ctrlKey: e.ctrlKey,
-                      shiftKey: e.shiftKey,
-                    });
-                  }
-                }}
-                title={s.title}
-                // select-none on the CARD: a drag over a card must never paint
-                // a native text selection across its title/thumb.
-                className={`block w-full select-none rounded-md border text-left transition-colors ${
-                  dragIndex === s.index ? 'opacity-40' : ''
-                } ${
-                  dragIndex != null ? 'cursor-grabbing' : 'cursor-grab'
-                } ${
-                  // Primary = solid ring; a secondary multi-selected card = a
-                  // lighter fill so the group reads as one selection.
-                  selectedSlide === s.index
-                    ? 'border-indigo-400 ring-1 ring-indigo-400'
-                    : selected.has(s.index)
-                      ? 'border-indigo-300 bg-indigo-50/60 dark:bg-indigo-500/10'
-                      : 'border-border hover:border-foreground/30'
-                }`}
-              >
-                <div className="flex items-stretch gap-1.5 p-1">
-                  {/* The number. The whole card carries the drag now, so this
-                      is a position label, not the sole grab handle. */}
-                  <span className="mt-0.5 w-3 shrink-0 text-right text-[10px] font-medium text-muted-foreground">
-                    {s.index + 1}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <SlideThumb doc={s.doc} index={s.index} isSlide={s.isSlide} />
-                  </span>
-                </div>
-                <span className="block truncate px-1.5 pb-1 text-[10px] text-muted-foreground">
-                  {s.title}
+                }
+              }}
+              title={s.title}
+              // select-none on the CARD: a drag over a card must never paint
+              // a native text selection across its title/thumb.
+              className={`block w-full select-none rounded-md border text-left transition-colors ${
+                dragIndex === s.index ? 'opacity-40' : ''
+              } ${
+                dragIndex != null ? 'cursor-grabbing' : 'cursor-grab'
+              } ${
+                // Primary = solid ring; a secondary multi-selected card = a
+                // lighter fill so the group reads as one selection.
+                selectedSlide === s.index
+                  ? 'border-indigo-400 ring-1 ring-indigo-400'
+                  : selected.has(s.index)
+                    ? 'border-indigo-300 bg-indigo-50/60 dark:bg-indigo-500/10'
+                    : 'border-border hover:border-foreground/30'
+              }`}
+            >
+              <div className="flex items-stretch gap-1.5 p-1">
+                {/* The number. The whole card carries the drag now, so this
+                    is a position label, not the sole grab handle. */}
+                <span className="mt-0.5 w-3 shrink-0 text-right text-[10px] font-medium text-muted-foreground">
+                  {s.index + 1}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <SlideThumb doc={s.doc} index={s.index} isSlide={s.isSlide} />
                 </span>
               </div>
-              {/* ADR-511 D3 — the structure tree, under the SELECTED card only:
-                  the page's real hierarchy in operator words, each row
-                  selectable (containers included — they are elements with
-                  identity now, not invisible scaffolding). */}
-              {selectedSlide === s.index && structure.length > 0 && (
-                <ul className="mt-1 space-y-px pb-1 pl-5 pr-1">
-                  {structure.map((n) => (
-                    <li key={n.blockId}>
-                      <button
-                        type="button"
-                        onClick={() => onSelectNode?.(n)}
-                        title={n.text || n.label}
-                        style={{ paddingLeft: `${n.depth * 10}px` }}
-                        className="flex w-full items-baseline gap-1.5 truncate rounded px-1 py-px text-left text-[10px] transition-colors hover:bg-muted/40"
+              <span className="block truncate px-1.5 pb-1 text-[10px] text-muted-foreground">
+                {s.title}
+              </span>
+            </div>
+            {/* ADR-511 D3 — the structure tree, under the SELECTED card only:
+                the page's real hierarchy in operator words, each row
+                selectable (containers included — they are elements with
+                identity now, not invisible scaffolding). */}
+            {selectedSlide === s.index && structure.length > 0 && (
+              <ul className="mt-1 space-y-px pb-1 pl-5 pr-1">
+                {structure.map((n) => (
+                  <li key={n.blockId}>
+                    <button
+                      type="button"
+                      onClick={() => onSelectNode?.(n)}
+                      title={n.text || n.label}
+                      style={{ paddingLeft: `${n.depth * 10}px` }}
+                      className="flex w-full items-baseline gap-1.5 truncate rounded px-1 py-px text-left text-[10px] transition-colors hover:bg-muted/40"
+                    >
+                      <span
+                        className={
+                          n.kind
+                            ? 'shrink-0 text-muted-foreground'
+                            : 'shrink-0 font-medium text-emerald-700 dark:text-emerald-500'
+                        }
                       >
-                        <span
-                          className={
-                            n.kind
-                              ? 'shrink-0 text-muted-foreground'
-                              : 'shrink-0 font-medium text-emerald-700 dark:text-emerald-500'
-                          }
-                        >
-                          {n.label}
-                        </span>
-                        {n.text && (
-                          <span className="truncate text-muted-foreground/70">{n.text}</span>
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-          {/* The trailing drop-line — a drop AFTER the last slide. */}
-          {dragIndex != null && dropAt === (previews?.length ?? 0) && (previews?.length ?? 0) > 0 && (
-            <li className="pointer-events-none relative h-0">
-              <span className="absolute -top-1 left-0 right-0 h-0.5 rounded bg-indigo-500" />
-            </li>
-          )}
-          {previews === null && (
-            <li className="px-1 text-[11px] text-muted-foreground">Loading previews…</li>
-          )}
-          {previews?.length === 0 && (
-            <li className="px-1 text-[11px] text-muted-foreground">
-              {layout === 'deck' ? 'No slides yet.' : 'No sections yet.'}
-            </li>
-          )}
-        </ul>
-      </div>
-    );
-  }
-
-  // document + article → the outline, NAVIGATIONAL (ADR-455): clicking a
-  // heading selects its block and scrolls the canvas to it — the Docs/Word
-  // nav-pane contract, via the same bridge the deck strip uses.
-  const outline = extractOutline(html);
-  return (
-    <div className="flex h-full w-full flex-col overflow-y-auto p-3">
-      <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        Outline
-      </p>
-      {outline.length === 0 ? (
-        <p className="text-[11px] text-muted-foreground">Headings appear here.</p>
-      ) : (
-        <ul className="space-y-0.5">
-          {outline.map((h, i) =>
-            h.blockId && onSelectHeading ? (
-              <li key={i}>
-                <button
-                  type="button"
-                  onClick={() => onSelectHeading(h.blockId!)}
-                  title={h.text}
-                  className={`block w-full truncate rounded px-1 py-0.5 text-left text-xs transition-colors hover:bg-muted/40 hover:text-foreground ${
-                    h.level === 1 ? 'font-medium' : 'pl-3 text-muted-foreground'
-                  }`}
-                >
-                  {h.text}
-                </button>
-              </li>
-            ) : (
-              <li
-                key={i}
-                className={`truncate px-1 py-0.5 text-xs ${
-                  h.level === 1 ? 'font-medium' : 'pl-3 text-muted-foreground'
-                }`}
-                title={h.text}
-              >
-                {h.text}
-              </li>
-            ),
-          )}
-        </ul>
-      )}
+                        {n.label}
+                      </span>
+                      {n.text && (
+                        <span className="truncate text-muted-foreground/70">{n.text}</span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        ))}
+        {/* The trailing drop-line — a drop AFTER the last slide. */}
+        {dragIndex != null && dropAt === (previews?.length ?? 0) && (previews?.length ?? 0) > 0 && (
+          <li className="pointer-events-none relative h-0">
+            <span className="absolute -top-1 left-0 right-0 h-0.5 rounded bg-indigo-500" />
+          </li>
+        )}
+        {previews === null && (
+          <li className="px-1 text-[11px] text-muted-foreground">Loading previews…</li>
+        )}
+        {previews?.length === 0 && (
+          <li className="px-1 text-[11px] text-muted-foreground">
+            {layout === 'deck' ? 'No slides yet.' : 'No sections yet.'}
+          </li>
+        )}
+      </ul>
     </div>
   );
 }

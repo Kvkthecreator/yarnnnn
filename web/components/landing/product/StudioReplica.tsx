@@ -2,7 +2,7 @@
 
 /**
  * StudioReplica — pixel-level replica of the shipped Studio workbench
- * (components/studio/StudioSurface.tsx + StudioNavigator.tsx +
+ * (components/studio/StudioSurface.tsx + PagedNavigator.tsx +
  * StudioToolbar.tsx) for marketing pages, with a staged loop:
  *
  *   you ask in the bound chat → Lisa replies → the canvas updates and the

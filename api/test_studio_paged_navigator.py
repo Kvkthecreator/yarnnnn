@@ -49,7 +49,7 @@ def run() -> bool:
     web = root / "web"
 
     ops = (web / "components/studio/artifactOps.ts").read_text()
-    nav = (web / "components/studio/StudioNavigator.tsx").read_text()
+    nav = (web / "components/studio/PagedNavigator.tsx").read_text()
     surface = (web / "components/studio/StudioSurface.tsx").read_text()
 
     # ── 1. the compound ops exist and carry the correctness markers ─────────
@@ -85,19 +85,19 @@ def run() -> bool:
     _check("movePages null-guards empty / out-of-range `to`", "return null" in mp)
 
     # ── 2. the navigator is paged-general, NOT deck-hardcoded ────────────────
-    # The strip must derive from the paged mode, so a page template gets cards
-    # too. The prop is `isPaged` (already computed in StudioSurface).
-    _check("the navigator takes an isPaged prop (mode-derived, not a slug test)", "isPaged" in nav)
+    # ADR-518 follow-through: the component is PAGED BY DEFINITION — it
+    # carries no mode flag at all; the mode gate lives at the ONE mount site
+    # (`isPaged && (` in StudioSurface). A `layout === 'deck'` may still
+    # appear inside for the Slides/Sections noun label (legitimate), but
+    # never as a branch gate.
+    _check("the navigator carries no mode flag (paged by definition)", "isPaged" not in nav)
     _check(
-        "StudioSurface passes isPaged into the navigator",
-        "isPaged={isPaged}" in surface or "isPaged={" in surface,
+        "the mount is isPaged-gated in StudioSurface",
+        "{isPaged && (" in surface and "<PagedNavigator" in surface,
     )
-    # The strip's BRANCH condition must be `if (isPaged)`, not `layout === 'deck'`
-    # — a `layout === 'deck'` may still appear inside for the Slides/Sections
-    # noun label (legitimate), so assert the gate, not the string's absence.
     _check(
-        "the card strip branches on `if (isPaged)`, not a deck-slug gate",
-        "if (isPaged)" in nav and "if (layout === 'deck')" not in nav,
+        "no deck-slug branch gate inside the navigator",
+        "if (layout === 'deck')" not in nav,
     )
 
     # ── 3. multi-select + keyboard + group-drag markers ─────────────────────

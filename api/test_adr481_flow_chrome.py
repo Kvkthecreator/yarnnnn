@@ -45,7 +45,7 @@ def run() -> bool:
     sys.path.insert(0, str(root / "api"))
     web = root / "web"
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
-    nav = (web / "components/studio/StudioNavigator.tsx").read_text()
+    nav = (web / "components/studio/PagedNavigator.tsx").read_text()
     toolbar = (web / "components/studio/StudioToolbar.tsx").read_text()
 
     import services.docs  # noqa: F401, E402 — registers the document row (ADR-518)
@@ -138,14 +138,13 @@ def run() -> bool:
         "div[data-block-id]:not([data-block]):hover" in paged_css,
     )
 
-    # ── D4 — the navigator is unchanged (verified, not assumed) ───────────
-    outline = nav[nav.index("function extractOutline") :][:600]
-    _check("D4 the outline reads h1/h2 only", "querySelectorAll('h1, h2')" in outline)
-    _check(
-        "D4 the outline never reads arrangements or slots",
-        "data-arrange" not in outline and "data-slot" not in outline,
-    )
-    _check("D4 the outline still resolves block ids", "data-block-id" in outline)
+    # ── D4 — flow mounts NO navigator (re-cut with the mode split; the
+    # derived outline is deleted — ADR-518 follow-through). The navigator is
+    # the paged strip, mounted behind the surface's isPaged gate.
+    _check("D4 the flow outline is gone (no extractOutline anywhere in the navigator)",
+           "extractOutline" not in nav)
+    _check("D4 the navigator mount is paged-gated in the surface",
+           "{isPaged && (" in (web / "components/studio/StudioSurface.tsx").read_text())
 
     # ── D5 — legacy flattens at PROJECTION, never by migration ────────────
     _check("D5 the flatten is gated on flow", "if (opts?.mode === 'flow') {" in proj)

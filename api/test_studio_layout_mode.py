@@ -135,7 +135,7 @@ def run() -> bool:
     )
     _check(
         "the navigator column is PAGED-only",
-        "{isPaged && (" in surface and "<StudioNavigator" in surface,
+        "{isPaged && (" in surface and "<PagedNavigator" in surface,
     )
     _check(
         "the navigator toggle is PAGED-only (it would toggle nothing in flow)",
@@ -165,7 +165,7 @@ def run() -> bool:
     # right by its overflow-hidden parent and read as a squished portrait strip.
     # The thumbnail now MEASURES its container and scales the natural 992px slide
     # to fit, so the 16:9 preview is undistorted and never clipped.
-    navigator = (web / "components/studio/StudioNavigator.tsx").read_text()
+    navigator = (web / "components/studio/PagedNavigator.tsx").read_text()
     _check(
         "the thumbnail measures its own width (ResizeObserver), no hardcoded THUMB_W",
         "new ResizeObserver(measure)" in navigator and "const THUMB_W = 200" not in navigator,

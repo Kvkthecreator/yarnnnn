@@ -220,8 +220,10 @@ it just a better editor?*
 1. **Container drag = reorder, per medium** (the matrix's 🔜 cells) — with drop
    indicators; never positional.
 2. **Snap/alignment guides** on block drag (siblings + frame).
-3. **Breadcrumb at the selection** (the ancestor chain the Esc-walk already walks) —
-   the one industry-standard affordance not yet declared elsewhere.
+3. ✅ **Breadcrumb at the selection** (the ancestor chain the Esc-walk already walks) —
+   shipped 2026-08-05: `SelectionBreadcrumb` over the canvas, paged media only
+   (flow's chain is caret → block → clear); segments select through the
+   navigator's existing paths (rule 7 — a new reach, not a new op).
 4. Owed keyboard rows (arrows/nudge/Tab-cycle · ⌘B/⌘I on flow · band reorder keys).
 5. Carried follow-ons: h1-rename-in-place (needs dependent-rewriting on the ADR-448
    edge) · rename does not rewrite dependents (every mover's gap, not Studio's) ·
