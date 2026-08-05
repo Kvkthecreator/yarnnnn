@@ -2780,6 +2780,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               selection={selection}
               onSetToken={handleSetToken}
               onPageVerb={handlePageVerb}
+              // ADR-519 D3 — the spine's Identity verb row at container + block
+              // scope: the SAME id-addressed handler the right-click menu and
+              // the block keyboard use (one implementation, a third entrance).
+              onElementVerb={handleBlockVerb}
               onTurnInto={handleTurnInto}
               onReturnToFlow={handleReturnToFlow}
               onContainerLayout={handleContainerLayout}

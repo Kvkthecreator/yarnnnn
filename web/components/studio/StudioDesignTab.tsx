@@ -1,30 +1,34 @@
 'use client';
 
 /**
- * StudioDesignTab — the scope-switching inspector (ADR-453 D4).
+ * StudioDesignTab — the scope-switching inspector (ADR-453 D4 → ADR-519 D3).
  *
  * The right column's second tab (Chat | Design — the Canva model, never a
- * fourth column). What it shows follows the canvas selection's GRAIN:
+ * fourth column). Scope follows the canvas selection's GRAIN (document /
+ * page / container / block), and every scope speaks the ONE SPINE:
  *
- *  - nothing selected → DOCUMENT scope: the design-system picker (ADR-449 D5
- *    finally homed — discovery from the vocabulary, apply through the one
- *    mechanical door) + the artifact's layout.
- *  - a page (slide/section) → PAGE scope: the Re-arrange thumbnail gallery +
- *    page tokens (tone; valign on deck slides; column ratio on multi-column
- *    arrangements) + Duplicate / Move / Delete.
- *  - a slot → SLOT scope: name + role, plus the MEDIA slot's image picker —
- *    which is not a second insert route but the terminal step of the canvas
- *    "+ Add" on a media slot (onAddHere routes here by role). A flow slot's
- *    duplicate add-text button was deleted by ADR-505 D5.
- *  - a block → BLOCK scope: SHAPING only — Turn into + block tokens
- *    (align/tone; media blocks add height/fit) + measures. The verb row
- *    (ask / duplicate / move / delete) left the pane 2026-07-24: the
- *    right-click menu + block keyboard are the entrances, and the
- *    ask-about act relocated into the menu's AI group.
+ *   Identity → Position → Layout → Style → Content
+ *
+ * A scope renders only the sections its grain has — it never re-orders or
+ * renames a section (the one Figma property worth importing is the panel
+ * GRAMMAR, not the node types). Per scope:
+ *
+ *  - DOCUMENT (nothing selected): Identity (the File card) → Style
+ *    (typography faces / measure / the design-system picker, ADR-449 D5).
+ *  - PAGE: Identity (noun + verb row) → Layout (ADR-516 presets) → Style
+ *    (tone, scrim/focus) → Content (the cited background).
+ *  - CONTAINER: Identity (operator-word label + verb row — ADR-519 parity;
+ *    the id-addressed ops needed no special casing) → Layout (ADR-511 D4 +
+ *    ADR-516 D4 presets) → Content (the media-role image picker).
+ *  - BLOCK: Identity (kind + verb row) → Position (In flow | Positioned +
+ *    X/Y readback, deck-staged) → Layout (size/align tokens + W/H readback)
+ *    → Style (typography ramp · colour swatches · the applied-system cue) →
+ *    Content (Turn into).
  *
  * Everything here EXECUTES deterministic ops through the surface's applyOp
- * (the one CAS door) — tokens, not pixels (ADR-453 D1); current values are
- * parsed from the artifact SOURCE at render (derived, never stored).
+ * (the one CAS door) — tokens for meaning, inline-CSS presets for geometry
+ * (ADR-516 D6); current values are parsed from the artifact SOURCE at
+ * render (derived, never stored).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -126,10 +130,16 @@ interface StudioDesignTabProps {
   /** EXECUTE: set (value) / clear (null) a token on the selected block/page,
    *  or on the artifact ROOT (document grain — ADR-455). */
   onSetToken: (grain: 'block' | 'page' | 'document', key: string, value: string | null) => void;
-  /** Page verbs only — the BLOCK verb row left this pane (2026-07-24; the
-   *  right-click menu + block keyboard are the entrances). Page verbs stay:
-   *  duplicate-page has no other mount (the navigator covers delete/reorder). */
+  /** Page verbs (duplicate-page has no other mount; the navigator covers
+   *  delete/reorder). */
   onPageVerb: (verb: StructVerb) => void;
+  /** ADR-519 D3 — the Identity verb row at container + block scope. The same
+   *  id-addressed handler the right-click menu and the block keyboard use
+   *  (one implementation, a third entrance); ADR-511 D5 made the ops work on
+   *  containers with zero op-side change. The 2026-07-24 removal of the block
+   *  row optimized for redundancy; the spine optimizes for a panel the member
+   *  learns ONCE — every scope's Identity section carries its verbs. */
+  onElementVerb: (verb: StructVerb) => void;
   /** EXECUTE: turn the selected block into another TEXT kind (ADR-456 W2 —
    *  convertBlock: id + tokens survive, text units rebuilt into the target). */
   onTurnInto: (kind: string, label: string, fragment: string) => void;
@@ -598,6 +608,7 @@ export function StudioDesignTab({
   selection,
   onSetToken,
   onPageVerb,
+  onElementVerb,
   onTurnInto,
   onReturnToFlow,
   onContainerLayout,
@@ -692,8 +703,8 @@ export function StudioDesignTab({
   // fixed frame; media = a media block anywhere). This is the read-back the
   // inspector was missing entirely: a member who dragged a block to 60% wide
   // had no numeric confirmation anywhere in the tab (the value lived only in the
-  // transient in-gesture frame label). The position measures (x/y/z) stay OUT of
-  // this — they are the "Return to flow" state, shown separately below.
+  // transient in-gesture frame label). The position measures (x/y) render in
+  // the spine's Position section (ADR-519 Phase A), not here.
   const sizeMeasures = useMemo(() => {
     if (scope !== 'block') return [];
     const isMedia = !!selection?.blockKind && mediaKinds.includes(selection.blockKind);
@@ -705,6 +716,16 @@ export function StudioDesignTab({
           (isMedia && m.applies.includes('media'))),
     );
   }, [scope, measures, selection, selectedEl, mediaKinds]);
+
+  // ADR-519 Phase A — the POSITION readback (x/y): the drag's numeric receipt,
+  // shown in the Position section when the block is out of flow. Deck-staged
+  // only (the one coordinate space, ADR-505 D3); numeric ENTRY is Phase C.
+  const posMeasures = useMemo(() => {
+    if (scope !== 'block' || !selectedEl?.closest('.slide')) return [];
+    return (measures ?? []).filter(
+      (m) => (m.key === 'x' || m.key === 'y') && m.applies.includes('block-staged'),
+    );
+  }, [scope, measures, selectedEl]);
 
   // The current value of a measure, parsed from the block's own --y* style —
   // derived at render, never stored (the ADR-453 D1 convention every token uses).
@@ -1443,43 +1464,17 @@ export function StudioDesignTab({
         </>
       )}
 
-      {/* ── CONTAINER scope (ADR-511 D3/D4) ─────────────────────────────────
+      {/* ── CONTAINER scope (ADR-511 D3/D4 · ADR-519 D3 spine) ──────────────
           A structural container — a column, a columns row, a slot-div — is a
-          real element with identity: it duplicates/deletes/moves via the
-          right-click menu (the id-addressed ops need no special casing), and
-          this panel carries what only a container owns: its LAYOUT, as
-          bounded plain-CSS properties (never a raw CSS pane — D7). */}
+          real element with identity. Spine: Identity (label + verb row — the
+          id-addressed ops need no special casing, ADR-511 D5) → Layout
+          (bounded plain-CSS presets, never a raw CSS pane — D7) → Content
+          (the media-role image picker). */}
       {scope === 'container' && (
         <>
           <div className={SECTION}>
             <p className={HEADING}>{selection?.label ?? 'group'}</p>
-            {slotRole === 'media' ? (
-              slotImages == null ? (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading images…
-                </div>
-              ) : slotImages.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  No images in the workspace yet — drop one into Files, or ask the chat for an SVG.
-                </p>
-              ) : (
-                <div className="space-y-1">
-                  {slotImages.map((img) => (
-                    <button
-                      key={img.path}
-                      type="button"
-                      onClick={() => onInsertImageInSlot(img.path, selection!.blockId!)}
-                      className="flex w-full flex-col rounded px-2 py-1 text-left hover:bg-muted/40"
-                    >
-                      <span className="truncate text-xs">{baseName(img.path)}</span>
-                      <span className="truncate text-[10px] text-muted-foreground">
-                        {img.path.replace(/^\/workspace\//, '')}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )
-            ) : null}
+            <VerbRow noun={selection?.label ?? 'group'} onVerb={onElementVerb} />
           </div>
           <div className={SECTION}>
             <p className={HEADING}>Layout</p>
@@ -1509,21 +1504,165 @@ export function StudioDesignTab({
               onSet={onContainerLayout}
             />
           </div>
+          {/* Content — the media-role picker: the one job the old slot scope
+              did that a plain container cannot, resolved from the registry
+              while data-slot survives as an inert name (ADR-511 D8). */}
+          {slotRole === 'media' && (
+            <div className={SECTION}>
+              <p className={HEADING}>Image</p>
+              {slotImages == null ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading images…
+                </div>
+              ) : slotImages.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No images in the workspace yet — drop one into Files, or ask the chat for an SVG.
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {slotImages.map((img) => (
+                    <button
+                      key={img.path}
+                      type="button"
+                      onClick={() => onInsertImageInSlot(img.path, selection!.blockId!)}
+                      className="flex w-full flex-col rounded px-2 py-1 text-left hover:bg-muted/40"
+                    >
+                      <span className="truncate text-xs">{baseName(img.path)}</span>
+                      <span className="truncate text-[10px] text-muted-foreground">
+                        {img.path.replace(/^\/workspace\//, '')}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 
-      {/* ── BLOCK scope ────────────────────────────────────────────────── */}
-      {/* The identity/verb section (kind · id, the ask-about act, duplicate/
-          up/down/delete, the double-click hint) is DELETED (2026-07-24):
-          every verb already had a faster mouse entrance — the right-click
-          menu (mode-gated, ADR-462) and the block keyboard (⌫/⌘C/⌘D/⌘V,
-          ADR-477) — and editing is double-click on the canvas itself. The
-          ask-about act relocated to the right-click menu (its only remaining
-          mount). The pane keeps what only it can do: SHAPING (Turn into ·
-          tokens · measures). The canvas selection box is the scope
-          indicator. */}
+      {/* ── BLOCK scope (ADR-519 D3 spine) ───────────────────────────────
+          Identity → Position → Layout → Style → Content. The verb row
+          returned with the spine (it left 2026-07-24 as redundant with the
+          right-click menu + block keyboard — both remain entrances; the
+          spine puts every scope's verbs in its Identity section so the
+          panel reads the same at every grain, and it is still the one
+          implementation behind three entrances). */}
       {scope === 'block' && (
         <>
+          {/* Identity — the operator-word kind + the verb row. */}
+          <div className={SECTION}>
+            <p className={HEADING}>{selection?.label ?? selection?.blockKind ?? 'block'}</p>
+            <VerbRow noun={selection?.label ?? 'block'} onVerb={onElementVerb} />
+          </div>
+          {/* Position (ADR-511 D4) — an explicit, visible, reversible state.
+              Flow is the default; dragging is what enters the positioned
+              state; "In flow" is the reversal. Shown on every STAGED block so
+              the state is legible before it surprises. ADR-485 D4 unchanged:
+              the kernel rule requires BOTH x and y — read the state the
+              kernel reads. X/Y readback (ADR-519 Phase A): the drag's numeric
+              receipt; entry lands in Phase C. */}
+          {!!selectedEl?.closest('.slide') && (() => {
+            const positioned =
+              selectedEl.hasAttribute('data-x') && selectedEl.hasAttribute('data-y');
+            const chip = (active: boolean) =>
+              `rounded border px-1.5 py-0.5 text-[10px] transition-colors ${
+                active
+                  ? 'border-foreground/50 text-foreground'
+                  : 'border-border text-muted-foreground hover:bg-muted/40'
+              }`;
+            return (
+              <div className={SECTION}>
+                <p className={HEADING}>Position</p>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    className={chip(!positioned)}
+                    onClick={positioned ? onReturnToFlow : undefined}
+                    disabled={!positioned}
+                  >
+                    In flow
+                  </button>
+                  <button type="button" className={chip(positioned)} disabled>
+                    Positioned
+                  </button>
+                </div>
+                {positioned && posMeasures.length > 0 && (
+                  <div className="space-y-0.5">
+                    {posMeasures.map((m) => {
+                      const v = measureValue(m);
+                      return (
+                        <div key={m.key} className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-muted-foreground" title={m.description}>
+                            {m.label}
+                          </span>
+                          <span className="text-xs tabular-nums text-foreground">
+                            {v == null ? '—' : `${v}${m.unit}`}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <p className="text-[10px] text-muted-foreground">
+                  {positioned
+                    ? 'Dragged to a point on this slide — it no longer follows the layout. "In flow" returns it.'
+                    : 'Follows the slide’s layout. Drag the block on the canvas to position it freely.'}
+                </p>
+              </div>
+            );
+          })()}
+          {/* Layout — the non-colour block tokens (size/align; media add
+              height/fit) + the W/H size readback (ADR-485 follow-on), one
+              section per the spine. Palette-backed tokens are NOT here — they
+              live in Style, and `nonColorTokens` is their complement, so
+              every token still renders exactly once. */}
+          {(nonColorTokens.length > 0 || sizeMeasures.length > 0) && (
+            <div className={SECTION}>
+              <p className={HEADING}>Layout</p>
+              {nonColorTokens.map((t) => (
+                <TokenControl
+                  key={t.key}
+                  token={t}
+                  current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
+                  onSet={(v) => onSetToken('block', t.key, v)}
+                />
+              ))}
+              {sizeMeasures.map((m) => {
+                const v = measureValue(m);
+                return (
+                  <div key={m.key} className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground" title={m.description}>
+                      {m.label}
+                    </span>
+                    {v == null ? (
+                      <span className="text-xs text-muted-foreground">Auto</span>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-xs tabular-nums text-foreground">
+                          {v}
+                          {m.unit}
+                        </span>
+                        <button
+                          type="button"
+                          className={askBtn}
+                          onClick={() => onClearMeasure(m.key as 'w' | 'h')}
+                          title={`Reset ${m.label.toLowerCase()} to Auto`}
+                        >
+                          Auto
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+              {sizeMeasures.length > 0 && (
+                <p className="text-[10px] leading-snug text-muted-foreground">
+                  Drag the block&apos;s corner on the canvas to size it; the value
+                  shows here.
+                </p>
+              )}
+            </div>
+          )}
           {/* Typography (ADR-487 D3 v2) — the ramp as a visual select, on the
               two ramp-shaped kinds (prose/heading), UNIVERSAL across layouts:
               current rung read from the tag, previews derived from the
@@ -1605,10 +1744,33 @@ export function StudioDesignTab({
               ))}
             </div>
           )}
-          {/* Turn into (ADR-456 W2) — the id and tokens survive the conversion
-              (a block with a citation refuses). On ramp blocks (prose/heading)
-              the Typography select above OWNS the ramp, so this list carries
-              only the STRUCTURAL targets; structural kinds keep the full list. */}
+          {/* ADR-487 D9 — the block scope's route OUT. The controls above are
+              painted in the system's values and the Typography description says
+              "themed by the design system", but this scope named no system and
+              offered no way to reach one: the member had to deselect, then find
+              the picker row. Same one line, same component, as document scope.
+
+              ⭐ Its own section, gated on the SYSTEM rather than on a token list.
+              It used to live inside the token section, and splitting colour out
+              would have stranded it: a block whose only tokens are palette-backed
+              (the common case — a callout has tone + variant) would render an
+              empty complement, drop the section, and silently lose the route out
+              that D9 exists to provide. */}
+          {appliedSystem && (
+            <div className={SECTION}>
+              <AppliedSystemCue
+                name={appliedSystem.name}
+                manifestPath={appliedSystem.manifest_path}
+                onOpen={onOpenSystem}
+                note="supplies these values."
+              />
+            </div>
+          )}
+          {/* Content — Turn into (ADR-456 W2): the id and tokens survive the
+              conversion (a block with a citation refuses). On ramp blocks
+              (prose/heading) the Typography select above OWNS the ramp, so
+              this list carries only the STRUCTURAL targets; structural kinds
+              keep the full list. */}
           {selection?.blockKind && TURN_INTO_KINDS.includes(selection.blockKind) && (
             <div className={SECTION}>
               <p className={HEADING}>Turn into</p>
@@ -1638,125 +1800,6 @@ export function StudioDesignTab({
               </div>
             </div>
           )}
-          {/* The remaining block tokens. Palette-backed ones are NOT here — they
-              were lifted to the swatch row under Typography, and `nonColorTokens`
-              is their complement, so every token still renders exactly once. */}
-          {nonColorTokens.length > 0 && (
-            <div className={SECTION}>
-              {nonColorTokens.map((t) => (
-                <TokenControl
-                  key={t.key}
-                  token={t}
-                  current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
-                  onSet={(v) => onSetToken('block', t.key, v)}
-                />
-              ))}
-            </div>
-          )}
-          {/* ADR-487 D9 — the block scope's route OUT. The controls above are
-              painted in the system's values and the Typography description says
-              "themed by the design system", but this scope named no system and
-              offered no way to reach one: the member had to deselect, then find
-              the picker row. Same one line, same component, as document scope.
-
-              ⭐ Its own section, gated on the SYSTEM rather than on a token list.
-              It used to live inside the token section, and splitting colour out
-              would have stranded it: a block whose only tokens are palette-backed
-              (the common case — a callout has tone + variant) would render an
-              empty complement, drop the section, and silently lose the route out
-              that D9 exists to provide. */}
-          {appliedSystem && (
-            <div className={SECTION}>
-              <AppliedSystemCue
-                name={appliedSystem.name}
-                manifestPath={appliedSystem.manifest_path}
-                onOpen={onOpenSystem}
-                note="supplies these values."
-              />
-            </div>
-          )}
-          {/* ADR-485 follow-on — the SIZE read-back. A drag on the canvas
-              handle authors w/h; this shows the value it wrote (the tab had no
-              numeric confirmation anywhere before) and offers reset-to-Auto,
-              the same absence-default a token gives. Drag to size, read here.
-              Only rendered where a measure applies (a framed or media block). */}
-          {sizeMeasures.length > 0 && (
-            <div className={SECTION}>
-              <p className={HEADING}>Size</p>
-              {sizeMeasures.map((m) => {
-                const v = measureValue(m);
-                return (
-                  <div key={m.key} className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-muted-foreground" title={m.description}>
-                      {m.label}
-                    </span>
-                    {v == null ? (
-                      <span className="text-xs text-muted-foreground">Auto</span>
-                    ) : (
-                      <span className="flex items-center gap-1.5">
-                        <span className="text-xs tabular-nums text-foreground">
-                          {v}
-                          {m.unit}
-                        </span>
-                        <button
-                          type="button"
-                          className={askBtn}
-                          onClick={() => onClearMeasure(m.key as 'w' | 'h')}
-                          title={`Reset ${m.label.toLowerCase()} to Auto`}
-                        >
-                          Auto
-                        </button>
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-              <p className="text-[10px] leading-snug text-muted-foreground">
-                Drag the block&apos;s corner on the canvas to size it; the value
-                shows here.
-              </p>
-            </div>
-          )}
-          {/* ADR-511 D4 — Position is an explicit, visible, reversible state
-              (the Claude Design benchmark's Inline/Absolute, in operator
-              words). Flow is the default; dragging is what enters the
-              positioned state; "In flow" is the reversal. Shown on every
-              STAGED block so the state is legible before it surprises.
-              ADR-485 D4 unchanged: the kernel rule requires BOTH x and y —
-              read the state the kernel reads. */}
-          {!!selectedEl?.closest('.slide') && (() => {
-            const positioned =
-              selectedEl.hasAttribute('data-x') && selectedEl.hasAttribute('data-y');
-            const chip = (active: boolean) =>
-              `rounded border px-1.5 py-0.5 text-[10px] transition-colors ${
-                active
-                  ? 'border-foreground/50 text-foreground'
-                  : 'border-border text-muted-foreground hover:bg-muted/40'
-              }`;
-            return (
-              <div className={SECTION}>
-                <p className={HEADING}>Position</p>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    className={chip(!positioned)}
-                    onClick={positioned ? onReturnToFlow : undefined}
-                    disabled={!positioned}
-                  >
-                    In flow
-                  </button>
-                  <button type="button" className={chip(positioned)} disabled>
-                    Positioned
-                  </button>
-                </div>
-                <p className="text-[10px] text-muted-foreground">
-                  {positioned
-                    ? 'Dragged to a point on this slide — it no longer follows the layout. "In flow" returns it.'
-                    : 'Follows the slide’s layout. Drag the block on the canvas to position it freely.'}
-                </p>
-              </div>
-            );
-          })()}
         </>
       )}
 
