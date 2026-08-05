@@ -1610,14 +1610,9 @@ const EDIT_SCRIPT = `
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(commit, 2000); // idle-2s safety commit (D4)
     };
-    // Sanitize paste to plain text — no HTML injection through the clipboard.
-    var onPaste = function (e) {
-      e.preventDefault();
-      var text = (e.clipboardData || window.clipboardData).getData('text/plain');
-      if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
-        document.execCommand('insertText', false, text);
-      }
-    };
+    // ADR-521 D5: rich paste behind the allowlist — the SAME handler the flow
+    // root uses (one implementation, both grains); plain-text fallback inside.
+    var onPaste = richPaste;
     el.__yarnnnBlur = onBlur;
     el.__yarnnnInput = onInput;
     el.__yarnnnPaste = onPaste;
@@ -1665,30 +1660,29 @@ const EDIT_SCRIPT = `
       if (flowIdle) clearTimeout(flowIdle);
       flowCommit();
     }, true);
-    // Paste stays plain-text — no HTML injection through the clipboard.
-    root.addEventListener('paste', function (e) {
-      e.preventDefault();
-      var text = (e.clipboardData || window.clipboardData).getData('text/plain');
-      if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
-        document.execCommand('insertText', false, text);
-      }
-    });
+    // ADR-521 D5: text/html paste behind the allowlist (gate 1; sanitizeInner
+    // at the commit is gate 2). Plain-text fallback inside richPaste.
+    root.addEventListener('paste', richPaste);
     // TAB MUST NOT END THE WRITING SESSION. The root is contenteditable, so Tab
     // took the browser default — move focus OUT of the editable — which fired
     // the blur listener above, committed, and dropped the caret mid-paragraph.
-    // In every writing tool (Word, Google Docs, Notion) Tab is an indent or a
-    // no-op; it never ends the session. Swallow it and insert a tab character,
-    // which is the plainest honest reading of the key in continuous prose.
     //
-    // Deliberately NOT a list-indent gesture: that is a structural op on a
-    // block, and this is the medium where the browser owns structure
-    // (ADR-480 D1). If list nesting is wanted it belongs in the block grammar,
-    // not smuggled in through a keypress here.
+    // ADR-521 D4: in a LIST, Tab indents and Shift+Tab outdents — the native
+    // ul > li nesting ADR-456 D2 sanctions; a keyboard entrance to a structural
+    // op has slash's legitimacy (the key is not the op, it is a door to it).
+    // In prose, Tab keeps the literal tab character; Shift+Tab does nothing
+    // rather than insert a tab the member did not ask for.
     root.addEventListener('keydown', function (e) {
       if (e.key !== 'Tab') return;
-      // Shift+Tab has no matching outdent, so let it do nothing rather than
-      // insert a tab the member did not ask for.
       e.preventDefault();
+      var sel = window.getSelection();
+      var node = sel && sel.anchorNode;
+      var el = node ? (node.nodeType === 1 ? node : node.parentElement) : null;
+      var li = el && el.closest ? el.closest('li') : null;
+      if (li && root.contains(li)) {
+        document.execCommand(e.shiftKey ? 'outdent' : 'indent');
+        return;
+      }
       if (e.shiftKey) return;
       if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
         document.execCommand('insertText', false, String.fromCharCode(9));
@@ -1729,15 +1723,190 @@ const EDIT_SCRIPT = `
     idleTimer = setTimeout(commit, 2000);
   }
 
-  function wrapSelection(tag) {
+  // ── ADR-521 D3: the format tier — per-block-intersection, deterministic ──
+  // The selection law (D2): text-tier affordances follow the SELECTION
+  // wherever it runs; structure-tier affordances address the BLOCKS it
+  // intersects. On flow the browser owns the range (ADR-480), so a range may
+  // cross blocks. A bare execCommand toggle there is browser-defined per
+  // segment — an h1 is already bold, so "bold" tried to UN-bold it through
+  // style spans the commit sanitizer strips: a silent revert. Segmentation
+  // plus a computed intent make the op deterministic.
+
+  function isHeadingBlock(el) {
+    if (!el) return false;
+    var t = el.tagName;
+    if (t === 'H1' || t === 'H2' || t === 'H3' || t === 'H4' || t === 'H5' || t === 'H6') return true;
+    return el.getAttribute && el.getAttribute('data-block') === 'heading';
+  }
+
+  function formatSegments() {
+    var host = editHost();
+    if (!host) return [];
     var sel = window.getSelection();
-    if (!sel || !sel.rangeCount) return;
+    if (!sel || !sel.rangeCount) return [];
     var r = sel.getRangeAt(0);
-    if (r.collapsed) return;
-    var el = document.createElement(tag);
-    try { r.surroundContents(el); }
-    catch (err) { el.appendChild(r.extractContents()); r.insertNode(el); }
+    if (r.collapsed) return [];
+    var blocks = host.querySelectorAll('[data-block]');
+    var segs = [];
+    for (var i = 0; i < blocks.length; i++) {
+      var b = blocks[i];
+      // Top-level blocks only — a nested annotated element rides its parent's
+      // segment; citation islands are never format subjects (ADR-446 D3).
+      if (b.parentElement && b.parentElement.closest('[data-block]')) continue;
+      if (b.closest('[data-ref]')) continue;
+      var touches = false;
+      try { touches = r.intersectsNode(b); } catch (err) { touches = false; }
+      if (!touches) continue;
+      var sub = document.createRange();
+      sub.selectNodeContents(b);
+      // Clamp to the live range: the later start wins, the earlier end wins.
+      if (sub.compareBoundaryPoints(Range.START_TO_START, r) < 0) sub.setStart(r.startContainer, r.startOffset);
+      if (sub.compareBoundaryPoints(Range.END_TO_END, r) > 0) sub.setEnd(r.endContainer, r.endOffset);
+      if (!sub.collapsed) segs.push({ block: b, range: sub });
+    }
+    if (!segs.length) {
+      // A selection wholly inside ONE block — the common case, and every paged
+      // case (the enclosure grain caps the range at the editing block).
+      var anc = r.commonAncestorContainer;
+      var ancEl = anc && anc.nodeType === 1 ? anc : (anc ? anc.parentElement : null);
+      var own = ancEl && ancEl.closest ? ancEl.closest('[data-block]') : null;
+      segs.push({ block: own, range: r.cloneRange() });
+    }
+    return segs;
+  }
+
+  function applyToggle(cmd) {
+    var segs = formatSegments();
+    if (!segs.length) return;
+    var sel = window.getSelection();
+    var saved = null;
+    try { saved = sel.getRangeAt(0).cloneRange(); } catch (err) {}
+    var eligible = [];
+    for (var i = 0; i < segs.length; i++) {
+      // A heading is already bold — "bolding" it is a no-op, never an un-bold.
+      if (cmd === 'bold' && isHeadingBlock(segs[i].block)) continue;
+      eligible.push(segs[i]);
+    }
+    if (!eligible.length) return;
+    // Pass 1 — the intent: ANY eligible segment unformatted means APPLY
+    // everywhere (the Word rule); only a fully-formatted selection removes.
+    var intent = false;
+    for (var j = 0; j < eligible.length; j++) {
+      sel.removeAllRanges();
+      sel.addRange(eligible[j].range);
+      if (!document.queryCommandState(cmd)) { intent = true; break; }
+    }
+    // Pass 2 — enforce the intent; toggle only where the state differs. Never
+    // a blind per-segment toggle (that is exactly the h1 un-bold trap).
+    for (var k = 0; k < eligible.length; k++) {
+      sel.removeAllRanges();
+      sel.addRange(eligible[k].range);
+      if (document.queryCommandState(cmd) !== intent) document.execCommand(cmd);
+    }
+    if (saved) {
+      try { sel.removeAllRanges(); sel.addRange(saved); } catch (err2) {}
+    }
+  }
+
+  function segmentCoded(seg) {
+    var anc = seg.range.commonAncestorContainer;
+    var el = anc && anc.nodeType === 1 ? anc : (anc ? anc.parentElement : null);
+    return !!(el && el.closest && el.closest('code'));
+  }
+
+  function applyCode() {
+    var segs = formatSegments();
+    if (!segs.length) return;
+    var sel = window.getSelection();
+    var allCoded = true;
+    for (var i = 0; i < segs.length; i++) {
+      if (!segmentCoded(segs[i])) { allCoded = false; break; }
+    }
+    for (var j = 0; j < segs.length; j++) {
+      var seg = segs[j];
+      if (allCoded) {
+        var anc = seg.range.commonAncestorContainer;
+        var el = anc && anc.nodeType === 1 ? anc : (anc ? anc.parentElement : null);
+        var code = el && el.closest ? el.closest('code') : null;
+        if (code && code.parentNode) {
+          while (code.firstChild) code.parentNode.insertBefore(code.firstChild, code);
+          code.parentNode.removeChild(code);
+        }
+      } else if (!segmentCoded(seg)) {
+        var wrap = document.createElement('code');
+        try { seg.range.surroundContents(wrap); }
+        catch (err) {
+          // A partially-selected INLINE element (half a link, half an em):
+          // extract+insert is safe here because a segment never crosses a
+          // block boundary — the old cross-block mangle is unreachable.
+          wrap.appendChild(seg.range.extractContents());
+          seg.range.insertNode(wrap);
+        }
+      }
+    }
     sel.removeAllRanges();
+  }
+
+  // ── ADR-521 D5: the paste allowlist (gate 1 of 2) ─────────────────────
+  // Gate 2 is sanitizeInner at the commit (ADR-446 D2) — script, on* handlers
+  // and javascript: URLs cannot land even if this gate misses. This gate is
+  // the hygiene layer: only the tags the grammar speaks survive, every
+  // attribute is stripped (href survives with javascript: rejected), and
+  // media is dropped — media enters as CITED figures (ADR-427/448), never as
+  // anonymous pasted bytes.
+  var PASTE_DROP = { SCRIPT: 1, STYLE: 1, IFRAME: 1, OBJECT: 1, EMBED: 1, LINK: 1, META: 1, TITLE: 1, HEAD: 1, FORM: 1, INPUT: 1, BUTTON: 1, SELECT: 1, TEXTAREA: 1, IMG: 1, PICTURE: 1, VIDEO: 1, AUDIO: 1, SOURCE: 1, CANVAS: 1, SVG: 1, MATH: 1, TEMPLATE: 1, NOSCRIPT: 1 };
+  var PASTE_ALLOW = { P: 1, BR: 1, HR: 1, STRONG: 1, B: 1, EM: 1, I: 1, U: 1, S: 1, CODE: 1, PRE: 1, A: 1, UL: 1, OL: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1, BLOCKQUOTE: 1, TABLE: 1, THEAD: 1, TBODY: 1, TFOOT: 1, TR: 1, TH: 1, TD: 1, CAPTION: 1, DL: 1, DT: 1, DD: 1, FIGCAPTION: 1, SUP: 1, SUB: 1 };
+
+  function sanitizePastedHtml(html) {
+    var doc;
+    try { doc = document.implementation.createHTMLDocument(''); }
+    catch (err) { return ''; }
+    doc.body.innerHTML = html;
+    function scrub(parent) {
+      var kids = Array.prototype.slice.call(parent.children);
+      for (var i = 0; i < kids.length; i++) {
+        var el = kids[i];
+        if (PASTE_DROP[el.tagName]) { parent.removeChild(el); continue; }
+        scrub(el);
+        if (!PASTE_ALLOW[el.tagName]) {
+          // Unwrap: the wrapper dies, its (already-scrubbed) children stay.
+          while (el.firstChild) parent.insertBefore(el.firstChild, el);
+          parent.removeChild(el);
+          continue;
+        }
+        var atts = Array.prototype.slice.call(el.attributes);
+        for (var a = 0; a < atts.length; a++) {
+          var name = atts[a].name;
+          if (el.tagName === 'A' && name.toLowerCase() === 'href') {
+            var v = (el.getAttribute('href') || '').trim().toLowerCase();
+            if (v.indexOf('javascript:') === 0) el.removeAttribute('href');
+            continue;
+          }
+          el.removeAttribute(name);
+        }
+      }
+    }
+    scrub(doc.body);
+    return doc.body.innerHTML;
+  }
+
+  function richPaste(e) {
+    var cb = e.clipboardData || window.clipboardData;
+    if (!cb) return; // no clipboard object — let the browser default run
+    e.preventDefault();
+    var html = '';
+    try { html = cb.getData('text/html') || ''; } catch (err) {}
+    if (html) {
+      var clean = sanitizePastedHtml(html);
+      if (clean) {
+        try { document.execCommand('insertHTML', false, clean); return; } catch (err2) {}
+      }
+    }
+    var text = '';
+    try { text = cb.getData('text/plain') || ''; } catch (err3) {}
+    if (text && document.queryCommandSupported && document.queryCommandSupported('insertText')) {
+      document.execCommand('insertText', false, text);
+    }
   }
 
   function hideFmt() {
@@ -1778,9 +1947,9 @@ const EDIT_SCRIPT = `
 
   function applyFmt(op) {
     if (!editHost()) return; // ADR-480: the host is the block (paged) or the root (flow)
-    if (op === 'bold') document.execCommand('bold');
-    else if (op === 'italic') document.execCommand('italic');
-    else if (op === 'code') wrapSelection('code');
+    if (op === 'bold') applyToggle('bold');
+    else if (op === 'italic') applyToggle('italic');
+    else if (op === 'code') applyCode();
     else if (op === 'link') { openLink(); return; }
     scheduleCommit();
   }
@@ -1851,6 +2020,29 @@ const EDIT_SCRIPT = `
     var fz = window.__yarnnnZf ? window.__yarnnnZf() : 1;
     fmtBar.style.left = Math.max(4, (rect.left + window.scrollX) / fz) + 'px';
     fmtBar.style.top = Math.max(4, (rect.top + window.scrollY) / fz - 36) + 'px';
+  });
+
+  // ── ADR-521 D4: ⌘B/⌘I are the bar's op behind a key ───────────────────
+  // One implementation, N entrances (the ADR-511 D5 shape). Only a real
+  // SELECTION is intercepted: at a collapsed caret the browser's native
+  // type-ahead state is correct — there is no heterogeneous range, so the
+  // trap the D3 op exists for cannot fire there.
+  document.addEventListener('keydown', function (e) {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+    var op = null;
+    if (e.key === 'b' || e.key === 'B') op = 'bold';
+    else if (e.key === 'i' || e.key === 'I') op = 'italic';
+    if (!op) return;
+    var host = editHost();
+    if (!host) return;
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return; // caret: browser-native
+    var r = sel.getRangeAt(0);
+    var anc = r.commonAncestorContainer;
+    var ancEl = anc && anc.nodeType === 1 ? anc : (anc ? anc.parentElement : null);
+    if (!ancEl || !host.contains(ancEl)) return;
+    e.preventDefault();
+    applyFmt(op);
   });
 
   // ── ADR-456 W2: slash-insert (the Notion gesture) ─────────────────────
