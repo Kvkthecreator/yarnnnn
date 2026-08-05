@@ -1,6 +1,16 @@
 # ADR-522: The focus declaration — what the member is looking at, declared once, spoken by every app
 
-> **Status**: **Proposed** (2026-08-06). Derived from a live Studio session in which the
+> **Status**: **Accepted + Implemented** (2026-08-06, `7eeb39d`). All nine sites in §8
+> shipped in one commit. Gates: the ADR-522 gate (`api/test_adr522_focus_declaration.py`)
+> **falsified 4×** — 1-indexing, viewing-vs-selected, the flow-only heading rule, and the
+> undeclared-is-silent rule each broken in turn and each caught; prompt ratchets 14/14;
+> the studio/lane suite 67 pytest + 7 script gates green; `next build` clean; the no-focus
+> posture verified byte-identical to pre-ADR-522. **The operator click-pass is the one open
+> item** — human-driven by necessity (the flow runtime lives in an opaque-origin iframe that
+> synthesized keys cannot drive, ADR-521's finding). Acceptance: open a deck, page to slide 4
+> in stage view, select nothing, ask "tidy up this slide"; then in Docs, put the caret under
+> a heading and ask "rewrite this section."
+> Derived from a live Studio session in which the
 > operator wrote "tidy up this slide" and the agent had to ask *which slide* — the deck was
 > open, a slide was on the stage, and none of that left the browser. The audit that followed
 > found the gap is structural, not a regression: the lane wire has no field for view context
