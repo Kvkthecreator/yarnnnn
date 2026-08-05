@@ -63,6 +63,9 @@ coordinate space), **document** (`flow`, one continuous writing surface), **web*
 (`paged`, full-width bands, viewport — band-first, never object-first). `mode` answers
 *does this type have page units*; the FRAME answers *is there a coordinate space*
 (`block-staged` = `.slide` ancestry) — two axes, deliberately not one (ADR-505 D3).
+**A deck edits on the STAGE** (ADR-520 D1): the canvas shows ONE slide (the
+PowerPoint/Figma norm; view state, never bytes — the zoom rule); the navigator filmstrip
+is the sequence; ‹ › chrome + PgUp/PgDn page the stage. Web stays a scroll.
 
 Legend: ✅ shipped · 🔜 declared (built when its phase lands, never by accident) ·
 🚫 refused (a decision, not a gap).
@@ -90,7 +93,7 @@ Legend: ✅ shipped · 🔜 declared (built when its phase lands, never by accid
 | | deck | document | web |
 |---|---|---|---|
 | block | ✅ accented box + 8 handles + border-band move; persists through editing (dashed = text mode, P11); `positioned` corner tag when out of flow (ADR-511 D4) | ✅ neutral outline on OBJECT kinds only; prose selection is the caret/range | ✅ box, static variant (no move — no stage) |
-| container | ✅ static box — border only, NO handles, NO move band (ADR-516 D5: the chrome must not promise gestures the grain lacks) | — | ✅ same |
+| container | ✅ **staged: box + 8 resize handles, NO move band** (ADR-520 D2 — w/h through the same two-clamp measures + numeric fields; move stays reorder-shaped) | — | ✅ static box — border only (ADR-516 D5; no frame off the stage) |
 | page | ✅ Design-tab scope + strip highlight | — | ✅ |
 | group | ✅ same neutral rule on every member | 🚫 (browser range-selection owns flow) | ✅ |
 
@@ -128,9 +131,9 @@ learns the panel once.
 
 | section | document | page | container | block | mechanism |
 |---|---|---|---|---|---|
-| **Identity** — label + verb row | name + file verbs (every scope) | ✅ verbs (dup/up/down/delete) | ✅ verbs (dup/delete — Phase A parity; ops were right-click-only) | ✅ verbs | existing id-addressed ops |
-| **Position** — In flow \| Positioned · X/Y readback | — | — | — | ✅ deck-staged only (numeric *entry* = Phase C) | measures, two-clamp |
-| **Layout** | — | ✅ padding + vertical-align (slide) / spacing (band) · columns ratio | ✅ padding/gap/align/justify/width Hug\|Fill (direction = Phase C) | size Hug\|Fill · width/align tokens · W/H readback | **inline-CSS presets, one op** (ADR-516) · tokens |
+| **Identity** — label + **path + Contents** (ADR-520 D4: the structure's ONE home; the navigator is the filmstrip) + verb row | name + file verbs (every scope) | ✅ verbs · Contents | ✅ path · verbs · Contents | ✅ path · verbs | existing id-addressed ops; path = the breadcrumb's climbChain |
+| **Position** — In flow \| Positioned · X/Y **fields** (ADR-520 D3: numeric entry, two-clamp) | — | — | — | ✅ deck-staged only | measures, two-clamp |
+| **Layout** | — | ✅ padding + vertical-align glyphs (slide) / spacing (band) · columns ratio | ✅ padding/gap/**align+justify glyph rows**/width Hug\|Fill · **W/H fields (staged — ADR-520 D2)** (direction = Phase C) | size Hug\|Fill · width/align tokens · **W/H fields** | **inline-CSS presets, one op** (ADR-516) · tokens |
 | **Style** | typography faces · measure/pagenum · design system (worn, not listed — ADR-487 D9) | tone · scrim/focus | — | typography ramp · tone/variant swatches | tokens (meaning — ADR-516 D6 boundary) |
 | **Content** | — | background citation | media picker (media-role regions) | turn-into | existing |
 
@@ -227,6 +230,12 @@ it just a better editor?*
 
 The standing Phase-3 cells are absorbed into ADR-519's schedule; cells are marked
 shipped here only as they land.
+
+- ✅ **ADR-520 (2026-08-05)** — the stage view (deck shows one slide) · staged
+  containers adjustable (w/h handles + fields; amends ADR-516 D7 to *unstaged*
+  containers) · numeric X/Y/W/H entry (lands ADR-519 Phase C's item early) ·
+  alignment glyph rows · path + Contents in the pane's Identity; the navigator's
+  structure tree DELETED (the rail is the sequence).
 
 - **Phase A — the spine** (pure FE recomposition): the pane matrix above · container
   verb-row parity · X/Y readback.
